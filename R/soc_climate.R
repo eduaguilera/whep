@@ -5,6 +5,18 @@
 # (plans/ref-module-b-soc-climate-spec.md); two sign/normalization
 # reconstructions are flagged inline (AMG bT sign, ICBM 30-degree anchor).
 
+# The topsoil layer every soil-carbon quantity in this package is defined over,
+# in metres. It is load-bearing rather than cosmetic: RothC's published maximum
+# topsoil-moisture-deficit expression is calibrated for its own 0-23 cm layer,
+# and the `* soil_depth_m * 100 / 23` factor below IS the rescaling to this
+# depth (at 0.23 it reproduces the published value exactly). Kept as one
+# accessor because the vectorised production path in `.cb_climate_modifier_*()`
+# reimplements the same expression, and the two drifting apart would change the
+# decomposition rate of every cell without changing any documented default.
+.soc_topsoil_depth_m <- function() {
+  0.3
+}
+
 #' Compute the RothC and HSOC annual climate rate modifier.
 #'
 #' @description
@@ -21,7 +33,9 @@
 #' @param soil_cover Vegetated soil-cover fraction (0 bare, 1 fully covered);
 #'   a scalar or monthly series.
 #' @param soil_depth_m Topsoil depth over which the moisture deficit is
-#'   accumulated (metres). Defaults to 0.3.
+#'   accumulated (metres). Defaults to 0.3, the layer every soil-carbon stock
+#'   in this package is defined over; RothC's published expression is
+#'   calibrated on its own 0-23 cm layer and is rescaled to this depth.
 #' @return The annual mean of the monthly a*b*c product (a single numeric).
 #' @source Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
 #'   turnover of carbon in soil. \doi{10.1007/978-3-642-61094-3_17}. Moisture
@@ -40,7 +54,7 @@ soc_rate_modifier_rothc <- function(
   water_minus_pet_mm,
   clay_pct,
   soil_cover,
-  soil_depth_m = 0.3
+  soil_depth_m = .soc_topsoil_depth_m()
 ) {
   # The RothC response is undefined at -18.27 C and only applies above that
   # lower bound. Evaluating the expression below the vertical asymptote wraps
@@ -133,9 +147,27 @@ soc_rate_modifier_amg <- function(temp_c, water_balance_mm) {
 #'
 #' @description
 #' Annual Century DEFAC rate-modifying factor: the original monthly-Century
-#' Poisson temperature factor (normalized to 1 at the 35 degree optimum) and
-#' the precipitation-over-evapotranspiration logistic moisture factor,
-#' multiplied and averaged over the supplied series.
+#' Poisson temperature factor (which is 1 at the 35 degree optimum) and the
+#' precipitation-over-evapotranspiration logistic moisture factor, multiplied
+#' and averaged over the supplied series.
+#'
+#' Both terms are SoilR's, and so is their pairing. Sierra et al. (2012)
+#' Table 1 lists two Century temperature functions: \code{fT.Century1},
+#' attributed to Burke et al. (2003), and \code{fT.Century2}, attributed to
+#' Adair et al. (2008), which is the same expression multiplied by 3.439.
+#' This function implements \code{fT.Century1}, which carries no such
+#' prefactor; the moisture term is \code{fW.Century} verbatim; and
+#' \code{fT.Century1 * fW.Century} is exactly the climate decomposition index
+#' Sierra et al. compute in their own Sect. 4.4. The rate constants this
+#' modifier scales are SoilR's Century defaults as well
+#' (\code{whep::soc_turnover_params}: 0.094, 0.35, 0.14, 0.0038 and 0.00013
+#' per week for the structural, metabolic, active, slow and passive pools),
+#' so rates and modifier come from one implementation rather than two.
+#'
+#' What that does NOT establish is the calibration basis of the weekly rates
+#' themselves: whether Parton et al. (1987) publishes them as the maxima
+#' reached at DEFAC = 1. If they are not, every Century stock is biased high.
+#' That question needs the paper and is open as whep#345.
 #'
 #' @param temp_c Numeric monthly air (or soil-surface) temperature series
 #'   (degrees Celsius).
@@ -146,7 +178,15 @@ soc_rate_modifier_amg <- function(temp_c, water_balance_mm) {
 #' @source Parton, W. J., Schimel, D. S., Cole, C. V. & Ojima, D. S. (1987).
 #'   \doi{10.2136/sssaj1987.03615995005100050015x}; SoilR implementation:
 #'   Sierra, C. A., Mueller, M. & Trumbore, S. E. (2012).
-#'   \doi{10.5194/gmd-5-1045-2012}.
+#'   \doi{10.5194/gmd-5-1045-2012}. Temperature function
+#'   (\code{fT.Century1}): Burke, I., Kaye, J., Bird, S., Hall, S.,
+#'   McCulley, R. & Sommerville, G. (2003). Evaluating and testing models of
+#'   terrestrial biogeochemistry: the role of temperature in controlling
+#'   decomposition. In *Models in Ecosystem Science*, Princeton University
+#'   Press. The 3.439-scaled variant \code{fT.Century2}, which this function
+#'   does NOT implement: Adair, E., Parton, W., Del Grosso, S., Silver, W.,
+#'   Harmon, M., Hall, S., Burke, I. & Hart, S. (2008).
+#'   \doi{10.1111/j.1365-2486.2008.01674.x}.
 #' @export
 #' @examples
 #' soc_rate_modifier_century(
@@ -158,6 +198,50 @@ soc_rate_modifier_century <- function(temp_c, precip_mm, pet_mm) {
   t_factor <- .century_temperature_factor(temp_c)
   w_factor <- 1 / (1 + 30 * exp(-8.5 * (precip_mm / pet_mm)))
   mean(t_factor * w_factor, na.rm = TRUE)
+}
+
+#' Compute the LPJmL annual decomposition response.
+#'
+#' @description
+#' Annual mean of LPJmL's per-time-step decomposition response: a modified
+#' Arrhenius temperature function after Lloyd and Taylor (1994), multiplied by a
+#' cubic function of the soil's degree of saturation, and **capped at 1**.
+#'
+#' Three properties matter when reading the result. The temperature term is
+#' normalised so that it is exactly 1 at 10 degrees Celsius, which is what the
+#' "at 10 degrees" in LPJmL's rate constants refers to. The moisture term is not
+#' normalised at all and peaks at 0.937. And the cap is imposed by LPJmL's
+#' source rather than by its published equations: it binds from about 10.7
+#' degrees at optimal moisture, so every warm, well-watered cell returns exactly
+#' 1 and the fast pool cannot turn over faster than its nominal rate. The cap is
+#' applied per time step, before averaging, because capping the mean is a
+#' different function.
+#'
+#' @param temp_soil_c Numeric soil temperature series (degrees Celsius). LPJmL
+#'   drives this with per-layer **soil** temperature, not air temperature; the
+#'   two differ in both damping and lag, so supplying air temperature is a
+#'   substitution the caller is making, not a detail.
+#' @param theta Numeric series of the soil's degree of saturation (0-1), as
+#'   LPJmL's fractional soil water content reports it. Use it raw; it is already
+#'   a saturation fraction, not a volumetric content needing a porosity divisor.
+#' @return The annual mean of the capped temperature-by-moisture product (a
+#'   single numeric).
+#' @source Schaphoff, S. et al. (2018). LPJmL4 - a dynamic global vegetation
+#'   model with managed land - Part 1: Model description. *Geoscientific Model
+#'   Development*, 11, 1343-1375. \doi{10.5194/gmd-11-1343-2018}, Eq. 45
+#'   (temperature) and Eq. 96 (moisture); temperature form after Lloyd, J. &
+#'   Taylor, J. A. (1994). \doi{10.2307/2389824}. The cap at 1 is in LPJmL's
+#'   source (\code{src/soil/littersom.c}) and not in the published equations.
+#' @export
+#' @examples
+#' soc_rate_modifier_lpjml(
+#'   temp_soil_c = c(2, 12, 22),
+#'   theta = c(0.3, 0.5, 0.6)
+#' )
+soc_rate_modifier_lpjml <- function(temp_soil_c, theta) {
+  g <- .lpjml_temperature_factor(temp_soil_c)
+  f <- .lpjml_moisture_factor(theta)
+  mean(pmin(pmax(g * f, 0), 1), na.rm = TRUE)
 }
 
 # -- Private helpers ----------------------------------------------------------
@@ -217,6 +301,11 @@ soc_rate_modifier_century <- function(temp_c, precip_mm, pet_mm) {
   1 / (1 + a_h * exp(-b_h * water_balance_mm / 1000))
 }
 
+# SoilR's `fT.Century1` (Burke et al. 2003). It needs no normalising constant:
+# writing r for the ratio below, d(log f)/dr = 0.2 * (1/r - r^1.62), which
+# vanishes only at r = 1, so the factor peaks at exactly 1.000 at t_opt. The
+# 3.439 prefactor belongs to the sibling `fT.Century2` (Adair et al. 2008) and
+# is not a coefficient dropped from this one (whep#345).
 .century_temperature_factor <- function(temp_c) {
   t_max <- 45
   t_opt <- 35
@@ -225,4 +314,27 @@ soc_rate_modifier_century <- function(temp_c, precip_mm, pet_mm) {
   # produce NaN.
   ratio <- pmax((t_max - temp_c) / (t_max - t_opt), 0)
   ratio^0.2 * exp((0.2 / 2.63) * (1 - ratio^2.63))
+}
+
+# LPJmL's modified Arrhenius temperature response (Schaphoff et al. 2018 Eq. 45,
+# src/soil/temp_response.c). The 10 added to temp_response is what makes g(10)
+# exactly 1. Above 40 degrees the response is held flat and below -15 it is
+# zero, both as the source does; the expression itself is unbounded above and
+# reaches 4.26 at 30 degrees.
+.lpjml_temperature_factor <- function(temp_soil_c) {
+  ifelse(
+    temp_soil_c < -15,
+    0,
+    exp(308.56 * (1 / 56.02 - 1 / (pmin(temp_soil_c, 40) + 46.02)))
+  )
+}
+
+# Cubic in the degree of saturation (Schaphoff et al. 2018 Eq. 96, constants
+# from include/soil.h). Not normalised: it peaks at 0.937 near saturation 0.64
+# and falls to 0.040 dry and 0.023 waterlogged.
+.lpjml_moisture_factor <- function(theta) {
+  0.04021601 -
+    5.00505434 * theta^3 +
+    4.26937932 * theta^2 +
+    0.71890122 * theta
 }

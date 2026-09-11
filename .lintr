@@ -4,4 +4,4 @@ linters: linters_with_defaults(
     indentation_linter = NULL,
     commas_linter = NULL
   )
-exclusions: list("inst/scripts", "inst/analysis")
+exclusions: list("inst/scripts", "inst/analysis", "validation")

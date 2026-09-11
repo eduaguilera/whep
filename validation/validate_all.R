@@ -17,26 +17,7 @@ source("validation/variables.R")
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)
-# The production build is NOT triggered here on purpose: it takes minutes to
-# hours and reads pins, which is not something a validation sweep should start
-# without being asked. But a bare readRDS() on a missing cache dies inside
-# gzfile() naming only a path, which reads as corruption rather than as setup
-# not done -- so say which it is.
-production_cache <- sprintf(
-  ".whep_cache/primary_prod_%d_%d.rds",
-  year_min,
-  year_max
-)
-if (!file.exists(production_cache)) {
-  cli::cli_abort(c(
-    "No cached WHEP production at {.path {production_cache}}.",
-    i = "{.path .whep_cache/} is gitignored, so a fresh checkout has none.",
-    i = "Build it once with {.code Rscript validation/rank_countries.R}, or set
-         {.envvar VAL_YEAR_MIN}/{.envvar VAL_YEAR_MAX} to a window you have."
-  ))
-}
-production <- readRDS(production_cache)
-lookups <- whep_validation_lookups()
+
 # The scorecard accumulates across ~15 independent checks, so `add()` has to
 # reach outside itself. It writes into a named environment rather than using
 # `<<-`: the target is then stated at the call site instead of resolved by
@@ -55,6 +36,115 @@ add <- function(variable, archetype, n, ok, flag, note) {
   )
   invisible()
 }
+print_scorecard <- function() {
+  cat("\n=== WHEP validation scorecard ===\n")
+  dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+}
+
+# 0. LPJmL-derived input pins (contract + invariant + baseline) ---------------
+# First, and above the production-cache abort below, on purpose. Every other
+# check in this sweep scores WHEP against an external statistic -- FAOSTAT,
+# GAEZ, MapSPAM, USDA PSD -- and none of them reads an LPJmL pin, so a pin
+# swap that moves every downstream SOC number passes the whole scorecard
+# silently. That is #559, and the check is needed loudest exactly when the
+# pins have just been repointed: the moment a checkout is most likely to be
+# fresh and to hold no production cache at all. Placed after the abort below,
+# it would never run then.
+pins_out <- tryCatch(
+  system2("Rscript", "validation/lpjml_pins.R", stdout = TRUE, stderr = FALSE),
+  error = function(e) character(0)
+)
+pins_metric <- grep("^METRIC", pins_out, value = TRUE)
+if (length(pins_metric) == 1L) {
+  pin_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9]+).*"), "\\1", pins_metric))
+  }
+  # Echoed, not merely scored: the per-pin detail says WHICH pin moved and by
+  # how much, and the abort below can end the run before the scorecard prints.
+  cat(grep("^METRIC", pins_out, value = TRUE, invert = TRUE), sep = "\n")
+  add(
+    "lpjml_pins",
+    "contract",
+    pin_num("pins_checked"),
+    pin_num("pins_ok"),
+    pin_num("pins_checked") - pin_num("pins_ok"),
+    "LPJmL-derived input pins vs recorded contract and baseline (#559)"
+  )
+} else {
+  add(
+    "lpjml_pins",
+    "contract",
+    NA,
+    NA,
+    NA,
+    "no METRIC line; needs the pins board (validation/lpjml_pins.R)"
+  )
+}
+
+# 0b. Packaged coefficients vs their upstream workbooks ----------------------
+# Also above the abort, and for the same reason as section 0: this reads an
+# artifact outside the repository, so it is the one check a fresh checkout
+# most needs and the one the test suite is forbidden to make (#490).
+#
+# `test_data_raw_freshness.R` proves each data/*.rda matches its builder from
+# the inputs IN the repo. It cannot see a CSV and an .rda that agree with each
+# other and are both stale against a workbook in another repository, which is
+# what #524 found: 92 changed cells sat unreported for four months.
+coef_out <- tryCatch(
+  system2(
+    "Rscript",
+    "validation/upstream_coefs.R",
+    stdout = TRUE,
+    stderr = FALSE
+  ),
+  error = function(e) character(0)
+)
+coef_metric <- grep("^METRIC", coef_out, value = TRUE)
+if (length(coef_metric) == 1L) {
+  coef_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9]+).*"), "\\1", coef_metric))
+  }
+  cat(grep("^METRIC", coef_out, value = TRUE, invert = TRUE), sep = "\n")
+  add(
+    "upstream_coefs",
+    "contract",
+    coef_num("sources_checked"),
+    coef_num("sources_ok"),
+    coef_num("drifted") + coef_num("unavailable"),
+    "packaged coefficient tables vs their upstream workbooks (#524)"
+  )
+} else {
+  add(
+    "upstream_coefs",
+    "contract",
+    NA,
+    NA,
+    NA,
+    "no METRIC line; see validation/upstream_coefs.R"
+  )
+}
+
+# The production build is NOT triggered here on purpose: it takes minutes to
+# hours and reads pins, which is not something a validation sweep should start
+# without being asked. But a bare readRDS() on a missing cache dies inside
+# gzfile() naming only a path, which reads as corruption rather than as setup
+# not done -- so say which it is.
+production_cache <- sprintf(
+  ".whep_cache/primary_prod_%d_%d.rds",
+  year_min,
+  year_max
+)
+if (!file.exists(production_cache)) {
+  print_scorecard()
+  cli::cli_abort(c(
+    "No cached WHEP production at {.path {production_cache}}.",
+    i = "{.path .whep_cache/} is gitignored, so a fresh checkout has none.",
+    i = "Build it once with {.code Rscript validation/rank_countries.R}, or set
+         {.envvar VAL_YEAR_MIN}/{.envvar VAL_YEAR_MAX} to a window you have."
+  ))
+}
+production <- readRDS(production_cache)
+lookups <- whep_validation_lookups()
 
 # 1. stability (internal) ------------------------------------------------------
 stab <- system2(
@@ -444,5 +534,4 @@ if (length(nour_metric) == 1L) {
   )
 }
 
-cat("\n=== WHEP validation scorecard ===\n")
-dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+print_scorecard()

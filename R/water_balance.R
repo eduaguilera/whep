@@ -105,6 +105,16 @@
 #'   Read the latter with
 #'   `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
 #'   names their CFT bands so `bands` can select among them.
+#'
+#'   Supplying any per-CFT cube also requires `stand_frac` (`lon`, `lat`,
+#'   `year`, `band_name` or `band`, `value`), the per-CFT stand area
+#'   fractions, read by default with
+#'   `read_lpjml_hydrology("stand_frac", monthly = FALSE)`. Every per-CFT cube
+#'   is a density per square metre of ITS OWN STAND, so its bands must be
+#'   weighted by these fractions before they are summed to a cell. Without
+#'   them the aggregation aborts rather than returning an unweighted sum,
+#'   which is not a whole-cell total at all: it overstates by
+#'   1 / (managed fraction of the cell).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`,
@@ -266,7 +276,8 @@ get_soc_climate_drivers <- function(
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
-  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
+  soil_temp <- .socd_soil_temp(data, run_dir, years)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic, soil_temp) |>
     .apply_polity_validity(polity_validity)
 }
 
@@ -411,6 +422,7 @@ get_soc_climate_drivers <- function(
   if (identical(method$blue_green, "cft_native")) {
     .wb_warn_rainfed_blue(data$cft_consump_water_b, data$cft_consump_water_g)
   }
+  stand_frac <- .wb_stand_frac(data)
   band_inputs <- list(
     consump_blue_mm = data$cft_consump_water_b,
     consump_green_mm = data$cft_consump_water_g,
@@ -420,15 +432,16 @@ get_soc_climate_drivers <- function(
     purrr::map(band_inputs, .wb_filter_bands, bands = bands),
     names(band_inputs),
     .wb_join_cell_band,
-    .init = wide
+    .init = wide,
+    stand_frac = stand_frac
   )
-  .wb_attach_cell_consump(out, data, bands)
+  .wb_attach_cell_consump(out, data, bands, stand_frac)
 }
 
 # Attach the all-band (whole-cell) blue/green consumptive totals the AET split
 # uses. When no bands were selected these equal the reported columns, so they
 # are copied rather than re-summed.
-.wb_attach_cell_consump <- function(out, data, bands) {
+.wb_attach_cell_consump <- function(out, data, bands, stand_frac = NULL) {
   if (is.null(bands)) {
     return(dplyr::mutate(
       out,
@@ -444,8 +457,35 @@ get_soc_climate_drivers <- function(
     cell_inputs,
     names(cell_inputs),
     .wb_join_cell_band,
-    .init = out
+    .init = out,
+    stand_frac = stand_frac
   )
+}
+
+# The per-CFT stand fractions, needed to weight every other per-CFT cube.
+#
+# Read only when a per-CFT input is actually present, so a caller who never
+# asks for consumptive water or the net irrigation requirement still needs no
+# run directory.
+.wb_stand_frac <- function(data) {
+  cubes <- list(
+    data$cft_consump_water_b,
+    data$cft_consump_water_g,
+    data$cft_nir
+  )
+  cubes <- purrr::compact(cubes)
+  if (length(cubes) == 0L) {
+    return(NULL)
+  }
+  if (!is.null(data$stand_frac)) {
+    return(data$stand_frac)
+  }
+  # Restricted to the years the supplied cubes actually cover. Unrestricted,
+  # this read pulls all 274 years of cftfrac.nc into long form -- measured at
+  # 40+ GB resident on 2026-09-01, when a test fixture that forgot to inject
+  # stand_frac reached this fallback and exhausted the machine.
+  years <- sort(unique(unlist(purrr::map(cubes, \(x) unique(x$year)))))
+  read_lpjml_hydrology("stand_frac", years = years, monthly = FALSE)
 }
 
 # Keep only the named CFT bands of a per-CFT input before it is summed to the
@@ -486,8 +526,8 @@ get_soc_climate_drivers <- function(
 # default would cost every caller for an unused column. cft_nir_mm is NA unless
 # `data$cft_nir` is supplied as a cell-year (or per-band) `lon`,`lat`,`year`,
 # `value` tibble.
-.wb_join_cell_band <- function(wide, raw, out_col) {
-  summed <- .wb_cell_consump(raw, out_col)
+.wb_join_cell_band <- function(wide, raw, out_col, stand_frac = NULL) {
+  summed <- .wb_cell_consump(raw, out_col, stand_frac)
   if (is.null(summed)) {
     dplyr::mutate(wide, "{out_col}" := NA_real_)
   } else {
@@ -497,15 +537,122 @@ get_soc_climate_drivers <- function(
 
 # Sum a per-CFT consumptive-water input over its crop bands to a cell-year
 # total named `out_col`. Returns NULL when the input is absent.
-.wb_cell_consump <- function(raw, out_col) {
+# Sum a per-CFT cube to a whole-cell density.
+#
+# Every per-CFT cube is a density per square metre of ITS OWN STAND, so the
+# bands must be weighted by their stand fractions before they are added. A
+# bare sum() was used here until 2026-09-01 and overstated all three columns
+# by 1 / (managed fraction of the cell): a median 2.7x, 235x at the 95th
+# percentile and up to 1000x on cells with a sliver of cropland. In aggregate
+# it put consumptive blue+green water at 7.1 TIMES whole-cell
+# evapotranspiration, which is impossible; weighted it is 0.28x, which is
+# what cropland's share of global ET looks like.
+.wb_cell_consump <- function(raw, out_col, stand_frac) {
   if (is.null(raw)) {
     return(NULL)
   }
   raw |>
+    .wb_weight_by_stand(out_col, stand_frac) |>
     dplyr::summarise(
-      "{out_col}" := sum(value),
-      .by = c(lon, lat, year)
+      "{out_col}" := sum(.data$weighted),
+      .by = c("lon", "lat", "year")
     )
+}
+
+# Attach each band's stand fraction and form the area-weighted contribution.
+#
+# Refuses rather than falling back to an unweighted sum: the unweighted number
+# is not a worse estimate of a cell total, it is a different quantity with the
+# wrong units, and it looks entirely plausible in isolation.
+.wb_weight_by_stand <- function(raw, out_col, stand_frac) {
+  if (is.null(stand_frac)) {
+    cli::cli_abort(c(
+      "No stand fractions available to weight {.field {out_col}}.",
+      x = "Per-CFT cubes are per-STAND densities; summing them unweighted",
+      x = "overstates a cell by 1 / its managed fraction.",
+      i = "Supply {.code data$stand_frac}, or a {.arg run_dir} holding",
+      i = "{.file cftfrac.nc}."
+    ))
+  }
+  key <- .wb_band_key(raw, stand_frac)
+  .check_columns(
+    stand_frac,
+    c("lon", "lat", "year", key, "value"),
+    "data$stand_frac"
+  )
+  raw |>
+    dplyr::left_join(
+      dplyr::select(
+        stand_frac,
+        "lon",
+        "lat",
+        "year",
+        dplyr::all_of(key),
+        stand_frac = "value"
+      ),
+      by = c("lon", "lat", "year", key)
+    ) |>
+    .wb_check_stand_match(out_col, key) |>
+    dplyr::mutate(
+      weighted = .data$value * dplyr::coalesce(.data$stand_frac, 0)
+    )
+}
+
+# An UNMATCHED band is an input defect, never a real zero, so say so before
+# the coalesce hides it.
+#
+# `read_lpjml_hydrology("stand_frac")` filters nothing, so cftfrac.nc supplies
+# all 32 bands for every cell-year including the zero-area ones: a band with no
+# stand genuinely present joins, carrying value 0. A row that fails to join
+# therefore means the two sides disagree about coverage -- a stand_frac table
+# restricted to fewer years, or band names that differ by whitespace -- and
+# zero-filling it deletes that band's water silently. It cannot be caught
+# downstream either: the result is 0 rather than NA, so `.wb_has_cft_consump()`
+# still reports the split as usable and publishes `aet_blue_mm = 0`, a fully
+# rainfed world that looks entirely plausible. This warns rather than aborts
+# because a caller may legitimately supply a narrower cube than its weights,
+# but it names what failed so the zero is never silent.
+.wb_check_stand_match <- function(joined, out_col, key) {
+  bad <- joined[is.na(joined$stand_frac) & joined$value > 0, ]
+  if (nrow(bad) == 0L) {
+    return(joined)
+  }
+  bands <- sort(unique(as.character(bad[[key]])))
+  yrs <- sort(unique(bad$year))
+  n_bad <- nrow(bad)
+  # One quantity per message element: cli pluralises against the single
+  # vector in the string, and two in one element is an error, not a guess.
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n_bad)}{n_bad} {out_col} row{?s} carry water but match
+           no stand fraction, so that water is dropped.",
+    i = "Unmatched {cli::qty(length(bands))}band{?s}:
+         {.val {utils::head(bands, 5)}}.",
+    i = "In {cli::qty(length(yrs))}year{?s} {.val {utils::head(yrs, 5)}}.",
+    i = "An unmatched band is an input mismatch, not a zero-area stand: a
+         zero-area band still appears in {.file cftfrac.nc} with value 0."
+  ))
+  joined
+}
+
+# Which column identifies a band on both sides.
+#
+# `band_name` when both carry it, because a band index means whatever the run
+# was configured to mean. Falling back to `band` is safe only because both
+# cubes come from the SAME run, which is the one case where the index is
+# stable; a cube carrying neither cannot be weighted at all.
+.wb_band_key <- function(raw, stand_frac) {
+  both <- \(col) rlang::has_name(raw, col) && rlang::has_name(stand_frac, col)
+  if (both("band_name")) {
+    return("band_name")
+  }
+  if (both("band")) {
+    return("band")
+  }
+  cli::cli_abort(c(
+    "Cannot tell which band each row belongs to.",
+    i = "Weighting needs {.field band_name} (preferred) or {.field band} on",
+    i = "both the per-CFT cube and {.code data$stand_frac}."
+  ))
 }
 
 # Coerce one flux input to annual cell-year totals named `name`. Monthly inputs
@@ -1019,13 +1166,15 @@ get_soc_climate_drivers <- function(
   if (!.socd_needs_pin(data, run_dir)) {
     return(NULL)
   }
-  raw <- .read_lpjml_pin(.socd_hydro_alias())
+  raw <- .read_lpjml_pin(.socd_hydro_alias(), years = years)
   .check_columns(
     raw,
     c("lon", "lat", "year", "month", "swc_topsoil", "prec_mm", "irrig_mm"),
     .socd_hydro_alias()
   )
-  .filter_years_if_present(tibble::as_tibble(raw), years)
+  # `whep_read_file()` pushed `years` into the parquet and applied the exact
+  # set, so filtering again here would be a no-op.
+  tibble::as_tibble(raw)
 }
 
 # Pull one column out of the pinned monthly table as the (lon, lat, year,
@@ -1070,8 +1219,15 @@ get_soc_climate_drivers <- function(
 # every polity it overlaps. theta (volumetric soil water content, the ICBM
 # moisture driver) is the LPJmL topsoil fractional saturation times the cell's
 # derived porosity: theta = swc_topsoil * porosity.
-.assemble_soc_drivers <- function(swc, monthly, clay, polity, hydraulic) {
-  swc |>
+.assemble_soc_drivers <- function(
+  swc,
+  monthly,
+  clay,
+  polity,
+  hydraulic,
+  soil_temp = NULL
+) {
+  out <- swc |>
     dplyr::inner_join(monthly, by = c("lon", "lat", "year", "month")) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
     dplyr::inner_join(
@@ -1079,25 +1235,95 @@ get_soc_climate_drivers <- function(
       by = c("lon", "lat")
     ) |>
     dplyr::left_join(hydraulic, by = c("lon", "lat")) |>
-    dplyr::mutate(theta = .data$swc_topsoil * .data$porosity) |>
-    dplyr::select(
-      lon,
-      lat,
-      area_code,
-      year,
-      month,
-      temp_c,
-      swc_topsoil,
-      precip_mm,
-      pet_mm,
-      water_minus_pet_mm,
-      water_balance_mm,
-      clay_pct,
-      theta,
-      t_field,
-      t_wilt,
-      porosity,
-      method_water_input
+    dplyr::mutate(theta = .data$swc_topsoil * .data$porosity)
+  if (!is.null(soil_temp)) {
+    out <- dplyr::left_join(
+      out,
+      soil_temp,
+      by = c("lon", "lat", "year", "month")
+    )
+  }
+  dplyr::select(
+    out,
+    lon,
+    lat,
+    area_code,
+    year,
+    month,
+    temp_c,
+    dplyr::any_of("temp_soil_c"),
+    swc_topsoil,
+    precip_mm,
+    pet_mm,
+    water_minus_pet_mm,
+    water_balance_mm,
+    clay_pct,
+    theta,
+    t_field,
+    t_wilt,
+    porosity,
+    method_water_input
+  )
+}
+
+# Soil temperature for the 0-30 cm carbon pool, depth-weighted across the two
+# LPJmL layers that span it.
+#
+# Confirmed from this run's own configuration rather than assumed: LPJmL 6.1.1
+# `soildepth` is [200, 300, 500, 1000, 1000, 10000] mm, so layer 1 is 0-20 cm
+# and layer 2 is 20-50 cm. The pool takes all 20 cm of the first and the top
+# 10 cm of the second, hence (2 * soiltemp1 + soiltemp2) / 3.
+#
+# Only reachable from a run directory. The `lpjml-soc-hydrology` pin carries
+# swc_topsoil, prec_mm and irrig_mm and no soil temperature, so on the pinned
+# path this returns NULL and `soc_rate_modifier_lpjml()`'s caller aborts rather
+# than silently running at a neutral modifier (whep#1006). Wiring it into the
+# pin means regenerating all four LPJmL-derived pins together.
+.socd_soil_temp <- function(data, run_dir, years) {
+  if (!is.null(data$soil_temp)) {
+    .check_columns(
+      data$soil_temp,
+      c("lon", "lat", "year", "month", "temp_soil_c"),
+      "data$soil_temp"
+    )
+    return(tibble::as_tibble(data$soil_temp))
+  }
+  # Read ONLY when the caller asked for a run explicitly. Falling back to
+  # WHEP_LPJML_RUN_DIR here would make every caller that injected its own data
+  # reach for NetCDF files anyway -- which is what happened: the test suite
+  # injects `data` and passes no `run_dir`, but the env var is set on a
+  # developer machine, so this read fired and the suite began reading multi-GB
+  # rasters. CLAUDE.md forbids exactly that ("the suite must never reach the
+  # network or read a WHEP_* path"), and it stalled a gate run for 40 minutes
+  # before anyone noticed.
+  #
+  # Nothing is lost by being explicit: soil temperature has one consumer,
+  # `model = "lpjml"`, which aborts with an instruction when the driver is
+  # absent rather than running climate-blind.
+  if (is.null(run_dir)) {
+    return(NULL)
+  }
+  layers <- purrr::map(
+    c("soiltemp1", "soiltemp2"),
+    \(v) {
+      read_lpjml_hydrology(v, run_dir = run_dir, years = years, monthly = TRUE)
+    }
+  )
+  # A reader yielding nothing for a layer means the run does not write it.
+  # That is an absence, not a zero-temperature soil, so the whole driver is
+  # absent and `model = "lpjml"` aborts rather than marching on half the depth
+  # or on a fabricated temperature.
+  if (any(purrr::map_lgl(layers, \(x) is.null(x) || nrow(x) == 0L))) {
+    return(NULL)
+  }
+  weights <- c(2 / 3, 1 / 3)
+  purrr::map2(layers, weights, \(x, w) {
+    dplyr::mutate(x, w_value = .data$value * w)
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::summarise(
+      temp_soil_c = sum(.data$w_value),
+      .by = c("lon", "lat", "year", "month")
     )
 }
 

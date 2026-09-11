@@ -825,7 +825,7 @@ build_n_inputs <- function(
   }
   data$carbon_balance |>
     dplyr::filter(
-      stringr::str_to_lower(.data$land_use) == "cropland",
+      .soc_is_cropland(.data$land_use),
       .data$son_change_kgn_ha > 0
     ) |>
     dplyr::transmute(

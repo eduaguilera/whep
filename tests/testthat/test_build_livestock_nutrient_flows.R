@@ -100,6 +100,7 @@ test_that("applied output carries provenance for every stage", {
     "resolution",
     "method_n_excretion",
     "method_vs",
+    "method_c_excretion",
     "method_mms",
     "method_losses",
     "method_allocation",

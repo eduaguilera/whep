@@ -13,14 +13,29 @@
 #' @description
 #' Annual HSOC trajectory (Spain historical pipeline): a fresh and a humus
 #' decomposing pool plus an inert organic matter pool. The inert pool is the
-#' Falloon (1998) function of initial carbon. Each year a pool stock loses
-#' first-order decomposition and gains its carbon input. Land-use-change carbon
-#' transfer is deferred to a later phase (single land use here).
+#' Falloon (1998) function of initial carbon and, as in that paper, is a
+#' component of the measured stock rather than an addition to it, so the two
+#' decomposing pools open on the remainder
+#' \code{initial_soc_mgc_ha - iom}, split between them in the proportion of
+#' their steady states \code{input_pool / k_pool}. Each year a pool stock loses
+#' first-order decomposition and gains its carbon input, so the trajectory
+#' relaxes from the supplied stock toward that steady state. Land-use-change
+#' carbon transfer is deferred to a later phase (single land use here).
 #'
 #' @param initial_soc_mgc_ha Initial soil organic carbon stock (Mg C per ha).
+#'   The trajectory starts here: year 0 of the returned tibble reports this
+#'   stock, as it does for the four sibling models.
 #' @param c_input_mgc_ha_yr Annual carbon input (Mg C per ha per year).
 #' @param years Number of years to simulate.
-#' @param clay_pct Soil clay content (percent); unused, kept for contract.
+#' @param clay_pct Soil clay content (percent). Scales
+#'   \code{humification_fraction} by the Aguilera et al. (2018) Eq. 5-6
+#'   texture modifier, which runs 0.72 at 5% clay to 1.13 at 60% and is 1
+#'   at RothC's Rothamsted reference of 23.4%: coarse soils stabilise less
+#'   of the same carbon input. \code{NA}, the default, means no texture
+#'   information was supplied and applies no texture adjustment. The
+#'   gridded balance always supplies clay, so this function and
+#'   \code{build_carbon_balance(model = "hsoc")} now return the same stock
+#'   for the same inputs.
 #' @param climate_modifier Annual climate rate modifier (dimensionless).
 #' @param humification_fraction Fraction of carbon input humified into the
 #'   humus pool (the remainder feeds the fresh pool).
@@ -44,15 +59,27 @@ calculate_soc_hsoc <- function(
   climate_modifier = 1,
   humification_fraction = 0.3
 ) {
+  # The effective humification coefficient is the tabulated one scaled by
+  # soil texture. `.cb_hsoc_hf()` is shared with the closed-form
+  # equilibrium in R/carbon_balance.R rather than duplicated here,
+  # because the two have to agree exactly -- the closed form is what the
+  # production build evaluates and this spin-up is the oracle it is
+  # checked against.
+  hf <- if (is.na(clay_pct)) {
+    pmin(humification_fraction, 1)
+  } else {
+    .cb_hsoc_hf(humification_fraction, clay_pct)
+  }
   iom <- 0.049 * initial_soc_mgc_ha^1.139
-  humus_in <- c_input_mgc_ha_yr * humification_fraction
+  humus_in <- c_input_mgc_ha_yr * hf
   fresh_in <- c_input_mgc_ha_yr - humus_in
   inputs <- c(fresh = fresh_in, humus = humus_in)
   rates <- c(
     fresh = .soc_param("hsoc", "fresh", "decomposition_rate"),
     humus = .soc_param("hsoc", "humus", "decomposition_rate")
   )
-  .hsoc_evolve(inputs, rates, climate_modifier, years, iom)
+  start <- .hsoc_init_pools(max(initial_soc_mgc_ha - iom, 0), inputs, rates)
+  .hsoc_evolve(inputs, rates, climate_modifier, years, iom, start)
 }
 
 #' Simulate soil organic carbon with the RothC five-pool model.
@@ -207,6 +234,14 @@ calculate_soc_amg <- function(
 #' @param clay_pct Soil clay content (percent).
 #' @param climate_modifier Annual climate rate modifier (dimensionless),
 #'   scaling every pool decomposition rate.
+#' @param silt_pct Soil silt content (percent). \code{NA}, the default, falls
+#'   back to \link{soc_turnover_params}' \code{century,defaults,silt_pct},
+#'   which is SoilR's function-signature default of 45 rather than a
+#'   measurement. Both of Century's texture terms are functions of clay PLUS
+#'   silt -- the active-pool multiplier
+#'   \code{fTxtr = 1 - 0.75 * (clay + silt)} and its respired fraction
+#'   \code{Es = 0.85 - 0.68 * (clay + silt)} -- so silt is as load-bearing as
+#'   clay. HWSD's share-weighted global mean is 28.2%, not 45%.
 #' @return A tibble with one row per year: \code{year}, \code{str},
 #'   \code{met}, \code{act}, \code{slw}, \code{pas} and \code{soc_total}.
 #' @source Parton, W. J. et al. (1987).
@@ -225,12 +260,97 @@ calculate_soc_century <- function(
   c_input_mgc_ha_yr,
   years,
   clay_pct = NA,
-  climate_modifier = 1
+  climate_modifier = 1,
+  silt_pct = NA
 ) {
   rlang::check_installed("deSolve")
-  params <- .century_params(clay_pct, climate_modifier)
+  params <- .century_params(clay_pct, climate_modifier, silt_pct)
   state <- .century_init(initial_soc_mgc_ha)
   .century_solve(state, params, c_input_mgc_ha_yr, years)
+}
+
+#' Simulate soil organic carbon with the LPJmL two-pool soil model.
+#'
+#' @description
+#' Annual trajectory of LPJmL's soil carbon submodel: a fast and a slow
+#' mineral-soil pool, each losing first-order decomposition and gaining a share
+#' of the carbon that survives litter respiration. Of the litter carbon that
+#' DECOMPOSES, \code{atmosphere_fraction} is respired straight to the
+#' atmosphere and the remainder is split \code{fast_fraction} to the fast pool
+#' and the rest to the slow pool. Neither soil pool transfers to the other and
+#' there is no inert pool, so soil respiration leaves the system entirely.
+#'
+#' @section What the atmospheric fraction applies to:
+#' In LPJmL the fraction multiplies the flux LEAVING the litter pool by
+#' decomposition, not the litterfall entering it. The two are equal only when
+#' the litter pool is at steady state, and litterfall is strictly the larger
+#' wherever litter burns or methanogenises. WHEP has no litter pool, so this
+#' function applies the fraction to the carbon input it is given and is
+#' therefore a steady-state reading of that chain. Over a transient the
+#' approximation is good for leaf and fine-root litter, which transit in one
+#' to three years, and poor for woody litter, whose 10-26 year transit is
+#' comparable to the 22.25-year soil-bound residence itself.
+#'
+#' Earlier wording here said the fraction applied to carbon "entering the
+#' litter layer", which contradicted \code{\link{soc_turnover_params}}'s own
+#' description of it ("Share of decomposed litter respired straight to the
+#' atmosphere"). The parameter table was right.
+#'
+#' This applies LPJmL's kinetics to the carbon input WHEP supplies, exactly as
+#' \code{\link{calculate_soc_rothc}} applies RothC's. It is **not** a
+#' reproduction of LPJmL's own soil carbon stock, which is reported over
+#' 0-300 cm and distributed down the profile; the stock returned here is
+#' over the same layer as WHEP's other models. The litter pool is excluded, as
+#' it is from LPJmL's own \code{soilc} output.
+#'
+#' That vertical distribution is not a rooting-depth function, as this page
+#' previously said: LPJmL sums leaf, woody and belowground decomposition into
+#' one flux before applying the layer weights, so surface litter is carried
+#' down too, and Schaphoff et al. (2018) attribute the weights to cryoturbation
+#' and bioturbation.
+#'
+#' @param initial_soc_mgc_ha Initial soil organic carbon stock (Mg C per ha),
+#'   split between the two pools by their steady-state proportions.
+#' @param c_input_mgc_ha_yr Annual carbon input to the litter layer
+#'   (Mg C per ha per year), before the atmospheric respiration share.
+#' @param years Number of years to simulate.
+#' @param clay_pct Soil clay content (percent); unused, kept for contract.
+#' @param climate_modifier Annual decomposition response (dimensionless),
+#'   scaling both pool rates. See \code{\link{soc_rate_modifier_lpjml}}.
+#' @return A tibble with one row per year: \code{year}, \code{fast},
+#'   \code{slow} and \code{soc_total}.
+#' @source Schaphoff, S., von Bloh, W., Rammig, A., Thonicke, K., Biemans, H.,
+#'   Forkel, M., ... Waha, K. (2018). LPJmL4 - a dynamic global vegetation model
+#'   with managed land - Part 1: Model description. *Geoscientific Model
+#'   Development*, 11, 1343-1375. \doi{10.5194/gmd-11-1343-2018}, Sect. 2.5 and
+#'   Eqs. 90-100. Rate constants and fractions are taken from the WHEP LPJmL
+#'   6.1.1 run configuration, which differs from the published values for
+#'   \code{atmosphere_fraction}, \code{fast_fraction} and the fast-pool rate;
+#'   see \code{\link{soc_turnover_params}}.
+#' @export
+#' @examples
+#' calculate_soc_lpjml(
+#'   initial_soc_mgc_ha = 50,
+#'   c_input_mgc_ha_yr = 2,
+#'   years = 5
+#' )
+calculate_soc_lpjml <- function(
+  initial_soc_mgc_ha,
+  c_input_mgc_ha_yr,
+  years,
+  clay_pct = NA,
+  climate_modifier = 1
+) {
+  soil_in <- c_input_mgc_ha_yr *
+    (1 - .soc_param("lpjml", "litter", "atmosphere_fraction"))
+  fast_share <- .soc_param("lpjml", "soil", "fast_fraction")
+  inputs <- c(fast = soil_in * fast_share, slow = soil_in * (1 - fast_share))
+  rates <- c(
+    fast = .soc_param("lpjml", "fast", "decomposition_rate"),
+    slow = .soc_param("lpjml", "slow", "decomposition_rate")
+  )
+  start <- .lpjml_init_pools(max(initial_soc_mgc_ha, 0), inputs, rates)
+  .lpjml_evolve(inputs, rates, climate_modifier, years, start)
 }
 
 # -- Shared parameter accessors -----------------------------------------------
@@ -255,36 +375,73 @@ calculate_soc_century <- function(
   )
 }
 
+# -- LPJmL helpers ------------------------------------------------------------
+
+# Split the opening stock between the two pools in the proportion of their
+# steady states input_pool / k_pool. The response scales both rates equally so
+# it cancels, which keeps the split defined at climate_modifier = 0. With no
+# carbon input at all the stock opens wholly in the slow pool, which is the only
+# one that can still be holding legacy carbon.
+.lpjml_init_pools <- function(stock, inputs, rates) {
+  weights <- inputs / rates[names(inputs)]
+  if (sum(weights) <= 0) {
+    return(c(fast = 0, slow = stock))
+  }
+  stock * weights / sum(weights)
+}
+
+.lpjml_evolve <- function(inputs, rates, climate_modifier, years, start) {
+  decays <- rates[names(inputs)] * climate_modifier
+  stocks <- purrr::pmap(
+    list(start[names(inputs)], inputs, decays),
+    \(stock_0, input, decay) .hsoc_pool_stocks(stock_0, input, decay, years)
+  )
+  tibble::tibble(year = 0:years, fast = stocks[[1]], slow = stocks[[2]]) |>
+    dplyr::mutate(soc_total = .data$fast + .data$slow)
+}
+
 # -- HSOC helpers -------------------------------------------------------------
 
-.hsoc_evolve <- function(inputs, rates, climate_modifier, years, iom) {
+.hsoc_evolve <- function(inputs, rates, climate_modifier, years, iom, start) {
   decays <- rates[names(inputs)] * climate_modifier
-  stocks <- purrr::map2(
-    inputs,
-    decays,
-    \(input, decay) .hsoc_pool_stocks(input / decay, input, decay, years)
+  stocks <- purrr::pmap(
+    list(start[names(inputs)], inputs, decays),
+    \(stock_0, input, decay) .hsoc_pool_stocks(stock_0, input, decay, years)
   )
   tibble::tibble(
     year = 0:years,
-    fresh = stocks[["fresh"]],
-    humus = stocks[["humus"]],
+    fresh = stocks[[1]],
+    humus = stocks[[2]],
     iom = iom
   ) |>
     dplyr::mutate(soc_total = .data$fresh + .data$humus + .data$iom)
 }
 
-.hsoc_pool_stocks <- function(stock_eq, input, decay, years) {
+# Open the two decomposing pools on the non-inert part of the measured stock,
+# shared in the proportion of their steady states input_pool / k_pool. The
+# climate modifier scales both rates equally so it cancels from the proportion,
+# which keeps the split defined at climate_modifier = 0. A soil receiving no
+# carbon at all has no labile fraction to speak of, so its whole legacy stock
+# opens in the humus pool.
+.hsoc_init_pools <- function(active, inputs, rates) {
+  weights <- inputs / rates[names(inputs)]
+  if (sum(weights) <= 0) {
+    return(c(fresh = 0, humus = active))
+  }
+  active * weights / sum(weights)
+}
+
+.hsoc_pool_stocks <- function(stock_0, input, decay, years) {
   # Closed form of the linear recurrence stock_{t+1} = stock_t (1 - decay) +
   # input, evaluated at 0:years. Replaces an O(years) purrr::accumulate loop
   # (5000 steps per input combination in the carbon-balance spin-up) with an
-  # O(1) vectorised expression. The spin-up always starts at the fixed point
-  # stock_eq = input / decay, so the series is flat; the closed form keeps this
-  # exact for any decay while avoiding the per-combo loop.
+  # O(1) vectorised expression. Started at the fixed point input / decay the
+  # series is flat; started anywhere else it relaxes onto it geometrically.
   yr <- 0:years
   if (decay == 0) {
-    return(stock_eq + input * yr)
+    return(stock_0 + input * yr)
   }
-  input / decay + (stock_eq - input / decay) * (1 - decay)^yr
+  input / decay + (stock_0 - input / decay) * (1 - decay)^yr
 }
 
 # -- RothC helpers ------------------------------------------------------------
@@ -333,12 +490,16 @@ calculate_soc_century <- function(
   )
 }
 
+# Sub-step count within each month. `pmax`, not `max`: the RothC closed-form
+# equilibrium calls this vectorised over every distinct climate modifier in
+# the grid, and it is the SAME accessor so the two cannot drift apart. With a
+# scalar `abc` it is identical to `max`.
 # Sub-step count within each month. The analytical exp() decay is
 # unconditionally stable, so sub-stepping is no longer needed for stability; it
 # only refines the within-month coupling between decomposition and the carbon
 # inputs added each sub-step (finer for fast pools under warm/wet climate).
 .rothc_substeps <- function(rates, abc, dt) {
-  max(1L, as.integer(ceiling(max(rates) * abc * dt)))
+  pmax(1L, as.integer(ceiling(max(rates) * abc * dt)))
 }
 
 .rothc_step <- function(state, rates, splits, abc, step) {
@@ -466,10 +627,22 @@ calculate_soc_century <- function(
 
 # -- Century helpers ----------------------------------------------------------
 
-.century_params <- function(clay_pct, xi) {
+# Measured silt when supplied, otherwise the tabulated default.
+#
+# That default is 45, SoilR CenturyModel's function-signature value, not a
+# soil property (whep#345). WHEP already overrides SoilR's companion
+# `clay = 0.2` with real per-cell HWSD clay, so leaving silt on the
+# placeholder made one of the two texture terms measured and the other
+# assumed. HWSD's share-weighted global mean silt is 28.2%.
+.century_silt <- function(silt_pct) {
+  tabulated <- .soc_param("century", "defaults", "silt_pct")
+  dplyr::if_else(is.na(silt_pct), tabulated, as.numeric(silt_pct))
+}
+
+.century_params <- function(clay_pct, xi, silt_pct = NA) {
   ls <- .soc_param("century", "defaults", "lignin_fraction")
   ln <- .soc_param("century", "defaults", "lignin_n_ratio")
-  silt_pct <- .soc_param("century", "defaults", "silt_pct")
+  silt_pct <- .century_silt(silt_pct)
   texture <- .century_texture(clay_pct, silt_pct, ls, ln)
   c(
     .century_rates(ls, texture$f_txtr, xi),

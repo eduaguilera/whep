@@ -17,28 +17,32 @@ icbm,old,decomposition_rate,0.00605,per_year,Old pool decomposition rate constan
 icbm,transfer,humification_coefficient,0.13,fraction,Humification coefficient transferring young to old pool.
 amg,active,decomposition_rate,0.165,per_year,Active pool decomposition rate constant.
 amg,stable,inert_fraction,0.65,fraction,Stable (inert) fraction of initial soil organic carbon.
-century,str,base_rate_weekly,0.094,per_week,Structural litter base weekly decomposition rate (before lignin and rate modifiers).
-century,met,base_rate_weekly,0.35,per_week,Metabolic litter base weekly decomposition rate.
-century,act,base_rate_weekly,0.14,per_week,Active soil organic matter base weekly decomposition rate (before texture modifier).
-century,slw,base_rate_weekly,0.0038,per_week,Slow soil organic matter base weekly decomposition rate.
-century,pas,base_rate_weekly,0.00013,per_week,Passive soil organic matter base weekly decomposition rate.
-century,all,weeks_per_year,52,weeks,Annualisation factor converting weekly rates to annual rates.
+century,str,base_rate_weekly,0.094,per_week,"Structural litter base weekly decomposition rate (before lignin and rate modifiers). SoilR CenturyModel default ks['STR.belowgroun']; verified against the CRAN reference manual."
+century,met,base_rate_weekly,0.35,per_week,"Metabolic litter base weekly decomposition rate. SoilR CenturyModel default ks['MET.belowground']."
+century,act,base_rate_weekly,0.14,per_week,"Active soil organic matter base weekly decomposition rate (before texture modifier). SoilR CenturyModel default ks['ACT']."
+century,slw,base_rate_weekly,0.0038,per_week,"Slow soil organic matter base weekly decomposition rate. SoilR CenturyModel default ks['SLW']."
+century,pas,base_rate_weekly,0.00013,per_week,"Passive soil organic matter base weekly decomposition rate. SoilR CenturyModel default ks['PAS']."
+century,all,weeks_per_year,52,weeks,"Annualisation factor converting weekly rates to annual rates. SoilR does the same: CenturyModel14 ships the identical vector as ks = 52 * c(...). The rates are paired with a modifier normalised to peak near 1, which is how SoilR's own CenturyModel example uses them (xi left at its default 1) - so fT.Century2's leading 3.439423 must NOT be carried into the modifier (whep#345)."
 century,str_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in structural-to-active transfer (1-Ls scaled).
 century,str_slw,transfer_fraction_const,0.30,fraction,Respiration loss fraction in structural-to-slow transfer (Ls scaled).
 century,met_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in metabolic-to-active transfer.
-century,act_pas,transfer_fraction,0.004,fraction,Fraction of active outflow transferred to the passive pool.
-century,slw_act,transfer_fraction,0.42,fraction,Fraction of slow outflow recycled to the active pool.
-century,slw_pas,transfer_fraction,0.03,fraction,Fraction of slow outflow transferred to the passive pool.
+century,act_pas,transfer_fraction,0.004,fraction,"Fraction of active outflow transferred to the passive pool. SoilR CenturyModel alpha75. Parton's CENTURY makes this clay-dependent; SoilR does not, and WHEP implements SoilR (whep#345)."
+century,slw_act,transfer_fraction,0.42,fraction,"Fraction of slow outflow recycled to the active pool. SoilR CenturyModel alpha56."
+century,slw_pas,transfer_fraction,0.03,fraction,"Fraction of slow outflow transferred to the passive pool. SoilR CenturyModel alpha76. Constant in SoilR, clay-dependent in Parton's CENTURY; WHEP implements SoilR (whep#345)."
 century,pas_act,transfer_fraction_const,0.55,fraction,Respiration loss fraction in passive-to-active transfer (gives 0.45 to active).
 century,act,respiration_intercept,0.85,fraction,Intercept of active-pool respiration/stabilization fraction Es.
 century,act,respiration_texture_slope,0.68,per_fraction,Texture slope of active-pool respiration/stabilization fraction Es.
 century,act,texture_intercept,1,fraction,Intercept of active-pool texture multiplier fTxtr.
 century,act,texture_slope,0.75,per_fraction,Texture slope of active-pool texture multiplier fTxtr.
 century,met,metabolic_intercept,0.85,fraction,Intercept of metabolic input fraction Fm.
-century,met,metabolic_ln_slope,0.018,per_ratio,Lignin-to-nitrogen slope of metabolic input fraction Fm.
-century,defaults,silt_pct,45,percent,Default silt percentage.
-century,defaults,lignin_fraction,0.5,fraction,Default structural (lignin) fraction Ls.
-century,defaults,lignin_n_ratio,40,ratio,Default litter lignin-to-nitrogen ratio LN (dimensionless, order tens; feeds Fm = 0.85 - 0.018*LN).
+century,met,metabolic_ln_slope,0.018,per_ratio,"Lignin-to-nitrogen slope of metabolic input fraction Fm. SoilR CenturyModel: Fm = 0.85 - 0.018 * LN. Parton-derived parameter files ship 0.013; WHEP implements SoilR (whep#345)."
+century,defaults,silt_pct,45,percent,"UNVERIFIED PLACEHOLDER: this is SoilR CenturyModel's function-signature default (silt = 0.45), not a soil measurement. WHEP overrides SoilR's companion clay = 0.2 default with real per-cell HWSD clay but not this. Sweeping silt over its plausible range moves the Century equilibrium 5.565-8.765 yr, a factor 1.58 (whep#345)."
+century,defaults,lignin_fraction,0.5,fraction,"UNVERIFIED: SoilR CenturyModel requires Ls with NO default, so this value is WHEP's own choice and carries no source (whep#903)."
+century,defaults,lignin_n_ratio,40,ratio,"Default litter lignin-to-nitrogen ratio LN (dimensionless, order tens; feeds Fm = 0.85 - 0.018*LN). UNVERIFIED: SoilR CenturyModel requires LN with NO default, so this is WHEP's own choice. With lignin_fraction 0.5 it implies a litter C:N of 80, which is the END-of-period value in the LPJmL run (measured C:N rises 67.0 in 1901 to 71.4 by 2000), not a historical mean (whep#903)."
 century,act,init_fraction,0.05,fraction,Initial fraction of soil organic carbon allocated to the active pool.
 century,slw,init_fraction,0.40,fraction,Initial fraction of soil organic carbon allocated to the slow pool.
 century,pas,init_fraction,0.55,fraction,Initial fraction of soil organic carbon allocated to the passive pool.
+lpjml,fast,decomposition_rate,0.04,per_year,Fast soil pool decomposition rate at 10 degrees C. LPJmL 6.1.1 run config k_soil10.fast; Schaphoff et al. (2018) publishes 0.03.
+lpjml,slow,decomposition_rate,0.001,per_year,Slow soil pool decomposition rate at 10 degrees C. LPJmL 6.1.1 run config k_soil10.slow; agrees with Schaphoff et al. (2018).
+lpjml,soil,fast_fraction,0.98,fraction,Share of soil-bound decomposed litter entering the fast pool (remainder to slow). LPJmL 6.1.1 run config fastfrac; Schaphoff et al. (2018) publishes 0.985.
+lpjml,litter,atmosphere_fraction,0.5,fraction,Share of decomposed litter respired straight to the atmosphere; the remainder enters the soil pools. LPJmL 6.1.1 run config atmfrac; Schaphoff et al. (2018) publishes 0.70.

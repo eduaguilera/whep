@@ -99,6 +99,7 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       "build_carbon_balance",
       "build_carbon_inputs",
       "build_crop_soil_n2o_extension",
+      "build_crop_water_use",
       "build_energy_co2_extension",
       "build_feed_demand",
       "build_feed_intake_local",

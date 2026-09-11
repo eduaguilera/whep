@@ -4,7 +4,13 @@
 \alias{whep_read_file}
 \title{Download, cache and read files}
 \usage{
-whep_read_file(file_alias, type = "parquet", version = NULL)
+whep_read_file(
+  file_alias,
+  type = "parquet",
+  version = NULL,
+  years = NULL,
+  year_col = "year"
+)
 }
 \arguments{
 \item{file_alias}{Internal name of the requested file. You can find the
@@ -42,6 +48,18 @@ version.
 \item Other: A specific version can also be used. For more details read the
 \code{version} column information from \code{\link{whep_inputs}}.
 }}
+
+\item{years}{Optional integer vector of years to keep. For \code{parquet} the
+filter is pushed into the file, so only the row groups whose statistics
+overlap the requested range are read from disk and the exact set is
+applied afterwards. This is what makes a single-year read of a large
+monthly pin affordable: \code{lpjml-soc-hydrology} holds 193,317,960 rows over
+1901-2022, and one year of it is 1.3 seconds and 34 MB instead of ~12 GB
+materialised. For \code{csv} the filter is applied after reading. The formats
+returned as a path (\code{nc}, \code{nc4}, \code{raw}, archives) cannot honour it and
+abort rather than ignore it. \code{NULL}, the default, reads the whole file.}
+
+\item{year_col}{Name of the year column \code{years} filters on.}
 }
 \value{
 A tibble with the dataset. Some information about each dataset can

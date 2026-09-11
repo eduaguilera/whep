@@ -164,7 +164,14 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 70 is the crop-residue destiny split (whep#1003). It is one year-free join
+  # and it is the loss wedge's shape, not a new year-blind read: the Krausmann
+  # recovery rates and the regional feed-use fractions are published without a
+  # time dimension, so the region a residue's coefficients come from cannot be
+  # year-keyed. Every residue row through it carries `year`; only the region
+  # membership does not.
+  expect_lte(sum(baseline$n), 70L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -251,11 +258,12 @@ test_that("every year-free territorial grouping is classified", {
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
   #
-  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
-  # `get_faostat_data()`, the only thing that called it. A cap left above the
-  # real count is slack a new unregistered group could hide in, so it comes
-  # down with the row.
-  expect_lte(sum(full$n), 80L)
+  # 81 on the merge of whep#1006 into main: whep#999 took
+  # `.fao_area_iso3_lookup()` and its one row out (82 -> 81 there), and
+  # `.residue_destiny_regions` (whep#1003) puts one back. Re-derived by
+  # RUNNING the audit on the merged tree, not by adding the two deltas: a cap
+  # left above the real count is slack a new unregistered group could hide in.
+  expect_lte(sum(full$n), 81L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

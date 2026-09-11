@@ -51,7 +51,11 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction} and \code{method_c_input}, plus the polity columns below.
+\code{humified_fraction}, \code{method_c_input} and \code{crop_area_ha} -- the crop's
+area at that grain on the basis the densities are computed on: the
+FAOSTAT-renormalised cell area where a national harvested area was
+supplied, the spatialized area otherwise -- plus the polity columns
+below.
 }
 \description{
 Builds the carbon returned to soil from crop residues, crop roots, weeds and
@@ -67,6 +71,14 @@ divided by the cell-crop area to give Mg C per hectare per year. A
 carbon-weighted humification fraction is computed per cell-year from
 \link{residue_humification}, with the weed carbon humified at the weed
 (spontaneous-grass) coefficient.
+
+The weed stream is structurally present but ZERO on the default path: the
+turnkey chain runs \code{\link[=calculate_crop_npp]{calculate_crop_npp()}} and
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} without \code{\link[=calculate_crop_npp_components]{calculate_crop_npp_components()}},
+which is the only producer of \code{weed_ag_dm_t}, so weed carbon is zero for
+every crop, polity and year unless \code{data$npp} is supplied from a chain that
+includes it. Whether to wire it into the default path is open (whep#806);
+until then the zero is reported rather than passed off as computed.
 
 At \code{"polity"} resolution the component carbon masses are summed back to
 \verb{(area_code, item_prod_code, year)} and the per-hectare values and humified

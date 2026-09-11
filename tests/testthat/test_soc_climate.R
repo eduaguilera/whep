@@ -122,3 +122,58 @@ test_that("soc_rate_modifier_century is finite above its maximum temperature", {
   testthat::expect_true(all(is.finite(out)))
   testthat::expect_equal(out, rep(0, length(out)))
 })
+
+test_that("the LPJmL temperature response is 1 at its 10-degree reference", {
+  # LPJmL's rate constants are quoted "at 10 degrees C", and that phrase is only
+  # meaningful because g(10) = exp(0) = 1 identically: the 10 added to the 46.02
+  # temp_response parameter is what makes 56.02 the reciprocal reference.
+  testthat::expect_equal(whep:::.lpjml_temperature_factor(10), 1)
+  # Unbounded above, and steep: Schaphoff et al. (2018) Eq. 45.
+  testthat::expect_equal(
+    whep:::.lpjml_temperature_factor(20),
+    2.3032,
+    tolerance = 1e-4
+  )
+  testthat::expect_equal(
+    whep:::.lpjml_temperature_factor(30),
+    4.2593,
+    tolerance = 1e-4
+  )
+  # Held flat above 40 and off below -15, as the source does.
+  testthat::expect_equal(
+    whep:::.lpjml_temperature_factor(50),
+    whep:::.lpjml_temperature_factor(40)
+  )
+  testthat::expect_equal(whep:::.lpjml_temperature_factor(-20), 0)
+})
+
+test_that("the LPJmL moisture response is not normalised and peaks below 1", {
+  # Unlike the temperature term this one is normalised at nothing: it peaks at
+  # 0.937 near a degree of saturation of 0.64, so the nominal decomposition rate
+  # is never actually attained.
+  theta <- seq(0, 1, by = 1e-4)
+  f <- whep:::.lpjml_moisture_factor(theta)
+  testthat::expect_equal(max(f), 0.93706, tolerance = 1e-4)
+  testthat::expect_lt(max(f), 1)
+  testthat::expect_equal(whep:::.lpjml_moisture_factor(0), 0.04021601)
+})
+
+test_that("the LPJmL response is capped at 1, per step and not on the mean", {
+  # The cap is in LPJmL's source, not in its published equations, and it binds
+  # from about 10.7 degrees at optimal moisture -- so every warm, well-watered
+  # cell decomposes at exactly its nominal rate.
+  testthat::expect_equal(whep::soc_rate_modifier_lpjml(25, 0.6431), 1)
+  testthat::expect_equal(whep::soc_rate_modifier_lpjml(40, 0.6431), 1)
+  # Capping each step then averaging is a different function from averaging then
+  # capping: a cold month cannot be offset by an uncapped hot one.
+  per_step <- whep::soc_rate_modifier_lpjml(c(0, 30), c(0.6431, 0.6431))
+  on_mean <- min(
+    mean(
+      whep:::.lpjml_temperature_factor(c(0, 30)) *
+        whep:::.lpjml_moisture_factor(c(0.6431, 0.6431))
+    ),
+    1
+  )
+  testthat::expect_false(isTRUE(all.equal(per_step, on_mean)))
+  testthat::expect_lt(per_step, on_mean)
+})

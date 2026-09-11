@@ -401,6 +401,152 @@ testthat::test_that(".find_cache_dir survives an unreadable neighbour", {
   testthat::expect_equal(fs::path(result), fs::path(wanted))
 })
 
+# -- the year filter is pushed into the parquet -------------------------------
+
+# `lpjml-soc-hydrology` holds 193,317,960 monthly rows over 1901-2022. Reading
+# it whole and filtering afterwards is what made a one-year gridded carbon
+# balance unrunnable -- two hours of CPU without ever leaving the input stage.
+# The pushdown is only worth having if it returns exactly what the whole-file
+# read returned, so that is what these pin.
+
+.year_pin_fixture <- function(path) {
+  full <- tibble::tibble(
+    lon = rep(c(0.25, 0.75), times = 5L),
+    lat = rep(c(10.25, 10.75), times = 5L),
+    year = rep(2001:2005, each = 2L),
+    value = (1:10) * 1.5
+  )
+  nanoparquet::write_parquet(full, path)
+  full
+}
+
+testthat::test_that(".read_parquet_years agrees with the whole-file read", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  fast <- whep:::.read_parquet_years(path, 2003L)
+  slow <- nanoparquet::read_parquet(path) |>
+    tibble::as_tibble() |>
+    whep:::.filter_years_if_present(2003L)
+
+  testthat::expect_equal(fast, slow)
+  testthat::expect_equal(nrow(fast), 2L)
+})
+
+testthat::test_that(".read_parquet_years honours non-contiguous years", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  out <- whep:::.read_parquet_years(path, c(2001L, 2003L))
+
+  # The pushdown can only express a RANGE, so 2002 is read off the disk and
+  # has to be dropped afterwards. Without that second filter this returns a
+  # year the caller did not ask for.
+  testthat::expect_equal(sort(unique(out$year)), c(2001L, 2003L))
+})
+
+testthat::test_that(".read_parquet_years reads it all when years is NULL", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  full <- .year_pin_fixture(path)
+
+  testthat::expect_equal(whep:::.read_parquet_years(path, NULL), full)
+})
+
+testthat::test_that(".read_parquet_years aborts with no year column", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  yearless <- tibble::tibble(lon = c(0.25, 0.75), value = c(1.5, 3))
+  nanoparquet::write_parquet(yearless, path)
+
+  # Both ways of absorbing this are worse than stopping: returning the whole
+  # file hands back every year when one was asked for, and dropping the filter
+  # silently reinstates the read the pushdown exists to avoid.
+  testthat::expect_error(
+    whep:::.read_parquet_years(path, 2003L, year_col = "vintage"),
+    "no .*vintage.* column"
+  )
+})
+
+testthat::test_that("whep_read_file forwards years to the parquet read", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  # `.read_file()` is the wiring point: it is what `whep_read_file()` hands
+  # the downloaded paths to, so this pins that `years` actually reaches it.
+  out <- whep:::.read_file(path, "parquet", years = 2004L)
+
+  testthat::expect_equal(unique(out$year), 2004L)
+})
+
+testthat::test_that("whep_read_file refuses years on a path-returning type", {
+  # Silently ignoring the filter would hand the caller every year it asked to
+  # exclude, which is the failure the argument exists to prevent.
+  testthat::expect_error(
+    whep:::.read_file("some.nc", "nc", years = 2004L),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that(".read_parquet_years does not push down a text year", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  # Arrow does not refuse this: it coerces silently, so a text column whose
+  # order differs from its numeric order would quietly drop requested years.
+  # The whole-file path coerces in R instead, which is why it is taken here.
+  textual <- tibble::tibble(
+    year = as.character(c(998, 1000, 1002)),
+    value = c(1, 2, 3)
+  )
+  nanoparquet::write_parquet(textual, path)
+
+  out <- whep:::.read_parquet_years(path, c(998L, 1000L, 1002L))
+
+  testthat::expect_equal(nrow(out), 3L)
+})
+
+testthat::test_that(".read_parquet_years honours a non-default year_col", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  # Both a `Year` and a `year` column, which is the shape that used to fail
+  # silently: the range was pushed down on one and the exact set applied to
+  # the other, returning a subset the caller never asked for.
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      Year = c(2001L, 2002L, 2003L),
+      year = c(2003L, 2002L, 2001L),
+      value = c(1, 2, 3)
+    ),
+    path
+  )
+
+  out <- whep:::.read_parquet_years(path, 2003L, year_col = "Year")
+
+  testthat::expect_equal(out$Year, 2003L)
+  testthat::expect_equal(out$value, 3)
+})
+
+testthat::test_that(".read_parquet_years asks the file for nothing", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  # An empty request used to fall through to the whole-file read -- about
+  # 12 GB for `lpjml-soc-hydrology` -- and then discard every row of it.
+  out <- whep:::.read_parquet_years(path, integer(0))
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_setequal(names(out), c("lon", "lat", "year", "value"))
+})
+
+testthat::test_that(".filter_years_if_present honours year_col", {
+  d <- tibble::tibble(vintage = c(2001L, 2002L), value = c(1, 2))
+
+  testthat::expect_equal(
+    whep:::.filter_years_if_present(d, 2002L, "vintage")$value,
+    2
+  )
+  testthat::expect_error(
+    whep:::.filter_years_if_present(d, 2002L),
+    class = "whep_year_filter_error"
+  )
+})
+
 # Frozen predecessor-pipeline references ------------------------------------
 
 testthat::test_that("reading a predecessor-pipeline pin says so", {

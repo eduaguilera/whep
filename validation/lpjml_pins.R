@@ -39,10 +39,18 @@
 # Magnitudes use a fixed year window (see COMPARE_YEARS) so the check is fast
 # and deterministic; row counts and schema cover the whole pin.
 
-suppressPackageStartupMessages({
-  devtools::load_all(".", quiet = TRUE)
-  library(dplyr)
-})
+# Only the `Rscript` entry point loads the package. When this file is sourced
+# instead -- by `validate_all.R`, or by the test that exercises the comparison
+# below without touching a pin -- the caller has already loaded it, and a
+# `load_all()` from inside a testthat run would reload the package under
+# itself. Same `sys.nframe()` idiom as the `main()` guard at the foot of the
+# file.
+if (sys.nframe() == 0L) {
+  suppressPackageStartupMessages({
+    devtools::load_all(".", quiet = TRUE)
+    library(dplyr)
+  })
+}
 
 BASELINE_PATH <- "validation/gt_lpjml_pins.json"
 
@@ -81,11 +89,23 @@ PIN_SPECS <- list(
     value = "grass_npp",
     bounds = list(grass_npp = c(0, 5000))
   ),
+  # net_c_mgc_ha_yr is required, not optional: since the grazing split
+  # npp_c_mgc_ha_yr is the WHOLE grassland production and this column is what
+  # LPJmL's own grazing left of it. A pin carrying only the first is a
+  # pre-split pin whose column means the other thing, which is why WHEP
+  # refuses it rather than reading it either way.
   list(
     alias = "lpjml-grass-natural-net-c",
-    columns = c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr"),
+    columns = c(
+      "lon",
+      "lat",
+      "year",
+      "land_use",
+      "npp_c_mgc_ha_yr",
+      "net_c_mgc_ha_yr"
+    ),
     value = "npp_c_mgc_ha_yr",
-    bounds = list(npp_c_mgc_ha_yr = c(0, 100))
+    bounds = list(npp_c_mgc_ha_yr = c(0, 100), net_c_mgc_ha_yr = c(0, 100))
   ),
   list(
     alias = "lpjml-soc-hydrology",
@@ -229,6 +249,7 @@ report <- function(observed, baseline) {
   rows <- lapply(observed, function(o) check_one(o, baseline$pins[[o$alias]]))
   table <- dplyr::bind_rows(rows)
   print(as.data.frame(table), row.names = FALSE)
+  emit_metric(table)
 
   failed <- dplyr::filter(table, .data$verdict != "ok")
   cat("\n")
@@ -247,6 +268,26 @@ report <- function(observed, baseline) {
      {.code Rscript validation/lpjml_pins.R --record}."
   )
   invisible(NULL)
+}
+
+# One machine-readable line, in the shape `stability.R` and
+# `nourishment_axis.R` already emit, so `validate_all.R` can fold this check
+# into the scorecard without parsing the cli table above.
+#
+# `schema` counts the pins whose columns are not what their consumers expect
+# plus the ones absent from the baseline; `impossible` counts the pins holding
+# a physically impossible value. Both are kept apart from `deviating`, which
+# is the ordinary "the model moved" signal.
+emit_metric <- function(table) {
+  cat(sprintf(
+    "METRIC pins_checked=%d pins_ok=%d deviating=%d schema=%d impossible=%d
+",
+    nrow(table),
+    sum(table$verdict == "ok"),
+    sum(table$verdict == "DEVIATES"),
+    sum(table$verdict %in% c("SCHEMA", "NEW")),
+    sum(grepl("IMPOSSIBLE VALUES", table$detail, fixed = TRUE))
+  ))
 }
 
 check_one <- function(observed, expected) {

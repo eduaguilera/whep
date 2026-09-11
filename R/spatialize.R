@@ -1108,3 +1108,38 @@ build_gridded_landuse <- function(
 # Reinstate neither. The polycell-keyed equivalents are
 # `.apply_capacity_constraint()` (with `.warn_capacity_breach()`) and
 # `.compartment_id_cols()` carried through from `country_grid`.
+
+# Give every code in a `pattern_group` the SUM of the group's patterns.
+#
+# FAOSTAT splits one plant into several items where EarthStat publishes one
+# raster per item: hemp is 336 Hempseed and 777 True hemp fibre, both from
+# the same fields. Left separate, each item is spatialized on its own
+# raster, so a country reporting hempseed area is placed only where the
+# hempseed raster has cells, and vice versa. Pooling gives both items the
+# plant's footprint. Each item KEEPS its own code -- and so its own FAOSTAT
+# area -- because a code with no pattern loses its whole world total
+# silently (the barley failure, whep#877). Decision 2026-09-01 (Edu):
+# "hempseed mix with hemp".
+.share_pattern_groups <- function(patterns, xwalk) {
+  groups <- xwalk |>
+    dplyr::filter(!is.na(.data$pattern_group), !is.na(.data$item_prod_code)) |>
+    dplyr::distinct(.data$pattern_group, .data$item_prod_code)
+  if (nrow(groups) == 0L) {
+    return(patterns)
+  }
+  pooled <- patterns |>
+    dplyr::inner_join(groups, by = "item_prod_code") |>
+    dplyr::summarise(
+      harvest_fraction = sum(.data$harvest_fraction),
+      .by = c("lon", "lat", "pattern_group")
+    ) |>
+    dplyr::inner_join(
+      groups,
+      by = "pattern_group",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select("lon", "lat", "item_prod_code", "harvest_fraction")
+  patterns |>
+    dplyr::anti_join(groups, by = "item_prod_code") |>
+    dplyr::bind_rows(pooled)
+}

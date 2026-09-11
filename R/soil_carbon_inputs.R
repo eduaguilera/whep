@@ -15,6 +15,14 @@
 #' [residue_humification], with the weed carbon humified at the weed
 #' (spontaneous-grass) coefficient.
 #'
+#' The weed stream is structurally present but ZERO on the default path: the
+#' turnkey chain runs [calculate_crop_npp()] and
+#' [calculate_npp_carbon_nitrogen()] without [calculate_crop_npp_components()],
+#' which is the only producer of `weed_ag_dm_t`, so weed carbon is zero for
+#' every crop, polity and year unless `data$npp` is supplied from a chain that
+#' includes it. Whether to wire it into the default path is open (whep#806);
+#' until then the zero is reported rather than passed off as computed.
+#'
 #' At `"polity"` resolution the component carbon masses are summed back to
 #' `(area_code, item_prod_code, year)` and the per-hectare values and humified
 #' fraction re-derived from the polity totals.
@@ -54,7 +62,11 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'   `humified_fraction`, `method_c_input` and `crop_area_ha` -- the crop's
+#'   area at that grain on the basis the densities are computed on: the
+#'   FAOSTAT-renormalised cell area where a national harvested area was
+#'   supplied, the spatialized area otherwise -- plus the polity columns
+#'   below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -160,14 +172,22 @@ build_soil_carbon_inputs <- function(
 # carbon humified at the spontaneous-grass coefficient.
 .sci_assemble_components <- function(npp, manure) {
   .sci_check_npp(npp)
-  residue <- .sci_npp_component(npp, "crop_residue", "residue_soil_c_t")
-  root <- .sci_npp_component(npp, "root", "root_c_t")
-  weed <- .sci_npp_component(npp, "weed", "weed_npp_c_t")
+  # The nitrogen of each component travels with its carbon, so the input C:N
+  # the SOM stoichiometry needs (`.soc_marginal_cn()`) can be formed from the
+  # same masses rather than from a second, differently-keyed table.
+  residue <- .sci_npp_component(
+    npp,
+    "crop_residue",
+    "residue_soil_c_t",
+    "residue_soil_n_t"
+  )
+  root <- .sci_npp_component(npp, "root", "root_c_t", "root_n_t")
+  weed <- .sci_npp_component(npp, "weed", "weed_npp_c_t", "weed_npp_n_t")
   dplyr::bind_rows(residue, root, weed, .sci_manure_components(manure))
 }
 
-.sci_npp_component <- function(npp, input_type, c_col) {
-  npp |>
+.sci_npp_component <- function(npp, input_type, c_col, n_col = NULL) {
+  out <- npp |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       item_prod_code = as.character(.data$item_prod_code),
@@ -175,6 +195,39 @@ build_soil_carbon_inputs <- function(
       input_type = input_type,
       c_mass_mg = .data[[c_col]]
     )
+  # NA rather than 0 when the nitrogen column is absent: a component whose
+  # nitrogen is unknown must not be counted as nitrogen-free, which would make
+  # the input C:N infinite and the derived SOM C:N its ceiling.
+  out$n_mass_mg <- if (!is.null(n_col) && rlang::has_name(npp, n_col)) {
+    npp[[n_col]]
+  } else {
+    NA_real_
+  }
+  out
+}
+
+# Report a weed stream that is identically zero. The exported description
+# advertises weeds as one of the four cropland carbon components, but the
+# turnkey chain never calls calculate_crop_npp_components(), the only function
+# creating weed_ag_dm_t, so the column exists and is zero throughout. Checking
+# that the column is PRESENT -- which is all this file used to do -- cannot tell
+# those two cases apart (whep#806).
+.sci_warn_zero_weeds <- function(npp) {
+  weed <- npp$weed_npp_c_t
+  if (length(weed) > 0 && all(is.na(weed) | weed == 0)) {
+    cli::cli_warn(
+      c(
+        "Weed carbon is zero for every row of {.field npp}.",
+        "i" = "The default chain omits {.fun calculate_crop_npp_components}, \
+        weeds contribute nothing to the cropland carbon input (whep#806)."
+      ),
+      # Weeds are zero on EVERY default build, so an unconditional
+      # warning would drown the ones that mean something (whep#647).
+      .frequency = "once",
+      .frequency_id = "sci_zero_weeds"
+    )
+  }
+  invisible(npp)
 }
 
 .sci_check_npp <- function(npp) {
@@ -183,7 +236,7 @@ build_soil_carbon_inputs <- function(
     !purrr::map_lgl(required, \(col) rlang::has_name(npp, col))
   ]
   if (length(missing) == 0) {
-    return(invisible(npp))
+    return(.sci_warn_zero_weeds(npp))
   }
   cli::cli_abort(c(
     "{.field npp} is missing required carbon column{?s} {.field {missing}}.",
@@ -199,8 +252,39 @@ build_soil_carbon_inputs <- function(
 # item_prod_code strings; resolve either form through items_prod_full. Territory
 # is a stringified area_code or an iso3c, resolved via the same helper the
 # N-inputs manure engine uses (both mappings abort rather than silently emit NA).
+# The default disposal method puts manure above the nitrogen ceiling back on
+# CROPLAND with no crop attached, and gives it carbon like any other applied row
+# (R/manure_allocation.R:462-481, :380). The filter below then drops it, because
+# it has no crop -- so the nitrogen balance applies that manure and the carbon
+# balance does not. Which way the two should agree is a science decision
+# (whep#805); reporting the mass is what stops it being invisible meanwhile.
+.sci_warn_dropped_manure_c <- function(manure) {
+  if (!rlang::has_name(manure, "applied_c")) {
+    return(invisible(manure))
+  }
+  dropped <- manure |>
+    dplyr::filter(.data$land_use == "Cropland", is.na(.data$crop)) |>
+    dplyr::pull("applied_c")
+  total <- sum(dropped, na.rm = TRUE)
+  if (total <= 0) {
+    return(invisible(manure))
+  }
+  cli::cli_warn(c(
+    "{.val {round(total)}} t C of cropland manure has no crop and is dropped \
+    from the carbon input.",
+    "i" = "The nitrogen balance keeps this manure; the carbon balance does not \
+      (whep#805)."
+  ))
+  invisible(manure)
+}
+
 .sci_manure_components <- function(manure) {
+  .sci_warn_dropped_manure_c(manure)
   manure |>
+    # Same rule as the crop components: a manure stream with no nitrogen is
+    # missing information, not nitrogen-free, so the column arrives as NA and
+    # the input C:N for it comes out NA rather than infinite.
+    ensure_columns(tibble::tibble(applied_n = numeric())) |>
     dplyr::filter(
       .data$land_use == "Cropland",
       !is.na(.data$crop)
@@ -210,6 +294,10 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::summarise(
       c_mass_mg = sum(.data$applied_c, na.rm = TRUE),
+      # NOT na.rm: summing an all-NA nitrogen with na.rm would give 0, which
+      # reads as "no nitrogen" rather than "nitrogen unknown" and would send
+      # the input C:N to infinity.
+      n_mass_mg = sum(.data$applied_n),
       .by = c("year", "territory", "item_prod_code")
     ) |>
     dplyr::transmute(
@@ -217,7 +305,8 @@ build_soil_carbon_inputs <- function(
       item_prod_code = .data$item_prod_code,
       year = as.integer(.data$year),
       input_type = "manure",
-      c_mass_mg = .data$c_mass_mg
+      c_mass_mg = .data$c_mass_mg,
+      n_mass_mg = .data$n_mass_mg
     )
 }
 
@@ -305,7 +394,17 @@ build_soil_carbon_inputs <- function(
       relationship = "many-to-many"
     ) |>
     .sci_rescale_cell_area(harvested_area) |>
-    dplyr::mutate(c_mass_mg = .data$c_mass_mg * .data$area_weight) |>
+    # Nitrogen is scaled by the SAME area weight as carbon and carried through
+    # the select. Dropping it here is what made `input_cn` NA on all 811,138
+    # cropland rows of a real build: the column was rebuilt as all-NA by the
+    # missing-column guard in `.sci_sum_components()`, so the loss presented as
+    # "no component carried a nitrogen" rather than as an error. Scaling only
+    # the carbon would be worse than dropping it -- a polity-level nitrogen
+    # mass on every cell makes the input C:N far too narrow.
+    dplyr::mutate(
+      c_mass_mg = .data$c_mass_mg * .data$area_weight,
+      n_mass_mg = .data$n_mass_mg * .data$area_weight
+    ) |>
     dplyr::select(
       "lon",
       "lat",
@@ -314,6 +413,7 @@ build_soil_carbon_inputs <- function(
       "year",
       "input_type",
       "c_mass_mg",
+      "n_mass_mg",
       "crop_area_ha"
     )
 }
@@ -441,11 +541,27 @@ build_soil_carbon_inputs <- function(
   # `c_mass_mg[input_type == ...]` subset did; data.table `by=` keeps
   # first-appearance group order, matching dplyr `.by`.
   dt <- data.table::as.data.table(gridded)
+  # A caller (or a fixture) may supply components with no nitrogen at all.
+  # That is "no information", so the column is created as NA and the input C:N
+  # comes out NA, which `.soc_marginal_cn()` answers with the land-use default.
+  # A hand-built fixture may legitimately arrive with no nitrogen column at
+  # all. A PIPELINE table must not: `.sci_join_weights()` carries `n_mass_mg`
+  # through, and its silent absence is how a dropped column presented as "no
+  # component carried a nitrogen" for every row of a real build rather than as
+  # an error.
+  if (!("n_mass_mg" %in% names(dt))) {
+    dt[, n_mass_mg := NA_real_]
+  }
   dt[, `:=`(
     .residue = data.table::fifelse(input_type == "crop_residue", c_mass_mg, 0),
     .root = data.table::fifelse(input_type == "root", c_mass_mg, 0),
     .weed = data.table::fifelse(input_type == "weed", c_mass_mg, 0),
-    .manure = data.table::fifelse(input_type == "manure", c_mass_mg, 0)
+    .manure = data.table::fifelse(input_type == "manure", c_mass_mg, 0),
+    # Nitrogen totals only the components that HAVE a nitrogen, and counts how
+    # much carbon those were, so the ratio below is formed from a matched pair
+    # rather than dividing all the carbon by some of the nitrogen.
+    .n_known = data.table::fifelse(is.na(n_mass_mg), 0, n_mass_mg),
+    .c_with_n = data.table::fifelse(is.na(n_mass_mg), 0, c_mass_mg)
   )]
   per_cell <- dt[,
     .(
@@ -453,7 +569,9 @@ build_soil_carbon_inputs <- function(
       residue_c_mg = sum(.residue),
       root_c_mg = sum(.root),
       weed_c_mg = sum(.weed),
-      manure_c_mg = sum(.manure)
+      manure_c_mg = sum(.manure),
+      input_n_mg = sum(.n_known),
+      input_c_with_n_mg = sum(.c_with_n)
     ),
     by = cell_keys
   ]
@@ -463,7 +581,9 @@ build_soil_carbon_inputs <- function(
       residue_c_mg = sum(residue_c_mg),
       root_c_mg = sum(root_c_mg),
       weed_c_mg = sum(weed_c_mg),
-      manure_c_mg = sum(manure_c_mg)
+      manure_c_mg = sum(manure_c_mg),
+      input_n_mg = sum(input_n_mg),
+      input_c_with_n_mg = sum(input_c_with_n_mg)
     ),
     by = keys
   ]
@@ -478,6 +598,21 @@ build_soil_carbon_inputs <- function(
     root_c_mgc_ha_yr = .sci_safe_div(.data$root_c_mg, .data$crop_area_ha),
     weed_c_mgc_ha_yr = .sci_safe_div(.data$weed_c_mg, .data$crop_area_ha),
     manure_c_mgc_ha_yr = .sci_safe_div(.data$manure_c_mg, .data$crop_area_ha),
+    # The C:N of the carbon input, over the components whose nitrogen is
+    # known. Unitless, so both masses may stay in Mg. It is what
+    # `.soc_marginal_cn()` reads to set the C:N of the organic matter this
+    # input forms; NA where no component carried a nitrogen, which that
+    # function treats as "no information" and answers with the land-use
+    # default.
+    # NA, not 0, when no component carried a nitrogen. `.sci_safe_div()` would
+    # return 0 for 0/0, and a 0 ratio is a value, not an absence -- it happens
+    # to reach the same fallback because `.soc_marginal_cn()` also rejects
+    # non-positive inputs, but only by luck. Say "unknown" explicitly.
+    input_cn = dplyr::if_else(
+      .data$input_n_mg > 0,
+      .sci_safe_div(.data$input_c_with_n_mg, .data$input_n_mg),
+      NA_real_
+    ),
     total_c_input_mgc_ha_yr = .data$residue_c_mgc_ha_yr +
       .data$root_c_mgc_ha_yr +
       .data$weed_c_mgc_ha_yr +
@@ -509,11 +644,13 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::select(
       dplyr::all_of(keys),
+      "crop_area_ha",
       "residue_c_mgc_ha_yr",
       "root_c_mgc_ha_yr",
       "weed_c_mgc_ha_yr",
       "manure_c_mgc_ha_yr",
       "total_c_input_mgc_ha_yr",
+      "input_cn",
       "humified_fraction"
     )
 }
@@ -597,7 +734,23 @@ build_soil_carbon_inputs <- function(
       year = as.integer(.data$year),
       residue_soil_c_t = .data$residue_soil_c_t,
       root_c_t = .data$root_c_t,
-      weed_npp_c_t = .data$weed_npp_c_t
+      weed_npp_c_t = .data$weed_npp_c_t,
+      # The NITROGEN of the two components that carry carbon here.
+      # `calculate_npp_carbon_nitrogen()` already produces both -- `root_n_t`
+      # and, via `.npp_cn_soil_residue()`, `residue_soil_n_t` -- and this
+      # transmute simply dropped them, so `input_cn` was formed from the manure
+      # alone: a manure C:N (median 12.5 against the manure stream's own 11.97)
+      # setting the C:N of organic matter built from residues and roots too.
+      #
+      # Weed nitrogen is deliberately absent rather than forgotten: weed CARBON
+      # is identically zero in this chain, because only
+      # `calculate_crop_npp_components()` creates `weed_ag_dm_t` and the
+      # turnkey path does not call it (see `.sci_warn_zero_weeds()`). A
+      # component contributing no carbon cannot move a carbon-weighted ratio,
+      # so its absence costs nothing until that function is wired in, at which
+      # point `weed_npp_n_t` should join this list.
+      residue_soil_n_t = .data$residue_soil_n_t,
+      root_n_t = .data$root_n_t
     )
 }
 

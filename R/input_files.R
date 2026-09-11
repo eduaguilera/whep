@@ -74,6 +74,17 @@
 #'   - Other: A specific version can also be used. For more details read the
 #'     `version` column information from [`whep_inputs`].
 #'
+#' @param years Optional integer vector of years to keep. For `parquet` the
+#'   filter is pushed into the file, so only the row groups whose statistics
+#'   overlap the requested range are read from disk and the exact set is
+#'   applied afterwards. This is what makes a single-year read of a large
+#'   monthly pin affordable: `lpjml-soc-hydrology` holds 193,317,960 rows over
+#'   1901-2022, and one year of it is 1.3 seconds and 34 MB instead of ~12 GB
+#'   materialised. For `csv` the filter is applied after reading. The formats
+#'   returned as a path (`nc`, `nc4`, `raw`, archives) cannot honour it and
+#'   abort rather than ignore it. `NULL`, the default, reads the whole file.
+#' @param year_col Name of the year column `years` filters on.
+#'
 #' @returns A tibble with the dataset. Some information about each dataset can
 #'   be found in the code where it's used as input for further processing.
 #'
@@ -87,7 +98,13 @@
 #'   type = "csv",
 #'   version = "20250721T152646Z-ce61b"
 #' )
-whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
+whep_read_file <- function(
+  file_alias,
+  type = "parquet",
+  version = NULL,
+  years = NULL,
+  year_col = "year"
+) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
@@ -110,7 +127,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   )
 
   paths |>
-    .read_file(type)
+    .read_file(type, years, year_col)
 }
 
 #' Input file versions
@@ -188,7 +205,7 @@ whep_list_file_versions <- function(file_alias) {
   invisible(file_alias)
 }
 
-.read_file <- function(paths, extension) {
+.read_file <- function(paths, extension, years = NULL, year_col = "year") {
   # `extension` (e.g. "tar.gz") is a literal suffix, not a pattern: its "."
   # would otherwise match any character as a regex, so a path ending in
   # "tarXgz" (any X) would wrongly count as a "tar.gz" match (whep#172).
@@ -218,12 +235,24 @@ whep_list_file_versions <- function(file_alias) {
     ))
   }
 
+  # `nc`, `raw` and the archives hand back a PATH, so a year filter cannot be
+  # applied to them. Ignoring it silently would hand the caller every year it
+  # asked to exclude, which is the failure this argument exists to prevent.
+  if (!is.null(years) && !extension %in% c("csv", "parquet")) {
+    cli::cli_abort(c(
+      "{.arg years} cannot be applied to a {.val {extension}} file.",
+      i = "That format is returned as a path for the caller to read lazily."
+    ))
+  }
+
   if (extension == "csv") {
-    readr::read_csv(path, show_col_types = FALSE)
+    .filter_years_if_present(
+      readr::read_csv(path, show_col_types = FALSE),
+      years,
+      year_col
+    )
   } else if (extension == "parquet") {
-    path |>
-      nanoparquet::read_parquet() |>
-      tibble::as_tibble()
+    .read_parquet_years(path, years, year_col)
   } else if (extension %in% c("tar.gz", "tgz")) {
     # Decompress archive and return paths to extracted files
     tmpdir <- file.path(tempdir(), basename(tempfile()))
@@ -244,6 +273,77 @@ whep_list_file_versions <- function(file_alias) {
       "Unknown file type {extension}. Available for this file: {extensions}"
     )
   }
+}
+
+# Read one parquet, pushing a `years` filter INTO the file so only the row
+# groups whose statistics overlap the requested range are read from disk. The
+# pushdown can only express a RANGE, so the exact set is applied afterwards;
+# without that, a request for c(2001, 2003) would silently also return 2002.
+# Falls back to the whole-file read when the file has no such column.
+#
+# This is the predicate-pushdown pattern `.read_input()` already uses for the
+# FAOSTAT pins. It matters far more for the LPJmL pins:
+# `lpjml-soc-hydrology` holds 193,317,960 monthly rows over 1901-2022, 1.9 GB
+# on disk and ~12 GB once materialised, of which a single-year build needs one
+# year. Reading it whole and filtering afterwards is what made a one-year
+# gridded carbon balance unrunnable: two hours of CPU without ever leaving the
+# input stage. With the pushdown the same read is 1.3 seconds and 34 MB.
+.read_parquet_years <- function(path, years = NULL, year_col = "year") {
+  whole <- function() {
+    tibble::as_tibble(nanoparquet::read_parquet(path))
+  }
+  if (is.null(years)) {
+    return(whole())
+  }
+  wanted <- as.integer(years)
+  dataset <- arrow::open_dataset(path, format = "parquet")
+  # Asking for years from a file with no year column is a wiring mistake, and
+  # the two ways of absorbing it are both worse than stopping: returning the
+  # whole file hands back every year when one was asked for, and silently
+  # dropping the filter reinstates the very read this exists to avoid.
+  if (!year_col %in% names(dataset)) {
+    cli::cli_abort(
+      c(
+        "Cannot filter by {.arg years}: no {.val {year_col}} column.",
+        i = "Column{?s} present: {.val {names(dataset)}}."
+      ),
+      class = "whep_year_filter_error"
+    )
+  }
+  # An empty or all-NA request asks for NO rows. Falling through to the
+  # whole-file read below would materialise the entire pin -- about 12 GB for
+  # `lpjml-soc-hydrology` -- only to discard every row of it, which is exactly
+  # the read this function exists to avoid.
+  if (!any(is.finite(wanted))) {
+    return(tibble::as_tibble(dplyr::collect(utils::head(dataset, 0L))))
+  }
+  # Only push down a NUMERIC year. Arrow does not refuse a text column: asked
+  # for `year >= 2003` against character years it silently coerces and returns
+  # rows, so a column whose text order does not match its numeric order would
+  # quietly drop years that were asked for. `.filter_years_if_present()` below
+  # cannot repair that -- it can only remove surplus rows, never restore
+  # missing ones -- so the whole-file read, which coerces in R, is the correct
+  # path there rather than the fast one.
+  numeric_year <- is.numeric(
+    dplyr::collect(utils::head(dataset, 1L))[[year_col]]
+  )
+  if (!numeric_year) {
+    return(.filter_years_if_present(whole(), years, year_col))
+  }
+  # Both bounds are computed HERE, not inside the filter: arrow translates the
+  # expression rather than evaluating it, so an inline `min()` becomes an
+  # Arrow aggregate and the read aborts with "Expression not supported in
+  # Arrow".
+  y_min <- min(wanted, na.rm = TRUE)
+  y_max <- max(wanted, na.rm = TRUE)
+  dataset |>
+    dplyr::filter(
+      .data[[year_col]] >= y_min,
+      .data[[year_col]] <= y_max
+    ) |>
+    dplyr::collect() |>
+    tibble::as_tibble() |>
+    .filter_years_if_present(years, year_col)
 }
 
 .get_remote_board <- function(file_info) {

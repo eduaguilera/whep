@@ -413,9 +413,31 @@ cft_to_pft <- c(
 }
 
 # ---- Read EarthStat mapping ---------------------------------------------
-# Rows whose `item_prod_code` is NA correspond to EarthStat raster
-# layers (fodder grasses, alfalfa, clover, etc.) that have no direct
-# FAOSTAT QCL item. Downstream consumers usually filter with
+# One row per crop layer in the Monfreda et al. (2008) 175-crop archive,
+# whether or not WHEP maps it. Rows whose `item_prod_code` is NA carry an
+# `unmapped_reason` saying which kind of gap they are:
+#
+#   no_fao_crop_name  the archive's own metadata table gives no FAO crop
+#                     name for the layer, repeating the EarthStat code in
+#                     its Cropname_FAO column instead. The 15 fodder
+#                     layers (alfalfa, clover, maizefor, grassnes, ...).
+#   unmapped          the archive names an FAO crop but WHEP has not
+#                     chosen an item code for it.
+#
+# The distinction is the point. Before it, a layer WHEP had simply never
+# been told about looked exactly like one deliberately left out, and
+# barley -- a major cereal -- sat absent from the file for as long as it
+# existed. `test_earthstat_mapping.R` now asserts the file covers all 175
+# layers, so the next omission fails a test instead of vanishing.
+#
+# `in_raster_archive` is a separate axis: whether the layer actually SHIPS
+# in the zip the EarthStat URL serves. Three of the metadata table's 175
+# names -- coir, gums and popcorn -- do not, verified by a fresh download on
+# 2026-08-19 that extracted 172 crop directories. They exist as rasters in an
+# older distribution, so this is the served archive being incomplete against
+# its own metadata rather than the crops not existing.
+#
+# Downstream consumers usually filter with
 # `dplyr::filter(!is.na(item_prod_code))`.
 #
 # The crosswalk is the *only* thing `prepare_crop_patterns()` iterates, so a
@@ -434,12 +456,26 @@ cft_to_pft <- c(
       col_types = readr::cols(
         earthstat_name = readr::col_character(),
         item_prod_code = readr::col_integer(),
-        item_prod_name = readr::col_character()
+        item_prod_name = readr::col_character(),
+        unmapped_reason = readr::col_character(),
+        in_raster_archive = readr::col_logical(),
+        pattern_group = readr::col_character()
       )
     )
 }
 
 # ---- EarthStat Crop Specific Fertilizer mapping (17 crops) ---------------
+# The 17 crops of the EarthStat Crop Specific Fertilizer product, keyed to
+# the same `item_prod_code` space as `earthstat_mapping.csv` above.
+#
+# Seven of these codes were from another vintage of the item table and
+# named a different crop, or no crop at all: cassava 340 and cotton 274
+# resolved to nothing in `items_prod`, while potato 328 was "Seed cotton,
+# unginned", oilpalm 217 "Cashew nuts, in shell", rapeseed 223
+# "Pistachios, in shell", sugarcane 780 "Jute, raw or retted" and
+# sunflower 222 "Walnuts, in shell". The crosswalk 900 lines above had the
+# right code for every one of them under the same EarthStat name, which is
+# what these now use; `test_earthstat_mapping.R` asserts the two agree.
 .earthstat_fertilizer_mapping <- function() {
   # Codes are the ones `inst/extdata/earthstat_mapping.csv` gives for the SAME
   # raster name, which is this script's own answer to the same question for the
@@ -508,6 +544,11 @@ cft_to_pft <- c(
   tif_name <- paste0(crop_name, "_", nutrient, "Application_Rate.tif")
   tif_path <- file.path(fert_dir, paste0("Fertilizer_", crop_name), tif_name)
   if (!file.exists(tif_path)) {
+    # Said out loud, like the harvested-area reader above. A layer that is
+    # simply absent used to leave nothing behind at all: an empty tibble
+    # binds away to nothing, so the output was short by one crop with no
+    # record anywhere that it had been asked for.
+    cli::cli_alert_warning("Missing: {tif_path}")
     return(tibble::tibble())
   }
   r <- terra::rast(tif_path)
@@ -537,6 +578,7 @@ cft_to_pft <- c(
     paste0(crop_name, "_YieldPerHectare.tif")
   )
   if (!file.exists(tif_path)) {
+    cli::cli_alert_warning("Missing: {tif_path}")
     return(tibble::tibble())
   }
   r <- terra::rast(tif_path)
@@ -1427,7 +1469,8 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
     dplyr::summarise(
       harvest_fraction = sum(harvest_fraction),
       .by = c(lon, lat, item_prod_code)
-    )
+    ) |>
+    .share_pattern_groups(xwalk)
 }
 
 

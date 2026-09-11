@@ -26,11 +26,21 @@ IPCC 2019 management-loss fractions to the collected/housed streams from
 nitrogen (its in-situ soil losses belong to the soil stage). Indirect N2O is
 reported as a labelled sub-flux of the already-removed volatilized and leached
 nitrogen (the same N is not removed twice). Carbon applied to the field is
-\code{applied_n} times the post-storage manure C:N (the solid/liquid/excreta value
-for the stream's management system), so the applied C:N reflects storage, not
-fresh excreta; the carbon and volatile-solids storage losses follow from that.
-The grazing stream undergoes no storage and keeps its full carbon and volatile
-solids (no storage C:N cap is applied to it).
+\code{c_stream * (1 - c_loss_fraction)}, the stream's carbon less what its
+management system mineralises in storage, and the volatile solids are scaled
+by the same ratio. The applied C:N is therefore a RESULT of that loss rather
+than an imposed cap. Loss fractions and their sources are in
+\code{inst/extdata/manure/manure_storage_c_loss.csv}: nothing for grazing or daily
+spread, which have no storage stage; 0.420 of initial carbon for solid
+storage and 0.424 for poultry litter (Pardo et al. 2015,
+\doi{10.1111/gcb.12806}); 0.110 (cattle) and 0.128 (pigs) for slurry,
+derived from Kupper et al. 2020 (\doi{10.1016/j.agee.2020.106963}) using
+this package's own 0.47 kg C per kg volatile solids.
+
+Until whep#1006 this was a cap, \verb{pmin(c_stream, applied_n * post-storage C:N)}, which produced a loss only as a side effect of holding the applied
+C:N down. That made the loss depend on the excreted composition rather than
+on the storage system: when excreted carbon moved, the reported loss for
+cattle solid storage fell from 40.3\% to 6.9\% with no coefficient changing.
 }
 \examples{
 excretion <- tibble::tribble(

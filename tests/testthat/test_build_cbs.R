@@ -2894,3 +2894,142 @@ test_that("binding an off-window recovered row aborts", {
     class = "whep_error_off_window_area_year"
   )
 })
+
+# ---- Crop residues enter the balance at their recovered mass ---------------
+# Before this, .read_crop_residues() copied the whole residue PRODUCTION row
+# and relabelled the copy as a use, so 100% of Straw and Other crop residue
+# production was booked as feed: 7.21 Pg DM at 2020 against the ~1.3 Pg the
+# package's own Krausmann recovery rates and regional feed-use fractions give.
+# The CBS now carries only what leaves the field.
+
+.rcr_row <- function(crop = 2511L, residue = 2105L, value = 1000, area = 203L) {
+  tibble::tibble(
+    year = 2020L,
+    area_code = area,
+    item_cbs_code_crop = crop,
+    item_cbs_code_residue = residue,
+    value = value
+  )
+}
+
+testthat::test_that("the residue balance closes on the recovered mass", {
+  # Spain: wheat recovery 0.7 (Western Europe), feed-use fraction 0.20
+  # (Southern Europe), so 1000 t of straw leaves 700 t in the balance, of
+  # which 140 t is feed.
+  out <- whep:::.residue_cbs_elements(.rcr_row())
+  value_of <- function(el) out$value[out$element == el]
+  testthat::expect_equal(value_of("production"), 700)
+  testthat::expect_equal(value_of("feed"), 140)
+  testthat::expect_equal(value_of("other_uses"), 560)
+  testthat::expect_equal(
+    value_of("production"),
+    value_of("feed") + value_of("other_uses")
+  )
+})
+
+testthat::test_that("residue feed is far below the whole production", {
+  # The defect this replaces: feed == production. Any future change that
+  # reintroduces it fails here rather than only in a global total.
+  out <- whep:::.residue_cbs_elements(.rcr_row())
+  fed <- out$value[out$element == "feed"]
+  grown <- 1000
+  testthat::expect_lt(fed, 0.5 * grown)
+})
+
+testthat::test_that("firewood is recovered but never fed", {
+  out <- whep:::.residue_cbs_elements(.rcr_row(residue = 2107L))
+  testthat::expect_false("feed" %in% out$element)
+  testthat::expect_equal(
+    out$value[out$element == "production"],
+    out$value[out$element == "other_uses"]
+  )
+})
+
+testthat::test_that("the feed-use fraction is regional, not one constant", {
+  # Northern America is 0.05 and Southern Asia 0.45, so the same straw must
+  # not yield the same feed mass in both.
+  usa <- whep:::.residue_cbs_elements(.rcr_row(area = 231L))
+  ind <- whep:::.residue_cbs_elements(.rcr_row(area = 100L))
+  fed <- function(x) x$value[x$element == "feed"]
+  testthat::expect_true(fed(usa) != fed(ind))
+})
+
+testthat::test_that("residue that recovers nothing leaves the balance loudly", {
+  # A crop with no Krausmann category gets recovery 0, so the whole residue
+  # stays on the field. That is the right default, but it is mass leaving the
+  # CBS and must not do so in silence.
+  testthat::expect_warning(
+    out <- whep:::.residue_cbs_elements(.rcr_row(crop = 999999L)),
+    "recover nothing"
+  )
+  testthat::expect_identical(nrow(out), 0L)
+})
+
+testthat::test_that("one CBS crop spanning two categories splits its mass", {
+  # 2570 is the only CBS crop item mapping to two Krausmann categories
+  # (Castor Beans and Rapeseed). Its residue is split evenly between them
+  # rather than assigned to whichever the join happened to return first, so
+  # the result sits between the two single-category answers.
+  bridge <- whep:::.residue_krausmann_bridge()
+  two <- bridge[bridge$item_cbs_code_crop == 2570L, ]
+  testthat::expect_identical(nrow(two), 2L)
+
+  out <- whep:::.residue_cbs_elements(.rcr_row(crop = 2570L))
+  prod <- out$value[out$element == "production"]
+
+  # The balance identity is NOT evidence of a split: production, feed and
+  # other_uses all derive from the same `recovered`, so it holds however the
+  # mass is assigned -- including if the join were deduplicated and the whole
+  # tonnage booked under whichever category the join returned first. Compare
+  # against what EACH category alone gives, by restricting the bridge.
+  testthat::expect_equal(
+    prod,
+    out$value[out$element == "feed"] + out$value[out$element == "other_uses"]
+  )
+
+  single <- function(i) {
+    testthat::with_mocked_bindings(
+      {
+        one <- whep:::.residue_cbs_elements(.rcr_row(crop = 2570L))
+        one$value[one$element == "production"]
+      },
+      .residue_krausmann_bridge = function(...) two[i, ],
+      .package = "whep"
+    )
+  }
+  a <- single(1L)
+  b <- single(2L)
+  # The split is weighted by how many PRODUCTION ITEMS each category covers,
+  # not even: 2570 "Oilcrops, Other" is eleven items in one category and one
+  # in the other, so an even split would hand the minority half the mass.
+  w <- two$category_weight
+  expected <- (a * w[1] + b * w[2]) / sum(w)
+  testthat::expect_equal(prod, expected)
+  # Weighted, so it must sit strictly between the two single-category answers
+  # and NOT at their midpoint, unless the weights happen to be equal.
+  if (!isTRUE(all.equal(a, b))) {
+    testthat::expect_gt(prod, min(a, b))
+    testthat::expect_lt(prod, max(a, b))
+    if (w[1] != w[2]) {
+      testthat::expect_false(isTRUE(all.equal(prod, (a + b) / 2)))
+    }
+  }
+  # The weights are the item counts, and they are lopsided for this crop.
+  testthat::expect_true(all(w >= 1))
+  testthat::expect_gt(max(w), min(w))
+})
+
+testthat::test_that("the CBS records how its residue rows were produced", {
+  # calculate_residue_destinies() is a documented multi-method function whose
+  # stamp used to be discarded in the summarise, so the CBS carried no record
+  # of the method its residue rows came from.
+  out <- whep:::.residue_recovered_split(.rcr_row(crop = 15L), warn = FALSE)
+  testthat::expect_true("method_residue_destiny" %in% names(out))
+  testthat::expect_equal(out$method_residue_destiny, "krausmann_regional")
+  alt <- whep:::.residue_recovered_split(
+    .rcr_row(crop = 15L),
+    warn = FALSE,
+    method_destiny = "shares"
+  )
+  testthat::expect_equal(alt$method_residue_destiny, "shares")
+})

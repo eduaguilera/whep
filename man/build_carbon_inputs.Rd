@@ -13,6 +13,9 @@ build_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
+  density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   example = FALSE
 )
 }
@@ -42,6 +45,40 @@ with the remaining members of \code{data}.}
 \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} and \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}
 builders so their readers slice to the requested years; ignored for inputs
 supplied via \code{data}.}
+
+\item{crop_groups}{How cropland is resolved into land-use classes, a named
+list validated element-wise. \code{method}: \code{"spain_hist"} (default) resolves
+cropland into crop GROUPS -- herbaceous crops pooled per irrigation
+regime (they rotate, so nothing inside the pool is a land-use change),
+woody crops per species, rainfed and irrigated separate -- labelled by
+\code{\link[=soc_crop_group]{soc_crop_group()}}; \code{"none"} keeps the single \code{cropland} class the
+package used before, for comparison and for a caller that wants one
+cropland number.
+\code{irrigation}: where each crop's irrigated share of its cell area comes
+from. \code{"spatialized"} (default) uses \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} on the
+pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts
+every crop in its rainfed group. Recorded in \code{method_c_input}. A
+pre-built share layer can be supplied as \code{data$crop_regime_share} (\code{lon},
+\code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).}
+
+\item{density_basis}{Which crop area weights the per-crop densities when
+they collapse to a class. \code{"renormalised"} (default) uses the yearly cell
+crop area the densities were computed on -- the FAOSTAT-renormalised area
+\code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} returns as \code{crop_area_ha} -- so the class
+carbon mass equals the sum of the crop masses that were spatialized.
+\code{"static"} uses the time-invariant crop-pattern area split by the
+polycell's share of the cell, which the package used before. The two
+differ wherever the spatialized cell areas of a polity-crop-year do not
+sum to its FAOSTAT harvested area: measured on the 2010 pins over 40,065
+cropland cells the per-cell class density ratio renormalised/static has
+an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
+\code{method_area_basis} on cropland rows.}
+
+\item{method_grazing}{Whose grazing removes carbon from grassland and
+returns it as excreta; see \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}.
+\code{"whep"} (default) charges the class WHEP's own grass intake and applied
+excreta, and so needs \code{data$livestock_intake} and \code{data$excreta};
+\code{"lpjml"} uses the model's livestock module instead and needs neither.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

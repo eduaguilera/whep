@@ -78,7 +78,13 @@ download_hwsd <- function(dest_dir) {
       t_clay = as.numeric(CLAY),
       t_usda_tex = as.integer(TEXTURE_USDA),
       t_ph_h2o = as.numeric(PH_WATER),
-      wrb2 = WRB2
+      wrb2 = WRB2,
+      # Stamp the provenance INTO the artifact: inst/scripts/
+      # export_hwsd_attributes.R writes this same filename from HWSD v1.2,
+      # whose topsoil is 0-30 cm, while D1 here is 0-20 cm. Without this a
+      # reader cannot tell which depth it holds (whep#851).
+      source = "hwsd2",
+      topsoil_depth_cm = 20
     ) |>
     dplyr::filter(!is.na(t_usda_tex))
 

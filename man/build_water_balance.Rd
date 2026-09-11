@@ -54,7 +54,17 @@ and a \code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \c
 except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.
 Read the latter with
 \code{read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)}, which
-names their CFT bands so \code{bands} can select among them.}
+names their CFT bands so \code{bands} can select among them.
+
+Supplying any per-CFT cube also requires \code{stand_frac} (\code{lon}, \code{lat},
+\code{year}, \code{band_name} or \code{band}, \code{value}), the per-CFT stand area
+fractions, read by default with
+\code{read_lpjml_hydrology("stand_frac", monthly = FALSE)}. Every per-CFT cube
+is a density per square metre of ITS OWN STAND, so its bands must be
+weighted by these fractions before they are summed to a cell. Without
+them the aggregation aborts rather than returning an unweighted sum,
+which is not a whole-cell total at all: it overstates by
+1 / (managed fraction of the cell).}
 
 \item{bands}{Optional character vector of LPJmL crop-functional-type band
 names restricting which bands the per-CFT consumptive-water and net

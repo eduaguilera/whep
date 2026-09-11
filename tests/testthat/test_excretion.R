@@ -41,7 +41,8 @@ test_that("estimate_n_excretion returns one row per livestock category", {
       "c_excretion",
       "vs_excretion",
       "method_n_excretion",
-      "method_vs"
+      "method_vs",
+      "method_c_excretion"
     ) %in%
       names(res)
   ))
@@ -76,8 +77,39 @@ test_that("n_intake is the canonical sum of feed N (incl. forage for grass)", {
   expect_equal(cm$n_intake, exp_ni)
   # Dairy Cattle N retention = 0.20 -> excretion = 0.80 * intake.
   expect_equal(cm$n_excretion, exp_ni * 0.80)
-  # Cattle Excreta C:N (bio_coefs) ~ 19.07.
-  expect_equal(cm$c_excretion / cm$n_excretion, 19.065383, tolerance = 1e-4)
+  # Carbon is the carbon of the volatile solids, never a dung C:N applied to
+  # whole-excreta N (which gave 19.07 here, 0.73 kg C per kg VS).
+  expect_equal(cm$c_excretion, cm$vs_excretion * 0.47)
+  expect_lt(cm$c_excretion / cm$n_excretion, 19)
+})
+
+test_that("excreted carbon is bounded by the organic matter it sits in", {
+  res <- whep::estimate_n_excretion(.toy_intake())
+  ratio <- res$c_excretion / res$vs_excretion
+  expect_true(all(ratio > 0.35 & ratio < 0.6))
+  expect_true(all(res$method_c_excretion == "volatile_solids"))
+})
+
+test_that("c_vs_fraction is an option and is validated", {
+  res <- whep::estimate_n_excretion(
+    .toy_intake(),
+    options = list(c_vs_fraction = 0.5)
+  )
+  expect_equal(res$c_excretion, res$vs_excretion * 0.5)
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(c_vs_fraction = 1.5)
+    ),
+    "c_vs_fraction"
+  )
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(method_c = "cn_ratio")
+    ),
+    "method_c"
+  )
 })
 
 test_that("intake_minus_product_n subtracts product N", {

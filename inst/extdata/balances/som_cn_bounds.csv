@@ -1,0 +1,3 @@
+cropland_class,cn_default,cn_min,cn_max,source
+Cropland,10,8,15,"IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines Vol.4 Ch.11, Equation 11.8, printed page 11.20: 'A default value of 10 (range from 8 to 15) may be used for situations involving management changes on Cropland Remaining Cropland.'"
+NonCropland,15,10,30,"IPCC (2019) Vol.4 Ch.11 Eq 11.8, p.11.20: 'A default value of 15 (uncertainty range from 10 to 30) for the C:N ratio (R) may be used for situations involving land-use change from Forest Land or Grassland to Cropland.'"

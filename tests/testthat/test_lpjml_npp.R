@@ -146,7 +146,14 @@ testthat::test_that("real pft_npp read carries the expected PFT vocabulary", {
     "pft_npp.nc absent"
   )
   out <- whep::read_lpjml_npp("npp", years = 2000L, run_dir = run_dir)
-  # 43 PFT bands including the natural grasses and the managed grasslands.
+  # 46 PFT bands including the natural grasses and the managed grasslands.
+  #
+  # It said 43 until 2026-08-31, and passed only because it had been
+  # skipping: WHEP_LPJML_RUN_DIR pointed at a run directory that no longer
+  # existed. 43 is the LPJmL 5.x band count. Both 6.1.1 runs on disk -- the
+  # 1901-2023 socn_diag one and the 1750-2023 pre-industrial one -- carry 46,
+  # with identical vocabulary, and all fourteen names in .gn_natural_pfts()
+  # resolve in each.
   testthat::expect_true(
     all(
       c(
@@ -158,6 +165,6 @@ testthat::test_that("real pft_npp read carries the expected PFT vocabulary", {
         out$name_pft
     )
   )
-  testthat::expect_equal(length(unique(out$npft)), 43L)
+  testthat::expect_equal(length(unique(out$npft)), 46L)
   testthat::expect_true(all(out$year == 2000L))
 })

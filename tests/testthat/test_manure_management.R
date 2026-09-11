@@ -464,3 +464,77 @@ test_that("both engines see the same MMS mix for one territory", {
     stats::setNames(engine$fraction, engine$mms_type)[sort(engine$mms_type)]
   )
 })
+
+testthat::test_that("storage carbon loss comes from the sourced table, per system", {
+  # whep#1006: the loss used to be a side effect of a C:N cap, so it moved
+  # whenever the excreted composition moved, with no coefficient changing.
+  # It is now its own coefficient and must depend on the SYSTEM alone.
+  coefs <- whep:::.storage_c_loss_coefs()
+  testthat::expect_true(all(
+    c("mms_type", "species", "c_loss_fraction", "basis", "source", "note") %in%
+      names(coefs)
+  ))
+  # Every row carries a source. A coefficient without one is the thing the
+  # package forbids.
+  testthat::expect_true(all(nzchar(coefs$source)))
+  testthat::expect_true(all(coefs$c_loss_fraction >= 0))
+  testthat::expect_true(all(coefs$c_loss_fraction < 1))
+
+  # The systems with no storage stage lose nothing, by definition.
+  no_storage <- coefs[
+    coefs$mms_type %in% c("Pasture/Range/Paddock", "Daily Spread"),
+  ]
+  testthat::expect_true(all(no_storage$c_loss_fraction == 0))
+
+  # Solid systems lose far more than slurry: heaps are aerobic and warm.
+  solid <- coefs$c_loss_fraction[
+    coefs$mms_type == "Solid Storage" & coefs$species == "All_species"
+  ]
+  liquid <- coefs$c_loss_fraction[
+    coefs$mms_type == "Liquid/Slurry" & coefs$species == "Cattle"
+  ]
+  testthat::expect_gt(solid, liquid)
+  testthat::expect_equal(solid, 0.420)
+  testthat::expect_equal(liquid, 0.110)
+})
+
+testthat::test_that("the loss no longer depends on the excreted C:N", {
+  # The regression test for the defect itself. Two excretion frames identical
+  # except in carbon: the FRACTION lost must be the same, because storage
+  # mineralises a share of what it is given. Under the old cap the low-carbon
+  # frame lost proportionally far less, which is how a coefficient change
+  # nobody made moved a published loss.
+  base <- .toy_excretion()
+  rich <- dplyr::mutate(base, c_excretion = .data$c_excretion * 2)
+  frac <- function(exc) {
+    l <- whep::apply_management_losses(whep::split_manure_management(exc))
+    keep <- l$stream != "grazing"
+    sum(l$c_lost[keep]) / sum(l$c_lost[keep] + l$applied_c[keep])
+  }
+  testthat::expect_equal(frac(base), frac(rich), tolerance = 1e-9)
+})
+
+testthat::test_that("an MMS with no loss coefficient aborts", {
+  # A system missing from the table must not silently lose nothing.
+  out <- tibble::tibble(
+    mms_type = "Some New System",
+    cn_species = "Cattle",
+    c_stream = 100
+  )
+  testthat::expect_error(
+    whep:::.attach_storage_c_loss(out),
+    "storage carbon-loss fraction"
+  )
+})
+
+testthat::test_that("a species with no published value takes the table's fallback row", {
+  # The fallback is a row in the CSV, not a default in the code, so it is
+  # visible in the data. Sheep have no Kupper value; they take All_species.
+  out <- tibble::tibble(
+    mms_type = c("Liquid/Slurry", "Liquid/Slurry", "Liquid/Slurry"),
+    cn_species = c("Cattle", "Pigs", "Sheep"),
+    c_stream = 100
+  )
+  got <- whep:::.attach_storage_c_loss(out)
+  testthat::expect_equal(got$c_loss_fraction, c(0.110, 0.128, 0.110))
+})

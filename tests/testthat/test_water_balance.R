@@ -176,9 +176,11 @@ testthat::test_that("SOC LPJmL readers receive the requested run directory", {
     data = data
   )
 
+  # soiltemp1/soiltemp2 join the list because the SOC drivers now emit
+  # `temp_soil_c` as the depth-weighted 0-30 cm blend of LPJmL's two layers.
   testthat::expect_setequal(
     vapply(calls, `[[`, character(1), "var"),
-    c("prec", "irrig")
+    c("prec", "irrig", "soiltemp1", "soiltemp2")
   )
   testthat::expect_true(all(vapply(
     calls,
@@ -456,7 +458,33 @@ testthat::test_that("an invalid drainage method is rejected", {
       runoff = to_long("runoff"),
       seepage = to_long("seepage"),
       swc = swc,
-      cell_polity = cell_polity
+      cell_polity = cell_polity,
+      # Per-CFT cubes are per-STAND densities, so build_water_balance()
+      # weights every band by its stand fraction before summing it to a cell.
+      # These synthetic bands each get a fraction of 1, meaning "this band
+      # covers its cell", which leaves the arithmetic in the tests below
+      # exactly as it was when the sum was unweighted. The weighting itself is
+      # exercised with realistic fractions in its own tests at the end of this
+      # file -- mixing the two would make every expectation here depend on a
+      # fraction as well as on the value under test.
+      stand_frac = tidyr::expand_grid(
+        cells,
+        # Every band name any test in this file uses. A name missing here
+        # weights to zero and silently removes that band from the totals,
+        # which is what the join is meant to do for a band with no area --
+        # so the list has to stay in step with the fixtures below.
+        tibble::tribble(
+          ~band, ~band_name,
+          1L, "rainfed maize",
+          2L, "rainfed grassland",
+          3L, "irrigated maize",
+          4L, "rainfed rice",
+          14L, "rainfed grassland",
+          30L, "irrigated grassland"
+        ) |>
+          dplyr::distinct(band_name, .keep_all = TRUE)
+      ) |>
+        dplyr::mutate(year = 2000L, value = 1)
     ),
     water_input_annual = water_input_annual
   )
@@ -519,8 +547,20 @@ testthat::test_that("cft_native without per-CFT data warns and falls back", {
 testthat::test_that("cft_native uses per-CFT consumptive water when supplied", {
   syn <- .wb_synthetic_monthly()
   cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
-  syn$inputs$cft_consump_water_b <- dplyr::mutate(cells, value = 120)
-  syn$inputs$cft_consump_water_g <- dplyr::mutate(cells, value = 280)
+  # A real per-CFT cube always carries a band identity; the weighting
+  # needs one to look up the stand fraction.
+  syn$inputs$cft_consump_water_b <- dplyr::mutate(
+    cells,
+    band = 1L,
+    band_name = "rainfed maize",
+    value = 120
+  )
+  syn$inputs$cft_consump_water_g <- dplyr::mutate(
+    cells,
+    band = 1L,
+    band_name = "rainfed maize",
+    value = 280
+  )
 
   wb <- whep::build_water_balance(data = syn$inputs, example = FALSE)
   testthat::expect_true(all(stringr::str_detect(
@@ -571,12 +611,17 @@ testthat::test_that("blue/green consumptive equal the per-CFT mm summed", {
   cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
   # Two crop bands per cell so the per-cell sum is exercised.
   syn$inputs$cft_consump_water_b <- dplyr::bind_rows(
-    dplyr::mutate(cells, value = 50),
-    dplyr::mutate(cells, value = 70)
+    dplyr::mutate(cells, band = 1L, band_name = "rainfed maize", value = 50),
+    dplyr::mutate(cells, band = 2L, band_name = "rainfed grassland", value = 70)
   )
   syn$inputs$cft_consump_water_g <- dplyr::bind_rows(
-    dplyr::mutate(cells, value = 100),
-    dplyr::mutate(cells, value = 180)
+    dplyr::mutate(cells, band = 1L, band_name = "rainfed maize", value = 100),
+    dplyr::mutate(
+      cells,
+      band = 2L,
+      band_name = "rainfed grassland",
+      value = 180
+    )
   )
 
   wb <- whep::build_water_balance(data = syn$inputs, example = FALSE)
@@ -1368,5 +1413,199 @@ testthat::test_that("bands does not repartition the cell-level AET split", {
     all_bands$aet_blue_mm,
     all_bands$aet_mm * (80 / 360),
     tolerance = 1e-8
+  )
+})
+
+# --- per-CFT cubes are per-STAND densities (2026-09-01) ---------------------
+# Until this date the bands were summed with a bare sum(value). Every per-CFT
+# cube is a density per square metre of its OWN STAND, so that overstated the
+# three per-CFT columns by 1 / (managed fraction of the cell): a median 2.7x
+# and up to 1000x where a cell holds a sliver of cropland. In aggregate it put
+# consumptive blue+green water at 7.1 times whole-cell evapotranspiration,
+# which is impossible.
+
+.wb_two_band_cube <- function(value_a, value_b) {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~band, ~band_name, ~value,
+    0.25, 0.25, 2010L, 1L, "rainfed maize", value_a,
+    0.25, 0.25, 2010L, 2L, "irrigated rice", value_b
+  )
+}
+
+.wb_two_band_frac <- function(frac_a, frac_b) {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~band, ~band_name, ~value,
+    0.25, 0.25, 2010L, 1L, "rainfed maize", frac_a,
+    0.25, 0.25, 2010L, 2L, "irrigated rice", frac_b
+  )
+}
+
+testthat::test_that("bands are weighted by stand fraction before summing", {
+  out <- whep:::.wb_cell_consump(
+    .wb_two_band_cube(100, 200),
+    "blue_mm",
+    .wb_two_band_frac(0.3, 0.1)
+  )
+  # 100 * 0.3 + 200 * 0.1, not the 300 an unweighted sum gives.
+  testthat::expect_equal(out$blue_mm, 50)
+  testthat::expect_false(isTRUE(all.equal(out$blue_mm, 300)))
+})
+
+testthat::test_that("a fully covered cell is unchanged by weighting", {
+  # The one case where weighted and unweighted agree, which is why an
+  # unweighted sum looked right on any single-crop test cell.
+  out <- whep:::.wb_cell_consump(
+    .wb_two_band_cube(100, 200),
+    "blue_mm",
+    .wb_two_band_frac(1, 1)
+  )
+  testthat::expect_equal(out$blue_mm, 300)
+})
+
+testthat::test_that("a band with no stand fraction contributes nothing, loudly", {
+  # The zero-fill is kept, because a caller may legitimately supply a
+  # narrower cube than its weights -- but it is no longer SILENT. An
+  # unmatched band is an input mismatch, not a zero-area stand (cftfrac.nc
+  # carries every band, a zero-area one included, so a real absence joins
+  # with value 0), and zero-filling it publishes an entirely plausible
+  # fully rainfed world.
+  testthat::expect_warning(
+    out <- whep:::.wb_cell_consump(
+      .wb_two_band_cube(100, 200),
+      "blue_mm",
+      .wb_two_band_frac(0.3, 0.1)[1, ]
+    ),
+    "match no"
+  )
+  testthat::expect_equal(out$blue_mm, 30)
+})
+
+testthat::test_that("missing stand fractions abort, never fall back", {
+  # An unweighted sum is not a worse estimate of a cell total; it is a
+  # different quantity with the wrong units that looks plausible alone.
+  testthat::expect_error(
+    whep:::.wb_cell_consump(.wb_two_band_cube(100, 200), "blue_mm", NULL),
+    "per-STAND"
+  )
+  testthat::expect_error(
+    whep:::.wb_cell_consump(
+      .wb_two_band_cube(100, 200),
+      "blue_mm",
+      tibble::tibble(lon = 0.25)
+    ),
+    "data[$]stand_frac"
+  )
+})
+
+testthat::test_that("band identity is matched by name, then by index", {
+  cube <- .wb_two_band_cube(100, 200)
+  frac <- .wb_two_band_frac(0.3, 0.1)
+  testthat::expect_identical(whep:::.wb_band_key(cube, frac), "band_name")
+  # Without names on either side the index is the only identity left, and it
+  # is safe only because both cubes come from the same run.
+  testthat::expect_identical(
+    whep:::.wb_band_key(
+      dplyr::select(cube, -"band_name"),
+      dplyr::select(frac, -"band_name")
+    ),
+    "band"
+  )
+  testthat::expect_error(
+    whep:::.wb_band_key(
+      dplyr::select(cube, -"band_name", -"band"),
+      dplyr::select(frac, -"band_name", -"band")
+    ),
+    "which band"
+  )
+})
+
+testthat::test_that("a NULL per-CFT input still yields NULL", {
+  testthat::expect_null(
+    whep:::.wb_cell_consump(NULL, "blue_mm", .wb_two_band_frac(0.3, 0.1))
+  )
+})
+
+testthat::test_that("an unmatched band with water warns instead of vanishing", {
+  # A band that fails to join a stand fraction is an input mismatch, never a
+  # real zero: cftfrac.nc carries every band including the zero-area ones, so
+  # a genuinely absent stand joins with value 0. Zero-filling an unmatched row
+  # deletes that band's water and leaves 0 rather than NA, so the downstream
+  # usability check still passes and publishes a fully rainfed world.
+  raw <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = c(2000L, 2010L),
+    band_name = c("irrigated rice", "irrigated rice"),
+    value = c(5, 5)
+  )
+  frac <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = "irrigated rice",
+    value = 0.4
+  )
+  testthat::expect_warning(
+    out <- whep:::.wb_weight_by_stand(raw, "consump_blue_mm", frac),
+    "match no"
+  )
+  testthat::expect_equal(out$weighted, c(0, 2))
+})
+
+testthat::test_that("a genuinely zero-area stand does not warn", {
+  # The other half: a band present in the stand table with value 0 is a real
+  # measurement and must stay silent, or the guard cries wolf on every cell.
+  raw <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = c("irrigated rice", "irrigated maize"),
+    value = c(5, 5)
+  )
+  frac <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = c("irrigated rice", "irrigated maize"),
+    value = c(0.4, 0)
+  )
+  testthat::expect_silent(
+    out <- whep:::.wb_weight_by_stand(raw, "consump_blue_mm", frac)
+  )
+  testthat::expect_equal(out$weighted, c(2, 0))
+})
+
+testthat::test_that("soil temperature is never read without an explicit run_dir", {
+  # CLAUDE.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
+  # briefly fell back to WHEP_LPJML_RUN_DIR, so a caller that injected all its
+  # own data still opened NetCDF rasters whenever a developer machine had the
+  # env var set -- which stalled a gate run for 40 minutes. Reading is now
+  # explicit, and this pins it with the env var deliberately SET.
+  withr::with_envvar(
+    c(WHEP_LPJML_RUN_DIR = "/nonexistent/run"),
+    {
+      testthat::expect_null(whep:::.socd_soil_temp(list(), NULL, 2020L))
+    }
+  )
+})
+
+testthat::test_that("an injected soil temperature is used and validated", {
+  st <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2020L,
+    month = 1L,
+    temp_soil_c = 7.5
+  )
+  got <- whep:::.socd_soil_temp(list(soil_temp = st), NULL, 2020L)
+  testthat::expect_equal(got$temp_soil_c, 7.5)
+  # A malformed injection must abort rather than be silently ignored.
+  testthat::expect_error(
+    whep:::.socd_soil_temp(
+      list(soil_temp = dplyr::select(st, -"temp_soil_c")),
+      NULL,
+      2020L
+    ),
+    "temp_soil_c"
   )
 })

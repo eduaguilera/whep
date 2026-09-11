@@ -141,7 +141,10 @@
     0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
     0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      crop_area_ha = c(100, 50, 60, 40)
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -633,28 +636,39 @@
 }
 
 # Historical gridded SOC balance fixture (one cell, two land-use classes, three
-# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
-# cell starts at the fraction-weighted equilibrium density, marches forward on
-# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
-# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: each
+# class starts at its own equilibrium density, so both sit still with a zero net
+# rate until 2001, when Cropland shrinks and NonCropland grows. The transfer
+# (luc_transfer_mgc_ha) sums to zero across the cell, and NonCropland -- having
+# absorbed carbon at Cropland's richer density -- then relaxes back toward its
+# own equilibrium, which is what makes its rate and son_change non-zero.
 .example_carbon_balance <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
     ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
-    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
-    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.346076,
-    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 37.346076,
-    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 37.749198,
-    2.119512, 2.500000, -7.549840, 0.380488, -34.589790, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.940424,
-    2.084950, 1.500000, 7.549840, -0.584950, 53.177282, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.129686,
-    2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
-    2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc, ~method_soc_init,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 25.712848,
+    1.500000, 1.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 43.077946,
+    2.500000, 2.500000, -8.615589, 0.000000, 0.000000, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 29.185868,
+    1.702604, 1.500000, 8.615589, -0.202604, 18.418557, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 28.983264,
+    1.690785, 1.500000, 0.000000, -0.190785, 17.344081, "hsoc",
+    "own_equilibrium"
   ) |>
+    dplyr::mutate(
+      method_class_water = "cell",
+      # No class vanishes in the toy, so the mass is exactly density x area.
+      luc_transfer_mgc = luc_transfer_mgc_ha * area_ha,
+      .after = "luc_transfer_mgc_ha"
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -749,13 +763,13 @@
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
     26.25, 35.25, 84L, 2000L, "grassland",
-    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    4.631947, 0.1153467, "lpjml_npp_minus_harvest",
     26.25, 35.25, 84L, 2000L, "natural",
-    4.56, 0.325, "lpjml_npp_minus_harvest",
+    5.089049, 0.2955049, "lpjml_litterfall",
     -64.25, -35.75, 9L, 2000L, "grassland",
-    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    8.740661, 0.1153467, "lpjml_npp_minus_harvest",
     -64.25, -35.75, 9L, 2000L, "natural",
-    9.26, 0.325, "lpjml_npp_minus_harvest"
+    8.989904, 0.3168902, "lpjml_litterfall"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -771,7 +785,7 @@
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
-    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_litterfall"
   ) |>
     .add_reporting_polity_columns()
 }

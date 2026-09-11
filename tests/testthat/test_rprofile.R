@@ -68,13 +68,34 @@
 # inherited. Its working directory is still `dir`, because that is what the
 # load reads. The whole of stdout and stderr comes back, so a failure can say
 # what the child did instead of only that it did something.
+# `system2(env=)` is documented as unsupported on Windows (see `?system2`) and
+# is silently a no-op there: the child never received `R_PROFILE_USER`, never
+# loaded the profile under test, and every assertion below failed on Windows
+# while passing on the Linux runners. Setting the variable in this process and
+# restoring it afterwards works on every platform.
+.set_r_profile_user <- function(profile) {
+  previous <- Sys.getenv("R_PROFILE_USER", unset = NA)
+  Sys.setenv(R_PROFILE_USER = profile)
+  previous
+}
+
+.restore_r_profile_user <- function(previous) {
+  if (is.na(previous)) {
+    Sys.unsetenv("R_PROFILE_USER")
+  } else {
+    Sys.setenv(R_PROFILE_USER = previous)
+  }
+  invisible(NULL)
+}
+
 .run_rscript_sentinel <- function(profile) {
+  previous <- .set_r_profile_user(profile)
+  on.exit(.restore_r_profile_user(previous), add = TRUE)
   suppressWarnings(system2(
     file.path(R.home("bin"), "Rscript"),
     c("-e", shQuote("cat('SENTINEL-REACHED\\n')")),
     stdout = TRUE,
-    stderr = TRUE,
-    env = paste0("R_PROFILE_USER=", profile)
+    stderr = TRUE
   ))
 }
 
@@ -224,12 +245,13 @@ test_that("the repo .Rprofile still sets the R CMD check clock variable", {
   file.copy(repo_rprofile, file.path(dir, ".Rprofile"))
 
   withr::local_dir(dir)
+  previous <- .set_r_profile_user(file.path(dir, ".Rprofile"))
+  on.exit(.restore_r_profile_user(previous), add = TRUE)
   out <- suppressWarnings(system2(
     file.path(R.home("bin"), "Rscript"),
     c("-e", shQuote("cat(Sys.getenv('_R_CHECK_SYSTEM_CLOCK_'), '\\n')")),
     stdout = TRUE,
-    stderr = TRUE,
-    env = paste0("R_PROFILE_USER=", file.path(dir, ".Rprofile"))
+    stderr = TRUE
   ))
 
   expect_true(any(grepl("^0", trimws(out))), info = paste(out, collapse = "\n"))

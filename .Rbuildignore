@@ -44,3 +44,4 @@
 ^codemeta\.json$
 ^\.pkgcheck$
 ^CITATION\.cff$
+^Rplots\.pdf$
