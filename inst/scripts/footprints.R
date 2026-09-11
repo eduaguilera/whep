@@ -76,6 +76,11 @@ if (!crop_land_source %in% valid_sources) {
 #                                 (build_n_exceedance_extension `category`)
 # GHG tier (WHEP_GHG_TIER, 1 or 2) and GWP100 standard (WHEP_GHG_GWP, ar6/ar5/
 # ar4) follow the multi-method convention; see build_livestock_ghg_extension().
+# The manure engine's method levers ride along in its `options`:
+# WHEP_MANURE_MMS_REGION (as_available/resolve/global),
+# WHEP_MANURE_CLIMATE_SOURCE (assumed/from_data) and WHEP_MANURE_CLIMATE_ZONE
+# (Cool/Temperate/Warm). Leave them unset for the published defaults; the
+# extension validates whatever it is handed and names the valid values.
 #
 # WHY "soil_n2o" IS THE DEFAULT and not "exceedance", which reads as the headline
 # method: the three exceedance categories are NOT runnable on a bare checkout.
@@ -100,6 +105,15 @@ if (!pressure %in% valid_pressures) {
 }
 ghg_tier <- as.integer(Sys.getenv("WHEP_GHG_TIER", "1"))
 ghg_gwp <- tolower(Sys.getenv("WHEP_GHG_GWP", "ar6"))
+
+# An unset lever is dropped rather than passed as "", so an empty list means
+# the shipped manure defaults and the published run is untouched.
+manure_options <- list(
+  mms_region = Sys.getenv("WHEP_MANURE_MMS_REGION", ""),
+  climate_source = Sys.getenv("WHEP_MANURE_CLIMATE_SOURCE", ""),
+  assumed_climate_zone = Sys.getenv("WHEP_MANURE_CLIMATE_ZONE", "")
+)
+manure_options <- manure_options[nzchar(unlist(manure_options))]
 
 n_method <- tolower(Sys.getenv("WHEP_N_METHOD", "soil_n2o"))
 n_surplus_method <- tolower(
@@ -172,7 +186,11 @@ extension_use <- if (pressure == "nitrogen") {
       dplyr::select(year, area_code, item_cbs_code, impact_u)
   }
 } else if (pressure == "ghg") {
-  build_livestock_ghg_extension(tier = ghg_tier, gwp = ghg_gwp) |>
+  build_livestock_ghg_extension(
+    tier = ghg_tier,
+    gwp = ghg_gwp,
+    options = manure_options
+  ) |>
     dplyr::filter(year %in% years) |>
     dplyr::select(year, area_code, item_cbs_code, impact_u)
 } else if (pressure == "energy") {

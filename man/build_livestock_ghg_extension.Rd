@@ -7,6 +7,7 @@
 build_livestock_ghg_extension(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  options = list(),
   data = list(),
   example = FALSE
 )
@@ -17,6 +18,39 @@ build_livestock_ghg_extension(
 \item{gwp}{100-year global warming potential standard, \code{"ar6"} (default),
 \code{"ar5"} or \code{"ar4"}.}
 
+\item{options}{A named list of manure-engine options. Every default
+reproduces the behaviour in force before whep#949, so passing none leaves
+published values unchanged.
+
+\code{mms_region} selects how the manure-management split in
+\link{regional_mms_distribution} is keyed:
+\itemize{
+\item \code{"as_available"} (default): a row uses its own region when the frame
+already carries a \code{region} column, and the \code{region == "Global"} split
+otherwise. Tier 1 resolves a region for the (sourced) per-head
+N-excretion table and so takes the region-specific split; Tier 2 carries
+no region and so takes the Global one.
+\item \code{"resolve"}: the IPCC region is resolved from \code{iso3}, \code{area_code} or
+\code{polity_area_code} where it is missing, which makes the table's four
+region-specific \verb{(region, species)} pairs live on the Tier 2 path too.
+Those four pairs are an unsourced placeholder (whep#921), which is why
+this is opt-in rather than the default.
+\item \code{"global"}: every row takes the \code{region == "Global"} split, whatever
+region column it carries.
+}
+
+\code{climate_source} selects the climate zone the methane conversion factors
+in \link{climate_mcf} are read at. A \code{climate_zone} column already on the frame
+is always used. \code{"assumed"} (default) fills a missing one with
+\code{assumed_climate_zone}; \code{"from_data"} aborts instead of assuming.
+
+\code{assumed_climate_zone} is the zone \code{"assumed"} fills in: \code{"Cool"},
+\code{"Temperate"} (default) or \code{"Warm"}. WHEP has no territory-to-zone
+crosswalk, so the whole world is assumed Temperate unless a caller
+supplies zones; \code{method_manure_ch4} records which of the two happened, and
+this argument exists so the sensitivity to the assumption can be measured
+(whep#949).}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output). It falls back to
 its reader when absent.}
@@ -26,9 +60,11 @@ data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (livestock emissions in kilograms CO2e) and \code{method_ghg} (the
-chosen tier and GWP standard, e.g. \code{"IPCC_2019_Tier1_AR6"}), plus the
-polity columns below.
+\code{impact_u} (livestock emissions in kilograms CO2e), \code{method_ghg} (the
+chosen tier and GWP standard, e.g. \code{"IPCC_2019_Tier1_AR6"}), \code{method_mms}
+and \code{method_manure_ch4} (the manure-engine choices the summed rows took,
+\code{NA} when nothing reached the manure engine), plus the polity columns
+below.
 }
 \description{
 Aggregate per-animal IPCC livestock emissions into a footprint extension
@@ -71,6 +107,15 @@ N2O = 273.
 feedback).
 \item \code{"ar4"}: IPCC AR4 (2007), CH4 = 25, N2O = 298.
 }
+
+\code{options} is handed to \code{\link[=calculate_livestock_emissions]{calculate_livestock_emissions()}} unchanged, so the
+manure engine's method levers (the manure-management split, the climate zone
+its methane conversion factors are read at) are selectable from here too;
+its defaults leave every published value untouched. Only \code{mms_region} bites
+at Tier 1, whose manure CH4 comes from regional emission factors rather than
+a climate-zone MCF; the climate options reach the MCF on the Tier 2 path
+only. Whichever choice each row took is recorded in \code{method_mms} and
+\code{method_manure_ch4}, which the extension carries into its own output.
 }
 \section{Polity columns}{
 
