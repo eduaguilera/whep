@@ -984,34 +984,45 @@ read_hwsd_topsoil_soc <- function(
   )
 }
 
-# How many native pixels make up one target cell along an axis.
+# The whole-number factor that aggregates `src_res` up to `target_res`. Round,
+# never truncate, and refuse a ratio that is not whole rather than silently
+# accepting one.
 #
-# `as.integer()` TRUNCATES, and the trigger is a resolution that arrives as a
-# DECIMAL LITERAL rather than as an exact ratio -- which is exactly what a
-# raster header stores. In memory `0.5 / (1/6)` is exactly 3, so the ratio is
-# harmless; but an EHdr header writes `XDIM 0.166666666666667`, and reading
-# that back gives 0.16666666666666699, whence `0.5 / res` is
-# 2.99999999999999422 and truncation aggregates 2x2 blocks over a 3x3 one --
-# silently, at every cell. Measured, not supposed: the fixture in
-# `test_soil_ph.R` goes to disk and back precisely so it exercises the header
-# path, and it returned 4 pixels per cell instead of 9 before this existed.
+# `as.integer()` truncates, and the ratio does not arrive exact. The EHdr
+# sidecar stores the cell size to 15 significant digits, so a resolution that
+# is an exact ratio in memory comes back perturbed: at one sixth of a degree
+# the header holds 0.166666666666667, `terra::res()` reads back
+# 0.16666666666666699, and 0.5 over that is 2.99999999999999423, which
+# truncates to 2. The whole world is then aggregated over 2x2 blocks where 3x3
+# is meant -- a complete, plausible grid at the wrong support, with no warning,
+# no NA and no failed check. HWSD's own header rounds the other way
+# (0.5 / 0.00833333333333332975 = 60.0000000000000284, truncating to the
+# correct 60), so the aggregation is right today by luck, not by design, and a
+# re-download whose header rounded up would flip it.
 #
-# HWSD's own 30-arcsec header happens to give 60.00000000002 and so lands on
-# the safe side, which is why this never showed in production. Rounding, plus
-# a refusal when the resolutions are not a whole multiple, removes the luck.
-.hwsd_agg_factor <- function(target_res, source_res) {
-  ratio <- target_res / source_res
-  factor <- round(ratio)
-  if (factor < 1 || abs(ratio - factor) > 1e-6) {
+# The tolerance is relative and has fourteen orders of magnitude of clearance
+# on both sides: the header round trip moves the ratio by ~1e-16 relative,
+# while the smallest genuine mismatch -- a factor out by one source pixel --
+# moves it by 1/factor, which is 1.7e-2 at HWSD's factor of 60.
+.hwsd_agg_factor <- function(target_res, src_res) {
+  ratio <- target_res / src_res
+  whole <- round(ratio)
+  residue <- ratio - whole
+  if (whole < 1 || abs(residue) > .hwsd_agg_tolerance() * whole) {
     cli::cli_abort(c(
-      "Target resolution {.val {target_res}} is not a whole multiple of the
-       raster's {.val {source_res}}.",
-      i = "Aggregating would return cells of a different size than requested."
+      "Target resolution is not a whole multiple of the source resolution.",
+      "i" = "Target {.val {target_res}} over source {.val {src_res}} is
+             {.val {ratio}}.",
+      "i" = "Nearest whole factor {.val {whole}}, residue {.val {residue}}."
     ))
   }
-  as.integer(factor)
+  as.integer(whole)
 }
 
+# Relative tolerance on the aggregation ratio's distance from a whole number.
+.hwsd_agg_tolerance <- function() {
+  1e-6
+}
 # Split an extent into latitude bands, each a whole number of target rows tall.
 # Whole target rows is what makes this safe: every aggregated cell's source
 # pixels then lie inside exactly one band, so banding cannot change a single

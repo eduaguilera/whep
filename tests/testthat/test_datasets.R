@@ -1143,6 +1143,120 @@ test_that("ipcc_2019 tables still hold the provenance whep#601 documents", {
   )
 })
 
+# The MCF and EF3 tables carry further cells that no published IPCC value
+# backs, documented in `?ipcc_2019_mcf_manure` and `?ipcc_2019_n2o_ef_direct`.
+# Reference values read off the published PDFs: 2006 Guidelines Vol 4 Ch 10
+# Table 10.17 and Table 10.21, 2019 Refinement Vol 4 Ch 10 Table 10.17
+# Updated and Table 10.21 Updated.
+test_that("unsourced MCF and EF3 cells stay locked at their stored values", {
+  mcf <- whep::ipcc_2019_mcf_manure
+  mcf_of <- function(sys, zone) {
+    mcf$mcf_percent[mcf$system == sys & mcf$climate_zone == zone]
+  }
+
+  # Liquid/slurry with crust, warm. The 2006 row is resolved per degree
+  # Celsius and its warm class runs 44 at 26 degrees, 48 at 27 and 50 at 28
+  # or above, so 47 is in no column of it; the 2019 table has no such cell.
+  testthat::expect_equal(mcf_of("Liquid/Slurry - With Crust", "Warm"), 47)
+
+  # Passive-windrow composting. 2006 gives 0.5 cool, 1.0 temperate and 1.5
+  # warm; the 2019 Refinement gives 1.0, 2.0 and 2.5. Stored is neither.
+  testthat::expect_equal(mcf_of("Composting - Passive", "Cool"), 1.0)
+  testthat::expect_equal(mcf_of("Composting - Passive", "Temperate"), 1.0)
+  testthat::expect_equal(mcf_of("Composting - Passive", "Warm"), 1.5)
+
+  # Anaerobic digester. 2006 gives the range 0 to 100 percent and requires
+  # the compiler to calculate it; the 2019 Refinement resolves it into six
+  # leakage-and-storage classes spanning 1.00 to 13.17 percent. Neither
+  # publishes zero.
+  testthat::expect_equal(mcf_of("Anaerobic Digester", "All"), 0)
+
+  # The temperate pick for the two liquid rows is the 18 degree column of
+  # the 2006 table, not the 42 percent at 20 degrees.
+  testthat::expect_equal(mcf_of("Liquid/Slurry - No Crust", "Temperate"), 35)
+  testthat::expect_equal(mcf_of("Pit Storage - >1 month", "Temperate"), 35)
+
+  # Four EF3 rows are WHEP composite or fallback labels with no counterpart
+  # system in Table 10.21 of either edition.
+  ef3 <- whep::ipcc_2019_n2o_ef_direct
+  ef3_of <- function(sys) ef3$ef_kg_n2o_n_per_kg_n[ef3$system == sys]
+  testthat::expect_equal(ef3_of("Liquid/Slurry"), 0.002)
+  testthat::expect_equal(ef3_of("Solid Storage and Dry Lot"), 0.005)
+  testthat::expect_equal(ef3_of("Burned for Fuel"), 0)
+  testthat::expect_equal(ef3_of("Other"), 0.005)
+})
+
+# `climate_mcf` is the MCF table the Tier 2 manure CH4 path actually reads,
+# and `ipcc_2006_mcf_temp` is a second copy nothing reads. Both cited the
+# wrong edition; lock the cells whose provenance is now documented.
+# Reference values: 2006 Guidelines Vol 4 Ch 10 Table 10.17 and 2019
+# Refinement Vol 4 Ch 10 Table 10.17 Updated.
+test_that("climate_mcf holds the 2006-derived values whep#601 documents", {
+  mcf <- whep::climate_mcf
+  mcf_of <- function(sys, zone) {
+    mcf$mcf_percent[mcf$mms_type == sys & mcf$climate_zone == zone]
+  }
+
+  # 2006 only: the 2019 Refinement gives a single 0.47 percent for PRP.
+  testthat::expect_equal(mcf_of("Pasture/Range/Paddock", "Cool"), 1.0)
+  testthat::expect_equal(mcf_of("Pasture/Range/Paddock", "Temperate"), 1.5)
+  testthat::expect_equal(mcf_of("Pasture/Range/Paddock", "Warm"), 2.0)
+
+  # Not the class bound of the 2006 per-degree rows: 35 is the 18 degree
+  # column, not 42 at 20 degrees; 73 is the 14 degree column, not 78.
+  testthat::expect_equal(mcf_of("Liquid/Slurry", "Temperate"), 35)
+  testthat::expect_equal(mcf_of("Anaerobic Lagoon", "Temperate"), 73)
+
+  # Neither edition: both give dry lot 1.0/1.5/2.0, and both resolve the
+  # two composting rows by climate rather than with one value.
+  testthat::expect_equal(mcf_of("Dry Lot", "Cool"), 1.5)
+  testthat::expect_equal(mcf_of("Dry Lot", "Temperate"), 2.5)
+  testthat::expect_equal(mcf_of("Dry Lot", "Warm"), 4.0)
+  testthat::expect_equal(mcf_of("Composting - Intensive", "All"), 0.5)
+  testthat::expect_equal(mcf_of("Composting - Passive", "All"), 1.0)
+  testthat::expect_equal(mcf_of("Anaerobic Digester", "All"), 0)
+})
+
+test_that("ipcc_2006_mcf_temp keeps its off-grid 25 degree column", {
+  # Table 10.17 resolves liquid/slurry per degree and the other three
+  # systems by climate class only, so no published column sits at 25
+  # degrees for any of these four rows.
+  mcf <- whep::ipcc_2006_mcf_temp
+  at_25 <- mcf[mcf$temp_c == 25, ]
+  testthat::expect_equal(nrow(at_25), 4L)
+  testthat::expect_setequal(
+    at_25$system,
+    c("Liquid/Slurry", "Solid Storage", "Pasture/Range/Paddock", "Daily Spread")
+  )
+  testthat::expect_setequal(at_25$mcf_percent, c(48, 6, 2.5, 1.5))
+})
+
+# `ipcc_2019_bo` is Table 10.16A of the 2019 Refinement. That edition has no
+# Table 10.16 at all; 10.16 is the 2006 number for the deer, reindeer, rabbit
+# and fur-bearing manure CH4 table, and the 2006 edition keeps its Bo
+# defaults in Annex 10A.2 rather than in a numbered table.
+test_that("ipcc_2019_bo matches Table 10.16A where it is sourced", {
+  bo <- whep::ipcc_2019_bo
+  bo_of <- function(cat) bo$bo_m3_kg_vs[bo$category == cat]
+
+  # High-productivity columns of Table 10.16A Updated.
+  testthat::expect_equal(bo_of("Dairy Cattle"), 0.24)
+  testthat::expect_equal(bo_of("Buffalo"), 0.10)
+  testthat::expect_equal(bo_of("Sheep"), 0.19)
+  testthat::expect_equal(bo_of("Goats"), 0.18)
+  testthat::expect_equal(bo_of("Horses"), 0.30)
+  testthat::expect_equal(bo_of("Mules and Asses"), 0.33)
+  testthat::expect_equal(bo_of("Camels"), 0.26)
+  testthat::expect_equal(bo_of("Poultry - Layers"), 0.39)
+  testthat::expect_equal(bo_of("Poultry - Broilers"), 0.36)
+
+  # Other cattle takes the Western European non-dairy column; North America
+  # is 0.19 and Eastern Europe and Oceania 0.17. Market swine takes the
+  # non-North-American high-productivity column; North America is 0.48.
+  testthat::expect_equal(bo_of("Other Cattle"), 0.18)
+  testthat::expect_equal(bo_of("Swine - Market"), 0.45)
+})
+
 test_that("Tier 2 goat coefficients are the goat rows, not the sheep ones", {
   # The sheep and goat coefficients sit one row apart in two IPCC tables
   # and were copied across in both directions (#249, PR #267). Lock each

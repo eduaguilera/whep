@@ -233,8 +233,11 @@ testthat::test_that("read_polycell_support prefers a local parquet", {
   nanoparquet::write_parquet(support, path)
   withr::local_envvar(WHEP_POLYCELL_SUPPORT_PATH = path)
 
+  # `require_layers = FALSE` because this block is about which SOURCE the
+  # reader prefers, and the example build supplies no water or ice layer, which
+  # the default now refuses -- see the whep#1010 block below.
   testthat::expect_equal(
-    whep::read_polycell_support()$polycell_id,
+    whep::read_polycell_support(require_layers = FALSE)$polycell_id,
     support$polycell_id
   )
   testthat::expect_error(
@@ -318,6 +321,192 @@ testthat::test_that("a support with no role column is all partition", {
   )
 })
 
+# whep#1010 — the reader refuses a support built without its layers ----------
+
+testthat::test_that("a support stamped without a layer is refused", {
+  # `water` and `ice` zero-fill, so a pin can ship with every lake, river and
+  # glacier inside a polity booked as land, and the table's own arithmetic
+  # cannot see it: the identity `polity_area_ha == land + inland_water + ice`
+  # holds to 0 ha either way. It happened twice (whep#885, whep#1010), and the
+  # second time 2015 land was 534.9 Mha (+4.1%) too high. So the reader checks
+  # the STAMP, which is a label no arithmetic can satisfy.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "dry.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = "WES@1",
+      polity_area_ha = 100,
+      land_area_ha = 100,
+      inland_water_ha = 0,
+      ice_area_ha = 0,
+      layers_supplied = "none"
+    ),
+    path
+  )
+
+  testthat::expect_error(
+    whep::read_polycell_support(path = path),
+    class = "whep_polycell_absent_layers"
+  )
+  # Named so the message says which layer is missing rather than that
+  # something is wrong.
+  testthat::expect_error(
+    whep::read_polycell_support(path = path),
+    "inland water"
+  )
+  # A caller that needs the territory and not the split says so.
+  testthat::expect_equal(
+    nrow(whep::read_polycell_support(path = path, require_layers = FALSE)),
+    1L
+  )
+})
+
+testthat::test_that("a partial stamp names only the layer that is missing", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "wet_only.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = "WES@1",
+      polity_area_ha = 100,
+      land_area_ha = 80,
+      inland_water_ha = 20,
+      ice_area_ha = 0,
+      layers_supplied = "water"
+    ),
+    path
+  )
+
+  testthat::expect_error(
+    whep::read_polycell_support(path = path),
+    class = "whep_polycell_absent_layers"
+  )
+  testthat::expect_error(
+    whep::read_polycell_support(path = path),
+    "^(?!.*inland water).*ice",
+    perl = TRUE
+  )
+})
+
+testthat::test_that("a full stamp is accepted", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "sound.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = "WES@1",
+      polity_area_ha = 100,
+      land_area_ha = 70,
+      inland_water_ha = 20,
+      ice_area_ha = 10,
+      layers_supplied = "ice,water"
+    ),
+    path
+  )
+
+  testthat::expect_equal(nrow(whep::read_polycell_support(path = path)), 1L)
+})
+
+testthat::test_that("an unstamped support falls back to the columns", {
+  # Every polycell published before whep#1010 carries no `layers_supplied`, so
+  # the check for those is the one property a zero-fill has and a real layer
+  # does not: the column is zero in EVERY row. This is the shape of the pin
+  # whep#1010 found on `main` -- 484,314 rows, zero in both columns, the
+  # identity satisfied exactly.
+  dir <- withr::local_tempdir()
+  dry <- file.path(dir, "legacy_dry.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = c("WES@1", "EAS@1"),
+      polity_area_ha = c(100, 150),
+      land_area_ha = c(100, 150),
+      inland_water_ha = c(0, 0),
+      ice_area_ha = c(0, 0)
+    ),
+    dry
+  )
+  testthat::expect_error(
+    whep::read_polycell_support(path = dry),
+    class = "whep_polycell_absent_layers"
+  )
+
+  # The identity the deployed pin satisfied, on the same rows, to make the
+  # point that it cannot separate the two cases.
+  refused <- whep::read_polycell_support(path = dry, require_layers = FALSE)
+  testthat::expect_equal(
+    refused$land_area_ha + refused$inland_water_ha + refused$ice_area_ha,
+    refused$polity_area_ha
+  )
+
+  sound <- file.path(dir, "legacy_sound.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = c("WES@1", "EAS@1"),
+      polity_area_ha = c(100, 150),
+      land_area_ha = c(90, 130),
+      inland_water_ha = c(10, 0),
+      ice_area_ha = c(0, 20)
+    ),
+    sound
+  )
+  testthat::expect_equal(nrow(whep::read_polycell_support(path = sound)), 2L)
+})
+
+testthat::test_that("the check is scale-free, not a magnitude floor", {
+  # This reader also serves `WHEP_POLYCELL_SUPPORT_PATH`, which is how a
+  # single-country development build is used before it is published. A global
+  # floor of 1,000 Mha of inland water would refuse every one of those, so the
+  # whole-table floors live in the publication gate
+  # (`inst/scripts/verify_polycell_support.R`, S-A0) and the reader asserts
+  # only that the layers are not identically zero.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "tiny.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = "WES@1",
+      polity_area_ha = 100,
+      land_area_ha = 99.998,
+      inland_water_ha = 0.001,
+      ice_area_ha = 0.001
+    ),
+    path
+  )
+
+  testthat::expect_equal(nrow(whep::read_polycell_support(path = path)), 1L)
+})
+
+testthat::test_that("a support with no area columns is not this check's business", {
+  # The whep#803 role fixtures carry `polity_area_ha` alone. A table with no
+  # `inland_water_ha` column is not a zero-filled layer, it is a projection,
+  # and the consumers that name the column are the ones to answer for it.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "projection.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(polycell_id = "WES@1", polity_area_ha = 100),
+    path
+  )
+
+  testthat::expect_equal(nrow(whep::read_polycell_support(path = path)), 1L)
+})
+
+testthat::test_that("an empty support is not a zero-filled layer", {
+  # Zero rows is a filter that matched nothing, not a missing input, and
+  # aborting on it would turn `any(x > 0)` into a trap for a legitimately
+  # empty read.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "empty.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = character(),
+      polity_area_ha = numeric(),
+      land_area_ha = numeric(),
+      inland_water_ha = numeric(),
+      ice_area_ha = numeric()
+    ),
+    path
+  )
+
+  testthat::expect_equal(nrow(whep::read_polycell_support(path = path)), 0L)
+})
+
 testthat::test_that("sampled centres land on WHEP's canonical half-degree grid", {
   skip_if_not_installed("terra")
   # `terra::xyFromCell()` walks out from the raster origin and accumulates float
@@ -376,74 +565,4 @@ testthat::test_that("reading a pin behind the vocabulary names the missing polit
     .pcs_prepare_polities = function(...) prepared[1, ],
     .package = "whep"
   )
-})
-
-# whep#1010, the recurrence of whep#885: a support built without its water and
-# ice layers reconciles perfectly, because `polity_area_ha == land +
-# inland_water + ice` is satisfied by zero. The guard has to see that the
-# layers were SUPPLIED, which is the one thing the identity cannot show.
-.layerless_support <- function(water = 0, ice = 0) {
-  tibble::tibble(
-    polycell_id = 1:3,
-    lon = c(0.25, 0.75, 1.25),
-    lat = c(0.25, 0.25, 0.25),
-    polity_code = "AAA-1800-2025",
-    area_code = 1L,
-    land_area_ha = c(1000, 2000, 3000),
-    inland_water_ha = water,
-    ice_area_ha = ice
-  )
-}
-
-testthat::test_that(".warn_polycell_layers catches a zero-filled layer", {
-  # Both layers missing: the shape both shipped pins had.
-  testthat::expect_warning(
-    whep:::.warn_polycell_layers(.layerless_support()),
-    "inland_water_ha"
-  )
-  # One at a time, so the message names the layer that is actually empty
-  # rather than warning generically whenever either is.
-  testthat::expect_warning(
-    whep:::.warn_polycell_layers(.layerless_support(water = 5)),
-    "ice_area_ha"
-  )
-  testthat::expect_warning(
-    whep:::.warn_polycell_layers(.layerless_support(ice = 5)),
-    "inland_water_ha"
-  )
-})
-
-testthat::test_that(".warn_polycell_layers is silent on a supplied layer", {
-  # Without this half the guard could warn unconditionally and still pass
-  # above. A single non-zero row is enough: the claim is that the layer was
-  # supplied, not that any particular cell has water.
-  testthat::expect_silent(
-    whep:::.warn_polycell_layers(.layerless_support(water = 5, ice = 5))
-  )
-  testthat::expect_silent(
-    whep:::.warn_polycell_layers(
-      .layerless_support(water = c(0, 0, 7), ice = c(0, 3, 0))
-    )
-  )
-})
-
-testthat::test_that(".warn_polycell_layers ignores a support without the columns", {
-  # `role = "partition"` callers and hand-built fixtures need not carry them.
-  testthat::expect_silent(
-    whep:::.warn_polycell_layers(
-      dplyr::select(.layerless_support(), -"inland_water_ha", -"ice_area_ha")
-    )
-  )
-})
-
-testthat::test_that("the identity alone cannot catch a zero-filled layer", {
-  # The regression test for the REASON, not only the symptom: this is exactly
-  # the check that passed on both broken pins.
-  s <- .layerless_support()
-  s$polity_area_ha <- s$land_area_ha + s$inland_water_ha + s$ice_area_ha
-  testthat::expect_equal(
-    s$polity_area_ha,
-    s$land_area_ha + s$inland_water_ha + s$ice_area_ha
-  )
-  testthat::expect_warning(whep:::.warn_polycell_layers(s), "not a plausible")
 })

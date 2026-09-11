@@ -12,6 +12,37 @@
 #' [`pins`](https://pins.rstudio.com/index.html) package. It supports multiple
 #' file formats and file versioning.
 #'
+#' @section Frozen predecessor-pipeline references:
+#' Four aliases in [`whep_inputs`] are not outputs of this package:
+#' `primary_prod`, `commodity_balance_sheet`, `processing_coefs` and
+#' `feed_intake`. They are the 2025-07-14 snapshot of the predecessor
+#' R-script pipeline this package replaced, kept frozen so
+#' `inst/scripts/compare_global_whep.R` can benchmark `whep` against it. No
+#' package function reads them, their schema is the old one (CamelCase,
+#' name-keyed, no polity columns) and they stop in 2021, so reading one warns.
+#'
+#' Their numbers are not what current code produces, so they are references,
+#' not substitutes. `primary_prod` (2,443,516 rows, 1961--2021) against a
+#' fresh [build_primary_production()] over the same 2015--2021 window:
+#'
+#' - The pin has no `slaughtered_heads` row in any of its years; the build
+#'   emits 12,195 over 2015--2021. Three `item_prod` codes are pin-only (378,
+#'   773, 1163; 1,332 rows) and three appear in no pin year at all (1051, and
+#'   the modelled grassland items 3001 and 3002).
+#' - 317,587 rows against the build's 328,242 for the window, a 3.2%
+#'   shortfall.
+#' - Its 2020--2021 fodder harvested area is carried forward from 2019 ---
+#'   85.93 Mha in each year, 468 country-item series over 96 areas, equal to
+#'   2019 to the last digit --- where the build emits no fodder row at all
+#'   after 2019, because `eu-agridb-fodder` stops in 2019,
+#'   `faostat-production-old` in 2013, and `faostat-production` carries none
+#'   of the 16 fodder items.
+#' - Even in a year both cover they disagree: 2019 fodder harvested area is
+#'   85.93 Mha in the pin against 90.42 Mha from the build.
+#'
+#' Build the current series with the matching `build_*()` or `get_*()`
+#' function instead.
+#'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the `alias` column of the [`whep_inputs`] dataset.
 #' @param type The extension of the file that must be read. Possible values:
@@ -77,6 +108,7 @@ whep_read_file <- function(
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
+  .warn_legacy_reference(file_alias)
   version <- .choose_version(file_info$version, version)
 
   paths <- tryCatch(
@@ -124,6 +156,53 @@ whep_list_file_versions <- function(file_alias) {
 
   board |>
     pins::pin_versions(file_alias)
+}
+
+# The 2025-07-14 pin batch carries output of the predecessor R-script pipeline,
+# not of this package. These four aliases are the ones no package function
+# reads: three are read only by `inst/scripts/compare_global_whep.R`, which
+# benchmarks whep against them, and `feed_intake` by nothing at all. They are
+# frozen on purpose, so they are not stale artifacts to refresh -- but reading
+# one must say whose numbers it hands back (#1030). The two aliases from the
+# same batch that current code does consume, `crop_residues` and
+# `bilateral_trade`, are deliberately absent: warning on a default build path
+# is a separate call.
+.legacy_reference_aliases <- function() {
+  c(
+    "primary_prod",
+    "commodity_balance_sheet",
+    "processing_coefs",
+    "feed_intake"
+  )
+}
+
+# `primary_prod` is the alias whose divergence from current code was measured,
+# so it is the one that carries the figures. See the roxygen section on
+# `whep_read_file()` for how they were obtained.
+.legacy_reference_note <- function(file_alias) {
+  if (file_alias != "primary_prod") {
+    return(NULL)
+  }
+  "Its 2020-2021 fodder area is carried forward from 2019 (85.93 Mha a year,
+   468 country-item series), where a fresh build emits none, so it is not
+   interchangeable with one."
+}
+
+.warn_legacy_reference <- function(file_alias) {
+  if (!file_alias %in% .legacy_reference_aliases()) {
+    return(invisible(file_alias))
+  }
+
+  cli::cli_warn(c(
+    "{.val {file_alias}} is frozen 1961-2021 output of the predecessor
+     pipeline, not of this package.",
+    i = "It is kept only so {.file inst/scripts/compare_global_whep.R} can
+         benchmark against it. Build the current series with the matching
+         {.code build_*()} or {.code get_*()} function instead.",
+    i = .legacy_reference_note(file_alias)
+  ))
+
+  invisible(file_alias)
 }
 
 .read_file <- function(paths, extension, years = NULL, year_col = "year") {

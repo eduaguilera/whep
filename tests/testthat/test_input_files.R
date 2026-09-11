@@ -86,9 +86,14 @@ testthat::test_that("whep_read_file errors when remote down and no cache", {
     .find_cache_dir = function(...) NULL
   )
 
-  testthat::expect_error(
-    whep_read_file("commodity_balance_sheet"),
-    "No local cached copy"
+  # The alias is one of the frozen predecessor-pipeline references, so the read
+  # flags its provenance before it gets as far as the cache.
+  testthat::expect_warning(
+    testthat::expect_error(
+      whep_read_file("commodity_balance_sheet"),
+      "No local cached copy"
+    ),
+    "predecessor"
   )
 })
 
@@ -358,8 +363,13 @@ testthat::test_that("whep_read_file falls back to cache for 'latest'", {
     }
   )
 
+  # Two warnings, in this order: the provenance flag on a predecessor-pipeline
+  # alias, then the cache fallback. The inner expectation takes the first.
   testthat::expect_warning(
-    result <- whep_read_file(alias, version = "latest"),
+    testthat::expect_warning(
+      result <- whep_read_file(alias, version = "latest"),
+      "predecessor"
+    ),
     "Using cached local copy"
   )
 
@@ -535,4 +545,49 @@ testthat::test_that(".filter_years_if_present honours year_col", {
     whep:::.filter_years_if_present(d, 2002L),
     class = "whep_year_filter_error"
   )
+})
+
+# Frozen predecessor-pipeline references ------------------------------------
+
+testthat::test_that("reading a predecessor-pipeline pin says so", {
+  # #1030: the `primary_prod` pin is the 2025-07-14 snapshot of the pipeline
+  # that preceded this package, kept only as a benchmark. Its 2020-2021 fodder
+  # harvested area is carried forward from 2019 -- 85.93 Mha a year over 468
+  # country-item series, equal to 2019 to the last digit -- where current code
+  # emits no fodder row after 2019, because `eu-agridb-fodder` stops in 2019,
+  # `faostat-production-old` in 2013, and `faostat-production` carries none of
+  # the 16 fodder item codes at all. Same schema, plausible magnitude and no
+  # flag was the whole defect, so the flag is what is tested.
+  testthat::expect_warning(
+    .warn_legacy_reference("primary_prod"),
+    "predecessor"
+  )
+  testthat::expect_warning(
+    .warn_legacy_reference("primary_prod"),
+    "fodder"
+  )
+})
+
+testthat::test_that("the predecessor flag skips aliases code reads", {
+  purrr::walk(
+    .legacy_reference_aliases(),
+    ~ testthat::expect_warning(.warn_legacy_reference(.x), "predecessor")
+  )
+  # Aliases current code reads on its default build path must stay silent,
+  # `crop_residues` and `bilateral_trade` included even though they come from
+  # the same 2025-07-14 batch.
+  purrr::walk(
+    c("faostat-production", "bilateral_trade", "crop_residues", "luh2-areas"),
+    ~ testthat::expect_no_warning(.warn_legacy_reference(.x))
+  )
+})
+
+testthat::test_that("every flagged predecessor alias is a real alias", {
+  # A typo here would disable the flag silently, which is the failure mode the
+  # flag exists to prevent.
+  testthat::expect_setequal(
+    setdiff(.legacy_reference_aliases(), whep::whep_inputs$alias),
+    character(0)
+  )
+  testthat::expect_length(.legacy_reference_aliases(), 4L)
 })

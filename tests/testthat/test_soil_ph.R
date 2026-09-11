@@ -415,6 +415,90 @@ testthat::test_that(".hwsd_band_extents handles an extent shorter than one band"
   testthat::expect_equal(unname(bands[[1]]$ymax), 1)
 })
 
+# ---- .hwsd_agg_factor() (whep#1043) -------------------------------------
+
+# The two resolutions that decide the aggregation, as doubles rather than as
+# expressions, because the expressions are exactly what hides the defect: every
+# exact-ratio form of one sixth (1/6, 360/2160, 180/1080) is the same double
+# 0.16666666666666666, and 0.5 over that is exactly 3. The perturbed values
+# below are what `terra::res()` actually returns after an EHdr header round
+# trip, which is where the residue enters.
+testthat::test_that(".hwsd_agg_factor rounds a header round trip's residue", {
+  # 0.5 / 0.16666666666666699 = 2.99999999999999423: as.integer() takes 2.
+  testthat::expect_identical(
+    whep:::.hwsd_agg_factor(0.5, 0.16666666666666699),
+    3L
+  )
+  # HWSD's own header, which rounds the other way. Pinned so the fix is shown
+  # not to move the factor the real archive aggregates at.
+  testthat::expect_identical(
+    whep:::.hwsd_agg_factor(0.5, 0.00833333333333332975),
+    60L
+  )
+  testthat::expect_identical(whep:::.hwsd_agg_factor(0.5, 1 / 6), 3L)
+})
+
+testthat::test_that(".hwsd_agg_factor refuses a non-whole multiple", {
+  # 0.5 / 0.3 is 1.667 -- a real mismatch, not a residue, and rounding it to 2
+  # would aggregate over blocks that are not the target cell.
+  testthat::expect_error(
+    whep:::.hwsd_agg_factor(0.5, 0.3),
+    "whole multiple"
+  )
+  # A source coarser than the target cannot be aggregated at all.
+  testthat::expect_error(
+    whep:::.hwsd_agg_factor(0.5, 2),
+    "whole multiple"
+  )
+})
+
+# The residue is reported, not divided by: a reader has to be able to see how
+# far off the ratio was and judge whether it is a rounding artefact or a real
+# resolution mismatch.
+testthat::test_that(".hwsd_agg_factor reports the residue it refused", {
+  testthat::expect_error(
+    whep:::.hwsd_agg_factor(0.5, 0.3),
+    "residue"
+  )
+})
+
+# THE FIXTURE MUST BE WRITTEN TO DISK AND READ BACK. A SpatRaster held in
+# memory has resolution 0.16666666666666666 exactly, 0.5 over which is exactly
+# 3, so this test passes on the buggy code if the raster never round trips
+# through an EHdr header. It is the 15-significant-digit header that perturbs
+# the resolution to 0.16666666666666699 and pushes the quotient below 3.
+testthat::test_that("read_soil_ph aggregates at the target support", {
+  testthat::skip_if_not_installed("terra")
+  dir <- withr::local_tempdir()
+  readr::write_csv(.hwsd_attr_fixture(), file.path(dir, "hwsd_data.csv"))
+
+  rast <- terra::rast(
+    nrows = 12,
+    ncols = 12,
+    xmin = -1,
+    xmax = 1,
+    ymin = -1,
+    ymax = 1,
+    resolution = 1 / 6
+  )
+  terra::values(rast) <- 1L
+  terra::writeRaster(
+    rast,
+    file.path(dir, "hwsd.bil"),
+    filetype = "EHdr",
+    overwrite = TRUE
+  )
+
+  result <- whep::read_soil_ph(hwsd_dir = dir)
+
+  # 12 source cells over 2 degrees aggregated 3x3 give a 4x4 half-degree grid.
+  # Truncating the factor to 2 gives a complete, plausible 6x6 grid at a third
+  # of a degree instead -- the same columns, the same value range, no warning.
+  testthat::expect_equal(nrow(result), 16L)
+  testthat::expect_equal(sort(unique(result$lon)), c(-0.75, -0.25, 0.25, 0.75))
+  testthat::expect_equal(sort(unique(result$lat)), c(-0.75, -0.25, 0.25, 0.75))
+})
+
 testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
   testthat::skip_if_not_installed("terra")
   .skip_unless_hwsd_columns(whep:::.hwsd_ph_columns())
