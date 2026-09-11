@@ -122,9 +122,28 @@ testthat::test_that("no package file tests land_use against the literal cropland
   # enumerated. A literal comparison would silently drop every grouped
   # hectare from whichever term it guards. The LUH2 support itself is keyed
   # on the plain label and is exempt (n_balance_inputs.R filters `support`).
-  files <- list.files(testthat::test_path("..", "..", "R"), full.names = TRUE)
+  # `.R` only, on BOTH lookups. An installed package's `R/` holds the
+  # lazy-load database -- `whep.rdb`, `sysdata.rdb`, `whep` -- not sources,
+  # and under `R CMD check` the tests run inside `whep.Rcheck/whep/`, so
+  # `../../R` IS that directory. Reading a multi-MB binary blob with
+  # `readLines()` emitted 43,168 "unable to translate ... to a wide string"
+  # warnings on CI, and the invalid bytes it printed then killed rcmdcheck's
+  # own output reader (`nchar()`: invalid multibyte string) AFTER the check
+  # itself had finished clean. `warn = FALSE` silences the incomplete-final-
+  # line warning, not encoding ones. With no `.R` file the skip below fires,
+  # which is the honest outcome: this test needs sources and there are none.
+  pattern <- "\\.[Rr]$"
+  files <- list.files(
+    testthat::test_path("..", "..", "R"),
+    pattern = pattern,
+    full.names = TRUE
+  )
   if (length(files) == 0L) {
-    files <- list.files(system.file("R", package = "whep"), full.names = TRUE)
+    files <- list.files(
+      system.file("R", package = "whep"),
+      pattern = pattern,
+      full.names = TRUE
+    )
   }
   testthat::skip_if(length(files) == 0L, "package sources not available")
   hits <- purrr::map(files, \(f) {
