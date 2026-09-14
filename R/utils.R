@@ -2120,6 +2120,12 @@ utils::globalVariables(
     # livestock_ghg_extension.R (#1029) — the manure-management split the
     # manure engine stamped, carried through the extension's sum so a
     # non-default `options` run is self-describing downstream
-    "method_mms"
+    "method_mms",
+    # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
+    # flag is folded on, so the restored `fao_flag` follows the source the
+    # value was selected from, plus the joined-in flag column
+    "source_group",
+    "n_group_flags",
+    "i.fao_flag"
   )
 )
