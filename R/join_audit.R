@@ -194,6 +194,18 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
+    ".lineage_attach", "left_join", "lineage_polity_code, polity_code", 1L,
+    "identity_lookup",
+    "Attaches the polity's display name once, at the output stage, after the
+     lineage has been decided on codes. A polity code already names its own
+     period (`RUS-1991-2014`), so the name cannot vary within it.",
+    ".lineage_expand", "inner_join", "code, polity_code", 1L,
+    "identity_lookup",
+    "The `predecessor` edge is a property of the polity PERIOD, not of a
+     calendar year -- the same reason `.land_in_polygons` reads a polygon on
+     `polity_code` alone. The year is the walk's stop condition and is applied
+     in `.lineage_carried()`, against the support's own interval, on every
+     candidate this join produces.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -506,6 +518,21 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".lineage_attach", "distinct", "polity_code", 1L, "identity_lookup",
+    "One display name per polity period, deduped before it is attached once at
+     the output stage. Keyed on the code alone, so the name is carried, never
+     a key.",
+    ".lineage_carried", "distinct", "polity_code, start_year, end_year", 1L,
+    "identity_lookup",
+    "The intervals the spatial support actually holds cells for.
+     `start_year`/`end_year` ARE the time dimension here; the year the caller
+     asks about is compared against them on the very next line, which is what
+     makes a candidate carried or not.",
+    ".lineage_expand", "distinct", "polity_code, predecessor", 1L,
+    "identity_lookup",
+    "The succession edge list, deduped to one row per (period, predecessor). An
+     edge has no calendar year of its own -- both of its endpoints carry their
+     own periods.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it

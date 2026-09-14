@@ -2151,6 +2151,20 @@ utils::globalVariables(
     # world bound it joins on and the running world sum it is built from
     "world_max",
     "i.world_max",
-    "world"
+    "world",
+    # polity_lineage.R (#1004) — the national-side lineage walk. The per-pair
+    # key and frontier columns, the candidate/support match columns, and the
+    # published lineage columns
+    "pair_id",
+    "depth",
+    "path",
+    "edge_rank",
+    "live_code",
+    "family",
+    ".lineage_row",
+    ".lineage_area",
+    ".lineage_year",
+    "lineage_polity_code",
+    "method_polity_lineage"
   )
 )
