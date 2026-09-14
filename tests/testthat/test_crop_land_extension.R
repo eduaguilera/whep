@@ -968,42 +968,181 @@ test_that("invalid custom weights cannot create negative crop areas", {
   expect_true(all(res$impact_u >= 0))
 })
 
-test_that("positive land targets require crop support", {
-  perennial_only <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2020L, 1L, 2560L, 100
+# A country-year whose positive FAO arable land has no arable crop row at all:
+# the Marshall Islands (area_code 127) shape, 500 ha of FAO Arable land against
+# a crop panel that is perennial only, in every year 1991-2023 (whep#1026).
+.unsupported_arable_case <- function() {
+  list(
+    base = tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~impact_u,
+      2020L, 127L, 2560L, 900
+    ),
+    ap = tibble::tribble(
+      ~area_code, ~year, ~arable_ha, ~permanent_ha,
+      127L, 2020L, 500, 900
+    )
   )
-  arable_target <- tibble::tribble(
-    ~area_code, ~year, ~arable_ha, ~permanent_ha,
-    1L, 2020L, 50, 100
+}
+
+# The mirror case: positive FAO permanent crops with no perennial base area,
+# the Poland / Burkina Faso shape (whep#1026).
+.unsupported_perennial_case <- function() {
+  list(
+    base = tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~impact_u,
+      2020L, 233L, 2511L, 100
+    ),
+    ap = tibble::tribble(
+      ~area_code, ~year, ~arable_ha, ~permanent_ha,
+      233L, 2020L, 100, 50
+    )
   )
+}
+
+.build_unsupported <- function(case, ...) {
+  whep::build_fao_arable_fallow_extension(
+    base_extension = case$base,
+    arable_permanent = case$ap,
+    temporary_grassland = .no_temp_grassland(),
+    items_prod_full = .fao_fallow_items(),
+    ...
+  )
+}
+
+test_that("positive land targets require crop support under abort", {
   expect_error(
-    whep::build_fao_arable_fallow_extension(
-      base_extension = perennial_only,
-      arable_permanent = arable_target,
-      temporary_grassland = .no_temp_grassland(),
-      items_prod_full = .fao_fallow_items()
+    .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "abort"
     ),
     "without arable crop rows"
   )
-
-  arable_only <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2020L, 1L, 2511L, 100
-  )
-  permanent_target <- tibble::tribble(
-    ~area_code, ~year, ~arable_ha, ~permanent_ha,
-    1L, 2020L, 100, 50
-  )
   expect_error(
-    whep::build_fao_arable_fallow_extension(
-      base_extension = arable_only,
-      arable_permanent = permanent_target,
-      temporary_grassland = .no_temp_grassland(),
-      items_prod_full = .fao_fallow_items()
+    .build_unsupported(
+      .unsupported_perennial_case(),
+      unsupported_target = "abort"
     ),
     "without positive perennial base area"
   )
+})
+
+test_that("the abort names the argument that would let the build continue", {
+  expect_error(
+    .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "abort"
+    ),
+    "unsupported_target"
+  )
+})
+
+test_that("unsupported_target rejects an unknown treatment", {
+  expect_error(
+    .build_unsupported(.unsupported_arable_case(), unsupported_target = "keep"),
+    class = "rlang_error"
+  )
+})
+
+test_that("area 127's 500 ha of arable land with no crop rows is carried", {
+  case <- .unsupported_arable_case()
+  expect_warning(
+    out <- .build_unsupported(case),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_equal(out$method_unsupported_target, rep("unallocated", 2L))
+  unallocated <- out[is.na(out$item_cbs_code), ]
+  expect_equal(nrow(unallocated), 1L)
+  expect_equal(unallocated$impact_u, 500)
+  expect_equal(unallocated$area_code, 127L)
+  # The perennial half of the same country-year still reconciles to FAO.
+  peren <- out[!is.na(out$item_cbs_code), ]
+  expect_equal(sum(peren$impact_u), 900)
+  # Nothing is invented and nothing is lost: FAO arable + permanent is exact.
+  expect_equal(sum(out$impact_u), 1400)
+})
+
+test_that("unallocated carries an unsupported permanent-crop target too", {
+  expect_warning(
+    out <- .build_unsupported(.unsupported_perennial_case()),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  unallocated <- out[is.na(out$item_cbs_code), ]
+  expect_equal(unallocated$impact_u, 50)
+  expect_equal(sum(out$impact_u), 150)
+})
+
+test_that("unsupported_target zero drops the target but keeps the rest", {
+  expect_warning(
+    out <- .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "zero"
+    ),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_false(any(is.na(out$item_cbs_code)))
+  expect_equal(out$item_cbs_code, 2560L)
+  expect_equal(out$impact_u, 900)
+  expect_equal(out$method_unsupported_target, "zero")
+})
+
+test_that("unsupported_target drop removes the whole country-year", {
+  expect_warning(
+    out <- .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "drop"
+    ),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_equal(nrow(out), 0L)
+  expect_true("method_unsupported_target" %in% names(out))
+})
+
+test_that("a supported country-year is untouched by any treatment", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 300,
+    2020L, 1L, 2560L, 100
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 600, 200
+  )
+  treatments <- c("unallocated", "zero", "drop", "abort")
+  land <- vapply(
+    treatments,
+    \(m) {
+      out <- whep::build_fao_arable_fallow_extension(
+        base_extension = base,
+        arable_permanent = ap,
+        temporary_grassland = .no_temp_grassland(),
+        items_prod_full = .fao_fallow_items(),
+        unsupported_target = m
+      )
+      sum(out$impact_u)
+    },
+    numeric(1)
+  )
+  expect_equal(unname(land), rep(800, 4L))
+})
+
+test_that("unallocated land is not counted as a crop by the diagnostics", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~temp_grassland_netted_ha,
+    2020L, 127L, NA_integer_, 500, 0,
+    2020L, 1L, 2003L, 100, 0,
+    2020L, 1L, 2511L, 900, 0
+  )
+
+  share <- whep::check_fodder_land_share(extension)
+  expect_false(127L %in% share$area_code)
+  expect_equal(share$arable_ha, 1000)
+
+  composition <- whep::check_arable_composition(extension)
+  expect_false(127L %in% composition$area_code)
 })
 
 test_that("build_fao_arable_fallow_extension nets temporary grassland (CBS 3002) so crop + CBS 3002 = FAO arable", {
