@@ -260,6 +260,16 @@
     "time_invariant",
     "`crop_patterns` is a single-vintage gridded map, applied to every year on
      purpose.",
+    ".sci_reallocate", "anti_join", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "Selects the polity-crops the row above could not place, against the same
+     single-vintage `crop_patterns` map: a crop the map does not carry is
+     missing in every year, so a year in the key would return the year.",
+    ".sci_reallocate", "inner_join", "area_code", 1L, "time_invariant",
+    "Fans those polity-crops onto the polity's cropland cells. The cropland
+     support is summed from the same single-vintage map, so it has no year to
+     key on; the crop's own area DOES come from a year-keyed join, the one
+     above it on `(area_code, item_prod_code, year)` (whep#599, whep#1002).",
     ".sci_warn_unspatialized", "anti_join", "area_code, item_prod_code", 1L,
     "diagnostic", "Reports the carbon the join above cannot spatialize.",
     ".select_best_source", "[", "area_code", 1L, "identity_lookup",
@@ -580,12 +590,24 @@
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
+    ".sci_cropland_weights", "mutate", "area_code", 1L, "time_invariant",
+    "Normalises each cell's cropland share within its polity. The cropland it
+     sums is the same single-vintage `crop_patterns` map, so there is no year
+     to collapse.",
+    ".sci_cropland_weights", "summarise", "lon, lat, area_code", 1L,
+    "time_invariant",
+    "Sums the per-crop cell areas of that one map into the cell's cropland
+     area, for the same reason.",
     ".sci_grid_weights", "mutate", "area_code, item_prod_code", 1L,
     "time_invariant",
     "Renormalises cell crop area within (area, crop). `crop_patterns` is a
      single-vintage gridded map applied to every year on purpose -- the same
      source the `.sci_join_weights` join row rests on -- so the frame has no
      year to collapse.",
+    ".sci_reallocate", "distinct", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The same (area, crop) pairs, taken so the crops the map does not carry can
+     be reallocated instead of dropped.",
     ".sci_warn_unspatialized", "distinct", "area_code, item_prod_code", 1L,
     "diagnostic",
     "The (area, crop) pairs the crop-pattern weights cover, so the warning can
