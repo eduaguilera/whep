@@ -841,6 +841,9 @@ Add name columns in dataframes from their codes or viceversa.
   : Polity columns on WHEP outputs
 - [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
   : Resolve a source's country label to a polity
+- [`resolve_polity_lineage()`](https://eduaguilera.github.io/whep/reference/resolve_polity_lineage.md)
+  : Resolve a national row onto the polity its grid support carries that
+  year
 - [`polity_identity_conventions()`](https://eduaguilera.github.io/whep/reference/polity_identity_conventions.md)
   : Which territorial identity WHEP's year-less objects carry
 
