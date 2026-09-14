@@ -134,11 +134,13 @@ creates the missing rows from the trade record, restricted to
 tonnes-denominated items (live-animal trade is in heads and arrives
 through <code><a href="get_livestock_cbs.html">get_livestock_cbs()</a></code>), to net importers, and to areas the CBS
 already covers in that year. Selecting it <strong>moves published values</strong> —
-at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
+current build; 1,164 keys when whep#864 landed), and reclassifies three
 areas on the nourishment axis. <code>NEWS.md</code> states the rest, and whep#762
 keeps the remaining decisions open.
-<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> always uses <code>"none"</code>; ask for <code>format = "wide"</code> here to
-get the wide table with recovery applied.</p></dd>
+<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>, <code><a href="get_processing_coefs.html">get_processing_coefs()</a></code> and <code><a href="build_io_model.html">build_io_model()</a></code> take the
+same argument and pass it into the shared build chain, each method under
+its own cache slot, so a downstream build can be run either way.</p></dd>
 
 
 <dt id="arg-trade-zero">trade_zero<a class="anchor" aria-label="anchor" href="#arg-trade-zero"></a></dt>

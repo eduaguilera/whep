@@ -19,7 +19,8 @@ build_io_model(
   years = NULL,
   endogenize_losses = FALSE,
   method = c("mass", "value"),
-  prices = NULL
+  prices = NULL,
+  trade_recovery = c("none", "net_import")
 )
 ```
 
@@ -81,6 +82,18 @@ build_io_model(
   [`build_cbs_prices()`](https://eduaguilera.github.io/whep/reference/build_cbs_prices.md)
   (`year`, `element`, `item_cbs_code`, `price`). Used only when
   `method = "value"`; built automatically when `NULL`.
+
+- trade_recovery:
+
+  One of `"none"` (default) or `"net_import"`, selecting the CBS every
+  internally built input is derived from — the wide CBS, the processing
+  coefficients, the supply-use tables, the bilateral trade matrices and
+  the prices. See
+  [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
+  for what each method does. It has no effect on an input supplied
+  directly, so a `cbs` built with one method and the rest left to build
+  under another is the caller's to avoid; pass the same value
+  everywhere.
 
 ## Value
 

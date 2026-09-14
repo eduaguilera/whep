@@ -7,7 +7,11 @@ items.
 ## Usage
 
 ``` r
-get_processing_coefs(years = NULL, example = FALSE)
+get_processing_coefs(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+)
 ```
 
 ## Arguments
@@ -18,6 +22,17 @@ get_processing_coefs(years = NULL, example = FALSE)
   whole series is built. Supplying a window builds only that range
   rather than building 1850-2023 and discarding the rest, and caches it
   under a window-specific key.
+
+- trade_recovery:
+
+  One of `"none"` (default) or `"net_import"`, selecting the CBS the
+  coefficients are calibrated on. See
+  [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
+  and
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md).
+  Pass the same value here as to
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md):
+  coefficients calibrated on one CBS do not describe the other.
 
 - example:
 

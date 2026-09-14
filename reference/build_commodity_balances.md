@@ -87,13 +87,18 @@ build_commodity_balances(
   items (live-animal trade is in heads and arrives through
   [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)),
   to net importers, and to areas the CBS already covers in that year.
-  Selecting it **moves published values** — at 2010 it adds 1,164 keys
-  and 53.7 Mt of imports, and reclassifies three areas on the
-  nourishment axis. `NEWS.md` states the rest, and whep#762 keeps the
-  remaining decisions open.
-  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-  always uses `"none"`; ask for `format = "wide"` here to get the wide
-  table with recovery applied.
+  Selecting it **moves published values** — at 2010 it adds 1,154 keys
+  and 53.7 Mt of imports (re-measured on the current build; 1,164 keys
+  when whep#864 landed), and reclassifies three areas on the nourishment
+  axis. `NEWS.md` states the rest, and whep#762 keeps the remaining
+  decisions open.
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md),
+  [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
+  and
+  [`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md)
+  take the same argument and pass it into the shared build chain, each
+  method under its own cache slot, so a downstream build can be run
+  either way.
 
 - trade_zero:
 

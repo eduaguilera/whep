@@ -50,7 +50,11 @@ columns following the FABIO methodology.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_wide_cbs</span><span class="op">(</span>years <span class="op">=</span> <span class="cn">NULL</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_wide_cbs</span><span class="op">(</span></span>
+<span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  trade_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"net_import"</span><span class="op">)</span>,</span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -66,9 +70,19 @@ it reaches 2013, because that overlap is what splices the old FBS series
 onto <code>FAOSTAT_FBS_New</code>.</p></dd>
 
 
+<dt id="arg-trade-recovery">trade_recovery<a class="anchor" aria-label="anchor" href="#arg-trade-recovery"></a></dt>
+<dd><p>One of <code>"none"</code> (default) or <code>"net_import"</code>, passed
+to <code><a href="build_commodity_balances.html">build_commodity_balances()</a></code>, which documents what each does and what
+<code>"net_import"</code> moves. Each method is built and cached under its own slot,
+so asking for one never serves the other's result. <code>"net_import"</code> is not
+the default because two allocation questions it raises are still open
+(whep#762).</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small example output without
-downloading remote data. Default is <code>FALSE</code>.</p></dd>
+downloading remote data. Default is <code>FALSE</code>. The example is the same
+fixture under either <code>trade_recovery</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

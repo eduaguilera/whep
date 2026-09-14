@@ -72,7 +72,8 @@ intermediate flow from sector <code>i</code> to sector <code>j</code>.</p>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  endogenize_losses <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mass"</span>, <span class="st">"value"</span><span class="op">)</span>,</span>
-<span>  prices <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  prices <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  trade_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"net_import"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -130,6 +131,16 @@ falls back to mass.</p></dd>
 <dd><p>Optional tibble of item prices as from <code><a href="build_cbs_prices.html">build_cbs_prices()</a></code>
 (<code>year</code>, <code>element</code>, <code>item_cbs_code</code>, <code>price</code>). Used only when
 <code>method = "value"</code>; built automatically when <code>NULL</code>.</p></dd>
+
+
+<dt id="arg-trade-recovery">trade_recovery<a class="anchor" aria-label="anchor" href="#arg-trade-recovery"></a></dt>
+<dd><p>One of <code>"none"</code> (default) or <code>"net_import"</code>, selecting
+the CBS every internally built input is derived from — the wide CBS, the
+processing coefficients, the supply-use tables, the bilateral trade
+matrices and the prices. See <code><a href="build_commodity_balances.html">build_commodity_balances()</a></code> for what each
+method does. It has no effect on an input supplied directly, so a <code>cbs</code>
+built with one method and the rest left to build under another is the
+caller's to avoid; pass the same value everywhere.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -7,7 +7,11 @@ the FABIO methodology.
 ## Usage
 
 ``` r
-get_wide_cbs(years = NULL, example = FALSE)
+get_wide_cbs(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+)
 ```
 
 ## Arguments
@@ -21,10 +25,20 @@ get_wide_cbs(years = NULL, example = FALSE)
   when it reaches 2013, because that overlap is what splices the old FBS
   series onto `FAOSTAT_FBS_New`.
 
+- trade_recovery:
+
+  One of `"none"` (default) or `"net_import"`, passed to
+  [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md),
+  which documents what each does and what `"net_import"` moves. Each
+  method is built and cached under its own slot, so asking for one never
+  serves the other's result. `"net_import"` is not the default because
+  two allocation questions it raises are still open (whep#762).
+
 - example:
 
   If `TRUE`, return a small example output without downloading remote
-  data. Default is `FALSE`.
+  data. Default is `FALSE`. The example is the same fixture under either
+  `trade_recovery`.
 
 ## Value
 

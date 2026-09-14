@@ -47,7 +47,11 @@ and quantities of their corresponding processed output items.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_processing_coefs</span><span class="op">(</span>years <span class="op">=</span> <span class="cn">NULL</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_processing_coefs</span><span class="op">(</span></span>
+<span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  trade_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"net_import"</span><span class="op">)</span>,</span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -59,6 +63,14 @@ and quantities of their corresponding processed output items.</p>
 (default) the whole series is built. Supplying a window builds only that
 range rather than building 1850-2023 and discarding the rest, and caches it
 under a window-specific key.</p></dd>
+
+
+<dt id="arg-trade-recovery">trade_recovery<a class="anchor" aria-label="anchor" href="#arg-trade-recovery"></a></dt>
+<dd><p>One of <code>"none"</code> (default) or <code>"net_import"</code>, selecting
+the CBS the coefficients are calibrated on. See
+<code><a href="build_commodity_balances.html">build_commodity_balances()</a></code> and <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>. Pass the same value
+here as to <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>: coefficients calibrated on one CBS do not
+describe the other.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

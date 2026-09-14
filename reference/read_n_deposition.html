@@ -102,16 +102,48 @@ Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>year</code>, <code>value_g</code> (total grams N
-deposited in the 0.5-degree cell that year).</p>
+deposited in the 0.5-degree cell that year) and <code>method_deposition</code>,
+the constant <code>"hani"</code>. The provenance tag travels with the field so
+that <code><a href="build_n_deposition.html">build_n_deposition()</a></code> can record where its deposition came from
+instead of asserting it; see that function's <code>method_deposition</code> note.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="measured-european-bias-growing-backwards-in-time">Measured European bias, growing backwards in time<a class="anchor" aria-label="anchor" href="#measured-european-bias-growing-backwards-in-time"></a></h2>
+
+
+<p>HaNi is <strong>too flat over Europe</strong>: it largely misses both the European
+deposition peak around 1990 and the fall that emission controls drove
+afterwards. Measured against the EMEP MSC-W model (rv5.6, 2025 reporting
+round) on WHEP's own 0.5-degree grid, over the 3193 cells assigned to an
+EMEP core country, area-weighted kg N/ha/yr:</p><table class="table table"><tr><td>year</td><td>HaNi</td><td>EMEP</td><td>HaNi / EMEP</td></tr><tr><td>1990</td><td>9.81</td><td>14.08</td><td>0.696</td></tr><tr><td>2000</td><td>9.65</td><td>11.28</td><td>0.856</td></tr><tr><td>2010</td><td>9.04</td><td>9.56</td><td>0.946</td></tr><tr><td>2019</td><td>8.00</td><td>8.07</td><td>0.992</td></tr></table><p>Across 1990-2019 HaNi falls 18.4% where EMEP falls 42.7%, and the shortfall
+summed over those cells and years is 22.6 Tg N. The worst 1990 ratios are
+Italy 0.386, Denmark 0.429, Ireland 0.570, Germany 0.585 and Poland 0.603.
+The error is therefore a <strong>function of time</strong>, largest exactly where and
+when European deposition was largest, and it compounds backwards into the
+pre-1990 period where EMEP offers no check at all. Anything integrating
+deposition over the historical period inherits a trajectory that is too
+flat.</p>
+<p>Nothing here corrects for it: which product is right, and what shape a
+correction should take, is a scientific decision recorded in whep#1097 and
+not taken by this reader. What the code does provide is the means to express
+one – a corrected field injected through <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s <code>data</code>
+argument is recorded per cell in <code>method_deposition</code> rather than inheriting
+HaNi's name. <code>validation/n_deposition_emep.R</code> reproduces the table above and
+writes the full per-country, per-year ratio series.</p>
+<p>The comparison product is the EMEP MSC-W chemical transport model, run in
+support of the Convention on Long-Range Transboundary Air Pollution:
+Simpson, D. <em>et al.</em> (2012). The EMEP MSC-W chemical transport model –
+technical description. <em>Atmospheric Chemistry and Physics</em> 12(16),
+7825-7865. <a href="https://doi.org/10.5194/acp-12-7825-2012" class="external-link">doi:10.5194/acp-12-7825-2012</a></p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">read_n_deposition</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 4</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat  year  value_g</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>  <span style="text-decoration: underline;">2</span>020 30<span style="text-decoration: underline;">800</span>000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 5</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat  year  value_g method_deposition</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> -<span style="color: #BB0000;">0.25</span> -<span style="color: #BB0000;">0.25</span>  <span style="text-decoration: underline;">2</span>020 30<span style="text-decoration: underline;">800</span>000 hani             </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

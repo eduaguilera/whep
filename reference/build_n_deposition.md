@@ -50,7 +50,8 @@ build_n_deposition(
 - data:
 
   Optional named list of pre-loaded inputs: `nhx` and `noy` (each `lon`,
-  `lat`, `year`, `value_g`, falling back to
+  `lat`, `year`, `value_g` and optionally `method_deposition`, falling
+  back to
   [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
   when absent) and `cell_polity` (`lon`, `lat`, `area_code`,
   `cell_area_ha` and the `split` key column, required).
@@ -110,6 +111,16 @@ source mass; a consumer wanting one category **must filter**.
 over its whole area, so every polity of a cell carries the same rate on
 every category row and the rate is **not** conserved on re-aggregation.
 Only `deposition_n_t` is a mass.
+
+`method_deposition` names the product the cell's deposition came from,
+**per cell**, and it is read off the supplied field rather than
+asserted:
+[`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
+tags its own rows `"hani"`, a field injected through `data` keeps
+whatever tag it carries, and an injected field carrying no tag is
+recorded as `"supplied"`. A corrected or substituted deposition field is
+therefore visible in the output instead of inheriting HaNi's name
+(#1097).
 
 Rows are keyed on `area_code`.
 [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)

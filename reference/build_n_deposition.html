@@ -119,9 +119,10 @@ keeps every year the inputs cover.</p></dd>
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs: <code>nhx</code> and <code>noy</code>
-(each <code>lon</code>, <code>lat</code>, <code>year</code>, <code>value_g</code>, falling back to
-<code><a href="read_n_deposition.html">read_n_deposition()</a></code> when absent) and <code>cell_polity</code> (<code>lon</code>, <code>lat</code>,
-<code>area_code</code>, <code>cell_area_ha</code> and the <code>split</code> key column, required).</p></dd>
+(each <code>lon</code>, <code>lat</code>, <code>year</code>, <code>value_g</code> and optionally
+<code>method_deposition</code>, falling back to <code><a href="read_n_deposition.html">read_n_deposition()</a></code> when absent)
+and <code>cell_polity</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_ha</code> and the
+<code>split</code> key column, required).</p></dd>
 
 
 <dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>
@@ -176,6 +177,13 @@ source mass; a consumer wanting one category <strong>must filter</strong>.</p>
 over its whole area, so every polity of a cell carries the same rate on
 every category row and the rate is <strong>not</strong> conserved on re-aggregation.
 Only <code>deposition_n_t</code> is a mass.</p>
+<p><code>method_deposition</code> names the product the cell's deposition came from,
+<strong>per cell</strong>, and it is read off the supplied field rather than
+asserted: <code><a href="read_n_deposition.html">read_n_deposition()</a></code> tags its own rows <code>"hani"</code>, a field
+injected through <code>data</code> keeps whatever tag it carries, and an injected
+field carrying no tag is recorded as <code>"supplied"</code>. A corrected or
+substituted deposition field is therefore visible in the output instead
+of inheriting HaNi's name (#1097).</p>
 <p>Rows are keyed on <code>area_code</code>. <code><a href="build_polycell_support.html">build_polycell_support()</a></code> keys on
 <code>polity_code</code> and does not derive the reporting vocabulary (DA-23), and
 <code>polity_area_crosswalk</code> folds distinct polities into one <code>area_code</code>, so a
