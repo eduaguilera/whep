@@ -165,6 +165,7 @@ build_crop_soil_n2o_extension <- function(
 # pin (reported in kg N as "Manure applied to soils (N content)").
 .manure_applied_n_country <- function(manure) {
   manure |>
+    .faostat_tier1_only() |>
     dplyr::filter(
       .data$Item == "All Animals",
       .data$Element == "Manure applied to soils (N content)"
@@ -179,6 +180,51 @@ build_crop_soil_n2o_extension <- function(
       .data$manure_applied_n_t >= 0
     ) |>
     .n_country_to_polity("manure_applied_n_t")
+}
+
+# Keep one FAOSTAT reporting system, then prove the key is unique.
+#
+# FAOSTAT publishes the livestock emissions domain under two sources, `FAO
+# TIER 1` and `UNFCCC`, and reports the same country-year under both wherever a
+# country submits an inventory. The pin registered before whep#1098 carried no
+# `Source` column at all -- one row per (area, year), so nothing here had to
+# choose -- and the bulk archive that restores the missing emission Elements
+# brings the column, and the second row, back with it. Summing them is not a
+# larger estimate, it is the same manure counted twice: measured on the 2026-09
+# release it inflates global manure N by +6.2% (1990), +6.7% (2010) and +6.7%
+# (2020), over 1,227 duplicated area-years.
+#
+# `FAO TIER 1` is the leg kept, matching what
+# `inst/scripts/prepare_faostat_bulk.R` builds the pin from and what the
+# livestock emission readers select. It is a no-op against the pre-#1098 pin:
+# filtering the current bulk to it reproduces that pin's totals to -0.00% in
+# all three years above, with a maximum relative difference of 8.6e-09.
+#
+# The uniqueness assertion is the part that does not depend on today's
+# vocabulary: a third source, or a renamed one, would otherwise re-open the
+# same double count silently.
+.faostat_tier1_only <- function(manure) {
+  if (rlang::has_name(manure, "Source")) {
+    manure <- dplyr::filter(manure, .data$Source == "FAO TIER 1")
+  }
+  duplicated_keys <- manure |>
+    dplyr::filter(
+      .data$Item == "All Animals",
+      .data$Element == "Manure applied to soils (N content)"
+    ) |>
+    dplyr::count(.data$Year, .data[["Area Code"]]) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(duplicated_keys) > 0L) {
+    cli::cli_abort(c(
+      "FAOSTAT manure N is reported more than once for
+       {nrow(duplicated_keys)} area-year{?s}.",
+      x = "Summing them would count the same manure twice.",
+      i = "Expected one row per {.field Area Code} and {.field Year} after
+           keeping {.val FAO TIER 1}; check whether the pin gained a
+           reporting source."
+    ))
+  }
+  manure
 }
 
 # Country-total synthetic fertiliser N (tonnes N) from the FAOSTAT pin.
