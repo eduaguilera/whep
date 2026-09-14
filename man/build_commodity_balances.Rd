@@ -56,11 +56,13 @@ creates the missing rows from the trade record, restricted to
 tonnes-denominated items (live-animal trade is in heads and arrives
 through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
 already covers in that year. Selecting it \strong{moves published values} —
-at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
+current build; 1,164 keys when whep#864 landed), and reclassifies three
 areas on the nourishment axis. \code{NEWS.md} states the rest, and whep#762
 keeps the remaining decisions open.
-\code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
-get the wide table with recovery applied.}
+\code{\link[=get_wide_cbs]{get_wide_cbs()}}, \code{\link[=get_processing_coefs]{get_processing_coefs()}} and \code{\link[=build_io_model]{build_io_model()}} take the
+same argument and pass it into the shared build chain, each method under
+its own cache slot, so a downstream build can be run either way.}
 
 \item{trade_zero}{One of \code{"prefer_record"} (default) or \code{"keep"},
 selecting what happens when the CBS carries a \strong{zero} import or export

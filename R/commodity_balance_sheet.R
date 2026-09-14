@@ -11,8 +11,15 @@
 #'   under a window-specific key. The window is widened internally to 2011 when
 #'   it reaches 2013, because that overlap is what splices the old FBS series
 #'   onto `FAOSTAT_FBS_New`.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, passed
+#'   to [build_commodity_balances()], which documents what each does and what
+#'   `"net_import"` moves. Each method is built and cached under its own slot,
+#'   so asking for one never serves the other's result. `"net_import"` is not
+#'   the default because two allocation questions it raises are still open
+#'   (whep#762).
 #' @param example If `TRUE`, return a small example output without
-#'   downloading remote data. Default is `FALSE`.
+#'   downloading remote data. Default is `FALSE`. The example is the same
+#'   fixture under either `trade_recovery`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -54,16 +61,21 @@
 #'
 #' @examples
 #' get_wide_cbs(example = TRUE)
-get_wide_cbs <- function(years = NULL, example = FALSE) {
+get_wide_cbs <- function(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+) {
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (example) {
     return(.example_get_wide_cbs())
   }
   build_years <- .build_years(years)
-  cbs_built <- .cached_cbs_built(build_years)
+  cbs_built <- .cached_cbs_built(build_years, trade_recovery)
   primary_prod <- .cached_primary_prod(.context_years(build_years))
 
   .cache_get(
-    .cache_key("cbs_wide", build_years),
+    .cache_key("cbs_wide", build_years, .cbs_cache_method(trade_recovery)),
     .cbs_long_to_wide(cbs_built, primary_prod, build_years)
   )
 }
@@ -296,6 +308,11 @@ get_livestock_cbs <- function(primary_prod) {
 #'   (default) the whole series is built. Supplying a window builds only that
 #'   range rather than building 1850-2023 and discarding the rest, and caches it
 #'   under a window-specific key.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#'   the CBS the coefficients are calibrated on. See
+#'   [build_commodity_balances()] and [get_wide_cbs()]. Pass the same value
+#'   here as to [get_wide_cbs()]: coefficients calibrated on one CBS do not
+#'   describe the other.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
@@ -346,14 +363,20 @@ get_livestock_cbs <- function(primary_prod) {
 #'
 #' @examples
 #' get_processing_coefs(example = TRUE)
-get_processing_coefs <- function(years = NULL, example = FALSE) {
+get_processing_coefs <- function(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+) {
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (example) {
     return(.example_get_processing_coefs())
   }
   build_years <- .build_years(years)
-  cbs_built <- .cached_cbs_built(build_years)
+  cbs_built <- .cached_cbs_built(build_years, trade_recovery)
+  method <- .cbs_cache_method(trade_recovery)
 
-  .cache_get(.cache_key("proc_coefs", build_years), {
+  .cache_get(.cache_key("proc_coefs", build_years, method), {
     cli::cli_h1("Building processing coefficients")
     .build_proc_coefs_years(cbs_built, build_years)
   })

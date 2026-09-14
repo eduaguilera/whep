@@ -42,6 +42,13 @@
 #' @param prices Optional tibble of item prices as from [build_cbs_prices()]
 #'   (`year`, `element`, `item_cbs_code`, `price`). Used only when
 #'   `method = "value"`; built automatically when `NULL`.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#'   the CBS every internally built input is derived from — the wide CBS, the
+#'   processing coefficients, the supply-use tables, the bilateral trade
+#'   matrices and the prices. See [build_commodity_balances()] for what each
+#'   method does. It has no effect on an input supplied directly, so a `cbs`
+#'   built with one method and the rest left to build under another is the
+#'   caller's to avoid; pass the same value everywhere.
 #'
 #' @return A tibble with one row per year and list-columns:
 #'   - `Z`: Inter-industry flow matrix (product-by-product).
@@ -69,9 +76,11 @@ build_io_model <- function(
   years = NULL,
   endogenize_losses = FALSE,
   method = c("mass", "value"),
-  prices = NULL
+  prices = NULL,
+  trade_recovery = c("none", "net_import")
 ) {
   method <- rlang::arg_match(method)
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (!is.null(years) && !is.numeric(years)) {
     cli::cli_abort(
       "{.arg years} must be numeric or NULL."
@@ -85,66 +94,71 @@ build_io_model <- function(
       years = years,
       endogenize_losses = endogenize_losses,
       method = method,
-      prices = prices
+      prices = prices,
+      trade_recovery = trade_recovery
     ))
   }
   build_years <- .build_years(years)
+  cbs_method <- .cbs_cache_method(trade_recovery)
 
   # Build shared pipeline once when using defaults. The chain and its cache keys
   # are shared with get_wide_cbs()/get_processing_coefs() (see R/build_cache.R)
   # so the two paths cannot drift. Results are session-cached
   # (see ?whep_clear_cache).
   if (is.null(cbs) || is.null(supply_use)) {
-    cbs_built <- .cached_cbs_built(build_years)
+    cbs_built <- .cached_cbs_built(build_years, trade_recovery)
     primary_prod <- .cached_primary_prod(.context_years(build_years))
     primary_prod_build <- primary_prod |>
       .filter_years(build_years)
 
     if (is.null(cbs)) {
       cbs <- .cache_get(
-        .cache_key("cbs_wide_io", build_years),
+        .cache_key("cbs_wide_io", build_years, cbs_method),
         .cbs_wide_core(cbs_built, primary_prod_build, build_years)
       )
     }
 
     if (is.null(supply_use)) {
-      coeffs <- .cache_get(.cache_key("proc_coefs", build_years), {
+      coeffs <- .cache_get(.cache_key("proc_coefs", build_years, cbs_method), {
         cli::cli_h1("Building processing coefficients")
         .build_proc_coefs_years(cbs_built, build_years)
       })
 
-      supply_use <- .cache_get(.cache_key("supply_use", build_years), {
-        cli::cli_h1("Building supply-use tables")
-        cli::cli_progress_step("Reading crop residues")
-        crop_residues <- get_primary_residues() |>
-          .filter_years(build_years)
-        cli::cli_progress_step("Building feed intake")
-        feed_intake <- .build_redistribute_intake(
-          grain = "national",
-          demand_tier = "ipcc",
-          feed_mode = "historical",
-          production = primary_prod_build,
-          cbs = cbs,
-          years = build_years
-        )
+      supply_use <- .cache_get(
+        .cache_key("supply_use", build_years, cbs_method),
+        {
+          cli::cli_h1("Building supply-use tables")
+          cli::cli_progress_step("Reading crop residues")
+          crop_residues <- get_primary_residues() |>
+            .filter_years(build_years)
+          cli::cli_progress_step("Building feed intake")
+          feed_intake <- .build_redistribute_intake(
+            grain = "national",
+            demand_tier = "ipcc",
+            feed_mode = "historical",
+            production = primary_prod_build,
+            cbs = cbs,
+            years = build_years
+          )
 
-        cli::cli_progress_step("Assembling supply-use tables")
-        .build_supply_use_from_inputs(
-          items_prod = whep::items_prod,
-          items_cbs = whep::items_cbs,
-          coeffs = coeffs,
-          cbs = cbs,
-          crop_residues = crop_residues,
-          primary_prod = primary_prod_build,
-          feed_intake = feed_intake
-        )
-      })
+          cli::cli_progress_step("Assembling supply-use tables")
+          .build_supply_use_from_inputs(
+            items_prod = whep::items_prod,
+            items_cbs = whep::items_cbs,
+            coeffs = coeffs,
+            cbs = cbs,
+            crop_residues = crop_residues,
+            primary_prod = primary_prod_build,
+            feed_intake = feed_intake
+          )
+        }
+      )
     }
   }
 
   if (is.null(bilateral_trade)) {
     bilateral_trade <- .cache_get(
-      .cache_key("bilateral_trade", build_years),
+      .cache_key("bilateral_trade", build_years, cbs_method),
       {
         cli::cli_h1("Building bilateral trade matrices")
         get_bilateral_trade(cbs = cbs)
@@ -154,7 +168,7 @@ build_io_model <- function(
   .validate_io_inputs(supply_use, bilateral_trade, cbs)
   if (method == "value" && is.null(prices)) {
     prices <- .cache_get(
-      .cache_key("cbs_prices", build_years),
+      .cache_key("cbs_prices", build_years, cbs_method),
       {
         cli::cli_h1("Building CBS prices for value allocation")
         build_cbs_prices(cbs = cbs)
@@ -241,7 +255,8 @@ build_io_model <- function(
   years,
   endogenize_losses,
   method = "mass",
-  prices = NULL
+  prices = NULL,
+  trade_recovery = "none"
 ) {
   years <- .io_requested_years(years)
   cli::cli_inform(c(
@@ -262,7 +277,8 @@ build_io_model <- function(
         years = yr,
         endogenize_losses = endogenize_losses,
         method = method,
-        prices = .io_filter_optional_years(prices, yr)
+        prices = .io_filter_optional_years(prices, yr),
+        trade_recovery = trade_recovery
       )
     }
   ) |>
