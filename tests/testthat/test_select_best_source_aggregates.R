@@ -36,6 +36,7 @@
     item_cbs_code = c(2745L, 2745L),
     element = c("production", "production"),
     source = c("FAOSTAT_prod", "FAOSTAT_prod"),
+    unit = c("tonnes", "tonnes"),
     value = c(10, 32)
   )
 }
@@ -63,6 +64,7 @@ testthat::test_that("an undisturbed value passes through unchanged", {
     item_cbs_code = c(2745L, 2745L),
     element = c("production", "production"),
     source = c("FAOSTAT_prod", "FAOSTAT_prod"),
+    unit = c("tonnes", "tonnes"),
     value = c(10, 987654)
   )
   out <- as.data.frame(suppressWarnings(whep:::.select_best_source(dt)))

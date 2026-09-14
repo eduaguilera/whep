@@ -2139,6 +2139,10 @@ utils::globalVariables(
     ".n_group_flags",
     "fao_flag_folded",
     "i.fao_flag_folded",
-    ".join_unit"
+    ".join_unit",
+    # build_cbs.R (#1024) — the per-key count of distinct units, used by
+    # `.abort_if_units_mixed()` to reject a sum that would add two
+    # denominations into one `value`
+    "n_units"
   )
 )
