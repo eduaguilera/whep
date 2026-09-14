@@ -35,7 +35,10 @@
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `year`, `value_g` (total grams N
-#'   deposited in the 0.5-degree cell that year).
+#'   deposited in the 0.5-degree cell that year) and `method_deposition`,
+#'   the constant `"hani"`. The provenance tag travels with the field so
+#'   that [build_n_deposition()] can record where its deposition came from
+#'   instead of asserting it; see that function's `method_deposition` note.
 #' @export
 #'
 #' @source
@@ -45,6 +48,43 @@
 #'   anthropogenic Nitrogen inputs (HaNi) to the terrestrial biosphere: a
 #'   5 arcmin resolution annual dataset from 1860 to 2019. *Earth System
 #'   Science Data* 14(10), 4551-4568. \doi{10.5194/essd-14-4551-2022}
+#'
+#' @section Measured European bias, growing backwards in time:
+#' HaNi is **too flat over Europe**: it largely misses both the European
+#' deposition peak around 1990 and the fall that emission controls drove
+#' afterwards. Measured against the EMEP MSC-W model (rv5.6, 2025 reporting
+#' round) on WHEP's own 0.5-degree grid, over the 3193 cells assigned to an
+#' EMEP core country, area-weighted kg N/ha/yr:
+#'
+#' | year | HaNi | EMEP | HaNi / EMEP |
+#' |---|---|---|---|
+#' | 1990 | 9.81 | 14.08 | 0.696 |
+#' | 2000 | 9.65 | 11.28 | 0.856 |
+#' | 2010 | 9.04 | 9.56 | 0.946 |
+#' | 2019 | 8.00 | 8.07 | 0.992 |
+#'
+#' Across 1990-2019 HaNi falls 18.4% where EMEP falls 42.7%, and the shortfall
+#' summed over those cells and years is 22.6 Tg N. The worst 1990 ratios are
+#' Italy 0.386, Denmark 0.429, Ireland 0.570, Germany 0.585 and Poland 0.603.
+#' The error is therefore a **function of time**, largest exactly where and
+#' when European deposition was largest, and it compounds backwards into the
+#' pre-1990 period where EMEP offers no check at all. Anything integrating
+#' deposition over the historical period inherits a trajectory that is too
+#' flat.
+#'
+#' Nothing here corrects for it: which product is right, and what shape a
+#' correction should take, is a scientific decision recorded in whep#1097 and
+#' not taken by this reader. What the code does provide is the means to express
+#' one -- a corrected field injected through [build_n_deposition()]'s `data`
+#' argument is recorded per cell in `method_deposition` rather than inheriting
+#' HaNi's name. `validation/n_deposition_emep.R` reproduces the table above and
+#' writes the full per-country, per-year ratio series.
+#'
+#' The comparison product is the EMEP MSC-W chemical transport model, run in
+#' support of the Convention on Long-Range Transboundary Air Pollution:
+#' Simpson, D. *et al.* (2012). The EMEP MSC-W chemical transport model --
+#' technical description. *Atmospheric Chemistry and Physics* 12(16),
+#' 7825-7865. \doi{10.5194/acp-12-7825-2012}
 #'
 #' @examples
 #' read_n_deposition(example = TRUE)
@@ -63,7 +103,8 @@ read_n_deposition <- function(
     .resolve_hani_dir(hani_dir),
     paste0("ndep_", species, ".nc")
   )
-  .read_hani_nc(path, paste0("ndep_", species), years)
+  .read_hani_nc(path, paste0("ndep_", species), years) |>
+    dplyr::mutate(method_deposition = "hani")
 }
 
 #' Build gridded atmospheric nitrogen deposition inputs.
@@ -95,9 +136,10 @@ read_n_deposition <- function(
 #'   keeps every year the inputs cover.
 #' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs: `nhx` and `noy`
-#'   (each `lon`, `lat`, `year`, `value_g`, falling back to
-#'   [read_n_deposition()] when absent) and `cell_polity` (`lon`, `lat`,
-#'   `area_code`, `cell_area_ha` and the `split` key column, required).
+#'   (each `lon`, `lat`, `year`, `value_g` and optionally
+#'   `method_deposition`, falling back to [read_n_deposition()] when absent)
+#'   and `cell_polity` (`lon`, `lat`, `area_code`, `cell_area_ha` and the
+#'   `split` key column, required).
 #' @param split Which polity share splits the cell's deposited mass:
 #'   `"auto"` (default) takes `polity_area_ha` when the support carries it and
 #'   `polity_frac` otherwise, `"polity_area_ha"` and `"polity_frac"` demand
@@ -128,6 +170,14 @@ read_n_deposition <- function(
 #'   over its whole area, so every polity of a cell carries the same rate on
 #'   every category row and the rate is **not** conserved on re-aggregation.
 #'   Only `deposition_n_t` is a mass.
+#'
+#'   `method_deposition` names the product the cell's deposition came from,
+#'   **per cell**, and it is read off the supplied field rather than
+#'   asserted: [read_n_deposition()] tags its own rows `"hani"`, a field
+#'   injected through `data` keeps whatever tag it carries, and an injected
+#'   field carrying no tag is recorded as `"supplied"`. A corrected or
+#'   substituted deposition field is therefore visible in the output instead
+#'   of inheriting HaNi's name (#1097).
 #'
 #'   Rows are keyed on `area_code`. `build_polycell_support()` keys on
 #'   `polity_code` and does not derive the reporting vocabulary (DA-23), and
@@ -521,18 +571,62 @@ build_n_deposition <- function(
   method
 }
 
+# The deposition field's provenance travels WITH the field.
+# `read_n_deposition()` tags its own rows "hani"; a field injected through
+# `data` keeps whatever tag it was built with. An injected field carrying no
+# tag is recorded as "supplied", not relabelled "hani": HaNi is measurably
+# biased over Europe and the bias grows backwards in time (#1097), so a
+# corrected or substituted field is exactly what a caller is expected to
+# inject, and inheriting HaNi's name would make the substitution invisible.
+.nd_tag_source <- function(x) {
+  if (!rlang::has_name(x, "method_deposition")) {
+    return(dplyr::mutate(x, method_deposition = "supplied"))
+  }
+  if (!is.character(x$method_deposition) || anyNA(x$method_deposition)) {
+    cli::cli_abort(
+      "{.field method_deposition} must be a character column with no
+       {.val NA}."
+    )
+  }
+  x
+}
+
+# NHx and NOy are summed into one number, so one label has to cover both. Two
+# different labels in one cell-year means that number is a composite of two
+# products, which no single label describes honestly -- so it aborts rather
+# than picking one. A cell present in only one species takes that species' tag.
+.nd_combine_source <- function(nhx_source, noy_source) {
+  clash <- !is.na(nhx_source) &
+    !is.na(noy_source) &
+    nhx_source != noy_source
+  if (any(clash)) {
+    cli::cli_abort(c(
+      "{.field nhx} and {.field noy} disagree on {.field method_deposition}.",
+      x = "{sum(clash)} cell-year{?s} carry both
+           {.val {nhx_source[clash][1]}} and {.val {noy_source[clash][1]}}.",
+      i = "The two species are summed into one deposition total, so one
+           provenance label must cover both."
+    ))
+  }
+  dplyr::coalesce(nhx_source, noy_source)
+}
+
 # Combine NHx + NOy mass, convert to a per-hectare rate using the true cell
 # area, and split that mass across the cell's polities by `polity_share`.
 .nd_assemble <- function(nhx, noy, polity, key, categories) {
   total <- dplyr::full_join(
-    nhx,
-    noy,
+    .nd_tag_source(nhx),
+    .nd_tag_source(noy),
     by = c("lon", "lat", "year"),
     suffix = c("_nhx", "_noy")
   ) |>
     dplyr::mutate(
       value_g_total = dplyr::coalesce(.data$value_g_nhx, 0) +
-        dplyr::coalesce(.data$value_g_noy, 0)
+        dplyr::coalesce(.data$value_g_noy, 0),
+      method_deposition = .nd_combine_source(
+        .data$method_deposition_nhx,
+        .data$method_deposition_noy
+      )
     )
   dplyr::inner_join(total, polity, by = c("lon", "lat")) |>
     dplyr::mutate(
@@ -547,7 +641,6 @@ build_n_deposition <- function(
         .data$polity_share *
         .data$category_frac /
         1000,
-      method_deposition = "hani",
       method_polity_split = key,
       method_area_split = categories
     ) |>
@@ -568,8 +661,8 @@ build_n_deposition <- function(
 # Toy fixture for a runnable example (one native-grid deposition species).
 .example_hani_species <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~year, ~value_g,
-    -0.25, -0.25, 2020L, 30800000
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 30800000, "hani"
   )
 }
 

@@ -28,6 +28,7 @@ committed.
 | occupation / land_per_tonne | Poore & Nemecek 2018 (LCA, m²·yr/kg) | open | `cache/ground_truth/occupation.json` | manual (cited) |
 | cycle_length | GGCMI Phase 3 crop calendar | open (Zenodo 5062513) | `cache/ground_truth/cycle_length.json`, `cache/data/GGCMI/` | manual + `ncdf4` |
 | stability | none (WHEP's own series) | — | — | `stability.R` |
+| n_deposition | EMEP MSC-W EMEP01 rv5.6, 2025 reporting round (yearly, 0.1°) | open (auto-download, met.no THREDDS) | `cache/emep/`, `cache/hani_emep_by_country.csv` | `n_deposition_emep.R` |
 
 ## Packaged BNF coefficient provenance
 
@@ -292,6 +293,7 @@ remains an optional override pointing at locally-held layers by basename.)
 | Dataset | For | Access | Status |
 |---|---|---|---|
 | USDA FAS PSD | global production / area cross-check | open CSV (auto) | **wired** (`psd_production.R`) → `production_psd` |
+| EMEP MSC-W rv5.6 (2025 reporting) | European N deposition cross-check for HaNi | open NetCDF (auto, `thredds.met.no/thredds/fileServer/data/EMEP/2025_Reporting/`) | **wired** (`n_deposition_emep.R`) → `n_deposition_emep`. Yearly files, ~78 MB each, `DDEP_RDN_m2Grid + DDEP_OXN_m2Grid + WDEP_RDN + WDEP_OXN` in mgN/m². HaNi side needs `WHEP_HANI_DIR`. See <https://www.emep.int/mscw/mscw_moddata.html> |
 | MapSPAM (SPAM2010 v2r0) | observed cropping intensity (harvested/physical) | open via Dataverse **API** (the guestbook only gates the HTML UI; `/api/access/datafile/{id}?format=original` → S3, no login) | **wired** (`spam_intensity.R`) → `cropping_intensity_obs` (362/377). file IDs 3984973 (phys) / 3984976 (harv) |
 | Agribalyse 3.2 | 2nd LCA occupation source | data.gouv (summary) open; LCI gated portal | **not wired** — open files have only EF *points* / a blank methodology template. The per-crop m²·yr flow is in the ecospold2/OpenLCA LCI datasets on agribalyse.ademe.fr (obtain those, extract "Occupation, arable land"). Lower priority — P&N + land_per_tonne already cover occupation. |
 
