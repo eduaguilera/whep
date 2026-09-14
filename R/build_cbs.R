@@ -115,6 +115,31 @@
 #'   adds 880.18 Mt of `stock_withdrawal`. `"abort"` refuses to build any
 #'   range starting before 1961. Which is right is an open question — see
 #'   whep#1065 — so the reporting default is the one that invents nothing.
+#' @param hist_trade_scale One of `"report"` (default), `"drop"` or
+#'   `"abort"`, selecting what happens when a pre-1961 row of the
+#'   `historical-trade-*` pins carries a quantity no mass unit can express
+#'   (whep#1085). The screen bounds a single reporter's flow by the largest
+#'   **world** flow FAOSTAT records for the same trade item, summed over
+#'   reporters, over the FAOSTAT years the build already reads — a measured
+#'   bound, not a chosen cap, because world trade in these commodities grew
+#'   through the twentieth century. Measured on the real pins at 1850–2023,
+#'   1,659 pre-1961 rows exceed it, carrying 3,958.8 Mt, 21.3% of the pins'
+#'   whole 18,581.9 Mt; a further 10,089 rows have no FAOSTAT reference and
+#'   go unchecked. **97.2% of the flagged mass is the USA**, whose block over
+#'   roughly 1900–1960 is inflated by a factor of ten on items where the true
+#'   tonnage is still recoverable (cotton lint 767 and tobacco leaf 826
+#'   alternate correct and ten-fold values year to year) and by far more on
+#'   item 831, "Tobacco products nes", published at 115.1 Mt for 1951 — 159x
+#'   the largest world flow of that item FAOSTAT has ever recorded and 32x
+#'   the entire 1961 world tobacco crop. `"report"` keeps every value and
+#'   only warns, so it **moves no published value** (verified: the screened
+#'   read is `identical()` to the unscreened one); it names the count, the
+#'   mass, the reporters and the three largest. `"drop"` removes the flagged
+#'   rows, taking 3,958.6 Mt out of the historical trade input and with it
+#'   the impossible pre-1962 exports behind whep#1065's negative
+#'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
+#'   clamp: the defect is in the pin's producer and no conversion factor
+#'   recovers the true value, so a clamped tonnage would be a fabricated one.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -157,6 +182,7 @@ build_commodity_balances <- function(
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -164,6 +190,7 @@ build_commodity_balances <- function(
   trade_zero <- rlang::arg_match(trade_zero)
   share_overflow <- rlang::arg_match(share_overflow)
   negative_supply <- rlang::arg_match(negative_supply)
+  hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   if (example) {
     return(
       if (format == "wide") {
@@ -186,7 +213,8 @@ build_commodity_balances <- function(
       end_year,
       historical_data,
       share_overflow = share_overflow,
-      negative_supply = negative_supply
+      negative_supply = negative_supply,
+      hist_trade_scale = hist_trade_scale
     ) |>
       .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
@@ -214,6 +242,12 @@ build_commodity_balances <- function(
     if (negative_supply != "report") {
       cli::cli_warn(
         "{.arg negative_supply} is ignored when {.arg .fixed_data} is
+         supplied."
+      )
+    }
+    if (hist_trade_scale != "report") {
+      cli::cli_warn(
+        "{.arg hist_trade_scale} is ignored when {.arg .fixed_data} is \
          supplied."
       )
     }
@@ -396,7 +430,8 @@ build_commodity_balances <- function(
   end_year = 2023,
   historical_data = NULL,
   share_overflow = .cbs_share_overflow_choices(),
-  negative_supply = .cbs_negative_supply_choices()
+  negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -414,7 +449,8 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reading CBS inputs")
   inputs <- .cbs_read_inputs(
     primary_all,
-    years
+    years,
+    hist_trade_scale = hist_trade_scale
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -810,8 +846,13 @@ build_processing_coefs <- function(
 
 .cbs_read_inputs <- function(
   primary_all,
-  years
+  years,
+  hist_trade_scale = .hist_trade_scale_choices()
 ) {
+  hist_trade_scale <- rlang::arg_match(
+    hist_trade_scale,
+    .hist_trade_scale_choices()
+  )
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -833,7 +874,15 @@ build_processing_coefs <- function(
   # Trade
   fao_trade <- .read_fao_trade(years = years)
   fishstat_trade <- .read_fishstat_trade(years = years)
-  trade_hist <- .read_historical_trade(years = years)
+  # The screen bounds a pre-1961 reporter flow by the largest world flow
+  # FAOSTAT records for the same item, so it reads its reference from the
+  # FAOSTAT trade this build has already loaded -- no extra pin read
+  # (whep#1085).
+  trade_hist <- .read_historical_trade(
+    years = years,
+    reference = .hist_trade_world_reference(fao_trade),
+    scale_screen = hist_trade_scale
+  )
 
   # GDP over population
   gdp_pop <- .read_gdp_pop(years = years)
@@ -1155,7 +1204,15 @@ build_processing_coefs <- function(
   out[, keep, with = FALSE]
 }
 
-.read_historical_trade <- function(years = NULL) {
+.read_historical_trade <- function(
+  years = NULL,
+  reference = NULL,
+  scale_screen = .hist_trade_scale_choices()
+) {
+  scale_screen <- rlang::arg_match(
+    scale_screen,
+    .hist_trade_scale_choices()
+  )
   items <- data.table::as.data.table(whep::items_full)[,
     .(item_cbs, item_cbs_code)
   ]
@@ -1198,6 +1255,10 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
+  if (!is.null(reference)) {
+    dt <- .screen_hist_trade_scale(dt, reference, scale_screen)
+  }
+
   dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
@@ -1233,6 +1294,160 @@ build_processing_coefs <- function(
     )
   )
   dt[!is.na(polity_code)]
+}
+
+# What happens to a pre-1961 historical trade flow that no mass unit can make
+# physical. See `.screen_hist_trade_scale()` for the bound and whep#1085 for
+# the measurement.
+.hist_trade_scale_choices <- function() {
+  c("report", "drop", "abort")
+}
+
+# The bound the historical trade screen measures against: for each
+# `(item_code_trade, element)`, the largest WORLD flow FAOSTAT records in the
+# years the build is already reading, summed over reporters.
+#
+# It is a measured bound, not a chosen cap. World trade in agricultural
+# commodities grew through the twentieth century, so a single country's flow
+# in 1850-1960 exceeding the largest world flow FAOSTAT has ever published for
+# the same item is not a quantity any mass unit can express.
+#
+# Only the mass rows can bound a tonnage: FAOSTAT trade also carries live
+# animals in `An` / `1000 An`, and a head count is not a mass (whep#865).
+.hist_trade_world_reference <- function(fao_trade) {
+  empty <- data.table::data.table(
+    item_code_trade = integer(),
+    element = character(),
+    world_max = numeric()
+  )
+  if (is.null(fao_trade) || nrow(fao_trade) == 0L) {
+    return(empty)
+  }
+  dt <- data.table::as.data.table(fao_trade)
+  needed <- c("item_code_trade", "element", "unit", "value", "year")
+  if (!all(needed %in% names(dt))) {
+    cli::cli_abort(c(
+      "{.arg fao_trade} is missing {.field {setdiff(needed, names(dt))}}.",
+      "i" = "The historical trade screen bounds a tonnage with a tonnage."
+    ))
+  }
+  dt <- dt[unit %in% .mass_trade_units() & element %in% c("import", "export")]
+  if (nrow(dt) == 0L) {
+    return(empty)
+  }
+  world <- dt[,
+    .(world = sum(value, na.rm = TRUE)),
+    by = c("item_code_trade", "element", "year")
+  ]
+  world[,
+    .(world_max = max(world, na.rm = TRUE)),
+    by = c("item_code_trade", "element")
+  ]
+}
+
+# Screen the pre-1961 historical trade rows against that bound.
+#
+# whep#1085: the `historical-trade-exports` pin publishes item 831 ("Tobacco
+# products nes") for the USA at 115,136 under a `"1000 MT"` label at 1951 --
+# 115.1 Mt of tobacco products from one country in one year, against the
+# 3.57 Mt of world tobacco production FAOSTAT records at 1961, the earliest
+# year it covers. Nine of the pin's ten largest values are that one
+# reporter-item. Three independent checks say the number is not a mass:
+#
+#   * mirror trade -- no reporter anywhere in the companion imports pin books
+#     item 831 after 1909, and over 1900-1909 world imports are 1-3 kt against
+#     2.8-25 Mt of exports;
+#   * the source contradicts itself -- the same pin puts USA item 826
+#     (unmanufactured tobacco, the raw material for 831) at 43-460 kt before
+#     1931, and its own 1961 row for 831 is 4.722 kt, matching FAOSTAT's
+#     4,722 t exactly;
+#   * the block breaks at both ends -- x415 between 1892 and 1900, and /2911
+#     between 1960 and 1961.
+#
+# No conversion factor repairs it. The same USA block over 1903-1960 also
+# carries a x10 inflation on items whose true tonnage IS recoverable -- cotton
+# lint (767) and tobacco leaf (826) alternate correct and ten-fold values from
+# one year to the next -- but item 831 divided by ten is still 2,400x its own
+# 1961 value, and the block holds structural zeros (1948, 1949) in years the
+# flow was certainly not zero. The pin is wrong at the producer and has to be
+# fixed there; this screen only refuses to consume it silently.
+#
+# `method` is a policy, not an estimate: `"report"` keeps every value and only
+# warns, so it moves no published number; `"drop"` removes the flagged rows;
+# `"abort"` refuses to build. There is deliberately no "clamp" -- a clamped
+# tonnage would be a fabricated one.
+.screen_hist_trade_scale <- function(dt, reference, method) {
+  method <- rlang::arg_match(method, .hist_trade_scale_choices())
+  out <- data.table::as.data.table(dt)
+  ref <- data.table::as.data.table(reference)
+  if (nrow(ref) == 0L) {
+    cli::cli_warn(c(
+      "!" = "The historical trade scale screen has no FAOSTAT world reference.",
+      "*" = "{.val {nrow(out)}} pre-1961 trade rows went unchecked.",
+      "i" = "The reference comes from the FAOSTAT trade years the build
+             reads, so a build that reads none cannot run it (whep#1085)."
+    ))
+    return(out)
+  }
+  out[ref, world_max := i.world_max, on = c("item_code_trade", "element")]
+  .report_hist_trade_scale(
+    out[!is.na(world_max) & value > world_max],
+    out,
+    method
+  )
+  if (method == "drop") {
+    out <- out[is.na(world_max) | value <= world_max]
+  }
+  out[, world_max := NULL]
+  out[]
+}
+
+# Say what the screen found in terms a maintainer can act on: how much mass,
+# which reporter-items, and what the other settings would have done instead.
+.report_hist_trade_scale <- function(flagged, all_rows, method) {
+  if (nrow(flagged) == 0L) {
+    return(invisible(flagged))
+  }
+  worst <- flagged[order(-value)][seq_len(min(3L, nrow(flagged)))]
+  labels <- paste0(
+    worst$iso3c,
+    " item ",
+    worst$item_code_trade,
+    " ",
+    worst$year,
+    " = ",
+    round(worst$value / 1e6, 1),
+    " Mt vs ",
+    round(worst$world_max / 1e6, 1),
+    " Mt world"
+  )
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(flagged)} pre-1961 trade row{?s} cannot be the tonnage the ",
+      "{.val 1000 MT} label claims."
+    ),
+    "*" = paste0(
+      "Each exceeds the largest world flow FAOSTAT records for its item; ",
+      "{.val {paste0(round(sum(flagged$value) / 1e6, 1), ' Mt')}} over ",
+      "{.val {sort(unique(flagged$iso3c))}}."
+    ),
+    "*" = "Largest: {.val {labels}}.",
+    "*" = paste0(
+      "{.val {paste0(sum(is.na(all_rows$world_max)), ' rows')}} had no ",
+      "FAOSTAT reference and went unchecked."
+    ),
+    "i" = paste0(
+      "{.arg hist_trade_scale} is {.val {method}}; ",
+      "{.val {setdiff(.hist_trade_scale_choices(), method)}} also select",
+      "able. The pin is wrong at the producer (whep#1085) and no conversion ",
+      "factor recovers the true value."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_hist_trade_scale")
+  }
+  cli::cli_warn(bullets, class = "whep_hist_trade_scale")
+  invisible(flagged)
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.

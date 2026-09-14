@@ -16,6 +16,7 @@ build_commodity_balances(
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices(),
   .fixed_data = NULL
 )
 }
@@ -136,6 +137,32 @@ by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny anywhere, and
 adds 880.18 Mt of \code{stock_withdrawal}. \code{"abort"} refuses to build any
 range starting before 1961. Which is right is an open question — see
 whep#1065 — so the reporting default is the one that invents nothing.}
+
+\item{hist_trade_scale}{One of \code{"report"} (default), \code{"drop"} or
+\code{"abort"}, selecting what happens when a pre-1961 row of the
+\verb{historical-trade-*} pins carries a quantity no mass unit can express
+(whep#1085). The screen bounds a single reporter's flow by the largest
+\strong{world} flow FAOSTAT records for the same trade item, summed over
+reporters, over the FAOSTAT years the build already reads — a measured
+bound, not a chosen cap, because world trade in these commodities grew
+through the twentieth century. Measured on the real pins at 1850–2023,
+1,659 pre-1961 rows exceed it, carrying 3,958.8 Mt, 21.3\% of the pins'
+whole 18,581.9 Mt; a further 10,089 rows have no FAOSTAT reference and
+go unchecked. \strong{97.2\% of the flagged mass is the USA}, whose block over
+roughly 1900–1960 is inflated by a factor of ten on items where the true
+tonnage is still recoverable (cotton lint 767 and tobacco leaf 826
+alternate correct and ten-fold values year to year) and by far more on
+item 831, "Tobacco products nes", published at 115.1 Mt for 1951 — 159x
+the largest world flow of that item FAOSTAT has ever recorded and 32x
+the entire 1961 world tobacco crop. \code{"report"} keeps every value and
+only warns, so it \strong{moves no published value} (verified: the screened
+read is \code{identical()} to the unscreened one); it names the count, the
+mass, the reporters and the three largest. \code{"drop"} removes the flagged
+rows, taking 3,958.6 Mt out of the historical trade input and with it
+the impossible pre-1962 exports behind whep#1065's negative
+\code{domestic_supply}. \code{"abort"} refuses to build. There is deliberately no
+clamp: the defect is in the pin's producer and no conversion factor
+recovers the true value, so a clamped tonnage would be a fabricated one.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
