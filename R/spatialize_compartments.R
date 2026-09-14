@@ -151,6 +151,15 @@
 #' reporting codes exist, and every area whose code the new grid does not use
 #' loses its entire national total in silence. Report it once per call, on its
 #' own, with the national quantity at stake.
+#'
+#' The other way to arrive here is a POLITY-VINTAGE disagreement rather than a
+#' `regions.csv` one: a grid read year-aware holds the USSR in 1961 and no
+#' Russian polity at all, while the national row is still keyed on the
+#' successor (whep#1004 -- 27 reporting areas, 164.2 Mha, 17.2% of the 1961
+#' world harvested area). `.carbon_support_year()` pins this path to a 2015
+#' snapshot, so that disagreement cannot fire here today;
+#' `resolve_polity_lineage()` is the national-side step that reconciles the
+#' two vintages for a consumer that does read the support year-aware.
 #' @noRd
 .warn_grid_missing_reporters <- function(
   national,
