@@ -38,7 +38,8 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
       "unit",
       "value",
       "country_share",
-      "method_unbacked_quantity"
+      "method_unbacked_quantity",
+      "method_head_units"
     )
   )
 
@@ -688,7 +689,8 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "unit",
       "value",
       "country_share",
-      "method_unbacked_quantity"
+      "method_unbacked_quantity",
+      "method_head_units"
     )
   )
   testthat::expect_equal(nrow(result), 10)
@@ -870,4 +872,107 @@ testthat::test_that("head-count rows are not screened as mass", {
   )
   testthat::expect_setequal(result$unit, c("tonnes", "heads"))
   testthat::expect_equal(max(result$value), 1e9)
+})
+
+# whep#1092: FAOSTAT denominates live poultry, rabbit and rodent trade in
+# `1000 Head`, a label the unit filter never covered, so every one of those
+# rows left without a word -- 89,073 rows and 76,141,882 thousand head on the
+# `faostat-trade-bilateral` pin `20260407T095142Z-b3f81`.
+.fake_thousand_head_trade <- function() {
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L, 2L, 2L),
+    `Partner Country Code` = c(9L, 9L, 9L, 9L),
+    `Item Code` = c(15L, 866L, 1057L, 1181L),
+    Element = rep("Export Quantity", 4),
+    Year = rep(2010L, 4),
+    Unit = c("tonnes", "Head", "1000 Head", "No"),
+    Value = c(100, 50, 7, 3)
+  )
+}
+
+testthat::test_that("'1000 Head' trade is rescaled onto heads", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(.fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+  # 7 thousand head becomes 7,000 head; the `Head` row is untouched.
+  testthat::expect_equal(sort(dt$value[dt$unit == "heads"]), c(50, 7000))
+  testthat::expect_equal(dt$value[dt$unit == "tonnes"], 100)
+})
+
+testthat::test_that("'drop' keeps the historical head-unit filter", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(
+      .fake_thousand_head_trade(),
+      method_head_units = "drop"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_equal(nrow(dt), 2)
+  testthat::expect_equal(dt$value[dt$unit == "heads"], 50)
+})
+
+testthat::test_that("'abort' refuses an unconvertible trade unit", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_thousand_head_trade(),
+      method_head_units = "abort"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+})
+
+testthat::test_that("an unrecognised trade unit is never dropped silently", {
+  # The `No` row (bees or beehives -- FAOSTAT does not say which) has no
+  # quantity this package can express, so it goes; it must not go quietly.
+  testthat::expect_warning(
+    .read_and_clean_dtm(.fake_thousand_head_trade()),
+    "No"
+  )
+})
+
+testthat::test_that("a monetary unit is dropped without a warning", {
+  # Value rows are removed on purpose and must not be reported as an
+  # unrecognised quantity, or every real pin read raises a false alarm.
+  raw <- data.table::rbindlist(list(
+    .fake_thousand_head_trade()[Unit != "No"],
+    data.table::data.table(
+      `Reporter Country Code` = 2L,
+      `Partner Country Code` = 9L,
+      `Item Code` = 15L,
+      Element = "Export Value",
+      Year = 2010L,
+      Unit = "1000 US$",
+      Value = 42
+    )
+  ))
+
+  dt <- testthat::expect_no_warning(.read_and_clean_dtm(raw))
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+})
+
+testthat::test_that("build_detailed_trade records method_head_units", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_true(all(result$method_head_units == "convert"))
+  # Trade item 1057 (Chickens) maps to CBS item 1053 (Chickens, broilers).
+  chickens <- result[result$item_cbs_code == 1053, ]
+  testthat::expect_equal(chickens$unit, "heads")
+  testthat::expect_equal(chickens$value, 7000)
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown head method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_bilateral_trade(),
+      method_head_units = "rescale"
+    ),
+    class = "rlang_error"
+  )
 })

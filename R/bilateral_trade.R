@@ -455,8 +455,16 @@ get_bilateral_trade <- function(
   # before the unit filter without changing what survives both. Doing it first
   # scopes the two warnings below to the items that would actually have
   # reached a matrix.
+  #
+  # The unit step is `.normalise_trade_units()` rather than a bare
+  # `unit %in% c("tonnes", "heads")` filter so that a label outside that pair
+  # cannot leave without a word, as FAOSTAT's `1000 Head` did everywhere else
+  # in the trade chain (whep#1092). On the current `bilateral_trade` pin,
+  # which carries only `tonnes` and `Head`, it is a no-op. Which unit should
+  # *seed* a head-denominated matrix is a separate, open question (whep#1031),
+  # so no method argument is exposed here.
   in_cbs <- btd |>
-    dplyr::filter(unit %in% c("tonnes", "heads")) |>
+    .normalise_trade_units() |>
     .filter_only_items_in_cbs(cbs, method)
 
   in_cbs |>

@@ -74,6 +74,31 @@
 #' screen is therefore explicit where the mapping gap was accidental, and
 #' it keeps working if the gap is ever filled.
 #'
+#' @section Live animals are reported in two head units:
+#' FAOSTAT denominates live-animal trade in `Head` for the large species
+#' and in `1000 Head` for the small ones, and the unit filter here used to
+#' cover only the first label. On the `faostat-trade-bilateral` pin
+#' `20260407T095142Z-b3f81` that silently removed **89,073 rows carrying
+#' 76,141,882 thousand head** over 1986-2021 - live chicken, turkey, duck,
+#' goose, other-bird, rabbit and rodent trade - against the 11,708,244,416
+#' head the `Head` rows carry. It also removed 5,011 `No` rows (whep#1092).
+#'
+#' `1000 Head` is a decimal prefix the source states, not a coefficient:
+#' `.aggregate_fao_trade_to_cbs()` already rescales its sibling label
+#' `1000 An` the same way (whep#865). The reported trade *value* of the
+#' same flows corroborates it - USD 1,408 per `1000 Head` of chickens,
+#' 2,392 for ducks, 2,483 for geese, 3,469 for turkeys and 4,945 for
+#' rabbits, i.e. USD 1.41-4.95 a bird, against USD 654 per head of cattle,
+#' 105 per pig and 74 per sheep on the `Head` rows. Read as single head,
+#' a live broiler chick would cost USD 1,408. **No head-to-mass factor is
+#' involved**: head counts stay head counts, on their own `unit` key.
+#'
+#' The `No` rows are a different case and are **not** converted. They are
+#' FAOSTAT trade item 1181, which `whep::cbs_trade_codes` names
+#' *Beehives* while the pin names it *Bees*, so what the number counts -
+#' insects, packages or colonies - is not established by the source. They
+#' are dropped, with the warning every unrecognised label now raises.
+#'
 #' @param raw_trade A data.table or tibble of raw FAOSTAT bilateral
 #'   trade data. If `NULL` (default), the data is read from the
 #'   `"faostat-trade-bilateral"` pin.
@@ -97,6 +122,20 @@
 #'     column as mass.
 #'   - `"abort"`: fail, so a refreshed pin cannot reintroduce them
 #'     unnoticed.
+#' @param method_head_units How to treat the FAOSTAT rows denominated in
+#'   `1000 Head`. See the *Live animals are reported in two head units*
+#'   section. One of:
+#'   - `"convert"` (default): rescale them by 1,000 onto `heads`, the
+#'     denomination the rest of the live-animal record already uses.
+#'   - `"drop"`: discard them, warning with the head count removed. The
+#'     historical behaviour, which leaves live poultry, rabbit and rodent
+#'     trade out of the record entirely.
+#'   - `"abort"`: fail, so a refreshed pin cannot reintroduce an
+#'     unhandled unit unnoticed.
+#'
+#'   Any other unit label is dropped under every method, with a
+#'   `"whep_unhandled_trade_unit"` warning naming it, and aborts under
+#'   `"abort"`. Monetary units are removed silently, on purpose.
 #' @param example Logical. If `TRUE`, return a small example tibble
 #'   without downloading remote data. Default `FALSE`.
 #'
@@ -112,6 +151,8 @@
 #'   - `method_unbacked_quantity`: the treatment chosen for quantities
 #'     FAOSTAT does not back with a mass, recorded so a downstream
 #'     consumer can tell which variant it is holding.
+#'   - `method_head_units`: the treatment chosen for the `1000 Head`
+#'     rows, recorded for the same reason.
 #'
 #' @export
 #'
@@ -123,16 +164,18 @@ build_detailed_trade <- function(
   min_share = 1e-4,
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
+  method_head_units = c("convert", "drop", "abort"),
   example = FALSE
 ) {
   method <- rlang::arg_match(method_unbacked_quantity)
+  head_method <- rlang::arg_match(method_head_units)
 
   if (example) {
     return(.example_build_detailed_trade())
   }
   cli::cli_h1("Building detailed trade matrix")
 
-  dtm <- .read_and_clean_dtm(raw_trade)
+  dtm <- .read_and_clean_dtm(raw_trade, head_method)
   dtm <- .screen_unbacked_quantities(dtm, method)
   dtm <- .map_dtm_to_cbs_items(dtm)
   dtm <- .aggregate_dtm_to_polities(dtm)
@@ -146,12 +189,18 @@ build_detailed_trade <- function(
 
   dtm |>
     tibble::as_tibble() |>
-    dplyr::mutate(method_unbacked_quantity = method)
+    dplyr::mutate(
+      method_unbacked_quantity = method,
+      method_head_units = head_method
+    )
 }
 
 # -- Helpers -------------------------------------------------------------------
 
-.read_and_clean_dtm <- function(raw_trade = NULL) {
+.read_and_clean_dtm <- function(
+  raw_trade = NULL,
+  method_head_units = "convert"
+) {
   cli::cli_progress_step("Reading bilateral trade data")
   dt <- raw_trade %||% whep_read_file("faostat-trade-bilateral")
   if (!data.table::is.data.table(dt)) {
@@ -213,13 +262,106 @@ build_detailed_trade <- function(
   # Remove self-trade
   dt <- dt[area_code != area_code_p]
 
-  # Standardise units
-  dt[unit == "Head", unit := "heads"]
+  # Standardise units and keep only the quantity rows
+  .normalise_trade_units(dt, method_head_units)
+}
 
-  # Keep only quantity rows
-  dt <- dt[unit %in% c("tonnes", "heads")]
+# The unit labels the FAOSTAT trade record uses for a *quantity*, and the
+# factor each carries onto the denominations this package works in. `tonnes`
+# is already one of them; `Head` is a label variant of `heads`; `1000 Head`
+# is the same quantity at a decimal prefix.
+#
+# That thousand is a prefix the source states, not a coefficient anyone chose,
+# and the package already applies exactly this rescale to the sibling label
+# `1000 An` in `.aggregate_fao_trade_to_cbs()` (whep#865). It is corroborated
+# by the implied unit value on the `faostat-trade-bilateral` pin
+# `20260407T095142Z-b3f81`: dividing the reported quantity into the reported
+# trade value of the same flow gives USD 1,408 per `1000 Head` of chickens,
+# 2,392 for ducks, 2,483 for geese, 3,469 for turkeys, 4,177 for other birds
+# and 4,945 for rabbits -- USD 1.41 to 4.95 a bird once the thousand is taken
+# out, against USD 654 per head of cattle, 105 per pig and 74 per sheep on
+# the rows FAOSTAT labels `Head`. Read as single head instead, a live broiler
+# chick would have to cost USD 1,408.
+#
+# No head-to-mass factor is implied or applied anywhere here: head counts stay
+# head counts, and the two denominations stay separate keys (whep#1092).
+.trade_unit_rescale <- function(method = "convert") {
+  scales <- tibble::tribble(
+    ~unit,       ~unit_out, ~rescale,
+    "tonnes",    "tonnes",  1,
+    "Head",      "heads",   1,
+    "heads",     "heads",   1,
+    "1000 Head", "heads",   1000
+  )
+  if (method == "convert") scales else scales[scales$rescale == 1, ]
+}
 
-  dt
+# Unit labels that denominate a monetary *value* rather than a quantity. They
+# are removed on purpose, so they must not be reported as unrecognised.
+.trade_value_units <- function() {
+  c("1000 US$", "1000 USD", "US$", "USD")
+}
+
+# Put every quantity row onto one of the package's own unit labels, and refuse
+# to lose a label without saying so. Takes a data.table or a tibble and
+# returns the class it was given.
+#
+# Before whep#1092 this step was a bare `unit %in% c("tonnes", "heads")`
+# filter and every label outside it left without a word. On the
+# `faostat-trade-bilateral` pin `20260407T095142Z-b3f81` that was 89,073
+# `1000 Head` rows carrying 76,141,882 thousand head of live poultry, rabbit
+# and rodent trade -- against the 11,708,244,416 head the `Head` rows carry --
+# plus 5,011 `No` rows (bees or beehives; FAOSTAT's own labels disagree, so
+# there is nothing to convert them onto and they still go, now loudly).
+.normalise_trade_units <- function(x, method = "convert") {
+  scales <- .trade_unit_rescale(method)
+  idx <- match(x[["unit"]], scales$unit)
+  .report_unhandled_trade_units(x, is.na(idx), method)
+
+  keep <- !is.na(idx)
+  x <- x[keep, , drop = FALSE]
+  rescale <- scales$rescale[idx[keep]]
+  .report_rescaled_head_units(x, rescale)
+
+  x[["value"]] <- x[["value"]] * rescale
+  x[["unit"]] <- scales$unit_out[idx[keep]]
+  x
+}
+
+.report_unhandled_trade_units <- function(x, hit, method) {
+  hit <- hit & !x[["unit"]] %in% .trade_value_units()
+  if (!any(hit)) {
+    return(invisible(NULL))
+  }
+  units <- sort(unique(x[["unit"]][hit]))
+  total <- sum(x[["value"]][hit], na.rm = TRUE)
+
+  report <- c(
+    "Dropping {sum(hit)} trade row{?s} whose unit this package cannot \\
+     denominate.",
+    "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}, \\
+           {signif(total, 4)} in total.",
+    "i" = "Add the label to {.fn .trade_unit_rescale} once the quantity it \\
+           counts is known. Nothing may be converted onto {.val tonnes} or \\
+           {.val heads} without one (whep#1092)."
+  )
+
+  if (method == "abort") {
+    cli::cli_abort(report, class = "whep_unhandled_trade_unit")
+  }
+  cli::cli_warn(report, class = "whep_unhandled_trade_unit")
+}
+
+.report_rescaled_head_units <- function(x, rescale) {
+  hit <- rescale != 1
+  if (!any(hit)) {
+    return(invisible(NULL))
+  }
+  thousands <- sum(x[["value"]][hit], na.rm = TRUE)
+  cli::cli_inform(c(
+    "i" = "Rescaled {sum(hit)} {.val {'1000 Head'}} trade row{?s} onto \\
+           {.val heads}: {signif(thousands, 5)} thousand head."
+  ))
 }
 
 # FAOSTAT trade items whose Detailed Trade Matrix `tonnes` figure FAOSTAT's own
