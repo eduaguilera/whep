@@ -76,15 +76,86 @@
     )
 }
 
-#' Default nitrogen content of grazed forage (kg N / kg DM).
+#' Nitrogen content of grazed forage (kg N / kg DM).
 #'
-#' Applied to grass/substitute intake rows (`item_cbs_code = NA`) that have no
-#' feed-item N key. 0.02 kg N / kg DM (~12.5% crude protein) is a mid-range
-#' grazed-forage value; provisional (CALIBRATE) pending a sourced per-feed-group
-#' forage N table.
+#' Applied to the grass/substitute intake rows that the allocator emits with
+#' `item_cbs_code = NA` (the unlimited grassland sink), which therefore carry no
+#' feed-item N key. Selectable, because the published grazed-forage values span
+#' 0.017-0.022 kg N / kg DM and the choice moves excreted nitrogen roughly in
+#' proportion to the grazed share of intake:
+#'
+#' * `"assumed_midrange"` (default) -- 0.02 kg N / kg DM (12.5% crude protein).
+#'   **Assumed, unverified**: it is the value the package has always used and no
+#'   source states it. It lies between the two GLEAM grass values below, which
+#'   is why it is kept as the default rather than quietly replaced.
+#' * `"gleam_grass_fresh"` / `"gleam_grass_hay"` / `"gleam_grass_mean"` --
+#'   GLEAM `GRASSF` (22 g N / kg DM), `GRASSH` (17 g N / kg DM) and their mean,
+#'   read from [gleam_feed_digestibility] (FAO GLEAM 3.0 Supplement S1,
+#'   Tab. S.3.3, "Nutritional values for feed materials of ruminant species").
+#' * `"biomass_coefs_grass"` -- `product_n_kgdm` of the `Grass` rows of the
+#'   `bio_coefs` coefficient table (0.0174), i.e. the same N content WHEP
+#'   already applies to grass arriving as a CBS feed item.
+#'
+#' None of these closes the gap in whep#1050. The grazed sink carries 18% of
+#' global intake dry matter (1.30 of 7.15 Pg at 2020), so the whole range spans
+#' 86.1 to 92.0 Tg of total excreted nitrogen against 89.6 Tg on the default;
+#' matching FAOSTAT's sheep and goats would need 0.116 kg N / kg DM, a 73%
+#' crude-protein forage that does not exist.
 #' @noRd
-.forage_n_kgn_kgdm <- function() {
-  0.02
+.forage_n_kgn_kgdm <- function(method = "assumed_midrange") {
+  method <- rlang::arg_match(method, .forage_n_methods())
+  switch(
+    method,
+    assumed_midrange = 0.02,
+    biomass_coefs_grass = .bio_coefs_grass_n(),
+    .gleam_grass_n(method)
+  )
+}
+
+.forage_n_methods <- function() {
+  c(
+    "assumed_midrange",
+    "gleam_grass_fresh",
+    "gleam_grass_hay",
+    "gleam_grass_mean",
+    "biomass_coefs_grass"
+  )
+}
+
+# GLEAM 3.0 Supplement S1 Tab. S.3.3 grass N content, read from the shipped
+# table rather than transcribed, so the coefficient stays traceable to its data.
+.gleam_grass_n <- function(method) {
+  tbl <- tibble::as_tibble(whep::gleam_feed_digestibility)
+  vals <- purrr::map_dbl(c("GRASSF", "GRASSH"), function(mat) {
+    v <- unique(tbl$n_content_g_kg[tbl$material == mat])
+    if (length(v) != 1 || is.na(v)) {
+      cli::cli_abort(
+        "No single GLEAM nitrogen content for feed material {.val {mat}}."
+      )
+    }
+    v / 1000
+  })
+  switch(
+    method,
+    gleam_grass_fresh = vals[[1]],
+    gleam_grass_hay = vals[[2]],
+    gleam_grass_mean = mean(vals)
+  )
+}
+
+# The `Grass` rows of bio_coefs (item_prod_code 996 / 3001 / 3002) all carry the
+# same product_n_kgdm; abort rather than silently pick one if they diverge.
+.bio_coefs_grass_n <- function() {
+  v <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::filter(.data$name_biomass == "Grass") |>
+    dplyr::pull("product_n_kgdm") |>
+    unique()
+  if (length(v) != 1 || is.na(v)) {
+    cli::cli_abort(
+      "Expected one {.field product_n_kgdm} for {.val Grass} in bio_coefs."
+    )
+  }
+  v
 }
 
 #' Manure-management nitrogen-loss fractions per (MMS, animal category).

@@ -2117,6 +2117,16 @@ utils::globalVariables(
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
     "area_code_int",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms",
+    # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
+    # flag is folded on, so the restored `fao_flag` follows the source the
+    # value was selected from, plus the joined-in flag column
+    "source_group",
+    "n_group_flags",
+    "i.fao_flag",
     # read_raw_inputs.R / build_production.R (#1044) — carrying the FAOSTAT
     # observation-status flag from the production pin to the CBS. The two
     # per-unit flags the yield dcast pivots ("Area harvested" and "Production"

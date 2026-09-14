@@ -25,7 +25,9 @@ against. See the \emph{Items with no CBS row} section. One of:
 behaviour. Published values are unaffected by this argument's
 existence as long as the default is kept.
 \item \code{"keep"}: keep the flows and take the row and column margins from
-the reported bilateral data itself instead of from the CBS.
+the reported bilateral data itself instead of from the CBS. It
+\strong{refuses} when a kept item's tonnes are not masses; see the
+\emph{Items with no CBS row} section.
 \item \code{"abort"}: fail, so that a refreshed pin cannot introduce
 unanchored items unnoticed.
 }
@@ -170,6 +172,27 @@ sourced disaggregation key that does not exist in the package. Nothing
 downstream consumes the kept rows yet either: \code{\link[=build_io_model]{build_io_model()}} takes
 its item dimension from supply-use and the CBS, so an item absent from
 both is ignored by \code{.build_trade_shares()} regardless of this argument.
+
+Those figures are not masses, and that has now been traced to the
+FAOSTAT source (whep#1023). CBS item 5001 is fed by FAOSTAT trade item
+1293 (\emph{Crude organic material n.e.c.}), for which FAOSTAT's aggregate
+\emph{Trade: Crops and livestock products} domain publishes a value but no
+country-level mass, while its Detailed Trade Matrix reports tonnages
+worth USD 0.01-0.5 per tonne whose mirrored report of the same flow
+disagrees by factors of 356 to 838,000. What the large side
+counts is unverified and the implied units per tonne are not constant,
+so nothing can be rescaled. See
+\code{\link[=build_detailed_trade]{build_detailed_trade()}}'s \emph{Quantities FAOSTAT does not back with a
+mass} section for the full measurement.
+
+\code{"keep"} therefore \strong{aborts} with class
+\code{"whep_unbacked_mass_trade"} when the items it would keep include one
+of those, rather than distributing 2.58 Gt through a matrix. \code{"drop"},
+the default, is unaffected, and so is every published number: item
+5001 has no CBS row, so the default already removes it. A caller who
+wants a trade matrix that carries item 5001 has to obtain a mass for it
+first; \code{\link[=build_detailed_trade]{build_detailed_trade()}} screens the same rows at the producer,
+where the fix belongs.
 }
 
 \examples{

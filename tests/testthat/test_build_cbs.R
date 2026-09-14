@@ -1049,6 +1049,196 @@ test_that(".select_best_source keys on area_code, not periodized name", {
   expect_equal(prod_fmt$value, 100)
 })
 
+
+# -- fao_flag provenance (whep#953) -------------------------------------------
+
+.make_flagged_cbs_raw <- function() {
+  tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit, ~fao_flag,
+    "Spain", 203L, "Wheat", 2511L, "production", 2010L, 5000, "FAOSTAT_prod", "tonnes", "A",
+    "Spain", 203L, "Wheat", 2511L, "production", 2010L, 4000, "FAOSTAT_FBS_New", "tonnes", "I",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L, 3000, "FAOSTAT_FBS_New", "tonnes", "I",
+    "Spain", 203L, "Wheat", 2511L, "seed", 2010L, 100, "FAOSTAT_FBS_Old", "tonnes", "S"
+  )
+}
+
+test_that(".select_best_source keeps the flag of the selected source", {
+  # whep#953: the column was reduced away here, so the documented `fao_flag`
+  # was NA in every row of every build. The flag has to follow the value: the
+  # sources disagree about provenance on 28.6% of the selection keys of a real
+  # 2010-2013 build, so an arbitrary pick would credit one vintage's
+  # provenance to another vintage's number.
+  selected <- whep:::.select_best_source(.make_flagged_cbs_raw())
+
+  expect_true("fao_flag" %in% names(selected))
+  flag_of <- function(el) {
+    selected |> dplyr::filter(element == el) |> dplyr::pull(fao_flag)
+  }
+  # FAOSTAT_prod outranks FBS_New, so "A" wins over "I" on production.
+  expect_equal(flag_of("production"), "A")
+  expect_equal(flag_of("food"), "I")
+  expect_equal(flag_of("seed"), "S")
+})
+
+test_that("a supplied flag survives to the long CBS output", {
+  # The end-to-end claim of whep#953, over the two steps that dropped it.
+  out <- .make_flagged_cbs_raw() |>
+    whep:::.select_best_source() |>
+    whep:::.format_cbs_output()
+
+  expect_true("fao_flag" %in% names(out))
+  expect_false(all(is.na(out$fao_flag)))
+  expect_equal(
+    out |> dplyr::filter(element == "production") |> dplyr::pull(fao_flag),
+    "A"
+  )
+})
+
+test_that(".select_best_source works when no source carries a flag", {
+  # The other branch: nothing upstream reports a flag, so the column is
+  # emitted as all-NA rather than being absent from a documented output.
+  raw <- .make_flagged_cbs_raw() |> dplyr::select(-fao_flag)
+  selected <- whep:::.select_best_source(raw)
+
+  expect_true("fao_flag" %in% names(selected))
+  expect_true(all(is.na(selected$fao_flag)))
+  expect_equal(nrow(selected), 3L)
+
+  # And the same when the column is there but every value in it is missing,
+  # which is a different branch: the fold runs and matches nothing.
+  all_na <- .make_flagged_cbs_raw() |>
+    dplyr::mutate(fao_flag = NA_character_) |>
+    whep:::.select_best_source()
+  expect_true(all(is.na(all_na$fao_flag)))
+  expect_equal(nrow(all_na), 3L)
+})
+
+test_that(".select_best_source folds the averaged sources' flags", {
+  # The `mean` branch is the one that really does combine several sources.
+  # Agreeing flags are kept; disagreeing ones are reported as NA rather than
+  # having one of them stand for the average (whep#581).
+  raw <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit, ~fao_flag,
+    "Spain", 203L, "Wheat", 2511L, "import", 2010L, 100, "FAOSTAT_CBS", "tonnes", "S",
+    "Spain", 203L, "Wheat", 2511L, "import", 2010L, 200, "FAOSTAT_trade", "tonnes", "S",
+    "Spain", 203L, "Barley", 2513L, "import", 2010L, 100, "FAOSTAT_CBS", "tonnes", "S",
+    "Spain", 203L, "Barley", 2513L, "import", 2010L, 200, "FAOSTAT_trade", "tonnes", "A"
+  )
+  selected <- whep:::.select_best_source(raw)
+
+  expect_equal(unique(selected$source), "mean")
+  agree <- selected |> dplyr::filter(item_cbs_code == 2511L)
+  disagree <- selected |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(agree$fao_flag, "S")
+  expect_true(is.na(disagree$fao_flag))
+})
+
+test_that(".fold_flags_by is .fold_fao_flag applied per group", {
+  # The grouped fold is written vectorised because calling the helper once per
+  # group is most of what carrying the flag costs on a real build. It has to
+  # be the same rule, so pin the equivalence rather than assert it in a
+  # comment: agreeing groups keep their flag, disagreeing ones are absent
+  # (which joins as NA), and NA rows never create a group of their own.
+  flags <- tibble::tribble(
+    ~key, ~fao_flag,
+    "agree", "A",
+    "agree", "A",
+    "disagree", "A",
+    "disagree", "E",
+    "single", "S",
+    "with_na", "I",
+    "with_na", NA_character_,
+    "all_na", NA_character_
+  )
+  dt <- data.table::as.data.table(flags)
+  vectorised <- whep:::.fold_flags_by(dt[!is.na(fao_flag)], "key")
+  per_group <- dt[,
+    .(fao_flag = whep:::.fold_fao_flag(fao_flag)),
+    by = "key"
+  ][!is.na(fao_flag)]
+
+  expect_equal(
+    vectorised[order(key)],
+    per_group[order(key)],
+    ignore_attr = TRUE
+  )
+  expect_setequal(vectorised$key, c("agree", "single", "with_na"))
+  expect_equal(vectorised$fao_flag[vectorised$key == "with_na"], "I")
+})
+
+test_that(".collapse_cbs_observations folds the flag with the mean", {
+  # This collapse runs over every year of the frame when `historical_data` is
+  # supplied, so dropping the flag here would put the whole build back to
+  # all-NA on that path alone.
+  frame <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    1990L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    1990L, "Spain", 203L, "Wheat", 2511L, "production", 120, "FAOSTAT_prod", "A",
+    1991L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    1991L, "Spain", 203L, "Wheat", 2511L, "production", 120, "FAOSTAT_prod", "E"
+  )
+  result <- whep:::.collapse_cbs_observations(frame)
+
+  expect_true("fao_flag" %in% names(result))
+  expect_equal(
+    result |> dplyr::filter(year == 1990L) |> dplyr::pull(fao_flag),
+    "A"
+  )
+  expect_true(
+    is.na(result |> dplyr::filter(year == 1991L) |> dplyr::pull(fao_flag))
+  )
+
+  # It also still works on a frame with no flag column at all.
+  no_flag <- whep:::.collapse_cbs_observations(
+    dplyr::select(frame, -fao_flag)
+  )
+  expect_false("fao_flag" %in% names(no_flag))
+  expect_equal(nrow(no_flag), 2L)
+})
+
+test_that(".extract_source_lookup carries the flag with the source", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010L, 203L, 2511L, "production", 5000, "FAOSTAT_prod", "A",
+    2010L, 203L, 2511L, "food", 3000, "FAOSTAT_FBS_New", "I"
+  )
+  lookup <- whep:::.extract_source_lookup(data.table::as.data.table(cbs))
+
+  expect_true("fao_flag" %in% names(lookup))
+  expect_equal(
+    lookup$fao_flag[lookup$element == "production"],
+    "A"
+  )
+
+  # And it stays absent, rather than becoming NA columns, when the input has
+  # no flag at all.
+  no_flag <- whep:::.extract_source_lookup(
+    data.table::as.data.table(dplyr::select(cbs, -fao_flag))
+  )
+  expect_false("fao_flag" %in% names(no_flag))
+})
+
+test_that(".format_cbs_output folds flags across a summed group", {
+  # The output key is coarser than the input's: it drops `item_cbs` and
+  # `source`, so several rows can be summed into one. The flag describes the
+  # value, so it survives only if every part agrees.
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    2010L, "Spain", 203L, "Wheat and products", 2511L, "production", 200, "FAOSTAT_CBS", "A",
+    2010L, "Spain", 203L, "Barley", 2513L, "production", 100, "FAOSTAT_prod", "A",
+    2010L, "Spain", 203L, "Barley and products", 2513L, "production", 200, "FAOSTAT_CBS", "S"
+  )
+  result <- whep:::.format_cbs_output(cbs)
+
+  agree <- result |> dplyr::filter(item_cbs_code == 2511L)
+  disagree <- result |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(agree$value, 300)
+  expect_equal(agree$fao_flag, "A")
+  expect_equal(disagree$value, 300)
+  expect_true(is.na(disagree$fao_flag))
+})
+
 test_that("a duplicated (key, source) pair is summed, not counted", {
   # whep#557: with no `fun.aggregate`, dcast falls back to a row count, and it
   # applies that to EVERY cell, so one duplicate anywhere turns the whole table
@@ -1413,6 +1603,21 @@ test_that(".select_best_source scales FBS_Old to FBS_New level", {
     dplyr::filter(year == 2015) |>
     dplyr::pull(source)
   expect_equal(src_2015, "FAOSTAT_FBS_New")
+})
+
+test_that("a scaled FBS_Old value keeps FBS_Old's flag (whep#953)", {
+  # `FAOSTAT_FBS_Old_scaled` is FBS_Old's own number times an overlap ratio,
+  # so it is the same observation and carries the same flag -- not FBS_New's,
+  # even though FBS_New supplied the ratio.
+  result <- .make_select_best_source_input() |>
+    dplyr::mutate(
+      fao_flag = dplyr::if_else(source == "FAOSTAT_FBS_New", "I", "S")
+    ) |>
+    whep:::.select_best_source()
+
+  scaled <- result |> dplyr::filter(source == "FAOSTAT_FBS_Old_scaled")
+  expect_gt(nrow(scaled), 0L)
+  expect_true(all(scaled$fao_flag == "S"))
 })
 
 test_that(".select_best_source uses dataset-specific source names", {
@@ -2892,6 +3097,219 @@ test_that("binding an off-window recovered row aborts", {
   expect_error(
     whep:::.cbs_bind_recovered(.belgium_cbs(), recovered),
     class = "whep_error_off_window_area_year"
+  )
+})
+
+# -- Destiny shares above one (whep#980) ---------------------------------------
+
+# One area, one item, two years. 1951 is the FAOSTAT-anchor shape that produces
+# the real violation: an observed destiny larger than the observed
+# `domestic_supply`. 1950 carries only production and trade, so it has no
+# observed destiny of its own and is the year the 1951 share is carried back
+# to -- which is how a share above one reaches a published number.
+.share_overflow_frame <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "production", 100,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "import", 20,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "export", 0,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "production", 100,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "import", 23,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "export", 0,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "domestic_supply", 123,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "other_uses", 1373
+  )
+}
+
+.share_overflow_args <- function() {
+  list(
+    primary_area = tibble::tibble(
+      year = integer(),
+      area = character(),
+      area_code = integer(),
+      item_cbs = character(),
+      item_cbs_code = integer(),
+      area_ha = double()
+    ),
+    gdp_pop = tibble::tibble(
+      year = integer(),
+      area_code = character(),
+      pop = double()
+    ),
+    land_wide = tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      Cropland = double(),
+      Pasture = double(),
+      agriland = double()
+    )
+  )
+}
+
+.run_share_overflow <- function(method) {
+  a <- .share_overflow_args()
+  whep:::.fill_historical_destinies(
+    .share_overflow_frame(),
+    a$primary_area,
+    a$gdp_pop,
+    a$land_wide,
+    whep::items_full,
+    share_overflow = method
+  )
+}
+
+.other_uses_at <- function(result, yr) {
+  result |>
+    dplyr::filter(.data$year == yr, .data$element == "other_uses") |>
+    dplyr::pull(.data$value)
+}
+
+test_that(".destiny_shares_above_one finds only the violating destinies", {
+  # The invariant, stated once: every destiny reported must actually exceed
+  # the supply it was divided by, and every destiny that does must be
+  # reported. An equality test on one row would not catch a share column
+  # wired to the wrong element.
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs, ~item_cbs_code, ~domestic_supply,
+    1951L, 118L, "Hides and skins", 2748L, 123,
+    1951L, 4L, "Wheat", 2511L, 1000,
+    1951L, 9L, "Bovine Meat", 2731L, 100
+  ) |>
+    dplyr::mutate(
+      food = c(NA, 500, 120),
+      feed = c(NA, NA, NA),
+      other_uses = c(1373, NA, NA),
+      processing = c(NA, NA, NA),
+      processing_primary = c(NA, NA, NA),
+      food_share = whep:::.cbs_safe_ratio(food, domestic_supply),
+      feed_share = whep:::.cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = whep:::.cbs_safe_ratio(
+        other_uses,
+        domestic_supply
+      ),
+      processing_share = whep:::.cbs_safe_ratio(
+        processing,
+        domestic_supply
+      ),
+      processing_primary_share = whep:::.cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
+    )
+
+  over <- whep:::.destiny_shares_above_one(wide)
+
+  expect_true(all(over$value > over$domestic_supply))
+  expect_true(all(over$share > 1))
+  expect_setequal(over$destiny, c("other_uses", "food"))
+  expect_setequal(over$area_code, c(118L, 9L))
+})
+
+test_that("a destiny share above one is reported, not passed in silence", {
+  # whep#980, called the way the pipeline calls it -- no `share_overflow`
+  # argument at all. Before this change the default path warned nothing: the
+  # 11.16x share was carried to every other year of the key and multiplied
+  # back by that year's supply without a word.
+  a <- .share_overflow_args()
+
+  expect_warning(
+    whep:::.fill_historical_destinies(
+      .share_overflow_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    ),
+    class = "whep_destiny_share_overflow"
+  )
+})
+
+test_that("share_overflow = 'report' leaves every value where it was", {
+  # The default must move no published number: the 1951 observation stays as
+  # reported, and the 11.16x share still fills 1950.
+  result <- suppressWarnings(.run_share_overflow("report"))
+
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  # 1950 supply is 100 + 20 - 0 = 120, filled at the 1951 share 1373/123.
+  expect_equal(.other_uses_at(result, 1950L), 120 * 1373 / 123)
+})
+
+test_that("share_overflow = 'clamp' caps the filled destiny at the supply", {
+  result <- suppressWarnings(.run_share_overflow("clamp"))
+
+  # The observation itself is never overwritten -- `.apply_filled_shares()`
+  # only coalesces into a gap -- but the year it fills now gets the whole
+  # supply and no more.
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  expect_equal(.other_uses_at(result, 1950L), 120)
+})
+
+test_that("share_overflow = 'drop' refuses to fill from a violating share", {
+  result <- suppressWarnings(.run_share_overflow("drop"))
+
+  # 1951 is the only observation of this key, so dropping its share leaves
+  # 1950 with nothing to fill from and `.finalise_historical()` books a zero.
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  expect_equal(.other_uses_at(result, 1950L), 0)
+})
+
+test_that("share_overflow = 'abort' refuses to build", {
+  expect_error(
+    .run_share_overflow("abort"),
+    class = "whep_destiny_share_overflow"
+  )
+})
+
+test_that("share_overflow rejects an unknown method", {
+  expect_error(
+    .run_share_overflow("renormalise"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances validates share_overflow", {
+  expect_error(
+    build_commodity_balances(example = TRUE, share_overflow = "renormalise"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      share_overflow = "clamp"
+    ),
+    "ignored"
+  )
+})
+
+test_that("a balanced frame reports nothing", {
+  frame <- .share_overflow_frame() |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        .data$element == "other_uses",
+        100,
+        .data$value
+      )
+    )
+  a <- .share_overflow_args()
+
+  expect_no_warning(
+    whep:::.fill_historical_destinies(
+      frame,
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full,
+      share_overflow = "report"
+    )
   )
 })
 

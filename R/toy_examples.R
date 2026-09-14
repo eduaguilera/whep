@@ -95,13 +95,13 @@
 
 .example_ghg_extension <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg,
-    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6",
-    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
-    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
-    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg, ~method_mms, ~method_manure_ch4,
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -398,7 +398,8 @@
     2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
   ) |>
-    .add_trade_polity_columns()
+    .add_trade_polity_columns() |>
+    dplyr::mutate(method_unbacked_quantity = "drop")
 }
 
 .example_build_trade_prices <- function() {
@@ -755,14 +756,15 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~method_excreta_area,
     26.25, 35.25, 84L, 2000L, "grassland",
-    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    4.35, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
     26.25, 35.25, 84L, 2000L, "natural",
-    4.56, 0.325, "lpjml_npp_minus_harvest",
+    4.56, 0.325, "lpjml_npp_minus_harvest", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "grassland",
-    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    1.95, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "natural",
-    9.26, 0.325, "lpjml_npp_minus_harvest"
+    9.26, 0.325, "lpjml_npp_minus_harvest", "luh2_grassland"
   ) |>
     .add_reporting_polity_columns()
 }

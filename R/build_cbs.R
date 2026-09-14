@@ -60,6 +60,25 @@
 #'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 #'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
 #'   The conflict count is reported by every build under either setting.
+#' @param share_overflow One of `"report"` (default), `"clamp"`, `"drop"` or
+#'   `"abort"`, selecting what happens when a pre-1962 destiny share exceeds 1
+#'   — a destiny larger than the `domestic_supply` it is apportioned from
+#'   (whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows do:
+#'   `other_uses` 70, `processing_primary` 19, `food` 15, `feed` 4. They are
+#'   1.03% of the 1961 `other_uses` mass and 0.17% of the `food` mass. The
+#'   cause is not this arithmetic: 89 of them are FAOSTAT's own 1961 balances
+#'   not closing (the non-food Commodity Balances, which carry tobacco, hides
+#'   and skins, silk, wool and fibres as `other_uses` and which no
+#'   better-ranked source overwrites), and the other 19 are hops in
+#'   net-exporting years, whose `processing_primary` is the whole production
+#'   by construction. `"report"` therefore keeps every value as measured and
+#'   only warns, so it **moves no published value**; it names the count, the
+#'   split by destiny and the three largest. `"clamp"` caps the share at 1,
+#'   `"drop"` sets it to `NA` so the key is filled from a neighbouring year
+#'   instead (and booked as 0 where the violating year is the only
+#'   observation), and `"abort"` refuses to build. Which of those is right is
+#'   an open question — see whep#980 — so the reporting default is the one
+#'   that invents nothing.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -73,6 +92,18 @@
 #'   become one column each, `stock_variation` is split into the non-negative
 #'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
 #'   excluding `export`.
+#'
+#'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
+#'   from the source that `source` names (`"A"` official, `"E"` estimated,
+#'   `"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever
+#'   the number is not one FAOSTAT published under a flag: a WHEP-derived row
+#'   (the processing pathway, the destiny gap-fills, the pre-1961 historical
+#'   extension), a row whose source carries no flag, and a row summed or
+#'   averaged from parts whose flags disagree. The flag is a claim about the
+#'   value, so it is dropped rather than guessed when the parts do not agree.
+#'   Rows sourced from `"FAOSTAT_prod"` are `NA` today because
+#'   [build_primary_production()] does not carry the flag out of the
+#'   production pin.
 #'
 #' @export
 #'
@@ -88,11 +119,13 @@ build_commodity_balances <- function(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
+  share_overflow <- rlang::arg_match(share_overflow)
   if (example) {
     return(
       if (format == "wide") {
@@ -109,7 +142,13 @@ build_commodity_balances <- function(
     ))
   }
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
+    fixed <- .read_cbs(
+      primary_all,
+      start_year,
+      end_year,
+      historical_data,
+      share_overflow = share_overflow
+    ) |>
       .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
     if (!is.null(historical_data)) {
@@ -125,6 +164,11 @@ build_commodity_balances <- function(
     if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (share_overflow != "report") {
+      cli::cli_warn(
+        "{.arg share_overflow} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -218,11 +262,15 @@ build_commodity_balances <- function(
   # below handles differing sources for the same key+value.
   dt <- unique(dt, by = c(by_cols, "value"))
   if (has_flag) {
+    # `source[1L]` is an arbitrary pick and always was; the flag must not be,
+    # because it is a claim about the summed value rather than a label for one
+    # of its parts. `.fold_fao_flag()` keeps the flag when every row of the
+    # group agrees and reports the disagreement as NA (whep#581).
     dt <- dt[,
       .(
         value = .sum_if_any_cbs(value),
         source = source[1L],
-        fao_flag = fao_flag[1L]
+        fao_flag = .fold_fao_flag(fao_flag)
       ),
       by = by_cols
     ]
@@ -300,7 +348,8 @@ build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -341,7 +390,8 @@ build_commodity_balances <- function(
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
-    years
+    years,
+    share_overflow = share_overflow
   )
 
   # Trim to requested years and attach context for downstream
@@ -1411,10 +1461,22 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  dt <- dt[,
-    .(value = mean(value, na.rm = TRUE)),
-    by = c(key_cols, "source")
-  ]
+  # The flag folds with the mean rather than being dropped: this collapse runs
+  # over the WHOLE frame when `historical_data` is supplied, so dropping it
+  # here would put every 1961+ row back to NA on that path alone (whep#953).
+  # The best-source pick below keeps one row per key, so the surviving flag is
+  # the one belonging to the source that survived with it.
+  if ("fao_flag" %in% names(dt)) {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
+      by = c(key_cols, "source")
+    ]
+  } else {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE)),
+      by = c(key_cols, "source")
+    ]
+  }
   dt <- dt[!is.nan(value)]
   dt[, .source_rank := .cbs_source_rank(source, year)]
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
@@ -1933,7 +1995,15 @@ build_processing_coefs <- function(
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
   area_lookup <- .cbs_area_labels(dt_raw)
-  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
+  # `fao_flag` is kept here on purpose. Reducing to (key, source, value) is
+  # what made the documented `fao_flag` column structurally NA: it was gone
+  # before `.format_cbs_output()` could carry it, so the branch that stamps
+  # NA_character_ was the only one that ever ran (whep#953).
+  keep_cols <- c(key_cols, "source", "value")
+  if ("fao_flag" %in% names(dt_raw)) {
+    keep_cols <- c(keep_cols, "fao_flag")
+  }
+  dt_raw <- dt_raw[, keep_cols, with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
   # Avoids expensive frankv over many source columns.
@@ -2111,6 +2181,7 @@ build_processing_coefs <- function(
   ]
 
   wide[area_lookup, area := i.area, on = "area_code"]
+  wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
   wide <- wide |>
     dplyr::select(
@@ -2121,8 +2192,66 @@ build_processing_coefs <- function(
       element,
       year,
       source,
-      value
+      value,
+      fao_flag
     )
+}
+
+# The FAOSTAT observation-status flag of the source the value was TAKEN from.
+#
+# The pick has to follow the value. `.select_best_source()` chooses the value
+# by a stated priority (FAOSTAT_prod > FBS_New > scaled FBS_Old > mean of the
+# rest), and the sources disagree about provenance: measured on a real
+# 2010-2013 `cbs_raw_all`, 289,262 of its 1,010,180 selection keys (28.6%) are
+# reported with more than one distinct flag across sources. Keeping whichever
+# flag sorted first would therefore attribute one vintage's provenance to
+# another vintage's number in a quarter of the table.
+#
+# Within a single source there is nothing to choose: 0 of 1,906,689
+# (key, source) groups carry two distinct flags, because
+# `.aggregate_to_polities()` has already folded the polity buckets with
+# `.fold_fao_flag()`. The `mean` branch is the one place that really does
+# average several sources, so it gets that same fold -- keep the flag when
+# every averaged source agrees, `NA` when they do not (whep#581).
+.add_best_source_flag <- function(wide, dt_raw, key_cols, primary_sources) {
+  wide[, fao_flag := NA_character_]
+  if (!"fao_flag" %in% names(dt_raw)) {
+    return(wide)
+  }
+  flags <- dt_raw[!is.na(fao_flag)]
+  flags[,
+    source_group := data.table::fifelse(
+      source %in% primary_sources,
+      source,
+      "mean"
+    )
+  ]
+  flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
+  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag; every other label is the group name already.
+  wide[,
+    source_group := data.table::fifelse(
+      source == "FAOSTAT_FBS_Old_scaled",
+      "FAOSTAT_FBS_Old",
+      source
+    )
+  ]
+  wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
+  wide[, source_group := NULL]
+  wide
+}
+
+# `.fold_fao_flag()`'s rule -- one flag if the group agrees, otherwise none --
+# applied per group without calling it once per group. A group that keeps two
+# rows after the distinct-flag dedup disagrees, so dropping those leaves
+# exactly the agreeing groups, and a key absent from the result joins as NA.
+# It is the same answer (asserted against the helper in test_build_cbs.R) and
+# 5x cheaper: measured on a real 2010-2013 `cbs_raw_all`, 1.4 s against 6.8 s
+# for 1.9M groups, which is most of what carrying the flag costs at all.
+.fold_flags_by <- function(flags, by_cols) {
+  out <- unique(flags, by = c(by_cols, "fao_flag"))
+  out[, n_group_flags := .N, by = by_cols]
+  out[n_group_flags == 1L, c(by_cols, "fao_flag"), with = FALSE]
 }
 
 # The order `.assemble_cbs_sources()` binds its sources in. It is what decided
@@ -2212,7 +2341,8 @@ build_processing_coefs <- function(
 .cbs_extend_historical <- function(
   cbs_raw0,
   inputs,
-  years
+  years,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
   items <- whep::items_full
 
@@ -2266,8 +2396,14 @@ build_processing_coefs <- function(
   ]
   data.table::setnames(observed_sources, "source", "observed_source")
 
+  # `fao_flag` goes with `source` here, and unlike `source` it does not come
+  # back. Below, the year skeleton and `.fill_historical_destinies()` replace
+  # the value of most of these rows, and `observed_source` is coalesced to
+  # `"historical_fill"` precisely because the result is WHEP's estimate rather
+  # than a reported figure. A FAOSTAT flag carried across that would describe
+  # a number FAOSTAT never published, so the pre-1961 extension keeps NA.
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of(c("source", "area")))
+    dplyr::select(-dplyr::any_of(c("source", "area", "fao_flag")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
@@ -2279,7 +2415,8 @@ build_processing_coefs <- function(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
       inputs$land_areas_wide,
-      items
+      items,
+      share_overflow = share_overflow
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -2336,8 +2473,13 @@ build_processing_coefs <- function(
   primary_area,
   gdp_pop,
   land_wide,
-  items
+  items,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
+  share_overflow <- rlang::arg_match(
+    share_overflow,
+    .cbs_share_overflow_choices()
+  )
   expected_elements <- c(
     "domestic_supply",
     "production",
@@ -2381,6 +2523,7 @@ build_processing_coefs <- function(
         domestic_supply
       )
     ) |>
+    .apply_share_overflow(share_overflow) |>
     dplyr::left_join(
       primary_area,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
@@ -2400,6 +2543,152 @@ build_processing_coefs <- function(
 # carried forward as non-finite data.
 .cbs_safe_ratio <- function(num, denom) {
   dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
+}
+
+# -- Destiny shares above one --------------------------------------------------
+
+# The five destiny shares of `.fill_historical_destinies()`, each with the
+# element it divides by `domestic_supply`. `seed_rate` is deliberately absent:
+# it is seed per hectare, not a share of supply, so it has no reason to sit
+# below one.
+.destiny_share_map <- function() {
+  c(
+    food_share = "food",
+    feed_share = "feed",
+    other_uses_share = "other_uses",
+    processing_share = "processing",
+    processing_primary_share = "processing_primary"
+  )
+}
+
+# What to do with a destiny that exceeds the domestic supply it is apportioned
+# from (whep#980), most conservative first.
+#
+# `"report"` is the default and is the behaviour every published build has had:
+# the share is kept exactly as measured, and is now named out loud instead of
+# passing in silence. It is the default because the overflow is a property of
+# the FAOSTAT source rather than of this arithmetic -- see
+# `.apply_share_overflow()` -- so overriding it here would replace a reported
+# number by an invented one.
+#
+# `"clamp"` caps the share at 1, which asserts that the destiny is at most the
+# whole supply. `"drop"` sets it to `NA` so `.fill_share_columns()` fills the
+# key from a neighbouring year instead of trusting the violating one; where the
+# violating year is the only observation, the destiny stays missing and
+# `.finalise_historical()` books it as 0. `"abort"` refuses to build.
+.cbs_share_overflow_choices <- function() {
+  c("report", "clamp", "drop", "abort")
+}
+
+# Every row whose destiny exceeds the `domestic_supply` it is divided by.
+.destiny_shares_above_one <- function(df) {
+  shares <- .destiny_share_map()
+  purrr::map2(
+    names(shares),
+    unname(shares),
+    \(share_col, element) .one_share_above_one(df, share_col, element)
+  ) |>
+    purrr::list_rbind()
+}
+
+.one_share_above_one <- function(df, share_col, element) {
+  tibble::as_tibble(df) |>
+    dplyr::filter(!is.na(.data[[share_col]]), .data[[share_col]] > 1) |>
+    dplyr::transmute(
+      destiny = element,
+      year,
+      area_code,
+      item_cbs,
+      item_cbs_code,
+      value = .data[[element]],
+      domestic_supply,
+      share = .data[[share_col]]
+    )
+}
+
+# A destiny share above one says a single destiny exceeds the domestic supply
+# it is apportioned from -- a balance violation, and one that propagates,
+# because `.fill_share_columns()` carries the share to every other year of the
+# same key and `.apply_filled_shares()` multiplies it back by that year's
+# supply.
+#
+# Measured on a real 1950-1965 build of `main` (207,816 rows), 108 shares
+# exceed one, every one of them at the 1961 FAOSTAT anchor except the
+# `processing_primary` block: `other_uses` 70, `processing_primary` 19,
+# `food` 15, `feed` 4, `processing` 0. Two mechanisms, neither of them in this
+# arithmetic:
+#
+# * 89 of them are FAOSTAT's own 1961 balances not closing. Traced back to the
+#   source extracts, `faostat-cbs-old-crops` has 46 keys with
+#   `other_uses > domestic_supply`, `faostat-cbs-old-animal` 27 and
+#   `faostat-fbs-old` 2 -- e.g. Kuwait hides and skins, 1,373 t of other uses
+#   against 123 t of supply. `other_uses` dominates because it is the destiny
+#   the *non-food* Commodity Balances carry (tobacco, hides and skins, silk,
+#   wool, fibres), and those items exist in no better-ranked source, so
+#   `.select_best_source()` cannot overwrite them the way `FAOSTAT_FBS_Old`
+#   overwrites the food/feed rows of the same file.
+# * The 19 `processing_primary` cases are structural rather than reported.
+#   `.assemble_cbs_sources()` copies the `pp_items` production row into a
+#   `processing_primary` row, so the numerator is the whole production while
+#   `domestic_supply` nets trade out of it; every one of the 19 is hops in a
+#   net-exporting year, and the same construction is what puts seven
+#   `processing_primary` shares below zero.
+#
+# The offending rows are 1.03% of the frame's 1961 `other_uses` mass, 0.32% of
+# `processing_primary`, 0.17% of `food` and 0.001% of `feed`, so this is small
+# -- but it was invisible, which is what this reports.
+#
+# Renormalising the five shares to sum to one is not offered: 47 of the 70
+# `other_uses` offenders are the only observed destiny of their row, so there
+# is nothing to renormalise against.
+.apply_share_overflow <- function(df, method) {
+  over <- .destiny_shares_above_one(df)
+  .report_share_overflow(over, method)
+  if (nrow(over) == 0L || method == "report") {
+    return(df)
+  }
+  replacement <- if (method == "clamp") 1 else NA_real_
+  df |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(names(.destiny_share_map())),
+      \(x) dplyr::if_else(!is.na(x) & x > 1, replacement, x)
+    ))
+}
+
+.report_share_overflow <- function(over, method) {
+  if (nrow(over) == 0L) {
+    return(invisible(over))
+  }
+  per_destiny <- over |>
+    dplyr::count(destiny, name = "n") |>
+    dplyr::arrange(dplyr::desc(n))
+  worst <- over |> dplyr::slice_max(share, n = 3L, with_ties = FALSE)
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(over)} historical destiny share{?s} exceed{?s/} 1, so that ",
+      "destiny is larger than the {.field domestic_supply} it is ",
+      "apportioned from."
+    ),
+    "*" = paste0(
+      "By destiny: {.val {paste0(per_destiny$destiny, ' = ', ",
+      "per_destiny$n)}}."
+    ),
+    "*" = paste0(
+      "Largest: {.val {paste0(worst$destiny, ' ', worst$year, ' area ', ",
+      "worst$area_code, ' ', worst$item_cbs, ' = ', round(worst$share, 2), ",
+      "'x supply')}}."
+    ),
+    "i" = paste0(
+      "{.arg share_overflow} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_share_overflow_choices(), method)}} also select",
+      "able."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_destiny_share_overflow")
+  }
+  cli::cli_warn(bullets, class = "whep_destiny_share_overflow")
+  invisible(over)
 }
 
 .fill_share_columns <- function(df) {
@@ -2886,7 +3175,8 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
-      value
+      value,
+      dplyr::any_of("fao_flag")
     )
 }
 
@@ -2930,10 +3220,26 @@ build_processing_coefs <- function(
   )
 }
 
+# Take the provenance columns off before a pivot cycle, so `src_lookup` can
+# put them back afterwards. Both have to go, not just `source`: a surviving
+# `fao_flag` becomes an id column of `tidyr::pivot_wider()` -- splitting one
+# key into a row per flag -- and collides with the re-joined copy on the way
+# out, arriving as `fao_flag.x` / `fao_flag.y`.
+.drop_cbs_provenance <- function(df) {
+  dplyr::select(df, -dplyr::any_of(c("source", "fao_flag")))
+}
+
+# The provenance the `.fix_cbs()` steps park here and re-join at their end,
+# because the pivot cycles in between cannot carry a non-numeric passenger.
+# `fao_flag` travels with `source` rather than beside it, so the row that
+# names the source is the row that names its flag -- `unique(by = by_cols)`
+# keeps one row per key, and taking the two from different rows would let a
+# key claim FBS_New's provenance for an FBS_Old number.
 .extract_source_lookup <- function(df) {
   dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
-  unique(dt[, c(by_cols, "source"), with = FALSE], by = by_cols)
+  cols <- c(by_cols, "source", intersect("fao_flag", names(dt)))
+  unique(dt[, cols, with = FALSE], by = by_cols)
 }
 
 # -- Redistribute non-processed ------------------------------------------------
@@ -2948,7 +3254,8 @@ build_processing_coefs <- function(
   }
 
   dt <- data.table::as.data.table(cbs_raw2)
-  dt[, source := NULL]
+  drop <- intersect(c("source", "fao_flag"), names(dt))
+  dt[, (drop) := NULL]
 
   # Items with processing but no matching processed products
   proc_keys <- data.table::as.data.table(processd_raw)[,
@@ -3464,7 +3771,7 @@ build_processing_coefs <- function(
   }
 
   wide <- cbs_raw3 |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value,
@@ -4168,7 +4475,7 @@ build_processing_coefs <- function(
 
   cbs_filtered <- cbs_raw6 |>
     dplyr::filter(!is.na(element)) |>
-    dplyr::select(-dplyr::any_of("source"))
+    .drop_cbs_provenance()
 
   # Ensure processing and other_uses rows exist for groups that need
 
@@ -4236,6 +4543,7 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
+      dplyr::any_of("fao_flag"),
       value = value2
     )
 }
@@ -4257,7 +4565,7 @@ build_processing_coefs <- function(
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     .test_cbs()
   cbs_raw8 <- merge(
     cbs_raw8,
