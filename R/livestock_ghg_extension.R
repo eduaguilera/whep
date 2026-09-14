@@ -38,6 +38,15 @@
 #'   feedback).
 #' - `"ar4"`: IPCC AR4 (2007), CH4 = 25, N2O = 298.
 #'
+#' `options` is handed to [calculate_livestock_emissions()] unchanged, so the
+#' manure engine's method levers (the manure-management split, the climate zone
+#' its methane conversion factors are read at) are selectable from here too;
+#' its defaults leave every published value untouched. Only `mms_region` bites
+#' at Tier 1, whose manure CH4 comes from regional emission factors rather than
+#' a climate-zone MCF; the climate options reach the MCF on the Tier 2 path
+#' only. Whichever choice each row took is recorded in `method_mms` and
+#' `method_manure_ch4`, which the extension carries into its own output.
+#'
 #' @param tier IPCC tier, `1` (default) or `2`.
 #' @param gwp 100-year global warming potential standard, `"ar6"` (default),
 #'   `"ar5"` or `"ar4"`.
@@ -51,6 +60,7 @@
 #'   assumed Medium is coarser still. Both remain selectable. The assumption is
 #'   never chosen implicitly, and the rung used is recorded in `method_ghg`.
 #'   Ignored at Tier 1, whose emission factors carry no diet dimension.
+#' @inheritParams manure_engine_options
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `primary_prod` (the [get_primary_production()] output) and, for Tier 2
 #'   with either feed-derived diet, `feed_intake` (the
@@ -62,9 +72,11 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
-#'   `impact_u` (livestock emissions in kilograms CO2e) and `method_ghg` (the
-#'   chosen tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), plus the
-#'   polity columns below.
+#'   `impact_u` (livestock emissions in kilograms CO2e), `method_ghg` (the
+#'   chosen tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), `method_mms`
+#'   and `method_manure_ch4` (the manure-engine choices the summed rows took,
+#'   `NA` when nothing reached the manure engine), plus the polity columns
+#'   below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -76,12 +88,16 @@ build_livestock_ghg_extension <- function(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
+  options = list(),
   data = list(),
   example = FALSE
 ) {
   tier <- .check_ghg_tier(tier)
   gwp <- match.arg(gwp)
   method_diet <- rlang::arg_match(method_diet)
+  # Validated here so an unknown or misspelled option aborts before the
+  # primary-production read, not minutes later inside the manure engine.
+  .manure_options(options)
   if (isTRUE(example)) {
     return(.example_ghg_extension())
   }
@@ -93,7 +109,12 @@ build_livestock_ghg_extension <- function(
   }
 
   primary_prod |>
-    .livestock_emissions_by_sector(tier, method_diet, data$feed_intake) |>
+    .livestock_emissions_by_sector(
+      tier,
+      method_diet,
+      data$feed_intake,
+      options
+    ) |>
     .ghg_co2e_extension(tier, gwp, method_diet) |>
     .add_reporting_polity_columns()
 }
@@ -109,12 +130,14 @@ build_livestock_ghg_extension <- function(
   primary_prod,
   tier,
   method_diet,
-  feed_intake
+  feed_intake,
+  options = list()
 ) {
   if (tier != 2L) {
     return(calculate_livestock_emissions(
       prepare_livestock_emissions(primary_prod),
-      tier = tier
+      tier = tier,
+      options = options
     ))
   }
   if (method_diet != "uniform_medium" && is.null(feed_intake)) {
@@ -132,7 +155,7 @@ build_livestock_ghg_extension <- function(
   primary_prod |>
     prepare_livestock_emissions(expand_cohorts = TRUE) |>
     .resolve_diet_quality(method_diet, feed_intake) |>
-    calculate_livestock_emissions(tier = tier)
+    calculate_livestock_emissions(tier = tier, options = options)
 }
 
 # Convert enteric + manure CH4 (and Tier 2 manure N2O) to CO2e with the chosen
@@ -151,8 +174,11 @@ build_livestock_ghg_extension <- function(
   emissions |>
     dplyr::mutate(co2e_kg = co2e) |>
     dplyr::filter(!is.na(.data$co2e_kg)) |>
+    ensure_columns(.manure_method_prototype()) |>
     dplyr::summarise(
       impact_u = sum(.data$co2e_kg, na.rm = TRUE),
+      method_mms = .collapse_manure_method(.data$method_mms),
+      method_manure_ch4 = .collapse_manure_method(.data$method_manure_ch4),
       .by = c(year, area_code, item_cbs_code)
     ) |>
     dplyr::mutate(
@@ -162,7 +188,38 @@ build_livestock_ghg_extension <- function(
       method_ghg = .ghg_method_label(tier, gwp, method_diet)
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
-    dplyr::select(year, area_code, item_cbs_code, impact_u, method_ghg)
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      impact_u,
+      method_ghg,
+      method_mms,
+      method_manure_ch4
+    )
+}
+
+# The manure engine stamps which management split and which climate zone each
+# row took; both are choices `options` can move, so they ride into the
+# extension rather than being lost in the sum. A frame that never reached the
+# engine (a bare emissions fixture) carries neither, hence the prototype.
+.manure_method_prototype <- function() {
+  tibble::tibble(
+    method_mms = character(),
+    method_manure_ch4 = character()
+  )
+}
+
+# One label per sector, so carrying the methods cannot split an IO key. The
+# rows summed into a sector all took the same choice in practice; the
+# distinct-label collapse mirrors `method_synthetic` in the soil-N2O
+# extension rather than picking a row's label and hiding the rest.
+.collapse_manure_method <- function(labels) {
+  present <- sort(unique(labels[!is.na(labels)]))
+  if (length(present) == 0L) {
+    return(NA_character_)
+  }
+  paste(present, collapse = "|")
 }
 
 # Row-wise sum of the requested emission columns. An absent column now aborts:

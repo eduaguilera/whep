@@ -507,6 +507,30 @@ testthat::test_that("loss methods are validated even when no loss rows exist", {
   testthat::expect_error(whep:::.nb_methods(list(nh_3 = "ipcc")))
 })
 
+testthat::test_that("an unknown methods name aborts with its own name (#621)", {
+  # The bare `expect_error()` above is why this survived: cli's own formatter
+  # error is still an error. The plural marker sat ahead of both
+  # interpolations, so cli deferred it and then refused the message for
+  # carrying more than one candidate quantity -- "Multiple quantities for
+  # pluralization", a simpleError, on every unknown name. Assert the class and
+  # the content, not just that something was thrown. Two unknown names, so the
+  # plural branch is the one exercised.
+  cnd <- testthat::expect_error(
+    whep:::.nb_methods(list(nh_3 = "ipcc", n20 = "ipcc2019")),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "nh_3")
+  testthat::expect_match(conditionMessage(cnd), "n20")
+  testthat::expect_match(conditionMessage(cnd), "names")
+  # One unknown name takes the singular branch and must still name it.
+  cnd1 <- testthat::expect_error(
+    whep:::.nb_methods(list(nh_3 = "ipcc")),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd1), "name:")
+  testthat::expect_match(conditionMessage(cnd1), "nh_3")
+})
+
 testthat::test_that("example fixture is schema-complete", {
   out <- whep::build_nitrogen_balance(example = TRUE)
   pointblank::expect_col_exists(

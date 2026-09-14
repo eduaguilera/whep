@@ -392,6 +392,21 @@ testthat::test_that("a missing temperature is assumed and stamped", {
   )
 })
 
+testthat::test_that("a fully populated temperature never warns", {
+  # Ported from PR #979, which fixed the same defect: the assumption has to be
+  # announced only where it is actually made. Nothing else here asserts the
+  # silence, so a warning that fired unconditionally would still pass.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = 100,
+    method_energy = "IPCC_2019_Tier2",
+    temperature_c = 10
+  )
+
+  testthat::expect_no_warning(whep:::.join_temperature_adjustment(data))
+})
+
 testthat::test_that("an absent temperature column keeps its declared 15 C", {
   data <- tibble::tibble(
     species = "Dairy Cattle",

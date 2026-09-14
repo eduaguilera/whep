@@ -2153,6 +2153,10 @@ utils::globalVariables(
     # earlier `mutate()` and read again on the right-hand side of the
     # `if_else()` in `.apply_diet_layer()`, which R CMD check reports as a
     # missing binding.
-    "method_diet"
+    "method_diet",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms"
   )
 )

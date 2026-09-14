@@ -185,13 +185,12 @@ get_bilateral_trade <- function(
   n <- length(codes)
   code_int <- as.integer(levels(codes))
   ngroups <- nrow(btd)
-  # mclapply() forks, which is unavailable on Windows; run serially there.
-  # Same OS guard as spatialize.R. Output is identical on all platforms.
-  n_cores <- if (.Platform$OS.type == "windows") {
-    1L
-  } else {
-    max(1L, parallel::detectCores() %/% 2L)
-  }
+  # mclapply() forks, which is unavailable on Windows, and R CMD check caps
+  # forked workers at two. `.parallel_workers()` applies both constraints,
+  # here and in spatialize.R. Each group is balanced independently and
+  # mclapply preserves input order, so the output is identical at any
+  # worker count -- asserted in test_bilateral_trade.R.
+  n_cores <- .parallel_workers()
 
   btd$bilateral_trade <- parallel::mclapply(
     seq_len(ngroups),
