@@ -384,6 +384,40 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   record 15556812) and the critical-nitrogen archive (`read_critical_n()`,
   Zenodo record 6395016).
 
+#### Fixing the reader is half the job: the pin it feeds is now stale
+
+A pin is a **frozen output of code in this repository**. So whenever a change
+alters what a producer function emits, the pin that function made is wrong
+from that moment, and **the fix moves no published number until the pin is
+regenerated and re-uploaded**. A merged PR whose effect is still sitting
+behind a stale pin is not done; it is latent.
+
+This is not hypothetical. whep#1092 restored FAOSTAT's `1000 Head` live-animal
+trade -- 76.1 billion head of poultry the reader had been dropping. The reader
+fix merged as PR #1113 and changed nothing anyone can see, because
+`build_detailed_trade()` is the `bilateral_trade` **producer** and has no
+caller in `R/`: every published figure still comes from the pin built by the
+old, filtering reader.
+
+So when you touch a producer:
+
+1. **Say so in the PR body**, explicitly: name the pin, and state that the
+   change is latent until it is regenerated. "No published value changes" is
+   the right measurement and the wrong conclusion if the reason is a stale pin
+   -- distinguish "this genuinely moves nothing" from "this moves nothing
+   *yet*".
+2. **Open a follow-up issue for the regeneration** if you cannot do it in the
+   PR, and link it. Regenerating usually needs board credentials and a long
+   run, so it is legitimately separate work -- but it must be tracked, not
+   assumed.
+3. **Check whether the function you changed is a producer at all.** `git grep`
+   its name across `R/`: no caller outside `inst/scripts/` is the signature of
+   one.
+
+The LPJmL-derived pins carry an extra constraint -- regenerate all four
+together, from one run, via `regenerate_whep_lpjml_pins()`. See the data
+pipeline section.
+
 ### NEWS.md — do not edit it per PR
 
 **Do not add a `NEWS.md` entry in a PR.** Every PR touching the same
