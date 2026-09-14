@@ -513,3 +513,28 @@ testthat::test_that("the context margin never precedes the first year", {
   testthat::expect_equal(min(.context_years(1850, margin = 5L)), 1850L)
   testthat::expect_equal(min(.context_years(1852:1860, margin = 5L)), 1850L)
 })
+
+testthat::test_that("build_io_model passes trade_recovery to the chain", {
+  # whep#762: without this the IO model always builds the CBS under the
+  # default method, so a recovered CBS handed in as `cbs` would sit beside
+  # supply-use tables and processing coefficients derived from a different
+  # one -- the silent drift the shared chain exists to prevent.
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::build_io_model))
+  )
+
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::build_io_model(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})

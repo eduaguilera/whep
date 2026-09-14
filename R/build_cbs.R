@@ -39,11 +39,13 @@
 #'   tonnes-denominated items (live-animal trade is in heads and arrives
 #'   through [get_livestock_cbs()]), to net importers, and to areas the CBS
 #'   already covers in that year. Selecting it **moves published values** —
-#'   at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+#'   at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
+#'   current build; 1,164 keys when whep#864 landed), and reclassifies three
 #'   areas on the nourishment axis. `NEWS.md` states the rest, and whep#762
 #'   keeps the remaining decisions open.
-#'   [get_wide_cbs()] always uses `"none"`; ask for `format = "wide"` here to
-#'   get the wide table with recovery applied.
+#'   [get_wide_cbs()], [get_processing_coefs()] and [build_io_model()] take the
+#'   same argument and pass it into the shared build chain, each method under
+#'   its own cache slot, so a downstream build can be run either way.
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
 #'   selecting what happens when the CBS carries a **zero** import or export
 #'   and the trade record for the same `(year, area_code, item_cbs_code)`
@@ -3919,9 +3921,41 @@ build_processing_coefs <- function(
     "Recovered {nrow(recovered)} trade-only CBS row{?s} \\
      ({items} item{?s}, {areas} area{?s})."
   )
+  absent <- setdiff(names(cbs), names(recovered))
+  if (length(absent) > 0L) {
+    cli::cli_alert_info(
+      "Recovered rows carry no {.field {absent}}: the trade record does not \\
+       supply {cli::qty(length(absent))}{?it/them}, so {?it is/they are} \\
+       left missing."
+    )
+  }
   data.table::rbindlist(
-    list(data.table::as.data.table(cbs), recovered),
+    list(
+      data.table::as.data.table(cbs),
+      .cbs_recovered_to_schema(recovered, cbs)
+    ),
     use.names = TRUE
+  )
+}
+
+# A created row can only carry what the trade record gives it, so every other
+# column of the frame it is bound onto has to be completed from that frame's
+# own prototype: `rbindlist()` aborts on a column one side lacks. `fao_flag`
+# is that column today -- it arrived on the CBS and on the source lookup in
+# whep#1037, after the recovery step of whep#864, and turned
+# `trade_recovery = "net_import"` from working into an abort on the real frame
+# while every fixture (all flagless) stayed green. NA is also the right value,
+# not merely the convenient one: a recovered row is not a number FAOSTAT
+# published under an observation status, which is the rule
+# `build_commodity_balances()` documents for that column.
+.cbs_recovered_to_schema <- function(recovered, frame) {
+  absent <- setdiff(names(frame), names(recovered))
+  if (length(absent) == 0L) {
+    return(recovered)
+  }
+  ensure_columns(
+    tibble::as_tibble(recovered),
+    tibble::as_tibble(frame)[0L, absent]
   )
 }
 
@@ -3934,13 +3968,15 @@ build_processing_coefs <- function(
     return(src_lookup)
   }
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  # The lookup carries `fao_flag` whenever the CBS does (whep#1037), so the
+  # recovered rows are completed to its schema for the same reason the bind
+  # above completes them to the CBS's.
+  rows <- .cbs_recovered_to_schema(recovered, src_lookup)
+  cols <- intersect(names(src_lookup), c(by_cols, "source", "fao_flag"))
   data.table::rbindlist(
     list(
       src_lookup,
-      data.table::as.data.table(recovered)[,
-        c(by_cols, "source"),
-        with = FALSE
-      ]
+      data.table::as.data.table(rows)[, cols, with = FALSE]
     ),
     use.names = TRUE
   ) |>

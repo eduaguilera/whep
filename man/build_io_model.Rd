@@ -11,7 +11,8 @@ build_io_model(
   years = NULL,
   endogenize_losses = FALSE,
   method = c("mass", "value"),
-  prices = NULL
+  prices = NULL,
+  trade_recovery = c("none", "net_import")
 )
 }
 \arguments{
@@ -52,6 +53,14 @@ falls back to mass.}
 \item{prices}{Optional tibble of item prices as from \code{\link[=build_cbs_prices]{build_cbs_prices()}}
 (\code{year}, \code{element}, \code{item_cbs_code}, \code{price}). Used only when
 \code{method = "value"}; built automatically when \code{NULL}.}
+
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+the CBS every internally built input is derived from — the wide CBS, the
+processing coefficients, the supply-use tables, the bilateral trade
+matrices and the prices. See \code{\link[=build_commodity_balances]{build_commodity_balances()}} for what each
+method does. It has no effect on an input supplied directly, so a \code{cbs}
+built with one method and the rest left to build under another is the
+caller's to avoid; pass the same value everywhere.}
 }
 \value{
 A tibble with one row per year and list-columns:

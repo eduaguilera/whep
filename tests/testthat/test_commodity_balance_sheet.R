@@ -289,3 +289,62 @@ testthat::test_that("livestock trade survives when the importer has no slaughter
   testthat::expect_equal(importer$production, 0)
   testthat::expect_equal(importer$domestic_supply, 30)
 })
+
+# whep#762 -- trade recovery must be reachable from the cached build chain,
+# which is the only path the IO model, the extensions and the nourishment axis
+# take. Before this, build_commodity_balances() was the sole entry point that
+# could select it, so the recovered CBS could not be carried into a build.
+testthat::test_that("get_wide_cbs takes and validates trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_wide_cbs))
+  )
+  # Validated before any build is started, so a typo aborts offline rather
+  # than after a several-minute read.
+  testthat::expect_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net-import")
+  )
+  testthat::expect_no_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net_import")
+  )
+})
+
+testthat::test_that("get_wide_cbs threads trade_recovery into the chain", {
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_wide_cbs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})
+
+testthat::test_that("get_processing_coefs takes trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_processing_coefs))
+  )
+  testthat::expect_error(
+    whep::get_processing_coefs(example = TRUE, trade_recovery = "net-import")
+  )
+
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_processing_coefs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})

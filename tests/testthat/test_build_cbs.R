@@ -751,6 +751,28 @@ test_that("binding recovered rows adds keys and changes no existing one", {
   )
 })
 
+test_that("recovered rows bind onto a CBS carrying fao_flag", {
+  # The real `.read_cbs()` frame has carried `fao_flag` since whep#1037, and a
+  # created row cannot have one: it is not a value FAOSTAT published under an
+  # observation status. `rbindlist()` aborts on a column one side lacks, so
+  # the recovery this fixture family covers went from working at whep#864 to
+  # aborting on real data -- invisibly, because every fixture here is
+  # flagless. The recovered rows must be completed to the CBS schema instead.
+  cbs <- dplyr::mutate(.recovery_cbs(), fao_flag = "A")
+  recovered <- whep:::.cbs_trade_recovery_rows(cbs, .recovery_trade(), 2010)
+  bound <- tibble::as_tibble(whep:::.cbs_bind_recovered(cbs, recovered))
+
+  expect_true("fao_flag" %in% names(bound))
+  expect_equal(nrow(bound), nrow(cbs) + nrow(recovered))
+  # The flag is NA on the created rows and untouched on the existing ones.
+  created <- dplyr::filter(bound, source == "FAOSTAT_trade")
+  expect_equal(nrow(created), nrow(recovered))
+  expect_true(all(is.na(created$fao_flag)))
+  expect_true(all(
+    dplyr::filter(bound, source != "FAOSTAT_trade")$fao_flag == "A"
+  ))
+})
+
 test_that("recovered sources reach the frozen source lookup", {
   # `src_lookup` is extracted before the rows exist, so without this the
   # recovered rows -- and every element derived from them -- ship source NA.
@@ -770,16 +792,36 @@ test_that("recovered sources reach the frozen source lookup", {
   expect_equal(whep:::.add_recovered_sources(src, recovered[0, ]), src)
 })
 
+test_that("recovered sources reach a lookup carrying fao_flag", {
+  # `.extract_source_lookup()` carries `fao_flag` whenever the CBS does
+  # (whep#1037). The recovered rows never can, and the bind aborts on the
+  # column one side lacks -- the same defect as the CBS bind, one frame along.
+  cbs <- dplyr::mutate(.recovery_cbs(), fao_flag = "A")
+  recovered <- whep:::.cbs_trade_recovery_rows(cbs, .recovery_trade(), 2010)
+  src <- whep:::.extract_source_lookup(data.table::as.data.table(cbs))
+  expect_true("fao_flag" %in% names(src))
+
+  result <- tibble::as_tibble(whep:::.add_recovered_sources(src, recovered))
+
+  expect_equal(nrow(result), nrow(src) + nrow(recovered))
+  expect_true(all(
+    is.na(dplyr::filter(result, source == "FAOSTAT_trade")$fao_flag)
+  ))
+})
+
 test_that(".fix_cbs wires trade recovery through the whole cascade", {
   # The only end-to-end coverage of `.fix_cbs()`, and the only place the
   # recovery's wiring is visible: its placement, the source lookup it has to
   # extend (frozen one step earlier, so without that every recovered element
   # ships `source = NA`), and what the destiny cascade does with the created
   # supply. No pin and no network -- the whole chain runs on this tribble.
+  # `fao_flag` is carried because the real `.read_cbs()` frame carries it
+  # (whep#1037) and the recovered rows cannot: a flagless fixture here is what
+  # let the bind go from working to aborting on the real frame unnoticed.
   raw <- tibble::tribble(
-    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
-    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod",
-    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod"
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod", "A",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod", "A"
   )
   attr(raw, ".years") <- 2010L
   attr(raw, ".fao_trade") <- tibble::tribble(
@@ -798,11 +840,11 @@ test_that(".fix_cbs wires trade recovery through the whole cascade", {
   expect_equal(value_of("import"), 620863)
   expect_equal(value_of("export"), 91318)
   expect_equal(value_of("domestic_supply"), 620863 - 91318)
-  # Provenance survives the frozen source lookup.
-  expect_equal(
-    dplyr::filter(rice, element %in% c("import", "export"))$source,
-    c("FAOSTAT_trade", "FAOSTAT_trade")
-  )
+  # Provenance survives the frozen source lookup, and the observation status
+  # the created rows cannot have stays missing rather than inherited.
+  traded <- dplyr::filter(rice, element %in% c("import", "export"))
+  expect_equal(traded$source, c("FAOSTAT_trade", "FAOSTAT_trade"))
+  expect_true(all(is.na(traded$fao_flag)))
   # The wheat rows the CBS already had are untouched.
   expect_equal(
     dplyr::filter(on, item_cbs_code == 2511),
