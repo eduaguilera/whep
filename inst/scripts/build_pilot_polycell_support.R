@@ -171,11 +171,20 @@
   missing <- setdiff(codes, got)
   unexpected <- setdiff(got, codes)
   if (length(missing) > 0L || length(unexpected) > 0L) {
-    cli::cli_abort(c(
-      "The built support does not match the requested pilot subset.",
-      "x" = "Missing: {.val {missing}}.",
-      "x" = "Unexpected: {.val {unexpected}}."
-    ))
+    # ONLY THE SIDE THAT HAS CONTENT. Emitting both unconditionally rendered
+    # the empty one as `x Missing: .` -- an `x` bullet asserting a second
+    # problem that does not exist, and on a real Argentina build that empty
+    # line was the first thing the operator read, above the one that
+    # mattered. An `x` says something is wrong; one with nothing in it says
+    # nothing is.
+    bullets <- "The built support does not match the requested pilot subset."
+    if (length(missing) > 0L) {
+      bullets <- c(bullets, "x" = "Missing: {.val {missing}}.")
+    }
+    if (length(unexpected) > 0L) {
+      bullets <- c(bullets, "x" = "Unexpected: {.val {unexpected}}.")
+    }
+    cli::cli_abort(bullets)
   }
   cli::cli_alert_success(
     "Subset identity matches all {length(codes)} polities."
