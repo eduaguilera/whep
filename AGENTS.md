@@ -191,6 +191,13 @@ Gotchas worth knowing before losing an hour:
   `WHEP_*` path an R session started at the root would otherwise see. That was
   #456, fixed by moving `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron`
   into the R-CMD-check workflow env and `.Rprofile`.
+- `.Rprofile` has the same shape and the same trap: R reads the
+  working-directory one *instead of* `~/.Rprofile`. The repo profile therefore
+  **chain-sources the user profile first**, and must keep doing so. That line
+  is not cosmetic: `r-lib/actions/setup-r` delivers `use-public-rspm: true` by
+  writing the RSPM `repos` option into `~/.Rprofile`, so while it was shadowed
+  every cold dependency install on ubuntu built all 141 packages from source
+  instead of taking Linux binaries (#1102).
 - Long pipeline builds are minutes-to-hours and read pins or multi-GB local
   rasters. Never put one in a test or an example; use the
   [`example = FALSE` fixture pattern](#documentation).
@@ -438,7 +445,9 @@ Conventions of the codebase (follow them; they are how the code reads):
 
 The PR must pass these GitHub Actions checks:
 
-1. **R-CMD-check** (4 platforms, 45-min timeout): `rcmdcheck::rcmdcheck()`
+1. **R-CMD-check** (4 platforms, 60-min job cap over a 40-min cap on the check
+   step itself — setup is download and varies, the check step is what can
+   hang): `rcmdcheck::rcmdcheck()`
    with no errors, warnings, or notes. Tests run here, which is why a
    network-dependent test breaks the build. **R-devel is not one of the four**:
    RSPM ships no R-devel binaries, so that leg source-builds the geo stack every
