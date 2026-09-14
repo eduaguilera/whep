@@ -20,6 +20,7 @@ read_lpjml_hydrology(
   first_year = 1901L,
   monthly = TRUE,
   agg = c("sum", "mean"),
+  partial_year = c("abort", "warn", "drop"),
   data = NULL,
   example = FALSE
 )
@@ -69,6 +70,16 @@ read_lpjml_hydrology(
   Annual aggregation for `monthly = FALSE`, `"sum"` (flux default) or
   `"mean"` (soil-water default).
 
+- partial_year:
+
+  What to do when `monthly = FALSE` and a cell-year does not carry all
+  twelve months, so that aggregating it would silently return a total
+  over eleven. `"abort"` (default) refuses, naming the absent
+  cell-months; `"warn"` returns the short aggregate anyway; `"drop"`
+  removes the incomplete cell-years and reports how many went, so the
+  year is *absent* rather than wrong. Immaterial for the annual per-CFT
+  variables, which carry no `month`. See *Partial years* below.
+
 - data:
 
   Optional pre-read tibble (`lon`, `lat`, `year`, `month`, `value`, plus
@@ -86,6 +97,25 @@ A tibble with columns `lon`, `lat`, `year`, `value` (plus `month` for
 the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
 `band` plus `band_name` for the per-CFT variables). The annual per-CFT
 consumptive-water variables never carry `month`.
+
+## Partial years
+
+An LPJmL monthly output grows one time step at a time, so a run that was
+interrupted, or is still writing, leaves a final year with fewer than
+twelve steps. Aggregating that year sums **eleven** months and says
+nothing: no value is `NA`, the row count is unchanged (one row per
+cell-year either way), and every downstream total and identity goes on
+balancing over the eleven. Reproduced on a real 24-month run truncated
+to 23 with `ncks -d time,0,22`: the second year's summed deep seepage
+fell 3.05% over 500 land cells (98,478 to 95,477 mm), with an identical
+3,392-row output and no `NA` in any land cell (whep#1073).
+
+The refusal lives here, at the reader, because this is where the absence
+is created; once the short annual total is downstream it is
+indistinguishable from a measurement. `years = ` was already safe – the
+coverage check counts only whole years, so requesting a partial one
+aborts – and `partial_year` closes the `years = NULL` whole-file read
+that it does not cover.
 
 ## Examples
 

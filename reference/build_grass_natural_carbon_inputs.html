@@ -106,6 +106,7 @@ natural land (both from <a href="residue_humification.html">residue_humification
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  excreta_area_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"luh2_grassland"</span>, <span class="st">"charged_grassland"</span>, <span class="st">"luh2_all_grassland"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -156,6 +157,13 @@ folder). <code>NULL</code> (default) uses <code>WHEP_LPJML_RUN_DIR</code> when s
 pinned artifact otherwise.</p></dd>
 
 
+<dt id="arg-excreta-area-basis">excreta_area_basis<a class="anchor" aria-label="anchor" href="#arg-excreta-area-basis"></a></dt>
+<dd><p>Which grassland hectares the polity's grazing
+excreta carbon is divided by: <code>"luh2_grassland"</code> (default),
+<code>"charged_grassland"</code> or <code>"luh2_all_grassland"</code>. See the section below;
+the choice is recorded in <code>method_excreta_area</code>.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small fixture instead of reading remote
 data. Defaults to <code>FALSE</code>.</p></dd>
@@ -165,8 +173,55 @@ data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>(lon, lat, area_code, year, land_use)</code> at <code>"grid"</code>
 resolution (or <code>(area_code, year, land_use)</code> at <code>"polity"</code>), with
-<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code> and <code>method_c_input</code>, for
-<code>land_use</code> in <code>"grassland"</code> and <code>"natural"</code>, plus the polity columns below.</p>
+<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code>, <code>method_c_input</code> and
+<code>method_excreta_area</code>, for <code>land_use</code> in <code>"grassland"</code> and <code>"natural"</code>,
+plus the polity columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="which-grassland-hectares-the-grazing-excreta-is-divided-by">Which grassland hectares the grazing excreta is divided by<a class="anchor" aria-label="anchor" href="#which-grassland-hectares-the-grazing-excreta-is-divided-by"></a></h2>
+    <p>The excreta carbon is a polity total, so it becomes a per-hectare density by
+division, and <code>excreta_area_basis</code> picks the hectares to divide by. It
+matters because the density is charged only to cells where LPJmL wrote a
+grassland stand, while the divisor has always been the polity's <strong>whole</strong>
+LUH2 grassland area, and <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code> then multiplies the
+density by the LUH2 grassland area of each charged cell. Whatever the
+uncharged hectares would have received is therefore lost.</p>
+<p>Measured on the <code>lpjml-grass-natural-net-c</code> pin against
+<code><a href="read_luh2_landuse.html">read_luh2_landuse()</a></code>, the cells with a grassland stand hold 98.6% of the
+LUH2 grassland area at 2010 (98.4% at 1960, 98.6% at 2020), leaving 46.6 Mha
+uncharged at 2010. How much excreta carbon that loses depends on where the
+herds are: 1.4% if excreta is proportional to grassland area, 13.8% under an
+equal-carbon-per-polity probe, because the shortfall is concentrated in
+small polities — 101 of 188 lose more than 1%, 53 more than 10%, 7 more than
+half, and 13 (islands and city states, each under 0.01 Mha of grassland)
+have no grassland stand at all and lose everything. The reverse gap is
+negligible: 6 of 42,391 grassland cell-rows at 2010 have no LUH2 grassland
+row.</p>
+<p>The three bases are alternatives, not fallbacks, and the chosen one is
+recorded in <code>method_excreta_area</code>:</p><ul><li><p><code>"luh2_grassland"</code> (default, the published behaviour): divide by the
+polity's whole LUH2 grassland area. Does <strong>not</strong> conserve the polity's
+excreta carbon whenever a grassland hectare carries no LPJmL stand.</p></li>
+<li><p><code>"charged_grassland"</code>: divide by the LUH2 grassland area of the cells the
+density is actually charged to, so every polity that has a grassland stand
+keeps its whole excreta carbon by construction. Raises the density on
+those cells by the reciprocal of the coverage above (1.4% globally on an
+area weighting, up to 17x in the worst measured polity) and leaves the
+uncovered hectares at zero, as they already are for net primary
+production. A polity with no grassland stand anywhere still loses all of
+its excreta — there is nowhere to charge it — which on the probe above is
+13 polities and 6.9% of the carbon.</p></li>
+<li><p><code>"luh2_all_grassland"</code>: keep the whole-area divisor and emit a grassland
+row for every LUH2 grassland cell instead, carrying zero net primary
+production where LPJmL has no stand (4,117 extra rows at 2010, 8.8% more
+grassland rows). The only basis that conserves the excreta carbon
+globally, and it keeps the original spatial spread, at the cost of
+grassland rows in cells the LPJmL run does not simulate as grassland.</p></li>
+</ul><p>Dividing by the LPJmL grassland <strong>stand</strong> area is deliberately not offered.
+It would conserve nothing under the area basis <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>
+actually uses, and it would buy little: measured at 1901 the stand area and
+the LUH2 grassland area agree to a median 0.1% per cell (95.5% of shared
+cells within 10%, global totals 1560.5 against 1576.0 Mha), because WHEP's
+LPJmL land-use forcing is itself LUH2-derived.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
@@ -210,16 +265,16 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_grass_natural_carbon_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 12</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000        84               84 GRC-1947-2025         Greece (1947-2025)   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000        84               84 GRC-1947-2025         Greece (1947-2025)   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1902-2025         Argentina            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1902-2025         Argentina            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, land_use &lt;chr&gt;, c_input_mgc_ha_yr &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   humified_fraction &lt;dbl&gt;, method_c_input &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   humified_fraction &lt;dbl&gt;, method_c_input &lt;chr&gt;, method_excreta_area &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -64,6 +64,7 @@ sheet years and gap-filling country shares via linear interpolation.</p>
 <span>  cbs <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  min_share <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  extend_time <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  method_unbacked_quantity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"keep"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -95,6 +96,21 @@ CBS years and linear interpolation of country shares.
 Default <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-method-unbacked-quantity">method_unbacked_quantity<a class="anchor" aria-label="anchor" href="#arg-method-unbacked-quantity"></a></dt>
+<dd><p>How to treat a reported <code>tonnes</code>
+quantity for a FAOSTAT trade item whose country-level mass FAOSTAT
+itself does not publish. See the <em>Quantities FAOSTAT does not back
+with a mass</em> section. One of:</p><ul><li><p><code>"drop"</code> (default): discard those rows, warning with the tonnage
+removed. They are not masses, and no conversion to mass is
+derivable.</p></li>
+<li><p><code>"keep"</code>: carry them verbatim, with the same warning. The
+historical behaviour, and unsafe for anything that treats the
+column as mass.</p></li>
+<li><p><code>"abort"</code>: fail, so a refreshed pin cannot reintroduce them
+unnoticed.</p></li>
+</ul></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, return a small example tibble
 without downloading remote data. Default <code>FALSE</code>.</p></dd>
@@ -110,6 +126,9 @@ without downloading remote data. Default <code>FALSE</code>.</p></dd>
 <li><p><code>unit</code>: Measurement unit (<code>"tonnes"</code> or <code>"heads"</code>).</p></li>
 <li><p><code>value</code>: Trade quantity.</p></li>
 <li><p><code>country_share</code>: Share of total trade for this partner.</p></li>
+<li><p><code>method_unbacked_quantity</code>: the treatment chosen for quantities
+FAOSTAT does not back with a mass, recorded so a downstream
+consumer can tell which variant it is holding.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="time-extension-is-uniform-across-groups">Time extension is uniform across groups<a class="anchor" aria-label="anchor" href="#time-extension-is-uniform-across-groups"></a></h2>
@@ -133,11 +152,56 @@ against 9.97 million observed rows, and half of the emitted
 coverage a group actually has is a methodological choice, not a bug fix,
 and is tracked in issue #232.</p>
     </div>
+    <div class="section level2">
+    <h2 id="quantities-faostat-does-not-back-with-a-mass">Quantities FAOSTAT does not back with a mass<a class="anchor" aria-label="anchor" href="#quantities-faostat-does-not-back-with-a-mass"></a></h2>
+
+
+<p>The Detailed Trade Matrix carries a <code>tonnes</code> column for every item, but
+FAOSTAT does not stand behind all of it. For trade item 1293
+(<em>Crude organic material n.e.c.</em>, mapped here to CBS item 5001
+<code>"Other"</code>) the aggregate <em>Trade: Crops and livestock products</em> domain
+publishes a <strong>value</strong> but no country-level <strong>mass</strong>: on the
+<code>faostat-trade-totals</code> pin <code>20260325T120525Z-7b85f</code> that item has
+28,213 value rows against 6,000 quantity rows, only 1,830 of them
+non-zero, and every quantity above 10 Mt belongs to a FAOSTAT <em>regional
+aggregate</em> (area code &gt;= 51000) flagged <code>E</code>. Spot-checked for Colombia,
+Kenya, South Africa and Japan over 2002-2010, the country-level
+quantity is <code>0</code> or absent in every year.</p>
+<p>The detailed matrix nonetheless reports masses for it that cannot be
+masses (whep#1023). On the <code>faostat-trade-bilateral</code> pin
+<code>20260407T095142Z-b3f81</code>, Colombia's 2004 export of item 1293 to the
+United States is 2,579,549,000 tonnes against an export value of
+USD 584.4 million, i.e. <strong>USD 0.227 per tonne</strong>; South Africa's
+2008-2013 flows with Uganda run at USD 0.011-0.015 per tonne. The
+mirrored report of the same flow disagrees by factors of 356 to
+838,000 - Kenya says it exported 534,611,300 tonnes to the
+Netherlands in 2009, the Netherlands says it imported 72,076 tonnes
+(7,417x) - and it is always the large side that is not a mass. What the
+large side actually counts (stems, pieces, bunches) is <strong>not recorded
+anywhere in the data and is therefore unverified</strong>, and the implied
+units per tonne are not constant across cells, so no conversion factor
+can be derived: the figures can be dropped or carried, not corrected.</p>
+<p><code>method_unbacked_quantity</code> selects the treatment. Screened tonnage on
+the full pin, restricted to items that map to a CBS item: 15.31 Gt of
+83.16 Gt (<strong>18.4%</strong>), 99.78% of it item 1293. By year the screen takes
+12.7-70.0% of 2003-2013, 5.6-16.5% of 1986-1988, 10.1-13.0% of
+2000-2002, at most 3.3% of 1989-1999 and at most 0.04% of 2014-2021 -
+item 1293 carries no bilateral quantity at all from 2014, which is why
+the recent record looks clean.</p>
+<p>Those tonnes do not reach this function's output today whichever method
+is chosen, for an unrelated reason: item 1293's CBS name <code>"Other"</code> has
+no row in <code><a href="items_full.html">whep::items_full</a></code>, so the item-code bridge leaves it without
+an <code>item_cbs_code</code> and it is dropped a step later. That was silent
+until now and is warned about separately; four CBS names and 14 of the
+710 trade item codes in <code><a href="cbs_trade_codes.html">whep::cbs_trade_codes</a></code> are affected. The
+screen is therefore explicit where the mapping gap was accidental, and
+it keeps working if the gap is ever filled.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_detailed_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 16</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 17</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
@@ -150,11 +214,12 @@ and is tracked in issue #232.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>005         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 11 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 12 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_code_partner &lt;int&gt;, partner_polity_code &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_name &lt;chr&gt;, partner_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_area_code &lt;int&gt;, element &lt;chr&gt;, item_cbs_code &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

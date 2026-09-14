@@ -89,6 +89,18 @@ columns:
 
 - `value`: The amount of item produced, measured in `unit`.
 
+- `source`: Where the value came from, e.g. `"FAOSTAT_prod"`,
+  `"EuropeAgriDB"`, `"LUH2_cropland"`, `"imputed_yield"`.
+
+- `fao_flag`: FAOSTAT's observation-status code for the value (`"A"`
+  official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), or `NA` where
+  the number is not one FAOSTAT published under a flag. It describes the
+  value rather than the item or area, so it is `NA` on WHEP's computed
+  yields, on the livestock-unit conversions, and on every gap-filled or
+  back-cast row. See
+  [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+  for the full rule.
+
 ## Examples
 
 ``` r

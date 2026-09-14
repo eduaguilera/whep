@@ -150,6 +150,15 @@ build_gridded_landuse(
     (default) or `"polity_area"`. See *Which area code the output is
     keyed on*.
 
+  - `pattern_signal_floor`: The `harvest_fraction` below which a
+    `crop_patterns` cell is treated as float underflow rather than an
+    allocated area, and zeroed before the placement weights are formed.
+    Default `1e-12`, argued from EarthStat's own float32 precision in
+    `.crop_pattern_signal_floor()`. `0` restores the untoleranced
+    behaviour of whep#1070, in which a (country, crop) whose whole
+    pattern is underflow is placed proportional to that underflow
+    instead of uniformly.
+
 ## Value
 
 A tibble with gridded crop (or CFT) harvested areas. Columns:

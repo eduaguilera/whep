@@ -61,6 +61,16 @@ build_water_balance(
   still returned, so the warning changes nothing; `"irrig_share"` does
   not read those cubes).
 
+  `partial_year` is the one member that is a policy rather than a
+  method: what to do when a cell-year does not carry all twelve months,
+  so that summing it to an annual flux would return a total over eleven.
+  `"abort"` (default) refuses, naming the absent cell-months; `"warn"`
+  returns the short sums; `"drop"` excludes the incomplete cell-years,
+  so the year is absent rather than wrong. It is stamped into
+  `method_water` as `partial:<choice>` only when it is not the default,
+  because `"abort"` and `"warn"` return byte-identical numbers and only
+  `"drop"` removes rows a reader could not otherwise account for.
+
 - resolution:
 
   `"grid"` (per cell, default) or `"polity"` (aggregated to `year` and

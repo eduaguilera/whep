@@ -59,6 +59,11 @@ run_spatialize(
   - `max_iterations`, `expansion_threshold`: forwarded to the landuse
     engine.
 
+  - `pattern_signal_floor`: forwarded to the landuse engine as
+    `config$pattern_signal_floor`; the `harvest_fraction` below which a
+    `crop_patterns` cell is float underflow rather than an allocated
+    area. `0` restores the untoleranced behaviour of whep#1070.
+
   - `cft_target`: one of `"whep"` (default for `preset = "whep"`) or
     `"lpjml"` (default for `preset = "lpjml"`). Selects which column of
     [cft_mapping](https://eduaguilera.github.io/whep/reference/cft_mapping.md)

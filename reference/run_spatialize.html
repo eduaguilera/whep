@@ -111,6 +111,10 @@ type-aware allocation.</p></li>
 CFT-aggregated parquet alongside the crop-level output.</p></li>
 <li><p><code>max_iterations</code>, <code>expansion_threshold</code>: forwarded to the
 landuse engine.</p></li>
+<li><p><code>pattern_signal_floor</code>: forwarded to the landuse engine as
+<code>config$pattern_signal_floor</code>; the <code>harvest_fraction</code> below which a
+<code>crop_patterns</code> cell is float underflow rather than an allocated
+area. <code>0</code> restores the untoleranced behaviour of whep#1070.</p></li>
 <li><p><code>cft_target</code>: one of <code>"whep"</code> (default for
 <code>preset = "whep"</code>) or <code>"lpjml"</code> (default for
 <code>preset = "lpjml"</code>). Selects which column of

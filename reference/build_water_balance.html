@@ -141,7 +141,16 @@ left out take their default. <code>"cft_native"</code> warns when the per-CFT cu
 report consumptive blue water on a <em>rainfed</em> band, which no irrigation can
 supply: that is the signature of an LPJmL 6.x run without the green/blue
 fix, whose split is unusable (the numbers are still returned, so the
-warning changes nothing; <code>"irrig_share"</code> does not read those cubes).</p></dd>
+warning changes nothing; <code>"irrig_share"</code> does not read those cubes).</p>
+<p><code>partial_year</code> is the one member that is a policy rather than a method:
+what to do when a cell-year does not carry all twelve months, so that
+summing it to an annual flux would return a total over eleven. <code>"abort"</code>
+(default) refuses, naming the absent cell-months; <code>"warn"</code> returns the
+short sums; <code>"drop"</code> excludes the incomplete cell-years, so the year is
+absent rather than wrong. It is stamped into <code>method_water</code> as
+<code>partial:&lt;choice&gt;</code> only when it is not the default, because <code>"abort"</code> and
+<code>"warn"</code> return byte-identical numbers and only <code>"drop"</code> removes rows a
+reader could not otherwise account for.</p></dd>
 
 
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>

@@ -71,6 +71,7 @@ components (transpiration, evaporation, interception).</p>
 <span>  first_year <span class="op">=</span> <span class="fl">1901L</span>,</span>
 <span>  monthly <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  agg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sum"</span>, <span class="st">"mean"</span><span class="op">)</span>,</span>
+<span>  partial_year <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"abort"</span>, <span class="st">"warn"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -122,6 +123,16 @@ are already one per cell-year-band.</p></dd>
 or <code>"mean"</code> (soil-water default).</p></dd>
 
 
+<dt id="arg-partial-year">partial_year<a class="anchor" aria-label="anchor" href="#arg-partial-year"></a></dt>
+<dd><p>What to do when <code>monthly = FALSE</code> and a cell-year does
+not carry all twelve months, so that aggregating it would silently return
+a total over eleven. <code>"abort"</code> (default) refuses, naming the absent
+cell-months; <code>"warn"</code> returns the short aggregate anyway; <code>"drop"</code> removes
+the incomplete cell-years and reports how many went, so the year is
+<em>absent</em> rather than wrong. Immaterial for the annual per-CFT variables,
+which carry no <code>month</code>. See <em>Partial years</em> below.</p></dd>
+
+
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional pre-read tibble (<code>lon</code>, <code>lat</code>, <code>year</code>, <code>month</code>,
 <code>value</code>, plus <code>layer</code> for <code>"swc"</code> or <code>band</code> for <code>"cft_nir"</code>) used in
@@ -139,6 +150,25 @@ data. Defaults to <code>FALSE</code>.</p></dd>
 for the monthly variables when <code>monthly = TRUE</code>, <code>layer</code> for <code>"swc"</code>, and
 <code>band</code> plus <code>band_name</code> for the per-CFT variables). The annual per-CFT
 consumptive-water variables never carry <code>month</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="partial-years">Partial years<a class="anchor" aria-label="anchor" href="#partial-years"></a></h2>
+
+
+<p>An LPJmL monthly output grows one time step at a time, so a run that was
+interrupted, or is still writing, leaves a final year with fewer than twelve
+steps. Aggregating that year sums <strong>eleven</strong> months and says nothing: no
+value is <code>NA</code>, the row count is unchanged (one row per cell-year either
+way), and every downstream total and identity goes on balancing over the
+eleven. Reproduced on a real 24-month run truncated to 23 with
+<code>ncks -d time,0,22</code>: the second year's summed deep seepage fell 3.05% over
+500 land cells (98,478 to 95,477 mm), with an identical 3,392-row output and
+no <code>NA</code> in any land cell (whep#1073).</p>
+<p>The refusal lives here, at the reader, because this is where the absence is
+created; once the short annual total is downstream it is indistinguishable
+from a measurement. <code>years = </code> was already safe – the coverage check counts
+only whole years, so requesting a partial one aborts – and <code>partial_year</code>
+closes the <code>years = NULL</code> whole-file read that it does not cover.</p>
     </div>
 
     <div class="section level2">

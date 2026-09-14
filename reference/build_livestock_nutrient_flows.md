@@ -91,7 +91,7 @@ gridded <- list(
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
 #> $applied
-#> # A tibble: 5 × 20
+#> # A tibble: 5 × 21
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Solid      
@@ -99,11 +99,11 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Solid      
 #> 4  2020 203       NA            Cropland  15    collected     Liquid     
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 13 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 14 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
-#> #   method_vs <chr>, method_mms <chr>, method_losses <chr>,
-#> #   method_transport <chr>
+#> #   method_vs <chr>, method_forage_n <chr>, method_mms <chr>,
+#> #   method_losses <chr>, method_transport <chr>
 #> 
 #> $losses
 #> # A tibble: 1 × 10
@@ -113,11 +113,11 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # ℹ 3 more variables: n2o_indirect_n <dbl>, c_lost <dbl>, vs_destroyed <dbl>
 #> 
 #> $excretion
-#> # A tibble: 1 × 10
+#> # A tibble: 1 × 11
 #>    year territory sub_territory livestock_category n_intake n_excretion
 #>   <int> <chr>     <lgl>         <chr>                 <dbl>       <dbl>
 #> 1  2020 203       NA            Cattle_milk            15.7        12.6
-#> # ℹ 4 more variables: c_excretion <dbl>, vs_excretion <dbl>,
-#> #   method_n_excretion <chr>, method_vs <chr>
+#> # ℹ 5 more variables: c_excretion <dbl>, vs_excretion <dbl>,
+#> #   method_n_excretion <chr>, method_vs <chr>, method_forage_n <chr>
 #> 
 ```

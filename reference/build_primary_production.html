@@ -154,26 +154,45 @@ of the internal <code>.read_production()</code> step. When supplied, the
 remote-data read is skipped entirely and the pipeline starts from
 <code>.fix_production()</code>. Columns required: <code>year</code>, <code>area</code>, <code>area_code</code>,
 <code>item_prod</code>, <code>item_prod_code</code>, <code>item_cbs</code>, <code>item_cbs_code</code>,
-<code>live_anim</code>, <code>live_anim_code</code>, <code>unit</code>, <code>value</code>, <code>source</code>.
+<code>live_anim</code>, <code>live_anim_code</code>, <code>unit</code>, <code>value</code>, <code>source</code>. <code>fao_flag</code> is
+used when present and completed as <code>NA</code> when it is not.
 Default <code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble with the same columns as <code><a href="get_primary_production.html">get_primary_production()</a></code>:
-<code>year</code>, legacy numeric <code>area_code</code>, numeric <code>polity_area_code</code>,
-<code>reporting_polity_code</code>, <code>reporting_polity_name</code>,
+    <p>A tibble with the columns of <code><a href="get_primary_production.html">get_primary_production()</a></code> plus
+<code>fao_flag</code>: <code>year</code>, legacy numeric <code>area_code</code>, numeric
+<code>polity_area_code</code>, <code>reporting_polity_code</code>, <code>reporting_polity_name</code>,
 <code>reporting_polity_has_geometry</code>, <code>item_prod_code</code>, <code>item_cbs_code</code>,
-<code>live_anim_code</code>, <code>unit</code>, <code>value</code>, and <code>source</code>.
+<code>live_anim_code</code>, <code>unit</code>, <code>value</code>, <code>source</code>, and <code>fao_flag</code>.
 Item names can be recovered via <code><a href="add_item_prod_name.html">add_item_prod_name()</a></code> and related helpers.
 When <code>show_duplicates = TRUE</code>, returns a wide tibble with one
 column per source showing the competing values.</p>
+<p><code>fao_flag</code> is FAOSTAT's own observation-status code for the value (<code>"A"</code>
+official, <code>"E"</code> estimated, <code>"I"</code> imputed, <code>"M"</code>, <code>"X"</code>), and it describes
+the number in <code>value</code> rather than the row's item or area. It is <code>NA</code>
+wherever the number is not one FAOSTAT published under a flag, which is
+most rows that are not <code>unit == "tonnes"</code> or <code>unit == "ha"</code>:</p><ul><li><p>WHEP's own yields (<code>t_ha</code>, <code>t_LU</code>, <code>t_head</code>) are ratios it computes, so
+FAOSTAT's separate Yield flag is not a statement about them;</p></li>
+<li><p><code>LU</code> and <code>heads</code> are livestock-unit conversions summed over an animal's
+products, and <code>slaughtered_heads</code> is one FAOSTAT count split across CBS
+items by shares;</p></li>
+<li><p>a gap-filled, back-cast, imputed or reconstructed value (<code>fill_linear</code>,
+<code>imputed_yield</code>, <code>LUH2_*</code>, <code>EuropeAgriDB</code>, <code>DM_yield_estimate</code>,
+<code>Estimated</code>) is WHEP's estimate, not a reported figure – and a
+<code>FAOSTAT_prod</code> row can still be one of these, because <code>source</code> is
+resolved per key while the flag is resolved per quantity;</p></li>
+<li><p>a value summed or averaged from parts whose flags disagree is dropped
+rather than credited to one of them (whep#581).</p></li>
+</ul><p>Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
+<code>tonnes</code> rows and 88.2% of <code>ha</code> rows.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_primary_production</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 12</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>912       165              165 PAK-1949-1971         Pakistan (1949-1971) </span>
@@ -186,9 +205,9 @@ column per source showing the competing values.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>935       211              211 CHE-1800-2025         Switzerland          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>937         9                9 ARG-1902-2025         Argentina            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>000         9                9 ARG-1902-2025         Argentina            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_prod_code &lt;chr&gt;, item_cbs_code &lt;dbl&gt;, live_anim_code &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;, fao_flag &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

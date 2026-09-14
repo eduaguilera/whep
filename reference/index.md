@@ -892,7 +892,8 @@ the FABIO framework.
 Checks that make footprint, balance and time-series results trustworthy:
 conservation invariants, accounting identities, within-series jump
 detection (the level-2 detector of the AFE data-validation framework),
-and other data-quality diagnostics.
+completeness against an expected key lattice, and other data-quality
+diagnostics.
 
 - [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md)
   : Check footprint conservation against direct extensions.
@@ -904,6 +905,10 @@ and other data-quality diagnostics.
   : Check the commodity balance sheet supply-use identity.
 - [`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
   : Flag implausible year-on-year jumps in a time series.
+- [`check_keys_complete()`](https://eduaguilera.github.io/whep/reference/check_keys_complete.md)
+  : Refuse an aggregate built over an incomplete key lattice
+- [`key_lattice_gaps()`](https://eduaguilera.github.io/whep/reference/key_lattice_gaps.md)
+  : Report the expected keys that no row supplies
 - [`check_fodder_land_share()`](https://eduaguilera.github.io/whep/reference/check_fodder_land_share.md)
   : Check how much arable land the fallow split attributes to fodder
   crops.

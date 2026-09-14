@@ -36,7 +36,9 @@ get_bilateral_trade(
     as the default is kept.
 
   - `"keep"`: keep the flows and take the row and column margins from
-    the reported bilateral data itself instead of from the CBS.
+    the reported bilateral data itself instead of from the CBS. It
+    **refuses** when a kept item's tonnes are not masses; see the *Items
+    with no CBS row* section.
 
   - `"abort"`: fail, so that a refreshed pin cannot introduce unanchored
     items unnoticed.
@@ -199,6 +201,28 @@ downstream consumes the kept rows yet either:
 takes its item dimension from supply-use and the CBS, so an item absent
 from both is ignored by `.build_trade_shares()` regardless of this
 argument.
+
+Those figures are not masses, and that has now been traced to the
+FAOSTAT source (whep#1023). CBS item 5001 is fed by FAOSTAT trade item
+1293 (*Crude organic material n.e.c.*), for which FAOSTAT's aggregate
+*Trade: Crops and livestock products* domain publishes a value but no
+country-level mass, while its Detailed Trade Matrix reports tonnages
+worth USD 0.01-0.5 per tonne whose mirrored report of the same flow
+disagrees by factors of 356 to 838,000. What the large side counts is
+unverified and the implied units per tonne are not constant, so nothing
+can be rescaled. See
+[`build_detailed_trade()`](https://eduaguilera.github.io/whep/reference/build_detailed_trade.md)'s
+*Quantities FAOSTAT does not back with a mass* section for the full
+measurement.
+
+`"keep"` therefore **aborts** with class `"whep_unbacked_mass_trade"`
+when the items it would keep include one of those, rather than
+distributing 2.58 Gt through a matrix. `"drop"`, the default, is
+unaffected, and so is every published number: item 5001 has no CBS row,
+so the default already removes it. A caller who wants a trade matrix
+that carries item 5001 has to obtain a mass for it first;
+[`build_detailed_trade()`](https://eduaguilera.github.io/whep/reference/build_detailed_trade.md)
+screens the same rows at the producer, where the fix belongs.
 
 ## Examples
 

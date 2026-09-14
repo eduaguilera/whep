@@ -104,6 +104,14 @@ for livestock.</p></li>
 <li><p><code>t_LU</code>: tonnes per Livestock Unit, available for livestock products.</p></li>
 </ul></li>
 <li><p><code>value</code>: The amount of item produced, measured in <code>unit</code>.</p></li>
+<li><p><code>source</code>: Where the value came from, e.g. <code>"FAOSTAT_prod"</code>,
+<code>"EuropeAgriDB"</code>, <code>"LUH2_cropland"</code>, <code>"imputed_yield"</code>.</p></li>
+<li><p><code>fao_flag</code>: FAOSTAT's observation-status code for the value (<code>"A"</code>
+official, <code>"E"</code> estimated, <code>"I"</code> imputed, <code>"M"</code>, <code>"X"</code>), or <code>NA</code> where
+the number is not one FAOSTAT published under a flag. It describes the
+value rather than the item or area, so it is <code>NA</code> on WHEP's computed
+yields, on the livestock-unit conversions, and on every gap-filled or
+back-cast row. See <code><a href="build_primary_production.html">build_primary_production()</a></code> for the full rule.</p></li>
 </ul></div>
 
     <div class="section level2">

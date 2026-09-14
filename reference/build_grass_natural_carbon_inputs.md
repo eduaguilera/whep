@@ -31,6 +31,7 @@ build_grass_natural_carbon_inputs(
   data = list(),
   years = NULL,
   run_dir = NULL,
+  excreta_area_basis = c("luh2_grassland", "charged_grassland", "luh2_all_grassland"),
   example = FALSE
 )
 ```
@@ -83,6 +84,13 @@ natural carbon inputs per the WHEP historical carbon-balance design.
   `NULL` (default) uses `WHEP_LPJML_RUN_DIR` when set, and the pinned
   artifact otherwise.
 
+- excreta_area_basis:
+
+  Which grassland hectares the polity's grazing excreta carbon is
+  divided by: `"luh2_grassland"` (default), `"charged_grassland"` or
+  `"luh2_all_grassland"`. See the section below; the choice is recorded
+  in `method_excreta_area`.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -92,9 +100,67 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
-`c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-`land_use` in `"grassland"` and `"natural"`, plus the polity columns
-below.
+`c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
+`method_excreta_area`, for `land_use` in `"grassland"` and `"natural"`,
+plus the polity columns below.
+
+## Which grassland hectares the grazing excreta is divided by
+
+The excreta carbon is a polity total, so it becomes a per-hectare
+density by division, and `excreta_area_basis` picks the hectares to
+divide by. It matters because the density is charged only to cells where
+LPJmL wrote a grassland stand, while the divisor has always been the
+polity's **whole** LUH2 grassland area, and
+[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+then multiplies the density by the LUH2 grassland area of each charged
+cell. Whatever the uncharged hectares would have received is therefore
+lost.
+
+Measured on the `lpjml-grass-natural-net-c` pin against
+[`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
+the cells with a grassland stand hold 98.6% of the LUH2 grassland area
+at 2010 (98.4% at 1960, 98.6% at 2020), leaving 46.6 Mha uncharged at
+2010. How much excreta carbon that loses depends on where the herds are:
+1.4% if excreta is proportional to grassland area, 13.8% under an
+equal-carbon-per-polity probe, because the shortfall is concentrated in
+small polities — 101 of 188 lose more than 1%, 53 more than 10%, 7 more
+than half, and 13 (islands and city states, each under 0.01 Mha of
+grassland) have no grassland stand at all and lose everything. The
+reverse gap is negligible: 6 of 42,391 grassland cell-rows at 2010 have
+no LUH2 grassland row.
+
+The three bases are alternatives, not fallbacks, and the chosen one is
+recorded in `method_excreta_area`:
+
+- `"luh2_grassland"` (default, the published behaviour): divide by the
+  polity's whole LUH2 grassland area. Does **not** conserve the polity's
+  excreta carbon whenever a grassland hectare carries no LPJmL stand.
+
+- `"charged_grassland"`: divide by the LUH2 grassland area of the cells
+  the density is actually charged to, so every polity that has a
+  grassland stand keeps its whole excreta carbon by construction. Raises
+  the density on those cells by the reciprocal of the coverage above
+  (1.4% globally on an area weighting, up to 17x in the worst measured
+  polity) and leaves the uncovered hectares at zero, as they already are
+  for net primary production. A polity with no grassland stand anywhere
+  still loses all of its excreta — there is nowhere to charge it — which
+  on the probe above is 13 polities and 6.9% of the carbon.
+
+- `"luh2_all_grassland"`: keep the whole-area divisor and emit a
+  grassland row for every LUH2 grassland cell instead, carrying zero net
+  primary production where LPJmL has no stand (4,117 extra rows at 2010,
+  8.8% more grassland rows). The only basis that conserves the excreta
+  carbon globally, and it keeps the original spatial spread, at the cost
+  of grassland rows in cells the LPJmL run does not simulate as
+  grassland.
+
+Dividing by the LPJmL grassland **stand** area is deliberately not
+offered. It would conserve nothing under the area basis
+[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+actually uses, and it would buy little: measured at 1901 the stand area
+and the LUH2 grassland area agree to a median 0.1% per cell (95.5% of
+shared cells within 10%, global totals 1560.5 against 1576.0 Mha),
+because WHEP's LPJmL land-use forcing is itself LUH2-derived.
 
 ## Polity columns
 
@@ -151,14 +217,14 @@ extra column.
 
 ``` r
 build_grass_natural_carbon_inputs(example = TRUE)
-#> # A tibble: 4 × 12
+#> # A tibble: 4 × 13
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2000        84               84 GRC-1947-2025         Greece (1947-2025)   
 #> 2  2000        84               84 GRC-1947-2025         Greece (1947-2025)   
 #> 3  2000         9                9 ARG-1902-2025         Argentina            
 #> 4  2000         9                9 ARG-1902-2025         Argentina            
-#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, land_use <chr>, c_input_mgc_ha_yr <dbl>,
-#> #   humified_fraction <dbl>, method_c_input <chr>
+#> #   humified_fraction <dbl>, method_c_input <chr>, method_excreta_area <chr>
 ```

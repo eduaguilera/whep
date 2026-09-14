@@ -230,9 +230,9 @@ calculate_lmdi(
 #> # A tibble: 3 × 5
 #>   period    component_type factor_label additive multiplicative
 #>   <chr>     <chr>          <chr>           <dbl>          <dbl>
-#> 1 2010-2013 factor         activity           30            1.3
-#> 2 2010-2013 factor         intensity           0            1  
-#> 3 2010-2013 target         emissions          30            1.3
+#> 1 2010-2013 factor         activity         30.0            1.3
+#> 2 2010-2013 factor         intensity         0              1  
+#> 3 2010-2013 target         emissions        30              1.3
 
 # --- 3. Year-over-year AND one cumulative summary period ---
 # Use periods_2 to append an extra comparison period alongside the
@@ -264,7 +264,7 @@ calculate_lmdi(
 #>  7 2012-2013 factor         activity         9.50          1.08 
 #>  8 2012-2013 factor         intensity       12.5           1.11 
 #>  9 2012-2013 target         emissions       22             1.20 
-#> 10 2010-2013 factor         activity        30             1.3  
+#> 10 2010-2013 factor         activity        30.0           1.3  
 #> 11 2010-2013 factor         intensity        0             1    
 #> 12 2010-2013 target         emissions       30             1.3  
 
@@ -304,10 +304,10 @@ calculate_lmdi(
 #>  4 ESP     2011-2012 factor         activity         10.5          1.09 
 #>  5 ESP     2011-2012 factor         intensity       -11.5          0.909
 #>  6 ESP     2011-2012 target         emissions        -1            0.992
-#>  7 FRA     2010-2011 factor         activity         10            1.1  
+#>  7 FRA     2010-2011 factor         activity         10.0          1.1  
 #>  8 FRA     2010-2011 factor         intensity         0            1    
 #>  9 FRA     2010-2011 target         emissions        10            1.1  
-#> 10 FRA     2011-2012 factor         activity         10            1.09 
+#> 10 FRA     2011-2012 factor         activity         10.0          1.09 
 #> 11 FRA     2011-2012 factor         intensity         0            1    
 #> 12 FRA     2011-2012 target         emissions        10            1.09 
 
@@ -444,15 +444,15 @@ calculate_lmdi(
 #> # A tibble: 30 × 5
 #>    period    component_type factor_label additive multiplicative
 #>    <chr>     <chr>          <chr>           <dbl>          <dbl>
-#>  1 2010-2011 factor         activity            5           1.05
-#>  2 2010-2011 factor         intensity           0           1   
-#>  3 2010-2011 target         emissions           5           1.05
-#>  4 2011-2012 factor         activity           10           1.09
-#>  5 2011-2012 factor         intensity           0           1   
-#>  6 2011-2012 target         emissions          10           1.09
-#>  7 2012-2013 factor         activity           10           1.08
-#>  8 2012-2013 factor         intensity           0           1   
-#>  9 2012-2013 target         emissions          10           1.08
-#> 10 2013-2014 factor         activity           10           1.08
+#>  1 2010-2011 factor         activity         5.00           1.05
+#>  2 2010-2011 factor         intensity        0              1   
+#>  3 2010-2011 target         emissions        5              1.05
+#>  4 2011-2012 factor         activity        10.0            1.09
+#>  5 2011-2012 factor         intensity        0              1   
+#>  6 2011-2012 target         emissions       10              1.09
+#>  7 2012-2013 factor         activity        10              1.08
+#>  8 2012-2013 factor         intensity        0              1   
+#>  9 2012-2013 target         emissions       10              1.08
+#> 10 2013-2014 factor         activity        10.0            1.08
 #> # ℹ 20 more rows
 ```

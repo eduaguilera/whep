@@ -135,6 +135,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/check_arable_composition.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_fodder_land_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_footprint_conservation.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/check_keys_complete.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_parquet_integrity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_series_jumps.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_supply_use_balance.html</loc></url>
@@ -259,6 +260,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prim.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prod.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/items_prod_full.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/key_lattice_gaps.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/lassaletta_grassland_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/liv_lu_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_constants.html</loc></url>
@@ -379,5 +381,6 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_read_file.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/write_parquet_checked.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/write_table_checked.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/ropensci-presubmission-enquiry.html</loc></url>
 </urlset>
 

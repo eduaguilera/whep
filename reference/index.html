@@ -2322,7 +2322,7 @@
       </dl></div><div class="section level2">
       <h2 id="trustworthiness-and-quality-control">Trustworthiness and quality control<a class="anchor" aria-label="anchor" href="#trustworthiness-and-quality-control"></a></h2>
 
-      <div class="section-desc"><p>Checks that make footprint, balance and time-series results trustworthy: conservation invariants, accounting identities, within-series jump detection (the level-2 detector of the AFE data-validation framework), and other data-quality diagnostics.</p></div>
+      <div class="section-desc"><p>Checks that make footprint, balance and time-series results trustworthy: conservation invariants, accounting identities, within-series jump detection (the level-2 detector of the AFE data-validation framework), completeness against an expected key lattice, and other data-quality diagnostics.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -2363,6 +2363,20 @@
 
         </dt>
         <dd>Flag implausible year-on-year jumps in a time series.</dd>
+
+        <dt>
+
+          <code><a href="check_keys_complete.html">check_keys_complete()</a></code>
+
+        </dt>
+        <dd>Refuse an aggregate built over an incomplete key lattice</dd>
+
+        <dt>
+
+          <code><a href="key_lattice_gaps.html">key_lattice_gaps()</a></code>
+
+        </dt>
+        <dd>Report the expected keys that no row supplies</dd>
 
         <dt>
 

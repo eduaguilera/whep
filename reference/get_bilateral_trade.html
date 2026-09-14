@@ -72,7 +72,9 @@ against. See the <em>Items with no CBS row</em> section. One of:</p><ul><li><p><
 behaviour. Published values are unaffected by this argument's
 existence as long as the default is kept.</p></li>
 <li><p><code>"keep"</code>: keep the flows and take the row and column margins from
-the reported bilateral data itself instead of from the CBS.</p></li>
+the reported bilateral data itself instead of from the CBS. It
+<strong>refuses</strong> when a kept item's tonnes are not masses; see the
+<em>Items with no CBS row</em> section.</p></li>
 <li><p><code>"abort"</code>: fail, so that a refreshed pin cannot introduce
 unanchored items unnoticed.</p></li>
 </ul><p><code>example = TRUE</code> always returns the <code>"drop"</code> fixture.</p></dd>
@@ -191,6 +193,25 @@ sourced disaggregation key that does not exist in the package. Nothing
 downstream consumes the kept rows yet either: <code><a href="build_io_model.html">build_io_model()</a></code> takes
 its item dimension from supply-use and the CBS, so an item absent from
 both is ignored by <code>.build_trade_shares()</code> regardless of this argument.</p>
+<p>Those figures are not masses, and that has now been traced to the
+FAOSTAT source (whep#1023). CBS item 5001 is fed by FAOSTAT trade item
+1293 (<em>Crude organic material n.e.c.</em>), for which FAOSTAT's aggregate
+<em>Trade: Crops and livestock products</em> domain publishes a value but no
+country-level mass, while its Detailed Trade Matrix reports tonnages
+worth USD 0.01-0.5 per tonne whose mirrored report of the same flow
+disagrees by factors of 356 to 838,000. What the large side
+counts is unverified and the implied units per tonne are not constant,
+so nothing can be rescaled. See
+<code><a href="build_detailed_trade.html">build_detailed_trade()</a></code>'s <em>Quantities FAOSTAT does not back with a
+mass</em> section for the full measurement.</p>
+<p><code>"keep"</code> therefore <strong>aborts</strong> with class
+<code>"whep_unbacked_mass_trade"</code> when the items it would keep include one
+of those, rather than distributing 2.58 Gt through a matrix. <code>"drop"</code>,
+the default, is unaffected, and so is every published number: item
+5001 has no CBS row, so the default already removes it. A caller who
+wants a trade matrix that carries item 5001 has to obtain a mass for it
+first; <code><a href="build_detailed_trade.html">build_detailed_trade()</a></code> screens the same rows at the producer,
+where the fix belongs.</p>
     </div>
 
     <div class="section level2">

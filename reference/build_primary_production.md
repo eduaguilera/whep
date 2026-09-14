@@ -112,26 +112,52 @@ build_primary_production(
   skipped entirely and the pipeline starts from `.fix_production()`.
   Columns required: `year`, `area`, `area_code`, `item_prod`,
   `item_prod_code`, `item_cbs`, `item_cbs_code`, `live_anim`,
-  `live_anim_code`, `unit`, `value`, `source`. Default `NULL`.
+  `live_anim_code`, `unit`, `value`, `source`. `fao_flag` is used when
+  present and completed as `NA` when it is not. Default `NULL`.
 
 ## Value
 
-A tibble with the same columns as
-[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md):
-`year`, legacy numeric `area_code`, numeric `polity_area_code`,
-`reporting_polity_code`, `reporting_polity_name`,
+A tibble with the columns of
+[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+plus `fao_flag`: `year`, legacy numeric `area_code`, numeric
+`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
 `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
-`live_anim_code`, `unit`, `value`, and `source`. Item names can be
-recovered via
+`live_anim_code`, `unit`, `value`, `source`, and `fao_flag`. Item names
+can be recovered via
 [`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md)
 and related helpers. When `show_duplicates = TRUE`, returns a wide
 tibble with one column per source showing the competing values.
+
+`fao_flag` is FAOSTAT's own observation-status code for the value (`"A"`
+official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), and it
+describes the number in `value` rather than the row's item or area. It
+is `NA` wherever the number is not one FAOSTAT published under a flag,
+which is most rows that are not `unit == "tonnes"` or `unit == "ha"`:
+
+- WHEP's own yields (`t_ha`, `t_LU`, `t_head`) are ratios it computes,
+  so FAOSTAT's separate Yield flag is not a statement about them;
+
+- `LU` and `heads` are livestock-unit conversions summed over an
+  animal's products, and `slaughtered_heads` is one FAOSTAT count split
+  across CBS items by shares;
+
+- a gap-filled, back-cast, imputed or reconstructed value
+  (`fill_linear`, `imputed_yield`, `LUH2_*`, `EuropeAgriDB`,
+  `DM_yield_estimate`, `Estimated`) is WHEP's estimate, not a reported
+  figure – and a `FAOSTAT_prod` row can still be one of these, because
+  `source` is resolved per key while the flag is resolved per quantity;
+
+- a value summed or averaged from parts whose flags disagree is dropped
+  rather than credited to one of them (whep#581).
+
+Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
+`tonnes` rows and 88.2% of `ha` rows.
 
 ## Examples
 
 ``` r
 build_primary_production(example = TRUE)
-#> # A tibble: 10 × 12
+#> # A tibble: 10 × 13
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <dbl>     <dbl>            <int> <chr>                 <chr>                
 #>  1  1912       165              165 PAK-1949-1971         Pakistan (1949-1971) 
@@ -144,7 +170,7 @@ build_primary_production(example = TRUE)
 #>  8  1935       211              211 CHE-1800-2025         Switzerland          
 #>  9  1937         9                9 ARG-1902-2025         Argentina            
 #> 10  2000         9                9 ARG-1902-2025         Argentina            
-#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_prod_code <chr>, item_cbs_code <dbl>, live_anim_code <chr>,
-#> #   unit <chr>, value <dbl>, source <chr>
+#> #   unit <chr>, value <dbl>, source <chr>, fao_flag <chr>
 ```

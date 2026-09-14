@@ -105,6 +105,7 @@ the cell porosity). Clay content is a soil-texture covariate supplied via
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  partial_year <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"abort"</span>, <span class="st">"warn"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -139,6 +140,16 @@ codes involved. <code>"flag"</code> keeps them and adds the per-row logical
 <code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
 See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
 already-built table.</p></dd>
+
+
+<dt id="arg-partial-year">partial_year<a class="anchor" aria-label="anchor" href="#arg-partial-year"></a></dt>
+<dd><p>What to do when a cell-year does not carry all twelve
+months by the time <code>water_balance_mm</code> is summed. A cell-month survives to
+that point only if CRU temperature, CRU PET, LPJmL precipitation and LPJmL
+irrigation all carry it, so an inner join can strip one and the annual
+surplus is then summed over eleven with nothing <code>NA</code> and no row visibly
+lost. <code>"abort"</code> (default) refuses, naming the absent cell-months; <code>"warn"</code>
+returns the short sums; <code>"drop"</code> excludes the affected cell-years.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>

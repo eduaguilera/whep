@@ -23,6 +23,7 @@ build_commodity_balances(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
   .fixed_data = NULL
 )
 ```
@@ -113,6 +114,28 @@ build_commodity_balances(
   26,538 published rows over 180 areas; see `NEWS.md`. The conflict
   count is reported by every build under either setting.
 
+- share_overflow:
+
+  One of `"report"` (default), `"clamp"`, `"drop"` or `"abort"`,
+  selecting what happens when a pre-1962 destiny share exceeds 1 — a
+  destiny larger than the `domestic_supply` it is apportioned from
+  (whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows
+  do: `other_uses` 70, `processing_primary` 19, `food` 15, `feed` 4.
+  They are 1.03% of the 1961 `other_uses` mass and 0.17% of the `food`
+  mass. The cause is not this arithmetic: 89 of them are FAOSTAT's own
+  1961 balances not closing (the non-food Commodity Balances, which
+  carry tobacco, hides and skins, silk, wool and fibres as `other_uses`
+  and which no better-ranked source overwrites), and the other 19 are
+  hops in net-exporting years, whose `processing_primary` is the whole
+  production by construction. `"report"` therefore keeps every value as
+  measured and only warns, so it **moves no published value**; it names
+  the count, the split by destiny and the three largest. `"clamp"` caps
+  the share at 1, `"drop"` sets it to `NA` so the key is filled from a
+  neighbouring year instead (and booked as 0 where the violating year is
+  the only observation), and `"abort"` refuses to build. Which of those
+  is right is an open question — see whep#980 — so the reporting default
+  is the one that invents nothing.
+
 - .fixed_data:
 
   Optional tibble with the same structure as the output of the internal
@@ -130,6 +153,18 @@ For `format = "long"`, a tibble with columns: `year`, legacy numeric
 become one column each, `stock_variation` is split into the non-negative
 `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total
 use excluding `export`.
+
+`fao_flag` is FAOSTAT's own observation-status code for the value, taken
+from the source that `source` names (`"A"` official, `"E"` estimated,
+`"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever
+the number is not one FAOSTAT published under a flag: a WHEP-derived row
+(the processing pathway, the destiny gap-fills, the pre-1961 historical
+extension), a row whose source carries no flag, and a row summed or
+averaged from parts whose flags disagree. The flag is a claim about the
+value, so it is dropped rather than guessed when the parts do not agree.
+Rows sourced from `"FAOSTAT_prod"` are `NA` today because
+[`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+does not carry the flag out of the production pin.
 
 ## Examples
 

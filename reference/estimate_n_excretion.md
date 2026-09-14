@@ -41,6 +41,13 @@ estimate_n_excretion(intake, options = list())
   - `method_vs`: `"intake_digestibility"` (default,
     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
 
+  - `forage_n`: nitrogen content of the grazed forage that intake rows
+    with no `item_cbs_code` take. `"assumed_midrange"` (default, 0.02 kg
+    N/kg DM, an assumed unverified value), `"gleam_grass_fresh"`
+    (0.022), `"gleam_grass_hay"` (0.017) and `"gleam_grass_mean"` from
+    GLEAM 3.0 Supplement S1 Tab. S.3.3, or `"biomass_coefs_grass"`
+    (0.0174) from the `bio_coefs` `Grass` row.
+
   - `product_n`: a tibble (`year`, `territory`, `sub_territory`,
     `livestock_category`, `product_n`) required by
     `"intake_minus_product_n"`.
@@ -50,7 +57,7 @@ estimate_n_excretion(intake, options = list())
 A tibble with one row per
 `year x territory x sub_territory x livestock_category` and columns
 `n_intake`, `n_excretion`, `c_excretion`, `vs_excretion`,
-`method_n_excretion` and `method_vs`.
+`method_n_excretion`, `method_vs` and `method_forage_n`.
 
 ## Examples
 
@@ -62,10 +69,10 @@ intake <- tibble::tribble(
   2020L, "203", NA, "Cattle_milk", NA, "grass", 500
 )
 estimate_n_excretion(intake)
-#> # A tibble: 1 × 10
+#> # A tibble: 1 × 11
 #>    year territory sub_territory livestock_category n_intake n_excretion
 #>   <int> <chr>     <lgl>         <chr>                 <dbl>       <dbl>
 #> 1  2020 203       NA            Cattle_milk            11.9        9.49
-#> # ℹ 4 more variables: c_excretion <dbl>, vs_excretion <dbl>,
-#> #   method_n_excretion <chr>, method_vs <chr>
+#> # ℹ 5 more variables: c_excretion <dbl>, vs_excretion <dbl>,
+#> #   method_n_excretion <chr>, method_vs <chr>, method_forage_n <chr>
 ```

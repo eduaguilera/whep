@@ -32,6 +32,7 @@ get_soc_climate_drivers(
   run_dir = NULL,
   years = NULL,
   polity_validity = c("keep", "flag", "drop"),
+  partial_year = c("abort", "warn", "drop"),
   data = list(),
   example = FALSE
 )
@@ -67,6 +68,17 @@ get_soc_climate_drivers(
   changes the numbers. See
   [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
   which reports the same rows for an already-built table.
+
+- partial_year:
+
+  What to do when a cell-year does not carry all twelve months by the
+  time `water_balance_mm` is summed. A cell-month survives to that point
+  only if CRU temperature, CRU PET, LPJmL precipitation and LPJmL
+  irrigation all carry it, so an inner join can strip one and the annual
+  surplus is then summed over eleven with nothing `NA` and no row
+  visibly lost. `"abort"` (default) refuses, naming the absent
+  cell-months; `"warn"` returns the short sums; `"drop"` excludes the
+  affected cell-years.
 
 - data:
 
