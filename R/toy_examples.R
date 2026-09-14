@@ -402,7 +402,10 @@
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
   ) |>
     .add_trade_polity_columns() |>
-    dplyr::mutate(method_unbacked_quantity = "drop")
+    dplyr::mutate(
+      method_unbacked_quantity = "drop",
+      method_head_units = "convert"
+    )
 }
 
 .example_build_trade_prices <- function() {

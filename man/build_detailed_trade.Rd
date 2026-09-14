@@ -10,6 +10,7 @@ build_detailed_trade(
   min_share = 1e-04,
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
+  method_head_units = c("convert", "drop", "abort"),
   example = FALSE
 )
 }
@@ -44,6 +45,23 @@ column as mass.
 unnoticed.
 }}
 
+\item{method_head_units}{How to treat the FAOSTAT rows denominated in
+\verb{1000 Head}. See the \emph{Live animals are reported in two head units}
+section. One of:
+\itemize{
+\item \code{"convert"} (default): rescale them by 1,000 onto \code{heads}, the
+denomination the rest of the live-animal record already uses.
+\item \code{"drop"}: discard them, warning with the head count removed. The
+historical behaviour, which leaves live poultry, rabbit and rodent
+trade out of the record entirely.
+\item \code{"abort"}: fail, so a refreshed pin cannot reintroduce an
+unhandled unit unnoticed.
+}
+
+Any other unit label is dropped under every method, with a
+\code{"whep_unhandled_trade_unit"} warning naming it, and aborts under
+\code{"abort"}. Monetary units are removed silently, on purpose.}
+
 \item{example}{Logical. If \code{TRUE}, return a small example tibble
 without downloading remote data. Default \code{FALSE}.}
 }
@@ -61,6 +79,8 @@ A tibble with columns:
 \item \code{method_unbacked_quantity}: the treatment chosen for quantities
 FAOSTAT does not back with a mass, recorded so a downstream
 consumer can tell which variant it is holding.
+\item \code{method_head_units}: the treatment chosen for the \verb{1000 Head}
+rows, recorded for the same reason.
 }
 }
 \description{
@@ -139,6 +159,33 @@ until now and is warned about separately; four CBS names and 14 of the
 710 trade item codes in \code{whep::cbs_trade_codes} are affected. The
 screen is therefore explicit where the mapping gap was accidental, and
 it keeps working if the gap is ever filled.
+}
+
+\section{Live animals are reported in two head units}{
+
+FAOSTAT denominates live-animal trade in \code{Head} for the large species
+and in \verb{1000 Head} for the small ones, and the unit filter here used to
+cover only the first label. On the \code{faostat-trade-bilateral} pin
+\verb{20260407T095142Z-b3f81} that silently removed \strong{89,073 rows carrying
+76,141,882 thousand head} over 1986-2021 - live chicken, turkey, duck,
+goose, other-bird, rabbit and rodent trade - against the 11,708,244,416
+head the \code{Head} rows carry. It also removed 5,011 \code{No} rows (whep#1092).
+
+\verb{1000 Head} is a decimal prefix the source states, not a coefficient:
+\code{.aggregate_fao_trade_to_cbs()} already rescales its sibling label
+\verb{1000 An} the same way (whep#865). The reported trade \emph{value} of the
+same flows corroborates it - USD 1,408 per \verb{1000 Head} of chickens,
+2,392 for ducks, 2,483 for geese, 3,469 for turkeys and 4,945 for
+rabbits, i.e. USD 1.41-4.95 a bird, against USD 654 per head of cattle,
+105 per pig and 74 per sheep on the \code{Head} rows. Read as single head,
+a live broiler chick would cost USD 1,408. \strong{No head-to-mass factor is
+involved}: head counts stay head counts, on their own \code{unit} key.
+
+The \code{No} rows are a different case and are \strong{not} converted. They are
+FAOSTAT trade item 1181, which \code{whep::cbs_trade_codes} names
+\emph{Beehives} while the pin names it \emph{Bees}, so what the number counts -
+insects, packages or colonies - is not established by the source. They
+are dropped, with the warning every unrecognised label now raises.
 }
 
 \examples{

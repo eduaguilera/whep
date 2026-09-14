@@ -98,11 +98,21 @@ get_wide_cbs <- function(
 #' Units are heads (number of animals).
 #'
 #' @param primary_prod Tibble from [get_primary_production()].
+#' @param method_head_units How the live-animal trade this balance rests
+#'   on treats FAOSTAT's `1000 Head` rows. Passed to
+#'   [build_detailed_trade()]'s helper of the same name; see its *Live
+#'   animals are reported in two head units* section. `"convert"`
+#'   (default) rescales them by 1,000 onto `heads`, `"drop"` discards
+#'   them with a warning, `"abort"` refuses.
 #'
 #' @returns A tibble with the same columns as [get_wide_cbs()].
 #'
 #' @keywords internal
-get_livestock_cbs <- function(primary_prod) {
+get_livestock_cbs <- function(
+  primary_prod,
+  method_head_units = c("convert", "drop", "abort")
+) {
+  head_method <- rlang::arg_match(method_head_units)
   slaughter_livestock <- .slaughter_livestock_items(primary_prod) |>
     dplyr::rename(item_cbs_code = live_anim_code)
 
@@ -118,7 +128,8 @@ get_livestock_cbs <- function(primary_prod) {
     )
 
   live_trade <- .get_livestock_trade_totals(
-    slaughter_livestock$item_cbs_code
+    slaughter_livestock$item_cbs_code,
+    head_method
   )
 
   # A left_join here would drop any (year, area_code, item_cbs_code) that
@@ -218,25 +229,41 @@ get_livestock_cbs <- function(primary_prod) {
 #
 # The head counts this returns are FAOSTAT's, not model output: the
 # `bilateral_trade` pin's values match the raw FAOSTAT Detailed Trade Matrix
-# exactly. They are, however, only FAOSTAT's `Head` rows. The pin drops every
-# `1000 Head` row -- 89,073 rows and 76,141,882 thousand head over 1986-2021,
-# all of it live broiler chicken, turkey, duck, rabbit and goose trade,
-# against the 11,707,083,640 head the pin does carry -- so those species enter
-# the livestock balance with no live trade at all, and `production` below is
-# their slaughter count alone. Reading the raw pin instead would not recover
-# them, because current code applies the same unit filter. Same class as
-# whep#865, which fixed `1000 An` for `faostat-trade-totals` (#1054).
-.get_livestock_trade_totals <- function(livestock_items) {
+# exactly. FAOSTAT reports the small species in `1000 Head`, though, and a
+# bare filter on `"heads"` dropped every one of those rows -- 89,073 rows and
+# 76,141,882 thousand head over 1986-2021, against the 11,707,083,640 head
+# that survived -- so live broiler chicken, turkey, duck, goose, rabbit and
+# rodent trade left without a word, and `production` below collapsed to
+# `slaughtered` alone for exactly the species whose live trade is largest
+# (whep#1092, same class as whep#865, which fixed `1000 An` for
+# `faostat-trade-totals`; surfaced by #1054).
+#
+# `.normalise_trade_units()` is what now makes the `unit == "heads"` filter
+# below cover the whole live-animal record. The pin
+# `20250714T123347Z-2c392` still carries `tonnes` and `Head` only, because
+# its producer applied the same filter, so this changes no published number
+# until that pin is rebuilt from `build_detailed_trade()`; it is the filter,
+# not the pin, that has to stop dropping them first.
+.get_livestock_trade_totals <- function(
+  livestock_items,
+  method_head_units = "convert"
+) {
   btd <- tryCatch(
     "bilateral_trade" |>
       whep_read_file() |>
       .clean_bilateral_trade() |>
+      .normalise_trade_units(method_head_units) |>
       dplyr::filter(
         unit == "heads",
         item_cbs_code %in% livestock_items
       ) |>
       .map_livestock_trade_polities(),
     error = function(e) {
+      # A refused unit is a deliberate stop, not a failed read: let it out
+      # instead of degrading `method_head_units = "abort"` into a warning.
+      if (inherits(e, "whep_unhandled_trade_unit")) {
+        rlang::cnd_signal(e)
+      }
       cli::cli_warn(
         "Could not read bilateral trade for livestock: {e$message}"
       )
