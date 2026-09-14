@@ -3832,3 +3832,160 @@ test_that("a frame with no negative reconstruction is silent", {
     )
   )
 })
+
+# -- historical trade scale screen ---------------------------------------------
+
+# Issue whep#1085. The `historical-trade-*` pins carry a block of USA rows
+# whose `value` is not the tonnage its `"1000 MT"` label claims: item 831,
+# "Tobacco products nes", is published at 115,136 for 1951, i.e. 115.1 Mt of
+# tobacco products exported by one country in a year. The screen bounds a single
+# reporter's pre-1961 flow by the largest WORLD flow FAOSTAT has ever recorded
+# for the same item, which is a measured bound rather than a chosen cap.
+.hist_scale_rows <- function() {
+  tibble::tribble(
+    ~iso3, ~year, ~item_code, ~measurement, ~value,
+    "USA", 1951L, 831,        "1000 MT",    115136,
+    "USA", 1951L, 826,        "1000 MT",    248,
+    "ESP", 1951L, 15,         "1000 MT",    10
+  ) |>
+    data.table::as.data.table()
+}
+
+.hist_scale_reference <- function() {
+  tibble::tribble(
+    ~item_code_trade, ~element, ~world_max,
+    831L,             "export", 9e4,
+    826L,             "export", 5e6,
+    15L,              "export", 2e8
+  ) |>
+    data.table::as.data.table()
+}
+
+.hist_scale_raw <- function() {
+  tibble::tribble(
+    ~year, ~iso3c, ~item_code_trade, ~element, ~value,
+    1951L, "USA",  831L,             "export", 115136e3,
+    1951L, "USA",  826L,             "export", 248e3,
+    1951L, "ESP",  15L,              "export", 10e3
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".screen_hist_trade_scale reports impossible rows and keeps them", {
+  expect_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_raw(),
+      .hist_scale_reference(),
+      method = "report"
+    ),
+    "cannot be the tonnage"
+  )
+
+  expect_equal(nrow(kept), 3L)
+  expect_equal(sum(kept$value), 115136e3 + 248e3 + 10e3)
+})
+
+test_that(".screen_hist_trade_scale drops only the flagged rows", {
+  expect_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_raw(),
+      .hist_scale_reference(),
+      method = "drop"
+    ),
+    "cannot be the tonnage"
+  )
+
+  expect_equal(nrow(kept), 2L)
+  expect_false(831L %in% kept$item_code_trade)
+  expect_setequal(kept$item_code_trade, c(826L, 15L))
+})
+
+test_that(".screen_hist_trade_scale aborts when asked to", {
+  expect_error(
+    whep:::.screen_hist_trade_scale(
+      .hist_scale_raw(),
+      .hist_scale_reference(),
+      method = "abort"
+    ),
+    class = "whep_hist_trade_scale"
+  )
+})
+
+test_that(".screen_hist_trade_scale is silent when nothing is impossible", {
+  plausible <- .hist_scale_raw()[item_code_trade != 831L]
+
+  expect_no_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      plausible,
+      .hist_scale_reference(),
+      method = "report"
+    )
+  )
+  expect_equal(nrow(kept), 2L)
+})
+
+test_that(".screen_hist_trade_scale says so when it has no reference", {
+  expect_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_raw(),
+      .hist_scale_reference()[0L],
+      method = "report"
+    ),
+    "no FAOSTAT world reference"
+  )
+  expect_equal(nrow(kept), 3L)
+})
+
+test_that(".screen_hist_trade_scale rejects an unknown method", {
+  expect_error(
+    whep:::.screen_hist_trade_scale(
+      .hist_scale_raw(),
+      .hist_scale_reference(),
+      method = "clamp"
+    )
+  )
+})
+
+test_that(".hist_trade_world_reference sums FAOSTAT over reporters", {
+  fao_trade <- tibble::tribble(
+    ~year, ~area_code, ~item_code_trade, ~element, ~unit, ~value,
+    1961L, 231L,       831L,             "export", "t",   4722,
+    1961L, 68L,        831L,             "export", "t",   1000,
+    1990L, 231L,       831L,             "export", "t",   20000,
+    1961L, 231L,       1057L,            "export", "An",  5e6,
+    1961L, 231L,       831L,             "import", "t",   576
+  ) |>
+    data.table::as.data.table()
+
+  ref <- whep:::.hist_trade_world_reference(fao_trade)
+
+  exports <- ref[ref$item_code_trade == 831L & ref$element == "export", ]
+  expect_equal(exports$world_max, 20000)
+  # Head counts are not mass and must not become a tonnage bound.
+  expect_false(1057L %in% ref$item_code_trade)
+  expect_true("import" %in% ref$element)
+})
+
+test_that(".read_historical_trade screens against the reference given", {
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      if (pin_alias == "historical-trade-exports") {
+        return(.hist_scale_rows())
+      }
+      .hist_scale_rows()[0L]
+    }
+  )
+
+  expect_warning(
+    dropped <- whep:::.read_historical_trade(
+      reference = .hist_scale_reference(),
+      scale_screen = "drop"
+    ),
+    "cannot be the tonnage"
+  )
+
+  usa_tobacco <- dropped[
+    dropped$area_code == 231L & dropped$item_cbs == "Tobacco",
+  ]
+  expect_equal(sum(usa_tobacco$value), 248e3)
+})

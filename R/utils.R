@@ -2146,6 +2146,11 @@ utils::globalVariables(
     "n_units",
     # build_cbs.R (#1065) — the reconstructed `production + import - export`
     # domestic supply of a pre-1962 row, reported when it comes out negative
-    "computed_supply"
+    "computed_supply",
+    # build_cbs.R (#1085) — the historical-trade scale screen: the per-item
+    # world bound it joins on and the running world sum it is built from
+    "world_max",
+    "i.world_max",
+    "world"
   )
 )
