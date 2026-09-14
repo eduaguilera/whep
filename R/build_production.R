@@ -282,7 +282,7 @@ build_primary_production <- function(
   )
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
-  primary_raw2 <- .assemble_production_raw(yield_all)
+  primary_raw2 <- .assemble_production_raw(yield_all, primary_raw)
 
   historical_rows <- .prepare_historical_production(
     historical_data,
@@ -2391,7 +2391,7 @@ build_primary_production <- function(
 
 # -- Assembly ------------------------------------------------------------------
 
-.assemble_production_raw <- function(yield_all) {
+.assemble_production_raw <- function(yield_all, stocks = NULL) {
   cli::cli_progress_step("Assembling production")
   items <- whep::items_full
 
@@ -2479,13 +2479,9 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::rename(item_prod_code = live_anim_code) |>
-    dplyr::left_join(
-      items |>
-        dplyr::select(item_cbs, item_cbs_code) |>
-        dplyr::mutate(item_prod_code = as.character(item_cbs_code)),
-      by = "item_prod_code"
-    ) |>
-    dplyr::mutate(item_prod = item_cbs)
+    .name_live_anim(items)
+
+  live_anim_df <- .restore_unproduced_stocks(live_anim_df, stocks, items)
 
   dplyr::bind_rows(ha_df, tonnes_df, yield_df) |>
     dplyr::select(-item_prod) |>
@@ -2512,6 +2508,100 @@ build_primary_production <- function(
         as.character(unit)
       )
     )
+}
+
+# Give a live-animal count row its CBS identity. `items_full` keys on the CBS
+# item, and a live animal's `item_prod_code` is that same code as a string.
+.name_live_anim <- function(df, items) {
+  df |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs, item_cbs_code) |>
+        dplyr::mutate(item_prod_code = as.character(item_cbs_code)),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(item_prod = item_cbs)
+}
+
+# Add back the live-animal stocks the yield branch cannot carry (whep#1050).
+#
+# `live_anim_df` above reads the head/LU count off `yield_all`, which reaches a
+# live animal only through its *products*: `.calculate_raw_yields()` joins the
+# stock on to `items_prod_full`'s product rows, and `.impute_missing_values()`
+# then drops any row whose tonnage is missing or zero. So a country that keeps
+# an animal but reports no tonnage for any product of it lost its whole
+# reported herd -- a FAOSTAT-published stock discarded because a *different*
+# quantity was absent. Measured on the 2020 world build: asses 52.17 -> 7.81 M
+# head (124 -> 9 areas), mules 7.88 -> 0.67 M, horses 55.42 -> 39.85 M,
+# 524 M head in all.
+#
+# `stocks` is `primary_raw`, whose "heads" / "LU" rows are
+# `.finalise_livestock()`'s own output, so restoring one asserts nothing new --
+# it re-emits a number the build already had. Rows the yield branch did carry
+# are left exactly as they were: for those, `fu2` *is* the reported stock, so
+# the anti-join changes no value and adds no duplicate.
+.restore_unproduced_stocks <- function(live_anim_df, stocks, items) {
+  if (is.null(stocks) || nrow(stocks) == 0L) {
+    return(live_anim_df)
+  }
+  eligible <- .eligible_stock_rows(stocks)
+  named <- .report_unnamed_live_anim(eligible, items)
+  restored <- named |>
+    dplyr::anti_join(
+      live_anim_df,
+      by = c("year", "area_code", "item_prod_code", "unit")
+    )
+  dplyr::bind_rows(live_anim_df, restored)
+}
+
+# The stock rows eligible for restoration: the curated live animals of
+# `animals_codes`, never FAO's own aggregates. `.combine_livestock()` completes
+# the year axis against every item in the emissions pin, which carries
+# "Sheep and Goats" (1749), "Mules and Asses" (1759), "All Animals" (1755) and
+# others; each is a sum of rows already present, so restoring one would double
+# count the herd. `fao_flag` is NA for the same reason the yield branch gives:
+# the number is `.finalise_livestock()`'s LU/head conversion, not a figure
+# FAOSTAT published under a flag.
+.eligible_stock_rows <- function(stocks) {
+  live_codes <- as.character(whep::animals_codes$item_cbs_code)
+  stocks |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      .data$unit %in% c("LU", "heads"),
+      as.character(.data$item_prod_code) %in% live_codes,
+      !is.na(.data$value),
+      .data$value != 0
+    ) |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      source = .data$source[1L],
+      fao_flag = NA_character_,
+      .by = c("year", "area", "area_code", "item_prod_code", "unit")
+    )
+}
+
+# A live animal with no `items_full` row has no CBS identity, so it cannot be
+# emitted as a production row. Say which one and how much is lost rather than
+# dropping it quietly -- a silent drop of exactly this shape is what hid
+# whep#1050. FAOSTAT's breeding swine (code 1051, "Hogs", 94.0 M head at 2020)
+# are in this class today; giving them an identity is a harmonization-table
+# change, not this one.
+.report_unnamed_live_anim <- function(eligible, items) {
+  named <- .name_live_anim(eligible, items)
+  unnamed <- named |> dplyr::filter(is.na(.data$item_cbs))
+  if (nrow(unnamed) > 0L) {
+    codes <- sort(unique(unnamed$item_prod_code))
+    heads <- round(sum(unnamed$value[unnamed$unit == "heads"], na.rm = TRUE))
+    cli::cli_warn(
+      c(
+        "{cli::qty(length(codes))}Live-animal stock code{?s} {.val {codes}}
+         {cli::qty(length(codes))}{?has/have} no {.field items_full} row.",
+        i = "Its stock is not emitted: {.val {heads}} head at stake."
+      ),
+      class = "whep_warn_unnamed_live_anim"
+    )
+  }
+  named |> dplyr::filter(!is.na(.data$item_cbs))
 }
 
 .prepare_historical_production <- function(historical_data, years) {

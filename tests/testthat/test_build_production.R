@@ -2055,3 +2055,98 @@ test_that(".read_fao_crop_liv reports a pin with no Flag column", {
     class = "whep_warn_missing_prod_flag"
   )
 })
+
+# -- Live-animal stocks with no product tonnage (whep#1050) --------------------
+
+test_that(".assemble_production_raw keeps a stock with no product tonnage", {
+  # Issue whep#1050: head and LU counts were derived from the
+  # yield_all frame, which only carries a live animal where
+  # `items_prod_full` gives it a product AND that product's tonnage
+  # survived `.impute_missing_values()`.
+  # A country that keeps donkeys but reports no donkey meat therefore lost its
+  # whole reported herd. Measured on the 2020 world build, asses fell from
+  # 52.17 M head in 124 areas to 7.81 M in 9, and mules from 7.88 M to 0.67 M.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
+    "t_head", "FAOSTAT_prod", 3, 9, 3
+  )
+  # The same layers stock, plus an asses stock no product row can carry.
+  stocks <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    ~source,
+    2020L, "Spain", 203L, "Chickens, layers", "1052", "heads", 3,
+    "FAOSTAT_prod",
+    2020L, "Spain", 203L, "Asses", "1107", "heads", 50, "FAOSTAT_prod",
+    2020L, "Spain", 203L, "Asses", "1107", "LU", 40, "FAOSTAT_prod"
+  )
+
+  result <- suppressMessages(
+    whep:::.assemble_production_raw(yield_all, stocks)
+  )
+  asses <- result |> dplyr::filter(item_prod_code == "1107")
+
+  expect_equal(sort(asses$value), c(40, 50))
+  expect_setequal(asses$unit, c("LU", "heads"))
+  expect_equal(unique(asses$item_cbs), "Asses")
+  # The layers stock was already carried by the yield branch, so restoring it
+  # must not add a second row: the head count would otherwise double.
+  layers <- result |>
+    dplyr::filter(item_prod_code == "1052", unit == "heads")
+  expect_equal(nrow(layers), 1L)
+  expect_equal(layers$value, 3)
+})
+
+test_that(".assemble_production_raw restores no aggregate live-animal code", {
+  # `.combine_livestock()` completes the year axis against every item in the
+  # emissions pin, which carries FAO's own aggregates ("Sheep and Goats",
+  # "Mules and Asses", "All Animals"). Those are sums of rows already present,
+  # so restoring one would double count the herd. Only the curated live
+  # animals of `animals_codes` are eligible.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
+    "t_head", "FAOSTAT_prod", 3, 9, 3
+  )
+  stocks <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    ~source,
+    2020L, "Spain", 203L, "Sheep and Goats", "1749", "heads", 1e6,
+    "FAOSTAT_prod",
+    2020L, "Spain", 203L, "All Animals", "1755", "heads", 9e6, "FAOSTAT_prod"
+  )
+
+  result <- suppressMessages(
+    whep:::.assemble_production_raw(yield_all, stocks)
+  )
+
+  expect_false(any(result$item_prod_code %in% c("1749", "1755")))
+})
+
+test_that(".assemble_production_raw reports a stock it cannot name", {
+  # A live animal with no `items_full` row cannot be emitted as a production
+  # row at all, because it has no `item_cbs` identity. Dropping it silently is
+  # what hid the defect in the first place, so say so: FAOSTAT's 94.0 M
+  # breeding swine (code 1051, "Hogs") are in this class today.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
+    "t_head", "FAOSTAT_prod", 3, 9, 3
+  )
+  stocks <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    ~source,
+    2020L, "Spain", 203L, "Hogs", "1051", "heads", 1e6, "FAOSTAT_prod"
+  )
+
+  expect_warning(
+    result <- suppressMessages(
+      whep:::.assemble_production_raw(yield_all, stocks)
+    ),
+    class = "whep_warn_unnamed_live_anim"
+  )
+  expect_false(any(result$item_prod_code == "1051"))
+})
