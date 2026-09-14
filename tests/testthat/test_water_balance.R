@@ -1370,3 +1370,245 @@ testthat::test_that("bands does not repartition the cell-level AET split", {
     tolerance = 1e-8
   )
 })
+
+# ---- incomplete cell-month lattices (whep#1073) -----------------------
+#
+# Drop `month` from one of the monthly inputs of .wb_synthetic_monthly(),
+# leaving every other input complete. The result is an absent ROW: nothing is
+# NA, no column is missing and the water budget still closes, because both
+# sides of it are built from the eleven months that arrived.
+.wb_drop_month <- function(inputs, name, month_out) {
+  inputs[[name]] <- dplyr::filter(inputs[[name]], month != month_out)
+  inputs
+}
+
+.wb_budget_closes <- function(wb, tol = 0.01) {
+  resid <- wb$water_input_mm -
+    (wb$aet_mm + wb$runoff_mm + wb$drainage_mm + wb$soil_water_change_mm)
+  all(abs(resid) / wb$water_input_mm < tol)
+}
+
+testthat::test_that("an injected eleven-month flux aborts, budget or no", {
+  syn <- .wb_synthetic_monthly()
+  short <- .wb_drop_month(syn$inputs, "prec", 7L)
+
+  expect_lattice_guard(
+    # The budget still closes on the eleven-month input: water_input_mm is
+    # short by one month of precipitation and the residual method has nothing
+    # to say about it, so no identity in this file notices.
+    well_formed = {
+      wb <- suppressWarnings(whep::build_water_balance(
+        method = list(drainage = "residual", partial_year = "warn"),
+        data = short
+      ))
+      nrow(wb) == 2L && .wb_budget_closes(wb) && !anyNA(wb$water_input_mm)
+    },
+    guard = suppressWarnings(whep::build_water_balance(data = short))
+  )
+})
+
+testthat::test_that("the injected-flux abort names the cell-month", {
+  syn <- .wb_synthetic_monthly()
+  short <- .wb_drop_month(syn$inputs, "runoff", 3L)
+  cnd <- .lattice_cnd(
+    suppressWarnings(whep::build_water_balance(data = short))
+  )
+  testthat::expect_s3_class(cnd, "whep_incomplete_lattice")
+  testthat::expect_setequal(cnd$missing$month, 3L)
+  testthat::expect_equal(nrow(cnd$missing), 2L)
+  testthat::expect_match(conditionMessage(cnd), "runoff")
+})
+
+testthat::test_that("a short flux shifts the annual total it is summed to", {
+  # The magnitude the guard exists to stop: an absent month of runoff is a
+  # twelfth of the year's runoff, and the annual number simply comes out
+  # smaller with nothing to mark it.
+  syn <- .wb_synthetic_monthly()
+  full <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
+  short <- suppressWarnings(whep::build_water_balance(
+    method = list(partial_year = "warn"),
+    data = .wb_drop_month(syn$inputs, "runoff", 3L)
+  ))
+  testthat::expect_equal(
+    unique(short$runoff_mm),
+    unique(full$runoff_mm) * 11 / 12
+  )
+})
+
+testthat::test_that("an absent December becomes November without the guard", {
+  # .wb_swc_column_state() reads the December state as max(month), so dropping
+  # December does not fail: it silently takes November's storage and the
+  # soil-water change term moves.
+  syn <- .wb_synthetic_monthly()
+  short <- .wb_drop_month(syn$inputs, "swc", 12L)
+
+  full <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
+  moved <- suppressWarnings(whep::build_water_balance(
+    method = list(partial_year = "warn"),
+    data = short
+  ))
+  expect_lattice_guard(
+    well_formed = {
+      !anyNA(moved$soil_water_change_mm) &&
+        !isTRUE(all.equal(
+          unique(moved$soil_water_change_mm),
+          unique(full$soil_water_change_mm)
+        ))
+    },
+    guard = suppressWarnings(whep::build_water_balance(data = short))
+  )
+})
+
+testthat::test_that("a mid-year swc hole is not a gap for the boundary term", {
+  # Months 2-11 are genuinely immaterial to a December-minus-January change,
+  # so the expected lattice there is months 1 and 12 and nothing else. A hole
+  # at month 7 must not be refused.
+  syn <- .wb_synthetic_monthly()
+  hole <- .wb_drop_month(syn$inputs, "swc", 7L)
+  full <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
+  kept <- suppressWarnings(whep::build_water_balance(data = hole))
+  testthat::expect_equal(
+    kept$soil_water_change_mm,
+    full$soil_water_change_mm
+  )
+})
+
+testthat::test_that("drop excludes the short cell-years and stamps itself", {
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat)
+  one_cell <- syn$inputs
+  one_cell$prec <- dplyr::filter(
+    one_cell$prec,
+    !(lon == cells$lon[[1L]] & month == 5L)
+  )
+  wb <- suppressWarnings(suppressMessages(whep::build_water_balance(
+    method = list(partial_year = "drop"),
+    data = one_cell
+  )))
+  testthat::expect_equal(nrow(wb), 1L)
+  testthat::expect_equal(wb$lon, cells$lon[[2L]])
+  testthat::expect_true(all(stringr::str_detect(
+    wb$method_water,
+    stringr::fixed("|partial:drop")
+  )))
+})
+
+testthat::test_that("the default policy leaves method_water unstamped", {
+  # partial_year is a refusal policy, not an estimation method: on the default
+  # the numbers are byte-identical, so stamping it would change a published
+  # provenance string for every caller and say nothing.
+  syn <- .wb_synthetic_monthly()
+  wb <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
+  testthat::expect_false(any(
+    stringr::str_detect(wb$method_water, "partial:")
+  ))
+  warned <- suppressWarnings(whep::build_water_balance(
+    method = list(partial_year = "warn"),
+    data = syn$inputs
+  ))
+  testthat::expect_true(all(stringr::str_detect(
+    warned$method_water,
+    stringr::fixed("|partial:warn")
+  )))
+  testthat::expect_equal(warned$water_input_mm, wb$water_input_mm)
+})
+
+testthat::test_that("an unknown partial_year member is rejected", {
+  syn <- .wb_synthetic_monthly()
+  testthat::expect_error(
+    whep::build_water_balance(
+      method = list(partial_year = "ignore"),
+      data = syn$inputs
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a month lost to the SOC driver joins aborts", {
+  # The highest-value site: a cell-month reaches water_balance_mm only if CRU
+  # temperature, CRU PET, LPJmL precipitation and LPJmL irrigation all carry
+  # it, so an inner join can strip one and the annual surplus is then summed
+  # over eleven.
+  data <- .socd_synthetic()
+  short <- data
+  short$irrig <- dplyr::filter(short$irrig, month != 9L)
+
+  expect_lattice_guard(
+    well_formed = {
+      drv <- suppressWarnings(
+        whep::get_soc_climate_drivers(data = short, partial_year = "warn")
+      )
+      # Eleven months per cell-year, no NA, and water_balance_mm is the sum of
+      # exactly the monthly surpluses present -- an internally consistent
+      # table that is simply missing a month of surplus.
+      per_cell <- dplyr::summarise(
+        drv,
+        n_month = dplyr::n_distinct(month),
+        recomputed = sum(water_minus_pet_mm),
+        annual = dplyr::first(water_balance_mm),
+        .by = c(lon, lat, year)
+      )
+      all(per_cell$n_month == 11L) &&
+        !anyNA(drv$water_balance_mm) &&
+        isTRUE(all.equal(per_cell$recomputed, per_cell$annual))
+    },
+    guard = suppressWarnings(whep::get_soc_climate_drivers(data = short))
+  )
+})
+
+testthat::test_that("the SOC driver abort names the source candidates", {
+  data <- .socd_synthetic()
+  data$irrig <- dplyr::filter(data$irrig, month != 9L)
+  cnd <- .lattice_cnd(
+    suppressWarnings(whep::get_soc_climate_drivers(data = data))
+  )
+  testthat::expect_s3_class(cnd, "whep_incomplete_lattice")
+  testthat::expect_setequal(cnd$missing$month, 9L)
+  testthat::expect_match(conditionMessage(cnd), "water_balance_mm")
+  testthat::expect_match(conditionMessage(cnd), "CRU temperature")
+})
+
+testthat::test_that("the SOC drivers shift measurably over eleven months", {
+  data <- .socd_synthetic()
+  full <- suppressWarnings(whep::get_soc_climate_drivers(data = data))
+  short_in <- data
+  short_in$irrig <- dplyr::filter(short_in$irrig, month != 9L)
+  short <- suppressWarnings(
+    whep::get_soc_climate_drivers(data = short_in, partial_year = "warn")
+  )
+  full_annual <- unique(dplyr::filter(full, area_code == 11L)$water_balance_mm)
+  short_annual <- unique(
+    dplyr::filter(short, area_code == 11L)$water_balance_mm
+  )
+  testthat::expect_length(full_annual, 1L)
+  testthat::expect_length(short_annual, 1L)
+  # September's surplus is (60 + 5) - (1 + 2 * 9 / 12) * 30 mm.
+  september <- (60 + 5) - (1 + 2 * 9 / 12) * 30
+  testthat::expect_equal(short_annual, full_annual - september)
+})
+
+testthat::test_that("SOC drivers drop the short cell-years on request", {
+  data <- .socd_synthetic()
+  cells <- dplyr::distinct(data$irrig, lon, lat)
+  data$irrig <- dplyr::filter(
+    data$irrig,
+    !(lon == cells$lon[[1L]] & month == 9L)
+  )
+  drv <- suppressWarnings(suppressMessages(
+    whep::get_soc_climate_drivers(data = data, partial_year = "drop")
+  ))
+  testthat::expect_equal(nrow(drv), 12L)
+  testthat::expect_setequal(unique(drv$lon), cells$lon[[2L]])
+})
+
+testthat::test_that("a complete SOC driver build is silent about lattices", {
+  data <- .socd_synthetic()
+  policies <- c("abort", "warn", "drop")
+  results <- purrr::map(policies, function(policy) {
+    suppressWarnings(suppressMessages(
+      whep::get_soc_climate_drivers(data = data, partial_year = policy)
+    ))
+  })
+  testthat::expect_equal(results[[2]], results[[1]])
+  testthat::expect_equal(results[[3]], results[[1]])
+})
