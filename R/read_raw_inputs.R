@@ -246,6 +246,47 @@
   dt
 }
 
+# FAOSTAT's bulk CSVs label tonnes `t`, and readr's type guesser parses `t`
+# as the logical TRUE (so do `T`, `true` and `True`). A domain whose every row
+# is in tonnes therefore comes out of a plain `readr::read_csv()` with a
+# boolean unit column, and the label is gone: TRUE keeps no trace of the
+# string it was parsed from, so there is nothing to repair at read time, only
+# something to refuse. That is what happened to `faostat-cbs-new`, whose
+# pinned 2026-06-15 release carries TRUE in the `Unit` column of all 127,558
+# rows -- and `.normalise_units()` passed it straight on as the string "TRUE"
+# (whep#1025). Letting one plausible-looking value stand in for a whole
+# source's unit is exactly what makes every unit-keyed guard downstream inert,
+# so abort instead of continuing.
+.assert_unit_labels <- function(unit, pin_alias) {
+  if (is.logical(unit)) {
+    cli::cli_abort(
+      c(
+        "{.val {pin_alias}} has a logical {.field unit} column.",
+        "i" = "A unit read as {.code TRUE}/{.code FALSE} is a type-guess
+               coercion in the pin's producer: readr parses FAOSTAT's tonnes
+               label {.val t} as a logical.",
+        "x" = "The label cannot be recovered from the pin. Re-upload it with
+               explicit character typing; see
+               {.file inst/scripts/prepare_faostat_balances.R}."
+      ),
+      class = "whep_unit_label_coerced"
+    )
+  }
+  blank <- is.na(unit) | !nzchar(stringr::str_squish(as.character(unit)))
+  n_blank <- sum(blank)
+  if (n_blank > 0L) {
+    cli::cli_abort(
+      c(
+        "{.val {pin_alias}} has {cli::qty(n_blank)}{n_blank} row{?s} with no
+         {.field unit} label.",
+        "i" = "Every row must say what its {.field value} is measured in."
+      ),
+      class = "whep_unit_label_missing"
+    )
+  }
+  invisible(unit)
+}
+
 .normalise_units <- function(dt) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
@@ -522,6 +563,8 @@
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
   }
+  # Before anything normalises the label into an ordinary-looking string.
+  .assert_unit_labels(dt$unit, pin_alias)
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
   # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and

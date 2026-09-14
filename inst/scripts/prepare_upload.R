@@ -25,14 +25,23 @@ create_version <- function(data, board, name, ...) {
 
 # Change this accordingly if your data is not CSV.
 # Please make the output a tibble.
-read_input <- function(path, sheet = NULL) {
+#
+# Pass col_types whenever a text column could be mistaken for something else.
+# readr guesses per column from the values it sees, so a label column whose
+# every value happens to be a logical literal is read as a logical: FAOSTAT
+# writes tonnes as "t", and readr parses "t" as TRUE. That is how the
+# faostat-cbs-new pin came to hold TRUE in the Unit column of every one of
+# its rows, destroying the unit label of the whole source (whep#1025).
+# faostat_balance_col_types() in prepare_faostat_balances.R is the spec for
+# the FAOSTAT bulk CSVs; give an equivalent one for any other labelled input.
+read_input <- function(path, sheet = NULL, col_types = NULL) {
   ext <- tools::file_ext(path)
 
   data <-
     if (ext == "rds") {
       readRDS(path)
     } else if (ext == "csv") {
-      readr::read_csv(path, show_col_types = FALSE)
+      readr::read_csv(path, col_types = col_types, show_col_types = FALSE)
     } else {
       readxl::read_excel(path, sheet = sheet)
     }
