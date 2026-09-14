@@ -4273,22 +4273,7 @@ build_processing_coefs <- function(
   )
   dp_mask <- cbs_out$check == FALSE &
     cbs_out$destiny_replacement == "default_prone"
-  cbs_out[
-    dp_mask & default_destiny == "Feed",
-    feed := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Food",
-    food := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Other_uses",
-    other_uses := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Processing",
-    processing := domestic_supply
-  ]
+  cbs_out <- .fill_default_destiny(cbs_out, dp_mask)
   cbs_out[, default_destiny := NULL]
   cbs_out <- .untest_cbs(cbs_out)
 
@@ -4306,6 +4291,62 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# Book the unexplained destiny residual on the item's default destiny.
+#
+# A `default_prone` row is one whose supply side already agrees with
+# `domestic_supply` (`.test_cbs()` sets the flag from `ds_destinies ==
+# balance`), so the only thing left out of balance is the destiny split.
+# Writing the whole `domestic_supply` onto the default column is right when the
+# row carries no other destiny -- the case this repair was written for, and
+# 6420 of the 7000 rows it fires on in a 2009-2024 build. On the other 580 it
+# left the existing split standing and booked domestic supply a second time, so
+# `sum(destinies)` came out at up to 2x `domestic_supply` (whep#996: 17.58 Mt
+# over 338 rows of a 2014-2019 wide CBS, every one of them a cake or molasses
+# item). Assigning the residual instead leaves the all-zero case bit-identical
+# and restores `sum(destinies) == domestic_supply` on the rest, keeping the
+# split the row already reported rather than discarding it -- which matters
+# because the alternative reading, clearing the other destinies, moves 2.1 Mt
+# of palm kernel cake from `feed` to human `food` on one row alone.
+#
+# The residual is floored at 0: on 269 rows of that build the other destinies
+# already exceed `domestic_supply` (by 86 kt in total), and a negative food or
+# feed is not a use. Those rows stay visible to
+# `check_supply_use_balance()` instead.
+.fill_default_destiny <- function(cbs_out, dp_mask) {
+  destinies <- c(
+    "food",
+    "feed",
+    "seed",
+    "other_uses",
+    "processing",
+    "processing_primary"
+  )
+  targets <- c(
+    Feed = "feed",
+    Food = "food",
+    Other_uses = "other_uses",
+    Processing = "processing"
+  )
+
+  for (label in names(targets)) {
+    target <- targets[[label]]
+    rows <- which(dp_mask & cbs_out$default_destiny == label)
+    if (length(rows) == 0L) {
+      next
+    }
+    others <- rowSums(as.matrix(
+      cbs_out[rows, setdiff(destinies, target), with = FALSE]
+    ))
+    data.table::set(
+      cbs_out,
+      i = rows,
+      j = target,
+      value = pmax(cbs_out[["domestic_supply"]][rows] - others, 0)
+    )
+  }
+  cbs_out
 }
 
 # -- Helpers -------------------------------------------------------------------
