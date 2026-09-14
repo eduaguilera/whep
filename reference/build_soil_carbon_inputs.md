@@ -30,6 +30,7 @@ build_soil_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 )
 ```
@@ -78,6 +79,25 @@ build_soil_carbon_inputs(
   manure readers so they slice to the requested years; ignored for
   inputs supplied via `data`.
 
+- method_unspatialized:
+
+  What happens to a polity-crop whose crop has no hectares in the
+  (time-invariant) `crop_patterns` layer. `"reallocate"` (default)
+  spreads that carbon over the polity's crop-pattern cropland cells in
+  proportion to each cell's total cropland area, and puts it on the
+  crop's FAOSTAT national harvested area, so the polity's gridded carbon
+  mass equals its national mass; this is the rule the sibling nitrogen
+  spatialization already applies to the same gap
+  ([`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)).
+  `"drop"` discards it, which is what the package did before and what a
+  caller who prefers a hole to a smear should ask for. Either way the
+  mass and the affected crops are reported, and the choice is recorded
+  in `method_unspatialized`. Reallocation needs a national area to put
+  the carbon on, so a polity-crop with no `harvested_area` row – and a
+  polity with no cell at all in the support, which no rule here can
+  reach (see whep#1002) – is dropped under both methods, reported
+  separately.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -89,7 +109,10 @@ A tibble keyed by `(lon, lat, area_code, item_prod_code, year)` at
 `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-`humified_fraction` and `method_c_input`, plus the polity columns below.
+`humified_fraction`, `method_c_input`, `method_unspatialized` and
+`crop_area_ha` – the crop area at that grain that the per-hectare
+densities are computed on, so a consumer can recover the carbon mass
+without re-deriving the area – plus the polity columns below.
 
 ## Polity columns
 
@@ -146,16 +169,16 @@ extra column.
 
 ``` r
 build_soil_carbon_inputs(example = TRUE)
-#> # A tibble: 4 × 16
+#> # A tibble: 4 × 18
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
 #> 2  2020         1                1 ARM-1991-2025         Armenia              
 #> 3  2020         1                1 ARM-1991-2025         Armenia              
 #> 4  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 11 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
-#> #   lat <dbl>, item_prod_code <chr>, residue_c_mgc_ha_yr <dbl>,
-#> #   root_c_mgc_ha_yr <dbl>, weed_c_mgc_ha_yr <dbl>, manure_c_mgc_ha_yr <dbl>,
-#> #   total_c_input_mgc_ha_yr <dbl>, humified_fraction <dbl>,
-#> #   method_c_input <chr>
+#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, item_prod_code <chr>, crop_area_ha <dbl>,
+#> #   residue_c_mgc_ha_yr <dbl>, root_c_mgc_ha_yr <dbl>, weed_c_mgc_ha_yr <dbl>,
+#> #   manure_c_mgc_ha_yr <dbl>, total_c_input_mgc_ha_yr <dbl>,
+#> #   humified_fraction <dbl>, method_c_input <chr>, method_unspatialized <chr>
 ```

@@ -20,6 +20,7 @@ build_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 )
 ```
@@ -72,6 +73,25 @@ assembled per the WHEP historical carbon-balance design.
   builders so their readers slice to the requested years; ignored for
   inputs supplied via `data`.
 
+- method_unspatialized:
+
+  What happens to a polity-crop whose crop has no hectares in the
+  (time-invariant) `crop_patterns` layer. `"reallocate"` (default)
+  spreads that carbon over the polity's crop-pattern cropland cells in
+  proportion to each cell's total cropland area, and puts it on the
+  crop's FAOSTAT national harvested area, so the polity's gridded carbon
+  mass equals its national mass; this is the rule the sibling nitrogen
+  spatialization already applies to the same gap
+  ([`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)).
+  `"drop"` discards it, which is what the package did before and what a
+  caller who prefers a hole to a smear should ask for. Either way the
+  mass and the affected crops are reported, and the choice is recorded
+  in `method_unspatialized`. Reallocation needs a national area to put
+  the carbon on, so a polity-crop with no `harvested_area` row – and a
+  polity with no cell at all in the support, which no rule here can
+  reach (see whep#1002) – is dropped under both methods, reported
+  separately.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -81,9 +101,11 @@ assembled per the WHEP historical carbon-balance design.
 
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
-`c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-`land_use` in `"cropland"`, `"grassland"` and `"natural"`, plus the
-polity columns below.
+`c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
+`method_unspatialized` (`NA` on the grassland and natural classes, which
+are not spatialized from polity-crop totals), for `land_use` in
+`"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
+below.
 
 ## Polity columns
 
@@ -140,13 +162,13 @@ extra column.
 
 ``` r
 build_carbon_inputs(example = TRUE)
-#> # A tibble: 3 × 12
+#> # A tibble: 3 × 13
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2000         1                1 ARM-1991-2025         Armenia              
 #> 2  2000         1                1 ARM-1991-2025         Armenia              
 #> 3  2000         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, land_use <chr>, c_input_mgc_ha_yr <dbl>,
-#> #   humified_fraction <dbl>, method_c_input <chr>
+#> #   humified_fraction <dbl>, method_c_input <chr>, method_unspatialized <chr>
 ```
