@@ -325,19 +325,26 @@
   )
 }
 
+# The two `fao_flag` values are not invented. Each is the flag the
+# `faostat-production` pin carries on the row whose value this fixture holds:
+# Comoros 1979 "Meat of sheep" Production 33 t and Argentina 2000 "Mangoes,
+# guavas and mangosteens" Area harvested 236 ha are both `I` there. The other
+# eight rows are `NA` because their values are not figures FAOSTAT published
+# under a flag -- an LUH2 back-cast, a WHEP-computed yield, or a stock with no
+# source at all (whep#1044).
 .example_build_primary_prod <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source,
-    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland",
-    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",
-    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland",
-    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",
-    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland",
-    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,
-    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland",
-    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
-    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
-    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source, ~fao_flag,
+    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland", NA_character_,
+    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",  NA_character_,
+    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland", NA_character_,
+    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",  "I",
+    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland", NA_character_,
+    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,   NA_character_,
+    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland", NA_character_,
+    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland", NA_character_,
+    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland", NA_character_,
+    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod",  "I"
   ) |>
     .add_reporting_polity_columns()
 }

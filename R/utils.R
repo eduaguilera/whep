@@ -2126,6 +2126,19 @@ utils::globalVariables(
     # value was selected from, plus the joined-in flag column
     "source_group",
     "n_group_flags",
-    "i.fao_flag"
+    "i.fao_flag",
+    # read_raw_inputs.R / build_production.R (#1044) — carrying the FAOSTAT
+    # observation-status flag from the production pin to the CBS. The two
+    # per-unit flags the yield dcast pivots ("Area harvested" and "Production"
+    # are flagged separately), their update-join counterparts, the grouped
+    # fold's own columns, and the character unit the parked lookup joins on
+    "flag_fu",
+    "flag_t",
+    "i.flag_fu",
+    "i.flag_t",
+    ".n_group_flags",
+    "fao_flag_folded",
+    "i.fao_flag_folded",
+    ".join_unit"
   )
 )
