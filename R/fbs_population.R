@@ -26,6 +26,11 @@
 #   >= 5000 and resolve to no polity, so they drop out with the rest of the
 #   package's area resolution rather than needing their own filter. Measured on
 #   the real pins, every unresolved area is one of those 42 aggregates.
+#   ONE AGGREGATE IS NOT ONE OF THEM: area 351 "China" is numbered below 5000
+#   and lands on a `polity_area_code` of its own while resolving to no polity,
+#   so the bucket filter this file used to apply let it in on top of areas 41,
+#   96, 128 and 214 (whep#939). `.fbs_pop_bucket()` now requires a resolved
+#   polity, not merely a bucket.
 # - Bucketed onto `polity_area_code` the year-aware way, NO bucket-year receives
 #   more than one FAOSTAT area, so nothing is double counted: 62 Ethiopia PDR
 #   (to 1992) and 238 Ethiopia (from 1993) both land on 238 but never in the
@@ -78,7 +83,12 @@
 #' FAOSTAT's regional and grouping aggregates (`World`, `Africa`,
 #' `European Union`, `Least Developed Countries` and 38 others) carry area codes
 #' at or above 5000, resolve to no polity, and are dropped, so they cannot leak
-#' into a per-country denominator.
+#' into a per-country denominator. An area is kept only if it resolves to a
+#' **polity**, not merely to a `polity_area_code` bucket: area 351 "China" is
+#' the aggregate over areas 41, 96, 128 and 214, is numbered below 5000, and
+#' does land on a bucket of its own, so a bucket-only filter admitted it on top
+#' of its four members — 1.46 billion persons in 2021 (#939). Every area
+#' dropped for having a bucket and no polity is named in a message.
 #'
 #' `area_code` is `polity_area_code`, a **bucket, not an identity**, resolved
 #' year by year exactly as the commodity balances resolve it. On the real pins no
@@ -157,16 +167,63 @@ read_fbs_population <- function(years = NULL, data = list(), example = FALSE) {
 # FAOSTAT area code -> `polity_area_code`, year by year. Areas that resolve to
 # no polity are FAOSTAT's own regional and grouping aggregates and are dropped;
 # summing them into a denominator would double count every member.
+#
+# RESOLVING TO A POLITY IS THE TEST, not merely landing on a bucket, and the
+# difference is one area (whep#939). FAOSTAT area 351 "China" is the aggregate
+# over areas 41 mainland, 96 Hong Kong, 128 Macao and 214 Taiwan. Unlike
+# `World` and the continental groupings it carries a code below 5000 and a
+# `polity_area_code` of its own, while the crosswalk marks it `"unmapped"` --
+# "a statistical reporting area without a polygon" -- so a filter on the bucket
+# alone let it through. It then reached `read_population()`'s FBS fill on top of
+# its four members, 1,458,174,600 persons in 2021, and inflated the world sum by
+# 18.5%. Measured on the real pins it is the only area with a bucket and no
+# polity; its value equals the sum of its four members to within 0.011%; and all
+# four are present in every one of the 63 years it appears, so the row can only
+# ever be a duplicate.
 .fbs_pop_bucket <- function(parsed) {
-  parsed |>
-    add_polity_code(code_column = "area_code", year_column = "year") |>
-    dplyr::filter(!is.na(.data$polity_area_code)) |>
+  resolved <- add_polity_code(
+    parsed,
+    code_column = "area_code",
+    year_column = "year"
+  )
+  .fbs_pop_report_aggregates(resolved)
+  resolved |>
+    dplyr::filter(
+      !is.na(.data$polity_area_code),
+      !is.na(.data$polity_code)
+    ) |>
     dplyr::summarise(
       population = sum(.data$population),
       .by = c("year", "polity_area_code", "source_pop", "source_rank")
     ) |>
     dplyr::rename(area_code = "polity_area_code") |>
     dplyr::mutate(area_code = as.integer(.data$area_code))
+}
+
+# Name the areas dropped for holding a bucket code but no polity. The
+# aggregates FAOSTAT numbers at or above 5000 resolve to no bucket either and
+# are the documented, uninteresting drop; an area that reaches a bucket and
+# still has no territory is the one that can otherwise be summed into a
+# denominator, so it is named rather than dropped in silence.
+.fbs_pop_report_aggregates <- function(resolved) {
+  aggregates <- dplyr::filter(
+    resolved,
+    !is.na(.data$polity_area_code),
+    is.na(.data$polity_code)
+  )
+  if (nrow(aggregates) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- sort(unique(aggregates$area_code))
+  cli::cli_inform(c(
+    i = "Dropped {length(codes)} FAOSTAT area{?s} that reach{?es/} a
+         {.field polity_area_code} but resolve{?s/} to no polity:
+         {.val {codes}}.",
+    i = "{cli::qty(length(codes))}{?It is/They are} a statistical aggregate over
+         areas that report separately, so summing {cli::qty(length(codes))}
+         {?it/them} into a population would double count every member."
+  ))
+  invisible(NULL)
 }
 
 # The two vintages overlap over 2010-2013 and disagree there. Keep the newer

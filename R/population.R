@@ -43,6 +43,29 @@
 # `population_source = "pin_wpp_fbs_fallback"` uses it. It stays opt-in because
 # the three sources disagree on the VALUE for such a territory, not only on
 # whether they have one (#862, #863).
+#
+# TERRITORIAL OVERLAP, which no anti-join on `(year, area_code)` can see
+# (#939). Both fills refuse to overwrite a key that is already present, and
+# that is verifiable: across the 28,814 keys the pin produces, both fills return
+# a bitwise-identical slice. It does not follow that the composed table is free
+# of duplicates, because two DIFFERENT codes can name the same ground in the
+# same year. Three shapes were measured on the real inputs:
+#
+# * The pin itself carries `CSK` (1850-1992) and `CZE` (1850-2021), so the
+#   DEFAULT source already reports Czechia inside Czechoslovakia for 143 years
+#   -- 9,570,406 persons in 1961, 0.31% of its own world sum.
+# * The WPP fill adds Russia, Ukraine, Kazakhstan, ... for 1950-1991 beside the
+#   pin's `228 USSR`; Belgium and Luxembourg for 1950-1999 beside `15
+#   Belgium-Luxembourg`; the Yugoslav successors beside `248`; Slovakia beside
+#   `51`. 1961 came out 8.2% high on that alone.
+# * The FBS fill adds `186 Serbia and Montenegro` for 1992-2005 while the WPP
+#   fill has already added `272 Serbia` and `273 Montenegro` for the same
+#   years, and `151 Netherlands Antilles` beside WPP's `279 Curacao`.
+#
+# `.pop_overlap_pairs()` finds these from the polities database's own
+# `successor` relation rather than from a hardcoded list, and
+# `territory_overlap` decides which row survives. That choice is a science
+# decision, not a de-duplication detail: see the argument's documentation.
 
 #' Read national population on WHEP area codes.
 #'
@@ -110,6 +133,17 @@
 #' separately and it carries no WHEP area code (#863). Which of the three a
 #' dissolved federation should be given is an open decision.
 #'
+#' Neither fill can overwrite a key the previous source already has, but an
+#' anti-join on `(year, area_code)` cannot see two **different** codes naming
+#' the same ground in the same year, and all three sources produce such pairs:
+#' the pin reports `167` Czechia inside `51` Czechoslovakia for 1850–1992, the
+#' UN WPP fill adds the Soviet, Yugoslav and Belgium-Luxembourg successor states
+#' in the federation's own years, and the FBS fill adds `186` Serbia and
+#' Montenegro beside the `272`/`273` rows the WPP fill has already added.
+#' `territory_overlap` decides which row survives; the overlaps are found from
+#' the polities database's `successor` relation, so the answer follows upstream
+#' rather than a list kept here (#939).
+#'
 #' Neither ISO3-keyed source can reach an area whose territory no longer exists,
 #' because both are keyed on a present-day ISO3 code. [population_source_reach()]
 #' reports which areas that leaves out and whether the polities database's
@@ -132,12 +166,37 @@
 #'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
 #'   not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then fills what
 #'   neither reaches from [read_fbs_population()].
+#' @param territory_overlap Which row survives when two area codes describe
+#'   overlapping territory in the same year, as a dissolved federation and its
+#'   successor states do. Overlaps are found from the polities database's
+#'   `successor` relation, transitively.
+#'
+#'   * `"federation"` (default) keeps the federation's row and drops the
+#'     successor states' rows in the years the federation reports. WHEP's own
+#'     numerator sits on the federation code in exactly those years — the
+#'     commodity balances carry area 228 for 1961–1991 and Russia only from
+#'     1992, area 51 to 1992 and Czechia only from 1993, area 15 to 1999 and
+#'     Belgium only from 2000 — so this is the row a per-capita divide can
+#'     actually use, and the sum over areas is the territory counted once.
+#'   * `"successors"` keeps the successor states and drops the federation. It
+#'     is the finer grain, and it understates: a successor sum falls 1.5% short
+#'     of the pin's own USSR figure and 17.5% short for the Yugoslav SFR
+#'     (Kosovo, #863), and before 1950 no source has the successors at all, so
+#'     the federation's population is lost rather than redistributed. It also
+#'     removes three areas from the table outright, because they exist only in
+#'     the overlapping years: 51 Czechoslovakia, and — undoing exactly what the
+#'     FBS fill is for — 186 Serbia and Montenegro (#862) and 151 Netherlands
+#'     Antilles (#787).
+#'   * `"none"` composes the sources exactly as before and **warns**. Any sum
+#'     over areas then double counts; use it only to reproduce a number
+#'     published before this argument existed.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
-#' @return A tibble with `year`, `area_code`, `population` (persons) and
-#'   `source_pop`, one row per area code and year, sorted by year then area
-#'   code, plus the polity columns below. `source_pop` carries the pin's own
+#' @return A tibble with `year`, `area_code`, `population` (persons),
+#'   `source_pop` and `method_territory_overlap`, one row per area code and
+#'   year, sorted by year then area code, plus the polity columns below.
+#'   `source_pop` carries the pin's own
 #'   vocabulary (`"Original"`, `"Linear interpolation"`, `"First value carried
 #'   backwards"`), joined with `" + "` when a bucket sums ISO3 codes of
 #'   differing provenance, or `"UN WPP 2024"` for a fallback-filled row. A row
@@ -153,12 +212,14 @@ read_population <- function(
   years = NULL,
   data = list(),
   population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_population())
   }
   population_source <- rlang::arg_match(population_source)
+  territory_overlap <- rlang::arg_match(territory_overlap)
   raw <- data$gdp_population %||% whep_read_file("gdp-population")
   .check_columns(raw, c("Year", "area_code", "pop"), "gdp_population")
   parsed <- .pop_parse(raw, years)
@@ -174,7 +235,8 @@ read_population <- function(
     .pop_fill_from_wpp(population_source, data$wpp_population, years) |>
     .pop_fill_from_fbs(population_source, data$fbs_population, years) |>
     dplyr::arrange(.data$year, .data$area_code) |>
-    .add_reporting_polity_columns()
+    .add_reporting_polity_columns() |>
+    .pop_resolve_overlaps(territory_overlap)
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -294,6 +356,166 @@ read_population <- function(
     fill <- dplyr::filter(fill, .data$year %in% years)
   }
   dplyr::bind_rows(filled, fill)
+}
+
+# ---- Two codes, one territory ----------------------------------------------
+
+# Resolve the territorial overlaps of the composed table and stamp the choice.
+#
+# Which row survives is a science decision and the reason this is an argument
+# rather than a fixed rule: `"federation"` keeps the row WHEP's own numerator is
+# reported on, `"successors"` keeps the finer grain and understates the
+# federation, `"none"` keeps both and warns. See the `territory_overlap`
+# documentation for the numbers behind each.
+.pop_resolve_overlaps <- function(filled, territory_overlap) {
+  overlaps <- .pop_overlap_pairs(filled)
+  .pop_report_overlaps(filled, overlaps, territory_overlap)
+  dropped <- switch(
+    territory_overlap,
+    federation = dplyr::distinct(
+      overlaps,
+      .data$year,
+      area_code = .data$successor_area_code
+    ),
+    successors = dplyr::distinct(
+      overlaps,
+      .data$year,
+      area_code = .data$federation_area_code
+    ),
+    none = NULL
+  )
+  out <- if (is.null(dropped) || nrow(dropped) == 0L) {
+    filled
+  } else {
+    dplyr::anti_join(filled, dropped, by = c("year", "area_code"))
+  }
+  dplyr::mutate(out, method_territory_overlap = .env$territory_overlap)
+}
+
+# The (year, federation area, successor area) triples the table carries, from
+# the polities database's `successor` relation.
+#
+# Keyed on `reporting_polity_code`, which is the column that says which
+# territory a row belongs to and is year-aware, so the same area code can be a
+# federation in one year and a successor in another. `area_code` inequality is
+# what excludes a polity's own later periods: `SRB-2006-2008` succeeds itself
+# as `SRB-2008-2025` and both are area 272, which is a continuation and not an
+# overlap.
+.pop_overlap_pairs <- function(filled) {
+  live <- filled |>
+    dplyr::filter(!is.na(.data$reporting_polity_code)) |>
+    dplyr::distinct(.data$year, .data$area_code, .data$reporting_polity_code)
+  descendants <- .polity_descendant_map(live$reporting_polity_code)
+  edges <- tibble::tibble(
+    reporting_polity_code = rep(names(descendants), lengths(descendants)),
+    successor_polity = unlist(descendants, use.names = FALSE)
+  )
+  live |>
+    dplyr::inner_join(
+      edges,
+      by = "reporting_polity_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(
+        live,
+        "year",
+        successor_area_code = "area_code",
+        successor_polity = "reporting_polity_code"
+      ),
+      by = c("year", "successor_polity"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(.data$area_code != .data$successor_area_code) |>
+    dplyr::distinct(
+      .data$year,
+      federation_area_code = .data$area_code,
+      .data$successor_area_code
+    )
+}
+
+# Say which overlaps were found, which side survived, and how much population
+# moved. Under `"none"` it warns instead of informing: nothing is repaired
+# there, so every sum over areas double counts and that is the one outcome a
+# caller must not learn from a footnote.
+.pop_report_overlaps <- function(filled, overlaps, territory_overlap) {
+  if (nrow(overlaps) == 0L) {
+    return(invisible(NULL))
+  }
+  groups <- .pop_overlap_groups(overlaps)
+  share <- .pop_overlap_share(filled, overlaps, territory_overlap)
+  headline <- "{nrow(groups)} area{?s} in the population table {?carries/carry}
+               territory another area also reports in the same year."
+  detail <- switch(
+    territory_overlap,
+    federation = "Kept the federation and dropped the successor rows in its own
+                  years: {.val {share}}% of the population in the years
+                  affected.",
+    successors = "Kept the successor states and dropped the federation rows:
+                  {.val {share}}% of the population in the years affected.",
+    none = "{.code territory_overlap = \"none\"}, so both sides are kept and
+            any sum over areas double counts {.val {share}}% of the population
+            in the years affected."
+  )
+  emit <- if (territory_overlap == "none") cli::cli_warn else cli::cli_inform
+  emit(c(
+    i = headline,
+    stats::setNames(groups$label, rep("*", nrow(groups))),
+    i = detail
+  ))
+  invisible(NULL)
+}
+
+# One "Name (code, y0-y1) over code, code" bullet per federation area. The name
+# is attached here, at the reporting stage, and only for the message.
+.pop_overlap_groups <- function(overlaps) {
+  overlaps |>
+    dplyr::summarise(
+      first_year = min(.data$year),
+      last_year = max(.data$year),
+      successors = paste(
+        sort(unique(.data$successor_area_code)),
+        collapse = ", "
+      ),
+      .by = "federation_area_code"
+    ) |>
+    dplyr::arrange(.data$federation_area_code) |>
+    dplyr::rename(area_code = "federation_area_code") |>
+    add_area_name() |>
+    dplyr::mutate(
+      label = paste0(
+        dplyr::coalesce(.data$area_name, "unnamed area"),
+        " (",
+        .data$area_code,
+        ", ",
+        .data$first_year,
+        "-",
+        .data$last_year,
+        ") over ",
+        .data$successors
+      )
+    )
+}
+
+# The share of the population in the affected years that the losing side
+# carries. Measured against those years only: diluting it over a table that
+# runs to 2100 would make a 30% duplication read as a rounding error.
+.pop_overlap_share <- function(filled, overlaps, territory_overlap) {
+  losing <- if (territory_overlap == "successors") {
+    dplyr::distinct(
+      overlaps,
+      .data$year,
+      area_code = .data$federation_area_code
+    )
+  } else {
+    dplyr::distinct(overlaps, .data$year, area_code = .data$successor_area_code)
+  }
+  in_range <- dplyr::filter(filled, .data$year %in% unique(overlaps$year))
+  total <- sum(in_range$population)
+  duplicated <- sum(
+    dplyr::semi_join(in_range, losing, by = c("year", "area_code"))$population
+  )
+  if (total > 0) signif(100 * duplicated / total, 3) else NA_real_
 }
 
 # Name the ISO3 codes that carry population but no numeric area_code. These are
@@ -468,5 +690,6 @@ read_population <- function(
     21L,
     196353500
   ) |>
-    .add_reporting_polity_columns()
+    .add_reporting_polity_columns() |>
+    dplyr::mutate(method_territory_overlap = "federation")
 }
