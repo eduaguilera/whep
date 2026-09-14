@@ -1,9 +1,9 @@
 # -----------------------------------------------------------------------
-# prepare_faostat_balances.R
+# prepare_faostat_bulk.R
 #
-# Refreshes the four FAOSTAT balance pins from the official bulk
-# downloads, so a pin version can be traced back to a dated FAO release
-# instead of to whoever last downloaded a file by hand.
+# Refreshes the FAOSTAT-sourced pins from the official bulk downloads, so
+# a pin version can be traced back to a dated FAO release instead of to
+# whoever last downloaded a file by hand.
 #
 # The pins store the bulk CSV verbatim -- the column set that
 # .extract_fao() renames in R/read_raw_inputs.R -- so there is no
@@ -11,9 +11,13 @@
 # re-uploading; FBSH and CBH have not been revised since 2023-03-10 and
 # 2021-12-03 respectively.
 #
+# Was prepare_faostat_balances.R until whep#1098 added the livestock
+# emissions domain, which is not a balance. Nothing outside this file
+# referenced the old names.
+#
 # Usage:
-#   source("inst/scripts/prepare_faostat_balances.R")
-#   balances <- download_faostat_balances(tempdir())
+#   source("inst/scripts/prepare_faostat_bulk.R")
+#   domains <- download_faostat_bulk(tempdir())
 #   # then hand each path to prepare_upload.R's prepare_for_upload()
 #
 # Source: https://bulks-faostat.fao.org/production/datasets_E.json
@@ -22,19 +26,31 @@
 FAOSTAT_BULK_ROOT <- "https://bulks-faostat.fao.org/production/"
 
 # alias: the whep_inputs.csv alias each domain feeds.
-FAOSTAT_BALANCE_DOMAINS <- tibble::tibble(
+#
+# `faostat-emissions-livestock` (GLE) is the one that is not a balance. It is
+# here because it had no builder at all: the registered pin was a hand-made
+# extract that carried only the N-content Elements, so the three emission ones
+# -- "Enteric fermentation (Emissions CH4)", "Manure management (Emissions
+# CH4)" and "Manure management (Emissions N2O)" -- were simply absent, and
+# every consumer read the gap as a literal zero (whep#1016, whep#1098). The
+# bulk archive carries all of them, plus the `Source` column that separates
+# FAO TIER 1 from UNFCCC, so fetching it is what makes the pin reproducible
+# rather than a copy of someone's Downloads folder.
+FAOSTAT_BULK_DOMAINS <- tibble::tibble(
   alias = c(
     "faostat-fbs-new",
     "faostat-fbs-old",
     "faostat-cbs-new",
-    "faostat-cbs-old-crops"
+    "faostat-cbs-old-crops",
+    "faostat-emissions-livestock"
   ),
-  domain = c("FBS", "FBSH", "CB", "CBH"),
+  domain = c("FBS", "FBSH", "CB", "CBH", "GLE"),
   stem = c(
     "FoodBalanceSheets",
     "FoodBalanceSheetsHistoric",
     "CommodityBalances_(non-food)_(2010-)",
-    "CommodityBalances_(non-food)_(-2013_old_methodology)"
+    "CommodityBalances_(non-food)_(-2013_old_methodology)",
+    "Emissions_livestock"
   ),
   archive = paste0(stem, "_E_All_Data_(Normalized).zip")
 )
@@ -85,17 +101,21 @@ FAOSTAT_BALANCE_DOMAINS <- tibble::tibble(
   file.path(dest_dir, data_csv)
 }
 
-#' Download every FAOSTAT balance domain WHEP pins.
+#' Download every FAOSTAT bulk domain WHEP pins.
 #'
 #' @param dest_dir Directory to download and unpack into.
 #' @param aliases Character vector of whep_inputs.csv aliases to fetch.
-#'   Defaults to the two domains FAO still revises.
+#'   Defaults to the domains FAO still revises.
 #' @return A tibble of alias, domain, path and the year range found.
-download_faostat_balances <- function(
+download_faostat_bulk <- function(
   dest_dir,
-  aliases = c("faostat-fbs-new", "faostat-cbs-new")
+  aliases = c(
+    "faostat-fbs-new",
+    "faostat-cbs-new",
+    "faostat-emissions-livestock"
+  )
 ) {
-  wanted <- FAOSTAT_BALANCE_DOMAINS |>
+  wanted <- FAOSTAT_BULK_DOMAINS |>
     dplyr::filter(.data$alias %in% aliases)
   if (nrow(wanted) != length(aliases)) {
     missing <- setdiff(aliases, wanted$alias)
