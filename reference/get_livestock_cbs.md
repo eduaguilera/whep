@@ -16,7 +16,10 @@ Units are heads (number of animals).
 ## Usage
 
 ``` r
-get_livestock_cbs(primary_prod)
+get_livestock_cbs(
+  primary_prod,
+  method_head_units = c("convert", "drop", "abort")
+)
 ```
 
 ## Arguments
@@ -25,6 +28,15 @@ get_livestock_cbs(primary_prod)
 
   Tibble from
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md).
+
+- method_head_units:
+
+  How the live-animal trade this balance rests on treats FAOSTAT's
+  `1000 Head` rows. Passed to
+  [`build_detailed_trade()`](https://eduaguilera.github.io/whep/reference/build_detailed_trade.md)'s
+  helper of the same name; see its *Live animals are reported in two
+  head units* section. `"convert"` (default) rescales them by 1,000 onto
+  `heads`, `"drop"` discards them with a warning, `"abort"` refuses.
 
 ## Value
 

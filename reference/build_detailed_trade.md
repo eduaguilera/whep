@@ -17,6 +17,7 @@ build_detailed_trade(
   min_share = 1e-04,
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
+  method_head_units = c("convert", "drop", "abort"),
   example = FALSE
 )
 ```
@@ -62,6 +63,25 @@ build_detailed_trade(
   - `"abort"`: fail, so a refreshed pin cannot reintroduce them
     unnoticed.
 
+- method_head_units:
+
+  How to treat the FAOSTAT rows denominated in `1000 Head`. See the
+  *Live animals are reported in two head units* section. One of:
+
+  - `"convert"` (default): rescale them by 1,000 onto `heads`, the
+    denomination the rest of the live-animal record already uses.
+
+  - `"drop"`: discard them, warning with the head count removed. The
+    historical behaviour, which leaves live poultry, rabbit and rodent
+    trade out of the record entirely.
+
+  - `"abort"`: fail, so a refreshed pin cannot reintroduce an unhandled
+    unit unnoticed.
+
+  Any other unit label is dropped under every method, with a
+  `"whep_unhandled_trade_unit"` warning naming it, and aborts under
+  `"abort"`. Monetary units are removed silently, on purpose.
+
 - example:
 
   Logical. If `TRUE`, return a small example tibble without downloading
@@ -90,6 +110,9 @@ A tibble with columns:
 - `method_unbacked_quantity`: the treatment chosen for quantities
   FAOSTAT does not back with a mass, recorded so a downstream consumer
   can tell which variant it is holding.
+
+- `method_head_units`: the treatment chosen for the `1000 Head` rows,
+  recorded for the same reason.
 
 ## Time extension is uniform across groups
 
@@ -163,11 +186,39 @@ separately; four CBS names and 14 of the 710 trade item codes in
 are affected. The screen is therefore explicit where the mapping gap was
 accidental, and it keeps working if the gap is ever filled.
 
+## Live animals are reported in two head units
+
+FAOSTAT denominates live-animal trade in `Head` for the large species
+and in `1000 Head` for the small ones, and the unit filter here used to
+cover only the first label. On the `faostat-trade-bilateral` pin
+`20260407T095142Z-b3f81` that silently removed **89,073 rows carrying
+76,141,882 thousand head** over 1986-2021 - live chicken, turkey, duck,
+goose, other-bird, rabbit and rodent trade - against the 11,708,244,416
+head the `Head` rows carry. It also removed 5,011 `No` rows (whep#1092).
+
+`1000 Head` is a decimal prefix the source states, not a coefficient:
+`.aggregate_fao_trade_to_cbs()` already rescales its sibling label
+`1000 An` the same way (whep#865). The reported trade *value* of the
+same flows corroborates it - USD 1,408 per `1000 Head` of chickens,
+2,392 for ducks, 2,483 for geese, 3,469 for turkeys and 4,945 for
+rabbits, i.e. USD 1.41-4.95 a bird, against USD 654 per head of cattle,
+105 per pig and 74 per sheep on the `Head` rows. Read as single head, a
+live broiler chick would cost USD 1,408. **No head-to-mass factor is
+involved**: head counts stay head counts, on their own `unit` key.
+
+The `No` rows are a different case and are **not** converted. They are
+FAOSTAT trade item 1181, which
+[`whep::cbs_trade_codes`](https://eduaguilera.github.io/whep/reference/cbs_trade_codes.md)
+names *Beehives* while the pin names it *Bees*, so what the number
+counts - insects, packages or colonies - is not established by the
+source. They are dropped, with the warning every unrecognised label now
+raises.
+
 ## Examples
 
 ``` r
 build_detailed_trade(example = TRUE)
-#> # A tibble: 10 × 17
+#> # A tibble: 10 × 18
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <int>     <int>            <int> <chr>                 <chr>                
 #>  1  2010         4                4 DZA-1962-2025         Algeria (1962-2025)  
@@ -180,10 +231,10 @@ build_detailed_trade(example = TRUE)
 #>  8  2005         4                4 DZA-1962-2025         Algeria (1962-2025)  
 #>  9  2012       100              100 IND-1949-2025         India                
 #> 10  2012       100              100 IND-1949-2025         India                
-#> # ℹ 12 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>,
 #> #   area_code_partner <int>, partner_polity_code <chr>,
 #> #   partner_polity_name <chr>, partner_polity_has_geometry <lgl>,
 #> #   partner_polity_area_code <int>, element <chr>, item_cbs_code <int>,
 #> #   unit <chr>, value <dbl>, country_share <dbl>,
-#> #   method_unbacked_quantity <chr>
+#> #   method_unbacked_quantity <chr>, method_head_units <chr>
 ```

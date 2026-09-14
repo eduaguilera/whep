@@ -65,6 +65,7 @@ sheet years and gap-filling country shares via linear interpolation.</p>
 <span>  min_share <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  extend_time <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  method_unbacked_quantity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"keep"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
+<span>  method_head_units <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"drop"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -111,6 +112,21 @@ unnoticed.</p></li>
 </ul></dd>
 
 
+<dt id="arg-method-head-units">method_head_units<a class="anchor" aria-label="anchor" href="#arg-method-head-units"></a></dt>
+<dd><p>How to treat the FAOSTAT rows denominated in
+<code>1000 Head</code>. See the <em>Live animals are reported in two head units</em>
+section. One of:</p><ul><li><p><code>"convert"</code> (default): rescale them by 1,000 onto <code>heads</code>, the
+denomination the rest of the live-animal record already uses.</p></li>
+<li><p><code>"drop"</code>: discard them, warning with the head count removed. The
+historical behaviour, which leaves live poultry, rabbit and rodent
+trade out of the record entirely.</p></li>
+<li><p><code>"abort"</code>: fail, so a refreshed pin cannot reintroduce an
+unhandled unit unnoticed.</p></li>
+</ul><p>Any other unit label is dropped under every method, with a
+<code>"whep_unhandled_trade_unit"</code> warning naming it, and aborts under
+<code>"abort"</code>. Monetary units are removed silently, on purpose.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, return a small example tibble
 without downloading remote data. Default <code>FALSE</code>.</p></dd>
@@ -129,6 +145,8 @@ without downloading remote data. Default <code>FALSE</code>.</p></dd>
 <li><p><code>method_unbacked_quantity</code>: the treatment chosen for quantities
 FAOSTAT does not back with a mass, recorded so a downstream
 consumer can tell which variant it is holding.</p></li>
+<li><p><code>method_head_units</code>: the treatment chosen for the <code>1000 Head</code>
+rows, recorded for the same reason.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="time-extension-is-uniform-across-groups">Time extension is uniform across groups<a class="anchor" aria-label="anchor" href="#time-extension-is-uniform-across-groups"></a></h2>
@@ -197,11 +215,37 @@ until now and is warned about separately; four CBS names and 14 of the
 screen is therefore explicit where the mapping gap was accidental, and
 it keeps working if the gap is ever filled.</p>
     </div>
+    <div class="section level2">
+    <h2 id="live-animals-are-reported-in-two-head-units">Live animals are reported in two head units<a class="anchor" aria-label="anchor" href="#live-animals-are-reported-in-two-head-units"></a></h2>
+
+
+<p>FAOSTAT denominates live-animal trade in <code>Head</code> for the large species
+and in <code>1000 Head</code> for the small ones, and the unit filter here used to
+cover only the first label. On the <code>faostat-trade-bilateral</code> pin
+<code>20260407T095142Z-b3f81</code> that silently removed <strong>89,073 rows carrying
+76,141,882 thousand head</strong> over 1986-2021 - live chicken, turkey, duck,
+goose, other-bird, rabbit and rodent trade - against the 11,708,244,416
+head the <code>Head</code> rows carry. It also removed 5,011 <code>No</code> rows (whep#1092).</p>
+<p><code>1000 Head</code> is a decimal prefix the source states, not a coefficient:
+<code>.aggregate_fao_trade_to_cbs()</code> already rescales its sibling label
+<code>1000 An</code> the same way (whep#865). The reported trade <em>value</em> of the
+same flows corroborates it - USD 1,408 per <code>1000 Head</code> of chickens,
+2,392 for ducks, 2,483 for geese, 3,469 for turkeys and 4,945 for
+rabbits, i.e. USD 1.41-4.95 a bird, against USD 654 per head of cattle,
+105 per pig and 74 per sheep on the <code>Head</code> rows. Read as single head,
+a live broiler chick would cost USD 1,408. <strong>No head-to-mass factor is
+involved</strong>: head counts stay head counts, on their own <code>unit</code> key.</p>
+<p>The <code>No</code> rows are a different case and are <strong>not</strong> converted. They are
+FAOSTAT trade item 1181, which <code><a href="cbs_trade_codes.html">whep::cbs_trade_codes</a></code> names
+<em>Beehives</em> while the pin names it <em>Bees</em>, so what the number counts -
+insects, packages or colonies - is not established by the source. They
+are dropped, with the warning every unrecognised label now raises.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_detailed_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 17</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
@@ -214,12 +258,12 @@ it keeps working if the gap is ever filled.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>005         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 12 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_code_partner &lt;int&gt;, partner_polity_code &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_name &lt;chr&gt;, partner_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_area_code &lt;int&gt;, element &lt;chr&gt;, item_cbs_code &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;, method_head_units &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
