@@ -164,7 +164,17 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 71 since whep#599: `.sci_reallocate()` places the cropland carbon whose crop
+  # the crop-pattern map does not carry, instead of dropping it -- 291 Mt C at
+  # 2010, 607 Mt C at 1980, 92% of it fodder. Its two year-free keys read the
+  # SAME single-vintage map the `.sci_join_weights` row above already rests on:
+  # a crop absent from a map with no time dimension is absent in every year, and
+  # the cell support summed from that map has no year either. The crop's own
+  # area, the quantity that does vary, comes from a third join keyed on
+  # `(area_code, item_prod_code, year)`. Both rows leave the ledger when the
+  # three chains stop weighting cells by the static pin (whep#1002).
+  expect_lte(sum(baseline$n), 71L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -260,7 +270,14 @@ test_that("every year-free territorial grouping is classified", {
   # maximum per country to count the pairs whose whole pattern was float
   # underflow. `crop_patterns` has no year axis, and the count only feeds the
   # message.
-  expect_lte(sum(full$n), 81L)
+  #
+  # 84 since whep#599: the carbon reallocation's three groups, all on the same
+  # year-free `crop_patterns` map as the joins recorded with them --
+  # `.sci_cropland_weights()` sums each cell's per-crop areas into its cropland
+  # area and normalises that within the polity, and `.sci_reallocate()` takes
+  # the (area, crop) pairs the map does carry so it can act on the ones it does
+  # not. See the join cap above for why none of the three can be year-keyed.
+  expect_lte(sum(full$n), 84L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
