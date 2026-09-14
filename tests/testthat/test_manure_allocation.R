@@ -403,3 +403,102 @@ test_that("a non-finite applied_n/applied_c/applied_vs aborts up front", {
     class = "whep_manure_applied_non_finite"
   )
 })
+
+# whep#1043: the allocation weight is the one caller-supplied column the entry
+# point never checked, and `.fill_cropland()`'s `sum_w > 0` guard is only safe
+# while every weight is non-negative -- an IEEE sum of non-negative terms is
+# exactly zero iff every term is zero, but a signed sum cancels down to a
+# residue that still passes `> 0`.
+# Measured on the unguarded code, from a single 100 t N collection with caps
+# that bind on nothing:
+#   weights c(6, -4)         -> 300 t N on one crop, -200 t N on the other
+#   weights c(0.1, -0.3, 0.2) -> sum_w = 2.78e-17, shares of order 1e16, and
+#                                1200 / -2304 / 1200 t N plus 4 t of disposal
+# Both conserve N exactly, carry `over_cap = FALSE` and emit no warning, so
+# every downstream mass-balance check passes on a negative application.
+.weighted_crops <- function(w, col = "manure_n_receptivity") {
+  out <- tibble::tibble(
+    year = 2020L,
+    territory = "ESP",
+    sub_territory = NA_character_,
+    crop = as.character(seq_along(w)),
+    crop_area_ha = 1000,
+    crop_n_cap = 1000
+  )
+  out[[col]] <- w
+  out
+}
+
+test_that("a negative allocation weight aborts up front", {
+  expect_error(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(6, -4)))
+    ),
+    class = "whep_manure_weight_invalid"
+  )
+  expect_error(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(0.1, -0.3, 0.2)))
+    ),
+    class = "whep_manure_weight_invalid"
+  )
+  expect_error(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(3, -7), col = "crop_n_demand")),
+      options = list(method = "crop_n_demand")
+    ),
+    class = "whep_manure_weight_invalid"
+  )
+})
+
+test_that("a non-finite allocation weight aborts up front", {
+  expect_error(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(6, NA_real_)))
+    ),
+    class = "whep_manure_weight_invalid"
+  )
+  expect_error(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(6, Inf)))
+    ),
+    class = "whep_manure_weight_invalid"
+  )
+})
+
+test_that("the weight abort names the column and the offending value", {
+  err <- rlang::catch_cnd(
+    whep::allocate_manure_to_land(
+      .toy_applied(),
+      list(crops = .weighted_crops(c(6, -4)))
+    ),
+    classes = "error"
+  )
+  msg <- cli::ansi_strip(paste(conditionMessage(err), collapse = " "))
+  expect_match(msg, "manure_n_receptivity")
+  expect_match(msg, "-4")
+})
+
+# The guard must not fire on the boundary it protects. An all-zero weight
+# column is legitimate (a cell with no cropland pattern): `sum_w > 0` takes
+# its else-branch, every share is 0, and the room-weighted second pass then
+# spreads the collected N evenly over the two equal caps. That is the
+# behaviour a zero sum is meant to produce, and it is what a signed sum
+# cancelling to zero would have produced too -- which is exactly why a
+# residue slipping past `> 0` is a defect rather than a rounding nuisance.
+test_that("an all-zero weight column falls back to the even split", {
+  res <- suppressWarnings(whep::allocate_manure_to_land(
+    .toy_applied(),
+    list(crops = .weighted_crops(c(0, 0)))
+  ))
+  crops <- dplyr::filter(res, .data$land_use == "Cropland")
+  expect_equal(nrow(crops), 2L)
+  expect_equal(crops$applied_n, c(55, 55), tolerance = 1e-8)
+  expect_false(any(crops$over_cap))
+  expect_equal(sum(res$applied_n), 130, tolerance = 1e-8)
+})
