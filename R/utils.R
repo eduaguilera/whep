@@ -2397,7 +2397,11 @@ utils::globalVariables(
     "run_start",
     "share_divergence",
     "sown_ha",
-    "usable"
+    "usable",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms"
   )
 )
 

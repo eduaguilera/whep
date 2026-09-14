@@ -12,7 +12,15 @@ testthat::test_that("build_livestock_ghg_extension example has expected structur
 
   pointblank::expect_col_exists(
     result,
-    c("year", "area_code", "item_cbs_code", "impact_u", "method_ghg")
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "impact_u",
+      "method_ghg",
+      "method_mms",
+      "method_manure_ch4"
+    )
   )
   pointblank::expect_col_vals_gt(result, "impact_u", 0)
   testthat::expect_true(all(result$method_ghg == "IPCC_2019_Tier1_AR6"))
@@ -187,4 +195,127 @@ testthat::test_that("Tier 2 warns explicitly when a real species has no energy c
   )
 
   testthat::expect_equal(nrow(result), 0L)
+})
+
+# options passthrough (#1029) -------------------------------------------------
+
+testthat::test_that("default options reproduce the pre-passthrough numbers", {
+  # Regression lock for #1029: threading `options` from the extension down to
+  # calculate_livestock_emissions() must not move a published value. The
+  # expected figures were produced by the pre-passthrough code (origin/main at
+  # 6c8bf0d2) on this same fixture, at both tiers.
+  expected_tier1 <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~impact_u,
+    10L, 961L, 1845198000,
+    10L, 976L, 1472445000,
+    100L, 960L, 916724250
+  )
+  expected_tier2 <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~impact_u,
+    10L, 961L, 2255369539.5477095,
+    10L, 976L, 1560912180.9317288,
+    100L, 960L, 492717625.4361503
+  )
+
+  tier1 <- whep::build_livestock_ghg_extension(
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+  tier2 <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(tier1, area_code, item_cbs_code, impact_u),
+      area_code,
+      item_cbs_code
+    ),
+    dplyr::arrange(expected_tier1, area_code, item_cbs_code)
+  )
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(tier2, area_code, item_cbs_code, impact_u),
+      area_code,
+      item_cbs_code
+    ),
+    dplyr::arrange(expected_tier2, area_code, item_cbs_code)
+  )
+  # The defaults the manure engine actually took, recorded per sector.
+  testthat::expect_true(all(tier1$method_mms == "region_specific"))
+  testthat::expect_true(all(tier1$method_manure_ch4 == "IPCC_2019_Tier1"))
+  testthat::expect_true(all(
+    tier2$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_temperate"
+  ))
+})
+
+testthat::test_that("assumed_climate_zone reaches the manure kernel", {
+  # The point of #1029: an option handed to the extension must change what the
+  # kernel computes, not just be accepted. The climate zone sets the methane
+  # conversion factor, so Cool < Temperate < Warm sector by sector -- a
+  # passthrough that silently dropped `options` would leave all three equal.
+  run_zone <- function(zone) {
+    suppressWarnings(
+      whep::build_livestock_ghg_extension(
+        tier = 2,
+        options = list(assumed_climate_zone = zone),
+        data = list(primary_prod = .ghg_prod_fixture())
+      )
+    ) |>
+      dplyr::arrange(area_code, item_cbs_code)
+  }
+  cool <- run_zone("Cool")
+  temperate <- run_zone("Temperate")
+  warm <- run_zone("Warm")
+
+  testthat::expect_true(all(cool$impact_u < temperate$impact_u))
+  testthat::expect_true(all(temperate$impact_u < warm$impact_u))
+  testthat::expect_true(all(
+    warm$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_warm"
+  ))
+  testthat::expect_true(all(
+    cool$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_cool"
+  ))
+  # Temperate is the default, so asking for it explicitly changes nothing.
+  default <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  ) |>
+    dplyr::arrange(area_code, item_cbs_code)
+  testthat::expect_equal(temperate, default)
+})
+
+testthat::test_that("mms_region reaches the manure kernel", {
+  # `method_mms` is stamped inside the kernel's MMS resolver, so the flip can
+  # only happen if the option travelled the whole way down. The shipped
+  # `regional_mms_distribution` gives these species the same split in every
+  # region, so the emission totals are unmoved here; the recorded method is
+  # what says which split was taken.
+  default <- whep::build_livestock_ghg_extension(
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+  global <- whep::build_livestock_ghg_extension(
+    options = list(mms_region = "global"),
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+
+  testthat::expect_true(all(default$method_mms == "region_specific"))
+  testthat::expect_true(all(global$method_mms == "regional_default"))
+})
+
+testthat::test_that("an unknown option aborts before the production read", {
+  testthat::local_mocked_bindings(
+    get_primary_production = function(...) {
+      cli::cli_abort("The reader must not be reached.")
+    }
+  )
+
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(options = list(mms_regoin = "global")),
+    class = "whep_manure_options"
+  )
 })

@@ -205,8 +205,13 @@ build_nitrogen_balance <- function(
   valid_names <- c("nh3", "n2o", "leaching")
   unknown <- setdiff(names(methods), valid_names)
   if (length(unknown) > 0L) {
+    # qty() pinned: the marker sat ahead of both interpolations, so cli had to
+    # defer it to post-processing, which refuses a message carrying more than
+    # one candidate quantity -- every unknown name aborted with "Multiple
+    # quantities for pluralization" instead of naming the name (#621).
     cli::cli_abort(
-      "Unknown {.arg methods} name{?s}: {.val {unknown}}. Use {.val {valid_names}}."
+      "Unknown {.arg methods} {cli::qty(length(unknown))}name{?s}: \\
+       {.val {unknown}}. Use {.val {valid_names}}."
     )
   }
   nh3 <- methods$nh3 %||% "manner"

@@ -16,7 +16,12 @@ source("data-raw/_labels.R")
   if (length(dup_keys) > 0) {
     cli::cli_abort(c(
       "Non-unique key {.field {key}} in {.val {name}}.",
-      "x" = "Duplicated value{?s}: {.val {dup_keys}}."
+      # qty() pinned: the key is often a numeric code column, and a marker with
+      # nothing numeric before it makes cli read the quantity off that vector
+      # and abort on "length(object) == 1 is not TRUE", so the guard that
+      # exists to name the duplicated values reports a cli internal (#621).
+      "x" = "{cli::qty(length(dup_keys))}Duplicated value{?s}: \\
+             {.val {dup_keys}}."
     ))
   }
   dup_rows <- nrow(table) - nrow(dplyr::distinct(table))
