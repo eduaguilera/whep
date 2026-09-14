@@ -291,3 +291,51 @@ testthat::test_that(".n_country_to_polity still folds when the fold is asked for
   testthat::expect_setequal(bridged$area_code, 999L)
   testthat::expect_equal(bridged$synthetic_n_t, 7)
 })
+
+# FAOSTAT reporting sources (#1098) --------------------------------------------
+
+.manure_two_source_fixture <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Year, ~Item,         ~Element,                                 ~Source,      ~Value,
+    10L,          2020L, "All Animals", "Manure applied to soils (N content)",    "FAO TIER 1", 1000000,
+    10L,          2020L, "All Animals", "Manure applied to soils (N content)",    "UNFCCC",      900000,
+    20L,          2020L, "All Animals", "Manure applied to soils (N content)",    "FAO TIER 1", 2000000
+  )
+}
+
+testthat::test_that("only FAO TIER 1 manure N is kept when both sources ship", {
+  # The restored pin (#1098) carries a `Source` column the previous one lacked,
+  # and FAOSTAT reports the same country-year under both systems wherever a
+  # country submits an inventory. Summing them counts the same manure twice.
+  result <- whep:::.manure_applied_n_country(.manure_two_source_fixture())
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(
+    sort(result$manure_applied_n_t),
+    c(1000, 2000)
+  )
+})
+
+testthat::test_that("a pin with no Source column is read unchanged", {
+  # Backwards compatibility with the pre-#1098 pin, which had one row per
+  # area-year and no column to filter on.
+  no_source <- .manure_two_source_fixture() |>
+    dplyr::filter(.data$Source == "FAO TIER 1") |>
+    dplyr::select(-"Source")
+
+  result <- whep:::.manure_applied_n_country(no_source)
+
+  testthat::expect_equal(nrow(result), 2L)
+})
+
+testthat::test_that("a duplicated area-year aborts rather than summing", {
+  # The assertion that does not depend on today's source vocabulary: a third
+  # source, or a renamed one, must not silently re-open the double count.
+  third_source <- .manure_two_source_fixture() |>
+    dplyr::mutate(Source = "FAO TIER 1")
+
+  testthat::expect_error(
+    whep:::.manure_applied_n_country(third_source),
+    "more than once"
+  )
+})
