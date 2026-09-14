@@ -29,6 +29,51 @@
 #' coverage a group actually has is a methodological choice, not a bug fix,
 #' and is tracked in issue #232.
 #'
+#' @section Quantities FAOSTAT does not back with a mass:
+#' The Detailed Trade Matrix carries a `tonnes` column for every item, but
+#' FAOSTAT does not stand behind all of it. For trade item 1293
+#' (*Crude organic material n.e.c.*, mapped here to CBS item 5001
+#' `"Other"`) the aggregate *Trade: Crops and livestock products* domain
+#' publishes a **value** but no country-level **mass**: on the
+#' `faostat-trade-totals` pin `20260325T120525Z-7b85f` that item has
+#' 28,213 value rows against 6,000 quantity rows, only 1,830 of them
+#' non-zero, and every quantity above 10 Mt belongs to a FAOSTAT *regional
+#' aggregate* (area code >= 51000) flagged `E`. Spot-checked for Colombia,
+#' Kenya, South Africa and Japan over 2002-2010, the country-level
+#' quantity is `0` or absent in every year.
+#'
+#' The detailed matrix nonetheless reports masses for it that cannot be
+#' masses (whep#1023). On the `faostat-trade-bilateral` pin
+#' `20260407T095142Z-b3f81`, Colombia's 2004 export of item 1293 to the
+#' United States is 2,579,549,000 tonnes against an export value of
+#' USD 584.4 million, i.e. **USD 0.227 per tonne**; South Africa's
+#' 2008-2013 flows with Uganda run at USD 0.011-0.015 per tonne. The
+#' mirrored report of the same flow disagrees by factors of 356 to
+#' 838,000 - Kenya says it exported 534,611,300 tonnes to the
+#' Netherlands in 2009, the Netherlands says it imported 72,076 tonnes
+#' (7,417x) - and it is always the large side that is not a mass. What the
+#' large side actually counts (stems, pieces, bunches) is **not recorded
+#' anywhere in the data and is therefore unverified**, and the implied
+#' units per tonne are not constant across cells, so no conversion factor
+#' can be derived: the figures can be dropped or carried, not corrected.
+#'
+#' `method_unbacked_quantity` selects the treatment. Screened tonnage on
+#' the full pin, restricted to items that map to a CBS item: 15.31 Gt of
+#' 83.16 Gt (**18.4%**), 99.78% of it item 1293. By year the screen takes
+#' 12.7-70.0% of 2003-2013, 5.6-16.5% of 1986-1988, 10.1-13.0% of
+#' 2000-2002, at most 3.3% of 1989-1999 and at most 0.04% of 2014-2021 -
+#' item 1293 carries no bilateral quantity at all from 2014, which is why
+#' the recent record looks clean.
+#'
+#' Those tonnes do not reach this function's output today whichever method
+#' is chosen, for an unrelated reason: item 1293's CBS name `"Other"` has
+#' no row in `whep::items_full`, so the item-code bridge leaves it without
+#' an `item_cbs_code` and it is dropped a step later. That was silent
+#' until now and is warned about separately; four CBS names and 14 of the
+#' 710 trade item codes in `whep::cbs_trade_codes` are affected. The
+#' screen is therefore explicit where the mapping gap was accidental, and
+#' it keeps working if the gap is ever filled.
+#'
 #' @param raw_trade A data.table or tibble of raw FAOSTAT bilateral
 #'   trade data. If `NULL` (default), the data is read from the
 #'   `"faostat-trade-bilateral"` pin.
@@ -40,6 +85,18 @@
 #' @param extend_time Logical. If `TRUE`, extend the time series using
 #'   CBS years and linear interpolation of country shares.
 #'   Default `FALSE`.
+#' @param method_unbacked_quantity How to treat a reported `tonnes`
+#'   quantity for a FAOSTAT trade item whose country-level mass FAOSTAT
+#'   itself does not publish. See the *Quantities FAOSTAT does not back
+#'   with a mass* section. One of:
+#'   - `"drop"` (default): discard those rows, warning with the tonnage
+#'     removed. They are not masses, and no conversion to mass is
+#'     derivable.
+#'   - `"keep"`: carry them verbatim, with the same warning. The
+#'     historical behaviour, and unsafe for anything that treats the
+#'     column as mass.
+#'   - `"abort"`: fail, so a refreshed pin cannot reintroduce them
+#'     unnoticed.
 #' @param example Logical. If `TRUE`, return a small example tibble
 #'   without downloading remote data. Default `FALSE`.
 #'
@@ -52,6 +109,9 @@
 #'   - `unit`: Measurement unit (`"tonnes"` or `"heads"`).
 #'   - `value`: Trade quantity.
 #'   - `country_share`: Share of total trade for this partner.
+#'   - `method_unbacked_quantity`: the treatment chosen for quantities
+#'     FAOSTAT does not back with a mass, recorded so a downstream
+#'     consumer can tell which variant it is holding.
 #'
 #' @export
 #'
@@ -62,14 +122,18 @@ build_detailed_trade <- function(
   cbs = NULL,
   min_share = 1e-4,
   extend_time = FALSE,
+  method_unbacked_quantity = c("drop", "keep", "abort"),
   example = FALSE
 ) {
+  method <- rlang::arg_match(method_unbacked_quantity)
+
   if (example) {
     return(.example_build_detailed_trade())
   }
   cli::cli_h1("Building detailed trade matrix")
 
   dtm <- .read_and_clean_dtm(raw_trade)
+  dtm <- .screen_unbacked_quantities(dtm, method)
   dtm <- .map_dtm_to_cbs_items(dtm)
   dtm <- .aggregate_dtm_to_polities(dtm)
   dtm <- .compute_country_shares(dtm)
@@ -80,7 +144,9 @@ build_detailed_trade <- function(
 
   dtm <- .add_trade_polity_columns(dtm)
 
-  tibble::as_tibble(dtm)
+  dtm |>
+    tibble::as_tibble() |>
+    dplyr::mutate(method_unbacked_quantity = method)
 }
 
 # -- Helpers -------------------------------------------------------------------
@@ -156,6 +222,115 @@ build_detailed_trade <- function(
   dt
 }
 
+# FAOSTAT trade items whose Detailed Trade Matrix `tonnes` figure FAOSTAT's own
+# aggregate domain does not back with a country-level mass, so the column is
+# not a mass however it is labelled. See the "Quantities FAOSTAT does not back
+# with a mass" section of build_detailed_trade() for the evidence and whep#1023
+# for the investigation.
+#
+# The membership test is a measurement, not an opinion, and it is cheap to
+# redo when the pins are refreshed: for each (item, area, year, direction),
+# compare the Detailed Trade Matrix quantity against the same key in the
+# aggregate `faostat-trade-totals` pin. An item belongs here when the
+# aggregate reports the trade but reports its quantity as `0`, or omits the
+# quantity element while reporting a value. Run over the whole
+# `faostat-trade-bilateral` pin `20260407T095142Z-b3f81` that test flags
+# 15.31 Gt, of which 99.78% is item 1293; the next largest is item 828
+# (Tobacco) at 4.0 Mt, 0.03%. The list is short because the measurement is,
+# not because it was cut short.
+#
+# Item 631 ("Waters, ice etc") is deliberately NOT here. It too is missing
+# from the aggregate domain, but its 1.59 Gt reads as a genuine mass: the
+# 97.7-101.3 Mt/year China-to-Macao flow of 2017-2018 at USD 0.47/tonne is
+# what bulk raw water costs. Whether water belongs in a biomass account is a
+# separate question from whether the number is a mass.
+.unbacked_mass_trade_items <- function() {
+  1293L
+}
+
+# CBS items that `.unbacked_mass_trade_items()` feeds. Derived from the
+# shipped crosswalks rather than hardcoded, so a change to either table moves
+# this with it. Currently CBS item 5001 ("Other"), which is why whep#1023
+# surfaced there.
+#
+# The CBS side resolves against `whep::items_cbs`, the CBS item registry that
+# `get_bilateral_trade()` also uses, and NOT against `whep::items_full`:
+# `items_full` has no "Other" row at all, which is why
+# `.map_dtm_to_cbs_items()` already loses every item 1293 row on the
+# `items_bridge` merge -- silently, and for a reason unrelated to whether the
+# tonnage is a mass. That gap is a separate defect; this screen must not
+# depend on it.
+.unbacked_mass_cbs_items <- function() {
+  cbs_names <- whep::cbs_trade_codes |>
+    dplyr::filter(item_code_trade %in% .unbacked_mass_trade_items()) |>
+    dplyr::pull(item_cbs)
+
+  whep::items_cbs |>
+    dplyr::filter(item_cbs_name %in% cbs_names) |>
+    dplyr::pull(item_cbs_code) |>
+    unique() |>
+    sort()
+}
+
+# Screen the mass rows of items whose mass FAOSTAT does not publish. The
+# quantity cannot be repaired -- the mirrored reports of the same flow differ
+# by factors of 356 to 838,000 and the implied units per tonne are not
+# constant, so there is no factor to apply -- hence the methods are drop,
+# carry, or refuse, and never a conversion.
+.screen_unbacked_quantities <- function(dt, method = "drop") {
+  codes <- .unbacked_mass_trade_items()
+  hit <- if ("item_code_trade" %in% names(dt)) {
+    dt$item_code_trade %in% codes
+  } else {
+    dt$item %in% .unbacked_mass_trade_names(codes)
+  }
+  hit <- hit & dt$unit == "tonnes"
+
+  if (!any(hit)) {
+    return(dt)
+  }
+
+  .report_unbacked_quantities(dt, hit, codes, method)
+
+  if (method == "keep") {
+    return(dt)
+  }
+  dt[!hit]
+}
+
+# The name-keyed fallback for a caller that injects raw trade without the item
+# code column, matching the same fallback in `.map_dtm_to_cbs_items()`.
+.unbacked_mass_trade_names <- function(codes) {
+  whep::cbs_trade_codes |>
+    dplyr::filter(item_code_trade %in% codes) |>
+    dplyr::pull(item_trade) |>
+    unique()
+}
+
+.report_unbacked_quantities <- function(dt, hit, codes, method) {
+  screened <- sum(dt$value[hit], na.rm = TRUE)
+  mass <- sum(dt$value[dt$unit == "tonnes"], na.rm = TRUE)
+  share <- if (mass > 0) 100 * screened / mass else 0
+  years <- range(dt$year[hit], na.rm = TRUE)
+
+  report <- c(
+    "{sum(hit)} bilateral trade row{?s} report{?s/} a {.field tonnes} \\
+     quantity that FAOSTAT does not publish as a country-level mass.",
+    "i" = "Trade item {cli::qty(length(codes))}code{?s}: {.val {codes}}.",
+    "i" = "{signif(screened, 4)} of {signif(mass, 4)} tonnes, \\
+           {round(share, 1)} percent of the reported mass, over \\
+           {years[1]}-{years[2]}.",
+    "i" = "The true unit is unverified and not constant across cells, so no \\
+           conversion to mass is derivable (whep#1023).",
+    "i" = "{.arg method_unbacked_quantity} is {.val {method}}."
+  )
+
+  if (method == "abort") {
+    cli::cli_abort(report, class = "whep_unbacked_mass_quantity")
+  }
+  cli::cli_warn(report, class = "whep_unbacked_mass_quantity")
+}
+
 .map_dtm_to_cbs_items <- function(dt) {
   cli::cli_progress_step("Mapping trade items to CBS items")
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
@@ -188,6 +363,7 @@ build_detailed_trade <- function(
   .warn_unmapped_items(dt)
   dt <- dt[!is.na(item_cbs)]
   dt <- merge(dt, items_bridge, by = "item_cbs", all.x = TRUE)
+  .warn_items_without_cbs_code(dt)
   dt <- dt[!is.na(item_cbs_code)]
 
   # Aggregate across trade items that map to the same CBS item
@@ -450,6 +626,34 @@ build_detailed_trade <- function(
       )
     }
   }
+}
+
+# A trade item can carry a CBS item *name* that `whep::items_full` has no row
+# for, in which case the `items_bridge` merge leaves `item_cbs_code` NA and
+# the row is dropped. That drop used to be silent, which is how the whole of
+# CBS item "Other" left this producer without a message (found while tracing
+# whep#1023). Measured on the shipped tables: 4 of the 149 CBS names in
+# `cbs_trade_codes` are absent from `items_full` -- "Other", "Infant food",
+# "Other fodder" and "Oil palm fruit" -- covering 14 of its 710 trade item
+# codes. Three of the four do have a code in `whep::items_cbs`, so this is an
+# `items_full` coverage gap rather than a genuinely unknown item.
+.warn_items_without_cbs_code <- function(dt) {
+  unmapped <- dt[is.na(item_cbs_code)]
+  if (nrow(unmapped) == 0) {
+    return(invisible(dt))
+  }
+  names_missing <- sort(unique(unmapped$item_cbs))
+  mass <- sum(unmapped$value[unmapped$unit == "tonnes"], na.rm = TRUE)
+
+  cli::cli_warn(
+    c(
+      "{length(names_missing)} CBS item name{?s} ha{?s/ve} no
+       {.field item_cbs_code} in {.code whep::items_full}: dropping
+       {nrow(unmapped)} trade row{?s}, {signif(mass, 4)} tonnes.",
+      "i" = "Name{?s}: {.val {names_missing}}."
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
 }
 
 .warn_unmapped_codes <- function(dt, mapped_col, original_col, role) {

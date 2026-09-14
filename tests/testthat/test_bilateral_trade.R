@@ -609,10 +609,12 @@ testthat::test_that(".filter_only_items_in_cbs stays silent when all match", {
 })
 
 testthat::test_that(".filter_only_items_in_cbs keeps the items on 'keep'", {
+  # 750 stands in for an unanchored item whose tonnes really are masses.
+  # Item 5001 no longer can: see the refusal tests below (whep#1023).
   btd <- tibble::tribble(
     ~item_cbs_code, ~value,
     2511, 250,
-    5001, 750
+    750, 750
   )
   cbs <- tibble::tibble(item_cbs_code = 2511)
 
@@ -621,7 +623,88 @@ testthat::test_that(".filter_only_items_in_cbs keeps the items on 'keep'", {
     "no commodity balance"
   )
   testthat::expect_equal(sum(result$value), 1000)
-  testthat::expect_setequal(result$item_cbs_code, c(2511, 5001))
+  testthat::expect_setequal(result$item_cbs_code, c(2511, 750))
+})
+
+# tonnes that are not masses (whep#1023) --------------------------------------
+
+testthat::test_that(".unbacked_mass_cbs_items resolves item 1293 to CBS 5001", {
+  # Guards the derivation, not a hardcoded number: if `cbs_trade_codes` or
+  # `items_full` remaps FAOSTAT trade item 1293 ("Crude materials"), the
+  # refusal below must follow it rather than keep pointing at 5001.
+  testthat::expect_equal(.unbacked_mass_trade_items(), 1293L)
+  testthat::expect_equal(.unbacked_mass_cbs_items(), 5001)
+})
+
+testthat::test_that("'keep' refuses an item whose tonnes are not masses", {
+  # Regression for whep#1023. `"keep"` takes the matrix margins from the
+  # reported flows, so it would have carried Colombia's 2.58 Gt 2004 cell
+  # into the output verbatim.
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    5001, "tonnes", 2579549887
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_error(
+    suppressWarnings(.filter_only_items_in_cbs(btd, cbs, "keep")),
+    class = "whep_unbacked_mass_trade"
+  )
+})
+
+testthat::test_that("'keep' refusal names the item and its tonnage", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    5001, "tonnes", 2579549887,
+    5001, "heads", 1e9
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_error(
+    suppressWarnings(.filter_only_items_in_cbs(btd, cbs, "keep")),
+    "5001"
+  )
+  # The head-count row must not be added into the reported tonnage.
+  testthat::expect_error(
+    suppressWarnings(.filter_only_items_in_cbs(btd, cbs, "keep")),
+    "2.58e\\+09"
+  )
+})
+
+testthat::test_that("'drop' and 'abort' are unchanged by the refusal", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    5001, "tonnes", 2579549887
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_warning(
+    result <- .filter_only_items_in_cbs(btd, cbs, "drop"),
+    "no commodity balance"
+  )
+  testthat::expect_equal(result$item_cbs_code, 2511)
+  testthat::expect_error(
+    .filter_only_items_in_cbs(btd, cbs, "abort"),
+    "no commodity balance"
+  )
+})
+
+testthat::test_that("'keep' still works when no kept item is unbacked", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    750, "tonnes", 750
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_warning(
+    result <- .filter_only_items_in_cbs(btd, cbs, "keep"),
+    "no commodity balance"
+  )
+  testthat::expect_setequal(result$item_cbs_code, c(2511, 750))
 })
 
 testthat::test_that(".filter_only_items_in_cbs aborts on 'abort'", {
@@ -712,11 +795,13 @@ testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
   # hold the tonnage the pin reported for it, and a dropped one must not
   # appear at all. `.balance_matrix()` renormalises to the margins, which
   # for a kept item are its own row/column sums.
+  # 750 stands in for an unanchored item whose tonnes really are masses;
+  # item 5001's do not, and `"keep"` refuses it (whep#1023).
   btd <- tibble::tribble(
     ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit, ~value,
     2010, 2511, 10L, 20L, "tonnes", 100,
-    2010, 5001, 10L, 20L, "tonnes", 750,
-    2010, 5001, 20L, 10L, "tonnes", 250
+    2010, 750, 10L, 20L, "tonnes", 750,
+    2010, 750, 20L, 10L, "tonnes", 250
   )
   cbs <- tibble::tribble(
     ~year, ~item_cbs_code, ~area_code, ~export, ~import,
@@ -738,11 +823,110 @@ testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
   )
   kept <- .process_bilateral_trade(nested_keep, codes)
 
-  testthat::expect_equal(kept$item_cbs_code, c(2511, 5001))
-  other <- kept$bilateral_trade[[2]]
+  testthat::expect_equal(kept$item_cbs_code, c(750, 2511))
+  other <- kept$bilateral_trade[[1]]
   testthat::expect_equal(sum(other), 1000)
   testthat::expect_equal(other["10", "20"], 750)
   testthat::expect_equal(other["20", "10"], 250)
+})
+
+# Fixture with several year-item groups: enough to be split across workers,
+# and unbalanced enough that `.balance_matrix()` does real work on each.
+.worker_invariance_fixture <- function() {
+  countries <- c(10L, 20L, 30L, 40L)
+  keys <- tidyr::expand_grid(
+    year = 2010:2012,
+    item_cbs_code = c(2511L, 2531L)
+  )
+  flows <- tidyr::expand_grid(keys, from_code = countries, to_code = countries)
+  btd <- flows |>
+    dplyr::filter(from_code != to_code) |>
+    dplyr::mutate(
+      unit = "tonnes",
+      # Deterministic, asymmetric, and zero for some pairs so the
+      # missing-flow estimator is exercised too.
+      value = ((from_code * 7L + to_code * 3L + year + item_cbs_code) %% 11L) *
+        10
+    )
+  cbs <- tidyr::expand_grid(keys, area_code = countries) |>
+    dplyr::mutate(
+      export = ((area_code + year) %% 5L) * 100 + 50,
+      import = ((area_code * 3L + item_cbs_code) %% 7L) * 100 + 50
+    )
+  list(btd = btd, cbs = cbs, codes = factor(countries))
+}
+
+testthat::test_that(".process_bilateral_trade output is worker-invariant", {
+  # `.process_bilateral_trade()` claims its result does not depend on the
+  # worker count. Assert it: each group is balanced from its own inputs and
+  # mclapply preserves input order, so 1, 2 and N workers must agree
+  # bit-for-bit.
+  fixture <- .worker_invariance_fixture()
+  nested <- .nest_by_year_item_code(
+    fixture$btd,
+    fixture$cbs,
+    fixture$codes,
+    "drop"
+  )
+  testthat::expect_gt(nrow(nested), 2L)
+
+  # `mclapply(mc.cores > 1)` stops outright on Windows, so the only honest
+  # multi-worker comparison there is none: run serially and let the assertion
+  # below be trivially true rather than erroring. `.parallel_workers()` already
+  # forces 1 on Windows, so the invariant it guards cannot be violated there.
+  worker_counts <- if (.is_windows()) {
+    1L
+  } else if (!.core_limit_in_force() && isTRUE(parallel::detectCores() >= 4L)) {
+    c(1L, 2L, 4L)
+  } else {
+    c(1L, 2L)
+  }
+
+  runs <- purrr::map(worker_counts, function(workers) {
+    testthat::local_mocked_bindings(
+      .parallel_workers = function(...) workers
+    )
+    .process_bilateral_trade(nested, fixture$codes)
+  })
+
+  purrr::walk(runs[-1], function(run) {
+    testthat::expect_identical(run, runs[[1]])
+  })
+  # Guard the guard: the comparison would be vacuous on empty matrices.
+  testthat::expect_true(all(purrr::map_lgl(
+    runs[[1]]$bilateral_trade,
+    function(m) is.matrix(m) && sum(m) > 0
+  )))
+})
+
+testthat::test_that(".process_bilateral_trade obeys the check core limit", {
+  # Regression guard for #1039: `R CMD check --as-cran` sets
+  # `_R_CHECK_LIMIT_CORES_`, and parallel's own guard then aborts above two
+  # processes. Before the fix this asked for half the host's cores, so it
+  # errored on any machine with more than four.
+  withr::local_envvar(c("_R_CHECK_LIMIT_CORES_" = "TRUE"))
+  requested <- NULL
+  testthat::local_mocked_bindings(
+    # `mc.cores` arrives in the dots so the stub's own formals can stay
+    # snake_case; it is the value parallel's guard would have vetted.
+    mclapply = function(values, fn, ...) {
+      requested <<- list(...)$mc.cores
+      lapply(values, fn)
+    },
+    .package = "parallel"
+  )
+
+  fixture <- .worker_invariance_fixture()
+  nested <- .nest_by_year_item_code(
+    fixture$btd,
+    fixture$cbs,
+    fixture$codes,
+    "drop"
+  )
+  result <- .process_bilateral_trade(nested, fixture$codes)
+
+  testthat::expect_lte(requested, 2L)
+  testthat::expect_equal(nrow(result), nrow(nested))
 })
 
 testthat::test_that(".downscale_estimate_matrix scales rows exceeding balance", {

@@ -37,7 +37,8 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity"
     )
   )
 
@@ -686,7 +687,8 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity"
     )
   )
   testthat::expect_equal(nrow(result), 10)
@@ -704,4 +706,168 @@ testthat::test_that("build_detailed_trade example has valid content", {
   testthat::expect_true(all(
     result$area_code != result$area_code_partner
   ))
+})
+
+# tonnes that are not masses (whep#1023) --------------------------------------
+
+.fake_unbacked_trade <- function() {
+  # Trade item 1293 is FAOSTAT's "Crude organic material n.e.c.". Its
+  # Detailed Trade Matrix tonnage is not a mass: FAOSTAT's aggregate domain
+  # publishes no country-level quantity for it, and Colombia's 2004 export to
+  # the United States is booked as 2,579,549,000 tonnes at USD 0.227/tonne.
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 2579549000)
+  )
+}
+
+testthat::test_that(".unbacked_mass_trade_items maps to CBS item 5001", {
+  # The item list is a measurement (see the helper's comment); the CBS side
+  # is derived from the shipped crosswalks, so guard the derivation.
+  testthat::expect_equal(.unbacked_mass_trade_items(), 1293L)
+  testthat::expect_equal(.unbacked_mass_cbs_items(), 5001)
+  testthat::expect_true(
+    "Crude materials" %in% .unbacked_mass_trade_names(1293L)
+  )
+})
+
+testthat::test_that("build_detailed_trade drops unbacked tonnage by default", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_unbacked_trade()),
+    class = "whep_unbacked_mass_quantity"
+  )
+
+  testthat::expect_false(5001 %in% result$item_cbs_code)
+  testthat::expect_equal(result$item_cbs_code, 2511)
+  testthat::expect_equal(sum(result$value), 100)
+  testthat::expect_true(all(result$method_unbacked_quantity == "drop"))
+})
+
+testthat::test_that("build_detailed_trade 'keep' carries unbacked tonnage", {
+  # Asserted on the screen itself, because item 1293 never reaches the
+  # output of `build_detailed_trade()` under any method: its CBS name
+  # "Other" has no row in `whep::items_full`, so `.map_dtm_to_cbs_items()`
+  # already loses it on the `items_bridge` merge. That is a separate,
+  # unreported drop, and the screen must not be confused with it.
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    kept <- .screen_unbacked_quantities(dt, "keep"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(kept), 2)
+  testthat::expect_equal(max(kept$value), 2579549000)
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      result <- build_detailed_trade(
+        raw_trade = .fake_unbacked_trade(),
+        method_unbacked_quantity = "keep"
+      ),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_true(all(result$method_unbacked_quantity == "keep"))
+})
+
+testthat::test_that("a CBS name with no item_cbs_code is warned, not silent", {
+  # Found while tracing whep#1023: `whep::items_full` has no "Other" row, so
+  # every item 1293 row left this producer with no message at all.
+  raw <- .fake_unbacked_trade()
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    "Other"
+  )
+})
+
+testthat::test_that("the screen removes exactly the unbacked mass rows", {
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(dropped), 1)
+  testthat::expect_equal(dropped$item_code_trade, 15)
+  testthat::expect_equal(dropped$value, 100)
+})
+
+testthat::test_that("build_detailed_trade 'abort' refuses unbacked tonnage", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "abort"
+    ),
+    class = "whep_unbacked_mass_quantity"
+  )
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "rescale"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the screen leaves a clean pin untouched", {
+  result <- testthat::expect_no_warning(
+    build_detailed_trade(raw_trade = .fake_bilateral_trade())
+  )
+  testthat::expect_equal(nrow(result), 3)
+})
+
+testthat::test_that("the screen also works on the name-keyed path", {
+  # `.map_dtm_to_cbs_items()` falls back to joining on the item *name* when
+  # no item code column is present; the screen must follow it there.
+  raw <- .fake_unbacked_trade()
+  raw[, `Item Code` := NULL]
+  raw[, item := c("Wheat", "Crude materials")]
+  dt <- .read_and_clean_dtm(raw)
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(dropped$item, "Wheat")
+})
+
+testthat::test_that("head-count rows are not screened as mass", {
+  # The screen is scoped to `tonnes`: a head count for the same item is a
+  # different quantity and is not what whep#1023 is about.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "Head"),
+    Value = c(100, 1e9)
+  )
+  dt <- .read_and_clean_dtm(raw)
+
+  result <- testthat::expect_no_warning(
+    .screen_unbacked_quantities(dt, "drop")
+  )
+  testthat::expect_setequal(result$unit, c("tonnes", "heads"))
+  testthat::expect_equal(max(result$value), 1e9)
 })

@@ -95,6 +95,14 @@
 #'   - `area_key`: Which area code the output is keyed on, `"grid"`
 #'     (default) or `"polity_area"`. See *Which area code the output is
 #'     keyed on*.
+#'   - `pattern_signal_floor`: The `harvest_fraction` below which a
+#'     `crop_patterns` cell is treated as float underflow rather than an
+#'     allocated area, and zeroed before the placement weights are formed.
+#'     Default `1e-12`, argued from EarthStat's own float32 precision in
+#'     `.crop_pattern_signal_floor()`. `0` restores the untoleranced
+#'     behaviour of whep#1070, in which a (country, crop) whose whole
+#'     pattern is underflow is placed proportional to that underflow instead
+#'     of uniformly.
 #'
 #' @return A tibble with gridded crop (or CFT) harvested areas.
 #'   Columns:
@@ -246,7 +254,9 @@ build_gridded_landuse <- function(
   }
 
   years <- sort(unique(country_areas$year))
-  n_workers <- config$n_workers
+  # Windows cannot fork and R CMD check caps forked workers at two; both
+  # are resolved by `.parallel_workers()`, shared with bilateral_trade.R.
+  n_workers <- .parallel_workers(config$n_workers)
 
   # Year-invariant work — done once, shared across the year loop.
   # Cartesian: cells × crops. Per-year work just joins cropland_ha onto this.
@@ -256,7 +266,12 @@ build_gridded_landuse <- function(
   base_grid_cp <- if (country_grid_is_dynamic) {
     NULL
   } else {
-    .build_base_grid_cp(country_grid, crop_patterns, type_lookup)
+    .build_base_grid_cp(
+      country_grid,
+      crop_patterns,
+      type_lookup,
+      config$pattern_signal_floor
+    )
   }
 
   .spatialize_one <- function(yr) {
@@ -271,7 +286,8 @@ build_gridded_landuse <- function(
         .build_base_grid_cp(
           country_grid_yr,
           crop_patterns,
-          type_lookup
+          type_lookup,
+          config$pattern_signal_floor
         )
       } else {
         base_grid_cp
@@ -287,7 +303,7 @@ build_gridded_landuse <- function(
     )
   }
 
-  parts <- if (n_workers > 1L && .Platform$OS.type != "windows") {
+  parts <- if (n_workers > 1L) {
     parallel::mclapply(years, .spatialize_one, mc.cores = n_workers)
   } else {
     purrr::map(years, .spatialize_one)
@@ -513,7 +529,8 @@ build_gridded_landuse <- function(
     max_iterations = 1000L,
     expansion_threshold = 100L,
     n_workers = 1L,
-    area_key = "grid"
+    area_key = "grid",
+    pattern_signal_floor = .crop_pattern_signal_floor()
   )
 }
 
@@ -1085,7 +1102,10 @@ build_gridded_landuse <- function(
     cli::cli_abort(c(
       "{.arg cft_mapping} must have one row per \\
        {.field item_prod_code}.",
-      i = "Duplicated code{?s}: {.val {dupes}}."
+      # qty() pinned: `dupes` holds numeric item codes, and a marker with
+      # nothing numeric before it makes cli read the quantity off that vector
+      # and abort on "length(object) == 1 is not TRUE" (#621).
+      i = "{cli::qty(length(dupes))}Duplicated code{?s}: {.val {dupes}}."
     ))
   }
   invisible(cft_mapping)

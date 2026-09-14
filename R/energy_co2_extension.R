@@ -610,6 +610,8 @@ build_energy_co2_extension <- function(
     purrr::pmap(function(grp, emb_species, dir_species, herd, ...) {
       emb <- .energy_mean_factor(emb_species, herd, "embedded")
       dir <- .energy_mean_factor(dir_species, herd, "direct")
+      # No `na.rm`: `.energy_mean_factor()` aborts on a non-finite grouping
+      # mean, so both vectors are finite here by construction (whep#972).
       tibble::tibble(grp = grp, ef_global = mean(emb$ef) + mean(dir$ef))
     }) |>
     purrr::list_rbind()
@@ -617,8 +619,16 @@ build_energy_co2_extension <- function(
 
 # Mean live-weight emission factor per GLEAM grouping for one species/herd and
 # energy stage (collapsing the system and climate dimensions).
-.energy_mean_factor <- function(species_f, herd_f, etype) {
-  out <- gleam_energy_use_ef |>
+#
+# `factors` is an argument only so a test can inject a table with a missing
+# emission factor; nothing else passes it.
+.energy_mean_factor <- function(
+  species_f,
+  herd_f,
+  etype,
+  factors = gleam_energy_use_ef
+) {
+  out <- factors |>
     dplyr::filter(
       .data$species == species_f,
       .data$energy_type == etype,
@@ -628,7 +638,44 @@ build_energy_co2_extension <- function(
     out <- dplyr::filter(out, .data$herd == herd_f)
   }
   out |>
-    dplyr::summarise(ef = mean(.data$emission_factor), .by = "grouping")
+    dplyr::summarise(ef = mean(.data$emission_factor), .by = "grouping") |>
+    .energy_check_coef_mean("ef", "grouping", "energy-intensity")
+}
+
+# A mean taken over a published coefficient table must resolve for every group
+# it is taken over, and neither way of not resolving is an honest answer.
+#
+# `mean()` with no `na.rm` returns `NA` from a single missing coefficient;
+# `mean(na.rm = TRUE)` returns `NaN` when a whole group is missing. Either one
+# then travels on as a dressing fraction or an energy intensity, and the damage
+# is silent: `.energy_join_dressing()` takes a per-`grp` `mean()` over these
+# regional fractions as the fallback for every country GLEAM cannot place, so
+# one unresolvable region blanks that fallback for all of them, and dividing
+# carcass tonnage by it turns real production into a missing emission rather
+# than a visible failure. Adding `na.rm` there instead would be worse: the
+# fallback would then be a partial mean over whichever regions happened to
+# resolve, with nothing saying so (whep#1034).
+#
+# So abort, naming the group. This is not hypothetical arithmetic:
+# `gleam_dressing_percentages` already ships one missing `dressing_percent`
+# (1 of 193 rows, Pigs/Industrial/WE), absorbed today only because sibling rows
+# cover the same (grp, reg). See whep#972.
+.energy_check_coef_mean <- function(x, value_col, key_cols, what) {
+  bad <- dplyr::filter(x, !is.finite(.data[[value_col]]))
+  if (nrow(bad) == 0L) {
+    return(x)
+  }
+  keys <- purrr::pmap_chr(bad[key_cols], \(...) paste(..., sep = " / "))
+  cli::cli_abort(
+    c(
+      "{nrow(bad)} GLEAM {what} group{?s} resolve{?s/} to no usable value.",
+      "x" = "Group{?s}: {.val {keys}}.",
+      "i" = "Every group must carry at least one published coefficient. An
+             absent one must not become a partial mean of its neighbours, nor
+             a missing value nothing downstream reports."
+    ),
+    class = "whep_energy_missing_coef"
+  )
 }
 
 # Join a per-grouping factor onto the country crosswalk via one scheme column,
@@ -804,6 +851,9 @@ build_energy_co2_extension <- function(
   dressing,
   hierarchy = .energy_hierarchy()
 ) {
+  # No `na.rm`: `.energy_dressing_by_group()` aborts on a non-finite regional
+  # fraction, so this global fallback cannot be blanked -- nor quietly
+  # narrowed to the regions that happened to resolve (whep#972).
   global <- dressing |>
     dplyr::summarise(dressing_g = mean(.data$dressing), .by = "grp")
   iso2reg <- hierarchy |>
@@ -817,9 +867,14 @@ build_energy_co2_extension <- function(
 
 # Mean dressing fraction (carcass / live weight) per meat group and GLEAM
 # region, from the species/system breakdown in `gleam_dressing_percentages`.
-.energy_dressing_by_group <- function() {
+#
+# `percentages` is an argument only so a test can inject a table with a fully
+# missing region; nothing else passes it.
+.energy_dressing_by_group <- function(
+  percentages = gleam_dressing_percentages
+) {
   abbrev <- .energy_region_abbrev()
-  gleam_dressing_percentages |>
+  percentages |>
     dplyr::mutate(
       grp = dplyr::case_when(
         .data$species == "Cattle" & .data$production_system == "Beef" ~
@@ -839,7 +894,8 @@ build_energy_co2_extension <- function(
     dplyr::summarise(
       dressing = mean(.data$dressing_percent, na.rm = TRUE) / 100,
       .by = c("grp", "reg")
-    )
+    ) |>
+    .energy_check_coef_mean("dressing", c("grp", "reg"), "dressing-fraction")
 }
 
 # GLEAM region abbreviation -> full name used in `gleam_geographic_hierarchy`.

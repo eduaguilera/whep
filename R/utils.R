@@ -1940,9 +1940,8 @@ utils::globalVariables(
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
     "method_n_exceedance",
-    # scrape_faostat.R — FAOSTAT area name/ISO3 lookup NSE columns, now read
-    # off `polity_area_crosswalk` rather than FAOSTAT's country profile (#541)
-    "fao_area_name",
+    # iso3_code — used by table_mappings.R, eu_aggregate.R,
+    # population_reach.R, polity_folds.R and polities.R
     "iso3_code",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
@@ -2118,6 +2117,10 @@ utils::globalVariables(
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
     "area_code_int",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms",
     # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
     # flag is folded on, so the restored `fao_flag` follows the source the
     # value was selected from, plus the joined-in flag column
