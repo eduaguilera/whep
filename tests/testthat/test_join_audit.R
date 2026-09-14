@@ -255,7 +255,12 @@ test_that("every year-free territorial grouping is classified", {
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
   # down with the row.
-  expect_lte(sum(full$n), 80L)
+  #
+  # 81 since whep#1070: `.zero_pattern_underflow()` takes each crop's pattern
+  # maximum per country to count the pairs whose whole pattern was float
+  # underflow. `crop_patterns` has no year axis, and the count only feeds the
+  # message.
+  expect_lte(sum(full$n), 81L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
