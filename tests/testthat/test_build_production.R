@@ -2059,7 +2059,7 @@ test_that(".read_fao_crop_liv reports a pin with no Flag column", {
 # -- Live-animal stocks with no product tonnage (whep#1050) --------------------
 
 test_that(".assemble_production_raw keeps a stock with no product tonnage", {
-  # whep#1050: the published head and LU counts were derived from the
+  # Issue whep#1050: head and LU counts were derived from the
   # yield_all frame, which only carries a live animal where
   # `items_prod_full` gives it a product AND that product's tonnage
   # survived `.impute_missing_values()`.
