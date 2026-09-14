@@ -102,7 +102,7 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    When necessary, FAOSTAT codes are extended for our needs.
 #' - `value`: The amount of residue produced, measured in tonnes.
 #'
-#' @inheritSection whep_read_file The 2025-07-14 pin batch
+#' @inheritSection whep_read_file The two batch pins on the build path
 #'
 #' @export
 #'

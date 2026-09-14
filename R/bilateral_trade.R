@@ -166,7 +166,7 @@
 #'    ). The target sums for rows and columns are respectively the balanced
 #'    exports and imports computed from the commodity balance sheet.
 #'
-#' @inheritSection whep_read_file The 2025-07-14 pin batch
+#' @inheritSection whep_read_file The two batch pins on the build path
 #'
 #' @export
 #'
