@@ -24,6 +24,7 @@ build_commodity_balances(
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
   .fixed_data = NULL
 )
 ```
@@ -135,6 +136,43 @@ build_commodity_balances(
   the only observation), and `"abort"` refuses to build. Which of those
   is right is an open question — see whep#980 — so the reporting default
   is the one that invents nothing.
+
+- negative_supply:
+
+  One of `"report"` (default), `"floor"` or `"abort"`, selecting what
+  happens when a pre-1962 row has no observed `domestic_supply` and the
+  `production + import - export` reconstruction that replaces it comes
+  out below zero (whep#1065). Every destiny of such a row is apportioned
+  from that negative supply, so every destiny comes out negative —
+  including `other_uses`, which is not a quantity that can be negative.
+
+  Measured on a real 1950–1965 build, 151 rows reconstruct a negative
+  supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
+  output as 121 negative `other_uses` rows worth −883.91 Mt (29.2% of
+  the positive pre-1962 `other_uses` mass they net against), plus
+  −123.22 Mt of `production`, −76.66 Mt of `feed`, −64.62 Mt of
+  `processing` and −15.61 Mt of `food`.
+
+  It is **not** a stock draw: 83 of the 151 rows are the United States
+  (99.77% of the mass), the export/(production + import) ratio has
+  median 1.96 and maximum 107.98, and it persists for eleven consecutive
+  years. The cause is upstream — US tobacco 1951 carries a 117,504,000 t
+  export against 728,949 t of production, 115,136,000 t of which is
+  `historical-trade-exports` item 831 recorded as 115,136 `"1000 MT"`,
+  46× the world's 1951 tobacco production and 473× the same country's
+  observed 1961 export. So neither treatment makes the row physical.
+
+  `"report"` keeps every value as computed, so it **moves no published
+  value**, and warns with the count, the total and the three largest.
+  `"floor"` clamps the reconstruction at zero, which is what
+  `.select_best_source()` already does to an observed negative supply,
+  and is also the stock-draw treatment, because the residual is rebooked
+  as `stock_withdrawal` downstream; it moves 3,981 rows, raises
+  `other_uses` by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny
+  anywhere, and adds 880.18 Mt of `stock_withdrawal`. `"abort"` refuses
+  to build any range starting before 1961. Which is right is an open
+  question — see whep#1065 — so the reporting default is the one that
+  invents nothing.
 
 - .fixed_data:
 
