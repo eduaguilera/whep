@@ -41,8 +41,12 @@ a review on them while leaving 1 and 2 unexamined.
   A pin shipped with **zero** inland water and ice — 533 Mha of lakes and
   glaciers booked as land — while `territory == land + water + ice` still
   held, because zero satisfies it. The layers were optional arguments that
-  zero-filled silently. Assert that an input was *supplied* (row count,
-  a provenance column), not merely that the totals reconcile. The same shape
+  zero-filled silently. Assert that an input was *supplied* (a provenance
+  column, or at least one non-missing non-zero value — a row count is not
+  enough), not merely that the totals reconcile; the helpers for this are
+  `check_inputs_supplied()` and `check_labels_supplied()`, and the rule is
+  [Absent inputs must not become zeros](#absent-inputs-must-not-become-zeros).
+  The same shape
   has appeared in a balance check with no unit dimension (head counts balanced
   against head counts), a global mean unchanged while every cell moved, and
   two Rest-of-World buckets matching by code while covering different
@@ -247,6 +251,76 @@ Validate arguments with `rlang` (`rlang::has_name()`, `rlang::arg_match()`),
 not base R, and abort with `cli::cli_abort()`. For completing a tibble to a
 known schema, use the exported `ensure_columns()` with a zero-row prototype
 rather than ad-hoc `if (!has_name(...)) mutate(x = NA)` chains.
+
+### Absent inputs must not become zeros
+
+Three times in one week an absent input silently became a zero and every check
+downstream passed (#1010, #1016, #1034). **A guard must sit where the absence
+is created, not where it is consumed**: once a zero is downstream it is
+indistinguishable from a measurement, and no care at the consuming end
+recovers the distinction.
+
+Two exported helpers, in `R/absent_input.R`:
+
+- `check_inputs_supplied(data, required)` — the column exists **and** holds at
+  least one value that is neither missing nor zero. Use it at a boundary an
+  external table crosses. It does not judge a zero-row frame (a filter that
+  matched nothing is the caller's to answer for) and one non-zero value
+  anywhere passes, so it cannot see a partial absence.
+- `check_labels_supplied(data, column, labels)` — the labels a `filter()`
+  selects on still occur in the column. This is #1016's mechanism, and it is
+  invisible to any rule written around `coalesce()`, `replace_na()` or
+  `na.rm`: none of those appear anywhere near it. The message names the labels
+  that *are* there, because a rename is only obvious once you see the new
+  spelling.
+
+`stamp_inputs_supplied()` writes the provenance label the first reads: a
+comma-separated list of the optional inputs a build consumed. A label cannot
+be satisfied by arithmetic, which is the whole point — see `layers_supplied`
+in `build_polycell_support()` and `read_polycell_support()`, the prior art
+both helpers generalise, and `method_weed_npp` in
+`calculate_npp_carbon_nitrogen()` for the per-row form.
+
+Three states, and the middle one is where the completeness principle bites:
+
+1. a bare zero or silent literal — forbidden, because it cannot be told from a
+   measurement;
+2. a refusal — also wrong wherever the quantity is known to exist, because
+   excluding it biases the total just as silently;
+3. a **declared assumption** — a named value, a citation or an explicit
+   "assumed, unverified" note, and a `method_*` / `source` / `*_supplied`
+   stamp on the row.
+
+The line between (2) and (3) is not abort-versus-fill. It is whether the
+absent thing is a **quantity** (a species with no published emission factor —
+fill it and declare it) or a **contract** (a corrupted lookup, a label in an
+unrecognised vocabulary — no defensible fill exists; abort). And before
+filling anything: **run the lookup and look at what it returns.** A value the
+code failed to reach is a defect, not an absent quantity, and a `method_*`
+stamp on it makes a missed lookup read as a considered choice.
+
+A structural zero — one where the right-hand side is a ledger or lattice WHEP
+itself defines, so absence really is "did not happen" — is fine, but **say so
+in a comment at the point of use**. There are ~170 silent sites in ~51 files;
+they stay a documented backlog rather than a build-stopping gate, and turning
+the readable ones into readable code is what makes any future gate possible.
+
+Every guard ships with a test of the shape in
+`tests/testthat/helper_absent_input.R`:
+
+```r
+expect_supplied_guard(
+  identity = <the reconciliation, which HOLDS on the vacuous input>,
+  guard = <the call, which must fire anyway>
+)
+```
+
+Its subject is the inadequacy of the identity, not the identity. #1016's own
+test is named *"enteric_ch4_kt conservation is exact"* and passes today while
+the pin ships nothing, because zero distributes to zero. A row count is not
+enough either: an Element whose rows exist while every `Value` is `NA`
+collapses to a literal zero through `sum(na.rm = TRUE)` with a positive row
+count.
 
 ### NSE globals
 
