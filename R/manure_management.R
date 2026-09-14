@@ -12,14 +12,15 @@
 #'   `sub_territory`, `livestock_category`, `n_excretion`, `c_excretion` and
 #'   `vs_excretion`.
 #' @param options A named list. `mms_source` selects how the MMS shares in
-#'   `regional_mms_distribution` are read:
+#'   [regional_mms_distribution] are read:
 #'   * `"regional_default"` (default): every territory takes the table's
-#'     `region == "Global"` rows, the IPCC/GLEAM global default.
+#'     `region == "Global"` rows.
 #'   * `"region_specific"`: each territory takes the rows of the region it
-#'     resolves to, and the Global rows when its region has none. Only four
-#'     `(region, species)` pairs carry region-specific rows (North America
-#'     cattle and swine, Western Europe cattle, Latin America cattle), so
-#'     every other row is unchanged.
+#'     resolves to, and the Global rows when its region has none.
+#'
+#'   `mms_shares` selects which half of [regional_mms_distribution] is read:
+#'   `"gleam_2_0"` (default), the GLEAM 2.0 Supplement S1 Tab. 4.2-4.11
+#'   ingest, or `"placeholder"`, the unsourced table it replaced (whep#958).
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category x mms_type`, plus
@@ -35,12 +36,15 @@
 #' )
 #' split_manure_management(excretion)
 split_manure_management <- function(excretion, options = list()) {
-  opt <- utils::modifyList(list(mms_source = "regional_default"), options)
+  defaults <- list(mms_source = "regional_default", mms_shares = "gleam_2_0")
+  opt <- utils::modifyList(defaults, options)
   mms_source <- opt$mms_source
+  mms_shares <- opt$mms_shares
   opt$mms_source <- rlang::arg_match(
     mms_source,
     c("regional_default", "region_specific")
   )
+  opt$mms_shares <- .mms_shares_arg(mms_shares)
   .check_excretion_cols(excretion)
   bridge <- dplyr::select(
     .species_taxonomy_bridge(),
@@ -53,7 +57,7 @@ split_manure_management <- function(excretion, options = list()) {
   joined <- excretion |>
     tibble::as_tibble() |>
     dplyr::left_join(bridge, by = "livestock_category") |>
-    .attach_mms_shares(opt$mms_source)
+    .attach_mms_shares(opt$mms_source, opt$mms_shares)
   if (anyNA(joined$mms_type)) {
     bad <- unique(joined$species_gen[is.na(joined$mms_type)])
     cli::cli_abort("No MMS distribution for species {.val {bad}}.")
@@ -69,7 +73,7 @@ split_manure_management <- function(excretion, options = list()) {
       n_stream = .data$n_excretion * .data$fraction,
       c_stream = .data$c_excretion * .data$fraction,
       vs_stream = .data$vs_excretion * .data$fraction,
-      method_mms = opt$mms_source
+      method_mms = paste0(opt$mms_shares, "/", opt$mms_source)
     ) |>
     dplyr::select(
       "year",
@@ -110,13 +114,20 @@ split_manure_management <- function(excretion, options = list()) {
 # Attach the MMS shares to the excretion rows, one row per (input row, MMS).
 # "regional_default" gives every territory the Global rows. "region_specific"
 # resolves each territory's region and hands it to the shared resolver below.
-.attach_mms_shares <- function(rows, source) {
+.attach_mms_shares <- function(rows, source, shares = "gleam_2_0") {
   if (identical(source, "regional_default")) {
-    return(.resolve_mms_shares(rows))
+    return(.resolve_mms_shares(rows, shares = shares))
   }
   rows |>
     dplyr::mutate(mms_region = .mms_region_of(.data$territory)) |>
-    .resolve_mms_shares("mms_region")
+    .resolve_mms_shares("mms_region", shares = shares)
+}
+
+# The `mms_shares` option, validated against the `source` column of the
+# shipped table rather than a hardcoded list, so a variant added to the data
+# becomes selectable without a second edit here.
+.mms_shares_arg <- function(mms_shares) {
+  rlang::arg_match(mms_shares, unique(whep::regional_mms_distribution$source))
 }
 
 # The one MMS-share resolver, shared by both manure engines (#679): this
@@ -127,16 +138,23 @@ split_manure_management <- function(excretion, options = list()) {
 # `regional_mms_distribution` on `species_gen`. With no region column, or with
 # `region_col` absent from `rows`, every row takes the `region == "Global"`
 # distribution. With a region column, a row takes its own region's rows when
-# the table has any for that (region, species) -- only four pairs do -- and the
-# Global rows for that species otherwise. The fallback is a left_join on
-# species only, so a row whose region is unknown or unmatched keeps the Global
-# split rather than losing its rows or collapsing to a flat default (#201).
-.resolve_mms_shares <- function(rows, region_col = NULL) {
-  global <- .mms_global_shares()
+# the table has any for that (region, species), and the Global rows for that
+# species otherwise. The fallback is a left_join on species only, so a row
+# whose region is unknown or unmatched keeps the Global split rather than
+# losing its rows or collapsing to a flat default (#201).
+#
+# `shares` picks the half of the table to read: the GLEAM 2.0 ingest or the
+# unsourced placeholder it replaced (whep#958).
+.resolve_mms_shares <- function(
+  rows,
+  region_col = NULL,
+  shares = "gleam_2_0"
+) {
+  global <- .mms_global_shares(shares)
   if (is.null(region_col) || !rlang::has_name(rows, region_col)) {
     return(.join_mms_shares(rows, global))
   }
-  regional <- .mms_regional_shares()
+  regional <- .mms_regional_shares(shares)
   by <- c(
     c("species_gen" = "species"),
     rlang::set_names("region", region_col)
@@ -158,11 +176,14 @@ split_manure_management <- function(excretion, options = list()) {
 
 # The shares are renormalised to sum to one within each (region, species), so
 # the split conserves mass whatever the table holds. On the shipped
-# `regional_mms_distribution` every group already sums to exactly 1, so the
-# division is by 1.0 and leaves each fraction bit-identical.
-.mms_global_shares <- function() {
+# `regional_mms_distribution` every group already sums to one to within
+# floating-point, in both halves of the table.
+.mms_global_shares <- function(shares = "gleam_2_0") {
   whep::regional_mms_distribution |>
-    dplyr::filter(.data$region == "Global") |>
+    dplyr::filter(
+      .data$source == shares,
+      .data$region == "Global"
+    ) |>
     dplyr::mutate(
       fraction = .data$fraction / sum(.data$fraction),
       .by = "species"
@@ -170,9 +191,12 @@ split_manure_management <- function(excretion, options = list()) {
     dplyr::select("species", "mms_type", "fraction")
 }
 
-.mms_regional_shares <- function() {
+.mms_regional_shares <- function(shares = "gleam_2_0") {
   whep::regional_mms_distribution |>
-    dplyr::filter(.data$region != "Global") |>
+    dplyr::filter(
+      .data$source == shares,
+      .data$region != "Global"
+    ) |>
     dplyr::mutate(
       fraction = .data$fraction / sum(.data$fraction),
       .by = c("region", "species")

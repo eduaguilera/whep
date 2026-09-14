@@ -8,6 +8,13 @@
 #'   reproduces the behaviour in force before whep#949, so passing none leaves
 #'   published values unchanged.
 #'
+#'   `mms_shares` selects which half of [regional_mms_distribution] the
+#'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
+#'   S1 Tab. 4.2-4.11 ingest, `"placeholder"` the unsourced table it replaced
+#'   in whep#958. The placeholder stays selectable so the values WHEP
+#'   published before that ingest remain reproducible and the sensitivity to
+#'   it stays measurable; it is not a defensible alternative estimate.
+#'
 #'   `mms_region` selects how the manure-management split in
 #'   [regional_mms_distribution] is keyed:
 #'   * `"as_available"` (default): a row uses its own region when the frame
@@ -16,10 +23,10 @@
 #'     N-excretion table and so takes the region-specific split; Tier 2 carries
 #'     no region and so takes the Global one.
 #'   * `"resolve"`: the IPCC region is resolved from `iso3`, `area_code` or
-#'     `polity_area_code` where it is missing, which makes the table's four
-#'     region-specific `(region, species)` pairs live on the Tier 2 path too.
-#'     Those four pairs are an unsourced placeholder (whep#921), which is why
-#'     this is opt-in rather than the default.
+#'     `polity_area_code` where it is missing, which makes the table's
+#'     region-specific rows live on the Tier 2 path too. Opt-in because it
+#'     changes which rows of the table apply, not because the rows are
+#'     doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 #'   * `"global"`: every row takes the `region == "Global"` split, whatever
 #'     region column it carries.
 #'
@@ -405,7 +412,10 @@ NULL
       climate_zone,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_shares(.mms_region_col(opt$mms_region)) |>
+    .resolve_mms_shares(
+      .mms_region_col(opt$mms_region),
+      shares = opt$mms_shares
+    ) |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
@@ -489,7 +499,8 @@ NULL
     data,
     .manure_ef3(),
     livestock_constants$n_to_n2o,
-    opt$mms_region
+    opt$mms_region,
+    opt$mms_shares
   )
 }
 
@@ -505,7 +516,8 @@ NULL
   data,
   ef3_tbl,
   n2o_to_n,
-  mms_region = "as_available"
+  mms_region = "as_available",
+  mms_shares = "gleam_2_0"
 ) {
   data <- data |>
     dplyr::mutate(row_id_n2o = dplyr::row_number())
@@ -518,7 +530,10 @@ NULL
       heads,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_shares(.mms_region_col(mms_region)) |>
+    .resolve_mms_shares(
+      .mms_region_col(mms_region),
+      shares = mms_shares
+    ) |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(
@@ -616,12 +631,15 @@ NULL
 
 #' Validate and default the manure engine's options.
 #'
-#' The defaults reproduce the behaviour in force before whep#949 exactly: the
-#' `region == "Global"` MMS split on any frame that does not already carry a
-#' `region` column, and an assumed Temperate climate zone.
+#' Every default but `mms_shares` reproduces the behaviour in force before
+#' whep#949 exactly: the `region == "Global"` MMS split on any frame that does
+#' not already carry a `region` column, and an assumed Temperate climate zone.
+#' `mms_shares` defaults to the sourced GLEAM 2.0 ingest, which is what moved
+#' published manure emissions in whep#958.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
+    mms_shares = "gleam_2_0",
     mms_region = "as_available",
     climate_source = "assumed",
     assumed_climate_zone = "Temperate"
@@ -636,10 +654,12 @@ NULL
   }
   # rlang::arg_match() needs a symbol, so each option is bound to one first.
   opt <- utils::modifyList(defaults, options)
+  mms_shares <- opt$mms_shares
   mms_region <- opt$mms_region
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
   list(
+    mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
       mms_region,
       c("as_available", "resolve", "global")
@@ -667,12 +687,12 @@ NULL
 #' the frame will take.
 #'
 #' `"resolve"` is opt-in because the only thing a region changes here is which
-#' rows of `regional_mms_distribution` apply, and its four region-specific
-#' `(region, species)` pairs are an unsourced placeholder (whep#921): making
-#' them live propagates placeholder detail into more of the output, which is a
-#' decision for the maintainer and not a wiring cleanup (whep#949). This
-#' mirrors `split_manure_management()`, whose `mms_source` defaults to the
-#' Global rows for the same reason.
+#' rows of `regional_mms_distribution` apply, and turning it on moves numbers
+#' on every Tier 2 frame at once; that is a decision for the maintainer, not a
+#' wiring cleanup (whep#949). Before whep#958 there was a second reason -- the
+#' region-specific rows were an unsourced placeholder (whep#921) -- which the
+#' GLEAM 2.0 ingest removed. This mirrors `split_manure_management()`, whose
+#' `mms_source` defaults to the Global rows.
 #'
 #' A `"resolve"` request that cannot be honoured -- no `iso3`, `area_code` or
 #' `polity_area_code` to resolve a region from -- warns rather than aborting,
