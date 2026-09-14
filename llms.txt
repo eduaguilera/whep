@@ -965,6 +965,29 @@ is the build-time gate over the same schema.
 - [`assert_table_schema()`](https://eduaguilera.github.io/whep/reference/assert_table_schema.md)
   : Assert that a table conforms to a declarative schema.
 
+## Absent-input guards
+
+Assert that an input *arrived*, never that the totals it feeds
+reconcile. Zero satisfies a sum, so a consistency identity, a
+conservation check and a row count are all passed by an absence.
+[`check_inputs_supplied()`](https://eduaguilera.github.io/whep/reference/check_inputs_supplied.md)
+refuses a column that is missing, or present and identically zero or
+missing;
+[`check_labels_supplied()`](https://eduaguilera.github.io/whep/reference/check_labels_supplied.md)
+refuses a value vocabulary that no longer carries the labels a filter
+selects on, and names what it carries instead;
+[`stamp_inputs_supplied()`](https://eduaguilera.github.io/whep/reference/stamp_inputs_supplied.md)
+writes the provenance label the first one reads, which no arithmetic
+downstream can forge.
+
+- [`check_inputs_supplied()`](https://eduaguilera.github.io/whep/reference/check_inputs_supplied.md)
+  : Refuse an input that was never supplied
+- [`check_labels_supplied()`](https://eduaguilera.github.io/whep/reference/check_labels_supplied.md)
+  : Refuse a value vocabulary that no longer contains the labels a
+  filter needs
+- [`stamp_inputs_supplied()`](https://eduaguilera.github.io/whep/reference/stamp_inputs_supplied.md)
+  : Record which optional inputs a build consumed
+
 ## Gap filling functions
 
 Functions to fill gaps (NA values) in time-dependent variables using

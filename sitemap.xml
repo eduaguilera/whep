@@ -135,7 +135,9 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/check_arable_composition.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_fodder_land_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_footprint_conservation.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/check_inputs_supplied.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_keys_complete.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/check_labels_supplied.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_parquet_integrity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_series_jumps.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_supply_use_balance.html</loc></url>
@@ -363,6 +365,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/som_ranges.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/split_manure_management.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/stamp_inputs_supplied.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/subsoil_no3_reduction.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/summarise_conservation.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/summarize_bnf.html</loc></url>

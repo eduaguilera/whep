@@ -82,7 +82,12 @@ as 0 when absent), <code>crop_npp_dm_t</code> (kept when present) and
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input tibble with weed dry matter, and nitrogen (<code>*_n_t</code>) and
-carbon (<code>*_c_t</code>) for product, residue, root, weeds, crop NPP and total NPP.</p>
+carbon (<code>*_c_t</code>) for product, residue, root, weeds, crop NPP and total NPP,
+plus <code>method_weed_npp</code>: <code>"supplied"</code> where <code>weed_ag_dm_t</code> arrived and
+<code>"absent_zero"</code> where it did not and the weed terms are a fill. Filter on
+it before reading <code>weed_npp_c_t</code> or <code>weed_npp_n_t</code> as a measurement – an
+absent weed stream and a weed-free field are the same zero otherwise
+(whep#1034).</p>
     </div>
 
     <div class="section level2">
@@ -90,17 +95,17 @@ carbon (<code>*_c_t</code>) for product, residue, root, weeds, crop NPP and tota
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>item_prod_code <span class="op">=</span> <span class="st">"15"</span>, production_t <span class="op">=</span> <span class="fl">100</span>, area_ha <span class="op">=</span> <span class="fl">40</span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="calculate_crop_npp.html">calculate_crop_npp</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
 <span class="r-in"><span>  <span class="fu">calculate_npp_carbon_nitrogen</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 31</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 32</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code production_t area_ha product_dm_t yield_dm_t_ha residue_dm_t</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100      40         87.9          2.20         136.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 25 more variables: method_residue &lt;chr&gt;, root_dm_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 26 more variables: method_residue &lt;chr&gt;, root_dm_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_root &lt;chr&gt;, crop_npp_dm_t &lt;dbl&gt;, weed_ag_dm_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   weed_bg_dm_t &lt;dbl&gt;, weed_npp_dm_t &lt;dbl&gt;, weed_ag_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   weed_bg_n_t &lt;dbl&gt;, weed_npp_n_t &lt;dbl&gt;, weed_ag_c_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   weed_bg_c_t &lt;dbl&gt;, weed_npp_c_t &lt;dbl&gt;, total_npp_dm_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   product_n_t &lt;dbl&gt;, residue_n_t &lt;dbl&gt;, root_n_t &lt;dbl&gt;, crop_npp_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   total_npp_n_t &lt;dbl&gt;, product_c_t &lt;dbl&gt;, residue_c_t &lt;dbl&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_weed_npp &lt;chr&gt;, weed_bg_dm_t &lt;dbl&gt;, weed_npp_dm_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   weed_ag_n_t &lt;dbl&gt;, weed_bg_n_t &lt;dbl&gt;, weed_npp_n_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   weed_ag_c_t &lt;dbl&gt;, weed_bg_c_t &lt;dbl&gt;, weed_npp_c_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   total_npp_dm_t &lt;dbl&gt;, product_n_t &lt;dbl&gt;, residue_n_t &lt;dbl&gt;, root_n_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   crop_npp_n_t &lt;dbl&gt;, total_npp_n_t &lt;dbl&gt;, product_c_t &lt;dbl&gt;, …</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

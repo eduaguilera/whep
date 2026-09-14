@@ -1804,6 +1804,36 @@
         </dt>
         <dd>Assert that a table conforms to a declarative schema.</dd>
       </dl></div><div class="section level2">
+      <h2 id="absent-input-guards">Absent-input guards<a class="anchor" aria-label="anchor" href="#absent-input-guards"></a></h2>
+
+      <div class="section-desc"><p>Assert that an input <em>arrived</em>, never that the totals it feeds reconcile. Zero satisfies a sum, so a consistency identity, a conservation check and a row count are all passed by an absence. <code><a href="../reference/check_inputs_supplied.html">check_inputs_supplied()</a></code> refuses a column that is missing, or present and identically zero or missing; <code><a href="../reference/check_labels_supplied.html">check_labels_supplied()</a></code> refuses a value vocabulary that no longer carries the labels a filter selects on, and names what it carries instead; <code><a href="../reference/stamp_inputs_supplied.html">stamp_inputs_supplied()</a></code> writes the provenance label the first one reads, which no arithmetic downstream can forge.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="check_inputs_supplied.html">check_inputs_supplied()</a></code>
+
+        </dt>
+        <dd>Refuse an input that was never supplied</dd>
+
+        <dt>
+
+          <code><a href="check_labels_supplied.html">check_labels_supplied()</a></code>
+
+        </dt>
+        <dd>Refuse a value vocabulary that no longer contains the labels a filter needs</dd>
+
+        <dt>
+
+          <code><a href="stamp_inputs_supplied.html">stamp_inputs_supplied()</a></code>
+
+        </dt>
+        <dd>Record which optional inputs a build consumed</dd>
+      </dl></div><div class="section level2">
       <h2 id="gap-filling-functions">Gap filling functions<a class="anchor" aria-label="anchor" href="#gap-filling-functions"></a></h2>
 
       <div class="section-desc"><p>Functions to fill gaps (NA values) in time-dependent variables using different methods. <code><a href="../reference/interp_vec.html">interp_vec()</a></code> is the vector-level interpolation primitive behind <code>fill_linear(log_space = TRUE)</code>, for callers working with plain vectors.</p></div>

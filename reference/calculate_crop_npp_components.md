@@ -61,15 +61,15 @@ tibble::tibble(
 #> Warning: Weed scaling uses the Spain-specific weed_npp_scaling table.
 #> ℹ It is flagged to_be_revised: not validated for global scope.
 #> This warning is displayed once per session.
-#> # A tibble: 1 × 35
+#> # A tibble: 1 × 36
 #>   item_prod_code production_t area_ha  year npp_potential_dm_t_ha product_dm_t
 #>   <chr>                 <dbl>   <dbl> <dbl>                 <dbl>        <dbl>
 #> 1 15                      100      40  2000                     5         87.9
-#> # ℹ 29 more variables: yield_dm_t_ha <dbl>, residue_dm_t <dbl>,
+#> # ℹ 30 more variables: yield_dm_t_ha <dbl>, residue_dm_t <dbl>,
 #> #   method_residue <chr>, root_dm_t <dbl>, method_root <chr>,
 #> #   crop_npp_dm_t <dbl>, weed_scaling <dbl>, weed_ag_dm_t <dbl>,
-#> #   weed_scaling_to_be_revised <lgl>, weed_bg_dm_t <dbl>, weed_npp_dm_t <dbl>,
-#> #   weed_ag_n_t <dbl>, weed_bg_n_t <dbl>, weed_npp_n_t <dbl>,
-#> #   weed_ag_c_t <dbl>, weed_bg_c_t <dbl>, weed_npp_c_t <dbl>,
-#> #   total_npp_dm_t <dbl>, product_n_t <dbl>, residue_n_t <dbl>, …
+#> #   weed_scaling_to_be_revised <lgl>, method_weed_npp <chr>,
+#> #   weed_bg_dm_t <dbl>, weed_npp_dm_t <dbl>, weed_ag_n_t <dbl>,
+#> #   weed_bg_n_t <dbl>, weed_npp_n_t <dbl>, weed_ag_c_t <dbl>,
+#> #   weed_bg_c_t <dbl>, weed_npp_c_t <dbl>, total_npp_dm_t <dbl>, …
 ```
