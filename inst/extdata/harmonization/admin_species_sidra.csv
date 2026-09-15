@@ -1,0 +1,12 @@
+source,source_table,class_key,source_class_code,source_class_name,species_group,constrains,mapping_kind,mapping_reason
+IBGE_PPM,3939,2670,2670,Bovino,,cattle_dairy+cattle_non_dairy,aggregate,"Total bovine herd. It constrains the sum of the two WHEP cattle groups, and cattle_non_dairy is this class minus the published dairy series, the unit-year being refused where that difference is negative (T10 livestock rule 1)."
+IBGE_PPM,3939,2675,2675,Bubalino,buffalo,,exact,
+IBGE_PPM,3939,2672,2672,Equino,equines,,sum_member,"SIDRA classification 79 serves no asses or mules, so horses constrain the WHEP equines group alone."
+IBGE_PPM,3939,32794,32794,Suíno - total,pigs,,exact,
+IBGE_PPM,3939,32795,32795,Suíno - matrizes de suínos,,,member,"Age, sex or production-stage breakdown of 32794, which binds; recorded so the class is accounted for, never summed alongside it."
+IBGE_PPM,3939,2681,2681,Caprino,sheep_goats,,sum_member,"WHEP carries one sheep_goats group, so sheep and goats are summed into it (T10 livestock rule 2)."
+IBGE_PPM,3939,2677,2677,Ovino,sheep_goats,,sum_member,"WHEP carries one sheep_goats group, so sheep and goats are summed into it (T10 livestock rule 2)."
+IBGE_PPM,3939,32796,32796,Galináceos - total,,chickens_layers+chickens_broilers,aggregate,A combined poultry class constrains the sum of the WHEP poultry groups (T10 livestock rule 4); the gallinaceous total covers the two chicken groups.
+IBGE_PPM,3939,32793,32793,Galináceos - galinhas,,,dropped,"IBGE's galinhas (hens of laying age) is not certainly WHEP's chickens_layers, and T10 decided no rule for it, so the chicken split is not asserted here."
+IBGE_PPM,3939,2680,2680,Codornas,,,dropped,No WHEP counterpart: quails have no WHEP livestock item; not folded into a near neighbour.
+IBGE_PPM,94,94:vacas_ordenhadas,,Vacas ordenhadas,cattle_dairy,,exact,"A published dairy series binds dairy cattle (T10 livestock rule 1). Table 94 reports cows milked during the year, which is the only dairy split IBGE publishes for the PPM herd."

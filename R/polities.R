@@ -1888,6 +1888,9 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   rather than to nothing.
 #'
 #' @returns A character vector of polity codes, `NA` where nothing matched.
+#'   On the identity routes a subnational polity contained in another
+#'   candidate (per [polity_containment]) never competes with its container,
+#'   so an ISO3 shared by a state and its provinces resolves to the state.
 #'
 #' @examples
 #' resolve_polity_label("ZAR", source = "mueller-synthetic-n", year = 2000)
@@ -2001,6 +2004,17 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     if (!is.na(year[i])) {
       cand <- .polity_year_candidates(cand, year[i])
     }
+    # A MEMBER NEVER CLAIMS ITS CONTAINER'S IDENTITY (whep#1000). Subnational
+    # polities carry their container's ISO3 -- Japan's 46 prefectures all say
+    # `JPN` -- so an ISO3 or name hit can return the container and its members
+    # together, and the guard below would then answer NA for Japan itself.
+    # The containment edge decides which is which: a candidate that is a
+    # member of another candidate, over an edge covering the year, steps
+    # aside. Only the edge decides, never `polity_type`, so a subnational
+    # polity whose container is not among the candidates keeps its own claim.
+    if (nrow(cand) > 1L) {
+      cand <- .drop_contained_candidates(cand, year[i])
+    }
     # THE AMBIGUITY GUARD IS THE DESIGN. Nested periodisations and known
     # duplicates make several polities share a normalised name, so resolving by
     # row order would invent an answer -- which is precisely what the alias map
@@ -2101,6 +2115,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     },
     character(1)
   )
+}
+
+#' Drop resolution candidates contained in another candidate.
+#'
+#' `cand` holds the live polities a label matched; `year` is the year asked
+#' for, or `NA`. A candidate that the published containment edge places inside
+#' another candidate -- over an edge whose interval covers `year`, or any edge
+#' when no year was given -- is removed, so the container answers for the
+#' identity the members merely share. Edge intervals follow the polity
+#' convention: start inclusive, end exclusive at a succession, inclusive at
+#' the open end; a member on its succession year steps aside either way,
+#' which can only hand the answer to its container.
+#' @noRd
+.drop_contained_candidates <- function(cand, year) {
+  edge <- polity_containment
+  edge <- edge[edge$container_code %in% cand$polity_code, , drop = FALSE]
+  if (!is.na(year)) {
+    edge <- edge[
+      edge$start_year <= year & year <= edge$end_year,
+      ,
+      drop = FALSE
+    ]
+  }
+  contained <- unique(edge$member_code)
+  cand[!cand$polity_code %in% contained, , drop = FALSE]
 }
 
 # The candidate periods of one identifier that cover `year`, read the way

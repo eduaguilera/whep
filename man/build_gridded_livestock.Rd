@@ -14,6 +14,7 @@ build_gridded_livestock(
   glw_density = NULL,
   grass_productivity = NULL,
   years = NULL,
+  proxy_method = c("luh2", "glw3"),
   area_key = c("grid", "polity_area")
 )
 }
@@ -96,15 +97,20 @@ If \code{NULL}, land-use weights are used alone.
 }}
 
 \item{glw_density}{A tibble with species-specific gridded
-livestock density from GLW3 (Gilbert et al. 2018). Optional.
+livestock density from GLW3 (Gilbert et al. 2018). Required when
+\code{proxy_method = "glw3"}; ignored, with a warning, under
+\code{proxy_method = "luh2"}.
 Expected columns:
 \itemize{
 \item \code{lon}, \code{lat}: Cell centre coordinates.
 \item \code{species_group}: Must match \code{livestock_data}.
 \item \code{density}: Heads per cell (reference year ~2010).
-If provided, this \strong{replaces} the LUH2-based proxy for the
-matching groups, while still being scaled by LUH2 time trends.
-If \code{NULL}, LUH2 proxies are used for all groups.
+\item \code{glw_variant}: Optional, \code{"DA"} or \code{"AW"}; \code{\link[=read_glw_density]{read_glw_density()}}
+always supplies it. A table mixing the two products is refused,
+since one recorded label cannot describe both geographies.
+Under \code{"glw3"} it \strong{replaces} the LUH2 proxy for every group, still
+masked by that year's LUH2 extent so a cell whose land use has gone
+receives nothing.
 }}
 
 \item{grass_productivity}{A tibble with grass productivity per cell
@@ -118,6 +124,15 @@ proxies are used alone.}
 (default), all years present in \code{livestock_data} are processed.
 When supplied, \code{livestock_data}, \code{gridded_pasture}, and
 \code{gridded_cropland} are filtered to this set before processing.}
+
+\item{proxy_method}{Which spatial proxy carries the within-country
+weight: \code{"luh2"} (default) or \code{"glw3"}, validated with
+\code{\link[rlang:arg_match]{rlang::arg_match()}}. They are alternatives, never fallbacks: under
+\code{"glw3"} a \code{NULL} \code{glw_density}, or a \code{species_group} that table has
+no positive cell for, aborts instead of quietly reverting to the LUH2
+proxy. The resolved value is recorded per row in
+\code{method_livestock_proxy}. See \emph{Which livestock proxy the weights come
+from}.}
 
 \item{area_key}{Which area code the output is keyed on: \code{"grid"}
 (default, the reporting codes \code{livestock_data} and \code{country_grid} are
@@ -142,6 +157,10 @@ reporting code the engine allocated on.
 \item \code{heads}: Allocated live animal count.
 \item Any additional numeric columns from \code{livestock_data}
 (e.g. \code{enteric_ch4_kt}, \code{manure_ch4_kt}).
+\item \code{method_livestock_proxy}: Which proxy produced the weights for
+this row, one of \code{"luh2_area"}, \code{"luh2_grass"}, \code{"glw3_da"},
+\code{"glw3_aw"} (or plain \code{"glw3"} for a \code{glw_density} table carrying
+no \code{glw_variant}). Constant within a \verb{(year, species_group)} block.
 }
 }
 \description{
@@ -195,6 +214,58 @@ LSU/ha reference for use with the \code{glw_density} parameter.
 
 }
 }
+\section{Which livestock proxy the weights come from}{
+
+\code{proxy_method} selects the within-country weight, and every output row
+records the resolved value in \code{method_livestock_proxy}:
+\itemize{
+\item \code{"luh2_area"}: LUH2 extent alone (\code{proxy_method = "luh2"}).
+\item \code{"luh2_grass"}: LUH2 extent times grass NPP (\code{proxy_method = "luh2"}
+with \code{grass_productivity} supplied). The grass weighting reaches the
+\code{pasture} and \code{rangeland} proxies only, so \code{cropland} and \code{mixed}
+groups in the same call stay \code{"luh2_area"}. The label is per species
+group, not per cell: a grazer cell with no \code{grass_npp} keeps its area
+weight but still travels under \code{"luh2_grass"}, because what the
+column records is the weighting regime the group ran under.
+\item \code{"glw3_da"} / \code{"glw3_aw"}: GLW3 density masked by that year's LUH2
+extent (\code{proxy_method = "glw3"}), from the dasymetric or the
+areal-weighted product respectively. The two are different
+within-country geographies, so the label names which one: it is read
+off \code{glw_density}'s \code{glw_variant} column, which \code{\link[=read_glw_density]{read_glw_density()}}
+stamps, and therefore cannot disagree with the raster the weights
+came from. A \code{glw_density} built by hand, carrying no such column,
+travels as plain \code{"glw3"}.
+}
+
+The default stays \code{"luh2"} even though \code{"glw3"} is the better-informed
+proxy. GLW3 now has a data mechanism -- \code{\link[=read_glw_density]{read_glw_density()}}, the
+\code{WHEP_GLW3_DIR} environment variable and
+\code{inst/scripts/download/download_glw3.R} (whep#1000, task T15a-ii) --
+but it is an opt-in local raster set, so a \code{"glw3"} default would abort
+every run on a machine that has not fetched it, and GLW3 covers nine of
+the eleven species groups (not \code{camels}, not \code{other}). This is a
+deliberate, documented deviation from "the default is the most rigorous
+available method", of the same shape as the interim \code{area_key = "grid"}
+default in \code{R/spatialize_compartments.R}; whep#1000 task T20 is the gate
+that revisits it.
+}
+
+\section{Species groups must be mapped, not guessed}{
+
+Every \code{species_group} in \code{livestock_data} must have a row in
+\code{species_proxy}; an unmapped group aborts naming it. It used to fall
+back to the \code{"pasture"} proxy silently, so a typo or a new FAOSTAT item
+was given a grazing distribution with no trace in the output.
+
+The catch-all is explicit, not implicit.
+\code{inst/extdata/livestock_mapping.csv} maps FAOSTAT items 1140 and 1150
+(rabbits and hares, other rodents) and 1171 (live animals nes) onto the
+group \code{"other"} with the \code{cropland} and \code{mixed} proxies, so a catch-all
+group is reached by an explicit item mapping upstream and never by
+name-matching here. A group carrying several proxies keeps the first,
+as before.
+}
+
 \section{Which area code the output is keyed on}{
 
 The chain allocates \emph{from} a national table keyed on \code{area_code} and
