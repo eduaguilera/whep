@@ -101,6 +101,7 @@ test_that("applied output carries provenance for every stage", {
     "method_n_excretion",
     "method_vs",
     "method_c_excretion",
+    "method_forage_n",
     "method_mms",
     "method_losses",
     "method_allocation",

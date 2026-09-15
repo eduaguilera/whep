@@ -534,4 +534,64 @@ if (length(nour_metric) == 1L) {
   )
 }
 
+# D. atmospheric N deposition vs EMEP MSC-W (external) ------------------------
+# HaNi against the European chemical transport model, per country and per year.
+# Like the scoping and temporary-grassland layers it is opt-in: its first run
+# downloads ~2.3 GB of EMEP NetCDF and reads the whole global HaNi grid, which
+# is not something a sweep should start unasked. It runs when the HaNi
+# aggregate is already cached, or when VAL_ND_FORCE is set.
+nd_years <- c(
+  Sys.getenv("VAL_ND_YEAR_MIN", "1990"),
+  Sys.getenv("VAL_ND_YEAR_MAX", "2019")
+)
+nd_cache <- sprintf(
+  "validation/cache/hani_deposition_%s_%s.rds",
+  nd_years[[1]],
+  nd_years[[2]]
+)
+if (!nzchar(Sys.getenv("VAL_ND_FORCE")) && !file.exists(nd_cache)) {
+  add(
+    "n_deposition_emep",
+    "external",
+    NA,
+    NA,
+    NA,
+    sprintf("not run: no %s, and VAL_ND_FORCE unset", nd_cache)
+  )
+} else {
+  nd_out <- system2(
+    "Rscript",
+    c("validation/n_deposition_emep.R", nd_years),
+    stdout = TRUE,
+    stderr = FALSE
+  )
+  nd_metric <- grep("^METRIC", nd_out, value = TRUE)
+  if (length(nd_metric) != 1L) {
+    add("n_deposition_emep", "external", NA, NA, NA, "no METRIC line reported")
+  } else {
+    nd_num <- function(key) {
+      as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", nd_metric))
+    }
+    add(
+      "n_deposition_emep",
+      "external",
+      nd_num("n_cells"),
+      NA,
+      nd_num("cum_gap_tg"),
+      sprintf(
+        "HaNi/EMEP %.3f at %s -> %.3f at %s; HaNi %+.0f%% vs EMEP %+.0f%%",
+        nd_num("ratio_first"),
+        nd_years[[1]],
+        nd_num("ratio_last"),
+        nd_years[[2]],
+        nd_num("hani_change_pct"),
+        nd_num("emep_change_pct")
+      )
+    )
+  }
+}
+
+cat("\n=== WHEP validation scorecard ===\n")
+dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+
 print_scorecard()

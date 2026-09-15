@@ -75,13 +75,16 @@
 #'   `"whep"` (default) charges the class WHEP's own grass intake and applied
 #'   excreta, and so needs `data$livestock_intake` and `data$excreta`;
 #'   `"lpjml"` uses the model's livestock module instead and needs neither.
+#' @inheritParams build_soil_carbon_inputs
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
-#'   `c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-#'   `land_use` in `"cropland"`, `"grassland"` and `"natural"`, plus the polity
-#'   columns below.
+#'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
+#'   `method_unspatialized` (`NA` on the grassland and natural classes, which
+#'   are not spatialized from polity-crop totals), for `land_use` in
+#'   `"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
+#'   below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @source Cropland inputs from [build_soil_carbon_inputs()]; grassland and
 #'   natural inputs from [build_grass_natural_carbon_inputs()]; assembled per
@@ -96,16 +99,25 @@ build_carbon_inputs <- function(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   density_basis <- rlang::arg_match(density_basis)
   method_grazing <- rlang::arg_match(method_grazing)
+  method_unspatialized <- rlang::arg_match(method_unspatialized)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
   }
-  d <- .ci_resolve_inputs(data, years, cfg, density_basis, method_grazing)
+  d <- .ci_resolve_inputs(
+    data,
+    years,
+    cfg,
+    density_basis,
+    method_grazing,
+    method_unspatialized
+  )
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
     .add_reporting_polity_columns()
@@ -118,7 +130,8 @@ build_carbon_inputs <- function(
   years = NULL,
   cfg = .ci_group_config(),
   density_basis = "renormalised",
-  method_grazing = "whep"
+  method_grazing = "whep",
+  method_unspatialized = "reallocate"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -126,7 +139,14 @@ build_carbon_inputs <- function(
     data$crop_area %||% .ci_crop_area(data)
   }
   list(
-    cropland = .ci_cropland_input(data, years, crop_area, cfg, density_basis),
+    cropland = .ci_cropland_input(
+      data,
+      years,
+      crop_area,
+      cfg,
+      density_basis,
+      method_unspatialized
+    ),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(
@@ -164,7 +184,8 @@ build_carbon_inputs <- function(
   years,
   crop_area,
   cfg,
-  basis = "renormalised"
+  basis = "renormalised",
+  method_unspatialized = "reallocate"
 ) {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
@@ -173,7 +194,13 @@ build_carbon_inputs <- function(
   if (!is.null(data$cropland)) {
     return(collapse(data$cropland))
   }
-  .sci_build("grid", data, years, reduce = collapse)
+  .sci_build(
+    "grid",
+    data,
+    years,
+    reduce = collapse,
+    method = method_unspatialized
+  )
 }
 
 .ci_cropland_class <- function(
@@ -196,6 +223,9 @@ build_carbon_inputs <- function(
     # Same reason as in `.sci_sum_components()`: an input table without an
     # input C:N is missing information, not carrying a zero.
     ensure_columns(tibble::tibble(input_cn = numeric())) |>
+    # A hand-supplied per-crop layer need not carry the rule that produced
+    # it; NA then says "not recorded", never "dropped".
+    ensure_columns(tibble::tibble(method_unspatialized = character())) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
     ) |>
@@ -212,6 +242,7 @@ build_carbon_inputs <- function(
       class_area_ha = sum(.data$crop_area_ha),
       method_c_input = .data$method_c_input[1],
       method_area_basis = basis,
+      method_unspatialized = .data$method_unspatialized[1],
       .by = c("lon", "lat", "area_code", "year", "land_use")
     )
 }
@@ -428,6 +459,33 @@ build_carbon_inputs <- function(
     )
 }
 
+# The static per-cell crop area that weights each crop's density in its class.
+#
+# This used to be an inner_join, which threw away every cell-crop the static
+# crop-pattern layer has no row for -- re-imposing at the class step the loss
+# build_soil_carbon_inputs() had just been taught to avoid, because a crop
+# reallocated onto a polity's cropland cells is by definition absent from the
+# pattern (whep#599). The layer now carries the area its own densities were
+# computed on, so those rows keep theirs. Matched rows still take the static
+# area, so nothing that was already gridded moves; whether the static or the
+# FAOSTAT-renormalised area should weight the class is a separate question, open
+# in whep#1058 as `density_basis`.
+.ci_attach_crop_area <- function(cropland, crop_area, join_keys) {
+  if (!rlang::has_name(cropland, "crop_area_ha")) {
+    return(dplyr::inner_join(cropland, crop_area, by = join_keys))
+  }
+  cropland |>
+    dplyr::rename(layer_crop_area_ha = "crop_area_ha") |>
+    dplyr::left_join(crop_area, by = join_keys) |>
+    dplyr::mutate(
+      crop_area_ha = dplyr::coalesce(
+        .data$crop_area_ha,
+        .data$layer_crop_area_ha
+      )
+    ) |>
+    dplyr::select(-"layer_crop_area_ha")
+}
+
 # -- Finalisation -------------------------------------------------------------
 
 # Grid output keeps per-cell per-class rows; polity output aggregates to
@@ -439,6 +497,9 @@ build_carbon_inputs <- function(
 # `land_use` when supplied; a class with no available area retains the plain
 # mean fallback via .ci_wmean's zero-weight guard.
 .ci_finalise <- function(x, resolution, land_use = NULL) {
+  # Grassland and natural rows are not spatialized from polity-crop totals, so
+  # they carry no allocation rule; the column still has to exist for them.
+  x <- ensure_columns(x, tibble::tibble(method_unspatialized = character()))
   drop_cols <- c("class_area_ha")
   if (resolution == "grid") {
     # Grouped cropland keeps its area as `group_area_ha`: the balance splits
@@ -465,7 +526,11 @@ build_carbon_inputs <- function(
       c_input_mgc_ha_yr = .ci_wmean(.data$c_input_mgc_ha_yr, .data$area_weight),
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
       dplyr::across(
-        dplyr::any_of(c("method_c_input", "method_area_basis")),
+        dplyr::any_of(c(
+          "method_c_input",
+          "method_area_basis",
+          "method_unspatialized"
+        )),
         \(x) x[1]
       ),
       .by = c("area_code", "year", "land_use")

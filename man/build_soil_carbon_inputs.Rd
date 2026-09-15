@@ -8,6 +8,7 @@ build_soil_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 )
 }
@@ -43,6 +44,22 @@ hand-supplied \code{npp} keeps the pipeline offline unless supplied here);
 and manure readers so they slice to the requested years; ignored for inputs
 supplied via \code{data}.}
 
+\item{method_unspatialized}{What happens to a polity-crop whose crop has no
+hectares in the (time-invariant) \code{crop_patterns} layer. \code{"reallocate"}
+(default) spreads that carbon over the polity's crop-pattern cropland
+cells in proportion to each cell's total cropland area, and puts it on the
+crop's FAOSTAT national harvested area, so the polity's gridded carbon
+mass equals its national mass; this is the rule the sibling nitrogen
+spatialization already applies to the same gap
+(\code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}). \code{"drop"} discards it, which is what
+the package did before and what a caller who prefers a hole to a smear
+should ask for. Either way the mass and the affected crops are reported,
+and the choice is recorded in \code{method_unspatialized}. Reallocation needs a
+national area to put the carbon on, so a polity-crop with no
+\code{harvested_area} row -- and a polity with no cell at all in the support,
+which no rule here can reach (see whep#1002) -- is dropped under both
+methods, reported separately.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
@@ -51,11 +68,12 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction}, \code{method_c_input} and \code{crop_area_ha} -- the crop's
-area at that grain on the basis the densities are computed on: the
-FAOSTAT-renormalised cell area where a national harvested area was
-supplied, the spatialized area otherwise -- plus the polity columns
-below.
+\code{humified_fraction}, \code{method_c_input}, \code{method_unspatialized} and
+\code{crop_area_ha} -- the crop's area at that grain on the basis the
+densities are computed on: the FAOSTAT-renormalised cell area where a
+national harvested area was supplied, the spatialized area otherwise, so
+a consumer can recover the carbon mass without re-deriving it -- plus the
+polity columns below.
 }
 \description{
 Builds the carbon returned to soil from crop residues, crop roots, weeds and

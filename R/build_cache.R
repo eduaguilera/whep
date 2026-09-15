@@ -53,7 +53,14 @@ whep_clear_cache <- function() {
 # callers asking for the full range share one slot and nothing that pre-dates
 # year scoping changes behaviour. Without the window in the key, a request for
 # 2000-2003 would be served to a caller that asked for everything (cf. #243).
-.cache_key <- function(key, years) {
+#
+# `method` qualifies the slot the same way for a build method that changes the
+# result. A NULL method adds nothing, so the slots a default build uses are the
+# ones it has always used; any other method gets its own slot, because serving
+# one method's CBS to a caller that asked for the other is silent and
+# unrecoverable (whep#762).
+.cache_key <- function(key, years, method = NULL) {
+  key <- paste(c(key, method), collapse = "__")
   if (is.null(years)) {
     return(key)
   }
@@ -63,6 +70,15 @@ whep_clear_cache <- function() {
     max(years, na.rm = TRUE),
     sep = "__"
   )
+}
+
+# The cache-slot qualifier for a CBS build method. `"none"` is the default and
+# returns NULL, so a default build keeps its existing slot names.
+.cbs_cache_method <- function(trade_recovery) {
+  if (identical(trade_recovery, "none")) {
+    return(NULL)
+  }
+  trade_recovery
 }
 
 # Collapse a requested year window to the contiguous range the builds work on.
@@ -139,14 +155,23 @@ whep_clear_cache <- function() {
   )
 }
 
-.build_cbs_years <- function(primary_prod, years, context_years = years) {
+.build_cbs_years <- function(
+  primary_prod,
+  years,
+  context_years = years,
+  trade_recovery = "none"
+) {
   if (is.null(years)) {
-    return(build_commodity_balances(primary_prod))
+    return(build_commodity_balances(
+      primary_prod,
+      trade_recovery = trade_recovery
+    ))
   }
   build_commodity_balances(
     primary_prod,
     start_year = min(context_years, na.rm = TRUE),
-    end_year = max(context_years, na.rm = TRUE)
+    end_year = max(context_years, na.rm = TRUE),
+    trade_recovery = trade_recovery
   ) |>
     .filter_years(years)
 }
@@ -172,12 +197,20 @@ whep_clear_cache <- function() {
 }
 
 # The long CBS built from primary production, cached under the requested
-# window. This is the single copy of the wiring that get_wide_cbs(),
-# get_processing_coefs() and build_io_model() all share.
-.cached_cbs_built <- function(years) {
+# window and the trade-recovery method. This is the single copy of the wiring
+# that get_wide_cbs(), get_processing_coefs() and build_io_model() all share,
+# so the method has to travel with it: a build under one method served to a
+# caller that asked for the other would be invisible downstream.
+.cached_cbs_built <- function(years, trade_recovery = "none") {
   primary_prod <- .cached_primary_prod(.context_years(years))
-  .cache_get(.cache_key("cbs_built", years), {
+  key <- .cache_key("cbs_built", years, .cbs_cache_method(trade_recovery))
+  .cache_get(key, {
     cli::cli_h1("Building commodity balance sheets")
-    .build_cbs_years(primary_prod, years, .context_years(years))
+    .build_cbs_years(
+      primary_prod,
+      years,
+      .context_years(years),
+      trade_recovery = trade_recovery
+    )
   })
 }

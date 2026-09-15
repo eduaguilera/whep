@@ -194,6 +194,18 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
+    ".lineage_attach", "left_join", "lineage_polity_code, polity_code", 1L,
+    "identity_lookup",
+    "Attaches the polity's display name once, at the output stage, after the
+     lineage has been decided on codes. A polity code already names its own
+     period (`RUS-1991-2014`), so the name cannot vary within it.",
+    ".lineage_expand", "inner_join", "code, polity_code", 1L,
+    "identity_lookup",
+    "The `predecessor` edge is a property of the polity PERIOD, not of a
+     calendar year -- the same reason `.land_in_polygons` reads a polygon on
+     `polity_code` alone. The year is the walk's stop condition and is applied
+     in `.lineage_carried()`, against the support's own interval, on every
+     candidate this join produces.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -273,6 +285,16 @@
     "time_invariant",
     "`crop_patterns` is a single-vintage gridded map, applied to every year on
      purpose.",
+    ".sci_reallocate", "anti_join", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "Selects the polity-crops the row above could not place, against the same
+     single-vintage `crop_patterns` map: a crop the map does not carry is
+     missing in every year, so a year in the key would return the year.",
+    ".sci_reallocate", "inner_join", "area_code", 1L, "time_invariant",
+    "Fans those polity-crops onto the polity's cropland cells. The cropland
+     support is summed from the same single-vintage map, so it has no year to
+     key on; the crop's own area DOES come from a year-keyed join, the one
+     above it on `(area_code, item_prod_code, year)` (whep#599, whep#1002).",
     ".sci_warn_unspatialized", "anti_join", "area_code, item_prod_code", 1L,
     "diagnostic", "Reports the carbon the join above cannot spatialize.",
     ".select_best_source", "[", "area_code", 1L, "identity_lookup",
@@ -509,6 +531,21 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".lineage_attach", "distinct", "polity_code", 1L, "identity_lookup",
+    "One display name per polity period, deduped before it is attached once at
+     the output stage. Keyed on the code alone, so the name is carried, never
+     a key.",
+    ".lineage_carried", "distinct", "polity_code, start_year, end_year", 1L,
+    "identity_lookup",
+    "The intervals the spatial support actually holds cells for.
+     `start_year`/`end_year` ARE the time dimension here; the year the caller
+     asks about is compared against them on the very next line, which is what
+     makes a candidate carried or not.",
+    ".lineage_expand", "distinct", "polity_code, predecessor", 1L,
+    "identity_lookup",
+    "The succession edge list, deduped to one row per (period, predecessor). An
+     edge has no calendar year of its own -- both of its endpoints carry their
+     own periods.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it
@@ -598,12 +635,24 @@
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
+    ".sci_cropland_weights", "mutate", "area_code", 1L, "time_invariant",
+    "Normalises each cell's cropland share within its polity. The cropland it
+     sums is the same single-vintage `crop_patterns` map, so there is no year
+     to collapse.",
+    ".sci_cropland_weights", "summarise", "lon, lat, area_code", 1L,
+    "time_invariant",
+    "Sums the per-crop cell areas of that one map into the cell's cropland
+     area, for the same reason.",
     ".sci_grid_weights", "mutate", "area_code, item_prod_code", 1L,
     "time_invariant",
     "Renormalises cell crop area within (area, crop). `crop_patterns` is a
      single-vintage gridded map applied to every year on purpose -- the same
      source the `.sci_join_weights` join row rests on -- so the frame has no
      year to collapse.",
+    ".sci_reallocate", "distinct", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The same (area, crop) pairs, taken so the crops the map does not carry can
+     be reallocated instead of dropped.",
     ".sci_warn_unspatialized", "distinct", "area_code, item_prod_code", 1L,
     "diagnostic",
     "The (area, crop) pairs the crop-pattern weights cover, so the warning can
@@ -642,6 +691,13 @@
     "diagnostic",
     "Reports the (country, crop) pairs with national area but no allocatable
      cell, inside one year of the spatialization.",
+    ".zero_pattern_underflow", "[", "area_code, item_prod_code", 1L,
+    "diagnostic",
+    "`max(harvest_fraction)` over the crop's cells, to count the (country,
+     crop) pairs whose whole pattern was float underflow for the message that
+     says how many fall back to uniform placement. `crop_patterns` is a
+     single-vintage gridded map with no year axis of its own, and the count
+     reaches no value.",
     ".weight_supply_by_value", "mutate", "area_code, proc_group, proc_cbs_code",
     1L, "single_year",
     "`all(price_ok | type != \"supply\")` over one year's supply-use, so a

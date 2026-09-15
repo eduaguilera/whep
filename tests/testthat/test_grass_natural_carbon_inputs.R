@@ -766,6 +766,160 @@ testthat::test_that("the woody PFT list is a strict subset of the natural one", 
   )
 })
 
+# ---- Which grassland hectares the excreta is divided by (whep#1011) ---------
+# The excreta density is charged only to cells the LPJmL run gives a grassland
+# stand, while the divisor has always been the polity's WHOLE LUH2 grassland
+# area, and build_carbon_balance() multiplies the density by each charged
+# cell's LUH2 grassland area. Whatever the uncharged hectares would have
+# received is therefore lost. Measured on the pin against read_luh2_landuse(),
+# the covered share of LUH2 grassland area is 98.4% at 1960, 98.6% at 2010 and
+# 98.6% at 2020 globally, but 53 of 188 polities lose more than 10%. This
+# fixture makes that shortfall a checkable 60%.
+
+.gn_partial_cover_data <- function() {
+  list(
+    # Cell C (1.25) carries LUH2 grassland but no LPJmL grassland stand, so it
+    # gets no grassland row from the net_c layer.
+    # `net_c_mgc_ha_yr` equal to the production, and a zero grass intake below:
+    # together they mean NOBODY grazed, so `plant_c` is the whole production
+    # under either `method_grazing`. That keeps these excreta-distribution
+    # figures measuring only what they are about -- which hectares the excreta
+    # total is divided by -- rather than also picking up a grazing removal.
+    net_c = tibble::tribble(
+      ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~net_c_mgc_ha_yr,
+      0.25, 0.25, 2000L, "grassland", 2, 2,
+      0.75, 0.25, 2000L, "grassland", 4, 4,
+      0.25, 0.25, 2000L, "natural", 5, NA
+    ),
+    livestock_intake = .gn_intake_fixture(grass_dm_t = 0),
+    country_grid = tibble::tribble(
+      ~lon, ~lat, ~area_code, ~cell_area_frac,
+      0.25, 0.25, 1L, 1,
+      0.75, 0.25, 1L, 1,
+      1.25, 0.25, 1L, 1
+    ),
+    land_use = tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+      0.25, 0.25, 1L, 2000L, "grassland", 100,
+      0.75, 0.25, 1L, 2000L, "grassland", 300,
+      1.25, 0.25, 1L, 2000L, "grassland", 600
+    ),
+    excreta = tibble::tribble(
+      ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
+      2000L, "1", NA, "Grassland", NA, 1000
+    ),
+    residue_humification = whep::residue_humification
+  )
+}
+
+# The excreta carbon mass the polity's grassland actually receives: the
+# per-hectare excreta density (the run minus the same run with no excreta)
+# times the LUH2 grassland area of the cell it is charged to, which is what
+# build_carbon_balance() does with this table.
+.gn_charged_excreta_mg <- function(out, data, basis) {
+  # Same method pinning as the callers: these fixtures carry per-PFT NPP and
+  # no litterfall, and the baseline must be built the same way as `out` or the
+  # difference below would be a method change rather than the excreta.
+  # The baseline has no excreta, so it cannot use `"whep"` -- that method
+  # requires it. `"lpjml"` gives the SAME plant carbon here, because the
+  # fixture sets `net_c_mgc_ha_yr` equal to the production and grazes nothing,
+  # so the difference measured below is the excreta and only the excreta.
+  base <- .gn_build_npp(
+    resolution = "grid",
+    data = utils::modifyList(data, list(excreta = NULL)),
+    excreta_area_basis = basis
+  ) |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::select("lon", "lat", "area_code", "year", npp = "c_input_mgc_ha_yr")
+  areas <- data$land_use |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::select("lon", "lat", "area_code", "year", "area_ha")
+  out |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::left_join(base, by = c("lon", "lat", "area_code", "year")) |>
+    dplyr::inner_join(areas, by = c("lon", "lat", "area_code", "year")) |>
+    dplyr::summarise(
+      mass = sum(
+        (.data$c_input_mgc_ha_yr - dplyr::coalesce(.data$npp, 0)) *
+          .data$area_ha
+      )
+    ) |>
+    dplyr::pull("mass")
+}
+
+testthat::test_that("the default basis charges only the covered hectares", {
+  d <- .gn_partial_cover_data()
+  testthat::expect_warning(
+    out <- .gn_build_npp(
+      resolution = "grid",
+      data = d,
+      method_grazing = "whep"
+    ),
+    "no LPJmL grassland stand"
+  )
+  # 1000 MgC over the whole 1000 ha of LUH2 grassland is 1 MgC/ha, charged to
+  # the 400 ha that carry a stand: 400 of 1000 MgC, 60% lost.
+  testthat::expect_equal(.gn_charged_excreta_mg(out, d, "luh2_grassland"), 400)
+})
+
+testthat::test_that("charged_grassland conserves the polity excreta carbon", {
+  d <- .gn_partial_cover_data()
+  testthat::expect_warning(
+    out <- .gn_build_npp(
+      resolution = "grid",
+      data = d,
+      method_grazing = "whep",
+      excreta_area_basis = "charged_grassland"
+    ),
+    "charges their"
+  )
+  testthat::expect_equal(
+    .gn_charged_excreta_mg(out, d, "charged_grassland"),
+    1000
+  )
+  # The same 1000 MgC over the 400 charged hectares is 2.5 MgC/ha, 2.5x the
+  # default density, and the cell set is unchanged.
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  testthat::expect_equal(nrow(grass), 2L)
+  testthat::expect_equal(sort(grass$c_input_mgc_ha_yr), c(4.5, 6.5))
+})
+
+testthat::test_that("luh2_all_grassland conserves it on every LUH2 cell", {
+  d <- .gn_partial_cover_data()
+  out <- .gn_build_npp(
+    resolution = "grid",
+    data = d,
+    method_grazing = "whep",
+    excreta_area_basis = "luh2_all_grassland"
+  )
+  testthat::expect_equal(
+    .gn_charged_excreta_mg(out, d, "luh2_all_grassland"),
+    1000
+  )
+  # The uncovered cell now carries a grassland row: zero net production plus
+  # the 1 MgC/ha excreta density.
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  testthat::expect_equal(nrow(grass), 3L)
+  testthat::expect_equal(sort(grass$c_input_mgc_ha_yr), c(1, 3, 5))
+  # Nothing is added without excreta, so that path keeps the LPJmL cell set.
+  no_ex <- .gn_build_npp(
+    resolution = "grid",
+    data = utils::modifyList(d, list(excreta = NULL)),
+    excreta_area_basis = "luh2_all_grassland"
+  )
+  testthat::expect_equal(sum(no_ex$land_use == "grassland"), 2L)
+})
+
+testthat::test_that("a fully covered polity is not warned about", {
+  testthat::expect_silent(
+    .gn_build_npp(
+      resolution = "grid",
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep"
+    )
+  )
+})
+
 testthat::test_that(".gn_woody_share weights by carbon, not by count", {
   # Three units of woody production against one of grass is 0.75 by carbon.
   # By PFT COUNT the same cell would be 0.5, which is the error this guards.
@@ -938,6 +1092,48 @@ testthat::test_that("litterfall on a layer without it aborts, never falls back",
 testthat::test_that("an unknown method is refused", {
   testthat::expect_error(
     whep::build_grass_natural_carbon_inputs(method_natural_c = "residues"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the three bases agree when every hectare is charged", {
+  bases <- c("luh2_grassland", "charged_grassland", "luh2_all_grassland")
+  out <- purrr::map(bases, \(b) {
+    .gn_build_npp(
+      resolution = "grid",
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep",
+      excreta_area_basis = b
+    ) |>
+      dplyr::select(-"method_excreta_area")
+  })
+  testthat::expect_equal(out[[2]], out[[1]])
+  testthat::expect_equal(out[[3]], out[[1]])
+})
+
+testthat::test_that("method_excreta_area records the basis at both grains", {
+  purrr::walk(c("grid", "polity"), function(res) {
+    out <- .gn_build_npp(
+      resolution = res,
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep",
+      excreta_area_basis = "charged_grassland"
+    )
+    testthat::expect_true(all(out$method_excreta_area == "charged_grassland"))
+  })
+  default <- .gn_build_npp(
+    data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+    method_grazing = "whep"
+  )
+  testthat::expect_true(all(default$method_excreta_area == "luh2_grassland"))
+})
+
+testthat::test_that("an unknown excreta area basis is refused", {
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(
+      data = .gn_fixture_data(),
+      excreta_area_basis = "lpjml_stand"
+    ),
     class = "rlang_error"
   )
 })
@@ -1245,4 +1441,31 @@ testthat::test_that("a tiny cell cannot dominate the floored-carbon report", {
   # asked = 100 + 5e6. So the share is ~0.2%, not the ~95% an unweighted
   # density ratio would report.
   testthat::expect_true(any(grepl("0.2%", w, fixed = TRUE)))
+})
+
+testthat::test_that("a conserving basis that lost mass aborts", {
+  # The assertion the issue asked for, reached directly: a density that does
+  # not deliver the polity's whole excreta carbon must stop the build rather
+  # than ship a quietly short grassland input.
+  density <- tibble::tibble(
+    area_code = 1L,
+    year = 2000L,
+    excreta_c_mgc_ha_yr = 1
+  )
+  grass_c <- tibble::tibble(area_code = 1L, year = 2000L, excreta_c_mg = 1000)
+  charged <- tibble::tibble(area_code = 1L, year = 2000L, grass_area_ha = 400)
+  testthat::expect_error(
+    whep:::.gn_check_excreta_mass(
+      density,
+      grass_c,
+      charged,
+      "charged_grassland"
+    ),
+    "whole grazing excreta carbon"
+  )
+  # The default basis is not held to it: it is the behaviour under review.
+  testthat::expect_equal(
+    whep:::.gn_check_excreta_mass(density, grass_c, charged, "luh2_grassland"),
+    density
+  )
 })

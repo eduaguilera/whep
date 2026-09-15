@@ -16,6 +16,7 @@ build_carbon_inputs(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 )
 }
@@ -80,15 +81,33 @@ returns it as excreta; see \code{\link[=build_grass_natural_carbon_inputs]{build
 excreta, and so needs \code{data$livestock_intake} and \code{data$excreta};
 \code{"lpjml"} uses the model's livestock module instead and needs neither.}
 
+\item{method_unspatialized}{What happens to a polity-crop whose crop has no
+hectares in the (time-invariant) \code{crop_patterns} layer. \code{"reallocate"}
+(default) spreads that carbon over the polity's crop-pattern cropland
+cells in proportion to each cell's total cropland area, and puts it on the
+crop's FAOSTAT national harvested area, so the polity's gridded carbon
+mass equals its national mass; this is the rule the sibling nitrogen
+spatialization already applies to the same gap
+(\code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}). \code{"drop"} discards it, which is what
+the package did before and what a caller who prefers a hole to a smear
+should ask for. Either way the mass and the affected crops are reported,
+and the choice is recorded in \code{method_unspatialized}. Reallocation needs a
+national area to put the carbon on, so a polity-crop with no
+\code{harvested_area} row -- and a polity with no cell at all in the support,
+which no rule here can reach (see whep#1002) -- is dropped under both
+methods, reported separately.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
-\code{c_input_mgc_ha_yr}, \code{humified_fraction} and \code{method_c_input}, for
-\code{land_use} in \code{"cropland"}, \code{"grassland"} and \code{"natural"}, plus the polity
-columns below.
+\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input} and
+\code{method_unspatialized} (\code{NA} on the grassland and natural classes, which
+are not spatialized from polity-crop totals), for \code{land_use} in
+\code{"cropland"}, \code{"grassland"} and \code{"natural"}, plus the polity columns
+below.
 }
 \description{
 Build the carbon-input layer \code{\link[=build_carbon_balance]{build_carbon_balance()}} consumes, keyed by

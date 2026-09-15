@@ -286,9 +286,56 @@ allocate_manure_to_land <- function(
       "{.field crops} needs {.field {weight_col}} for {.arg method} {.val {opt$method}}."
     )
   }
+  .check_crop_weight(crops, weight_col)
   crops |>
     dplyr::mutate(weight = .data[[weight_col]]) |>
     .resolve_crop_caps(opt)
+}
+
+# The allocation weight must be finite and non-negative (whep#1043).
+#
+# `.fill_cropland()` divides by `sum(weight)` behind an `if_else(sum_w > 0,
+# ...)` guard. That guard is safe only while the terms are non-negative: an
+# IEEE sum of non-negative terms is exactly zero iff every term is zero, so no
+# residue can manufacture a tiny positive denominator. A signed sum can --
+# `sum(c(0.1, -0.3, 0.2))` is 2.78e-17, not 0 -- and the guard then takes the
+# dividing branch on a denominator made entirely of rounding residue.
+#
+# Measured on a single 100 t N collection with caps that bind on nothing:
+# weights `c(6, -4)` put 300 t N on one crop and -200 t N on the other, and
+# `c(0.1, -0.3, 0.2)` gives shares of order 1e16 and 1200 / -2304 / 1200 t N
+# plus 4 t of disposal. Both conserve N exactly, report `over_cap = FALSE` and
+# emit no warning, so a mass-balance check downstream cannot see them.
+#
+# The precondition is not hypothetical: `.resolve_crop_caps()` below already
+# `pmax()`es the sibling `crop_n_cap` because "the underlying growth model's
+# own edge cases" emit negatives, and the same layer supplies the weight.
+# `allocate_manure_to_land()` is exported, and its only in-repo caller
+# (`soil_carbon_inputs.R`, `manure_n_receptivity = crop_area_ha`) is
+# non-negative by construction -- so nothing on the pipeline path changes.
+#
+# Aborting rather than clamping to zero is deliberate, and follows
+# `.check_applied_finite()` in this file: `pmax(weight, 0)` would silently
+# reallocate a crop's manure to its neighbours, which is a share the caller
+# should choose rather than discover.
+.check_crop_weight <- function(crops, weight_col) {
+  w <- crops[[weight_col]]
+  bad <- unique(w[is.na(w) | !is.finite(w) | w < 0])
+  if (length(bad) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- utils::head(bad, 3)
+  cli::cli_abort(
+    c(
+      "{.field {weight_col}} in {.field crops} must be finite and
+       non-negative.",
+      x = "{cli::qty(length(bad))}Rejected value{?s}: {.val {shown}}.",
+      i = "A signed allocation weight turns the {.code sum(weight) > 0} guard
+           into a cancellation test, so rounding residue decides whether the
+           collected manure is divided by it."
+    ),
+    class = "whep_manure_weight_invalid"
+  )
 }
 
 # Caps: fixed_ceiling = rate x area (the legal ceiling, no tolerance); the

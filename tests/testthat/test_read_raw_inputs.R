@@ -542,3 +542,86 @@ test_that(".correct_processed deletes the output off-anchor (whep#833)", {
   # must then be replaced by an equality against the full-axis answer.
   expect_equal(.processed_axis_value(2005:2010), 0)
 })
+
+
+# -- grouped fao_flag fold (whep#1044) -----------------------------------------
+
+test_that(".fold_fao_flag_by is .fold_fao_flag applied per group", {
+  # The grouped fold is written vectorised because the production build folds
+  # flags over millions of groups on the way from the pin to the CBS, and a
+  # per-group call to the scalar helper is most of what carrying the flag would
+  # cost. It has to be the same rule, so pin the equivalence rather than assert
+  # it in a comment.
+  flags <- tibble::tribble(
+    ~key,       ~fao_flag,
+    "agree",    "A",
+    "agree",    "A",
+    "disagree", "A",
+    "disagree", "E",
+    "single",   "S",
+    "with_na",  "I",
+    "with_na",  NA_character_,
+    "all_na",   NA_character_
+  )
+
+  folded <- whep:::.fold_fao_flag_by(flags, "key")
+  by_helper <- flags |>
+    dplyr::summarise(
+      expected = whep:::.fold_fao_flag(fao_flag),
+      .by = key
+    )
+  got <- by_helper |>
+    dplyr::left_join(
+      tibble::as_tibble(folded),
+      by = "key"
+    )
+
+  expect_equal(got$fao_flag_folded, got$expected)
+  # A group that disagrees, or has no flag at all, is simply absent -- which is
+  # what makes the re-join produce NA.
+  expect_setequal(folded$key, c("agree", "single", "with_na"))
+})
+
+test_that(".add_folded_fao_flags never moves a row", {
+  # The production build's row order is part of its output, so attaching a
+  # provenance column is an update-join rather than a `merge()`, which is free
+  # to hand the rows back in another order.
+  src <- tibble::tribble(
+    ~key, ~fao_flag,
+    "c",  "A",
+    "b",  "E",
+    "a",  "A"
+  )
+  out <- tibble::tibble(key = c("c", "b", "a"))
+
+  result <- whep:::.add_folded_fao_flags(out, src, "key")
+
+  expect_equal(result$key, c("c", "b", "a"))
+  expect_equal(result$fao_flag, c("A", "E", "A"))
+})
+
+test_that(".add_folded_fao_flags emits an all-NA column with no flags", {
+  out <- tibble::tibble(key = c("a", "b"))
+  result <- whep:::.add_folded_fao_flags(
+    out,
+    tibble::tibble(key = c("a", "b")),
+    "key"
+  )
+
+  expect_true("fao_flag" %in% names(result))
+  expect_true(all(is.na(result$fao_flag)))
+})
+
+test_that(".ensure_fao_flag adds the column without touching its input", {
+  df <- tibble::tibble(value = 1)
+  expect_true("fao_flag" %in% names(whep:::.ensure_fao_flag(df)))
+  expect_false("fao_flag" %in% names(df))
+
+  dt <- data.table::data.table(value = 1)
+  expect_true("fao_flag" %in% names(whep:::.ensure_fao_flag(dt)))
+  expect_false("fao_flag" %in% names(dt))
+
+  # A present column is left exactly as it is, whatever it holds.
+  kept <- whep:::.ensure_fao_flag(tibble::tibble(fao_flag = "A"))
+  expect_equal(kept$fao_flag, "A")
+})

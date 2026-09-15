@@ -271,3 +271,56 @@ test_that("calculate_crop_roots floors at zero for items with no RS source", {
   ))
   testthat::expect_equal(out$root_dm_t, 0)
 })
+
+# whep#1034. The weed carbon stream is a required input of
+# build_soil_carbon_inputs(), and on the default path it is identically zero
+# because nothing on that path produces weed biomass. Every property the NPP
+# partition is tested by is satisfied by that zero.
+
+test_that("an absent weed stream is stamped, not merely zeroed", {
+  out <- tibble::tibble(
+    item_prod_code = c("15", "56"),
+    production_t = c(100, 200),
+    area_ha = c(40, 60)
+  ) |>
+    whep::calculate_crop_npp() |>
+    whep::calculate_npp_carbon_nitrogen()
+
+  # The additivity property test in test_properties.R holds here exactly.
+  testthat::expect_equal(
+    out$total_npp_c_t,
+    out$crop_npp_c_t + out$weed_npp_c_t
+  )
+  testthat::expect_true(all(out$weed_npp_c_t == 0))
+  # And the stamp is what tells the two states apart.
+  testthat::expect_true(all(out$method_weed_npp == "absent_zero"))
+})
+
+test_that("a supplied weed stream is stamped per row", {
+  out <- tibble::tibble(
+    item_prod_code = c("15", "56"),
+    production_t = c(100, 200),
+    area_ha = c(40, 60),
+    weed_ag_dm_t = c(5, NA_real_)
+  ) |>
+    whep::calculate_crop_npp() |>
+    whep::calculate_npp_carbon_nitrogen()
+
+  testthat::expect_equal(out$method_weed_npp, c("supplied", "absent_zero"))
+  testthat::expect_gt(out$weed_npp_c_t[[1]], 0)
+  testthat::expect_equal(out$weed_npp_c_t[[2]], 0)
+})
+
+test_that("stamping the weed stream moves no number", {
+  out <- tibble::tibble(
+    item_prod_code = c("15", "56"),
+    production_t = c(100, 200),
+    area_ha = c(40, 60)
+  ) |>
+    whep::calculate_crop_npp() |>
+    whep::calculate_npp_carbon_nitrogen()
+
+  testthat::expect_equal(out$weed_ag_dm_t, c(0, 0))
+  testthat::expect_equal(out$weed_npp_n_t, c(0, 0))
+  testthat::expect_equal(out$total_npp_c_t, out$crop_npp_c_t)
+})

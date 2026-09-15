@@ -37,7 +37,9 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity",
+      "method_head_units"
     )
   )
 
@@ -686,7 +688,9 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity",
+      "method_head_units"
     )
   )
   testthat::expect_equal(nrow(result), 10)
@@ -704,4 +708,271 @@ testthat::test_that("build_detailed_trade example has valid content", {
   testthat::expect_true(all(
     result$area_code != result$area_code_partner
   ))
+})
+
+# tonnes that are not masses (whep#1023) --------------------------------------
+
+.fake_unbacked_trade <- function() {
+  # Trade item 1293 is FAOSTAT's "Crude organic material n.e.c.". Its
+  # Detailed Trade Matrix tonnage is not a mass: FAOSTAT's aggregate domain
+  # publishes no country-level quantity for it, and Colombia's 2004 export to
+  # the United States is booked as 2,579,549,000 tonnes at USD 0.227/tonne.
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 2579549000)
+  )
+}
+
+testthat::test_that(".unbacked_mass_trade_items maps to CBS item 5001", {
+  # The item list is a measurement (see the helper's comment); the CBS side
+  # is derived from the shipped crosswalks, so guard the derivation.
+  testthat::expect_equal(.unbacked_mass_trade_items(), 1293L)
+  testthat::expect_equal(.unbacked_mass_cbs_items(), 5001)
+  testthat::expect_true(
+    "Crude materials" %in% .unbacked_mass_trade_names(1293L)
+  )
+})
+
+testthat::test_that("build_detailed_trade drops unbacked tonnage by default", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_unbacked_trade()),
+    class = "whep_unbacked_mass_quantity"
+  )
+
+  testthat::expect_false(5001 %in% result$item_cbs_code)
+  testthat::expect_equal(result$item_cbs_code, 2511)
+  testthat::expect_equal(sum(result$value), 100)
+  testthat::expect_true(all(result$method_unbacked_quantity == "drop"))
+})
+
+testthat::test_that("build_detailed_trade 'keep' carries unbacked tonnage", {
+  # Asserted on the screen itself, because item 1293 never reaches the
+  # output of `build_detailed_trade()` under any method: its CBS name
+  # "Other" has no row in `whep::items_full`, so `.map_dtm_to_cbs_items()`
+  # already loses it on the `items_bridge` merge. That is a separate,
+  # unreported drop, and the screen must not be confused with it.
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    kept <- .screen_unbacked_quantities(dt, "keep"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(kept), 2)
+  testthat::expect_equal(max(kept$value), 2579549000)
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      result <- build_detailed_trade(
+        raw_trade = .fake_unbacked_trade(),
+        method_unbacked_quantity = "keep"
+      ),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_true(all(result$method_unbacked_quantity == "keep"))
+})
+
+testthat::test_that("a CBS name with no item_cbs_code is warned, not silent", {
+  # Found while tracing whep#1023: `whep::items_full` has no "Other" row, so
+  # every item 1293 row left this producer with no message at all.
+  raw <- .fake_unbacked_trade()
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    "Other"
+  )
+})
+
+testthat::test_that("the screen removes exactly the unbacked mass rows", {
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(dropped), 1)
+  testthat::expect_equal(dropped$item_code_trade, 15)
+  testthat::expect_equal(dropped$value, 100)
+})
+
+testthat::test_that("build_detailed_trade 'abort' refuses unbacked tonnage", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "abort"
+    ),
+    class = "whep_unbacked_mass_quantity"
+  )
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "rescale"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the screen leaves a clean pin untouched", {
+  result <- testthat::expect_no_warning(
+    build_detailed_trade(raw_trade = .fake_bilateral_trade())
+  )
+  testthat::expect_equal(nrow(result), 3)
+})
+
+testthat::test_that("the screen also works on the name-keyed path", {
+  # `.map_dtm_to_cbs_items()` falls back to joining on the item *name* when
+  # no item code column is present; the screen must follow it there.
+  raw <- .fake_unbacked_trade()
+  raw[, `Item Code` := NULL]
+  raw[, item := c("Wheat", "Crude materials")]
+  dt <- .read_and_clean_dtm(raw)
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(dropped$item, "Wheat")
+})
+
+testthat::test_that("head-count rows are not screened as mass", {
+  # The screen is scoped to `tonnes`: a head count for the same item is a
+  # different quantity and is not what whep#1023 is about.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "Head"),
+    Value = c(100, 1e9)
+  )
+  dt <- .read_and_clean_dtm(raw)
+
+  result <- testthat::expect_no_warning(
+    .screen_unbacked_quantities(dt, "drop")
+  )
+  testthat::expect_setequal(result$unit, c("tonnes", "heads"))
+  testthat::expect_equal(max(result$value), 1e9)
+})
+
+# whep#1092: FAOSTAT denominates live poultry, rabbit and rodent trade in
+# `1000 Head`, a label the unit filter never covered, so every one of those
+# rows left without a word -- 89,073 rows and 76,141,882 thousand head on the
+# `faostat-trade-bilateral` pin `20260407T095142Z-b3f81`.
+.fake_thousand_head_trade <- function() {
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L, 2L, 2L),
+    `Partner Country Code` = c(9L, 9L, 9L, 9L),
+    `Item Code` = c(15L, 866L, 1057L, 1181L),
+    Element = rep("Export Quantity", 4),
+    Year = rep(2010L, 4),
+    Unit = c("tonnes", "Head", "1000 Head", "No"),
+    Value = c(100, 50, 7, 3)
+  )
+}
+
+testthat::test_that("'1000 Head' trade is rescaled onto heads", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(.fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+  # 7 thousand head becomes 7,000 head; the `Head` row is untouched.
+  testthat::expect_equal(sort(dt$value[dt$unit == "heads"]), c(50, 7000))
+  testthat::expect_equal(dt$value[dt$unit == "tonnes"], 100)
+})
+
+testthat::test_that("'drop' keeps the historical head-unit filter", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(
+      .fake_thousand_head_trade(),
+      method_head_units = "drop"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_equal(nrow(dt), 2)
+  testthat::expect_equal(dt$value[dt$unit == "heads"], 50)
+})
+
+testthat::test_that("'abort' refuses an unconvertible trade unit", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_thousand_head_trade(),
+      method_head_units = "abort"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+})
+
+testthat::test_that("an unrecognised trade unit is never dropped silently", {
+  # The `No` row (bees or beehives -- FAOSTAT does not say which) has no
+  # quantity this package can express, so it goes; it must not go quietly.
+  testthat::expect_warning(
+    .read_and_clean_dtm(.fake_thousand_head_trade()),
+    "No"
+  )
+})
+
+testthat::test_that("a monetary unit is dropped without a warning", {
+  # Value rows are removed on purpose and must not be reported as an
+  # unrecognised quantity, or every real pin read raises a false alarm.
+  raw <- data.table::rbindlist(list(
+    .fake_thousand_head_trade()[Unit != "No"],
+    data.table::data.table(
+      `Reporter Country Code` = 2L,
+      `Partner Country Code` = 9L,
+      `Item Code` = 15L,
+      Element = "Export Value",
+      Year = 2010L,
+      Unit = "1000 US$",
+      Value = 42
+    )
+  ))
+
+  dt <- testthat::expect_no_warning(.read_and_clean_dtm(raw))
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+})
+
+testthat::test_that("build_detailed_trade records method_head_units", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_true(all(result$method_head_units == "convert"))
+  # Trade item 1057 (Chickens) maps to CBS item 1053 (Chickens, broilers).
+  chickens <- result[result$item_cbs_code == 1053, ]
+  testthat::expect_equal(chickens$unit, "heads")
+  testthat::expect_equal(chickens$value, 7000)
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown head method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_bilateral_trade(),
+      method_head_units = "rescale"
+    ),
+    class = "rlang_error"
+  )
 })

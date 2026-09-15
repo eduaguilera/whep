@@ -19,6 +19,7 @@
 #'   find the available versions of a file by using `whep_list_file_versions()`.
 #'
 #' @inheritSection whep_read_file Frozen predecessor-pipeline references
+#' @inheritSection whep_read_file The two batch pins on the build path
 #'
 #' @source Created by the package authors.
 "whep_inputs"

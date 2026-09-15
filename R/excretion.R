@@ -47,13 +47,20 @@
 #'     `vs_excretion * c_vs_fraction`).
 #'   * `c_vs_fraction`: carbon per unit of volatile solids, kg C / kg VS.
 #'     Default 0.47; see Details.
+#'   * `forage_n`: nitrogen content of the grazed forage that intake rows with
+#'     no `item_cbs_code` take. `"assumed_midrange"` (default, 0.02 kg N/kg DM,
+#'     an assumed unverified value), `"gleam_grass_fresh"` (0.022),
+#'     `"gleam_grass_hay"` (0.017) and `"gleam_grass_mean"` from GLEAM 3.0
+#'     Supplement S1 Tab. S.3.3, or `"biomass_coefs_grass"` (0.0174) from the
+#'     `bio_coefs` `Grass` row.
 #'   * `product_n`: a tibble (`year`, `territory`, `sub_territory`,
 #'     `livestock_category`, `product_n`) required by `"intake_minus_product_n"`.
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category` and columns
 #'   `n_intake`, `n_excretion`, `c_excretion`, `vs_excretion`,
-#'   `method_n_excretion`, `method_vs` and `method_c_excretion`.
+#'   `method_n_excretion`, `method_vs`, `method_c_excretion` and
+#'   `method_forage_n`.
 #' @export
 #' @examples
 #' intake <- tibble::tribble(
@@ -69,7 +76,7 @@ estimate_n_excretion <- function(intake, options = list()) {
 
   rows <- intake |>
     .join_excretion_bridge(.species_taxonomy_bridge()) |>
-    .attach_feed_n() |>
+    .attach_feed_n(.forage_n_kgn_kgdm(opt$forage_n)) |>
     .attach_vs_components()
 
   rows |>
@@ -89,7 +96,8 @@ estimate_n_excretion <- function(intake, options = list()) {
     dplyr::mutate(
       method_n_excretion = opt$method,
       method_vs = opt$method_vs,
-      method_c_excretion = opt$method_c
+      method_c_excretion = opt$method_c,
+      method_forage_n = opt$forage_n
     ) |>
     dplyr::select(
       "year",
@@ -102,7 +110,8 @@ estimate_n_excretion <- function(intake, options = list()) {
       "vs_excretion",
       "method_n_excretion",
       "method_vs",
-      "method_c_excretion"
+      "method_c_excretion",
+      "method_forage_n"
     )
 }
 
@@ -115,6 +124,7 @@ estimate_n_excretion <- function(intake, options = list()) {
       method_vs = "intake_digestibility",
       method_c = "volatile_solids",
       c_vs_fraction = .excreta_c_vs_fraction(),
+      forage_n = "assumed_midrange",
       product_n = NULL
     ),
     options
@@ -132,6 +142,11 @@ estimate_n_excretion <- function(intake, options = list()) {
     cli::cli_abort("Unknown {.arg method_c} {.val {opt$method_c}}.")
   }
   .check_c_vs_fraction(opt$c_vs_fraction)
+  opt$forage_n <- rlang::arg_match0(
+    opt$forage_n,
+    .forage_n_methods(),
+    arg_nm = "forage_n"
+  )
   if (opt$method == "intake_minus_product_n" && is.null(opt$product_n)) {
     cli::cli_abort(
       "{.val intake_minus_product_n} needs {.arg product_n} in {.arg options}."
@@ -177,8 +192,7 @@ estimate_n_excretion <- function(intake, options = list()) {
   out
 }
 
-.attach_feed_n <- function(rows) {
-  forage <- .forage_n_kgn_kgdm()
+.attach_feed_n <- function(rows, forage = .forage_n_kgn_kgdm()) {
   rows |>
     dplyr::left_join(
       dplyr::select(

@@ -256,3 +256,114 @@ test_that("the repo .Rprofile still sets the R CMD check clock variable", {
 
   expect_true(any(grepl("^0", trimws(out))), info = paste(out, collapse = "\n"))
 })
+
+# A working-directory .Rprofile is read INSTEAD of ~/.Rprofile, never both, so
+# this file replaces the user profile unless it sources it. On CI that is how
+# `use-public-rspm: true` was lost: setup-r writes the RSPM `repos` option into
+# ~/.Rprofile, so every dependency install resolved source packages and built
+# the whole tree (#1102). These tests drive a real child session with a
+# throwaway home directory, and measure the shadowing before asserting the
+# chain, so the assertion cannot pass vacuously.
+
+.chain_marker <- function() {
+  "WHEP-USER-PROFILE-CHAINED"
+}
+
+.write_fake_user_profile <- function(home) {
+  writeLines(
+    sprintf('options(whep_test_user_profile = "%s")', .chain_marker()),
+    file.path(home, ".Rprofile")
+  )
+  invisible(home)
+}
+
+.probe_expr <- function() {
+  paste0(
+    'cat("HOME-SEEN:", ',
+    'normalizePath(path.expand("~"), mustWork = FALSE), "\n");',
+    'cat("OPTION:", ',
+    'as.character(getOption("whep_test_user_profile", "unset")), "\n")'
+  )
+}
+
+# `profile` is passed explicitly rather than left to working-directory
+# discovery, for the reason .run_rscript_sentinel() gives: the parent's own
+# startup settings must not decide what the child reads. HOME and R_USER are
+# both set because `~` resolves through R_USER on Windows and HOME elsewhere.
+.run_rscript_home_probe <- function(profile, home) {
+  suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"),
+    c("-e", shQuote(.probe_expr())),
+    stdout = TRUE,
+    stderr = TRUE,
+    env = c(
+      paste0("R_PROFILE_USER=", profile),
+      paste0("HOME=", home),
+      paste0("R_USER=", home)
+    )
+  ))
+}
+
+.probe_field <- function(out, key) {
+  line <- grep(paste0("^", key, ":"), out, value = TRUE)
+  if (length(line) == 0) {
+    return(NA_character_)
+  }
+  trimws(sub(paste0("^", key, ":"), "", line[[1]]))
+}
+
+# Everything the two tests below share: a throwaway home holding the fake user
+# profile, a throwaway project holding `profile_lines`, and the child's answer.
+.chain_probe <- function(profile_lines, envir) {
+  home <- withr::local_tempdir(.local_envir = envir)
+  proj <- withr::local_tempdir(.local_envir = envir)
+  .write_fake_user_profile(home)
+  .write_fake_pkg(proj)
+  profile <- file.path(proj, ".Rprofile")
+  writeLines(profile_lines, profile)
+  withr::local_dir(proj, .local_envir = envir)
+  out <- .run_rscript_home_probe(profile, home)
+  list(
+    out = out,
+    home_seen = .probe_field(out, "HOME-SEEN"),
+    option = .probe_field(out, "OPTION"),
+    home = normalizePath(home, mustWork = FALSE)
+  )
+}
+
+test_that("a project profile that does not chain hides ~/.Rprofile", {
+  probe <- .chain_probe("invisible(NULL)", environment())
+  skip_if_not(
+    identical(probe$home_seen, probe$home),
+    paste0(
+      "the child resolved ~ to ",
+      probe$home_seen,
+      ", not the throwaway home"
+    )
+  )
+
+  expect_equal(probe$option, "unset", info = paste(probe$out, collapse = "\n"))
+})
+
+test_that("the repo .Rprofile sources the user profile as well", {
+  repo_rprofile <- .repo_rprofile_path()
+  skip_if_not(
+    file.exists(repo_rprofile),
+    "repo .Rprofile is not part of an installed package"
+  )
+  probe <- .chain_probe(readLines(repo_rprofile), environment())
+  skip_if_not(
+    identical(probe$home_seen, probe$home),
+    paste0(
+      "the child resolved ~ to ",
+      probe$home_seen,
+      ", not the throwaway home"
+    )
+  )
+
+  expect_equal(
+    probe$option,
+    .chain_marker(),
+    info = paste(probe$out, collapse = "\n")
+  )
+})

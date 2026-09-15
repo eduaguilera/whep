@@ -165,13 +165,32 @@ test_that("the enumerated baseline can only shrink", {
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
   #
+  # 71 since whep#599: `.sci_reallocate()` places the cropland carbon whose crop
+  # the crop-pattern map does not carry, instead of dropping it -- 291 Mt C at
+  # 2010, 607 Mt C at 1980, 92% of it fodder. Its two year-free keys read the
+  # SAME single-vintage map the `.sci_join_weights` row above already rests on:
+  # a crop absent from a map with no time dimension is absent in every year, and
+  # the cell support summed from that map has no year either. The crop's own
+  # area, the quantity that does vary, comes from a third join keyed on
+  # `(area_code, item_prod_code, year)`. Both rows leave the ledger when the
+  # three chains stop weighting cells by the static pin (whep#1002).
+  # 73 since whep#1004: `resolve_polity_lineage()` adds the predecessor-edge
+  # join and the display-name lookup that close it. Both key on `polity_code`,
+  # which already names its own period, and this is the third time that buys
+  # year-AWARENESS rather than costing it -- the whole function exists to stop
+  # a 1961 national row being keyed on a polity that starts in 1991. The year
+  # is the walk's stop condition, tested in `.lineage_carried()` against the
+  # support's interval, and every candidate the edge join produces goes through
+  # it.
   # 70 is the crop-residue destiny split (whep#1003). It is one year-free join
   # and it is the loss wedge's shape, not a new year-blind read: the Krausmann
   # recovery rates and the regional feed-use fractions are published without a
   # time dimension, so the region a residue's coefficients come from cannot be
   # year-keyed. Every residue row through it carries `year`; only the region
   # membership does not.
-  expect_lte(sum(baseline$n), 70L)
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(baseline$n), 74L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -258,12 +277,36 @@ test_that("every year-free territorial grouping is classified", {
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
   #
+  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # `get_faostat_data()`, the only thing that called it. A cap left above the
+  # real count is slack a new unregistered group could hide in, so it comes
+  # down with the row.
+  #
+  # 81 since whep#1070: `.zero_pattern_underflow()` takes each crop's pattern
+  # maximum per country to count the pairs whose whole pattern was float
+  # underflow. `crop_patterns` has no year axis, and the count only feeds the
+  # message.
+  #
+  # 84 since whep#599: the carbon reallocation's three groups, all on the same
+  # year-free `crop_patterns` map as the joins recorded with them --
+  # `.sci_cropland_weights()` sums each cell's per-crop areas into its cropland
+  # area and normalises that within the polity, and `.sci_reallocate()` takes
+  # the (area, crop) pairs the map does carry so it can act on the ones it does
+  # not. See the join cap above for why none of the three can be year-keyed.
+  # 87 since whep#1004: the three dedups `resolve_polity_lineage()` runs before
+  # it walks -- the support's own intervals, the succession edge list and the
+  # display names. All three are `identity_lookup` on `polity_code`, which
+  # carries its own period; the support one keys on `start_year`/`end_year`
+  # BECAUSE they are the time dimension the caller's year is then tested
+  # against.
   # 81 on the merge of whep#1006 into main: whep#999 took
   # `.fao_area_iso3_lookup()` and its one row out (82 -> 81 there), and
   # `.residue_destiny_regions` (whep#1003) puts one back. Re-derived by
   # RUNNING the audit on the merged tree, not by adding the two deltas: a cap
   # left above the real count is slack a new unregistered group could hide in.
-  expect_lte(sum(full$n), 81L)
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(full$n), 88L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
