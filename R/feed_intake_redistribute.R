@@ -556,22 +556,22 @@ build_feed_demand <- function(
     dplyr::filter(
       (unit == "heads" & item_cbs_code %in% ruminant_codes) | unit == "t_head"
     ) |>
-    .ensure_diet_quality() |>
+    .bootstrap_diet_quality() |>
     prepare_livestock_emissions(expand_cohorts = TRUE) |>
     estimate_energy_demand() |>
     .energy_to_dm()
 }
 
-# Demand assumes a default IPCC "Medium" diet (DE 65%) where diet quality is not
-# supplied; this documented assumption feeds both DE% and the gross-energy
-# density used in the dry-matter conversion.
-.ensure_diet_quality <- function(data) {
-  if (!rlang::has_name(data, "diet_quality")) {
-    data$diet_quality <- "Medium"
-  } else {
-    data$diet_quality <- dplyr::coalesce(data$diet_quality, "Medium")
-  }
-  data
+# The IPCC energy demand needs a diet before any feed has been allocated, and
+# the allocation this demand feeds is what would tell us the diet: the two are
+# circular at this point in the pipeline. Break it with the explicitly named
+# uniform-medium rung of the diet ladder rather than an inline default, so the
+# assumption is selected by name, recorded per row in `method_diet`, and a diet
+# the caller did supply is kept rather than overwritten. It sets DE% (65%) and
+# hence both the gross energy and the gross-energy density used in the
+# dry-matter conversion.
+.bootstrap_diet_quality <- function(data) {
+  .resolve_diet_quality(data, "uniform_medium", feed_intake = NULL)
 }
 
 # gross_energy (MJ/day/head) -> dry-matter tonnes/year, summed over cohorts.

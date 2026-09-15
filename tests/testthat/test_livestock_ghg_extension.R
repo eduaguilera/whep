@@ -116,6 +116,7 @@ testthat::test_that("Tier 2 drops rows it cannot resolve instead of emitting NA"
   result <- suppressWarnings(
     whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = .ghg_prod_fixture())
     )
   )
@@ -189,12 +190,99 @@ testthat::test_that("Tier 2 warns explicitly when a real species has no energy c
   testthat::expect_warning(
     result <- whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = prod)
     ),
     "no Tier 2 coefficients"
   )
 
   testthat::expect_equal(nrow(result), 0L)
+})
+
+# .sum_emission_cols: an absent gas is not a zero gas --------------------------
+
+testthat::test_that("an absent emission column aborts instead of summing 0", {
+  emissions <- tibble::tibble(enteric_ch4_tier1 = 1e6)
+
+  testthat::expect_error(
+    whep:::.sum_emission_cols(
+      emissions,
+      c(
+        "enteric_ch4_tier1",
+        "manure_ch4_tier1"
+      )
+    ),
+    "missing column"
+  )
+})
+
+testthat::test_that("present columns still sum row-wise with NA propagating", {
+  emissions <- tibble::tibble(
+    enteric_ch4_tier1 = c(1, 2, NA),
+    manure_ch4_tier1 = c(10, 20, 30)
+  )
+
+  testthat::expect_equal(
+    whep:::.sum_emission_cols(
+      emissions,
+      c(
+        "enteric_ch4_tier1",
+        "manure_ch4_tier1"
+      )
+    ),
+    c(11, 22, NA)
+  )
+})
+
+# method_diet -----------------------------------------------------------------
+
+testthat::test_that("Tier 2 records which diet method produced the numbers", {
+  result <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+
+  testthat::expect_true(all(
+    result$method_ghg == "IPCC_2019_Tier2_AR6_diet_uniform_medium"
+  ))
+})
+
+testthat::test_that("Tier 1 carries no diet dimension in its label", {
+  result <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    method_diet = "uniform_medium",
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+
+  testthat::expect_true(all(result$method_ghg == "IPCC_2019_Tier1_AR6"))
+})
+
+testthat::test_that("an unknown diet method is rejected", {
+  # Named rungs only: an unrecognised one must abort on the argument itself,
+  # before anything is built. Asserting a bare error on a *valid* rung would
+  # pass on the missing-feed-intake abort below and never test this at all.
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "per_cel_feed",
+      data = list(primary_prod = .ghg_prod_fixture())
+    ),
+    "must be one of"
+  )
+})
+
+testthat::test_that("Tier 2 refuses to rebuild the feed intake behind you", {
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "national_feed",
+      data = list(primary_prod = .ghg_prod_fixture())
+    ),
+    "feed-intake table"
+  )
 })
 
 # options passthrough (#1029) -------------------------------------------------
@@ -210,19 +298,32 @@ testthat::test_that("default options reproduce the pre-passthrough numbers", {
     10L, 976L, 1472445000,
     100L, 960L, 916724250
   )
+  # Sheep (976) is 2.53% above the figure #1029 locked, and only sheep. The
+  # pre-passthrough code reached `.join_ym()` with a `diet_quality` column that
+  # `estimate_energy_demand()` had already created and filled with `NA`, so
+  # `.join_ym()`'s own "Medium" default -- guarded on the column being absent,
+  # not empty -- never fired, the Ym join missed, and
+  # `coalesce(ym_percent, 6.5)` handed every unmatched species the cattle Ym.
+  # Sheep ship 6.7 in `ipcc_tier2_ym_values`, so their enteric CH4 rises by
+  # exactly 6.7/6.5 and nothing else moves: cattle (961, 960) are already 6.5,
+  # and manure CH4 and N2O are untouched. See `.assume_missing_diet()`.
   expected_tier2 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 2255369539.5477095,
-    10L, 976L, 1560912180.9317288,
+    10L, 976L, 1600495292.4821796,
     100L, 960L, 492717625.4361503
   )
 
   tier1 <- whep::build_livestock_ghg_extension(
     data = list(primary_prod = .ghg_prod_fixture())
   )
+  # `uniform_medium` is the rung that reproduces the inline IPCC "Medium" diet
+  # this lock was measured under; the default moved to `per_cell_feed` when the
+  # diet ladder was named, and the fixture carries no cells to resolve one from.
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = .ghg_prod_fixture())
     )
   )
@@ -260,6 +361,7 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
     suppressWarnings(
       whep::build_livestock_ghg_extension(
         tier = 2,
+        method_diet = "uniform_medium",
         options = list(assumed_climate_zone = zone),
         data = list(primary_prod = .ghg_prod_fixture())
       )
@@ -282,6 +384,7 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   default <- suppressWarnings(
     whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = .ghg_prod_fixture())
     )
   ) |>
