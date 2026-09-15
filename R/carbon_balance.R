@@ -2544,6 +2544,14 @@ build_carbon_balance <- function(
     run_dir = NULL,
     years = years,
     polity_validity = "keep",
+    # `.socd_build()` has no default for this and evaluates it, so omitting it
+    # aborts the whole gridded build at the input stage with
+    # "argument \"partial_year\" is missing". `main` omits it too, which is
+    # why `build_carbon_balance(resolution = "grid")` fails there as well --
+    # nothing in the suite reaches this path, because it reads pins and
+    # multi-GB rasters. `"abort"` is the choice `.wb_method_choices()` lists
+    # first, so this is the default behaviour made explicit, not a new one.
+    partial_year = "abort",
     data = list(
       clay = .cb_hwsd_clay(cell_polity),
       cell_polity = cell_polity
