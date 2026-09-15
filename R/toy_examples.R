@@ -133,15 +133,18 @@
 
 .example_soil_carbon_inputs <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~crop_area_ha,
     ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~weed_c_mgc_ha_yr,
     ~manure_c_mgc_ha_yr, ~total_c_input_mgc_ha_yr, ~humified_fraction,
-    0.25, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
-    0.75, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
-    0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
-    0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
+    0.25, 0.25, 1L, "15", 2020L, 30, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.75, 0.25, 1L, "15", 2020L, 10, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.25, 0.25, 1L, "27", 2020L, 5, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
+    0.75, 0.25, 1L, "27", 2020L, 15, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      method_unspatialized = "reallocate"
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -325,19 +328,26 @@
   )
 }
 
+# The two `fao_flag` values are not invented. Each is the flag the
+# `faostat-production` pin carries on the row whose value this fixture holds:
+# Comoros 1979 "Meat of sheep" Production 33 t and Argentina 2000 "Mangoes,
+# guavas and mangosteens" Area harvested 236 ha are both `I` there. The other
+# eight rows are `NA` because their values are not figures FAOSTAT published
+# under a flag -- an LUH2 back-cast, a WHEP-computed yield, or a stock with no
+# source at all (whep#1044).
 .example_build_primary_prod <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source,
-    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland",
-    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",
-    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland",
-    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",
-    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland",
-    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,
-    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland",
-    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
-    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
-    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source, ~fao_flag,
+    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland", NA_character_,
+    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",  NA_character_,
+    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland", NA_character_,
+    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",  "I",
+    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland", NA_character_,
+    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,   NA_character_,
+    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland", NA_character_,
+    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland", NA_character_,
+    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland", NA_character_,
+    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod",  "I"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -391,7 +401,11 @@
     2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
   ) |>
-    .add_trade_polity_columns()
+    .add_trade_polity_columns() |>
+    dplyr::mutate(
+      method_unbacked_quantity = "drop",
+      method_head_units = "convert"
+    )
 }
 
 .example_build_trade_prices <- function() {
@@ -748,14 +762,15 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~method_excreta_area,
     26.25, 35.25, 84L, 2000L, "grassland",
-    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    4.35, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
     26.25, 35.25, 84L, 2000L, "natural",
-    4.56, 0.325, "lpjml_npp_minus_harvest",
+    4.56, 0.325, "lpjml_npp_minus_harvest", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "grassland",
-    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    1.95, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "natural",
-    9.26, 0.325, "lpjml_npp_minus_harvest"
+    9.26, 0.325, "lpjml_npp_minus_harvest", "luh2_grassland"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -769,9 +784,13 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~method_unspatialized,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
-    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
-    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+    "reallocate",
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467,
+    "lpjml_npp_minus_harvest", NA,
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325,
+    "lpjml_npp_minus_harvest", NA
   ) |>
     .add_reporting_polity_columns()
 }

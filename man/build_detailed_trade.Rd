@@ -9,6 +9,8 @@ build_detailed_trade(
   cbs = NULL,
   min_share = 1e-04,
   extend_time = FALSE,
+  method_unbacked_quantity = c("drop", "keep", "abort"),
+  method_head_units = c("convert", "drop", "abort"),
   example = FALSE
 )
 }
@@ -28,6 +30,38 @@ threshold are dropped when extending time. Default \code{0.0001}.}
 CBS years and linear interpolation of country shares.
 Default \code{FALSE}.}
 
+\item{method_unbacked_quantity}{How to treat a reported \code{tonnes}
+quantity for a FAOSTAT trade item whose country-level mass FAOSTAT
+itself does not publish. See the \emph{Quantities FAOSTAT does not back
+with a mass} section. One of:
+\itemize{
+\item \code{"drop"} (default): discard those rows, warning with the tonnage
+removed. They are not masses, and no conversion to mass is
+derivable.
+\item \code{"keep"}: carry them verbatim, with the same warning. The
+historical behaviour, and unsafe for anything that treats the
+column as mass.
+\item \code{"abort"}: fail, so a refreshed pin cannot reintroduce them
+unnoticed.
+}}
+
+\item{method_head_units}{How to treat the FAOSTAT rows denominated in
+\verb{1000 Head}. See the \emph{Live animals are reported in two head units}
+section. One of:
+\itemize{
+\item \code{"convert"} (default): rescale them by 1,000 onto \code{heads}, the
+denomination the rest of the live-animal record already uses.
+\item \code{"drop"}: discard them, warning with the head count removed. The
+historical behaviour, which leaves live poultry, rabbit and rodent
+trade out of the record entirely.
+\item \code{"abort"}: fail, so a refreshed pin cannot reintroduce an
+unhandled unit unnoticed.
+}
+
+Any other unit label is dropped under every method, with a
+\code{"whep_unhandled_trade_unit"} warning naming it, and aborts under
+\code{"abort"}. Monetary units are removed silently, on purpose.}
+
 \item{example}{Logical. If \code{TRUE}, return a small example tibble
 without downloading remote data. Default \code{FALSE}.}
 }
@@ -42,6 +76,11 @@ A tibble with columns:
 \item \code{unit}: Measurement unit (\code{"tonnes"} or \code{"heads"}).
 \item \code{value}: Trade quantity.
 \item \code{country_share}: Share of total trade for this partner.
+\item \code{method_unbacked_quantity}: the treatment chosen for quantities
+FAOSTAT does not back with a mass, recorded so a downstream
+consumer can tell which variant it is holding.
+\item \code{method_head_units}: the treatment chosen for the \verb{1000 Head}
+rows, recorded for the same reason.
 }
 }
 \description{
@@ -73,6 +112,80 @@ against 9.97 million observed rows, and half of the emitted
 3.42 of 6.85 million). Scoping the extension to the CBS
 coverage a group actually has is a methodological choice, not a bug fix,
 and is tracked in issue #232.
+}
+
+\section{Quantities FAOSTAT does not back with a mass}{
+
+The Detailed Trade Matrix carries a \code{tonnes} column for every item, but
+FAOSTAT does not stand behind all of it. For trade item 1293
+(\emph{Crude organic material n.e.c.}, mapped here to CBS item 5001
+\code{"Other"}) the aggregate \emph{Trade: Crops and livestock products} domain
+publishes a \strong{value} but no country-level \strong{mass}: on the
+\code{faostat-trade-totals} pin \verb{20260325T120525Z-7b85f} that item has
+28,213 value rows against 6,000 quantity rows, only 1,830 of them
+non-zero, and every quantity above 10 Mt belongs to a FAOSTAT \emph{regional
+aggregate} (area code >= 51000) flagged \code{E}. Spot-checked for Colombia,
+Kenya, South Africa and Japan over 2002-2010, the country-level
+quantity is \code{0} or absent in every year.
+
+The detailed matrix nonetheless reports masses for it that cannot be
+masses (whep#1023). On the \code{faostat-trade-bilateral} pin
+\verb{20260407T095142Z-b3f81}, Colombia's 2004 export of item 1293 to the
+United States is 2,579,549,000 tonnes against an export value of
+USD 584.4 million, i.e. \strong{USD 0.227 per tonne}; South Africa's
+2008-2013 flows with Uganda run at USD 0.011-0.015 per tonne. The
+mirrored report of the same flow disagrees by factors of 356 to
+838,000 - Kenya says it exported 534,611,300 tonnes to the
+Netherlands in 2009, the Netherlands says it imported 72,076 tonnes
+(7,417x) - and it is always the large side that is not a mass. What the
+large side actually counts (stems, pieces, bunches) is \strong{not recorded
+anywhere in the data and is therefore unverified}, and the implied
+units per tonne are not constant across cells, so no conversion factor
+can be derived: the figures can be dropped or carried, not corrected.
+
+\code{method_unbacked_quantity} selects the treatment. Screened tonnage on
+the full pin, restricted to items that map to a CBS item: 15.31 Gt of
+83.16 Gt (\strong{18.4\%}), 99.78\% of it item 1293. By year the screen takes
+12.7-70.0\% of 2003-2013, 5.6-16.5\% of 1986-1988, 10.1-13.0\% of
+2000-2002, at most 3.3\% of 1989-1999 and at most 0.04\% of 2014-2021 -
+item 1293 carries no bilateral quantity at all from 2014, which is why
+the recent record looks clean.
+
+Those tonnes do not reach this function's output today whichever method
+is chosen, for an unrelated reason: item 1293's CBS name \code{"Other"} has
+no row in \code{whep::items_full}, so the item-code bridge leaves it without
+an \code{item_cbs_code} and it is dropped a step later. That was silent
+until now and is warned about separately; four CBS names and 14 of the
+710 trade item codes in \code{whep::cbs_trade_codes} are affected. The
+screen is therefore explicit where the mapping gap was accidental, and
+it keeps working if the gap is ever filled.
+}
+
+\section{Live animals are reported in two head units}{
+
+FAOSTAT denominates live-animal trade in \code{Head} for the large species
+and in \verb{1000 Head} for the small ones, and the unit filter here used to
+cover only the first label. On the \code{faostat-trade-bilateral} pin
+\verb{20260407T095142Z-b3f81} that silently removed \strong{89,073 rows carrying
+76,141,882 thousand head} over 1986-2021 - live chicken, turkey, duck,
+goose, other-bird, rabbit and rodent trade - against the 11,708,244,416
+head the \code{Head} rows carry. It also removed 5,011 \code{No} rows (whep#1092).
+
+\verb{1000 Head} is a decimal prefix the source states, not a coefficient:
+\code{.aggregate_fao_trade_to_cbs()} already rescales its sibling label
+\verb{1000 An} the same way (whep#865). The reported trade \emph{value} of the
+same flows corroborates it - USD 1,408 per \verb{1000 Head} of chickens,
+2,392 for ducks, 2,483 for geese, 3,469 for turkeys and 4,945 for
+rabbits, i.e. USD 1.41-4.95 a bird, against USD 654 per head of cattle,
+105 per pig and 74 per sheep on the \code{Head} rows. Read as single head,
+a live broiler chick would cost USD 1,408. \strong{No head-to-mass factor is
+involved}: head counts stay head counts, on their own \code{unit} key.
+
+The \code{No} rows are a different case and are \strong{not} converted. They are
+FAOSTAT trade item 1181, which \code{whep::cbs_trade_codes} names
+\emph{Beehives} while the pin names it \emph{Bees}, so what the number counts -
+insects, packages or colonies - is not established by the source. They
+are dropped, with the warning every unrecognised label now raises.
 }
 
 \examples{

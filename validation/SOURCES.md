@@ -31,6 +31,7 @@ committed.
 | admin_drift | WHEP subnational compilation (harmonized panel, `whep_production_subnational.parquet`) | internal compilation, **not redistributed** | path in `WHEP_SUBNATIONAL` (outside the repo); `cache/admin_drift_*.csv` | `admin_drift_tvd.R` |
 | grid_vintage | none (WHEP's own inputs): the `polycell-support` pin plus `spatialize-gridded-cropland`, `spatialize-gridded-pasture`, `spatialize-country-areas`, `spatialize-livestock-country-data` and, for the engine leg, `spatialize-crop-patterns` | pins, read through `whep_read_file()`; `WHEP_POLYCELL_SUPPORT_PATH` overrides the support with a local parquet | `cache/grid_vintage_*.csv`, `cache/grid_vintage_year_aware.rds` | `spatialize_grid_vintage.R` |
 | japan_pilot | Japan MAFF prefecture crop statistics (46 prefectures, 6 crops, 1961–2022, `source_version` `NATIONAL_OFFICIAL:JPN:MAFF`) as shipped in the `admin-shares` pin under `source == "admin-stats-japan"`, against FAOSTAT national totals in `spatialize-country-areas`. Geography from a **Japan-only** polycell support built locally by `inst/scripts/build_pilot_polycell_support.R` (504 polycells, 305 cells) — the registered world `polycell_support` pin carries no prefecture cells, so the leg skips without the local one. | `admin-shares` via `whep_read_file()`; the support via `WHEP_POLYCELL_SUPPORT_PATH`; the four prepared spatialization parquets via `VAL_JP_INPUT_DIR` | `cache/pilot_japan/` (scoped inputs, `prescan.csv`, the whole run directory); baseline `gt_japan_pilot.json` | `japan_pilot.R` |
+| n_deposition | EMEP MSC-W EMEP01 rv5.6, 2025 reporting round (yearly, 0.1°) | open (auto-download, met.no THREDDS) | `cache/emep/`, `cache/hani_emep_by_country.csv` | `n_deposition_emep.R` |
 
 ## Packaged BNF coefficient provenance
 
@@ -299,6 +300,7 @@ remains an optional override pointing at locally-held layers by basename.)
 | Dataset | For | Access | Status |
 |---|---|---|---|
 | USDA FAS PSD | global production / area cross-check | open CSV (auto) | **wired** (`psd_production.R`) → `production_psd` |
+| EMEP MSC-W rv5.6 (2025 reporting) | European N deposition cross-check for HaNi | open NetCDF (auto, `thredds.met.no/thredds/fileServer/data/EMEP/2025_Reporting/`) | **wired** (`n_deposition_emep.R`) → `n_deposition_emep`. Yearly files, ~78 MB each, `DDEP_RDN_m2Grid + DDEP_OXN_m2Grid + WDEP_RDN + WDEP_OXN` in mgN/m². HaNi side needs `WHEP_HANI_DIR`. See <https://www.emep.int/mscw/mscw_moddata.html> |
 | MapSPAM (SPAM2010 v2r0) | observed cropping intensity (harvested/physical) | open via Dataverse **API** (the guestbook only gates the HTML UI; `/api/access/datafile/{id}?format=original` → S3, no login) | **wired** (`spam_intensity.R`) → `cropping_intensity_obs` (362/377). file IDs 3984973 (phys) / 3984976 (harv) |
 | Agribalyse 3.2 | 2nd LCA occupation source | data.gouv (summary) open; LCI gated portal | **not wired** — open files have only EF *points* / a blank methodology template. The per-crop m²·yr flow is in the ecospold2/OpenLCA LCI datasets on agribalyse.ademe.fr (obtain those, extract "Occupation, arable land"). Lower priority — P&N + land_per_tonne already cover occupation. |
 

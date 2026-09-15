@@ -14,7 +14,12 @@ as 0 when absent), \code{crop_npp_dm_t} (kept when present) and
 }
 \value{
 The input tibble with weed dry matter, and nitrogen (\verb{*_n_t}) and
-carbon (\verb{*_c_t}) for product, residue, root, weeds, crop NPP and total NPP.
+carbon (\verb{*_c_t}) for product, residue, root, weeds, crop NPP and total NPP,
+plus \code{method_weed_npp}: \code{"supplied"} where \code{weed_ag_dm_t} arrived and
+\code{"absent_zero"} where it did not and the weed terms are a fill. Filter on
+it before reading \code{weed_npp_c_t} or \code{weed_npp_n_t} as a measurement -- an
+absent weed stream and a weed-free field are the same zero otherwise
+(whep#1034).
 }
 \description{
 Converts crop NPP components (product, residue, root) and weed biomass to

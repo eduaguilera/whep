@@ -39,7 +39,8 @@ test_that("build_primary_production returns expected columns", {
     "live_anim_code",
     "unit",
     "value",
-    "source"
+    "source",
+    "fao_flag"
   )
   expect_equal(names(result), expected_cols)
 })
@@ -105,8 +106,13 @@ test_that("build_primary_production matches expected output", {
   result <- whep::build_primary_production(
     .raw_data = prod_raw_fixture()
   )
+  # The golden fixture predates `fao_flag` (whep#1044) and is deliberately
+  # left as it was: comparing against the unchanged artifact is what shows the
+  # added column moved no value. `prod_raw_small.rds` carries no flag, so the
+  # column is completed as all-NA rather than regenerated into the fixture.
   expected <- prod_expected_fixture() |>
-    whep:::.add_reporting_polity_columns()
+    whep:::.add_reporting_polity_columns() |>
+    dplyr::mutate(fao_flag = NA_character_)
   expect_equal(result, expected, ignore_attr = TRUE)
 })
 

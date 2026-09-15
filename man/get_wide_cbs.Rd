@@ -4,7 +4,11 @@
 \alias{get_wide_cbs}
 \title{Commodity balance sheet data.}
 \usage{
-get_wide_cbs(years = NULL, example = FALSE)
+get_wide_cbs(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Optional integer vector of years to build. When \code{NULL}
@@ -14,8 +18,16 @@ under a window-specific key. The window is widened internally to 2011 when
 it reaches 2013, because that overlap is what splices the old FBS series
 onto \code{FAOSTAT_FBS_New}.}
 
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, passed
+to \code{\link[=build_commodity_balances]{build_commodity_balances()}}, which documents what each does and what
+\code{"net_import"} moves. Each method is built and cached under its own slot,
+so asking for one never serves the other's result. \code{"net_import"} is not
+the default because two allocation questions it raises are still open
+(whep#762).}
+
 \item{example}{If \code{TRUE}, return a small example output without
-downloading remote data. Default is \code{FALSE}.}
+downloading remote data. Default is \code{FALSE}. The example is the same
+fixture under either \code{trade_recovery}.}
 }
 \value{
 A tibble with the commodity balance sheet data in wide format.

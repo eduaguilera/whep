@@ -14,7 +14,7 @@ cropgrids-fallow-land,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/
 eu-agridb-fodder,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113350Z-145f3
 eu-agridb-manure-flows,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T143339Z-0bf20
 eu-agridb-synthetic-fertilizer,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T143406Z-9c3df
-faostat-emissions-livestock,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260526T151303Z-bac9d
+faostat-emissions-livestock,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260914T124233Z-55c6c
 faostat-fertilizer-nutrients,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260526T151256Z-161c2
 faostat-trade-totals,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T120525Z-7b85f
 faostat-trade-bilateral,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260407T095142Z-b3f81
@@ -55,7 +55,7 @@ spatialize-gridded-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZ
 spatialize-country-grid,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101041Z-8ff94
 spatialize-type-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101045Z-4f570
 spatialize-multicropping,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101227Z-262bf
-spatialize-livestock-country-data,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101231Z-0a89d
+spatialize-livestock-country-data,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260914T130729Z-88803
 spatialize-gridded-pasture,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101239Z-66a25
 spatialize-manure-pattern,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101326Z-bc8de
 spatialize-cell-polity-fraction,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260821T095211Z-a4952

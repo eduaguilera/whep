@@ -31,6 +31,10 @@
 #'     CFT-aggregated parquet alongside the crop-level output.
 #'   - `max_iterations`, `expansion_threshold`: forwarded to the
 #'     landuse engine.
+#'   - `pattern_signal_floor`: forwarded to the landuse engine as
+#'     `config$pattern_signal_floor`; the `harvest_fraction` below which a
+#'     `crop_patterns` cell is float underflow rather than an allocated
+#'     area. `0` restores the untoleranced behaviour of whep#1070.
 #'   - `cft_target`: one of `"whep"` (default for
 #'     `preset = "whep"`) or `"lpjml"` (default for
 #'     `preset = "lpjml"`). Selects which column of
@@ -406,7 +410,8 @@ run_spatialize <- function(
       years = resolved_years,
       max_iterations = config$max_iterations,
       expansion_threshold = config$expansion_threshold,
-      area_key = config$area_key
+      area_key = config$area_key,
+      pattern_signal_floor = config$pattern_signal_floor
     )
   )
   # Decision 10's output grain is applied HERE, after the engine and outside
@@ -482,7 +487,8 @@ run_spatialize <- function(
       double_claim = "co_presence",
       constraint_exclude = NULL,
       livestock_proxy = "luh2",
-      livestock_glw_variant = "DA"
+      livestock_glw_variant = "DA",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     ),
     whep = list(
       use_type_constraint = TRUE,
@@ -498,7 +504,8 @@ run_spatialize <- function(
       double_claim = "co_presence",
       constraint_exclude = NULL,
       livestock_proxy = "luh2",
-      livestock_glw_variant = "DA"
+      livestock_glw_variant = "DA",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     )
   )
 }
@@ -519,7 +526,8 @@ run_spatialize <- function(
     "double_claim",
     "constraint_exclude",
     "livestock_proxy",
-    "livestock_glw_variant"
+    "livestock_glw_variant",
+    "pattern_signal_floor"
   )
 }
 

@@ -47,6 +47,21 @@
 #'   `get_primary_production()` table the NPP reader uses, and is skipped when a
 #'   hand-supplied `npp` keeps the pipeline offline unless supplied here);
 #'   `residue_humification` (defaults to [residue_humification]).
+#' @param method_unspatialized What happens to a polity-crop whose crop has no
+#'   hectares in the (time-invariant) `crop_patterns` layer. `"reallocate"`
+#'   (default) spreads that carbon over the polity's crop-pattern cropland
+#'   cells in proportion to each cell's total cropland area, and puts it on the
+#'   crop's FAOSTAT national harvested area, so the polity's gridded carbon
+#'   mass equals its national mass; this is the rule the sibling nitrogen
+#'   spatialization already applies to the same gap
+#'   ([spatialize_country_n_to_crops()]). `"drop"` discards it, which is what
+#'   the package did before and what a caller who prefers a hole to a smear
+#'   should ask for. Either way the mass and the affected crops are reported,
+#'   and the choice is recorded in `method_unspatialized`. Reallocation needs a
+#'   national area to put the carbon on, so a polity-crop with no
+#'   `harvested_area` row -- and a polity with no cell at all in the support,
+#'   which no rule here can reach (see whep#1002) -- is dropped under both
+#'   methods, reported separately.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -54,7 +69,10 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'   `humified_fraction`, `method_c_input`, `method_unspatialized` and
+#'   `crop_area_ha` -- the crop area at that grain that the per-hectare
+#'   densities are computed on, so a consumer can recover the carbon mass
+#'   without re-deriving the area -- plus the polity columns below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -66,13 +84,15 @@ build_soil_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  method_unspatialized <- rlang::arg_match(method_unspatialized)
   if (isTRUE(example)) {
     return(.example_soil_carbon_inputs())
   }
-  .sci_build(resolution, data, years) |>
+  .sci_build(resolution, data, years, method = method_unspatialized) |>
     .add_reporting_polity_columns()
 }
 
@@ -84,10 +104,16 @@ build_soil_carbon_inputs <- function(
 # 20 s on that 5.0e7-row intermediate -- two of the four are character columns --
 # and .ci_cropland_class() then discards all four. So the internal caller takes
 # this, and only the exported wrapper above pays for the columns (#624).
-.sci_build <- function(resolution, data, years, reduce = NULL) {
+.sci_build <- function(
+  resolution,
+  data,
+  years,
+  reduce = NULL,
+  method = "reallocate"
+) {
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  .sci_grid_and_finalise(components, d, resolution, reduce)
+  .sci_grid_and_finalise(components, d, resolution, reduce, method)
 }
 
 # Private helpers ----
@@ -106,11 +132,20 @@ build_soil_carbon_inputs <- function(
 # Output is unchanged: `year` is one of the .sci_finalise() grouping keys, so
 # grouping within a year gives exactly what grouping across years gave, and the
 # weights each year sees are identical.
-.sci_grid_and_finalise <- function(components, d, resolution, reduce = NULL) {
+.sci_grid_and_finalise <- function(
+  components,
+  d,
+  resolution,
+  reduce = NULL,
+  method = "reallocate"
+) {
   weights <- .sci_grid_weights(d$country_grid, d$crop_patterns)
+  # The cropland support a reallocated polity-crop lands on. Built once, like
+  # the crop weights, and only when the rule asks for it.
+  fallback <- if (method == "reallocate") .sci_cropland_weights(weights)
   # Once, over all components: this reports totals, so warning per year would
   # both spam the caller and change the numbers it reports.
-  .sci_warn_unspatialized(components, weights)
+  .sci_warn_unspatialized(components, weights, fallback, d$harvested_area)
 
   # Split ONCE rather than filtering inside the loop. Filtering per year rescans
   # the whole component table every iteration -- 6.7e6 rows x 123 years is 8.3e8
@@ -125,11 +160,26 @@ build_soil_carbon_inputs <- function(
   # exported build_soil_carbon_inputs() returns (#624).
   parts <- lapply(by_year[order(as.integer(names(by_year)))], function(chunk) {
     gridded <- chunk |>
-      .sci_join_weights(weights, d$harvested_area) |>
-      .sci_finalise(resolution, d$residue_humification)
+      .sci_grid_chunk(weights, fallback, d$harvested_area) |>
+      .sci_finalise(resolution, d$residue_humification, method)
     if (is.null(reduce)) gridded else reduce(gridded)
   })
   dplyr::bind_rows(parts)
+}
+
+# One year's components on cells: the crop-pattern cells of the crops that have
+# them, plus -- under "reallocate" -- the polity's cropland cells for the crops
+# that do not. A crop is in exactly one of the two branches, so no cell-crop
+# group is built twice.
+.sci_grid_chunk <- function(chunk, weights, fallback, harvested_area) {
+  matched <- .sci_join_weights(chunk, weights, harvested_area)
+  if (is.null(fallback)) {
+    return(matched)
+  }
+  dplyr::bind_rows(
+    matched,
+    .sci_reallocate(chunk, weights, fallback, harvested_area)
+  )
 }
 
 # harvested_area is the FAOSTAT national harvested area per (area_code,
@@ -327,16 +377,10 @@ build_soil_carbon_inputs <- function(
 # mass, so mass is conserved. Groups with no supplied FAOSTAT area (NA/<=0) keep
 # their spatialized area unchanged, preserving the offline BYO-inputs path.
 .sci_rescale_cell_area <- function(joined, harvested_area) {
-  if (is.null(harvested_area) || nrow(harvested_area) == 0) {
+  faostat <- .sci_faostat_area(harvested_area)
+  if (is.null(faostat)) {
     return(joined)
   }
-  faostat <- harvested_area |>
-    dplyr::transmute(
-      area_code = as.integer(.data$area_code),
-      item_prod_code = as.character(.data$item_prod_code),
-      year = as.integer(.data$year),
-      faostat_area_ha = as.numeric(.data$faostat_area_ha)
-    )
   joined |>
     dplyr::left_join(
       faostat,
@@ -352,11 +396,105 @@ build_soil_carbon_inputs <- function(
     dplyr::select(-"faostat_area_ha")
 }
 
+# The FAOSTAT national harvested area in the key types the joins use. NULL when
+# no table was supplied, which is the offline bring-your-own-inputs path.
+.sci_faostat_area <- function(harvested_area) {
+  if (is.null(harvested_area) || nrow(harvested_area) == 0) {
+    return(NULL)
+  }
+  harvested_area |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      year = as.integer(.data$year),
+      faostat_area_ha = as.numeric(.data$faostat_area_ha)
+    ) |>
+    dplyr::filter(
+      is.finite(.data$faostat_area_ha),
+      .data$faostat_area_ha > 0
+    )
+}
+
+# Each cell's share of its polity's crop-pattern cropland: the support a crop
+# with no pattern of its own is spread over. Summing the per-crop cell areas is
+# the same cropland the matched crops are gridded onto, so the two branches
+# cannot disagree about where a polity's cropland is; the nitrogen sibling uses
+# the LUH2 cropland layer instead, which is a different (yearly) support for the
+# same idea -- see whep#1002, which is about making all of these one layer.
+.sci_cropland_weights <- function(weights) {
+  weights |>
+    dplyr::summarise(
+      cropland_area_ha = sum(.data$crop_area_ha),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    dplyr::filter(
+      is.finite(.data$cropland_area_ha),
+      .data$cropland_area_ha > 0
+    ) |>
+    dplyr::mutate(
+      cropland_weight = .data$cropland_area_ha /
+        sum(.data$cropland_area_ha),
+      .by = "area_code"
+    ) |>
+    dplyr::select("lon", "lat", "area_code", "cropland_weight")
+}
+
+# Fan the polity-crops that have NO crop-pattern cells onto the polity's
+# cropland cells instead, uniformly per hectare of cropland. The cell area a
+# reallocated crop carries is its share of the polity's FAOSTAT national
+# harvested area, exactly as .sci_rescale_cell_area() gives a matched crop, so
+# the per-hectare density is the national density and the cell masses sum back
+# to the polity mass. A group with no national area has no basis for a density
+# -- inventing one would smear the carbon over an area it never grew on -- so it
+# stays out, and .sci_warn_unspatialized() reports it.
+.sci_reallocate <- function(chunk, weights, fallback, harvested_area) {
+  faostat <- .sci_faostat_area(harvested_area)
+  if (is.null(faostat) || nrow(fallback) == 0) {
+    return(NULL)
+  }
+  chunk |>
+    dplyr::anti_join(
+      dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
+      by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::inner_join(
+      faostat,
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::inner_join(
+      fallback,
+      by = "area_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      area_code = .data$area_code,
+      item_prod_code = .data$item_prod_code,
+      year = .data$year,
+      input_type = .data$input_type,
+      c_mass_mg = .data$c_mass_mg * .data$cropland_weight,
+      crop_area_ha = .data$cropland_weight * .data$faostat_area_ha
+    )
+}
+
 # The inner_join that spatializes polity-crop carbon to cells silently drops any
 # (area_code, item_prod_code) present in the carbon components but absent from
 # the (time-invariant) crop_patterns. Surface that carbon loss rather than
 # letting it vanish, matching this codebase's no-silent-failures convention.
-.sci_warn_unspatialized <- function(components, weights) {
+#
+# Under "reallocate" (fallback supplied) most of that carbon is not lost but
+# moved, so the report splits by what actually happened to each group: moved
+# onto the polity's cropland cells, or still dropped because no national area
+# gives it a density, or still dropped because the polity has no cell at all in
+# the support. Only the first is a policy choice; the other two are coverage
+# gaps (whep#1002) that no allocation rule inside this file can close.
+.sci_warn_unspatialized <- function(
+  components,
+  weights,
+  fallback = NULL,
+  harvested_area = NULL
+) {
   lost <- components |>
     dplyr::anti_join(
       dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
@@ -364,6 +502,9 @@ build_soil_carbon_inputs <- function(
     )
   if (nrow(lost) == 0) {
     return(invisible(NULL))
+  }
+  if (!is.null(fallback)) {
+    return(.sci_warn_reallocated(lost, fallback, harvested_area))
   }
   crops <- sort(unique(lost$item_prod_code))
   # Every plural marker gets its quantity pinned with cli::qty(), and the numbers
@@ -391,6 +532,81 @@ build_soil_carbon_inputs <- function(
   invisible(lost)
 }
 
+# Report the three fates of an unspatialized polity-crop under "reallocate".
+.sci_warn_reallocated <- function(lost, fallback, harvested_area) {
+  faostat <- .sci_faostat_area(harvested_area)
+  no_cells <- dplyr::filter(lost, !.data$area_code %in% fallback$area_code)
+  rest <- dplyr::filter(lost, .data$area_code %in% fallback$area_code)
+  moved <- if (is.null(faostat)) {
+    rest[0, ]
+  } else {
+    dplyr::semi_join(
+      rest,
+      faostat,
+      by = c("area_code", "item_prod_code", "year")
+    )
+  }
+  no_area <- dplyr::anti_join(
+    rest,
+    moved,
+    by = c("area_code", "item_prod_code", "year")
+  )
+  .sci_warn_moved(moved)
+  .sci_warn_dropped(
+    no_area,
+    "no national harvested area to put it on",
+    "Supply {.code data$harvested_area} for these crops; without a national
+     area the carbon has no basis for a per-hectare density."
+  )
+  .sci_warn_dropped(
+    no_cells,
+    "no cell in the polity support",
+    "Affected area_code values: {.val {codes}}. No allocation rule can reach a
+     polity the cell support does not carry (whep#1002)."
+  )
+  invisible(lost)
+}
+
+# Carbon moved onto the polity's cropland cells rather than dropped.
+.sci_warn_moved <- function(moved) {
+  if (nrow(moved) == 0) {
+    return(invisible(NULL))
+  }
+  # Plural quantities are pinned with cli::qty() and the numbers precomputed
+  # into scalars: left to infer, cli aborts from inside its own warning when a
+  # bullet carries more than one quantity (see .sci_warn_unspatialized()).
+  n <- nrow(moved)
+  crops <- sort(unique(moved$item_prod_code))
+  n_crops <- length(crops)
+  mass <- round(sum(moved$c_mass_mg, na.rm = TRUE), 3)
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n)}{n} polity-crop carbon component{?s} ({mass} Mg C) had
+           no crop-pattern cells; reallocating uniformly across the polity's
+           cropland cells.",
+    i = "{cli::qty(n_crops)}Reallocated item_prod_code{?s}: {.val {crops}}.
+         Adding {cli::qty(n_crops)}{?its/their} cells to {.field crop_patterns}
+         would place the carbon instead of spreading it."
+  ))
+  invisible(moved)
+}
+
+# Carbon that no rule in this file can place, with the reason it cannot.
+.sci_warn_dropped <- function(dropped, reason, hint) {
+  if (nrow(dropped) == 0) {
+    return(invisible(NULL))
+  }
+  n <- nrow(dropped)
+  codes <- sort(unique(dropped$area_code))
+  mass <- round(sum(dropped$c_mass_mg, na.rm = TRUE), 3)
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n)}{n} polity-crop carbon component{?s} ({mass} Mg C) had
+           {reason} and {cli::qty(n)}{?was/were} dropped from the gridded soil
+           carbon input.",
+    i = hint
+  ))
+  invisible(dropped)
+}
+
 # Per-cell harvested area of each crop, split between the cell's polycells by
 # their share of the cell's land.
 .sci_cell_crop_area <- function(country_grid, crop_patterns) {
@@ -414,7 +630,12 @@ build_soil_carbon_inputs <- function(
 
 # Sum component masses to the requested grain, derive per-hectare values and the
 # carbon-weighted humified fraction, stamp the method.
-.sci_finalise <- function(gridded, resolution, residue_humification) {
+.sci_finalise <- function(
+  gridded,
+  resolution,
+  residue_humification,
+  method = "reallocate"
+) {
   keys <- if (resolution == "polity") {
     c("area_code", "item_prod_code", "year")
   } else {
@@ -424,7 +645,10 @@ build_soil_carbon_inputs <- function(
     .sci_sum_components(keys) |>
     .sci_per_hectare() |>
     .sci_humified_fraction(keys, residue_humification) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      method_unspatialized = method
+    ) |>
     tibble::as_tibble()
 }
 
@@ -509,6 +733,10 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::select(
       dplyr::all_of(keys),
+      # The area the densities were divided by, carried so a consumer can
+      # recover the carbon mass without re-deriving it from the static pattern
+      # -- which a reallocated crop is by definition absent from.
+      "crop_area_ha",
       "residue_c_mgc_ha_yr",
       "root_c_mgc_ha_yr",
       "weed_c_mgc_ha_yr",

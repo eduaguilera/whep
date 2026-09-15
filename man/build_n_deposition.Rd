@@ -18,9 +18,10 @@ build_n_deposition(
 keeps every year the inputs cover.}
 
 \item{data}{Optional named list of pre-loaded inputs: \code{nhx} and \code{noy}
-(each \code{lon}, \code{lat}, \code{year}, \code{value_g}, falling back to
-\code{\link[=read_n_deposition]{read_n_deposition()}} when absent) and \code{cell_polity} (\code{lon}, \code{lat},
-\code{area_code}, \code{cell_area_ha} and the \code{split} key column, required).}
+(each \code{lon}, \code{lat}, \code{year}, \code{value_g} and optionally
+\code{method_deposition}, falling back to \code{\link[=read_n_deposition]{read_n_deposition()}} when absent)
+and \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_ha} and the
+\code{split} key column, required).}
 
 \item{split}{Which polity share splits the cell's deposited mass:
 \code{"auto"} (default) takes \code{polity_area_ha} when the support carries it and
@@ -67,6 +68,14 @@ source mass; a consumer wanting one category \strong{must filter}.
 over its whole area, so every polity of a cell carries the same rate on
 every category row and the rate is \strong{not} conserved on re-aggregation.
 Only \code{deposition_n_t} is a mass.
+
+\code{method_deposition} names the product the cell's deposition came from,
+\strong{per cell}, and it is read off the supplied field rather than
+asserted: \code{\link[=read_n_deposition]{read_n_deposition()}} tags its own rows \code{"hani"}, a field
+injected through \code{data} keeps whatever tag it carries, and an injected
+field carrying no tag is recorded as \code{"supplied"}. A corrected or
+substituted deposition field is therefore visible in the output instead
+of inheriting HaNi's name (#1097).
 
 Rows are keyed on \code{area_code}. \code{build_polycell_support()} keys on
 \code{polity_code} and does not derive the reporting vocabulary (DA-23), and
