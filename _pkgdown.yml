@@ -90,10 +90,14 @@ reference:
     requirement), and assemble the monthly climate drivers for the
     soil-organic-carbon dynamics.
   contents:
+  - read_lpjml_crop_cover
   - read_lpjml_hydrology
+  - read_lpjml_litterfall
+  - read_lpjml_natural_cover
   - read_lpjml_npp
   - read_cru_climate
   - build_water_balance
+  - build_crop_water_use
   - get_soc_climate_drivers
 
 - title: Soil-balance coefficient tables
@@ -161,6 +165,7 @@ reference:
   contents:
   - soc_rate_modifier_rothc
   - soc_rate_modifier_icbm
+  - soc_rate_modifier_lpjml
   - soc_rate_modifier_amg
   - soc_rate_modifier_century
 
@@ -181,6 +186,7 @@ reference:
   - calculate_soc_hsoc
   - calculate_soc_rothc
   - calculate_soc_icbm
+  - calculate_soc_lpjml
   - calculate_soc_amg
   - calculate_soc_century
 
@@ -193,6 +199,7 @@ reference:
     carbon inputs come from the LPJmL net primary production minus harvested
     carbon (grassland additionally carrying grazing-excreta carbon).
   contents:
+  - soc_crop_group
   - build_soil_carbon_inputs
   - build_grass_natural_carbon_inputs
   - build_carbon_inputs
@@ -234,6 +241,7 @@ reference:
   - read_lpjml_wind
   - read_soil_ph
   - read_soil_hydraulic
+  - read_hwsd_topsoil_soc
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_ag_land_support

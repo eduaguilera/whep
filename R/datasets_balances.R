@@ -125,10 +125,70 @@
 #'     organic carbon is sequestered (net carbon gain).}
 #' }
 #'
-#' @source Soil carbon-to-nitrogen ratios from the Spain historical SOC
-#'   pipeline coefficient set, consistent with the RothC framework of
-#'   Coleman, K. & Jenkinson, D. S. (1996).
-#'   \doi{10.1007/978-3-642-61094-3_17}.
+#' @section What the asymmetry represents:
+#' The two directional ratios are not two process stoichiometries. They express
+#' the FLEXIBILITY of soil C:N: a soil gaining carbon is expected to move to a
+#' wider ratio, a soil losing carbon to a narrower one, so the pair brackets
+#' the bulk value. Cropland is 8 -- 10 -- 11 and non-cropland 11 -- 15 -- 15.
+#'
+#' This is why both are documented as applying to the \emph{net} change: the
+#' ratio describes where a given soil's C:N is heading, which is a property of
+#' the soil, not of an individual crop or field on part of it. Applying the
+#' choice at a finer grain than the soil makes the two directions
+#' non-cancelling and manufactures nitrogen at a soil whose carbon did not
+#' change.
+#'
+#' The bounds themselves remain unsourced; see the source section below. What
+#' is wanted is a published \emph{marginal} C:N -- the ratio of the CHANGE in
+#' soil carbon to the change in soil nitrogen -- not a bulk soil C:N, which is
+#' a different quantity.
+#'
+#' @source **Expert parameterisation with a documented rationale and no
+#'   citation.** Traced through the Spain historical pipeline's coefficient
+#'   workbook (\code{input/SOC_coefs.xlsx}, sheet \code{Soil_CN_ratios}),
+#'   which has no source column and no notes column, as does the packaged
+#'   \code{inst/extdata/balances/soil_cn_ratios.csv}:
+#'
+#'   \itemize{
+#'     \item The bulk ratios (\code{cn_ratio} 10 cropland, 15 non-cropland)
+#'       enter the workbook on 2025-03-14, in a sheet holding only
+#'       \code{Cropland_class} and \code{CN_ratio}. The workbook's earliest
+#'       tracked version (2021-02-19) has no such sheet at all.
+#'     \item The asymmetry -- management stratification plus
+#'       \code{cn_mineralization} and \code{cn_sequestration} -- is added on
+#'       2026-03-26, in a commit titled "Use asymmetric C:N ratios for SOC
+#'       and add N-limitation on SOC sequestration".
+#'   }
+#'
+#'   The rationale is written up in that project's supplementary methods
+#'   ("Asymmetric C:N ratios for SOC-nitrogen coupling"): a lower ratio on
+#'   mineralization for the microbial-biomass and labile pools that are
+#'   preferentially decomposed, a higher one on sequestration for stable
+#'   humus formation, and organic cropland sequestering at 13 against 11
+#'   conventional for the larger stable-humus fraction of manure- and
+#'   compost-derived carbon. No citation is attached to any of the values.
+#'
+#'   One published anchor exists nearby and is worth knowing: the same
+#'   supplement cites Cleveland & Liptzin (2007),
+#'   \doi{10.1007/s10533-007-9132-0}, for a soil microbial-biomass C:N of
+#'   roughly 8-13, and the cropland \code{cn_mineralization} values (8 and
+#'   9) fall inside it. It is cited there for a different parameter, and it
+#'   is not offered here as the source of these numbers -- only as the
+#'   nearest published range they are consistent with.
+#'
+#'   This entry previously cited Coleman & Jenkinson's RothC (1996) as the
+#'   framework the values are "consistent with". That attribution has been
+#'   removed: RothC is a carbon-only model and sets no carbon-to-nitrogen
+#'   ratio at all -- \code{\link{calculate_soc_rothc}} returns \code{dpm},
+#'   \code{rpm}, \code{bio}, \code{hum}, \code{iom} and \code{soc_total},
+#'   and no nitrogen anywhere -- so no RothC reference can be a source for
+#'   these numbers. Naming one made an undocumented coefficient set read as
+#'   a sourced one (whep#346).
+#'
+#'   The values move published nitrogen: every soil-carbon stock change is
+#'   divided by one of them to reach mineralized or sequestered nitrogen.
+#'   Whether to cite Cleveland & Liptzin for the mineralization ratios, and
+#'   what to cite for the rest, is whep#346 and still open.
 #'
 #' @examples
 #' soil_cn_ratios

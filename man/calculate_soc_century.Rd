@@ -14,7 +14,8 @@ calculate_soc_century(
   c_input_mgc_ha_yr,
   years,
   clay_pct = NA,
-  climate_modifier = 1
+  climate_modifier = 1,
+  silt_pct = NA
 )
 }
 \arguments{
@@ -28,6 +29,15 @@ calculate_soc_century(
 
 \item{climate_modifier}{Annual climate rate modifier (dimensionless),
 scaling every pool decomposition rate.}
+
+\item{silt_pct}{Soil silt content (percent). \code{NA}, the default, falls
+back to \link{soc_turnover_params}' \code{century,defaults,silt_pct},
+which is SoilR's function-signature default of 45 rather than a
+measurement. Both of Century's texture terms are functions of clay PLUS
+silt -- the active-pool multiplier
+\code{fTxtr = 1 - 0.75 * (clay + silt)} and its respired fraction
+\code{Es = 0.85 - 0.68 * (clay + silt)} -- so silt is as load-bearing as
+clay. HWSD's share-weighted global mean is 28.2\%, not 45\%.}
 }
 \value{
 A tibble with one row per year: \code{year}, \code{str},
