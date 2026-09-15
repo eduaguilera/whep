@@ -4,10 +4,20 @@
 \alias{get_livestock_cbs}
 \title{Livestock commodity balance sheet entries}
 \usage{
-get_livestock_cbs(primary_prod)
+get_livestock_cbs(
+  primary_prod,
+  method_head_units = c("convert", "drop", "abort")
+)
 }
 \arguments{
 \item{primary_prod}{Tibble from \code{\link[=get_primary_production]{get_primary_production()}}.}
+
+\item{method_head_units}{How the live-animal trade this balance rests
+on treats FAOSTAT's \verb{1000 Head} rows. Passed to
+\code{\link[=build_detailed_trade]{build_detailed_trade()}}'s helper of the same name; see its \emph{Live
+animals are reported in two head units} section. \code{"convert"}
+(default) rescales them by 1,000 onto \code{heads}, \code{"drop"} discards
+them with a warning, \code{"abort"} refuses.}
 }
 \value{
 A tibble with the same columns as \code{\link[=get_wide_cbs]{get_wide_cbs()}}.

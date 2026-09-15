@@ -53,6 +53,14 @@
 #'    - `t_head`: tonnes per head, available for livestock products.
 #'    - `t_LU`: tonnes per Livestock Unit, available for livestock products.
 #' - `value`: The amount of item produced, measured in `unit`.
+#' - `source`: Where the value came from, e.g. `"FAOSTAT_prod"`,
+#'    `"EuropeAgriDB"`, `"LUH2_cropland"`, `"imputed_yield"`.
+#' - `fao_flag`: FAOSTAT's observation-status code for the value (`"A"`
+#'    official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), or `NA` where
+#'    the number is not one FAOSTAT published under a flag. It describes the
+#'    value rather than the item or area, so it is `NA` on WHEP's computed
+#'    yields, on the livestock-unit conversions, and on every gap-filled or
+#'    back-cast row. See [build_primary_production()] for the full rule.
 #'
 #' @export
 #'
@@ -94,6 +102,8 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    When necessary, FAOSTAT codes are extended for our needs.
 #' - `value`: The amount of residue produced, measured in tonnes.
 #'
+#' @inheritSection whep_read_file The two batch pins on the build path
+#'
 #' @export
 #'
 #' @examples
@@ -103,6 +113,12 @@ get_primary_residues <- function(example = FALSE) {
     return(.example_get_primary_residues())
   }
 
+  # The `crop_residues` pin is predecessor-pipeline output, not a curated
+  # input: its `Product` rows equal the `primary_prod` pin's tonnes to the last
+  # digit, and the year-varying residue ratio behind its `Residue` rows is not
+  # in this repository. See the pin-batch section above for the measurement,
+  # and note that this is where the predecessor's production series enters the
+  # commodity balance (#1054).
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>

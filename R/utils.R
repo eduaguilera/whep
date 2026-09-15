@@ -2157,6 +2157,51 @@ utils::globalVariables(
     # livestock_ghg_extension.R (#1029) — the manure-management split the
     # manure engine stamped, carried through the extension's sum so a
     # non-default `options` run is self-describing downstream
-    "method_mms"
+    "method_mms",
+    # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
+    # flag is folded on, so the restored `fao_flag` follows the source the
+    # value was selected from, plus the joined-in flag column
+    "source_group",
+    "n_group_flags",
+    "i.fao_flag",
+    # read_raw_inputs.R / build_production.R (#1044) — carrying the FAOSTAT
+    # observation-status flag from the production pin to the CBS. The two
+    # per-unit flags the yield dcast pivots ("Area harvested" and "Production"
+    # are flagged separately), their update-join counterparts, the grouped
+    # fold's own columns, and the character unit the parked lookup joins on
+    "flag_fu",
+    "flag_t",
+    "i.flag_fu",
+    "i.flag_t",
+    ".n_group_flags",
+    "fao_flag_folded",
+    "i.fao_flag_folded",
+    ".join_unit",
+    # build_cbs.R (#1024) — the per-key count of distinct units, used by
+    # `.abort_if_units_mixed()` to reject a sum that would add two
+    # denominations into one `value`
+    "n_units",
+    # build_cbs.R (#1065) — the reconstructed `production + import - export`
+    # domestic supply of a pre-1962 row, reported when it comes out negative
+    "computed_supply",
+    # build_cbs.R (#1085) — the historical-trade scale screen: the per-item
+    # world bound it joins on and the running world sum it is built from
+    "world_max",
+    "i.world_max",
+    "world",
+    # polity_lineage.R (#1004) — the national-side lineage walk. The per-pair
+    # key and frontier columns, the candidate/support match columns, and the
+    # published lineage columns
+    "pair_id",
+    "depth",
+    "path",
+    "edge_rank",
+    "live_code",
+    "family",
+    ".lineage_row",
+    ".lineage_area",
+    ".lineage_year",
+    "lineage_polity_code",
+    "method_polity_lineage"
   )
 )

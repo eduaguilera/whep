@@ -58,6 +58,7 @@ a hardcoded grid.
 | `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. A second mode, `WHEP_ISIMIP3A_WIND_DIR`, measures what the open alternative base would change instead: it reports the ISIMIP2a vs ISIMIP3a difference at both the cell-month and the per-cell annual grain, whose ratio separates a seasonal-cycle change from a spatial one (#929). Either directory alone is enough to run it. |
 | `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
+| `n_deposition_emep.R` | Checks WHEP's HaNi deposition input against the **EMEP MSC-W** model over Europe, per country and per year, on WHEP's own 0.5° grid. **Downloads** EMEP01 rv5.6 yearly NetCDF (~78 MB/year) from met.no; HaNi side needs `WHEP_HANI_DIR`. See below. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -138,6 +139,55 @@ baseline, which is how the check was shown to fire rather than merely to pass.
 The production build (~130 s, ~4.5 GB peak for 2001–2023) is cached under the
 gitignored `.whep_cache/`, so only the first run is slow. `validate_all.R` runs
 this check only when that cache already exists, or when `VAL_TG_FORCE` is set.
+
+## N deposition vs EMEP MSC-W (`n_deposition_emep.R`)
+
+WHEP's deposition input is HaNi (Tian et al. 2022), a **global reconstruction**.
+Over Europe the EMEP MSC-W chemical transport model is the stronger constraint:
+it is driven by the emissions European countries report under the Gothenburg
+Protocol and evaluated against the EMEP measurement network. This check puts
+the two on WHEP's own 0.5° grid and reports the ratio per country and per year
+(#1097).
+
+**HaNi is too flat over Europe.** It largely misses both the European
+deposition peak around 1990 and the fall that emission controls drove
+afterwards. Over the 3193 cells assigned to an EMEP core country, area-weighted
+kg N/ha/yr:
+
+| year | HaNi | EMEP | HaNi / EMEP | gap |
+|---|---|---|---|---|
+| 1990 | 9.81 | 14.08 | **0.696** | 2.49 Tg N/yr |
+| 2000 | 9.65 | 11.28 | 0.856 | 0.94 Tg N/yr |
+| 2010 | 9.04 | 9.56 | 0.946 | 0.30 Tg N/yr |
+| 2019 | 8.00 | 8.07 | 0.992 | 0.04 Tg N/yr |
+
+Across 1990–2019 HaNi falls **18.4%** where EMEP falls **42.7%**, and the
+shortfall summed over those cells and years is **22.6 Tg N**. The error is a
+*function of time*, largest exactly where and when European deposition was
+largest, and it compounds backwards into the pre-1990 period where EMEP offers
+no check at all.
+
+Two limits are part of the finding, not caveats to it:
+
+- **EMEP's domain is wider than the region EMEP represents.** It reaches
+  Xinjiang and the Arabian peninsula, where the two products disagree by
+  factors of 3–5 in *both* directions. `emep_core_iso3` in the script is the
+  judged subset; every other country is still written to the per-country CSV,
+  flagged `emep_core = FALSE`, and must not be read as a bias estimate.
+- **Neither product is a measurement.** EMEP is the stronger constraint *for
+  Europe over this period*; that is a judgement, and correcting HaNi toward it
+  is a science decision for the maintainer, not one this script settles.
+
+```bash
+# ~2.3 GB of EMEP NetCDF on the first run, plus a full global HaNi read
+WHEP_HANI_DIR=... Rscript validation/n_deposition_emep.R 1990 2019
+```
+
+Both halves are cached (`cache/emep/`, `cache/hani_deposition_*.rds`), and
+`validate_all.R` runs this check only when the HaNi aggregate already exists or
+`VAL_ND_FORCE` is set. Per-country, per-year ratios land in
+`cache/hani_emep_by_country.csv` — that series is what any correction between
+the two products would have to be parameterised on.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 

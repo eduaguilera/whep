@@ -106,6 +106,14 @@ Default: \code{100L}.
 \item \code{area_key}: Which area code the output is keyed on, \code{"grid"}
 (default) or \code{"polity_area"}. See \emph{Which area code the output is
 keyed on}.
+\item \code{pattern_signal_floor}: The \code{harvest_fraction} below which a
+\code{crop_patterns} cell is treated as float underflow rather than an
+allocated area, and zeroed before the placement weights are formed.
+Default \code{1e-12}, argued from EarthStat's own float32 precision in
+\code{.crop_pattern_signal_floor()}. \code{0} restores the untoleranced
+behaviour of whep#1070, in which a (country, crop) whose whole
+pattern is underflow is placed proportional to that underflow instead
+of uniformly.
 }}
 }
 \value{

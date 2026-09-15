@@ -76,18 +76,42 @@ of the internal \code{.read_production()} step. When supplied, the
 remote-data read is skipped entirely and the pipeline starts from
 \code{.fix_production()}. Columns required: \code{year}, \code{area}, \code{area_code},
 \code{item_prod}, \code{item_prod_code}, \code{item_cbs}, \code{item_cbs_code},
-\code{live_anim}, \code{live_anim_code}, \code{unit}, \code{value}, \code{source}.
+\code{live_anim}, \code{live_anim_code}, \code{unit}, \code{value}, \code{source}. \code{fao_flag} is
+used when present and completed as \code{NA} when it is not.
 Default \code{NULL}.}
 }
 \value{
-A tibble with the same columns as \code{\link[=get_primary_production]{get_primary_production()}}:
-\code{year}, legacy numeric \code{area_code}, numeric \code{polity_area_code},
-\code{reporting_polity_code}, \code{reporting_polity_name},
+A tibble with the columns of \code{\link[=get_primary_production]{get_primary_production()}} plus
+\code{fao_flag}: \code{year}, legacy numeric \code{area_code}, numeric
+\code{polity_area_code}, \code{reporting_polity_code}, \code{reporting_polity_name},
 \code{reporting_polity_has_geometry}, \code{item_prod_code}, \code{item_cbs_code},
-\code{live_anim_code}, \code{unit}, \code{value}, and \code{source}.
+\code{live_anim_code}, \code{unit}, \code{value}, \code{source}, and \code{fao_flag}.
 Item names can be recovered via \code{\link[=add_item_prod_name]{add_item_prod_name()}} and related helpers.
 When \code{show_duplicates = TRUE}, returns a wide tibble with one
 column per source showing the competing values.
+
+\code{fao_flag} is FAOSTAT's own observation-status code for the value (\code{"A"}
+official, \code{"E"} estimated, \code{"I"} imputed, \code{"M"}, \code{"X"}), and it describes
+the number in \code{value} rather than the row's item or area. It is \code{NA}
+wherever the number is not one FAOSTAT published under a flag, which is
+most rows that are not \code{unit == "tonnes"} or \code{unit == "ha"}:
+\itemize{
+\item WHEP's own yields (\code{t_ha}, \code{t_LU}, \code{t_head}) are ratios it computes, so
+FAOSTAT's separate Yield flag is not a statement about them;
+\item \code{LU} and \code{heads} are livestock-unit conversions summed over an animal's
+products, and \code{slaughtered_heads} is one FAOSTAT count split across CBS
+items by shares;
+\item a gap-filled, back-cast, imputed or reconstructed value (\code{fill_linear},
+\code{imputed_yield}, \verb{LUH2_*}, \code{EuropeAgriDB}, \code{DM_yield_estimate},
+\code{Estimated}) is WHEP's estimate, not a reported figure -- and a
+\code{FAOSTAT_prod} row can still be one of these, because \code{source} is
+resolved per key while the flag is resolved per quantity;
+\item a value summed or averaged from parts whose flags disagree is dropped
+rather than credited to one of them (whep#581).
+}
+
+Measured on a real 2010-2013 build: 45.5\% of rows carry a flag, 91.7\% of
+\code{tonnes} rows and 88.2\% of \code{ha} rows.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.

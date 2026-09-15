@@ -397,6 +397,7 @@ reference:
   - row_promotion_status
   - whep_polity_columns
   - resolve_polity_label
+  - resolve_polity_lineage
   - polity_identity_conventions
 - subtitle: Commodity balance sheet items
   contents:
@@ -471,6 +472,22 @@ reference:
   - ensure_columns
   - check_table_schema
   - assert_table_schema
+
+- title: Absent-input guards
+  desc: >
+    Assert that an input *arrived*, never that the totals it feeds reconcile.
+    Zero satisfies a sum, so a consistency identity, a conservation check and
+    a row count are all passed by an absence.
+    `check_inputs_supplied()` refuses a column that is missing, or present and
+    identically zero or missing; `check_labels_supplied()` refuses a value
+    vocabulary that no longer carries the labels a filter selects on, and
+    names what it carries instead; `stamp_inputs_supplied()` writes the
+    provenance label the first one reads, which no arithmetic downstream can
+    forge.
+  contents:
+  - check_inputs_supplied
+  - check_labels_supplied
+  - stamp_inputs_supplied
 
 - title: Gap filling functions
   desc: >
@@ -580,14 +597,17 @@ reference:
   desc: >
     Checks that make footprint, balance and time-series results trustworthy:
     conservation invariants, accounting identities, within-series jump
-    detection (the level-2 detector of the AFE data-validation framework), and
-    other data-quality diagnostics.
+    detection (the level-2 detector of the AFE data-validation framework),
+    completeness against an expected key lattice, and other data-quality
+    diagnostics.
   contents:
   - check_footprint_conservation
   - summarise_conservation
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_keys_complete
+  - key_lattice_gaps
   - check_fodder_land_share
   - check_arable_composition
   - check_parquet_integrity

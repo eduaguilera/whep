@@ -104,7 +104,31 @@ testthat::test_that("read_n_deposition returns its schema when requested years a
   )
 
   testthat::expect_equal(nrow(result), 0L)
-  testthat::expect_named(result, c("lon", "lat", "year", "value_g"))
+  testthat::expect_named(
+    result,
+    c("lon", "lat", "year", "value_g", "method_deposition")
+  )
+})
+
+# ---- Provenance of the deposition field (#1097) ------------------------
+#
+# HaNi understates European deposition by a margin that GROWS BACKWARDS in
+# time: measured against EMEP MSC-W rv5.6 over the EU27 cells, HaNi/EMEP is
+# 0.651 in 1990 and 0.984 in 2019 (validation/n_deposition_emep.R). Correcting
+# or substituting the field is therefore an expected use of the `data`
+# argument -- and a corrected field must not come back out of
+# build_n_deposition() wearing HaNi's name.
+
+testthat::test_that("read_n_deposition tags its own rows as hani", {
+  cube <- .hani_fixture_cube(n_lon_blocks = 1L, n_lat_blocks = 1L, n_years = 1L)
+  result <- whep::read_n_deposition(
+    species = "nhx",
+    hani_dir = cube$dir,
+    years = 1850L
+  )
+
+  pointblank::expect_col_exists(result, "method_deposition")
+  pointblank::expect_col_vals_equal(result, "method_deposition", "hani")
 })
 
 # ---- build_n_deposition() ---------------------------------------------
@@ -167,6 +191,99 @@ testthat::test_that("build_n_deposition filters preloaded inputs by years", {
 
   testthat::expect_equal(out$year, 2020L)
   testthat::expect_equal(nrow(out), 1L)
+})
+
+testthat::test_that("build_n_deposition records an untagged field as supplied", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 1000000000
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  pointblank::expect_col_vals_equal(out, "method_deposition", "supplied")
+})
+
+testthat::test_that("build_n_deposition carries an injected provenance tag", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "emep_corrected"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "emep_corrected"
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  pointblank::expect_col_vals_equal(
+    out,
+    "method_deposition",
+    "emep_corrected"
+  )
+  # The label is the ONLY thing the tag changes: the mass is untouched.
+  testthat::expect_equal(out$deposition_kgn_ha, 10)
+})
+
+testthat::test_that("build_n_deposition takes the tag of the only species present", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "hani"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    0.25, -0.25, 2020L, 1000000000, "hani"
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  pointblank::expect_col_vals_equal(out, "method_deposition", "hani")
+})
+
+testthat::test_that("build_n_deposition aborts when the two species disagree", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "hani"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "emep_corrected"
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+    ),
+    "disagree"
+  )
+})
+
+testthat::test_that("build_n_deposition refuses an unusable provenance column", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, NA_character_
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "hani"
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+    ),
+    "method_deposition"
+  )
 })
 
 testthat::test_that("build_n_deposition example fixture is schema-complete", {

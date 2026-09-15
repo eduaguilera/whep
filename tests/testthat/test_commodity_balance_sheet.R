@@ -146,7 +146,7 @@ testthat::test_that("processing coefficients are internally consistent", {
 
 testthat::test_that("livestock CBS routes slaughter animals to processing", {
   local_mocked_bindings(
-    .get_livestock_trade_totals = function(livestock_items) {
+    .get_livestock_trade_totals = function(livestock_items, ...) {
       tibble::tibble(
         year = integer(),
         area_code = integer(),
@@ -259,7 +259,7 @@ testthat::test_that("livestock trade survives when the importer has no slaughter
   # volume must still enter the CBS instead of vanishing because it has no
   # matching `slaughtered` row to left_join onto.
   local_mocked_bindings(
-    .get_livestock_trade_totals = function(livestock_items) {
+    .get_livestock_trade_totals = function(livestock_items, ...) {
       tibble::tribble(
           ~year, ~area_code, ~item_cbs_code, ~import, ~export,
           2000L, 1L, 1096L, 0, 30,
@@ -288,4 +288,143 @@ testthat::test_that("livestock trade survives when the importer has no slaughter
   # supply instead of vanishing.
   testthat::expect_equal(importer$production, 0)
   testthat::expect_equal(importer$domestic_supply, 30)
+})
+
+# whep#762 -- trade recovery must be reachable from the cached build chain,
+# which is the only path the IO model, the extensions and the nourishment axis
+# take. Before this, build_commodity_balances() was the sole entry point that
+# could select it, so the recovered CBS could not be carried into a build.
+testthat::test_that("get_wide_cbs takes and validates trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_wide_cbs))
+  )
+  # Validated before any build is started, so a typo aborts offline rather
+  # than after a several-minute read.
+  testthat::expect_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net-import")
+  )
+  testthat::expect_no_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net_import")
+  )
+})
+
+testthat::test_that("get_wide_cbs threads trade_recovery into the chain", {
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_wide_cbs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})
+
+testthat::test_that("get_processing_coefs takes trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_processing_coefs))
+  )
+  testthat::expect_error(
+    whep::get_processing_coefs(example = TRUE, trade_recovery = "net-import")
+  )
+
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_processing_coefs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})
+
+# whep#1092: the live-animal trade the livestock balance rests on was
+# filtered to `unit == "heads"`, which is only half of FAOSTAT's live-animal
+# vocabulary. The small species -- broiler chickens, turkeys, ducks, geese,
+# rabbits, rodents -- are reported in `1000 Head` and were dropped whole, so
+# `production = slaughtered + export - import` collapsed to `slaughtered`.
+.fake_livestock_btd <- function() {
+  tibble::tribble(
+    ~area_code, ~area_code_p, ~year, ~Element, ~unit,       ~value,
+    231L,       9L,           2010L, "Export", "Head",      40,
+    231L,       9L,           2010L, "Export", "1000 Head", 5,
+    231L,       9L,           2010L, "Export", "No",        7
+  ) |>
+    dplyr::mutate(
+      item = c("Cattle, non-dairy", "Chickens, broilers", "Bees")
+    )
+}
+
+testthat::test_that("livestock trade keeps FAOSTAT's '1000 Head' rows", {
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_warning(
+    totals <- .get_livestock_trade_totals(c(961L, 1053L)),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  chickens <- dplyr::filter(totals, item_cbs_code == 1053L)
+  cattle <- dplyr::filter(totals, item_cbs_code == 961L)
+
+  # 5 thousand head of live broilers become 5,000 head; the `Head` row is
+  # carried at face value, as it always was.
+  testthat::expect_equal(sum(chickens$export, na.rm = TRUE), 5000)
+  testthat::expect_equal(sum(cattle$export, na.rm = TRUE), 40)
+})
+
+testthat::test_that("'drop' reproduces the pre-#1092 livestock trade", {
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_warning(
+    totals <- .get_livestock_trade_totals(c(961L, 1053L), "drop"),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_false(1053L %in% totals$item_cbs_code)
+  testthat::expect_equal(sum(totals$export, na.rm = TRUE), 40)
+})
+
+testthat::test_that("'abort' is not swallowed by the read's tryCatch", {
+  # The unit refusal is a deliberate stop, not a failed read, so it must
+  # not degrade into "Could not read bilateral trade for livestock".
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_error(
+    .get_livestock_trade_totals(c(961L, 1053L), "abort"),
+    class = "whep_unhandled_trade_unit"
+  )
+})
+
+testthat::test_that("get_livestock_cbs rejects an unknown head method", {
+  testthat::expect_error(
+    get_livestock_cbs(
+      tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code = integer(),
+        live_anim_code = integer(),
+        unit = character(),
+        value = numeric()
+      ),
+      method_head_units = "rescale"
+    ),
+    class = "rlang_error"
+  )
 })
