@@ -421,24 +421,36 @@ test_that("aliases = NULL reads the published alias map, ALIAS ROUTE ONLY", {
   # (its NAME/ISO3 fallback), but `resolve_admin_units()` must never take
   # that route: an administrative unit id that happens to collide with a
   # polity name or ISO3 code must resolve to NA, not to the container.
-  # NOT ONE published alias is scoped to a code system this function names
-  # (1,007 rows over 15 sources on the 2026-09-03 snapshot, none of them
-  # `usda-nass-fips`, `whep-lab-spain-provinces` and friends), so both
-  # identifiers below are unresolved under the real, unmocked table --
-  # that is finding #1000/T34-3's regression pin.
-  rows <- unit_rows(c("ESP", "19"), c(2000L, 2020L))
+  # That is finding #1000/T34-3's regression pin, and it is leg one.
+  #
+  # THE PIN USED TO REST ON AN EMPTY MAP, and no longer can. It asserted that
+  # `"19"` was unresolved too, which held only because not one published alias
+  # was scoped to a code system this function names (1,007 rows over 15
+  # sources on the 2026-09-03 snapshot). The whep-polities re-sync published
+  # those slugs, so `"19"` is Iowa now. An assertion that a lookup fails
+  # because the table is EMPTY stops testing anything the moment the table is
+  # filled -- and reads as a regression when the deliverable lands.
+  #
+  # So the legs pin what stays true: the container's ISO3 is refused (1), a
+  # real identifier under a live slug resolves, which is what proves the
+  # production default reads the real table (2), and an identifier in no alias
+  # is still refused under that SAME live slug (3). Leg three is what keeps
+  # leg one meaningful: without it, leg one's `NA` could be dismissed as
+  # "that slug has no rows".
+  rows <- unit_rows(c("ESP", "19", "ZZ999"), c(2000L, 2020L, 2020L))
 
   out <- whep:::resolve_admin_units(
     rows,
-    c("whep-lab-spain-provinces", "usda-nass-fips")
+    c("whep-lab-spain-provinces", "usda-nass-fips", "usda-nass-fips")
   )
 
   expect_true(is.na(out$rows$level_polity_code[1]))
-  expect_true(is.na(out$rows$level_polity_code[2]))
+  expect_identical(out$rows$level_polity_code[2], "USA-IA-1846-2025")
+  expect_true(is.na(out$rows$level_polity_code[3]))
   expect_identical(out$diagnostics$n_unresolved, c(1L, 1L))
   expect_identical(
     sort(out$diagnostics$example_ids),
-    c("19", "ESP")
+    c("ESP", "ZZ999")
   )
 })
 
