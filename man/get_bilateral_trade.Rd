@@ -25,12 +25,13 @@ against. See the \emph{Items with no CBS row} section. One of:
 behaviour. Published values are unaffected by this argument's
 existence as long as the default is kept.
 \item \code{"keep"}: keep the flows and take the row and column margins from
-the reported bilateral data itself instead of from the CBS. It
-\strong{refuses} when a kept item's tonnes are not masses; see the
-\emph{Items with no CBS row} section.
+the reported bilateral data itself instead of from the CBS.
 \item \code{"abort"}: fail, so that a refreshed pin cannot introduce
 unanchored items unnoticed.
 }
+
+Under \strong{every} method, an item that survives this step whose tonnes
+are not masses is refused; see the \emph{Items with no CBS row} section.
 
 \code{example = TRUE} always returns the \code{"drop"} fixture.}
 }
@@ -185,14 +186,25 @@ so nothing can be rescaled. See
 \code{\link[=build_detailed_trade]{build_detailed_trade()}}'s \emph{Quantities FAOSTAT does not back with a
 mass} section for the full measurement.
 
-\code{"keep"} therefore \strong{aborts} with class
-\code{"whep_unbacked_mass_trade"} when the items it would keep include one
-of those, rather than distributing 2.58 Gt through a matrix. \code{"drop"},
-the default, is unaffected, and so is every published number: item
-5001 has no CBS row, so the default already removes it. A caller who
-wants a trade matrix that carries item 5001 has to obtain a mass for it
-first; \code{\link[=build_detailed_trade]{build_detailed_trade()}} screens the same rows at the producer,
-where the fix belongs.
+This function therefore \strong{aborts} with class
+\code{"whep_unbacked_mass_trade"} whenever such an item would survive this
+step, rather than distributing 2.58 Gt through a matrix. The test is on
+what is \emph{kept}, under every method, and not on whether the item has a
+CBS row: those two coincide on today's data, and that coincidence was
+the only thing keeping the figures out of a published number. Give item
+5001 a CBS row and the earlier, \code{"keep"}-only refusal let the whole
+12.40 Gt through on the default method, silently.
+
+No published number moves. Measured on the live \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392}, item 5001 carries 12.40 Gt of \code{tonnes} over
+277,201 rows - 8.9\% of 1986-2003, \strong{49.4\% of 2004-2013} and 3.9\% of
+2014-2021 - and no commodity balance sheet carries item 5001, so
+\code{"drop"} removes all of it exactly as before.
+
+A caller who wants a trade matrix that carries item 5001 has to obtain
+a mass for it first. \code{\link[=build_detailed_trade]{build_detailed_trade()}} screens the same rows at
+the producer, where the fix belongs; that screen is latent until the
+\code{bilateral_trade} pin is regenerated from it, which whep#1122 tracks.
 }
 
 \section{The two batch pins on the build path}{

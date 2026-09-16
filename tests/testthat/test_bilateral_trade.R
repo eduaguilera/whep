@@ -707,6 +707,51 @@ testthat::test_that("'keep' still works when no kept item is unbacked", {
   testthat::expect_setequal(result$item_cbs_code, c(2511, 750))
 })
 
+testthat::test_that("an unbacked item with a CBS row is refused too", {
+  # Regression for whep#1023. The only thing keeping the pin's 2.58 Gt cell
+  # out of a published number was that item 5001 happens to have no CBS row,
+  # so `"drop"` removed it -- "luck, not design", in the issue's words. Give
+  # the same item a CBS row and the refusal has to still hold: otherwise the
+  # tonnage is balanced against CBS margins and pushed through IPF, silently,
+  # on the default method.
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    5001, "tonnes", 2579549887
+  )
+  cbs <- tibble::tibble(item_cbs_code = c(2511, 5001))
+
+  testthat::expect_error(
+    .filter_only_items_in_cbs(btd, cbs, "drop"),
+    class = "whep_unbacked_mass_trade"
+  )
+  testthat::expect_error(
+    .filter_only_items_in_cbs(btd, cbs, "abort"),
+    class = "whep_unbacked_mass_trade"
+  )
+  testthat::expect_error(
+    .filter_only_items_in_cbs(btd, cbs, "keep"),
+    class = "whep_unbacked_mass_trade"
+  )
+})
+
+testthat::test_that("the refusal ignores an unbacked item being dropped", {
+  # Mirror of the test above: on `"drop"` an unbacked item with no CBS row is
+  # removed, so it must not trigger the refusal. Only a kept one does.
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit, ~value,
+    2511, "tonnes", 250,
+    5001, "tonnes", 2579549887
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_warning(
+    result <- .filter_only_items_in_cbs(btd, cbs, "drop"),
+    "no commodity balance"
+  )
+  testthat::expect_equal(result$item_cbs_code, 2511)
+})
+
 testthat::test_that(".filter_only_items_in_cbs aborts on 'abort'", {
   btd <- tibble::tribble(
     ~item_cbs_code, ~value,

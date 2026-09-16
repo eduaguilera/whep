@@ -14,11 +14,12 @@
 #'     behaviour. Published values are unaffected by this argument's
 #'     existence as long as the default is kept.
 #'   - `"keep"`: keep the flows and take the row and column margins from
-#'     the reported bilateral data itself instead of from the CBS. It
-#'     **refuses** when a kept item's tonnes are not masses; see the
-#'     *Items with no CBS row* section.
+#'     the reported bilateral data itself instead of from the CBS.
 #'   - `"abort"`: fail, so that a refreshed pin cannot introduce
 #'     unanchored items unnoticed.
+#'
+#'   Under **every** method, an item that survives this step whose tonnes
+#'   are not masses is refused; see the *Items with no CBS row* section.
 #'
 #'   `example = TRUE` always returns the `"drop"` fixture.
 #'
@@ -64,14 +65,25 @@
 #' [build_detailed_trade()]'s *Quantities FAOSTAT does not back with a
 #' mass* section for the full measurement.
 #'
-#' `"keep"` therefore **aborts** with class
-#' `"whep_unbacked_mass_trade"` when the items it would keep include one
-#' of those, rather than distributing 2.58 Gt through a matrix. `"drop"`,
-#' the default, is unaffected, and so is every published number: item
-#' 5001 has no CBS row, so the default already removes it. A caller who
-#' wants a trade matrix that carries item 5001 has to obtain a mass for it
-#' first; [build_detailed_trade()] screens the same rows at the producer,
-#' where the fix belongs.
+#' This function therefore **aborts** with class
+#' `"whep_unbacked_mass_trade"` whenever such an item would survive this
+#' step, rather than distributing 2.58 Gt through a matrix. The test is on
+#' what is *kept*, under every method, and not on whether the item has a
+#' CBS row: those two coincide on today's data, and that coincidence was
+#' the only thing keeping the figures out of a published number. Give item
+#' 5001 a CBS row and the earlier, `"keep"`-only refusal let the whole
+#' 12.40 Gt through on the default method, silently.
+#'
+#' No published number moves. Measured on the live `bilateral_trade` pin
+#' `20250714T123347Z-2c392`, item 5001 carries 12.40 Gt of `tonnes` over
+#' 277,201 rows - 8.9% of 1986-2003, **49.4% of 2004-2013** and 3.9% of
+#' 2014-2021 - and no commodity balance sheet carries item 5001, so
+#' `"drop"` removes all of it exactly as before.
+#'
+#' A caller who wants a trade matrix that carries item 5001 has to obtain
+#' a mass for it first. [build_detailed_trade()] screens the same rows at
+#' the producer, where the fix belongs; that screen is latent until the
+#' `bilateral_trade` pin is regenerated from it, which whep#1122 tracks.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -642,6 +654,12 @@ get_bilateral_trade <- function(
 
   items_not_in_cbs <- btd_items[!btd_items %in% cbs_items]
 
+  # Refuse on what survives this step, not on what has no CBS row. Those two
+  # sets coincide on today's data and that coincidence is the whole defect:
+  # see the comment on `.refuse_unbacked_mass_items()`.
+  kept_items <- if (method == "keep") btd_items else cbs_items
+  .refuse_unbacked_mass_items(btd, intersect(btd_items, kept_items))
+
   if (length(items_not_in_cbs) == 0) {
     return(btd)
   }
@@ -649,7 +667,6 @@ get_bilateral_trade <- function(
   .report_items_not_in_cbs(btd, items_not_in_cbs, method)
 
   if (method == "keep") {
-    .refuse_unbacked_mass_items(btd, items_not_in_cbs)
     return(btd)
   }
 
@@ -657,16 +674,24 @@ get_bilateral_trade <- function(
     dplyr::filter(!item_cbs_code %in% items_not_in_cbs)
 }
 
-# `method_items_not_in_cbs = "keep"` takes an item's matrix margins from the
-# reported bilateral flows themselves (`.own_margin_totals()`), so whatever the
-# pin says is what comes out. That is only safe while the pin's `tonnes` are
-# masses, and for the items `.unbacked_mass_cbs_items()` names they are not:
-# FAOSTAT publishes no country-level mass for the trade items feeding them, and
-# the matrix figures reach 2.58 Gt in one cell at USD 0.227/tonne (whep#1023).
-# No conversion is derivable, so refusing is the only honest option left here;
-# the fix itself belongs in the producer, `build_detailed_trade()`.
-.refuse_unbacked_mass_items <- function(btd, items_not_in_cbs) {
-  unbacked <- intersect(items_not_in_cbs, .unbacked_mass_cbs_items())
+# Refuse to build a matrix for an item whose `tonnes` are not masses. For the
+# items `.unbacked_mass_cbs_items()` names they are not: FAOSTAT publishes no
+# country-level mass for the trade items feeding them, and the matrix figures
+# reach 2.58 Gt in one cell at USD 0.227/tonne (whep#1023). No conversion is
+# derivable, so refusing is the only honest option left here; the fix itself
+# belongs in the producer, `build_detailed_trade()`.
+#
+# `kept_items` is what survives `.filter_only_items_in_cbs()`, which is not
+# the same question as which items have no CBS row. It used to be called with
+# `items_not_in_cbs` on the `"keep"` branch alone, so the only thing keeping
+# the live pin's 12.40 Gt of item 5001 out of a published number was that
+# 5001 happens to have no CBS row and so was dropped by the default -- "luck,
+# not design", as whep#1023 puts it. Give the item a CBS row and the old call
+# site balanced it against CBS margins and pushed it through IPF in silence.
+# Today no CBS carries 5001, so this changes nothing; it is the guard that
+# makes the current safety a property of the code rather than of the data.
+.refuse_unbacked_mass_items <- function(btd, kept_items) {
+  unbacked <- intersect(kept_items, .unbacked_mass_cbs_items())
   if (length(unbacked) == 0) {
     return(invisible(btd))
   }
@@ -682,17 +707,18 @@ get_bilateral_trade <- function(
 
   cli::cli_abort(
     c(
-      "{.arg method_items_not_in_cbs} {.val keep} would carry \\
-       {nrow(affected)} row{?s} whose {.field tonnes} are not masses.",
+      "Refusing to balance {nrow(affected)} kept row{?s} whose \\
+       {.field tonnes} are not masses.",
       "i" = "CBS item {cli::qty(length(unbacked))}code{?s}: \\
              {.val {unbacked}}, {signif(tonnage, 4)} reported tonnes.",
       "i" = "FAOSTAT publishes no country-level mass for the trade \\
              item{?s} feeding {cli::qty(length(unbacked))}{?it/them}, and \\
              the true unit is unverified, so the values can be dropped but \\
              not corrected (whep#1023).",
-      "i" = "Use {.arg method_items_not_in_cbs} {.val drop} (the default), \\
-             or screen the rows at the producer with \\
-             {.fun build_detailed_trade}."
+      "i" = "Screen the rows at the producer with \\
+             {.fun build_detailed_trade}, whose \\
+             {.arg method_unbacked_quantity} {.val drop} removes them, and \\
+             regenerate the {.val bilateral_trade} pin (whep#1122)."
     ),
     class = "whep_unbacked_mass_trade"
   )
