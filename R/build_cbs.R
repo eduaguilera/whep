@@ -1968,9 +1968,9 @@ build_processing_coefs <- function(
 # Firewood is recovered like the others but is fuel, never feed, so its whole
 # recovered mass is `other_uses`. Keyed on the residue item CODE rather than
 # its name, unlike the name test this replaces.
-.residue_cbs_elements <- function(res) {
+.residue_cbs_elements <- function(res, bedding_fraction = 0) {
   feed_items <- c(2105L, 2106L) # Straw, Other crop residues
-  split <- .residue_recovered_split(res)
+  split <- .residue_recovered_split(res, bedding_fraction = bedding_fraction)
   base <- dplyr::select(split, -"value", -"recovered", -"feed_dm_t")
   is_feed_item <- as.integer(split$item_cbs_code_residue) %in% feed_items
   dplyr::bind_rows(
@@ -2006,7 +2006,8 @@ build_processing_coefs <- function(
 .residue_recovered_split <- function(
   res,
   warn = TRUE,
-  method_destiny = "recovery_regional"
+  method_destiny = "recovery_regional",
+  bedding_fraction = 0
 ) {
   res <- dplyr::mutate(
     res,
@@ -2031,10 +2032,22 @@ build_processing_coefs <- function(
         sum(.data$category_weight),
       .by = ".residue_row"
     ) |>
-    calculate_residue_destinies(method = method_destiny) |>
+    calculate_residue_destinies(
+      method = method_destiny,
+      bedding_fraction = bedding_fraction
+    ) |>
     dplyr::summarise(
+      # EVERY removed destiny, not just feed and burn. Bedding is carved out of
+      # the burn share by calculate_residue_destinies(), so summing only those
+      # two would drop the bedding mass from residue `production` while leaving
+      # `feed` untouched -- silently breaking `production = feed + other_uses`,
+      # since `other_uses` is derived as `recovered - feed` below. Bedding is
+      # not a CBS element of its own: it is part of `other_uses`, which is
+      # exactly what it is, a non-feed use of the straw that left the field.
       recovered = sum(
-        .data$residue_feed_dm_t + .data$residue_burn_dm_t,
+        .data$residue_feed_dm_t +
+          .data$residue_bedding_dm_t +
+          .data$residue_burn_dm_t,
         na.rm = TRUE
       ),
       feed_dm_t = sum(.data$residue_feed_dm_t, na.rm = TRUE),

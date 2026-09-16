@@ -337,6 +337,7 @@ reference:
   - summarize_bnf
   - calculate_residue_destinies
   - build_residue_feed_avail
+  - build_residue_bedding_supply
 
 - title: Tidy datasets
   desc: >
@@ -678,6 +679,7 @@ reference:
   - manure_engine_options
   - estimate_n_excretion
   - split_manure_management
+  - add_manure_bedding
   - apply_management_losses
   - build_livestock_nutrient_flows
   - allocate_manure_to_land
