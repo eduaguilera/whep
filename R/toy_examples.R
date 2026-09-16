@@ -1709,15 +1709,15 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    4.7876219, 1.86499108, 0.0619359969,
-    1, 0.79862543, 1,
+    4.7876219, 1.58428108, 0.0619359969,
+    1, 0.83656958, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    3.1917479, 0.61739109, 0.0412906646,
-    1, 0.79862543, 1,
+    3.1917479, 0.62465452, 0.0412906646,
+    1, 0.83656958, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.84674270, 0.0435862529,
+    2.8982329, 0.71929483, 0.0435862529,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(
@@ -1727,7 +1727,7 @@
       method_climate_zone = "cru_ts_annual",
       method_diet = "uniform_medium",
       method_enteric = "IPCC_2019_Tier2",
-      method_manure_ch4 = "IPCC_2019_Tier2; climate_from_data",
+      method_manure_ch4 = "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019",
       method_manure_n2o = "IPCC_2019_Tier2"
     ) |>
     .add_reporting_polity_columns()

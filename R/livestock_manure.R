@@ -4,9 +4,10 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. Every default
-#'   reproduces the behaviour in force before whep#949, so passing none leaves
-#'   published values unchanged.
+#' @param options A named list of manure-engine options. All but one default
+#'   reproduce the behaviour in force before whep#949; the exception is
+#'   `mcf_source`, which moved from the shipped table to the 2019 Refinement
+#'   in whep#1022 and does move Tier 2 manure CH4.
 #'
 #'   `mms_region` selects how the manure-management split in
 #'   [regional_mms_distribution] is keyed:
@@ -23,8 +24,31 @@
 #'   * `"global"`: every row takes the `region == "Global"` split, whatever
 #'     region column it carries.
 #'
+#'   `mcf_source` selects which methane conversion factor table the Tier 2
+#'   manure CH4 weighting reads:
+#'   * `"ipcc_2019"` (default): the matching `edition` rows of
+#'     [climate_mcf_ipcc], read off Table 10.17 (Updated) of the 2019
+#'     Refinement, which is the current IPCC guidance.
+#'   * `"ipcc_2006"`: the matching `edition` rows of [climate_mcf_ipcc], read
+#'     off Table 10.17 of the 2006 Guidelines.
+#'   * `"as_shipped"`: [climate_mcf], whose live rows are predominantly the
+#'     2006 Guidelines Table 10.17 but with six cells that match no published
+#'     IPCC value (whep#601, whep#1022). Kept selectable so an older run can
+#'     be reproduced; it is no longer the default, because values whose
+#'     provenance could not be established should not be what ships.
+#'
+#'   Neither edition publishes one number per Cool/Temperate/Warm zone for
+#'   every system, so both as-published tables apply a stated collapse rule;
+#'   see [climate_mcf_ipcc]. Both rules are WHEP's, not the IPCC's, and the
+#'   default makes them live. `method_manure_ch4` records the table used.
+#'
+#'   The default carries one known incompleteness: the Refinement pairs its
+#'   single 0.47 percent pasture MCF with a mandatory `Bo` of 0.19, and this
+#'   engine applies one per-species `Bo` to every stream, so the pair cannot be
+#'   honoured here. See the corresponding section of [climate_mcf_ipcc].
+#'
 #'   `climate_source` selects where the climate zone the methane conversion
-#'   factors in [climate_mcf] are read at comes from. A `climate_zone` a row
+#'   factors in the MCF table are read at comes from. A `climate_zone` a row
 #'   already carries is always used and stamped `climate_from_data`; the option
 #'   governs only the rows left without one, whether that is a hole in a
 #'   supplied column or a wholly absent column.
@@ -652,10 +676,15 @@ NULL
 .calc_weighted_mcf <- function(data, options = list()) {
   opt <- .manure_options(options)
   data <- .apply_climate_zone(data, opt)
+  data <- .stamp_assumption(
+    data,
+    "method_manure_ch4",
+    paste0("mcf_", opt$mcf_source),
+    TRUE
+  )
 
   # Get MCF by MMS and climate zone
-  mcf_tbl <- climate_mcf |>
-    dplyr::select(mms_type, climate_zone, mcf_percent)
+  mcf_tbl <- .mcf_table(opt$mcf_source)
 
   # For each row, compute weighted MCF over its MMS distribution.
   data <- data |>
@@ -1054,13 +1083,16 @@ NULL
 
 #' Validate and default the manure engine's options.
 #'
-#' The defaults reproduce the behaviour in force before whep#949 exactly: the
-#' `region == "Global"` MMS split on any frame that does not already carry a
-#' `region` column, and an assumed Temperate climate zone.
+#' The `mms_region` and climate defaults reproduce the behaviour in force
+#' before whep#949 exactly: the `region == "Global"` MMS split on any frame
+#' that does not already carry a `region` column, and an assumed Temperate
+#' climate zone. `mcf_source` is the one default that does not: whep#1022
+#' moved it off the shipped MCF table onto the 2019 Refinement.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
     mms_region = "as_available",
+    mcf_source = "ipcc_2019",
     climate_source = "assumed",
     assumed_climate_zone = "Temperate"
   )
@@ -1075,12 +1107,17 @@ NULL
   # rlang::arg_match() needs a symbol, so each option is bound to one first.
   opt <- utils::modifyList(defaults, options)
   mms_region <- opt$mms_region
+  mcf_source <- opt$mcf_source
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
   list(
     mms_region = rlang::arg_match(
       mms_region,
       c("as_available", "resolve", "global")
+    ),
+    mcf_source = rlang::arg_match(
+      mcf_source,
+      c("ipcc_2019", "ipcc_2006", "as_shipped")
     ),
     climate_source = rlang::arg_match(
       climate_source,
@@ -1099,6 +1136,31 @@ NULL
 #' @noRd
 .mms_region_col <- function(mms_region) {
   if (identical(mms_region, "global")) NULL else "region"
+}
+
+#' Which MCF table `.calc_weighted_mcf()` reads.
+#'
+#' `"ipcc_2019"` is the default: it is the current IPCC guidance, and the
+#' shipped table it replaces carries six cells that match no column of either
+#' edition (whep#601), so its provenance could not be established. Relative to
+#' `"as_shipped"` the default changes three live rows -- the
+#' pasture/range/paddock triple becomes the Refinement's single 0.47 percent,
+#' and liquid/slurry and the anaerobic lagoon become the Refinement's own
+#' sub-zone values instead of an off-class column of the 2006 per-degree row.
+#' `"ipcc_2006"` differs from `"as_shipped"` in the latter two only, and
+#' `"as_shipped"` stays selectable so an older run can be reproduced.
+#'
+#' All three keep `climate_mcf`'s key space, so the join in
+#' `.calc_weighted_mcf()` is unchanged and an MMS label no table carries
+#' still aborts in `.check_mms_matched()`.
+#' @noRd
+.mcf_table <- function(mcf_source) {
+  if (identical(mcf_source, "as_shipped")) {
+    return(dplyr::select(climate_mcf, mms_type, climate_zone, mcf_percent))
+  }
+  climate_mcf_ipcc |>
+    dplyr::filter(edition == mcf_source) |>
+    dplyr::select(mms_type, climate_zone, mcf_percent)
 }
 
 #' Resolve the IPCC region the MMS split is keyed on, and record which split

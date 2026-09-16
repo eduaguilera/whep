@@ -287,11 +287,14 @@ testthat::test_that("Tier 2 refuses to rebuild the feed intake behind you", {
 
 # options passthrough (#1029) -------------------------------------------------
 
-testthat::test_that("default options reproduce the pre-passthrough numbers", {
+testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Regression lock for #1029: threading `options` from the extension down to
   # calculate_livestock_emissions() must not move a published value. The
   # expected figures were produced by the pre-passthrough code (origin/main at
-  # 6c8bf0d2) on this same fixture, at both tiers.
+  # 6c8bf0d2) on this same fixture, at both tiers. Tier 2 is now asked for
+  # `mcf_source = "as_shipped"` explicitly, because whep#1022 moved the
+  # default onto the 2019 Refinement; the lock still proves the passthrough
+  # itself moves nothing, which is what #1029 was about.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -324,6 +327,7 @@ testthat::test_that("default options reproduce the pre-passthrough numbers", {
     whep::build_livestock_ghg_extension(
       tier = 2,
       method_diet = "uniform_medium",
+      options = list(mcf_source = "as_shipped"),
       data = list(primary_prod = .ghg_prod_fixture())
     )
   )
@@ -348,15 +352,61 @@ testthat::test_that("default options reproduce the pre-passthrough numbers", {
   testthat::expect_true(all(tier1$method_mms == "region_specific"))
   testthat::expect_true(all(tier1$method_manure_ch4 == "IPCC_2019_Tier1"))
   testthat::expect_true(all(
-    tier2$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_temperate"
+    tier2$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_assumed_temperate; mcf_as_shipped"
+  ))
+})
+
+testthat::test_that("the shipped Tier 2 default is the 2019 Refinement", {
+  # whep#1022 flipped `mcf_source` to `"ipcc_2019"`. These are the numbers the
+  # extension publishes now, on the same fixture as the #1029 lock above, so
+  # the two sit side by side and the size of the move is readable: cattle 961
+  # +0.13 percent, sheep 976 -1.75 percent, cattle 960 +0.17 percent. Sheep
+  # move most because they are 100 percent pasture, whose MCF the Refinement
+  # cuts from 1.5 to 0.47 percent; the cattle sectors barely move because the
+  # pasture cut is nearly cancelled by a higher liquid/slurry factor.
+  expected <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~impact_u,
+    10L, 961L, 2258337147.8284378,
+    10L, 976L, 1572410786.0715780,
+    100L, 960L, 493564355.41606408
+  )
+  tier2 <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(tier2, area_code, item_cbs_code, impact_u),
+      area_code,
+      item_cbs_code
+    ),
+    dplyr::arrange(expected, area_code, item_cbs_code)
+  )
+  testthat::expect_true(all(
+    tier2$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_assumed_temperate; mcf_ipcc_2019"
   ))
 })
 
 testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   # The point of #1029: an option handed to the extension must change what the
   # kernel computes, not just be accepted. The climate zone sets the methane
-  # conversion factor, so Cool < Temperate < Warm sector by sector -- a
+  # conversion factor, so Cool <= Temperate <= Warm sector by sector -- a
   # passthrough that silently dropped `options` would leave all three equal.
+  #
+  # The bound is not strict under the default `mcf_source = "ipcc_2019"`:
+  # the Refinement gives pasture/range/paddock a single 0.47 percent for every
+  # zone, so a species that is 100 percent pasture (sheep, goats, camels,
+  # mules and asses in `regional_mms_distribution`) has a climate-invariant
+  # manure MCF and its sector is equal across all three. Sector 976 is sheep
+  # and is exactly that case; the cattle sectors still increase strictly, so
+  # at least one strict increase is asserted to keep the test able to fail on
+  # a dropped passthrough.
   run_zone <- function(zone) {
     suppressWarnings(
       whep::build_livestock_ghg_extension(
@@ -372,13 +422,39 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   temperate <- run_zone("Temperate")
   warm <- run_zone("Warm")
 
-  testthat::expect_true(all(cool$impact_u < temperate$impact_u))
-  testthat::expect_true(all(temperate$impact_u < warm$impact_u))
+  testthat::expect_true(all(cool$impact_u <= temperate$impact_u))
+  testthat::expect_true(all(temperate$impact_u <= warm$impact_u))
+  testthat::expect_true(any(cool$impact_u < temperate$impact_u))
+  testthat::expect_true(any(temperate$impact_u < warm$impact_u))
+  # The pasture-only sector is the one the Refinement makes zone-invariant.
+  sheep <- function(x) x$impact_u[x$item_cbs_code == 976L]
+  testthat::expect_equal(sheep(cool), sheep(warm))
+  # Under the shipped table it did vary, so this is the edition talking.
+  shipped_zone <- function(zone) {
+    suppressWarnings(
+      whep::build_livestock_ghg_extension(
+        tier = 2,
+        method_diet = "uniform_medium",
+        options = list(
+          assumed_climate_zone = zone,
+          mcf_source = "as_shipped"
+        ),
+        data = list(primary_prod = .ghg_prod_fixture())
+      )
+    ) |>
+      dplyr::arrange(area_code, item_cbs_code)
+  }
+  testthat::expect_false(isTRUE(all.equal(
+    sheep(shipped_zone("Cool")),
+    sheep(shipped_zone("Warm"))
+  )))
   testthat::expect_true(all(
-    warm$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_warm"
+    warm$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_assumed_warm; mcf_ipcc_2019"
   ))
   testthat::expect_true(all(
-    cool$method_manure_ch4 == "IPCC_2019_Tier2; climate_assumed_cool"
+    cool$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_assumed_cool; mcf_ipcc_2019"
   ))
   # Temperate is the default, so asking for it explicitly changes nothing.
   default <- suppressWarnings(

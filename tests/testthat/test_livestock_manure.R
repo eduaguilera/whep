@@ -234,15 +234,16 @@ testthat::test_that("Volatile solids match IPCC 2019 Eq 10.24 (#160)", {
 testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
   # "Africa" has no region-specific rows in regional_mms_distribution, so the
   # Global Cattle distribution must be used instead of the flat 2% default.
-  # Global Cattle mix x Temperate MCF (Table 10.17):
-  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 % -> 0.07225.
+  # Global Cattle mix x Temperate MCF, at the default mcf_source of
+  # ipcc_2019 (2019 Refinement Table 10.17 Updated):
+  #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 % -> 0.0731.
   result <- tibble::tribble(
     ~species_gen, ~region,  ~climate_zone,
     "Cattle",     "Africa", "Temperate"
   ) |>
     whep:::.calc_weighted_mcf()
 
-  testthat::expect_equal(result$weighted_mcf, 0.07225)
+  testthat::expect_equal(result$weighted_mcf, 0.0731)
   # Must not collapse to the flat 2% (0.02) default.
   testthat::expect_false(isTRUE(all.equal(result$weighted_mcf, 0.02)))
 })
@@ -467,13 +468,14 @@ testthat::test_that("Tier 2 manure resolves the IPCC region on request (#949)", 
 
   testthat::expect_false("region" %in% names(default))
   testthat::expect_equal(unique(regional$region), "North America")
-  # Global cattle mix x Temperate MCF (Table 10.17):
-  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 percent.
+  # Both at the default mcf_source of ipcc_2019, Temperate.
+  # Global cattle mix:
+  #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 percent.
   # North America's mix is 0.40 Liquid/Slurry, 0.30 Solid Storage,
   # 0.25 Pasture, 0.05 Daily Spread:
-  #   0.40*35.0 + 0.30*4.0 + 0.25*1.5 + 0.05*0.5 = 15.6 percent.
-  testthat::expect_equal(unique(default$weighted_mcf), 0.07225)
-  testthat::expect_equal(unique(regional$weighted_mcf), 0.156)
+  #   0.40*39.0 + 0.30*4.0 + 0.25*0.47 + 0.05*0.5 = 16.9425 percent.
+  testthat::expect_equal(unique(default$weighted_mcf), 0.0731)
+  testthat::expect_equal(unique(regional$weighted_mcf), 0.169425)
   testthat::expect_equal(unique(default$method_mms), "regional_default")
   testthat::expect_equal(unique(regional$method_mms), "region_specific")
 })
@@ -527,11 +529,11 @@ testthat::test_that("the assumed climate zone is selectable and recorded", {
     options = list(assumed_climate_zone = "Cool")
   )
 
-  # Global cattle mix x Warm MCF:
-  #   0.50*2.0 + 0.30*5.0 + 0.15*80.0 + 0.05*1.0 = 14.55 percent.
-  # x Cool MCF: 0.50*1.0 + 0.30*2.0 + 0.15*17.0 + 0.05*0.1 = 3.655 percent.
-  testthat::expect_equal(warm$weighted_mcf, 0.1455)
-  testthat::expect_equal(cool$weighted_mcf, 0.03655)
+  # Global cattle mix, at the default mcf_source of ipcc_2019.
+  # Warm:  0.50*0.47 + 0.30*5.0 + 0.15*70.50 + 0.05*1.0 = 12.36 percent.
+  # Cool:  0.50*0.47 + 0.30*2.0 + 0.15*18.75 + 0.05*0.1 = 3.6525 percent.
+  testthat::expect_equal(warm$weighted_mcf, 0.1236)
+  testthat::expect_equal(cool$weighted_mcf, 0.036525)
   testthat::expect_match(warm$method_manure_ch4, "climate_assumed_warm")
   testthat::expect_match(cool$method_manure_ch4, "climate_assumed_cool")
 })
@@ -553,8 +555,167 @@ testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
   supplied <- data |>
     dplyr::mutate(climate_zone = "Warm") |>
     whep:::.calc_weighted_mcf(options = list(climate_source = "from_data"))
-  testthat::expect_equal(supplied$weighted_mcf, 0.1455)
+  testthat::expect_equal(supplied$weighted_mcf, 0.1236)
   testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
+})
+
+testthat::test_that("mcf_source selects the MCF table and records it", {
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+  weighted <- function(src) {
+    whep:::.calc_weighted_mcf(data, options = list(mcf_source = src))
+  }
+
+  shipped <- weighted("as_shipped")
+  gl2006 <- weighted("ipcc_2006")
+  ref2019 <- weighted("ipcc_2019")
+
+  # Global cattle mix is 0.50 pasture, 0.30 solid storage, 0.15 liquid
+  # slurry, 0.05 daily spread, read at the Temperate default.
+  #   as shipped: 0.50*1.5 + 0.30*4.0 + 0.15*35 + 0.05*0.5 is 7.225 percent.
+  #   2006:       0.50*1.5 + 0.30*4.0 + 0.15*42 + 0.05*0.5 is 8.275 percent.
+  #   2019:       0.50*0.47 + 0.30*4.0 + 0.15*39 + 0.05*0.5 is 7.31 percent.
+  testthat::expect_equal(shipped$weighted_mcf, 0.07225)
+  testthat::expect_equal(gl2006$weighted_mcf, 0.08275)
+  testthat::expect_equal(ref2019$weighted_mcf, 0.0731)
+
+  testthat::expect_match(shipped$method_manure_ch4, "mcf_as_shipped")
+  testthat::expect_match(gl2006$method_manure_ch4, "mcf_ipcc_2006")
+  testthat::expect_match(ref2019$method_manure_ch4, "mcf_ipcc_2019")
+
+  # The default is the 2019 Refinement (whep#1022), so an unasked-for call
+  # must equal the ipcc_2019 one and stamp it.
+  default <- whep:::.calc_weighted_mcf(data)
+  testthat::expect_equal(default$weighted_mcf, ref2019$weighted_mcf)
+  testthat::expect_match(default$method_manure_ch4, "mcf_ipcc_2019")
+})
+
+testthat::test_that("each mcf_source reproduces its own table exactly", {
+  # The referential form: over every species and zone the engine can reach,
+  # the weighted MCF equals the share-weighted sum computed from the selected
+  # table outside the engine. Run for all three sources, so the guarantee is
+  # not tied to whichever one happens to be the default.
+  grid <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+
+  for (src in c("ipcc_2019", "ipcc_2006", "as_shipped")) {
+    engine <- whep:::.calc_weighted_mcf(grid, options = list(mcf_source = src))
+
+    independent <- whep:::.mms_global_shares() |>
+      dplyr::rename(species_gen = "species") |>
+      dplyr::inner_join(
+        grid,
+        by = "species_gen",
+        relationship = "many-to-many"
+      ) |>
+      dplyr::inner_join(
+        whep:::.mcf_table(src),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::summarise(
+        expected_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+        .by = c("species_gen", "climate_zone")
+      )
+
+    joined <- dplyr::inner_join(
+      engine,
+      independent,
+      by = c("species_gen", "climate_zone")
+    )
+    testthat::expect_equal(nrow(joined), nrow(grid), label = src)
+    testthat::expect_equal(joined$weighted_mcf, joined$expected_mcf)
+  }
+})
+
+testthat::test_that("the shipped default mcf_source is the 2019 Refinement", {
+  # whep#1022: the default moved off `climate_mcf`, whose live rows carry six
+  # cells matching no published IPCC value, onto the 2019 Refinement. Pinned
+  # over the whole reachable grid so a silent revert cannot pass.
+  grid <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  default <- whep:::.calc_weighted_mcf(grid)
+  ref2019 <- whep:::.calc_weighted_mcf(
+    grid,
+    options = list(mcf_source = "ipcc_2019")
+  )
+  shipped <- whep:::.calc_weighted_mcf(
+    grid,
+    options = list(mcf_source = "as_shipped")
+  )
+
+  testthat::expect_equal(default$weighted_mcf, ref2019$weighted_mcf)
+  testthat::expect_true(all(grepl("mcf_ipcc_2019", default$method_manure_ch4)))
+  # And the flip is not a no-op: the two tables disagree on the live rows.
+  testthat::expect_false(
+    isTRUE(all.equal(default$weighted_mcf, shipped$weighted_mcf))
+  )
+})
+
+testthat::test_that("every shipped MMS label resolves an MCF, any source", {
+  # Extends the whep#950 referential invariant to the selectable tables: a
+  # label the engine can hand the MCF join must resolve a non-NA factor in all
+  # three zones whichever table is in force. This is what would catch an MMS
+  # vocabulary that starts routing manure to the 2006 anaerobic digester,
+  # which has no published default.
+  labels <- unique(whep::regional_mms_distribution$mms_type)
+  grid <- tidyr::expand_grid(
+    mms_type = labels,
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  for (src in c("as_shipped", "ipcc_2006", "ipcc_2019")) {
+    matched <- grid |>
+      dplyr::inner_join(
+        whep:::.mcf_table(src),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::filter(!is.na(.data$mcf_percent))
+    testthat::expect_equal(
+      nrow(matched),
+      nrow(grid),
+      label = paste("resolved MCF cells under", src)
+    )
+  }
+})
+
+testthat::test_that("the 2006 anaerobic digester has no MCF and aborts", {
+  # 2006 Table 10.17 gives the digester as 0 to 100 percent and requires the
+  # compiler to evaluate its Formula 1, so `climate_mcf_ipcc` carries NA. A
+  # split that routes manure there must abort rather than take a number the
+  # edition does not publish.
+  testthat::local_mocked_bindings(
+    .mms_global_shares = function() {
+      tibble::tribble(
+        ~species, ~mms_type,            ~fraction,
+        "Cattle", "Anaerobic Digester", 1
+      )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(
+      data,
+      options = list(mcf_source = "ipcc_2006")
+    ),
+    class = "whep_missing_mcf"
+  )
+})
+
+testthat::test_that("an unknown mcf_source value aborts", {
+  testthat::expect_error(
+    whep:::.manure_options(list(mcf_source = "ipcc_2013")),
+    "mcf_source"
+  )
 })
 
 testthat::test_that("an unknown manure option name aborts", {
@@ -682,9 +843,11 @@ testthat::test_that("the residual FAOSTAT species takes a declared split", {
     "Animals live nes"
   )
 
-  # All of it deposited where it falls, so Temperate pasture MCF = 1.5 % ->
-  # 0.015.
-  pasture_mcf <- climate_mcf |>
+  # All of it deposited where it falls, so the weighted MCF is the Temperate
+  # pasture row of whatever table `mcf_source` defaults to -- read from that
+  # table rather than written down, so flipping the default cannot leave this
+  # assertion silently checking a table the engine no longer reads.
+  pasture_mcf <- whep:::.mcf_table(whep:::.manure_options(list())$mcf_source) |>
     dplyr::filter(
       mms_type == "Pasture/Range/Paddock",
       climate_zone == "Temperate"

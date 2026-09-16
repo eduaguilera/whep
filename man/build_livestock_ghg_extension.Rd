@@ -30,9 +30,10 @@ assumed Medium is coarser still. Both remain selectable. The assumption is
 never chosen implicitly, and the rung used is recorded in \code{method_ghg}.
 Ignored at Tier 1, whose emission factors carry no diet dimension.}
 
-\item{options}{A named list of manure-engine options. Every default
-reproduces the behaviour in force before whep#949, so passing none leaves
-published values unchanged.
+\item{options}{A named list of manure-engine options. All but one default
+reproduce the behaviour in force before whep#949; the exception is
+\code{mcf_source}, which moved from the shipped table to the 2019 Refinement
+in whep#1022 and does move Tier 2 manure CH4.
 
 \code{mms_region} selects how the manure-management split in
 \link{regional_mms_distribution} is keyed:
@@ -51,8 +52,33 @@ this is opt-in rather than the default.
 region column it carries.
 }
 
+\code{mcf_source} selects which methane conversion factor table the Tier 2
+manure CH4 weighting reads:
+\itemize{
+\item \code{"ipcc_2019"} (default): the matching \code{edition} rows of
+\link{climate_mcf_ipcc}, read off Table 10.17 (Updated) of the 2019
+Refinement, which is the current IPCC guidance.
+\item \code{"ipcc_2006"}: the matching \code{edition} rows of \link{climate_mcf_ipcc}, read
+off Table 10.17 of the 2006 Guidelines.
+\item \code{"as_shipped"}: \link{climate_mcf}, whose live rows are predominantly the
+2006 Guidelines Table 10.17 but with six cells that match no published
+IPCC value (whep#601, whep#1022). Kept selectable so an older run can
+be reproduced; it is no longer the default, because values whose
+provenance could not be established should not be what ships.
+}
+
+Neither edition publishes one number per Cool/Temperate/Warm zone for
+every system, so both as-published tables apply a stated collapse rule;
+see \link{climate_mcf_ipcc}. Both rules are WHEP's, not the IPCC's, and the
+default makes them live. \code{method_manure_ch4} records the table used.
+
+The default carries one known incompleteness: the Refinement pairs its
+single 0.47 percent pasture MCF with a mandatory \code{Bo} of 0.19, and this
+engine applies one per-species \code{Bo} to every stream, so the pair cannot be
+honoured here. See the corresponding section of \link{climate_mcf_ipcc}.
+
 \code{climate_source} selects where the climate zone the methane conversion
-factors in \link{climate_mcf} are read at comes from. A \code{climate_zone} a row
+factors in the MCF table are read at comes from. A \code{climate_zone} a row
 already carries is always used and stamped \code{climate_from_data}; the option
 governs only the rows left without one, whether that is a hole in a
 supplied column or a wholly absent column.
@@ -129,13 +155,14 @@ feedback).
 }
 
 \code{options} is handed to \code{\link[=calculate_livestock_emissions]{calculate_livestock_emissions()}} unchanged, so the
-manure engine's method levers (the manure-management split, the climate zone
-its methane conversion factors are read at) are selectable from here too;
-its defaults leave every published value untouched. Only \code{mms_region} bites
-at Tier 1, whose manure CH4 comes from regional emission factors rather than
-a climate-zone MCF; the climate options reach the MCF on the Tier 2 path
-only. Whichever choice each row took is recorded in \code{method_mms} and
-\code{method_manure_ch4}, which the extension carries into its own output.
+manure engine's method levers (the manure-management split, and which
+methane conversion factor table is read at which climate zone) are
+selectable from here too. Only \code{mms_region} bites at Tier 1, whose manure
+CH4 comes from regional emission factors rather than a climate-zone MCF, so
+the \code{tier = 1} default here is unaffected by \code{mcf_source} and by the climate
+options; both reach the MCF on the Tier 2 path only. Whichever choice each
+row took is recorded in \code{method_mms} and \code{method_manure_ch4}, which the
+extension carries into its own output.
 }
 \section{Polity columns}{
 
