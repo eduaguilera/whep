@@ -55,15 +55,17 @@ with `gwp`:
 
 `options` is handed to
 [`calculate_livestock_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.md)
-unchanged, so the manure engine's method levers (the manure-management
-split, and which methane conversion factor table is read at which
-climate zone) are selectable from here too. Only `mms_region` bites at
-Tier 1, whose manure CH4 comes from regional emission factors rather
-than a climate-zone MCF, so the `tier = 1` default here is unaffected by
-`mcf_source` and by the climate options; both reach the MCF on the Tier
-2 path only. Whichever choice each row took is recorded in `method_mms`
-and `method_manure_ch4`, which the extension carries into its own
-output.
+unchanged, so the manure engine's method levers (which half of the
+manure-management table is read and how it is keyed, and which methane
+conversion factor table is read at which climate zone) are selectable
+from here too; passing none takes the engine's own defaults, so this
+entry point publishes what the engine does. `mms_shares` and
+`mms_region` bite at both tiers; the `tier = 1` default here is
+unaffected by `mcf_source` and by the climate options, because Tier 1
+manure CH4 comes from regional emission factors rather than a
+climate-zone MCF and both reach the MCF on the Tier 2 path only.
+Whichever choice each row took is recorded in `method_mms` and
+`method_manure_ch4`, which the extension carries into its own output.
 
 ## Usage
 
@@ -105,10 +107,21 @@ build_livestock_ghg_extension(
 
 - options:
 
-  A named list of manure-engine options. All but one default reproduce
-  the behaviour in force before whep#949; the exception is `mcf_source`,
-  which moved from the shipped table to the 2019 Refinement in whep#1022
-  and does move Tier 2 manure CH4.
+  A named list of manure-engine options. All but two defaults reproduce
+  the behaviour in force before whep#949. The exceptions are
+  `mcf_source`, which moved from the shipped table to the 2019
+  Refinement in whep#1022 and does move Tier 2 manure CH4, and
+  `mms_shares`, which moved from the unsourced placeholder table to the
+  GLEAM 2.0 ingest in whep#958 and does move both tiers' manure N2O.
+
+  `mms_shares` selects which half of
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  the split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0
+  Supplement S1 Tab. 4.2-4.11 ingest, `"placeholder"` the unsourced
+  table it replaced in whep#958. The placeholder stays selectable so the
+  values WHEP published before that ingest remain reproducible and the
+  sensitivity to it stays measurable; it is not a defensible alternative
+  estimate.
 
   `mms_region` selects how the manure-management split in
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
@@ -121,10 +134,10 @@ build_livestock_ghg_extension(
     carries no region and so takes the Global one.
 
   - `"resolve"`: the IPCC region is resolved from `iso3`, `area_code` or
-    `polity_area_code` where it is missing, which makes the table's four
-    region-specific `(region, species)` pairs live on the Tier 2 path
-    too. Those four pairs are an unsourced placeholder (whep#921), which
-    is why this is opt-in rather than the default.
+    `polity_area_code` where it is missing, which makes the table's
+    region-specific rows live on the Tier 2 path too. Opt-in because it
+    changes which rows of the table apply, not because the rows are
+    doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 
   - `"global"`: every row takes the `region == "Global"` split, whatever
     region column it carries.

@@ -51,10 +51,18 @@ documented once and inherited by the functions that accept it.</p>
 
 
 <dl><dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
-<dd><p>A named list of manure-engine options. All but one default
-reproduce the behaviour in force before whep#949; the exception is
+<dd><p>A named list of manure-engine options. All but two defaults
+reproduce the behaviour in force before whep#949. The exceptions are
 <code>mcf_source</code>, which moved from the shipped table to the 2019 Refinement
-in whep#1022 and does move Tier 2 manure CH4.</p>
+in whep#1022 and does move Tier 2 manure CH4, and <code>mms_shares</code>, which
+moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
+whep#958 and does move both tiers' manure N2O.</p>
+<p><code>mms_shares</code> selects which half of <a href="regional_mms_distribution.html">regional_mms_distribution</a> the
+split is read from: <code>"gleam_2_0"</code> (default) is the GLEAM 2.0 Supplement
+S1 Tab. 4.2-4.11 ingest, <code>"placeholder"</code> the unsourced table it replaced
+in whep#958. The placeholder stays selectable so the values WHEP
+published before that ingest remain reproducible and the sensitivity to
+it stays measurable; it is not a defensible alternative estimate.</p>
 <p><code>mms_region</code> selects how the manure-management split in
 <a href="regional_mms_distribution.html">regional_mms_distribution</a> is keyed:</p><ul><li><p><code>"as_available"</code> (default): a row uses its own region when the frame
 already carries a <code>region</code> column, and the <code>region == "Global"</code> split
@@ -62,10 +70,10 @@ otherwise. Tier 1 resolves a region for the (sourced) per-head
 N-excretion table and so takes the region-specific split; Tier 2 carries
 no region and so takes the Global one.</p></li>
 <li><p><code>"resolve"</code>: the IPCC region is resolved from <code>iso3</code>, <code>area_code</code> or
-<code>polity_area_code</code> where it is missing, which makes the table's four
-region-specific <code>(region, species)</code> pairs live on the Tier 2 path too.
-Those four pairs are an unsourced placeholder (whep#921), which is why
-this is opt-in rather than the default.</p></li>
+<code>polity_area_code</code> where it is missing, which makes the table's
+region-specific rows live on the Tier 2 path too. Opt-in because it
+changes which rows of the table apply, not because the rows are
+doubtful: since whep#958 they are the GLEAM 2.0 ingest.</p></li>
 <li><p><code>"global"</code>: every row takes the <code>region == "Global"</code> split, whatever
 region column it carries.</p></li>
 </ul><p><code>mcf_source</code> selects which methane conversion factor table the Tier 2

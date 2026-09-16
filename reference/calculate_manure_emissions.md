@@ -24,10 +24,21 @@ calculate_manure_emissions(data, tier = NULL, options = list())
 
 - options:
 
-  A named list of manure-engine options. All but one default reproduce
-  the behaviour in force before whep#949; the exception is `mcf_source`,
-  which moved from the shipped table to the 2019 Refinement in whep#1022
-  and does move Tier 2 manure CH4.
+  A named list of manure-engine options. All but two defaults reproduce
+  the behaviour in force before whep#949. The exceptions are
+  `mcf_source`, which moved from the shipped table to the 2019
+  Refinement in whep#1022 and does move Tier 2 manure CH4, and
+  `mms_shares`, which moved from the unsourced placeholder table to the
+  GLEAM 2.0 ingest in whep#958 and does move both tiers' manure N2O.
+
+  `mms_shares` selects which half of
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  the split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0
+  Supplement S1 Tab. 4.2-4.11 ingest, `"placeholder"` the unsourced
+  table it replaced in whep#958. The placeholder stays selectable so the
+  values WHEP published before that ingest remain reproducible and the
+  sensitivity to it stays measurable; it is not a defensible alternative
+  estimate.
 
   `mms_region` selects how the manure-management split in
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
@@ -40,10 +51,10 @@ calculate_manure_emissions(data, tier = NULL, options = list())
     carries no region and so takes the Global one.
 
   - `"resolve"`: the IPCC region is resolved from `iso3`, `area_code` or
-    `polity_area_code` where it is missing, which makes the table's four
-    region-specific `(region, species)` pairs live on the Tier 2 path
-    too. Those four pairs are an unsourced placeholder (whep#921), which
-    is why this is opt-in rather than the default.
+    `polity_area_code` where it is missing, which makes the table's
+    region-specific rows live on the Tier 2 path too. Opt-in because it
+    changes which rows of the table apply, not because the rows are
+    doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 
   - `"global"`: every row takes the `region == "Global"` split, whatever
     region column it carries.
@@ -103,8 +114,10 @@ Dataframe with all input columns preserved, plus:
 
 - `method_manure_ch4`: tracking label.
 
-- `method_mms`: which manure-management split was used
-  (`"regional_default"` or `"region_specific"`).
+- `method_mms`: which half of
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  was read and how it was keyed, `"<shares>/<keying>"` (e.g.
+  `"gleam_2_0/region_specific"`).
 
 - Tier 1: `manure_ef_kgch4`, `manure_ch4_tier1`.
 

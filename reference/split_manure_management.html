@@ -72,14 +72,13 @@ the per-species MMS shares sum to one.</p>
 
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
 <dd><p>A named list. <code>mms_source</code> selects how the MMS shares in
-<code>regional_mms_distribution</code> are read:</p><ul><li><p><code>"regional_default"</code> (default): every territory takes the table's
-<code>region == "Global"</code> rows, the IPCC/GLEAM global default.</p></li>
+<a href="regional_mms_distribution.html">regional_mms_distribution</a> are read:</p><ul><li><p><code>"regional_default"</code> (default): every territory takes the table's
+<code>region == "Global"</code> rows.</p></li>
 <li><p><code>"region_specific"</code>: each territory takes the rows of the region it
-resolves to, and the Global rows when its region has none. Only four
-<code>(region, species)</code> pairs carry region-specific rows (North America
-cattle and swine, Western Europe cattle, Latin America cattle), so
-every other row is unchanged.</p></li>
-</ul></dd>
+resolves to, and the Global rows when its region has none.</p></li>
+</ul><p><code>mms_shares</code> selects which half of <a href="regional_mms_distribution.html">regional_mms_distribution</a> is read:
+<code>"gleam_2_0"</code> (default), the GLEAM 2.0 Supplement S1 Tab. 4.2-4.11
+ingest, or <code>"placeholder"</code>, the unsourced table it replaced (whep#958).</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -99,16 +98,19 @@ every other row is unchanged.</p></li>
 <span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Pigs"</span>, <span class="fl">30</span>, <span class="fl">270</span>, <span class="fl">20</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">split_manure_management</span><span class="op">(</span><span class="va">excretion</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 13</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category species_gen loss_category</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year territory sub_territory livestock_category species_gen loss_category</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Dairy Cattle </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Pigs               Swine       Swine        </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: cn_species &lt;chr&gt;, mms_type &lt;chr&gt;, stream &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_stream &lt;dbl&gt;, c_stream &lt;dbl&gt;, vs_stream &lt;dbl&gt;, method_mms &lt;chr&gt;</span></span>
 </code></pre></div>

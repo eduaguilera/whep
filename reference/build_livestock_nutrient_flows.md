@@ -94,10 +94,10 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # A tibble: 5 × 22
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
-#> 1  2020 203       NA            Cropland  44    collected     Solid      
-#> 2  2020 203       NA            Cropland  44    collected     Liquid     
-#> 3  2020 203       NA            Cropland  15    collected     Solid      
-#> 4  2020 203       NA            Cropland  15    collected     Liquid     
+#> 1  2020 203       NA            Cropland  44    collected     Liquid     
+#> 2  2020 203       NA            Cropland  44    collected     Solid      
+#> 3  2020 203       NA            Cropland  15    collected     Liquid     
+#> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
 #> # ℹ 15 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
@@ -109,7 +109,7 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # A tibble: 1 × 10
 #>    year territory sub_territory n_volatilized n_leached n2o_direct_n   n2_n
 #>   <int> <chr>     <lgl>                 <dbl>     <dbl>        <dbl>  <dbl>
-#> 1  2020 203       NA                     2.08    0.0755       0.0289 0.0868
+#> 1  2020 203       NA                     2.28     0.112       0.0316 0.0947
 #> # ℹ 3 more variables: n2o_indirect_n <dbl>, c_lost <dbl>, vs_destroyed <dbl>
 #> 
 #> $excretion

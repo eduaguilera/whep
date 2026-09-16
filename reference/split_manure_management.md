@@ -27,16 +27,20 @@ split_manure_management(excretion, options = list())
 - options:
 
   A named list. `mms_source` selects how the MMS shares in
-  `regional_mms_distribution` are read:
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  are read:
 
   - `"regional_default"` (default): every territory takes the table's
-    `region == "Global"` rows, the IPCC/GLEAM global default.
+    `region == "Global"` rows.
 
   - `"region_specific"`: each territory takes the rows of the region it
-    resolves to, and the Global rows when its region has none. Only four
-    `(region, species)` pairs carry region-specific rows (North America
-    cattle and swine, Western Europe cattle, Latin America cattle), so
-    every other row is unchanged.
+    resolves to, and the Global rows when its region has none.
+
+  `mms_shares` selects which half of
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  is read: `"gleam_2_0"` (default), the GLEAM 2.0 Supplement S1 Tab.
+  4.2-4.11 ingest, or `"placeholder"`, the unsourced table it replaced
+  (whep#958).
 
 ## Value
 
@@ -55,16 +59,19 @@ excretion <- tibble::tribble(
   2020L, "203", NA, "Pigs", 30, 270, 20
 )
 split_manure_management(excretion)
-#> # A tibble: 7 × 13
-#>    year territory sub_territory livestock_category species_gen loss_category
-#>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>        
-#> 1  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 2  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 3  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 4  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
-#> 5  2020 203       NA            Pigs               Swine       Swine        
-#> 6  2020 203       NA            Pigs               Swine       Swine        
-#> 7  2020 203       NA            Pigs               Swine       Swine        
+#> # A tibble: 10 × 13
+#>     year territory sub_territory livestock_category species_gen loss_category
+#>    <int> <chr>     <lgl>         <chr>              <chr>       <chr>        
+#>  1  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#>  2  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#>  3  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#>  4  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#>  5  2020 203       NA            Cattle_milk        Cattle      Dairy Cattle 
+#>  6  2020 203       NA            Pigs               Swine       Swine        
+#>  7  2020 203       NA            Pigs               Swine       Swine        
+#>  8  2020 203       NA            Pigs               Swine       Swine        
+#>  9  2020 203       NA            Pigs               Swine       Swine        
+#> 10  2020 203       NA            Pigs               Swine       Swine        
 #> # ℹ 7 more variables: cn_species <chr>, mms_type <chr>, stream <chr>,
 #> #   n_stream <dbl>, c_stream <dbl>, vs_stream <dbl>, method_mms <chr>
 ```
