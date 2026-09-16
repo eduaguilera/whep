@@ -828,6 +828,62 @@
 
 # -- CBS testing helpers -------------------------------------------------------
 
+# Relative tolerance for "the supply side agrees with `domestic_supply`".
+#
+# `.reestimate_domestic_supply()` sets `stock_variation` to
+# `production + import - export - domestic_supply`, so the residue
+# `production + import - export - stock_variation - domestic_supply` is zero
+# in exact arithmetic on every row it touched. In binary floating point it is
+# not, and the residue is pure rounding noise proportional to the magnitude of
+# the terms, bounded by `n * eps * sum(|terms|)` with `n = 5` and
+# `eps = 2^-53`, i.e. `5.6e-16` relative.
+#
+# Measured on real `build_commodity_balances()` runs at 2010-2019 and
+# 1990-2009 (1,115,458 wide-row passes through this function): the residue is
+# exactly 0 on 99.0% of rows and never exceeds `2.1e-16` of the row's own
+# supply magnitude on the rest -- inside the bound above, and one part per
+# billion is 2e6 times that ceiling. The nearest residue that is NOT rounding
+# noise, across both runs, is `4.8e-3` relative (Mauritania Molasses 2017, a
+# 0.47 g row), so the two populations are six orders of magnitude apart and
+# the threshold sits in the middle of the gap rather than on either edge.
+#
+# An absolute tolerance was the alternative -- `5e-5 t`, the effective
+# tolerance of the neighbouring `round(balance, 4) == 0` test. It classifies
+# those runs identically, but it does not scale: at the largest supply term
+# measured (1.79e9 t) the noise bound is already `1e-6 t`, only 50x below it,
+# so an absolute threshold degrades as the data grow while a relative one does
+# not.
+.cbs_supply_agreement_tol <- function() {
+  1e-9
+}
+
+# Whether a row's supply side reconstructs `domestic_supply` to within
+# rounding noise. Compare the residue directly against the scale of its own
+# terms: taking it as `ds_destinies - balance` instead subtracts two
+# independently accumulated sums, and `round(., 4)` on each does not tolerate
+# the difference -- it relocates the knife edge onto a 1e-4 grid, where two
+# values a few ulps apart still land on different multiples whenever they
+# straddle a midpoint (whep#1111).
+.supply_sides_agree <- function(
+  production,
+  import,
+  export,
+  stock_variation,
+  domestic_supply
+) {
+  residue <- production +
+    import -
+    export -
+    stock_variation -
+    domestic_supply
+  scale <- abs(production) +
+    abs(import) +
+    abs(export) +
+    abs(stock_variation) +
+    abs(domestic_supply)
+  abs(residue) <= .cbs_supply_agreement_tol() * scale
+}
+
 .test_cbs <- function(df) {
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   prim_double <- data.table::as.data.table(whep::primary_double)
@@ -890,6 +946,15 @@
       4
     )
   )]
+  dt[,
+    supply_agrees := .supply_sides_agree(
+      production,
+      import,
+      export,
+      stock_variation,
+      domestic_supply
+    )
+  ]
 
   # Join with prim_double to get Multi_type
   pd_sub <- prim_double[is.na(Item_area)]
@@ -915,7 +980,7 @@
       multi_type != "Single",
       "none",
       data.table::fifelse(
-        ds_destinies == balance,
+        supply_agrees,
         "default_prone",
         "none"
       )
@@ -924,10 +989,11 @@
   dt[,
     check := data.table::fifelse(
       multi_type != "Single",
-      ds_destinies == balance,
+      supply_agrees,
       balance == 0
     )
   ]
+  dt[, supply_agrees := NULL]
   dt[, Multi_type := NULL]
   dt
 }

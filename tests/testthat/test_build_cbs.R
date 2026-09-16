@@ -2566,8 +2566,12 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
 }
 
 .default_prone_wide <- function(destinies) {
+  .cbs_final_wide(.default_prone_cbs(destinies))
+}
+
+.cbs_final_wide <- function(cbs) {
   whep:::.cbs_final_balance(
-    .default_prone_cbs(destinies),
+    cbs,
     years = 2017L
   ) |>
     tibble::as_tibble() |>
@@ -2575,6 +2579,7 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
     whep::ensure_columns(
       tibble::tibble(
         production = double(),
+        import = double(),
         export = double(),
         food = double(),
         feed = double(),
@@ -2585,6 +2590,7 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
       ),
       defaults = list(
         production = 0,
+        import = 0,
         export = 0,
         food = 0,
         feed = 0,
@@ -2622,6 +2628,70 @@ test_that("a row with no destiny still gets the whole domestic supply", {
 
   expect_equal(result$food, 1000)
   expect_true(all(whep::check_supply_use_balance(result)$balanced))
+})
+
+
+# -- Supply-side agreement is a magnitude test (whep#1111) ---------------------
+
+# A row whose supply side reconstructs `domestic_supply` only up to the last
+# bit must still be `default_prone`. `stock_variation` is defined as
+# `production + import - export - domestic_supply`, so `production -
+# stock_variation` returns `domestic_supply` in exact arithmetic but not in
+# binary floating point: here it comes back 3.1e-11 t high -- 31 picograms --
+# and that was enough for `round(ds_destinies, 4)` and `round(balance, 4)` to
+# land on different multiples of 1e-4, because rounding relocates the knife
+# edge rather than tolerating it.
+.knife_edge_cbs <- function(supply = 1e6, domestic_supply = 1000.00005) {
+  tibble::tibble(
+    element = c("production", "stock_variation", "domestic_supply", "food"),
+    value = c(supply, supply - domestic_supply, domestic_supply, 0)
+  ) |>
+    dplyr::mutate(
+      year = 2017L,
+      area = "Testland",
+      area_code = 4L,
+      item_cbs = "Palmkernel Cake",
+      item_cbs_code = 2595L,
+      source = "FAOSTAT_FBS_New"
+    )
+}
+
+test_that("a last-bit supply residue still counts as agreement", {
+  supply <- 1e6
+  ds <- 1000.00005
+  # The precondition: the two sides really are not bit-equal.
+  expect_false(identical(supply - (supply - ds), ds))
+
+  result <- .cbs_final_wide(.knife_edge_cbs(supply, ds))
+
+  # The invariant, not a hand-picked number: supply must equal use. Before the
+  # fix the repair did not fire and 1000 t of domestic supply went unbooked.
+  expect_true(all(whep::check_supply_use_balance(result)$balanced))
+  expect_equal(result$food, ds)
+})
+
+.agrees_supply <- function(production, stock_variation, domestic_supply) {
+  whep:::.supply_sides_agree(
+    production = production,
+    import = 0,
+    export = 0,
+    stock_variation = stock_variation,
+    domestic_supply = domestic_supply
+  )
+}
+
+test_that(".supply_sides_agree separates noise from a real gap", {
+  # Exact agreement, and agreement up to the accumulated rounding of a
+  # 1e6-tonne row, both hold.
+  expect_true(.agrees_supply(1000, 0, 1000))
+  expect_true(.agrees_supply(1e6, 1e6 - 1000.00005, 1000.00005))
+
+  # A real gap of 1 t on a 2e6 t row is 5e-7 of the row -- 500 times the
+  # tolerance -- and must not be absorbed.
+  expect_false(.agrees_supply(1e6, 0, 1e6 - 1))
+
+  # An all-zero row has no supply to disagree about.
+  expect_true(.agrees_supply(0, 0, 0))
 })
 
 
