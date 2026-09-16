@@ -139,6 +139,35 @@ cli::cli_inform(c(
          {round(wheat$ratio, 3)} over {wheat$countries} countries."
 ))
 
+# FAOSTAT also publishes its own `World` aggregate row, and it is NOT the same
+# number as the country sum above: the World row divides FAO's world protein by
+# FAO's world food, so it also carries the countries that report only one of the
+# two elements. For 2511 in 2010 the World row implies 92.99 g/kg against the
+# country sum's 96.60, a 3.7% spread. Both are reported here because quoting one
+# as "FBS's implied density" without saying which is how the two get conflated.
+world_row <- whep_read_file("faostat-fbs-new") |>
+  dplyr::filter(
+    as.integer(.data$Year) == !!year,
+    as.integer(.data[["Element Code"]]) %in% c(671L, 5142L),
+    as.integer(.data[["Area Code"]]) == 5000L
+  ) |>
+  dplyr::transmute(
+    item_cbs_code = as.integer(.data[["Item Code"]]),
+    element = dplyr::if_else(
+      as.integer(.data[["Element Code"]]) == 671L,
+      "protein_t",
+      "food_kt"
+    ),
+    value = as.numeric(.data$Value)
+  ) |>
+  tidyr::pivot_wider(names_from = "element", values_from = "value") |>
+  dplyr::filter(.data$item_cbs_code == 2511L)
+cli::cli_inform(c(
+  "*" = "FAOSTAT World row (area 5000):
+         {round(world_row$protein_t / (world_row$food_kt * 1000) * 1000, 2)}
+         g/kg."
+))
+
 if (write_fixture) {
   path <- fs::path(
     "tests",

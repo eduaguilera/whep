@@ -89,7 +89,7 @@ testthat::test_that("wheat protein density agrees with FAOSTAT FBS", {
   )
 })
 
-testthat::test_that("the items outside the FBS density band are the known set", {
+testthat::test_that("the items outside the FBS band are the known set", {
   # Pinned, not tolerated: this is the triage surface for the rest of the
   # nourishment axis, and it is what makes the wheat fix a measured change
   # rather than a lucky one. Nuts 2551 is whep#797 (an FBS basket of ten

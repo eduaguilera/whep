@@ -52,40 +52,77 @@ weak and worth knowing before trusting a row. Upstream it sits under the
 the workbook's \code{Sources} sheet has \strong{no column for any of the five}: its
 columns run from \code{kg_residue_kg_product_FM} straight to
 \code{Product_kgN_kgDM}, so the whole nutrition block is undocumented at source
-(#500 section 6, #1074). Most rows are a lookup into the workbook's
-food-composition sheet, the same lookup that fills the four columns above.
-Eight are not, because that sheet's nitrogen column is blank for them, and
-there the cell holds the agronomic \code{Product_kgN_kgDM * Product_kgDM_kgFM}
-or a literal instead: \code{Oats}, \code{Rice}, \code{Rye}, \code{Wheat}, \code{Maize},
-\verb{Vegetables, other}, \code{Olive} and \code{Honey}.
+(#500 section 6, #1074). Most rows are a \code{VLOOKUP} into the workbook's
+food-composition sheet \code{Conversores_Dieta}, the same sheet that fills the
+four columns above; that sheet derives its own nitrogen column as
+\code{Proteinas / (6.25 * 1000)}. The derivation is missing for exactly its five
+\strong{cereal} rows -- \code{Wheat}, \code{Oats}, \code{Rye}, \code{Maize} and \code{Rice} -- which carry
+a \code{Proteinas} value but no nitrogen, so for those five the lookup was
+replaced by the agronomic \code{Product_kgN_kgDM * Product_kgDM_kgFM}. Other
+rows, \verb{Vegetables, other}, \code{Olive} and \code{Honey} among them, hold a bare
+literal. Those eight are the ones #1096 tracks.
 
-\code{Wheat} was the largest consequence. It carried 0.018951 kg N per kg,
-118.4 g of protein per kg at N x 6.25, which is a whole-grain figure
-(FEDNA 2016 feed-table wheat grain, the source the \code{Sources} sheet records
-for \code{Product_kgN_kgDM}; FAO's own whole-meal value for medium wheat is
-12.2 g per 100 g). Applied to a commodity-balance \code{food} quantity that is
-the wheat-grain equivalent of milled products, that counts the bran and
-germ protein that milling diverts away from food. It now carries 0.01488,
-the 93 g of protein per kg that the food-composition sheet holds for this
-row under the label \verb{Harina de Trigo} (wheat flour) and that was never
-exported -- the same row this table already draws the wheat lipids
-(12 g/kg), carbohydrates (800 g/kg), calcium (150 mg/kg) and vitamin A (0)
-from, so the change makes the row internally consistent rather than
-importing a foreign number. \strong{That 93 has no \code{Sources} entry either}, so
-it is corroborated rather than cited: it lies between FAO's flour figures
-for medium wheat at 85\% and 72\% extraction (11.7 and 10.9 g per 100 g of
-flour, so 99.4 and 78.5 g per kg of grain equivalent; FAO, \emph{Food
-composition tables for international use}, 2nd ed. 1953,
-\url{https://www.fao.org/4/x5557e/x5557e04.htm}, which FAO itself flags as historical),
-is consistent with USDA FoodData Central 168894 white all-purpose flour at
-10.33 g per 100 g, and reproduces FAOSTAT FBS's own world implied density
-for item 2511 -- 91.7 to 93.2 g per kg over 2010-2023 -- to better than 1\%
-(whep#796). The previous value stays selectable as
+\code{Wheat} was the largest consequence. It carried 0.018951324393104405 kg N
+per kg, 118.45 g of protein per kg at N x 6.25, which is exactly
+\code{Product_kgN_kgDM * Product_kgDM_kgFM} -- the agronomic whole-grain
+nitrogen the \code{Sources} sheet attributes to FEDNA 2016, a \emph{feed} table.
+Applied to a commodity-balance \code{food} quantity that is the wheat-grain
+equivalent of the milled products people eat, that counts the bran and germ
+protein milling diverts away from food.
+
+It now carries \strong{0.01488 kg N per kg, i.e. 93 g of protein per kg: the
+flour basis}. The value is read from the workbook cell, not recalled:
+\code{Biomass_coefs.xlsx}, sheet \code{Conversores_Dieta}, row 4, labelled
+\verb{Harina de Trigo} (wheat flour) and keyed to \code{Name_biomass = "Wheat"},
+column \code{Proteinas} = 93 g/kg. That row is where this table already takes
+the wheat lipids (12 g/kg), carbohydrates (800 g/kg), calcium (150 mg/kg)
+and vitamin A (0) from -- all four ship today -- so the wheat nutrition
+block was flour composition everywhere except protein, and the change makes
+the row internally consistent rather than importing a foreign number.
+
+\strong{Neither 118.45 nor 93 has a \code{Sources} entry}, so 93 is corroborated, not
+cited upstream. What "flour basis" means numerically is protein per kg of
+\emph{grain equivalent}, which is flour protein times the milling extraction
+rate, so the published tables were read on that basis:
+\itemize{
+\item FAO, \emph{Food composition tables for international use}, 2nd ed., Rome,
+1953, \url{https://www.fao.org/4/x5557e/x5557e04.htm} (FAO flags it as
+historical). Medium wheat: whole meal 12.2 g/100 g at 100\% extraction,
+flour 11.7 at 85\%, 10.9 at 72\% -- so 99.4 and 78.5 g per kg of grain
+equivalent, which bracket 93.
+\item USDA FoodData Central 168894 (SR Legacy), "Wheat flour, white,
+all-purpose, enriched, bleached": protein 10.33 g/100 g, so 103.3 g per
+kg of flour, 72-88 g per kg of grain equivalent at 70-85\% extraction.
+\item FAO, \emph{Technical conversion factors for agricultural commodities}, Rome,
+\url{https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf}
+-- its per-country \verb{Flour of Wheat} extraction rates run 70-97\% with a
+median of 75\%, which is why no single flour figure maps to one
+grain-equivalent density.
+}
+
+The oracle is FAOSTAT FBS itself, which builds its protein the same way:
+composition factors on the products eaten, over the standardised
+primary-equivalent quantity that WHEP's \code{food_t} also is (FAO, \emph{Food
+balance sheets: a handbook}, section III,
+\url{https://www.fao.org/4/X9892E/X9892e03.htm}). For item 2511 its \strong{World
+row (area 5000)} implies 91.71-93.15 g/kg over 2010-2023, 92.99 in 2010;
+summed instead over the 171 countries reporting both elements it is
+94.96-96.90, 96.60 in 2010. So 93 lands within 0.02\% of the World row and
+3.7\% below the country sum, where 118.45 was above both: 27.4\% above the
+World row and 22.6\% above the country sum (whep#796).
+
+One global coefficient cannot carry the extraction pattern country by
+country: FBS's own per-country implied density for 2511 in 2010 spans
+41-115 g/kg (q10 69, median 81, q90 90), so 93 is the mass-weighted world
+point of that distribution and leaves the median country high. The previous
+value stays selectable as
 \code{build_food_supply(protein_basis = "product_nitrogen")}, which reads the
-agronomic route directly. The other seven rows are left alone: for \code{Rice}
-the basis question was settled in #751/#755, and for \code{Oats} and \code{Maize}
-the food-composition figure moves \emph{away} from the FBS oracle, so they need
-the expert rather than this edit.
+agronomic route directly and returns exactly 0.11844577745690253 kg protein
+per kg; the choice is recorded per row in \code{method_protein_basis}. The other
+seven rows are left alone and tracked in #1096: for \code{Rice} the basis
+question was settled in #751/#755, and for \code{Oats} and \code{Maize} the
+food-composition figure moves \emph{away} from the FBS oracle, so they need the
+expert rather than this edit.
 
 The ten \verb{Edible_*} and \verb{NonEdible_*} nutrient columns below are \strong{empty in
 every row}, upstream in the source workbook as well as here, so no
