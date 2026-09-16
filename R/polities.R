@@ -2190,6 +2190,43 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   sort(unique(found))
 }
 
+# The FULL transitive descendant closure of each polity, with no stop rule.
+#
+# `.successor_stop_map()` answers "which ISO3 codes can stand in for this
+# polity", so it stops a branch as soon as it lands in the caller's vocabulary,
+# and that is right for a substitution. A DOUBLE-COUNT check needs the
+# opposite: every polity describing ground inside the ancestor's, however many
+# hops down and whether or not it is separately reachable. `read_population()`
+# uses it to see that a 1961 row for the USSR and a 1961 row for Russia are the
+# same ground under two area codes, which a `(year, area_code)` anti-join
+# cannot (whep#939).
+#
+# The relation is acyclic in the shipped snapshot -- no polity is its own
+# descendant and no pair is mutually ancestral -- and `setdiff()` against
+# `seen` terminates the walk regardless, so a future cycle costs a truncated
+# closure rather than a hang.
+.polity_descendant_map <- function(polity_codes, max_depth = 40L) {
+  edges <- .polity_successor_edges()
+  polity_codes <- unique(polity_codes[!is.na(polity_codes)])
+  purrr::map(
+    rlang::set_names(polity_codes),
+    \(code) .walk_descendant_nodes(code, edges, max_depth)
+  )
+}
+
+.walk_descendant_nodes <- function(polity_code, edges, max_depth) {
+  frontier <- unique(unlist(edges[polity_code], use.names = FALSE))
+  seen <- character(0)
+  depth <- 0L
+  while (length(frontier) > 0L && depth < max_depth) {
+    frontier <- setdiff(frontier, seen)
+    seen <- c(seen, frontier)
+    frontier <- unique(unlist(edges[frontier], use.names = FALSE))
+    depth <- depth + 1L
+  }
+  sort(setdiff(unique(seen), polity_code))
+}
+
 # WHERE THE STOP RULE UNDER-REACHES, censused rather than remembered (#863).
 #
 # Stopping on the first available ISO3 assumes a polity's `iso3_code` is
