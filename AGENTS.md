@@ -368,12 +368,26 @@ count.
 
 ### NSE globals
 
-Every NSE symbol must be declared in the `utils::globalVariables()` call at the
-top of `R/utils.R` or `R CMD check` NOTEs. It is ~1700 entries long: **append**
-a small block at the end, preceded by a comment naming the file and what the
+Every NSE symbol must be declared in the `utils::globalVariables()` call at
+the top of `R/utils.R` or `R CMD check` NOTEs — and the CI action fails on
+warnings and above, never on notes, so an undeclared symbol merges green.
+That is how #1114 shipped `predecessor` and `reporting_polity_code`
+undeclared, and why #1135 had to be opened after it.
+`tests/testthat/test_utils.R` now runs the same scan `R CMD check` runs, with
+the same settings, and **fails** on it, naming the symbol, its file and its
+lines.
+
+The call is ~2000 entries long: **append** a small block at the end, above
+the `NULL` sentinel, preceded by a comment naming the file and what the
 symbols are for, following the existing pattern. Do not reorder or
 alphabetise it — the file-grouped comments are the only thing making it
 reviewable.
+
+The file must contain **nothing but** that one call, and the list must keep
+ending in `NULL`. Both are preconditions of the `merge=union` entry the next
+section explains, and the same test file asserts them: without the sentinel,
+two branches each appending a block merge into `"last of A"` followed by
+`"first of B"` with no comma between — a syntax error, introduced silently.
 
 ### data.table inside private helpers
 
@@ -475,6 +489,35 @@ That is the same information the old per-PR entries carried, recorded where it
 cannot conflict and where `git log` can find it. If a change is large enough
 that a user needs prose beyond a commit message, write it in the PR body and
 flag it for the release notes there.
+
+### Generated and append-only files — regenerate, never hand-merge
+
+`.gitattributes` writes down the deterministic resolution for the tracked
+files that unrelated branches collide on by construction, so it is not
+rediscovered per merge. Over the 30 days to 2026-09-16, of 608 commits on
+`main`, **52** touched `R/utils.R`, **37** `NAMESPACE` and **22**
+`data/whep_inputs.rda` — the last of those conflicts unconditionally, because
+git cannot merge a binary at all.
+
+- **`R/utils.R`** — `merge=union`, so two appended blocks both survive. That
+  is always the right answer for an allowlist of strings: order carries no
+  meaning, `globalVariables()` drops duplicates, and each side keeps its own
+  comment header. Its two preconditions are in
+  [NSE globals](#nse-globals).
+- **`NAMESPACE` and `man/`** — roxygen output. Never hand-merge either: take
+  one side and re-run `devtools::document()`, which regenerates both from
+  `R/`. `NAMESPACE` also carries `merge=union` so the common case — two
+  branches each adding an export — resolves itself, and the `document()` run
+  that *Before committing* requires anyway puts the block back in sorted
+  order.
+- **`data/*.rda`** — marked `binary`, so git leaves the conflict for a human
+  instead of half-merging it. Resolve the **source** — the CSV under
+  `inst/extdata/harmonization/`, or `inst/extdata/whep_inputs.csv` — then
+  re-run the builder from
+  [Package data updates](#package-data-updates). Never pick a side of the
+  `.rda` itself: `tests/testthat/test_data_raw_freshness.R` fails when a
+  table stops matching its own source, and that gate is the only thing
+  standing between a lazy resolution and a pin version going missing unseen.
 
 ### File naming
 

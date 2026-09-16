@@ -1,0 +1,33 @@
+# How two branches reconcile this repo's committed build products (#1129).
+#
+# Three tracked files are generated, or append-only, and move often enough that
+# unrelated branches collide on them by construction. Measured on `main` over
+# the 30 days to 2026-09-16: `R/utils.R` 52 commits, `NAMESPACE` 37,
+# `data/whep_inputs.rda` 22, out of 608 commits in all. Nothing is learned from
+# resolving those conflicts by hand, and a mis-resolution silently drops a
+# declaration or an export -- the same argument CLAUDE.md already makes for not
+# writing a NEWS.md entry per PR.
+
+# R/utils.R is one append-only `utils::globalVariables()` call and nothing else.
+# Union merge keeps both sides of a conflicting hunk, which is the right answer
+# for an allowlist of strings: order carries no meaning, `globalVariables()`
+# drops duplicates, and each side keeps its own comment header. The two
+# preconditions -- that the file holds nothing but that call, and that the list
+# ends in a `NULL` sentinel so every entry line is comma-terminated -- are
+# asserted by tests/testthat/test_utils.R, because union merge on a file
+# without them produces a syntax error silently.
+R/utils.R merge=union
+
+# NAMESPACE is roxygen output: a flat, sorted block of independent directives.
+# Union keeps both sides' exports, and `devtools::document()` -- which "Before
+# committing" requires anyway -- puts the block back in sorted order on the next
+# run. The one way union can be wrong is resurrecting an `export()` of a deleted
+# object, and that is an R CMD check ERROR, not a silent loss.
+NAMESPACE merge=union
+
+# Package data is binary: git cannot merge it and must not try. `binary` makes
+# that explicit rather than relying on content sniffing, so a conflict is left
+# for a human instead of being half-merged. The only correct resolution is to
+# reconcile the source under inst/extdata/ (or data-raw/) and re-run the
+# builder; tests/testthat/test_data_raw_freshness.R fails if that is skipped.
+*.rda binary
