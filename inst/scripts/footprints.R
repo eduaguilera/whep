@@ -105,6 +105,12 @@ if (!pressure %in% valid_pressures) {
 }
 ghg_tier <- as.integer(Sys.getenv("WHEP_GHG_TIER", "1"))
 ghg_gwp <- tolower(Sys.getenv("WHEP_GHG_GWP", "ar6"))
+# Which diet rung Tier 2 uses. WHEP resolves a diet per cell and a diet varies
+# within a country, so the gridded rung is the default and the national one is
+# opt-in. Both read a feed-intake table, which get_feed_intake() BUILDS -- it
+# is not a pin -- so the build is started explicitly below and announced,
+# rather than being reached silently through a default argument.
+ghg_diet <- tolower(Sys.getenv("WHEP_GHG_DIET", "per_cell_feed"))
 
 # An unset lever is dropped rather than passed as "", so an empty list means
 # the shipped manure defaults and the published run is untouched.
@@ -186,10 +192,25 @@ extension_use <- if (pressure == "nitrogen") {
       dplyr::select(year, area_code, item_cbs_code, impact_u)
   }
 } else if (pressure == "ghg") {
+  ghg_data <- list()
+  if (ghg_tier == 2L && ghg_diet != "uniform_medium") {
+    cli::cli_inform(c(
+      "Tier 2 needs a feed-intake table for {.val {ghg_diet}}.",
+      i = "Building it with {.fun get_feed_intake}; this is the feed
+           allocation, not a pin, and takes a long time.",
+      i = "Set {.envvar WHEP_GHG_DIET} to {.val uniform_medium} to skip it and
+           assume the IPCC {.val Medium} diet instead."
+    ))
+    ghg_data$feed_intake <- get_feed_intake(
+      grain = if (ghg_diet == "per_cell_feed") "local" else "national"
+    )
+  }
   build_livestock_ghg_extension(
     tier = ghg_tier,
     gwp = ghg_gwp,
-    options = manure_options
+    method_diet = ghg_diet,
+    options = manure_options,
+    data = ghg_data
   ) |>
     dplyr::filter(year %in% years) |>
     dplyr::select(year, area_code, item_cbs_code, impact_u)

@@ -508,29 +508,68 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' Join temperature adjustment factors.
+#'
+#' This used to be a `cross_join()` plus a `filter()` on the bin bounds, which
+#' silently DROPPED any row whose temperature was `NA`: the bins span
+#' `-Inf..Inf`, so only `NA` could fail every one of them, and the row left with
+#' it -- taking its animals out of the energy balance without a warning. The bin
+#' lookup is now a `findInterval()` that cannot drop a row at all, and a row
+#' with no temperature keeps its animals under a declared assumption rather than
+#' being refused: see [.assume_missing_temperature()].
 #' @noRd
 .join_temperature_adjustment <- function(data) {
-  if (!rlang::has_name(data, "temperature_c")) {
-    data <- data |>
-      dplyr::mutate(
-        temperature_c = 15,
-        method_energy = paste0(
-          method_energy,
-          "; temp_assumed_15C"
-        )
-      )
-  }
-
-  temp_adj <- temperature_adjustment |>
-    dplyr::select(temp_min, temp_max, adjustment_factor)
-
   data |>
-    dplyr::cross_join(temp_adj) |>
-    dplyr::filter(
-      temperature_c >= temp_min & temperature_c < temp_max
-    ) |>
-    dplyr::rename(temp_adjustment = adjustment_factor) |>
-    dplyr::select(-temp_min, -temp_max)
+    .assume_missing_temperature() |>
+    dplyr::mutate(temp_adjustment = .temp_adjustment_of(temperature_c))
+}
+
+#' Declare the temperature assumed for a row that carries none.
+#'
+#' An absent column has always assumed 15 degrees and stamped it; a hole inside
+#' a supplied column is the same absence and takes the same assumption, rather
+#' than refusing a row while a wholly absent column is accepted. The assumed
+#' value sits inside the thermoneutral bin of `temperature_adjustment`
+#' (5-25 degrees), so it adds no cold- or heat-stress term to maintenance
+#' energy: it is the least-committal choice, not a measurement.
+#' @noRd
+.assume_missing_temperature <- function(data) {
+  if (!rlang::has_name(data, "temperature_c")) {
+    return(
+      data |>
+        dplyr::mutate(temperature_c = .assumed_temperature_c()) |>
+        .stamp_assumption("method_energy", "temp_assumed_15C", TRUE)
+    )
+  }
+  gap <- is.na(data$temperature_c)
+  if (!any(gap)) {
+    return(data)
+  }
+  assumed <- .assumed_temperature_c()
+  cli::cli_warn(c(
+    "!" = "{sum(gap)} row{?s} {?has/have} no {.field temperature_c}.",
+    i = "Assumed {assumed} degrees, which is thermoneutral, and stamped it in
+         {.field method_energy}.",
+    i = "Resolve it upstream, e.g. from {.fun build_cell_climate_zone}."
+  ))
+  data$temperature_c[gap] <- assumed
+  .stamp_assumption(data, "method_energy", "temp_assumed_15C", gap)
+}
+
+#' The air temperature assumed when a row carries none.
+#' @noRd
+.assumed_temperature_c <- function() {
+  15
+}
+
+#' Cold/thermoneutral/heat adjustment factor for each temperature.
+#'
+#' `temperature_adjustment` bins are half-open (`temp_min <= t < temp_max`) and
+#' contiguous, so the lower bounds alone define them.
+#' @noRd
+.temp_adjustment_of <- function(temperature_c) {
+  bins <- temperature_adjustment |>
+    dplyr::arrange(temp_min)
+  bins$adjustment_factor[findInterval(temperature_c, bins$temp_min)]
 }
 
 #' REM: ratio NE-maintenance to DE consumed.
