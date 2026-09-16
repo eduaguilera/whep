@@ -74,6 +74,18 @@ lower, because WPP publishes Kosovo separately and it carries no WHEP
 area code (#863). Which of the three a dissolved federation should be
 given is an open decision.
 
+Neither fill can overwrite a key the previous source already has, but an
+anti-join on `(year, area_code)` cannot see two **different** codes
+naming the same ground in the same year, and all three sources produce
+such pairs: the pin reports `167` Czechia inside `51` Czechoslovakia for
+1850–1992, the UN WPP fill adds the Soviet, Yugoslav and
+Belgium-Luxembourg successor states in the federation's own years, and
+the FBS fill adds `186` Serbia and Montenegro beside the `272`/`273`
+rows the WPP fill has already added. `territory_overlap` decides which
+row survives; the overlaps are found from the polities database's
+`successor` relation, so the answer follows upstream rather than a list
+kept here (#939).
+
 Neither ISO3-keyed source can reach an area whose territory no longer
 exists, because both are keyed on a present-day ISO3 code.
 [`population_source_reach()`](https://eduaguilera.github.io/whep/reference/population_source_reach.md)
@@ -93,6 +105,7 @@ read_population(
   years = NULL,
   data = list(),
   population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 )
 ```
@@ -124,6 +137,51 @@ read_population(
   fills what neither reaches from
   [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md).
 
+- territory_overlap:
+
+  Which row survives when two area codes describe overlapping territory
+  in the same year, as a dissolved federation and its successor states
+  do. Overlaps are found from the polities database's `successor`
+  relation, transitively.
+
+  - `"federation"` (default) keeps the federation's row and drops the
+    successor states' rows in the years the federation reports. WHEP's
+    own numerator sits on the federation code in exactly those years —
+    the commodity balances carry area 228 for 1961–1991 and Russia only
+    from 1992, area 51 to 1992 and Czechia only from 1993, area 15 to
+    1999 and Belgium only from 2000 — so this is the row a per-capita
+    divide can actually use, and the sum over areas is the territory
+    counted once.
+
+  - `"successors"` keeps the successor states and drops the federation.
+    It is the finer grain, and it does not reproduce the federation's
+    own figure: on `"pin_wpp_fbs_fallback"` the successor sum falls 1.6%
+    short of the USSR at 1961 and runs 2.0% over it at 1991, and falls
+    14.8% (1961) to 17.5% (1991) short of the Yugoslav SFR — the Kosovo
+    gap of \#863. Before 1950 no source has the successors at all, so
+    the federation's population is lost rather than redistributed. It
+    also removes three areas from the table outright, because they exist
+    only in the overlapping years: 51 Czechoslovakia, and — undoing
+    exactly what the FBS fill is for — 186 Serbia and Montenegro (#862)
+    and 151 Netherlands Antilles (#787).
+
+  - `"none"` composes the sources exactly as before and **warns**. Any
+    sum over areas then double counts; use it only to reproduce a number
+    published before this argument existed.
+
+  The default answers "whose is the USSR's 1961?" the same way
+  [`resolve_polity_lineage()`](https://eduaguilera.github.io/whep/reference/resolve_polity_lineage.md)
+  does on the spatial side (#1004, \#1114): its default
+  `basis = "historical_polity"` places a 1961 row keyed on area 185
+  Russia onto `F228-1945-1991`, the polity the grid support carries that
+  year, and its alternative `"constant_territory"` keeps the modern
+  reporter, exactly as `"successors"` does here. The two are
+  complementary, not competing: that function says which polity's
+  **cells** a row belongs on and moves no value, while this one says
+  which of two **rows** for one territory survives. The package
+  therefore has one convention, stated in both places and selectable in
+  both.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -131,17 +189,17 @@ read_population(
 
 ## Value
 
-A tibble with `year`, `area_code`, `population` (persons) and
-`source_pop`, one row per area code and year, sorted by year then area
-code, plus the polity columns below. `source_pop` carries the pin's own
-vocabulary (`"Original"`, `"Linear interpolation"`,
-`"First value carried backwards"`), joined with `" + "` when a bucket
-sums ISO3 codes of differing provenance, or `"UN WPP 2024"` for a
-fallback-filled row. A row is one country in the common case, but
-`area_code` is an aggregation bucket: rows from 2012 on 206 ("Sudan
-(former)") are sums over several territories rather than a single
-country, as are rows on 999 ("Rest of World") when the Rest-of-World
-fold is restored.
+A tibble with `year`, `area_code`, `population` (persons), `source_pop`
+and `method_territory_overlap`, one row per area code and year, sorted
+by year then area code, plus the polity columns below. `source_pop`
+carries the pin's own vocabulary (`"Original"`,
+`"Linear interpolation"`, `"First value carried backwards"`), joined
+with `" + "` when a bucket sums ISO3 codes of differing provenance, or
+`"UN WPP 2024"` for a fallback-filled row. A row is one country in the
+common case, but `area_code` is an aggregation bucket: rows from 2012 on
+206 ("Sudan (former)") are sums over several territories rather than a
+single country, as are rows on 999 ("Rest of World") when the
+Rest-of-World fold is restored.
 
 ## Polity columns
 
@@ -198,7 +256,7 @@ extra column.
 
 ``` r
 read_population(example = TRUE)
-#> # A tibble: 5 × 7
+#> # A tibble: 5 × 8
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name  
 #>   <int>     <int>            <int> <chr>                 <chr>                  
 #> 1  2010        41               41 CHN-1950-2025         China (PRC)            
@@ -206,5 +264,6 @@ read_population(example = TRUE)
 #> 3  2010       231              231 USA-1959-2025         United States of Ameri…
 #> 4  2010       101              101 IDN-2002-2025         Indonesia              
 #> 5  2010        21               21 BRA-1909-2025         Brazil                 
-#> # ℹ 2 more variables: reporting_polity_has_geometry <lgl>, population <dbl>
+#> # ℹ 3 more variables: reporting_polity_has_geometry <lgl>, population <dbl>,
+#> #   method_territory_overlap <chr>
 ```
