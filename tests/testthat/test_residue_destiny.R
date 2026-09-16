@@ -1,4 +1,4 @@
-test_that("krausmann_regional split is mass-conserving and feeds livestock", {
+test_that("recovery_regional split is mass-conserving and feeds livestock", {
   x <- tibble::tibble(
     item_prod_code = "15",
     residue_dm_t = 100,
@@ -11,7 +11,7 @@ test_that("krausmann_regional split is mass-conserving and feeds livestock", {
     100
   )
   testthat::expect_gt(out$residue_feed_dm_t, 0)
-  testthat::expect_equal(out$method_residue_destiny, "krausmann_regional")
+  testthat::expect_equal(out$method_residue_destiny, "recovery_regional")
 })
 
 test_that("shares method splits use/burn/soil and flags provisional", {

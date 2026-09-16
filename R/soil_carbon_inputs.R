@@ -951,7 +951,7 @@ build_soil_carbon_inputs <- function(
   primary_prod |>
     .sci_crop_prod_wide() |>
     calculate_crop_npp() |>
-    calculate_residue_destinies(method = "krausmann_regional") |>
+    calculate_residue_destinies(method = "recovery_regional") |>
     calculate_npp_carbon_nitrogen() |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
@@ -1015,7 +1015,7 @@ build_soil_carbon_inputs <- function(
 # region_krausmann for the residue recovery rate, region_hanpp for the
 # modern-variety adoption share (whose table really is HANPP-valued), and
 # region_un_sub for the residue feed-use fraction (whose table is M49
-# sub-region-valued; see .residue_destiny_krausmann and #405).
+# sub-region-valued; see .residue_destiny_recovery and #405).
 .sci_crop_regions <- function() {
   whep::regions_full |>
     dplyr::transmute(

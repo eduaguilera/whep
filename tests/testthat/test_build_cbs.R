@@ -3229,7 +3229,7 @@ test_that("binding an off-window recovered row aborts", {
 # Before this, .read_crop_residues() copied the whole residue PRODUCTION row
 # and relabelled the copy as a use, so 100% of Straw and Other crop residue
 # production was booked as feed: 7.21 Pg DM at 2020 against the ~1.3 Pg the
-# package's own Krausmann recovery rates and regional feed-use fractions give.
+# package's own recovery rates and regional feed-use fractions give.
 # The CBS now carries only what leaves the field.
 
 .rcr_row <- function(crop = 2511L, residue = 2105L, value = 1000, area = 203L) {
@@ -3355,7 +3355,7 @@ testthat::test_that("the CBS records how its residue rows were produced", {
   # of the method its residue rows came from.
   out <- whep:::.residue_recovered_split(.rcr_row(crop = 15L), warn = FALSE)
   testthat::expect_true("method_residue_destiny" %in% names(out))
-  testthat::expect_equal(out$method_residue_destiny, "krausmann_regional")
+  testthat::expect_equal(out$method_residue_destiny, "recovery_regional")
   alt <- whep:::.residue_recovered_split(
     .rcr_row(crop = 15L),
     warn = FALSE,

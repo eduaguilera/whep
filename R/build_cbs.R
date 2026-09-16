@@ -1923,7 +1923,7 @@ build_processing_coefs <- function(
 .residue_recovered_split <- function(
   res,
   warn = TRUE,
-  method_destiny = "krausmann_regional"
+  method_destiny = "recovery_regional"
 ) {
   res <- dplyr::mutate(
     res,
@@ -1997,9 +1997,9 @@ build_processing_coefs <- function(
 }
 
 # The two regional vocabularies the destiny split needs, per area_code:
-# Krausmann for the recovery rate, UN M49 sub-region for the feed-use
+# region_krausmann for the recovery rate, UN M49 sub-region for the feed-use
 # fraction. They are different vocabularies on purpose (see
-# .residue_destiny_krausmann): region_UN_sub -> region_HANPP is not 1:1.
+# .residue_destiny_recovery): region_UN_sub -> region_HANPP is not 1:1.
 .residue_destiny_regions <- function(regions = whep::regions_full) {
   regions |>
     dplyr::transmute(
@@ -2012,7 +2012,7 @@ build_processing_coefs <- function(
 }
 
 # Residue whose crop reaches no Krausmann recovery category gets recovery 0
-# (`.residue_destiny_krausmann()` replaces the missing rate with zero), so all
+# (`.residue_destiny_recovery()` replaces the missing rate with zero), so all
 # of it stays on the field and it leaves the balance entirely. That is the
 # right default -- inventing a recovery rate would be worse -- but it is mass
 # leaving the CBS, so it is said out loud rather than simply not appearing.

@@ -83,7 +83,7 @@
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
 #'     `burnt_residue_n_t`. `residue_destiny_method` selects the method
-#'     (default `"krausmann_regional"`).
+#'     (default `"recovery_regional"`).
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -447,7 +447,7 @@ build_nitrogen_balance <- function(
     )
   destiny <- data$residue_destiny_input |>
     calculate_residue_destinies(
-      method = data$residue_destiny_method %||% "krausmann_regional"
+      method = data$residue_destiny_method %||% "recovery_regional"
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>

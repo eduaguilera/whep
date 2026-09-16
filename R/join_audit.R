@@ -265,9 +265,9 @@
      property of the area, not of one of its years (whep#884).",
     ".residue_recovered_split", "left_join", "area_code", 1L,
     "time_invariant",
-    "Attaches the Krausmann recovery region and the UN M49 sub-region a crop
+    "Attaches the residue recovery region and the UN M49 sub-region a crop
      residue's destiny coefficients are published for. Neither table has a time
-     dimension: `residue_krausmann.csv` is keyed on (crop category, Krausmann
+     dimension: `residue_recovery.csv` is keyed on (crop category, HANPP
      region) and `residue_feed_fraction.csv` on the sub-region alone (Smil
      1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992). Keying the
      lookup on the year would be the defect rather than the fix, exactly as for

@@ -4,19 +4,20 @@
 \alias{calculate_residue_destinies}
 \title{Estimate the destinies of crop residues.}
 \usage{
-calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
+calculate_residue_destinies(x, method = c("recovery_regional", "shares"))
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
-\code{krausmann_regional} method also needs \code{region_krausmann} (for the recovery
+\code{recovery_regional} method also needs \code{region_krausmann} (for the recovery
 rate) and \code{region_un_sub} (for the feed-use fraction, the UN M49
 sub-regions of \code{regions_full$region_UN_sub}). \code{region_krausmann} can use
 the recovery-table labels or the matching \code{regions_full} labels. The
 \code{shares} method needs \code{year}.}
 
-\item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
-recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
-Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
+\item{method}{Destiny method: \code{"recovery_regional"} (default, the regional
+recovery rate times the UN-sub-regional feed-use fraction) or \code{"shares"}
+(the Spain-specific per-crop-year use/burn shares, flagged
+\code{to_be_revised}).}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_burn_dm_t},
@@ -27,6 +28,49 @@ Splits crop residue dry matter into three destinies that sum to the total
 residue: fed to livestock, burned / removed for fuel, and left on the field
 for soil incorporation.
 }
+\section{Where the recovery rates come from}{
+
+The \code{recovery_regional} recovery rates live in
+\code{inst/extdata/coefs/residue_recovery.csv}, whose per-row \code{source} column
+records provenance. They are \strong{Wirsenius (2000)}, \emph{Human Use of Land and
+Organic Materials}, PhD thesis, Chalmers University of Technology --
+Table 3.17 (recovery rates, p. 94) and Table 3.16 (harvest index, p. 92,
+from which \code{residue_dm_product_dm} is the residue:product ratio rounded to
+one decimal). The file was named after Krausmann and its two key columns
+still are, but no coefficient in it is Krausmann's. Only the crop category
+(\code{items_prod_full$Cat_Krausmann}) really is his: \code{region_krausmann} here
+holds \code{regions_full$region_HANPP} labels, whose eight values are
+Wirsenius's eight regions (whep#1132).
+
+Nine of the twenty crop categories match Table 3.17 cell for cell. The
+rest do not, and the \code{source} column says which is which:
+\verb{Groundnuts in Shell} uses the cereals pattern where Table 3.17 gives 0.90
+everywhere, and ten categories -- roots, tubers, cassava, sugar beet, sugar
+crops nes, dry beans, pulses, oil palm, castor beans, permanent and fodder
+crops -- appear in neither table, so their recovery rates are assumed and
+unverified. Wirsenius states that recovery rates for the crop flows Table
+3.17 omits "were assumed to be close to 100 percent"; this table instead
+assumes between 0 and 0.9 for them, which is why fodder crops recover
+nothing at all here.
+}
+
+\section{The feed-use fraction is a different, unpaired source}{
+
+Wirsenius coordinates Table 3.17 directly with the feed assignments of his
+Table 3.20 (p. 102) -- "assumptions on recovery rates were directly
+coordinated with those on assignment for use as feed". WHEP does not use
+Table 3.20: the feed half comes from \code{residue_feed_fraction.csv} (Smil
+1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose named
+values span 0.05 to 0.45 around a 0.20 global default. That is well under
+the "some 33 percent of the amount generated" Wirsenius reports for cereals
+straw and stover fed to animals (p. 177), and under the livestock share of
+Smerald, Rahimi & Scheer (2023), \emph{Scientific Data} \strong{10}:685,
+\doi{10.1038/s41597-023-02587-0}. Re-anchoring it is \strong{not} done here on
+purpose: the gross residue base it multiplies is itself too high, so the
+two errors partly cancel and fixing one alone would land further from the
+truth (whep#1132, whep#1041).
+}
+
 \examples{
 calculate_residue_destinies(
   tibble::tibble(
