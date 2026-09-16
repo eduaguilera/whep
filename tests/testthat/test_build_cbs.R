@@ -4253,3 +4253,145 @@ test_that(".read_historical_trade screens against the reference given", {
   ]
   expect_equal(sum(usa_tobacco$value), 248e3)
 })
+
+# -- Export share above one (whep#1086) ---------------------------------------
+
+# Soyabean Cake 1956 is the worst real key measured on a 1950-1965 build: the
+# world CBS carries no production for it at all before 1961, so the share is
+# world export over world import alone. Wine 1965 is a compliant key, present
+# so the tests can show that a policy touches only the violating one.
+.export_overflow_glob <- function() {
+  tibble::tribble(
+    ~year, ~item_cbs,       ~element,      ~value,
+    1956L, "Soyabean Cake", "import",        2000,
+    1956L, "Soyabean Cake", "export",      886000,
+    1956L, "Soyabean Cake", "feed",          1500,
+    1956L, "Soyabean Cake", "other_uses",     500,
+    1965L, "Wine",          "production",  100000,
+    1965L, "Wine",          "import",       10000,
+    1965L, "Wine",          "export",       20000,
+    1965L, "Wine",          "food",         80000
+  )
+}
+
+.export_overflow_processed <- function() {
+  tibble::tribble(
+    ~year, ~area,    ~area_code, ~item_cbs,       ~value_final,
+    1956L, "Brazil", 21L,        "Soyabean Cake",         1000,
+    1965L, "France", 68L,        "Wine",                  5000
+  )
+}
+
+.run_export_overflow <- function(method) {
+  whep:::.build_new_processed_balance(
+    .export_overflow_processed(),
+    .export_overflow_glob(),
+    export_share_overflow = method
+  )
+}
+
+.npb_value <- function(out, el, yr) {
+  out |>
+    dplyr::filter(.data$element == el, .data$year == yr) |>
+    dplyr::pull(.data$value)
+}
+
+test_that(".export_shares_above_one reports every violating key and no other", {
+  # The invariant, not three hand-picked rows: a key is reported if and only
+  # if its share exceeds one, and the `applied` flag is true if and only if
+  # the round has a row that the share will multiply.
+  shares <- tibble::tribble(
+    ~year, ~item_cbs,       ~export_share,
+    1956L, "Soyabean Cake",         443.0,
+    1956L, "Cotton lint",             1.5,
+    1965L, "Wine",                    0.2,
+    1965L, "Hops",                    1.0,
+    1960L, "Tobacco",                 NA_real_
+  )
+  over <- whep:::.export_shares_above_one(
+    shares,
+    .export_overflow_processed()
+  )
+
+  expect_setequal(
+    paste(over$year, over$item_cbs),
+    c("1956 Soyabean Cake", "1956 Cotton lint")
+  )
+  expect_true(all(over$export_share > 1))
+  expect_true(over$applied[over$item_cbs == "Soyabean Cake"])
+  expect_false(over$applied[over$item_cbs == "Cotton lint"])
+})
+
+test_that("an export share above one is reported by the pipeline default", {
+  # whep#1086, called the way the second processed round calls it, with no
+  # export_share_overflow argument at all.
+  expect_warning(
+    whep:::.build_new_processed_balance(
+      .export_overflow_processed(),
+      .export_overflow_glob()
+    ),
+    class = "whep_export_share_overflow"
+  )
+})
+
+test_that("export_share_overflow = 'report' leaves every value where it was", {
+  out <- suppressWarnings(.run_export_overflow("report"))
+
+  expect_equal(.npb_value(out, "export", 1956L), 443000)
+  expect_equal(.npb_value(out, "domestic_supply", 1956L), -442000)
+})
+
+test_that("export_share_overflow = 'drop' books no export on the key", {
+  out <- suppressWarnings(.run_export_overflow("drop"))
+
+  expect_equal(.npb_value(out, "export", 1956L), 0)
+  expect_equal(.npb_value(out, "domestic_supply", 1956L), 1000)
+  expect_equal(.npb_value(out, "production", 1956L), 1000)
+})
+
+test_that("export_share_overflow = 'drop' leaves a compliant key alone", {
+  out <- suppressWarnings(.run_export_overflow("drop"))
+
+  expect_equal(.npb_value(out, "export", 1965L), 5000 * 20000 / 110000)
+  expect_equal(
+    .npb_value(out, "domestic_supply", 1965L),
+    5000 - 5000 * 20000 / 110000
+  )
+})
+
+test_that("export_share_overflow = 'abort' refuses to build", {
+  expect_error(
+    .run_export_overflow("abort"),
+    class = "whep_export_share_overflow"
+  )
+})
+
+test_that("export_share_overflow rejects an unknown method", {
+  expect_error(.run_export_overflow("clamp"), class = "rlang_error")
+})
+
+test_that("a share of exactly one is not an overflow", {
+  glob <- .export_overflow_glob() |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        .data$year == 1956L & .data$element == "export",
+        2000,
+        .data$value
+      )
+    )
+
+  expect_no_warning(
+    out <- whep:::.build_new_processed_balance(
+      .export_overflow_processed(),
+      glob
+    )
+  )
+  expect_equal(.npb_value(out, "domestic_supply", 1956L), 0)
+})
+
+test_that("build_commodity_balances validates export_share_overflow", {
+  expect_error(
+    build_commodity_balances(example = TRUE, export_share_overflow = "clamp"),
+    class = "rlang_error"
+  )
+})

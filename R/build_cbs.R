@@ -140,6 +140,27 @@
 #'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
 #'   clamp: the defect is in the pin's producer and no conversion factor
 #'   recovers the true value, so a clamped tonnage would be a fabricated one.
+#' @param export_share_overflow One of `"report"` (default), `"drop"` or
+#'   `"abort"`, selecting what happens when the global export share the
+#'   second processed-products round apportions a new product with exceeds 1
+#'   (whep#1086). The share is world `export / (production + import)` for the
+#'   `(year, item_cbs)` key, multiplied by a country's newly created
+#'   processed production, so a share above 1 books more export than that
+#'   country produced. Measured on a real 1950–1965 build, 77 of 2,012 keys
+#'   exceed 1 and the largest is 443 (Soyabean Cake 1956) — but **none of
+#'   them is applied**: every one is pre-1961 and the round emits rows from
+#'   1961 on only, so `"report"` and `"drop"` give identical output on that
+#'   range and no published value moves either way. Of the 77, 50 have no
+#'   world production in the denominator at all (the oils and cakes, whose
+#'   production is what this round is about to create) and the other 27 are
+#'   the `historical-trade-exports` defect of whep#1085. `"report"` keeps every
+#'   share as measured and names the count, the largest, and how many are
+#'   actually applied. `"drop"` sets a violating share to `NA`, which is
+#'   booked as no export at all. `"abort"` refuses to build. There is
+#'   deliberately no clamp, unlike `share_overflow`: a destiny cannot exceed
+#'   the supply it is apportioned from, so 1 is a true bound there, while
+#'   here the denominator is incomplete and capping at 1 would book a
+#'   country's whole processed output as export.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -183,6 +204,7 @@ build_commodity_balances <- function(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
+  export_share_overflow = .cbs_export_overflow_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -191,6 +213,7 @@ build_commodity_balances <- function(
   share_overflow <- rlang::arg_match(share_overflow)
   negative_supply <- rlang::arg_match(negative_supply)
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
+  export_share_overflow <- rlang::arg_match(export_share_overflow)
   if (example) {
     return(
       if (format == "wide") {
@@ -216,7 +239,11 @@ build_commodity_balances <- function(
       negative_supply = negative_supply,
       hist_trade_scale = hist_trade_scale
     ) |>
-      .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
+      .fix_cbs(
+        trade_recovery = trade_recovery,
+        trade_zero = trade_zero,
+        export_share_overflow = export_share_overflow
+      )
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
@@ -248,6 +275,12 @@ build_commodity_balances <- function(
     if (hist_trade_scale != "report") {
       cli::cli_warn(
         "{.arg hist_trade_scale} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (export_share_overflow != "report") {
+      cli::cli_warn(
+        "{.arg export_share_overflow} is ignored when {.arg .fixed_data} is \
          supplied."
       )
     }
@@ -542,6 +575,8 @@ build_commodity_balances <- function(
 #'   [build_commodity_balances()].
 #' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
 #'   [build_commodity_balances()].
+#' @param export_share_overflow One of `"report"` (default), `"drop"` or
+#'   `"abort"`. See [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
@@ -550,7 +585,8 @@ build_commodity_balances <- function(
 .fix_cbs <- function(
   df,
   trade_recovery = "none",
-  trade_zero = "prefer_record"
+  trade_zero = "prefer_record",
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
@@ -609,7 +645,8 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Second round of processed products")
   cbs_raw6 <- .cbs_second_processed_round(
     cbs_raw5,
-    proc_result
+    proc_result,
+    export_share_overflow = export_share_overflow
   )
 
   # 10. Reclassify processing
@@ -4962,7 +4999,8 @@ build_processing_coefs <- function(
 
 .cbs_second_processed_round <- function(
   cbs_raw5,
-  proc_result
+  proc_result,
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
   cb_proc_glo <- proc_result$cb_processing_glo
   cbs_glob <- proc_result$cbs_glob
@@ -5009,7 +5047,8 @@ build_processing_coefs <- function(
 
   processed_new_bal <- .build_new_processed_balance(
     processed_agg_raw2,
-    cbs_glob
+    cbs_glob,
+    export_share_overflow = export_share_overflow
   )
 
   join_keys <- c(
@@ -5040,10 +5079,143 @@ build_processing_coefs <- function(
   )
 }
 
+# -- Export share above one ---------------------------------------------------
+
+# What to do with a newly processed product whose GLOBAL export share exceeds
+# 1 (whep#1086), most conservative first.
+#
+# `export_share` is world `export / (production + import)` for the
+# `(year, item_cbs)` key, taken from `cbs_glob` -- the world aggregate of
+# `cbs_raw` as it stood BEFORE `.cbs_add_processed()` ran. It is then
+# multiplied by a country's newly created processed production, so a share
+# above 1 books more export than that country produced and `domestic_supply`
+# comes out negative.
+#
+# Measured on a real 1950-1965 build of `main` (2,012 keys): 77 shares exceed
+# 1, reaching 443 for Soyabean Cake 1956. Two mechanisms, and a cap repairs
+# neither:
+#
+# * 50 of the 77 have NO world production in the denominator at all. The oils
+#   and cakes (Cottonseed Oil, Soyabean Oil and Cake, Oilseed Cakes Other,
+#   Oilcrops Oil Other, Groundnut Cake and Oil, Sunflowerseed Oil, Rape and
+#   Mustard Oil, Wine, Sugar (Raw Equivalent)) carry pre-1961 trade but no
+#   production row, because the production of a processed product is exactly
+#   what this round is about to create. Soyabean Cake 1956 is 886 kt of
+#   world export over 2 kt of world import. The denominator excludes what
+#   the numerator is being compared with, so 1 is not a meaningful bound
+#   for these.
+# * The other 27 do have one, and are the `historical-trade-exports` defect
+#   of whep#1085: Tobacco (11 keys, 117 Mt of world export at 1951 against
+#   2.5 Mt of world production), Cotton lint (7), Hops (6), Soyabeans (2) and
+#   Fats, Animals, Raw (1). Those exports are not a tonnage and no conversion
+#   factor recovers the true value.
+#
+# No share above 1 is applied today. Every one of the 77 is pre-1961, and
+# this function emits nothing before 1961: of the 44,675 rows
+# `.correct_processed()` returns at 1950-1965, all 29,427 pre-1961 ones
+# already carry a first-round value, so the `is.na(value_final_old)` filter
+# leaves 2,637 rows at 1961-1965 only. The largest share actually applied is
+# 0.319, and the round's output holds no negative value anywhere
+# (production 19.79 Mt, export 2.52 Mt, domestic_supply 17.27 Mt).
+#
+# The -123.22 Mt of negative `production` whep#1086 cites is therefore not
+# from here: that figure is whep#1065's, and `.resolve_historical_supply()`
+# above attributes it to `.fill_historical_destinies()`.
+#
+# `method` is a policy, not an estimate. `"report"` is the default and is the
+# behaviour every published build has had: the share is kept exactly as
+# measured and is now named out loud. `"drop"` sets a violating share to
+# `NA`, which `tidyr::replace_na()` then books as 0, so the key gets no
+# export at all. `"abort"` refuses to build.
+#
+# There is deliberately no `"clamp"`, which is where this diverges from
+# whep#980's `share_overflow`. There a destiny genuinely cannot exceed the
+# supply it is apportioned from, so 1 is the true bound. Here 1 bounds a
+# ratio whose denominator is incomplete for 50 of the 77 keys, and capping it
+# would book a country's whole processed output as export -- an invented
+# number rather than a corrected one, which is the same reasoning
+# `.hist_trade_scale_choices()` gives for offering no clamp either.
+.cbs_export_overflow_choices <- function() {
+  c("report", "drop", "abort")
+}
+
+# Every `(year, item_cbs)` key whose world export exceeds the world
+# `production + import` it is divided by, flagged with whether this round has
+# a row for it -- an unapplied share cannot move a published number.
+.export_shares_above_one <- function(shares, processed_agg_raw2) {
+  applied <- processed_agg_raw2 |>
+    dplyr::distinct(year, item_cbs) |>
+    dplyr::mutate(applied = TRUE)
+
+  shares |>
+    dplyr::filter(!is.na(export_share), export_share > 1) |>
+    dplyr::left_join(applied, by = c("year", "item_cbs")) |>
+    dplyr::mutate(applied = tidyr::replace_na(applied, FALSE))
+}
+
+.report_export_overflow <- function(over, method) {
+  if (nrow(over) == 0L) {
+    return(invisible(over))
+  }
+  worst <- over |> dplyr::slice_max(export_share, n = 3L, with_ties = FALSE)
+  # Interpolated outside the cli strings, as `.report_negative_supply()` does.
+  worst_txt <- paste0(
+    worst$item_cbs,
+    " ",
+    worst$year,
+    " = ",
+    round(worst$export_share, 2),
+    "x world supply"
+  )
+  applied_txt <- paste0(sum(over$applied), " of ", nrow(over))
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(over)} global export share{?s} exceed{?s/} 1, so the world ",
+      "exports more of that item than its world ",
+      "{.field production + import}."
+    ),
+    "*" = "Largest: {.val {worst_txt}}.",
+    "*" = paste0(
+      "Applied to a newly processed product, whose ",
+      "{.field domestic_supply} then comes out negative: ",
+      "{.val {applied_txt}}."
+    ),
+    "i" = paste0(
+      "{.arg export_share_overflow} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_export_overflow_choices(), method)}} also ",
+      "selectable (whep#1086)."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_export_share_overflow")
+  }
+  cli::cli_warn(bullets, class = "whep_export_share_overflow")
+  invisible(over)
+}
+
+.apply_export_overflow <- function(shares, over, method) {
+  if (nrow(over) == 0L || method == "report") {
+    return(shares)
+  }
+  shares |>
+    dplyr::mutate(
+      export_share = dplyr::if_else(
+        !is.na(export_share) & export_share > 1,
+        NA_real_,
+        export_share
+      )
+    )
+}
+
 .build_new_processed_balance <- function(
   processed_agg_raw2,
-  cbs_glob
+  cbs_glob,
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
+  export_share_overflow <- rlang::arg_match(
+    export_share_overflow,
+    .cbs_export_overflow_choices()
+  )
   items <- whep::items_full
 
   export_share <- cbs_glob |>
@@ -5065,6 +5237,14 @@ build_processing_coefs <- function(
       export_share = .cbs_safe_ratio(export_val, gross_avail)
     ) |>
     dplyr::select(year, item_cbs, export_share)
+
+  over <- .export_shares_above_one(export_share, processed_agg_raw2)
+  .report_export_overflow(over, export_share_overflow)
+  export_share <- .apply_export_overflow(
+    export_share,
+    over,
+    export_share_overflow
+  )
 
   dest_shares <- cbs_glob |>
     dplyr::filter(
@@ -5097,12 +5277,9 @@ build_processing_coefs <- function(
       export = production * export_share,
       # The second place a domestic supply is computed without a floor
       # (whep#1065). `export_share` is a GLOBAL export / (production +
-      # import) ratio, so nothing bounds it at 1: measured on a real
-      # 1950-1965 build it exceeds 1 for 33 of 2,016 (year, item) keys and
-      # reaches 32.66 for tobacco 1951, driven by the same inflated
-      # pre-1961 export figures, and this supply then comes out negative.
-      # Left as computed here because the fix belongs to the export values,
-      # not to this arithmetic.
+      # import) ratio and nothing bounds it at 1, so this supply can come out
+      # negative. It does not today: see `.cbs_export_overflow_choices()` for
+      # the measurement and for what each policy would do instead.
       domestic_supply = production - export
     ) |>
     dplyr::select(
