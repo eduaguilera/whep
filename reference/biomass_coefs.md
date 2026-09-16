@@ -111,6 +111,22 @@ A tibble where each row corresponds to one product or item. It contains
 - `Product_kgN_kgDM`: Nitrogen content of product in kg N per kg dry
   matter.
 
+The synthetic feed-additive rows take this column from the FEDNA feed
+tables as crude protein divided by 6.25, the same way `Threonine`,
+`Tryptophan`, `Valine` and `Urea` still do. `Methionine` carried 0.1143
+instead, which is 21.7% above the most nitrogen the molecule can hold:
+methionine is C5H11NO2S with one nitrogen atom, so its mass fraction is
+14.007 over 149.208, or 0.0939 kg N per kg. It is now FEDNA's
+DL-Metionina entry, 58.5% crude protein and better than 99% purity,
+giving 0.0936 (whep#931;
+<https://fundacionfedna.org/ingredientes-para-piensos>). The alternative
+is the other commercial methionine source, the hydroxy analogue FEDNA
+lists as HIDROXI-ANAL MET, which is C5H10O3S and holds no nitrogen at
+all; that is the product `codes_coefs_items_full` names for this item
+and the value the retired pin carried. `Lysine` at 0.2015 is the other
+hand-entered override and is still 5.2% above the free base's own
+0.1916; FEDNA's L-Lisina HCl would give 0.1512.
+
 - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry
   matter.
 
@@ -122,6 +138,22 @@ A tibble where each row corresponds to one product or item. It contains
 
 - `Residue_kgN_kgDM`: Nitrogen content of residue in kg N per kg dry
   matter.
+
+For the wood and forest rows this column prices two physically different
+quantities through one cell.
+[`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+sends the harvested `Wood` item to `Average wood`, and also relabels the
+residue production of forest and shrubland land as `Firewood`, which
+resolves to the same row. Harvested wood is stemwood; forest residue is
+branches, bark and foliage, and the two differ by a factor of five. In
+the trembling-aspen budget of Morrison and Foster (1979, reproduced in
+Hacker 2005, "Effects of Logging Residue Removal on Forest Sites")
+stemwood holds 84 kg N in 119 t of dry matter, 0.00071 kg N per kg,
+against 0.0042 for bark, 0.0049 for branches and 0.024 for foliage.
+`Average wood` ships 0.0030, the mean of a beech, a conifer and a
+holm-oak anchor; the retired pin carried 0.00095 for the same rows.
+Which end the term should sit at is open in whep#932, so the value must
+not be moved without settling that first.
 
 - `Residue_kgP_kgDM`: Phosphorus content of residue in kg P per kg dry
   matter.
