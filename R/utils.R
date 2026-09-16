@@ -2216,6 +2216,11 @@ utils::globalVariables(
     # table the `mcf_source` option can read instead of `climate_mcf`, and
     # the IPCC-edition column that selects one of its two transcriptions
     "climate_mcf_ipcc",
-    "edition"
+    "edition",
+    # polity_lineage.R (issue 1004) -- the succession edge list the polity
+    # lineage walk consumes, and the year-aware polity column it reads each
+    # row anchor from
+    "predecessor",
+    "reporting_polity_code"
   )
 )
