@@ -4,7 +4,11 @@
 \alias{calculate_residue_destinies}
 \title{Estimate the destinies of crop residues.}
 \usage{
-calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
+calculate_residue_destinies(
+  x,
+  method = c("krausmann_regional", "shares"),
+  bedding_fraction = 0
+)
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
@@ -17,16 +21,55 @@ the recovery-table labels or the matching \code{regions_full} labels. The
 \item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
 recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
 Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
+
+\item{bedding_fraction}{Fraction of the recovered \strong{non-feed} residue used
+as livestock bedding, one number in \verb{[0, 1]}. Default \code{0}, which is unset
+rather than measured; see the Bedding section for why, and what a caller
+setting it must convert from.}
 }
 \value{
-The input tibble with \code{residue_feed_dm_t}, \code{residue_burn_dm_t},
-\code{residue_soil_dm_t} and \code{method_residue_destiny}.
+The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
+\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
+\code{method_residue_destiny}.
 }
 \description{
-Splits crop residue dry matter into three destinies that sum to the total
-residue: fed to livestock, burned / removed for fuel, and left on the field
-for soil incorporation.
+Splits crop residue dry matter into four destinies that sum to the total
+residue: fed to livestock, used as livestock bedding, burned / removed for
+fuel, and left on the field for soil incorporation.
 }
+\section{Bedding}{
+
+Bedding straw leaves the field with the rest of the recovered residue and
+comes back to the soil later, through the yard, as part of the managed
+manure. It is therefore carved out of the recovered \strong{non-feed} residue --
+the mass the commodity balance books as \code{other_uses} -- and \strong{never} out of
+\code{residue_soil_dm_t}, which is the residue that stays on the field. That is
+the split IPCC 2019 Refinement Vol. 4 Ch. 10 p. 10.95 asks for when it tells
+inventory compilers to cross-check bedding nitrogen "relative to the amount
+of agricultural residues that is removed for other purposes (i.e. bedding)
+other than the amount of agricultural residues returned to soils or burnt",
+so as "to eliminate the possibility of double counting".
+
+\code{bedding_fraction} defaults to \strong{0}, and that default is \emph{unset, not
+measured}: no global bedding-only fraction of crop residue could be sourced
+(whep#1005). FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove}
+both merge bedding with feed and construction into one term. Three partial
+anchors exist and none is on this function's denominator, so each needs
+converting before it can be used here:
+\itemize{
+\item Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
+3.21 p. 126 -- litter is 14\% of \emph{distributed} cereal straw and stover and
+11\% of distributed crop by-products. The author grades these "very rough",
+and the South & Central Asia cattle entry is 0 because the data were
+absent, which must not be inherited as an estimate.
+\item Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
+bedding-only column: 16-21\% of straw \emph{production}, about 30\% of \emph{removed}
+straw.
+\item Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
+Table 5 -- Denmark, barley 16\% and wheat 11\% of \emph{production}.
+}
+}
+
 \examples{
 calculate_residue_destinies(
   tibble::tibble(

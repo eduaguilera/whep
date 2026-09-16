@@ -1,8 +1,38 @@
 #' Estimate the destinies of crop residues.
 #'
-#' Splits crop residue dry matter into three destinies that sum to the total
-#' residue: fed to livestock, burned / removed for fuel, and left on the field
-#' for soil incorporation.
+#' Splits crop residue dry matter into four destinies that sum to the total
+#' residue: fed to livestock, used as livestock bedding, burned / removed for
+#' fuel, and left on the field for soil incorporation.
+#'
+#' @section Bedding:
+#' Bedding straw leaves the field with the rest of the recovered residue and
+#' comes back to the soil later, through the yard, as part of the managed
+#' manure. It is therefore carved out of the recovered **non-feed** residue --
+#' the mass the commodity balance books as `other_uses` -- and **never** out of
+#' `residue_soil_dm_t`, which is the residue that stays on the field. That is
+#' the split IPCC 2019 Refinement Vol. 4 Ch. 10 p. 10.95 asks for when it tells
+#' inventory compilers to cross-check bedding nitrogen "relative to the amount
+#' of agricultural residues that is removed for other purposes (i.e. bedding)
+#' other than the amount of agricultural residues returned to soils or burnt",
+#' so as "to eliminate the possibility of double counting".
+#'
+#' `bedding_fraction` defaults to **0**, and that default is *unset, not
+#' measured*: no global bedding-only fraction of crop residue could be sourced
+#' (whep#1005). FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's `FracRemove`
+#' both merge bedding with feed and construction into one term. Three partial
+#' anchors exist and none is on this function's denominator, so each needs
+#' converting before it can be used here:
+#'
+#' * Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
+#'   3.21 p. 126 -- litter is 14% of *distributed* cereal straw and stover and
+#'   11% of distributed crop by-products. The author grades these "very rough",
+#'   and the South & Central Asia cattle entry is 0 because the data were
+#'   absent, which must not be inherited as an estimate.
+#' * Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
+#'   bedding-only column: 16-21% of straw *production*, about 30% of *removed*
+#'   straw.
+#' * Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
+#'   Table 5 -- Denmark, barley 16% and wheat 11% of *production*.
 #'
 #' @param x A tibble with `item_prod_code` and `residue_dm_t`. The
 #'   `krausmann_regional` method also needs `region_krausmann` (for the recovery
@@ -13,8 +43,13 @@
 #' @param method Destiny method: `"krausmann_regional"` (default, Krausmann
 #'   recovery x UN-sub-regional feed-use fraction) or `"shares"` (the
 #'   Spain-specific per-crop-year use/burn shares, flagged `to_be_revised`).
-#' @return The input tibble with `residue_feed_dm_t`, `residue_burn_dm_t`,
-#'   `residue_soil_dm_t` and `method_residue_destiny`.
+#' @param bedding_fraction Fraction of the recovered **non-feed** residue used
+#'   as livestock bedding, one number in `[0, 1]`. Default `0`, which is unset
+#'   rather than measured; see the Bedding section for why, and what a caller
+#'   setting it must convert from.
+#' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
+#'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
+#'   `method_residue_destiny`.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
@@ -25,9 +60,11 @@
 #' )
 calculate_residue_destinies <- function(
   x,
-  method = c("krausmann_regional", "shares")
+  method = c("krausmann_regional", "shares"),
+  bedding_fraction = 0
 ) {
   method <- rlang::arg_match(method)
+  .check_bedding_fraction(bedding_fraction)
   .crop_npp_validate(
     x,
     c("item_prod_code", "residue_dm_t"),
@@ -38,7 +75,9 @@ calculate_residue_destinies <- function(
     krausmann_regional = .residue_destiny_krausmann(x),
     shares = .residue_destiny_shares(x)
   )
-  dplyr::mutate(out, method_residue_destiny = method)
+  out |>
+    .residue_carve_bedding(bedding_fraction) |>
+    dplyr::mutate(method_residue_destiny = method)
 }
 
 #' Build residue feed availability for feed allocation.
@@ -94,6 +133,40 @@ build_residue_feed_avail <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+.check_bedding_fraction <- function(bedding_fraction) {
+  ok <- rlang::is_bare_numeric(bedding_fraction, n = 1) &&
+    !is.na(bedding_fraction) &&
+    bedding_fraction >= 0 &&
+    bedding_fraction <= 1
+  if (!ok) {
+    cli::cli_abort(
+      "{.arg bedding_fraction} must be one number between 0 and 1, not
+       {.val {bedding_fraction}}."
+    )
+  }
+  invisible(NULL)
+}
+
+# Bedding comes out of the recovered NON-FEED residue, never out of
+# residue_soil_dm_t: the soil share never left the field, so routing it through
+# a manure heap would move carbon and nitrogen that is already booked as a crop
+# input (the double count IPCC 2019 Vol. 4 Ch. 10 p. 10.95 warns about). The
+# recovered total -- what the commodity balance carries as residue `production`
+# -- is unchanged by the carve, which is what keeps `production = feed +
+# other_uses` closed with a fourth destiny in play.
+#
+# The fraction is recorded on the rows rather than only in a method label,
+# because it is a magnitude and a downstream reader has to be able to tell a
+# build with bedding switched on from one without it.
+.residue_carve_bedding <- function(out, bedding_fraction) {
+  dplyr::mutate(
+    out,
+    residue_bedding_dm_t = .data$residue_burn_dm_t * bedding_fraction,
+    residue_burn_dm_t = .data$residue_burn_dm_t - .data$residue_bedding_dm_t,
+    residue_bedding_fraction = bedding_fraction
+  )
+}
 
 # The feed-use fraction is keyed by UN M49 sub-region, not by HANPP region: the
 # coefficient table's 17 named values are M49 sub-regions (Sub-Saharan Africa,
