@@ -305,7 +305,10 @@ testthat::test_that("the packaged coefficients give the shipped protein", {
   }
 
   # kg protein per kg fresh matter = N_kgN_kgFM * 6.25 * Edible_portion.
-  testthat::expect_equal(protein_of(2511), 0.11844577745690253) # Wheat
+  # Wheat was 0.11844577745690253 until whep#796: the agronomic whole-grain
+  # nitrogen, 1.27x FAOSTAT FBS world wheat protein on a 2010 build. It is now
+  # the workbook's own wheat-flour figure, 93 g of protein per kg.
+  testthat::expect_equal(protein_of(2511), 0.093) # Wheat, flour basis
   testthat::expect_equal(protein_of(2807), 0.0743119266055046) # Rice, milled
   testthat::expect_equal(protein_of(2551), 0.2) # Nuts -> Almonds (#500)
   testthat::expect_equal(protein_of(2848), 0.033) # Milk excl. Butter
@@ -341,5 +344,33 @@ testthat::test_that("build_food_supply(example = TRUE) has the contract shape", 
       "method_food_supply",
       "method_protein_basis"
     )
+  )
+})
+
+testthat::test_that("wheat food protein is on the flour basis (#796)", {
+  # End to end on the PACKAGED coefficients, so what moves here is the
+  # published number. One country, one million tonnes of wheat food, one
+  # million people: protein per head follows the wheat coefficient directly.
+  cbs_food <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~food_t,
+    2010L, 724L,       2511,           1e6
+  )
+  population <- tibble::tribble(
+    ~year, ~area_code, ~population,
+    2010L, 724L,       1e6
+  )
+  data <- list(cbs_food = cbs_food, population = population)
+  flour <- whep::build_food_supply(data = data)
+  grain <- whep::build_food_supply(
+    data = data,
+    protein_basis = "product_nitrogen"
+  )
+  # 1e6 t x 0.093 kg protein per kg = 93,000 t, over 1e6 people, 365 days.
+  testthat::expect_equal(flour$protein_g_cap_day, 1e6 * 0.093 * 1e6 / 1e6 / 365)
+  # The agronomic whole-grain route -- the pre-#796 value -- stays selectable,
+  # so this is a change of default, not a removal (the multi-method rule).
+  testthat::expect_equal(
+    grain$protein_g_cap_day / flour$protein_g_cap_day,
+    0.11844577745690253 / 0.093
   )
 })
