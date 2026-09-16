@@ -24,9 +24,10 @@ calculate_manure_emissions(data, tier = NULL, options = list())
 
 - options:
 
-  A named list of manure-engine options. Every default reproduces the
-  behaviour in force before whep#949, so passing none leaves published
-  values unchanged.
+  A named list of manure-engine options. All but one default reproduce
+  the behaviour in force before whep#949; the exception is `mcf_source`,
+  which moved from the shipped table to the 2019 Refinement in whep#1022
+  and does move Tier 2 manure CH4.
 
   `mms_region` selects how the manure-management split in
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
@@ -47,13 +48,44 @@ calculate_manure_emissions(data, tier = NULL, options = list())
   - `"global"`: every row takes the `region == "Global"` split, whatever
     region column it carries.
 
+  `mcf_source` selects which methane conversion factor table the Tier 2
+  manure CH4 weighting reads:
+
+  - `"ipcc_2019"` (default): the matching `edition` rows of
+    [climate_mcf_ipcc](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md),
+    read off Table 10.17 (Updated) of the 2019 Refinement, which is the
+    current IPCC guidance.
+
+  - `"ipcc_2006"`: the matching `edition` rows of
+    [climate_mcf_ipcc](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md),
+    read off Table 10.17 of the 2006 Guidelines.
+
+  - `"as_shipped"`:
+    [climate_mcf](https://eduaguilera.github.io/whep/reference/climate_mcf.md),
+    whose live rows are predominantly the 2006 Guidelines Table 10.17
+    but with six cells that match no published IPCC value (whep#601,
+    whep#1022). Kept selectable so an older run can be reproduced; it is
+    no longer the default, because values whose provenance could not be
+    established should not be what ships.
+
+  Neither edition publishes one number per Cool/Temperate/Warm zone for
+  every system, so both as-published tables apply a stated collapse
+  rule; see
+  [climate_mcf_ipcc](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md).
+  Both rules are WHEP's, not the IPCC's, and the default makes them
+  live. `method_manure_ch4` records the table used.
+
+  The default carries one known incompleteness: the Refinement pairs its
+  single 0.47 percent pasture MCF with a mandatory `Bo` of 0.19, and
+  this engine applies one per-species `Bo` to every stream, so the pair
+  cannot be honoured here. See the corresponding section of
+  [climate_mcf_ipcc](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md).
+
   `climate_source` selects where the climate zone the methane conversion
-  factors in
-  [climate_mcf](https://eduaguilera.github.io/whep/reference/climate_mcf.md)
-  are read at comes from. A `climate_zone` a row already carries is
-  always used and stamped `climate_from_data`; the option governs only
-  the rows left without one, whether that is a hole in a supplied column
-  or a wholly absent column.
+  factors in the MCF table are read at comes from. A `climate_zone` a
+  row already carries is always used and stamped `climate_from_data`;
+  the option governs only the rows left without one, whether that is a
+  hole in a supplied column or a wholly absent column.
 
   - `"assumed"` (default): fill with `assumed_climate_zone`.
 

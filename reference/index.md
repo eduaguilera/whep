@@ -1200,6 +1200,8 @@ Climate, manure management, and uncertainty tables.
 
 - [`climate_mcf`](https://eduaguilera.github.io/whep/reference/climate_mcf.md)
   : Climate-zone MCF values.
+- [`climate_mcf_ipcc`](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md)
+  : As-published MCF alternatives to climate_mcf.
 - [`regional_mms_distribution`](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
   : Regional MMS distribution.
 - [`temperature_adjustment`](https://eduaguilera.github.io/whep/reference/temperature_adjustment.md)
