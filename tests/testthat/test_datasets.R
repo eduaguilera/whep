@@ -861,7 +861,7 @@ test_that("the placeholder half keeps its whep#921 values", {
   # whole table before whep#958, so a failure here means the retained half
   # moved rather than the ingest landing beside it.
   #
-  # The arithmetic is deliberately the table\'s own and not the engine\'s
+  # The arithmetic is deliberately the table's own and not the engine's
   # crosswalk: the Poultry EF3 of 0.005 is the `dplyr::coalesce()` default
   # here, because `mms_type` "Poultry Manure" and "Anaerobic Lagoon" match no
   # row of `ipcc_2019_n2o_ef_direct` by name.
@@ -958,7 +958,7 @@ test_that("the GLEAM 2.0 half keeps its whep#958 ingest values", {
   # the default in whep#958, and it is LIVE: `.resolve_mms_shares()` weights
   # the manure CH4 methane conversion factor and the manure direct-N2O EF3
   # with it at both tiers. What is locked is the two effective factors it
-  # feeds, per (region, species), computed through the engine\'s own EF3
+  # feeds, per (region, species), computed through the engine's own EF3
   # crosswalk `.manure_ef3()` rather than a name join, so the lock measures
   # what the engine reads.
   #

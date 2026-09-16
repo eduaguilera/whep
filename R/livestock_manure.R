@@ -588,13 +588,21 @@ NULL
 #' is only which covered species the row is managed like
 #' (`.assumed_species_neighbours()`), so the split cannot drift from the shipped
 #' table. A species that argues no neighbour takes `.assumed_mms_fallback()`.
+#'
+#' `mms_shares` must be the same half the borrowing row was resolved under, and
+#' the lookup goes through `.mms_global_shares()` rather than filtering the
+#' table here. Since whep#958 the table holds two `source` halves over the same
+#' `(region, species)` key space, so a filter on `region == "Global"` alone
+#' matches both and hands the borrowing species fractions summing to two --
+#' mass the engine multiplies straight into its emissions, while every group in
+#' the table still sums to one when checked on its own.
 #' @noRd
-.assumed_mms_shares <- function(species_gen) {
+.assumed_mms_shares <- function(species_gen, mms_shares = "gleam_2_0") {
   wanted <- tibble::tibble(species_gen = unique(species_gen))
   mapped <- wanted |>
     dplyr::inner_join(.assumed_species_neighbours(), by = "species_gen") |>
     dplyr::inner_join(
-      dplyr::filter(regional_mms_distribution, region == "Global"),
+      .mms_global_shares(mms_shares),
       by = c("husbandry_like" = "species"),
       relationship = "many-to-many"
     ) |>
@@ -646,7 +654,7 @@ NULL
 #' is a vocabulary defect the maintainer can and should fix, and inventing a
 #' split for it would hide exactly the failure this fill exists to make visible.
 #' @noRd
-.fill_assumed_mms_shares <- function(shares) {
+.fill_assumed_mms_shares <- function(shares, mms_shares = "gleam_2_0") {
   shares <- dplyr::mutate(shares, mms_basis = NA_character_)
   gap <- (is.na(shares$mms_type) | is.na(shares$fraction)) &
     shares$species_gen %in% .assumed_species_neighbours()$species_gen
@@ -656,7 +664,7 @@ NULL
   assumed <- shares[gap, ] |>
     dplyr::select(-dplyr::any_of(c("mms_type", "fraction", "mms_basis"))) |>
     dplyr::left_join(
-      .assumed_mms_shares(shares$species_gen[gap]),
+      .assumed_mms_shares(shares$species_gen[gap], mms_shares),
       by = "species_gen",
       relationship = "many-to-many"
     )
@@ -710,7 +718,7 @@ NULL
       .mms_region_col(opt$mms_region),
       shares = opt$mms_shares
     ) |>
-    .fill_assumed_mms_shares() |>
+    .fill_assumed_mms_shares(opt$mms_shares) |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
@@ -975,7 +983,7 @@ NULL
       .mms_region_col(mms_region),
       shares = mms_shares
     ) |>
-    .fill_assumed_mms_shares() |>
+    .fill_assumed_mms_shares(mms_shares) |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(

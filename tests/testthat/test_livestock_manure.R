@@ -775,7 +775,7 @@ testthat::test_that("the 2006 anaerobic digester has no MCF and aborts", {
   # split that routes manure there must abort rather than take a number the
   # edition does not publish.
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,            ~fraction,
         "Cattle", "Anaerobic Digester", 1
@@ -995,6 +995,35 @@ testthat::test_that("rabbits take the poultry MMS split, and say so", {
   testthat::expect_match(result$method_manure_ch4, "mms_assumed_poultry")
   # The poultry row is measured, so it carries no assumption stamp at all.
   testthat::expect_false(grepl("assumed", poultry$method_manure_ch4))
+
+  # The borrowed split must be a distribution, in EITHER half. whep#958 gave
+  # `regional_mms_distribution` two `source` halves; a neighbour lookup that
+  # filters only on `region == "Global"` then matches both at once and hands
+  # the borrowing species fractions summing to 2 -- mass the engine multiplies
+  # straight into its emissions, with every group still "summing to one" in the
+  # table itself. Asserted on the sum, not on a value, so it cannot be
+  # satisfied by a half that happens to be zero.
+  for (half in c("placeholder", "gleam_2_0")) {
+    assumed <- whep:::.assumed_mms_shares("Rabbits and hares", half)
+    testthat::expect_equal(sum(assumed$fraction), 1)
+    testthat::expect_gt(nrow(assumed), 0L)
+    borrowed <- suppressWarnings(whep:::.calc_weighted_mcf(
+      data,
+      list(mms_shares = half)
+    ))
+    lender <- whep:::.calc_weighted_mcf(
+      tibble::tibble(
+        species = "Chickens",
+        species_gen = "Poultry",
+        subcategory = "All",
+        heads = 100,
+        method_manure_ch4 = "IPCC_2019_Tier2",
+        climate_zone = "Temperate"
+      ),
+      list(mms_shares = half)
+    )
+    testthat::expect_equal(borrowed$weighted_mcf, lender$weighted_mcf)
+  }
 })
 
 
@@ -1190,10 +1219,21 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
 
   result <- whep:::.calc_direct_n2o(data)
 
-  # Global cattle split x .manure_ef3():
-  #   0.50*0.010 + 0.30*0.005 + 0.15*0.002 + 0.05*0.010 = 0.00730.
+  # GLEAM 2.0 Global cattle split x .manure_ef3():
+  #   0.016000000*0.001 + 0.009000000*0.010 + 0.084530612*0.002 +
+  #   0.443522579*0.010 + 0.446946808*0.005 = 0.00694502106.
   testthat::expect_equal(
     result$manure_n2o_direct,
+    10 * 100 * 0.00694502106 * (44 / 28),
+    tolerance = 1e-8
+  )
+  # The placeholder half still reproduces the pre-whep#958 arithmetic:
+  #   0.50*0.010 + 0.30*0.005 + 0.15*0.002 + 0.05*0.010 = 0.00730.
+  testthat::expect_equal(
+    whep:::.calc_direct_n2o(
+      data,
+      list(mms_shares = "placeholder")
+    )$manure_n2o_direct,
     10 * 100 * 0.0073 * (44 / 28)
   )
   # And emphatically not the flat pasture factor it used to take.
