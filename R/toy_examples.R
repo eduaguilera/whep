@@ -96,12 +96,12 @@
 .example_ghg_extension <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg, ~method_mms, ~method_manure_ch4,
-    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
-    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
-    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
-    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
-    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
-    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1"
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -1697,7 +1697,7 @@
 # three-row Kenyan herd: one dairy herd split between a Warm lowland cell and a
 # Temperate highland cell (the 1961 CRU means either side of the 18 degC cut),
 # plus a non-dairy herd confined to the lowland cell. The dairy manure CH4
-# therefore diverges from its national-mean-temperature counterpart (0.799)
+# therefore diverges from its national-mean-temperature counterpart (0.868)
 # while the single-cell non-dairy herd cannot diverge (1). Cells and their
 # `area_code` are the real `spatialize-country-grid` rows, registered in
 # `tests/testthat/fixtures/country_grid_example_cells.csv`.
@@ -1709,15 +1709,15 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    4.7876219, 1.58428108, 0.0619359969,
-    1, 0.83656958, 1,
+    4.7876219, 1.24019956, 0.0600324493,
+    1, 0.86828055, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    3.1917479, 0.62465452, 0.0412906646,
-    1, 0.83656958, 1,
+    3.1917479, 0.55453570, 0.0400216329,
+    1, 0.86828055, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.71929483, 0.0435862529,
+    2.8982329, 0.56307504, 0.0422466683,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(

@@ -13,16 +13,17 @@ split_manure_management(excretion, options = list())
 \code{vs_excretion}.}
 
 \item{options}{A named list. \code{mms_source} selects how the MMS shares in
-\code{regional_mms_distribution} are read:
+\link{regional_mms_distribution} are read:
 \itemize{
 \item \code{"regional_default"} (default): every territory takes the table's
-\code{region == "Global"} rows, the IPCC/GLEAM global default.
+\code{region == "Global"} rows.
 \item \code{"region_specific"}: each territory takes the rows of the region it
-resolves to, and the Global rows when its region has none. Only four
-\verb{(region, species)} pairs carry region-specific rows (North America
-cattle and swine, Western Europe cattle, Latin America cattle), so
-every other row is unchanged.
-}}
+resolves to, and the Global rows when its region has none.
+}
+
+\code{mms_shares} selects which half of \link{regional_mms_distribution} is read:
+\code{"gleam_2_0"} (default), the GLEAM 2.0 Supplement S1 Tab. 4.2-4.11
+ingest, or \code{"placeholder"}, the unsourced table it replaced (whep#958).}
 }
 \value{
 A tibble with one row per

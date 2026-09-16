@@ -39,14 +39,16 @@
 #' - `"ar4"`: IPCC AR4 (2007), CH4 = 25, N2O = 298.
 #'
 #' `options` is handed to [calculate_livestock_emissions()] unchanged, so the
-#' manure engine's method levers (the manure-management split, and which
-#' methane conversion factor table is read at which climate zone) are
-#' selectable from here too. Only `mms_region` bites at Tier 1, whose manure
-#' CH4 comes from regional emission factors rather than a climate-zone MCF, so
-#' the `tier = 1` default here is unaffected by `mcf_source` and by the climate
-#' options; both reach the MCF on the Tier 2 path only. Whichever choice each
-#' row took is recorded in `method_mms` and `method_manure_ch4`, which the
-#' extension carries into its own output.
+#' manure engine's method levers (which half of the manure-management table is
+#' read and how it is keyed, and which methane conversion factor table is read
+#' at which climate zone) are selectable from here too; passing none takes the
+#' engine's own defaults, so this entry point publishes what the engine does.
+#' `mms_shares` and `mms_region` bite at both tiers; the `tier = 1` default
+#' here is unaffected by `mcf_source` and by the climate options, because Tier
+#' 1 manure CH4 comes from regional emission factors rather than a
+#' climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
+#' choice each row took is recorded in `method_mms` and `method_manure_ch4`,
+#' which the extension carries into its own output.
 #'
 #' @param tier IPCC tier, `1` (default) or `2`.
 #' @param gwp 100-year global warming potential standard, `"ar6"` (default),

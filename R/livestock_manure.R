@@ -4,10 +4,19 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but one default
-#'   reproduce the behaviour in force before whep#949; the exception is
+#' @param options A named list of manure-engine options. All but two defaults
+#'   reproduce the behaviour in force before whep#949. The exceptions are
 #'   `mcf_source`, which moved from the shipped table to the 2019 Refinement
-#'   in whep#1022 and does move Tier 2 manure CH4.
+#'   in whep#1022 and does move Tier 2 manure CH4, and `mms_shares`, which
+#'   moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
+#'   whep#958 and does move both tiers' manure N2O.
+#'
+#'   `mms_shares` selects which half of [regional_mms_distribution] the
+#'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
+#'   S1 Tab. 4.2-4.11 ingest, `"placeholder"` the unsourced table it replaced
+#'   in whep#958. The placeholder stays selectable so the values WHEP
+#'   published before that ingest remain reproducible and the sensitivity to
+#'   it stays measurable; it is not a defensible alternative estimate.
 #'
 #'   `mms_region` selects how the manure-management split in
 #'   [regional_mms_distribution] is keyed:
@@ -17,10 +26,10 @@
 #'     N-excretion table and so takes the region-specific split; Tier 2 carries
 #'     no region and so takes the Global one.
 #'   * `"resolve"`: the IPCC region is resolved from `iso3`, `area_code` or
-#'     `polity_area_code` where it is missing, which makes the table's four
-#'     region-specific `(region, species)` pairs live on the Tier 2 path too.
-#'     Those four pairs are an unsourced placeholder (whep#921), which is why
-#'     this is opt-in rather than the default.
+#'     `polity_area_code` where it is missing, which makes the table's
+#'     region-specific rows live on the Tier 2 path too. Opt-in because it
+#'     changes which rows of the table apply, not because the rows are
+#'     doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 #'   * `"global"`: every row takes the `region == "Global"` split, whatever
 #'     region column it carries.
 #'
@@ -179,7 +188,7 @@ NULL
       ),
       method_manure_ch4 = "IPCC_2019_Tier2"
     ) |>
-    .resolve_manure_region(opt$mms_region)
+    .resolve_manure_region(opt$mms_region, opt$mms_shares)
 
   data <- .calc_volatile_solids(data)
   data <- .join_bo(data)
@@ -579,13 +588,21 @@ NULL
 #' is only which covered species the row is managed like
 #' (`.assumed_species_neighbours()`), so the split cannot drift from the shipped
 #' table. A species that argues no neighbour takes `.assumed_mms_fallback()`.
+#'
+#' `mms_shares` must be the same half the borrowing row was resolved under, and
+#' the lookup goes through `.mms_global_shares()` rather than filtering the
+#' table here. Since whep#958 the table holds two `source` halves over the same
+#' `(region, species)` key space, so a filter on `region == "Global"` alone
+#' matches both and hands the borrowing species fractions summing to two --
+#' mass the engine multiplies straight into its emissions, while every group in
+#' the table still sums to one when checked on its own.
 #' @noRd
-.assumed_mms_shares <- function(species_gen) {
+.assumed_mms_shares <- function(species_gen, mms_shares = "gleam_2_0") {
   wanted <- tibble::tibble(species_gen = unique(species_gen))
   mapped <- wanted |>
     dplyr::inner_join(.assumed_species_neighbours(), by = "species_gen") |>
     dplyr::inner_join(
-      dplyr::filter(regional_mms_distribution, region == "Global"),
+      .mms_global_shares(mms_shares),
       by = c("husbandry_like" = "species"),
       relationship = "many-to-many"
     ) |>
@@ -637,7 +654,7 @@ NULL
 #' is a vocabulary defect the maintainer can and should fix, and inventing a
 #' split for it would hide exactly the failure this fill exists to make visible.
 #' @noRd
-.fill_assumed_mms_shares <- function(shares) {
+.fill_assumed_mms_shares <- function(shares, mms_shares = "gleam_2_0") {
   shares <- dplyr::mutate(shares, mms_basis = NA_character_)
   gap <- (is.na(shares$mms_type) | is.na(shares$fraction)) &
     shares$species_gen %in% .assumed_species_neighbours()$species_gen
@@ -647,7 +664,7 @@ NULL
   assumed <- shares[gap, ] |>
     dplyr::select(-dplyr::any_of(c("mms_type", "fraction", "mms_basis"))) |>
     dplyr::left_join(
-      .assumed_mms_shares(shares$species_gen[gap]),
+      .assumed_mms_shares(shares$species_gen[gap], mms_shares),
       by = "species_gen",
       relationship = "many-to-many"
     )
@@ -697,8 +714,11 @@ NULL
       climate_zone,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_shares(.mms_region_col(opt$mms_region)) |>
-    .fill_assumed_mms_shares() |>
+    .resolve_mms_shares(
+      .mms_region_col(opt$mms_region),
+      shares = opt$mms_shares
+    ) |>
+    .fill_assumed_mms_shares(opt$mms_shares) |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
@@ -919,12 +939,13 @@ NULL
 #' @noRd
 .calc_direct_n2o <- function(data, options = list()) {
   opt <- .manure_options(options)
-  data <- .resolve_manure_region(data, opt$mms_region)
+  data <- .resolve_manure_region(data, opt$mms_region, opt$mms_shares)
   .calc_weighted_direct_n2o(
     data,
     .manure_ef3(),
     livestock_constants$n_to_n2o,
-    opt$mms_region
+    opt$mms_region,
+    opt$mms_shares
   )
 }
 
@@ -944,7 +965,8 @@ NULL
   data,
   ef3_tbl,
   n2o_to_n,
-  mms_region = "as_available"
+  mms_region = "as_available",
+  mms_shares = "gleam_2_0"
 ) {
   data <- data |>
     dplyr::mutate(row_id_n2o = dplyr::row_number())
@@ -957,8 +979,11 @@ NULL
       heads,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_shares(.mms_region_col(mms_region)) |>
-    .fill_assumed_mms_shares() |>
+    .resolve_mms_shares(
+      .mms_region_col(mms_region),
+      shares = mms_shares
+    ) |>
+    .fill_assumed_mms_shares(mms_shares) |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(
@@ -1086,11 +1111,14 @@ NULL
 #' The `mms_region` and climate defaults reproduce the behaviour in force
 #' before whep#949 exactly: the `region == "Global"` MMS split on any frame
 #' that does not already carry a `region` column, and an assumed Temperate
-#' climate zone. `mcf_source` is the one default that does not: whep#1022
-#' moved it off the shipped MCF table onto the 2019 Refinement.
+#' climate zone. Two defaults do not: whep#1022 moved `mcf_source` off the
+#' shipped MCF table onto the 2019 Refinement, and whep#958 moved
+#' `mms_shares` off the unsourced placeholder table onto the GLEAM 2.0
+#' ingest.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
+    mms_shares = "gleam_2_0",
     mms_region = "as_available",
     mcf_source = "ipcc_2019",
     climate_source = "assumed",
@@ -1106,11 +1134,13 @@ NULL
   }
   # rlang::arg_match() needs a symbol, so each option is bound to one first.
   opt <- utils::modifyList(defaults, options)
+  mms_shares <- opt$mms_shares
   mms_region <- opt$mms_region
   mcf_source <- opt$mcf_source
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
   list(
+    mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
       mms_region,
       c("as_available", "resolve", "global")
@@ -1167,12 +1197,12 @@ NULL
 #' the frame will take.
 #'
 #' `"resolve"` is opt-in because the only thing a region changes here is which
-#' rows of `regional_mms_distribution` apply, and its four region-specific
-#' `(region, species)` pairs are an unsourced placeholder (whep#921): making
-#' them live propagates placeholder detail into more of the output, which is a
-#' decision for the maintainer and not a wiring cleanup (whep#949). This
-#' mirrors `split_manure_management()`, whose `mms_source` defaults to the
-#' Global rows for the same reason.
+#' rows of `regional_mms_distribution` apply, and turning it on moves numbers
+#' on every Tier 2 frame at once; that is a decision for the maintainer, not a
+#' wiring cleanup (whep#949). Before whep#958 there was a second reason -- the
+#' region-specific rows were an unsourced placeholder (whep#921) -- which the
+#' GLEAM 2.0 ingest removed. This mirrors `split_manure_management()`, whose
+#' `mms_source` defaults to the Global rows.
 #'
 #' A `"resolve"` request that cannot be honoured -- no `iso3`, `area_code` or
 #' `polity_area_code` to resolve a region from -- warns rather than aborting,
@@ -1180,8 +1210,14 @@ NULL
 #' legitimate input; `method_mms` then records the split actually used. The CH4
 #' and N2O legs both pass through here, so an existing `method_mms` means the
 #' frame has already been resolved and warned about once.
+#'
+#' `method_mms` names both halves of the choice, `"<shares>/<source>"`, the
+#' same string `split_manure_management()` stamps: which half of
+#' `regional_mms_distribution` was read, then how it was keyed. Recording only
+#' the keying would leave the sourced-vs-placeholder choice invisible in the
+#' extension output that carries this column downstream (whep#958, whep#1029).
 #' @noRd
-.resolve_manure_region <- function(data, mms_region) {
+.resolve_manure_region <- function(data, mms_region, mms_shares) {
   resolved_before <- rlang::has_name(data, "method_mms")
   if (identical(mms_region, "resolve") && !rlang::has_name(data, "region")) {
     if (.has_gleam_region_key(data)) {
@@ -1199,10 +1235,8 @@ NULL
   }
   regional <- !identical(mms_region, "global") &&
     rlang::has_name(data, "region")
-  dplyr::mutate(
-    data,
-    method_mms = if (regional) "region_specific" else "regional_default"
-  )
+  keying <- if (regional) "region_specific" else "regional_default"
+  dplyr::mutate(data, method_mms = paste0(mms_shares, "/", keying))
 }
 
 #' Attach the climate zone the MCF is read at, and record where it came from.

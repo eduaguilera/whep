@@ -232,18 +232,21 @@ testthat::test_that("Volatile solids match IPCC 2019 Eq 10.24 (#160)", {
 # .calc_weighted_mcf ------------------------------------------------------------
 
 testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
-  # "Africa" has no region-specific rows in regional_mms_distribution, so the
-  # Global Cattle distribution must be used instead of the flat 2% default.
-  # Global Cattle mix x Temperate MCF, at the default mcf_source of
+  # A region with no rows for that species in regional_mms_distribution must
+  # use the species Global distribution, not the flat 2% default. Since the
+  # GLEAM 2.0 ingest (whep#958) covers all nine region labels for cattle, the
+  # gap has to be found in a species the source leaves one for: Tab. 4.5 and
+  # 4.6 publish no Oceania column for either buffalo herd.
+  # Global buffalo mix x Temperate MCF, at the default mcf_source of
   # ipcc_2019 (2019 Refinement Table 10.17 Updated):
-  #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 % -> 0.0731.
+  #   0.2155*0.5 + 0.2137*39.0 + 0.2000*0.47 + 0.3707*4.0 = 10.0203 %.
   result <- tibble::tribble(
-    ~species_gen, ~region,  ~climate_zone,
-    "Cattle",     "Africa", "Temperate"
+    ~species_gen, ~region,   ~climate_zone,
+    "Buffalo",    "Oceania", "Temperate"
   ) |>
     whep:::.calc_weighted_mcf()
 
-  testthat::expect_equal(result$weighted_mcf, 0.0731)
+  testthat::expect_equal(result$weighted_mcf, 0.1002032, tolerance = 1e-6)
   # Must not collapse to the flat 2% (0.02) default.
   testthat::expect_false(isTRUE(all.equal(result$weighted_mcf, 0.02)))
 })
@@ -251,16 +254,17 @@ testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
 # .calc_direct_n2o --------------------------------------------------------------
 
 testthat::test_that("Direct N2O falls back to Global MMS mix (#201)", {
-  # A region without region-specific MMS rows ("Africa") must reuse the Global
+  # A region without region-specific MMS rows must reuse the Global
   # distribution, giving the same weighted EF3 as an explicit "Global" region,
-  # not the flat pasture default (EF3 = 0.005).
+  # not the flat pasture default (EF3 = 0.005). Buffalo in Oceania is the gap
+  # the GLEAM 2.0 ingest leaves; cattle now have all nine labels.
   base <- tibble::tribble(
     ~species_gen, ~n_excretion, ~heads,
-    "Cattle",     100,          10
+    "Buffalo",    100,          10
   )
 
   africa <- base |>
-    dplyr::mutate(region = "Africa") |>
+    dplyr::mutate(region = "Oceania") |>
     whep:::.calc_direct_n2o() |>
     dplyr::pull(manure_n2o_direct)
   global <- base |>
@@ -357,12 +361,17 @@ testthat::test_that("Global poultry direct N2O uses the litter EF3 (#950)", {
   ) |>
     whep:::.calc_direct_n2o()
 
-  # Global poultry MMS split: 0.80 "Poultry Manure" + 0.20 "Solid Storage".
   # ipcc_2019_n2o_ef_direct carries no "Poultry Manure" row, so the label-only
-  # join left 0.80 of the split on the 0.005 "Other" coalesce default and the
-  # weighted EF3 came out a flat 0.005. Resolved through .manure_ef3() the
-  # deep-litter row applies: 0.80 * 0.001 + 0.20 * 0.005 = 0.0018.
-  testthat::expect_equal(result$manure_n2o_direct, 0.0018 * (44 / 28))
+  # join left the poultry-manure share of the split on the 0.005 "Other"
+  # coalesce default and the weighted EF3 came out a flat 0.005. Resolved
+  # through .manure_ef3() the deep-litter row applies instead. Under the GLEAM
+  # 2.0 Global poultry split (Tab. 4.11, layer / broiler / backyard averaged)
+  # that gives a weighted EF3 of 0.004526.
+  testthat::expect_equal(
+    result$manure_n2o_direct,
+    0.004526109375 * (44 / 28),
+    tolerance = 1e-8
+  )
   testthat::expect_false(
     isTRUE(all.equal(result$manure_n2o_direct, 0.005 * (44 / 28)))
   )
@@ -393,7 +402,7 @@ testthat::test_that("every shipped MMS label resolves an EF3 and an MCF (#950)",
 
 testthat::test_that("an MMS label with no EF3 aborts instead of taking 0.005", {
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,          ~fraction,
         "Cattle", "Composting - Bin", 1
@@ -416,7 +425,7 @@ testthat::test_that("an MMS label with no MCF row aborts instead of taking 2%", 
   # "Anaerobic Digester" exists in climate_mcf only with climate_zone "All",
   # so a Temperate lookup misses it and used to coalesce to a flat 2.0 percent.
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,            ~fraction,
         "Cattle", "Anaerobic Digester", 1
@@ -468,16 +477,91 @@ testthat::test_that("Tier 2 manure resolves the IPCC region on request (#949)", 
 
   testthat::expect_false("region" %in% names(default))
   testthat::expect_equal(unique(regional$region), "North America")
-  # Both at the default mcf_source of ipcc_2019, Temperate.
-  # Global cattle mix:
+  # Global cattle mix under the GLEAM 2.0 ingest, weighted by the Temperate
+  # MCFs of the default mcf_source of ipcc_2019: shares 0.4435 pasture,
+  # 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon and 0.0090
+  # daily spread, against MCFs of 0.47, 4.0, 39.0, 74.5 and 0.5 percent, give
+  # 6.4894 percent.
+  # North America's shares are 0.275, 0.405, 0.135, 0.135 and 0.05 over the
+  # same five systems, giving 17.09675 percent.
+  testthat::expect_equal(
+    unique(default$weighted_mcf),
+    0.064894367234,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(unique(regional$weighted_mcf), 0.1709675)
+  testthat::expect_equal(
+    unique(default$method_mms),
+    "gleam_2_0/regional_default"
+  )
+  testthat::expect_equal(
+    unique(regional$method_mms),
+    "gleam_2_0/region_specific"
+  )
+})
+
+testthat::test_that("mms_shares selects the table half the engine weights", {
+  # whep#958: the manure engines default to the GLEAM 2.0 ingest and keep the
+  # unsourced placeholder selectable. Both effective factors must move with
+  # the option, and an unknown name must abort.
+  data <- tibble::tribble(
+    ~species_gen, ~region,  ~climate_zone, ~n_excretion, ~heads,
+    "Cattle",     "Global", "Temperate",   100,          10
+  )
+
+  gleam <- whep:::.calc_weighted_mcf(data)
+  old <- whep:::.calc_weighted_mcf(
+    data,
+    options = list(mms_shares = "placeholder")
+  )
+  # Both at the default mcf_source of ipcc_2019, Temperate. The GLEAM 2.0
+  # split is the five-system mix above; the placeholder's is
   #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 percent.
-  # North America's mix is 0.40 Liquid/Slurry, 0.30 Solid Storage,
-  # 0.25 Pasture, 0.05 Daily Spread:
-  #   0.40*39.0 + 0.30*4.0 + 0.25*0.47 + 0.05*0.5 = 16.9425 percent.
-  testthat::expect_equal(unique(default$weighted_mcf), 0.0731)
-  testthat::expect_equal(unique(regional$weighted_mcf), 0.169425)
-  testthat::expect_equal(unique(default$method_mms), "regional_default")
-  testthat::expect_equal(unique(regional$method_mms), "region_specific")
+  testthat::expect_equal(
+    gleam$weighted_mcf,
+    0.064894367234,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(old$weighted_mcf, 0.0731)
+
+  gleam_n2o <- whep:::.calc_direct_n2o(data)$manure_n2o_direct
+  old_n2o <- whep:::.calc_direct_n2o(
+    data,
+    options = list(mms_shares = "placeholder")
+  )$manure_n2o_direct
+  testthat::expect_equal(
+    gleam_n2o,
+    1000 * 0.00694502 * (44 / 28),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(old_n2o, 1000 * 0.0073 * (44 / 28))
+
+  # The half is recorded, not only applied: `method_mms` names it before the
+  # keying, the same string `split_manure_management()` stamps, so a frame
+  # cannot reach the extension output saying how it was keyed while staying
+  # silent about which table it was keyed into.
+  testthat::expect_equal(
+    unique(whep:::.calc_direct_n2o(data)$method_mms),
+    "gleam_2_0/region_specific"
+  )
+  testthat::expect_equal(
+    unique(
+      whep:::.calc_direct_n2o(
+        data,
+        options = list(mms_shares = "placeholder")
+      )$method_mms
+    ),
+    "placeholder/region_specific"
+  )
+
+  testthat::expect_error(
+    whep::calculate_manure_emissions(
+      single_tier1_fixture(),
+      tier = 1,
+      options = list(mms_shares = "gleam_3_0")
+    ),
+    "mms_shares"
+  )
 })
 
 testthat::test_that("a region request with no area key warns and is recorded", {
@@ -492,7 +576,7 @@ testthat::test_that("a region request with no area key warns and is recorded", {
     class = "whep_no_region_key"
   )
   testthat::expect_false("region" %in% names(out))
-  testthat::expect_equal(unique(out$method_mms), "regional_default")
+  testthat::expect_equal(unique(out$method_mms), "gleam_2_0/regional_default")
 })
 
 testthat::test_that("mms_region 'global' ignores a region column", {
@@ -511,7 +595,10 @@ testthat::test_that("mms_region 'global' ignores a region column", {
   testthat::expect_false(
     isTRUE(all.equal(regional$manure_n2o_direct, global$manure_n2o_direct))
   )
-  testthat::expect_equal(unique(forced$method_mms), "regional_default")
+  testthat::expect_equal(
+    unique(forced$method_mms),
+    "gleam_2_0/regional_default"
+  )
 })
 
 testthat::test_that("the assumed climate zone is selectable and recorded", {
@@ -529,11 +616,12 @@ testthat::test_that("the assumed climate zone is selectable and recorded", {
     options = list(assumed_climate_zone = "Cool")
   )
 
-  # Global cattle mix, at the default mcf_source of ipcc_2019.
-  # Warm:  0.50*0.47 + 0.30*5.0 + 0.15*70.50 + 0.05*1.0 = 12.36 percent.
-  # Cool:  0.50*0.47 + 0.30*2.0 + 0.15*18.75 + 0.05*0.1 = 3.6525 percent.
-  testthat::expect_equal(warm$weighted_mcf, 0.1236)
-  testthat::expect_equal(cool$weighted_mcf, 0.036525)
+  # Global cattle mix (GLEAM 2.0 ingest) over the same five systems as above,
+  # at the default mcf_source of ipcc_2019. Warm MCFs of 0.47, 5.0, 70.5,
+  # 79.0 and 1.0 percent give 9.6756 percent; Cool MCFs of 0.47, 2.0, 18.75,
+  # 56.5 and 0.1 percent give 3.5922 percent.
+  testthat::expect_equal(warm$weighted_mcf, 0.096755978175, tolerance = 1e-9)
+  testthat::expect_equal(cool$weighted_mcf, 0.035921982087, tolerance = 1e-9)
   testthat::expect_match(warm$method_manure_ch4, "climate_assumed_warm")
   testthat::expect_match(cool$method_manure_ch4, "climate_assumed_cool")
 })
@@ -555,7 +643,11 @@ testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
   supplied <- data |>
     dplyr::mutate(climate_zone = "Warm") |>
     whep:::.calc_weighted_mcf(options = list(climate_source = "from_data"))
-  testthat::expect_equal(supplied$weighted_mcf, 0.1236)
+  testthat::expect_equal(
+    supplied$weighted_mcf,
+    0.096755978175,
+    tolerance = 1e-9
+  )
   testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
 })
 
@@ -572,14 +664,16 @@ testthat::test_that("mcf_source selects the MCF table and records it", {
   gl2006 <- weighted("ipcc_2006")
   ref2019 <- weighted("ipcc_2019")
 
-  # Global cattle mix is 0.50 pasture, 0.30 solid storage, 0.15 liquid
-  # slurry, 0.05 daily spread, read at the Temperate default.
-  #   as shipped: 0.50*1.5 + 0.30*4.0 + 0.15*35 + 0.05*0.5 is 7.225 percent.
-  #   2006:       0.50*1.5 + 0.30*4.0 + 0.15*42 + 0.05*0.5 is 8.275 percent.
-  #   2019:       0.50*0.47 + 0.30*4.0 + 0.15*39 + 0.05*0.5 is 7.31 percent.
-  testthat::expect_equal(shipped$weighted_mcf, 0.07225)
-  testthat::expect_equal(gl2006$weighted_mcf, 0.08275)
-  testthat::expect_equal(ref2019$weighted_mcf, 0.0731)
+  # Global cattle mix under the default `mms_shares` of gleam_2_0 -- 0.4435
+  # pasture, 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon,
+  # 0.0090 daily spread -- read at the Temperate default. Only the pasture,
+  # liquid-slurry and lagoon MCFs differ between the three tables:
+  #   as shipped: pasture 1.5,  slurry 35, lagoon 73.0 is 6.5841 percent.
+  #   2006:       pasture 1.5,  slurry 42, lagoon 78.0 is 7.2559 percent.
+  #   2019:       pasture 0.47, slurry 39, lagoon 74.5 is 6.4894 percent.
+  testthat::expect_equal(shipped$weighted_mcf, 0.065841425311, tolerance = 1e-9)
+  testthat::expect_equal(gl2006$weighted_mcf, 0.072558568169, tolerance = 1e-9)
+  testthat::expect_equal(ref2019$weighted_mcf, 0.064894367234, tolerance = 1e-9)
 
   testthat::expect_match(shipped$method_manure_ch4, "mcf_as_shipped")
   testthat::expect_match(gl2006$method_manure_ch4, "mcf_ipcc_2006")
@@ -689,7 +783,7 @@ testthat::test_that("the 2006 anaerobic digester has no MCF and aborts", {
   # split that routes manure there must abort rather than take a number the
   # edition does not publish.
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,            ~fraction,
         "Cattle", "Anaerobic Digester", 1
@@ -909,6 +1003,35 @@ testthat::test_that("rabbits take the poultry MMS split, and say so", {
   testthat::expect_match(result$method_manure_ch4, "mms_assumed_poultry")
   # The poultry row is measured, so it carries no assumption stamp at all.
   testthat::expect_false(grepl("assumed", poultry$method_manure_ch4))
+
+  # The borrowed split must be a distribution, in EITHER half. whep#958 gave
+  # `regional_mms_distribution` two `source` halves; a neighbour lookup that
+  # filters only on `region == "Global"` then matches both at once and hands
+  # the borrowing species fractions summing to 2 -- mass the engine multiplies
+  # straight into its emissions, with every group still "summing to one" in the
+  # table itself. Asserted on the sum, not on a value, so it cannot be
+  # satisfied by a half that happens to be zero.
+  for (half in c("placeholder", "gleam_2_0")) {
+    assumed <- whep:::.assumed_mms_shares("Rabbits and hares", half)
+    testthat::expect_equal(sum(assumed$fraction), 1)
+    testthat::expect_gt(nrow(assumed), 0L)
+    borrowed <- suppressWarnings(whep:::.calc_weighted_mcf(
+      data,
+      list(mms_shares = half)
+    ))
+    lender <- whep:::.calc_weighted_mcf(
+      tibble::tibble(
+        species = "Chickens",
+        species_gen = "Poultry",
+        subcategory = "All",
+        heads = 100,
+        method_manure_ch4 = "IPCC_2019_Tier2",
+        climate_zone = "Temperate"
+      ),
+      list(mms_shares = half)
+    )
+    testthat::expect_equal(borrowed$weighted_mcf, lender$weighted_mcf)
+  }
 })
 
 
@@ -1104,10 +1227,21 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
 
   result <- whep:::.calc_direct_n2o(data)
 
-  # Global cattle split x .manure_ef3():
-  #   0.50*0.010 + 0.30*0.005 + 0.15*0.002 + 0.05*0.010 = 0.00730.
+  # GLEAM 2.0 Global cattle split x .manure_ef3():
+  #   0.016000000*0.001 + 0.009000000*0.010 + 0.084530612*0.002 +
+  #   0.443522579*0.010 + 0.446946808*0.005 = 0.00694502106.
   testthat::expect_equal(
     result$manure_n2o_direct,
+    10 * 100 * 0.00694502106 * (44 / 28),
+    tolerance = 1e-8
+  )
+  # The placeholder half still reproduces the pre-whep#958 arithmetic:
+  #   0.50*0.010 + 0.30*0.005 + 0.15*0.002 + 0.05*0.010 = 0.00730.
+  testthat::expect_equal(
+    whep:::.calc_direct_n2o(
+      data,
+      list(mms_shares = "placeholder")
+    )$manure_n2o_direct,
     10 * 100 * 0.0073 * (44 / 28)
   )
   # And emphatically not the flat pasture factor it used to take.
