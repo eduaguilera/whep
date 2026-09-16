@@ -619,6 +619,16 @@ forgets, not a licence to skip — a PR is not ready until you have run
 `air format .` yourself, so that the diff under review is the diff that lands
 and `main` does not fill up with formatting-only commits.
 
+`cache-prune` is not a check and never runs on a pull request's check path. It
+deletes the dependency caches a pull request leaves behind once that PR closes,
+on close and on a six-hourly sweep. A cache written from `refs/pull/N/merge` is
+readable only by that same PR and GitHub never deletes it on merge, so without
+this the repository sat at 10.51 GB against the 10 GB quota with 6.14 GB of it
+held by five already-merged PRs — bytes nothing could ever read, evicting
+`main`'s shared caches and making later runs do cold installs (#1104). If a
+cache seems to have vanished, read that workflow's log before suspecting a key
+change.
+
 ## Before committing
 
 ```bash
