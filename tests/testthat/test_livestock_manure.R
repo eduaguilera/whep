@@ -1187,6 +1187,53 @@ testthat::test_that("swine and poultry reach their own N retention, not 0.07", {
 })
 
 
+testthat::test_that("breeding swine take the breeding Bo, not the market one", {
+  # whep#1107. The Bo category helper matched only the literal "Breed", but
+  # animals_codes carries FAOSTAT 1051 "Swine, breeding" under the item_cbs
+  # name "Hogs", which is what the emissions bridge puts in the species
+  # column. So the breeding herd would have taken the market-swine methane
+  # potential, 0.45 against 0.27 m3 CH4 per kg VS.
+  categories <- whep:::.get_bo_category(
+    c("Pigs", "Hogs", "Swine - Breeding", "Chickens, layers"),
+    c("Swine", "Swine", "Swine", "Poultry")
+  )
+
+  testthat::expect_equal(
+    categories,
+    c(
+      "Swine - Market",
+      "Swine - Breeding",
+      "Swine - Breeding",
+      "Poultry - Layers"
+    )
+  )
+})
+
+
+testthat::test_that("each swine half takes its own published N excretion", {
+  # `ipcc_2019_n_excretion` publishes "Swine - Market" 15 and
+  # "Swine - Breeding" 18 kg N head-1 yr-1. Before whep#1107 the whole herd
+  # arrived as one "Swine" key and took their mean, 16.5 -- a rate no animal
+  # has. FAOSTAT reports the halves separately, so key each on its own row.
+  data <- tibble::tibble(
+    species = c("Pigs", "Hogs"),
+    species_gen = c("Swine", "Swine"),
+    heads = c(900, 100)
+  )
+
+  result <- whep:::.join_n_excretion_tier1(data)
+
+  testthat::expect_equal(
+    result$manure_category,
+    c(
+      "Swine - Market",
+      "Swine - Breeding"
+    )
+  )
+  testthat::expect_equal(result$n_excretion, c(15, 18))
+})
+
+
 testthat::test_that("an unmapped species declares its assumed N retention", {
   data <- tibble::tribble(
     ~species,            ~species_gen,        ~gross_energy, ~diet_quality,

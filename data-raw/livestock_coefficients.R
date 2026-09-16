@@ -1521,6 +1521,25 @@ generate_ipcc_2019_tables <- function() {
     # (40) and 68 Indian Subcontinent (50). Other cattle needs the cohort
     # population mix of Table 10A.2 (New) weighted the same way.
     # See `?ipcc_2019_n_excretion` and #601.
+    #
+    # The two SWINE rows were checked the same way at whep#1107, because
+    # `.join_n_excretion_tier1()` now keys the market and breeding halves of
+    # the herd on them separately instead of averaging them. Table 10.19
+    # (Updated) swine rates x Table 10A.5 (New) live weights x 365, over the
+    # nine regional mean columns:
+    #   breeding  16.1 NAm, 26.4 WEur, 26.8 EEur, 18.4 Oce, 18.3 LatAm,
+    #             10.6 Afr, 17.2 MidE, 16.5 Asia, 19.0 India -> mean 18.8
+    #   finishing 10.2 NAm, 16.9 WEur, 16.6 EEur, 10.8 Oce, 13.6 LatAm,
+    #              7.3 Afr, 13.9 MidE, 12.5 Asia, 14.1 India -> mean 12.9
+    # So `"Swine - Breeding"` 18 is reproduced by that derivation to within
+    # rounding; `"Swine - Market"` 15 is not (the derivation gives 12.9) and
+    # stays unverified, like the cattle rows above. What the split depends on
+    # is the ORDER, and that is solid: a breeding sow excretes more N per head
+    # per year than a finishing pig in every one of the nine regions, because
+    # she is 2-3x the live weight at about half the rate per unit mass. The
+    # derivation puts her 46 % above; the shipped 18-against-15 pair puts her
+    # 20 % above, so these rows understate rather than overstate the
+    # difference the separation exists to represent.
     table_10_19 = tibble::tribble(
       ~region, ~category, ~nex_kg_n_head_yr,
       "North America",        "Dairy Cattle",      105,

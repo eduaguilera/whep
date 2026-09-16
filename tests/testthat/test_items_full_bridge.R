@@ -60,7 +60,7 @@ testthat::test_that("the placeholder lock is not vacuous", {
 })
 
 testthat::test_that("a missing Name_biomass cannot match a coefficient row", {
-  # The 21 live-animal rows carry NA, and dplyr joins match NA to NA by
+  # The 22 live-animal rows carry NA, and dplyr joins match NA to NA by
   # default. That is harmless only while biomass_coefs holds no NA and no
   # empty name; if one ever arrived, every live animal would silently inherit
   # its coefficients. Same for the "0" placeholder.
@@ -73,7 +73,7 @@ testthat::test_that("a missing Name_biomass cannot match a coefficient row", {
   # counterpart" and not "not filled in".
   na_rows <- whep::items_full |>
     dplyr::filter(is.na(.data$Name_biomass))
-  testthat::expect_equal(nrow(na_rows), 21L)
+  testthat::expect_equal(nrow(na_rows), 22L)
   testthat::expect_equal(unique(na_rows$group), "Livestock")
 })
 
