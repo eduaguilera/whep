@@ -72,12 +72,12 @@ against. See the <em>Items with no CBS row</em> section. One of:</p><ul><li><p><
 behaviour. Published values are unaffected by this argument's
 existence as long as the default is kept.</p></li>
 <li><p><code>"keep"</code>: keep the flows and take the row and column margins from
-the reported bilateral data itself instead of from the CBS. It
-<strong>refuses</strong> when a kept item's tonnes are not masses; see the
-<em>Items with no CBS row</em> section.</p></li>
+the reported bilateral data itself instead of from the CBS.</p></li>
 <li><p><code>"abort"</code>: fail, so that a refreshed pin cannot introduce
 unanchored items unnoticed.</p></li>
-</ul><p><code>example = TRUE</code> always returns the <code>"drop"</code> fixture.</p></dd>
+</ul><p>Under <strong>every</strong> method, an item that survives this step whose tonnes
+are not masses is refused; see the <em>Items with no CBS row</em> section.</p>
+<p><code>example = TRUE</code> always returns the <code>"drop"</code> fixture.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -204,14 +204,23 @@ counts is unverified and the implied units per tonne are not constant,
 so nothing can be rescaled. See
 <code><a href="build_detailed_trade.html">build_detailed_trade()</a></code>'s <em>Quantities FAOSTAT does not back with a
 mass</em> section for the full measurement.</p>
-<p><code>"keep"</code> therefore <strong>aborts</strong> with class
-<code>"whep_unbacked_mass_trade"</code> when the items it would keep include one
-of those, rather than distributing 2.58 Gt through a matrix. <code>"drop"</code>,
-the default, is unaffected, and so is every published number: item
-5001 has no CBS row, so the default already removes it. A caller who
-wants a trade matrix that carries item 5001 has to obtain a mass for it
-first; <code><a href="build_detailed_trade.html">build_detailed_trade()</a></code> screens the same rows at the producer,
-where the fix belongs.</p>
+<p>This function therefore <strong>aborts</strong> with class
+<code>"whep_unbacked_mass_trade"</code> whenever such an item would survive this
+step, rather than distributing 2.58 Gt through a matrix. The test is on
+what is <em>kept</em>, under every method, and not on whether the item has a
+CBS row: those two coincide on today's data, and that coincidence was
+the only thing keeping the figures out of a published number. Give item
+5001 a CBS row and the earlier, <code>"keep"</code>-only refusal let the whole
+12.40 Gt through on the default method, silently.</p>
+<p>No published number moves. Measured on the live <code>bilateral_trade</code> pin
+<code>20250714T123347Z-2c392</code>, item 5001 carries 12.40 Gt of <code>tonnes</code> over
+277,201 rows - 8.9% of 1986-2003, <strong>49.4% of 2004-2013</strong> and 3.9% of
+2014-2021 - and no commodity balance sheet carries item 5001, so
+<code>"drop"</code> removes all of it exactly as before.</p>
+<p>A caller who wants a trade matrix that carries item 5001 has to obtain
+a mass for it first. <code><a href="build_detailed_trade.html">build_detailed_trade()</a></code> screens the same rows at
+the producer, where the fix belongs; that screen is latent until the
+<code>bilateral_trade</code> pin is regenerated from it, which whep#1122 tracks.</p>
     </div>
     <div class="section level2">
     <h2 id="the-two-batch-pins-on-the-build-path">The two batch pins on the build path<a class="anchor" aria-label="anchor" href="#the-two-batch-pins-on-the-build-path"></a></h2>
