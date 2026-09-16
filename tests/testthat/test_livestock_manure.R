@@ -843,9 +843,11 @@ testthat::test_that("the residual FAOSTAT species takes a declared split", {
     "Animals live nes"
   )
 
-  # All of it deposited where it falls, so Temperate pasture MCF = 1.5 % ->
-  # 0.015.
-  pasture_mcf <- climate_mcf |>
+  # All of it deposited where it falls, so the weighted MCF is the Temperate
+  # pasture row of whatever table `mcf_source` defaults to -- read from that
+  # table rather than written down, so flipping the default cannot leave this
+  # assertion silently checking a table the engine no longer reads.
+  pasture_mcf <- whep:::.mcf_table(whep:::.manure_options(list())$mcf_source) |>
     dplyr::filter(
       mms_type == "Pasture/Range/Paddock",
       climate_zone == "Temperate"

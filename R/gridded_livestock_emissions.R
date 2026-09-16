@@ -71,6 +71,7 @@
 #'   manure-management equations; Tier 1 emission factors carry no climate,
 #'   temperature or diet dimension, so a Tier 1 grid differs from a
 #'   disaggregated national total only by rounding.
+#' @inheritParams manure_engine_options
 #' @param data Optional named list of pre-loaded inputs: `cell_climate` (a
 #'   [build_cell_climate_zone()] output) and `feed_intake` (a feed-intake
 #'   table). `cell_climate` falls back to [build_cell_climate_zone()], which
@@ -108,6 +109,7 @@ build_gridded_livestock_emissions <- function(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   tier = 2,
+  options = list(),
   data = list(),
   example = FALSE
 ) {
@@ -116,6 +118,9 @@ build_gridded_livestock_emissions <- function(
   }
   method_diet <- rlang::arg_match(method_diet)
   tier <- .check_ghg_tier(tier)
+  # Validated here so an unknown option aborts before the climate join, not
+  # minutes later inside the manure engine.
+  .manure_options(options)
   cells <- gridded_livestock |>
     .check_gridded_livestock() |>
     .resolve_gridded_species() |>
@@ -123,14 +128,19 @@ build_gridded_livestock_emissions <- function(
     dplyr::mutate(sub_territory = .cell_id(lon, lat)) |>
     .resolve_diet_quality(method_diet, data$feed_intake)
 
-  gridded <- .emissions_at_grain(cells, tier, .cell_group_keys(cells))
+  gridded <- .emissions_at_grain(
+    cells,
+    tier,
+    .cell_group_keys(cells),
+    options
+  )
   national <- cells |>
     .national_livestock_input() |>
     .resolve_diet_quality(
       .national_diet_method(method_diet),
       data$feed_intake
     ) |>
-    .emissions_at_grain(tier, c("year", "area_code", "species"))
+    .emissions_at_grain(tier, c("year", "area_code", "species"), options)
 
   .attach_national_grain(gridded, national) |>
     .add_reporting_polity_columns()
@@ -403,10 +413,10 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
 # herd into GLEAM cohorts first; Tier 1 stays at species grain, as
 # `build_livestock_ghg_extension()` does. NA is not suppressed: an unresolved
 # cohort must reach the output as NA, never as a zero.
-.emissions_at_grain <- function(data, tier, keys) {
+.emissions_at_grain <- function(data, tier, keys, options = list()) {
   expanded <- if (tier == 2L) calculate_cohorts_systems(data) else data
   expanded |>
-    calculate_livestock_emissions(tier = tier) |>
+    calculate_livestock_emissions(tier = tier, options = options) |>
     livestock_emissions_to_kt(tier = tier) |>
     dplyr::summarise(
       dplyr::across(dplyr::all_of(.emission_kt_names()), sum),

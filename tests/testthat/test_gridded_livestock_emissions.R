@@ -140,6 +140,63 @@ testthat::test_that("the example fixture is what the function actually emits", {
   testthat::expect_equal(fixture$method_manure_n2o, live$method_manure_n2o)
 })
 
+testthat::test_that("options reach the manure kernel from the cells", {
+  # whep#1022 makes `mcf_source` a user choice, and whep#1042 made this the
+  # default Tier 2 entry point -- so an option that does not reach the kernel
+  # from here is an option the default path cannot exercise. Asserted on the
+  # kernel's own output, not just on acceptance of the argument.
+  run <- function(src) {
+    whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      options = list(mcf_source = src),
+      data = list(cell_climate = .climate_fixture())
+    ) |>
+      dplyr::arrange(lon, lat, species)
+  }
+  shipped <- run("as_shipped")
+  refined <- run("ipcc_2019")
+
+  testthat::expect_true(all(
+    shipped$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_from_data; mcf_as_shipped"
+  ))
+  testthat::expect_true(all(
+    refined$method_manure_ch4 ==
+      "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019"
+  ))
+  # The table actually bites: manure CH4 moves, and only manure CH4.
+  testthat::expect_false(isTRUE(all.equal(
+    shipped$manure_ch4_kt,
+    refined$manure_ch4_kt
+  )))
+  testthat::expect_equal(shipped$enteric_ch4_kt, refined$enteric_ch4_kt)
+  testthat::expect_equal(shipped$manure_n2o_kt, refined$manure_n2o_kt)
+  # The default is the Refinement, so asking for it changes nothing.
+  testthat::expect_equal(
+    whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      data = list(cell_climate = .climate_fixture())
+    ) |>
+      dplyr::arrange(lon, lat, species),
+    refined
+  )
+})
+
+testthat::test_that("an unknown option aborts before the climate join", {
+  # Validated at the entry point, so a misspelled option is a fast error rather
+  # than a silently ignored argument.
+  testthat::expect_error(
+    whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      options = list(mcf_sauce = "ipcc_2019"),
+      data = list(cell_climate = .climate_fixture())
+    )
+  )
+})
+
 testthat::test_that("emissions are per cell and positive", {
   result <- whep::build_gridded_livestock_emissions(
     .grid_fixture(),

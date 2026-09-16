@@ -676,7 +676,12 @@ NULL
 .calc_weighted_mcf <- function(data, options = list()) {
   opt <- .manure_options(options)
   data <- .apply_climate_zone(data, opt)
-  data <- .stamp_ch4_method(data, paste0("mcf_", opt$mcf_source))
+  data <- .stamp_assumption(
+    data,
+    "method_manure_ch4",
+    paste0("mcf_", opt$mcf_source),
+    TRUE
+  )
 
   # Get MCF by MMS and climate zone
   mcf_tbl <- .mcf_table(opt$mcf_source)

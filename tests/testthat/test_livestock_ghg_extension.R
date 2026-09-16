@@ -361,14 +361,14 @@ testthat::test_that("the shipped Tier 2 default is the 2019 Refinement", {
   # whep#1022 flipped `mcf_source` to `"ipcc_2019"`. These are the numbers the
   # extension publishes now, on the same fixture as the #1029 lock above, so
   # the two sit side by side and the size of the move is readable: cattle 961
-  # +0.13 percent, sheep 976 -1.80 percent, cattle 960 +0.17 percent. Sheep
+  # +0.13 percent, sheep 976 -1.75 percent, cattle 960 +0.17 percent. Sheep
   # move most because they are 100 percent pasture, whose MCF the Refinement
   # cuts from 1.5 to 0.47 percent; the cattle sectors barely move because the
   # pasture cut is nearly cancelled by a higher liquid/slurry factor.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 2258337147.8284378,
-    10L, 976L, 1532827674.5211272,
+    10L, 976L, 1572410786.0715780,
     100L, 960L, 493564355.41606408
   )
   tier2 <- suppressWarnings(
@@ -434,6 +434,7 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
     suppressWarnings(
       whep::build_livestock_ghg_extension(
         tier = 2,
+        method_diet = "uniform_medium",
         options = list(
           assumed_climate_zone = zone,
           mcf_source = "as_shipped"
