@@ -387,19 +387,25 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   ))
 })
 
-testthat::test_that("the shipped Tier 2 default is the 2019 Refinement", {
-  # whep#1022 flipped `mcf_source` to `"ipcc_2019"`. These are the numbers the
-  # extension publishes now, on the same fixture as the #1029 lock above, so
-  # the two sit side by side and the size of the move is readable: cattle 961
-  # +0.13 percent, sheep 976 -1.75 percent, cattle 960 +0.17 percent. Sheep
-  # move most because they are 100 percent pasture, whose MCF the Refinement
-  # cuts from 1.5 to 0.47 percent; the cattle sectors barely move because the
-  # pasture cut is nearly cancelled by a higher liquid/slurry factor.
+testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
+  # Two defaults define what the extension publishes at Tier 2: whep#1022
+  # flipped `mcf_source` to `"ipcc_2019"`, and whep#958 flipped `mms_shares`
+  # to the GLEAM 2.0 ingest. Both are pinned here, on the same fixture as the
+  # #1029 lock above, so the two sit side by side.
+  #
+  # Against the same run with only `mms_shares = "placeholder"` -- the MCF
+  # edition held at the 2019 default, so this is the ingest alone -- the
+  # sectors move cattle 961 -1.63 percent, sheep 976 +0.29 percent, cattle
+  # 960 -1.96 percent. The two effective Global factors at Temperate say why:
+  # cattle fall on both (weighted MCF 7.310 -> 6.489 percent, weighted EF3
+  # 0.00730 -> 0.006945), while sheep gain on the MCF (0.470 -> 1.600
+  # percent, 32 percent of their manure moving from pasture to solid storage)
+  # and lose less on the EF3 (0.0100 -> 0.0084).
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2258337147.8284378,
-    10L, 976L, 1572410786.0715780,
-    100L, 960L, 493564355.41606408
+    10L, 961L, 2221562951.7340550,
+    10L, 976L, 1576986611.5624502,
+    100L, 960L, 483894485.79632449
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
@@ -421,6 +427,9 @@ testthat::test_that("the shipped Tier 2 default is the 2019 Refinement", {
     tier2$method_manure_ch4 ==
       "IPCC_2019_Tier2; climate_assumed_temperate; mcf_ipcc_2019"
   ))
+  testthat::expect_true(all(
+    tier2$method_mms == "gleam_2_0/regional_default"
+  ))
 })
 
 testthat::test_that("assumed_climate_zone reaches the manure kernel", {
@@ -431,12 +440,12 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   #
   # The bound is not strict under the default `mcf_source = "ipcc_2019"`:
   # the Refinement gives pasture/range/paddock a single 0.47 percent for every
-  # zone, so a species that is 100 percent pasture (sheep, goats, camels,
-  # mules and asses in `regional_mms_distribution`) has a climate-invariant
-  # manure MCF and its sector is equal across all three. Sector 976 is sheep
-  # and is exactly that case; the cattle sectors still increase strictly, so
-  # at least one strict increase is asserted to keep the test able to fail on
-  # a dropped passthrough.
+  # zone, so a species that is 100 percent pasture has a climate-invariant
+  # manure MCF and its sector is equal across all three. Which species those
+  # are depends on `mms_shares`, so the invariance is asserted below at the
+  # half that makes sheep (sector 976) one of them. At least one strict
+  # increase is asserted here too, to keep the test able to fail on a dropped
+  # passthrough.
   run_zone <- function(zone) {
     suppressWarnings(
       whep::build_livestock_ghg_extension(
@@ -457,26 +466,44 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   testthat::expect_true(any(cool$impact_u < temperate$impact_u))
   testthat::expect_true(any(temperate$impact_u < warm$impact_u))
   # The pasture-only sector is the one the Refinement makes zone-invariant.
+  # Sheep are 100 percent pasture in the placeholder half only; the GLEAM 2.0
+  # ingest gives them 68 percent pasture and 32 percent solid storage, whose
+  # MCF is zone-dependent in every edition, so under the default half the
+  # sector does vary. Both are asserted, so neither the MCF edition nor the
+  # table half can change without this test saying which one moved.
   sheep <- function(x) x$impact_u[x$item_cbs_code == 976L]
-  testthat::expect_equal(sheep(cool), sheep(warm))
-  # Under the shipped table it did vary, so this is the edition talking.
-  shipped_zone <- function(zone) {
+  zone_run <- function(zone, ...) {
     suppressWarnings(
       whep::build_livestock_ghg_extension(
         tier = 2,
         method_diet = "uniform_medium",
-        options = list(
-          assumed_climate_zone = zone,
-          mcf_source = "as_shipped"
-        ),
+        options = c(list(assumed_climate_zone = zone), list(...)),
         data = list(primary_prod = .ghg_prod_fixture())
       )
     ) |>
       dplyr::arrange(area_code, item_cbs_code)
   }
+  placeholder_zone <- function(zone) {
+    zone_run(zone, mms_shares = "placeholder")
+  }
+  testthat::expect_equal(
+    sheep(placeholder_zone("Cool")),
+    sheep(placeholder_zone("Warm"))
+  )
+  testthat::expect_false(isTRUE(all.equal(sheep(cool), sheep(warm))))
+  # Under the shipped MCF table it varied in that half too, so the invariance
+  # above is the edition talking, not the split.
   testthat::expect_false(isTRUE(all.equal(
-    sheep(shipped_zone("Cool")),
-    sheep(shipped_zone("Warm"))
+    sheep(zone_run(
+      "Cool",
+      mms_shares = "placeholder",
+      mcf_source = "as_shipped"
+    )),
+    sheep(zone_run(
+      "Warm",
+      mms_shares = "placeholder",
+      mcf_source = "as_shipped"
+    ))
   )))
   testthat::expect_true(all(
     warm$method_manure_ch4 ==

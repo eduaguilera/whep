@@ -30,10 +30,19 @@ assumed Medium is coarser still. Both remain selectable. The assumption is
 never chosen implicitly, and the rung used is recorded in \code{method_ghg}.
 Ignored at Tier 1, whose emission factors carry no diet dimension.}
 
-\item{options}{A named list of manure-engine options. All but one default
-reproduce the behaviour in force before whep#949; the exception is
+\item{options}{A named list of manure-engine options. All but two defaults
+reproduce the behaviour in force before whep#949. The exceptions are
 \code{mcf_source}, which moved from the shipped table to the 2019 Refinement
-in whep#1022 and does move Tier 2 manure CH4.
+in whep#1022 and does move Tier 2 manure CH4, and \code{mms_shares}, which
+moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
+whep#958 and does move both tiers' manure N2O.
+
+\code{mms_shares} selects which half of \link{regional_mms_distribution} the
+split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
+S1 Tab. 4.2-4.11 ingest, \code{"placeholder"} the unsourced table it replaced
+in whep#958. The placeholder stays selectable so the values WHEP
+published before that ingest remain reproducible and the sensitivity to
+it stays measurable; it is not a defensible alternative estimate.
 
 \code{mms_region} selects how the manure-management split in
 \link{regional_mms_distribution} is keyed:
@@ -44,10 +53,10 @@ otherwise. Tier 1 resolves a region for the (sourced) per-head
 N-excretion table and so takes the region-specific split; Tier 2 carries
 no region and so takes the Global one.
 \item \code{"resolve"}: the IPCC region is resolved from \code{iso3}, \code{area_code} or
-\code{polity_area_code} where it is missing, which makes the table's four
-region-specific \verb{(region, species)} pairs live on the Tier 2 path too.
-Those four pairs are an unsourced placeholder (whep#921), which is why
-this is opt-in rather than the default.
+\code{polity_area_code} where it is missing, which makes the table's
+region-specific rows live on the Tier 2 path too. Opt-in because it
+changes which rows of the table apply, not because the rows are
+doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 \item \code{"global"}: every row takes the \code{region == "Global"} split, whatever
 region column it carries.
 }
@@ -155,14 +164,16 @@ feedback).
 }
 
 \code{options} is handed to \code{\link[=calculate_livestock_emissions]{calculate_livestock_emissions()}} unchanged, so the
-manure engine's method levers (the manure-management split, and which
-methane conversion factor table is read at which climate zone) are
-selectable from here too. Only \code{mms_region} bites at Tier 1, whose manure
-CH4 comes from regional emission factors rather than a climate-zone MCF, so
-the \code{tier = 1} default here is unaffected by \code{mcf_source} and by the climate
-options; both reach the MCF on the Tier 2 path only. Whichever choice each
-row took is recorded in \code{method_mms} and \code{method_manure_ch4}, which the
-extension carries into its own output.
+manure engine's method levers (which half of the manure-management table is
+read and how it is keyed, and which methane conversion factor table is read
+at which climate zone) are selectable from here too; passing none takes the
+engine's own defaults, so this entry point publishes what the engine does.
+\code{mms_shares} and \code{mms_region} bite at both tiers; the \code{tier = 1} default
+here is unaffected by \code{mcf_source} and by the climate options, because Tier
+1 manure CH4 comes from regional emission factors rather than a
+climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
+choice each row took is recorded in \code{method_mms} and \code{method_manure_ch4},
+which the extension carries into its own output.
 }
 \section{Polity columns}{
 

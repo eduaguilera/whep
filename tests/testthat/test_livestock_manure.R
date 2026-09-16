@@ -237,15 +237,16 @@ testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
   # GLEAM 2.0 ingest (whep#958) covers all nine region labels for cattle, the
   # gap has to be found in a species the source leaves one for: Tab. 4.5 and
   # 4.6 publish no Oceania column for either buffalo herd.
-  # Global buffalo mix x Temperate MCF (Table 10.17):
-  #   0.2155*0.5 + 0.2137*35.0 + 0.2000*1.5 + 0.3707*4.0 = 9.3714 %.
+  # Global buffalo mix x Temperate MCF, at the default mcf_source of
+  # ipcc_2019 (2019 Refinement Table 10.17 Updated):
+  #   0.2155*0.5 + 0.2137*39.0 + 0.2000*0.47 + 0.3707*4.0 = 10.0203 %.
   result <- tibble::tribble(
     ~species_gen, ~region,   ~climate_zone,
     "Buffalo",    "Oceania", "Temperate"
   ) |>
     whep:::.calc_weighted_mcf()
 
-  testthat::expect_equal(result$weighted_mcf, 0.0937141, tolerance = 1e-6)
+  testthat::expect_equal(result$weighted_mcf, 0.1002032, tolerance = 1e-6)
   # Must not collapse to the flat 2% (0.02) default.
   testthat::expect_false(isTRUE(all.equal(result$weighted_mcf, 0.02)))
 })
@@ -477,17 +478,18 @@ testthat::test_that("Tier 2 manure resolves the IPCC region on request (#949)", 
   testthat::expect_false("region" %in% names(default))
   testthat::expect_equal(unique(regional$region), "North America")
   # Global cattle mix under the GLEAM 2.0 ingest, weighted by the Temperate
-  # MCFs of Table 10.17: shares 0.4435 pasture, 0.4469 solid storage, 0.0845
-  # liquid slurry, 0.0160 lagoon and 0.0090 daily spread, against MCFs of
-  # 1.5, 4.0, 35.0, 73.0 and 0.5 percent, give 6.5841 percent.
+  # MCFs of the default mcf_source of ipcc_2019: shares 0.4435 pasture,
+  # 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon and 0.0090
+  # daily spread, against MCFs of 0.47, 4.0, 39.0, 74.5 and 0.5 percent, give
+  # 6.4894 percent.
   # North America's shares are 0.275, 0.405, 0.135, 0.135 and 0.05 over the
-  # same five systems, giving 16.6375 percent.
+  # same five systems, giving 17.09675 percent.
   testthat::expect_equal(
     unique(default$weighted_mcf),
-    0.065841425311,
+    0.064894367234,
     tolerance = 1e-9
   )
-  testthat::expect_equal(unique(regional$weighted_mcf), 0.166375)
+  testthat::expect_equal(unique(regional$weighted_mcf), 0.1709675)
   testthat::expect_equal(
     unique(default$method_mms),
     "gleam_2_0/regional_default"
@@ -512,12 +514,15 @@ testthat::test_that("mms_shares selects the table half the engine weights", {
     data,
     options = list(mms_shares = "placeholder")
   )
+  # Both at the default mcf_source of ipcc_2019, Temperate. The GLEAM 2.0
+  # split is the five-system mix above; the placeholder's is
+  #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 percent.
   testthat::expect_equal(
     gleam$weighted_mcf,
-    0.065841425311,
+    0.064894367234,
     tolerance = 1e-9
   )
-  testthat::expect_equal(old$weighted_mcf, 0.07225)
+  testthat::expect_equal(old$weighted_mcf, 0.0731)
 
   gleam_n2o <- whep:::.calc_direct_n2o(data)$manure_n2o_direct
   old_n2o <- whep:::.calc_direct_n2o(
@@ -611,11 +616,12 @@ testthat::test_that("the assumed climate zone is selectable and recorded", {
     options = list(assumed_climate_zone = "Cool")
   )
 
-  # Global cattle mix (GLEAM 2.0 ingest) over the same five systems as above.
-  # Warm MCFs of 2.0, 5.0, 80.0, 80.0 and 1.0 percent give 11.1732 percent;
-  # Cool MCFs of 1.0, 2.0, 17.0, 66.0 and 0.1 percent give 3.8313 percent.
-  testthat::expect_equal(warm$weighted_mcf, 0.111732281802, tolerance = 1e-9)
-  testthat::expect_equal(cool$weighted_mcf, 0.038313366043, tolerance = 1e-9)
+  # Global cattle mix (GLEAM 2.0 ingest) over the same five systems as above,
+  # at the default mcf_source of ipcc_2019. Warm MCFs of 0.47, 5.0, 70.5,
+  # 79.0 and 1.0 percent give 9.6756 percent; Cool MCFs of 0.47, 2.0, 18.75,
+  # 56.5 and 0.1 percent give 3.5922 percent.
+  testthat::expect_equal(warm$weighted_mcf, 0.096755978175, tolerance = 1e-9)
+  testthat::expect_equal(cool$weighted_mcf, 0.035921982087, tolerance = 1e-9)
   testthat::expect_match(warm$method_manure_ch4, "climate_assumed_warm")
   testthat::expect_match(cool$method_manure_ch4, "climate_assumed_cool")
 })
@@ -639,7 +645,7 @@ testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
     whep:::.calc_weighted_mcf(options = list(climate_source = "from_data"))
   testthat::expect_equal(
     supplied$weighted_mcf,
-    0.111732281802,
+    0.096755978175,
     tolerance = 1e-9
   )
   testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
@@ -658,14 +664,16 @@ testthat::test_that("mcf_source selects the MCF table and records it", {
   gl2006 <- weighted("ipcc_2006")
   ref2019 <- weighted("ipcc_2019")
 
-  # Global cattle mix is 0.50 pasture, 0.30 solid storage, 0.15 liquid
-  # slurry, 0.05 daily spread, read at the Temperate default.
-  #   as shipped: 0.50*1.5 + 0.30*4.0 + 0.15*35 + 0.05*0.5 is 7.225 percent.
-  #   2006:       0.50*1.5 + 0.30*4.0 + 0.15*42 + 0.05*0.5 is 8.275 percent.
-  #   2019:       0.50*0.47 + 0.30*4.0 + 0.15*39 + 0.05*0.5 is 7.31 percent.
-  testthat::expect_equal(shipped$weighted_mcf, 0.07225)
-  testthat::expect_equal(gl2006$weighted_mcf, 0.08275)
-  testthat::expect_equal(ref2019$weighted_mcf, 0.0731)
+  # Global cattle mix under the default `mms_shares` of gleam_2_0 -- 0.4435
+  # pasture, 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon,
+  # 0.0090 daily spread -- read at the Temperate default. Only the pasture,
+  # liquid-slurry and lagoon MCFs differ between the three tables:
+  #   as shipped: pasture 1.5,  slurry 35, lagoon 73.0 is 6.5841 percent.
+  #   2006:       pasture 1.5,  slurry 42, lagoon 78.0 is 7.2559 percent.
+  #   2019:       pasture 0.47, slurry 39, lagoon 74.5 is 6.4894 percent.
+  testthat::expect_equal(shipped$weighted_mcf, 0.065841425311, tolerance = 1e-9)
+  testthat::expect_equal(gl2006$weighted_mcf, 0.072558568169, tolerance = 1e-9)
+  testthat::expect_equal(ref2019$weighted_mcf, 0.064894367234, tolerance = 1e-9)
 
   testthat::expect_match(shipped$method_manure_ch4, "mcf_as_shipped")
   testthat::expect_match(gl2006$method_manure_ch4, "mcf_ipcc_2006")
