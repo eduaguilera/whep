@@ -306,6 +306,7 @@
 <li>
 <strong>test-coverage</strong> (<code>covr</code> → Codecov): the suite runs again here and coverage is reported. New exported functions should arrive with tests, not after them.</li>
 </ol><p>Formatting is <strong>not</strong> among them: there is no pre-merge <code>air</code> gate. The <code>format-main</code> workflow reformats <code>main</code> with <code>air format .</code> after every merge and commits the result back. That is a safety net for the case where someone forgets, not a licence to skip — a PR is not ready until you have run <code>air format .</code> yourself, so that the diff under review is the diff that lands and <code>main</code> does not fill up with formatting-only commits.</p>
+<p><code>cache-prune</code> is not a check and never runs on a pull request’s check path. It deletes the dependency caches a pull request leaves behind once that PR closes, on close and on a six-hourly sweep. A cache written from <code>refs/pull/N/merge</code> is readable only by that same PR and GitHub never deletes it on merge, so without this the repository sat at 10.51 GB against the 10 GB quota with 6.14 GB of it held by five already-merged PRs — bytes nothing could ever read, evicting <code>main</code>’s shared caches and making later runs do cold installs (#1104). If a cache seems to have vanished, read that workflow’s log before suspecting a key change.</p>
 </div>
 <div class="section level2">
 <h2 id="before-committing">Before committing<a class="anchor" aria-label="anchor" href="#before-committing"></a></h2>
