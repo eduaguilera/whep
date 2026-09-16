@@ -10,6 +10,13 @@ This is the independent, non-Leontief estimator for stress-testing the
 multi-regional input-output footprint via
 [`compare_footprint_methods()`](https://eduaguilera.github.io/whep/reference/compare_footprint_methods.md).
 
+The crop side is
+[`build_fao_arable_fallow_extension()`](https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.md)
+with `unsupported_target = "unallocated"`, pinned explicitly: FAO land
+that no crop can be named for arrives on an `item_cbs_code` of `NA`,
+which the balance cannot route, so it is reported by the orphan-land
+warning rather than folded into a crop (whep#1026).
+
 Grass items (`item_cbs_code` 3000 and 3002) are barely traded, so their
 land stays with the producing country: the balance, unlike the
 input-output model, does not route grass through the grass-to-livestock

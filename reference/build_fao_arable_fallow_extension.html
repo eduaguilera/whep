@@ -24,8 +24,9 @@ Perennial crops (Herb_Woody == &quot;Woody&quot;) receive no fallow and are
 scaled so their total equals FAO permanent_ha, preserving the within-group
 physical pattern.
 A positive target without a corresponding arable crop row or positive
-perennial base area is reported as an error because it cannot be reconciled
-without inventing a crop allocation.
+perennial base area cannot be reconciled without inventing a crop
+allocation; unsupported_target decides what happens to it (see the
+unsupported-target section).
 
 
 This is the crop-side default of the land-balance footprint
@@ -54,8 +55,9 @@ Perennial crops (Herb_Woody == &quot;Woody&quot;) receive no fallow and are
 scaled so their total equals FAO permanent_ha, preserving the within-group
 physical pattern.
 A positive target without a corresponding arable crop row or positive
-perennial base area is reported as an error because it cannot be reconciled
-without inventing a crop allocation.
+perennial base area cannot be reconciled without inventing a crop
+allocation; unsupported_target decides what happens to it (see the
+unsupported-target section).
 
 
 This is the crop-side default of the land-balance footprint
@@ -123,8 +125,9 @@ arable total equals FAO <code>arable_ha</code> by construction.</p></li>
 scaled so their total equals FAO <code>permanent_ha</code>, preserving the within-group
 physical pattern.
 A positive target without a corresponding arable crop row or positive
-perennial base area is reported as an error because it cannot be reconciled
-without inventing a crop allocation.</p></li>
+perennial base area cannot be reconciled without inventing a crop
+allocation; <code>unsupported_target</code> decides what happens to it (see the
+unsupported-target section).</p></li>
 </ul><p>This is the crop-side default of the land-balance footprint
 (<code><a href="build_land_balance_footprint.html">build_land_balance_footprint()</a></code>).</p>
     </div>
@@ -140,7 +143,8 @@ without inventing a crop allocation.</p></li>
 <span>  items_prod_full <span class="op">=</span> <span class="fu">whep</span><span class="fu">::</span><span class="va"><a href="items_prod_full.html">items_prod_full</a></span>,</span>
 <span>  temp_grassland_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modelled"</span>, <span class="st">"modelled_then_fao"</span>, <span class="st">"fao_official"</span>, <span class="st">"fao_all"</span>,</span>
 <span>    <span class="st">"none"</span><span class="op">)</span>,</span>
-<span>  fodder_gap <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"as_reported"</span>, <span class="st">"carry_forward"</span>, <span class="st">"drop"</span><span class="op">)</span></span>
+<span>  fodder_gap <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"as_reported"</span>, <span class="st">"carry_forward"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  unsupported_target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"unallocated"</span>, <span class="st">"zero"</span>, <span class="st">"drop"</span>, <span class="st">"abort"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -213,6 +217,15 @@ land. <code>"carry_forward"</code> extends each fodder series' last observed phy
 area over the rest of that country's panel. <code>"drop"</code> removes fodder from
 the whole panel. See the fodder-gap section.</p></dd>
 
+
+<dt id="arg-unsupported-target">unsupported_target<a class="anchor" aria-label="anchor" href="#arg-unsupported-target"></a></dt>
+<dd><p>What happens to a country-year whose positive FAO
+land target has no crop row of the matching kind to carry it.
+<code>"unallocated"</code> (default) keeps the hectares as an <code>item_cbs_code</code> <code>NA</code>
+row, <code>"zero"</code> lets the unreconcilable target contribute no land, <code>"drop"</code>
+removes the whole affected country-year, and <code>"abort"</code> refuses to continue
+(the behaviour before whep#1026). See the unsupported-target section.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -221,7 +234,10 @@ the whole panel. See the fodder-gap section.</p></dd>
 (<code>"fao_arable_fallow"</code>), <code>temp_grassland_netted_ha</code> (hectares netted out of
 that country-year's arable target, <code>0</code> where the netting term is
 structurally absent), <code>method_temp_grassland</code> (the <code>temp_grassland_basis</code>
-in force) and <code>method_fodder</code> (the <code>fodder_gap</code> in force).</p>
+in force), <code>method_fodder</code> (the <code>fodder_gap</code> in force) and
+<code>method_unsupported_target</code> (the <code>unsupported_target</code> in force). Under
+<code>unsupported_target = "unallocated"</code> a row with <code>item_cbs_code</code> <code>NA</code> carries
+the FAO land no crop can be named for.</p>
     </div>
     <div class="section level2">
     <h2 id="temporary-grassland-no-double-count-">Temporary grassland (no double-count)<a class="anchor" aria-label="anchor" href="#temporary-grassland-no-double-count-"></a></h2>
@@ -289,6 +305,41 @@ FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
 jumps from 2.3 to 75.0 Mha, held flat to 2019.
 <code>fodder_gap</code> exposes the treatments; <code>"as_reported"</code> remains the default.</p>
     </div>
+    <div class="section level2">
+    <h2 id="unsupported-land-targets">Unsupported land targets<a class="anchor" aria-label="anchor" href="#unsupported-land-targets"></a></h2>
+
+
+<p>FAO reports positive land for some country-years in which the crop panel has
+nothing of the matching kind to carry it, so the reconciliation has no crop
+to attribute the land to. Over the full 1850-2023 span on the real default
+inputs there are 923 such country-years (whep#1026):</p><ul><li><p><strong>arable</strong>: 33 country-years, all Marshall Islands (<code>area_code</code> 127),
+1991-2023, 500 ha of FAO Arable land each (16,500 ha in total) with no
+arable crop row at all – its only crop area is perennial.</p></li>
+<li><p><strong>permanent crops</strong>: 890 country-years in 8 areas whose perennial base
+area is zero: Poland (173) 1850-1964, 27.72 Mha summed over years
+(up to 287,779 ha in a year); Nepal (149) 1850-1973, 2.40 Mha;
+Burkina Faso (233) 1850-1976, 1.35 Mha; Denmark (54) 1850-1984,
+1.10 Mha; Saint Kitts and Nevis (188) 1850-1984, 0.67 Mha;
+Sweden (210) 1850-1965, 0.39 Mha; Chad (39) 1850-1984, 0.35 Mha;
+Mongolia (141) 1983-1985, 3,000 ha. 33.98 Mha summed over all
+890 country-years.</p></li>
+</ul><p>Before whep#1026 this was an error, which made the function's own documented
+span unreachable and blocked <code><a href="build_land_balance_footprint.html">build_land_balance_footprint()</a></code> entirely.
+<code>unsupported_target</code> now selects the treatment, and none of them invents a
+crop allocation:</p><ul><li><p><code>"unallocated"</code> (default) keeps the hectares in the ledger as one row per
+affected country-year with <code>item_cbs_code</code> <code>NA</code> – real reported land that
+no crop can be named for. Nothing is lost and the gap is visible.</p></li>
+<li><p><code>"zero"</code> treats the FAO total as the error: the unreconcilable target
+contributes no land, the rest of the country-year reconciles unchanged.</p></li>
+<li><p><code>"drop"</code> removes the whole affected <code>(area_code, year)</code>, including the
+crop rows that <em>were</em> supported. For Poland that deletes 115 years of
+Polish arable land, so it is the most destructive option.</p></li>
+<li><p><code>"abort"</code> is the pre-whep#1026 behaviour and refuses to continue.</p></li>
+</ul><p>Only the <code>NA</code>-item rows separate <code>"unallocated"</code> from <code>"zero"</code>; every other
+country-year is identical under all three continuing treatments. Restricted
+to 2001-2023 the whole difference from <code>"abort"</code>'s (unreachable) output is
+the 23 Marshall Islands rows, 11,500 ha.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -320,12 +371,13 @@ jumps from 2.3 to 75.0 Mha, held flat to 2019.
 <span class="r-in"><span>  temporary_grassland <span class="op">=</span> <span class="va">temporary_grassland</span>,</span></span>
 <span class="r-in"><span>  items_prod_full <span class="op">=</span> <span class="va">items</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 9</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land       method_temp_grassland</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow modelled             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow modelled             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: method_fodder &lt;chr&gt;, temp_grassland_netted_ha &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: method_fodder &lt;chr&gt;, method_unsupported_target &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   temp_grassland_netted_ha &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

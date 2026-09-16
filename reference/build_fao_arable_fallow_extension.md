@@ -35,9 +35,10 @@ Reconciliation, per `(area_code, year)`:
 - **Perennial crops** (`Herb_Woody == "Woody"`) receive no fallow and
   are scaled so their total equals FAO `permanent_ha`, preserving the
   within-group physical pattern. A positive target without a
-  corresponding arable crop row or positive perennial base area is
-  reported as an error because it cannot be reconciled without inventing
-  a crop allocation.
+  corresponding arable crop row or positive perennial base area cannot
+  be reconciled without inventing a crop allocation;
+  `unsupported_target` decides what happens to it (see the
+  unsupported-target section).
 
 This is the crop-side default of the land-balance footprint
 ([`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)).
@@ -54,7 +55,8 @@ build_fao_arable_fallow_extension(
   items_prod_full = whep::items_prod_full,
   temp_grassland_basis = c("modelled", "modelled_then_fao", "fao_official", "fao_all",
     "none"),
-  fodder_gap = c("as_reported", "carry_forward", "drop")
+  fodder_gap = c("as_reported", "carry_forward", "drop"),
+  unsupported_target = c("unallocated", "zero", "drop", "abort")
 )
 ```
 
@@ -133,6 +135,15 @@ build_fao_arable_fallow_extension(
   area over the rest of that country's panel. `"drop"` removes fodder
   from the whole panel. See the fodder-gap section.
 
+- unsupported_target:
+
+  What happens to a country-year whose positive FAO land target has no
+  crop row of the matching kind to carry it. `"unallocated"` (default)
+  keeps the hectares as an `item_cbs_code` `NA` row, `"zero"` lets the
+  unreconcilable target contribute no land, `"drop"` removes the whole
+  affected country-year, and `"abort"` refuses to continue (the
+  behaviour before whep#1026). See the unsupported-target section.
+
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
@@ -140,8 +151,10 @@ A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (`"fao_arable_fallow"`), `temp_grassland_netted_ha` (hectares netted out
 of that country-year's arable target, `0` where the netting term is
 structurally absent), `method_temp_grassland` (the
-`temp_grassland_basis` in force) and `method_fodder` (the `fodder_gap`
-in force).
+`temp_grassland_basis` in force), `method_fodder` (the `fodder_gap` in
+force) and `method_unsupported_target` (the `unsupported_target` in
+force). Under `unsupported_target = "unallocated"` a row with
+`item_cbs_code` `NA` carries the FAO land no crop can be named for.
 
 ## Temporary grassland (no double-count)
 
@@ -208,6 +221,51 @@ second, earlier composition change sits inside the covered window: from
 estimate jumps from 2.3 to 75.0 Mha, held flat to 2019. `fodder_gap`
 exposes the treatments; `"as_reported"` remains the default.
 
+## Unsupported land targets
+
+FAO reports positive land for some country-years in which the crop panel
+has nothing of the matching kind to carry it, so the reconciliation has
+no crop to attribute the land to. Over the full 1850-2023 span on the
+real default inputs there are 923 such country-years (whep#1026):
+
+- **arable**: 33 country-years, all Marshall Islands (`area_code` 127),
+  1991-2023, 500 ha of FAO Arable land each (16,500 ha in total) with no
+  arable crop row at all – its only crop area is perennial.
+
+- **permanent crops**: 890 country-years in 8 areas whose perennial base
+  area is zero: Poland (173) 1850-1964, 27.72 Mha summed over years (up
+  to 287,779 ha in a year); Nepal (149) 1850-1973, 2.40 Mha; Burkina
+  Faso (233) 1850-1976, 1.35 Mha; Denmark (54) 1850-1984, 1.10 Mha;
+  Saint Kitts and Nevis (188) 1850-1984, 0.67 Mha; Sweden (210)
+  1850-1965, 0.39 Mha; Chad (39) 1850-1984, 0.35 Mha; Mongolia (141)
+  1983-1985, 3,000 ha. 33.98 Mha summed over all 890 country-years.
+
+Before whep#1026 this was an error, which made the function's own
+documented span unreachable and blocked
+[`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
+entirely. `unsupported_target` now selects the treatment, and none of
+them invents a crop allocation:
+
+- `"unallocated"` (default) keeps the hectares in the ledger as one row
+  per affected country-year with `item_cbs_code` `NA` – real reported
+  land that no crop can be named for. Nothing is lost and the gap is
+  visible.
+
+- `"zero"` treats the FAO total as the error: the unreconcilable target
+  contributes no land, the rest of the country-year reconciles
+  unchanged.
+
+- `"drop"` removes the whole affected `(area_code, year)`, including the
+  crop rows that *were* supported. For Poland that deletes 115 years of
+  Polish arable land, so it is the most destructive option.
+
+- `"abort"` is the pre-whep#1026 behaviour and refuses to continue.
+
+Only the `NA`-item rows separate `"unallocated"` from `"zero"`; every
+other country-year is identical under all three continuing treatments.
+Restricted to 2001-2023 the whole difference from `"abort"`'s
+(unreachable) output is the 23 Marshall Islands rows, 11,500 ha.
+
 ## Examples
 
 ``` r
@@ -239,10 +297,11 @@ build_fao_arable_fallow_extension(
   temporary_grassland = temporary_grassland,
   items_prod_full = items
 )
-#> # A tibble: 2 × 8
+#> # A tibble: 2 × 9
 #>    year area_code item_cbs_code impact_u method_land       method_temp_grassland
 #>   <int>     <int>         <int>    <dbl> <chr>             <chr>                
 #> 1  2020         1          2511      400 fao_arable_fallow modelled             
 #> 2  2020         1          2560      100 fao_arable_fallow modelled             
-#> # ℹ 2 more variables: method_fodder <chr>, temp_grassland_netted_ha <dbl>
+#> # ℹ 3 more variables: method_fodder <chr>, method_unsupported_target <chr>,
+#> #   temp_grassland_netted_ha <dbl>
 ```
