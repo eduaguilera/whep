@@ -39,22 +39,27 @@ climate_mcf_ipcc
 Methane conversion factors transcribed from Table 10.17 of each IPCC
 edition, over the same \code{mms_type} / \code{climate_zone} key space as
 \link{climate_mcf} so that either can be substituted for it. Selected with the
-\code{mcf_source} manure-engine option (see \link{manure_engine_options}); the
-default remains \link{climate_mcf}, so this object changes no published value
-until a caller asks for it.
+\code{mcf_source} manure-engine option (see \link{manure_engine_options}). Since
+whep#1022 the \code{edition == "ipcc_2019"} rows are the \strong{default}: the 2019
+Refinement is the current IPCC guidance, and the six cells of
+\link{climate_mcf} whose provenance could not be established should not be what
+ships. \link{climate_mcf} stays reachable as \code{mcf_source = "as_shipped"} so an
+older run can be reproduced.
 
 Six cells of \link{climate_mcf} match no published IPCC value, and three of the
 \code{mms_type} labels that carry them -- dry lot, the two composting rows and
 the anaerobic digester -- are unreachable on the live Tier 2 path, because
 \link{regional_mms_distribution} routes manure to only six systems and none of
 them is one of those. The cells that \emph{are} live and edition-dependent are
-pasture/range/paddock, liquid/slurry and the anaerobic lagoon.
+pasture/range/paddock, liquid/slurry and the anaerobic lagoon, and it is
+those three that the default change moves.
 }
 \section{Collapse rules}{
 
 Neither edition publishes exactly three numbers for every system, so two
 collapse rules are applied. Both are WHEP choices, stated here because
-they are not IPCC statements:
+they are not IPCC statements -- and because the 2019 edition is now the
+default, the second of them is live on every Tier 2 run:
 \itemize{
 \item \strong{2006 per-degree rows} (liquid/slurry, uncovered anaerobic lagoon) are
 read at the middle column of each temperature class. Table 10.15 of the
@@ -84,13 +89,22 @@ from regionally based MCFs and animal category based B0" -- which is
 precisely what WHEP computes. \code{.calc_manure_ch4_tier2()} multiplies one
 per-species \code{Bo} from \link{ipcc_tier2_bo_values} by the share-weighted MCF, so
 it cannot hold a system-specific \code{Bo} without computing the product per
-manure stream instead. Selecting \code{"ipcc_2019"} therefore adopts the
-Refinement's pasture MCF against WHEP's animal-category \code{Bo}, the hybrid
-the Refinement rejects. Paired properly, the pasture stream would fall by
-40 percent (buffalo, \code{Bo} 0.10) to 82 percent (mules and asses, \code{Bo} 0.33)
-rather than the uniform 68.7 percent the MCF alone gives at the Temperate
-default. Restructuring the kernel to a per-stream \code{Bo} is out of scope for
-the table and open in whep#1022.
+manure stream instead. Because \code{"ipcc_2019"} is the default, \strong{the shipped
+Tier 2 path now runs that hybrid}: the Refinement's pasture MCF against
+WHEP's animal-category \code{Bo}, which is the combination the Refinement
+rejects.
+
+Measured, on FAOSTAT 2020 heads at the Temperate default, repricing only
+the pasture stream at \code{Bo} 0.19 moves global Tier 2 manure CH4 by
+\strong{+0.18 percent} (14.385 to 14.411 Tg). It is small in total because the
+species that reach Tier 2 are dominated by cattle, for which pasture is
+only 3.2 percent of the weighted MCF, and because sheep already carry
+\code{Bo} 0.19 exactly. It is not small everywhere: buffalo (\code{Bo} 0.10) would
+rise \strong{30.5 percent}, goats (0.18) 5.6 percent and cattle fall
+0.07 percent. Horses (0.30), mules and asses (0.33) and camels (0.26)
+would move most of all, but contribute no Tier 2 CH4 today because they
+are dropped for want of cohort and energy inputs. Restructuring the kernel
+to a per-stream \code{Bo} is out of scope for the table and open in whep#1022.
 }
 
 \section{What the table cannot hold}{

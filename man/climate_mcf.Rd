@@ -12,8 +12,11 @@ A tibble with \code{mms_type}, \code{climate_zone},
 Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
 \strong{not} the 2019 Refinement, and with the same provenance profile as
 \link{ipcc_2019_mcf_manure}, which holds the same values under the Tier 1
-system labels. This object is the live one: \code{.calc_manure_ch4_tier2()}
-weights it by the manure-system mix. Verified against both editions:
+system labels. Since whep#1022 this object is \strong{no longer the default}
+the Tier 2 path reads: \code{.calc_manure_ch4_tier2()} weights the
+\code{edition == "ipcc_2019"} rows of \link{climate_mcf_ipcc} by the manure-system
+mix, and this table is reached only with \code{mcf_source = "as_shipped"}.
+Verified against both editions:
 \itemize{
 \item Matching both: daily spread 0.1/0.5/1.0, solid storage 2.0/4.0/5.0,
 poultry manure 1.5 and burned for fuel 10.
@@ -43,11 +46,7 @@ unreachable for a second reason: the MCF join is on
 \verb{(mms_type, climate_zone)} and never asks for \code{"All"}. The cells that both
 are live and depend on the edition are pasture/range/paddock,
 liquid/slurry and the anaerobic lagoon. \link{climate_mcf_ipcc} carries the
-as-published alternative for each, selectable with the \code{mcf_source}
-option; measured, the 2019 Refinement's single 0.47 percent pasture value
-moves Tier 2 manure CH4 by -68.7 percent for the fully grazing species
-and by +1.2 percent for cattle at the Temperate default, where the
-pasture drop and a higher liquid/slurry factor nearly cancel.
+as-published alternative for each and now supplies the default.
 
 Tracked in whep#601 and whep#1022.
 }
