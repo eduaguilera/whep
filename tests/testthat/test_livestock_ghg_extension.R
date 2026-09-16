@@ -555,3 +555,41 @@ testthat::test_that("an unknown option aborts before the production read", {
     class = "whep_manure_options"
   )
 })
+
+# whep#1136: the fixture above is a tibble, but a year-scoped
+# `get_primary_production()` returns a data.table, so this is the shape the
+# real chain supplies. Tier 2 aborted inside `.ensure_production_cols()` and
+# Tier 1 inside `ensure_columns()`, both on the class rather than on the data,
+# so neither tier could be run from its own entry point.
+testthat::test_that("a data.table primary_prod builds the same extension", {
+  tier1_dt <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    data = list(primary_prod = data.table::as.data.table(.ghg_prod_fixture()))
+  )
+  tier1_tbl <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+
+  testthat::expect_true(tibble::is_tibble(tier1_dt))
+  testthat::expect_equal(tier1_dt, tier1_tbl)
+
+  tier2_dt <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = data.table::as.data.table(.ghg_prod_fixture()))
+    )
+  )
+  tier2_tbl <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+
+  testthat::expect_true(tibble::is_tibble(tier2_dt))
+  testthat::expect_equal(tier2_dt, tier2_tbl)
+  testthat::expect_gt(nrow(tier2_dt), 0L)
+})

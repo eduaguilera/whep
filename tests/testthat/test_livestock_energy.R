@@ -471,3 +471,24 @@ testthat::test_that("the bins keep their IPCC half-open bounds", {
     c(0.2, 0.2, 0.0, 0.0, 0.1, 0.1)
   )
 })
+
+# whep#1136: the real chain reaches this function with a data.table, because
+# `get_primary_production(years = ...)` returns one and the livestock bridge
+# used to carry that class through. `.ensure_production_cols()` added its
+# optional columns with `data[missing] <- NA_real_`, a form `[<-.data.table`
+# refuses whatever `missing` holds, so Tier 2 aborted before computing
+# anything. Every fixture above is a tibble, which takes that line happily --
+# only a data.table can fail here.
+testthat::test_that("a data.table input solves the same energy balance", {
+  input <- dairy_tier2_fixture()
+
+  from_tibble <- whep::estimate_energy_demand(input)
+  from_dt <- whep::estimate_energy_demand(data.table::as.data.table(input))
+
+  testthat::expect_true(tibble::is_tibble(from_dt))
+  testthat::expect_false(data.table::is.data.table(from_dt))
+  testthat::expect_equal(
+    as.data.frame(from_dt),
+    as.data.frame(from_tibble)
+  )
+})

@@ -156,3 +156,23 @@ test_that("result pipes to .calc_enteric_ch4_tier1", {
   expect_true(rlang::has_name(result, "enteric_ch4_tier1"))
   expect_true(all(result$enteric_ch4_tier1 > 0))
 })
+
+# whep#1136: a year-scoped primary-production read hands back a data.table,
+# because .filter_years() converts, and every dplyr verb in this bridge keeps
+# that class, so the frame reached the emission engines as a data.table and
+# aborted there. This is an exported function, and the package contract is that
+# one returns a tibble; a tibble fixture cannot catch the regression.
+test_that("a data.table production table comes back as a tibble", {
+  data <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit,   ~value,
+    2000L, 10L,        960L,           "heads", 1000,
+    2000L, 10L,        961L,           "heads", 2000
+  )
+
+  from_tibble <- prepare_livestock_emissions(data)
+  from_dt <- prepare_livestock_emissions(data.table::as.data.table(data))
+
+  expect_true(tibble::is_tibble(from_dt))
+  expect_false(data.table::is.data.table(from_dt))
+  expect_equal(as.data.frame(from_dt), as.data.frame(from_tibble))
+})
