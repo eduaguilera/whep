@@ -95,7 +95,10 @@ polity_coverage_gaps(
 )
 }
 \seealso{
-\code{\link[=add_polity_code]{add_polity_code()}} for the resolution itself, and
+\code{\link[=add_polity_code]{add_polity_code()}} for the resolution itself,
 \code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} for the related question of which buckets sum
-more than one territory, and whether their label covers the sum.
+more than one territory, and whether their label covers the sum, and
+\code{\link[=polity_anchor_drift]{polity_anchor_drift()}} for the narrower question of whether a back-cast
+row's label describes the same territory its growth proxy was measured
+on.
 }

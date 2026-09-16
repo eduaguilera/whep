@@ -395,6 +395,7 @@ reference:
   - polities_cats
   - regions_full
   - add_polity_code
+  - polity_anchor_drift
   - polity_bucket_coverage
   - polity_coverage_gaps
   - polity_mapping_provenance
