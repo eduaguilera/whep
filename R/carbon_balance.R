@@ -52,8 +52,11 @@
 #'   \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
 #'   \code{data}.
 #' @inheritParams build_water_balance
-#' @param data Named list of pre-loaded inputs, each falling back to its reader
-#'   when absent: \code{c_inputs} (per cell, land-use class and year, with
+#' @param data Named list of pre-loaded inputs. Every entry named below falls
+#'   back to its reader when absent EXCEPT the two grazing entries at the end,
+#'   which have no reader at all and must be supplied under the default
+#'   \code{method_grazing = "whep"}; the entries that do fall back are
+#'   \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 #'   (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
 #'   \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
@@ -89,8 +92,12 @@
 #'   read only when \code{c_inputs} is not supplied:
 #'   \code{livestock_intake} (the \code{\link{redistribute_feed}} result) and
 #'   \code{excreta} (the \code{applied} stream of
-#'   \code{\link{build_livestock_nutrient_flows}}), both required by the
-#'   default \code{method_grazing = "whep"}.
+#'   \code{\link{build_livestock_nutrient_flows}}). These are the two with no
+#'   reader behind them -- \code{excreta} is a livestock-pipeline output, not a
+#'   readable input -- so under the default \code{method_grazing = "whep"} a
+#'   call that omits either is refused straight away, before any input is read.
+#'   Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
+#'   own grazing and need neither.
 #' @param crop_groups How cropland is resolved into land-use classes; see
 #'   [build_carbon_inputs()]. `list()` (default) marches crop GROUPS --
 #'   herbaceous crops pooled per irrigation regime, woody crops per species,
@@ -220,6 +227,7 @@ build_carbon_balance <- function(
   model <- rlang::arg_match(model)
   init <- rlang::arg_match(init)
   resolution <- rlang::arg_match(resolution)
+  .cb_check_grazing_inputs(data, method_grazing)
   progress <- .cb_show_progress()
   if (progress) {
     cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
@@ -266,6 +274,32 @@ build_carbon_balance <- function(
 }
 
 # -- Input resolution ---------------------------------------------------------
+
+# Issue whep#1120. The default `method_grazing = "whep"` needs two inputs
+# that have no reader to fall back on, and a gridded balance always builds a
+# grassland class, so whether the call can succeed is decidable from `data`
+# before a single raster is touched. Until this check existed the requirement was only
+# enforced by `build_grass_natural_carbon_inputs()`, four call levels down and
+# behind the whole cropland chain: the refusal was correct but arrived after
+# 5m37s of reads it then threw away. Nothing about WHICH calls are accepted
+# changes -- only when the rejected ones find out.
+#
+# Scoped exactly as `@param method_grazing` documents the choice: the method is
+# read only when the carbon inputs are built here, so a caller-supplied
+# `data$c_inputs` (which may have been assembled under either method, or none)
+# is left alone.
+.cb_check_grazing_inputs <- function(data, method_grazing) {
+  if (!is.null(data$c_inputs) || !identical(method_grazing, "whep")) {
+    return(invisible(NULL))
+  }
+  missing <- .gn_missing_grazing_inputs(data)
+  if (length(missing) > 0) {
+    # Report it against `build_carbon_balance()`, the call the user made, not
+    # against this private guard.
+    .gn_abort_missing_grazing(missing, call = rlang::caller_env())
+  }
+  invisible(NULL)
+}
 
 .cb_resolve_inputs <- function(
   data,

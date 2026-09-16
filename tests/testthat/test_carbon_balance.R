@@ -2174,3 +2174,86 @@ testthat::test_that("method_som_cn records the route that actually ran", {
     tolerance = 1e-6
   )
 })
+
+testthat::test_that("the whep grazing default is refused before any reader runs", {
+  # Issue whep#1120: `build_carbon_balance()` cannot be called on its own
+  # defaults. `method_grazing = "whep"` needs `data$livestock_intake` and
+  # `data$excreta`, neither of which has a reader to fall back on. The abort itself is right --
+  # it is loud and prints the remedy -- but its PLACE was not: it fired inside
+  # `build_grass_natural_carbon_inputs()`, which the balance only reaches after
+  # the per-crop cropland inputs, the LUH2 areas and the 537 MB grassland pin
+  # have all been read and thrown away (5m37s on a real 2000 grid run). The
+  # entry condition is knowable at the entry, so it is checked there.
+  reached <- character()
+  trap <- function(name) {
+    function(...) {
+      reached <<- c(reached, name)
+      cli::cli_abort("A default reader ran.")
+    }
+  }
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = trap("c_inputs"),
+    .cb_read_land_use = trap("land_use"),
+    .cb_read_climate = trap("climate"),
+    .cb_read_clay = trap("clay"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(resolution = "grid", years = 2000L),
+    "livestock_intake"
+  )
+  testthat::expect_equal(reached, character())
+})
+
+testthat::test_that("the entry guard fires only when it owns the choice", {
+  # Three cases the guard must NOT take over. `method_grazing = "lpjml"` needs
+  # neither input; a caller-supplied `c_inputs` means the grazing method is
+  # never read at all (the inputs were built elsewhere); and supplying both
+  # inputs is the way the default is meant to be run. In each the guard must
+  # stand aside and let the readers -- here trapped -- proceed.
+  reached <- character()
+  trap <- function(name) {
+    function(...) {
+      reached <<- c(reached, name)
+      cli::cli_abort("A default reader ran.")
+    }
+  }
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = trap("c_inputs"),
+    .cb_read_land_use = trap("land_use"),
+    .cb_read_climate = trap("climate"),
+    .cb_read_clay = trap("clay"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(years = 2000L, method_grazing = "lpjml"),
+    "A default reader ran"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      years = 2000L,
+      data = list(c_inputs = tibble::tibble(lon = 0.25))
+    ),
+    "A default reader ran"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      years = 2000L,
+      data = list(
+        livestock_intake = tibble::tibble(year = 2000L),
+        excreta = tibble::tibble(year = 2000L)
+      )
+    ),
+    "A default reader ran"
+  )
+  testthat::expect_equal(reached, c("c_inputs", "land_use", "c_inputs"))
+})
+
+testthat::test_that("the example fixture is not refused by the entry guard", {
+  # `example = TRUE` returns a hardcoded fixture and reads nothing, so the
+  # grazing requirement must not reach it -- the documented example runs on
+  # the defaults during `R CMD check`.
+  out <- whep::build_carbon_balance(example = TRUE)
+  testthat::expect_s3_class(out, "tbl_df")
+  testthat::expect_gt(nrow(out), 0L)
+})

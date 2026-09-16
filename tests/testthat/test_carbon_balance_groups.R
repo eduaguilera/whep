@@ -250,7 +250,12 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
   testthat::expect_error(
     whep::build_carbon_balance(
       years = 2010L,
-      crop_groups = list(method = "spain_hist", irrigation = "none")
+      crop_groups = list(method = "spain_hist", irrigation = "none"),
+      # Issue whep#1120: the default grazing method needs two inputs with no
+      # reader, and is now refused at the entry -- before `.cb_resolve_inputs`
+      # is reached at all. This assertion is about how `crop_groups` is
+      # threaded, not about grazing, so take the method that needs neither.
+      method_grazing = "lpjml"
     ),
     class = "cbg_stop"
   )
