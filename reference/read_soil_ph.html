@@ -106,6 +106,20 @@ Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>soil_ph</code>.</p>
     </div>
+    <div class="section level2">
+    <h2 id="caching">Caching<a class="anchor" aria-label="anchor" href="#caching"></a></h2>
+
+
+<p>Aggregating the HWSD raster to the 0.5-degree grid takes about an hour per
+pass, and its result depends only on the archive and the target grid, so it
+is cached under <code>rappdirs::user_cache_dir("whep")</code>. The cache key covers the
+archive's raster and header (size and modification time), the resolution,
+the requested columns, the target grid's cells and the derived map-unit
+values, plus an algorithm version that is bumped whenever a change would
+move the numbers. Set <code>WHEP_HWSD_CACHE_DIR</code> to relocate it; the test suite
+points it at a temporary directory so a fixture-derived grid can never reach
+a real cache.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

@@ -109,6 +109,16 @@ build_water_balance(
   `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
   names their CFT bands so `bands` can select among them.
 
+  Supplying any per-CFT cube also requires `stand_frac` (`lon`, `lat`,
+  `year`, `band_name` or `band`, `value`), the per-CFT stand area
+  fractions, read by default with
+  `read_lpjml_hydrology("stand_frac", monthly = FALSE)`. Every per-CFT
+  cube is a density per square metre of ITS OWN STAND, so its bands must
+  be weighted by these fractions before they are summed to a cell.
+  Without them the aggregation aborts rather than returning an
+  unweighted sum, which is not a whole-cell total at all: it overstates
+  by 1 / (managed fraction of the cell).
+
 - bands:
 
   Optional character vector of LPJmL crop-functional-type band names

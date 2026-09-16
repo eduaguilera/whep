@@ -14,7 +14,13 @@ multiple file formats and file versioning.
 ## Usage
 
 ``` r
-whep_read_file(file_alias, type = "parquet", version = NULL)
+whep_read_file(
+  file_alias,
+  type = "parquet",
+  version = NULL,
+  years = NULL,
+  year_col = "year"
+)
 ```
 
 ## Arguments
@@ -68,6 +74,23 @@ whep_read_file(file_alias, type = "parquet", version = NULL)
   - Other: A specific version can also be used. For more details read
     the `version` column information from
     [`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md).
+
+- years:
+
+  Optional integer vector of years to keep. For `parquet` the filter is
+  pushed into the file, so only the row groups whose statistics overlap
+  the requested range are read from disk and the exact set is applied
+  afterwards. This is what makes a single-year read of a large monthly
+  pin affordable: `lpjml-soc-hydrology` holds 193,317,960 rows over
+  1901-2022, and one year of it is 1.3 seconds and 34 MB instead of ~12
+  GB materialised. For `csv` the filter is applied after reading. The
+  formats returned as a path (`nc`, `nc4`, `raw`, archives) cannot
+  honour it and abort rather than ignore it. `NULL`, the default, reads
+  the whole file.
+
+- year_col:
+
+  Name of the year column `years` filters on.
 
 ## Value
 

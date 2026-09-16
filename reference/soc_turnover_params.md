@@ -82,7 +82,7 @@ the Rothamsted carbon model. *Soil Biology and Biochemistry*, 30(8-9),
 
 ``` r
 soc_turnover_params
-#> # A tibble: 43 × 6
+#> # A tibble: 47 × 6
 #>    model component parameter            value unit     description              
 #>    <chr> <chr>     <chr>                <dbl> <chr>    <chr>                    
 #>  1 hsoc  fresh     decomposition_rate    0.48 per_year Fresh pool first-order d…
@@ -95,5 +95,5 @@ soc_turnover_params
 #>  8 rothc iom       decomposition_rate    0    per_year Inert organic matter poo…
 #>  9 rothc input     dpm_rpm_ratio         1.44 ratio    Default ratio of decompo…
 #> 10 rothc dpm       init_active_fraction  0.01 fraction Initial fraction of acti…
-#> # ℹ 33 more rows
+#> # ℹ 37 more rows
 ```

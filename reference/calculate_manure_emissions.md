@@ -47,19 +47,23 @@ calculate_manure_emissions(data, tier = NULL, options = list())
   - `"global"`: every row takes the `region == "Global"` split, whatever
     region column it carries.
 
-  `climate_source` selects the climate zone the methane conversion
+  `climate_source` selects where the climate zone the methane conversion
   factors in
   [climate_mcf](https://eduaguilera.github.io/whep/reference/climate_mcf.md)
-  are read at. A `climate_zone` column already on the frame is always
-  used. `"assumed"` (default) fills a missing one with
-  `assumed_climate_zone`; `"from_data"` aborts instead of assuming.
+  are read at comes from. A `climate_zone` a row already carries is
+  always used and stamped `climate_from_data`; the option governs only
+  the rows left without one, whether that is a hole in a supplied column
+  or a wholly absent column.
+
+  - `"assumed"` (default): fill with `assumed_climate_zone`.
+
+  - `"from_data"`: abort instead of assuming.
 
   `assumed_climate_zone` is the zone `"assumed"` fills in: `"Cool"`,
-  `"Temperate"` (default) or `"Warm"`. WHEP has no territory-to-zone
-  crosswalk, so the whole world is assumed Temperate unless a caller
-  supplies zones; `method_manure_ch4` records which of the two happened,
-  and this argument exists so the sensitivity to the assumption can be
-  measured (whep#949).
+  `"Temperate"` (default) or `"Warm"`. It is an assumption, not a
+  measurement; `method_manure_ch4` records per row which of the sources
+  applied, and this argument exists so the sensitivity to the assumption
+  can be measured (whep#949).
 
 ## Value
 

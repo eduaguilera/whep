@@ -74,7 +74,13 @@ available neighbour when a target grid is supplied.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">read_soil_hydraulic</span><span class="op">(</span>hwsd_dir <span class="op">=</span> <span class="cn">NULL</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">read_soil_hydraulic</span><span class="op">(</span></span>
+<span>  hwsd_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  source <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"pin"</span>, <span class="st">"local"</span><span class="op">)</span>,</span>
+<span>  version <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -83,13 +89,28 @@ available neighbour when a target grid is supplied.</p>
 
 <dl><dt id="arg-hwsd-dir">hwsd_dir<a class="anchor" aria-label="anchor" href="#arg-hwsd-dir"></a></dt>
 <dd><p>Path to the directory holding <code>hwsd_data.csv</code> and
-<code>hwsd.bil</code>. Defaults to <code>Sys.getenv("WHEP_HWSD_DIR")</code>.</p></dd>
+<code>hwsd.bil</code>. Defaults to <code>Sys.getenv("WHEP_HWSD_DIR")</code>. Supplying it
+derives the grid locally rather than reading the pin.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs: <code>cell_polity</code>
 (<code>lon</code>, <code>lat</code>, at minimum), used both to crop the HWSD raster and as the
 gap-filling target grid.</p></dd>
+
+
+<dt id="arg-source">source<a class="anchor" aria-label="anchor" href="#arg-source"></a></dt>
+<dd><p>Where the grid comes from. <code>"auto"</code> (default) reads the
+published pin unless <code>hwsd_dir</code> is given; <code>"pin"</code> always reads it;
+<code>"local"</code> always derives it from an HWSD archive. The pin is preferred so
+that every user shares one vintage: HWSD exists in two incompatible
+versions (v1.2 topsoil 0-30 cm, HWSD2 D1 0-20 cm) and the carbon balance
+reports 0-30 cm.</p></dd>
+
+
+<dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
+<dd><p>Pin version, passed to <code><a href="whep_read_file.html">whep_read_file()</a></code>. <code>NULL</code> takes the
+version frozen in <code><a href="whep_inputs.html">whep_inputs</a></code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -101,6 +122,20 @@ Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>t_field</code> (volumetric field capacity),
 <code>t_wilt</code> (volumetric wilting point) and <code>porosity</code>, each a fraction.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="caching">Caching<a class="anchor" aria-label="anchor" href="#caching"></a></h2>
+
+
+<p>Aggregating the HWSD raster to the 0.5-degree grid takes about an hour per
+pass, and its result depends only on the archive and the target grid, so it
+is cached under <code>rappdirs::user_cache_dir("whep")</code>. The cache key covers the
+archive's raster and header (size and modification time), the resolution,
+the requested columns, the target grid's cells and the derived map-unit
+values, plus an algorithm version that is bumped whenever a change would
+move the numbers. Set <code>WHEP_HWSD_CACHE_DIR</code> to relocate it; the test suite
+points it at a temporary directory so a fixture-derived grid can never reach
+a real cache.</p>
     </div>
 
     <div class="section level2">

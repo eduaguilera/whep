@@ -173,6 +173,7 @@ only. Whichever choice each row took is recorded in <code>method_mms</code> and
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_livestock_ghg_extension</span><span class="op">(</span></span>
 <span>  tier <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  gwp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ar6"</span>, <span class="st">"ar5"</span>, <span class="st">"ar4"</span><span class="op">)</span>,</span>
+<span>  method_diet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_cell_feed"</span>, <span class="st">"national_feed"</span>, <span class="st">"uniform_medium"</span><span class="op">)</span>,</span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -192,6 +193,19 @@ only. Whichever choice each row took is recorded in <code>method_mms</code> and
 <code>"ar5"</code> or <code>"ar4"</code>.</p></dd>
 
 
+<dt id="arg-method-diet">method_diet<a class="anchor" aria-label="anchor" href="#arg-method-diet"></a></dt>
+<dd><p>How Tier 2 resolves each herd's <code>diet_quality</code>, which
+sets DE% and so gross energy, enteric CH4, volatile solids and nitrogen
+excretion at once. <code>"per_cell_feed"</code> (default) derives it from the feed
+mix of the cell the herd is in; <code>"national_feed"</code> from the country's own
+mix; <code>"uniform_medium"</code> assumes the IPCC <code>"Medium"</code> diet for every herd.
+The gridded rung is the default because WHEP resolves a diet per cell and
+a diet varies within a country, so a national mix is a coarsening and an
+assumed Medium is coarser still. Both remain selectable. The assumption is
+never chosen implicitly, and the rung used is recorded in <code>method_ghg</code>.
+Ignored at Tier 1, whose emission factors carry no diet dimension.</p></dd>
+
+
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
 <dd><p>A named list of manure-engine options. Every default
 reproduces the behaviour in force before whep#949, so passing none leaves
@@ -209,22 +223,27 @@ Those four pairs are an unsourced placeholder (whep#921), which is why
 this is opt-in rather than the default.</p></li>
 <li><p><code>"global"</code>: every row takes the <code>region == "Global"</code> split, whatever
 region column it carries.</p></li>
-</ul><p><code>climate_source</code> selects the climate zone the methane conversion factors
-in <a href="climate_mcf.html">climate_mcf</a> are read at. A <code>climate_zone</code> column already on the frame
-is always used. <code>"assumed"</code> (default) fills a missing one with
-<code>assumed_climate_zone</code>; <code>"from_data"</code> aborts instead of assuming.</p>
-<p><code>assumed_climate_zone</code> is the zone <code>"assumed"</code> fills in: <code>"Cool"</code>,
-<code>"Temperate"</code> (default) or <code>"Warm"</code>. WHEP has no territory-to-zone
-crosswalk, so the whole world is assumed Temperate unless a caller
-supplies zones; <code>method_manure_ch4</code> records which of the two happened, and
-this argument exists so the sensitivity to the assumption can be measured
-(whep#949).</p></dd>
+</ul><p><code>climate_source</code> selects where the climate zone the methane conversion
+factors in <a href="climate_mcf.html">climate_mcf</a> are read at comes from. A <code>climate_zone</code> a row
+already carries is always used and stamped <code>climate_from_data</code>; the option
+governs only the rows left without one, whether that is a hole in a
+supplied column or a wholly absent column.</p><ul><li><p><code>"assumed"</code> (default): fill with <code>assumed_climate_zone</code>.</p></li>
+<li><p><code>"from_data"</code>: abort instead of assuming.</p></li>
+</ul><p><code>assumed_climate_zone</code> is the zone <code>"assumed"</code> fills in: <code>"Cool"</code>,
+<code>"Temperate"</code> (default) or <code>"Warm"</code>. It is an assumption, not a
+measurement; <code>method_manure_ch4</code> records per row which of the sources
+applied, and this argument exists so the sensitivity to the assumption can
+be measured (whep#949).</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs to avoid remote reads:
-<code>primary_prod</code> (the <code><a href="get_primary_production.html">get_primary_production()</a></code> output). It falls back to
-its reader when absent.</p></dd>
+<code>primary_prod</code> (the <code><a href="get_primary_production.html">get_primary_production()</a></code> output) and, for Tier 2
+with either feed-derived diet, <code>feed_intake</code> (the
+<code><a href="get_feed_intake.html">get_feed_intake()</a></code> output). <code>primary_prod</code> falls back to its reader when
+absent; <code>feed_intake</code> does not, because <code><a href="get_feed_intake.html">get_feed_intake()</a></code> rebuilds the
+whole feed allocation and would silently turn this extension into an
+hours-long build. Supply it, or choose <code>method_diet = "uniform_medium"</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

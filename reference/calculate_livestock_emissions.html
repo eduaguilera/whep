@@ -91,16 +91,17 @@ Those four pairs are an unsourced placeholder (whep#921), which is why
 this is opt-in rather than the default.</p></li>
 <li><p><code>"global"</code>: every row takes the <code>region == "Global"</code> split, whatever
 region column it carries.</p></li>
-</ul><p><code>climate_source</code> selects the climate zone the methane conversion factors
-in <a href="climate_mcf.html">climate_mcf</a> are read at. A <code>climate_zone</code> column already on the frame
-is always used. <code>"assumed"</code> (default) fills a missing one with
-<code>assumed_climate_zone</code>; <code>"from_data"</code> aborts instead of assuming.</p>
-<p><code>assumed_climate_zone</code> is the zone <code>"assumed"</code> fills in: <code>"Cool"</code>,
-<code>"Temperate"</code> (default) or <code>"Warm"</code>. WHEP has no territory-to-zone
-crosswalk, so the whole world is assumed Temperate unless a caller
-supplies zones; <code>method_manure_ch4</code> records which of the two happened, and
-this argument exists so the sensitivity to the assumption can be measured
-(whep#949).</p></dd>
+</ul><p><code>climate_source</code> selects where the climate zone the methane conversion
+factors in <a href="climate_mcf.html">climate_mcf</a> are read at comes from. A <code>climate_zone</code> a row
+already carries is always used and stamped <code>climate_from_data</code>; the option
+governs only the rows left without one, whether that is a hole in a
+supplied column or a wholly absent column.</p><ul><li><p><code>"assumed"</code> (default): fill with <code>assumed_climate_zone</code>.</p></li>
+<li><p><code>"from_data"</code>: abort instead of assuming.</p></li>
+</ul><p><code>assumed_climate_zone</code> is the zone <code>"assumed"</code> fills in: <code>"Cool"</code>,
+<code>"Temperate"</code> (default) or <code>"Warm"</code>. It is an assumption, not a
+measurement; <code>method_manure_ch4</code> records per row which of the sources
+applied, and this argument exists so the sensitivity to the assumption can
+be measured (whep#949).</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -12,7 +12,7 @@ the output.
 
 ``` r
 calculate_soc_dynamics(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   data = list(),
   example = FALSE
 )
@@ -29,9 +29,9 @@ and
 
 - model:
 
-  SOC model to run: one of `"hsoc"`, `"rothc"`, `"icbm"`, `"amg"` or
-  `"century"`. Defaults to the most detailed pool structure available,
-  `"hsoc"`.
+  SOC model to run: one of `"hsoc"`, `"rothc"`, `"icbm"`, `"amg"`,
+  `"century"` or `"lpjml"`. Defaults to the most detailed pool structure
+  available, `"hsoc"`.
 
 - data:
 

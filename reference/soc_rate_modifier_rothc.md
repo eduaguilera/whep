@@ -13,7 +13,7 @@ soc_rate_modifier_rothc(
   water_minus_pet_mm,
   clay_pct,
   soil_cover,
-  soil_depth_m = 0.3
+  soil_depth_m = .soc_topsoil_depth_m()
 )
 ```
 
@@ -49,7 +49,9 @@ historical SOC pipeline.
 - soil_depth_m:
 
   Topsoil depth over which the moisture deficit is accumulated (metres).
-  Defaults to 0.3.
+  Defaults to 0.3, the layer every soil-carbon stock in this package is
+  defined over; RothC's published expression is calibrated on its own
+  0-23 cm layer and is rescaled to this depth.
 
 ## Value
 

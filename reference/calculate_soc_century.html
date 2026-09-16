@@ -58,7 +58,8 @@ transfer fractions.</p>
 <span>  <span class="va">c_input_mgc_ha_yr</span>,</span>
 <span>  <span class="va">years</span>,</span>
 <span>  clay_pct <span class="op">=</span> <span class="cn">NA</span>,</span>
-<span>  climate_modifier <span class="op">=</span> <span class="fl">1</span></span>
+<span>  climate_modifier <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  silt_pct <span class="op">=</span> <span class="cn">NA</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -93,6 +94,17 @@ Sierra, C. A. et al. (2012). <a href="https://doi.org/10.5194/gmd-5-1045-2012" c
 <dt id="arg-climate-modifier">climate_modifier<a class="anchor" aria-label="anchor" href="#arg-climate-modifier"></a></dt>
 <dd><p>Annual climate rate modifier (dimensionless),
 scaling every pool decomposition rate.</p></dd>
+
+
+<dt id="arg-silt-pct">silt_pct<a class="anchor" aria-label="anchor" href="#arg-silt-pct"></a></dt>
+<dd><p>Soil silt content (percent). <code>NA</code>, the default, falls
+back to <a href="soc_turnover_params.html">soc_turnover_params</a>' <code>century,defaults,silt_pct</code>,
+which is SoilR's function-signature default of 45 rather than a
+measurement. Both of Century's texture terms are functions of clay PLUS
+silt – the active-pool multiplier
+<code>fTxtr = 1 - 0.75 * (clay + silt)</code> and its respired fraction
+<code>Es = 0.85 - 0.68 * (clay + silt)</code> – so silt is as load-bearing as
+clay. HWSD's share-weighted global mean is 28.2%, not 45%.</p></dd>
 
 </dl></div>
     <div class="section level2">

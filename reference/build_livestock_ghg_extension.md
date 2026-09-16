@@ -70,6 +70,7 @@ the extension carries into its own output.
 build_livestock_ghg_extension(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   options = list(),
   data = list(),
   example = FALSE
@@ -86,6 +87,20 @@ build_livestock_ghg_extension(
 
   100-year global warming potential standard, `"ar6"` (default), `"ar5"`
   or `"ar4"`.
+
+- method_diet:
+
+  How Tier 2 resolves each herd's `diet_quality`, which sets DE% and so
+  gross energy, enteric CH4, volatile solids and nitrogen excretion at
+  once. `"per_cell_feed"` (default) derives it from the feed mix of the
+  cell the herd is in; `"national_feed"` from the country's own mix;
+  `"uniform_medium"` assumes the IPCC `"Medium"` diet for every herd.
+  The gridded rung is the default because WHEP resolves a diet per cell
+  and a diet varies within a country, so a national mix is a coarsening
+  and an assumed Medium is coarser still. Both remain selectable. The
+  assumption is never chosen implicitly, and the rung used is recorded
+  in `method_ghg`. Ignored at Tier 1, whose emission factors carry no
+  diet dimension.
 
 - options:
 
@@ -112,26 +127,38 @@ build_livestock_ghg_extension(
   - `"global"`: every row takes the `region == "Global"` split, whatever
     region column it carries.
 
-  `climate_source` selects the climate zone the methane conversion
+  `climate_source` selects where the climate zone the methane conversion
   factors in
   [climate_mcf](https://eduaguilera.github.io/whep/reference/climate_mcf.md)
-  are read at. A `climate_zone` column already on the frame is always
-  used. `"assumed"` (default) fills a missing one with
-  `assumed_climate_zone`; `"from_data"` aborts instead of assuming.
+  are read at comes from. A `climate_zone` a row already carries is
+  always used and stamped `climate_from_data`; the option governs only
+  the rows left without one, whether that is a hole in a supplied column
+  or a wholly absent column.
+
+  - `"assumed"` (default): fill with `assumed_climate_zone`.
+
+  - `"from_data"`: abort instead of assuming.
 
   `assumed_climate_zone` is the zone `"assumed"` fills in: `"Cool"`,
-  `"Temperate"` (default) or `"Warm"`. WHEP has no territory-to-zone
-  crosswalk, so the whole world is assumed Temperate unless a caller
-  supplies zones; `method_manure_ch4` records which of the two happened,
-  and this argument exists so the sensitivity to the assumption can be
-  measured (whep#949).
+  `"Temperate"` (default) or `"Warm"`. It is an assumption, not a
+  measurement; `method_manure_ch4` records per row which of the sources
+  applied, and this argument exists so the sensitivity to the assumption
+  can be measured (whep#949).
 
 - data:
 
   Optional named list of pre-loaded inputs to avoid remote reads:
   `primary_prod` (the
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
-  output). It falls back to its reader when absent.
+  output) and, for Tier 2 with either feed-derived diet, `feed_intake`
+  (the
+  [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
+  output). `primary_prod` falls back to its reader when absent;
+  `feed_intake` does not, because
+  [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
+  rebuilds the whole feed allocation and would silently turn this
+  extension into an hours-long build. Supply it, or choose
+  `method_diet = "uniform_medium"`.
 
 - example:
 

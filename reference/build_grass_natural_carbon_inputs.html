@@ -13,10 +13,11 @@ minus harvested carbon (both per-plant-functional-type, read_lpjml_npp()),
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
 plant-functional-types (they coexist in one stand); grassland takes the
-stand-area-weighted mean of the rainfed and irrigated grassland net inputs
-and adds the grazing-excreta carbon from
-build_livestock_nutrient_flows()'s applied stream spread uniformly over
-the polity's grassland area. The humification fraction is the
+stand-area-weighted mean of the rainfed and irrigated grassland stands and
+charges them one grazing removal and one excreta return, from WHEP's own
+livestock chain by default and from LPJmL's livestock module on request
+(method_grazing), spread uniformly over the polity's grassland area. The
+humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from residue_humification)."><meta property="og:description" content="Assemble the carbon returned to soil under grassland and natural vegetation
 as the layer the soil-organic-carbon turnover models consume. The
@@ -32,10 +33,11 @@ minus harvested carbon (both per-plant-functional-type, read_lpjml_npp()),
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
 plant-functional-types (they coexist in one stand); grassland takes the
-stand-area-weighted mean of the rainfed and irrigated grassland net inputs
-and adds the grazing-excreta carbon from
-build_livestock_nutrient_flows()'s applied stream spread uniformly over
-the polity's grassland area. The humification fraction is the
+stand-area-weighted mean of the rainfed and irrigated grassland stands and
+charges them one grazing removal and one excreta return, from WHEP's own
+livestock chain by default and from LPJmL's livestock module on request
+(method_grazing), spread uniformly over the polity's grassland area. The
+humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from residue_humification)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -91,10 +93,11 @@ minus harvested carbon (both per-plant-functional-type, <code><a href="read_lpjm
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
 plant-functional-types (they coexist in one stand); grassland takes the
-stand-area-weighted mean of the rainfed and irrigated grassland net inputs
-and adds the grazing-excreta carbon from
-<code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>'s <code>applied</code> stream spread uniformly over
-the polity's grassland area. The humification fraction is the
+stand-area-weighted mean of the rainfed and irrigated grassland stands and
+charges them one grazing removal and one excreta return, from WHEP's own
+livestock chain by default and from LPJmL's livestock module on request
+(<code>method_grazing</code>), spread uniformly over the polity's grassland area. The
+humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from <a href="residue_humification.html">residue_humification</a>).</p>
     </div>
@@ -103,6 +106,9 @@ natural land (both from <a href="residue_humification.html">residue_humification
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_grass_natural_carbon_inputs</span><span class="op">(</span></span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
+<span>  method_grazing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep"</span>, <span class="st">"lpjml"</span><span class="op">)</span>,</span>
+<span>  method_natural_hf <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"woody_share"</span>, <span class="st">"woody"</span><span class="op">)</span>,</span>
+<span>  method_natural_c <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"litterfall"</span>, <span class="st">"npp"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -125,61 +131,52 @@ natural carbon inputs per the WHEP historical carbon-balance design.</p>
 (aggregated to <code>area_code</code>, area-weighting the per-hectare densities).</p></dd>
 
 
-<dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>Named list of pre-loaded inputs, each falling back to its reader
-when absent: <code>net_c</code> (the LPJmL net carbon density, <code>lon</code>, <code>lat</code>, <code>year</code>,
-<code>land_use</code>, <code>npp_c_mgc_ha_yr</code>; takes precedence over both <code>run_dir</code> and
-the pin); <code>npp</code> and <code>harvestc</code> (per cell, PFT and year, the
-<code><a href="read_lpjml_npp.html">read_lpjml_npp()</a></code> output); <code>stand_frac</code> (per cell, year and PFT name the
-managed-grassland stand fractions with columns <code>lon</code>, <code>lat</code>, <code>year</code>,
-<code>name_pft</code>, <code>stand_frac</code>). Supplying all three of <code>npp</code>, <code>harvestc</code> and
-<code>stand_frac</code> derives <code>net_c</code> without needing a run directory or the pin.
-Also: <code>country_grid</code>, the polycell support resolved to one row per cell and
-<code>area_code</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_frac</code>), refused when a
-cell-<code>area_code</code> group is duplicated or <code>NA</code> (DA-23);
-<code>land_use</code> (per-cell class <code>area_ha</code>, used to spread
-excreta and to area-weight polity output); <code>excreta</code> (the <code>applied</code> tibble
-of <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>, grassland rows carry <code>applied_c</code>
-tonnes C); <code>residue_humification</code> (defaults to <a href="residue_humification.html">residue_humification</a>).</p></dd>
+<dt id="arg-method-grazing">method_grazing<a class="anchor" aria-label="anchor" href="#arg-method-grazing"></a></dt>
+<dd><p>Whose grazing removes carbon from grassland and
+returns it as excreta. <code>"whep"</code> (default) uses WHEP's own estimates: the
+realised grass intake of <code><a href="redistribute_feed.html">redistribute_feed()</a></code> is the removal, converted
+from dry matter at the package's carbon fraction
+(<code><a href="grass_access_shares.html">grass_access_shares()</a></code><code>$w_c_dm</code>), and the grassland <code>applied</code> stream of
+<code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code> is the return. LPJmL's own grazing is
+backed out in full: the class starts from the whole grassland production
+(<code>npp_c_mgc_ha_yr</code>), not from what LPJmL left after grazing it, so no
+carbon is counted twice. Both <code>data$livestock_intake</code> and <code>data$excreta</code>
+are then required, and a requested year the intake table does not cover
+aborts rather than passing silently as an ungrazed year.</p>
+<p><code>"lpjml"</code> uses the model's own livestock module instead
+(<code>npp_c_mgc_ha_yr - net_c_mgc_ha_yr</code>, the <code>pft_harvestc</code> grassland bands),
+and refuses WHEP's excreta with a warning, because that return is already
+inside the layer. LPJmL 6.1 grazes <code>UptakeC</code> off the managed-grassland
+stand, returns <code>FecesC</code> and <code>UrineC</code> to it, and books the difference as
+<code>pft_harvestc</code>: on the 1750-2023 run
+<code>pft_harvestc = UptakeC - FecesC - UrineC</code> holds cell by cell to machine
+precision (maximum relative difference 0 at 1900, 1960 and 2010), so
+<code>NPP - pft_harvestc</code> already carries an excreta return worth 5.9% of
+grassland production in 1900, 3.8% in 1960 and 4.5% in 2010. Adding
+WHEP's excreta on top of it, which the <code>excreta</code> argument used to do,
+books that return twice.</p>
+<p>The two are alternatives, not tiers: <code>"whep"</code> is the default because
+WHEP's livestock chain, not LPJmL's, is what the rest of the package
+charges for feed, excretion and manure, so a grassland input built on
+LPJmL's herd would not reconcile with the manure the same herd applies to
+cropland. Backing LPJmL's grazing out recovers the carbon MASS but not
+its dynamics: the production the model simulated was itself shaped by the
+defoliation it applied, so the whole-production starting point is a known
+approximation, not an ungrazed counterfactual. Where WHEP's grazing
+removal exceeds a cell's production the input is floored at zero and the
+floored carbon is reported in a warning. Recorded in <code>method_c_input</code>.</p></dd>
 
 
-<dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
-<dd><p>Optional integer vector of calendar years to keep. <code>NULL</code>
-(default) keeps every year the inputs cover. Threaded into the default
-LPJmL NPP, stand-fraction and land-use readers so they slice to the
-requested years; ignored for inputs supplied via <code>data</code>.</p></dd>
-
-
-<dt id="arg-run-dir">run_dir<a class="anchor" aria-label="anchor" href="#arg-run-dir"></a></dt>
-<dd><p>Path to a finished LPJmL run output directory holding
-<code>pft_npp.nc</code>, <code>pft_harvestc.nc</code> and <code>cftfrac.nc</code> (the <code>scenario_*</code> output
-folder). <code>NULL</code> (default) uses <code>WHEP_LPJML_RUN_DIR</code> when set, and the
-pinned artifact otherwise.</p></dd>
-
-
-<dt id="arg-excreta-area-basis">excreta_area_basis<a class="anchor" aria-label="anchor" href="#arg-excreta-area-basis"></a></dt>
-<dd><p>Which grassland hectares the polity's grazing
-excreta carbon is divided by: <code>"luh2_grassland"</code> (default),
-<code>"charged_grassland"</code> or <code>"luh2_all_grassland"</code>. See the section below;
-the choice is recorded in <code>method_excreta_area</code>.</p></dd>
-
-
-<dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
-<dd><p>If <code>TRUE</code>, return a small fixture instead of reading remote
-data. Defaults to <code>FALSE</code>.</p></dd>
-
-</dl></div>
-    <div class="section level2">
-    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble keyed by <code>(lon, lat, area_code, year, land_use)</code> at <code>"grid"</code>
-resolution (or <code>(area_code, year, land_use)</code> at <code>"polity"</code>), with
-<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code>, <code>method_c_input</code> and
-<code>method_excreta_area</code>, for <code>land_use</code> in <code>"grassland"</code> and <code>"natural"</code>,
-plus the polity columns below.</p>
-    </div>
-    <div class="section level2">
-    <h2 id="which-grassland-hectares-the-grazing-excreta-is-divided-by">Which grassland hectares the grazing excreta is divided by<a class="anchor" aria-label="anchor" href="#which-grassland-hectares-the-grazing-excreta-is-divided-by"></a></h2>
-    <p>The excreta carbon is a polity total, so it becomes a per-hectare density by
+<dt id="arg-method-natural-hf">method_natural_hf<a class="anchor" aria-label="anchor" href="#arg-method-natural-hf"></a></dt>
+<dd><p>How natural land's humification fraction is set.
+<code>"woody_share"</code> (default) carbon-weights the <a href="residue_humification.html">residue_humification</a>
+woody and herbaceous coefficients by the share of each cell-year's
+natural production that the woody PFTs made; <code>"woody"</code> applies the
+woody coefficient everywhere, which was the previous behaviour. Five of
+the fourteen natural PFTs are not woody and carry 28.1% of natural
+production at 2010. Falls back to <code>"woody"</code>, with a warning, when the
+net-carbon layer has no <code>woody_share</code> column.Which grassland hectares the grazing excreta is divided by</p>
+<p>The excreta carbon is a polity total, so it becomes a per-hectare density by
 division, and <code>excreta_area_basis</code> picks the hectares to divide by. It
 matters because the density is charged only to cells where LPJmL wrote a
 grassland stand, while the divisor has always been the polity's <strong>whole</strong>
@@ -221,7 +218,112 @@ It would conserve nothing under the area basis <code><a href="build_carbon_balan
 actually uses, and it would buy little: measured at 1901 the stand area and
 the LUH2 grassland area agree to a median 0.1% per cell (95.5% of shared
 cells within 10%, global totals 1560.5 against 1576.0 Mha), because WHEP's
-LPJmL land-use forcing is itself LUH2-derived.</p>
+LPJmL land-use forcing is itself LUH2-derived.</p></dd>
+
+
+<dt id="arg-method-natural-c">method_natural_c<a class="anchor" aria-label="anchor" href="#arg-method-natural-c"></a></dt>
+<dd><p>Which LPJmL quantity is natural land's carbon
+input. <code>"litterfall"</code> (default) is <code>litfallc_nv</code>, what the model
+actually returns to the soil, excluding the increment retained in living
+biomass and what fire and land conversion remove; <code>"npp"</code> is the natural
+PFTs' whole primary production, the previous default. Litterfall is the
+physically correct soil input, and it is a good deal smaller than
+production where it matters: on the published pin at 2010 the per-cell
+ratio has a median of 0.844 across cells carrying natural vegetation,
+but weighted by LUH2 natural area the litter MASS is 0.648 of the
+production mass (0.632 at 2000), because the most productive cells
+retain the largest share of their production as growing biomass. The
+natural class's area-weighted mean input therefore falls from 8.1 to
+5.2 MgC/ha/yr, and its equilibrium soil carbon with it. The per-cell
+ratio declines from 0.902 in the 1750s to 0.838 in the 2000s, so
+production as the input would carry a CO2-fertilisation trend into the
+soil. A tail of cells with almost no production carries litter above
+production (ratio above 2 on 3.2% of natural area, holding 0.7% of the
+litter mass); it is left as the run wrote it. The
+<code>lpjml-grass-natural-net-c</code> pin carries litterfall since its 2026-09-03
+version (the 1750-2023 run); an older pin or run aborts naming the
+missing column rather than falling back. Recorded in <code>method_c_input</code>.</p>
+<p>Litterfall <strong>includes root turnover</strong>, so natural land must not receive a
+separate root term on top, and does not: LPJmL adds each PFT's root
+turnover carbon to the belowground litter pool and to the same
+<code>LITFALLC</code> accumulator as leaf litter (<code>src/grass/turnover_grass.c</code>
+lines 130-131 and <code>src/tree/turnover_tree.c</code> lines 162-163 at
+PIK-LPJmL/LPJmL, plus tree root exudates at lines 143-144). The run
+confirms it: at 1760 over 31,889 near-pure natural cells the
+litterfall/NPP median is 0.894, and <strong>0.965 on grass-dominated cells</strong>,
+which allocate roughly half their production below ground – an
+above-ground-only litterfall would sit near 0.5 there. Adding fire
+closes the pre-industrial steady state at 0.930. Cropland is the
+opposite case: <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> assembles residues, roots
+and manure as separate terms, because a crop stand's roots are not an
+LPJmL litterfall flux.</p>
+<p>It is a gross accumulator, not a residual: LPJmL increments it wherever
+carbon enters the litter pools (turnover, phenological shedding, root
+exudates, reproduction, mortality, fire-killed but uncombusted biomass,
+harvest residues). It excludes what land-use conversion releases, which
+the model books separately as <code>litfallc_luc</code> and which is far from
+small: on the same near-pure natural cells at 1755-1765 it is 14.3% of
+natural NPP against litterfall's 88.2%. Excluding it is what WHEP
+needs, because the balance derives its own land-use-change transfer
+from LUH2 areas and its own stocks; counting the model's conversion
+litter as a soil input as well would book that carbon twice.</p></dd>
+
+
+<dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
+<dd><p>Named list of pre-loaded inputs, each falling back to its reader
+when absent: <code>net_c</code> (the LPJmL net carbon density, <code>lon</code>, <code>lat</code>, <code>year</code>,
+<code>land_use</code>, <code>npp_c_mgc_ha_yr</code>; takes precedence over both <code>run_dir</code> and
+the pin); <code>npp</code> and <code>harvestc</code> (per cell, PFT and year, the
+<code><a href="read_lpjml_npp.html">read_lpjml_npp()</a></code> output); <code>stand_frac</code> (per cell, year and PFT name the
+managed-grassland stand fractions with columns <code>lon</code>, <code>lat</code>, <code>year</code>,
+<code>name_pft</code>, <code>stand_frac</code>). Supplying all three of <code>npp</code>, <code>harvestc</code> and
+<code>stand_frac</code> derives <code>net_c</code> without needing a run directory or the pin.
+Also: <code>country_grid</code>, the polycell support resolved to one row per cell and
+<code>area_code</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_frac</code>), refused when a
+cell-<code>area_code</code> group is duplicated or <code>NA</code> (DA-23);
+<code>land_use</code> (per-cell class <code>area_ha</code>, used to spread
+excreta and to area-weight polity output); <code>excreta</code> (the <code>applied</code> tibble
+of <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>, grassland rows carry <code>applied_c</code>
+tonnes C); <code>livestock_intake</code> (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> result, the same
+tibble the nitrogen path takes as <code>data$livestock_intake</code>, whose
+<code>feed_quality == "grass"</code> rows carry the grazed dry matter);
+<code>residue_humification</code> (defaults to <a href="residue_humification.html">residue_humification</a>).</p></dd>
+
+
+<dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
+<dd><p>Optional integer vector of calendar years to keep. <code>NULL</code>
+(default) keeps every year the inputs cover. Threaded into the default
+LPJmL NPP, stand-fraction and land-use readers so they slice to the
+requested years; ignored for inputs supplied via <code>data</code>.</p></dd>
+
+
+<dt id="arg-run-dir">run_dir<a class="anchor" aria-label="anchor" href="#arg-run-dir"></a></dt>
+<dd><p>Path to a finished LPJmL run output directory holding
+<code>pft_npp.nc</code>, <code>pft_harvestc.nc</code> and <code>cftfrac.nc</code> (the <code>scenario_*</code> output
+folder). <code>NULL</code> (default) uses <code>WHEP_LPJML_RUN_DIR</code> when set, and the
+pinned artifact otherwise.</p></dd>
+
+
+<dt id="arg-excreta-area-basis">excreta_area_basis<a class="anchor" aria-label="anchor" href="#arg-excreta-area-basis"></a></dt>
+<dd><p>Which grassland hectares the polity's grazing
+excreta carbon is divided by: <code>"luh2_grassland"</code> (default),
+<code>"charged_grassland"</code> or <code>"luh2_all_grassland"</code>. See the section below;
+the choice is recorded in <code>method_excreta_area</code>. Only bites under
+<code>method_grazing = "whep"</code>; <code>"lpjml"</code> returns no WHEP excreta to divide.</p></dd>
+
+
+<dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
+<dd><p>If <code>TRUE</code>, return a small fixture instead of reading remote
+data. Defaults to <code>FALSE</code>.</p></dd>
+
+</dl></div>
+    <div class="section level2">
+    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
+    <p>A tibble keyed by <code>(lon, lat, area_code, year, land_use)</code> at <code>"grid"</code>
+resolution (or <code>(area_code, year, land_use)</code> at <code>"polity"</code>), with
+<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code>, <code>method_c_input</code> and
+<code>method_excreta_area</code>, for <code>land_use</code> in <code>"grassland"</code> and <code>"natural"</code>,
+plus the polity columns below.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

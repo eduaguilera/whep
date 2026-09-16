@@ -20,6 +20,9 @@ build_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
+  density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 )
@@ -72,6 +75,51 @@ assembled per the WHEP historical carbon-balance design.
   [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md)
   builders so their readers slice to the requested years; ignored for
   inputs supplied via `data`.
+
+- crop_groups:
+
+  How cropland is resolved into land-use classes, a named list validated
+  element-wise. `method`: `"spain_hist"` (default) resolves cropland
+  into crop GROUPS – herbaceous crops pooled per irrigation regime (they
+  rotate, so nothing inside the pool is a land-use change), woody crops
+  per species, rainfed and irrigated separate – labelled by
+  [`soc_crop_group()`](https://eduaguilera.github.io/whep/reference/soc_crop_group.md);
+  `"none"` keeps the single `cropland` class the package used before,
+  for comparison and for a caller that wants one cropland number.
+  `irrigation`: where each crop's irrigated share of its cell area comes
+  from. `"spatialized"` (default) uses
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  on the pinned spatialization inputs, crop-specific and yearly;
+  `"none"` puts every crop in its rainfed group. Recorded in
+  `method_c_input`. A pre-built share layer can be supplied as
+  `data$crop_regime_share` (`lon`, `lat`, `area_code`, `item_prod_code`,
+  `year`, `irrigated_share`).
+
+- density_basis:
+
+  Which crop area weights the per-crop densities when they collapse to a
+  class. `"renormalised"` (default) uses the yearly cell crop area the
+  densities were computed on – the FAOSTAT-renormalised area
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  returns as `crop_area_ha` – so the class carbon mass equals the sum of
+  the crop masses that were spatialized. `"static"` uses the
+  time-invariant crop-pattern area split by the polycell's share of the
+  cell, which the package used before. The two differ wherever the
+  spatialized cell areas of a polity-crop-year do not sum to its FAOSTAT
+  harvested area: measured on the 2010 pins over 40,065 cropland cells
+  the per-cell class density ratio renormalised/static has an
+  area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
+  `method_area_basis` on cropland rows.
+
+- method_grazing:
+
+  Whose grazing removes carbon from grassland and returns it as excreta;
+  see
+  [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md).
+  `"whep"` (default) charges the class WHEP's own grass intake and
+  applied excreta, and so needs `data$livestock_intake` and
+  `data$excreta`; `"lpjml"` uses the model's livestock module instead
+  and needs neither.
 
 - method_unspatialized:
 

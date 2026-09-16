@@ -42,11 +42,13 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_carbon_balance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_carbon_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cell_polity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_commodity_balances.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_constant_territory_series.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_crop_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_crop_water_use.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cropgrids_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_detailed_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_energy_co2_extension.html</loc></url>
@@ -62,6 +64,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_landuse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_historical_land_areas.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_intake_dispersion.html</loc></url>
@@ -124,6 +127,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_soc_dynamics.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_soc_hsoc.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_soc_icbm.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_soc_lpjml.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_soc_rothc.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_system_nue.html</loc></url>
@@ -266,6 +270,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/lassaletta_grassland_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/liv_lu_coefs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_constants.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/livestock_emissions_to_kt.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/livestock_production_defaults.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/make_lpjml_covariate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/manner_default_technique_mix.html</loc></url>
@@ -328,9 +333,13 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glaciated_areas.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glwd_water.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_habitual_cv.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_hyde_population.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_crop_cover.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_npp.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_wind.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_luh2_landuse.html</loc></url>
@@ -355,9 +364,11 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/run_typology_sensitivity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/sjos_levels.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/soc_crop_group.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_amg.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_century.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_icbm.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_lpjml.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_rate_modifier_rothc.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_soil_cover_curve.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/soc_turnover_params.html</loc></url>

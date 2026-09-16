@@ -66,6 +66,9 @@ natural classes come from <code><a href="build_grass_natural_carbon_inputs.html"
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  crop_groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  density_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"renormalised"</span>, <span class="st">"static"</span><span class="op">)</span>,</span>
+<span>  method_grazing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep"</span>, <span class="st">"lpjml"</span><span class="op">)</span>,</span>
 <span>  method_unspatialized <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"reallocate"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -111,6 +114,46 @@ with the remaining members of <code>data</code>.</p></dd>
 <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> and <code><a href="build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code>
 builders so their readers slice to the requested years; ignored for inputs
 supplied via <code>data</code>.</p></dd>
+
+
+<dt id="arg-crop-groups">crop_groups<a class="anchor" aria-label="anchor" href="#arg-crop-groups"></a></dt>
+<dd><p>How cropland is resolved into land-use classes, a named
+list validated element-wise. <code>method</code>: <code>"spain_hist"</code> (default) resolves
+cropland into crop GROUPS – herbaceous crops pooled per irrigation
+regime (they rotate, so nothing inside the pool is a land-use change),
+woody crops per species, rainfed and irrigated separate – labelled by
+<code><a href="soc_crop_group.html">soc_crop_group()</a></code>; <code>"none"</code> keeps the single <code>cropland</code> class the
+package used before, for comparison and for a caller that wants one
+cropland number.
+<code>irrigation</code>: where each crop's irrigated share of its cell area comes
+from. <code>"spatialized"</code> (default) uses <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> on the
+pinned spatialization inputs, crop-specific and yearly; <code>"none"</code> puts
+every crop in its rainfed group. Recorded in <code>method_c_input</code>. A
+pre-built share layer can be supplied as <code>data$crop_regime_share</code> (<code>lon</code>,
+<code>lat</code>, <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>, <code>irrigated_share</code>).</p></dd>
+
+
+<dt id="arg-density-basis">density_basis<a class="anchor" aria-label="anchor" href="#arg-density-basis"></a></dt>
+<dd><p>Which crop area weights the per-crop densities when
+they collapse to a class. <code>"renormalised"</code> (default) uses the yearly cell
+crop area the densities were computed on – the FAOSTAT-renormalised area
+<code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> returns as <code>crop_area_ha</code> – so the class
+carbon mass equals the sum of the crop masses that were spatialized.
+<code>"static"</code> uses the time-invariant crop-pattern area split by the
+polycell's share of the cell, which the package used before. The two
+differ wherever the spatialized cell areas of a polity-crop-year do not
+sum to its FAOSTAT harvested area: measured on the 2010 pins over 40,065
+cropland cells the per-cell class density ratio renormalised/static has
+an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
+<code>method_area_basis</code> on cropland rows.</p></dd>
+
+
+<dt id="arg-method-grazing">method_grazing<a class="anchor" aria-label="anchor" href="#arg-method-grazing"></a></dt>
+<dd><p>Whose grazing removes carbon from grassland and
+returns it as excreta; see <code><a href="build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code>.
+<code>"whep"</code> (default) charges the class WHEP's own grass intake and applied
+excreta, and so needs <code>data$livestock_intake</code> and <code>data$excreta</code>;
+<code>"lpjml"</code> uses the model's livestock module instead and needs neither.</p></dd>
 
 
 <dt id="arg-method-unspatialized">method_unspatialized<a class="anchor" aria-label="anchor" href="#arg-method-unspatialized"></a></dt>

@@ -19,6 +19,19 @@ computed per cell-year from
 with the weed carbon humified at the weed (spontaneous-grass)
 coefficient.
 
+The weed stream is structurally present but ZERO on the default path:
+the turnkey chain runs
+[`calculate_crop_npp()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp.md)
+and
+[`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)
+without
+[`calculate_crop_npp_components()`](https://eduaguilera.github.io/whep/reference/calculate_crop_npp_components.md),
+which is the only producer of `weed_ag_dm_t`, so weed carbon is zero for
+every crop, polity and year unless `data$npp` is supplied from a chain
+that includes it. Whether to wire it into the default path is open
+(whep#806); until then the zero is reported rather than passed off as
+computed.
+
 At `"polity"` resolution the component carbon masses are summed back to
 `(area_code, item_prod_code, year)` and the per-hectare values and
 humified fraction re-derived from the polity totals.
@@ -110,9 +123,11 @@ A tibble keyed by `(lon, lat, area_code, item_prod_code, year)` at
 `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
 `humified_fraction`, `method_c_input`, `method_unspatialized` and
-`crop_area_ha` – the crop area at that grain that the per-hectare
-densities are computed on, so a consumer can recover the carbon mass
-without re-deriving the area – plus the polity columns below.
+`crop_area_ha` – the crop's area at that grain on the basis the
+densities are computed on: the FAOSTAT-renormalised cell area where a
+national harvested area was supplied, the spatialized area otherwise, so
+a consumer can recover the carbon mass without re-deriving it – plus the
+polity columns below.
 
 ## Polity columns
 

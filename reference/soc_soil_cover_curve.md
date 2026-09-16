@@ -77,7 +77,7 @@ per-crop observational survey.
 
 ``` r
 soc_soil_cover_curve
-#> # A tibble: 36 × 3
+#> # A tibble: 48 × 3
 #>    land_use months_from_peak soil_cover
 #>    <chr>               <int>      <dbl>
 #>  1 cropland               -5       0.05
@@ -90,5 +90,5 @@ soc_soil_cover_curve
 #>  8 cropland                2       0.3 
 #>  9 cropland                3       0.05
 #> 10 cropland                4       0.05
-#> # ℹ 26 more rows
+#> # ℹ 38 more rows
 ```

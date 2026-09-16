@@ -58,7 +58,7 @@ function modifies HSOC decomposition.</p>
 <span>  <span class="va">water_minus_pet_mm</span>,</span>
 <span>  <span class="va">clay_pct</span>,</span>
 <span>  <span class="va">soil_cover</span>,</span>
-<span>  soil_depth_m <span class="op">=</span> <span class="fl">0.3</span></span>
+<span>  soil_depth_m <span class="op">=</span> <span class="fu">.soc_topsoil_depth_m</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -95,7 +95,9 @@ a scalar or monthly series.</p></dd>
 
 <dt id="arg-soil-depth-m">soil_depth_m<a class="anchor" aria-label="anchor" href="#arg-soil-depth-m"></a></dt>
 <dd><p>Topsoil depth over which the moisture deficit is
-accumulated (metres). Defaults to 0.3.</p></dd>
+accumulated (metres). Defaults to 0.3, the layer every soil-carbon stock
+in this package is defined over; RothC's published expression is
+calibrated on its own 0-23 cm layer and is rescaled to this depth.</p></dd>
 
 </dl></div>
     <div class="section level2">

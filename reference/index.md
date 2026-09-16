@@ -105,14 +105,22 @@ gridded soil water balance exposing the footprint-relevant terms
 net irrigation requirement), and assemble the monthly climate drivers
 for the soil-organic-carbon dynamics.
 
+- [`read_lpjml_crop_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_crop_cover.md)
+  : Read monthly cropland soil cover from an LPJmL run's crop calendar.
 - [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
   : Read an LPJmL hydrology variable into a tidy tibble.
+- [`read_lpjml_litterfall()`](https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.md)
+  : Read litterfall by land-use class from an LPJmL run.
+- [`read_lpjml_natural_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.md)
+  : Read natural-land soil cover from an LPJmL run.
 - [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
   : Read a per-PFT annual LPJmL carbon variable into a tidy tibble.
 - [`read_cru_climate()`](https://eduaguilera.github.io/whep/reference/read_cru_climate.md)
   : Read a CRU TS 4.09 monthly climate variable into a tidy tibble.
 - [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
   : Build a gridded soil water balance from LPJmL hydrology.
+- [`build_crop_water_use()`](https://eduaguilera.github.io/whep/reference/build_crop_water_use.md)
+  : Build per-crop monthly applied irrigation from an LPJmL run.
 - [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
   : Assemble monthly SOC climate drivers from CRU climate and LPJmL
   hydrology.
@@ -209,6 +217,8 @@ re_clim, AMGv2 f(T)\*f(H), Century DEFAC), not a shared scalar.
   : Compute the RothC and HSOC annual climate rate modifier.
 - [`soc_rate_modifier_icbm()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_icbm.md)
   : Compute the ICBM annual climate rate modifier.
+- [`soc_rate_modifier_lpjml()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_lpjml.md)
+  : Compute the LPJmL annual decomposition response.
 - [`soc_rate_modifier_amg()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_amg.md)
   : Compute the AMG (AMGv2) annual climate rate modifier.
 - [`soc_rate_modifier_century()`](https://eduaguilera.github.io/whep/reference/soc_rate_modifier_century.md)
@@ -236,6 +246,8 @@ callers never branch on the model.
   : Simulate soil organic carbon with the RothC five-pool model.
 - [`calculate_soc_icbm()`](https://eduaguilera.github.io/whep/reference/calculate_soc_icbm.md)
   : Simulate soil organic carbon with the ICBM two-pool model.
+- [`calculate_soc_lpjml()`](https://eduaguilera.github.io/whep/reference/calculate_soc_lpjml.md)
+  : Simulate soil organic carbon with the LPJmL two-pool soil model.
 - [`calculate_soc_amg()`](https://eduaguilera.github.io/whep/reference/calculate_soc_amg.md)
   : Simulate soil organic carbon with the AMG model.
 - [`calculate_soc_century()`](https://eduaguilera.github.io/whep/reference/calculate_soc_century.md)
@@ -250,6 +262,8 @@ fraction from `residue_humification`. The grassland and natural-land
 carbon inputs come from the LPJmL net primary production minus harvested
 carbon (grassland additionally carrying grazing-excreta carbon).
 
+- [`soc_crop_group()`](https://eduaguilera.github.io/whep/reference/soc_crop_group.md)
+  : Assign each crop to its soil-carbon crop group.
 - [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
   : Assemble soil carbon inputs per cell, crop and year.
 - [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md)
@@ -316,6 +330,8 @@ long-format table (Task C6 final phase).
   : Read gridded soil pH onto WHEP's grid.
 - [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
   : Read gridded soil hydraulic properties from HWSD onto WHEP's grid.
+- [`read_hwsd_topsoil_soc()`](https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.md)
+  : Read observed topsoil organic carbon from HWSD onto WHEP's grid.
 - [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
   : Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 - [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
@@ -1021,6 +1037,14 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
   : Prepare production data for livestock emission calculations.
 - [`calculate_livestock_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.md)
   : Calculate all livestock emissions.
+- [`build_gridded_livestock_emissions()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock_emissions.md)
+  : Build per-cell livestock greenhouse-gas emissions.
+- [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md)
+  : Build the per-cell IPCC climate zone from CRU mean annual
+  temperature.
+- [`livestock_emissions_to_kt()`](https://eduaguilera.github.io/whep/reference/livestock_emissions_to_kt.md)
+  : Convert IPCC per-animal livestock emissions from kilograms to
+  kilotonnes.
 - [`calculate_enteric_ch4()`](https://eduaguilera.github.io/whep/reference/calculate_enteric_ch4.md)
   : Calculate enteric methane emissions.
 - [`calculate_manure_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_manure_emissions.md)

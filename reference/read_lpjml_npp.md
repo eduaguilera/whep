@@ -17,7 +17,7 @@ read_lpjml_npp(
   var = c("npp", "harvestc"),
   years = NULL,
   run_dir = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   data = NULL,
   example = FALSE
 )
@@ -42,7 +42,8 @@ read_lpjml_npp(
 
 - first_year:
 
-  First calendar year of the run's annual time axis.
+  First calendar year of the run's annual time axis. `NULL` (default)
+  reads it from the file's own `time` axis.
 
 - data:
 
