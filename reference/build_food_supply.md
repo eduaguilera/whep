@@ -13,17 +13,27 @@ by `protein_basis`. The nitrogen density is `N_kgN_kgFM` where
 available, otherwise `Product_kgN_kgDM * Product_kgDM_kgFM`.
 `Edible_N_kgFM` is not read: it is empty in every coefficient row,
 upstream as well as in the packaged data, so the edible basis is derived
-from `Edible_portion` instead of stored redundantly. Energy per kilogram
-fresh matter follows `GE_product_edible_portion_MJ_kgFM`, then
-`GE_product_MJ_kgFM` (MJ per kg fresh matter), converted to kilocalories
-via `MJ / 0.004184`. The energy term is GROSS (combustion) energy, not
-Atwater metabolisable energy, and so is only a secondary cross-check for
-SJOS-N; Atwater factors could refine it (O-B). Food items with no
-protein coefficient after the coalesce chain are excluded with a warning
-naming the count and a few examples (the residual gap-fill, O-B), never
-silently dropped. The `"faostat_fbs"` method returns the injected
-FAOSTAT Food Balance Sheet per-capita supply unchanged, as a cross-check
-/ sensitivity.
+from `Edible_portion` instead of stored redundantly. `N_kgN_kgFM` must
+be a **food-composition** density for this to mean anything, because
+`food_t` for a processed FBS item is the primary equivalent of the
+products actually eaten: a whole-grain nitrogen density on that mass
+counts milling offal as food. Five cereal rows carry the agronomic value
+instead, and others a bare literal; both sets are named in
+[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md).
+`Wheat` was the largest, at 1.27x FAOSTAT FBS world protein until \#796,
+and now ships on the **flour basis**, 93 g of protein per kg, sourced
+and measured in
+[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md).
+Energy per kilogram fresh matter follows
+`GE_product_edible_portion_MJ_kgFM`, then `GE_product_MJ_kgFM` (MJ per
+kg fresh matter), converted to kilocalories via `MJ / 0.004184`. The
+energy term is GROSS (combustion) energy, not Atwater metabolisable
+energy, and so is only a secondary cross-check for SJOS-N; Atwater
+factors could refine it (O-B). Food items with no protein coefficient
+after the coalesce chain are excluded with a warning naming the count
+and a few examples (the residual gap-fill, O-B), never silently dropped.
+The `"faostat_fbs"` method returns the injected FAOSTAT Food Balance
+Sheet per-capita supply unchanged, as a cross-check / sensitivity.
 
 An area with food but no `population` row has no denominator, so it is
 absent from the output rather than wrong in it. Those areas are **named
