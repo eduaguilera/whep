@@ -1,0 +1,118 @@
+"output","band","band_name","regime","crop"
+"cftfrac",1,"rainfed temperate cereals","rainfed","temperate cereals"
+"cftfrac",2,"rainfed rice","rainfed","rice"
+"cftfrac",3,"rainfed maize","rainfed","maize"
+"cftfrac",4,"rainfed tropical cereals","rainfed","tropical cereals"
+"cftfrac",5,"rainfed pulses","rainfed","pulses"
+"cftfrac",6,"rainfed temperate roots","rainfed","temperate roots"
+"cftfrac",7,"rainfed tropical roots","rainfed","tropical roots"
+"cftfrac",8,"rainfed oil crops sunflower","rainfed","oil crops sunflower"
+"cftfrac",9,"rainfed oil crops soybean","rainfed","oil crops soybean"
+"cftfrac",10,"rainfed oil crops groundnut","rainfed","oil crops groundnut"
+"cftfrac",11,"rainfed oil crops rapeseed","rainfed","oil crops rapeseed"
+"cftfrac",12,"rainfed sugarcane","rainfed","sugarcane"
+"cftfrac",13,"rainfed others","rainfed","others"
+"cftfrac",14,"rainfed grassland","rainfed","grassland"
+"cftfrac",15,"rainfed biomass grass","rainfed","biomass grass"
+"cftfrac",16,"rainfed biomass tree","rainfed","biomass tree"
+"cftfrac",17,"irrigated temperate cereals","irrigated","temperate cereals"
+"cftfrac",18,"irrigated rice","irrigated","rice"
+"cftfrac",19,"irrigated maize","irrigated","maize"
+"cftfrac",20,"irrigated tropical cereals","irrigated","tropical cereals"
+"cftfrac",21,"irrigated pulses","irrigated","pulses"
+"cftfrac",22,"irrigated temperate roots","irrigated","temperate roots"
+"cftfrac",23,"irrigated tropical roots","irrigated","tropical roots"
+"cftfrac",24,"irrigated oil crops sunflower","irrigated","oil crops sunflower"
+"cftfrac",25,"irrigated oil crops soybean","irrigated","oil crops soybean"
+"cftfrac",26,"irrigated oil crops groundnut","irrigated","oil crops groundnut"
+"cftfrac",27,"irrigated oil crops rapeseed","irrigated","oil crops rapeseed"
+"cftfrac",28,"irrigated sugarcane","irrigated","sugarcane"
+"cftfrac",29,"irrigated others","irrigated","others"
+"cftfrac",30,"irrigated grassland","irrigated","grassland"
+"cftfrac",31,"irrigated biomass grass","irrigated","biomass grass"
+"cftfrac",32,"irrigated biomass tree","irrigated","biomass tree"
+"sdate",1,"rainfed temperate cereals","rainfed","temperate cereals"
+"sdate",2,"rainfed rice","rainfed","rice"
+"sdate",3,"rainfed maize","rainfed","maize"
+"sdate",4,"rainfed tropical cereals","rainfed","tropical cereals"
+"sdate",5,"rainfed pulses","rainfed","pulses"
+"sdate",6,"rainfed temperate roots","rainfed","temperate roots"
+"sdate",7,"rainfed tropical roots","rainfed","tropical roots"
+"sdate",8,"rainfed oil crops sunflower","rainfed","oil crops sunflower"
+"sdate",9,"rainfed oil crops soybean","rainfed","oil crops soybean"
+"sdate",10,"rainfed oil crops groundnut","rainfed","oil crops groundnut"
+"sdate",11,"rainfed oil crops rapeseed","rainfed","oil crops rapeseed"
+"sdate",12,"rainfed sugarcane","rainfed","sugarcane"
+"sdate",13,"irrigated temperate cereals","irrigated","temperate cereals"
+"sdate",14,"irrigated rice","irrigated","rice"
+"sdate",15,"irrigated maize","irrigated","maize"
+"sdate",16,"irrigated tropical cereals","irrigated","tropical cereals"
+"sdate",17,"irrigated pulses","irrigated","pulses"
+"sdate",18,"irrigated temperate roots","irrigated","temperate roots"
+"sdate",19,"irrigated tropical roots","irrigated","tropical roots"
+"sdate",20,"irrigated oil crops sunflower","irrigated","oil crops sunflower"
+"sdate",21,"irrigated oil crops soybean","irrigated","oil crops soybean"
+"sdate",22,"irrigated oil crops groundnut","irrigated","oil crops groundnut"
+"sdate",23,"irrigated oil crops rapeseed","irrigated","oil crops rapeseed"
+"sdate",24,"irrigated sugarcane","irrigated","sugarcane"
+"pft_npp",1,"tropical broadleaved evergreen tree",,
+"pft_npp",2,"tropical broadleaved evergreen tree floodtolerant",,
+"pft_npp",3,"tropical broadleaved raingreen tree",,
+"pft_npp",4,"temperate needleleaved evergreen tree",,
+"pft_npp",5,"temperate broadleaved evergreen tree",,
+"pft_npp",6,"temperate broadleaved summergreen tree",,
+"pft_npp",7,"boreal needleleaved evergreen tree",,
+"pft_npp",8,"boreal broadleaved summergreen tree",,
+"pft_npp",9,"boreal needleleaved summergreen tree",,
+"pft_npp",10,"Tropical C4 grass",,
+"pft_npp",11,"Temperate C3 grass",,
+"pft_npp",12,"Polar C3 grass",,
+"pft_npp",13,"C3 graminoid flood tolerant",,
+"pft_npp",14,"Sphagnum moss",,
+"pft_npp",15,"rainfed temperate cereals","rainfed","temperate cereals"
+"pft_npp",16,"rainfed rice","rainfed","rice"
+"pft_npp",17,"rainfed maize","rainfed","maize"
+"pft_npp",18,"rainfed tropical cereals","rainfed","tropical cereals"
+"pft_npp",19,"rainfed pulses","rainfed","pulses"
+"pft_npp",20,"rainfed temperate roots","rainfed","temperate roots"
+"pft_npp",21,"rainfed tropical roots","rainfed","tropical roots"
+"pft_npp",22,"rainfed oil crops sunflower","rainfed","oil crops sunflower"
+"pft_npp",23,"rainfed oil crops soybean","rainfed","oil crops soybean"
+"pft_npp",24,"rainfed oil crops groundnut","rainfed","oil crops groundnut"
+"pft_npp",25,"rainfed oil crops rapeseed","rainfed","oil crops rapeseed"
+"pft_npp",26,"rainfed sugarcane","rainfed","sugarcane"
+"pft_npp",27,"rainfed others","rainfed","others"
+"pft_npp",28,"rainfed grassland","rainfed","grassland"
+"pft_npp",29,"rainfed biomass grass","rainfed","biomass grass"
+"pft_npp",30,"rainfed biomass tree","rainfed","biomass tree"
+"pft_npp",31,"irrigated temperate cereals","irrigated","temperate cereals"
+"pft_npp",32,"irrigated rice","irrigated","rice"
+"pft_npp",33,"irrigated maize","irrigated","maize"
+"pft_npp",34,"irrigated tropical cereals","irrigated","tropical cereals"
+"pft_npp",35,"irrigated pulses","irrigated","pulses"
+"pft_npp",36,"irrigated temperate roots","irrigated","temperate roots"
+"pft_npp",37,"irrigated tropical roots","irrigated","tropical roots"
+"pft_npp",38,"irrigated oil crops sunflower","irrigated","oil crops sunflower"
+"pft_npp",39,"irrigated oil crops soybean","irrigated","oil crops soybean"
+"pft_npp",40,"irrigated oil crops groundnut","irrigated","oil crops groundnut"
+"pft_npp",41,"irrigated oil crops rapeseed","irrigated","oil crops rapeseed"
+"pft_npp",42,"irrigated sugarcane","irrigated","sugarcane"
+"pft_npp",43,"irrigated others","irrigated","others"
+"pft_npp",44,"irrigated grassland","irrigated","grassland"
+"pft_npp",45,"irrigated biomass grass","irrigated","biomass grass"
+"pft_npp",46,"irrigated biomass tree","irrigated","biomass tree"
+"fpc",1,"natural stand fraction",,
+"fpc",2,"tropical broadleaved evergreen tree",,
+"fpc",3,"tropical broadleaved evergreen tree floodtolerant",,
+"fpc",4,"tropical broadleaved raingreen tree",,
+"fpc",5,"temperate needleleaved evergreen tree",,
+"fpc",6,"temperate broadleaved evergreen tree",,
+"fpc",7,"temperate broadleaved summergreen tree",,
+"fpc",8,"boreal needleleaved evergreen tree",,
+"fpc",9,"boreal broadleaved summergreen tree",,
+"fpc",10,"boreal needleleaved summergreen tree",,
+"fpc",11,"Tropical C4 grass",,
+"fpc",12,"Temperate C3 grass",,
+"fpc",13,"Polar C3 grass",,
+"fpc",14,"C3 graminoid flood tolerant",,
+"fpc",15,"Sphagnum moss",,

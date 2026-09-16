@@ -15,7 +15,7 @@ soc_rate_modifier_rothc(
   water_minus_pet_mm,
   clay_pct,
   soil_cover,
-  soil_depth_m = 0.3
+  soil_depth_m = .soc_topsoil_depth_m()
 )
 }
 \arguments{
@@ -31,7 +31,9 @@ accumulate the topsoil moisture deficit.}
 a scalar or monthly series.}
 
 \item{soil_depth_m}{Topsoil depth over which the moisture deficit is
-accumulated (metres). Defaults to 0.3.}
+accumulated (metres). Defaults to 0.3, the layer every soil-carbon stock
+in this package is defined over; RothC's published expression is
+calibrated on its own 0-23 cm layer and is rescaled to this depth.}
 }
 \value{
 The annual mean of the monthly a\emph{b}c product (a single numeric).

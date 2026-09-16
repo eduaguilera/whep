@@ -2165,6 +2165,15 @@ utils::globalVariables(
     ".lineage_area",
     ".lineage_year",
     "lineage_polity_code",
-    "method_polity_lineage"
+    "method_polity_lineage",
+    # soil_carbon_inputs.R (#1006) — the nitrogen that travels with each
+    # carbon component so an input C:N can be formed, and the data.table
+    # masks `.sci_sum_components()` builds to total ONLY the components whose
+    # nitrogen is known together with the carbon that matched them
+    "n_mass_mg",
+    ".n_known",
+    ".c_with_n",
+    "input_n_mg",
+    "input_c_with_n_mg"
   )
 )

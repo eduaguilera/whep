@@ -219,11 +219,22 @@ split_manure_management <- function(excretion, options = list()) {
 #' nitrogen (its in-situ soil losses belong to the soil stage). Indirect N2O is
 #' reported as a labelled sub-flux of the already-removed volatilized and leached
 #' nitrogen (the same N is not removed twice). Carbon applied to the field is
-#' `applied_n` times the post-storage manure C:N (the solid/liquid/excreta value
-#' for the stream's management system), so the applied C:N reflects storage, not
-#' fresh excreta; the carbon and volatile-solids storage losses follow from that.
-#' The grazing stream undergoes no storage and keeps its full carbon and volatile
-#' solids (no storage C:N cap is applied to it).
+#' `c_stream * (1 - c_loss_fraction)`, the stream's carbon less what its
+#' management system mineralises in storage, and the volatile solids are scaled
+#' by the same ratio. The applied C:N is therefore a RESULT of that loss rather
+#' than an imposed cap. Loss fractions and their sources are in
+#' `inst/extdata/manure/manure_storage_c_loss.csv`: nothing for grazing or daily
+#' spread, which have no storage stage; 0.420 of initial carbon for solid
+#' storage and 0.424 for poultry litter (Pardo et al. 2015,
+#' \doi{10.1111/gcb.12806}); 0.110 (cattle) and 0.128 (pigs) for slurry,
+#' derived from Kupper et al. 2020 (\doi{10.1016/j.agee.2020.106963}) using
+#' this package's own 0.47 kg C per kg volatile solids.
+#'
+#' Until whep#1006 this was a cap, `pmin(c_stream, applied_n * post-storage
+#' C:N)`, which produced a loss only as a side effect of holding the applied
+#' C:N down. That made the loss depend on the excreted composition rather than
+#' on the storage system: when excreted carbon moved, the reported loss for
+#' cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.
 #'
 #' @param split A tibble from [split_manure_management()].
 #' @param options A named list. `method` selects the loss method
@@ -296,26 +307,11 @@ apply_management_losses <- function(split, options = list()) {
       )
     ) |>
     dplyr::left_join(.mms_manure_type(), by = "mms_type") |>
-    dplyr::left_join(
-      dplyr::transmute(
-        .manure_cn_coefs(),
-        cn_species = .data$species,
-        manure_type = .data$manure_type,
-        cn_post = .data$cn_ratio
-      ),
-      by = c("cn_species", "manure_type")
-    )
-  if (anyNA(out$cn_post)) {
-    cli::cli_abort("Missing post-storage C:N for some (species, manure_type).")
-  }
+    .attach_storage_c_loss()
 
   out |>
     dplyr::mutate(
-      applied_c = dplyr::if_else(
-        .data$stream == "grazing",
-        .data$c_stream,
-        pmin(.data$c_stream, .data$applied_n * .data$cn_post)
-      ),
+      applied_c = .data$c_stream * (1 - .data$c_loss_fraction),
       c_lost = .data$c_stream - .data$applied_c,
       applied_vs = dplyr::if_else(
         .data$c_stream > 0,
@@ -389,6 +385,76 @@ apply_management_losses <- function(split, options = list()) {
       pick("Poultry Manure - Deep Litter")
     )
   )
+}
+
+# Storage carbon loss, per management system, from a sourced table.
+#
+# This REPLACED a C:N cap (`applied_c = pmin(c_stream, applied_n * cn_post)`),
+# which produced a storage loss only as a side effect of the applied C:N being
+# held below a tabulated post-storage value. That coupling failed the moment
+# excreted carbon changed: when whep#1006 took excreted C from the volatile
+# solids instead of a dung C:N, the cap stopped binding for cattle solid
+# storage and the reported loss collapsed from 40.3% (beef) and 26.7% (dairy)
+# to 6.9% and 8.1%, with no coefficient having changed. A loss term that moves
+# because something else moved is not a modelled quantity.
+#
+# So storage loss is now its own coefficient with its own source, and the
+# post-storage C:N falls out as a RESULT rather than being imposed. The
+# `bio_coefs` Solid/Liquid C:N values are no longer read here.
+#
+# Values and provenance live in inst/extdata/manure/manure_storage_c_loss.csv.
+# In summary: grazing and daily spread lose nothing because neither has a
+# storage stage (IPCC 2019 Table 10.18, definitional); solid storage loses
+# 0.420 of initial carbon and poultry litter 0.424 (Pardo et al. 2015,
+# doi:10.1111/gcb.12806, Table 2 -- a systematic review, on a carbon basis);
+# slurry loses 0.110 (cattle) and 0.128 (pigs), DERIVED from Kupper et al.
+# 2020 (doi:10.1016/j.agee.2020.106963) gas-per-VS figures using this
+# package's own 0.47 kg C per kg VS, so one carbon fraction is used
+# throughout. IPCC publishes no carbon-loss fraction for any system and puts
+# manure CO2 out of scope, which is why none of this is cited to it.
+.storage_c_loss_coefs <- function() {
+  system.file(
+    "extdata",
+    "manure",
+    "manure_storage_c_loss.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble()
+}
+
+# Join the loss fraction on (mms_type, species), falling back to the table's
+# own `All_species` row. The fallback is a row in the table, not a default in
+# the code, so a species with no published value is visible in the data rather
+# than being silently absorbed here.
+.attach_storage_c_loss <- function(out) {
+  coefs <- .storage_c_loss_coefs()
+  by_species <- coefs |>
+    dplyr::filter(.data$species != "All_species") |>
+    dplyr::select("mms_type", cn_species = "species", "c_loss_fraction")
+  by_mms <- coefs |>
+    dplyr::filter(.data$species == "All_species") |>
+    dplyr::select("mms_type", any_species = "c_loss_fraction")
+  joined <- out |>
+    dplyr::left_join(by_species, by = c("mms_type", "cn_species")) |>
+    dplyr::left_join(by_mms, by = "mms_type") |>
+    dplyr::mutate(
+      c_loss_fraction = dplyr::coalesce(
+        .data$c_loss_fraction,
+        .data$any_species
+      )
+    ) |>
+    dplyr::select(-"any_species")
+  missing <- sort(unique(joined$mms_type[is.na(joined$c_loss_fraction)]))
+  if (length(missing) > 0) {
+    cli::cli_abort(c(
+      "No storage carbon-loss fraction for MMS {.val {missing}}.",
+      i = "Add a row to
+           {.file inst/extdata/manure/manure_storage_c_loss.csv} with its
+           source. A missing system must not silently lose nothing."
+    ))
+  }
+  joined
 }
 
 # Map each engine MMS to the bio_coefs manure_type whose post-storage C:N applies:

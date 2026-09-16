@@ -447,6 +447,18 @@ build_supply_use <- function(example = FALSE) {
     dplyr::mutate(proc_cbs_code = .data[[item_column]])
 }
 
+# Supply only the RECOVERED residue, the same mass the CBS produces.
+#
+# The supply matrix and the output vector must describe the same commodity:
+# `.build_mr_supply()` builds the transformation from these rows while
+# `.build_output_vector()` takes x from the CBS `production` element. Since
+# whep#1003 the CBS carries only what leaves the field, so supplying the whole
+# residue here would make the two disagree -- by 9.34 Pg against 7.79 Pg at
+# 2020 globally, and totally where recovery is zero (Fodder crops in all eight
+# Krausmann regions; roots, tubers, cassava, sugar beet and dry beans in West
+# Europe, North America and Oceania). It would not surface as an error either:
+# `.build_output_vector()` falls back to the Z/Y-derived output when the CBS
+# output is 0, and inflates the residue column of A by 1 / recovery elsewhere.
 .build_supply_crop_residue <- function(cbs_items, crop_residues) {
   cbs_items <- .ensure_process_column(cbs_items, "item_cbs_code_crop")
   processes <- cbs_items |>
@@ -458,7 +470,13 @@ build_supply_use <- function(example = FALSE) {
       by = c("item_cbs_code_crop" = "proc_cbs_code"),
       relationship = "many-to-many"
     ) |>
-    dplyr::mutate(proc_cbs_code = .data$item_cbs_code_crop) |>
+    # `warn = FALSE`: the CBS path already names the unrecovered mass once,
+    # and this is the same rows a second time.
+    .residue_recovered_split(warn = FALSE) |>
+    dplyr::mutate(
+      proc_cbs_code = .data$item_cbs_code_crop,
+      value = dplyr::coalesce(.data$recovered, 0)
+    ) |>
     dplyr::select(
       year,
       area_code,
