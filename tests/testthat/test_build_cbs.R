@@ -4760,7 +4760,10 @@ test_that(".hist_trade_reporter_reference is empty without FAOSTAT trade", {
     1950L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "seed",       10,
     1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "production", 200,
     1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "import",     0,
-    1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "export",     0
+    1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "export",     0,
+    1952L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "production", 300,
+    1952L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "import",     0,
+    1952L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "export",     0
   )
 }
 
@@ -4768,7 +4771,8 @@ test_that(".hist_trade_reporter_reference is empty without FAOSTAT trade", {
   tibble::tribble(
     ~year, ~area,     ~area_code, ~item_cbs, ~item_cbs_code, ~area_ha,
     1950L, "Czechia", 51L,        "Wheat",   2511L,          50,
-    1951L, "Czechia", 51L,        "Wheat",   2511L,          80
+    1951L, "Czechia", 51L,        "Wheat",   2511L,          80,
+    1952L, "Czechia", 51L,        "Wheat",   2511L,          100
   )
 }
 
@@ -4840,6 +4844,11 @@ test_that("the seed back-cast names its method and its blocked rows", {
     .run_seed_backcast(),
     class = "whep_seed_backcast"
   )
+  # 1951 and 1952 are both filled, and the count has to read as a plural:
+  # every `{}` substitution resets cli's pluralisation quantity, so a
+  # `{cli::qty()}` placed before the count instead of before the marker
+  # silently prints "2 row".
+  expect_message(.run_seed_backcast(), "2 rows")
   # The rate is recovered from 1950, but the harvested area stops there, so
   # 1951 books no seed at all. That is an absent input becoming a zero, and
   # it is reported rather than left to be inferred from a missing row.

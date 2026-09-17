@@ -3492,21 +3492,23 @@ build_processing_coefs <- function(
   blocked <- sum(has_rate & is.na(basis))
   basis_name <- if (seed_backcast == "area_rate") "area_ha" else "production"
   # Counts are formatted to strings first: a bare numeric next to a `{?s}`
-  # marker aborts inside cli's own message.
+  # marker aborts inside cli's own message. Each `{}` substitution also RESETS
+  # the pluralisation quantity, so `{cli::qty()}` goes immediately before the
+  # marker it governs, never before the count it is the quantity of.
   filled_txt <- format(filled, big.mark = ",", trim = TRUE)
   blocked_txt <- format(blocked, big.mark = ",", trim = TRUE)
   bullets <- c(
     "i" = paste0(
       "{.arg seed_backcast} is {.val {seed_backcast}}: the pre-1962 seed ",
       "fill spends its rate on {.field {basis_name}} and reaches ",
-      "{cli::qty(filled)}{filled_txt} row{?s}."
+      "{filled_txt} {cli::qty(filled)}row{?s}."
     )
   )
   if (blocked > 0L) {
     bullets <- c(
       bullets,
       "!" = paste0(
-        "{cli::qty(blocked)}{blocked_txt} row{?s} recovered a rate but ",
+        "{blocked_txt} {cli::qty(blocked)}row{?s} recovered a rate but ",
         "{cli::qty(blocked)}{?has/have} no {.field {basis_name}} that year, ",
         "so {cli::qty(blocked)}{?its/their} seed is booked as zero."
       )
