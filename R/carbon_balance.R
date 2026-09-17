@@ -577,11 +577,11 @@ build_carbon_balance <- function(
 # `urban` is excluded because its zero is deliberate -- no input builder emits
 # an urban row, and the class exists to dilute the cell, not to hold carbon.
 .cb_report_zero_input <- function(base) {
-  gap <- base |>
-    dplyr::filter(
-      is.na(.data$c_input_mgc_ha_yr),
-      stringr::str_to_lower(.data$land_use) != "urban"
-    )
+  # Subset on the input first: a full-span class table runs to ~9e7 rows, and
+  # lower-casing its whole `land_use` column to find the urban rows would cost
+  # more than every other line of this message put together.
+  gap <- base[is.na(base$c_input_mgc_ha_yr), ]
+  gap <- gap[stringr::str_to_lower(gap$land_use) != "urban", ]
   if (nrow(gap) == 0L) {
     return(invisible(NULL))
   }
@@ -758,9 +758,11 @@ build_carbon_balance <- function(
 .cb_climate_gap_worst <- function(classes) {
   years <- dplyr::n_distinct(classes$year[is.na(classes$climate_modifier)])
   classes |>
-    dplyr::mutate(lost = is.na(.data$climate_modifier)) |>
     dplyr::summarise(
-      lost_ha = sum(.data$area_ha[.data$lost], na.rm = TRUE),
+      lost_ha = sum(
+        .data$area_ha[is.na(.data$climate_modifier)],
+        na.rm = TRUE
+      ),
       all_ha = sum(.data$area_ha, na.rm = TRUE),
       .by = "area_code"
     ) |>
