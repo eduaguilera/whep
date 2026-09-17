@@ -22,6 +22,12 @@
 #' requiring complete crop attribution hard-error rather than fabricate a
 #' fallback.
 #'
+#' Actual-pressure rows naming no crop cannot meet a critical allowance and are
+#' excluded before the cell comparison. The exclusion is reported, never
+#' silent: a message names the rows and the pressure they carried when that
+#' pressure is zero (the only case a gridded [build_nitrogen_balance()]
+#' produces), and a warning when it is not.
+#'
 #' @param surplus A [calculate_n_surplus()] output with the grid/crop/year key.
 #'   Surplus mode uses signed `surplus_n_t` when present, otherwise derives it
 #'   from `surplus_kgn_ha * area_ha / 1000`. Input mode uses
@@ -125,7 +131,7 @@ build_n_boundary_exceedance <- function(
 
   actual <- surplus |>
     dplyr::filter(.data$year == .env$actual_year) |>
-    .nbx_filter_land_use(land_use) |>
+    .nbx_filter_land_use(land_use, metric) |>
     .nbx_prepare_actual(metric)
   support <- .nbx_prepare_critical(critical)
   cells <- .nbx_build_cells(actual, support, actual_year, metric, land_use)
@@ -338,8 +344,9 @@ build_n_boundary_exceedance <- function(
   base
 }
 
-.nbx_filter_land_use <- function(surplus, land_use) {
+.nbx_filter_land_use <- function(surplus, land_use, metric) {
   grass <- c(3000L, 3002L, 3003L)
+  .nbx_report_no_crop(surplus, metric)
   x <- dplyr::filter(surplus, !is.na(.data$item_cbs_code))
   if (land_use == "ara") {
     return(dplyr::filter(x, !.data$item_cbs_code %in% grass))
@@ -350,18 +357,74 @@ build_n_boundary_exceedance <- function(
   x
 }
 
-.nbx_prepare_actual <- function(x, metric) {
-  if (metric == "input") {
-    x <- dplyr::mutate(x, actual_n_t = .data$n_input_std_t)
-  } else if (rlang::has_name(x, "surplus_n_t")) {
-    x <- dplyr::mutate(x, actual_n_t = .data$surplus_n_t)
-  } else {
-    .check_columns(x, "surplus_kgn_ha", "surplus")
-    x <- dplyr::mutate(
-      x,
-      actual_n_t = .data$surplus_kgn_ha * .data$area_ha / 1000
-    )
+# A row naming no crop cannot meet a critical allowance -- the allowance is
+# defined per crop-carrying cell -- so it has to leave before the comparison.
+# Deciding that with a bare is.na() and saying nothing is what #532 objected
+# to and what #1173 asks for here: name the rows and the pressure they carried,
+# so a consumer can see what the denominators below exclude.
+#
+# On the package's own chain that pressure is exactly zero, and not by luck.
+# build_nitrogen_balance() refuses a grid n_inputs whose key is incomplete
+# (.nb_validate_input_grain()), so the only crop-less rows a gridded balance
+# carries are the ones .nb_merge_output_term()'s full join MANUFACTURES for a
+# cell whose SOM sequestration has no input row to attach to: every numeric
+# column on such a row is the join's zero fill except som_sequestration_n_t,
+# and .nb_cap_som() then caps that to pmax(0, inputs - other outputs) = 0.
+# A join that creates rows which a later filter removes is a round trip that
+# looks clean at both ends, which is exactly why it needs saying out loud.
+# A NON-zero mass means the surplus was assembled some other way, and then the
+# exclusion does move every cell denominator -- hence the warning.
+.nbx_report_no_crop <- function(surplus, metric) {
+  dropped <- dplyr::filter(surplus, is.na(.data$item_cbs_code))
+  n_dropped <- nrow(dropped)
+  if (n_dropped == 0L) {
+    return(invisible(NULL))
   }
+  mass <- sum(.nbx_actual_mass(dropped, metric), na.rm = TRUE)
+  if (isTRUE(all.equal(mass, 0, tolerance = 1e-8))) {
+    cli::cli_inform(
+      c(
+        "i" = "{n_dropped} actual-pressure row{?s} name{?s/} no crop and
+               leave{?s/} before the cell comparison.",
+        "i" = "Excluded {metric} pressure: {mass} t N, so no cell denominator
+               changes."
+      ),
+      class = "whep_nbx_no_crop_dropped"
+    )
+    return(invisible(NULL))
+  }
+  cli::cli_warn(
+    c(
+      "{n_dropped} actual-pressure row{?s} name{?s/} no crop and leave{?s/}
+       before the cell comparison.",
+      x = "Excluded {metric} pressure: {mass} t N, absent from every cell
+           denominator below and from the crop attribution.",
+      i = "A gridded {.fn build_nitrogen_balance} emits a crop-less row only
+           as the zero-mass artefact of its output-term full join; a non-zero
+           one means the surplus was assembled another way."
+    ),
+    class = "whep_nbx_no_crop_mass"
+  )
+  invisible(NULL)
+}
+
+# The pressure column the cell comparison actually reads, in the metric's own
+# currency. Shared with .nbx_report_no_crop() so an excluded row is reported
+# in the same units the comparison would have used it in.
+.nbx_actual_mass <- function(x, metric) {
+  if (metric == "input") {
+    return(x$n_input_std_t)
+  }
+  if (rlang::has_name(x, "surplus_n_t")) {
+    return(x$surplus_n_t)
+  }
+  .check_columns(x, "surplus_kgn_ha", "surplus")
+  x$surplus_kgn_ha * x$area_ha / 1000
+}
+
+.nbx_prepare_actual <- function(x, metric) {
+  mass <- .nbx_actual_mass(x, metric)
+  x <- dplyr::mutate(x, actual_n_t = .env$mass)
   keyed <- .nbx_add_cell_key(x, "actual pressure")
   dplyr::select(
     keyed,

@@ -91,6 +91,12 @@ but allocate no crop share; an explicit \code{cell_residual} record carries the
 unallocated critical allowance, signed margin and positive overshoot. APIs
 requiring complete crop attribution hard-error rather than fabricate a
 fallback.
+
+Actual-pressure rows naming no crop cannot meet a critical allowance and are
+excluded before the cell comparison. The exclusion is reported, never
+silent: a message names the rows and the pressure they carried when that
+pressure is zero (the only case a gridded \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}
+produces), and a warning when it is not.
 }
 \examples{
 build_n_boundary_exceedance(example = TRUE)
