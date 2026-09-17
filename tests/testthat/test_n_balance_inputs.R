@@ -986,6 +986,182 @@ testthat::test_that("transported manure is retained as an unattributed agricultu
   testthat::expect_true(is.na(out$item_cbs_code))
 })
 
+# whep#532: where nitrogen with no item_cbs_code goes is a choice, so it is
+# selectable, reported and stamped. The manure row here is the shape the issue
+# found in the gridded surplus: real mass, on agricultural land, with no crop.
+.nbi_unattributed_manure <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      area_code = 10L,
+      item_cbs_code = c(2511L, NA_integer_),
+      year = 2010L,
+      fert_type = c("manure_solid", "manure_liquid"),
+      n_input_t = c(3, 20),
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_,
+      method_deposition_scope = NA_character_
+    )
+  )
+}
+
+testthat::test_that("the unattributed-nitrogen policy is stamped on every row", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep::build_n_inputs(data = .nbi_full_data()),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  testthat::expect_true(rlang::has_name(out, "method_unattributed"))
+  testthat::expect_setequal(out$method_unattributed, "cropland_area")
+})
+
+testthat::test_that("the excluded policy is still readable from the table", {
+  out <- NULL
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(
+      data = .nbi_full_data(),
+      unattributed_method = "exclude"
+    ),
+    class = "whep_n_unattributed_excluded"
+  )
+
+  # Under "exclude" no reallocated row survives, so a per-row stamp would make
+  # the choice that removed the nitrogen invisible.
+  testthat::expect_setequal(out$method_unattributed, "exclude")
+  testthat::expect_false(any(is.na(out$item_cbs_code)))
+})
+
+# whep#532 asks for the tonnage a missing-item filter removes to be reported,
+# not inferred. This ties the reported figure to the mass that actually left,
+# so a message that drifts from the arithmetic fails here.
+testthat::test_that("the excluded tonnage is the mass that actually left", {
+  data <- .nbi_full_data()
+  kept <- suppressMessages(whep::build_n_inputs(data = data))
+
+  reported <- NULL
+  dropped <- withCallingHandlers(
+    whep::build_n_inputs(data = data, unattributed_method = "exclude"),
+    whep_n_unattributed_excluded = function(cnd) {
+      reported <<- cnd
+      rlang::cnd_muffle(cnd)
+    }
+  )
+
+  lost <- sum(kept$n_input_t) - sum(dropped$n_input_t)
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(reported, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_gt(lost, 0)
+  testthat::expect_match(
+    message,
+    paste(signif(lost, 6), "t N"),
+    fixed = TRUE
+  )
+  # Every surviving row is crop-attributed, which is what made the loss
+  # invisible: the table still looks complete.
+  testthat::expect_false(any(is.na(dropped$item_cbs_code)))
+})
+
+testthat::test_that("the exclusion names the tonnage it drops", {
+  w <- testthat::expect_warning(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "exclude"
+      )
+    ),
+    class = "whep_n_unattributed_excluded"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(w, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_match(message, "20 t N")
+  testthat::expect_match(message, "manure_liquid 20 t N")
+})
+
+testthat::test_that("excluding drops the no-crop manure and keeps the rest", {
+  out <- suppressWarnings(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "exclude"
+      )
+    )
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 3)
+  testthat::expect_setequal(out$item_cbs_code, 2511L)
+})
+
+testthat::test_that("the cropland default keeps every no-crop tonne on crops", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 23)
+  testthat::expect_false(3000L %in% out$item_cbs_code)
+  # 700/1000 and 300/1000 of the 20 t, plus the crop-attributed 3 t on 2511.
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 2807L]),
+    6,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("the agricultural policy offers grassland the same nitrogen", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "agricultural_area"
+      )
+    ),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  # Same mass, a different landing: 500 of the support's 1500 ha are grass.
+  testthat::expect_equal(sum(out$n_input_t), 23)
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 3000L]),
+    20 * 500 / 1500,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("an unknown unattributed_method is refused", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      data = .nbi_full_data(),
+      unattributed_method = "spread_it_around"
+    )
+  )
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "spread_it_around"
+      )
+    )
+  )
+})
+
 # Synthetic fertiliser: Coello rate-weighted crop split (Task 1.4) ------------
 
 .nis_primary_prod <- function() {
