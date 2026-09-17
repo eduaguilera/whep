@@ -15,7 +15,8 @@ consolidate_sources(
   measure = NULL,
   tie_break = NULL,
   continuity_override = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  priority_scope = c("specific", "source")
 )
 }
 \arguments{
@@ -27,9 +28,15 @@ positive when \code{tie_break$coverage} is \code{"positive"}.}
 
 \item{source_col}{Unquoted name of the source-label column.}
 
-\item{priority}{Source-to-rank map, as either a named integer vector
-(\code{c(OWID = 1L, Malanima = 4L)}) or a two-column data frame (source, rank).
-Lower rank wins. Sources absent here take the fallback rank \code{drop_at - 1L}.}
+\item{priority}{Source-to-rank map, as a named integer vector
+(\code{c(OWID = 1L, Malanima = 4L)}), a two-column data frame (source, rank),
+or a scoped table: a data frame with the source column named as
+\code{source_col}, a \code{rank} column, and any number of further columns present
+in \code{data} that scope the entry (\code{NA} matches any value). Lower rank wins.
+A row takes the rank of the most specific entry it matches; sources absent
+here take the fallback rank \code{drop_at - 1L}. A data frame with more than
+two columns must name them: which column carries the rank cannot be
+guessed, and guessing wrong would publish another source's number.}
 
 \item{.by}{Character vector of grouping columns that, with \code{time_col}, key a
 cell (for example \code{c("region", "category")}). \code{NULL} (default) keys cells
@@ -64,6 +71,13 @@ the hard drop. Default: \code{NULL}.
 \code{value_col} is non-missing; \code{"positive"} counts only the cells where it
 is strictly positive (\code{value_col} must then be numeric); \code{FALSE}
 disables the coverage tie-break.
+\item \code{coverage_by}: character vector of \code{.by} columns at which coverage is
+counted, overriding the default of the full \code{.by} group. It must be a
+subset of \code{.by} -- coverage may be counted at a coarser grain than the
+cell, never at a different one -- and \code{character(0)} counts a source's
+coverage across the whole panel. Counting coverage one level coarser
+than the cell lets a source with broad category-level coverage win a tie
+in a subcategory where it is thin. Default: \code{NULL} (the \code{.by} grain).
 \item \code{quality_col}: string naming a quality column used as a tie-break
 after coverage. Default: \code{NULL}.
 \item \code{quality_levels}: character vector ordering \code{quality_col} values best
@@ -75,20 +89,46 @@ do variants whose best rank is not unique. Requires \code{quality_col}.
 Default: \code{FALSE}.
 }}
 
-\item{continuity_override}{Logical. Revert isolated single-period winner
-flips. Default: \code{TRUE}.}
+\item{continuity_override}{Revert isolated single-period winner flips.
+\code{TRUE} (default) or \code{FALSE}, or a named list of options, which also turns
+the override on:
+\itemize{
+\item \code{adjacency}: one of \code{"step"} (default) or \code{"within"}. \code{"step"} flags a
+flip only when both flanking periods sit exactly one time step away;
+\code{"within"} accepts at most one step, flagging flips in a series whose
+spacing is finer or irregular.
+\item \code{exempt}: one-sided formula selecting winning rows the isolation flag
+never applies to, such as \code{~ source == "Smil_2017"}, evaluated on the
+winners. Use it for a source whose observations are deliberately sparse,
+which would otherwise lose every anchor to the override. Default:
+\code{NULL}.
+}}
 
 \item{verbose}{Logical. Report the drop count, any resolved quality variants,
 name-order ties, and continuity reversions. Default: \code{TRUE}.}
+
+\item{priority_scope}{One of \code{"specific"} (default) or \code{"source"}, selecting
+how a scoped \code{priority} table is read. \code{"specific"} honours the scope
+keys, so a source can outrank its usual tier in one category only.
+\code{"source"} drops every scoped entry and ranks by source alone, reproducing
+what the table expressed before scoping existed; it is the sensitivity
+run that says what the scope is worth. No effect on an unscoped
+\code{priority}.}
 }
 \value{
 A tibble with the winning row per (\code{.by}, \code{time_col}) cell, the original
 columns of \code{data}, and four added provenance columns: \code{n_sources} (distinct
 sources contesting the cell after the hard drop), \code{source_rank} (the
 winner's base priority rank), \code{effective_rank} (base rank plus any measure
-penalty applied), and \code{measure_demoted} (whether the winner carried the
+penalty applied), \code{measure_demoted} (whether the winner carried the
 measure penalty; a flagged source only wins a cell that no
-measure-consistent source reports). Rows are ordered by \code{.by} then
+measure-consistent source reports), and \code{method_source}, naming the stage
+that decided the cell: \code{"sole_source"} (no rival contested it),
+\code{"nonmissing"} (the rival reported no value), \code{"priority"} or
+\code{"priority_scoped"} (a lower effective rank, from a source-keyed or a
+scope-keyed \code{priority} entry), \code{"coverage"}, \code{"quality"}, \code{"name_order"}
+(ascending source name settled a full tie), or \code{"continuity"} (the
+continuity override handed the cell back). Rows are ordered by \code{.by} then
 \code{time_col}.
 }
 \description{
@@ -108,6 +148,19 @@ an uncontested cell. Sources absent from \code{priority} receive the documented
 fallback rank \code{drop_at - 1L}: kept in play but ranked below every source
 listed with a smaller rank. To exclude an unreliable source, list it at
 \code{drop_at} or above.
+}
+
+\code{priority} may also be \strong{scoped}. A table keyed on the source plus
+further columns of \code{data} (a category, say) pins one source's rank inside
+one category while leaving its ordinary rank everywhere else, which
+listing that source at a different global rank cannot do: that would move
+the outcome in every other category too. A row takes the rank of the most
+specific entry it matches, an \code{NA} scope key meaning "any value", and two
+equally specific entries that disagree abort rather than let table order
+decide. \code{priority_scope = "source"} reads the same table with its scoped
+entries ignored, which is exactly what it bought before scoping existed
+and is therefore the comparison that quantifies what the scope changes.
+\enumerate{
 \item \strong{Measure-aware demotion.} A source can report a different measure than
 the panel's target concept (production where the panel means consumption,
 generation shares where it means primary energy, a sector fragment where it
@@ -123,7 +176,8 @@ higher-priority source's \code{NA} never discards a lower-priority source's real
 observation; a cell wins \code{NA} only when no source reports a real value. Among
 rows with a real value the winner is the row of lowest effective rank; ties
 are broken by broader within-series coverage (the count of cells the source
-reports across the \code{.by} group) when \code{tie_break$coverage}, then by
+reports across the \code{.by} group, or across the coarser group
+\code{tie_break$coverage_by} names) when \code{tie_break$coverage}, then by
 \code{tie_break$quality_col} ordered per \code{tie_break$quality_levels}, then by
 ascending source name (reported when \code{verbose}). Coverage counts the cells
 where \code{value_col} is non-missing, or only the strictly positive ones under
@@ -141,6 +195,17 @@ measure-demoted one: continuity never undoes the measure penalty, because a
 single-period source switch is cosmetic while a measure switch corrupts the
 series.
 }
+
+A source whose observations are deliberately sparse -- a milestone grid
+meant to be interpolated between -- looks like a run of isolated flips
+inside another source's annual run, and the override strips every one of
+its anchors, collapsing the backbone to a lower-priority partial series.
+\code{continuity_override$exempt} selects the rows the isolation flag never
+applies to. \code{continuity_override$adjacency} states what counts as a
+flanking period: \code{"step"} (the default) requires both neighbours to sit
+exactly one time step away, so only a true single-period tooth is
+reverted; \code{"within"} accepts at most one step, which also reverts a flip
+flanked at a finer-than-unit spacing in an irregular series.
 
 This operationalises the AFE decision \emph{Consolidate multi-source panels
 measure-consistently} (\code{wiki/decisions/measure-consistent-panel-consolidation}):
@@ -169,6 +234,24 @@ consolidate_sources(
   value_col = value,
   source_col = source,
   priority = c(OWID = 1L, Malanima = 4L),
+  .by = c("region", "category"),
+  verbose = FALSE
+)
+
+# A scoped table pins Malanima above OWID for Coal alone: its rank in every
+# other category stays 4, which inflating its global rank could not do.
+scoped <- tibble::tribble(
+  ~source, ~category, ~rank,
+  "OWID", NA_character_, 1L,
+  "Malanima", NA_character_, 4L,
+  "Malanima", "Coal", 0L
+)
+
+consolidate_sources(
+  panel,
+  value_col = value,
+  source_col = source,
+  priority = scoped,
   .by = c("region", "category"),
   verbose = FALSE
 )
