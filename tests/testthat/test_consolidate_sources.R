@@ -971,6 +971,31 @@ testthat::test_that("the most specific matching priority entry wins", {
   testthat::expect_equal(coal$source_rank, 0L)
 })
 
+testthat::test_that("an empty scoped priority table falls back for every row", {
+  # Nothing matches, so every source takes the documented `drop_at - 1L`
+  # fallback rather than erroring on a table with no rows to index by.
+  empty <- tibble::tibble(
+    source = character(0),
+    category = character(0),
+    rank = integer(0)
+  )
+
+  won <- whep::consolidate_sources(
+    scoped_panel,
+    value_col = value,
+    source_col = source,
+    priority = empty,
+    .by = c("region", "category"),
+    drop_at = 10L,
+    verbose = FALSE
+  )
+
+  testthat::expect_equal(nrow(won), 2L)
+  testthat::expect_equal(unique(won$source_rank), 9L)
+  # All ranks equal, so the name order settles both cells.
+  testthat::expect_equal(won$source, c("OWID", "OWID"))
+})
+
 testthat::test_that("verbose reports how many rows took a scoped rank", {
   testthat::expect_message(
     whep::consolidate_sources(
