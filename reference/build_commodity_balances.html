@@ -75,6 +75,7 @@ destiny filling, and final balancing.</p></li>
 <span>  share_overflow <span class="op">=</span> <span class="fu">.cbs_share_overflow_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  negative_supply <span class="op">=</span> <span class="fu">.cbs_negative_supply_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  hist_trade_scale <span class="op">=</span> <span class="fu">.hist_trade_scale_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  export_share_overflow <span class="op">=</span> <span class="fu">.cbs_export_overflow_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -245,6 +246,30 @@ the impossible pre-1962 exports behind whep#1065's negative
 <code>domestic_supply</code>. <code>"abort"</code> refuses to build. There is deliberately no
 clamp: the defect is in the pin's producer and no conversion factor
 recovers the true value, so a clamped tonnage would be a fabricated one.</p></dd>
+
+
+<dt id="arg-export-share-overflow">export_share_overflow<a class="anchor" aria-label="anchor" href="#arg-export-share-overflow"></a></dt>
+<dd><p>One of <code>"report"</code> (default), <code>"drop"</code> or
+<code>"abort"</code>, selecting what happens when the global export share the
+second processed-products round apportions a new product with exceeds 1
+(whep#1086). The share is world <code>export / (production + import)</code> for the
+<code>(year, item_cbs)</code> key, multiplied by a country's newly created
+processed production, so a share above 1 books more export than that
+country produced. Measured on a real 1950–1965 build, 77 of 2,012 keys
+exceed 1 and the largest is 443 (Soyabean Cake 1956) — but <strong>none of
+them is applied</strong>: every one is pre-1961 and the round emits rows from
+1961 on only, so <code>"report"</code> and <code>"drop"</code> give identical output on that
+range and no published value moves either way. Of the 77, 50 have no
+world production in the denominator at all (the oils and cakes, whose
+production is what this round is about to create) and the other 27 are
+the <code>historical-trade-exports</code> defect of whep#1085. <code>"report"</code> keeps every
+share as measured and names the count, the largest, and how many are
+actually applied. <code>"drop"</code> sets a violating share to <code>NA</code>, which is
+booked as no export at all. <code>"abort"</code> refuses to build. There is
+deliberately no clamp, unlike <code>share_overflow</code>: a destiny cannot exceed
+the supply it is apportioned from, so 1 is a true bound there, while
+here the denominator is incomplete and capping at 1 would book a
+country's whole processed output as export.</p></dd>
 
 
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>

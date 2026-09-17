@@ -101,10 +101,13 @@ the intended state.
 ## See also
 
 [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
-for the resolution itself, and
+for the resolution itself,
 [`polity_bucket_coverage()`](https://eduaguilera.github.io/whep/reference/polity_bucket_coverage.md)
 for the related question of which buckets sum more than one territory,
-and whether their label covers the sum.
+and whether their label covers the sum, and
+[`polity_anchor_drift()`](https://eduaguilera.github.io/whep/reference/polity_anchor_drift.md)
+for the narrower question of whether a back-cast row's label describes
+the same territory its growth proxy was measured on.
 
 ## Examples
 

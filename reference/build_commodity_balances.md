@@ -26,6 +26,7 @@ build_commodity_balances(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
+  export_share_overflow = .cbs_export_overflow_choices(),
   .fixed_data = NULL
 )
 ```
@@ -208,6 +209,30 @@ build_commodity_balances(
   refuses to build. There is deliberately no clamp: the defect is in the
   pin's producer and no conversion factor recovers the true value, so a
   clamped tonnage would be a fabricated one.
+
+- export_share_overflow:
+
+  One of `"report"` (default), `"drop"` or `"abort"`, selecting what
+  happens when the global export share the second processed-products
+  round apportions a new product with exceeds 1 (whep#1086). The share
+  is world `export / (production + import)` for the `(year, item_cbs)`
+  key, multiplied by a country's newly created processed production, so
+  a share above 1 books more export than that country produced. Measured
+  on a real 1950–1965 build, 77 of 2,012 keys exceed 1 and the largest
+  is 443 (Soyabean Cake 1956) — but **none of them is applied**: every
+  one is pre-1961 and the round emits rows from 1961 on only, so
+  `"report"` and `"drop"` give identical output on that range and no
+  published value moves either way. Of the 77, 50 have no world
+  production in the denominator at all (the oils and cakes, whose
+  production is what this round is about to create) and the other 27 are
+  the `historical-trade-exports` defect of whep#1085. `"report"` keeps
+  every share as measured and names the count, the largest, and how many
+  are actually applied. `"drop"` sets a violating share to `NA`, which
+  is booked as no export at all. `"abort"` refuses to build. There is
+  deliberately no clamp, unlike `share_overflow`: a destiny cannot
+  exceed the supply it is apportioned from, so 1 is a true bound there,
+  while here the denominator is incomplete and capping at 1 would book a
+  country's whole processed output as export.
 
 - .fixed_data:
 
