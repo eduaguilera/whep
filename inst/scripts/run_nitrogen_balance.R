@@ -663,24 +663,49 @@ if (nrow(blockers) > 0L) {
          world as surprising (#446 step 3)."
       )
     }
+    # The boundary surface is not read for you: build_n_boundary_exceedance()
+    # takes both sides and refuses with "Both actual pressure and its boundary
+    # surface are required" when either is missing. `land_use = "ara"` matches
+    # the cropland support this balance is built on, and the reference year is
+    # fixed at 2010 by the deposited surface itself.
+    critical <- nbd_stage(
+      "critical_n_surplus",
+      read_critical_n(
+        var = "critical_n_surplus",
+        threshold = "mi",
+        land_use = "ara"
+      )
+    )
     exceedance <- nbd_stage(
       "n_boundary_exceedance",
       build_n_boundary_exceedance(
         surplus = surplus,
-        resolution = "grid",
+        critical = critical,
+        land_use = "ara",
+        resolution = "cell",
         cell_polity = cell_polity,
-        actual_year = year
+        actual_year = year,
+        critical_reference_year = 2010L
       )
     )
   }
   if (!is.null(exceedance)) {
     cli::cli_h2("8. Boundary exceedance")
-    cli::cli_inform(
-      "exceedance: {round(sum(exceedance$exceedance_n_t, na.rm = TRUE) / 1e6, 1)}
-       Tg N/yr over
-       {round(sum(exceedance$within_boundary_n_t, na.rm = TRUE) / 1e6, 1)}
-       Tg N/yr within the critical surplus."
-    )
+    print(utils::head(as.data.frame(exceedance), 3))
+    totals <- exceedance |>
+      dplyr::summarise(dplyr::across(
+        dplyr::any_of(c(
+          "actual_n_t",
+          "critical_n_t",
+          "margin_n_t",
+          "overshoot_n_t",
+          "exceedance_n_t",
+          "within_boundary_n_t"
+        )),
+        \(v) sum(v, na.rm = TRUE) / 1e6
+      ))
+    cli::cli_inform("Tg N/yr, summed over cells:")
+    print(as.data.frame(totals))
   }
   # classify_sjos_n() needs a nourishment axis and build_sjos_n_footprint()
   # needs an IO model; both descend from the commodity balances, so both are
