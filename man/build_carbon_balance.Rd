@@ -225,6 +225,15 @@ crosswalk: half the path on one footprint and half on another would surface
 as an ordinary climate-coverage warning from the modifier join, not as an
 error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
 and dropped, never folded into another polity's.
+
+The support is keyed on the \link{polity_area_crosswalk} \code{polity_area_code}
+bucket, because that is what every national table the path joins to carries:
+\code{.aggregate_to_polities()} groups on that column and renames it \code{area_code}.
+Sudan and South Sudan therefore report together under \code{206}, as they do in
+the production and CBS series. The fold is read through the live crosswalk,
+so \code{options(whep.unfold_rest_of_world)} and any future un-fold of \code{206}
+(whep#680) move the grid and the national tables together rather than
+separating them (whep#1168).
 }
 
 \section{Polity columns}{

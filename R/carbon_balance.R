@@ -170,6 +170,15 @@
 #' error. Land the reporting vocabulary cannot key (no `area_code`) is reported
 #' and dropped, never folded into another polity's.
 #'
+#' The support is keyed on the [polity_area_crosswalk] `polity_area_code`
+#' bucket, because that is what every national table the path joins to carries:
+#' `.aggregate_to_polities()` groups on that column and renames it `area_code`.
+#' Sudan and South Sudan therefore report together under `206`, as they do in
+#' the production and CBS series. The fold is read through the live crosswalk,
+#' so `options(whep.unfold_rest_of_world)` and any future un-fold of `206`
+#' (whep#680) move the grid and the national tables together rather than
+#' separating them (whep#1168).
+#'
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
