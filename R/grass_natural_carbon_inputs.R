@@ -189,6 +189,44 @@
 #' cells within 10%, global totals 1560.5 against 1576.0 Mha), because WHEP's
 #' LPJmL land-use forcing is itself LUH2-derived.
 #'
+#' # Which grassland hectares the grazing removal is divided by
+#'
+#' `grazed_area_basis` is the same question for the flux that leaves the
+#' grassland. WHEP's grass intake is a polity total too, so it also becomes a
+#' density by division and is also charged only to cells with an LPJmL
+#' grassland stand. Under the default divisor the polity's grassland gives up
+#' the coverage share of what its herd ate, and the rest is grazed off nothing.
+#'
+#' The coverage is the same one measured for the excreta above: 98.6% of the
+#' LUH2 grassland area globally at 2010, but 0.68 for Greece, 0.77 for Somalia,
+#' 0.82 for Indonesia and 0.87 for the United Kingdom. Weighting each polity by
+#' LPJmL's own grazing removal as a stand-in for WHEP's intake (1,100 Tg C at
+#' 2010, against the 1,188 Tg C the SOC branch reports at 2020), 1.8% of the
+#' grazed carbon is removed from nothing; 50 of 175 polities lose more than 1%
+#' of their grassland carbon input to the choice and 11 more than 5%.
+#'
+#' The two bases are alternatives, not fallbacks, and the chosen one is
+#' recorded in `method_grazed_area`:
+#'
+#' - `"luh2_grassland"` (default, the published behaviour): divide by the
+#'   polity's whole LUH2 grassland area. The density on a charged cell is then
+#'   the polity's true mean grazing pressure, but the polity gives up less
+#'   carbon than its herd ate.
+#' - `"charged_grassland"`: divide by the LUH2 grassland area of the cells the
+#'   density is charged to, so the grassland gives up exactly the carbon the
+#'   herd removed. The cost is that the whole national herd is then charged to
+#'   the modelled subset of the pasture, raising the removal density there by
+#'   the reciprocal of the coverage (1.46x for Greece, 1.29x for Somalia).
+#'
+#' The two are not a strict improvement on one another, which is why the
+#' default is unchanged: the first conserves the per-hectare density, the
+#' second conserves the mass. On the probe above, switching lowers the global
+#' grassland plant carbon input by 20.2 Tg C at 2010 (-0.13%; -0.13% at 1960
+#' and -0.14% at 2020) and by up to 8.2% for a single polity. Neither basis
+#' reaches the uncovered hectares themselves: [build_carbon_balance()] gives
+#' them a grassland pool with a zero carbon input, which is the larger defect
+#' of the two and is tracked separately (whep#1146).
+#'
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code`, area-weighting the per-hectare densities).
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -222,13 +260,18 @@
 #'   `"charged_grassland"` or `"luh2_all_grassland"`. See the section below;
 #'   the choice is recorded in `method_excreta_area`. Only bites under
 #'   `method_grazing = "whep"`; `"lpjml"` returns no WHEP excreta to divide.
+#' @param grazed_area_basis Which grassland hectares the polity's grass intake
+#'   carbon is divided by: `"luh2_grassland"` (default) or
+#'   `"charged_grassland"`. See the section below; the choice is recorded in
+#'   `method_grazed_area`. Only bites under `method_grazing = "whep"`;
+#'   `"lpjml"` takes the run's own harvest, which is already per cell.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
-#'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
-#'   `method_excreta_area`, for `land_use` in `"grassland"` and `"natural"`,
-#'   plus the polity columns below.
+#'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`,
+#'   `method_excreta_area` and `method_grazed_area`, for `land_use` in
+#'   `"grassland"` and `"natural"`, plus the polity columns below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @source LPJmL run net primary production and harvested carbon; grassland and
 #'   natural carbon inputs per the WHEP historical carbon-balance design.
@@ -248,6 +291,7 @@ build_grass_natural_carbon_inputs <- function(
     "charged_grassland",
     "luh2_all_grassland"
   ),
+  grazed_area_basis = c("luh2_grassland", "charged_grassland"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -255,14 +299,18 @@ build_grass_natural_carbon_inputs <- function(
   method_natural_hf <- rlang::arg_match(method_natural_hf)
   method_natural_c <- rlang::arg_match(method_natural_c)
   basis <- rlang::arg_match(excreta_area_basis)
+  grazed_basis <- rlang::arg_match(grazed_area_basis)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
   d <- .gn_resolve_inputs(data, years, run_dir)
   natural <- .gn_natural_input(d, method_natural_hf, method_natural_c)
-  grassland <- .gn_grassland_input(d, method_grazing, basis)
+  grassland <- .gn_grassland_input(d, method_grazing, basis, grazed_basis)
   dplyr::bind_rows(natural, grassland) |>
-    dplyr::mutate(method_excreta_area = basis) |>
+    dplyr::mutate(
+      method_excreta_area = basis,
+      method_grazed_area = grazed_basis
+    ) |>
     .gn_finalise(resolution, d$land_use) |>
     .add_reporting_polity_columns()
 }
@@ -730,7 +778,8 @@ build_grass_natural_carbon_inputs <- function(
 .gn_grassland_input <- function(
   d,
   method_grazing = "whep",
-  basis = "luh2_grassland"
+  basis = "luh2_grassland",
+  grazed_basis = "luh2_grassland"
 ) {
   # Grass litter (weed coefficient) and grazing excreta (excreta coefficient,
   # ~2.2x higher) humify differently; carbon-weight the two so each stream keeps
@@ -741,7 +790,7 @@ build_grass_natural_carbon_inputs <- function(
     .gn_attach_polity(d$country_grid) |>
     .gn_extend_to_luh2(d$land_use, d$excreta, basis)
   net |>
-    .gn_grazing_terms(d, method_grazing, basis) |>
+    .gn_grazing_terms(d, method_grazing, basis, grazed_basis) |>
     dplyr::mutate(
       c_input_mgc_ha_yr = .data$plant_c + .data$excreta_c,
       humified_fraction = dplyr::if_else(
@@ -769,7 +818,7 @@ build_grass_natural_carbon_inputs <- function(
 # leaves on the grassland. They differ in whose herd eats and whose herd
 # defecates, and in nothing else: both start from the same LPJmL layer and
 # both return one `plant_c` plus one `excreta_c` per cell-year.
-.gn_grazing_terms <- function(net, d, method_grazing, basis) {
+.gn_grazing_terms <- function(net, d, method_grazing, basis, grazed_basis) {
   # A layer with no grassland has nothing to charge, so it must not demand
   # the grazing inputs either -- the natural-land tests build exactly that.
   if (nrow(net) == 0) {
@@ -786,7 +835,16 @@ build_grass_natural_carbon_inputs <- function(
   .gn_check_whep_grazing(d, net$year)
   net |>
     dplyr::left_join(
-      .gn_grazed_density(d$livestock_intake, d$land_use, d$country_grid),
+      # `charged = net` and `grazed_basis` are whep#1011: which grassland
+      # hectares the polity grass-intake carbon is divided by, the same
+      # question the excreta basis below answers for the return flux.
+      .gn_grazed_density(
+        d$livestock_intake,
+        d$land_use,
+        d$country_grid,
+        net,
+        grazed_basis
+      ),
       by = c("area_code", "year")
     ) |>
     dplyr::left_join(
@@ -970,9 +1028,18 @@ build_grass_natural_carbon_inputs <- function(
 # package's carbon-to-dry-matter fraction, the same constant
 # [build_grass_availability()] uses in the other direction, so the removal is
 # on the same basis as the supply it was allocated from.
-.gn_grazed_density <- function(intake, land_use, country_grid) {
+.gn_grazed_density <- function(
+  intake,
+  land_use,
+  country_grid,
+  charged = NULL,
+  basis = "luh2_grassland"
+) {
   grazed_c <- .gn_grazed_mass(intake, grass_access_shares()$w_c_dm)
-  grass_area <- .gn_grass_area(land_use, country_grid)
+  total_area <- .gn_grass_area(land_use, country_grid)
+  charged_area <- .gn_grass_area(land_use, country_grid, charged)
+  .gn_report_grazed_area(grazed_c, total_area, charged_area, basis)
+  grass_area <- if (basis == "charged_grassland") charged_area else total_area
   grazed_c |>
     dplyr::inner_join(grass_area, by = c("area_code", "year")) |>
     dplyr::mutate(
@@ -982,7 +1049,77 @@ build_grass_natural_carbon_inputs <- function(
         0
       )
     ) |>
-    dplyr::select("area_code", "year", "grazed_c_mgc_ha_yr")
+    dplyr::select("area_code", "year", "grazed_c_mgc_ha_yr") |>
+    .gn_check_grazed_mass(grazed_c, charged_area, basis)
+}
+
+# Report the grassland hectares in the LUH2 basis but not in the charged set,
+# as the grazed carbon the divisor choice either removes from nothing or
+# concentrates on the covered hectares. Silent when the two agree, and silent
+# when no grass was grazed at all -- a zero share is not a finding, and a zero
+# total would make the percentage NaN.
+.gn_report_grazed_area <- function(grazed_c, total_area, charged_area, basis) {
+  gap <- total_area |>
+    dplyr::inner_join(grazed_c, by = c("area_code", "year")) |>
+    dplyr::left_join(
+      dplyr::rename(charged_area, charged_ha = "grass_area_ha"),
+      by = c("area_code", "year")
+    ) |>
+    dplyr::mutate(charged_ha = dplyr::coalesce(.data$charged_ha, 0)) |>
+    dplyr::filter(.data$charged_ha < .data$grass_area_ha)
+  lost <- sum(gap$grazed_c_mg * (1 - gap$charged_ha / gap$grass_area_ha))
+  if (nrow(gap) == 0 || lost <= 0) {
+    return(invisible(gap))
+  }
+  share <- signif(100 * lost / sum(grazed_c$grazed_c_mg), 3)
+  uncovered <- signif(sum(gap$grass_area_ha - gap$charged_ha), 3)
+  lost <- signif(lost, 3)
+  cli::cli_warn(c(
+    "!" = "{nrow(gap)} polity-year{?s} hold {uncovered} ha of LUH2 grassland
+      with no LPJmL grassland stand.",
+    i = if (basis == "luh2_grassland") {
+      "{.val {basis}} divides by those hectares too, so {lost} MgC
+       ({share}%) of the grazed carbon is removed from nothing."
+    } else {
+      "{.val {basis}} removes their {lost} MgC ({share}%) of grazed carbon
+       from the covered hectares instead."
+    }
+  ))
+  invisible(gap)
+}
+
+# The conservation assertion a mass-conserving basis must satisfy: the carbon
+# the charged hectares give up equals the polity's grass intake carbon. It is
+# the removal BEFORE the zero floor, which is the quantity the divisor
+# controls; how much of it a cell cannot actually give up is
+# `.gn_warn_grazing_over_production()`'s report, a separate defect. A relative
+# tolerance, because the density is a division; polities whose charged
+# grassland area is zero are excluded (they have nowhere to take it from).
+.gn_check_grazed_mass <- function(density, grazed_c, charged_area, basis) {
+  if (basis == "luh2_grassland") {
+    return(density)
+  }
+  bad <- density |>
+    dplyr::inner_join(grazed_c, by = c("area_code", "year")) |>
+    dplyr::inner_join(charged_area, by = c("area_code", "year")) |>
+    dplyr::filter(.data$grass_area_ha > 0) |>
+    dplyr::mutate(
+      removed_c_mg = .data$grazed_c_mgc_ha_yr * .data$grass_area_ha
+    ) |>
+    dplyr::filter(
+      abs(.data$removed_c_mg - .data$grazed_c_mg) >
+        1e-8 * pmax(abs(.data$grazed_c_mg), 1)
+    )
+  if (nrow(bad) > 0) {
+    cli::cli_abort(c(
+      "{.val {basis}} must take from every polity its whole grazed carbon,
+       but {nrow(bad)} polity-year{?s} do{?es/} not.",
+      i = "Worst: {.val {bad$area_code[1]}} at {.val {bad$year[1]}},
+           {round(bad$removed_c_mg[1], 3)} against
+           {round(bad$grazed_c_mg[1], 3)} MgC."
+    ))
+  }
+  density
 }
 
 # Total grazed carbon (MgC) per polity-year: tonnes of grass dry matter times
@@ -1285,6 +1422,7 @@ build_grass_natural_carbon_inputs <- function(
       ),
       method_c_input = .data$method_c_input[1],
       method_excreta_area = .data$method_excreta_area[1],
+      method_grazed_area = .data$method_grazed_area[1],
       .by = c("area_code", "year", "land_use")
     ) |>
     tibble::as_tibble()

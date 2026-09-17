@@ -17,6 +17,7 @@ build_grass_natural_carbon_inputs(
   years = NULL,
   run_dir = NULL,
   excreta_area_basis = c("luh2_grassland", "charged_grassland", "luh2_all_grassland"),
+  grazed_area_basis = c("luh2_grassland", "charged_grassland"),
   example = FALSE
 )
 }
@@ -117,7 +118,44 @@ It would conserve nothing under the area basis \code{\link[=build_carbon_balance
 actually uses, and it would buy little: measured at 1901 the stand area and
 the LUH2 grassland area agree to a median 0.1\% per cell (95.5\% of shared
 cells within 10\%, global totals 1560.5 against 1576.0 Mha), because WHEP's
-LPJmL land-use forcing is itself LUH2-derived.}
+LPJmL land-use forcing is itself LUH2-derived.Which grassland hectares the grazing removal is divided by
+
+\code{grazed_area_basis} is the same question for the flux that leaves the
+grassland. WHEP's grass intake is a polity total too, so it also becomes a
+density by division and is also charged only to cells with an LPJmL
+grassland stand. Under the default divisor the polity's grassland gives up
+the coverage share of what its herd ate, and the rest is grazed off nothing.
+
+The coverage is the same one measured for the excreta above: 98.6\% of the
+LUH2 grassland area globally at 2010, but 0.68 for Greece, 0.77 for Somalia,
+0.82 for Indonesia and 0.87 for the United Kingdom. Weighting each polity by
+LPJmL's own grazing removal as a stand-in for WHEP's intake (1,100 Tg C at
+2010, against the 1,188 Tg C the SOC branch reports at 2020), 1.8\% of the
+grazed carbon is removed from nothing; 50 of 175 polities lose more than 1\%
+of their grassland carbon input to the choice and 11 more than 5\%.
+
+The two bases are alternatives, not fallbacks, and the chosen one is
+recorded in \code{method_grazed_area}:
+\itemize{
+\item \code{"luh2_grassland"} (default, the published behaviour): divide by the
+polity's whole LUH2 grassland area. The density on a charged cell is then
+the polity's true mean grazing pressure, but the polity gives up less
+carbon than its herd ate.
+\item \code{"charged_grassland"}: divide by the LUH2 grassland area of the cells the
+density is charged to, so the grassland gives up exactly the carbon the
+herd removed. The cost is that the whole national herd is then charged to
+the modelled subset of the pasture, raising the removal density there by
+the reciprocal of the coverage (1.46x for Greece, 1.29x for Somalia).
+}
+
+The two are not a strict improvement on one another, which is why the
+default is unchanged: the first conserves the per-hectare density, the
+second conserves the mass. On the probe above, switching lowers the global
+grassland plant carbon input by 20.2 Tg C at 2010 (-0.13\%; -0.13\% at 1960
+and -0.14\% at 2020) and by up to 8.2\% for a single polity. Neither basis
+reaches the uncovered hectares themselves: \code{\link[=build_carbon_balance]{build_carbon_balance()}} gives
+them a grassland pool with a zero carbon input, which is the larger defect
+of the two and is tracked separately (whep#1146).}
 
 \item{method_natural_c}{Which LPJmL quantity is natural land's carbon
 input. \code{"litterfall"} (default) is \code{litfallc_nv}, what the model
@@ -202,15 +240,21 @@ excreta carbon is divided by: \code{"luh2_grassland"} (default),
 the choice is recorded in \code{method_excreta_area}. Only bites under
 \code{method_grazing = "whep"}; \code{"lpjml"} returns no WHEP excreta to divide.}
 
+\item{grazed_area_basis}{Which grassland hectares the polity's grass intake
+carbon is divided by: \code{"luh2_grassland"} (default) or
+\code{"charged_grassland"}. See the section below; the choice is recorded in
+\code{method_grazed_area}. Only bites under \code{method_grazing = "whep"};
+\code{"lpjml"} takes the run's own harvest, which is already per cell.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
-\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input} and
-\code{method_excreta_area}, for \code{land_use} in \code{"grassland"} and \code{"natural"},
-plus the polity columns below.
+\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input},
+\code{method_excreta_area} and \code{method_grazed_area}, for \code{land_use} in
+\code{"grassland"} and \code{"natural"}, plus the polity columns below.
 }
 \description{
 Assemble the carbon returned to soil under grassland and natural vegetation
