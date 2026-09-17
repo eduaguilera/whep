@@ -3577,6 +3577,70 @@ test_that("a balanced frame reports nothing", {
   )
 })
 
+# A `.cbs_pp_items()` row: its `processing_primary` is the copy of production
+# that `.assemble_cbs_sources()` makes, so the share is
+# production / (production + import - export) and exceeds 1 whenever the item
+# is a net exporter. Nothing about the balance is wrong, which is why the
+# report has to separate it from a source that does not close (whep#980).
+.pp_overflow_frame <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs, ~item_cbs_code, ~domestic_supply,
+    1952L, 68L, "Hops", 677L, 417,
+    1951L, 118L, "Hides and skins", 2748L, 123
+  ) |>
+    dplyr::mutate(
+      food = NA_real_,
+      feed = NA_real_,
+      other_uses = c(NA, 1373),
+      processing = NA_real_,
+      processing_primary = c(1417, NA),
+      food_share = whep:::.cbs_safe_ratio(food, domestic_supply),
+      feed_share = whep:::.cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = whep:::.cbs_safe_ratio(
+        other_uses,
+        domestic_supply
+      ),
+      processing_share = whep:::.cbs_safe_ratio(
+        processing,
+        domestic_supply
+      ),
+      processing_primary_share = whep:::.cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
+    )
+}
+
+test_that("the census separates a construction from a reported overflow", {
+  over <- whep:::.destiny_shares_above_one(.pp_overflow_frame())
+
+  expect_true("structural" %in% names(over))
+  expect_setequal(over$destiny, c("other_uses", "processing_primary"))
+  expect_true(over$structural[over$destiny == "processing_primary"])
+  expect_false(over$structural[over$destiny == "other_uses"])
+})
+
+test_that("the overflow report names the construction subset", {
+  # Without the split the maintainer reads 108 offenders where 19 of them are
+  # a trade ratio no setting can move, which overstates what the choice of
+  # `share_overflow` is about (whep#980).
+  over <- whep:::.destiny_shares_above_one(.pp_overflow_frame())
+
+  expect_warning(
+    whep:::.report_share_overflow(over, "report"),
+    "processing_primary.*construction"
+  )
+  # A frame with no construction case must not grow the extra bullet.
+  reported <- tryCatch(
+    whep:::.report_share_overflow(
+      dplyr::filter(over, !.data$structural),
+      "report"
+    ),
+    warning = conditionMessage
+  )
+  expect_false(grepl("construction", reported))
+})
+
 
 # -- .primary_to_cbs fao_flag (whep#1044) --------------------------------------
 

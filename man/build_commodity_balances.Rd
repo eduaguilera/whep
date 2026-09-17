@@ -95,12 +95,23 @@ not closing (the non-food Commodity Balances, which carry tobacco, hides
 and skins, silk, wool and fibres as \code{other_uses} and which no
 better-ranked source overwrites), and the other 19 are hops in
 net-exporting years, whose \code{processing_primary} is the whole production
-by construction. \code{"report"} therefore keeps every value as measured and
+by construction — a trade ratio rather than an apportionment, which no
+setting can move, so the warning names that subset separately.
+\code{"report"} therefore keeps every value as measured and
 only warns, so it \strong{moves no published value}; it names the count, the
 split by destiny and the three largest. \code{"clamp"} caps the share at 1,
 \code{"drop"} sets it to \code{NA} so the key is filled from a neighbouring year
 instead (and booked as 0 where the violating year is the only
-observation), and \code{"abort"} refuses to build. Which of those is right is
+observation), and \code{"abort"} refuses to build. The share is an
+intermediate, not a published number: \code{.cbs_fill_destinies()} later
+re-derives each destiny as \code{domestic_supply} times a share normalised to
+sum to one, so on that build no published row from 1961 on carries a
+destiny above its supply and every difference between the settings sits
+at 1960 or earlier — against \code{"report"}, \code{"clamp"} moves 755 rows
+(\code{other_uses} +23.21 Mt, \code{stock_variation} −22.97 Mt, \code{food} −1.00 Mt)
+and \code{"drop"} moves 544 (\code{other_uses} +825 Mt, \code{stock_variation}
+−825 Mt), both upwards because the values they touch are negative
+(whep#1065). Which of those is right is
 an open question — see whep#980 — so the reporting default is the one
 that invents nothing.}
 
