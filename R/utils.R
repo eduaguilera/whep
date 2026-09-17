@@ -2244,6 +2244,10 @@ utils::globalVariables(
     # row anchor from
     "predecessor",
     "reporting_polity_code",
+    # build_cbs.R (issue 980) -- flags a destiny share above one that comes
+    # from the `.cbs_pp_items()` construction rather than from a reported
+    # value, so the overflow report can separate the two
+    "structural",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
