@@ -451,6 +451,55 @@ testthat::test_that("output-only residue-destiny keys are preserved", {
   ))
 })
 
+testthat::test_that("bedding residue N leaves the field without leaking", {
+  # whep#1005: bedding is carved out of the burn share, so the nitrogen it
+  # carries stops being counted as burnt. It still LEAVES the field, so it has
+  # to arrive as its own output term -- otherwise the removed nitrogen simply
+  # vanishes from n_output_full_t and the surplus is overstated by it.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  inputs <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  bare <- whep:::.nb_add_residue_destiny(
+    inputs,
+    list(residue_destiny_input = .nb_residue_destiny_input()),
+    key
+  )
+  bedded <- whep:::.nb_add_residue_destiny(
+    inputs,
+    list(
+      residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding_fraction = 0.4
+    ),
+    key
+  )
+  removed <- function(x) {
+    x$used_residue_n_t + x$bedding_residue_n_t + x$burnt_residue_n_t
+  }
+  testthat::expect_equal(bare$bedding_residue_n_t, 0)
+  testthat::expect_gt(bedded$bedding_residue_n_t, 0)
+  testthat::expect_lt(bedded$burnt_residue_n_t, bare$burnt_residue_n_t)
+  testthat::expect_equal(removed(bedded), removed(bare))
+})
+
+testthat::test_that("bedding residue N is an output of the full balance", {
+  aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
+    prod_n_t = 10,
+    used_residue_n_t = 2,
+    bedding_residue_n_t = 3,
+    burnt_residue_n_t = 1,
+    grazed_weeds_n_t = 0,
+    som_sequestration_n_t = 0,
+    nh3_n_t = 0
+  ))
+  testthat::expect_equal(aggregated$n_output_full_t, 16)
+})
+
 testthat::test_that("duplicate loss-driver keys abort instead of duplicating emissions", {
   key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
   n_inputs <- tibble::tibble(
@@ -604,6 +653,7 @@ testthat::test_that("the N-limitation SOM cap engages and recomputes every downs
     n_input_for_n2o_t = 40,
     prod_n_t = 20,
     used_residue_n_t = 5,
+    bedding_residue_n_t = 0,
     burnt_residue_n_t = 2,
     grazed_weeds_n_t = 3,
     som_sequestration_n_t = 10, # would push n_output_full_t above 50+

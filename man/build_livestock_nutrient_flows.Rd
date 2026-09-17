@@ -8,7 +8,8 @@ build_livestock_nutrient_flows(
   intake,
   resolution = "national",
   methods = list(),
-  gridded = NULL
+  gridded = NULL,
+  bedding = NULL
 )
 }
 \arguments{
@@ -20,8 +21,8 @@ result); see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} for the
 \code{"subnational"}. Transport between cells runs only at \code{"subnational"}.}
 
 \item{methods}{A named list of per-stage option lists, any of \code{excretion},
-\code{split}, \code{losses}, \code{allocation} and \code{transport}, each forwarded to the
-matching pipeline function's \code{options}.}
+\code{split}, \code{bedding}, \code{losses}, \code{allocation} and \code{transport}, each forwarded
+to the matching pipeline function's \code{options}.}
 
 \item{gridded}{The land-surface layer (\code{crops} and optional \code{grass} tibbles)
 passed to \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}; required for the default
@@ -31,6 +32,14 @@ column of \code{crops} is a \emph{code}: \code{as.character(item_prod_code)} fro
 this function's \code{applied} stream (the carbon balance and the nitrogen
 balance); a crop name is still resolved by the nitrogen path but is
 deprecated and warns.}
+
+\item{bedding}{An optional bedding supply from
+\code{\link[=build_residue_bedding_supply]{build_residue_bedding_supply()}}. When given, \code{\link[=add_manure_bedding]{add_manure_bedding()}} places
+it on the litter-using housed streams before the management losses, so the
+manure reaching the field is bedded farmyard manure rather than excreta
+alone. \code{NULL} (default) leaves every number excreta-only; the share of crop
+residue used as bedding is unset in this package pending a source
+(whep#1005), so a caller has to build the supply deliberately.}
 }
 \value{
 A named list with \code{applied} (manure applied per
