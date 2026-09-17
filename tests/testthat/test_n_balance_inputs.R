@@ -1772,3 +1772,113 @@ testthat::test_that("the manure_type bridge maps its whole vocabulary", {
     "Unexpected"
   )
 })
+
+# ---- Every requested stream must have arrived (whep#1034) --------------
+
+# The seven streams, assembled exactly as build_n_inputs() assembles them but
+# without the guard, so a test can hand the same frame to both the mass check
+# the package already ships and the new one.
+.nbi_assemble_streams <- function(data) {
+  data$resolution <- whep:::.ni_manure_resolution(data, "grid")
+  dplyr::bind_rows(
+    whep:::.n_inputs_bnf(data),
+    whep:::.n_inputs_recycling(data),
+    whep:::.n_inputs_manure(data),
+    whep:::.n_inputs_deposition(data),
+    whep:::.n_inputs_urban(data),
+    whep:::.n_inputs_som(data),
+    whep:::.n_inputs_synthetic(data)
+  )
+}
+
+testthat::test_that("the allocation mass check cannot see a lost stream", {
+  # .ni_check_unallocated() -- the only reconciliation in this assembly --
+  # compares the assembled rows against themselves, so it is satisfied
+  # exactly by an assembly the synthetic term never reached. That is the
+  # state the guard has to catch instead.
+  data <- .nbi_full_data()
+  data[["fertilizer"]][["Area Code"]] <- 5000L
+  assembled <- .nbi_assemble_streams(data)
+
+  testthat::expect_false("synthetic" %in% assembled$fert_type)
+  expect_supplied_guard(
+    identity = is.data.frame(whep:::.ni_allocate_unattributed(assembled, data)),
+    guard = whep:::.ni_check_streams(assembled, data)
+  )
+})
+
+testthat::test_that("a supplied fertiliser table that lands nowhere is refused", {
+  data <- .nbi_full_data()
+  data[["fertilizer"]][["Area Code"]] <- 5000L
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("deposition fields off the support's span are refused", {
+  data <- .nbi_full_data()
+  data$nhx <- dplyr::mutate(data$nhx, year = 1999L)
+  data$noy <- dplyr::mutate(data$noy, year = 1999L)
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "deposition"
+  )
+})
+
+testthat::test_that("a relabelled carbon balance warns rather than aborting", {
+  # som_mineralization is the one stream defined by a sign filter
+  # (son_change_kgn_ha > 0), so an empty stream there can be an observation
+  # as well as a symptom. Every other stream aborts.
+  data <- .nbi_full_data()
+  data$carbon_balance <- dplyr::mutate(data$carbon_balance, land_use = "Arable")
+
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(data = data),
+    class = "whep_absent_input"
+  )
+  testthat::expect_false("som_mineralization" %in% out$fert_type)
+})
+
+testthat::test_that("a stream whose inputs were never supplied stays legal", {
+  # Leaving bnf_input out is how a caller says it does not want that term.
+  data <- .nbi_full_data()
+  data$bnf_input <- NULL
+
+  out <- whep::build_n_inputs(data = data)
+
+  testthat::expect_false("bnf" %in% out$fert_type)
+  testthat::expect_true("synthetic" %in% out$fert_type)
+})
+
+testthat::test_that("the requested set follows the inputs that were supplied", {
+  data <- .nbi_full_data()
+
+  testthat::expect_setequal(
+    whep:::.ni_requested_streams(data),
+    names(whep:::.ni_stream_inputs())
+  )
+  testthat::expect_setequal(
+    whep:::.ni_requested_streams(list()),
+    character()
+  )
+  # build_nitrogen_balance() hands the NPP result in as `.npp_cache`, and
+  # that asks for the recycling term just as `npp_n_input` does.
+  testthat::expect_equal(
+    whep:::.ni_requested_streams(list(.npp_cache = data$npp_n_input)),
+    "recycling"
+  )
+})
+
+testthat::test_that("every stream key maps to a fert_type this file emits", {
+  testthat::expect_setequal(
+    names(whep:::.ni_stream_inputs()),
+    names(whep:::.ni_stream_fert_types())
+  )
+  testthat::expect_setequal(
+    unlist(whep:::.ni_stream_fert_types(), use.names = FALSE),
+    whep::build_n_inputs(data = .nbi_full_data())$fert_type |> unique()
+  )
+})

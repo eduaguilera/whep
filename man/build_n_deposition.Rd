@@ -21,7 +21,11 @@ keeps every year the inputs cover.}
 (each \code{lon}, \code{lat}, \code{year}, \code{value_g} and optionally
 \code{method_deposition}, falling back to \code{\link[=read_n_deposition]{read_n_deposition()}} when absent)
 and \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_ha} and the
-\code{split} key column, required).}
+\code{split} key column, required). Neither species is optional: a \code{nhx} or
+\code{noy} that contributes nothing to any cell the support carries -- no
+rows, identically zero, or on a longitude convention of its own -- is
+refused with a \code{whep_absent_input} error rather than halving every
+deposition total in silence (#1034).}
 
 \item{split}{Which polity share splits the cell's deposited mass:
 \code{"auto"} (default) takes \code{polity_area_ha} when the support carries it and

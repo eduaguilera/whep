@@ -77,8 +77,15 @@
 #' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded, caller-supplied upstream inputs.
 #'   Each of the following is required for its corresponding `fert_type` to
-#'   be emitted (a missing one silently skips that source rather than
-#'   erroring, since callers may only want a subset):
+#'   be emitted (a missing one skips that source rather than erroring, since
+#'   callers may only want a subset). Supplying one and getting **no**
+#'   nitrogen back is a different matter and is refused with a
+#'   `whep_absent_input` error, because a stream that arrived empty is
+#'   subtracted from the balance without changing anything the mass check can
+#'   see -- that check compares the assembled rows against themselves
+#'   (#1034). The one exception is `carbon_balance`, which warns instead: its
+#'   stream keeps only `son_change_kgn_ha > 0`, so contributing nothing is an
+#'   observation there as well as a symptom.
 #'   * `bnf_input`: [calculate_bnf()]'s required input tibble (`lon`, `lat`,
 #'     `area_code`, `year`, `item_prod_code`, `crop_npp_n_t`, `product_n_t`,
 #'     `weed_npp_n_t`, `land_use`, `legumes_seeded`,
@@ -238,10 +245,106 @@ build_n_inputs <- function(
   # discard anyway. Filtering first leaves the retained rows identical.
   assembled |>
     .ni_filter_years(years) |>
+    .ni_check_streams(data) |>
     .ni_allocate_unattributed(data, .ni_unsupported_method(data)) |>
     .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution) |>
     .resolve_polity_validity(polity_validity)
+}
+
+# ---- Private helpers: every requested stream must have arrived -------------
+
+# The `data` entries each .n_inputs_*() helper tests before it runs at all.
+# Leaving them out is how a caller says it does not want that term, and that
+# stays legal; supplying them and getting nothing back is the defect.
+.ni_stream_inputs <- function() {
+  list(
+    bnf = "bnf_input",
+    recycling = "npp_n_input",
+    manure = "livestock_intake",
+    deposition = "cell_polity",
+    urban = c("urban_population", "cropland_ha"),
+    som_mineralization = "carbon_balance",
+    synthetic = c("primary_prod", "fertilizer")
+  )
+}
+
+# The `fert_type` values each stream emits. The manure engine emits whichever
+# of its three types the herd actually produces, so any one of them is
+# evidence that the stream arrived.
+.ni_stream_fert_types <- function() {
+  list(
+    bnf = "bnf",
+    recycling = "recycling",
+    manure = c("excreta", "manure_solid", "manure_liquid"),
+    deposition = "deposition",
+    urban = "urban",
+    som_mineralization = "som_mineralization",
+    synthetic = "synthetic"
+  )
+}
+
+.ni_requested_streams <- function(data) {
+  # build_nitrogen_balance() hands the NPP result in as `.npp_cache` rather
+  # than as `npp_n_input`; either one asks for the recycling term.
+  data$npp_n_input <- data$npp_n_input %||% data$.npp_cache
+  supplied <- purrr::map_lgl(
+    .ni_stream_inputs(),
+    \(needed) all(!purrr::map_lgl(needed, \(nm) is.null(data[[nm]])))
+  )
+  names(supplied)[supplied]
+}
+
+# One column per requested stream holding the nitrogen it put in, so a stream
+# that contributed nothing is a vacuous column -- the state
+# check_inputs_supplied() reads -- rather than an absence of rows, which it
+# deliberately does not judge.
+.ni_stream_mass_columns <- function(assembled, requested) {
+  .ni_stream_fert_types()[requested] |>
+    purrr::map(\(types) {
+      sum(assembled$n_input_t[assembled$fert_type %in% types], na.rm = TRUE)
+    }) |>
+    tibble::as_tibble()
+}
+
+# Assert that every stream the caller asked for actually put nitrogen in
+# (whep#1034).
+#
+# `bind_rows()` over seven independent streams cannot tell a stream that was
+# never requested from one that was requested and came back empty: both
+# contribute no rows, the total is a plausible smaller number, and
+# .ni_check_unallocated() -- the only reconciliation here -- compares this
+# frame against itself, so it balances either way. Measured on the package's
+# own fixture, moving the deposition grid removes its whole 1,500 t N of
+# 40,641, an unmapped fertiliser area code removes the whole synthetic term,
+# and relabelling the carbon balance's land use removes the whole SOM term.
+# None of the three said anything.
+#
+# `som_mineralization` warns where the rest abort, because its stream is
+# defined by a sign filter (`son_change_kgn_ha > 0`): a carbon balance whose
+# every cropland cell is immobilising legitimately contributes nothing, so an
+# empty stream there is an observation as well as a symptom. Everything else
+# is a contract -- a moved grid, an unresolvable area code, a relabelled land
+# use -- for which no fill is defensible.
+.ni_check_streams <- function(assembled, data) {
+  requested <- .ni_requested_streams(data)
+  masses <- .ni_stream_mass_columns(assembled, requested)
+  soft <- intersect(requested, "som_mineralization")
+  hard <- setdiff(requested, soft)
+  details <- c(
+    i = "Each name above was supplied to {.fun build_n_inputs} in
+         {.arg data} and its {.field fert_type} rows carry no nitrogen.",
+    i = "An absent stream is subtracted from the balance without changing
+         anything the mass check can see, because that check compares the
+         assembled rows against themselves."
+  )
+  if (length(hard) > 0L) {
+    check_inputs_supplied(masses, hard, details = details)
+  }
+  if (length(soft) > 0L) {
+    check_inputs_supplied(masses, soft, action = "warn", details = details)
+  }
+  assembled
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
