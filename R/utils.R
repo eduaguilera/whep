@@ -2247,5 +2247,9 @@ utils::globalVariables(
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
+    # build_cbs.R (issue 1117) -- the reporter-level bound the historical
+    # trade scale screen reports against, and its join-side alias
+    "reporter_max",
+    "i.reporter_max"
   )
 )
