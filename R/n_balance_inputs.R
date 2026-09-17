@@ -990,18 +990,23 @@ build_n_inputs <- function(
   sourced <- unattributed |>
     dplyr::select(-"item_cbs_code") |>
     dplyr::mutate(.source_row = dplyr::row_number())
-  placed <- .ni_spread_over_support(
+  allocated <- .ni_spread_over_support(
     sourced,
     cropland,
     c("lon", "lat", "area_code", "year")
-  ) |>
-    .ni_place_stranded(sourced, cropland, method_unsupported)
+  )
+  placement <- .ni_place_stranded(
+    allocated,
+    sourced,
+    cropland,
+    method_unsupported
+  )
   if (!.ni_unsupported_allows_loss(method_unsupported)) {
-    .ni_check_unallocated(sourced, placed, support)
+    .ni_check_unallocated(sourced, placement, support)
   }
   dplyr::bind_rows(
     dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
-    dplyr::select(placed, dplyr::any_of(.ni_schema()))
+    dplyr::select(placement$rows, dplyr::any_of(.ni_schema()))
   ) |>
     .ni_stamp_unsupported(method_unsupported)
 }
@@ -1020,10 +1025,14 @@ build_n_inputs <- function(
 }
 
 # What happens to non-item nitrogen whose own cell-year carries no cropland
-# support at all. The condition is real, not hypothetical: build_urban_n()
-# hands back the urban nitrogen its transport step could not deliver, at the
-# SOURCE cell, and on a 2010 global run 1985 of those cells hold no cropland --
-# 38,425 t of 4.02 Mt urban N, which took the whole balance down (whep#446).
+# support at all, returned as the placed rows plus the ids of the SOURCE rows
+# they account for -- the pooling below renumbers, so the residual check cannot
+# recover that from the rows themselves.
+#
+# The condition is real, not hypothetical: build_urban_n() hands back the urban
+# nitrogen its transport step could not deliver, at the SOURCE cell, and on a
+# 2010 global run 1985 of those cells hold no cropland -- 38,425 t of 4.02 Mt
+# urban N, which took the whole balance down (whep#446).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.
@@ -1042,34 +1051,70 @@ build_n_inputs <- function(
     !.data$.source_row %in% allocated$.source_row
   )
   if (method == "abort" || nrow(stranded) == 0L) {
-    return(allocated)
+    return(list(rows = allocated, placed = allocated$.source_row))
   }
   if (method == "drop") {
     .ni_warn_stranded_dropped(stranded)
-    return(allocated)
+    return(list(rows = allocated, placed = allocated$.source_row))
   }
+  supported <- dplyr::semi_join(
+    stranded,
+    dplyr::distinct(cropland, .data$area_code, .data$year),
+    by = c("area_code", "year")
+  )
   rescued <- .ni_spread_over_support(
-    dplyr::select(stranded, -"lon", -"lat"),
+    .ni_pool_stranded(supported),
     cropland,
     c("area_code", "year")
   )
-  .ni_report_reallocated(stranded, rescued, method)
-  dplyr::bind_rows(allocated, rescued)
+  .ni_report_reallocated(supported, stranded, method)
+  list(
+    rows = dplyr::bind_rows(allocated, rescued),
+    placed = c(allocated$.source_row, supported$.source_row)
+  )
+}
+
+# Sum the stranded rows to one per polity-year and stream before spreading
+# them. The allocation is linear in mass, so pooling first puts exactly the
+# same nitrogen on exactly the same support rows -- and it is the difference
+# between fanning every stranded ROW across its polity's cropland and fanning
+# every polity-year-stream. On the 2010 global grid the unpooled form reached
+# 37 GB and was killed; pooled, 1985 rows become a few hundred.
+#
+# `.source_row` is renumbered past the end of the original range, because it
+# now groups a pooled split rather than identifying a source row, and a
+# collision would make .ni_check_unallocated() read a pooled row as one of the
+# source rows it is accounting for.
+.ni_pool_stranded <- function(stranded) {
+  keys <- c(
+    "area_code",
+    "year",
+    "fert_type",
+    "method_recycling_n",
+    "method_synthetic",
+    "method_deposition_scope"
+  )
+  offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
+  stranded |>
+    dplyr::summarise(
+      n_input_t = sum(.data$n_input_t, na.rm = TRUE),
+      .by = dplyr::any_of(keys)
+    ) |>
+    dplyr::mutate(.source_row = offset + dplyr::row_number())
 }
 
 # Say what the placement moved, and -- for "reallocate_drop" -- what no polity
 # could carry and is therefore gone.
-.ni_report_reallocated <- function(stranded, rescued, method) {
-  moved <- dplyr::filter(stranded, .data$.source_row %in% rescued$.source_row)
+.ni_report_reallocated <- function(supported, stranded, method) {
   cli::cli_inform(c(
-    i = "Reallocated {nrow(moved)} non-item nitrogen row{?s}
-         ({signif(sum(moved$n_input_t, na.rm = TRUE), 6)} t N) with no cropland
-         support in their own cell over their polity's cropland cells."
+    i = "Reallocated {nrow(supported)} non-item nitrogen row{?s}
+         ({signif(sum(supported$n_input_t, na.rm = TRUE), 6)} t N) with no
+         cropland support in their own cell over their polity's cropland cells."
   ))
   if (method != "reallocate_drop") {
     return(invisible(NULL))
   }
-  lost <- dplyr::filter(stranded, !.data$.source_row %in% rescued$.source_row)
+  lost <- dplyr::anti_join(stranded, supported, by = ".source_row")
   if (nrow(lost) > 0L) {
     .ni_warn_stranded_dropped(lost, "whose polity has no cropland support")
   }
@@ -1109,13 +1154,13 @@ build_n_inputs <- function(
 # third condition is worth naming outright because it looks like neither: a
 # term arriving over more years than the support covers, which is what a marched
 # carbon balance handed to a single-year balance does.
-.ni_check_unallocated <- function(sourced, allocated, support) {
+.ni_check_unallocated <- function(sourced, placement, support) {
   source_mass <- sum(sourced$n_input_t, na.rm = TRUE)
-  allocated_mass <- sum(allocated$n_input_t, na.rm = TRUE)
+  allocated_mass <- sum(placement$rows$n_input_t, na.rm = TRUE)
   if (isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
     return(invisible(NULL))
   }
-  lost <- dplyr::filter(sourced, !.data$.source_row %in% allocated$.source_row)
+  lost <- dplyr::filter(sourced, !.data$.source_row %in% placement$placed)
   by_source <- .ni_stream_masses(sourced)
   by_lost <- .ni_stream_masses(lost)
   off_span <- sort(setdiff(unique(lost$year), unique(support$year)))
