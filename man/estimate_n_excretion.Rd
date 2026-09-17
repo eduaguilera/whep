@@ -23,8 +23,17 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 (\code{n_intake - product_n}).
 \item \code{method_vs}: \code{"intake_digestibility"} (default,
 \code{intake_dm_t * (1 - digestibility) * (1 - ash)}).
-\item \code{method_c}: \code{"volatile_solids"} (default and only method,
-\code{vs_excretion * c_vs_fraction}).
+\item \code{method_c}: \code{"volatile_solids"} (the only method,
+\code{vs_excretion * c_vs_fraction}). The route it replaced,
+\code{n_excretion} times the \code{bio_coefs} \code{Excreta} C:N, is deliberately not
+offered as an alternative: it applied a fresh-dung C:N to
+whole-excreta nitrogen, some 60\% of which is urinary and carries almost
+no carbon, and returned 0.73 kg C per kg of volatile solids -- above
+pure protein, so not a composition organic matter can have (whep#1006).
+A route that cannot be right is not a sensitivity case, so this option
+names the algebra behind \code{c_excretion} rather than a choice, and
+\code{method_c_excretion} has one value until a second defensible method
+exists (whep#1100).
 \item \code{c_vs_fraction}: carbon per unit of volatile solids, kg C / kg VS.
 Default 0.47; see Details.
 \item \code{forage_n}: nitrogen content of the grazed forage that intake rows with

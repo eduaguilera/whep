@@ -2174,3 +2174,88 @@ testthat::test_that("method_som_cn records the route that actually ran", {
     tolerance = 1e-6
   )
 })
+
+# method_som_cn, reachable from the exported function (whep#1100) -------------
+
+.som_cn_toy_data <- function() {
+  # One cell, one class, two years, with the carbon input stepping up in the
+  # second so the stock is off its equilibrium and the rate -- and therefore
+  # the nitrogen -- is not zero.
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "cropland", 100,
+    0.25, 0.25, 1L, 2001L, "cropland", 100
+  )
+  c_inputs <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~c_input_mgc_ha_yr, ~input_cn,
+    0.25, 0.25, 1L, 2000L, "cropland", 2.5, 40,
+    0.25, 0.25, 1L, 2001L, "cropland", 5.0, 40
+  ) |>
+    dplyr::mutate(humified_fraction = 0.3)
+  climate <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~climate_modifier,
+    0.25, 0.25, 1L, 2000L, 1,
+    0.25, 0.25, 1L, 2001L, 1
+  )
+  list(
+    land_use = land_use,
+    c_inputs = c_inputs,
+    climate = climate,
+    clay = tibble::tribble(~lon, ~lat, ~clay_pct, 0.25, 0.25, 20)
+  )
+}
+
+testthat::test_that("every shipped SOM C:N parameterisation is selectable", {
+  # whep#1100: all three parameterisations ship in som_marginal_cn.csv and
+  # .cb_derive_son() takes them, but build_carbon_balance() called it with no
+  # argument, so only the default could ever run and `method_som_cn` recorded
+  # a choice nobody could make. The signature must offer exactly what the
+  # table ships, so neither can gain a row the other does not know about.
+  shipped <- whep:::.som_marginal_cn_coefs()$method
+  offered <- eval(formals(whep::build_carbon_balance)$method_som_cn)
+  testthat::expect_setequal(offered, shipped)
+  # The default is the parameterisation fitted to the larger dataset.
+  testthat::expect_equal(offered[1], "justes_2009")
+})
+
+testthat::test_that("the SOM C:N choice reaches the nitrogen, and only it", {
+  d <- .som_cn_toy_data()
+  jus <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d,
+    method_som_cn = "justes_2009"
+  )
+  nic <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d,
+    method_som_cn = "nicolardot_2001"
+  )
+  # The route each run took is recorded, not assumed.
+  testthat::expect_equal(unique(jus$method_som_cn), "justes_2009")
+  testthat::expect_equal(unique(nic$method_som_cn), "nicolardot_2001")
+  # Carbon is untouched: this coefficient sets the C:N of the organic matter
+  # that forms, never how much of it forms.
+  testthat::expect_equal(nic$stock_mgc_ha, jus$stock_mgc_ha)
+  testthat::expect_equal(nic$rate_mgc_ha, jus$rate_mgc_ha)
+  # Nitrogen moves by exactly the ratio of the two marginal C:N values at the
+  # input ratio of 40: justes 15.4 - 76/40 = 13.5, nicolardot 16.1 - 123/40 =
+  # 13.025, both inside the IPCC cropland range so neither is clamped.
+  testthat::expect_true(any(abs(jus$son_change_kgn_ha) > 0))
+  testthat::expect_equal(
+    nic$son_change_kgn_ha,
+    jus$son_change_kgn_ha * 13.5 / 13.025,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("an unshipped SOM C:N parameterisation is refused", {
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      data = .som_cn_toy_data(),
+      method_som_cn = "nicolardot"
+    ),
+    class = "rlang_error"
+  )
+})
