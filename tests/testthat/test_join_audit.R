@@ -317,7 +317,15 @@ test_that("every year-free territorial grouping is classified", {
   # left above the real count is slack a new unregistered group could hide in.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 88L)
+  #
+  # 89 since whep#1146: `.cb_climate_gap_worst()` ranks the polities losing the
+  # most land to the carbon balance's climate-coverage gap. It is `diagnostic`
+  # -- the rank and the share go into a warning and nowhere else -- and it
+  # replaced a draft that would have cost a year-free JOIN as well, by taking
+  # the dropped and the whole area in one pass over the class table instead of
+  # joining one onto the other. Measured by RUNNING the audit, not by adding
+  # one to the previous cap.
+  expect_lte(sum(full$n), 89L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
