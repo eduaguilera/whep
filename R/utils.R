@@ -2244,6 +2244,10 @@ utils::globalVariables(
     # row anchor from
     "predecessor",
     "reporting_polity_code",
+    # read_raw_inputs.R (issue 1111) -- the `.test_cbs()` flag saying a row's
+    # supply side reconstructs `domestic_supply` to within rounding noise,
+    # which replaces the exact `ds_destinies == balance` equality
+    "supply_agrees",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
