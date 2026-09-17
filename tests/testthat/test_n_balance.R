@@ -923,6 +923,35 @@ testthat::test_that("C3b: the land scope reaches the balance and moves it", {
   )
 })
 
+testthat::test_that("the balance names the deposition product it used", {
+  # whep#1105, the other half of the deposition provenance. The scope stamp
+  # says which territory the term was credited with; this one says which
+  # FIELD it came from. HaNi reproduces only a fraction of Europe's observed
+  # decline (whep#1097/#1121), so a corrected field is exactly what a caller
+  # is expected to inject -- and a balance built on one has to be tellable
+  # apart from a balance built on raw HaNi.
+  out <- .nb_run()
+  testthat::expect_true(rlang::has_name(out, "method_deposition"))
+  # The fixture's nhx/noy carry no tag, so build_n_deposition() records
+  # "supplied" rather than relabelling them "hani".
+  testthat::expect_setequal(stats::na.omit(out$method_deposition), "supplied")
+
+  data <- .nb_data_with_drivers()
+  data$nhx <- dplyr::mutate(.nb_nhx(), method_deposition = "hani_emep")
+  data$noy <- dplyr::mutate(.nb_noy(), method_deposition = "hani_emep")
+  corrected <- .nb_run(data)
+
+  testthat::expect_setequal(
+    stats::na.omit(corrected$method_deposition),
+    "hani_emep"
+  )
+  # Renaming the field moves no number: this is provenance, not a method.
+  testthat::expect_equal(
+    sum(corrected$n_input_full_t),
+    sum(out$n_input_full_t)
+  )
+})
+
 # polity_validity threading (whep#727) ----------------------------------------
 
 testthat::test_that("build_nitrogen_balance forwards polity_validity down", {

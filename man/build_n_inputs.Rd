@@ -106,19 +106,27 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
-\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition_scope}. At
+\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
+\code{method_deposition_scope}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
-\code{method_deposition_scope}, \code{n_input_t} (summed over cells).
+\code{method_deposition}, \code{method_deposition_scope}, \code{n_input_t} (summed over
+cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
 \code{"total_residue"} when only gross residue N was available; it is \code{NA} for
 every other \code{fert_type}. \code{method_synthetic} records the synthetic
 crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
-is \code{NA} for every other \code{fert_type}. \code{method_deposition_scope} records
+is \code{NA} for every other \code{fert_type}. \code{method_deposition} records which
+deposition product the \code{"deposition"} term's field came from, read off
+the supplied \code{nhx}/\code{noy} by \code{\link[=build_n_deposition]{build_n_deposition()}} (\code{"hani"} for
+\code{\link[=read_n_deposition]{read_n_deposition()}}'s own rows, \code{"supplied"} for an injected field
+carrying no tag of its own), so a corrected field stays visible here.
+\code{method_deposition_scope} records
 which of the polycell's territory the \code{"deposition"} term was credited
-with (\code{"territory"} or \code{"land"}) and is \code{NA} for every other \code{fert_type}.
+with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
+\code{fert_type}.
 Both grains also carry the polity columns below, plus
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
