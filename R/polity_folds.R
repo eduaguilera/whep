@@ -34,13 +34,17 @@
 #' reported bucket 206 as a three-way fold in all 65 years rather than a two-way
 #' fold in the 14 it is one (whep#414).
 #'
-#' Bucket 206 is the one fold reported today, `"predecessor"` from 2012: it sums
-#' FAOSTAT areas 276 Sudan and 277 South Sudan and is labelled `SUD-1956-2011`,
-#' whose successors are exactly `SDN-2011-2025` and `SSD-2011-2025`. No **live**
-#' polity means "Sudan and South Sudan"; whether to mint one upstream, or to
-#' stop folding the two areas, is the open decision in whep#414. The un-fold is
-#' costed in whep#680 — it moves nothing outside the region and loses 4.2% of
-#' the region's own tonnage, so it is not a switch-flip.
+#' Bucket 206 is the one fold reported today, and it is `"aggregate"` for
+#' 2012-2025: it sums FAOSTAT areas 276 Sudan and 277 South Sudan and resolves
+#' to `F206-2011-2025` "Sudan and South Sudan (combined reporting)", the
+#' aggregate whep#860 wired in. It read `"predecessor"` before that, labelled
+#' with `SUD-1956-2011`, a polity that had ended.
+#'
+#' So the labelling is settled and only the regionalisation is still open:
+#' whether to keep folding the two successors at all is whep#680, and
+#' `options(whep.unfold_predecessor_bucket = "all")` is the switch that
+#' promotes them. It is off by default because it is not mass-neutral — see
+#' [folded_reporting_areas()] for what it withdraws and why.
 #' `.aggregate_to_polities()` warns when it builds such a bucket; set
 #' `options(whep.warn_polity_folds = FALSE)` to silence that warning.
 #'
@@ -424,6 +428,33 @@ polity_bucket_coverage <- function(years = NULL) {
 #' `"successor_state"` folds are never lifted by any mode, since those are
 #' territorial identities rather than a FABIO convention.
 #'
+#' @section The predecessor-bucket fold, and the switch that lifts it:
+#' `"predecessor_bucket"` is the other direction and a separate switch. FAOSTAT
+#' retired area 206 "Sudan (former)" at the 2011 secession and reports 276 Sudan
+#' and 277 South Sudan from 2012, so here the *bucket* is the dead code and its
+#' members are live -- the reverse of 62 Ethiopia PDR folding into its live
+#' successor 238, which stays a `"successor_state"` fold and is never lifted.
+#'
+#' WHEP publishes the fold. `options(whep.unfold_predecessor_bucket = "all")`
+#' promotes the successors and warns on every crosswalk read, because unlike the
+#' Rest-of-World promotion it is **not** mass-neutral. Measured on
+#' `build_primary_production(2015, 2015)` it moves nothing at all outside areas
+#' 206, 276 and 277 -- 48,678 rows, no key present in only one run, no matched
+#' value differing -- and inside the region it withdraws exactly one series:
+#' item 651 Forage products, 1,432,940 t (4.22% of the region's tonnage) and
+#' 208,350 ha (0.25%). Heads, livestock units and slaughtered heads are
+#' conserved; item 1052 Chickens, layers splits exactly, 9,439,000 head to
+#' Sudan and 4,679,716 to South Sudan.
+#'
+#' That tonnage is not reported data that stops being joined. It is
+#' `DM_yield_estimate`, WHEP's own extrapolation of the `faostat-production-old`
+#' fodder series for area 206, a source that carries no row for 276 or 277 in
+#' any year; the fold is what keeps bucket 206 a live key to extrapolate onto
+#' after FAOSTAT retired it in 2011. Restoring it under the promotion would need
+#' a rule for apportioning a predecessor's series between its successors, which
+#' this package has no source for. Whether to publish the promotion is issue
+#' 680.
+#'
 #' An earlier measurement recorded in issue 419 reported this change at up to
 #' 13.7x on `feed`; that comparison predates the `dcast()` duplicate-key fix in
 #' `.select_best_source()` (issue 425) and does not reproduce.
@@ -436,8 +467,8 @@ polity_bucket_coverage <- function(years = NULL) {
 #' - `area_name`, `area_iso3c`: Its name and ISO3-like code.
 #' - `polity_area_code`: The bucket its rows are summed into.
 #' - `polity_code`, `polity_name`: The polity the fold attributes them to.
-#' - `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"` or
-#'   `"successor_state"`.
+#' - `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"`,
+#'   `"predecessor_bucket"` or `"successor_state"`.
 #'
 #' @references
 #' Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,
@@ -451,7 +482,7 @@ polity_bucket_coverage <- function(years = NULL) {
 #' folded <- folded_reporting_areas()
 #' nrow(folded)
 #' head(folded[folded$fold_kind == "successor_state", ], 4)
-#' folded[folded$fold_kind == "cbs_reporter_folded", ]
+#' folded[folded$fold_kind == "predecessor_bucket", ]
 folded_reporting_areas <- function(crosswalk = NULL) {
   cw <- crosswalk %||% .polity_crosswalk()
   required <- c("area_code", "polity_area_code", "fabio_code", "cbs")
@@ -470,6 +501,8 @@ folded_reporting_areas <- function(crosswalk = NULL) {
     ) |>
     dplyr::mutate(
       fold_kind = dplyr::case_when(
+        .data$polity_area_code %in% .predecessor_bucket_codes(cw) ~
+          "predecessor_bucket",
         is.na(.data$fabio_code) | .data$fabio_code != 999L ~ "successor_state",
         .data$cbs %in% TRUE ~ "cbs_reporter_folded",
         TRUE ~ "fabio_rest_of_world"
@@ -932,6 +965,179 @@ row_promotion_status <- function(crosswalk = NULL) {
       fabio_code = as.integer(regions$fabio_code),
       area_code = as.integer(regions$code),
       cbs = regions$cbs
+    ),
+    mode
+  )
+  regions |>
+    dplyr::mutate(
+      polity_area_code = dplyr::if_else(
+        promoted,
+        as.integer(.data$code),
+        as.integer(.data$polity_area_code)
+      )
+    )
+}
+
+# -- The predecessor-bucket un-fold (whep#680) ---------------------------------
+#
+# The other fold in the table, and the opposite shape to Rest of World. FAOSTAT
+# retired area 206 "Sudan (former)" at the 2011 secession and reports 276 Sudan
+# and 277 South Sudan from 2012; WHEP sums both successors back into the
+# predecessor's code, because that is FABIO's region. So bucket 206 is a live
+# key for two territories whose own reporting codes are live too.
+#
+# `"none"` is the default and is what WHEP publishes. `"all"` promotes the
+# successors, and it is a SENSITIVITY setting rather than a second production
+# mode, because it is not mass-neutral and the two series it drops are
+# imputations rather than reported data (see below). Which one WHEP should
+# publish is issue 680's open modelling decision; both readings are implemented
+# so that it can be measured rather than argued, and neither is a fallback for
+# the other.
+#
+# What `"all"` withdraws, measured on `build_primary_production(2015, 2015)`, is
+# ONE series: item 651 Forage products, 1,432,940 t (-4.22% of the region's
+# tonnage) and 208,350 ha (-0.25%). Heads, livestock units and slaughtered heads
+# are conserved to the rounding, and outside areas 206/276/277 not one of the
+# 48,678 rows moves.
+#
+# That tonnage is not a reported value that stops being joined. It is
+# `DM_yield_estimate`, WHEP's own extrapolation of the `faostat-production-old`
+# fodder series for area 206 -- a source holding 1961-2013 and carrying NO row
+# for 276 or 277 at any year. Folded, that predecessor series is carried forward
+# into years FAOSTAT has not reported area 206 since 2011, because the fold
+# keeps bucket 206 a live key; promoted, the successors have no fodder source at
+# all. Restoring it under the promotion would mean apportioning a predecessor's
+# series between its successors, which needs a share rule this package has no
+# source for and must not invent.
+#
+# The other series whep#680 costed, item 1052 Chickens, layers, is no longer
+# affected: the promotion splits its 14,118,716 head exactly, 9,439,000 to
+# Sudan and 4,679,716 to South Sudan. whep#1050's `.restore_unproduced_stocks()`
+# re-emits a reported herd whose products are unreported, which is what used to
+# make South Sudan's share depend on Sudan's egg tonnage.
+.predecessor_unfold_modes <- function() {
+  c("none", "all")
+}
+
+.predecessor_unfold_mode <- function() {
+  value <- getOption("whep.unfold_predecessor_bucket", "none")
+  if (isTRUE(value)) {
+    return("all")
+  }
+  if (is.null(value) || isFALSE(value)) {
+    return("none")
+  }
+  modes <- .predecessor_unfold_modes()
+  if (is.character(value) && length(value) == 1L && value %in% modes) {
+    return(value)
+  }
+  cli::cli_abort(c(
+    "{.code options(whep.unfold_predecessor_bucket = )} must be {.val TRUE},
+     {.val FALSE} or one of {.val {modes}}.",
+    "x" = "Got {.val {value}}."
+  ))
+}
+
+# The buckets whose own reporting area stopped reporting BEFORE the areas folded
+# into them did -- the folds where the bucket is the predecessor and its members
+# are the successors. Derived from the upstream map windows the crosswalk
+# carries, never enumerated: area 276 reports to 2024 and bucket 206 to 2011, so
+# 206 qualifies; area 62 (Ethiopia PDR) reports to 1992 and its bucket 238 to
+# 2024, so 238 does not -- there the retired area folds into its live successor,
+# which is a territorial identity and is never lifted.
+.predecessor_bucket_codes <- function(crosswalk = NULL) {
+  cw <- tibble::as_tibble(crosswalk %||% whep::polity_area_crosswalk)
+  needed <- c("area_code", "polity_area_code", "fabio_code", "map_year_end")
+  if (!all(rlang::has_name(cw, needed))) {
+    return(integer(0L))
+  }
+  last <- cw |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$map_year_end)) |>
+    dplyr::summarise(
+      last_year = max(.data$map_year_end),
+      .by = "area_code"
+    ) |>
+    dplyr::mutate(area_code = as.integer(.data$area_code))
+  cw |>
+    dplyr::filter(
+      !is.na(.data$area_code),
+      !is.na(.data$polity_area_code),
+      .data$area_code != .data$polity_area_code,
+      is.na(.data$fabio_code) | .data$fabio_code != 999L
+    ) |>
+    dplyr::distinct(
+      area_code = as.integer(.data$area_code),
+      polity_area_code = as.integer(.data$polity_area_code)
+    ) |>
+    dplyr::inner_join(last, by = "area_code") |>
+    dplyr::inner_join(
+      dplyr::rename(
+        last,
+        polity_area_code = "area_code",
+        bucket_last_year = "last_year"
+      ),
+      by = "polity_area_code"
+    ) |>
+    dplyr::filter(.data$last_year > .data$bucket_last_year) |>
+    dplyr::pull("polity_area_code") |>
+    unique() |>
+    sort()
+}
+
+# The ONE predicate deciding which members a mode promotes, shared by the
+# crosswalk and the `regions_full` call sites for the same reason
+# `.rest_of_world_members()` is: the fold is stated twice and a promotion that
+# reaches only one of the two tables leaves the two lookups disagreeing (#419).
+.predecessor_bucket_members <- function(areas, mode) {
+  n <- length(areas$area_code)
+  if (mode == "none") {
+    return(rep(FALSE, n))
+  }
+  !is.na(areas$area_code) &
+    !is.na(areas$polity_area_code) &
+    areas$area_code != areas$polity_area_code &
+    areas$polity_area_code %in% .predecessor_bucket_codes()
+}
+
+.unfold_predecessor_bucket <- function(crosswalk) {
+  mode <- .predecessor_unfold_mode()
+  promoted <- .predecessor_bucket_members(
+    list(
+      area_code = as.integer(crosswalk$area_code),
+      polity_area_code = as.integer(crosswalk$polity_area_code)
+    ),
+    mode
+  )
+  if (!any(promoted)) {
+    return(crosswalk)
+  }
+  # Warned on every read, exactly as the Rest-of-World unfold warns whenever it
+  # is not in its published mode: a run whose numbers do not match the published
+  # series must be impossible to mistake for one that does.
+  areas <- sort(unique(as.integer(crosswalk$area_code[promoted])))
+  buckets <- sort(unique(as.integer(crosswalk$polity_area_code[promoted])))
+  # `qty()` pinned and the codes held in variables: a bare integer vector next
+  # to a plural marker makes cli read the quantity off the codes and abort
+  # inside its own message (#618, #621).
+  cli::cli_warn(c(
+    "!" = "{.code whep.unfold_predecessor_bucket} is set to {.val {mode}}:
+           {cli::qty(length(areas))}reporting area{?s} {.val {areas}}
+           {cli::qty(length(areas))}{?is/are} promoted out of
+           {cli::qty(length(buckets))}predecessor bucket{?s} {.val {buckets}}.",
+    "i" = "Published WHEP values keep that fold. This is the sensitivity
+           setting for issue 680, not the production mode."
+  ))
+  crosswalk[which(promoted), polity_area_code := area_code]
+  crosswalk
+}
+
+# `regions_full` states the fold a second time, keyed on `code`.
+.unfold_predecessor_regions <- function(regions) {
+  mode <- .predecessor_unfold_mode()
+  promoted <- .predecessor_bucket_members(
+    list(
+      area_code = as.integer(regions$code),
+      polity_area_code = as.integer(regions$polity_area_code)
     ),
     mode
   )
