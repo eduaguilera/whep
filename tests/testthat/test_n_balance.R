@@ -877,6 +877,20 @@ testthat::test_that("duplicate n_balance_leaching_drivers keys abort the join", 
 
 # ---- C3b: the deposition scope reaches the published balance ------------
 
+# whep#532: nitrogen that reached agricultural land but no single crop is a
+# real mass, and a balance that spread it over cropland, over all agricultural
+# land, or dropped it, is three different numbers with no way to tell them
+# apart unless the choice travels with the rows.
+testthat::test_that("the balance names the unattributed policy it used", {
+  out <- .nb_run()
+
+  testthat::expect_true(rlang::has_name(out, "method_unattributed"))
+  testthat::expect_setequal(
+    stats::na.omit(out$method_unattributed),
+    "cropland_area"
+  )
+})
+
 testthat::test_that("C3b: the balance names the deposition scope it used", {
   # DA-14 makes deposition scope a choice, and the two choices differ by
   # about 1.4% of the deposition term on real input. A balance that does not
