@@ -233,7 +233,7 @@ The balance runs on the LPJmL grid, because the climate drivers do. That
 grid is a coarser land mask than LUH2's, so \strong{not every LUH2 hectare is in
 the output}. On the default readers at 2010, 7,079 cell-polity
 compartments carrying 296.8 Mha of LUH2 land -- 30.4 Mha cropland, 46.6 Mha
-grassland, 214.8 Mha natural, 4.8 Mha urban -- have no climate driver and
+grassland, 214.9 Mha natural, 4.8 Mha urban -- have no climate driver and
 are dropped, with a warning naming the hectares and the worst-hit polities.
 The loss is essentially a coastline, so it is negligible globally (1.4\% of
 grassland, 2.6\% of natural land) and large for maritime polities: 31.6\% of
