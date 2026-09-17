@@ -4,7 +4,11 @@
 \alias{calculate_residue_destinies}
 \title{Estimate the destinies of crop residues.}
 \usage{
-calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
+calculate_residue_destinies(
+  x,
+  method = c("krausmann_regional", "shares"),
+  unmatched_recovery = c("report", "abort")
+)
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
@@ -17,10 +21,20 @@ the recovery-table labels or the matching \code{regions_full} labels. The
 \item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
 recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
 Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
+
+\item{unmatched_recovery}{What the \code{krausmann_regional} method does with a
+row that reaches no recovery rate at all, because its crop carries no
+Krausmann category or its region label reaches no recovery region:
+\code{"report"} (default) keeps the historical all-to-soil treatment and warns
+with the row count and tonnage, \code{"abort"} refuses to continue. Ignored by
+the \code{"shares"} method.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_burn_dm_t},
-\code{residue_soil_dm_t} and \code{method_residue_destiny}.
+\code{residue_soil_dm_t} and \code{method_residue_destiny}. The
+\code{"krausmann_regional"} method also returns \code{residue_recovery_matched},
+\code{FALSE} where no recovery rate was found, which is what separates a rate
+the table gives as zero from a zero standing in for a failed lookup.
 }
 \description{
 Splits crop residue dry matter into three destinies that sum to the total
