@@ -17,6 +17,7 @@ build_carbon_inputs(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("reallocate", "drop"),
+  method_input_cn = c("known_crops", "require_all"),
   example = FALSE
 )
 }
@@ -97,15 +98,26 @@ national area to put the carbon on, so a polity-crop with no
 which no rule here can reach (see whep#1002) -- is dropped under both
 methods, reported separately.}
 
+\item{method_input_cn}{What a crop of unknown input C:N does to the C:N of
+the class it sits in. \code{"known_crops"} (default) forms the class ratio
+from the crops that have one, weighted by the carbon that came with them
+-- the rule \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} already applies one level down,
+where the input nitrogen totals only the components that carry a nitrogen
+and the carbon paired with them. \code{"require_all"} leaves the class ratio
+\code{NA} as soon as any one crop's is unknown, so the class takes the
+land-use default C:N instead of the ratio its other crops measured.
+Recorded in \code{method_input_cn} on cropland rows.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
-\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input} and
-\code{method_unspatialized} (\code{NA} on the grassland and natural classes, which
-are not spatialized from polity-crop totals), for \code{land_use} in
+\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input}, and
+\code{method_unspatialized} and \code{method_input_cn} (both \code{NA} on the grassland
+and natural classes, which are neither spatialized from polity-crop
+totals nor collapsed from crops), for \code{land_use} in
 \code{"cropland"}, \code{"grassland"} and \code{"natural"}, plus the polity columns
 below.
 }

@@ -182,14 +182,40 @@ build_soil_carbon_inputs <- function(
 # that do not. A crop is in exactly one of the two branches, so no cell-crop
 # group is built twice.
 .sci_grid_chunk <- function(chunk, weights, fallback, harvested_area) {
-  matched <- .sci_join_weights(chunk, weights, harvested_area)
+  matched <- .sci_check_gridded_n(
+    .sci_join_weights(chunk, weights, harvested_area)
+  )
   if (is.null(fallback)) {
     return(matched)
   }
   dplyr::bind_rows(
     matched,
-    .sci_reallocate(chunk, weights, fallback, harvested_area)
+    .sci_check_gridded_n(
+      .sci_reallocate(chunk, weights, fallback, harvested_area)
+    )
   )
+}
+
+# Refuse a gridded branch that lost the component nitrogen.
+#
+# Both terminal selects that put a component on cells have dropped
+# `n_mass_mg` once each -- `.sci_join_weights()` (whep#1058) and
+# `.sci_reallocate()` (whep#1123) -- and neither showed up as an error,
+# because `.sci_sum_components()` rebuilds a missing column as NA and the loss
+# then presents as "no component carried a nitrogen" rather than as a dropped
+# column. Checked per branch, not on the bound result: a branch that keeps the
+# column hides one that does not, which is exactly how the second deletion
+# survived the guard written for the first.
+.sci_check_gridded_n <- function(part) {
+  if (is.null(part) || rlang::has_name(part, "n_mass_mg")) {
+    return(part)
+  }
+  cli::cli_abort(c(
+    "Gridding the soil carbon inputs dropped {.field n_mass_mg}.",
+    i = "The input C:N would come out missing on every row of this branch and
+         its cropland class would silently take the land-use default C:N
+         (whep#1123)."
+  ))
 }
 
 # harvested_area is the FAOSTAT national harvested area per (area_code,
@@ -545,6 +571,15 @@ build_soil_carbon_inputs <- function(
 # to the polity mass. A group with no national area has no basis for a density
 # -- inventing one would smear the carbon over an area it never grew on -- so it
 # stays out, and .sci_warn_unspatialized() reports it.
+#
+# The nitrogen travels with the carbon, scaled by the SAME cropland weight, for
+# the reason `.sci_join_weights()` gives: dropping it in this terminal
+# transmute made `input_cn` NA on every reallocated row, and `.ci_wmean()` then
+# voided the whole cropland class the row sat in. On the 2000 pins that was
+# 306.3 Tg C of the year's 1,994.4 Tg gridded cropland carbon input (15.4%),
+# 96.8% of it fodder, carrying no input C:N at all -- measured over the NPP
+# components, the manure stream being unbuildable while whep#1025 stands
+# (whep#1123).
 .sci_reallocate <- function(chunk, weights, fallback, harvested_area) {
   faostat <- .sci_faostat_area(harvested_area)
   if (is.null(faostat) || nrow(fallback) == 0) {
@@ -572,6 +607,7 @@ build_soil_carbon_inputs <- function(
       year = .data$year,
       input_type = .data$input_type,
       c_mass_mg = .data$c_mass_mg * .data$cropland_weight,
+      n_mass_mg = .data$n_mass_mg * .data$cropland_weight,
       crop_area_ha = .data$cropland_weight * .data$faostat_area_ha
     )
 }

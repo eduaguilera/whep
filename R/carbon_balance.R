@@ -157,6 +157,13 @@
 #'   Recorded per row in `method_som_cn`, which instead reads
 #'   `"land_use_default"` on a row whose input C:N is unknown and
 #'   `"directional_ipcc_range"` when no input C:N is carried at all.
+#' @param method_input_cn What a crop of unknown input C:N does to the C:N of
+#'   the cropland class it sits in, and so to the C:N of the organic matter
+#'   that input forms; see [build_carbon_inputs()]. `"known_crops"` (default)
+#'   forms the class ratio from the crops that have one; `"require_all"`
+#'   leaves it `NA`, which sends the class to the land-use default C:N.
+#'   Only read when the carbon inputs are built here rather than supplied
+#'   through `data$c_inputs`.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section The land-use-change ledger closes on mass, not on density:
@@ -269,6 +276,7 @@
 #'   \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
 #'   \code{method_area_basis}, \code{method_grazing},
 #'   \code{method_som_cn} and
+#'   \code{method_input_cn} and
 #'   \code{method_crop_groups}. All of them survive the \code{"polity"}
 #'   roll-up, which additionally carries \code{input_land_ha} (the land the
 #'   land-use input gave that polity-year) and \code{modelled_land_frac}
@@ -299,6 +307,7 @@ build_carbon_balance <- function(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  method_input_cn = c("known_crops", "require_all"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
@@ -306,6 +315,7 @@ build_carbon_balance <- function(
   density_basis <- rlang::arg_match(density_basis)
   method_grazing <- rlang::arg_match(method_grazing)
   method_som_cn <- rlang::arg_match(method_som_cn)
+  method_input_cn <- rlang::arg_match(method_input_cn)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -325,7 +335,11 @@ build_carbon_balance <- function(
     data,
     years,
     crop_groups,
-    list(basis = density_basis, grazing = method_grazing)
+    list(
+      basis = density_basis,
+      grazing = method_grazing,
+      input_cn = method_input_cn
+    )
   )
   d$class_water <- class_water
   if (progress) {
@@ -360,6 +374,7 @@ build_carbon_balance <- function(
       # every method column.
       method_area_basis = density_basis,
       method_grazing = method_grazing,
+      method_input_cn = method_input_cn,
       method_crop_groups = crop_groups$method %||% "none"
     ) |>
     .cb_finalise(resolution, coverage) |>
@@ -2900,7 +2915,8 @@ build_carbon_balance <- function(
     years = years,
     crop_groups = crop_groups,
     density_basis = methods$basis,
-    method_grazing = methods$grazing
+    method_grazing = methods$grazing,
+    method_input_cn = methods$input_cn %||% "known_crops"
   )
 }
 
