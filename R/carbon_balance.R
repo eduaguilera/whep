@@ -125,6 +125,24 @@
 #'   aborts without them; `"lpjml"` uses the model's own livestock module and
 #'   needs neither. Only read when the carbon inputs are built here rather
 #'   than supplied through `data$c_inputs`.
+#' @param method_som_cn Which published parameterisation sets the C:N at which
+#'   soil organic matter forms from the carbon input that formed it,
+#'   `CN_new = a - b / CN_input`, floored and then bounded by the IPCC 2019
+#'   land-use range. `"justes_2009"` (default, a = 15.4, b = 76) is the refit
+#'   on the larger combined dataset; `"nicolardot_2001"` (16.1, 123) is the
+#'   original fit, and the citation HSOCN's own nitrogen submodel follows, so
+#'   it is the parameterisation that puts WHEP and HSOCN on one basis;
+#'   `"century"` (16, 120) is CENTURY/DayCent's shipped parameterisation.
+#'   All three, each with its source, sample and floor, are in
+#'   `inst/extdata/balances/som_marginal_cn.csv`. The choice sets the nitrogen
+#'   of a carbon change and never the carbon: at an input C:N of 40 the three
+#'   give a marginal C:N of 13.50, 13.03 and 13.00, so `son_change_kgn_ha`
+#'   spans 3.8%; at a narrow (manure-like) input C:N of 12 they give 9.07,
+#'   8.00 and 10.00, a 25% spread, and the widest anywhere is 29% at an input
+#'   C:N of 15; above an input C:N of 70 they never differ by more than 1.9%.
+#'   Recorded per row in `method_som_cn`, which instead reads
+#'   `"land_use_default"` on a row whose input C:N is unknown and
+#'   `"directional_ipcc_range"` when no input C:N is carried at all.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section The land-use-change ledger closes on mass, not on density:
@@ -177,7 +195,8 @@
 #'   \code{son_change_kgn_ha},
 #'   \code{area_ha}, and one column per method choice that moves a number:
 #'   \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
-#'   \code{method_area_basis}, \code{method_grazing} and
+#'   \code{method_area_basis}, \code{method_grazing},
+#'   \code{method_som_cn} and
 #'   \code{method_crop_groups}. All of them survive the \code{"polity"}
 #'   roll-up. Plus the
 #'   polity columns below, plus
@@ -204,12 +223,14 @@ build_carbon_balance <- function(
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
   class_water <- .cb_check_class_water(class_water, crop_groups)
   density_basis <- rlang::arg_match(density_basis)
   method_grazing <- rlang::arg_match(method_grazing)
+  method_som_cn <- rlang::arg_match(method_som_cn)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -245,7 +266,7 @@ build_carbon_balance <- function(
   marched <- .cb_march(classes, init_stock)
   marched |>
     .cb_attach_input_cn(classes) |>
-    .cb_derive_son() |>
+    .cb_derive_son(method_som_cn) |>
     dplyr::mutate(
       method_soc = model,
       method_soc_init = init,
