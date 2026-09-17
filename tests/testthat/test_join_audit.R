@@ -201,7 +201,13 @@ test_that("the enumerated baseline can only shrink", {
   # successors twice: on `pin_wpp_fbs_fallback` the sum was 30.2% too high at
   # 1961, 21.5% at 2000 and 18.4% at 2021, and the default `pin` source was
   # 0.19%-0.58% too high over 1850-1992.
-  expect_lte(sum(baseline$n), 75L)
+  # 78 since whep#680 added the predecessor-bucket un-fold: two reads of the
+  # area reporting windows in `.predecessor_bucket_codes()` and one in
+  # `.iso3c_keep_live_area()`, all three joining the years a code reports
+  # rather than a value for a year. Re-derived by RUNNING the audit, never by
+  # adding a delta: a cap above the real count is slack an unregistered join
+  # could hide in.
+  expect_lte(sum(baseline$n), 78L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -317,7 +323,11 @@ test_that("every year-free territorial grouping is classified", {
   # left above the real count is slack a new unregistered group could hide in.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 88L)
+  # 92 since whep#680: `.area_last_reporting_year()` and
+  # `.predecessor_bucket_codes()` reduce the year axis to each area's last
+  # reported year, and `.iso3c_keep_live_area()` groups by ISO3 to pick the
+  # live one of two codes. Re-derived by running the audit.
+  expect_lte(sum(full$n), 92L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
