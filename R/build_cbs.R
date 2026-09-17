@@ -2954,10 +2954,12 @@ build_processing_coefs <- function(
 # multiplies rows there. whep#691 has since taken the destiny-share skeleton off
 # it too -- `.interpolate_destiny_shares()` keys on the code and calls
 # `.attach_cbs_area_label()` at the end, so this lookup now feeds the label back
-# on in three places instead of being read as a key. ONE join still
-# reads the label: the `primary_area` seed join (whep#699, which also needs the
-# seed expression settled). Until it is gone, a second label for one code is
-# still the whep#563 shape, so this stays one label per code.
+# on in three places instead of being read as a key. whep#699 has taken the
+# last of them -- the `primary_area` seed join keys on the code now -- so no
+# join inside the historical extension reads this label any more; it is a
+# display name that `.finalise_historical()` carries out. It stays one label
+# per code because that is what a display name is, and because whep#731 is the
+# issue that decides whether the CBS should carry the column at all.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
