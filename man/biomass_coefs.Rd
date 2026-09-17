@@ -176,15 +176,38 @@ For the wood and forest rows this column prices two physically different
 quantities through one cell. \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}} sends the harvested
 \code{Wood} item to \verb{Average wood}, and also relabels the residue production of
 forest and shrubland land as \code{Firewood}, which resolves to the same row.
-Harvested wood is stemwood; forest residue is branches, bark and foliage,
-and the two differ by a factor of five. In the trembling-aspen budget of
-Morrison and Foster (1979, reproduced in Hacker 2005, "Effects of Logging
-Residue Removal on Forest Sites") stemwood holds 84 kg N in 119 t of dry
-matter, 0.00071 kg N per kg, against 0.0042 for bark, 0.0049 for branches
-and 0.024 for foliage. \verb{Average wood} ships 0.0030, the mean of a beech,
-a conifer and a holm-oak anchor; the retired pin carried 0.00095 for the
-same rows. Which end the term should sit at is open in whep#932, so the
-value must not be moved without settling that first.
+Harvested wood is stemwood; forest residue is branches, bark and foliage.
+
+\strong{The shipped value is assumed, unverified.} No value the upstream
+workbook has carried for these rows has a citation that can be opened: the
+beech anchor's source cell begins \code{ChatGPT.}, the conifer anchor's two
+citations do not resolve as written, and the holm-oak anchor's cell is
+blank (whep#932). The anchors can still be placed against an independent
+compilation. Thurner et al. (2025) pool 1048 stem, 599 branch, 267 root and
+5944 leaf nitrogen measurements for boreal and temperate trees -- the woody
+ones almost entirely from 192 literature studies -- and report medians, in
+kg N per kg dry matter, of 0.0010 in stem sapwood, 0.0035 in branches,
+0.0060 in roots and 0.0167 in leaves. Against
+those, \verb{Average wood}'s 0.0030 is 0.86 of the branch median and 3.0 times
+the stem median -- a branch concentration -- while the retired pin's
+0.00095 is 0.95 of the stem median, a stemwood one.
+
+So the gap whep#932 records is not two estimates of one quantity in
+disagreement; it is the 3.5-fold gap between stem and branch tissue, and
+whichever single number the cell carries is wrong by about that factor for
+one of its two uses. The same ordering appears in the trembling-aspen
+budget of Morrison and Foster (1979, reproduced in Hacker 2005, "Effects of
+Logging Residue Removal on Forest Sites"), where stemwood holds 84 kg N in
+119 t of dry matter, 0.00071 kg N per kg, against 0.0042 for bark, 0.0049
+for branches and 0.024 for foliage. Splitting the row, not picking a side,
+is what whep#932 needs, so the value must not be moved before that is
+settled. \code{tests/testthat/test_biomass_coefs_wood_provenance.R} holds the
+comparison and fails if either side of it drifts.
+
+Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang, Z.,
+and Hickler, T. (2025). Nitrogen concentrations in boreal and temperate
+tree tissues vary with tree age/size, growth rate, and climate.
+\emph{Biogeosciences} 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.
 \itemize{
 \item \code{Residue_kgP_kgDM}: Phosphorus content of residue in kg P per kg dry
 matter.

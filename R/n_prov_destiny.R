@@ -746,6 +746,11 @@ create_n_nat_destiny <- function(example = FALSE) {
       Item = dplyr::case_when(
         prod_type == "Grass" & Name_biomass == "Fallow" ~ "Fallow",
         prod_type == "Grass" ~ "Grassland",
+        # Forest and shrubland residue outside cropland becomes `Firewood`,
+        # which `codes_coefs_items_full` resolves to `Average wood` -- the
+        # same row the harvested `Wood` item reads. Physically this side is
+        # branches and bark and the other is stemwood; one coefficient cannot
+        # be right for both (whep#932).
         prod_type == "Residue" &
           Box != "Cropland" &
           Name_biomass %in%
@@ -1885,6 +1890,14 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::mutate(
       prod_type = dplyr::case_when(
         Name_biomass %in% c("Grass", "Fallow") ~ "Grass",
+        # Both wood items -- harvested `Wood` and the forest/shrubland residue
+        # that `.add_grass_wood()` relabels `Firewood` -- map to
+        # `Average wood`, so this line prices stemwood and branch-and-bark
+        # residue with the same cell. Its 0.0030 kg N/kg DM is a branch
+        # concentration (Thurner et al. 2025 branch median 0.0035, stem
+        # sapwood median 0.0010), so harvested wood is carried about 3x too
+        # high here. The coefficient is assumed, unverified upstream; see
+        # `Residue_kgN_kgDM` in [biomass_coefs] and whep#932.
         Name_biomass == "Average wood" ~ "Residue",
         TRUE ~ "Product"
       )
