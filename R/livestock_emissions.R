@@ -34,6 +34,7 @@
 #'     manure_n2o_total)
 calculate_livestock_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
 
   if (tier == 2) {
     .run_tier2(data, options)
@@ -72,6 +73,7 @@ calculate_livestock_emissions <- function(data, tier = NULL, options = list()) {
 #'   calculate_enteric_ch4(tier = 1)
 calculate_enteric_ch4 <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data |>
       estimate_energy_demand() |>
@@ -117,6 +119,7 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'   calculate_manure_emissions(tier = 1)
 calculate_manure_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data <- data |>
       estimate_energy_demand() |>

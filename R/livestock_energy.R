@@ -38,6 +38,7 @@
 #'     ne_activity, ne_lactation, ne_growth, gross_energy)
 estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- data |>
+    .as_livestock_tibble() |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
       subcategory = .get_subcategory(species),
@@ -360,6 +361,10 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' Ensure all optional production columns exist as NA.
+#'
+#' The single-bracket assignment below is what `[<-.data.table` refuses, for any
+#' `missing` including none at all, so this helper is only ever handed the
+#' tibble `estimate_energy_demand()` converts its input to (whep#1136).
 #' @noRd
 .ensure_production_cols <- function(data) {
   optional <- c(
