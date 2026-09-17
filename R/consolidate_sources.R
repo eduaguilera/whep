@@ -18,6 +18,17 @@
 #'   listed with a smaller rank. To exclude an unreliable source, list it at
 #'   `drop_at` or above.
 #'
+#'   `priority` may also be **scoped**. A table keyed on the source plus
+#'   further columns of `data` (a category, say) pins one source's rank inside
+#'   one category while leaving its ordinary rank everywhere else, which
+#'   listing that source at a different global rank cannot do: that would move
+#'   the outcome in every other category too. A row takes the rank of the most
+#'   specific entry it matches, an `NA` scope key meaning "any value", and two
+#'   equally specific entries that disagree abort rather than let table order
+#'   decide. `priority_scope = "source"` reads the same table with its scoped
+#'   entries ignored, which is exactly what it bought before scoping existed
+#'   and is therefore the comparison that quantifies what the scope changes.
+#'
 #'   2. **Measure-aware demotion.** A source can report a different measure than
 #'   the panel's target concept (production where the panel means consumption,
 #'   generation shares where it means primary energy, a sector fragment where it
@@ -34,7 +45,8 @@
 #'   observation; a cell wins `NA` only when no source reports a real value. Among
 #'   rows with a real value the winner is the row of lowest effective rank; ties
 #'   are broken by broader within-series coverage (the count of cells the source
-#'   reports across the `.by` group) when `tie_break$coverage`, then by
+#'   reports across the `.by` group, or across the coarser group
+#'   `tie_break$coverage_by` names) when `tie_break$coverage`, then by
 #'   `tie_break$quality_col` ordered per `tie_break$quality_levels`, then by
 #'   ascending source name (reported when `verbose`). Coverage counts the cells
 #'   where `value_col` is non-missing, or only the strictly positive ones under
@@ -52,6 +64,17 @@
 #'   measure-demoted one: continuity never undoes the measure penalty, because a
 #'   single-period source switch is cosmetic while a measure switch corrupts the
 #'   series.
+#'
+#'   A source whose observations are deliberately sparse -- a milestone grid
+#'   meant to be interpolated between -- looks like a run of isolated flips
+#'   inside another source's annual run, and the override strips every one of
+#'   its anchors, collapsing the backbone to a lower-priority partial series.
+#'   `continuity_override$exempt` selects the rows the isolation flag never
+#'   applies to. `continuity_override$adjacency` states what counts as a
+#'   flanking period: `"step"` (the default) requires both neighbours to sit
+#'   exactly one time step away, so only a true single-period tooth is
+#'   reverted; `"within"` accepts at most one step, which also reverts a flip
+#'   flanked at a finer-than-unit spacing in an irregular series.
 #'
 #'   This operationalises the AFE decision *Consolidate multi-source panels
 #'   measure-consistently* (`wiki/decisions/measure-consistent-panel-consolidation`):
@@ -71,9 +94,22 @@
 #'   where this column is non-missing, or only those where it is strictly
 #'   positive when `tie_break$coverage` is `"positive"`.
 #' @param source_col Unquoted name of the source-label column.
-#' @param priority Source-to-rank map, as either a named integer vector
-#'   (`c(OWID = 1L, Malanima = 4L)`) or a two-column data frame (source, rank).
-#'   Lower rank wins. Sources absent here take the fallback rank `drop_at - 1L`.
+#' @param priority Source-to-rank map, as a named integer vector
+#'   (`c(OWID = 1L, Malanima = 4L)`), a two-column data frame (source, rank),
+#'   or a scoped table: a data frame with the source column named as
+#'   `source_col`, a `rank` column, and any number of further columns present
+#'   in `data` that scope the entry (`NA` matches any value). Lower rank wins.
+#'   A row takes the rank of the most specific entry it matches; sources absent
+#'   here take the fallback rank `drop_at - 1L`. A data frame with more than
+#'   two columns must name them: which column carries the rank cannot be
+#'   guessed, and guessing wrong would publish another source's number.
+#' @param priority_scope One of `"specific"` (default) or `"source"`, selecting
+#'   how a scoped `priority` table is read. `"specific"` honours the scope
+#'   keys, so a source can outrank its usual tier in one category only.
+#'   `"source"` drops every scoped entry and ranks by source alone, reproducing
+#'   what the table expressed before scoping existed; it is the sensitivity
+#'   run that says what the scope is worth. No effect on an unscoped
+#'   `priority`.
 #' @param .by Character vector of grouping columns that, with `time_col`, key a
 #'   cell (for example `c("region", "category")`). `NULL` (default) keys cells
 #'   by `time_col` alone.
@@ -100,6 +136,13 @@
 #'     `value_col` is non-missing; `"positive"` counts only the cells where it
 #'     is strictly positive (`value_col` must then be numeric); `FALSE`
 #'     disables the coverage tie-break.
+#'   * `coverage_by`: character vector of `.by` columns at which coverage is
+#'     counted, overriding the default of the full `.by` group. It must be a
+#'     subset of `.by` -- coverage may be counted at a coarser grain than the
+#'     cell, never at a different one -- and `character(0)` counts a source's
+#'     coverage across the whole panel. Counting coverage one level coarser
+#'     than the cell lets a source with broad category-level coverage win a tie
+#'     in a subcategory where it is thin. Default: `NULL` (the `.by` grain).
 #'   * `quality_col`: string naming a quality column used as a tie-break
 #'     after coverage. Default: `NULL`.
 #'   * `quality_levels`: character vector ordering `quality_col` values best
@@ -109,19 +152,36 @@
 #'     of aborting; rows sharing source, cell and quality level still abort, as
 #'     do variants whose best rank is not unique. Requires `quality_col`.
 #'     Default: `FALSE`.
-#' @param continuity_override Logical. Revert isolated single-period winner
-#'   flips. Default: `TRUE`.
-#' @param verbose Logical. Report the drop count, any resolved quality variants,
-#'   name-order ties, and continuity reversions. Default: `TRUE`.
+#' @param continuity_override Revert isolated single-period winner flips.
+#'   `TRUE` (default) or `FALSE`, or a named list of options, which also turns
+#'   the override on:
+#'   * `adjacency`: one of `"step"` (default) or `"within"`. `"step"` flags a
+#'     flip only when both flanking periods sit exactly one time step away;
+#'     `"within"` accepts at most one step, flagging flips in a series whose
+#'     spacing is finer or irregular.
+#'   * `exempt`: one-sided formula selecting winning rows the isolation flag
+#'     never applies to, such as `~ source == "Smil_2017"`, evaluated on the
+#'     winners. Use it for a source whose observations are deliberately sparse,
+#'     which would otherwise lose every anchor to the override. Default:
+#'     `NULL`.
+#' @param verbose Logical. Report the drop count, how many rows took a
+#'   scope-specific priority rank, any resolved quality variants, name-order
+#'   ties, and continuity reversions. Default: `TRUE`.
 #'
 #' @return
 #'   A tibble with the winning row per (`.by`, `time_col`) cell, the original
-#'   columns of `data`, and four added provenance columns: `n_sources` (distinct
+#'   columns of `data`, and five added provenance columns: `n_sources` (distinct
 #'   sources contesting the cell after the hard drop), `source_rank` (the
 #'   winner's base priority rank), `effective_rank` (base rank plus any measure
-#'   penalty applied), and `measure_demoted` (whether the winner carried the
+#'   penalty applied), `measure_demoted` (whether the winner carried the
 #'   measure penalty; a flagged source only wins a cell that no
-#'   measure-consistent source reports). Rows are ordered by `.by` then
+#'   measure-consistent source reports), and `method_source`, naming the stage
+#'   that decided the cell: `"sole_source"` (no rival contested it),
+#'   `"nonmissing"` (the rival reported no value), `"priority"` or
+#'   `"priority_scoped"` (a lower effective rank, from a source-keyed or a
+#'   scope-keyed `priority` entry), `"coverage"`, `"quality"`, `"name_order"`
+#'   (ascending source name settled a full tie), or `"continuity"` (the
+#'   continuity override handed the cell back). Rows are ordered by `.by` then
 #'   `time_col`.
 #'
 #' @export
@@ -143,6 +203,24 @@
 #'   .by = c("region", "category"),
 #'   verbose = FALSE
 #' )
+#'
+#' # A scoped table pins Malanima above OWID for Coal alone: its rank in every
+#' # other category stays 4, which inflating its global rank could not do.
+#' scoped <- tibble::tribble(
+#'   ~source, ~category, ~rank,
+#'   "OWID", NA_character_, 1L,
+#'   "Malanima", NA_character_, 4L,
+#'   "Malanima", "Coal", 0L
+#' )
+#'
+#' consolidate_sources(
+#'   panel,
+#'   value_col = value,
+#'   source_col = source,
+#'   priority = scoped,
+#'   .by = c("region", "category"),
+#'   verbose = FALSE
+#' )
 consolidate_sources <- function(
   data,
   value_col,
@@ -154,7 +232,8 @@ consolidate_sources <- function(
   measure = NULL,
   tie_break = NULL,
   continuity_override = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  priority_scope = c("specific", "source")
 ) {
   cols <- list(
     value = rlang::as_name(rlang::enquo(value_col)),
@@ -162,15 +241,18 @@ consolidate_sources <- function(
     time = rlang::as_name(rlang::enquo(time_col)),
     by = .by
   )
+  priority_scope <- rlang::arg_match(priority_scope)
   measure <- .cs_measure_opts(measure)
   tie_break <- .cs_tie_break_opts(tie_break)
+  continuity <- .cs_continuity_opts(continuity_override)
   .cs_check_inputs(data, cols, measure, tie_break)
 
   cell_keys <- c(.by, cols$time)
+  spec <- .cs_priority_spec(priority, cols$source, names(data), priority_scope)
   work <- .cs_hard_drop(
     tibble::as_tibble(data),
     cols$source,
-    priority,
+    spec,
     drop_at,
     verbose
   )
@@ -183,8 +265,8 @@ consolidate_sources <- function(
   work <- .cs_add_tiebreaks(work, cols, tie_break)
 
   won <- .cs_select_winners(work, cell_keys, cols$source, verbose)
-  if (continuity_override) {
-    won <- .cs_apply_continuity(won, work, cols, verbose)
+  if (continuity$on) {
+    won <- .cs_apply_continuity(won, work, cols, continuity, verbose)
   }
   .cs_finalize(won, data, cell_keys)
 }
@@ -199,11 +281,31 @@ consolidate_sources <- function(
 .cs_tie_break_opts <- function(tie_break) {
   defaults <- list(
     coverage = TRUE,
+    coverage_by = NULL,
     quality_col = NULL,
     quality_levels = NULL,
     quality_variants = FALSE
   )
   .cs_merge_opts(tie_break, defaults, "tie_break")
+}
+
+# `continuity_override` is a switch that may also carry options, the way
+# `tie_break$coverage` is a switch that may also carry a mode. A list turns the
+# override on and states how it behaves; `TRUE`/`FALSE` keep the defaults.
+.cs_continuity_opts <- function(continuity_override) {
+  defaults <- list(adjacency = "step", exempt = NULL)
+  if (rlang::is_bool(continuity_override)) {
+    return(c(defaults, list(on = continuity_override)))
+  }
+  if (!is.list(continuity_override)) {
+    cli::cli_abort(
+      "`continuity_override` must be {.code TRUE}, {.code FALSE} or a named list."
+    )
+  }
+  opts <- .cs_merge_opts(continuity_override, defaults, "continuity_override")
+  adjacency <- opts$adjacency
+  opts$adjacency <- rlang::arg_match(adjacency, values = c("step", "within"))
+  c(opts, list(on = TRUE))
 }
 
 # "off" | "nonmissing" | "positive". `TRUE`/`FALSE` are the historical spellings
@@ -245,7 +347,13 @@ consolidate_sources <- function(
   }
   .cs_check_tie_break(data, cols, tie_break)
   .cs_check_measure_basis(data, measure$basis, cols$source)
-  reserved <- c("n_sources", "source_rank", "effective_rank", "measure_demoted")
+  reserved <- c(
+    "n_sources",
+    "source_rank",
+    "effective_rank",
+    "measure_demoted",
+    "method_source"
+  )
   clash <- intersect(reserved, names(data))
   if (length(clash) > 0L) {
     cli::cli_abort(
@@ -262,6 +370,7 @@ consolidate_sources <- function(
     )
   }
   .cs_check_coverage_opt(tie_break$coverage, data, cols$value)
+  .cs_check_coverage_by(tie_break$coverage_by, cols)
   if (!rlang::is_bool(tie_break$quality_variants)) {
     cli::cli_abort("`tie_break$quality_variants` must be `TRUE` or `FALSE`.")
   }
@@ -288,6 +397,29 @@ consolidate_sources <- function(
     cli::cli_abort(c(
       "`tie_break$coverage = \"positive\"` needs a numeric value column.",
       "i" = "{.val {value_name}} is {.cls {class(data[[value_name]])}}."
+    ))
+  }
+  invisible(NULL)
+}
+
+# Coverage may be counted at a coarser grain than the cell, never at a
+# different one: a grouping column that is not a cell key would count cells the
+# tie-break is not deciding between. `character(0)` is the coarsest legal
+# grain, a source's coverage across the whole panel.
+.cs_check_coverage_by <- function(coverage_by, cols) {
+  if (is.null(coverage_by)) {
+    return(invisible(NULL))
+  }
+  if (!is.character(coverage_by)) {
+    cli::cli_abort(
+      "`tie_break$coverage_by` must be a character vector of `.by` columns."
+    )
+  }
+  extra <- setdiff(coverage_by, cols$by)
+  if (length(extra) > 0L) {
+    cli::cli_abort(c(
+      "`tie_break$coverage_by` column{?s} not in `.by`: {.val {extra}}.",
+      "i" = "Coverage may be counted at a coarser grain than the cell, never a different one."
     ))
   }
   invisible(NULL)
@@ -331,38 +463,192 @@ consolidate_sources <- function(
 
 # --- Priority and hard drop ---------------------------------------------------
 
-.cs_priority_vector <- function(priority) {
-  if (is.data.frame(priority)) {
-    if (ncol(priority) < 2L) {
-      cli::cli_abort("`priority` data frame needs >= 2 columns (source, rank).")
-    }
-    return(stats::setNames(
-      as.integer(priority[[2L]]),
-      as.character(priority[[1L]])
-    ))
+# The priority table normalised to one shape: the source column, zero or more
+# scope-key columns, and `.rank`. Scoping a rank on a (source, category) pair
+# is the only way to pin a source inside one category without moving its rank
+# everywhere else, which is why the table is keyed rather than named.
+.cs_priority_spec <- function(priority, source_name, data_names, scope) {
+  tbl <- .cs_priority_table(priority, source_name)
+  keys <- setdiff(names(tbl), c(source_name, ".rank"))
+  extra <- setdiff(keys, data_names)
+  if (length(extra) > 0L) {
+    cli::cli_abort("`priority` key column{?s} not in `data`: {.val {extra}}.")
   }
-  if (is.null(names(priority))) {
-    cli::cli_abort("`priority` vector must be named (source = rank).")
+  if (identical(scope, "source") && length(keys) > 0L) {
+    tbl <- tbl[!.cs_scoped_rows(tbl, keys), c(source_name, ".rank")]
+    keys <- character(0)
   }
-  stats::setNames(as.integer(priority), names(priority))
+  .cs_check_priority_dups(tbl, c(source_name, keys))
+  list(tbl = tbl, keys = keys)
 }
 
-.cs_hard_drop <- function(work, source_name, priority, drop_at, verbose) {
-  ranks <- .cs_priority_vector(priority)
-  base_rank <- unname(ranks[as.character(work[[source_name]])])
+.cs_priority_table <- function(priority, source_name) {
+  if (!is.data.frame(priority)) {
+    if (is.null(names(priority))) {
+      cli::cli_abort("`priority` vector must be named (source = rank).")
+    }
+    out <- tibble::tibble(
+      .source = as.character(names(priority)),
+      .rank = as.integer(priority)
+    )
+    names(out)[1L] <- source_name
+    return(out)
+  }
+  p <- tibble::as_tibble(priority)
+  if (ncol(p) < 2L) {
+    cli::cli_abort("`priority` data frame needs >= 2 columns (source, rank).")
+  }
+  if (ncol(p) == 2L && !all(c(source_name, "rank") %in% names(p))) {
+    names(p) <- c(source_name, ".rank")
+    return(.cs_coerce_priority(p, source_name))
+  }
+  .cs_check_named_priority(p, source_name)
+  names(p)[names(p) == "rank"] <- ".rank"
+  .cs_coerce_priority(p, source_name)
+}
+
+.cs_coerce_priority <- function(p, source_name) {
+  p[[source_name]] <- as.character(p[[source_name]])
+  p$.rank <- as.integer(p$.rank)
+  p
+}
+
+# Past the two positional columns the table must name them: which column
+# carries the rank and which are scope keys cannot be guessed, and guessing
+# wrong silently publishes another source's number.
+.cs_check_named_priority <- function(p, source_name) {
+  absent <- setdiff(c(source_name, "rank"), names(p))
+  if (length(absent) > 0L) {
+    cli::cli_abort(c(
+      "A scoped `priority` table needs the column{?s} {.val {absent}}.",
+      "i" = "Name the source column {.val {source_name}} and the rank column {.val rank}; every other column scopes the entry."
+    ))
+  }
+  invisible(NULL)
+}
+
+.cs_scoped_rows <- function(tbl, keys) {
+  if (length(keys) == 0L) {
+    return(rep(FALSE, nrow(tbl)))
+  }
+  rowSums(!is.na(tbl[keys])) > 0L
+}
+
+.cs_check_priority_dups <- function(tbl, key_cols) {
+  if (anyDuplicated(tbl[key_cols]) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "`priority` gives the same source and scope key more than one rank.",
+    "i" = "List one rank per source, or per source and scope-key combination."
+  ))
+}
+
+.cs_hard_drop <- function(work, source_name, spec, drop_at, verbose) {
+  assigned <- .cs_assign_ranks(work, spec, source_name)
+  base_rank <- assigned$rank
   base_rank[is.na(base_rank)] <- as.integer(drop_at) - 1L
   work$.base_rank <- as.integer(base_rank)
+  work$.rank_scoped <- assigned$scoped
   keep <- work$.base_rank < drop_at
   if (verbose && any(!keep)) {
     cli::cli_alert_info(
       "Dropped {sum(!keep)} row{?s} from sources ranked >= {drop_at} before consolidation."
     )
   }
+  .cs_log_scoped_ranks(sum(work$.rank_scoped[keep]), verbose)
   work[keep, , drop = FALSE]
 }
 
+.cs_log_scoped_ranks <- function(n_scoped, verbose) {
+  if (verbose && n_scoped > 0L) {
+    cli::cli_alert_info(
+      "{n_scoped} row{?s} took a scope-specific priority rank."
+    )
+  }
+  invisible(NULL)
+}
+
+.cs_assign_ranks <- function(work, spec, source_name) {
+  probe <- .cs_as_key_chr(work[c(source_name, spec$keys)])
+  probe$.cs_row <- seq_len(nrow(work))
+  hits <- .cs_rank_matches(probe, spec, source_name)
+  rank <- rep(NA_integer_, nrow(work))
+  scoped <- rep(FALSE, nrow(work))
+  # An empty priority table matches nothing, and `hits` then carries no columns
+  # to index by: every row falls through to the `drop_at - 1L` fallback.
+  if (nrow(hits) == 0L) {
+    return(list(rank = rank, scoped = scoped))
+  }
+  rank[hits$.cs_row] <- hits$.rank
+  scoped[hits$.cs_row] <- hits$.specificity > 0L
+  list(rank = rank, scoped = scoped)
+}
+
+# Scope keys match as character on both sides: a category column may be a
+# factor in `data` and a string in `priority`, or an integer one side and a
+# double the other, and none of those is a reason to miss the match.
+.cs_as_key_chr <- function(df) {
+  dplyr::mutate(df, dplyr::across(dplyr::everything(), as.character))
+}
+
+.cs_rank_matches <- function(probe, spec, source_name) {
+  tbl <- spec$tbl
+  key_cols <- c(source_name, spec$keys)
+  tbl[key_cols] <- .cs_as_key_chr(tbl[key_cols])
+  if (length(spec$keys) == 0L) {
+    out <- dplyr::inner_join(probe, tbl, by = source_name)
+    out$.specificity <- 0L
+    return(out[c(".cs_row", ".rank", ".specificity")])
+  }
+  patterns <- split(seq_len(nrow(tbl)), .cs_key_pattern(tbl, spec$keys))
+  matched <- purrr::map(
+    patterns,
+    \(idx) .cs_pattern_match(probe, tbl[idx, ], spec$keys, source_name)
+  )
+  .cs_resolve_specificity(dplyr::bind_rows(matched))
+}
+
+# Priority rows sharing a pattern of stated (non-`NA`) keys join in one pass,
+# so the match costs one join per distinct pattern rather than one per entry.
+.cs_key_pattern <- function(tbl, keys) {
+  do.call(paste0, lapply(keys, \(k) as.integer(is.na(tbl[[k]]))))
+}
+
+.cs_pattern_match <- function(probe, rows, keys, source_name) {
+  stated <- keys[!is.na(unlist(rows[1L, keys], use.names = FALSE))]
+  by <- c(source_name, stated)
+  out <- dplyr::inner_join(probe, rows[c(by, ".rank")], by = by)
+  out$.specificity <- length(stated)
+  out[c(".cs_row", ".rank", ".specificity")]
+}
+
+# A row takes the rank of the most specific entry it matches. Two entries that
+# are equally specific and disagree would make the published value depend on
+# the order of the priority table, so they abort instead.
+.cs_resolve_specificity <- function(matched) {
+  if (nrow(matched) == 0L) {
+    return(matched)
+  }
+  best <- dplyr::filter(
+    matched,
+    .specificity == max(.specificity),
+    .by = .cs_row
+  )
+  clash <- best |>
+    dplyr::summarise(.n_rank = dplyr::n_distinct(.rank), .by = .cs_row) |>
+    dplyr::filter(.n_rank > 1L)
+  if (nrow(clash) > 0L) {
+    cli::cli_abort(c(
+      "{nrow(clash)} row{?s} matched two equally specific `priority` entries with different ranks.",
+      "i" = "Scope the entries on the same key columns, or give them one rank."
+    ))
+  }
+  dplyr::distinct(best, .cs_row, .keep_all = TRUE)
+}
+
 # An all-dropped input yields no winning cells: return the shaped empty tibble
-# (original columns plus the four provenance columns) rather than erroring, so a
+# (original columns plus the five provenance columns) rather than erroring, so a
 # panel of only pinned sources consolidates to zero rows just like any other.
 .cs_empty_result <- function(data) {
   out <- tibble::as_tibble(data)[0, , drop = FALSE]
@@ -370,6 +656,7 @@ consolidate_sources <- function(
   out$source_rank <- integer(0)
   out$effective_rank <- integer(0)
   out$measure_demoted <- logical(0)
+  out$method_source <- character(0)
   out
 }
 
@@ -459,15 +746,19 @@ consolidate_sources <- function(
 }
 
 .cs_eval_exempt <- function(work, exempt) {
+  .cs_eval_mask(work, exempt, "measure$exempt")
+}
+
+.cs_eval_mask <- function(work, exempt, arg_name) {
   if (!rlang::is_formula(exempt, lhs = FALSE)) {
     cli::cli_abort(
-      "`measure$exempt` must be a one-sided formula, e.g. `~ region == \"WLD\"`."
+      "`{arg_name}` must be a one-sided formula, e.g. `~ region == \"WLD\"`."
     )
   }
   mask <- rlang::eval_tidy(rlang::as_quosure(exempt), data = work)
   if (!is.logical(mask) || length(mask) != nrow(work)) {
     cli::cli_abort(
-      "`measure$exempt` must evaluate to one logical per row."
+      "`{arg_name}` must evaluate to one logical per row."
     )
   }
   mask[is.na(mask)] <- FALSE
@@ -480,7 +771,7 @@ consolidate_sources <- function(
   cell_keys <- c(cols$by, cols$time)
   mode <- .cs_coverage_mode(tie_break$coverage)
   work$.value_na <- is.na(work[[cols$value]])
-  work <- .cs_add_coverage(work, cols, mode)
+  work <- .cs_add_coverage(work, cols, mode, tie_break$coverage_by)
   work$.coverage_ord <- if (mode == "off") 0L else work$.coverage
   work$.quality_rank <- if (is.null(tie_break$quality_col)) {
     0L
@@ -493,10 +784,17 @@ consolidate_sources <- function(
   .cs_add_n_sources(work, cell_keys, cols$source)
 }
 
-.cs_add_coverage <- function(work, cols, mode) {
-  grp <- c(cols$by, cols$source)
+# Coverage always counts cells -- the (`.by`, `time_col`) combinations a source
+# reports -- and `coverage_by` moves only the grain they are counted at. At the
+# default grain the two are the same thing; at a coarser one a source with
+# broad category-level coverage can win a tie in a subcategory where it is
+# thin, which is a different tie-break answer, not a different unit.
+.cs_add_coverage <- function(work, cols, mode, coverage_by) {
+  cover_grp <- if (is.null(coverage_by)) cols$by else coverage_by
+  grp <- c(cover_grp, cols$source)
+  cell_keys <- c(cols$by, cols$time)
   counted <- .cs_coverage_keep(work[[cols$value]], mode)
-  cov <- work[counted, c(grp, cols$time), drop = FALSE]
+  cov <- work[counted, union(grp, cell_keys), drop = FALSE]
   cov <- dplyr::distinct(cov)
   cov <- dplyr::count(
     cov,
@@ -551,10 +849,44 @@ consolidate_sources <- function(
   if (verbose) {
     .cs_log_name_ties(ordered, cell_keys, source_name)
   }
-  ordered |>
+  top <- ordered |>
     dplyr::group_by(dplyr::across(dplyr::all_of(cell_keys))) |>
-    dplyr::slice_head(n = 1L) |>
+    dplyr::slice_head(n = 2L) |>
+    dplyr::mutate(.pos = dplyr::row_number()) |>
     dplyr::ungroup()
+  won <- top[top$.pos == 1L, , drop = FALSE]
+  won$.method <- .cs_decide_method(
+    won,
+    top[top$.pos == 2L, , drop = FALSE],
+    cell_keys
+  )
+  won$.pos <- NULL
+  won
+}
+
+# Which stage decided the cell, recorded per row as `method_source`. The
+# winner is compared with its closest rival, the runner-up in the same
+# ordering: the first ordering field the two differ on is what the winner won
+# on, and agreement on all of them means ascending source name settled it.
+.cs_decide_method <- function(won, rival, cell_keys) {
+  fields <- c(".value_na", ".effective_rank", ".coverage_ord", ".quality_rank")
+  challenger <- rival[c(cell_keys, fields)]
+  names(challenger) <- c(cell_keys, paste0(fields, "_rival"))
+  cmp <- dplyr::left_join(
+    won[c(cell_keys, fields, ".rank_scoped")],
+    challenger,
+    by = cell_keys
+  )
+  dplyr::case_when(
+    is.na(cmp$.effective_rank_rival) ~ "sole_source",
+    cmp$.value_na != cmp$.value_na_rival ~ "nonmissing",
+    cmp$.effective_rank != cmp$.effective_rank_rival & cmp$.rank_scoped ~
+      "priority_scoped",
+    cmp$.effective_rank != cmp$.effective_rank_rival ~ "priority",
+    cmp$.coverage_ord != cmp$.coverage_ord_rival ~ "coverage",
+    cmp$.quality_rank != cmp$.quality_rank_rival ~ "quality",
+    .default = "name_order"
+  )
 }
 
 .cs_log_name_ties <- function(ordered, cell_keys, source_name) {
@@ -584,9 +916,9 @@ consolidate_sources <- function(
 
 # --- Continuity override ------------------------------------------------------
 
-.cs_apply_continuity <- function(won, work, cols, verbose) {
+.cs_apply_continuity <- function(won, work, cols, continuity, verbose) {
   cell_keys <- c(cols$by, cols$time)
-  flagged <- .cs_flag_isolated(won, cols$by, cols$time, cols$source)
+  flagged <- .cs_flag_isolated(won, cols, continuity)
   clean <- .cs_drop_iso_cols(flagged)
   iso <- flagged[flagged$.isolated, , drop = FALSE]
   if (nrow(iso) == 0L) {
@@ -600,6 +932,7 @@ consolidate_sources <- function(
   if (nrow(repl) == 0L) {
     return(clean)
   }
+  repl$.method <- "continuity"
   out <- dplyr::bind_rows(
     dplyr::anti_join(clean, repl, by = cell_keys),
     repl[names(clean)]
@@ -625,9 +958,12 @@ consolidate_sources <- function(
   repl[keep, , drop = FALSE]
 }
 
-.cs_flag_isolated <- function(won, by, time_name, source_name) {
+.cs_flag_isolated <- function(won, cols, continuity) {
+  time_name <- cols$time
+  source_name <- cols$source
+  won$.cs_exempt <- .cs_continuity_exempt(won, continuity$exempt)
   won |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(by))) |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(cols$by))) |>
     dplyr::arrange(.data[[time_name]], .by_group = TRUE) |>
     dplyr::mutate(
       .prev_source = dplyr::lag(.data[[source_name]]),
@@ -635,18 +971,48 @@ consolidate_sources <- function(
       .prev_time = dplyr::lag(as.numeric(.data[[time_name]])),
       .next_time = dplyr::lead(as.numeric(.data[[time_name]])),
       .neighbor = .prev_source,
-      .isolated = !is.na(.prev_source) &
+      .isolated = !.cs_exempt &
+        !is.na(.prev_source) &
         !is.na(.next_source) &
         .prev_source == .next_source &
         .data[[source_name]] != .prev_source &
-        (as.numeric(.data[[time_name]]) - .prev_time) == 1 &
-        (.next_time - as.numeric(.data[[time_name]])) == 1
+        .cs_adjacent(
+          as.numeric(.data[[time_name]]) - .prev_time,
+          continuity$adjacency
+        ) &
+        .cs_adjacent(
+          .next_time - as.numeric(.data[[time_name]]),
+          continuity$adjacency
+        )
     ) |>
     dplyr::ungroup()
 }
 
+# A source whose observations are deliberately sparse -- a milestone grid meant
+# to be interpolated between -- is a run of isolated flips inside another
+# source's annual run, and the override would strip every one of its anchors.
+# The exemption keeps those cells with the source that reported them.
+.cs_continuity_exempt <- function(won, exempt) {
+  if (is.null(exempt)) {
+    return(rep(FALSE, nrow(won)))
+  }
+  .cs_eval_mask(won, exempt, "continuity_override$exempt")
+}
+
+# "step": both flanking periods sit exactly one time step away, so only a true
+# single-period tooth is reverted -- the conservative reading, and the default.
+# "within": at most one step, which also reverts a flip flanked at a finer
+# spacing in a series whose time axis is not a regular unit grid.
+.cs_adjacent <- function(gap, adjacency) {
+  if (identical(adjacency, "within")) {
+    return(!is.na(gap) & gap <= 1)
+  }
+  !is.na(gap) & gap == 1
+}
+
 .cs_drop_iso_cols <- function(flagged) {
   iso_cols <- c(
+    ".cs_exempt",
     ".prev_source",
     ".next_source",
     ".prev_time",
@@ -664,12 +1030,14 @@ consolidate_sources <- function(
   won$effective_rank <- won$.effective_rank
   won$measure_demoted <- won$.measure_demoted
   won$n_sources <- won$.n_sources
+  won$method_source <- won$.method
   keep <- c(
     names(data),
     "n_sources",
     "source_rank",
     "effective_rank",
-    "measure_demoted"
+    "measure_demoted",
+    "method_source"
   )
   won <- won[intersect(keep, names(won))]
   won <- dplyr::arrange(won, dplyr::across(dplyr::all_of(cell_keys)))
