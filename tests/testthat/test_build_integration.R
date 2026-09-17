@@ -102,6 +102,9 @@ test_that("build_primary_production sources are from known set", {
   expect_length(unexpected, 0L)
 })
 
+# Golden master: like `cbs_expected.rds` below, `prod_expected.rds`
+# encodes current output rather than independently verified ground
+# truth (whep#177).
 test_that("build_primary_production matches expected output", {
   result <- whep::build_primary_production(
     .raw_data = prod_raw_fixture()
@@ -217,6 +220,39 @@ test_that("build_commodity_balances sources are from known set", {
   expect_length(unexpected, 0L)
 })
 
+test_that("build_commodity_balances value column is finite", {
+  result <- whep::build_commodity_balances(
+    .fixed_data = cbs_fixed_fixture()
+  )
+  expect_true(all(is.finite(result$value)))
+})
+
+# The invariant the golden master below cannot supply. `cbs_expected.rds`
+# locks the current output value by value, so it detects *any* change and
+# distinguishes none: it says nothing about whether the numbers add up, and
+# it has to be recaptured by every legitimate fix. This says what the
+# pipeline owes its users -- total supply equals total use, row by row --
+# and it survives a recapture (whep#177). The tolerance is relative because
+# the fixture's values run to millions of tonnes, where the balancing
+# cascade's float noise is ~1e-7 absolute.
+test_that("build_commodity_balances output balances supply against use", {
+  result <- whep::build_commodity_balances(
+    .fixed_data = cbs_fixed_fixture()
+  )
+  wide <- whep:::.pivot_cbs_wide(result)
+  balance <- whep::check_supply_use_balance(wide)
+
+  # Every key must reach the report: a dropped row balances vacuously.
+  expect_equal(nrow(balance), nrow(wide))
+  expect_false(any(is.na(balance$rel_diff)))
+  expect_lt(max(balance$rel_diff), 1e-6)
+})
+
+# Golden master: `cbs_expected.rds` encodes what the pipeline currently
+# returns, not an independently verified ground truth. It is a regression
+# lock -- recapture it deliberately when a fix moves the numbers, and state
+# the before/after in the PR -- so keep the invariant test above as the check
+# that does not move with it.
 test_that("build_commodity_balances matches expected output", {
   result <- whep::build_commodity_balances(
     .fixed_data = cbs_fixed_fixture()
