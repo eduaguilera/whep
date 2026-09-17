@@ -139,7 +139,11 @@ read_n_deposition <- function(
 #'   (each `lon`, `lat`, `year`, `value_g` and optionally
 #'   `method_deposition`, falling back to [read_n_deposition()] when absent)
 #'   and `cell_polity` (`lon`, `lat`, `area_code`, `cell_area_ha` and the
-#'   `split` key column, required).
+#'   `split` key column, required). Neither species is optional: a `nhx` or
+#'   `noy` that contributes nothing to any cell the support carries -- no
+#'   rows, identically zero, or on a longitude convention of its own -- is
+#'   refused with a `whep_absent_input` error rather than halving every
+#'   deposition total in silence (#1034).
 #' @param split Which polity share splits the cell's deposited mass:
 #'   `"auto"` (default) takes `polity_area_ha` when the support carries it and
 #'   `polity_frac` otherwise, `"polity_area_ha"` and `"polity_frac"` demand
@@ -611,6 +615,45 @@ build_n_deposition <- function(
   dplyr::coalesce(nhx_source, noy_source)
 }
 
+# Refuse a deposition surface built from one species, on the cells that
+# actually reach the output (whep#1034).
+#
+# `coalesce(value_g_nhx, 0) + coalesce(value_g_noy, 0)` above is the shape of
+# whep#1010 verbatim: an absent layer becomes a zero, the sum stays a
+# perfectly plausible rate, and every check this function makes -- the rate is
+# non-negative, the mass is conserved against `value_g_total`, the round trip
+# through `cell_area_ha` cancels -- goes on holding, because zero satisfies a
+# sum. Measured on the package's own one-cell fixture, NOy arriving with no
+# rows, arriving identically zero, or arriving on a shifted longitude
+# convention all give 6.67 kg N/ha against 10, with no error and no warning.
+#
+# It sits AFTER the polity join, not on `total`, because that is the frame
+# whose values are published: a species landing on a grid the support does not
+# carry survives the full join (its own rows are there, with the other species
+# missing) and is then dropped by the inner join, so only the placed rows can
+# tell the three cases apart.
+#
+# It aborts. Neither species is optional here -- `build_n_deposition()` reads
+# both files when they are not supplied, and there is no argument for asking
+# for one -- so an empty species is a broken contract (a failed read, a moved
+# grid, two year spans that do not meet) rather than an absent quantity, and
+# no region of Earth has zero oxidised or zero reduced deposition.
+.nd_check_species <- function(placed) {
+  check_inputs_supplied(
+    placed,
+    c(nhx = "value_g_nhx", noy = "value_g_noy"),
+    details = c(
+      i = "{.field nhx} and {.field noy} are summed into one deposition
+           total, so a species that arrives empty is subtracted from every
+           cell without changing anything a rate or a mass check can see.",
+      i = "Check that both HaNi fields cover the requested {.arg years}, share
+           the longitude convention of {.field data$cell_polity}, and were
+           read at all: {.fun read_n_deposition} reads
+           {.file ndep_nhx.nc} and {.file ndep_noy.nc} separately."
+    )
+  )
+}
+
 # Combine NHx + NOy mass, convert to a per-hectare rate using the true cell
 # area, and split that mass across the cell's polities by `polity_share`.
 .nd_assemble <- function(nhx, noy, polity, key, categories) {
@@ -629,6 +672,7 @@ build_n_deposition <- function(
       )
     )
   dplyr::inner_join(total, polity, by = c("lon", "lat")) |>
+    .nd_check_species() |>
     dplyr::mutate(
       deposition_kgn_ha = .data$value_g_total / 1000 / .data$cell_area_ha,
       # `cell_area_ha` divides here and multiplies straight back, so it
