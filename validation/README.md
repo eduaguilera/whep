@@ -59,6 +59,8 @@ a hardcoded grid.
 | `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
 | `n_deposition_emep.R` | Checks WHEP's HaNi deposition input against the **EMEP MSC-W** model over Europe, per country and per year, on WHEP's own 0.5° grid. **Downloads** EMEP01 rv5.6 yearly NetCDF (~78 MB/year) from met.no; HaNi side needs `WHEP_HANI_DIR`. See below. |
+| `n_balance_gridded.R` | Checks a REAL gridded nitrogen-balance run (the `inst/scripts/run_nitrogen_balance.R` driver's saved output): the harvest-removal surplus is loss-free, the balance key is unique, the global standard N input is inside 50-300 Tg N/yr, and WHEP's arable surplus against the Schulte-Uebbing critical arable surplus integrated from the archive itself. See below. |
+| `gt_n_balance_gridded.json` | Recorded state of that run. **Committed** — compared bidirectionally, so a term quietly dropping out of the assembly is as loud as one appearing. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -139,6 +141,45 @@ baseline, which is how the check was shown to fire rather than merely to pass.
 The production build (~130 s, ~4.5 GB peak for 2001–2023) is cached under the
 gitignored `.whep_cache/`, so only the first run is slow. `validate_all.R` runs
 this check only when that cache already exists, or when `VAL_TG_FORCE` is set.
+
+## Gridded nitrogen balance (`n_balance_gridded.R`)
+
+Issue #446 asked for the chain
+
+```
+build_nitrogen_balance() -> calculate_n_surplus() -> build_n_boundary_exceedance()
+```
+
+to run once on real inputs and for the resulting global surplus to be defensible.
+Every test on that path is fixture-driven, so the suite proves the arithmetic and
+cannot see whether a real build assembles at all — which is how three separate
+blockers sat behind a green CI.
+
+This script is the net. It does **not** build anything: the assembly reads local
+rasters and pins and takes minutes, so the driver saves its result and the check
+reads it.
+
+```bash
+WHEP_NBD_OUT=validation/cache/findings/n_balance_2010.rds \
+  Rscript --no-init-file inst/scripts/run_nitrogen_balance.R 2010 grid
+
+WHEP_NBD_RESULT=validation/cache/findings/n_balance_2010.rds \
+  Rscript --no-init-file validation/n_balance_gridded.R
+```
+
+The four checks and why each exists are documented at the top of the script. The
+one worth repeating here is the first: the default harvest-removal surplus is
+net inputs minus harvested exports, and all four of those terms are computed
+*before* the loss cascade. That is what lets a global run quote a surplus at all
+while the cascade still has no global per-cell drivers (#359) and has to be fed
+a placeholder `climate`. If that identity ever stops holding, every surplus from
+such a run silently becomes a function of an invented value — so it is asserted,
+not assumed.
+
+The comparison against Schulte-Uebbing et al. (2022) integrates the *critical*
+arable surplus layer over the archive's own deposited source areas, from the
+Zenodo record `read_critical_n()` already downloads. It is derived here, not
+quoted, so it cannot drift away from a figure nobody can re-derive.
 
 ## N deposition vs EMEP MSC-W (`n_deposition_emep.R`)
 

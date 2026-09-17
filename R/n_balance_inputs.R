@@ -132,19 +132,37 @@
 #'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
 #'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
 #'     `synthetic_method = "coello"`.
+#'   * `method_unsupported`: the `method_unsupported` argument, supplied on
+#'     `data` instead, so that [build_nitrogen_balance()] can select it by
+#'     forwarding its own `data` list.
 #'   * `gridded`, `resolution`, `methods`: forwarded to
 #'     [build_livestock_nutrient_flows()]. `resolution` is the manure engine's
 #'     own axis, not this function's: it defaults to `"subnational"` at
 #'     `resolution = "grid"` (cell-level nitrogen needs cell-level manure) and
 #'     to `"national"` otherwise. A value supplied here is always honoured.
+#' @param method_unsupported What happens to non-item nitrogen (deposition,
+#'   urban, soil-organic-matter mineralization, unattributed manure) whose own
+#'   cell-year carries no cropland support at all. `"abort"` (the default, and
+#'   the behaviour before this argument existed) refuses to continue and names
+#'   the streams and the mass, so a coverage gap cannot be lost silently.
+#'   `"reallocate"` spreads each such row over its own polity-year's cropland
+#'   support in proportion to area, which conserves mass and is the same rule
+#'   `spatialize_country_n_to_crops()` already applies to a polity-crop with
+#'   no crop-pattern cell; it still aborts when the polity-year has no cropland
+#'   support anywhere. `"drop"` discards those rows and warns with the mass
+#'   lost. Whichever is chosen is stamped on every output row as
+#'   `method_unsupported`. May also be supplied as `data$method_unsupported`,
+#'   which is how [build_nitrogen_balance()] forwards it.
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
-#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope`. At
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope`,
+#'   `method_unsupported`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
-#'   `method_deposition_scope`, `n_input_t` (summed over cells).
+#'   `method_deposition_scope`, `method_unsupported`, `n_input_t` (summed over
+#'   cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
@@ -154,6 +172,8 @@
 #'   is `NA` for every other `fert_type`. `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
+#'   `method_unsupported` records the rule applied to non-item nitrogen with no
+#'   cropland support in its own cell, and is the same on every row.
 #'   Both grains also carry the polity columns below, plus
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
@@ -164,6 +184,7 @@ build_n_inputs <- function(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  method_unsupported = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -177,6 +198,12 @@ build_n_inputs <- function(
     data$synthetic_method <- rlang::arg_match(
       synthetic_method,
       c("coello", "area_share")
+    )
+  }
+  if (!is.null(method_unsupported)) {
+    data$method_unsupported <- rlang::arg_match(
+      method_unsupported,
+      c("abort", "reallocate", "drop")
     )
   }
   data$.n_input_resolution <- resolution
@@ -201,7 +228,7 @@ build_n_inputs <- function(
   # discard anyway. Filtering first leaves the retained rows identical.
   assembled |>
     .ni_filter_years(years) |>
-    .ni_allocate_unattributed(data) |>
+    .ni_allocate_unattributed(data, .ni_unsupported_method(data)) |>
     .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution) |>
     .resolve_polity_validity(polity_validity)
@@ -223,7 +250,21 @@ build_n_inputs <- function(
     "n_input_t",
     "method_recycling_n",
     "method_synthetic",
-    "method_deposition_scope"
+    "method_deposition_scope",
+    "method_unsupported"
+  )
+}
+
+# The rule for non-item nitrogen whose own cell-year carries no cropland
+# support. Read off `data` so build_nitrogen_balance(), which forwards its
+# whole `data` list, can select it without a second argument of its own --
+# the shape `data$synthetic_method` already uses.
+.ni_unsupported_method <- function(data) {
+  method <- data$method_unsupported %||% "abort"
+  rlang::arg_match0(
+    method,
+    c("abort", "reallocate", "drop"),
+    "method_unsupported"
   )
 }
 
@@ -313,7 +354,8 @@ build_n_inputs <- function(
         "fert_type",
         "method_recycling_n",
         "method_synthetic",
-        "method_deposition_scope"
+        "method_deposition_scope",
+        "method_unsupported"
       )
     )
 }
@@ -926,30 +968,97 @@ build_n_inputs <- function(
 # construction and the filter it used to carry could never fire. What actually
 # loses mass here is the inner join, and the residual check below is the only
 # place that loss surfaces.
-.ni_allocate_unattributed <- function(inputs, data) {
+.ni_allocate_unattributed <- function(
+  inputs,
+  data,
+  method_unsupported = "abort"
+) {
   unattributed <- dplyr::filter(inputs, is.na(.data$item_cbs_code))
   if (nrow(unattributed) == 0L) {
-    return(inputs)
+    return(.ni_stamp_unsupported(inputs, method_unsupported))
   }
   support <- .ni_land_support(data)
+  cropland <- dplyr::filter(support, .data$land_use == "cropland")
   sourced <- unattributed |>
     dplyr::select(-"item_cbs_code") |>
     dplyr::mutate(.source_row = dplyr::row_number())
-  allocated <- sourced |>
-    dplyr::inner_join(
-      dplyr::filter(support, .data$land_use == "cropland"),
-      by = c("lon", "lat", "area_code", "year"),
-      relationship = "many-to-many"
-    ) |>
+  placed <- .ni_spread_over_support(
+    sourced,
+    cropland,
+    c("lon", "lat", "area_code", "year")
+  ) |>
+    .ni_place_stranded(sourced, cropland, method_unsupported)
+  if (method_unsupported != "drop") {
+    .ni_check_unallocated(sourced, placed, support)
+  }
+  dplyr::bind_rows(
+    dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
+    dplyr::select(placed, dplyr::any_of(.ni_schema()))
+  ) |>
+    .ni_stamp_unsupported(method_unsupported)
+}
+
+# Split each source row's nitrogen across the support rows it joins, in
+# proportion to their area. `by` is the grain the split happens on: the row's
+# own cell-year for the normal path, the row's polity-year when a stranded row
+# is reallocated.
+.ni_spread_over_support <- function(sourced, cropland, by) {
+  sourced |>
+    dplyr::inner_join(cropland, by = by, relationship = "many-to-many") |>
     dplyr::mutate(
       n_input_t = .data$n_input_t * .data$area_ha / sum(.data$area_ha),
       .by = ".source_row"
     )
-  .ni_check_unallocated(sourced, allocated, support)
-  dplyr::bind_rows(
-    dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
-    dplyr::select(allocated, dplyr::all_of(.ni_schema()))
+}
+
+# What happens to non-item nitrogen whose own cell-year carries no cropland
+# support at all. The condition is real, not hypothetical: build_urban_n()
+# hands back the urban nitrogen its transport step could not deliver, at the
+# SOURCE cell, and on a 2010 global run 1985 of those cells hold no cropland --
+# 38,425 t of 4.02 Mt urban N, which took the whole balance down (whep#446).
+#
+# "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
+# names them and stops: no published number moves, and a real gap stays loud.
+# "reallocate" spreads each stranded row over its OWN polity-year's cropland
+# support, weighted by area -- mass-conserving, and the same rule
+# .n_grid_unmatched() already applies to a polity-crop with no crop-pattern
+# cell, so the two gaps in this chain are answered the same way. It still
+# aborts for a polity-year with no cropland support anywhere, because then
+# there is nothing to spread onto. "drop" discards them and says how much.
+.ni_place_stranded <- function(allocated, sourced, cropland, method) {
+  stranded <- dplyr::filter(
+    sourced,
+    !.data$.source_row %in% allocated$.source_row
   )
+  if (method == "abort" || nrow(stranded) == 0L) {
+    return(allocated)
+  }
+  mass <- sum(stranded$n_input_t, na.rm = TRUE)
+  if (method == "drop") {
+    cli::cli_warn(c(
+      "Dropping {nrow(stranded)} non-item nitrogen row{?s}
+       ({signif(mass, 6)} t N) with no cropland support in their own cell.",
+      i = "{.code method_unsupported = \"reallocate\"} keeps the mass on the
+           polity's other cropland cells instead."
+    ))
+    return(allocated)
+  }
+  rescued <- .ni_spread_over_support(
+    dplyr::select(stranded, -"lon", -"lat"),
+    cropland,
+    c("area_code", "year")
+  )
+  cli::cli_inform(c(
+    i = "Reallocated {nrow(stranded)} non-item nitrogen row{?s}
+         ({signif(mass, 6)} t N) with no cropland support in their own cell
+         over their polity's cropland cells."
+  ))
+  dplyr::bind_rows(allocated, rescued)
+}
+
+# Every row carries the rule, so a balance built from these inputs names it.
+.ni_stamp_unsupported <- function(x, method) {
+  dplyr::mutate(x, method_unsupported = method)
 }
 
 # Abort when the cropland support could not carry every non-item tonne, naming

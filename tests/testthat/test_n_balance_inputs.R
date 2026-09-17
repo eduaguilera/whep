@@ -952,6 +952,112 @@ testthat::test_that("unallocatable non-item nitrogen names its streams", {
   testthat::expect_match(message, "2 source rows sit on a cell-year with no")
 })
 
+# Non-item nitrogen stranded on a cell with no cropland support, in a polity
+# that HAS cropland support elsewhere. That is the shape a real 2010 run takes:
+# build_urban_n() carries the urban nitrogen its transport step could not
+# deliver back to the source cell, and 1985 of those cells hold no cropland, so
+# the allocation join drops 38,425 t of 4.02 Mt (whep#446).
+.nbi_stranded_inputs <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~fert_type, ~n_input_t,
+      0.25, 50.25, 10L, 2010L, "urban", 10,
+      0.75, 50.25, 10L, 2010L, "urban", 4
+    ) |>
+      dplyr::mutate(
+        item_cbs_code = NA_integer_,
+        method_recycling_n = NA_character_,
+        method_synthetic = NA_character_
+      )
+  )
+}
+
+testthat::test_that("stranded non-item nitrogen still aborts by default", {
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+})
+
+testthat::test_that("reallocate places stranded nitrogen and conserves mass", {
+  out <- whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(ag_land_support = .nbi_ag_land_support()),
+    method_unsupported = "reallocate"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+  # Both rows land on the polity's only cropland cell, split 700/300 by area.
+  testthat::expect_setequal(out$lon, 0.25)
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 2511L]),
+    14 * 0.7
+  )
+  testthat::expect_true(all(out$method_unsupported == "reallocate"))
+})
+
+testthat::test_that("drop discards stranded nitrogen and says how much", {
+  testthat::expect_warning(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "drop"
+    ),
+    "4 t N"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 10)
+  testthat::expect_true(all(out$method_unsupported == "drop"))
+})
+
+testthat::test_that("reallocate still aborts when the polity has no cropland", {
+  inputs <- dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.25,
+      area_code = 99L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      fert_type = "urban",
+      n_input_t = 4,
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_
+    )
+  )
+
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      inputs,
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "reallocate"
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+})
+
+testthat::test_that("build_n_inputs refuses an unknown unsupported rule", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      method_unsupported = "smear",
+      data = .nbi_full_data()
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("build_n_inputs stamps the unsupported rule it used", {
+  out <- whep::build_n_inputs(years = 2010L, data = .nbi_full_data())
+
+  testthat::expect_true("method_unsupported" %in% names(out))
+  testthat::expect_true(all(out$method_unsupported == "abort"))
+})
+
 testthat::test_that("every placed non-item tonne survives the allocation", {
   inputs <- dplyr::filter(
     .nbi_unallocatable_inputs(),
