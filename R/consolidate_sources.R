@@ -575,6 +575,11 @@ consolidate_sources <- function(
   hits <- .cs_rank_matches(probe, spec, source_name)
   rank <- rep(NA_integer_, nrow(work))
   scoped <- rep(FALSE, nrow(work))
+  # An empty priority table matches nothing, and `hits` then carries no columns
+  # to index by: every row falls through to the `drop_at - 1L` fallback.
+  if (nrow(hits) == 0L) {
+    return(list(rank = rank, scoped = scoped))
+  }
   rank[hits$.cs_row] <- hits$.rank
   scoped[hits$.cs_row] <- hits$.specificity > 0L
   list(rank = rank, scoped = scoped)
@@ -643,7 +648,7 @@ consolidate_sources <- function(
 }
 
 # An all-dropped input yields no winning cells: return the shaped empty tibble
-# (original columns plus the four provenance columns) rather than erroring, so a
+# (original columns plus the five provenance columns) rather than erroring, so a
 # panel of only pinned sources consolidates to zero rows just like any other.
 .cs_empty_result <- function(data) {
   out <- tibble::as_tibble(data)[0, , drop = FALSE]
