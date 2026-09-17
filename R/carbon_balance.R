@@ -2643,18 +2643,23 @@ build_carbon_balance <- function(
 # here, once, at the boundary that owns it, and refused by
 # `.normalize_carbon_support()` everywhere else.
 #
-# The code the fold runs on is re-resolved from `polity_code` first
-# (`.carbon_rekey_area_code()`), because the pinned support's own `area_code`
-# column holds matrix BUCKET codes -- 206 for Sudan plus South Sudan, 999 for
-# Syria and 42 other territories -- which is not the vocabulary this function's
-# consumers are keyed on (whep#907).
+# The code the fold runs on is resolved in two steps, and they are not the same
+# step. `.carbon_rekey_area_code()` re-resolves the pinned `area_code` column
+# from `polity_code`, because that column holds a FROZEN bucket vocabulary --
+# 206 for Sudan plus South Sudan, 999 for Syria and 42 other territories -- that
+# the crosswalk has since moved on from (whep#907). `.carbon_fold_to_bucket()`
+# then folds the recovered reporting codes onto TODAY'S bucket, because that is
+# the space the national carbon tables are keyed on (whep#1168). Syria comes
+# back as 212 and stays there; Sudan comes back as 276 and 277 and folds to 206,
+# which is where its crop totals are.
 .carbon_support_to_area_code <- function(support) {
   .check_columns(
     support,
     c("lon", "lat", "area_code", "cell_area_ha", "land_area_ha"),
     "country_grid"
   )
-  support <- .carbon_rekey_area_code(support)
+  support <- .carbon_rekey_area_code(support) |>
+    .carbon_fold_to_bucket()
   # The share denominator is the cell's WHOLE measured land, taken before any
   # row is dropped. Taking it after would renormalise the survivors over a
   # smaller cell, handing an unkeyable polity's hectares to its neighbour --
@@ -2708,6 +2713,56 @@ build_carbon_balance <- function(
     i = "The support is read by {.field area_code}-keyed callers; the bucket
          space folds Sudan with South Sudan and 43 territories into Rest of
          World (whep#907)."
+  ))
+}
+
+# Fold the reporting `area_code` onto the matrix BUCKET the carbon path's
+# national tables are keyed on (whep#1168).
+#
+# The two sides of the gridded carbon join are in different code spaces. Every
+# national table the carbon path consumes -- crop NPP, manure, harvested area --
+# comes through `.aggregate_to_polities()`, which groups on `polity_area_code`
+# and renames it `area_code`, so Sudan's crop totals arrive as bucket 206. The
+# support, after `.carbon_rekey_area_code()`, is on the reporting codes 276 and
+# 277. Measured on the shipped `polycell_support` pin at 2015: 704 cells at 276
+# and 253 at 277, and no row at all at 206, against 11.73 Mha of FAOSTAT
+# harvested area over 50 crops booked to 206 at 2010. The join named the same
+# ground twice and matched nothing, so that cropland was spatialized nowhere.
+#
+# The fold is read through `.polity_crosswalk()`, NOT the shipped table, for the
+# same reason `.cell_polity_bucket_lookup()` is -- which is the lookup reused
+# here, so the two gridded chains cannot drift apart. That makes this a no-op
+# the day the un-fold is published (whep#680 / whep#1167): with the switch set,
+# 276 and 277 are their own buckets and nothing moves. It keys the support on
+# whatever code space the national tables are actually in, rather than on a
+# fixed one.
+#
+# It is a relabelling: no row is added or dropped and no hectare moves here.
+# The EXTENT fold that follows -- 276's and 277's land summed inside a border
+# cell -- is `.carbon_fold_area_code()`'s, which reports it. A code the
+# crosswalk does not bucket keeps its own code rather than being guessed at.
+.carbon_fold_to_bucket <- function(support) {
+  lookup <- .cell_polity_bucket_lookup()
+  support$area_code <- as.integer(support$area_code)
+  bucket <- lookup$polity_area_code[match(support$area_code, lookup$area_code)]
+  moved <- !is.na(bucket) & support$area_code != bucket
+  if (any(moved)) {
+    .carbon_inform_bucket(support[moved, , drop = FALSE], bucket[moved])
+  }
+  support$area_code[!is.na(bucket)] <- bucket[!is.na(bucket)]
+  support
+}
+
+.carbon_inform_bucket <- function(moved, codes) {
+  land <- round(sum(moved$land_area_ha, na.rm = TRUE) / 1e6, 2)
+  n_moved <- nrow(moved)
+  from <- sort(unique(moved$area_code))
+  n_from <- length(from)
+  cli::cli_inform(c(
+    i = "Folded {cli::qty(n_moved)}{n_moved} polycell{?s} ({land} Mha of land)
+         onto the matrix bucket the national carbon tables are keyed on.",
+    i = "{cli::qty(n_from)}Reporting {.field area_code}{?s} folded:
+         {.val {from}} onto {.val {sort(unique(codes))}}."
   ))
 }
 
