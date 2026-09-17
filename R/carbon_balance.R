@@ -242,7 +242,7 @@
 #' grid is a coarser land mask than LUH2's, so **not every LUH2 hectare is in
 #' the output**. On the default readers at 2010, 7,079 cell-polity
 #' compartments carrying 296.8 Mha of LUH2 land -- 30.4 Mha cropland, 46.6 Mha
-#' grassland, 214.8 Mha natural, 4.8 Mha urban -- have no climate driver and
+#' grassland, 214.9 Mha natural, 4.8 Mha urban -- have no climate driver and
 #' are dropped, with a warning naming the hectares and the worst-hit polities.
 #' The loss is essentially a coastline, so it is negligible globally (1.4% of
 #' grassland, 2.6% of natural land) and large for maritime polities: 31.6% of
@@ -709,7 +709,7 @@ build_carbon_balance <- function(
 # only a cell-year COUNT, which is why it read as housekeeping. The climate
 # drivers come from the LPJmL run's grid, and that grid is a coarser land mask
 # than LUH2's: 7,079 cell-polity compartments carrying 296.8 Mha of LUH2 land at
-# 2010 (cropland 30.4, grassland 46.6, natural 214.8, urban 4.8 Mha) have no
+# 2010 (cropland 30.4, grassland 46.6, natural 214.9, urban 4.8 Mha) have no
 # driver and leave the soil-carbon balance altogether. The loss is a coastline,
 # so it concentrates in maritime polities -- 31.6% of Greece's grassland, 25.3%
 # of the Philippines', 22.7% of Somalia's, 17.8% of Indonesia's, 12.8% of the
