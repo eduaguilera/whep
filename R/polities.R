@@ -885,9 +885,12 @@ add_polity_code <- function(
 #'   every row of `table` landed inside its polity's period, which is the
 #'   intended state.
 #'
-#' @seealso [add_polity_code()] for the resolution itself, and
+#' @seealso [add_polity_code()] for the resolution itself,
 #'   [polity_bucket_coverage()] for the related question of which buckets sum
-#'   more than one territory, and whether their label covers the sum.
+#'   more than one territory, and whether their label covers the sum, and
+#'   [polity_anchor_drift()] for the narrower question of whether a back-cast
+#'   row's label describes the same territory its growth proxy was measured
+#'   on.
 #' @export
 #' @examples
 #' # FAOSTAT area 51 "Czechoslovakia" is the live case: `F51-1947-1993` ended in
