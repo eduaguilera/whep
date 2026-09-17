@@ -206,3 +206,35 @@ test_that("an unknown forage_n aborts instead of falling back", {
   )
   expect_error(whep:::.forage_n_kgn_kgdm("bogus"), class = "rlang_error")
 })
+
+test_that("the single-method carbon guard names what it accepts", {
+  # whep#1100: `method_c` records a choice nobody can make, because the route
+  # it replaced applied a fresh-dung C:N to whole-excreta nitrogen and cannot
+  # be right (whep#1006). That is a fine reason to have one method; it is not
+  # a reason for the guard to be vaguer than every other selector. The error
+  # must say what IS accepted, so the day a second defensible method exists
+  # this test is what fails.
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(method_c = "excreta_cn")
+    ),
+    "volatile_solids"
+  )
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(method_vs = "ipcc_default")
+    ),
+    "intake_digestibility"
+  )
+  # A non-string option is refused rather than slipping through a zero-length
+  # `%in%` test, which aborted on the `if` instead of on the argument.
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(method_c = character(0))
+    ),
+    class = "rlang_error"
+  )
+})
