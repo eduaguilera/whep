@@ -161,6 +161,25 @@
 #'   the supply it is apportioned from, so 1 is a true bound there, while
 #'   here the denominator is incomplete and capping at 1 would book a
 #'   country's whole processed output as export.
+#' @param seed_backcast One of `"area_rate"` (default) or
+#'   `"production_share"`, selecting what the pre-1962 seed back-cast reads
+#'   its rate off and spends it on (whep#699). The fill carries a rate along
+#'   the year axis: a rate is read from the years that report `seed`,
+#'   interpolated and extrapolated into the years that do not, and multiplied
+#'   back out. It yields tonnes only if the quantity it is spent on is the
+#'   quantity it was divided by.
+#'
+#'   `"area_rate"` is tonnes of seed per hectare harvested,
+#'   `seed / area_ha` spent as `area_ha * seed_rate`, and is the default: a
+#'   seeding rate is an agronomic quantity that holds while yields change, so
+#'   it is the ratio worth carrying across decades. `"production_share"` is
+#'   tonnes of seed per tonne of output, `seed / production` spent as
+#'   `production * seed_rate`; it moves with yield, but reaches keys the
+#'   production build gives no harvested area.
+#'
+#'   **The default moves published values**, because neither is what shipped:
+#'   a rate defined per hectare used to be spent on production, giving
+#'   `t x t/ha`. `PLACEHOLDER_SEED_MEASURED`
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -205,6 +224,7 @@ build_commodity_balances <- function(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -214,6 +234,7 @@ build_commodity_balances <- function(
   negative_supply <- rlang::arg_match(negative_supply)
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   export_share_overflow <- rlang::arg_match(export_share_overflow)
+  seed_backcast <- rlang::arg_match(seed_backcast)
   if (example) {
     return(
       if (format == "wide") {
@@ -237,7 +258,8 @@ build_commodity_balances <- function(
       historical_data,
       share_overflow = share_overflow,
       negative_supply = negative_supply,
-      hist_trade_scale = hist_trade_scale
+      hist_trade_scale = hist_trade_scale,
+      seed_backcast = seed_backcast
     ) |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -282,6 +304,11 @@ build_commodity_balances <- function(
       cli::cli_warn(
         "{.arg export_share_overflow} is ignored when {.arg .fixed_data} is \
          supplied."
+      )
+    }
+    if (seed_backcast != "area_rate") {
+      cli::cli_warn(
+        "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -464,7 +491,8 @@ build_commodity_balances <- function(
   historical_data = NULL,
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
-  hist_trade_scale = .hist_trade_scale_choices()
+  hist_trade_scale = .hist_trade_scale_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -508,7 +536,8 @@ build_commodity_balances <- function(
     inputs,
     years,
     share_overflow = share_overflow,
-    negative_supply = negative_supply
+    negative_supply = negative_supply,
+    seed_backcast = seed_backcast
   )
 
   # Trim to requested years and attach context for downstream
@@ -1539,6 +1568,25 @@ build_processing_coefs <- function(
   dt[unit == "tonnes"]
 }
 
+# The harvested area the pre-1962 seed back-cast recovers its rate from.
+#
+# Keyed on the CODE, never on the `area` label. This table is joined onto the
+# pre-1962 CBS frame in `.fill_historical_destinies()`, and the two sides speak
+# different dialects of one vocabulary. Both carry exactly one label per code,
+# but they pick it by different rules: here `.enrich_primary_with_names()`
+# takes the FAOSTAT-facing name of the code's LATEST polity via
+# `add_area_name()` ("Poland", "Czechoslovakia", "Russian Federation"), while
+# the CBS side carries what `.cbs_area_labels()` stamps -- best source, first
+# year, alphabetical -- which is the periodized polity name ("Poland
+# (1945-2025)", "Czechoslovakia (1947-1993)", "Russia (1991-2014)"). Measured
+# on a real 1850-2023 build, 38 of the 186 codes both sides carry disagree,
+# and joining on the label as well as the code dropped 101,578 of 423,836
+# harvested-area keys, 24.0% of them (whep#699).
+#
+# Dropping `area` from the aggregation as well as from the join is what keeps
+# that join one-to-one: a code that arrived under two labels would otherwise
+# give one `(year, area_code, item_cbs_code)` two rows and duplicate the CBS
+# row it matches.
 .primary_to_cbs_area <- function(primary_all) {
   dt <- .enrich_primary_with_names(primary_all)
   if (!data.table::is.data.table(dt)) {
@@ -1548,7 +1596,6 @@ build_processing_coefs <- function(
   dt <- dt[!is.na(item_cbs_code)]
   by_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -2936,7 +2983,8 @@ build_processing_coefs <- function(
   inputs,
   years,
   share_overflow = .cbs_share_overflow_choices(),
-  negative_supply = .cbs_negative_supply_choices()
+  negative_supply = .cbs_negative_supply_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
   items <- whep::items_full
 
@@ -3011,7 +3059,8 @@ build_processing_coefs <- function(
       inputs$land_areas_wide,
       items,
       share_overflow = share_overflow,
-      negative_supply = negative_supply
+      negative_supply = negative_supply,
+      seed_backcast = seed_backcast
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -3070,7 +3119,8 @@ build_processing_coefs <- function(
   land_wide,
   items,
   share_overflow = .cbs_share_overflow_choices(),
-  negative_supply = .cbs_negative_supply_choices()
+  negative_supply = .cbs_negative_supply_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
   share_overflow <- rlang::arg_match(
     share_overflow,
@@ -3079,6 +3129,10 @@ build_processing_coefs <- function(
   negative_supply <- rlang::arg_match(
     negative_supply,
     .cbs_negative_supply_choices()
+  )
+  seed_backcast <- rlang::arg_match(
+    seed_backcast,
+    .cbs_seed_backcast_choices()
   )
   expected_elements <- c(
     "domestic_supply",
@@ -3118,14 +3172,105 @@ build_processing_coefs <- function(
     ) |>
     .apply_share_overflow(share_overflow) |>
     dplyr::left_join(
-      primary_area,
-      by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
+      # The label is dropped from the right-hand side as well as from the key:
+      # it is present on both frames and carries no information the code does
+      # not, so keeping it would only suffix the column the frame is finalised
+      # on (whep#699).
+      primary_area |> dplyr::select(-dplyr::any_of("area")),
+      by = c("year", "area_code", "item_cbs", "item_cbs_code")
     ) |>
-    dplyr::mutate(seed_rate = .cbs_safe_ratio(seed, area_ha)) |>
+    .derive_seed_rate(seed_backcast) |>
     .fill_share_columns() |>
-    .apply_filled_shares() |>
+    .report_seed_backcast(seed_backcast) |>
+    .apply_filled_shares(seed_backcast) |>
     .fill_with_proxies(gdp_pop, land_wide) |>
     .finalise_historical(items)
+}
+
+# -- The pre-1962 seed back-cast ----------------------------------------------
+
+# What the seed back-cast divides an observed seed by, and multiplies the
+# recovered rate back by, most physically grounded first (whep#699).
+#
+# The fill is a rate carried along the year axis: `.derive_seed_rate()` reads a
+# rate off the years that report seed, `.fill_share_columns()` interpolates and
+# extrapolates it into the years that do not, and `.apply_filled_shares()`
+# spends it again. That only yields tonnes if the quantity it is spent on is
+# the quantity it was divided by, and until whep#699 it was not -- the rate was
+# `seed / area_ha` (t/ha) and it was spent as `production * seed_rate`
+# (t x t/ha), which is not a mass. Neither reading of that pair is a defensible
+# method, so the shipped expression is not offered as one.
+#
+# `"area_rate"` is the default and the more rigorous of the two: a seeding rate
+# is tonnes of seed per hectare sown, an agronomic quantity that holds while
+# yields change, so `seed / area_ha` is the ratio that is stable enough to
+# carry across decades. It needs the production build to report a harvested
+# area for the key in the target year.
+#
+# `"production_share"` reads the same fill as a seed-to-output ratio,
+# `seed / production` spent as `production * seed_rate`. It is what the shipped
+# multiplication would have been the arithmetic for, and it reaches the keys
+# `"area_rate"` cannot -- items with no harvested area at all, and crops whose
+# area series does not reach that year -- at the cost of a ratio that moves
+# with yield, so a low-yield back-cast year is credited with more seed per
+# tonne than the observation it was read from.
+.cbs_seed_backcast_choices <- function() {
+  c("area_rate", "production_share")
+}
+
+# The basis of the seed rate: the column it is a rate *of*. Read off the frame
+# rather than named in the calling expression so the ratio and the product that
+# undoes it cannot drift apart.
+.seed_backcast_basis <- function(df, seed_backcast) {
+  if (seed_backcast == "area_rate") df[["area_ha"]] else df[["production"]]
+}
+
+.derive_seed_rate <- function(df, seed_backcast) {
+  dplyr::mutate(
+    df,
+    seed_rate = .cbs_safe_ratio(
+      seed,
+      .seed_backcast_basis(df, seed_backcast)
+    )
+  )
+}
+
+# Name the method out loud, and separate the two ways a pre-1962 seed can come
+# out as nothing. A key whose rate the fill never recovered is a gap; a key
+# that HAS a rate and still books no seed, because the basis that rate is per
+# unit of is missing in that year, is an absent input turning into a zero
+# (`.finalise_historical()` replaces the NA with 0), and that is exactly what
+# whep#699 was: the whole basis went missing on a label-keyed join and every
+# pre-1962 seed the fill should have produced was booked as zero in silence.
+.report_seed_backcast <- function(df, seed_backcast) {
+  has_rate <- !is.na(df[["seed_rate"]]) & is.na(df[["seed"]])
+  basis <- .seed_backcast_basis(df, seed_backcast)
+  filled <- sum(has_rate & !is.na(basis))
+  blocked <- sum(has_rate & is.na(basis))
+  basis_name <- if (seed_backcast == "area_rate") "area_ha" else "production"
+  # Counts are formatted to strings first: a bare numeric next to a `{?s}`
+  # marker aborts inside cli's own message.
+  filled_txt <- format(filled, big.mark = ",", trim = TRUE)
+  blocked_txt <- format(blocked, big.mark = ",", trim = TRUE)
+  bullets <- c(
+    "i" = paste0(
+      "{.arg seed_backcast} is {.val {seed_backcast}}: the pre-1962 seed ",
+      "fill spends its rate on {.field {basis_name}} and reaches ",
+      "{cli::qty(filled)}{filled_txt} row{?s}."
+    )
+  )
+  if (blocked > 0L) {
+    bullets <- c(
+      bullets,
+      "!" = paste0(
+        "{cli::qty(blocked)}{blocked_txt} row{?s} recovered a rate but ",
+        "{cli::qty(blocked)}{?has/have} no {.field {basis_name}} that year, ",
+        "so {cli::qty(blocked)}{?its/their} seed is booked as zero."
+      )
+    )
+  }
+  cli::cli_inform(bullets, class = "whep_seed_backcast")
+  df
 }
 
 # A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
@@ -3532,7 +3677,14 @@ build_processing_coefs <- function(
   df
 }
 
-.apply_filled_shares <- function(df) {
+.apply_filled_shares <- function(
+  df,
+  seed_backcast = .cbs_seed_backcast_choices()
+) {
+  seed_backcast <- rlang::arg_match(
+    seed_backcast,
+    .cbs_seed_backcast_choices()
+  )
   df |>
     dplyr::mutate(
       food = dplyr::coalesce(
@@ -3555,9 +3707,12 @@ build_processing_coefs <- function(
         processing_primary,
         domestic_supply * processing_primary_share
       ),
+      # `seed_rate` is per unit of its own basis, so it is spent on that same
+      # basis and nothing else. whep#699: this used to be
+      # `production * seed_rate` against a rate defined per hectare.
       seed = dplyr::coalesce(
         seed,
-        production * seed_rate
+        .seed_backcast_basis(df, seed_backcast) * seed_rate
       )
     )
 }

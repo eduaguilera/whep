@@ -18,6 +18,7 @@ build_commodity_balances(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 )
 }
@@ -186,6 +187,26 @@ deliberately no clamp, unlike \code{share_overflow}: a destiny cannot exceed
 the supply it is apportioned from, so 1 is a true bound there, while
 here the denominator is incomplete and capping at 1 would book a
 country's whole processed output as export.}
+
+\item{seed_backcast}{One of \code{"area_rate"} (default) or
+\code{"production_share"}, selecting what the pre-1962 seed back-cast reads
+its rate off and spends it on (whep#699). The fill carries a rate along
+the year axis: a rate is read from the years that report \code{seed},
+interpolated and extrapolated into the years that do not, and multiplied
+back out. It yields tonnes only if the quantity it is spent on is the
+quantity it was divided by.
+
+\code{"area_rate"} is tonnes of seed per hectare harvested,
+\code{seed / area_ha} spent as \code{area_ha * seed_rate}, and is the default: a
+seeding rate is an agronomic quantity that holds while yields change, so
+it is the ratio worth carrying across decades. \code{"production_share"} is
+tonnes of seed per tonne of output, \code{seed / production} spent as
+\code{production * seed_rate}; it moves with yield, but reaches keys the
+production build gives no harvested area.
+
+\strong{The default moves published values}, because neither is what shipped:
+a rate defined per hectare used to be spent on production, giving
+\verb{t x t/ha}. \code{PLACEHOLDER_SEED_MEASURED}}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
