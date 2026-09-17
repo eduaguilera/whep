@@ -1138,6 +1138,188 @@ testthat::test_that("an unknown excreta area basis is refused", {
   )
 })
 
+# ---- Which grassland hectares the grazing REMOVAL is divided by (whep#1011) --
+# The sibling half of the excreta section above, and the half #1051 left open.
+# The grazed-carbon density is charged only to cells the LPJmL run gives a
+# grassland stand, while the divisor has always been the polity's WHOLE LUH2
+# grassland area, so the share of the herd's grass intake that is actually
+# taken off the sward is the coverage -- 98.6% globally at 2010, but 0.68 for
+# Greece, 0.77 for Somalia and 0.82 for Indonesia. This fixture makes it 40%.
+#
+# It reuses the excreta fixture's geometry (cell C carries LUH2 grassland but
+# no LPJmL grassland stand) and gives it a real grass intake: 1000 t DM at the
+# package's 0.45 carbon fraction is 450 MgC over 1000 ha of LUH2 grassland,
+# i.e. 0.45 MgC/ha charged to the 400 ha that carry a stand.
+.gn_partial_cover_grazed <- function() {
+  d <- .gn_partial_cover_data()
+  d$livestock_intake <- .gn_intake_fixture(grass_dm_t = 1000)
+  d
+}
+
+# The grazed carbon mass the polity's grassland actually loses: the run with no
+# grass intake minus the run with it, per hectare, times the LUH2 grassland
+# area of the cell it is charged to -- which is what build_carbon_balance()
+# does with this table. Measured against a zero-intake baseline on the same
+# excreta basis, so what it isolates is the removal and only the removal.
+.gn_removed_grazed_mg <- function(out, data) {
+  base <- suppressWarnings(.gn_build_npp(
+    resolution = "grid",
+    data = utils::modifyList(
+      data,
+      list(livestock_intake = .gn_intake_fixture(grass_dm_t = 0))
+    ),
+    method_grazing = "whep"
+  )) |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "year",
+      ungrazed = "c_input_mgc_ha_yr"
+    )
+  areas <- data$land_use |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::select("lon", "lat", "area_code", "year", "area_ha")
+  out |>
+    dplyr::filter(.data$land_use == "grassland") |>
+    dplyr::inner_join(base, by = c("lon", "lat", "area_code", "year")) |>
+    dplyr::inner_join(areas, by = c("lon", "lat", "area_code", "year")) |>
+    dplyr::summarise(
+      mass = sum((.data$ungrazed - .data$c_input_mgc_ha_yr) * .data$area_ha)
+    ) |>
+    dplyr::pull("mass")
+}
+
+testthat::test_that("the default grazed basis removes only the covered share", {
+  d <- .gn_partial_cover_grazed()
+  out <- suppressWarnings(.gn_build_npp(
+    resolution = "grid",
+    data = d,
+    method_grazing = "whep"
+  ))
+  # 450 MgC over the whole 1000 ha is 0.45 MgC/ha, charged to the 400 ha that
+  # carry a stand: 180 of 450 MgC removed, 60% of the herd's intake left on
+  # the sward.
+  testthat::expect_equal(.gn_removed_grazed_mg(out, d), 180)
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  testthat::expect_equal(sort(grass$c_input_mgc_ha_yr), c(2.55, 4.55))
+})
+
+testthat::test_that("charged_grassland conserves the polity grazed carbon", {
+  d <- .gn_partial_cover_grazed()
+  out <- suppressWarnings(.gn_build_npp(
+    resolution = "grid",
+    data = d,
+    method_grazing = "whep",
+    grazed_area_basis = "charged_grassland"
+  ))
+  testthat::expect_equal(.gn_removed_grazed_mg(out, d), 450)
+  # The same 450 MgC over the 400 charged hectares is 1.125 MgC/ha, 2.5x the
+  # default density, and the cell set is unchanged.
+  grass <- dplyr::filter(out, .data$land_use == "grassland")
+  testthat::expect_equal(nrow(grass), 2L)
+  testthat::expect_equal(sort(grass$c_input_mgc_ha_yr), c(1.875, 3.875))
+})
+
+testthat::test_that("the uncharged grazing hectares are reported", {
+  # Two reports fire on this fixture -- the excreta one from whep#1051 and the
+  # grazing one this section is about -- so collect every warning rather than
+  # letting expect_warning() re-raise the one it did not match.
+  msgs <- character()
+  withCallingHandlers(
+    .gn_build_npp(
+      resolution = "grid",
+      data = .gn_partial_cover_grazed(),
+      method_grazing = "whep"
+    ),
+    warning = function(w) {
+      msgs <<- c(msgs, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  testthat::expect_true(
+    any(grepl("of the grazed carbon is removed from nothing", msgs))
+  )
+})
+
+testthat::test_that("a fully covered polity is not warned about for grazing", {
+  testthat::expect_silent(
+    .gn_build_npp(
+      resolution = "grid",
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep"
+    )
+  )
+})
+
+testthat::test_that("the grazed bases agree when every hectare is charged", {
+  bases <- c("luh2_grassland", "charged_grassland")
+  out <- purrr::map(bases, \(b) {
+    .gn_build_npp(
+      resolution = "grid",
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep",
+      grazed_area_basis = b
+    ) |>
+      dplyr::select(-"method_grazed_area")
+  })
+  testthat::expect_equal(out[[2]], out[[1]])
+})
+
+testthat::test_that("method_grazed_area records the basis at both grains", {
+  purrr::walk(c("grid", "polity"), function(res) {
+    out <- .gn_build_npp(
+      resolution = res,
+      data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+      method_grazing = "whep",
+      grazed_area_basis = "charged_grassland"
+    )
+    testthat::expect_true(all(out$method_grazed_area == "charged_grassland"))
+  })
+  default <- .gn_build_npp(
+    data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+    method_grazing = "whep"
+  )
+  testthat::expect_true(all(default$method_grazed_area == "luh2_grassland"))
+})
+
+testthat::test_that("an unknown grazed area basis is refused", {
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(
+      data = .gn_fixture_data(),
+      grazed_area_basis = "lpjml_stand"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a conserving grazed basis that lost mass aborts", {
+  # Reach the assertion directly: a density half of what the charged hectares
+  # need, which is the shape a future change to the divisor would take.
+  density <- tibble::tibble(
+    area_code = 1L,
+    year = 2000L,
+    grazed_c_mgc_ha_yr = 0.5
+  )
+  grazed_c <- tibble::tibble(area_code = 1L, year = 2000L, grazed_c_mg = 400)
+  charged <- tibble::tibble(area_code = 1L, year = 2000L, grass_area_ha = 400)
+  testthat::expect_error(
+    whep:::.gn_check_grazed_mass(
+      density,
+      grazed_c,
+      charged,
+      "charged_grassland"
+    ),
+    "whole grazed carbon"
+  )
+  # The default basis is not held to it: not conserving is what it is.
+  testthat::expect_equal(
+    whep:::.gn_check_grazed_mass(density, grazed_c, charged, "luh2_grassland"),
+    density
+  )
+})
+
 testthat::test_that("litterfall is converted from per-cell to per-stand", {
   # litfallc_nv is a whole-cell density; pft_npp is per-stand. Half-natural
   # cell shedding 2 MgC/ha of cell area experiences 4 on its own stand.
