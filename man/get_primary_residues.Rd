@@ -104,16 +104,20 @@ Micronesia, Nauru, New Caledonia, North Macedonia, Niue, Seychelles,
 Eswatini, Syrian Arab Republic, China Taiwan Province of, Tonga, Tuvalu and
 Palestine --- 3.18\% of its rows, 1.892\% of its tonnage, 0.492\% of its head
 counts), and a \code{Country_share} column the reader discards. So the shared
-timestamp implies nothing about it, and there is nothing to regenerate:
-what it holds is what FAOSTAT published.
+timestamp implies nothing about it: what it holds is what FAOSTAT
+published, through the filters its producer applied.
 
 Two things it does not hold. FAOSTAT's \verb{1000 Head} rows are absent
 entirely --- 89,073 rows and 76,141,882 thousand head over 1986--2021,
 against the 11,707,083,640 head the pin does carry, all of it live broiler
 chicken, turkey, duck, rabbit and goose trade --- and so are its 5,011 \code{No}
-rows. Current code drops the same rows when it reads the raw pin, so
-\code{\link[=build_detailed_trade]{build_detailed_trade()}} would not recover them; the same class of unit was
-fixed for \code{faostat-trade-totals} in #865 and is still open here.
+rows. \code{\link[=build_detailed_trade]{build_detailed_trade()}} recovers the first of those since PR #1113:
+run on the raw \code{faostat-trade-bilateral} pin today it emits 87,840,869,640
+head, 7.50x what this pin carries, against 64,450,133,319 tonnes, 22.5\%
+below it. That gain is latent until this pin is regenerated from the
+producer (#1122), which is a schema migration rather than a refresh: the
+two shapes share exactly one column name, \code{area_code}.
+\code{.clean_bilateral_trade()} reads either.
 }
 }
 

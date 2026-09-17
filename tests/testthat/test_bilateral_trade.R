@@ -1298,6 +1298,87 @@ testthat::test_that(".clean_bilateral_trade resolves every pin item", {
   testthat::expect_equal(nrow(result), 3)
 })
 
+testthat::test_that(".clean_bilateral_trade reads both published schemas", {
+  # The live pin and `build_detailed_trade()` share exactly one column name,
+  # `area_code` (whep#1122): the pin is CamelCase, keys the partner as
+  # `area_code_p` and carries a CBS item *name*; the producer is snake_case,
+  # keys the partner as `area_code_partner` and carries `item_cbs_code`. The
+  # same flows expressed either way must clean to the same six columns, or a
+  # regenerated pin cannot be published without breaking its reader.
+  pin <- tibble::tribble(
+    ~Year, ~area_code, ~area_code_p, ~Element,  ~item,                 ~Unit,    ~Value,
+    2010,  68,         203,          "Export",  "Wheat and products",  "tonnes", 5,
+    2010,  203,        68,           "Import",  "Barley and products", "tonnes", 7,
+    2010,  68,         203,          "Export",  "Sheep",               "Head",   3
+  )
+  producer <- tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element, ~item_cbs, ~item_cbs_code, ~unit,    ~value,
+    2010,  68,         203,                "export", "Wheat and products",  2511, "tonnes", 5,
+    2010,  203,        68,                 "import", "Barley and products", 2513, "tonnes", 7,
+    2010,  68,         203,                "export", "Sheep",                976, "heads",  3
+  )
+
+  from_pin <- testthat::expect_no_warning(.clean_bilateral_trade(pin))
+  from_producer <- testthat::expect_no_warning(
+    .clean_bilateral_trade(producer)
+  )
+
+  testthat::expect_equal(from_producer, from_pin)
+})
+
+testthat::test_that(".clean_bilateral_trade prefers exports in either case", {
+  # `Element` is capitalised on the pin and lower case on the producer, and
+  # the export-preferred deduplication keys on it. Matching only one spelling
+  # would keep both sides of every mirrored flow.
+  producer <- tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element, ~item_cbs_code, ~unit,    ~value,
+    2010,  68,         203,                "export", 2511,           "tonnes", 5,
+    2010,  203,        68,                 "import", 2511,           "tonnes", 9
+  )
+
+  result <- .clean_bilateral_trade(producer)
+
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_equal(result$value, 5)
+  testthat::expect_equal(result$from_code, 68L)
+  testthat::expect_equal(result$to_code, 203L)
+})
+
+testthat::test_that(".clean_bilateral_trade reports a missing item code", {
+  # An `NA` code is dropped by the CBS inner join exactly as an unresolved
+  # item name is, so the code-keyed schema must report it too.
+  producer <- tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element, ~item_cbs_code, ~unit,    ~value,
+    2010,  68,         203,                "export", 2511,           "tonnes", 5,
+    2010,  68,         203,                "export", NA,             "tonnes", 7
+  )
+
+  testthat::expect_warning(
+    .clean_bilateral_trade(producer),
+    class = "whep_btd_item_code_missing"
+  )
+})
+
+testthat::test_that(".clean_bilateral_trade refuses an unknown schema", {
+  no_partner <- tibble::tribble(
+    ~year, ~area_code, ~element, ~item_cbs_code, ~unit,    ~value,
+    2010,  68,         "export", 2511,           "tonnes", 5
+  )
+  no_item <- tibble::tribble(
+    ~year, ~area_code, ~area_code_partner, ~element, ~unit,    ~value,
+    2010,  68,         203,                "export", "tonnes", 5
+  )
+
+  testthat::expect_error(
+    .clean_bilateral_trade(no_partner),
+    class = "whep_btd_schema"
+  )
+  testthat::expect_error(
+    .clean_bilateral_trade(no_item),
+    class = "whep_btd_schema"
+  )
+})
+
 testthat::test_that("the dropped-tonnage report ignores head-count rows", {
   # The CBS-item filter runs before `.mass_only_bilateral_trade()` (whep#962,
   # PR #1017), so its frame still carries `heads`. Summing those as tonnes
