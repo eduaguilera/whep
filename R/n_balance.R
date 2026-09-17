@@ -129,9 +129,9 @@
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 #'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 #'   columns below. When the supplied `n_inputs` carry them, the
-#'   `method_recycling_n`, `method_synthetic` and `method_deposition_scope`
-#'   stamps from [build_n_inputs()] are carried through as well, so a balance
-#'   names the input conventions that produced it. Gains
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope` and
+#'   `method_unsupported` stamps from [build_n_inputs()] are carried through as
+#'   well, so a balance names the input conventions that produced it. Gains
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #'
 #' @details
@@ -836,7 +836,12 @@ build_nitrogen_balance <- function(
 # choice: a territory-scope balance and a land-scope balance differ by about
 # 1.4% of the deposition term and would otherwise be indistinguishable.
 .nb_input_method_cols <- function() {
-  c("method_recycling_n", "method_synthetic", "method_deposition_scope")
+  c(
+    "method_recycling_n",
+    "method_synthetic",
+    "method_deposition_scope",
+    "method_unsupported"
+  )
 }
 
 .nb_present_key <- function(x) {
