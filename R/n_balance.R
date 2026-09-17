@@ -130,7 +130,8 @@
 #'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 #'   columns below. When the supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope` and `method_unsupported` stamps from
+#'   `method_deposition_scope`, `method_unsupported` and
+#'   `method_unattributed` stamps from
 #'   [build_n_inputs()] are carried through as well, so a balance names the
 #'   input conventions that produced it. Gains
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
@@ -840,13 +841,22 @@ build_nitrogen_balance <- function(
 # the field itself came from. HaNi is measurably biased over Europe and the
 # bias grows backwards in time (whep#1097/#1121), so a balance built on a
 # corrected field and one built on raw HaNi have to be tellable apart.
+#
+# `method_unattributed` is here for the same reason (whep#532): the nitrogen
+# that reached agricultural land but no single crop is a real mass, and whether
+# a balance spread it over cropland, over all agricultural land, or dropped it
+# is not recoverable from the numbers.
+#
+# `intersect()`ed against the actual columns by the caller, so an `n_inputs`
+# table supplied from an older build that predates a stamp still balances.
 .nb_input_method_cols <- function() {
   c(
     "method_recycling_n",
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
-    "method_unsupported"
+    "method_unsupported",
+    "method_unattributed"
   )
 }
 

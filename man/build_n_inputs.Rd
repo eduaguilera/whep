@@ -9,6 +9,7 @@ build_n_inputs(
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
   method_unsupported = NULL,
+  unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -41,6 +42,20 @@ cropland. \code{"drop"} reallocates nothing and discards every such row.
 Whichever is chosen is stamped on every output row as
 \code{method_unsupported}. May also be supplied as \code{data$method_unsupported},
 which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} forwards it.}
+
+\item{unattributed_method}{Where nitrogen that reached agricultural land but
+no single crop goes -- manure the engine placed on Cropland or landed by
+transport without a crop, plus deposition, urban N and SOM mineralization,
+all of which carry \code{item_cbs_code = NA}. \code{"cropland_area"} (default)
+spreads it over the cell-year's cropland support in proportion to each
+crop's hectares; \code{"agricultural_area"} spreads it over cropland \emph{and}
+grassland support (CBS 3000), which is the land the manure engine's own
+transport sizing already counts as available room; \code{"exclude"} drops it,
+the pre-whep#532 behaviour, retained as a measurable sensitivity and not
+as a fallback -- it warns with the excluded tonnage by stream. The
+allocating methods conserve mass or abort; \code{"exclude"} does not conserve
+it. When \code{NULL} (default), uses
+\code{data$unattributed_method \%||\% "cropland_area"}.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -128,12 +143,12 @@ real data. Defaults to \code{FALSE}.}
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}, \code{method_unsupported}. At
+\code{method_deposition_scope}, \code{method_unsupported},
+\code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
 \code{method_deposition}, \code{method_deposition_scope}, \code{method_unsupported},
-\code{n_input_t} (summed over
-cells).
+\code{method_unattributed}, \code{n_input_t} (summed over cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
@@ -151,6 +166,10 @@ with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
 \code{fert_type}.
 \code{method_unsupported} records the rule applied to non-item nitrogen with no
 cropland support in its own cell, and is the same on every row.
+\code{method_unattributed} records the \code{unattributed_method} the whole assembly
+ran under and is stamped on \strong{every} row, not only on the reallocated
+ones: under \code{"exclude"} no reallocated row survives to carry it, and a
+choice that removes nitrogen has to stay readable from the table.
 Both grains also carry the polity columns below, plus
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
