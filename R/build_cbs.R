@@ -2048,11 +2048,17 @@ build_processing_coefs <- function(
     dplyr::distinct(.data$area_code, .keep_all = TRUE)
 }
 
-# Residue whose crop reaches no Krausmann recovery category gets recovery 0
-# (`.residue_destiny_krausmann()` replaces the missing rate with zero), so all
-# of it stays on the field and it leaves the balance entirely. That is the
-# right default -- inventing a recovery rate would be worse -- but it is mass
-# leaving the CBS, so it is said out loud rather than simply not appearing.
+# Residue that recovers nothing leaves the balance entirely: all of it stays on
+# the field, so no CBS row is written for it. That is the right default --
+# inventing a recovery rate would be worse -- but it is mass leaving the CBS, so
+# it is said out loud rather than simply not appearing.
+#
+# THREE DIFFERENT THINGS PRODUCE A ZERO HERE and this warning cannot tell them
+# apart, which is why it names none of them: the recovery table really gives
+# zero (18 of its 160 rows), the crop reaches no `Cat_Krausmann` category, or
+# the row's region label reaches no recovery region (whep#1175).
+# `calculate_residue_destinies()` separates the last two from the first, and
+# warns about them itself, through `residue_recovery_matched`.
 .warn_unrecovered_residue <- function(out) {
   gone <- out[!is.na(out$recovered) & out$recovered == 0 & out$value > 0, ]
   if (nrow(gone) == 0) {
@@ -2063,9 +2069,9 @@ build_processing_coefs <- function(
     "{nrow(gone)} crop-residue row{?s} recover nothing, so they carry no CBS
      production: {round(sum(gone$value, na.rm = TRUE) / 1e6)} Mt over
      {length(items)} crop item{?s}.",
-    i = "Their crop reaches no {.field Cat_Krausmann} recovery category, so
-         the whole residue is left on the field and reaches the soil rather
-         than the balance."
+    i = "Their recovery rate is zero -- given as zero, or missing and read as
+         zero -- so the whole residue is left on the field and reaches the soil
+         rather than the balance. {.field residue_recovery_matched} says which."
   ))
   invisible(NULL)
 }

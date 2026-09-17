@@ -2244,6 +2244,10 @@ utils::globalVariables(
     # row anchor from
     "predecessor",
     "reporting_polity_code",
+    # residue_destiny.R (issue 1175) -- the per-row flag that separates a
+    # recovery rate the table gives as zero from a zero standing in for a
+    # lookup that found nothing
+    "residue_recovery_matched",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
