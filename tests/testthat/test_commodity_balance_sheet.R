@@ -1,68 +1,108 @@
-# Small crafted wide CBS fixture with consistent accounting.
-# Supply is production plus import plus stock withdrawal.
-# Use is export plus food, feed, seed, processing, other uses,
-# and stock addition.
-# Domestic supply is food, feed, seed, processing, and other uses.
-.make_cbs_fixture <- function() {
+# Small crafted long CBS fixture, the shape the build pipeline actually
+# produces. Supply is production plus import plus stock withdrawal; use is
+# export plus food, feed, seed, processing, other uses and stock addition.
+# Spain adds stock (positive `stock_variation`) and France withdraws from it
+# (negative), so the split `.pivot_cbs_wide()` performs is on both sides of
+# the identity rather than on the zero that satisfies it either way.
+.make_cbs_long_fixture <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code,
-    ~production, ~import, ~export,
-    ~food, ~feed, ~seed, ~processing, ~other_uses,
-    ~stock_withdrawal, ~stock_addition, ~domestic_supply,
-    2000L, 203L, 2511L,
-    5000, 1000, 500,
-    3000, 1500, 200, 500, 300,
-    0, 0, 5500,
-    2000L, 68L, 2514L,
-    3000, 500, 200,
-    2000, 800, 100, 200, 200,
-    0, 0, 3300
+    ~year, ~area_code, ~item_cbs_code, ~element,         ~value,
+    2000L,       203L,          2511L, "production",       6000,
+    2000L,       203L,          2511L, "import",           1000,
+    2000L,       203L,          2511L, "export",            500,
+    2000L,       203L,          2511L, "food",             3000,
+    2000L,       203L,          2511L, "feed",             1500,
+    2000L,       203L,          2511L, "seed",              200,
+    2000L,       203L,          2511L, "processing",        500,
+    2000L,       203L,          2511L, "other_uses",        300,
+    2000L,       203L,          2511L, "stock_variation",  1000,
+    2000L,       203L,          2511L, "domestic_supply",  5500,
+    2000L,        68L,          2513L, "production",       3000,
+    2000L,        68L,          2513L, "import",            500,
+    2000L,        68L,          2513L, "export",            200,
+    2000L,        68L,          2513L, "food",             3000,
+    2000L,        68L,          2513L, "feed",              800,
+    2000L,        68L,          2513L, "seed",              100,
+    2000L,        68L,          2513L, "processing",        200,
+    2000L,        68L,          2513L, "other_uses",        200,
+    2000L,        68L,          2513L, "stock_variation", -1000,
+    2000L,        68L,          2513L, "domestic_supply",  4300
   )
 }
 
-# Small crafted processing coefficients fixture.
-.make_coefs_fixture <- function() {
+# Primary production rows for the live-animal items the FAO sheet omits, so
+# `.cbs_wide_core()` has livestock rows to append.
+.make_livestock_fixture <- function() {
   tibble::tribble(
-    ~year, ~area_code,
-    ~item_cbs_code_to_process, ~value_to_process,
-    ~item_cbs_code_processed, ~initial_conversion_factor,
-    ~initial_value_processed, ~conversion_factor_scaling,
-    ~final_conversion_factor, ~final_value_processed,
-    2000L, 203L,
-    2511L, 5000,
-    2542L, 0.2,
-    1000, 0.5,
-    0.1, 500
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,
+    ~unit,               ~value,
+    2000L,       203L,          1096L,              NA,
+    "heads",                100,
+    2000L,       203L,          1096L,              NA,
+    "slaughtered_heads",     10,
+    2000L,       203L,          2735L,           1096L,
+    "tonnes",                  2
+  )
+}
+
+# A long CBS carrying a processing flow (wheat) and the production of the
+# item it is processed into (non-food alcohol), which is what
+# `build_processing_coefs()` calibrates its conversion factors against.
+.make_proc_cbs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element,      ~value,
+    2000L,       203L,          2511L, "processing",    1000,
+    2000L,       203L,          2659L, "production",     200,
+    2000L,        68L,          2511L, "processing",     400,
+    2000L,        68L,          2659L, "production",      50
+  )
+}
+
+.empty_livestock_trade <- function(livestock_items, ...) {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code = integer(),
+    import = numeric(),
+    export = numeric()
   )
 }
 
 k_tolerance <- 1e-6
 
-testthat::test_that("wide CBS has consistent supply-use balance", {
-  cbs <- .make_cbs_fixture() |>
-    dplyr::mutate(
-      value_in = production + import + stock_withdrawal,
-      value_out = export +
-        food +
-        feed +
-        seed +
-        processing +
-        other_uses +
-        stock_addition,
-      my_domestic_supply = food + feed + seed + processing + other_uses
-    )
-
-  pointblank::expect_col_vals_expr(
-    cbs,
-    rlang::expr(
-      dplyr::near(value_in, value_out, tol = !!k_tolerance)
-    )
+# Replaces "wide CBS has consistent supply-use balance", which recomputed
+# both sides of the identity from an already-balanced hand-entered tibble and
+# called no package function at all (whep#177). `.cbs_wide_core()` is the
+# assembly `build_io_model()` consumes and had no test of its own: deleting
+# its `bind_rows(livestock_cbs)` left the whole suite green.
+testthat::test_that(".cbs_wide_core balances and keeps its livestock rows", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
   )
 
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+
+  # A row-wise balance check cannot see a row that is simply absent, so
+  # assert the live-animal rows arrived before asserting they reconcile.
+  testthat::expect_true(1096L %in% wide$item_cbs_code)
+  testthat::expect_setequal(wide$item_cbs_code, c(2511L, 2513L, 1096L))
+
+  balance <- whep::check_supply_use_balance(wide, tol = k_tolerance)
+  testthat::expect_equal(nrow(balance), nrow(wide))
+  testthat::expect_true(all(balance$balanced))
+
   pointblank::expect_col_vals_expr(
-    cbs,
+    wide,
     rlang::expr(
-      dplyr::near(domestic_supply, my_domestic_supply, tol = !!k_tolerance)
+      dplyr::near(
+        domestic_supply,
+        food + feed + seed + processing + other_uses,
+        tol = !!k_tolerance
+      )
     )
   )
 })
@@ -107,8 +147,24 @@ testthat::test_that(".pivot_cbs_wide aborts on a duplicate element key (#219)", 
   testthat::expect_error(.pivot_cbs_wide(cbs_long))
 })
 
-testthat::test_that("processing coefficients are internally consistent", {
-  coefs <- .make_coefs_fixture()
+# Replaces "processing coefficients are internally consistent", which
+# asserted the three conversion-factor identities against a hand-entered
+# tibble that already satisfied them (whep#177). Swapping
+# `initial_conversion_factor` and `final_conversion_factor` in
+# `.format_proc_output()` left the whole suite green, because nothing called
+# the real builder: `build_processing_coefs()` appeared in the suite only as
+# `example = TRUE`, which returns a hardcoded tribble.
+testthat::test_that("build_processing_coefs returns consistent coefficients", {
+  coefs <- build_processing_coefs(
+    .make_proc_cbs_fixture(),
+    start_year = 2000,
+    end_year = 2000
+  )
+
+  # Both areas must survive the calibration joins; an absent row balances
+  # vacuously.
+  testthat::expect_setequal(coefs$area_code, c(203L, 68L))
+  testthat::expect_equal(nrow(coefs), 2L)
 
   pointblank::expect_col_vals_expr(
     coefs,
@@ -141,6 +197,33 @@ testthat::test_that("processing coefficients are internally consistent", {
         tol = !!k_tolerance
       )
     )
+  )
+
+  # What the per-area scaling is for: the calibrated processed output has to
+  # reproduce the observed production of the processed item, area by area.
+  # The globally calibrated factor alone does not -- it is one number for
+  # both areas (0.1786 here, from a raw table fraction of 0.28), and the
+  # per-area scaling that closes the gap differs between them (1.12 and
+  # 0.70).
+  observed <- .make_proc_cbs_fixture() |>
+    dplyr::filter(element == "production") |>
+    dplyr::select(year, area_code, item_cbs_code, observed = value)
+
+  testthat::expect_equal(
+    coefs |>
+      dplyr::select(
+        year,
+        area_code,
+        item_cbs_code = item_cbs_code_processed,
+        final_value_processed
+      ) |>
+      dplyr::inner_join(
+        observed,
+        by = c("year", "area_code", "item_cbs_code")
+      ) |>
+      dplyr::arrange(area_code) |>
+      dplyr::pull(final_value_processed),
+    dplyr::arrange(observed, area_code)$observed
   )
 })
 
