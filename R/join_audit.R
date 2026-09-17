@@ -756,6 +756,13 @@
     "diagnostic",
     "Reports the (country, crop) pairs with national area but no allocatable
      cell, inside one year of the spatialization.",
+    ".country_mean_yield", "summarise", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The national mean yield a crop's cells vote on, weighted by
+     `harvest_fraction`. The weight comes from `crop_patterns`, a
+     single-vintage gridded map with no year axis of its own, so the grouping
+     that collapses its cells cannot carry one either; the yield values it
+     averages are already keyed on their own year upstream.",
     ".zero_pattern_underflow", "[", "area_code, item_prod_code", 1L,
     "diagnostic",
     "`max(harvest_fraction)` over the crop's cells, to count the (country,
