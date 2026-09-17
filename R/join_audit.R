@@ -277,6 +277,15 @@
     "The same window attach, on the grid of areas whose bucket membership is
      then resolved year-aware by `.add_polity_columns_dt()`. The window is a
      property of the area, not of one of its years (whep#884).",
+    ".residue_area_from_polity", "left_join", "polity_code", 1L,
+    "time_invariant",
+    "Reads the area that reports a polity, for the residue labels the canonical
+     NAME join cannot match (whep#1175). A polity code already names its own
+     period (`TZA-1964-2025`), so the area reporting it cannot vary inside one
+     -- the same reason `.land_in_polygons` reads a polygon on `polity_code`
+     alone. The year is applied BEFORE this join, not after: the label is
+     resolved per (label, year) by `resolve_polity_label()`, which is what
+     keeps pre-union Tanganyika out of the United Republic.",
     ".residue_recovered_split", "left_join", "area_code", 1L,
     "time_invariant",
     "Attaches the residue recovery region and the UN M49 sub-region a crop
@@ -725,6 +734,15 @@
     ".spatialize_year", "[", "area_code, item_prod_code", 2L, "single_year",
     "Both are inside `.spatialize_year(yr, ...)`, which stamps `year = yr` at
      the end.",
+    ".unique_polity_area", "distinct", "polity_code, area_code", 1L,
+    "identity_lookup",
+    "The polity -> area map itself, for the residue label route (whep#1175).
+     Both columns are identities carrying their own period, so there is no year
+     to collapse: the pair IS the lookup.",
+    ".unique_polity_area", "filter", "polity_code", 1L, "identity_lookup",
+    "Keeps only a polity exactly ONE area reports, so the Rest-of-World bucket
+     -- which 15 area codes share -- resolves to none rather than to whichever
+     row came first. The guard on the lookup above, on the same year-free key.",
     ".summarise_folded_rows", "[", "area_code, polity_area_code, <dynamic>", 1L,
     "diagnostic",
     "Counts the rows each area folds into its bucket, for the fold warning's
