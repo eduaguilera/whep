@@ -317,7 +317,12 @@ test_that("every year-free territorial grouping is classified", {
   # left above the real count is slack a new unregistered group could hide in.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 88L)
+  # 89 since whep#1091: `.country_mean_yield()` collapses a crop's cells to a
+  # national mean weighted by `harvest_fraction`, which comes from
+  # `crop_patterns` -- a single-vintage gridded map with no year axis, so the
+  # grouping cannot carry one. Re-derived by running the audit, not by adding
+  # one to the previous cap.
+  expect_lte(sum(full$n), 89L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

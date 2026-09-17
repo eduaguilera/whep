@@ -1615,3 +1615,84 @@ testthat::test_that("the duplicate-CFT abort names every code (#621)", {
     unique_mapping
   )
 })
+
+testthat::test_that("a cell with no crop pattern does not vote (#1091)", {
+  # One cell grows the crop on 1% of its area and yields 2 t/ha; the other
+  # grows none of it -- EarthStat still publishes 10 t/ha there, because its
+  # interpolated yield footprint is wider than its harvested-area footprint,
+  # so the pattern table has no row for the cell and the join leaves
+  # `harvest_fraction` missing.
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    0.25, 0.25,        20L,             56L,         2.0,              0.01,
+    0.75, 0.25,        20L,             56L,        10.0,          NA_real_
+  )
+  testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_cells"
+  )
+  out <- suppressWarnings(whep:::.country_mean_yield(cells))
+  # The absent cell is excluded, so the mean is the growing cell's own yield.
+  testthat::expect_equal(out$country_mean, 2.0)
+  # `dplyr::coalesce(harvest_fraction, 1.0)` gave the absent cell weight 1.0
+  # against the present cell's 0.01 -- a hundredfold say for a cell growing
+  # nothing -- and returned 9.92 t/ha, 4.96 times the right answer.
+  testthat::expect_false(
+    isTRUE(all.equal(out$country_mean, 9.920792079207921))
+  )
+})
+
+testthat::test_that(".country_mean_yield weights by harvested area (#1091)", {
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    56L,         2.0,              0.03,
+    20L,                    56L,         6.0,              0.01,
+    21L,                    56L,         5.0,              0.20
+  )
+  out <- whep:::.country_mean_yield(cells)
+  testthat::expect_equal(
+    out$country_mean[out$area_code == 20L],
+    (2 * 0.03 + 6 * 0.01) / 0.04
+  )
+  testthat::expect_equal(out$country_mean[out$area_code == 21L], 5.0)
+})
+
+testthat::test_that("a pair with no pattern at all falls back (#1070)", {
+  # Every cell of the pair is absent or zero-weighted, so there is no pattern
+  # to weight with. `weight_total` is a sum of non-negative terms, exactly
+  # zero only if every term is zero, so the guard is sound on this shape.
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    56L,         2.0,          NA_real_,
+    20L,                    56L,         6.0,               0.0
+  )
+  testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_cells"
+  )
+  out <- suppressWarnings(whep:::.country_mean_yield(cells))
+  testthat::expect_equal(out$country_mean, 4.0)
+})
+
+testthat::test_that(".country_mean_yield names a crop with no pattern", {
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    44L,         2.0,          NA_real_,
+    21L,                    44L,         3.0,          NA_real_,
+    20L,                    56L,         2.0,              0.01
+  )
+  cnd <- testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_crop"
+  )
+  # Barley 44 has no pattern row anywhere -- exactly how it went missing for a
+  # whole pin vintage (whep#877) -- and is named.
+  testthat::expect_match(conditionMessage(cnd), "44")
+})
+
+testthat::test_that(".country_mean_yield checks its columns", {
+  testthat::expect_error(
+    whep:::.country_mean_yield(tibble::tibble(area_code = 20L)),
+    class = "rlang_error"
+  )
+})
