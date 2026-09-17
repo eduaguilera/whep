@@ -125,6 +125,13 @@
 #'   aborts without them; `"lpjml"` uses the model's own livestock module and
 #'   needs neither. Only read when the carbon inputs are built here rather
 #'   than supplied through `data$c_inputs`.
+#' @param method_input_cn What a crop of unknown input C:N does to the C:N of
+#'   the cropland class it sits in, and so to the C:N of the organic matter
+#'   that input forms; see [build_carbon_inputs()]. `"known_crops"` (default)
+#'   forms the class ratio from the crops that have one; `"require_all"`
+#'   leaves it `NA`, which sends the class to the land-use default C:N.
+#'   Only read when the carbon inputs are built here rather than supplied
+#'   through `data$c_inputs`.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section The land-use-change ledger closes on mass, not on density:
@@ -177,7 +184,8 @@
 #'   \code{son_change_kgn_ha},
 #'   \code{area_ha}, and one column per method choice that moves a number:
 #'   \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
-#'   \code{method_area_basis}, \code{method_grazing} and
+#'   \code{method_area_basis}, \code{method_grazing},
+#'   \code{method_input_cn} and
 #'   \code{method_crop_groups}. All of them survive the \code{"polity"}
 #'   roll-up. Plus the
 #'   polity columns below, plus
@@ -204,12 +212,14 @@ build_carbon_balance <- function(
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_input_cn = c("known_crops", "require_all"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
   class_water <- .cb_check_class_water(class_water, crop_groups)
   density_basis <- rlang::arg_match(density_basis)
   method_grazing <- rlang::arg_match(method_grazing)
+  method_input_cn <- rlang::arg_match(method_input_cn)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -228,7 +238,11 @@ build_carbon_balance <- function(
     data,
     years,
     crop_groups,
-    list(basis = density_basis, grazing = method_grazing)
+    list(
+      basis = density_basis,
+      grazing = method_grazing,
+      input_cn = method_input_cn
+    )
   )
   d$class_water <- class_water
   if (progress) {
@@ -259,6 +273,7 @@ build_carbon_balance <- function(
       # every method column.
       method_area_basis = density_basis,
       method_grazing = method_grazing,
+      method_input_cn = method_input_cn,
       method_crop_groups = crop_groups$method %||% "none"
     ) |>
     .cb_finalise(resolution) |>
@@ -2517,7 +2532,8 @@ build_carbon_balance <- function(
     years = years,
     crop_groups = crop_groups,
     density_basis = methods$basis,
-    method_grazing = methods$grazing
+    method_grazing = methods$grazing,
+    method_input_cn = methods$input_cn %||% "known_crops"
   )
 }
 
