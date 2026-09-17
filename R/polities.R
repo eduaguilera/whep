@@ -6,6 +6,7 @@
     out <- out[!is.na(polity_code)]
   }
   out <- .unfold_rest_of_world(out)
+  out <- .unfold_predecessor_bucket(out)
   data.table::copy(out)
 }
 
@@ -1030,6 +1031,13 @@ polity_coverage_gaps <- function(
 # of each pair already share one `polity_area_code` (238 and 206), which is
 # also the code the commodity balances actually carry, so mapping there is
 # unique by construction rather than by picking a winner: 257 iso3c, 257 rows.
+#
+# "By construction" only holds while the fold does. Promoting area 276 out of
+# bucket 206 (`options(whep.unfold_predecessor_bucket = "all")`, whep#680)
+# gives SDN two codes -- 206 from the retired "Sudan (former)" row and 276 from
+# the live one -- so the uniqueness has to be RE-ESTABLISHED by a rule rather
+# than inherited. `.iso3c_keep_live_area()` is that rule; it is a no-op on the
+# shipped fold and never silently drops a code.
 .iso3c_area_code_lookup <- function() {
   # `regions_full` states the fold a SECOND time, and the promotion this guards
   # against once survived a withdrawal by only one of the two tables being
@@ -1037,11 +1045,62 @@ polity_coverage_gaps <- function(
   # disagree about where a Rest-of-World member's rows belong.
   whep::regions_full |>
     .unfold_regions_full() |>
+    .unfold_predecessor_regions() |>
     dplyr::filter(!is.na(.data$iso3c), !is.na(.data$polity_area_code)) |>
     dplyr::distinct(
       iso3c = as.character(.data$iso3c),
       area_code = as.integer(.data$polity_area_code)
-    )
+    ) |>
+    .iso3c_keep_live_area()
+}
+
+# An ISO3 that resolves to more than one area code keeps the area that is still
+# a reporting area at the latest year the upstream FAOSTAT map covers -- the
+# successor, not the predecessor whose code it inherited. The alternative,
+# keeping the lowest or the first code, would resolve SDN to 206 "Sudan
+# (former)", an area FAOSTAT stopped reporting in 2011, and every national
+# table keyed through this lookup would then miss today's Sudan entirely.
+#
+# It aborts rather than picking a winner when the windows tie, because at that
+# point there is no fact left to decide it on.
+.iso3c_keep_live_area <- function(lookup) {
+  duplicated_iso3c <- unique(lookup$iso3c[duplicated(lookup$iso3c)])
+  if (length(duplicated_iso3c) == 0L) {
+    return(lookup)
+  }
+  # Only the tied ISO3 codes are ranked. Filtering the whole lookup on a joined
+  # year would silently drop every area the upstream map gives no window at all
+  # -- 15 of the 257 on the shipped table, none of them ambiguous.
+  ranked <- lookup |>
+    dplyr::filter(.data$iso3c %in% duplicated_iso3c) |>
+    dplyr::left_join(.area_last_reporting_year(), by = "area_code") |>
+    dplyr::mutate(last_year = dplyr::coalesce(.data$last_year, -Inf)) |>
+    dplyr::filter(.data$last_year == max(.data$last_year), .by = "iso3c")
+  unresolved <- unique(ranked$iso3c[duplicated(ranked$iso3c)])
+  if (length(unresolved) > 0L) {
+    cli::cli_abort(c(
+      "{length(unresolved)} ISO3 code{?s} resolve{?s/} to more than one
+       {.field polity_area_code} and report to the same year.",
+      "x" = "Ambiguous ISO3 code{?s}: {.val {unresolved}}."
+    ))
+  }
+  dplyr::bind_rows(
+    dplyr::filter(lookup, !.data$iso3c %in% duplicated_iso3c),
+    dplyr::select(ranked, "iso3c", "area_code")
+  )
+}
+
+# The last year the upstream FAOSTAT area map reports each area, one row per
+# area. Read off the shipped crosswalk rather than the unfolded one: it is a
+# property of the area's reporting window, not of the fold applied to it.
+.area_last_reporting_year <- function() {
+  whep::polity_area_crosswalk |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$map_year_end)) |>
+    dplyr::summarise(
+      last_year = max(.data$map_year_end),
+      .by = "area_code"
+    ) |>
+    dplyr::mutate(area_code = as.integer(.data$area_code))
 }
 
 # Resolve a character vector of ISO3 codes to numeric area codes, preserving

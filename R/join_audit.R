@@ -184,6 +184,11 @@
      which is year-free on purpose, because carrying a share into a year that
      did not report it is what the interpolation is for. The label is
      re-attached once from the code afterwards.",
+    ".iso3c_keep_live_area", "left_join", "area_code", 1L, "identity_lookup",
+    "Attaches each area's LAST reported year so an ISO3 carrying both a retired
+     area and its successor resolves to the live one (whep#680). The joined
+     side is `.area_last_reporting_year()`, one row per area reducing the year
+     axis, so the year is the value here rather than a missing key.",
     ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
     "A polity code already names its own period (`ETH-1952-1993`), so the
      territory it is joined to cannot vary within it. Since whep#800 that
@@ -232,6 +237,15 @@
      code carries its own period -- and the succession relation is an attribute
      of that period, not of a calendar year. The year enters at the next join,
      which keys on (year, successor polity).",
+    ".predecessor_bucket_codes", "inner_join", "area_code", 1L,
+    "identity_lookup",
+    "Attaches the member area's last reported year, one row per area. The join
+     decides which FOLD is a predecessor-shaped one (whep#680), not which value
+     a row gets, and the years it compares are the value.",
+    ".predecessor_bucket_codes", "inner_join", "polity_area_code", 1L,
+    "identity_lookup",
+    "The same table read again for the BUCKET code, so the two windows can be
+     compared. Same reason it carries no year: the years are what is joined.",
     ".prepare_historical_cbs", "merge", "area_code", 1L, "identity_lookup",
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
@@ -383,6 +397,11 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".area_last_reporting_year", "summarise", "area_code", 1L, "year_axis",
+    "`max(map_year_end)` IS the reduction over the crosswalk's periods: the
+     last year the upstream FAOSTAT map reports each area, which is what tells
+     a retired reporting code from its live successor (whep#680). Keying on the
+     year would return the year itself.",
     ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reported-year window per area, the bound that
@@ -528,6 +547,10 @@
      then applied to.",
     ".iso3c_area_code_lookup", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup", "ISO3 -> bucket, one row per pair, off `regions_full`.",
+    ".iso3c_keep_live_area", "filter", "iso3c", 1L, "identity_lookup",
+    "Keeps one area per ISO3 where the un-fold leaves two, by their last
+     reported year (whep#680). The group IS the identity resolution, and the
+     year is the statistic being compared inside it rather than a key.",
     ".label_reporting_polity_lookup", "distinct", "area_code", 1L,
     "identity_lookup",
     "One row per area_code with its reporting-polity columns; the same lookup
@@ -582,6 +605,15 @@
     "Reduces an area's off-window rows to the span they cover, so `year` is
      what the group is summarising, not a key it is missing. The window
      columns ride along as attributes of the area (whep#884).",
+    ".predecessor_bucket_codes", "summarise", "area_code", 1L, "year_axis",
+    "`max(map_year_end)` over an area's crosswalk periods: the same reduction
+     as `.area_last_reporting_year()`, computed here off whichever crosswalk
+     the caller supplied (whep#680).",
+    ".predecessor_bucket_codes", "distinct",
+    "area_code, polity_area_code, <dynamic>", 1L, "identity_lookup",
+    "Reduces the crosswalk to its distinct (area, bucket) fold pairs. The fold
+     is a property of the two codes and has no year of its own; which years
+     each of them reports is joined on next.",
     ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
     "year_axis",
     "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
