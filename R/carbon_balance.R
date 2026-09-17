@@ -735,7 +735,7 @@ build_carbon_balance <- function(
   years <- dplyr::n_distinct(missing$year)
   area <- .cb_area_per_year(missing)
   by_class <- .cb_area_by_class(missing)
-  worst <- .cb_climate_gap_worst(missing, classes)
+  worst <- .cb_climate_gap_worst(classes)
   cli::cli_warn(c(
     "!" = "Dropped {cells} cell-polity compartment{?s} over {years} year{?s}
        with land-use/carbon-input coverage but no climate modifier: {area} of
@@ -751,20 +751,19 @@ build_carbon_balance <- function(
 
 # The three polities losing the most land, each with the share of its own land
 # that is lost -- a global percentage hides a polity that loses a third of its
-# grassland.
-.cb_climate_gap_worst <- function(missing, classes) {
-  years <- dplyr::n_distinct(missing$year)
-  whole <- classes |>
+# grassland. Both sums are taken in ONE pass over the whole class table rather
+# than by joining a dropped-only total onto a full one, so the ledger this file
+# keeps (`.territorial_join_baseline()`) gains no year-free territorial join
+# for a message.
+.cb_climate_gap_worst <- function(classes) {
+  years <- dplyr::n_distinct(classes$year[is.na(classes$climate_modifier)])
+  classes |>
+    dplyr::mutate(lost = is.na(.data$climate_modifier)) |>
     dplyr::summarise(
+      lost_ha = sum(.data$area_ha[.data$lost], na.rm = TRUE),
       all_ha = sum(.data$area_ha, na.rm = TRUE),
       .by = "area_code"
-    )
-  missing |>
-    dplyr::summarise(
-      lost_ha = sum(.data$area_ha, na.rm = TRUE),
-      .by = "area_code"
     ) |>
-    dplyr::left_join(whole, by = "area_code") |>
     dplyr::slice_max(.data$lost_ha, n = 3L, with_ties = FALSE) |>
     dplyr::mutate(
       txt = sprintf(
