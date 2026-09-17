@@ -2244,6 +2244,14 @@ utils::globalVariables(
     # row anchor from
     "predecessor",
     "reporting_polity_code",
+    # consolidate_sources.R (issue 393) -- the scope-key match that resolves a
+    # (source, category)-keyed priority entry to a rank, and the continuity
+    # exemption mask that keeps a deliberately sparse source's anchors
+    ".cs_row",
+    ".rank",
+    ".specificity",
+    ".n_rank",
+    ".cs_exempt",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
