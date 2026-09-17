@@ -2248,6 +2248,10 @@ utils::globalVariables(
     # from the `.cbs_pp_items()` construction rather than from a reported
     # value, so the overflow report can separate the two
     "structural",
+    # build_cbs.R (issue 1117) -- the reporter-level bound the historical
+    # trade scale screen reports against, and its join-side alias
+    "reporter_max",
+    "i.reporter_max",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

@@ -133,24 +133,41 @@
 #'   **world** flow FAOSTAT records for the same trade item, summed over
 #'   reporters, over the FAOSTAT years the build already reads — a measured
 #'   bound, not a chosen cap, because world trade in these commodities grew
-#'   through the twentieth century. Measured on the real pins at 1850–2023,
-#'   1,659 pre-1961 rows exceed it, carrying 3,958.8 Mt, 21.3% of the pins'
-#'   whole 18,581.9 Mt; a further 10,089 rows have no FAOSTAT reference and
-#'   go unchecked. **97.2% of the flagged mass is the USA**, whose block over
-#'   roughly 1900–1960 is inflated by a factor of ten on items where the true
-#'   tonnage is still recoverable (cotton lint 767 and tobacco leaf 826
-#'   alternate correct and ten-fold values year to year) and by far more on
+#'   through the twentieth century. Re-measured on the real pins at
+#'   1850–2023 for whep#1117, 1,693 rows exceed it, carrying 3,874.4 Mt,
+#'   21.0% of the pins' whole 18,455.4 Mt; a further 10,243 rows have no
+#'   FAOSTAT reference and go unchecked. **97.2% of the flagged mass is the
+#'   USA**, whose block over roughly 1900–1960 is inflated by a factor of
+#'   ten, interleaved with correct values in the same series (cotton lint 767
+#'   and raw sugar imports 162 alternate correct and ten-fold values year to
+#'   year; whep#1117), and by far more on
 #'   item 831, "Tobacco products nes", published at 115.1 Mt for 1951 — 159x
 #'   the largest world flow of that item FAOSTAT has ever recorded and 32x
 #'   the entire 1961 world tobacco crop. `"report"` keeps every value and
 #'   only warns, so it **moves no published value** (verified: the screened
 #'   read is `identical()` to the unscreened one); it names the count, the
 #'   mass, the reporters and the three largest. `"drop"` removes the flagged
-#'   rows, taking 3,958.6 Mt out of the historical trade input and with it
+#'   rows, taking 3,874.2 Mt out of the historical trade input and with it
 #'   the impossible pre-1962 exports behind whep#1065's negative
 #'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
 #'   clamp: the defect is in the pin's producer and no conversion factor
 #'   recovers the true value, so a clamped tonnage would be a fabricated one.
+#'
+#'   The warning also carries a second, informational class: rows larger than
+#'   any flow FAOSTAT records for the **same reporter**, item and element.
+#'   That bound is far tighter — 19,375 pre-1961 rows carrying 9,154.0 Mt,
+#'   against the world bound's 1,693 — and it is what makes whep#1117's
+#'   ten-fold block visible at all. USA raw sugar imports (item 162) are the
+#'   clearest case: 37 rows, 35–43 Mt over 1955–1959 against the pins' own
+#'   4.7 Mt at 1960 and FAOSTAT's 3.7 Mt at 1961, and **not one of them is
+#'   above the world bound**, so today nothing reports them. It is **never
+#'   dropped and never aborts**, under any setting, because it provably mixes
+#'   two populations that no offline anchor separates: the pins' 1961 layer is
+#'   FAOSTAT verbatim (all 18,531 overlapping rows agree to machine
+#'   precision), FAOSTAT itself starts in 1961, so no pre-1961 row has a
+#'   per-row anchor, and nineteenth-century Britain genuinely imported more
+#'   flax fibre, cotton lint, linseed and cheese than modern Britain does. A
+#'   ÷10 repair is a change to the pin's producer, not to this reader.
 #' @param export_share_overflow One of `"report"` (default), `"drop"` or
 #'   `"abort"`, selecting what happens when the global export share the
 #'   second processed-products round apportions a new product with exceeds 1
@@ -964,7 +981,8 @@ build_processing_coefs <- function(
   trade_hist <- .read_historical_trade(
     years = years,
     reference = .hist_trade_world_reference(fao_trade),
-    scale_screen = hist_trade_scale
+    scale_screen = hist_trade_scale,
+    reporter_reference = .hist_trade_reporter_reference(fao_trade)
   )
 
   # GDP over population
@@ -1290,7 +1308,8 @@ build_processing_coefs <- function(
 .read_historical_trade <- function(
   years = NULL,
   reference = NULL,
-  scale_screen = .hist_trade_scale_choices()
+  scale_screen = .hist_trade_scale_choices(),
+  reporter_reference = NULL
 ) {
   scale_screen <- rlang::arg_match(
     scale_screen,
@@ -1339,7 +1358,12 @@ build_processing_coefs <- function(
   )
 
   if (!is.null(reference)) {
-    dt <- .screen_hist_trade_scale(dt, reference, scale_screen)
+    dt <- .screen_hist_trade_scale(
+      dt,
+      reference,
+      scale_screen,
+      reporter_reference = reporter_reference
+    )
   }
 
   dt <- .resolve_hist_trade_polities(dt)
@@ -1406,15 +1430,7 @@ build_processing_coefs <- function(
   if (is.null(fao_trade) || nrow(fao_trade) == 0L) {
     return(empty)
   }
-  dt <- data.table::as.data.table(fao_trade)
-  needed <- c("item_code_trade", "element", "unit", "value", "year")
-  if (!all(needed %in% names(dt))) {
-    cli::cli_abort(c(
-      "{.arg fao_trade} is missing {.field {setdiff(needed, names(dt))}}.",
-      "i" = "The historical trade screen bounds a tonnage with a tonnage."
-    ))
-  }
-  dt <- dt[unit %in% .mass_trade_units() & element %in% c("import", "export")]
+  dt <- .hist_trade_mass_rows(fao_trade)
   if (nrow(dt) == 0L) {
     return(empty)
   }
@@ -1426,6 +1442,62 @@ build_processing_coefs <- function(
     .(world_max = max(world, na.rm = TRUE)),
     by = c("item_code_trade", "element")
   ]
+}
+
+# The second, tighter bound, added for whep#1117: for each
+# `(iso3c, item_code_trade, element)`, the largest flow FAOSTAT records for
+# that SAME reporter, item and element.
+#
+# The world bound above is deliberately loose -- one reporter against the whole
+# world -- so it sees only the very largest corrupt rows. Measured on the real
+# pins at 1850-2023 it flags 1,693 rows, while 19,375 pre-1961 rows are larger
+# than anything FAOSTAT ever records for their own reporter. The ten-fold USA
+# block whep#1117 describes is almost entirely in that gap: USA raw sugar
+# imports (item 162) run at 35-43 Mt over 1955-1959 against the pin's own
+# 4.7 Mt at 1960 and FAOSTAT's 3.7 Mt at 1961, and world raw sugar imports are
+# larger still, so the world bound never sees them.
+#
+# This bound is REPORTED ONLY and never drops or aborts, because it provably
+# mixes two populations it cannot separate. Nineteenth-century Britain imported
+# more flax fibre, cotton lint, linseed and cheese than modern Britain does, so
+# a pre-1961 flow above the reporter's modern maximum is as often genuine
+# history as it is a scale error. See `.screen_hist_trade_scale()`.
+.hist_trade_reporter_reference <- function(fao_trade) {
+  empty <- data.table::data.table(
+    iso3c = character(),
+    item_code_trade = integer(),
+    element = character(),
+    reporter_max = numeric()
+  )
+  if (is.null(fao_trade) || nrow(fao_trade) == 0L) {
+    return(empty)
+  }
+  dt <- .hist_trade_mass_rows(fao_trade, "area_code")
+  if (nrow(dt) == 0L) {
+    return(empty)
+  }
+  bridge <- .iso3_area_code_bridge()
+  data.table::setnames(bridge, "area_code_fao", "area_code")
+  dt <- merge(dt, bridge, by = "area_code", sort = FALSE)
+  dt[,
+    .(reporter_max = max(value, na.rm = TRUE)),
+    by = c("iso3c", "item_code_trade", "element")
+  ]
+}
+
+# The FAOSTAT trade rows either bound may use: import and export flows carried
+# in a mass unit. A head count in `An` / `1000 An` is not a mass and cannot
+# bound a tonnage (whep#865).
+.hist_trade_mass_rows <- function(fao_trade, extra_cols = character()) {
+  dt <- data.table::as.data.table(fao_trade)
+  needed <- c("item_code_trade", "element", "unit", "value", "year", extra_cols)
+  if (!all(needed %in% names(dt))) {
+    cli::cli_abort(c(
+      "{.arg fao_trade} is missing {.field {setdiff(needed, names(dt))}}.",
+      "i" = "The historical trade screen bounds a tonnage with a tonnage."
+    ))
+  }
+  dt[unit %in% .mass_trade_units() & element %in% c("import", "export")]
 }
 
 # Screen the pre-1961 historical trade rows against that bound.
@@ -1447,19 +1519,45 @@ build_processing_coefs <- function(
 #   * the block breaks at both ends -- x415 between 1892 and 1900, and /2911
 #     between 1960 and 1961.
 #
-# No conversion factor repairs it. The same USA block over 1903-1960 also
-# carries a x10 inflation on items whose true tonnage IS recoverable -- cotton
-# lint (767) and tobacco leaf (826) alternate correct and ten-fold values from
-# one year to the next -- but item 831 divided by ten is still 2,400x its own
-# 1961 value, and the block holds structural zeros (1948, 1949) in years the
-# flow was certainly not zero. The pin is wrong at the producer and has to be
-# fixed there; this screen only refuses to consume it silently.
+# No conversion factor repairs it. The same USA block over 1903-1960 carries a
+# second defect, whep#1117: a x10 inflation interleaved with correct values in
+# the same series -- USA cotton lint (767) alternates 1,524 / 16,437 / 2,160 /
+# 25,291 against FAOSTAT's 1,450 at 1961, and USA raw sugar imports (162) sit
+# at 35-43 Mt over 1955-1959 against the pin's own 4.7 Mt at 1960.
+#
+# That second defect is NOT repaired here either, and whep#1117 measured why a
+# repair cannot be anchored from inside WHEP:
+#
+#   * the pin's 1961 layer is FAOSTAT verbatim -- all 18,531 overlapping
+#     reporter-item-element rows agree to machine precision -- so the "FAOSTAT
+#     anchor" bounds the LEVEL at one year and confirms no pre-1961 row;
+#   * FAOSTAT starts in 1961 and every affected row is earlier, so no per-row
+#     anchor exists at all;
+#   * the only FAOSTAT-derived per-series bound, the reporter's own modern
+#     maximum, cannot separate a scale error from genuine history: applying it
+#     with the alternation whep#1117 describes selects 6,921 rows carrying
+#     5,117 Mt as published, and would take 4,606 Mt of it away -- a quarter
+#     of the 18,640 Mt the two pins carry before polity resolution -- while
+#     including nineteenth-century British flax, cotton, linseed and cheese
+#     imports that are simply larger than modern Britain's.
+#
+# So the pin is wrong at the producer and has to be fixed there, against the
+# source the byte-copied `total_exports.csv` came from. This screen only
+# refuses to consume it silently, and now reports the reporter-level class
+# as well so the ten-fold block is visible at all.
 #
 # `method` is a policy, not an estimate: `"report"` keeps every value and only
 # warns, so it moves no published number; `"drop"` removes the flagged rows;
-# `"abort"` refuses to build. There is deliberately no "clamp" -- a clamped
-# tonnage would be a fabricated one.
-.screen_hist_trade_scale <- function(dt, reference, method) {
+# `"abort"` refuses to build. There is deliberately no "clamp" and no
+# "rescale" -- a clamped or divided tonnage would be a fabricated one. `method`
+# governs the world bound only; the reporter bound is informational under every
+# setting, for the reason `.hist_trade_reporter_reference()` records.
+.screen_hist_trade_scale <- function(
+  dt,
+  reference,
+  method,
+  reporter_reference = NULL
+) {
   method <- rlang::arg_match(method, .hist_trade_scale_choices())
   out <- data.table::as.data.table(dt)
   ref <- data.table::as.data.table(reference)
@@ -1473,21 +1571,65 @@ build_processing_coefs <- function(
     return(out)
   }
   out[ref, world_max := i.world_max, on = c("item_code_trade", "element")]
+  out <- .add_hist_trade_reporter_max(out, reporter_reference)
+  # The reporter class is restricted to the rows the CBS actually consumes
+  # from these pins. `.prepare_trade_hist_source()` keeps `year < 1961`, and
+  # the pins' 1961 layer is FAOSTAT verbatim, so including it would only
+  # report the 46 rows where one ISO3 aggregates reporters FAOSTAT splits
+  # (the USSR, Belgium-Luxembourg) -- a bridge artefact, not a scale error.
   .report_hist_trade_scale(
     out[!is.na(world_max) & value > world_max],
+    out[year < 1961L & !is.na(reporter_max) & value > reporter_max],
     out,
     method
   )
   if (method == "drop") {
     out <- out[is.na(world_max) | value <= world_max]
   }
-  out[, world_max := NULL]
+  out[, c("world_max", "reporter_max") := NULL]
   out[]
+}
+
+# Attach the reporter bound, leaving it all-`NA` when no reporter reference was
+# supplied so the screen behaves exactly as it did before whep#1117.
+.add_hist_trade_reporter_max <- function(out, reporter_reference) {
+  reporter_ref <- if (is.null(reporter_reference)) {
+    NULL
+  } else {
+    data.table::as.data.table(reporter_reference)
+  }
+  if (is.null(reporter_ref) || nrow(reporter_ref) == 0L) {
+    out[, reporter_max := NA_real_]
+    return(out)
+  }
+  out[
+    reporter_ref,
+    reporter_max := i.reporter_max,
+    on = c("iso3c", "item_code_trade", "element")
+  ]
+  out
 }
 
 # Say what the screen found in terms a maintainer can act on: how much mass,
 # which reporter-items, and what the other settings would have done instead.
-.report_hist_trade_scale <- function(flagged, all_rows, method) {
+#
+# Two classes, reported together but acted on differently: `flagged` breaks the
+# world bound and `method` governs it, `reporter_flagged` breaks only the
+# reporter bound and is informational under every setting (whep#1117).
+.report_hist_trade_scale <- function(
+  flagged,
+  reporter_flagged,
+  all_rows,
+  method
+) {
+  # The reporter class first, so it is still on record when the world class
+  # aborts the build.
+  .warn_hist_trade_reporter(reporter_flagged)
+  .signal_hist_trade_world(flagged, all_rows, method)
+  invisible(flagged)
+}
+
+.signal_hist_trade_world <- function(flagged, all_rows, method) {
   if (nrow(flagged) == 0L) {
     return(invisible(flagged))
   }
@@ -1531,6 +1673,40 @@ build_processing_coefs <- function(
   }
   cli::cli_warn(bullets, class = "whep_hist_trade_scale")
   invisible(flagged)
+}
+
+# The reporter class is the one that makes whep#1117's ten-fold block visible.
+# It is never dropped and never aborts: the same bound also catches pre-modern
+# flows genuinely larger than the reporter's modern maximum, and nothing
+# available offline separates the two.
+.warn_hist_trade_reporter <- function(reporter_flagged) {
+  if (nrow(reporter_flagged) == 0L) {
+    return(invisible(reporter_flagged))
+  }
+  reporters <- sort(unique(reporter_flagged$iso3c))
+  mass <- paste0(round(sum(reporter_flagged$value) / 1e6, 1), " Mt")
+  cli::cli_warn(
+    c(
+      "!" = paste0(
+        "{nrow(reporter_flagged)} pre-1961 trade row{?s} {?is/are} larger ",
+        "than any flow FAOSTAT records for the same reporter, item and ",
+        "element."
+      ),
+      "*" = paste0(
+        "{.val {mass}} over {cli::qty(length(reporters))}",
+        "{length(reporters)} reporter{?s}, {.val {utils::head(reporters, 5L)}}",
+        " first."
+      ),
+      "i" = paste0(
+        "Reported only, never dropped: this class mixes the ten-fold scale ",
+        "corruption of whep#1117 with pre-modern flows that genuinely exceed ",
+        "the reporter's modern maximum, and no offline anchor separates ",
+        "them. The repair belongs at the pin's producer."
+      )
+    ),
+    class = "whep_hist_trade_reporter_scale"
+  )
+  invisible(reporter_flagged)
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.

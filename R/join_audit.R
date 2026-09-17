@@ -286,6 +286,18 @@
     ".resolve_hist_trade_polities", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> area bridge, immediately followed by the year-aware polity
      resolution.",
+    ".hist_trade_reporter_reference", "merge", "area_code", 1L,
+    "identity_lookup",
+    "The same ISO3 <-> FAOSTAT area bridge as `.resolve_hist_trade_polities`
+     above, read in the other direction so a FAOSTAT reporter can bound the
+     pin's ISO3-keyed rows. It resolves an identity, not a flow.",
+    ".add_hist_trade_reporter_max", "[", "iso3c, item_code_trade, element", 1L,
+    "diagnostic",
+    "Attaches the reporter bound of whep#1117 to the historical trade rows. The
+     bound is one number per (reporter, item, element) over all FAOSTAT years
+     by construction, so a year in the key would return the year; and the join
+     feeds only a warning -- the reporter class is never dropped and never
+     aborts, so no published value passes through it.",
     ".sci_crop_prod_wide", "left_join", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
@@ -516,6 +528,13 @@
     ".feed_region_lookup", "distinct", "area_code", 1L, "time_invariant",
     "Bouwman region membership, one row per area; the published table has no
      year and the FCRs it leads to are joined on (year, region).",
+    ".hist_trade_reporter_reference", "[",
+    "iso3c, item_code_trade, element", 1L, "year_axis",
+    "`max(value)` over the FAOSTAT years IS the reduction: the largest flow a
+     reporter has ever recorded for one item and element, which is the bound
+     whep#1117 screens the pre-1961 pins against. Keying it on the year would
+     make every group one point long and give each row itself as its own
+     bound.",
     ".iso3_area_code_bridge", "[", "iso3c", 1L, "identity_lookup",
     "Picks the canonical FAOSTAT area for each ISO3, and aborts rather than let
      row order decide when the rule leaves two. A year cannot break the tie:

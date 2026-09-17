@@ -201,7 +201,18 @@ test_that("the enumerated baseline can only shrink", {
   # successors twice: on `pin_wpp_fbs_fallback` the sum was 30.2% too high at
   # 1961, 21.5% at 2000 and 18.4% at 2021, and the default `pin` source was
   # 0.19%-0.58% too high over 1850-1992.
-  expect_lte(sum(baseline$n), 75L)
+  #
+  # 77 since whep#1117, and both rows are the price of SEEING a defect rather
+  # than of ignoring one. The historical trade screen gained a second bound --
+  # the largest flow FAOSTAT records for the same reporter, item and element --
+  # which is what makes the ten-fold USA block visible at all: 37 USA raw sugar
+  # import rows at 35-43 Mt, none of them above the existing world bound. One
+  # row is the ISO3 <-> FAOSTAT area bridge read in the other direction, the
+  # same `identity_lookup` `.resolve_hist_trade_polities` already carries; the
+  # other attaches the bound itself and is `diagnostic`, because that class is
+  # reported under every setting and never dropped, so no published value
+  # passes through it. Re-derived by RUNNING the audit on this tree.
+  expect_lte(sum(baseline$n), 77L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -317,7 +328,14 @@ test_that("every year-free territorial grouping is classified", {
   # left above the real count is slack a new unregistered group could hide in.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 88L)
+  #
+  # 89 since whep#1117: `.hist_trade_reporter_reference()` reduces FAOSTAT's
+  # years to the largest flow each (reporter, item, element) has ever carried,
+  # the bound the historical trade screen measures the pre-1961 pins against.
+  # `year_axis` for the same reason `.area_reporting_windows` is -- the year is
+  # what is being reduced over, so putting it in the key would hand every row
+  # itself as its own bound.
+  expect_lte(sum(full$n), 89L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
