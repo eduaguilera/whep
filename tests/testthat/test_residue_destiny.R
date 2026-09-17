@@ -49,17 +49,75 @@ test_that("build_residue_feed_avail yields the redistribute_feed contract", {
 })
 
 test_that("calculate_residue_destinies conserves mass with an unmatched region", {
-  out <- whep::calculate_residue_destinies(tibble::tibble(
-    item_prod_code = "15",
-    residue_dm_t = 100,
-    region_krausmann = "Nowhere",
-    region_un_sub = "Nowhere"
-  ))
+  out <- suppressWarnings(
+    whep::calculate_residue_destinies(tibble::tibble(
+      item_prod_code = "15",
+      residue_dm_t = 100,
+      region_krausmann = "Nowhere",
+      region_un_sub = "Nowhere"
+    ))
+  )
   testthat::expect_equal(
     out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
     100
   )
   testthat::expect_equal(out$residue_soil_dm_t, 100)
+})
+
+test_that("an unmatched recovery rate is reported, not passed off as zero", {
+  # whep#1175. The mass balance is the check that CANNOT see this: the failed
+  # lookup books every tonne to soil, so feed + burn + soil still equals the
+  # residue exactly, no total moves, and 16.65 Gt left the commodity balance in
+  # silence. The guard has to fire on the input the identity is happy with.
+  unmatched <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Nowhere",
+    region_un_sub = "Nowhere"
+  )
+  out <- suppressWarnings(whep::calculate_residue_destinies(unmatched))
+
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+      100
+    )),
+    guard = whep::calculate_residue_destinies(unmatched),
+    class = "whep_unmatched_recovery",
+    condition = "warning"
+  )
+  testthat::expect_false(out$residue_recovery_matched)
+})
+
+test_that("a recovery rate the table gives as zero is not an unmatched one", {
+  # 18 of the recovery table's 160 rows really are zero -- fodder crops in West
+  # Europe is one -- and before whep#1175 that was the same value, through the
+  # same `replace_na()`, as a lookup that found nothing. Item 638 is "Forage and
+  # silage, rye grass", whose Krausmann category is "Fodder crops".
+  out <- whep::calculate_residue_destinies(tibble::tibble(
+    item_prod_code = "638",
+    residue_dm_t = 100,
+    region_krausmann = "West Europe",
+    region_un_sub = "Western Europe"
+  ))
+
+  testthat::expect_true(out$residue_recovery_matched)
+  testthat::expect_equal(out$residue_soil_dm_t, 100)
+})
+
+test_that("unmatched_recovery = 'abort' refuses to continue", {
+  testthat::expect_error(
+    whep::calculate_residue_destinies(
+      tibble::tibble(
+        item_prod_code = "15",
+        residue_dm_t = 100,
+        region_krausmann = "Nowhere",
+        region_un_sub = "Nowhere"
+      ),
+      unmatched_recovery = "abort"
+    ),
+    class = "whep_unmatched_recovery"
+  )
 })
 
 test_that("region-map guard rejects a krausmann label with two HANPP regions", {

@@ -2260,6 +2260,10 @@ utils::globalVariables(
     # supply side reconstructs `domestic_supply` to within rounding noise,
     # which replaces the exact `ds_destinies == balance` equality
     "supply_agrees",
+    # residue_destiny.R (issue 1175) -- the per-row flag that separates a
+    # recovery rate the table gives as zero from a zero standing in for a
+    # lookup that found nothing
+    "residue_recovery_matched",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

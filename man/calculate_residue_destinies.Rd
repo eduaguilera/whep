@@ -7,7 +7,8 @@
 calculate_residue_destinies(
   x,
   method = c("recovery_regional", "shares"),
-  bedding_fraction = 0
+  bedding_fraction = 0,
+  unmatched_recovery = c("report", "abort")
 )
 }
 \arguments{
@@ -27,11 +28,21 @@ recovery rate times the UN-sub-regional feed-use fraction) or \code{"shares"}
 as livestock bedding, one number in \verb{[0, 1]}. Default \code{0}, which is unset
 rather than measured; see the Bedding section for why, and what a caller
 setting it must convert from.}
+
+\item{unmatched_recovery}{What the \code{recovery_regional} method does with a
+row that reaches no recovery rate at all, because its crop carries no
+Krausmann category or its region label reaches no recovery region:
+\code{"report"} (default) keeps the historical all-to-soil treatment and warns
+with the row count and tonnage, \code{"abort"} refuses to continue. Ignored by
+the \code{"shares"} method.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
 \code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
-\code{method_residue_destiny}.
+\code{method_residue_destiny}. The \code{"recovery_regional"} method also returns
+\code{residue_recovery_matched}, \code{FALSE} where no recovery rate was found,
+which is what separates a rate the table gives as zero from a zero
+standing in for a failed lookup.
 }
 \description{
 Splits crop residue dry matter into four destinies that sum to the total
