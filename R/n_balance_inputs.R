@@ -1328,7 +1328,8 @@ build_n_inputs <- function(
     method_recycling_n = character(),
     method_synthetic = character(),
     method_deposition = character(),
-    method_deposition_scope = character()
+    method_deposition_scope = character(),
+    method_unsupported = character()
   )
 }
 
@@ -1426,7 +1427,8 @@ build_n_inputs <- function(
         .data$fert_type == "deposition",
         "territory",
         NA_character_
-      )
+      ),
+      method_unsupported = "abort"
     ) |>
     .add_reporting_polity_columns()
 }
