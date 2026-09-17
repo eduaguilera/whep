@@ -237,6 +237,29 @@
 #' for land the model was never run on. Only a rerun on a land mask matching
 #' LUH2's puts real carbon on those hectares.
 #'
+#' @section What this balance does not cover:
+#' The balance runs on the LPJmL grid, because the climate drivers do. That
+#' grid is a coarser land mask than LUH2's, so **not every LUH2 hectare is in
+#' the output**. On the default readers at 2010, 7,079 cell-polity
+#' compartments carrying 296.8 Mha of LUH2 land -- 30.4 Mha cropland, 46.6 Mha
+#' grassland, 214.8 Mha natural, 4.8 Mha urban -- have no climate driver and
+#' are dropped, with a warning naming the hectares and the worst-hit polities.
+#' The loss is essentially a coastline, so it is negligible globally (1.4% of
+#' grassland, 2.6% of natural land) and large for maritime polities: 31.6% of
+#' Greece's grassland, 25.3% of the Philippines', 22.7% of Somalia's, 17.8% of
+#' Indonesia's, 12.8% of the United Kingdom's, 12.5% of Italy's. A national
+#' SOC total from this function is a total over the modelled hectares, not
+#' over the polity.
+#'
+#' Dropped is not the same as marched at zero. A class with LUH2 area but no
+#' carbon-input row IS kept, at zero input (that is what makes `urban` dilute
+#' rather than deflate the cell), and whep#1146 read the coverage gap as that
+#' case. It is not: measured against the `lpjml-grass-natural-net-c` pin and
+#' the real climate table, every one of those 46.6 Mha of grassland is dropped
+#' for want of a climate driver, and the grassland actually marching on a
+#' zero-filled input is 0.212 ha globally at 2010. Both quantities are
+#' reported at run time rather than left to be re-derived.
+#'
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
@@ -425,6 +448,9 @@ build_carbon_balance <- function(
 # cropland (crop growth-stage curve) and grassland/natural (perennial cover);
 # see `.cb_climate_modifier_table()`. A cell-year with no modifier at all (no
 # climate coverage) is dropped with a warning by `.cb_drop_uncovered_climate()`.
+# Both silences are now quantified in hectares: `.cb_report_zero_input()` says
+# how much land marches on a zero-filled input, and the climate warning says
+# how much land leaves the balance entirely (whep#1146).
 .cb_class_table <- function(d, model) {
   clay <- d$clay
   base <- .cb_split_cropland_groups(d$land_use, d$c_inputs) |>
@@ -435,7 +461,9 @@ build_carbon_balance <- function(
     dplyr::left_join(
       d$c_inputs,
       by = c("lon", "lat", "area_code", "year", "land_use")
-    ) |>
+    )
+  .cb_report_zero_input(base)
+  base <- base |>
     dplyr::mutate(
       c_input_mgc_ha_yr = dplyr::coalesce(.data$c_input_mgc_ha_yr, 0),
       humified_fraction = dplyr::coalesce(.data$humified_fraction, 0)
@@ -527,6 +555,81 @@ build_carbon_balance <- function(
   invisible(NULL)
 }
 
+# Report the land that marches on a zero-filled carbon input, in hectares.
+#
+# whep#1146 claimed the 46.6 Mha of LUH2 grassland with no LPJmL grassland
+# stand was being marched at zero carbon input. It is not: measured on
+# `origin/main` at f9b23762 against the `lpjml-grass-natural-net-c` pin, LUH2
+# v2h and the real `.cb_read_climate()` table, ALL 46.58 Mha of it sits in
+# cell-polity compartments the climate drivers do not cover, so
+# `.cb_drop_uncovered_climate()` removes it a few lines below. What actually
+# reaches the march on a zero-filled grassland input is 0.212 ha globally at
+# 2010 (0.75 ha at 1960, 0.16 ha at 2020) -- seven orders of magnitude smaller,
+# and far too small to be worth a gap-filling estimator.
+#
+# That is measured, not guaranteed. A caller who injects a `data$climate`
+# covering more cells than the LPJmL grid, or a regenerated pin with a
+# different stand mask, would move hectares out of the drop below and into the
+# zero fill without changing a line of code. So the zero fill is reported in
+# hectares rather than assumed negligible: the number that refuted the issue is
+# the number this message prints.
+#
+# `urban` is excluded because its zero is deliberate -- no input builder emits
+# an urban row, and the class exists to dilute the cell, not to hold carbon.
+.cb_report_zero_input <- function(base) {
+  gap <- base |>
+    dplyr::filter(
+      is.na(.data$c_input_mgc_ha_yr),
+      stringr::str_to_lower(.data$land_use) != "urban"
+    )
+  if (nrow(gap) == 0L) {
+    return(invisible(NULL))
+  }
+  area <- .cb_area_per_year(gap)
+  classes <- .cb_area_by_class(gap)
+  cli::cli_inform(c(
+    "i" = "{nrow(gap)} class row{?s} carry no carbon-input row and march on a
+           zero carbon input: {area} of LUH2 land per year ({classes}).",
+    "i" = "Urban is excluded -- its zero is by design. Anything else here is a
+           class the input builders did not reach (whep#1146)."
+  ))
+  invisible(NULL)
+}
+
+# Land area per year, formatted for a message. Per YEAR, so a multi-year table
+# is not reported as the sum of its years, which would count the same hectare
+# once per year.
+.cb_area_per_year <- function(x) {
+  .cb_area_text(sum(x$area_ha, na.rm = TRUE) / dplyr::n_distinct(x$year))
+}
+
+# Hectares below a megahectare and megahectares above it. The same two messages
+# carry 296.8 Mha of dropped land and 0.2 ha of zero-filled land, and a single
+# unit makes one of the two unreadable.
+.cb_area_text <- function(ha) {
+  if (ha >= 1e6) {
+    return(paste(formatC(ha / 1e6, format = "fg", digits = 4), "Mha"))
+  }
+  paste(formatC(ha, format = "fg", digits = 4, big.mark = ","), "ha")
+}
+
+# "natural 215 Mha, grassland 46.6 Mha" -- per-year land area by land-use
+# class, largest first, for a cli message.
+.cb_area_by_class <- function(x) {
+  years <- dplyr::n_distinct(x$year)
+  x |>
+    dplyr::summarise(
+      ha = sum(.data$area_ha, na.rm = TRUE) / years,
+      .by = "land_use"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$ha)) |>
+    dplyr::mutate(
+      txt = paste(.data$land_use, vapply(.data$ha, .cb_area_text, ""))
+    ) |>
+    dplyr::pull("txt") |>
+    paste(collapse = ", ")
+}
+
 # Split each cell-year's LUH2 cropland area over the crop groups the carbon
 # inputs carry, in proportion to their `group_area_ha`. LUH2 knows how much
 # cropland a cell has, not which crops are on it; the inputs know the crop
@@ -601,21 +704,78 @@ build_carbon_balance <- function(
 # columns are absent (soc_dynamics.R:80-81). Such cells cannot be modelled, so
 # warn and drop them (surfacing the coverage loss) rather than aborting the whole
 # run on a small gap, or silently running SOC turnover at an unmodified neutral 1.
+#
+# It is not a small gap on the default readers, and the warning used to report
+# only a cell-year COUNT, which is why it read as housekeeping. The climate
+# drivers come from the LPJmL run's grid, and that grid is a coarser land mask
+# than LUH2's: 7,079 cell-polity compartments carrying 296.8 Mha of LUH2 land at
+# 2010 (cropland 30.4, grassland 46.6, natural 214.8, urban 4.8 Mha) have no
+# driver and leave the soil-carbon balance altogether. The loss is a coastline,
+# so it concentrates in maritime polities -- 31.6% of Greece's grassland, 25.3%
+# of the Philippines', 22.7% of Somalia's, 17.8% of Indonesia's, 12.8% of the
+# United Kingdom's. The message therefore reports hectares, classes and the
+# worst-hit polities, so a reader of a national SOC trend sees what is missing
+# from it (whep#1146). It is the same cell-set disagreement that whep#1011
+# divides a polity total by.
 .cb_drop_uncovered_climate <- function(classes) {
-  missing <- classes |> dplyr::filter(is.na(.data$climate_modifier))
-  if (nrow(missing) > 0) {
-    gaps <- missing |>
-      dplyr::distinct(.data$lon, .data$lat, .data$area_code, .data$year)
-    cli::cli_warn(
-      c(
-        "!" = "Dropped {nrow(gaps)} cell-year{?s} with land-use/carbon-input
-          coverage but no climate modifier (outside the climate-driver grid).",
-        i = "Supply {.code data$climate} for these cell-years to retain them."
-      )
-    )
-    classes <- classes |> dplyr::filter(!is.na(.data$climate_modifier))
+  keep <- !is.na(classes$climate_modifier)
+  if (all(keep)) {
+    return(classes)
   }
-  classes
+  .cb_warn_climate_gap(classes[!keep, ], classes)
+  classes[keep, ]
+}
+
+# The climate-gap warning: how much LAND leaves the balance, not only how many
+# cell-years do. `cli_warn()` interpolates in its OWN caller's frame, so the
+# warning is raised here, where the pieces are bound, rather than assembled
+# into a message vector for the caller to raise.
+.cb_warn_climate_gap <- function(missing, classes) {
+  cells <- nrow(dplyr::distinct(missing[c("lon", "lat", "area_code")]))
+  years <- dplyr::n_distinct(missing$year)
+  area <- .cb_area_per_year(missing)
+  by_class <- .cb_area_by_class(missing)
+  worst <- .cb_climate_gap_worst(missing, classes)
+  cli::cli_warn(c(
+    "!" = "Dropped {cells} cell-polity compartment{?s} over {years} year{?s}
+       with land-use/carbon-input coverage but no climate modifier: {area} of
+       LUH2 land per year leaves the soil-carbon balance ({by_class}).",
+    "i" = "Worst hit: {worst}.",
+    "i" = "The climate drivers are on the LPJmL run's grid, a coarser land mask
+       than LUH2's, so the loss is mostly coastline. This land is not modelled
+       -- it is not marched at zero carbon input (whep#1146).",
+    "i" = "Supply {.code data$climate} for these compartments to retain them."
+  ))
+  invisible(NULL)
+}
+
+# The three polities losing the most land, each with the share of its own land
+# that is lost -- a global percentage hides a polity that loses a third of its
+# grassland.
+.cb_climate_gap_worst <- function(missing, classes) {
+  years <- dplyr::n_distinct(missing$year)
+  whole <- classes |>
+    dplyr::summarise(
+      all_ha = sum(.data$area_ha, na.rm = TRUE),
+      .by = "area_code"
+    )
+  missing |>
+    dplyr::summarise(
+      lost_ha = sum(.data$area_ha, na.rm = TRUE),
+      .by = "area_code"
+    ) |>
+    dplyr::left_join(whole, by = "area_code") |>
+    dplyr::slice_max(.data$lost_ha, n = 3L, with_ties = FALSE) |>
+    dplyr::mutate(
+      txt = sprintf(
+        "area %s (%s, %.1f%% of its land)",
+        format(.data$area_code),
+        vapply(.data$lost_ha / years, .cb_area_text, ""),
+        100 * .data$lost_ha / .data$all_ha
+      )
+    ) |>
+    dplyr::pull("txt") |>
+    paste(collapse = ", ")
 }
 
 # -- Climate modifier resolution ----------------------------------------------
