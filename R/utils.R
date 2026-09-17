@@ -1,5 +1,27 @@
 # Suppress R CMD check warnings for NSE (Non Standard Evaluation)
-# data.table symbols (.N, .SD, ., ..) and package-internal dt variables
+# data.table symbols (.N, .SD, ., ..) and package-internal dt variables.
+#
+# Nothing generates this list -- it is hand-maintained, file-grouped prose plus
+# strings, and `devtools::document()` never touches it. Two invariants keep it
+# workable with many branches in flight, and `tests/testthat/test_utils.R`
+# asserts both (#1129):
+#
+#   1. This file contains nothing but the one `utils::globalVariables()` call.
+#      That is what makes the `R/utils.R merge=union` line in `.gitattributes`
+#      safe: union merge keeps both sides of a conflicting hunk, which is the
+#      right answer for an allowlist of strings -- order carries no meaning and
+#      `globalVariables()` drops duplicates -- and the wrong answer for
+#      anything else. A helper belongs in another file.
+#   2. The list ends in the `NULL` sentinel below, so every entry line is
+#      comma-terminated. Without it, two branches that each append a block
+#      merge into `"last of A"` followed by `"first of B"` with no comma
+#      between them -- a syntax error, which union merge would introduce
+#      silently. `c()` drops the `NULL`, so the sentinel costs nothing.
+#
+# Append new symbols as a block at the end, above the sentinel, preceded by a
+# comment naming the file and what the symbols are for. Do not reorder or
+# alphabetise: the file-grouped comments are the only thing making 2000 lines
+# reviewable.
 
 utils::globalVariables(
   c(
@@ -2221,6 +2243,9 @@ utils::globalVariables(
     # lineage walk consumes, and the year-aware polity column it reads each
     # row anchor from
     "predecessor",
-    "reporting_polity_code"
+    "reporting_polity_code",
+    # Append sentinel. Keeps every entry above it comma-terminated, so two
+    # branches appending at once merge into valid R; `c()` drops it.
+    NULL
   )
 )
