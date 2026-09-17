@@ -33,14 +33,19 @@ choice sets the equilibrium target, and through the time constant
 \code{soc_eq / c_input} the speed the stock relaxes toward it; the
 transient itself is a single exponential for every model.}
 
-\item{init}{How each land-use class's opening stock is set.
+\item{init}{How each land-use class's opening stock is set. Neither option
+is the physical one and the default is \strong{not} settled evidence; the
+measurements behind both sit on \code{.cb_init_density()} in the source.
 \code{"own_equilibrium"} (default) starts every class at the stock its own
-carbon input and climate support. \code{"cell_average"} starts every class
-in a cell at the fraction-weighted mean of the classes sharing it, the
-Spain historical behaviour: a proxy for land converted from something
-richer, at the cost of opening the lowest-input class far above its own
-target and draining it for decades, which the balance then reports as soil
-nitrogen mineralization. Recorded in \code{method_soc_init}.}
+carbon input and climate support: it removes the opening transient the
+balance would otherwise report as soil nitrogen mineralization, at the
+cost of opening cropland at roughly a third of the carbon measured in
+those soils. \code{"cell_average"} starts every class in a cell at the
+fraction-weighted mean of the classes sharing it, the Spain historical
+behaviour: it opens cropland near its observed stock, as a proxy for the
+legacy carbon of the vegetation it replaced, at the cost of then draining
+that stock toward an equilibrium whep#799 puts several-fold too low.
+Recorded in \code{method_soc_init}.}
 
 \item{resolution}{\code{"grid"} (default, per cell and land-use class) or
 \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).}
@@ -163,11 +168,11 @@ polity columns below, plus
 \description{
 Reconstruct per-cell soil-organic-carbon stock trajectories: run the selected
 turnover model to equilibrium under the earliest per-land-use carbon inputs,
-initialise each cell by weighting those equilibria with the earliest
-land-use fractions, march forward on yearly per-cell per-land-use areas
-applying the model annual update plus a carbon-conserving land-use-change
-transfer, and derive the soil-organic-nitrogen change from the carbon rate
-via asymmetric soil carbon-to-nitrogen ratios.
+open each land-use class at the stock \code{init} selects, march forward on
+yearly per-cell per-land-use areas applying the model annual update plus a
+carbon-conserving land-use-change transfer, and derive the
+soil-organic-nitrogen change from the carbon rate via asymmetric soil
+carbon-to-nitrogen ratios.
 }
 \details{
 \code{polity_validity} governs this function's own output. The internal
