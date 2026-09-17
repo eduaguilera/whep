@@ -141,19 +141,27 @@
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
-#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope`. At
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
+#'   `method_deposition_scope`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
-#'   `method_deposition_scope`, `n_input_t` (summed over cells).
+#'   `method_deposition`, `method_deposition_scope`, `n_input_t` (summed over
+#'   cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`. `method_deposition_scope` records
+#'   is `NA` for every other `fert_type`. `method_deposition` records which
+#'   deposition product the `"deposition"` term's field came from, read off
+#'   the supplied `nhx`/`noy` by [build_n_deposition()] (`"hani"` for
+#'   [read_n_deposition()]'s own rows, `"supplied"` for an injected field
+#'   carrying no tag of its own), so a corrected field stays visible here.
+#'   `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
-#'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
+#'   with (`"territory"` or `"land"`). Both are `NA` for every other
+#'   `fert_type`.
 #'   Both grains also carry the polity columns below, plus
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
@@ -211,7 +219,10 @@ build_n_inputs <- function(
 
 # Common output schema every source helper must produce. `method_recycling_n`
 # records which residue basis the "recycling" term used (soil-returned vs
-# total residue N); it is NA for every other fert_type.
+# total residue N); it is NA for every other fert_type. `method_deposition`
+# and `method_deposition_scope` are the deposition term's two provenance axes
+# and are likewise NA elsewhere: the first names the PRODUCT the field came
+# from, the second which of the polycell's territory it was credited with.
 .ni_schema <- function() {
   c(
     "lon",
@@ -223,6 +234,7 @@ build_n_inputs <- function(
     "n_input_t",
     "method_recycling_n",
     "method_synthetic",
+    "method_deposition",
     "method_deposition_scope"
   )
 }
@@ -313,6 +325,7 @@ build_n_inputs <- function(
         "fert_type",
         "method_recycling_n",
         "method_synthetic",
+        "method_deposition",
         "method_deposition_scope"
       )
     )
@@ -677,6 +690,12 @@ build_n_inputs <- function(
         .data$scope_frac *
         .data$area_ha /
         1000,
+      # Two independent provenance axes, both needed. The scope is this
+      # function's own choice; `method_deposition` is the field's, read off
+      # whatever `data$nhx`/`data$noy` declared (#1097). Dropping it here is
+      # what made an EMEP-corrected field indistinguishable from raw HaNi
+      # from `build_n_inputs()` onward (#1105).
+      method_deposition = .data$method_deposition,
       method_deposition_scope = scope
     )
 }
@@ -741,7 +760,13 @@ build_n_inputs <- function(
       deposition_kgn_ha = max(.data$deposition_kgn_ha),
       scope_n_t = sum(.data$in_scope_n_t),
       total_n_t = sum(.data$deposition_n_t),
-      .by = c("lon", "lat", "area_code", "year")
+      # `method_deposition` is a grouping key, not a summary. It is one value
+      # per cell-year by construction -- .nd_combine_source() aborts when NHx
+      # and NOy disagree -- so grouping on it cannot split a polycell here;
+      # were that ever to change, the many-to-one join in
+      # .n_inputs_deposition() refuses the duplicate rather than charging the
+      # cell's hectares twice.
+      .by = c("lon", "lat", "area_code", "year", "method_deposition")
     ) |>
     .ni_check_one_rate() |>
     dplyr::mutate(
@@ -768,7 +793,8 @@ build_n_inputs <- function(
     "area_code",
     "year",
     "deposition_kgn_ha",
-    "scope_frac"
+    "scope_frac",
+    "method_deposition"
   )
 }
 
@@ -1116,6 +1142,7 @@ build_n_inputs <- function(
     n_input_t = double(),
     method_recycling_n = character(),
     method_synthetic = character(),
+    method_deposition = character(),
     method_deposition_scope = character()
   )
 }
@@ -1203,6 +1230,11 @@ build_n_inputs <- function(
       method_synthetic = dplyr::if_else(
         .data$fert_type == "synthetic",
         "coello",
+        NA_character_
+      ),
+      method_deposition = dplyr::if_else(
+        .data$fert_type == "deposition",
+        "hani",
         NA_character_
       ),
       method_deposition_scope = dplyr::if_else(
