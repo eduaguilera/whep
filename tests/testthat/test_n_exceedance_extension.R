@@ -73,7 +73,7 @@ testthat::test_that("the per-crop key is preserved and zero-impact kept", {
   testthat::expect_setequal(out$item_cbs_code, c(2511L, 2513L))
 })
 
-testthat::test_that("rows with a missing key are dropped", {
+testthat::test_that("rows with a missing key are dropped and reported", {
   exceedance <- tibble::tribble(
     ~year,
     ~area_code,
@@ -85,9 +85,50 @@ testthat::test_that("rows with a missing key are dropped", {
     2010L, 10L, 2511L, 5, 3, 8, 12,
     2010L, NA_integer_, 2513L, 1, 1, 2, 3
   )
-  out <- whep::build_n_exceedance_extension(exceedance)
+  # The drop stays, but it now names what it removed: an incomplete key is a
+  # defensible reason to exclude a row and not a reason to do it in silence
+  # (#1173).
+  testthat::expect_warning(
+    whep::build_n_exceedance_extension(exceedance),
+    class = "whep_nex_incomplete_key"
+  )
+  testthat::expect_warning(
+    whep::build_n_exceedance_extension(exceedance),
+    "1 t N"
+  )
+  out <- suppressWarnings(whep::build_n_exceedance_extension(exceedance))
   testthat::expect_equal(nrow(out), 1L)
   testthat::expect_equal(out$item_cbs_code, 2511L)
+})
+
+testthat::test_that("a dropped non-finite impact is named, not swallowed", {
+  # The key drop runs BEFORE the finiteness check, so an incomplete-key row
+  # with an infinite impact leaves without .nex_validate_impact() ever seeing
+  # it. That is the right order (the row has no footprint to attach to) and
+  # exactly the round trip that must not be silent.
+  exceedance <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~exceedance_n_t,
+    ~within_boundary_n_t,
+    ~actual_n_t,
+    ~production_n_t,
+    2010L, 10L, 2511L, 5, 3, 8, 12,
+    2010L, 10L, NA_integer_, Inf, 1, 2, 3
+  )
+  testthat::expect_warning(
+    whep::build_n_exceedance_extension(exceedance),
+    class = "whep_nex_incomplete_key"
+  )
+  out <- suppressWarnings(whep::build_n_exceedance_extension(exceedance))
+  testthat::expect_equal(nrow(out), 1L)
+})
+
+testthat::test_that("a complete-key extension reports nothing", {
+  testthat::expect_no_warning(
+    whep::build_n_exceedance_extension(.nex_exceedance_fixture())
+  )
 })
 
 testthat::test_that("signed crop-attributed exceedance is retained", {
