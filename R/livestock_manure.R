@@ -121,6 +121,15 @@ NULL
       manure_category = dplyr::case_when(
         .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
         species_gen == "Cattle" ~ "Other Cattle",
+        # `ipcc_2019_n_excretion` publishes swine as two rows, "Swine - Market"
+        # (15) and "Swine - Breeding" (18) kg N head-1 yr-1. Until whep#1107
+        # the herd arrived as one undifferentiated "Swine" key, which the
+        # base-species augmentation below answered with their mean (16.5) --
+        # a rate no animal has. FAOSTAT reports the two halves separately, so
+        # key each half on its own published row instead.
+        species_gen == "Swine" & .is_breeding_swine(species) ~
+          "Swine - Breeding",
+        species_gen == "Swine" ~ "Swine - Market",
         TRUE ~ species_gen
       )
     )
@@ -436,8 +445,7 @@ NULL
   dplyr::case_when(
     .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
     species_gen == "Cattle" ~ "Other Cattle",
-    species_gen == "Swine" &
-      stringr::str_detect(species, "(?i)Breed") ~
+    species_gen == "Swine" & .is_breeding_swine(species) ~
       "Swine - Breeding",
     species_gen == "Swine" ~ "Swine - Market",
     species_gen == "Poultry" &

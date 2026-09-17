@@ -262,6 +262,23 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     !stringr::str_detect(species, "(?i)non[- ]?dairy")
 }
 
+#' Detect the breeding half of the swine herd from its species label.
+#'
+#' FAOSTAT publishes swine as two disjoint stock items -- 1049 `"Swine,
+#' market"` and 1051 `"Swine, breeding"` -- whose sum is item 1048 `"Swine"`
+#' exactly (measured on the `faostat-emissions-livestock` pin at every
+#' area-year: `1048 - (1049 + 1051)` never exceeds one head). `animals_codes`
+#' carries 1051 under the `item_cbs` name `"Hogs"`, which is what
+#' [prepare_livestock_emissions()] puts in `species`, so a breeding sow arrives
+#' spelled `"Hogs"` and never `"breeding"`. Both spellings are matched so the
+#' distinction survives whichever label a caller supplies; without it the
+#' breeding herd silently takes the market-swine parameters, which is the
+#' error separating the two items exists to avoid (whep#1107).
+#' @noRd
+.is_breeding_swine <- function(species) {
+  stringr::str_detect(species, "(?i)hog|breeding")
+}
+
 #' Map species string to general category.
 #' @noRd
 .get_general_species <- function(s) {

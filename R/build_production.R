@@ -2391,9 +2391,15 @@ build_primary_production <- function(
 
 # -- Assembly ------------------------------------------------------------------
 
-.assemble_production_raw <- function(yield_all, stocks = NULL) {
+# `items` is an argument only so a test can build the "live animal with no
+# `items_full` row" case by hand: since whep#1107 no curated live animal is in
+# that class, and a `whep::` data read cannot be mocked.
+.assemble_production_raw <- function(
+  yield_all,
+  stocks = NULL,
+  items = whep::items_full
+) {
   cli::cli_progress_step("Assembling production")
-  items <- whep::items_full
 
   yield_all <- yield_all |>
     .ensure_fao_flag("flag_t") |>
@@ -2583,9 +2589,10 @@ build_primary_production <- function(
 # A live animal with no `items_full` row has no CBS identity, so it cannot be
 # emitted as a production row. Say which one and how much is lost rather than
 # dropping it quietly -- a silent drop of exactly this shape is what hid
-# whep#1050. FAOSTAT's breeding swine (code 1051, "Hogs", 94.0 M head at 2020)
-# are in this class today; giving them an identity is a harmonization-table
-# change, not this one.
+# whep#1050. FAOSTAT's breeding swine (code 1051, "Hogs") were in this class
+# until whep#1107 gave them an `items_full` row; no curated live animal is
+# today, so this warning is unreachable on a full build and fires only for a
+# future animal added to `animals_codes` and not to `items_full`.
 .report_unnamed_live_anim <- function(eligible, items) {
   named <- .name_live_anim(eligible, items)
   unnamed <- named |> dplyr::filter(is.na(.data$item_cbs))

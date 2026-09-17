@@ -90,6 +90,12 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
 # Private helpers ----
 
 #' Default production system shares.
+#'
+#' The cattle and swine shares here are the fallback for a herd whose commodity
+#' names no subcategory. When it does -- `"Cattle, dairy"`, `"Pigs"` (FAOSTAT
+#' 1049, market swine), `"Hogs"` (1051, breeding swine) --
+#' [.route_to_commodity_system()] sends the whole herd to the system the
+#' commodity names and these shares do not apply.
 #' @noRd
 .default_system_shares <- function() {
   tibble::tribble(
@@ -131,29 +137,42 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
     dplyr::select(-routed_system, -subcategory)
 }
 
-#' Dairy/non-dairy subcategory named by a commodity, else `NA`.
+#' Production-system subcategory named by a commodity, else `NA`.
 #'
 #' Unlike [.get_subcategory()], this returns `NA` (not "Non-Dairy") when the name
-#' does not literally say dairy/non-dairy, so single-commodity species (e.g.
-#' "Buffalo") keep the generic system blend instead of collapsing to one system.
+#' does not name a subcategory, so single-commodity species (e.g. "Buffalo")
+#' keep the generic system blend instead of collapsing to one system.
+#'
+#' Swine joined cattle here at whep#1107. FAOSTAT reports the market and
+#' breeding halves of the herd as separate stock items (1049 and 1051), so once
+#' both reach production the herd is already split and the assumed
+#' `Breeding 0.15 / Fattening 0.85` blend must not be applied on top of it --
+#' that would book 15% of the reported *market* herd as breeding on top of the
+#' reported breeding herd.
 #' @noRd
 .commodity_subcategory <- function(species) {
+  is_swine <- .get_general_species(species) == "Swine"
   dplyr::case_when(
     .is_dairy(species) ~ "Dairy",
     stringr::str_detect(species, "(?i)non[- ]?dairy") ~ "Non-Dairy",
+    is_swine & .is_breeding_swine(species) ~ "Breeding",
+    is_swine ~ "Market",
     TRUE ~ NA_character_
   )
 }
 
 #' Production system each commodity subcategory routes to, by species.
 #'
-#' Only cattle has separate dairy and non-dairy commodities in `animals_codes`.
+#' Cattle (dairy / non-dairy) and swine (breeding / market) are the species
+#' `animals_codes` splits into separate commodities.
 #' @noRd
 .subcategory_system_map <- function() {
   tibble::tribble(
     ~species_gen, ~subcategory, ~system,
     "Cattle", "Dairy", "Dairy",
-    "Cattle", "Non-Dairy", "Beef"
+    "Cattle", "Non-Dairy", "Beef",
+    "Swine", "Breeding", "Breeding",
+    "Swine", "Market", "Fattening"
   )
 }
 

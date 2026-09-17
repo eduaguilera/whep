@@ -63,6 +63,49 @@ testthat::test_that("single-commodity species keep the generic system blend", {
   testthat::expect_equal(sum(result$cohort_heads), 1000, tolerance = 1)
 })
 
+testthat::test_that("market swine route only to the Fattening system", {
+  # whep#1107: FAOSTAT reports swine as two disjoint stock items, 1049
+  # "Swine, market" (animals_codes name "Pigs") and 1051 "Swine, breeding"
+  # ("Hogs"). Once both reach production the herd is already split, so the
+  # assumed Breeding 0.15 / Fattening 0.85 blend must not be applied on top:
+  # that would book 15% of the reported market herd as breeding as well.
+  result <- tibble::tibble(species = "Pigs", heads = 1000) |>
+    whep::calculate_cohorts_systems()
+
+  testthat::expect_setequal(unique(result$system), "Fattening")
+  testthat::expect_equal(sum(result$cohort_heads), 1000, tolerance = 1)
+})
+
+testthat::test_that("breeding swine route only to the Breeding system", {
+  result <- tibble::tibble(species = "Hogs", heads = 1000) |>
+    whep::calculate_cohorts_systems()
+
+  testthat::expect_setequal(unique(result$system), "Breeding")
+  testthat::expect_setequal(unique(result$cohort), c("Sows", "Boars"))
+  testthat::expect_equal(sum(result$cohort_heads), 1000, tolerance = 1)
+})
+
+testthat::test_that("the two swine items cover the herd exactly once", {
+  # The invariant the split has to satisfy: the breeding cohorts of the two
+  # items together hold the reported breeding herd and nothing else. Before
+  # whep#1107 the market herd alone produced a breeding cohort of fifteen per
+  # cent of its own head count, and the reported breeding herd was absent.
+  result <- tibble::tribble(
+    ~species, ~heads,
+    "Pigs",      900,
+    "Hogs",      100
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  breeding <- result |>
+    dplyr::filter(.data$system == "Breeding") |>
+    dplyr::pull(.data$cohort_heads) |>
+    sum()
+
+  testthat::expect_equal(breeding, 100, tolerance = 1)
+  testthat::expect_equal(sum(result$cohort_heads), 1000, tolerance = 1)
+})
+
 testthat::test_that("supplied system_shares bypass commodity routing", {
   custom <- tibble::tribble(
     ~species_gen, ~system, ~system_share,

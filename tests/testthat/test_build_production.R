@@ -2128,8 +2128,37 @@ test_that(".assemble_production_raw restores no aggregate live-animal code", {
 test_that(".assemble_production_raw reports a stock it cannot name", {
   # A live animal with no `items_full` row cannot be emitted as a production
   # row at all, because it has no `item_cbs` identity. Dropping it silently is
-  # what hid the defect in the first place, so say so: FAOSTAT's 94.0 M
-  # breeding swine (code 1051, "Hogs") are in this class today.
+  # what hid the defect in the first place, so say so. No curated live animal
+  # is in this class since whep#1107, so the case has to be built by hand: an
+  # `animals_codes` code that `items_full` does not carry.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
+    "t_head", "FAOSTAT_prod", 3, 9, 3
+  )
+  stocks <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    ~source,
+    2020L, "Spain", 203L, "Hogs", "1051", "heads", 1e6, "FAOSTAT_prod"
+  )
+  items <- whep::items_full |>
+    dplyr::filter(as.integer(.data$item_cbs_code) != 1051L)
+
+  expect_warning(
+    result <- suppressMessages(
+      whep:::.assemble_production_raw(yield_all, stocks, items = items)
+    ),
+    class = "whep_warn_unnamed_live_anim"
+  )
+  expect_false(any(result$item_prod_code == "1051"))
+})
+
+test_that("breeding swine reach production now that 1051 is named", {
+  # whep#1107: FAOSTAT publishes swine as two disjoint stock items, 1049
+  # "Swine, market" and 1051 "Swine, breeding". 1051 had no `items_full` row,
+  # so `.name_live_anim()` could give it no identity and the whole breeding
+  # herd was dropped. This is the regression guard on the row.
   yield_all <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
@@ -2142,11 +2171,15 @@ test_that(".assemble_production_raw reports a stock it cannot name", {
     2020L, "Spain", 203L, "Hogs", "1051", "heads", 1e6, "FAOSTAT_prod"
   )
 
-  expect_warning(
+  expect_no_warning(
     result <- suppressMessages(
       whep:::.assemble_production_raw(yield_all, stocks)
     ),
     class = "whep_warn_unnamed_live_anim"
   )
-  expect_false(any(result$item_prod_code == "1051"))
+  restored <- result |> dplyr::filter(.data$item_prod_code == "1051")
+  expect_equal(nrow(restored), 1L)
+  expect_equal(restored$value, 1e6)
+  expect_equal(restored$item_prod, "Hogs")
+  expect_equal(restored$unit, "heads")
 })
