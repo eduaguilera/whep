@@ -56,8 +56,11 @@ codes involved. \code{"flag"} keeps them and adds the per-row logical
 See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
 already-built table.}
 
-\item{data}{Named list of pre-loaded inputs, each falling back to its reader
-when absent: \code{c_inputs} (per cell, land-use class and year, with
+\item{data}{Named list of pre-loaded inputs. Every entry named below falls
+back to its reader when absent EXCEPT the two grazing entries at the end,
+which have no reader at all and must be supplied under the default
+\code{method_grazing = "whep"}; the entries that do fall back are
+\code{c_inputs} (per cell, land-use class and year, with
 \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
 \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
@@ -93,8 +96,12 @@ drivers). Two further entries are forwarded to
 read only when \code{c_inputs} is not supplied:
 \code{livestock_intake} (the \code{\link{redistribute_feed}} result) and
 \code{excreta} (the \code{applied} stream of
-\code{\link{build_livestock_nutrient_flows}}), both required by the
-default \code{method_grazing = "whep"}.}
+\code{\link{build_livestock_nutrient_flows}}). These are the two with no
+reader behind them -- \code{excreta} is a livestock-pipeline output, not a
+readable input -- so under the default \code{method_grazing = "whep"} a
+call that omits either is refused straight away, before any input is read.
+Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
+own grazing and need neither.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover, but reading the full LUH2 range
