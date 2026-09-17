@@ -1672,20 +1672,21 @@ testthat::test_that(".rothc_substeps is unchanged for a scalar modifier", {
   )
 }
 
-testthat::test_that("C7/907: the support is keyed on reporting area codes", {
-  # Before the fix the two Sudanese polities folded onto bucket 206 and Syria
-  # arrived as 999 (Rest of World), so `country_areas` -- keyed on 276, 277 and
-  # 212 -- joined to nothing for all three.
+testthat::test_that("C7/907: the pinned frozen bucket column is re-keyed", {
+  # Before the fix the two Sudanese polities arrived folded onto bucket 206 and
+  # Syria as 999 (Rest of World) -- the vocabulary FROZEN in the pin, which the
+  # crosswalk has since moved on from. The re-key recovers each polity's own
+  # reporting code from `polity_code`; whether the result is then folded onto
+  # today's bucket is a separate step (whep#1168), so this asserts the re-key
+  # itself rather than the support's final key.
   out <- suppressMessages(
-    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    whep:::.carbon_rekey_area_code(.c907_bucket_support())
   )
   testthat::expect_setequal(out$area_code, c(276L, 277L, 212L))
   testthat::expect_false(any(out$area_code %in% c(206L, 999L)))
-  border <- dplyr::filter(out, lon == 27.25)
-  testthat::expect_equal(nrow(border), 2L)
   testthat::expect_equal(
-    sort(border$land_area_ha),
-    c(20000, 60000)
+    sort(out$land_area_ha),
+    sort(.c907_bucket_support()$land_area_ha)
   )
 })
 
@@ -1693,9 +1694,9 @@ testthat::test_that("C7/907: re-keying conserves land and the cell shares", {
   # The re-key is a relabelling: it may not create, destroy or move a hectare,
   # and the land shares of a cell must still sum to exactly one.
   support <- .c907_bucket_support()
-  out <- suppressMessages(
+  out <- suppressMessages(suppressWarnings(
     whep:::.carbon_cell_support(support, year = 2015L)
-  )
+  ))
   testthat::expect_equal(sum(out$land_area_ha), sum(support$land_area_ha))
   totals <- out |>
     dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
@@ -1705,7 +1706,9 @@ testthat::test_that("C7/907: re-keying conserves land and the cell shares", {
 
 testthat::test_that("C7/907: the re-key reports itself", {
   testthat::expect_message(
-    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L),
+    suppressWarnings(
+      whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    ),
     "Re-keyed 3 polycells"
   )
 })
@@ -2173,4 +2176,89 @@ testthat::test_that("method_som_cn records the route that actually ran", {
     -1000 / 13.5,
     tolerance = 1e-6
   )
+})
+
+# ---- #1168: the support must be keyed on the national tables' code space ----
+
+testthat::test_that("1168: the support folds onto the matrix bucket", {
+  # The carbon path's NATIONAL tables come from `.aggregate_to_polities()`,
+  # which renames `polity_area_code` to `area_code`, so Sudan's crop totals
+  # arrive as bucket 206. Keying the cell support on the reporting codes 276
+  # and 277 left both sides of the join naming the same ground in different
+  # vocabularies, and the join was empty.
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+  ))
+  testthat::expect_true(206L %in% out$area_code)
+  testthat::expect_false(any(out$area_code %in% c(276L, 277L)))
+  # Syria's bucket IS its reporting code, so the stale 999 the pin carries is
+  # recovered to 212 and stays there.
+  testthat::expect_true(212L %in% out$area_code)
+})
+
+testthat::test_that("1168: the bucket fold conserves land", {
+  # A relabelling plus an extent fold: no hectare is created, destroyed or
+  # moved between cells, and each cell's land shares still sum to one.
+  support <- .c907_bucket_support()
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2015L)
+  ))
+  testthat::expect_equal(sum(out$land_area_ha), sum(support$land_area_ha))
+  totals <- out |>
+    dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(totals, rep(1, length(totals)))
+  border <- dplyr::filter(out, lon == 27.25)
+  testthat::expect_equal(nrow(border), 1L)
+  testthat::expect_equal(border$land_area_ha, 80000)
+})
+
+testthat::test_that("1168: the bucket fold reports itself", {
+  testthat::expect_message(
+    suppressWarnings(
+      whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    ),
+    "Folded 2 polycells"
+  )
+})
+
+testthat::test_that("1168: a code that is its own bucket is untouched", {
+  # The fold must move only the codes the crosswalk actually buckets; every
+  # other reporting code is its own bucket and may not be relabelled.
+  support <- tibble::tribble(
+    ~lon, ~lat, ~polity_code, ~area_code, ~cell_area_ha, ~land_area_ha,
+    ~start_year, ~end_year,
+    -3.75, 40.25, "ESP-1975-2025", 203L, 100000, 90000, 1975L, 2025L
+  )
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2015L)
+  ))
+  testthat::expect_identical(out$area_code, 203L)
+})
+
+testthat::test_that("1168: the fold follows the crosswalk's fold state", {
+  # The fold reads `.polity_crosswalk()`, the one place the regionalisation
+  # switches are applied, so the support tracks whatever code space the
+  # national tables are in rather than a frozen one. Restoring the
+  # Rest-of-World fold must therefore move the support with it -- which is why
+  # publishing the 206 un-fold (whep#680) makes this step a no-op instead of
+  # needing a second edit here.
+  # No `polity_code`, so the re-key stands aside and the fold is the only step
+  # under test. Area 5 is a Rest-of-World member the published default keeps in
+  # its own right.
+  support <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha,
+    17.75, 12.25, 5L, 100000, 90000
+  )
+  keyed <- function() {
+    suppressMessages(suppressWarnings(
+      whep:::.carbon_cell_support(support, year = 2015L)$area_code
+    ))
+  }
+  withr::with_options(list(whep.unfold_rest_of_world = "all"), {
+    testthat::expect_identical(keyed(), 5L)
+  })
+  withr::with_options(list(whep.unfold_rest_of_world = "none"), {
+    testthat::expect_identical(keyed(), 999L)
+  })
 })
