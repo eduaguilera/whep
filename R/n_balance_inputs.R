@@ -149,8 +149,11 @@
 #'   support in proportion to area, which conserves mass and is the same rule
 #'   `spatialize_country_n_to_crops()` already applies to a polity-crop with
 #'   no crop-pattern cell; it still aborts when the polity-year has no cropland
-#'   support anywhere. `"drop"` discards those rows and warns with the mass
-#'   lost. Whichever is chosen is stamped on every output row as
+#'   support anywhere. `"reallocate_drop"` places the same rows the same way
+#'   and then discards that irreducible remainder, warning with its mass, so a
+#'   global build is not refused over a few polities with population and no
+#'   cropland. `"drop"` reallocates nothing and discards every such row.
+#'   Whichever is chosen is stamped on every output row as
 #'   `method_unsupported`. May also be supplied as `data$method_unsupported`,
 #'   which is how [build_nitrogen_balance()] forwards it.
 #' @param example If `TRUE`, return a small fixture instead of assembling
@@ -210,7 +213,7 @@ build_n_inputs <- function(
   if (!is.null(method_unsupported)) {
     data$method_unsupported <- rlang::arg_match(
       method_unsupported,
-      c("abort", "reallocate", "drop")
+      c("abort", "reallocate", "reallocate_drop", "drop")
     )
   }
   data$.n_input_resolution <- resolution
@@ -274,9 +277,14 @@ build_n_inputs <- function(
   method <- data$method_unsupported %||% "abort"
   rlang::arg_match0(
     method,
-    c("abort", "reallocate", "drop"),
+    c("abort", "reallocate", "reallocate_drop", "drop"),
     "method_unsupported"
   )
+}
+
+# The two rules that accept a loss of mass, so the guard below must not fire.
+.ni_unsupported_allows_loss <- function(method) {
+  method %in% c("drop", "reallocate_drop")
 }
 
 .ni_filter_years <- function(x, years) {
@@ -1013,7 +1021,7 @@ build_n_inputs <- function(
     c("lon", "lat", "area_code", "year")
   ) |>
     .ni_place_stranded(sourced, cropland, method_unsupported)
-  if (method_unsupported != "drop") {
+  if (!.ni_unsupported_allows_loss(method_unsupported)) {
     .ni_check_unallocated(sourced, placed, support)
   }
   dplyr::bind_rows(
@@ -1048,8 +1056,11 @@ build_n_inputs <- function(
 # support, weighted by area -- mass-conserving, and the same rule
 # .n_grid_unmatched() already applies to a polity-crop with no crop-pattern
 # cell, so the two gaps in this chain are answered the same way. It still
-# aborts for a polity-year with no cropland support anywhere, because then
-# there is nothing to spread onto. "drop" discards them and says how much.
+# aborts for a polity-year with no cropland support ANYWHERE, because then
+# there is nothing to spread onto: 51 rows and 834 t N of that same 2010 run.
+# "reallocate_drop" is the same placement and then discards that irreducible
+# remainder rather than refusing the build over 0.02% of one stream, saying how
+# much it cost. "drop" reallocates nothing and discards every stranded row.
 .ni_place_stranded <- function(allocated, sourced, cropland, method) {
   stranded <- dplyr::filter(
     sourced,
@@ -1058,14 +1069,8 @@ build_n_inputs <- function(
   if (method == "abort" || nrow(stranded) == 0L) {
     return(allocated)
   }
-  mass <- sum(stranded$n_input_t, na.rm = TRUE)
   if (method == "drop") {
-    cli::cli_warn(c(
-      "Dropping {nrow(stranded)} non-item nitrogen row{?s}
-       ({signif(mass, 6)} t N) with no cropland support in their own cell.",
-      i = "{.code method_unsupported = \"reallocate\"} keeps the mass on the
-           polity's other cropland cells instead."
-    ))
+    .ni_warn_stranded_dropped(stranded)
     return(allocated)
   }
   rescued <- .ni_spread_over_support(
@@ -1073,12 +1078,39 @@ build_n_inputs <- function(
     cropland,
     c("area_code", "year")
   )
-  cli::cli_inform(c(
-    i = "Reallocated {nrow(stranded)} non-item nitrogen row{?s}
-         ({signif(mass, 6)} t N) with no cropland support in their own cell
-         over their polity's cropland cells."
-  ))
+  .ni_report_reallocated(stranded, rescued, method)
   dplyr::bind_rows(allocated, rescued)
+}
+
+# Say what the placement moved, and -- for "reallocate_drop" -- what no polity
+# could carry and is therefore gone.
+.ni_report_reallocated <- function(stranded, rescued, method) {
+  moved <- dplyr::filter(stranded, .data$.source_row %in% rescued$.source_row)
+  cli::cli_inform(c(
+    i = "Reallocated {nrow(moved)} non-item nitrogen row{?s}
+         ({signif(sum(moved$n_input_t, na.rm = TRUE), 6)} t N) with no cropland
+         support in their own cell over their polity's cropland cells."
+  ))
+  if (method != "reallocate_drop") {
+    return(invisible(NULL))
+  }
+  lost <- dplyr::filter(stranded, !.data$.source_row %in% rescued$.source_row)
+  if (nrow(lost) > 0L) {
+    .ni_warn_stranded_dropped(lost, "whose polity has no cropland support")
+  }
+  invisible(NULL)
+}
+
+.ni_warn_stranded_dropped <- function(
+  rows,
+  why = "with no cropland support in their own cell"
+) {
+  cli::cli_warn(c(
+    "Dropping {nrow(rows)} non-item nitrogen row{?s}
+     ({signif(sum(rows$n_input_t, na.rm = TRUE), 6)} t N) {why}.",
+    i = "{.code method_unsupported = \"reallocate\"} refuses instead, so the
+         gap has to be answered rather than absorbed."
+  ))
 }
 
 # Every row carries the rule, so a balance built from these inputs names it.

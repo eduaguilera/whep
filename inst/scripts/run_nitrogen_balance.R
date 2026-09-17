@@ -573,11 +573,15 @@ if (nrow(blockers) > 0L) {
     # returns the urban nitrogen its transport step could not deliver AT THE
     # SOURCE CELL, and on the 2010 global grid 1985 of those cells hold no
     # cropland: 38,425 t of 4.02 Mt urban N, enough to abort the whole
-    # assembly under the default "abort" rule. "reallocate" keeps the mass on
-    # the polity's other cropland cells, the same rule the synthetic path
-    # already applies to a crop with no pattern cell. Recorded in
-    # method_unsupported.
-    method_unsupported = "reallocate",
+    # assembly under the default "abort" rule. "reallocate_drop" keeps the mass
+    # on the polity's other cropland cells -- the same rule the synthetic path
+    # already applies to a crop with no pattern cell -- and discards only what
+    # no polity can carry at all: 51 rows, 834 t N, 0.021% of urban N, in
+    # polities with population and no cropland anywhere in the year. Refusing a
+    # global build over that is disproportionate; losing it unremarked is what
+    # the guard exists to prevent, so the rule is named and the cost printed.
+    # Recorded in method_unsupported.
+    method_unsupported = "reallocate_drop",
     urban_population = urban_population,
     nhx = nhx,
     noy = noy
@@ -598,33 +602,44 @@ if (nrow(blockers) > 0L) {
       dplyr::arrange(dplyr::desc(.data$tg_n))
     print(as.data.frame(by_stream))
   }
+  # The balance would rebuild the inputs itself from the same `data`, so a
+  # failure here is a failure there: say so once instead of paying for it twice.
+  if (is.null(n_inputs)) {
+    failure <- dplyr::last(dplyr::bind_rows(.nbd_log$rows))
+    cli::cli_h2("6b. Why the balance did not run")
+    cli::cli_inform(c(x = "{failure$detail}"))
+  }
   cli::cli_inform(c(
     "!" = "climate driver: every loss row is given
            {.val {NBD_PLACEHOLDER_CLIMATE}} because no global classifier
            exists (#359). The loss columns of this run are NOT results."
   ))
-  balance <- nbd_stage(
-    "nitrogen_balance",
-    build_nitrogen_balance(
-      methods = NBD_LOSS_METHODS,
-      resolution = resolution,
-      data = c(
-        nbd_data,
-        list(
-          n_inputs = n_inputs,
-          n_balance_drivers = .nbd_climate_drivers(
-            n_inputs,
-            resolution,
-            NBD_PLACEHOLDER_CLIMATE
+  balance <- if (is.null(n_inputs)) {
+    NULL
+  } else {
+    nbd_stage(
+      "nitrogen_balance",
+      build_nitrogen_balance(
+        methods = NBD_LOSS_METHODS,
+        resolution = resolution,
+        data = c(
+          nbd_data,
+          list(
+            n_inputs = n_inputs,
+            n_balance_drivers = .nbd_climate_drivers(
+              n_inputs,
+              resolution,
+              NBD_PLACEHOLDER_CLIMATE
+            )
           )
         )
       )
     )
-  )
+  }
   # The whole point of the driver is this stage, so when it fails say why here
   # rather than leaving the reason in a column of the coverage table nobody
   # prints. Section 5's blocker list runs before this stage exists.
-  if (is.null(balance)) {
+  if (is.null(balance) && !is.null(n_inputs)) {
     failure <- dplyr::last(dplyr::bind_rows(.nbd_log$rows))
     cli::cli_h2("6b. Why the balance did not run")
     cli::cli_inform(c(x = "{failure$detail}"))

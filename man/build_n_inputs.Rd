@@ -34,8 +34,11 @@ the streams and the mass, so a coverage gap cannot be lost silently.
 support in proportion to area, which conserves mass and is the same rule
 \code{spatialize_country_n_to_crops()} already applies to a polity-crop with
 no crop-pattern cell; it still aborts when the polity-year has no cropland
-support anywhere. \code{"drop"} discards those rows and warns with the mass
-lost. Whichever is chosen is stamped on every output row as
+support anywhere. \code{"reallocate_drop"} places the same rows the same way
+and then discards that irreducible remainder, warning with its mass, so a
+global build is not refused over a few polities with population and no
+cropland. \code{"drop"} reallocates nothing and discards every such row.
+Whichever is chosen is stamped on every output row as
 \code{method_unsupported}. May also be supplied as \code{data$method_unsupported},
 which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} forwards it.}
 

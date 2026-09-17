@@ -1041,6 +1041,40 @@ testthat::test_that("reallocate still aborts when the polity has no cropland", {
   )
 })
 
+# Two stranded rows: one in a polity that has cropland elsewhere, one in a
+# polity with no cropland support at all. That is the shape of the real 2010
+# run, where reallocation placed 1934 of 1985 stranded rows and 51 (834 t N,
+# 0.021% of urban N) were in polities with no cropland anywhere.
+testthat::test_that("reallocate_drop places what it can and drops the rest", {
+  inputs <- dplyr::bind_rows(
+    .nbi_stranded_inputs(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.75,
+      area_code = 99L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      fert_type = "urban",
+      n_input_t = 2,
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_
+    )
+  )
+
+  testthat::expect_warning(
+    out <- whep:::.ni_allocate_unattributed(
+      inputs,
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "reallocate_drop"
+    ),
+    "2 t N"
+  )
+
+  # 10 + 4 placed, the 2 t in polity 99 dropped.
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_true(all(out$method_unsupported == "reallocate_drop"))
+})
+
 testthat::test_that("build_n_inputs refuses an unknown unsupported rule", {
   testthat::expect_error(
     whep::build_n_inputs(
