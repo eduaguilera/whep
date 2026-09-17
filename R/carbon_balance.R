@@ -769,7 +769,7 @@ build_carbon_balance <- function(
     dplyr::mutate(
       txt = sprintf(
         "area %s (%s, %.1f%% of its land)",
-        format(.data$area_code),
+        as.character(.data$area_code),
         vapply(.data$lost_ha / years, .cb_area_text, ""),
         100 * .data$lost_ha / .data$all_ha
       )
