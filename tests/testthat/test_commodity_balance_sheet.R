@@ -201,7 +201,10 @@ testthat::test_that("build_processing_coefs returns consistent coefficients", {
 
   # What the per-area scaling is for: the calibrated processed output has to
   # reproduce the observed production of the processed item, area by area.
-  # The global factor alone (0.28 for wheat to non-food alcohol) does not.
+  # The globally calibrated factor alone does not -- it is one number for
+  # both areas (0.1786 here, from a raw table fraction of 0.28), and the
+  # per-area scaling that closes the gap differs between them (1.12 and
+  # 0.70).
   observed <- .make_proc_cbs_fixture() |>
     dplyr::filter(element == "production") |>
     dplyr::select(year, area_code, item_cbs_code, observed = value)
