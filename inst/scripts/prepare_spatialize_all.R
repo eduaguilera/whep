@@ -539,13 +539,14 @@ cft_to_pft <- c(
   # float32 precision.
   #
   # Zeroed, not dropped. The row set of this pin is the raster's footprint for
-  # the crop, and two consumers read absence as something other than zero: the
-  # landuse engine spreads a national area uniformly over a pair's pattern
-  # cells when the pattern carries no signal, and cannot do that for a pair
-  # with no cell at all, while `prepare_spatial_yield_index()` below
-  # coalesces a missing `harvest_fraction` to a weight of 1. Writing zero keeps
-  # both of those seeing what they saw before, so re-pinning moves no number;
-  # dropping the rows would not.
+  # the crop, and the landuse engine reads absence as something other than
+  # zero: it spreads a national area uniformly over a pair's pattern cells
+  # when the pattern carries no signal, and cannot do that for a pair with no
+  # cell at all. Writing zero keeps it seeing what it saw before, so re-pinning
+  # moves no number; dropping the rows would not. The yield weighting in
+  # `prepare_yield_inputs()` below used to be the second reason -- it promoted
+  # a missing `harvest_fraction` to a weight of 1, the largest in the table --
+  # and no longer is, because whep#1091 made an absent crop weigh zero there.
   .raster_to_tibble(r_agg, "harvest_fraction") |>
     dplyr::filter(!is.na(harvest_fraction), harvest_fraction > 0) |>
     dplyr::mutate(
@@ -1992,33 +1993,19 @@ prepare_yield_inputs <- function(
   yields_with_country <- raw_yields |>
     dplyr::inner_join(country_grid, by = c("lon", "lat"))
 
-  yields_weighted <- yields_with_country |>
+  # A cell the crop-pattern table has no row for is a cell EarthStat's
+  # harvested-area raster says the crop is ABSENT from, and its say in the
+  # country mean yield is none -- not the weight of 1.0 a `coalesce()` here
+  # used to give it, which is larger than 99.99942% of the real weights
+  # (whep#1091). The zero-weight-total fallback of whep#1070 is kept.
+  #
+  # The weighting lives in the package, next to `.crop_pattern_signal_floor()`
+  # and for the same reason: `inst/scripts` is `.Rbuildignore`d, so nothing
+  # here is under test, and this is the arithmetic that decides a published
+  # number. `tests/testthat/test_spatialize.R` pins it.
+  country_mean_yields <- yields_with_country |>
     dplyr::left_join(crop_patterns, by = c("lon", "lat", "item_prod_code")) |>
-    dplyr::mutate(weight = dplyr::coalesce(harvest_fraction, 1.0))
-
-  # A zero weight total is now reachable: whep#1070 writes an EarthStat cell
-  # whose harvested-area fraction is float residue as an exact zero, and a
-  # (country, crop) all of whose yield cells are such cells sums to zero
-  # weight. That used to divide a residue-weighted sum by a residue-weighted
-  # total -- two noise quantities whose ratio is roughly the unweighted mean --
-  # and would now be 0/0. Fall back to the unweighted mean explicitly rather
-  # than dropping the country-crop on a `NaN > 0` that is silently `NA`.
-  country_mean_yields <- yields_weighted |>
-    dplyr::summarise(
-      weight_total = sum(weight, na.rm = TRUE),
-      weighted_yield = sum(yield_t_ha * weight, na.rm = TRUE),
-      unweighted_yield = mean(yield_t_ha, na.rm = TRUE),
-      .by = c(area_code, item_prod_code)
-    ) |>
-    dplyr::mutate(
-      country_mean = dplyr::if_else(
-        weight_total > 0,
-        weighted_yield / weight_total,
-        unweighted_yield
-      )
-    ) |>
-    dplyr::select(area_code, item_prod_code, country_mean) |>
-    dplyr::filter(country_mean > 0)
+    whep:::.country_mean_yield()
 
   spatial_yield_index <- yields_with_country |>
     dplyr::inner_join(
