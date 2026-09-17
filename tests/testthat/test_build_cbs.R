@@ -4742,3 +4742,118 @@ test_that(".hist_trade_reporter_reference is empty without FAOSTAT trade", {
     c("iso3c", "item_code_trade", "element", "reporter_max") %in% names(ref)
   ))
 })
+
+# -- The pre-1962 seed back-cast (whep#699) ------------------------------------
+
+# One crop, two pre-1962 years, in one area. 1950 reports seed; 1951 does not,
+# so it is the year the back-cast has to fill. The harvested area is the same
+# area code under a DIFFERENT display label, which is the whep#699 shape:
+# `.cbs_area_labels()` names a code by source rank and first year while
+# `add_area_name()` names it from its latest polity, so the two sides of the
+# join disagree on the label for one code.
+.seed_backcast_frame <- function() {
+  tibble::tribble(
+    ~year, ~area,            ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~value,
+    1950L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "production", 100,
+    1950L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "import",     0,
+    1950L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "export",     0,
+    1950L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "seed",       10,
+    1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "production", 200,
+    1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "import",     0,
+    1951L, "Czechoslovakia", 51L,        "Wheat",   2511L,          "export",     0
+  )
+}
+
+.seed_backcast_area <- function() {
+  tibble::tribble(
+    ~year, ~area,     ~area_code, ~item_cbs, ~item_cbs_code, ~area_ha,
+    1950L, "Czechia", 51L,        "Wheat",   2511L,          50,
+    1951L, "Czechia", 51L,        "Wheat",   2511L,          80
+  )
+}
+
+.run_seed_backcast <- function(...) {
+  a <- .share_overflow_args()
+  whep:::.fill_historical_destinies(
+    .seed_backcast_frame(),
+    .seed_backcast_area(),
+    a$gdp_pop,
+    a$land_wide,
+    whep::items_full,
+    ...
+  )
+}
+
+.seed_at <- function(result, yr) {
+  result |>
+    dplyr::filter(.data$year == yr, .data$element == "seed") |>
+    dplyr::pull(.data$value)
+}
+
+test_that("the seed back-cast joins its harvested area on the code", {
+  # whep#699: the join carried `area` as well as `area_code`, and the two
+  # sides label one code by different rules, so the harvested area never
+  # arrived and the rate the fill exists to derive was never defined.
+  result <- .run_seed_backcast()
+
+  expect_equal(.seed_at(result, 1950L), 10)
+  expect_gt(.seed_at(result, 1951L), 0)
+})
+
+test_that("the seed back-cast spends its rate on the basis it came from", {
+  # `seed_rate` is t/ha under the default, so it is spent on hectares. The
+  # shipped expression multiplied it by production instead, which is t x t/ha.
+  # 10 t / 50 ha = 0.2 t/ha, carried to 1951 and spent on 80 ha = 16 t --
+  # not the 200 t x 0.2 t/ha = 40 that the unit error produced.
+  result <- .run_seed_backcast(seed_backcast = "area_rate")
+
+  expect_equal(.seed_at(result, 1951L), 16)
+})
+
+test_that("production_share reads the same fill as a seed-to-output ratio", {
+  # 10 t / 100 t = 0.1 t/t, spent on the 200 t of 1951 production = 20 t.
+  result <- .run_seed_backcast(seed_backcast = "production_share")
+
+  expect_equal(.seed_at(result, 1951L), 20)
+})
+
+test_that("the harvested-area table is keyed on the code, not the label", {
+  # `.primary_to_cbs_area()` used to aggregate on `area` too, so a code
+  # carrying two labels would reach the seed join as two rows for one
+  # `(year, area_code, item_cbs_code)` and duplicate the CBS row it matched.
+  result <- whep:::.primary_to_cbs_area(.make_flagged_primary_all("A"))
+
+  expect_false("area" %in% names(result))
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$area_ha, 1e6)
+})
+
+test_that("build_commodity_balances validates seed_backcast", {
+  expect_error(
+    build_commodity_balances(example = TRUE, seed_backcast = "production"),
+    class = "rlang_error"
+  )
+})
+
+test_that("the seed back-cast names its method and its blocked rows", {
+  expect_message(
+    .run_seed_backcast(),
+    class = "whep_seed_backcast"
+  )
+  # The rate is recovered from 1950, but the harvested area stops there, so
+  # 1951 books no seed at all. That is an absent input becoming a zero, and
+  # it is reported rather than left to be inferred from a missing row.
+  no_area_1951 <- function() {
+    a <- .share_overflow_args()
+    whep:::.fill_historical_destinies(
+      .seed_backcast_frame(),
+      dplyr::filter(.seed_backcast_area(), .data$year == 1950L),
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    )
+  }
+
+  expect_message(no_area_1951(), "booked as zero")
+  expect_equal(.seed_at(suppressMessages(no_area_1951()), 1951L), 0)
+})
