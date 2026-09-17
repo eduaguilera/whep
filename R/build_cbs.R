@@ -5301,12 +5301,26 @@ build_processing_coefs <- function(
     dplyr::filter(element == "domestic_supply") |>
     dplyr::select(-element)
 
+  # An `inner_join`, not a `left_join` (whep#1144). `dest_shares` covers only
+  # the `(year, item_cbs)` keys the world sheet books a `food`, `feed` or
+  # `other_uses` on, and a by-product this round is about to create has none.
+  # Measured on a real 1950-1965 build, a `left_join` emitted 294 of the 5,783
+  # destiny rows with `element = NA` and `value = NA` -- DDGS (161), Soy hulls
+  # (38), DDGS Barley (36), Brans (30) and Sugarbeet pulp (29), over 49 areas,
+  # all at 1961-1965. A row with no element is not a balance row.
+  #
+  # The supply side of those keys is unaffected: `base` keeps their
+  # `domestic_supply`, and `.fill_default_destiny()` books it on the item's
+  # `default_destiny` (`Feed` for all five) at the final balance. That is
+  # already where the published `feed` of these items comes from -- it equals
+  # their `domestic_supply` to the tonne over the whole build.
   destiny_rows <- ds_vals |>
-    dplyr::left_join(
+    dplyr::inner_join(
       dest_shares,
       by = c("year", "item_cbs")
     ) |>
-    dplyr::mutate(value = value * dest_share)
+    dplyr::mutate(value = value * dest_share) |>
+    dplyr::select(-dest_share)
 
   dplyr::bind_rows(base, destiny_rows) |>
     dplyr::left_join(
