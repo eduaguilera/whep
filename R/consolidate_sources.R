@@ -164,12 +164,13 @@
 #'     winners. Use it for a source whose observations are deliberately sparse,
 #'     which would otherwise lose every anchor to the override. Default:
 #'     `NULL`.
-#' @param verbose Logical. Report the drop count, any resolved quality variants,
-#'   name-order ties, and continuity reversions. Default: `TRUE`.
+#' @param verbose Logical. Report the drop count, how many rows took a
+#'   scope-specific priority rank, any resolved quality variants, name-order
+#'   ties, and continuity reversions. Default: `TRUE`.
 #'
 #' @return
 #'   A tibble with the winning row per (`.by`, `time_col`) cell, the original
-#'   columns of `data`, and four added provenance columns: `n_sources` (distinct
+#'   columns of `data`, and five added provenance columns: `n_sources` (distinct
 #'   sources contesting the cell after the hard drop), `source_rank` (the
 #'   winner's base priority rank), `effective_rank` (base rank plus any measure
 #'   penalty applied), `measure_demoted` (whether the winner carried the

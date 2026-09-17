@@ -104,8 +104,9 @@ which would otherwise lose every anchor to the override. Default:
 \code{NULL}.
 }}
 
-\item{verbose}{Logical. Report the drop count, any resolved quality variants,
-name-order ties, and continuity reversions. Default: \code{TRUE}.}
+\item{verbose}{Logical. Report the drop count, how many rows took a
+scope-specific priority rank, any resolved quality variants, name-order
+ties, and continuity reversions. Default: \code{TRUE}.}
 
 \item{priority_scope}{One of \code{"specific"} (default) or \code{"source"}, selecting
 how a scoped \code{priority} table is read. \code{"specific"} honours the scope
@@ -117,7 +118,7 @@ run that says what the scope is worth. No effect on an unscoped
 }
 \value{
 A tibble with the winning row per (\code{.by}, \code{time_col}) cell, the original
-columns of \code{data}, and four added provenance columns: \code{n_sources} (distinct
+columns of \code{data}, and five added provenance columns: \code{n_sources} (distinct
 sources contesting the cell after the hard drop), \code{source_rank} (the
 winner's base priority rank), \code{effective_rank} (base rank plus any measure
 penalty applied), \code{measure_demoted} (whether the winner carried the
