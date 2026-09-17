@@ -1084,3 +1084,90 @@ testthat::test_that("the reallocated carbon survives into build_carbon_inputs", 
   cropland <- run[run$land_use == "cropland", ]
   testthat::expect_equal(nrow(cropland), 2L)
 })
+
+# -- Reallocated carbon keeps its nitrogen (#1123) ----------------------------
+
+# The unspatialized fixture with a nitrogen on every component that has one in
+# a real build: `.sci_npp_from_primary_prod()` carries residue_soil_n_t and
+# root_n_t, and the manure stream carries applied_n. Weeds deliberately carry
+# none (see `.sci_npp_component()`), so the C:N below is formed from the
+# residue, root and manure carbon only.
+.sci_unspatialized_n_data <- function() {
+  data <- .sci_unspatialized_data()
+  data$npp$residue_soil_n_t <- data$npp$residue_soil_c_t / 80
+  data$npp$root_n_t <- data$npp$root_c_t / 50
+  data$manure$applied_n <- data$manure$applied_c / 12
+  data
+}
+
+# Crop 27's own input C:N: its residue (30 Mg C at 80), root (10 at 50) and
+# manure (10 at 12) carbon over the nitrogen those three carry.
+.sci_crop27_input_cn <- function() {
+  (30 + 10 + 10) / (30 / 80 + 10 / 50 + 10 / 12)
+}
+
+testthat::test_that("a reallocated crop keeps its own input C:N", {
+  run <- .sci_run_reporting(
+    resolution = "polity",
+    data = .sci_unspatialized_n_data()
+  )
+  crop27 <- run$out[run$out$item_prod_code == "27", ]
+  testthat::expect_false(is.na(crop27$input_cn))
+  testthat::expect_equal(crop27$input_cn, .sci_crop27_input_cn())
+})
+
+testthat::test_that("reallocation conserves the component nitrogen", {
+  data <- .sci_unspatialized_n_data()
+  run <- .sci_run_reporting(resolution = "grid", data = data)
+  crop27 <- run$out[run$out$item_prod_code == "27", ]
+  # The per-cell density is the national density on every cell, so the same
+  # ratio holds cell by cell as well as for the polity.
+  testthat::expect_equal(crop27$input_cn, rep(.sci_crop27_input_cn(), 2))
+  # And the nitrogen the cells carry adds back to the polity nitrogen: the
+  # carbon that matched a nitrogen, over the ratio, on each cell.
+  matched_c <- (30 + 10 + 10) * crop27$crop_area_ha / sum(crop27$crop_area_ha)
+  testthat::expect_equal(
+    sum(matched_c / crop27$input_cn),
+    30 / 80 + 10 / 50 + 10 / 12
+  )
+})
+
+testthat::test_that("a branch that drops the nitrogen is refused", {
+  # The defect both #1058 and #1123 were: a terminal select that keeps the
+  # carbon and loses the nitrogen beside it. `.sci_sum_components()` rebuilds
+  # the column as NA, so only a guard on the branch itself can see it.
+  testthat::expect_error(
+    whep:::.sci_check_gridded_n(tibble::tibble(c_mass_mg = 1)),
+    "n_mass_mg"
+  )
+  kept <- tibble::tibble(c_mass_mg = 1, n_mass_mg = 0.1)
+  testthat::expect_identical(whep:::.sci_check_gridded_n(kept), kept)
+  testthat::expect_null(whep:::.sci_check_gridded_n(NULL))
+})
+
+testthat::test_that("the reallocating branch is guarded, not just the matched one", {
+  # A matched branch that keeps the column must not excuse a reallocating one
+  # that does not: the guard runs per branch, so mocking the reallocation to
+  # drop it still aborts.
+  data <- .sci_unspatialized_n_data()
+  testthat::local_mocked_bindings(
+    .sci_reallocate = function(chunk, weights, fallback, harvested_area) {
+      tibble::tibble(
+        lon = 0.25,
+        lat = 0.25,
+        area_code = 1L,
+        item_prod_code = "27",
+        year = 2020L,
+        input_type = "root",
+        c_mass_mg = 1,
+        crop_area_ha = 1
+      )
+    }
+  )
+  testthat::expect_error(
+    suppressWarnings(
+      whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+    ),
+    "n_mass_mg"
+  )
+})
