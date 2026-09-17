@@ -207,7 +207,15 @@
 #'
 #'   **The default moves published values**, because neither is what shipped:
 #'   a rate defined per hectare used to be spent on production, giving
-#'   `t x t/ha`. `PLACEHOLDER_SEED_MEASURED`
+#'   `t x t/ha`. Measured on a real 1850-2023 build, pre-1962 `seed` falls
+#'   from 38.62 Gt to 7.13 Gt while the number of keys carrying one rises
+#'   from 87,882 to 118,332, total tonnage moves -0.934% and pre-1962
+#'   tonnage -2.716%, and no 1962-or-later value changes at all. World seed
+#'   at 1960 goes from 680.3 Mt to 77.7 Mt against the 126.1 Mt FAOSTAT
+#'   reports for 1961, and [check_series_jumps()] on `seed` over 1950-1970
+#'   falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
+#'   than 295. Under `"production_share"` pre-1962 `seed` is 5.22 Gt, total
+#'   tonnage moves -1.023%, and the seam holds 5 jumps.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
