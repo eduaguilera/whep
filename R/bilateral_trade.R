@@ -308,22 +308,107 @@ get_bilateral_trade <- function(
     )
 }
 
+# Put either published shape of the `bilateral_trade` data onto the six
+# columns the rest of this file works in.
+#
+# The alias has been published in two schemas that share exactly one column
+# name, `area_code` (whep#1122):
+#
+# - the live pin `20250714T123347Z-2c392`, the predecessor pipeline's:
+#   `Year, area_code, area_code_p, Element, item, Unit, Value, area, area_p,
+#   Country_share` -- the partner keyed as `area_code_p`, the item carried as
+#   a CBS item *name*, `Element` capitalised;
+# - what `build_detailed_trade()`, this package's own producer, emits: the
+#   partner as `area_code_partner`, the item already resolved to
+#   `item_cbs_code`, `element` lower case, plus the polity columns.
+#
+# So the three columns that differ are resolved by what is present rather
+# than by a pin version, and a frame carrying neither spelling aborts naming
+# what it holds. Reading both is what lets the reader and the pin be updated
+# in either order; without it, uploading a regenerated pin breaks
+# `get_bilateral_trade()` and the live-animal branch of the commodity balance
+# at the same moment.
 .clean_bilateral_trade <- function(btd) {
   btd <- dplyr::rename_with(btd, tolower)
+  partner <- .btd_partner_column(btd)
   btd$unit[btd$unit == "Head"] <- "heads"
-  is_export <- btd$element == "Export"
-  from <- btd$area_code_p
+  btd$element <- stringr::str_to_lower(btd$element)
+  is_export <- btd$element == "export"
+  from <- btd[[partner]]
   from[is_export] <- btd$area_code[is_export]
   to <- btd$area_code
-  to[is_export] <- btd$area_code_p[is_export]
+  to[is_export] <- btd[[partner]][is_export]
   btd$from_code <- as.integer(from)
   btd$to_code <- as.integer(to)
   btd$year <- as.integer(btd$year)
 
-  btd$item_cbs_code <- .match_btd_item_codes(btd$item)
+  btd$item_cbs_code <- .btd_item_codes(btd)
 
-  btd <- .prefer_flow_direction(btd, "Export")
+  btd <- .prefer_flow_direction(btd, "export")
   btd[c("year", "from_code", "to_code", "item_cbs_code", "unit", "value")]
+}
+
+# The partner-country key, under whichever of the two spellings the data
+# carries. `area_code_partner` wins when both are present, because that is
+# the producer's own name for it.
+.btd_partner_column <- function(btd) {
+  partner <- intersect(c("area_code_partner", "area_code_p"), names(btd))
+  if (length(partner) == 0) {
+    cli::cli_abort(
+      c(
+        "Bilateral trade data has no partner-country column.",
+        "i" = "Expected {.field area_code_partner} \\
+               ({.fun build_detailed_trade}) or {.field area_code_p} \\
+               (the 2025-07-14 pin).",
+        "i" = "Columns present: {.field {names(btd)}}."
+      ),
+      class = "whep_btd_schema"
+    )
+  }
+  partner[[1]]
+}
+
+# CBS item codes, from whichever item key the data carries. The producer
+# resolves them itself, so they are taken as given; the name-keyed pin needs
+# `.match_btd_item_codes()`, which warns on anything it cannot resolve.
+#
+# A code the producer left `NA` is dropped by the CBS inner join later on,
+# exactly as an unresolved name is, so it is reported the same way rather
+# than passed through silently.
+.btd_item_codes <- function(btd) {
+  if (rlang::has_name(btd, "item_cbs_code")) {
+    codes <- as.integer(btd$item_cbs_code)
+    .report_missing_btd_codes(codes)
+    return(codes)
+  }
+  if (rlang::has_name(btd, "item")) {
+    return(.match_btd_item_codes(btd$item))
+  }
+  cli::cli_abort(
+    c(
+      "Bilateral trade data has no item column.",
+      "i" = "Expected {.field item_cbs_code} ({.fun build_detailed_trade}) \\
+             or {.field item} (the 2025-07-14 pin).",
+      "i" = "Columns present: {.field {names(btd)}}."
+    ),
+    class = "whep_btd_schema"
+  )
+}
+
+.report_missing_btd_codes <- function(codes) {
+  n_missing <- sum(is.na(codes))
+  if (n_missing == 0) {
+    return(invisible(codes))
+  }
+  cli::cli_warn(
+    c(
+      "{n_missing} bilateral trade row{?s} carr{?ies/y} no \\
+       {.field item_cbs_code} and will be dropped.",
+      "i" = "{.fun build_detailed_trade} drops its own unmapped items, so a \\
+             missing code here means the data was not built by it."
+    ),
+    class = "whep_btd_item_code_missing"
+  )
 }
 
 # Resolve the bilateral trade pin's `item` strings to CBS item codes.
