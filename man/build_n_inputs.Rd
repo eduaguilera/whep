@@ -8,6 +8,7 @@ build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  method_unsupported = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -23,6 +24,23 @@ keeps every year the assembled inputs cover.}
 \item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
 \code{"area_share"}. When \code{NULL} (default), uses
 \code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
+
+\item{method_unsupported}{What happens to non-item nitrogen (deposition,
+urban, soil-organic-matter mineralization, unattributed manure) whose own
+cell-year carries no cropland support at all. \code{"abort"} (the default, and
+the behaviour before this argument existed) refuses to continue and names
+the streams and the mass, so a coverage gap cannot be lost silently.
+\code{"reallocate"} spreads each such row over its own polity-year's cropland
+support in proportion to area, which conserves mass and is the same rule
+\code{spatialize_country_n_to_crops()} already applies to a polity-crop with
+no crop-pattern cell; it still aborts when the polity-year has no cropland
+support anywhere. \code{"reallocate_drop"} places the same rows the same way
+and then discards that irreducible remainder, warning with its mass, so a
+global build is not refused over a few polities with population and no
+cropland. \code{"drop"} reallocates nothing and discards every such row.
+Whichever is chosen is stamped on every output row as
+\code{method_unsupported}. May also be supplied as \code{data$method_unsupported},
+which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} forwards it.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -93,6 +111,9 @@ conserving) or \code{"area_share"} (harvested-area shares only).
 \link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
 \code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
 \code{synthetic_method = "coello"}.
+\item \code{method_unsupported}: the \code{method_unsupported} argument, supplied on
+\code{data} instead, so that \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} can select it by
+forwarding its own \code{data} list.
 \item \code{gridded}, \code{resolution}, \code{methods}: forwarded to
 \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}. \code{resolution} is the manure engine's
 own axis, not this function's: it defaults to \code{"subnational"} at
@@ -107,10 +128,11 @@ real data. Defaults to \code{FALSE}.}
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}. At
+\code{method_deposition_scope}, \code{method_unsupported}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
-\code{method_deposition}, \code{method_deposition_scope}, \code{n_input_t} (summed over
+\code{method_deposition}, \code{method_deposition_scope}, \code{method_unsupported},
+\code{n_input_t} (summed over
 cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
@@ -127,6 +149,8 @@ carrying no tag of its own), so a corrected field stays visible here.
 which of the polycell's territory the \code{"deposition"} term was credited
 with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
 \code{fert_type}.
+\code{method_unsupported} records the rule applied to non-item nitrogen with no
+cropland support in its own cell, and is the same on every row.
 Both grains also carry the polity columns below, plus
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
