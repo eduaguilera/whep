@@ -1293,6 +1293,7 @@ testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
     area_category = categories,
     deposition_kgn_ha = 1000,
     deposition_n_t = c(600, 300, 100)[seq_along(categories)],
+    method_deposition = "hani",
     method_area_split = method
   )
 }
@@ -1360,6 +1361,54 @@ testthat::test_that("C3b: the scope is recorded, and only on deposition rows", {
   testthat::expect_true(all(
     polity$method_deposition_scope[polity$fert_type == "deposition"] ==
       "territory"
+  ))
+})
+
+testthat::test_that("the deposition field's provenance reaches the ledger", {
+  # #1105. `method_deposition_scope` says which territory the term was
+  # credited with; `method_deposition` says which PRODUCT it came from, and
+  # that is the axis a corrected field moves along. Injecting one through
+  # `data$nhx`/`data$noy` is exactly the documented route (#1097), so a run on
+  # a corrected field and a run on plain HaNi must not be indistinguishable
+  # once they reach the ledger.
+  data <- .nbi_full_data()
+  out <- whep::build_n_inputs(data = data)
+  dep <- out$fert_type == "deposition"
+
+  testthat::expect_true(rlang::has_name(out, "method_deposition"))
+  testthat::expect_true(all(out$method_deposition[dep] == "supplied"))
+  testthat::expect_true(all(is.na(out$method_deposition[!dep])))
+
+  corrected <- data
+  corrected$nhx <- dplyr::mutate(
+    .nbi_nhx(),
+    method_deposition = "hani_emep_corrected"
+  )
+  corrected$noy <- dplyr::mutate(
+    .nbi_noy(),
+    method_deposition = "hani_emep_corrected"
+  )
+  fixed <- whep::build_n_inputs(data = corrected)
+  fixed_dep <- fixed$fert_type == "deposition"
+
+  testthat::expect_true(
+    all(fixed$method_deposition[fixed_dep] == "hani_emep_corrected")
+  )
+  # The label is a label: the same field under a different name moves no
+  # tonne, so this column can be added to a published schema without moving
+  # a published number.
+  testthat::expect_equal(
+    sum(fixed$n_input_t[fixed_dep]),
+    sum(out$n_input_t[dep])
+  )
+
+  # And it survives the polity aggregation, where a method column that is not
+  # a grouping key would collapse two products into one row.
+  polity <- whep::build_n_inputs(data = corrected, resolution = "polity")
+  testthat::expect_true(rlang::has_name(polity, "method_deposition"))
+  testthat::expect_true(all(
+    polity$method_deposition[polity$fert_type == "deposition"] ==
+      "hani_emep_corrected"
   ))
 })
 
