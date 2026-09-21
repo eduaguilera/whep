@@ -2,12 +2,11 @@
 
 Reconstruct per-cell soil-organic-carbon stock trajectories: run the
 selected turnover model to equilibrium under the earliest per-land-use
-carbon inputs, initialise each cell by weighting those equilibria with
-the earliest land-use fractions, march forward on yearly per-cell
-per-land-use areas applying the model annual update plus a
-carbon-conserving land-use-change transfer, and derive the
-soil-organic-nitrogen change from the carbon rate via asymmetric soil
-carbon-to-nitrogen ratios.
+carbon inputs, open each land-use class at the stock `init` selects,
+march forward on yearly per-cell per-land-use areas applying the model
+annual update plus a carbon-conserving land-use-change transfer, and
+derive the soil-organic-nitrogen change from the carbon rate via
+asymmetric soil carbon-to-nitrogen ratios.
 
 ## Usage
 
@@ -50,14 +49,19 @@ pipeline.
 
 - init:
 
-  How each land-use class's opening stock is set. `"own_equilibrium"`
-  (default) starts every class at the stock its own carbon input and
-  climate support. `"cell_average"` starts every class in a cell at the
+  How each land-use class's opening stock is set. Neither option is the
+  physical one and the default is **not** settled evidence; the
+  measurements behind both sit on `.cb_init_density()` in the source.
+  `"own_equilibrium"` (default) starts every class at the stock its own
+  carbon input and climate support: it removes the opening transient the
+  balance would otherwise report as soil nitrogen mineralization, at the
+  cost of opening cropland at roughly a third of the carbon measured in
+  those soils. `"cell_average"` starts every class in a cell at the
   fraction-weighted mean of the classes sharing it, the Spain historical
-  behaviour: a proxy for land converted from something richer, at the
-  cost of opening the lowest-input class far above its own target and
-  draining it for decades, which the balance then reports as soil
-  nitrogen mineralization. Recorded in `method_soc_init`.
+  behaviour: it opens cropland near its observed stock, as a proxy for
+  the legacy carbon of the vegetation it replaced, at the cost of then
+  draining that stock toward an equilibrium whep#799 puts several-fold
+  too low. Recorded in `method_soc_init`.
 
 - resolution:
 
@@ -80,8 +84,11 @@ pipeline.
 
 - data:
 
-  Named list of pre-loaded inputs, each falling back to its reader when
-  absent: `c_inputs` (per cell, land-use class and year, with
+  Named list of pre-loaded inputs. Every entry named below falls back to
+  its reader when absent EXCEPT the two grazing entries at the end,
+  which have no reader at all and must be supplied under the default
+  `method_grazing = "whep"`; the entries that do fall back are
+  `c_inputs` (per cell, land-use class and year, with
   `c_input_mgc_ha_yr` and `humified_fraction`); `land_use` (yearly
   per-cell per-class `lon`, `lat`, `area_code`, `year`, `land_use`,
   `area_ha`); `climate` (either a precomputed per cell-year
@@ -120,8 +127,12 @@ pipeline.
   supplied: `livestock_intake` (the
   [`redistribute_feed`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
   result) and `excreta` (the `applied` stream of
-  [`build_livestock_nutrient_flows`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)),
-  both required by the default `method_grazing = "whep"`.
+  [`build_livestock_nutrient_flows`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)).
+  These are the two with no reader behind them – `excreta` is a
+  livestock-pipeline output, not a readable input – so under the default
+  `method_grazing = "whep"` a call that omits either is refused straight
+  away, before any input is read. Pass `method_grazing = "lpjml"` to
+  charge the grassland the model's own grazing and need neither.
 
 - years:
 

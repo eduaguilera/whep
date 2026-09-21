@@ -21,7 +21,8 @@ cannot silently discard or invent an allocation for that residual.
 
 The per-crop (`item_cbs_code`) granularity is preserved so the footprint
 can be traced to origin (locked plan decision 14). Rows with a missing
-key are dropped defensively; zero-impact crops are kept because they
+key are dropped defensively and the excluded impact is reported with a
+warning, never dropped silently; zero-impact crops are kept because they
 still consume trade.
 
 ## Usage

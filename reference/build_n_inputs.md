@@ -181,19 +181,26 @@ build_n_inputs(
 
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
-`method_synthetic`, `method_deposition_scope`. At
+`method_synthetic`, `method_deposition`, `method_deposition_scope`. At
 `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 `fert_type`, `method_recycling_n`, `method_synthetic`,
-`method_deposition_scope`, `n_input_t` (summed over cells).
-`method_recycling_n` records which residue basis the `"recycling"` term
-used: `"residue_soil_returned"` when the upstream NPP input supplied
-`residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-`"total_residue"` when only gross residue N was available; it is `NA`
-for every other `fert_type`. `method_synthetic` records the synthetic
-crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
-and is `NA` for every other `fert_type`. `method_deposition_scope`
+`method_deposition`, `method_deposition_scope`, `n_input_t` (summed over
+cells). `method_recycling_n` records which residue basis the
+`"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
+input supplied `residue_soil_dm_t` (residue N net of removal for
+feed/fuel/burning) or `"total_residue"` when only gross residue N was
+available; it is `NA` for every other `fert_type`. `method_synthetic`
+records the synthetic crop-split basis (`"coello"` or `"area_share"`) on
+`"synthetic"` rows and is `NA` for every other `fert_type`.
+`method_deposition` records which deposition product the `"deposition"`
+term's field came from, read off the supplied `nhx`/`noy` by
+[`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
+(`"hani"` for
+[`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s
+own rows, `"supplied"` for an injected field carrying no tag of its
+own), so a corrected field stays visible here. `method_deposition_scope`
 records which of the polycell's territory the `"deposition"` term was
-credited with (`"territory"` or `"land"`) and is `NA` for every other
+credited with (`"territory"` or `"land"`). Both are `NA` for every other
 `fert_type`. Both grains also carry the polity columns below, plus
 `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 
@@ -269,7 +276,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 14
+#> # A tibble: 9 × 15
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -281,8 +288,8 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
-#> #   method_recycling_n <chr>, method_synthetic <chr>,
+#> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
 #> #   method_deposition_scope <chr>
 ```

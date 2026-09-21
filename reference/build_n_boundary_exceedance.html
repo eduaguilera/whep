@@ -13,7 +13,12 @@ or numerically near-zero pressure denominators keep the complete cell result
 but allocate no crop share; an explicit cell_residual record carries the
 unallocated critical allowance, signed margin and positive overshoot. APIs
 requiring complete crop attribution hard-error rather than fabricate a
-fallback.'><meta property="og:description" content='Compares WHEP crop nitrogen pressure with the deposited Schulte-Uebbing et
+fallback.
+Actual-pressure rows naming no crop cannot meet a critical allowance and are
+excluded before the cell comparison. The exclusion is reported, never
+silent: a message names the rows and the pressure they carried when that
+pressure is zero (the only case a gridded build_nitrogen_balance()
+produces), and a warning when it is not.'><meta property="og:description" content='Compares WHEP crop nitrogen pressure with the deposited Schulte-Uebbing et
 al. (2022) 2010 yield-gap critical surface. The calculation first aggregates
 every crop and polity contribution in a source cell, compares that one cell
 pressure with one critical allowance, and only then attributes the cell
@@ -27,7 +32,12 @@ or numerically near-zero pressure denominators keep the complete cell result
 but allocate no crop share; an explicit cell_residual record carries the
 unallocated critical allowance, signed margin and positive overshoot. APIs
 requiring complete crop attribution hard-error rather than fabricate a
-fallback.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+fallback.
+Actual-pressure rows naming no crop cannot meet a critical allowance and are
+excluded before the cell comparison. The exclusion is reported, never
+silent: a message names the rows and the pressure they carried when that
+pressure is zero (the only case a gridded build_nitrogen_balance()
+produces), and a warning when it is not.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -82,6 +92,11 @@ but allocate no crop share; an explicit <code>cell_residual</code> record carrie
 unallocated critical allowance, signed margin and positive overshoot. APIs
 requiring complete crop attribution hard-error rather than fabricate a
 fallback.</p>
+<p>Actual-pressure rows naming no crop cannot meet a critical allowance and are
+excluded before the cell comparison. The exclusion is reported, never
+silent: a message names the rows and the pressure they carried when that
+pressure is zero (the only case a gridded <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code>
+produces), and a warning when it is not.</p>
     </div>
 
     <div class="section level2">

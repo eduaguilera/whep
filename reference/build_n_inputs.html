@@ -230,19 +230,27 @@ real data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. At <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>n_input_t</code>,
-<code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition_scope</code>. At
+<code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition</code>,
+<code>method_deposition_scope</code>. At
 <code>resolution = "polity"</code>: <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
 <code>fert_type</code>, <code>method_recycling_n</code>, <code>method_synthetic</code>,
-<code>method_deposition_scope</code>, <code>n_input_t</code> (summed over cells).
+<code>method_deposition</code>, <code>method_deposition_scope</code>, <code>n_input_t</code> (summed over
+cells).
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
 used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
 <code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
 <code>"total_residue"</code> when only gross residue N was available; it is <code>NA</code> for
 every other <code>fert_type</code>. <code>method_synthetic</code> records the synthetic
 crop-split basis (<code>"coello"</code> or <code>"area_share"</code>) on <code>"synthetic"</code> rows and
-is <code>NA</code> for every other <code>fert_type</code>. <code>method_deposition_scope</code> records
+is <code>NA</code> for every other <code>fert_type</code>. <code>method_deposition</code> records which
+deposition product the <code>"deposition"</code> term's field came from, read off
+the supplied <code>nhx</code>/<code>noy</code> by <code><a href="build_n_deposition.html">build_n_deposition()</a></code> (<code>"hani"</code> for
+<code><a href="read_n_deposition.html">read_n_deposition()</a></code>'s own rows, <code>"supplied"</code> for an injected field
+carrying no tag of its own), so a corrected field stays visible here.
+<code>method_deposition_scope</code> records
 which of the polycell's territory the <code>"deposition"</code> term was credited
-with (<code>"territory"</code> or <code>"land"</code>) and is <code>NA</code> for every other <code>fert_type</code>.
+with (<code>"territory"</code> or <code>"land"</code>). Both are <code>NA</code> for every other
+<code>fert_type</code>.
 Both grains also carry the polity columns below, plus
 <code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>.</p>
     </div>
@@ -300,7 +308,7 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 14</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 15</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
@@ -312,9 +320,9 @@ column.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_cbs_code &lt;int&gt;, fert_type &lt;chr&gt;, n_input_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;, method_deposition &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
