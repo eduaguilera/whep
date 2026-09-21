@@ -1469,3 +1469,42 @@ testthat::test_that("a conserving basis that lost mass aborts", {
     density
   )
 })
+
+testthat::test_that("the whep grazing method names both missing inputs", {
+  # whep#1120 moved this refusal behind a pair of shared helpers so
+  # `build_carbon_balance()` can raise the same message at its entry. Nothing
+  # pinned the message before, so pin it here: it must name whichever of the
+  # two is absent, say that neither has a reader, and offer the "lpjml" way
+  # out.
+  neither <- .gn_fixture_data(excreta = FALSE, intake = FALSE)
+  testthat::expect_error(
+    .gn_build_npp(data = neither, method_grazing = "whep"),
+    "livestock_intake"
+  )
+  testthat::expect_error(
+    .gn_build_npp(data = neither, method_grazing = "whep"),
+    "excreta"
+  )
+  testthat::expect_error(
+    .gn_build_npp(
+      data = .gn_fixture_data(excreta = TRUE, intake = FALSE),
+      method_grazing = "whep"
+    ),
+    "livestock_intake"
+  )
+  testthat::expect_error(
+    .gn_build_npp(
+      data = .gn_fixture_data(excreta = FALSE, intake = TRUE),
+      method_grazing = "whep"
+    ),
+    "excreta"
+  )
+  testthat::expect_equal(
+    whep:::.gn_missing_grazing_inputs(neither),
+    c("livestock_intake", "excreta")
+  )
+  testthat::expect_equal(
+    whep:::.gn_missing_grazing_inputs(list(livestock_intake = 1, excreta = 1)),
+    NULL
+  )
+})

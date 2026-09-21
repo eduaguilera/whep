@@ -916,19 +916,9 @@ build_grass_natural_carbon_inputs <- function(
 # other, and with neither it would silently become ungrazed grassland -- an
 # input LPJmL's own grazing was, at least, subtracted from.
 .gn_check_whep_grazing <- function(d, years) {
-  missing <- c(
-    if (is.null(d$livestock_intake)) "livestock_intake",
-    if (is.null(d$excreta)) "excreta"
-  )
+  missing <- .gn_missing_grazing_inputs(d)
   if (length(missing) > 0) {
-    cli::cli_abort(c(
-      "{.code method_grazing = \"whep\"} needs {.field data${missing}}.",
-      i = "{.field livestock_intake} is the {.fun redistribute_feed} result
-           and {.field excreta} the {.field applied} stream of
-           {.fun build_livestock_nutrient_flows}.",
-      i = "Use {.code method_grazing = \"lpjml\"} to charge the grassland the
-           model's own grazing instead."
-    ))
+    .gn_abort_missing_grazing(missing)
   }
   .check_columns(
     d$livestock_intake,
@@ -936,6 +926,43 @@ build_grass_natural_carbon_inputs <- function(
     "data$livestock_intake"
   )
   .gn_check_grazing_years(d$livestock_intake, years)
+}
+
+# Which of the two the caller did not supply. Split out of the check above so
+# an entry point can ask the same question before it reads anything: the check
+# above is unavoidably late, because it sits behind the grassland layer (a
+# layer with no grassland must not demand grazing inputs at all), and
+# `build_carbon_balance()` on its own defaults therefore spent 5m37s reading
+# the cropland inputs, the LUH2 areas and the 537 MB grassland pin before
+# reaching it (whep#1120). Neither input has a reader to fall back on --
+# `excreta` is a livestock-pipeline output, not a readable one -- so absence
+# is decidable from `data` alone.
+.gn_missing_grazing_inputs <- function(data) {
+  c(
+    if (is.null(data$livestock_intake)) "livestock_intake",
+    if (is.null(data$excreta)) "excreta"
+  )
+}
+
+# One wording for the refusal, wherever it is raised, so an early entry check
+# and the late layer check cannot drift into two different remedies.
+.gn_abort_missing_grazing <- function(missing, call = rlang::caller_env()) {
+  # Prefix each name, not just the first: `data${missing}` put the `data$`
+  # outside cli's collapse, so two missing inputs read "data$livestock_intake
+  # and excreta" and named only one of them in full.
+  wanted <- paste0("data$", missing)
+  cli::cli_abort(
+    c(
+      "{.code method_grazing = \"whep\"} needs {.field {wanted}}.",
+      i = "{.field livestock_intake} is the {.fun redistribute_feed} result
+           and {.field excreta} the {.field applied} stream of
+           {.fun build_livestock_nutrient_flows}. Neither has a reader to
+           fall back on, so both must be supplied through {.arg data}.",
+      i = "Use {.code method_grazing = \"lpjml\"} to charge the grassland the
+           model's own grazing instead."
+    ),
+    call = call
+  )
 }
 
 # A year the intake table does not reach at all is a gap in WHEP's feed
