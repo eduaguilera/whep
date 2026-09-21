@@ -21,6 +21,13 @@
 # support carries crop CBS items; all pasture/rangeland support uses CBS 3000
 # without claiming a hard intensive/extensive historical split.
 #
+# Where that no-crop nitrogen goes is a choice, not a fact, so it is selectable
+# (`unattributed_method`) and stamped in `method_unattributed` (whep#532). The
+# default reproduces the cropland-only rule above; `"agricultural_area"` also
+# offers it the grassland support; `"exclude"` drops it, which is the behaviour
+# that silently cost the gridded surplus 1.66 Tg of manure N, kept only so the
+# tonnage stays measurable by differencing.
+#
 # accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
 # from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
 # was not available for this task. It is listed in the fert_type vocabulary
@@ -72,6 +79,19 @@
 #' @param synthetic_method Synthetic-N crop allocation method, `"coello"` or
 #'   `"area_share"`. When `NULL` (default), uses
 #'   `data$synthetic_method %||% "coello"` for backwards compatibility.
+#' @param unattributed_method Where nitrogen that reached agricultural land but
+#'   no single crop goes -- manure the engine placed on Cropland or landed by
+#'   transport without a crop, plus deposition, urban N and SOM mineralization,
+#'   all of which carry `item_cbs_code = NA`. `"cropland_area"` (default)
+#'   spreads it over the cell-year's cropland support in proportion to each
+#'   crop's hectares; `"agricultural_area"` spreads it over cropland *and*
+#'   grassland support (CBS 3000), which is the land the manure engine's own
+#'   transport sizing already counts as available room; `"exclude"` drops it,
+#'   the pre-whep#532 behaviour, retained as a measurable sensitivity and not
+#'   as a fallback -- it warns with the excluded tonnage by stream. The
+#'   allocating methods conserve mass or abort; `"exclude"` does not conserve
+#'   it. When `NULL` (default), uses
+#'   `data$unattributed_method %||% "cropland_area"`.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
 #' @inheritParams build_water_balance
@@ -168,12 +188,12 @@
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_unsupported`. At
+#'   `method_deposition_scope`, `method_unsupported`,
+#'   `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
 #'   `method_deposition`, `method_deposition_scope`, `method_unsupported`,
-#'   `n_input_t` (summed over
-#'   cells).
+#'   `method_unattributed`, `n_input_t` (summed over cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
@@ -191,6 +211,10 @@
 #'   `fert_type`.
 #'   `method_unsupported` records the rule applied to non-item nitrogen with no
 #'   cropland support in its own cell, and is the same on every row.
+#'   `method_unattributed` records the `unattributed_method` the whole assembly
+#'   ran under and is stamped on **every** row, not only on the reallocated
+#'   ones: under `"exclude"` no reallocated row survives to carry it, and a
+#'   choice that removes nitrogen has to stay readable from the table.
 #'   Both grains also carry the polity columns below, plus
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
@@ -202,6 +226,7 @@ build_n_inputs <- function(
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
   method_unsupported = NULL,
+  unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -221,6 +246,12 @@ build_n_inputs <- function(
     data$method_unsupported <- rlang::arg_match(
       method_unsupported,
       c("abort", "reallocate", "reallocate_drop", "drop")
+    )
+  }
+  if (!is.null(unattributed_method)) {
+    data$unattributed_method <- rlang::arg_match(
+      unattributed_method,
+      .ni_unattributed_methods()
     )
   }
   data$.n_input_resolution <- resolution
@@ -355,7 +386,8 @@ build_n_inputs <- function(
 # and `method_deposition_scope` are the deposition term's two provenance axes
 # and are likewise NA elsewhere: the first names the PRODUCT the field came
 # from, the second which of the polycell's territory it was credited with.
-.ni_schema <- function() {
+# Both are per-source, so they live here rather than on the assembled schema.
+.ni_source_schema <- function() {
   c(
     "lon",
     "lat",
@@ -390,6 +422,13 @@ build_n_inputs <- function(
   method %in% c("drop", "reallocate_drop")
 }
 
+# The assembled schema: the per-source columns plus the assembly-wide
+# `method_unattributed` stamp, which is added once by
+# .ni_allocate_unattributed() rather than by each source helper.
+.ni_schema <- function() {
+  c(.ni_source_schema(), "method_unattributed")
+}
+
 .ni_filter_years <- function(x, years) {
   if (is.null(years)) {
     return(x)
@@ -412,6 +451,19 @@ build_n_inputs <- function(
     )
   }
   x
+}
+
+# The unattributed-nitrogen policy, validated once and read from `data` by the
+# allocation helper (which is also called directly, and by build_nitrogen_
+# balance(), without a second argument each). "cropland_area" is the historical
+# rule and the default, so an unset value moves no published number.
+.ni_unattributed_method <- function(data) {
+  unattributed_method <- data$unattributed_method %||% "cropland_area"
+  rlang::arg_match(unattributed_method, .ni_unattributed_methods())
+}
+
+.ni_unattributed_methods <- function() {
+  c("cropland_area", "agricultural_area", "exclude")
 }
 
 # The manure engine's OWN resolution, which is a different axis from this
@@ -478,7 +530,8 @@ build_n_inputs <- function(
         "method_synthetic",
         "method_deposition",
         "method_deposition_scope",
-        "method_unsupported"
+        "method_unsupported",
+        "method_unattributed"
       )
     )
 }
@@ -1095,9 +1148,9 @@ build_n_inputs <- function(
 }
 
 # `.source_row` numbers each non-item row so its mass is split across the
-# cropland support of its own cell-year, and so the rows the inner join drops --
-# a cell-year with non-item nitrogen but no cropland support at all -- can still
-# be named once the residual is known.
+# support of its own cell-year, and so the rows the inner join drops -- a
+# cell-year with non-item nitrogen but no support at all -- can still be named
+# once the residual is known.
 #
 # No `support_ha > 0` filter: .ni_land_support already drops every non-positive
 # and NA support area before summarising, so each group's sum is positive by
@@ -1109,34 +1162,49 @@ build_n_inputs <- function(
   data,
   method_unsupported = "abort"
 ) {
+  method <- .ni_unattributed_method(data)
   unattributed <- dplyr::filter(inputs, is.na(.data$item_cbs_code))
   if (nrow(unattributed) == 0L) {
-    return(.ni_stamp_unsupported(inputs, method_unsupported))
+    return(
+      inputs |>
+        .ni_stamp_unsupported(method_unsupported) |>
+        .ni_stamp_unattributed(method)
+    )
+  }
+  .ni_report_unattributed(unattributed, method)
+  if (method == "exclude") {
+    return(
+      inputs |>
+        dplyr::filter(!is.na(.data$item_cbs_code)) |>
+        .ni_stamp_unsupported(method_unsupported) |>
+        .ni_stamp_unattributed(method)
+    )
   }
   support <- .ni_land_support(data)
-  cropland <- dplyr::filter(support, .data$land_use == "cropland")
+  spread_over <- .ni_allocation_support(support, method)
   sourced <- unattributed |>
     dplyr::select(-"item_cbs_code") |>
     dplyr::mutate(.source_row = dplyr::row_number())
   allocated <- .ni_spread_over_support(
     sourced,
-    cropland,
+    spread_over,
     c("lon", "lat", "area_code", "year")
   )
   placement <- .ni_place_stranded(
     allocated,
     sourced,
-    cropland,
+    spread_over,
     method_unsupported
   )
   if (!.ni_unsupported_allows_loss(method_unsupported)) {
-    .ni_check_unallocated(sourced, placement, support)
+    .ni_check_unallocated(sourced, placement, support, method)
   }
   dplyr::bind_rows(
     dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
     dplyr::select(placement$rows, dplyr::any_of(.ni_schema()))
   ) |>
-    .ni_stamp_unsupported(method_unsupported)
+    .ni_stamp_unsupported(method_unsupported) |>
+    .ni_stamp_unattributed(method)
 }
 
 # Split each source row's nitrogen across the support rows it joins, in
@@ -1150,6 +1218,56 @@ build_n_inputs <- function(
       n_input_t = .data$n_input_t * .data$area_ha / sum(.data$area_ha),
       .by = ".source_row"
     )
+}
+
+# Which land the non-item nitrogen is spread over. "cropland_area" is the
+# historical rule; "agricultural_area" adds the grassland support (CBS 3000).
+# This is the support both the normal placement and the stranded-row rescue
+# below run on, so one policy governs the whole allocation.
+.ni_allocation_support <- function(support, method) {
+  if (method == "agricultural_area") {
+    return(support)
+  }
+  dplyr::filter(support, .data$land_use == "cropland")
+}
+
+# The assembly-wide policy stamp. Unlike `method_synthetic` (which labels only
+# the rows its own term produced) this goes on EVERY row: under "exclude" there
+# are no reallocated rows left to carry it, so a subset stamp would make the
+# very choice that removed the nitrogen unreadable from the table.
+.ni_stamp_unattributed <- function(x, method) {
+  dplyr::mutate(x, method_unattributed = method)
+}
+
+# whep#532: nitrogen carrying no crop identity must be attributable, whether it
+# is kept or dropped. Naming the streams and the tonnage is the point -- a
+# missing-item filter that reports nothing is what let 1.66 Tg of manure N
+# leave the gridded surplus unseen.
+.ni_report_unattributed <- function(unattributed, method) {
+  mass <- signif(sum(unattributed$n_input_t, na.rm = TRUE), 6)
+  streams <- .ni_stream_masses(unattributed)
+  if (method == "exclude") {
+    cli::cli_warn(
+      c(
+        "!" = "Excluding {mass} t N of nitrogen with no
+               {.field item_cbs_code}.",
+        i = "By stream: {.val {streams}}.",
+        i = "This nitrogen reached agricultural land but no single crop, and
+             leaves the balance entirely."
+      ),
+      class = "whep_n_unattributed_excluded"
+    )
+    return(invisible(NULL))
+  }
+  land <- .ni_allocation_land_label(method)
+  cli::cli_inform(
+    c(
+      i = "Spreading {mass} t N with no {.field item_cbs_code} over local
+           {land} support.",
+      i = "By stream: {.val {streams}}."
+    ),
+    class = "whep_n_unattributed_allocated"
+  )
 }
 
 # What happens to non-item nitrogen whose own cell-year carries no cropland
@@ -1266,6 +1384,10 @@ build_n_inputs <- function(
   dplyr::mutate(x, method_unsupported = method)
 }
 
+.ni_allocation_land_label <- function(method) {
+  if (method == "agricultural_area") "cropland and grassland" else "cropland"
+}
+
 # Abort when the cropland support could not carry every non-item tonne, naming
 # the streams on both sides of the loss.
 #
@@ -1282,7 +1404,7 @@ build_n_inputs <- function(
 # third condition is worth naming outright because it looks like neither: a
 # term arriving over more years than the support covers, which is what a marched
 # carbon balance handed to a single-year balance does.
-.ni_check_unallocated <- function(sourced, placement, support) {
+.ni_check_unallocated <- function(sourced, placement, support, method) {
   source_mass <- sum(sourced$n_input_t, na.rm = TRUE)
   allocated_mass <- sum(placement$rows$n_input_t, na.rm = TRUE)
   if (isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
@@ -1292,6 +1414,7 @@ build_n_inputs <- function(
   by_source <- .ni_stream_masses(sourced)
   by_lost <- .ni_stream_masses(lost)
   off_span <- sort(setdiff(unique(lost$year), unique(support$year)))
+  land <- .ni_allocation_land_label(method)
   cli::cli_abort(
     c(
       "Could not allocate all non-item nitrogen over agricultural support.",
@@ -1299,7 +1422,7 @@ build_n_inputs <- function(
            unallocated: {source_mass - allocated_mass} t N.",
       i = "Source by stream: {.val {by_source}}.",
       i = "Unallocated by stream: {.val {by_lost}}.",
-      i = "{nrow(lost)} source row{?s} sit{?s/} on a cell-year with no cropland
+      i = "{nrow(lost)} source row{?s} sit{?s/} on a cell-year with no {land}
            support, so the allocation join drops them (#423). A
            {.code polity_validity = \"drop\"} support also removes rows whose
            polity did not exist in that year.",
@@ -1531,7 +1654,8 @@ build_n_inputs <- function(
         "territory",
         NA_character_
       ),
-      method_unsupported = "abort"
+      method_unsupported = "abort",
+      method_unattributed = "cropland_area"
     ) |>
     .add_reporting_polity_columns()
 }

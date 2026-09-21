@@ -105,7 +105,8 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
 columns below. When the supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope} and \code{method_unsupported} stamps from
+\code{method_deposition_scope}, \code{method_unsupported} and
+\code{method_unattributed} stamps from
 \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
 input conventions that produced it. Gains
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
