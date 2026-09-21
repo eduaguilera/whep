@@ -43,6 +43,7 @@ build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  method_unsupported = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -66,6 +67,29 @@ build_n_inputs(
   Synthetic-N crop allocation method, `"coello"` or `"area_share"`. When
   `NULL` (default), uses `data$synthetic_method %||% "coello"` for
   backwards compatibility.
+
+- method_unsupported:
+
+  What happens to non-item nitrogen (deposition, urban,
+  soil-organic-matter mineralization, unattributed manure) whose own
+  cell-year carries no cropland support at all. `"abort"` (the default,
+  and the behaviour before this argument existed) refuses to continue
+  and names the streams and the mass, so a coverage gap cannot be lost
+  silently. `"reallocate"` spreads each such row over its own
+  polity-year's cropland support in proportion to area, which conserves
+  mass and is the same rule
+  [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
+  already applies to a polity-crop with no crop-pattern cell; it still
+  aborts when the polity-year has no cropland support anywhere.
+  `"reallocate_drop"` places the same rows the same way and then
+  discards that irreducible remainder, warning with its mass, so a
+  global build is not refused over a few polities with population and no
+  cropland. `"drop"` reallocates nothing and discards every such row.
+  Whichever is chosen is stamped on every output row as
+  `method_unsupported`. May also be supplied as
+  `data$method_unsupported`, which is how
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  forwards it.
 
 - polity_validity:
 
@@ -165,6 +189,11 @@ build_n_inputs(
     [`whep::coello_synthetic_n`](https://eduaguilera.github.io/whep/reference/coello_synthetic_n.md).
     Used only when `synthetic_method = "coello"`.
 
+  - `method_unsupported`: the `method_unsupported` argument, supplied on
+    `data` instead, so that
+    [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+    can select it by forwarding its own `data` list.
+
   - `gridded`, `resolution`, `methods`: forwarded to
     [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md).
     `resolution` is the manure engine's own axis, not this function's:
@@ -181,19 +210,20 @@ build_n_inputs(
 
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
-`method_synthetic`, `method_deposition`, `method_deposition_scope`. At
-`resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
-`fert_type`, `method_recycling_n`, `method_synthetic`,
-`method_deposition`, `method_deposition_scope`, `n_input_t` (summed over
-cells). `method_recycling_n` records which residue basis the
-`"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
-input supplied `residue_soil_dm_t` (residue N net of removal for
-feed/fuel/burning) or `"total_residue"` when only gross residue N was
-available; it is `NA` for every other `fert_type`. `method_synthetic`
-records the synthetic crop-split basis (`"coello"` or `"area_share"`) on
-`"synthetic"` rows and is `NA` for every other `fert_type`.
-`method_deposition` records which deposition product the `"deposition"`
-term's field came from, read off the supplied `nhx`/`noy` by
+`method_synthetic`, `method_deposition`, `method_deposition_scope`,
+`method_unsupported`. At `resolution = "polity"`: `area_code`,
+`item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+`method_synthetic`, `method_deposition`, `method_deposition_scope`,
+`method_unsupported`, `n_input_t` (summed over cells).
+`method_recycling_n` records which residue basis the `"recycling"` term
+used: `"residue_soil_returned"` when the upstream NPP input supplied
+`residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
+`"total_residue"` when only gross residue N was available; it is `NA`
+for every other `fert_type`. `method_synthetic` records the synthetic
+crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
+and is `NA` for every other `fert_type`. `method_deposition` records
+which deposition product the `"deposition"` term's field came from, read
+off the supplied `nhx`/`noy` by
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 (`"hani"` for
 [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s
@@ -201,7 +231,9 @@ own rows, `"supplied"` for an injected field carrying no tag of its
 own), so a corrected field stays visible here. `method_deposition_scope`
 records which of the polycell's territory the `"deposition"` term was
 credited with (`"territory"` or `"land"`). Both are `NA` for every other
-`fert_type`. Both grains also carry the polity columns below, plus
+`fert_type`. `method_unsupported` records the rule applied to non-item
+nitrogen with no cropland support in its own cell, and is the same on
+every row. Both grains also carry the polity columns below, plus
 `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 
 ## Details
@@ -276,7 +308,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 15
+#> # A tibble: 9 × 16
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -288,8 +320,8 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 11 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
 #> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
-#> #   method_deposition_scope <chr>
+#> #   method_deposition_scope <chr>, method_unsupported <chr>
 ```
