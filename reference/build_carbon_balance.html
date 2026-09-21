@@ -73,6 +73,7 @@ carbon-to-nitrogen ratios.</p>
 <span>  class_water <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cell"</span>, <span class="st">"regime"</span><span class="op">)</span>,</span>
 <span>  density_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"renormalised"</span>, <span class="st">"static"</span><span class="op">)</span>,</span>
 <span>  method_grazing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep"</span>, <span class="st">"lpjml"</span><span class="op">)</span>,</span>
+<span>  method_som_cn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"justes_2009"</span>, <span class="st">"nicolardot_2001"</span>, <span class="st">"century"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -238,6 +239,27 @@ needs neither. Only read when the carbon inputs are built here rather
 than supplied through <code>data$c_inputs</code>.</p></dd>
 
 
+<dt id="arg-method-som-cn">method_som_cn<a class="anchor" aria-label="anchor" href="#arg-method-som-cn"></a></dt>
+<dd><p>Which published parameterisation sets the C:N at which
+soil organic matter forms from the carbon input that formed it,
+<code>CN_new = a - b / CN_input</code>, floored and then bounded by the IPCC 2019
+land-use range. <code>"justes_2009"</code> (default, a = 15.4, b = 76) is the refit
+on the larger combined dataset; <code>"nicolardot_2001"</code> (16.1, 123) is the
+original fit, and the citation HSOCN's own nitrogen submodel follows, so
+it is the parameterisation that puts WHEP and HSOCN on one basis;
+<code>"century"</code> (16, 120) is CENTURY/DayCent's shipped parameterisation.
+All three, each with its source, sample and floor, are in
+<code>inst/extdata/balances/som_marginal_cn.csv</code>. The choice sets the nitrogen
+of a carbon change and never the carbon: at an input C:N of 40 the three
+give a marginal C:N of 13.50, 13.03 and 13.00, so <code>son_change_kgn_ha</code>
+spans 3.8%; at a narrow (manure-like) input C:N of 12 they give 9.07,
+8.00 and 10.00, a 25% spread, and the widest anywhere is 29% at an input
+C:N of 15; above an input C:N of 70 they never differ by more than 1.9%.
+Recorded per row in <code>method_som_cn</code>, which instead reads
+<code>"land_use_default"</code> on a row whose input C:N is unknown and
+<code>"directional_ipcc_range"</code> when no input C:N is carried at all.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small fixture instead of reading
 remote data. Defaults to <code>FALSE</code>.</p></dd>
@@ -252,7 +274,8 @@ with <code>stock_mgc_ha</code>, <code>mineralization_mgc_ha</code>, <code>c_inpu
 <code>son_change_kgn_ha</code>,
 <code>area_ha</code>, and one column per method choice that moves a number:
 <code>method_soc</code>, <code>method_soc_init</code>, <code>method_class_water</code>,
-<code>method_area_basis</code>, <code>method_grazing</code> and
+<code>method_area_basis</code>, <code>method_grazing</code>,
+<code>method_som_cn</code> and
 <code>method_crop_groups</code>. All of them survive the <code>"polity"</code>
 roll-up. Plus the
 polity columns below, plus

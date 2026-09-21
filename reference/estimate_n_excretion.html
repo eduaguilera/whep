@@ -104,8 +104,17 @@ bucket and so loses the territory for 62 of the 257 codes it knows.</p></dd>
 (<code>n_intake - product_n</code>).</p></li>
 <li><p><code>method_vs</code>: <code>"intake_digestibility"</code> (default,
 <code>intake_dm_t * (1 - digestibility) * (1 - ash)</code>).</p></li>
-<li><p><code>method_c</code>: <code>"volatile_solids"</code> (default and only method,
-<code>vs_excretion * c_vs_fraction</code>).</p></li>
+<li><p><code>method_c</code>: <code>"volatile_solids"</code> (the only method,
+<code>vs_excretion * c_vs_fraction</code>). The route it replaced,
+<code>n_excretion</code> times the <code>bio_coefs</code> <code>Excreta</code> C:N, is deliberately not
+offered as an alternative: it applied a fresh-dung C:N to
+whole-excreta nitrogen, some 60% of which is urinary and carries almost
+no carbon, and returned 0.73 kg C per kg of volatile solids – above
+pure protein, so not a composition organic matter can have (whep#1006).
+A route that cannot be right is not a sensitivity case, so this option
+names the algebra behind <code>c_excretion</code> rather than a choice, and
+<code>method_c_excretion</code> has one value until a second defensible method
+exists (whep#1100).</p></li>
 <li><p><code>c_vs_fraction</code>: carbon per unit of volatile solids, kg C / kg VS.
 Default 0.47; see Details.</p></li>
 <li><p><code>forage_n</code>: nitrogen content of the grazed forage that intake rows with

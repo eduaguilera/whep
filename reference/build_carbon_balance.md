@@ -22,6 +22,7 @@ build_carbon_balance(
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
   example = FALSE
 )
 ```
@@ -195,6 +196,28 @@ pipeline.
   livestock module and needs neither. Only read when the carbon inputs
   are built here rather than supplied through `data$c_inputs`.
 
+- method_som_cn:
+
+  Which published parameterisation sets the C:N at which soil organic
+  matter forms from the carbon input that formed it,
+  `CN_new = a - b / CN_input`, floored and then bounded by the IPCC 2019
+  land-use range. `"justes_2009"` (default, a = 15.4, b = 76) is the
+  refit on the larger combined dataset; `"nicolardot_2001"` (16.1, 123)
+  is the original fit, and the citation HSOCN's own nitrogen submodel
+  follows, so it is the parameterisation that puts WHEP and HSOCN on one
+  basis; `"century"` (16, 120) is CENTURY/DayCent's shipped
+  parameterisation. All three, each with its source, sample and floor,
+  are in `inst/extdata/balances/som_marginal_cn.csv`. The choice sets
+  the nitrogen of a carbon change and never the carbon: at an input C:N
+  of 40 the three give a marginal C:N of 13.50, 13.03 and 13.00, so
+  `son_change_kgn_ha` spans 3.8%; at a narrow (manure-like) input C:N of
+  12 they give 9.07, 8.00 and 10.00, a 25% spread, and the widest
+  anywhere is 29% at an input C:N of 15; above an input C:N of 70 they
+  never differ by more than 1.9%. Recorded per row in `method_som_cn`,
+  which instead reads `"land_use_default"` on a row whose input C:N is
+  unknown and `"directional_ipcc_range"` when no input C:N is carried at
+  all.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -208,8 +231,8 @@ resolution (or `(area_code, year)` at `"polity"`), with `stock_mgc_ha`,
 `luc_transfer_mgc`, `rate_mgc_ha`, `son_change_kgn_ha`, `area_ha`, and
 one column per method choice that moves a number: `method_soc`,
 `method_soc_init`, `method_class_water`, `method_area_basis`,
-`method_grazing` and `method_crop_groups`. All of them survive the
-`"polity"` roll-up. Plus the polity columns below, plus
+`method_grazing`, `method_som_cn` and `method_crop_groups`. All of them
+survive the `"polity"` roll-up. Plus the polity columns below, plus
 `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 
 ## Details

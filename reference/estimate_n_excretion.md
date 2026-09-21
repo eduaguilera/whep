@@ -50,8 +50,17 @@ estimate_n_excretion(intake, options = list())
   - `method_vs`: `"intake_digestibility"` (default,
     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
 
-  - `method_c`: `"volatile_solids"` (default and only method,
-    `vs_excretion * c_vs_fraction`).
+  - `method_c`: `"volatile_solids"` (the only method,
+    `vs_excretion * c_vs_fraction`). The route it replaced,
+    `n_excretion` times the `bio_coefs` `Excreta` C:N, is deliberately
+    not offered as an alternative: it applied a fresh-dung C:N to
+    whole-excreta nitrogen, some 60% of which is urinary and carries
+    almost no carbon, and returned 0.73 kg C per kg of volatile solids –
+    above pure protein, so not a composition organic matter can have
+    (whep#1006). A route that cannot be right is not a sensitivity case,
+    so this option names the algebra behind `c_excretion` rather than a
+    choice, and `method_c_excretion` has one value until a second
+    defensible method exists (whep#1100).
 
   - `c_vs_fraction`: carbon per unit of volatile solids, kg C / kg VS.
     Default 0.47; see Details.
