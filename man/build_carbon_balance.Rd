@@ -188,7 +188,10 @@ with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{method_area_basis}, \code{method_grazing},
 \code{method_som_cn} and
 \code{method_crop_groups}. All of them survive the \code{"polity"}
-roll-up. Plus the
+roll-up, which additionally carries \code{input_land_ha} (the land the
+land-use input gave that polity-year) and \code{modelled_land_frac}
+(\code{area_ha / input_land_ha}, the share of it the densities in the
+same row are a mean over); see the coverage section below. Plus the
 polity columns below, plus
 \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}.
@@ -258,6 +261,43 @@ crosswalk: half the path on one footprint and half on another would surface
 as an ordinary climate-coverage warning from the modifier join, not as an
 error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
 and dropped, never folded into another polity's.
+}
+
+\section{A polity total covers the modelled land, not the polity}{
+
+The climate drivers are on the LPJmL run's grid, a coarser land mask than
+LUH2's, so land outside it has no climate modifier and leaves the balance.
+A \code{"polity"} row is therefore an area-weighted mean over the hectares that
+survived, and \code{modelled_land_frac} is the share of the polity-year's land
+that did: read it before quoting a national stock or trend. It is \strong{not} a
+quality flag on the hectares that are there -- they are modelled exactly as
+before -- and no value in this output changes because of it.
+
+Measured at 2010 against the pinned \code{lpjml-soc-hydrology} grid, which drops
+296.5 Mha of LUH2 land over 7,070 cell-polity compartments: global coverage
+is \strong{0.977}, 149 of 193 polities are below 1, 51 are below 0.9, and \strong{12
+carry no row at all} -- Antigua and Barbuda, Bahrain, Barbados, Dominica,
+Grenada, Macao, Malta, Mauritius, Saint Kitts and Nevis, Saint Lucia,
+Singapore and Tonga, whose land is entirely outside the grid. Worst of
+those that survive: Cabo Verde 0.22, Rest of World 0.31, Vanuatu 0.32,
+Bahamas 0.32, Cyprus 0.35, Somalia 0.72 (18.0 Mha), the Philippines 0.73
+(7.7 Mha), Greece 0.76 (3.1 Mha). A warning names the polities that vanish,
+because no column on the output can: they have no row to carry one.
+
+The land is reported rather than gap-filled, and that is a decision with
+evidence behind it (whep#1166). The run grid holds 58,795 cells against CRU
+TS's 67,420 land cells, and what it excludes is fractional-land coastal and
+island cells: median land fraction 0.14, against 0.998 inside the grid.
+CRU still carries temperature, PET and precipitation for 5,981 of the 6,847
+cells that go -- 291.5 of the 296.5 Mha -- so a climate \emph{could} be assembled
+there without LPJmL. The carbon input could not: 261.4 of those 296.5 Mha
+are natural (214.8) and grassland (46.6), whose input is the LPJmL net
+carbon flux, and this package holds no second source for it. Filling the
+climate alone would march 261.4 Mha on a zero-filled carbon input, draining
+its whole opening stock -- the failure whep#1146 named, which today reaches
+0.212 ha globally. Filling the input as well means asserting a productivity
+for land the model was never run on. Only a rerun on a land mask matching
+LUH2's puts real carbon on those hectares.
 }
 
 \section{What this balance does not cover}{
