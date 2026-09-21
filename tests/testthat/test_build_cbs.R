@@ -4532,3 +4532,120 @@ test_that("a product with a world destiny split still gets its destinies", {
 test_that("the new processed balance returns no share column", {
   expect_false("dest_share" %in% names(.run_no_destiny()))
 })
+
+# -- reporter-level bound on the historical trade screen -----------------------
+
+# Issue whep#1117. The world bound above only catches a flow larger than every
+# world flow FAOSTAT has ever recorded, which most of the ten-fold USA block is
+# not: USA raw sugar imports (item 162) sit at 35-43 Mt over 1955-1959 against
+# 4.7 Mt at 1960 and 3.7 Mt at 1961, while world raw sugar imports are larger
+# still, so today nothing reports them. The reporter bound is the largest flow
+# FAOSTAT records for the SAME reporter, item and element.
+.hist_scale_reporter_reference <- function() {
+  tibble::tribble(
+    ~iso3c, ~item_code_trade, ~element, ~reporter_max,
+    "USA",  162L,             "import", 4e6,
+    "ESP",  15L,              "export", 2e7
+  ) |>
+    data.table::as.data.table()
+}
+
+.hist_scale_tenfold_raw <- function() {
+  tibble::tribble(
+    ~year, ~iso3c, ~item_code_trade, ~element, ~value,
+    1958L, "USA",  162L,             "import", 43213e3,
+    1960L, "USA",  162L,             "import", 4707e3,
+    1951L, "ESP",  15L,              "export", 10e3
+  ) |>
+    data.table::as.data.table()
+}
+
+.hist_scale_world_only <- function() {
+  tibble::tribble(
+    ~item_code_trade, ~element, ~world_max,
+    162L,             "import", 6e10,
+    15L,              "export", 2e8
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".screen_hist_trade_scale reports the reporter-level exceedance", {
+  expect_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_tenfold_raw(),
+      .hist_scale_world_only(),
+      method = "report",
+      reporter_reference = .hist_scale_reporter_reference()
+    ),
+    "larger than any flow FAOSTAT records for the same reporter"
+  )
+
+  # Reported, never removed: the class provably holds genuine pre-modern
+  # history alongside the ten-fold rows (whep#1117).
+  expect_equal(nrow(kept), 3L)
+  expect_equal(sum(kept$value), 43213e3 + 4707e3 + 10e3)
+  expect_false("reporter_max" %in% names(kept))
+})
+
+test_that("the reporter bound never drops or aborts on its own", {
+  expect_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_tenfold_raw(),
+      .hist_scale_world_only(),
+      method = "drop",
+      reporter_reference = .hist_scale_reporter_reference()
+    ),
+    "larger than any flow FAOSTAT records for the same reporter"
+  )
+  expect_equal(nrow(kept), 3L)
+
+  expect_warning(
+    whep:::.screen_hist_trade_scale(
+      .hist_scale_tenfold_raw(),
+      .hist_scale_world_only(),
+      method = "abort",
+      reporter_reference = .hist_scale_reporter_reference()
+    ),
+    "larger than any flow FAOSTAT records for the same reporter"
+  )
+})
+
+test_that("the reporter bound is silent without a reporter reference", {
+  expect_no_warning(
+    kept <- whep:::.screen_hist_trade_scale(
+      .hist_scale_tenfold_raw(),
+      .hist_scale_world_only(),
+      method = "report"
+    )
+  )
+  expect_equal(nrow(kept), 3L)
+})
+
+test_that(".hist_trade_reporter_reference keys the bound on the reporter", {
+  fao_trade <- tibble::tribble(
+    ~year, ~area_code, ~item_code_trade, ~element, ~unit, ~value,
+    1961L, 231L,       162L,             "import", "t",   3678e3,
+    1970L, 231L,       162L,             "import", "t",   4e6,
+    1961L, 68L,        162L,             "import", "t",   9e9,
+    1961L, 231L,       1057L,            "import", "An",  5e6
+  ) |>
+    data.table::as.data.table()
+
+  ref <- whep:::.hist_trade_reporter_reference(fao_trade)
+  usa <- ref[ref$iso3c == "USA" & ref$item_code_trade == 162L, ]
+
+  expect_equal(usa$reporter_max, 4e6)
+  # France's much larger flow must not bound the USA row.
+  expect_true("FRA" %in% ref$iso3c)
+  # Head counts are not mass and cannot bound a tonnage (whep#865).
+  expect_false(1057L %in% ref$item_code_trade)
+})
+
+test_that(".hist_trade_reporter_reference is empty without FAOSTAT trade", {
+  ref <- whep:::.hist_trade_reporter_reference(NULL)
+
+  expect_equal(nrow(ref), 0L)
+  expect_true(all(
+    c("iso3c", "item_code_trade", "element", "reporter_max") %in% names(ref)
+  ))
+})
