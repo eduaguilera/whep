@@ -883,6 +883,18 @@ test_that("polity resolution conserves carbon mass vs grid", {
   testthat::expect_true(all(abs(cmp$m.x - cmp$m.y) < 1e-6))
 })
 
+# The polity-year coverage record `.cb_finalise()` reports, for a marched
+# fixture nothing was dropped from: every hectare that reached the march is
+# every hectare the land-use input carried.
+.cb_full_coverage <- function(marched) {
+  marched |>
+    dplyr::summarise(
+      input_land_ha = sum(area_ha),
+      modelled_land_ha = sum(area_ha),
+      .by = c(area_code, year)
+    )
+}
+
 # A single-class row for one cell-year, used to build a multi-cell marched
 # fixture for .cb_finalise() with independently chosen stock_mgc_ha/area_ha
 # per cell, so the polity aggregation's area-weighted mean can be checked
@@ -910,7 +922,11 @@ test_that("polity area-weighted mean is exercised across multiple cells", {
     .cb_finalise_cell_row(0.25, 0.25, stock_mgc_ha = 40, area_ha = 30),
     .cb_finalise_cell_row(0.75, 0.75, stock_mgc_ha = 100, area_ha = 70)
   )
-  pol <- whep:::.cb_finalise(marched, resolution = "polity")
+  pol <- whep:::.cb_finalise(
+    marched,
+    resolution = "polity",
+    coverage = .cb_full_coverage(marched)
+  )
 
   expected_wmean <- (40 * 30 + 100 * 70) / (30 + 70)
   unweighted_mean <- (40 + 100) / 2
@@ -1944,8 +1960,9 @@ testthat::test_that("every method choice reaches both resolutions", {
     method_grazing = "whep",
     method_crop_groups = "spain_hist"
   )
-  grid <- whep:::.cb_finalise(marched, "grid")
-  polity <- whep:::.cb_finalise(marched, "polity")
+  cover <- .cb_full_coverage(marched)
+  grid <- whep:::.cb_finalise(marched, "grid", cover)
+  polity <- whep:::.cb_finalise(marched, "polity", cover)
   testthat::expect_true(all(cols %in% names(grid)))
   # The roll-up is the half that regressed: assert it carries EVERY method
   # column, not merely some.
@@ -1956,7 +1973,8 @@ testthat::test_that("every method choice reaches both resolutions", {
   # A new method column must survive without anyone editing the roll-up.
   marched$method_future_choice <- "x"
   testthat::expect_true(
-    "method_future_choice" %in% names(whep:::.cb_finalise(marched, "polity"))
+    "method_future_choice" %in%
+      names(whep:::.cb_finalise(marched, "polity", cover))
   )
 })
 
@@ -2394,4 +2412,100 @@ testthat::test_that("an unshipped SOM C:N parameterisation is refused", {
     ),
     class = "rlang_error"
   )
+})
+
+# -- Coverage of the polity totals (whep#1166) --------------------------------
+
+# A copy of the fixture's cell at another coordinate, optionally in another
+# polity. Used to add land the climate table does not cover, so the run drops
+# it and the polity total is built on less land than the input carried.
+.cb_shift_cell <- function(df, lon, lat, area_code = NULL) {
+  df$lon <- lon
+  df$lat <- lat
+  if (!is.null(area_code)) {
+    df$area_code <- area_code
+  }
+  df
+}
+
+test_that("polity resolution reports the land it did not model", {
+  d <- .cb_test_data()
+  # A second cell of the SAME polity, present in land_use and c_inputs but
+  # absent from climate: it is dropped, so the polity's SOC densities are a
+  # total over half the land the input gave it (whep#1166).
+  d$land_use <- dplyr::bind_rows(
+    d$land_use,
+    .cb_shift_cell(d$land_use, 88.25, 8.25)
+  )
+  d$c_inputs <- dplyr::bind_rows(
+    d$c_inputs,
+    .cb_shift_cell(d$c_inputs, 88.25, 8.25)
+  )
+  pol <- suppressWarnings(
+    whep::build_carbon_balance(resolution = "polity", data = d)
+  )
+  pointblank::expect_col_exists(
+    pol,
+    c("input_land_ha", "modelled_land_frac")
+  )
+  testthat::expect_equal(pol$area_ha, rep(100, nrow(pol)))
+  testthat::expect_equal(pol$input_land_ha, rep(200, nrow(pol)))
+  testthat::expect_equal(pol$modelled_land_frac, rep(0.5, nrow(pol)))
+})
+
+test_that("a fully covered polity reports a coverage of one", {
+  pol <- whep::build_carbon_balance(
+    resolution = "polity",
+    data = .cb_test_data()
+  )
+  testthat::expect_equal(pol$input_land_ha, pol$area_ha)
+  testthat::expect_equal(pol$modelled_land_frac, rep(1, nrow(pol)))
+})
+
+test_that("grid resolution carries no coverage columns", {
+  grid <- whep::build_carbon_balance(
+    resolution = "grid",
+    data = .cb_test_data()
+  )
+  testthat::expect_false(
+    any(c("input_land_ha", "modelled_land_frac") %in% names(grid))
+  )
+})
+
+test_that("a polity with no modelled land at all is named, not silent", {
+  d <- .cb_test_data()
+  # Polity 777 is entirely outside the climate table, so every one of its rows
+  # is dropped and it never reaches the output. Twelve real polities are in
+  # this position on the pinned LPJmL grid (Malta, Singapore, Bahrain,
+  # Mauritius and nine more), and a coverage column keyed on the output cannot
+  # show them, because they have no row to carry it.
+  d$land_use <- dplyr::bind_rows(
+    d$land_use,
+    .cb_shift_cell(d$land_use, 88.25, 8.25, area_code = 777L)
+  )
+  d$c_inputs <- dplyr::bind_rows(
+    d$c_inputs,
+    .cb_shift_cell(d$c_inputs, 88.25, 8.25, area_code = 777L)
+  )
+  drop_muffled <- function(expr) {
+    withCallingHandlers(
+      expr,
+      warning = function(w) {
+        if (grepl("Dropped", conditionMessage(w))) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    )
+  }
+  testthat::expect_warning(
+    drop_muffled(
+      whep::build_carbon_balance(resolution = "polity", data = d)
+    ),
+    "no modelled land"
+  )
+  pol <- suppressWarnings(
+    whep::build_carbon_balance(resolution = "polity", data = d)
+  )
+  testthat::expect_false(any(pol$area_code == 777L))
+  testthat::expect_equal(pol$modelled_land_frac, rep(1, nrow(pol)))
 })

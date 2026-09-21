@@ -202,6 +202,41 @@
 #' error. Land the reporting vocabulary cannot key (no `area_code`) is reported
 #' and dropped, never folded into another polity's.
 #'
+#' @section A polity total covers the modelled land, not the polity:
+#' The climate drivers are on the LPJmL run's grid, a coarser land mask than
+#' LUH2's, so land outside it has no climate modifier and leaves the balance.
+#' A `"polity"` row is therefore an area-weighted mean over the hectares that
+#' survived, and `modelled_land_frac` is the share of the polity-year's land
+#' that did: read it before quoting a national stock or trend. It is **not** a
+#' quality flag on the hectares that are there -- they are modelled exactly as
+#' before -- and no value in this output changes because of it.
+#'
+#' Measured at 2010 against the pinned `lpjml-soc-hydrology` grid, which drops
+#' 296.5 Mha of LUH2 land over 7,070 cell-polity compartments: global coverage
+#' is **0.977**, 149 of 193 polities are below 1, 51 are below 0.9, and **12
+#' carry no row at all** -- Antigua and Barbuda, Bahrain, Barbados, Dominica,
+#' Grenada, Macao, Malta, Mauritius, Saint Kitts and Nevis, Saint Lucia,
+#' Singapore and Tonga, whose land is entirely outside the grid. Worst of
+#' those that survive: Cabo Verde 0.22, Rest of World 0.31, Vanuatu 0.32,
+#' Bahamas 0.32, Cyprus 0.35, Somalia 0.72 (18.0 Mha), the Philippines 0.73
+#' (7.7 Mha), Greece 0.76 (3.1 Mha). A warning names the polities that vanish,
+#' because no column on the output can: they have no row to carry one.
+#'
+#' The land is reported rather than gap-filled, and that is a decision with
+#' evidence behind it (whep#1166). The run grid holds 58,795 cells against CRU
+#' TS's 67,420 land cells, and what it excludes is fractional-land coastal and
+#' island cells: median land fraction 0.14, against 0.998 inside the grid.
+#' CRU still carries temperature, PET and precipitation for 5,981 of the 6,847
+#' cells that go -- 291.5 of the 296.5 Mha -- so a climate *could* be assembled
+#' there without LPJmL. The carbon input could not: 261.4 of those 296.5 Mha
+#' are natural (214.8) and grassland (46.6), whose input is the LPJmL net
+#' carbon flux, and this package holds no second source for it. Filling the
+#' climate alone would march 261.4 Mha on a zero-filled carbon input, draining
+#' its whole opening stock -- the failure whep#1146 named, which today reaches
+#' 0.212 ha globally. Filling the input as well means asserting a productivity
+#' for land the model was never run on. Only a rerun on a land mask matching
+#' LUH2's puts real carbon on those hectares.
+#'
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
@@ -212,7 +247,10 @@
 #'   \code{method_area_basis}, \code{method_grazing},
 #'   \code{method_som_cn} and
 #'   \code{method_crop_groups}. All of them survive the \code{"polity"}
-#'   roll-up. Plus the
+#'   roll-up, which additionally carries \code{input_land_ha} (the land the
+#'   land-use input gave that polity-year) and \code{modelled_land_frac}
+#'   (\code{area_ha / input_land_ha}, the share of it the densities in the
+#'   same row are a mean over); see the coverage section below. Plus the
 #'   polity columns below, plus
 #'   \code{reporting_polity_out_of_span} when
 #'   \code{polity_validity = "flag"}.
@@ -270,7 +308,11 @@ build_carbon_balance <- function(
   if (progress) {
     cli::cli_progress_step("Computing per-class equilibrium")
   }
-  classes <- .cb_class_table(d, model) |> .cb_attach_equilibrium(model)
+  classes <- .cb_class_table(d, model)
+  # Read before the first dplyr verb: the coverage record rides on an
+  # attribute, which `.cb_attach_equilibrium()` would drop (whep#1166).
+  coverage <- .cb_take_land_coverage(classes)
+  classes <- .cb_attach_equilibrium(classes, model)
   if (progress) {
     cli::cli_progress_step("Initialising soil-carbon pools")
   }
@@ -297,7 +339,7 @@ build_carbon_balance <- function(
       method_grazing = method_grazing,
       method_crop_groups = crop_groups$method %||% "none"
     ) |>
-    .cb_finalise(resolution) |>
+    .cb_finalise(resolution, coverage) |>
     .resolve_polity_validity(polity_validity)
 }
 
@@ -407,10 +449,82 @@ build_carbon_balance <- function(
     d$cropland_cover,
     class_water = .cb_class_water_spec(d$class_water, base)
   )
-  base |>
+  joined <- base |>
     .cb_join_modifier(modifiers) |>
-    dplyr::left_join(clay, by = c("lon", "lat")) |>
-    .cb_drop_uncovered_climate()
+    dplyr::left_join(clay, by = c("lon", "lat"))
+  joined |>
+    .cb_drop_uncovered_climate() |>
+    .cb_attach_land_coverage(joined)
+}
+
+# -- Coverage of the polity totals (whep#1166) --------------------------------
+
+# Record, per polity-year, how much of the land the land-use input carried
+# survived the climate drop above, and hang it on the class table for
+# `.cb_finalise()` to report.
+#
+# It has to be measured HERE, on the table before the drop, because that is the
+# last place the dropped land exists: downstream every uncovered compartment is
+# simply absent, and an output row's `area_ha` is then the modelled land with
+# nothing to compare it against. A polity total built on part of a polity is
+# still a valid mean over the hectares it covers -- what makes it dangerous is
+# that it does not say so.
+.cb_attach_land_coverage <- function(kept, full) {
+  coverage <- full |>
+    dplyr::summarise(
+      input_land_ha = sum(.data$area_ha),
+      modelled_land_ha = sum(
+        .data$area_ha[!is.na(.data$climate_modifier)]
+      ),
+      .by = c("area_code", "year")
+    )
+  .cb_warn_lost_polities(coverage)
+  attr(kept, "whep_land_coverage") <- coverage
+  kept
+}
+
+# Read the coverage back off the class table, refusing a table that never
+# carried it. dplyr verbs drop unknown attributes, so this is read immediately
+# after `.cb_class_table()` and never after a pipe; aborting rather than
+# defaulting to "fully covered" is what stops a later refactor from silently
+# restoring the unreported drop this exists to expose.
+.cb_take_land_coverage <- function(classes) {
+  coverage <- attr(classes, "whep_land_coverage")
+  if (is.null(coverage)) {
+    cli::cli_abort(c(
+      "The class table carries no land-coverage record.",
+      i = "{.fn .cb_attach_land_coverage} sets it; read it before any
+        {.pkg dplyr} verb, which drops unknown attributes."
+    ))
+  }
+  coverage
+}
+
+# A polity every one of whose compartments was dropped reaches the output with
+# no row at all, so no column on the output can report it -- it is simply
+# missing from a table of polities, which reads as "has no land". Twelve real
+# polities are in this position on the pinned LPJmL grid (whep#1166).
+.cb_warn_lost_polities <- function(coverage) {
+  lost <- coverage |>
+    dplyr::filter(
+      .data$modelled_land_ha <= 0,
+      .data$input_land_ha > 0
+    )
+  if (nrow(lost) == 0) {
+    return(invisible(NULL))
+  }
+  codes <- sort(unique(lost$area_code))
+  n_lost <- length(codes)
+  cli::cli_warn(c(
+    "!" = "{n_lost} polit{?y/ies} hold{?s/} land in the land-use input but no
+      modelled land at all, so {?it carries/they carry} no row in the output
+      rather than a row reporting the loss.",
+    i = "{cli::qty(n_lost)}Area code{?s}: {.val {cli::cli_vec(codes,
+      list('vec-trunc' = 12))}}.",
+    i = "A polity total that is absent is not a polity total that is zero;
+      treat the output as a table of the polities that COULD be modelled."
+  ))
+  invisible(NULL)
 }
 
 # Split each cell-year's LUH2 cropland area over the crop groups the carbon
@@ -2546,7 +2660,7 @@ build_carbon_balance <- function(
 # Grid output keeps the per-cell per-class rows; polity output aggregates to
 # (area_code, year), area-weighting the per-hectare densities so total carbon
 # mass (stock x area) is conserved.
-.cb_finalise <- function(marched, resolution) {
+.cb_finalise <- function(marched, resolution, coverage) {
   if (resolution == "grid") {
     return(tibble::as_tibble(marched))
   }
@@ -2571,7 +2685,24 @@ build_carbon_balance <- function(
       area_ha = sum(.data$area_ha),
       .by = c("area_code", "year")
     ) |>
+    .cb_join_coverage(coverage) |>
     tibble::as_tibble()
+}
+
+# Attach the polity-year coverage to the rolled-up output. `area_ha` is the
+# modelled land, `input_land_ha` the land the land-use input gave the
+# polity-year before the climate drop, and `modelled_land_frac` the ratio the
+# densities in the same row are a mean over. Keyed with `year`, so it is not a
+# year-free territorial join.
+.cb_join_coverage <- function(polity, coverage) {
+  polity |>
+    dplyr::left_join(
+      dplyr::select(coverage, "area_code", "year", "input_land_ha"),
+      by = c("area_code", "year")
+    ) |>
+    dplyr::mutate(
+      modelled_land_frac = .data$area_ha / .data$input_land_ha
+    )
 }
 
 .cb_wmean <- function(value, weight) {
