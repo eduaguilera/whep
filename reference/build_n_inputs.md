@@ -44,6 +44,7 @@ build_n_inputs(
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
   method_unsupported = NULL,
+  unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -90,6 +91,22 @@ build_n_inputs(
   `data$method_unsupported`, which is how
   [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
   forwards it.
+
+- unattributed_method:
+
+  Where nitrogen that reached agricultural land but no single crop goes
+  – manure the engine placed on Cropland or landed by transport without
+  a crop, plus deposition, urban N and SOM mineralization, all of which
+  carry `item_cbs_code = NA`. `"cropland_area"` (default) spreads it
+  over the cell-year's cropland support in proportion to each crop's
+  hectares; `"agricultural_area"` spreads it over cropland *and*
+  grassland support (CBS 3000), which is the land the manure engine's
+  own transport sizing already counts as available room; `"exclude"`
+  drops it, the pre-whep#532 behaviour, retained as a measurable
+  sensitivity and not as a fallback – it warns with the excluded tonnage
+  by stream. The allocating methods conserve mass or abort; `"exclude"`
+  does not conserve it. When `NULL` (default), uses
+  `data$unattributed_method %||% "cropland_area"`.
 
 - polity_validity:
 
@@ -218,19 +235,19 @@ build_n_inputs(
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_unsupported`. At `resolution = "polity"`: `area_code`,
-`item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+`method_unsupported`, `method_unattributed`. At `resolution = "polity"`:
+`area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_unsupported`, `n_input_t` (summed over cells).
-`method_recycling_n` records which residue basis the `"recycling"` term
-used: `"residue_soil_returned"` when the upstream NPP input supplied
-`residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-`"total_residue"` when only gross residue N was available; it is `NA`
-for every other `fert_type`. `method_synthetic` records the synthetic
-crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
-and is `NA` for every other `fert_type`. `method_deposition` records
-which deposition product the `"deposition"` term's field came from, read
-off the supplied `nhx`/`noy` by
+`method_unsupported`, `method_unattributed`, `n_input_t` (summed over
+cells). `method_recycling_n` records which residue basis the
+`"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
+input supplied `residue_soil_dm_t` (residue N net of removal for
+feed/fuel/burning) or `"total_residue"` when only gross residue N was
+available; it is `NA` for every other `fert_type`. `method_synthetic`
+records the synthetic crop-split basis (`"coello"` or `"area_share"`) on
+`"synthetic"` rows and is `NA` for every other `fert_type`.
+`method_deposition` records which deposition product the `"deposition"`
+term's field came from, read off the supplied `nhx`/`noy` by
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 (`"hani"` for
 [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s
@@ -240,7 +257,11 @@ records which of the polycell's territory the `"deposition"` term was
 credited with (`"territory"` or `"land"`). Both are `NA` for every other
 `fert_type`. `method_unsupported` records the rule applied to non-item
 nitrogen with no cropland support in its own cell, and is the same on
-every row. Both grains also carry the polity columns below, plus
+every row. `method_unattributed` records the `unattributed_method` the
+whole assembly ran under and is stamped on **every** row, not only on
+the reallocated ones: under `"exclude"` no reallocated row survives to
+carry it, and a choice that removes nitrogen has to stay readable from
+the table. Both grains also carry the polity columns below, plus
 `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 
 ## Details
@@ -315,7 +336,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 16
+#> # A tibble: 9 × 17
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -327,8 +348,9 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 11 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 12 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
 #> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
-#> #   method_deposition_scope <chr>, method_unsupported <chr>
+#> #   method_deposition_scope <chr>, method_unsupported <chr>,
+#> #   method_unattributed <chr>
 ```

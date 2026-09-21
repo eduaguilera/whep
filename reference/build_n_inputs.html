@@ -118,6 +118,7 @@ therefore outside the agricultural balance. Grassland is represented by CBS
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  synthetic_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  method_unsupported <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unattributed_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -161,6 +162,22 @@ cropland. <code>"drop"</code> reallocates nothing and discards every such row.
 Whichever is chosen is stamped on every output row as
 <code>method_unsupported</code>. May also be supplied as <code>data$method_unsupported</code>,
 which is how <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> forwards it.</p></dd>
+
+
+<dt id="arg-unattributed-method">unattributed_method<a class="anchor" aria-label="anchor" href="#arg-unattributed-method"></a></dt>
+<dd><p>Where nitrogen that reached agricultural land but
+no single crop goes – manure the engine placed on Cropland or landed by
+transport without a crop, plus deposition, urban N and SOM mineralization,
+all of which carry <code>item_cbs_code = NA</code>. <code>"cropland_area"</code> (default)
+spreads it over the cell-year's cropland support in proportion to each
+crop's hectares; <code>"agricultural_area"</code> spreads it over cropland <em>and</em>
+grassland support (CBS 3000), which is the land the manure engine's own
+transport sizing already counts as available room; <code>"exclude"</code> drops it,
+the pre-whep#532 behaviour, retained as a measurable sensitivity and not
+as a fallback – it warns with the excluded tonnage by stream. The
+allocating methods conserve mass or abort; <code>"exclude"</code> does not conserve
+it. When <code>NULL</code> (default), uses
+<code>data$unattributed_method %||% "cropland_area"</code>.</p></dd>
 
 
 <dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
@@ -261,12 +278,12 @@ real data. Defaults to <code>FALSE</code>.</p></dd>
     <p>A tibble. At <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>n_input_t</code>,
 <code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition</code>,
-<code>method_deposition_scope</code>, <code>method_unsupported</code>. At
+<code>method_deposition_scope</code>, <code>method_unsupported</code>,
+<code>method_unattributed</code>. At
 <code>resolution = "polity"</code>: <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
 <code>fert_type</code>, <code>method_recycling_n</code>, <code>method_synthetic</code>,
 <code>method_deposition</code>, <code>method_deposition_scope</code>, <code>method_unsupported</code>,
-<code>n_input_t</code> (summed over
-cells).
+<code>method_unattributed</code>, <code>n_input_t</code> (summed over cells).
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
 used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
 <code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
@@ -284,6 +301,10 @@ with (<code>"territory"</code> or <code>"land"</code>). Both are <code>NA</code>
 <code>fert_type</code>.
 <code>method_unsupported</code> records the rule applied to non-item nitrogen with no
 cropland support in its own cell, and is the same on every row.
+<code>method_unattributed</code> records the <code>unattributed_method</code> the whole assembly
+ran under and is stamped on <strong>every</strong> row, not only on the reallocated
+ones: under <code>"exclude"</code> no reallocated row survives to carry it, and a
+choice that removes nitrogen has to stay readable from the table.
 Both grains also carry the polity columns below, plus
 <code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>.</p>
     </div>
@@ -341,7 +362,7 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 16</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 17</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
@@ -353,10 +374,11 @@ column.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 11 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 12 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_cbs_code &lt;int&gt;, fert_type &lt;chr&gt;, n_input_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;, method_deposition &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;, method_unsupported &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;, method_unsupported &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unattributed &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
