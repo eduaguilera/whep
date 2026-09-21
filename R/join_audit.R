@@ -432,6 +432,12 @@
     ".carbon_warn_unkeyed", "summarise", "polity_code", 1L, "diagnostic",
     "Ranks the polities named in the DA-23 unkeyed-land warning. It reaches no
      value.",
+    ".cb_climate_gap_worst", "summarise", "area_code", 1L, "diagnostic",
+    "Ranks the polities losing the most land to the carbon balance's
+     climate-coverage gap, and the share of each one's own land that goes, for
+     the warning that reports it (whep#1146). A year in the key would report
+     one line per polity-year instead of one per polity, and the quantity it
+     names is already per year. It reaches no value.",
     ".cb_init_density", "mutate", "lon, lat, area_code", 1L, "single_year",
     "`first` is the earliest year of each cell, selected one step earlier; the
      equilibrium density sums the land-use classes WITHIN that one year.",

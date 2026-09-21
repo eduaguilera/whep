@@ -2509,3 +2509,99 @@ test_that("a polity with no modelled land at all is named, not silent", {
   testthat::expect_false(any(pol$area_code == 777L))
   testthat::expect_equal(pol$modelled_land_frac, rep(1, nrow(pol)))
 })
+
+# -- Coverage reporting (whep#1146) -------------------------------------------
+
+# One cell whose climate is covered and one whose climate is not, each holding
+# the same four LUH2 classes. The uncovered cell is the shape of the 296.8 Mha
+# the LPJmL grid does not reach; the covered cell's grassland carries no
+# carbon-input row, which is the shape of the zero fill whep#1146 was about.
+.cb_coverage_fixture <- function() {
+  land_use <- tidyr::expand_grid(
+    lon = c(0.25, 10.25),
+    lat = 40.25,
+    year = 2000L,
+    land_use = c("cropland", "grassland", "natural", "urban")
+  ) |>
+    dplyr::mutate(
+      area_code = dplyr::if_else(.data$lon == 0.25, 1L, 2L),
+      area_ha = c(60, 30, 8, 2, 100, 400, 500, 10)
+    )
+  c_inputs <- land_use |>
+    dplyr::filter(.data$land_use %in% c("cropland", "natural")) |>
+    dplyr::mutate(c_input_mgc_ha_yr = 2, humified_fraction = 0.3) |>
+    dplyr::select(-"area_ha")
+  list(
+    land_use = land_use,
+    c_inputs = c_inputs,
+    # Only the first cell has a climate modifier.
+    climate = tibble::tibble(
+      lon = 0.25,
+      lat = 40.25,
+      area_code = 1L,
+      year = 2000L,
+      climate_modifier = 1
+    ),
+    clay = tibble::tribble(
+      ~lon, ~lat, ~clay_pct,
+      0.25, 40.25, 20,
+      10.25, 40.25, 20
+    )
+  )
+}
+
+test_that("the climate gap is reported in hectares, classes and polities", {
+  # whep#1146: the warning used to give a cell-year COUNT only, which reads as
+  # housekeeping for what is 296.8 Mha of LUH2 land at 2010 and a third of
+  # Greece's grassland. The area, the per-class split and the worst-hit polity
+  # must all be in the message.
+  d <- .cb_coverage_fixture()
+  w <- testthat::capture_warnings(
+    suppressMessages(whep::build_carbon_balance(
+      model = "hsoc",
+      resolution = "grid",
+      data = d
+    ))
+  )
+  msg <- paste(w, collapse = " ")
+  testthat::expect_match(msg, "1,010 ha of LUH2 land per year")
+  testthat::expect_match(msg, "natural 500 ha")
+  testthat::expect_match(msg, "area 2")
+  testthat::expect_match(msg, "100.0% of its land")
+  testthat::expect_match(msg, "not marched at zero carbon input")
+})
+
+test_that("uncovered climate drops the land, it does not march it at zero", {
+  # The distinction whep#1146 turned on. The second cell has land in every
+  # class and no climate: none of it appears in the output, at zero input or
+  # otherwise. Only the covered cell's four classes survive.
+  d <- .cb_coverage_fixture()
+  out <- suppressWarnings(suppressMessages(whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d
+  )))
+  testthat::expect_setequal(out$area_code, 1L)
+  testthat::expect_equal(sum(out$area_ha), 100)
+})
+
+test_that("land marching on a zero-filled carbon input is reported in ha", {
+  # The number that refuted whep#1146 (0.212 ha of grassland globally at 2010)
+  # is only meaningful if it is measured on every run rather than assumed. The
+  # covered cell's grassland has no carbon-input row; urban never does, and is
+  # excluded because its zero is by design.
+  d <- .cb_coverage_fixture()
+  m <- testthat::capture_messages(
+    suppressWarnings(whep::build_carbon_balance(
+      model = "hsoc",
+      resolution = "grid",
+      data = d
+    ))
+  )
+  msg <- paste(m, collapse = " ")
+  testthat::expect_match(msg, "march on a zero carbon input")
+  # Cell 1 grassland (30 ha) plus cell 2 grassland (400 ha); urban excluded.
+  testthat::expect_match(msg, "430 ha of LUH2 land per year")
+  testthat::expect_match(msg, "grassland 430 ha")
+  testthat::expect_no_match(msg, "urban")
+})
