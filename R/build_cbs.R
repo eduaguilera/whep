@@ -73,12 +73,23 @@
 #'   and skins, silk, wool and fibres as `other_uses` and which no
 #'   better-ranked source overwrites), and the other 19 are hops in
 #'   net-exporting years, whose `processing_primary` is the whole production
-#'   by construction. `"report"` therefore keeps every value as measured and
+#'   by construction — a trade ratio rather than an apportionment, which no
+#'   setting can move, so the warning names that subset separately.
+#'   `"report"` therefore keeps every value as measured and
 #'   only warns, so it **moves no published value**; it names the count, the
 #'   split by destiny and the three largest. `"clamp"` caps the share at 1,
 #'   `"drop"` sets it to `NA` so the key is filled from a neighbouring year
 #'   instead (and booked as 0 where the violating year is the only
-#'   observation), and `"abort"` refuses to build. Which of those is right is
+#'   observation), and `"abort"` refuses to build. The share is an
+#'   intermediate, not a published number: `.cbs_fill_destinies()` later
+#'   re-derives each destiny as `domestic_supply` times a share normalised to
+#'   sum to one, so on that build no published row from 1961 on carries a
+#'   destiny above its supply and every difference between the settings sits
+#'   at 1960 or earlier — against `"report"`, `"clamp"` moves 755 rows
+#'   (`other_uses` +23.21 Mt, `stock_variation` −22.97 Mt, `food` −1.00 Mt)
+#'   and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation`
+#'   −825 Mt), both upwards because the values they touch are negative
+#'   (whep#1065). Which of those is right is
 #'   an open question — see whep#980 — so the reporting default is the one
 #'   that invents nothing.
 #' @param negative_supply One of `"report"` (default), `"floor"` or
@@ -2514,7 +2525,19 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(year) & !is.na(area) & !is.na(element)]
 
-  pp_items <- c(
+  dt_pp <- dt[item_cbs %in% .cbs_pp_items() & source != "trade_hist"]
+  dt_pp[, element := "processing_primary"]
+
+  data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
+}
+
+# The items whose entire production is destined for processing, so that their
+# `processing_primary` row is a copy of the production row rather than a
+# reported destiny (whep#143). Named here rather than inline because the
+# construction is what makes their destiny share a trade ratio instead of an
+# apportionment -- see `.apply_share_overflow()`.
+.cbs_pp_items <- function() {
+  c(
     "Oil, palm fruit",
     "Hops",
     "Seed cotton",
@@ -2523,10 +2546,6 @@ build_processing_coefs <- function(
     "Kapok fruit",
     "Linum"
   )
-  dt_pp <- dt[item_cbs %in% pp_items & source != "trade_hist"]
-  dt_pp[, element := "processing_primary"]
-
-  data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
 }
 
 # Label historical trade with its source and restrict it to the pre-1961
@@ -3195,7 +3214,9 @@ build_processing_coefs <- function(
       item_cbs_code,
       value = .data[[element]],
       domestic_supply,
-      share = .data[[share_col]]
+      share = .data[[share_col]],
+      structural = element == "processing_primary" &
+        item_cbs %in% .cbs_pp_items()
     )
 }
 
@@ -3220,16 +3241,35 @@ build_processing_coefs <- function(
 #   wool, fibres), and those items exist in no better-ranked source, so
 #   `.select_best_source()` cannot overwrite them the way `FAOSTAT_FBS_Old`
 #   overwrites the food/feed rows of the same file.
-# * The 19 `processing_primary` cases are structural rather than reported.
-#   `.assemble_cbs_sources()` copies the `pp_items` production row into a
-#   `processing_primary` row, so the numerator is the whole production while
+# * The 19 `processing_primary` cases are structural rather than reported, and
+#   are flagged as such in the `structural` column of the census.
+#   `.assemble_cbs_sources()` copies the `.cbs_pp_items()` production row into
+#   a `processing_primary` row, so the numerator is the whole production while
 #   `domestic_supply` nets trade out of it; every one of the 19 is hops in a
 #   net-exporting year, and the same construction is what puts seven
-#   `processing_primary` shares below zero.
+#   `processing_primary` shares below zero. On the same build every one of the
+#   3,205 rows carrying a `processing_primary` is a `.cbs_pp_items()` row whose
+#   destiny equals its production exactly, so that share is a trade ratio, not
+#   an apportionment, and no setting can move it: not one
+#   `processing_primary` value differs between `"report"`, `"clamp"` and
+#   `"drop"`.
 #
 # The offending rows are 1.03% of the frame's 1961 `other_uses` mass, 0.32% of
 # `processing_primary`, 0.17% of `food` and 0.001% of `feed`, so this is small
 # -- but it was invisible, which is what this reports.
+#
+# What reaches the published output is smaller still, because these shares are
+# an intermediate: `.cbs_fill_destinies()` re-derives every destiny as
+# `domestic_supply * dest_share` with `dest_share` normalised to sum to one
+# over the row's destinies, so an inflated share changes the split between
+# destinies rather than lifting one above the supply. On the same build no
+# published row from 1961 on has a destiny above its `domestic_supply`, and
+# every difference between the four settings sits at 1960 or earlier: against
+# `"report"`, `"clamp"` moves 755 rows (`other_uses` +23.21 Mt,
+# `stock_variation` -22.97 Mt, `food` -1.00 Mt, `domestic_supply` -1.00 Mt)
+# and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation` -825 Mt).
+# Both raise `other_uses` because the values they touch are negative, which is
+# whep#1065 rather than this.
 #
 # Renormalising the five shares to sum to one is not offered: 47 of the 70
 # `other_uses` offenders are the only observed destiny of their row, so there
@@ -3256,6 +3296,7 @@ build_processing_coefs <- function(
     dplyr::count(destiny, name = "n") |>
     dplyr::arrange(dplyr::desc(n))
   worst <- over |> dplyr::slice_max(share, n = 3L, with_ties = FALSE)
+  n_structural <- as.integer(sum(over$structural))
   bullets <- c(
     "!" = paste0(
       "{nrow(over)} historical destiny share{?s} exceed{?s/} 1, so that ",
@@ -3266,6 +3307,18 @@ build_processing_coefs <- function(
       "By destiny: {.val {paste0(per_destiny$destiny, ' = ', ",
       "per_destiny$n)}}."
     ),
+    if (n_structural > 0L) {
+      c(
+        "*" = paste0(
+          "{n_structural} of them come from the {.field processing_primary} ",
+          "construction rather than from a reported value: for those items the ",
+          "destiny is a copy of {.field production}, so the share is a trade ",
+          "ratio that exceeds 1 in every net-exporting year, and no ",
+          "{.arg share_overflow} setting moves {cli::qty(n_structural)}",
+          "{?it/them}."
+        )
+      )
+    },
     "*" = paste0(
       "Largest: {.val {paste0(worst$destiny, ' ', worst$year, ' area ', ",
       "worst$area_code, ' ', worst$item_cbs, ' = ', round(worst$share, 2), ",
