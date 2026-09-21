@@ -75,7 +75,8 @@ the nitrogen balance (excreted = applied + management losses) is conserved.</p>
 <span>  <span class="va">intake</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="st">"national"</span>,</span>
 <span>  methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  gridded <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  gridded <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  bedding <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -96,8 +97,8 @@ result); see <code><a href="estimate_n_excretion.html">estimate_n_excretion()</a
 
 <dt id="arg-methods">methods<a class="anchor" aria-label="anchor" href="#arg-methods"></a></dt>
 <dd><p>A named list of per-stage option lists, any of <code>excretion</code>,
-<code>split</code>, <code>losses</code>, <code>allocation</code> and <code>transport</code>, each forwarded to the
-matching pipeline function's <code>options</code>.</p></dd>
+<code>split</code>, <code>bedding</code>, <code>losses</code>, <code>allocation</code> and <code>transport</code>, each forwarded
+to the matching pipeline function's <code>options</code>.</p></dd>
 
 
 <dt id="arg-gridded">gridded<a class="anchor" aria-label="anchor" href="#arg-gridded"></a></dt>
@@ -109,6 +110,16 @@ column of <code>crops</code> is a <em>code</em>: <code>as.character(item_prod_co
 this function's <code>applied</code> stream (the carbon balance and the nitrogen
 balance); a crop name is still resolved by the nitrogen path but is
 deprecated and warns.</p></dd>
+
+
+<dt id="arg-bedding">bedding<a class="anchor" aria-label="anchor" href="#arg-bedding"></a></dt>
+<dd><p>An optional bedding supply from
+<code><a href="build_residue_bedding_supply.html">build_residue_bedding_supply()</a></code>. When given, <code><a href="add_manure_bedding.html">add_manure_bedding()</a></code> places
+it on the litter-using housed streams before the management losses, so the
+manure reaching the field is bedded farmyard manure rather than excreta
+alone. <code>NULL</code> (default) leaves every number excreta-only; the share of crop
+residue used as bedding is unset in this package pending a source
+(whep#1005), so a caller has to build the supply deliberately.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -136,8 +147,13 @@ per-category excretion totals).</p>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">build_livestock_nutrient_flows</span><span class="op">(</span><span class="va">intake</span>, gridded <span class="op">=</span> <span class="va">gridded</span><span class="op">)</span></span></span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>There was 1 warning in `dplyr::mutate()`.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> In argument: `method_bedding_mms = split$method_bedding_mms[1] %||%</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   NA_character_`.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> Caused by warning:</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> Unknown or uninitialised column: `method_bedding_mms`.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $applied</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 22</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 24</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use  crop  source_stream manure_type</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  44    collected     Liquid     </span>
@@ -145,11 +161,12 @@ per-category excretion totals).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Liquid     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Solid      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Grassland <span style="color: #BB0000;">NA</span>    grazing       Excreta    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 15 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 17 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   over_cap &lt;lgl&gt;, method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;, resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_vs &lt;chr&gt;, method_c_excretion &lt;chr&gt;, method_forage_n &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_mms &lt;chr&gt;, method_losses &lt;chr&gt;, method_transport &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_mms &lt;chr&gt;, method_losses &lt;chr&gt;, method_bedding_c &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_mms &lt;chr&gt;, method_transport &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $losses</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>

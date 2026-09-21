@@ -125,8 +125,10 @@ carries.</p></li>
 <li><p><code>residue_destiny_input</code>: <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>'s required
 input (<code>item_prod_code</code>, <code>residue_dm_t</code>, plus whatever the chosen
 <code>residue_destiny_method</code> needs), for <code>used_residue_n_t</code>/
-<code>burnt_residue_n_t</code>. <code>residue_destiny_method</code> selects the method
-(default <code>"recovery_regional"</code>).</p></li>
+<code>bedding_residue_n_t</code>/<code>burnt_residue_n_t</code>. <code>residue_destiny_method</code>
+selects the method (default <code>"recovery_regional"</code>) and
+<code>residue_bedding_fraction</code> the share of the recovered non-feed residue
+used as bedding (default <code>0</code>; see <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>).</p></li>
 <li><p><code>livestock_intake</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s manure term;
 its <code>"grass"</code> <code>feed_quality</code> rows drive <code>grazed_weeds_n_t</code>.</p></li>
 <li><p><code>carbon_balance</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s <code>"som_ mineralization"</code> term; its <code>son_change_kgn_ha</code> drives <code>som_ sequestration_n_t</code>.</p></li>
@@ -239,15 +241,15 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 41</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 42</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020        10               10 AUS-1901-2025         Australia            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 36 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 37 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, area_ha &lt;dbl&gt;, n_input_full_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_full_nosom_t &lt;dbl&gt;, n_input_std_t &lt;dbl&gt;, n_input_som_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_for_n2o_t &lt;dbl&gt;, prod_n_t &lt;dbl&gt;, used_residue_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   burnt_residue_n_t &lt;dbl&gt;, grazed_weeds_n_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   bedding_residue_n_t &lt;dbl&gt;, burnt_residue_n_t &lt;dbl&gt;, grazed_weeds_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   som_sequestration_n_t &lt;dbl&gt;, n_output_residues_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_output_som_t &lt;dbl&gt;, n_output_useful_t &lt;dbl&gt;, n_output_std_t &lt;dbl&gt;, …</span></span>
 </code></pre></div>

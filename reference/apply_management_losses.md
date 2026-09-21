@@ -41,17 +41,61 @@ apply_management_losses(split, options = list())
 - split:
 
   A tibble from
-  [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md).
+  [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md),
+  optionally with the `n_bedding` and `c_bedding` columns
+  [`add_manure_bedding()`](https://eduaguilera.github.io/whep/reference/add_manure_bedding.md)
+  adds.
 
 - options:
 
   A named list. `method` selects the loss method (`"ipcc_2019_tier2"`).
+  `bedding_c_loss` selects how bedding carbon is treated in storage:
+  `"same_as_excreta"` (default) or `"none"`; see the Bedding section.
 
 ## Value
 
 The input rows with `manure_type`, `applied_n`, `applied_c`,
 `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
-`n2o_indirect_n`, `c_lost`, `vs_destroyed` and `method_losses`.
+`n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
+`method_losses` and `method_bedding_c`.
+
+## Bedding
+
+When the rows carry `n_bedding` and `c_bedding` (from
+[`add_manure_bedding()`](https://eduaguilera.github.io/whep/reference/add_manure_bedding.md)),
+the straw bedded under housed animals is part of the manure that reaches
+the field, and the applied C:N is the C:N of the bedded farmyard manure
+rather than of the excreta alone. Without those columns nothing changes:
+they default to zero and every number is the excreta-only one.
+
+Nitrogen follows IPCC 2019 Refinement Vol. 4 Ch. 10 Eq. 10.34 (p. 10.94)
+exactly: `NbeddingMS` sits **outside** the `(1 - FracLossMS)` term,
+because "mineralization of nitrogen compounds in beddings occurs more
+slowly compared to manure and the concentration of ammonia fraction in
+organic beddings is negligible", so "both volatilization and leaching
+losses during storage of bedding are assumed to be zero" (p. 10.93).
+Bedding nitrogen therefore raises `applied_n` one-for-one and raises
+none of the loss side-streams.
+
+Carbon has no IPCC rule at all – manure CO2 is out of scope there – so
+`bedding_c_loss` selects it. `"same_as_excreta"` (default) applies the
+stream's own storage carbon-loss fraction to the bedding carbon too: the
+0.420 for solid storage comes from Pardo et al. 2015
+([doi:10.1111/gcb.12806](https://doi.org/10.1111/gcb.12806) , Table 2),
+a systematic review of whole manure heaps, and a heap in solid storage
+in practice already contains its litter, so the measured loss is a
+whole-heap loss. `"none"` keeps every gram of bedding carbon, mirroring
+the zero storage loss IPCC gives bedding nitrogen; it is the upper bound
+on applied carbon and raises the applied carbon of a bedded
+solid-storage stream by `0.420 / (1 - 0.420) = 72%` of the bedding
+carbon relative to the default.
+
+Volatile solids stay excreta-only under both, so the Tier 2 methane
+engine in
+[`build_livestock_ghg_extension()`](https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.md)
+is untouched. IPCC 2019 Ch. 10 does ask for bedding to be combined with
+volatile solids when estimating manure methane; that is a separate
+change to a separate engine and is not made here.
 
 ## Examples
 
@@ -62,7 +106,7 @@ excretion <- tibble::tribble(
   2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
-#> # A tibble: 5 × 19
+#> # A tibble: 5 × 22
 #>    year territory sub_territory livestock_category species_gen mms_type         
 #>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>            
 #> 1  2020 203       NA            Cattle_milk        Cattle      Anaerobic Lagoon 
@@ -70,8 +114,9 @@ apply_management_losses(split_manure_management(excretion))
 #> 3  2020 203       NA            Cattle_milk        Cattle      Liquid/Slurry    
 #> 4  2020 203       NA            Cattle_milk        Cattle      Pasture/Range/Pa…
 #> 5  2020 203       NA            Cattle_milk        Cattle      Solid Storage    
-#> # ℹ 13 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
+#> # ℹ 16 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
 #> #   applied_c <dbl>, applied_vs <dbl>, n_volatilized <dbl>, n_leached <dbl>,
 #> #   n2o_direct_n <dbl>, n2_n <dbl>, n2o_indirect_n <dbl>, c_lost <dbl>,
-#> #   vs_destroyed <dbl>, method_losses <chr>
+#> #   vs_destroyed <dbl>, n_bedding <dbl>, c_bedding <dbl>, method_losses <chr>,
+#> #   method_bedding_c <chr>
 ```

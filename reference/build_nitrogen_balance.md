@@ -91,8 +91,11 @@ build_nitrogen_balance(
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)'s
     required input (`item_prod_code`, `residue_dm_t`, plus whatever the
     chosen `residue_destiny_method` needs), for `used_residue_n_t`/
-    `burnt_residue_n_t`. `residue_destiny_method` selects the method
-    (default `"recovery_regional"`).
+    `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
+    selects the method (default `"recovery_regional"`) and
+    `residue_bedding_fraction` the share of the recovered non-feed
+    residue used as bedding (default `0`; see
+    [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)).
 
   - `livestock_intake`: shared with
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
@@ -236,15 +239,15 @@ extra column.
 
 ``` r
 build_nitrogen_balance(example = TRUE)
-#> # A tibble: 1 × 41
+#> # A tibble: 1 × 42
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020        10               10 AUS-1901-2025         Australia            
-#> # ℹ 36 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 37 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, area_ha <dbl>, n_input_full_t <dbl>,
 #> #   n_input_full_nosom_t <dbl>, n_input_std_t <dbl>, n_input_som_t <dbl>,
 #> #   n_input_for_n2o_t <dbl>, prod_n_t <dbl>, used_residue_n_t <dbl>,
-#> #   burnt_residue_n_t <dbl>, grazed_weeds_n_t <dbl>,
+#> #   bedding_residue_n_t <dbl>, burnt_residue_n_t <dbl>, grazed_weeds_n_t <dbl>,
 #> #   som_sequestration_n_t <dbl>, n_output_residues_t <dbl>,
 #> #   n_output_som_t <dbl>, n_output_useful_t <dbl>, n_output_std_t <dbl>, …
 ```

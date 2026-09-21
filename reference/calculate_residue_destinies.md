@@ -1,13 +1,17 @@
 # Estimate the destinies of crop residues.
 
-Splits crop residue dry matter into three destinies that sum to the
-total residue: fed to livestock, burned / removed for fuel, and left on
-the field for soil incorporation.
+Splits crop residue dry matter into four destinies that sum to the total
+residue: fed to livestock, used as livestock bedding, burned / removed
+for fuel, and left on the field for soil incorporation.
 
 ## Usage
 
 ``` r
-calculate_residue_destinies(x, method = c("recovery_regional", "shares"))
+calculate_residue_destinies(
+  x,
+  method = c("recovery_regional", "shares"),
+  bedding_fraction = 0
+)
 ```
 
 ## Arguments
@@ -28,10 +32,52 @@ calculate_residue_destinies(x, method = c("recovery_regional", "shares"))
   Spain-specific per-crop-year use/burn shares, flagged
   `to_be_revised`).
 
+- bedding_fraction:
+
+  Fraction of the recovered **non-feed** residue used as livestock
+  bedding, one number in `[0, 1]`. Default `0`, which is unset rather
+  than measured; see the Bedding section for why, and what a caller
+  setting it must convert from.
+
 ## Value
 
-The input tibble with `residue_feed_dm_t`, `residue_burn_dm_t`,
-`residue_soil_dm_t` and `method_residue_destiny`.
+The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
+`residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
+`method_residue_destiny`.
+
+## Bedding
+
+Bedding straw leaves the field with the rest of the recovered residue
+and comes back to the soil later, through the yard, as part of the
+managed manure. It is therefore carved out of the recovered **non-feed**
+residue – the mass the commodity balance books as `other_uses` – and
+**never** out of `residue_soil_dm_t`, which is the residue that stays on
+the field. That is the split IPCC 2019 Refinement Vol. 4 Ch. 10 p. 10.95
+asks for when it tells inventory compilers to cross-check bedding
+nitrogen "relative to the amount of agricultural residues that is
+removed for other purposes (i.e. bedding) other than the amount of
+agricultural residues returned to soils or burnt", so as "to eliminate
+the possibility of double counting".
+
+`bedding_fraction` defaults to **0**, and that default is *unset, not
+measured*: no global bedding-only fraction of crop residue could be
+sourced (whep#1005). FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's
+`FracRemove` both merge bedding with feed and construction into one
+term. Three partial anchors exist and none is on this function's
+denominator, so each needs converting before it can be used here:
+
+- Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
+  3.21 p. 126 – litter is 14% of *distributed* cereal straw and stover
+  and 11% of distributed crop by-products. The author grades these "very
+  rough", and the South & Central Asia cattle entry is 0 because the
+  data were absent, which must not be inherited as an estimate.
+
+- Statistics Denmark HALM/HALM1/HALM2 – the only official statistic with
+  a bedding-only column: 16-21% of straw *production*, about 30% of
+  *removed* straw.
+
+- Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
+  Table 5 – Denmark, barley 16% and wheat 11% of *production*.
 
 ## Where the recovery rates come from
 
@@ -112,10 +158,11 @@ calculate_residue_destinies(
     region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
-#> # A tibble: 1 × 8
+#> # A tibble: 1 × 10
 #>   item_prod_code residue_dm_t region_krausmann region_un_sub  residue_feed_dm_t
 #>   <chr>                 <dbl> <chr>            <chr>                      <dbl>
 #> 1 15                      100 West Europe      Western Europe              10.5
-#> # ℹ 3 more variables: residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
+#> # ℹ 5 more variables: residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
+#> #   residue_bedding_dm_t <dbl>, residue_bedding_fraction <dbl>,
 #> #   method_residue_destiny <chr>
 ```

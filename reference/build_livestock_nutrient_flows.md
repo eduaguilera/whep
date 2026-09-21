@@ -25,7 +25,8 @@ build_livestock_nutrient_flows(
   intake,
   resolution = "national",
   methods = list(),
-  gridded = NULL
+  gridded = NULL,
+  bedding = NULL
 )
 ```
 
@@ -48,8 +49,8 @@ build_livestock_nutrient_flows(
 - methods:
 
   A named list of per-stage option lists, any of `excretion`, `split`,
-  `losses`, `allocation` and `transport`, each forwarded to the matching
-  pipeline function's `options`.
+  `bedding`, `losses`, `allocation` and `transport`, each forwarded to
+  the matching pipeline function's `options`.
 
 - gridded:
 
@@ -64,6 +65,19 @@ build_livestock_nutrient_flows(
   function's `applied` stream (the carbon balance and the nitrogen
   balance); a crop name is still resolved by the nitrogen path but is
   deprecated and warns.
+
+- bedding:
+
+  An optional bedding supply from
+  [`build_residue_bedding_supply()`](https://eduaguilera.github.io/whep/reference/build_residue_bedding_supply.md).
+  When given,
+  [`add_manure_bedding()`](https://eduaguilera.github.io/whep/reference/add_manure_bedding.md)
+  places it on the litter-using housed streams before the management
+  losses, so the manure reaching the field is bedded farmyard manure
+  rather than excreta alone. `NULL` (default) leaves every number
+  excreta-only; the share of crop residue used as bedding is unset in
+  this package pending a source (whep#1005), so a caller has to build
+  the supply deliberately.
 
 ## Value
 
@@ -90,8 +104,13 @@ gridded <- list(
   )
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
+#> Warning: There was 1 warning in `dplyr::mutate()`.
+#> ℹ In argument: `method_bedding_mms = split$method_bedding_mms[1] %||%
+#>   NA_character_`.
+#> Caused by warning:
+#> ! Unknown or uninitialised column: `method_bedding_mms`.
 #> $applied
-#> # A tibble: 5 × 22
+#> # A tibble: 5 × 24
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Liquid     
@@ -99,11 +118,12 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Liquid     
 #> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 15 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 17 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
 #> #   method_vs <chr>, method_c_excretion <chr>, method_forage_n <chr>,
-#> #   method_mms <chr>, method_losses <chr>, method_transport <chr>
+#> #   method_mms <chr>, method_losses <chr>, method_bedding_c <chr>,
+#> #   method_bedding_mms <chr>, method_transport <chr>
 #> 
 #> $losses
 #> # A tibble: 1 × 10

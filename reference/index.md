@@ -474,6 +474,8 @@ multi-method.
   : Estimate the destinies of crop residues.
 - [`build_residue_feed_avail()`](https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.md)
   : Build residue feed availability for feed allocation.
+- [`build_residue_bedding_supply()`](https://eduaguilera.github.io/whep/reference/build_residue_bedding_supply.md)
+  : Build the bedding straw supply reaching the managed manure chain.
 
 ## Tidy datasets
 
@@ -1058,6 +1060,8 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
   : Estimate livestock nitrogen, carbon and volatile-solids excretion.
 - [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md)
   : Split livestock excretion across manure-management systems.
+- [`add_manure_bedding()`](https://eduaguilera.github.io/whep/reference/add_manure_bedding.md)
+  : Add bedding carbon and nitrogen to the housed manure streams.
 - [`apply_management_losses()`](https://eduaguilera.github.io/whep/reference/apply_management_losses.md)
   : Apply IPCC manure-management losses to the collected manure streams.
 - [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)

@@ -121,19 +121,59 @@ cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.</p>
 
 
 <dl><dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>
-<dd><p>A tibble from <code><a href="split_manure_management.html">split_manure_management()</a></code>.</p></dd>
+<dd><p>A tibble from <code><a href="split_manure_management.html">split_manure_management()</a></code>, optionally with the
+<code>n_bedding</code> and <code>c_bedding</code> columns <code><a href="add_manure_bedding.html">add_manure_bedding()</a></code> adds.</p></dd>
 
 
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
 <dd><p>A named list. <code>method</code> selects the loss method
-(<code>"ipcc_2019_tier2"</code>).</p></dd>
+(<code>"ipcc_2019_tier2"</code>). <code>bedding_c_loss</code> selects how bedding carbon is
+treated in storage: <code>"same_as_excreta"</code> (default) or <code>"none"</code>; see the
+Bedding section.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input rows with <code>manure_type</code>, <code>applied_n</code>, <code>applied_c</code>,
 <code>applied_vs</code>, <code>n_volatilized</code>, <code>n_leached</code>, <code>n2o_direct_n</code>, <code>n2_n</code>,
-<code>n2o_indirect_n</code>, <code>c_lost</code>, <code>vs_destroyed</code> and <code>method_losses</code>.</p>
+<code>n2o_indirect_n</code>, <code>c_lost</code>, <code>vs_destroyed</code>, <code>n_bedding</code>, <code>c_bedding</code>,
+<code>method_losses</code> and <code>method_bedding_c</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="bedding">Bedding<a class="anchor" aria-label="anchor" href="#bedding"></a></h2>
+
+
+<p>When the rows carry <code>n_bedding</code> and <code>c_bedding</code> (from
+<code><a href="add_manure_bedding.html">add_manure_bedding()</a></code>), the straw bedded under housed animals is part of
+the manure that reaches the field, and the applied C:N is the C:N of the
+bedded farmyard manure rather than of the excreta alone. Without those
+columns nothing changes: they default to zero and every number is the
+excreta-only one.</p>
+<p>Nitrogen follows IPCC 2019 Refinement Vol. 4 Ch. 10 Eq. 10.34 (p. 10.94)
+exactly: <code>NbeddingMS</code> sits <strong>outside</strong> the <code>(1 - FracLossMS)</code> term, because
+"mineralization of nitrogen compounds in beddings occurs more slowly
+compared to manure and the concentration of ammonia fraction in organic
+beddings is negligible", so "both volatilization and leaching losses during
+storage of bedding are assumed to be zero" (p. 10.93). Bedding nitrogen
+therefore raises <code>applied_n</code> one-for-one and raises none of the loss
+side-streams.</p>
+<p>Carbon has no IPCC rule at all – manure CO2 is out of scope there – so
+<code>bedding_c_loss</code> selects it. <code>"same_as_excreta"</code> (default) applies the
+stream's own storage carbon-loss fraction to the bedding carbon too: the
+0.420 for solid storage comes from Pardo et al. 2015
+(<a href="https://doi.org/10.1111/gcb.12806" class="external-link">doi:10.1111/gcb.12806</a>
+, Table 2), a systematic review of whole manure
+heaps, and a heap in solid storage in practice already contains its litter,
+so the measured loss is a whole-heap loss. <code>"none"</code> keeps every gram of
+bedding carbon, mirroring the zero storage loss IPCC gives bedding nitrogen;
+it is the upper bound on applied carbon and raises the applied carbon of a
+bedded solid-storage stream by <code>0.420 / (1 - 0.420) = 72%</code> of the bedding
+carbon relative to the default.</p>
+<p>Volatile solids stay excreta-only under both, so the Tier 2 methane engine
+in <code><a href="build_livestock_ghg_extension.html">build_livestock_ghg_extension()</a></code> is untouched. IPCC 2019 Ch. 10 does ask
+for bedding to be combined with volatile solids when estimating manure
+methane; that is a separate change to a separate engine and is not made
+here.</p>
     </div>
 
     <div class="section level2">
@@ -144,7 +184,7 @@ cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.</p>
 <span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="fl">100</span>, <span class="fl">1900</span>, <span class="fl">60</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">apply_management_losses</span><span class="op">(</span><span class="fu"><a href="split_manure_management.html">split_manure_management</a></span><span class="op">(</span><span class="va">excretion</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 19</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 22</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category species_gen mms_type         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Anaerobic Lagoon </span>
@@ -152,10 +192,11 @@ cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Liquid/Slurry    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Pasture/Range/Pa…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Solid Storage    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: manure_type &lt;chr&gt;, stream &lt;chr&gt;, applied_n &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 16 more variables: manure_type &lt;chr&gt;, stream &lt;chr&gt;, applied_n &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;, n_volatilized &lt;dbl&gt;, n_leached &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n2o_direct_n &lt;dbl&gt;, n2_n &lt;dbl&gt;, n2o_indirect_n &lt;dbl&gt;, c_lost &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   vs_destroyed &lt;dbl&gt;, method_losses &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   vs_destroyed &lt;dbl&gt;, n_bedding &lt;dbl&gt;, c_bedding &lt;dbl&gt;, method_losses &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
