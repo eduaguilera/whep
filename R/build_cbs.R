@@ -5830,8 +5830,9 @@ build_processing_coefs <- function(
 # Book the unexplained destiny residual on the item's default destiny.
 #
 # A `default_prone` row is one whose supply side already agrees with
-# `domestic_supply` (`.test_cbs()` sets the flag from `ds_destinies ==
-# balance`), so the only thing left out of balance is the destiny split.
+# `domestic_supply` (`.test_cbs()` sets the flag from
+# `.supply_sides_agree()`), so the only thing left out of balance is the
+# destiny split.
 # Writing the whole `domestic_supply` onto the default column is right when the
 # row carries no other destiny -- the case this repair was written for, and
 # 6420 of the 7000 rows it fires on in a 2009-2024 build. On the other 580 it
