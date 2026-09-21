@@ -3,8 +3,10 @@
 # Calc_SOC_evolution :315-418) to the WHEP cell x polity grain. The selected
 # SOC turnover model (calculate_soc_dynamics()) is run to steady state under the
 # first-year per-land-use carbon inputs to set per-class equilibrium densities;
-# each cell is initialised by weighting those equilibria with the first-year
-# land-use fractions; then stocks march forward year by year applying the
+# each class then opens either at its own equilibrium (the default) or at the
+# fraction-weighted cell mean of them, the Spain_Hist behaviour -- see
+# `.cb_init_density()`, which records what that choice costs on each side;
+# then stocks march forward year by year applying the
 # model's annual mineralization-minus-input update and a land-use-change carbon
 # transfer that conserves total cell carbon. Soil-organic-nitrogen change is
 # derived from the annual carbon rate via the asymmetric soil C:N ratios.
@@ -14,11 +16,11 @@
 #' @description
 #' Reconstruct per-cell soil-organic-carbon stock trajectories: run the selected
 #' turnover model to equilibrium under the earliest per-land-use carbon inputs,
-#' initialise each cell by weighting those equilibria with the earliest
-#' land-use fractions, march forward on yearly per-cell per-land-use areas
-#' applying the model annual update plus a carbon-conserving land-use-change
-#' transfer, and derive the soil-organic-nitrogen change from the carbon rate
-#' via asymmetric soil carbon-to-nitrogen ratios.
+#' open each land-use class at the stock \code{init} selects, march forward on
+#' yearly per-cell per-land-use areas applying the model annual update plus a
+#' carbon-conserving land-use-change transfer, and derive the
+#' soil-organic-nitrogen change from the carbon rate via asymmetric soil
+#' carbon-to-nitrogen ratios.
 #'
 #' @details
 #' \code{polity_validity} governs this function's own output. The internal
@@ -34,14 +36,19 @@
 #'   choice sets the equilibrium target, and through the time constant
 #'   \code{soc_eq / c_input} the speed the stock relaxes toward it; the
 #'   transient itself is a single exponential for every model.
-#' @param init How each land-use class's opening stock is set.
+#' @param init How each land-use class's opening stock is set. Neither option
+#'   is the physical one and the default is **not** settled evidence; the
+#'   measurements behind both sit on \code{.cb_init_density()} in the source.
 #'   \code{"own_equilibrium"} (default) starts every class at the stock its own
-#'   carbon input and climate support. \code{"cell_average"} starts every class
-#'   in a cell at the fraction-weighted mean of the classes sharing it, the
-#'   Spain historical behaviour: a proxy for land converted from something
-#'   richer, at the cost of opening the lowest-input class far above its own
-#'   target and draining it for decades, which the balance then reports as soil
-#'   nitrogen mineralization. Recorded in \code{method_soc_init}.
+#'   carbon input and climate support: it removes the opening transient the
+#'   balance would otherwise report as soil nitrogen mineralization, at the
+#'   cost of opening cropland at roughly a third of the carbon measured in
+#'   those soils. \code{"cell_average"} starts every class in a cell at the
+#'   fraction-weighted mean of the classes sharing it, the Spain historical
+#'   behaviour: it opens cropland near its observed stock, as a proxy for the
+#'   legacy carbon of the vegetation it replaced, at the cost of then draining
+#'   that stock toward an equilibrium whep#799 puts several-fold too low.
+#'   Recorded in \code{method_soc_init}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
 #'   \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).
 #' @param years Optional integer vector of calendar years to keep. \code{NULL}
@@ -1666,28 +1673,34 @@ build_carbon_balance <- function(
 
 # Initial SOC density per cell and class.
 #
-# `"own_equilibrium"` (default) starts each class at the stock its own carbon
-# input and climate support, so a class opens on its own target and the march
-# reports the trend its drivers imply.
+# This opening guess is a scientific CHOICE, and it is the single largest
+# control on the soil-nitrogen mineralization this balance hands to the
+# nitrogen balance. Two rationales for the default stood in this file pointing
+# opposite ways, neither adjudicated (whep#1128). Both are kept below, because
+# both are evidence; what follows them is a third benchmark that settles one
+# of the two legs, and the verdict.
 #
-# `"cell_average"` is the Spain_Hist behaviour: every class in a cell opens at
-# the fraction-weighted mean `sum(frac * soc_eq)` of the classes sharing it. It
-# is a proxy for land converted from something richer -- cropland broken out of
-# forest does inherit a stock above its own equilibrium -- and it is defensible
-# at the provincial grain it was written for. Carried to a 0.5-degree cell it
-# also means the lowest-input class starts wherever its neighbours' equilibria
-# put it and drains toward its own for decades: with cropland's time constant
+# POSITION A, open each class at its own equilibrium (`"own_equilibrium"`, the
+# shipped default, whep#1058). A class opens on its own target and the march
+# reports the trend its drivers imply. `"cell_average"` is defensible at the
+# provincial grain it was written for, but carried to a 0.5-degree cell it
+# means the lowest-input class starts wherever its neighbours' equilibria put
+# it and drains toward its own for decades: with cropland's time constant
 # `soc_eq / c_input` near 11 years, that transient is read out as soil nitrogen
 # mineralization, and it accounted for about a third of the spurious flux
 # reaching the nitrogen balance (312 against 211 Tg N; whep#792, whep#799).
-# Kept selectable because the inheritance it models is real, not because it is
-# the safer default.
 #
-# This opening guess is a scientific CHOICE, and it is the single largest
-# control on the soil-nitrogen mineralization this balance hands to the nitrogen
-# balance, so what each alternative implies is recorded here rather than only in
-# a pull request. Both columns below were measured on one global 1980-2010 HSOC
-# build on main, reported at 2010; the only thing varied is this function.
+# POSITION B, open at the fraction-weighted cell mean (`"cell_average"`, the
+# Spain_Hist behaviour, `sum(frac * soc_eq)` over the classes sharing a cell).
+# Real cropland carries legacy carbon from the vegetation it replaced, and
+# LPJmL's own cropland sits at 6.1 times its own equilibrium (whep#799,
+# measured by the maintainer). Opening every class at its own steady state
+# asserts that legacy does not exist, so part of the mineralization Position A
+# removes is real: breaking natural land to cropland does release soil nitrogen
+# for decades.
+#
+# WHAT EACH COSTS, measured on one global 1980-2010 HSOC build on main,
+# reported at 2010; the only thing varied is this function.
 #
 #                                        cell-average   own-equilibrium
 #   cropland opening stock / own eq            5.06              1
@@ -1696,32 +1709,55 @@ build_carbon_balance <- function(
 #   cropland son_change, kg N/ha                210            128
 #   non-item nitrogen stream, Tg N              309            209
 #
-# Halving the flux is not on its own an argument for opening each class at its
-# own equilibrium, because that also removes the stock. On cells LPJmL calls
-# more than half cropland, at WHEP's own 0-30 cm depth, in MgC/ha:
+# Halving that flux is not on its own an argument for Position A, because it
+# also removes the stock. On the 1,675 cells LPJmL calls more than half
+# cropland in 2010, at WHEP's own 0-30 cm depth (see the Soil depth section),
+# the two openings against two benchmarks, in MgC/ha:
 #
-#   cell-average opening   70.5      own-equilibrium opening   25.4
-#   LPJmL simulated        79.7      LPJmL own equilibrium     13.0
+#                            benchmark   cell-average   own-equilibrium
+#   opening stock                   --        70.5            25.4
+#   LPJmL simulated               80.3        0.88            0.32
+#   HWSD2 observed                92.8        0.76            0.27
 #
-# The last figure is the point. Real cropland carries legacy carbon from the
-# vegetation it replaced, and LPJmL's own cropland sits at 6.1 times its own
-# equilibrium (whep#799, measured by the maintainer). Opening every class at its
-# own steady state asserts that legacy does not exist, so part of the
-# mineralization it removes is real: breaking natural land to cropland does
-# release soil nitrogen for decades. Against LPJmL the cell-average opening is
-# 0.88 of the simulated cropland stock and the own-equilibrium opening 0.32, and
-# the depth-invariant natural-to-cropland ratio is 5.2 against 16.0, where LPJmL
-# puts 1.70. Grassland goes the other way -- own-equilibrium matches LPJmL to
-# 0.96 where cell-average overshoots to 1.45 -- and natural land is 2.7 to 3.0
-# times LPJmL under either, which is whep#799's defect and not this function's.
+# THE OBSERVATIONAL ANCHOR is the new leg (whep#1128): until now both positions
+# argued against LPJmL, another model. `read_hwsd_topsoil_soc()` exists to be
+# exactly this benchmark and nothing had used it for this. Rebuilt from the
+# HWSD2 archive the carbon balance already reads for clay -- D1 (0-20 cm) plus
+# half of D2 (20-40 cm) to reach the modelled 0-30 cm, share-weighted over each
+# map unit's components, measured bulk density -- observed topsoil carbon on
+# those same cells is 92.8 MgC/ha, median 82.2. It agrees with LPJmL, not with
+# either opening, so the benchmark leg of Position B is not a model artifact:
+# the own-equilibrium opening starts cropland at about a quarter to a third of
+# the carbon those soils are measured to hold. (The observation is a map-unit
+# property, not land-use resolved; on cells that are over half cropland it is
+# dominated by cropland soils, not restricted to them.) The depth-invariant
+# natural-to-cropland ratio says the same more sharply: 1.27 to 1.36 observed
+# and 1.66 in LPJmL, against 5.2 under cell-average and 16.0 under
+# own-equilibrium.
 #
-# Neither opening is therefore the physical answer. That is a pre-industrial
-# start (whep#369), where the march's own land-use-change transfer builds the
-# legacy stock instead of an opening guess standing in for it. The two openings
-# already converge towards each other as the span lengthens, which is that
-# transfer doing part of the work: the non-item nitrogen stream is 309 against
-# 209 Tg N over 1980-2010 and 318 against 251 Tg N over 1950-2010, and the 2010
-# area-weighted cropland stock 74.9 against 44.3 and 79.2 against 60.4 MgC/ha.
+# Grassland goes the other way -- own-equilibrium matches LPJmL to 0.96 where
+# cell-average overshoots to 1.45 -- and natural land is 2.7 to 3.0 times LPJmL
+# under either, which is whep#799's defect and not this function's.
+#
+# THE VERDICT: UNRESOLVED, DEFAULT UNCHANGED, AND NOT BY INHERITANCE. The
+# observation settles the stock leg and settles nothing about the flux leg,
+# which has no independent target at all: 309 against 209 Tg N is two numbers
+# and no measurement. And the two failures are one defect wearing two faces.
+# The cropland equilibrium this model computes is several-fold below the carbon
+# measured in cropland soils (whep#799), so Position A inherits that error as a
+# wrong opening stock while Position B converts it into a wrong drain. Fix
+# whep#799 and the two openings converge and the question dissolves; move the
+# default before then and the only choice being made is which face of the same
+# error to publish. Changing it is therefore whep#799's and whep#369's work,
+# not a default flip.
+#
+# The physical answer is neither opening: it is a pre-industrial start
+# (whep#369), where the march's own land-use-change transfer builds the legacy
+# stock instead of an opening guess standing in for it. The two openings
+# already converge as the span lengthens, which is that transfer doing part of
+# the work: the non-item nitrogen stream is 309 against 209 Tg N over 1980-2010
+# and 318 against 251 Tg N over 1950-2010, and the 2010 area-weighted cropland
+# stock 74.9 against 44.3 and 79.2 against 60.4 MgC/ha.
 .cb_init_density <- function(classes, init) {
   classes |>
     dplyr::mutate(

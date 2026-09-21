@@ -167,6 +167,59 @@ test_that("init weights per-class equilibria by land-use fractions", {
   )
 })
 
+test_that("the shipped opening is own_equilibrium, and it is recorded", {
+  # whep#1128: this default sets the single largest term the carbon balance
+  # hands the nitrogen balance -- 309 against 209 Tg N on a 1980-2010 build --
+  # and it is not settled evidence, only a deliberately held position (see
+  # `.cb_init_density()`). Nothing pinned it, so a flip could arrive as a
+  # one-word diff with green tests. This is that pin.
+  testthat::expect_equal(
+    eval(formals(whep::build_carbon_balance)$init)[[1]],
+    "own_equilibrium"
+  )
+  out <- whep::build_carbon_balance(data = .cb_test_data())
+  testthat::expect_setequal(out$method_soc_init, "own_equilibrium")
+  chosen <- whep::build_carbon_balance(
+    data = .cb_test_data(),
+    init = "cell_average"
+  )
+  testthat::expect_setequal(chosen$method_soc_init, "cell_average")
+})
+
+test_that("cell_average opens the low-input class above its own target", {
+  # The disagreement the two rationales in `.cb_init_density()` are about,
+  # made executable (whep#1128). Areas are held constant so the land-use-change
+  # transfer cannot fire: every gram of nitrogen reported here is the opening
+  # transient and nothing else.
+  data <- .cb_test_data()
+  data$land_use <- dplyr::mutate(
+    data$land_use,
+    area_ha = dplyr::if_else(land_use == "Cropland", 60, 40)
+  )
+  own <- whep::build_carbon_balance(data = data, init = "own_equilibrium")
+  avg <- whep::build_carbon_balance(data = data, init = "cell_average")
+
+  # NonCropland has the lower carbon input, hence the lower equilibrium, so
+  # the cell mean opens it above its own target while own_equilibrium opens it
+  # on target -- and it then drains toward that target for the whole span.
+  low_own <- dplyr::filter(own, land_use == "NonCropland")
+  low_avg <- dplyr::filter(avg, land_use == "NonCropland")
+  testthat::expect_gt(min(low_avg$stock_mgc_ha), max(low_own$stock_mgc_ha))
+  testthat::expect_equal(length(unique(low_own$stock_mgc_ha)), 1L)
+
+  # Only the cell-average opening mineralizes: starting on target, with areas
+  # fixed, releases no nitrogen at all.
+  testthat::expect_equal(sum(low_own$son_change_kgn_ha), 0)
+  testthat::expect_gt(sum(low_avg$son_change_kgn_ha), 0)
+
+  # The high-input class mirrors it. The cell mean opens Cropland BELOW its
+  # target, so it immobilises nitrogen where the other class releases it --
+  # which is why the two openings differ in the published total, not merely in
+  # how the same total is split between classes.
+  high_avg <- dplyr::filter(avg, land_use == "Cropland")
+  testthat::expect_lt(sum(high_avg$son_change_kgn_ha), 0)
+})
+
 test_that("each cell initialises at its own earliest available year", {
   classes <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use, ~soc_eq_mgc_ha, ~frac,
