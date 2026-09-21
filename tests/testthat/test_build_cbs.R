@@ -4395,3 +4395,76 @@ test_that("build_commodity_balances validates export_share_overflow", {
     class = "rlang_error"
   )
 })
+
+# -- Destiny split missing from the world sheet (whep#1144) -------------------
+
+# `DDGS` is one of the five by-products measured on a real 1950-1965 build:
+# the world sheet carries no `food`, `feed` or `other_uses` row for it at all,
+# because the round that creates it has not run yet. `Wine` is the compliant
+# neighbour, present so the tests can show that the guard touches only the key
+# with no split. No share here exceeds 1, so nothing warns.
+.no_destiny_glob <- function() {
+  tibble::tribble(
+    ~year, ~item_cbs, ~element,       ~value,
+    1965L, "DDGS",    "production",    50000,
+    1965L, "DDGS",    "import",         5000,
+    1965L, "DDGS",    "export",         2000,
+    1965L, "Wine",    "production",   100000,
+    1965L, "Wine",    "import",        10000,
+    1965L, "Wine",    "export",        20000,
+    1965L, "Wine",    "food",          80000
+  )
+}
+
+.no_destiny_processed <- function() {
+  tibble::tribble(
+    ~year, ~area,    ~area_code, ~item_cbs, ~value_final,
+    1965L, "Brazil", 21L,        "DDGS",           1000,
+    1965L, "France", 68L,        "Wine",           5000
+  )
+}
+
+.run_no_destiny <- function() {
+  whep:::.build_new_processed_balance(
+    .no_destiny_processed(),
+    .no_destiny_glob()
+  )
+}
+
+test_that("the new processed balance emits no row without an element", {
+  # The invariant, not the five item names: every row this function returns is
+  # a balance row, so it names an element and carries a finite value.
+  out <- .run_no_destiny()
+
+  expect_false(any(is.na(out$element)))
+  expect_true(all(is.finite(out$value)))
+})
+
+test_that("a product with no world destiny split keeps its supply side", {
+  out <- .run_no_destiny() |>
+    dplyr::filter(.data$item_cbs == "DDGS")
+
+  expect_setequal(
+    out$element,
+    c("production", "export", "domestic_supply")
+  )
+  expect_equal(.npb_value(out, "production", 1965L), 1000)
+  expect_equal(.npb_value(out, "export", 1965L), 1000 * 2000 / 55000)
+})
+
+test_that("a product with a world destiny split still gets its destinies", {
+  out <- .run_no_destiny() |>
+    dplyr::filter(.data$item_cbs == "Wine")
+
+  # The world sheet books the whole of Wine on `food`, so the single destiny
+  # row carries the whole domestic supply.
+  expect_true("food" %in% out$element)
+  expect_equal(
+    .npb_value(out, "food", 1965L),
+    .npb_value(out, "domestic_supply", 1965L)
+  )
+})
+
+test_that("the new processed balance returns no share column", {
+  expect_false("dest_share" %in% names(.run_no_destiny()))
+})
