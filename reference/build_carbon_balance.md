@@ -337,6 +337,31 @@ the input as well means asserting a productivity for land the model was
 never run on. Only a rerun on a land mask matching LUH2's puts real
 carbon on those hectares.
 
+## What this balance does not cover
+
+The balance runs on the LPJmL grid, because the climate drivers do. That
+grid is a coarser land mask than LUH2's, so **not every LUH2 hectare is
+in the output**. On the default readers at 2010, 7,079 cell-polity
+compartments carrying 296.8 Mha of LUH2 land – 30.4 Mha cropland, 46.6
+Mha grassland, 214.9 Mha natural, 4.8 Mha urban – have no climate driver
+and are dropped, with a warning naming the hectares and the worst-hit
+polities. The loss is essentially a coastline, so it is negligible
+globally (1.4% of grassland, 2.6% of natural land) and large for
+maritime polities: 31.6% of Greece's grassland, 25.3% of the
+Philippines', 22.7% of Somalia's, 17.8% of Indonesia's, 12.8% of the
+United Kingdom's, 12.5% of Italy's. A national SOC total from this
+function is a total over the modelled hectares, not over the polity.
+
+Dropped is not the same as marched at zero. A class with LUH2 area but
+no carbon-input row IS kept, at zero input (that is what makes `urban`
+dilute rather than deflate the cell), and whep#1146 read the coverage
+gap as that case. It is not: measured against the
+`lpjml-grass-natural-net-c` pin and the real climate table, every one of
+those 46.6 Mha of grassland is dropped for want of a climate driver, and
+the grassland actually marching on a zero-filled input is 0.212 ha
+globally at 2010. Both quantities are reported at run time rather than
+left to be re-derived.
+
 ## Polity columns
 
 Every area-keyed output carries the polity its `area_code` resolves to
