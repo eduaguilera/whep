@@ -376,15 +376,15 @@ testthat::test_that("the land class selects which crop rows are compared", {
   testthat::expect_equal(sum(both$crop_critical_n_t), 5)
 })
 
-testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
-  actual <- .nbx_actual(c(4, 4), indicator = "total_input")
+.nbx_run_no_crop <- function(values, indicator = "total_input") {
+  actual <- .nbx_actual(values, indicator = indicator)
   actual$item_cbs_code <- c(2501L, NA_integer_)
   boundary <- .nbx_boundary()
-  boundary$indicator <- "total_input"
-  out <- whep::build_n_boundary_exceedance(
+  boundary$indicator <- indicator
+  whep::build_n_boundary_exceedance(
     actual = actual,
     boundary = boundary,
-    indicator = "total_input",
+    indicator = indicator,
     land_class = "ara",
     impact_scope = "mi",
     allocation_scenario = "yield_gap",
@@ -392,8 +392,43 @@ testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
     actual_year = 2015L,
     critical_reference_year = 2010L
   )
+}
+
+testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
+  out <- suppressWarnings(.nbx_run_no_crop(c(4, 4)))
   testthat::expect_equal(out$item_cbs_code, 2501L)
   testthat::expect_equal(unique(out$cell_actual_n_t), 4)
+})
+
+testthat::test_that("crop-less pressure leaving is reported, not silent", {
+  # The exclusion is defensible -- a row that names no crop cannot meet a
+  # critical allowance. Letting an is.na() decide it without naming the mass
+  # is not (#1173): 4 t of the cell's 8 t of pressure leaves here, and every
+  # denominator below is computed without it.
+  testthat::expect_warning(
+    .nbx_run_no_crop(c(4, 4)),
+    class = "whep_nbx_no_crop_mass"
+  )
+  testthat::expect_warning(.nbx_run_no_crop(c(4, 4)), "4 t N")
+})
+
+testthat::test_that("a zero-mass crop-less row is reported as no loss", {
+  # The shape a gridded build_nitrogen_balance() actually produces: the row
+  # exists (its output-term full join manufactured it) and carries nothing.
+  # It is still named, so "nothing was dropped" is a statement rather than an
+  # absence of one.
+  testthat::expect_message(
+    .nbx_run_no_crop(c(4, 0)),
+    class = "whep_nbx_no_crop_dropped"
+  )
+  testthat::expect_no_warning(suppressMessages(.nbx_run_no_crop(c(4, 0))))
+  out <- suppressMessages(.nbx_run_no_crop(c(4, 0)))
+  testthat::expect_equal(out$item_cbs_code, 2501L)
+})
+
+testthat::test_that("an all-crop actual pressure reports nothing", {
+  testthat::expect_no_message(.nbx_run(c(4, 4)))
+  testthat::expect_no_warning(.nbx_run(c(4, 4)))
 })
 
 # Backs the NEWS claim about which way the numbers moved. For a non-negative

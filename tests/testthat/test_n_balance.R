@@ -1017,3 +1017,48 @@ testthat::test_that("the fert_type bridge covers the whole input vocabulary", {
   testthat::expect_true(is.na(whep:::.nb_loss_fert_type(NA_character_)))
   testthat::expect_equal(whep:::.nb_loss_fert_type(character()), character())
 })
+
+testthat::test_that("a manufactured crop-less row carries no pressure", {
+  # .nb_merge_output_term()'s full join CREATES a balance row when an output
+  # term has no input row to attach to, and .nb_add_som_sequestration() books
+  # its term at item_cbs_code = NA. Those rows are real, and one hop
+  # downstream build_n_boundary_exceedance() filters them out -- a join that
+  # manufactures rows a later filter removes. This pins the reason that round
+  # trip costs nothing: every numeric column on such a row is the join's zero
+  # fill except the sequestration itself, and .nb_cap_som() caps that to
+  # pmax(0, inputs - other outputs) = 0. If any of those three mechanisms
+  # changes, the exceedance filter starts deleting real nitrogen (#1173).
+  carbon <- .nb_carbon_balance()
+  booked <- sum(pmax(0, -carbon$son_change_kgn_ha) * carbon$area_ha / 1000)
+  # Not vacuous: the fixture really does book sequestration at the NA item.
+  testthat::expect_gt(booked, 0)
+
+  out <- .nb_run()
+  crop_less <- dplyr::filter(out, is.na(.data$item_cbs_code))
+  testthat::expect_gt(nrow(crop_less), 0)
+  testthat::expect_equal(sum(crop_less$som_sequestration_n_t), 0)
+  testthat::expect_equal(sum(crop_less$n_input_full_t), 0)
+  testthat::expect_equal(sum(crop_less$n_balance_t), 0)
+
+  surplus <- whep::calculate_n_surplus(out)
+  crop_less_surplus <- dplyr::filter(surplus, is.na(.data$item_cbs_code))
+  testthat::expect_equal(sum(crop_less_surplus$surplus_n_t), 0)
+  testthat::expect_equal(sum(crop_less_surplus$n_input_std_t), 0)
+})
+
+testthat::test_that("a grid balance refuses an incomplete input key", {
+  # The other half of the same guarantee: crop-less rows cannot arrive from
+  # the INPUT side of a gridded balance, so the manufactured rows above are
+  # the only ones there are.
+  data <- .nb_data_with_drivers()
+  inputs <- whep::build_n_inputs(data = data)
+  data$n_inputs <- dplyr::bind_rows(
+    inputs,
+    dplyr::mutate(
+      inputs[1, ],
+      item_cbs_code = NA_integer_,
+      n_input_t = 1000
+    )
+  )
+  testthat::expect_error(.nb_run(data = data), "complete grid and item keys")
+})
