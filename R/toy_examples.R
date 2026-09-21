@@ -774,15 +774,19 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
-    ~method_excreta_area,
+    ~method_excreta_area, ~method_grazed_area,
     26.25, 35.25, 84L, 2000L, "grassland",
-    4.631947, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
+    4.631947, 0.1153467, "lpjml_npp_minus_harvest",
+    "luh2_grassland", "luh2_grassland",
     26.25, 35.25, 84L, 2000L, "natural",
-    5.089049, 0.2955049, "lpjml_litterfall", "luh2_grassland",
+    5.089049, 0.2955049, "lpjml_litterfall",
+    "luh2_grassland", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "grassland",
-    8.740661, 0.1153467, "lpjml_npp_minus_harvest", "luh2_grassland",
+    8.740661, 0.1153467, "lpjml_npp_minus_harvest",
+    "luh2_grassland", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "natural",
-    8.989904, 0.3168902, "lpjml_litterfall", "luh2_grassland"
+    8.989904, 0.3168902, "lpjml_litterfall",
+    "luh2_grassland", "luh2_grassland"
   ) |>
     .add_reporting_polity_columns()
 }
