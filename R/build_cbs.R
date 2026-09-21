@@ -321,7 +321,42 @@ build_commodity_balances <- function(
 
   cbs_long |>
     .pivot_cbs_wide() |>
+    .ensure_wide_cbs_destinies() |>
     dplyr::bind_rows(livestock_cbs)
+}
+
+# `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
+# with no row anywhere in `cbs_long` never becomes a column at all, and the
+# bind above then NA-fills it across every crop row -- because
+# `get_livestock_cbs()` always emits the full destiny set. The damage is that
+# an NA is invisible rather than loud: `check_supply_use_balance()` returns
+# `use = NA` and `balanced = NA`, and `.qc_supply_use_balance()` drops NA
+# `rel_diff` before warning, so the build-time supply-use QC goes silently
+# inert for the whole crop side. `processing_primary` is the element this
+# actually bites: it is nonzero only for the handful of pp_items, so any
+# window without one loses the check (whep#177).
+.ensure_wide_cbs_destinies <- function(wide) {
+  cols <- c(
+    "production",
+    "import",
+    "export",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "processing_primary",
+    "other_uses",
+    "stock_addition",
+    "stock_withdrawal",
+    "domestic_supply"
+  )
+
+  wide |>
+    ensure_columns(
+      tibble::as_tibble(rlang::rep_named(cols, list(double()))),
+      defaults = rlang::rep_named(cols, list(0))
+    ) |>
+    dplyr::relocate(dplyr::any_of(c("year", "area_code", "item_cbs_code")))
 }
 
 # The wide CBS dataset as users consume it. It lives beside the long build so
