@@ -92,7 +92,7 @@ build_nitrogen_balance(
     required input (`item_prod_code`, `residue_dm_t`, plus whatever the
     chosen `residue_destiny_method` needs), for `used_residue_n_t`/
     `burnt_residue_n_t`. `residue_destiny_method` selects the method
-    (default `"krausmann_regional"`).
+    (default `"recovery_regional"`).
 
   - `livestock_intake`: shared with
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
