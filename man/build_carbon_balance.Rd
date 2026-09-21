@@ -23,6 +23,7 @@ build_carbon_balance(
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
+  method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
   example = FALSE
 )
 }
@@ -154,6 +155,25 @@ aborts without them; \code{"lpjml"} uses the model's own livestock module and
 needs neither. Only read when the carbon inputs are built here rather
 than supplied through \code{data$c_inputs}.}
 
+\item{method_som_cn}{Which published parameterisation sets the C:N at which
+soil organic matter forms from the carbon input that formed it,
+\code{CN_new = a - b / CN_input}, floored and then bounded by the IPCC 2019
+land-use range. \code{"justes_2009"} (default, a = 15.4, b = 76) is the refit
+on the larger combined dataset; \code{"nicolardot_2001"} (16.1, 123) is the
+original fit, and the citation HSOCN's own nitrogen submodel follows, so
+it is the parameterisation that puts WHEP and HSOCN on one basis;
+\code{"century"} (16, 120) is CENTURY/DayCent's shipped parameterisation.
+All three, each with its source, sample and floor, are in
+\code{inst/extdata/balances/som_marginal_cn.csv}. The choice sets the nitrogen
+of a carbon change and never the carbon: at an input C:N of 40 the three
+give a marginal C:N of 13.50, 13.03 and 13.00, so \code{son_change_kgn_ha}
+spans 3.8\%; at a narrow (manure-like) input C:N of 12 they give 9.07,
+8.00 and 10.00, a 25\% spread, and the widest anywhere is 29\% at an input
+C:N of 15; above an input C:N of 70 they never differ by more than 1.9\%.
+Recorded per row in \code{method_som_cn}, which instead reads
+\code{"land_use_default"} on a row whose input C:N is unknown and
+\code{"directional_ipcc_range"} when no input C:N is carried at all.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
 }
@@ -165,7 +185,8 @@ with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{son_change_kgn_ha},
 \code{area_ha}, and one column per method choice that moves a number:
 \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
-\code{method_area_basis}, \code{method_grazing} and
+\code{method_area_basis}, \code{method_grazing},
+\code{method_som_cn} and
 \code{method_crop_groups}. All of them survive the \code{"polity"}
 roll-up. Plus the
 polity columns below, plus

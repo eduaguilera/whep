@@ -43,8 +43,17 @@
 #'     (`n_intake - product_n`).
 #'   * `method_vs`: `"intake_digestibility"` (default,
 #'     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
-#'   * `method_c`: `"volatile_solids"` (default and only method,
-#'     `vs_excretion * c_vs_fraction`).
+#'   * `method_c`: `"volatile_solids"` (the only method,
+#'     `vs_excretion * c_vs_fraction`). The route it replaced,
+#'     `n_excretion` times the `bio_coefs` `Excreta` C:N, is deliberately not
+#'     offered as an alternative: it applied a fresh-dung C:N to
+#'     whole-excreta nitrogen, some 60% of which is urinary and carries almost
+#'     no carbon, and returned 0.73 kg C per kg of volatile solids -- above
+#'     pure protein, so not a composition organic matter can have (whep#1006).
+#'     A route that cannot be right is not a sensitivity case, so this option
+#'     names the algebra behind `c_excretion` rather than a choice, and
+#'     `method_c_excretion` has one value until a second defensible method
+#'     exists (whep#1100).
 #'   * `c_vs_fraction`: carbon per unit of volatile solids, kg C / kg VS.
 #'     Default 0.47; see Details.
 #'   * `forage_n`: nitrogen content of the grazed forage that intake rows with
@@ -135,12 +144,19 @@ estimate_n_excretion <- function(intake, options = list()) {
       "Unknown {.arg method} {.val {opt$method}}. Use one of {.val {methods}}."
     )
   }
-  if (!opt$method_vs %in% "intake_digestibility") {
-    cli::cli_abort("Unknown {.arg method_vs} {.val {opt$method_vs}}.")
-  }
-  if (!opt$method_c %in% "volatile_solids") {
-    cli::cli_abort("Unknown {.arg method_c} {.val {opt$method_c}}.")
-  }
+  # Single-valued, but validated the same way as every other selector, so the
+  # error names what IS accepted and an absent or non-string option cannot
+  # slip through a zero-length `%in%` test.
+  opt$method_vs <- rlang::arg_match0(
+    opt$method_vs,
+    "intake_digestibility",
+    arg_nm = "method_vs"
+  )
+  opt$method_c <- rlang::arg_match0(
+    opt$method_c,
+    "volatile_solids",
+    arg_nm = "method_c"
+  )
   .check_c_vs_fraction(opt$c_vs_fraction)
   opt$forage_n <- rlang::arg_match0(
     opt$forage_n,
