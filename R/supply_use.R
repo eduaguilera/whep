@@ -454,9 +454,10 @@ build_supply_use <- function(example = FALSE) {
 # `.build_output_vector()` takes x from the CBS `production` element. Since
 # whep#1003 the CBS carries only what leaves the field, so supplying the whole
 # residue here would make the two disagree -- by 9.34 Pg against 7.79 Pg at
-# 2020 globally, and totally where recovery is zero (Fodder crops in all eight
-# HANPP regions; roots, tubers, cassava, sugar beet and dry beans in West
-# Europe, North America and Oceania). It would not surface as an error either:
+# 2020 globally, and totally where recovery is zero (roots, tubers, cassava,
+# sugar beet and dry beans in West Europe, North America and Oceania; the
+# Fodder crops rate is also 0 everywhere but reaches no residue row, see
+# whep#1150). It would not surface as an error either:
 # `.build_output_vector()` falls back to the Z/Y-derived output when the CBS
 # output is 0, and inflates the residue column of A by 1 / recovery elsewhere.
 .build_supply_crop_residue <- function(cbs_items, crop_residues) {
