@@ -109,8 +109,15 @@ build_n_inputs(
 
   Named list of pre-loaded, caller-supplied upstream inputs. Each of the
   following is required for its corresponding `fert_type` to be emitted
-  (a missing one silently skips that source rather than erroring, since
-  callers may only want a subset):
+  (a missing one skips that source rather than erroring, since callers
+  may only want a subset). Supplying one and getting **no** nitrogen
+  back is a different matter and is refused with a `whep_absent_input`
+  error, because a stream that arrived empty is subtracted from the
+  balance without changing anything the mass check can see – that check
+  compares the assembled rows against themselves (#1034). The one
+  exception is `carbon_balance`, which warns instead: its stream keeps
+  only `son_change_kgn_ha > 0`, so contributing nothing is an
+  observation there as well as a symptom.
 
   - `bnf_input`:
     [`calculate_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_bnf.md)'s

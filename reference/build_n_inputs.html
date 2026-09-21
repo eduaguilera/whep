@@ -179,8 +179,15 @@ already-built table.</p></dd>
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding <code>fert_type</code> to
-be emitted (a missing one silently skips that source rather than
-erroring, since callers may only want a subset):</p><ul><li><p><code>bnf_input</code>: <code><a href="calculate_bnf.html">calculate_bnf()</a></code>'s required input tibble (<code>lon</code>, <code>lat</code>,
+be emitted (a missing one skips that source rather than erroring, since
+callers may only want a subset). Supplying one and getting <strong>no</strong>
+nitrogen back is a different matter and is refused with a
+<code>whep_absent_input</code> error, because a stream that arrived empty is
+subtracted from the balance without changing anything the mass check can
+see – that check compares the assembled rows against themselves
+(#1034). The one exception is <code>carbon_balance</code>, which warns instead: its
+stream keeps only <code>son_change_kgn_ha &gt; 0</code>, so contributing nothing is an
+observation there as well as a symptom.</p><ul><li><p><code>bnf_input</code>: <code><a href="calculate_bnf.html">calculate_bnf()</a></code>'s required input tibble (<code>lon</code>, <code>lat</code>,
 <code>area_code</code>, <code>year</code>, <code>item_prod_code</code>, <code>crop_npp_n_t</code>, <code>product_n_t</code>,
 <code>weed_npp_n_t</code>, <code>land_use</code>, <code>legumes_seeded</code>,
 <code>seeded_cover_crop_share</code>, <code>area_ha</code>).</p></li>

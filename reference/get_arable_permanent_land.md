@@ -55,7 +55,12 @@ get_arable_permanent_land(
 
   Optional in-memory FAOSTAT RL table in the raw pin schema (columns
   `Area Code`, `Item Code`, `Element`, `Unit`, `Year`, `Value`), used
-  instead of the pin (chiefly for testing).
+  instead of the pin (chiefly for testing). The two vocabularies this
+  read selects on – `Element == "Area"` and the `"1000 ha"` unit label –
+  are checked before the filter runs: either one moving takes every row
+  with it, and a zero-row land base is indistinguishable downstream from
+  a world with no cropland, so it is refused with a `whep_absent_label`
+  error naming the labels the table does carry (#1034).
 
 - luh2_data:
 

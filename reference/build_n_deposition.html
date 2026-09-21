@@ -122,7 +122,11 @@ keeps every year the inputs cover.</p></dd>
 (each <code>lon</code>, <code>lat</code>, <code>year</code>, <code>value_g</code> and optionally
 <code>method_deposition</code>, falling back to <code><a href="read_n_deposition.html">read_n_deposition()</a></code> when absent)
 and <code>cell_polity</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_ha</code> and the
-<code>split</code> key column, required).</p></dd>
+<code>split</code> key column, required). Neither species is optional: a <code>nhx</code> or
+<code>noy</code> that contributes nothing to any cell the support carries – no
+rows, identically zero, or on a longitude convention of its own – is
+refused with a <code>whep_absent_input</code> error rather than halving every
+deposition total in silence (#1034).</p></dd>
 
 
 <dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>

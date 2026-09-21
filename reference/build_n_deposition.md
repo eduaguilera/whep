@@ -54,7 +54,11 @@ build_n_deposition(
   back to
   [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
   when absent) and `cell_polity` (`lon`, `lat`, `area_code`,
-  `cell_area_ha` and the `split` key column, required).
+  `cell_area_ha` and the `split` key column, required). Neither species
+  is optional: a `nhx` or `noy` that contributes nothing to any cell the
+  support carries – no rows, identically zero, or on a longitude
+  convention of its own – is refused with a `whep_absent_input` error
+  rather than halving every deposition total in silence (#1034).
 
 - split:
 

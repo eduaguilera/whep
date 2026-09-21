@@ -126,7 +126,12 @@ available (1700-2025). The pre-1961 LUH2 backcast is computed only when
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional in-memory FAOSTAT RL table in the raw pin schema (columns
 <code>Area Code</code>, <code>Item Code</code>, <code>Element</code>, <code>Unit</code>, <code>Year</code>, <code>Value</code>), used instead
-of the pin (chiefly for testing).</p></dd>
+of the pin (chiefly for testing). The two vocabularies this read selects
+on – <code>Element == "Area"</code> and the <code>"1000 ha"</code> unit label – are checked
+before the filter runs: either one moving takes every row with it, and a
+zero-row land base is indistinguishable downstream from a world with no
+cropland, so it is refused with a <code>whep_absent_label</code> error naming the
+labels the table does carry (#1034).</p></dd>
 
 
 <dt id="arg-luh-data">luh2_data<a class="anchor" aria-label="anchor" href="#arg-luh-data"></a></dt>
