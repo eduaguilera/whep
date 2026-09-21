@@ -260,13 +260,52 @@ split_manure_management <- function(excretion, options = list()) {
 #' on the storage system: when excreted carbon moved, the reported loss for
 #' cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.
 #'
-#' @param split A tibble from [split_manure_management()].
+#' @section Bedding:
+#' When the rows carry `n_bedding` and `c_bedding` (from
+#' [add_manure_bedding()]), the straw bedded under housed animals is part of
+#' the manure that reaches the field, and the applied C:N is the C:N of the
+#' bedded farmyard manure rather than of the excreta alone. Without those
+#' columns nothing changes: they default to zero and every number is the
+#' excreta-only one.
+#'
+#' Nitrogen follows IPCC 2019 Refinement Vol. 4 Ch. 10 Eq. 10.34 (p. 10.94)
+#' exactly: `NbeddingMS` sits **outside** the `(1 - FracLossMS)` term, because
+#' "mineralization of nitrogen compounds in beddings occurs more slowly
+#' compared to manure and the concentration of ammonia fraction in organic
+#' beddings is negligible", so "both volatilization and leaching losses during
+#' storage of bedding are assumed to be zero" (p. 10.93). Bedding nitrogen
+#' therefore raises `applied_n` one-for-one and raises none of the loss
+#' side-streams.
+#'
+#' Carbon has no IPCC rule at all -- manure CO2 is out of scope there -- so
+#' `bedding_c_loss` selects it. `"same_as_excreta"` (default) applies the
+#' stream's own storage carbon-loss fraction to the bedding carbon too: the
+#' 0.420 for solid storage comes from Pardo et al. 2015
+#' (\doi{10.1111/gcb.12806}, Table 2), a systematic review of whole manure
+#' heaps, and a heap in solid storage in practice already contains its litter,
+#' so the measured loss is a whole-heap loss. `"none"` keeps every gram of
+#' bedding carbon, mirroring the zero storage loss IPCC gives bedding nitrogen;
+#' it is the upper bound on applied carbon and raises the applied carbon of a
+#' bedded solid-storage stream by `0.420 / (1 - 0.420) = 72%` of the bedding
+#' carbon relative to the default.
+#'
+#' Volatile solids stay excreta-only under both, so the Tier 2 methane engine
+#' in [build_livestock_ghg_extension()] is untouched. IPCC 2019 Ch. 10 does ask
+#' for bedding to be combined with volatile solids when estimating manure
+#' methane; that is a separate change to a separate engine and is not made
+#' here.
+#'
+#' @param split A tibble from [split_manure_management()], optionally with the
+#'   `n_bedding` and `c_bedding` columns [add_manure_bedding()] adds.
 #' @param options A named list. `method` selects the loss method
-#'   (`"ipcc_2019_tier2"`).
+#'   (`"ipcc_2019_tier2"`). `bedding_c_loss` selects how bedding carbon is
+#'   treated in storage: `"same_as_excreta"` (default) or `"none"`; see the
+#'   Bedding section.
 #'
 #' @return The input rows with `manure_type`, `applied_n`, `applied_c`,
 #'   `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
-#'   `n2o_indirect_n`, `c_lost`, `vs_destroyed` and `method_losses`.
+#'   `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
+#'   `method_losses` and `method_bedding_c`.
 #' @export
 #' @examples
 #' excretion <- tibble::tribble(
@@ -276,10 +315,18 @@ split_manure_management <- function(excretion, options = list()) {
 #' )
 #' apply_management_losses(split_manure_management(excretion))
 apply_management_losses <- function(split, options = list()) {
-  opt <- utils::modifyList(list(method = "ipcc_2019_tier2"), options)
+  opt <- utils::modifyList(
+    list(method = "ipcc_2019_tier2", bedding_c_loss = "same_as_excreta"),
+    options
+  )
   if (!identical(opt$method, "ipcc_2019_tier2")) {
     cli::cli_abort("Unknown {.arg method} {.val {opt$method}}.")
   }
+  bedding_c_loss <- opt$bedding_c_loss
+  opt$bedding_c_loss <- rlang::arg_match(
+    bedding_c_loss,
+    c("same_as_excreta", "none")
+  )
   .check_split_cols(split)
 
   ind <- whep::indirect_n2o_ef
@@ -289,6 +336,7 @@ apply_management_losses <- function(split, options = list()) {
 
   out <- split |>
     tibble::as_tibble() |>
+    .attach_bedding_streams() |>
     dplyr::left_join(
       .manure_loss_fractions(),
       by = c("mms_type", "loss_category" = "animal_category")
@@ -317,33 +365,50 @@ apply_management_losses <- function(split, options = list()) {
       ),
       n2_n = .data$n2o_direct_n * n2_ratio,
       n2o_indirect_n = .data$n_volatilized * ef4 + .data$n_leached * ef5,
-      applied_n = dplyr::if_else(
-        .data$stream == "grazing",
-        .data$n_stream,
-        pmax(
-          0,
-          .data$n_stream -
-            .data$n_volatilized -
-            .data$n_leached -
-            .data$n2o_direct_n -
-            .data$n2_n
+      # IPCC 2019 Eq. 10.34: bedding N is added OUTSIDE the (1 - FracLossMS)
+      # term, because storage volatilization and leaching of bedding N are
+      # assumed zero (Ch. 10 p. 10.93). It is zero on every stream that took no
+      # bedding, so the grazing branch needs no separate treatment.
+      applied_n = .data$n_bedding +
+        dplyr::if_else(
+          .data$stream == "grazing",
+          .data$n_stream,
+          pmax(
+            0,
+            .data$n_stream -
+              .data$n_volatilized -
+              .data$n_leached -
+              .data$n2o_direct_n -
+              .data$n2_n
+          )
         )
-      )
     ) |>
     dplyr::left_join(.mms_manure_type(), by = "mms_type") |>
     .attach_storage_c_loss()
 
+  # 1 applies the stream's own storage loss to the bedding carbon as well,
+  # 0 exempts it; see the Bedding section.
+  bedding_loss_share <- .bedding_c_loss_share(opt$bedding_c_loss)
+
   out |>
     dplyr::mutate(
-      applied_c = .data$c_stream * (1 - .data$c_loss_fraction),
-      c_lost = .data$c_stream - .data$applied_c,
+      applied_c_excreta = .data$c_stream * (1 - .data$c_loss_fraction),
+      applied_c = .data$applied_c_excreta +
+        .data$c_bedding *
+          (1 - .data$c_loss_fraction * bedding_loss_share),
+      c_lost = .data$c_stream + .data$c_bedding - .data$applied_c,
+      # Volatile solids track the EXCRETA carbon only. Bedding is organic
+      # matter too, but vs_stream feeds the Tier 2 methane potential, and
+      # scaling it by a carbon ratio that now includes straw would move manure
+      # methane as a side effect of a soil-carbon change.
       applied_vs = dplyr::if_else(
         .data$c_stream > 0,
-        .data$vs_stream * .data$applied_c / .data$c_stream,
+        .data$vs_stream * .data$applied_c_excreta / .data$c_stream,
         .data$vs_stream
       ),
       vs_destroyed = .data$vs_stream - .data$applied_vs,
-      method_losses = opt$method
+      method_losses = opt$method,
+      method_bedding_c = opt$bedding_c_loss
     ) |>
     dplyr::select(
       "year",
@@ -364,8 +429,35 @@ apply_management_losses <- function(split, options = list()) {
       "n2o_indirect_n",
       "c_lost",
       "vs_destroyed",
-      "method_losses"
+      "n_bedding",
+      "c_bedding",
+      "method_losses",
+      "method_bedding_c"
     )
+}
+
+# Bedding carbon and nitrogen are optional: a split that never met
+# add_manure_bedding() carries neither column and must come out of this
+# function with exactly the numbers it had before bedding existed. Zero is the
+# right fill here and only here -- it is a declared absence, stamped on every
+# row by method_bedding_c, not a measurement that went missing.
+.attach_bedding_streams <- function(split) {
+  split |>
+    ensure_columns(
+      tibble::tibble(n_bedding = numeric(), c_bedding = numeric()),
+      defaults = list(n_bedding = 0, c_bedding = 0)
+    ) |>
+    dplyr::mutate(
+      n_bedding = tidyr::replace_na(.data$n_bedding, 0),
+      c_bedding = tidyr::replace_na(.data$c_bedding, 0)
+    )
+}
+
+# How much of the stream's excreta carbon-loss fraction the bedding carbon
+# also suffers. See the Bedding section of apply_management_losses() for why
+# "same_as_excreta" is the default.
+.bedding_c_loss_share <- function(bedding_c_loss) {
+  switch(bedding_c_loss, same_as_excreta = 1, none = 0)
 }
 
 .check_split_cols <- function(split) {

@@ -3257,6 +3257,29 @@ testthat::test_that("the residue balance closes on the recovered mass", {
   )
 })
 
+testthat::test_that("a bedding destiny stays inside the CBS balance", {
+  # whep#1005 adds a fourth residue destiny. It is carved out of the burn
+  # share, so `recovered` has to sum ALL the removed destinies: summing only
+  # feed and burn would drop the bedding mass out of residue `production`
+  # while leaving `feed` alone, and `production = feed + other_uses` would
+  # break silently, since other_uses is derived as recovered - feed.
+  bare <- whep:::.residue_cbs_elements(.rcr_row())
+  bedded <- whep:::.residue_cbs_elements(.rcr_row(), bedding_fraction = 0.4)
+  value_of <- function(out, el) out$value[out$element == el]
+
+  testthat::expect_equal(value_of(bedded, "production"), 700)
+  testthat::expect_equal(
+    value_of(bedded, "production"),
+    value_of(bedded, "feed") + value_of(bedded, "other_uses")
+  )
+  # Bedding is a non-feed use, so it moves nothing between CBS elements.
+  testthat::expect_equal(value_of(bedded, "feed"), value_of(bare, "feed"))
+  testthat::expect_equal(
+    value_of(bedded, "other_uses"),
+    value_of(bare, "other_uses")
+  )
+})
+
 testthat::test_that("residue feed is far below the whole production", {
   # The defect this replaces: feed == production. Any future change that
   # reintroduces it fails here rather than only in a global total.

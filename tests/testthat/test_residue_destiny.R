@@ -95,3 +95,82 @@ test_that("krausmann split accepts regions_full recovery labels", {
     100
   )
 })
+
+## ---- The bedding destiny (whep#1005) --------------------------------------
+
+.rd_bedding_input <- function() {
+  tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+}
+
+test_that("bedding_fraction defaults to zero and changes nothing", {
+  bare <- whep::calculate_residue_destinies(.rd_bedding_input())
+  testthat::expect_equal(bare$residue_bedding_dm_t, 0)
+  testthat::expect_equal(bare$residue_bedding_fraction, 0)
+})
+
+test_that("bedding is carved out of the non-feed removed share only", {
+  bare <- whep::calculate_residue_destinies(.rd_bedding_input())
+  bedded <- whep::calculate_residue_destinies(
+    .rd_bedding_input(),
+    bedding_fraction = 0.3
+  )
+  # Feed and the on-field share are untouched: bedding never comes out of the
+  # residue that stayed on the field (IPCC 2019 Vol. 4 Ch. 10 p. 10.95).
+  testthat::expect_equal(bedded$residue_feed_dm_t, bare$residue_feed_dm_t)
+  testthat::expect_equal(bedded$residue_soil_dm_t, bare$residue_soil_dm_t)
+  testthat::expect_equal(
+    bedded$residue_bedding_dm_t,
+    0.3 * bare$residue_burn_dm_t
+  )
+  testthat::expect_equal(bedded$residue_burn_dm_t, 0.7 * bare$residue_burn_dm_t)
+})
+
+test_that("the four destinies still sum to the whole residue", {
+  for (frac in c(0, 0.14, 0.5, 1)) {
+    out <- whep::calculate_residue_destinies(
+      .rd_bedding_input(),
+      bedding_fraction = frac
+    )
+    testthat::expect_equal(
+      out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t +
+        out$residue_soil_dm_t,
+      100
+    )
+  }
+})
+
+test_that("the shares method carves bedding the same way", {
+  x <- tibble::tibble(item_prod_code = "15", residue_dm_t = 100, year = 1950)
+  out <- suppressWarnings(whep::calculate_residue_destinies(
+    x,
+    method = "shares",
+    bedding_fraction = 0.25
+  ))
+  testthat::expect_equal(
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
+    100
+  )
+})
+
+test_that("an out-of-range bedding fraction is refused", {
+  bad_values <- list(-0.1, 1.5, NA_real_, c(0.1, 0.2), "0.1")
+  for (bad in bad_values) {
+    testthat::expect_error(
+      whep::calculate_residue_destinies(
+        .rd_bedding_input(),
+        bedding_fraction = bad
+      ),
+      "bedding_fraction"
+    )
+  }
+})

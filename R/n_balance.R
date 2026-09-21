@@ -82,8 +82,10 @@
 #'   * `residue_destiny_input`: [calculate_residue_destinies()]'s required
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
-#'     `burnt_residue_n_t`. `residue_destiny_method` selects the method
-#'     (default `"recovery_regional"`).
+#'     `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
+#'     selects the method (default `"recovery_regional"`) and
+#'     `residue_bedding_fraction` the share of the recovered non-feed residue
+#'     used as bedding (default `0`; see [calculate_residue_destinies()]).
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -432,14 +434,25 @@ build_nitrogen_balance <- function(
   dplyr::mutate(npp, area_ha = NA_real_)
 }
 
-# used_residue_n_t / burnt_residue_n_t: calculate_residue_destinies() splits
-# residue_dm_t into feed/burn/soil destinies; the feed and burn shares are
-# converted to N with the SAME residue_n_kgdm coefficient
-# calculate_npp_carbon_nitrogen() uses internally (whep::whep_coef_table
-# ("bio_coefs"), joined on item_prod_code).
+# used_residue_n_t / bedding_residue_n_t / burnt_residue_n_t:
+# calculate_residue_destinies() splits residue_dm_t into feed/bedding/burn/soil
+# destinies; the three removed shares are converted to N with the SAME
+# residue_n_kgdm coefficient calculate_npp_carbon_nitrogen() uses internally
+# (whep::whep_coef_table("bio_coefs"), joined on item_prod_code).
+#
+# Bedding needs its own term rather than being left inside the burn share it is
+# carved from: all three leave the field and so all three belong in
+# n_output_full_t, but bedding is the only one that comes back as manure, so a
+# reader has to be able to see it separately. Folding it into burnt_residue_n_t
+# would keep the balance closed and mislabel the flow.
 .nb_add_residue_destiny <- function(x, data, key) {
   if (is.null(data$residue_destiny_input)) {
-    return(dplyr::mutate(x, used_residue_n_t = 0, burnt_residue_n_t = 0))
+    return(dplyr::mutate(
+      x,
+      used_residue_n_t = 0,
+      bedding_residue_n_t = 0,
+      burnt_residue_n_t = 0
+    ))
   }
   n_kgdm <- whep::whep_coef_table("bio_coefs") |>
     dplyr::transmute(
@@ -448,13 +461,18 @@ build_nitrogen_balance <- function(
     )
   destiny <- data$residue_destiny_input |>
     calculate_residue_destinies(
-      method = data$residue_destiny_method %||% "recovery_regional"
+      method = data$residue_destiny_method %||% "recovery_regional",
+      bedding_fraction = data$residue_bedding_fraction %||% 0
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>
     dplyr::summarise(
       used_residue_n_t = sum(
         .data$residue_feed_dm_t * .data$residue_n_kgdm,
+        na.rm = TRUE
+      ),
+      bedding_residue_n_t = sum(
+        .data$residue_bedding_dm_t * .data$residue_n_kgdm,
         na.rm = TRUE
       ),
       burnt_residue_n_t = sum(
@@ -668,6 +686,7 @@ build_nitrogen_balance <- function(
       n_output_std_t = .data$prod_n_t + .data$grazed_weeds_n_t,
       n_output_full_t = .data$prod_n_t +
         .data$used_residue_n_t +
+        .data$bedding_residue_n_t +
         .data$burnt_residue_n_t +
         .data$grazed_weeds_n_t +
         .data$nh3_n_t +
@@ -800,6 +819,7 @@ build_nitrogen_balance <- function(
     "n_input_for_n2o_t",
     "prod_n_t",
     "used_residue_n_t",
+    "bedding_residue_n_t",
     "burnt_residue_n_t",
     "grazed_weeds_n_t",
     "som_sequestration_n_t",
@@ -889,6 +909,7 @@ build_nitrogen_balance <- function(
     ~n_input_for_n2o_t,
     ~prod_n_t,
     ~used_residue_n_t,
+    ~bedding_residue_n_t,
     ~burnt_residue_n_t,
     ~grazed_weeds_n_t,
     ~som_sequestration_n_t,
@@ -926,6 +947,7 @@ build_nitrogen_balance <- function(
     97,
     40,
     10,
+    0,
     5,
     8,
     2,
