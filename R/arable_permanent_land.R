@@ -48,7 +48,12 @@
 #'   (default) the pinned `faostat-landuse` dataset is read via [whep_read_file()].
 #' @param data Optional in-memory FAOSTAT RL table in the raw pin schema (columns
 #'   `Area Code`, `Item Code`, `Element`, `Unit`, `Year`, `Value`), used instead
-#'   of the pin (chiefly for testing).
+#'   of the pin (chiefly for testing). The two vocabularies this read selects
+#'   on -- `Element == "Area"` and the `"1000 ha"` unit label -- are checked
+#'   before the filter runs: either one moving takes every row with it, and a
+#'   zero-row land base is indistinguishable downstream from a world with no
+#'   cropland, so it is refused with a `whep_absent_label` error naming the
+#'   labels the table does carry (#1034).
 #' @param luh2_data Optional in-memory LUH2 land-use table (columns `ISO3`,
 #'   `Year`, `Land_Use`, `Area_Mha`) used for the pre-1961 backcast instead of
 #'   the pinned `luh2-areas` dataset (chiefly for testing).
@@ -163,10 +168,15 @@ get_arable_permanent_land <- function(
   if (!"unit" %in% names(dt)) {
     dt[, unit := "1000 ha"]
   }
+  # Case and spacing are the only variation FAOSTAT has shown in this label
+  # ("1000 ha", "1000 Ha", "1000ha"), so fold them into one spelling once and
+  # let the filter and the guard below read the same vocabulary.
+  dt[, unit_key := .rl_unit_key(unit)]
+  .rl_check_vocabulary(dt)
   items <- .fao_rl_items()
   dt <- dt[
     element == "Area" &
-      unit %in% c("1000 ha", "1000 Ha", "1000ha") &
+      unit_key == .rl_unit_key("1000 ha") &
       item_code %in% items
   ]
   dt[, `:=`(
@@ -199,6 +209,50 @@ get_arable_permanent_land <- function(
   bridge <- unique(bridge, by = "area_code_fao")
   dt <- merge(dt, bridge, by = "area_code_fao")
   dt[, .(area_code = polity, year, item_code, ha)]
+}
+
+# One spelling for the "1000 ha" unit label, so a recased or respaced value
+# still matches and a moved one is still visible to the guard below.
+.rl_unit_key <- function(unit) {
+  stringr::str_remove_all(stringr::str_to_lower(as.character(unit)), "\\s+")
+}
+
+# Refuse the two whole-table vocabularies this read selects on (whep#1034).
+#
+# `element == "Area"` and the unit label are not per-country filters: if
+# either moves, EVERY row goes, `get_arable_permanent_land()` returns a
+# zero-row table, and the land base it feeds becomes "no cropland anywhere"
+# rather than an error. Nothing downstream can tell that from a country that
+# genuinely reports none. This is whep#1016's mechanism, one pin along, and it
+# is invisible to any rule written around `coalesce()` / `replace_na()` /
+# `na.rm` -- none of them appear here.
+#
+# It is not hypothetical on this vocabulary. FAOSTAT recased `Export Quantity`
+# to `Export quantity` between two shipped revisions, and the sibling
+# `faostat-cbs-new` pin shipped every one of its 58,107 `Unit` values as the
+# boolean `TRUE` (whep#1025), which is exactly the label this filter reads.
+#
+# The three `item_code` values are deliberately NOT checked here: item
+# coverage legitimately varies by country and by fixture, so their absence is
+# an absent ROW rather than an absent label, and needs a completeness
+# assertion against an expected key lattice (whep#1073) instead.
+.rl_check_vocabulary <- function(dt) {
+  remedy <- c(
+    i = "Source: the {.val faostat-landuse} pin, or the local
+         {.file faostat_land_use.csv} under {.arg input_dir}.",
+    i = "FAOSTAT has recased a label in a shipped revision before
+         ({.val Export Quantity} to {.val Export quantity}), and the sibling
+         {.val faostat-cbs-new} pin shipped every {.field Unit} value as the
+         boolean {.val TRUE} (whep#1025)."
+  )
+  check_labels_supplied(dt, "element", "Area", details = remedy)
+  check_labels_supplied(
+    dt,
+    "unit_key",
+    .rl_unit_key("1000 ha"),
+    details = remedy
+  )
+  invisible(dt)
 }
 
 .fetch_fao_rl <- function(data = NULL, input_dir = NULL) {

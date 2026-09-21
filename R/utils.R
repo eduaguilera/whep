@@ -2252,6 +2252,10 @@ utils::globalVariables(
     # trade scale screen reports against, and its join-side alias
     "reporter_max",
     "i.reporter_max",
+    # arable_permanent_land.R (issue 1034) -- the one folded spelling of the
+    # FAOSTAT RL unit label that both the land filter and its
+    # check_labels_supplied() guard read
+    "unit_key",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
