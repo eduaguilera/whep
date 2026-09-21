@@ -342,7 +342,10 @@ test_that("every year-free territorial grouping is classified", {
   # the dropped and the whole area in one pass over the class table instead of
   # joining one onto the other. Measured by RUNNING the audit, not by adding
   # one to the previous cap.
-  expect_lte(sum(full$n), 89L)
+  # 90 on the merge of whep#1117 and whep#1146: each registered one grouping
+  # above the 88 that preceded them, and the two are independent. Re-derived
+  # by RUNNING the audit on the merged tree, not by adding the two deltas.
+  expect_lte(sum(full$n), 90L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
