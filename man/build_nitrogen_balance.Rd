@@ -53,7 +53,7 @@ carries.
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{residue_destiny_method} needs), for \code{used_residue_n_t}/
 \code{burnt_residue_n_t}. \code{residue_destiny_method} selects the method
-(default \code{"krausmann_regional"}).
+(default \code{"recovery_regional"}).
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
