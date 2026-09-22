@@ -212,7 +212,14 @@ test_that("the enumerated baseline can only shrink", {
   # other attaches the bound itself and is `diagnostic`, because that class is
   # reported under every setting and never dropped, so no published value
   # passes through it. Re-derived by RUNNING the audit on this tree.
-  expect_lte(sum(baseline$n), 77L)
+  #
+  # 80 since whep#680 added the predecessor-bucket un-fold:
+  # two reads of the area reporting windows in `.predecessor_bucket_codes()`
+  # and one in `.iso3c_keep_live_area()`, all three joining the years a code
+  # reports rather than a value for a year. The whep#1117 rows above and these
+  # are independent, so the cap is RE-DERIVED by running the audit on the
+  # merged tree, never by adding the two deltas.
+  expect_lte(sum(baseline$n), 80L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -345,7 +352,12 @@ test_that("every year-free territorial grouping is classified", {
   # 90 on the merge of whep#1117 and whep#1146: each registered one grouping
   # above the 88 that preceded them, and the two are independent. Re-derived
   # by RUNNING the audit on the merged tree, not by adding the two deltas.
-  expect_lte(sum(full$n), 90L)
+  # 94 since whep#680: `.area_last_reporting_year()` and
+  # `.predecessor_bucket_codes()` reduce the year axis to each area's last
+  # reported year, and `.iso3c_keep_live_area()` groups by ISO3 to pick the
+  # live one of two codes. Re-derived by running the audit on the merged tree,
+  # not by adding whep#680's delta to the whep#1117/whep#1146 cap.
+  expect_lte(sum(full$n), 94L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
