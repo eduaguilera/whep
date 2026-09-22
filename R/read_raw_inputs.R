@@ -456,6 +456,27 @@
   dt
 }
 
+# THE GRAIN THIS FOLD PRODUCES IS A POLITY-PERIOD, NOT A REPORTING AREA ACROSS
+# ALL TIME (whep#1192, decided 2026-09-22). One output row answers for the
+# entity that existed that year, so a territorial handover is a real
+# discontinuity and the series steps at it. The comparable-across-time view is
+# derived by `build_constant_territory_series()`, which reallocates onto a
+# reference year's boundaries and reports `imputed_share`; it is not what this
+# fold emits and not the default any build publishes.
+#
+# The rule binds every reduction downstream, because a `by =` answers it
+# implicitly: 50 area codes carry more than one polity in or after 1961, so
+# grouping on the polity splits those series where grouping on `area_code`
+# does not. `reporting_polity_code` is the identity; `polity_area_code` is an
+# aggregation bucket and is never a statement about who a row is.
+#
+# Verify any change here by row counts and distinct-key counts, never by
+# totals: mass is conserved whichever grain is used, it merely spreads over
+# more rows, so a totals diff reads as success. That is how whep#561/#563
+# shipped a bucket that stopped summing without one value moving. The identity
+# emitted here is dropped again by the output reductions (whep#707) --
+# `carried: 0 rows` in a real build -- which is why downstream code still keys
+# on the bucket.
 .aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
