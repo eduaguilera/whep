@@ -155,14 +155,22 @@
 <h2 id="conventions-that-are-easy-to-get-wrong">Conventions that are easy to get wrong<a class="anchor" aria-label="anchor" href="#conventions-that-are-easy-to-get-wrong"></a></h2>
 <div class="section level3">
 <h3 id="area-codes-and-polity-columns">Area codes and polity columns<a class="anchor" aria-label="anchor" href="#area-codes-and-polity-columns"></a></h3>
-<p>There are <strong>two code spaces</strong>, and confusing them silently misattributes data:</p>
+<p>There are <strong>three</strong> territorial columns, they do three different jobs, and using one for another job silently misattributes data:</p>
 <ul><li>
-<code>area_code</code> — the FAOSTAT-style area key of the row.</li>
+<code>reporting_polity_code</code> — <strong>the identity.</strong> The polity itself (<code>"ESP-1846-1914"</code>), year-aware: the same <code>area_code</code> resolves to different polities in different years. This is what says which territory a row is about, and it is the column a published output must carry.</li>
 <li>
-<code>polity_area_code</code> — the numeric key rows are <strong>aggregated on</strong> for the matrix workflows. It is a <em>bucket, not an identity</em>: 999 is Rest of World, 206 is Sudan (former), and 62 of the 257 ISO3 codes in <code>regions_full</code> do not get their own code.</li>
+<code>polity_area_code</code> — <strong>the aggregation key.</strong> <code>coalesce(fabio_code, area_code)</code>: FABIO’s country numbering, adopted so WHEP’s builds sum on the same grain FABIO does. It is a <em>bucket, not an identity</em> — several reporting areas can share one. Legitimate in a <code>by =</code>; never a statement about who a row is.</li>
 <li>
-<code>reporting_polity_code</code> — the polity itself (<code>"ESP-1846-1914"</code>), year-aware: the same <code>area_code</code> resolves to different polities in different years. Use this to say which territory a row belongs to.</li>
-</ul><p><code>R/polity_columns_doc.R</code> documents these once; inherit that section instead of writing a fresh, subtly different description. Rows that resolve to no polity keep <code>NA</code> rather than being dropped, so gaps stay visible.</p>
+<code>area_code</code> — <strong>the provenance.</strong> The FAOSTAT-style area key the source used. Belongs at ingestion; it is not an identity either, because FAOSTAT retires and re-cuts codes as history happens.</li>
+</ul><p>The bucket is <strong>not</strong> required by the input-output model: <code><a href="reference/build_io_model.html">build_io_model()</a></code> sizes each year’s matrix from that year’s own areas (<code>.get_io_dims(su, cbs_yr)</code>), so every year is solved independently and no fixed country list is needed. The folding is inherited FABIO numbering, and almost all of it is gone — the Rest-of-World fold was removed in #628 and is un-folded by default. Measured live through <code>.polity_crosswalk()</code>, exactly three area codes still fold into a different bucket (276 and 277 into 206, 62 into 238), and <code><a href="reference/polity_bucket_coverage.html">polity_bucket_coverage()</a></code> reports <strong>one</strong> bucket summing two live territories: 206, Sudan and South Sudan, from 2012. Un-folding it is #680.</p>
+<div class="section level4">
+<h4 id="a-published-row-is-a-polity-period">A published row is a polity-period<a class="anchor" aria-label="anchor" href="#a-published-row-is-a-polity-period"></a></h4>
+<p><strong>Decided 2026-09-22 (#1192).</strong> One published row answers for the entity that existed that year, not for a reporting area across all time. A territorial handover is a real discontinuity and the series steps at it.</p>
+<p>The comparable-across-time view is <strong>derived, not the default</strong>: call the exported <code><a href="reference/build_constant_territory_series.html">build_constant_territory_series()</a></code>, which reallocates onto a reference year’s boundaries and reports <code>imputed_share</code> so the estimate says how much of itself was filled in.</p>
+<p>This matters at every reduction, because a <code>by =</code> answers it implicitly. 50 area codes carry more than one polity in or after 1961 (119 across all time), overwhelmingly decolonisation handovers — area 4 Algeria splits at 1962, 7 Angola at 1975, 16 Bangladesh at 1971. Grouping on the polity splits those series; grouping on the area does not.</p>
+<p><strong>Verify such a change by row and distinct-key counts, never by totals.</strong> Mass is conserved either way — it just spreads over more rows — so a totals diff reads as success. That is exactly how #561/#563 shipped a bucket that stopped summing without one value moving.</p>
+<p><code>R/polity_columns_doc.R</code> documents these once; inherit that section instead of writing a fresh, subtly different description. Rows that resolve to no polity keep <code>NA</code> rather than being dropped, so gaps stay visible.</p>
+</div>
 </div>
 <div class="section level3">
 <h3 id="join-on-codes-never-on-names">Join on codes, never on names<a class="anchor" aria-label="anchor" href="#join-on-codes-never-on-names"></a></h3>

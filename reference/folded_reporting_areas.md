@@ -65,8 +65,8 @@ A tibble with one row per folded reporting area, ordered by `area_code`:
 
 - `polity_code`, `polity_name`: The polity the fold attributes them to.
 
-- `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"` or
-  `"successor_state"`.
+- `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"`,
+  `"predecessor_bucket"` or `"successor_state"`.
 
 ## What FABIO's own region list says
 
@@ -121,6 +121,36 @@ four `"cbs_reporter_folded"` areas and warns for the same reason. The
 `"successor_state"` folds are never lifted by any mode, since those are
 territorial identities rather than a FABIO convention.
 
+## The predecessor-bucket fold, and the switch that lifts it
+
+`"predecessor_bucket"` is the other direction and a separate switch.
+FAOSTAT retired area 206 "Sudan (former)" at the 2011 secession and
+reports 276 Sudan and 277 South Sudan from 2012, so here the *bucket* is
+the dead code and its members are live – the reverse of 62 Ethiopia PDR
+folding into its live successor 238, which stays a `"successor_state"`
+fold and is never lifted.
+
+WHEP publishes the fold.
+`options(whep.unfold_predecessor_bucket = "all")` promotes the
+successors and warns on every crosswalk read, because unlike the
+Rest-of-World promotion it is **not** mass-neutral. Measured on
+`build_primary_production(2015, 2015)` it moves nothing at all outside
+areas 206, 276 and 277 – 48,678 rows, no key present in only one run, no
+matched value differing – and inside the region it withdraws exactly one
+series: item 651 Forage products, 1,432,940 t (4.22% of the region's
+tonnage) and 208,350 ha (0.25%). Heads, livestock units and slaughtered
+heads are conserved; item 1052 Chickens, layers splits exactly,
+9,439,000 head to Sudan and 4,679,716 to South Sudan.
+
+That tonnage is not reported data that stops being joined. It is
+`DM_yield_estimate`, WHEP's own extrapolation of the
+`faostat-production-old` fodder series for area 206, a source that
+carries no row for 276 or 277 in any year; the fold is what keeps bucket
+206 a live key to extrapolate onto after FAOSTAT retired it in 2011.
+Restoring it under the promotion would need a rule for apportioning a
+predecessor's series between its successors, which this package has no
+source for. Whether to publish the promotion is issue 680.
+
 An earlier measurement recorded in issue 419 reported this change at up
 to 13.7x on `feed`; that comparison predates the `dcast()` duplicate-key
 fix in `.select_best_source()` (issue 425) and does not reproduce.
@@ -148,9 +178,11 @@ head(folded[folded$fold_kind == "successor_state", ], 4)
 #> 3        62 Ethiopia PDR ETH                     238 ETH-1897-1902 Ethiopia (18…
 #> 4        62 Ethiopia PDR ETH                     238 ETH-1902-1907 Ethiopia (19…
 #> # ℹ 1 more variable: fold_kind <chr>
-folded[folded$fold_kind == "cbs_reporter_folded", ]
-#> # A tibble: 0 × 7
-#> # ℹ 7 variables: area_code <int>, area_name <chr>, area_iso3c <chr>,
-#> #   polity_area_code <int>, polity_code <chr>, polity_name <chr>,
-#> #   fold_kind <chr>
+folded[folded$fold_kind == "predecessor_bucket", ]
+#> # A tibble: 2 × 7
+#>   area_code area_name   area_iso3c polity_area_code polity_code   polity_name
+#>       <int> <chr>       <chr>                 <int> <chr>         <chr>      
+#> 1       276 Sudan       SDN                     206 SDN-2011-2025 Sudan      
+#> 2       277 South Sudan SSD                     206 SSD-2011-2025 South Sudan
+#> # ℹ 1 more variable: fold_kind <chr>
 ```

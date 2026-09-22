@@ -146,8 +146,8 @@ A build also warns, naming the areas and the row counts it actually folded.</p>
 <li><p><code>area_name</code>, <code>area_iso3c</code>: Its name and ISO3-like code.</p></li>
 <li><p><code>polity_area_code</code>: The bucket its rows are summed into.</p></li>
 <li><p><code>polity_code</code>, <code>polity_name</code>: The polity the fold attributes them to.</p></li>
-<li><p><code>fold_kind</code>: <code>"fabio_rest_of_world"</code>, <code>"cbs_reporter_folded"</code> or
-<code>"successor_state"</code>.</p></li>
+<li><p><code>fold_kind</code>: <code>"fabio_rest_of_world"</code>, <code>"cbs_reporter_folded"</code>,
+<code>"predecessor_bucket"</code> or <code>"successor_state"</code>.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="what-fabio-s-own-region-list-says">What FABIO's own region list says<a class="anchor" aria-label="anchor" href="#what-fabio-s-own-region-list-says"></a></h2>
@@ -195,6 +195,34 @@ while it is set. <code>"cbs_reporters"</code> re-folds all but the four
 <code>"cbs_reporter_folded"</code> areas and warns for the same reason. The
 <code>"successor_state"</code> folds are never lifted by any mode, since those are
 territorial identities rather than a FABIO convention.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="the-predecessor-bucket-fold-and-the-switch-that-lifts-it">The predecessor-bucket fold, and the switch that lifts it<a class="anchor" aria-label="anchor" href="#the-predecessor-bucket-fold-and-the-switch-that-lifts-it"></a></h2>
+
+
+<p><code>"predecessor_bucket"</code> is the other direction and a separate switch. FAOSTAT
+retired area 206 "Sudan (former)" at the 2011 secession and reports 276 Sudan
+and 277 South Sudan from 2012, so here the <em>bucket</em> is the dead code and its
+members are live – the reverse of 62 Ethiopia PDR folding into its live
+successor 238, which stays a <code>"successor_state"</code> fold and is never lifted.</p>
+<p>WHEP publishes the fold. <code>options(whep.unfold_predecessor_bucket = "all")</code>
+promotes the successors and warns on every crosswalk read, because unlike the
+Rest-of-World promotion it is <strong>not</strong> mass-neutral. Measured on
+<code>build_primary_production(2015, 2015)</code> it moves nothing at all outside areas
+206, 276 and 277 – 48,678 rows, no key present in only one run, no matched
+value differing – and inside the region it withdraws exactly one series:
+item 651 Forage products, 1,432,940 t (4.22% of the region's tonnage) and
+208,350 ha (0.25%). Heads, livestock units and slaughtered heads are
+conserved; item 1052 Chickens, layers splits exactly, 9,439,000 head to
+Sudan and 4,679,716 to South Sudan.</p>
+<p>That tonnage is not reported data that stops being joined. It is
+<code>DM_yield_estimate</code>, WHEP's own extrapolation of the <code>faostat-production-old</code>
+fodder series for area 206, a source that carries no row for 276 or 277 in
+any year; the fold is what keeps bucket 206 a live key to extrapolate onto
+after FAOSTAT retired it in 2011. Restoring it under the promotion would need
+a rule for apportioning a predecessor's series between its successors, which
+this package has no source for. Whether to publish the promotion is issue
+680.</p>
 <p>An earlier measurement recorded in issue 419 reported this change at up to
 13.7x on <code>feed</code>; that comparison predates the <code>dcast()</code> duplicate-key fix in
 <code>.select_best_source()</code> (issue 425) and does not reproduce.</p>
@@ -221,11 +249,13 @@ Input-Output Model. Environmental Science &amp; Technology 53(19), 11302-11312.
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>        62 Ethiopia PDR ETH                     238 ETH-1897-1902 Ethiopia (18…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>        62 Ethiopia PDR ETH                     238 ETH-1902-1907 Ethiopia (19…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: fold_kind &lt;chr&gt;</span></span>
-<span class="r-in"><span><span class="va">folded</span><span class="op">[</span><span class="va">folded</span><span class="op">$</span><span class="va">fold_kind</span> <span class="op">==</span> <span class="st">"cbs_reporter_folded"</span>, <span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 0 × 7</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 variables: area_code &lt;int&gt;, area_name &lt;chr&gt;, area_iso3c &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   polity_area_code &lt;int&gt;, polity_code &lt;chr&gt;, polity_name &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fold_kind &lt;chr&gt;</span></span>
+<span class="r-in"><span><span class="va">folded</span><span class="op">[</span><span class="va">folded</span><span class="op">$</span><span class="va">fold_kind</span> <span class="op">==</span> <span class="st">"predecessor_bucket"</span>, <span class="op">]</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code area_name   area_iso3c polity_area_code polity_code   polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>       276 Sudan       SDN                     206 SDN-2011-2025 Sudan      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>       277 South Sudan SSD                     206 SSD-2011-2025 South Sudan</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: fold_kind &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
