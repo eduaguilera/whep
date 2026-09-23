@@ -27,6 +27,7 @@ build_commodity_balances(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 )
 ```
@@ -261,6 +262,37 @@ build_commodity_balances(
   exceed the supply it is apportioned from, so 1 is a true bound there,
   while here the denominator is incomplete and capping at 1 would book a
   country's whole processed output as export.
+
+- seed_backcast:
+
+  One of `"area_rate"` (default) or `"production_share"`, selecting what
+  the pre-1962 seed back-cast reads its rate off and spends it on
+  (whep#699). The fill carries a rate along the year axis: a rate is
+  read from the years that report `seed`, interpolated and extrapolated
+  into the years that do not, and multiplied back out. It yields tonnes
+  only if the quantity it is spent on is the quantity it was divided by.
+
+  `"area_rate"` is tonnes of seed per hectare harvested,
+  `seed / area_ha` spent as `area_ha * seed_rate`, and is the default: a
+  seeding rate is an agronomic quantity that holds while yields change,
+  so it is the ratio worth carrying across decades. `"production_share"`
+  is tonnes of seed per tonne of output, `seed / production` spent as
+  `production * seed_rate`; it moves with yield, but reaches keys the
+  production build gives no harvested area.
+
+  **The default moves published values**, because neither is what
+  shipped: a rate defined per hectare used to be spent on production,
+  giving `t x t/ha`. Measured on a real 1850-2023 build, pre-1962 `seed`
+  falls from 38.62 Gt to 7.13 Gt while the number of keys carrying one
+  rises from 87,882 to 118,332, total tonnage moves -0.934% and pre-1962
+  tonnage -2.716%, and no 1962-or-later value changes at all. World seed
+  at 1960 goes from 680.3 Mt to 77.7 Mt against the 126.1 Mt FAOSTAT
+  reports for 1961, and
+  [`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
+  on `seed` over 1950-1970 falls from 582 jumps to 176, of which the
+  1960-1961 seam holds 3 rather than 295. Under `"production_share"`
+  pre-1962 `seed` is 5.22 Gt, total tonnage moves -1.023%, and the seam
+  holds 5 jumps.
 
 - .fixed_data:
 

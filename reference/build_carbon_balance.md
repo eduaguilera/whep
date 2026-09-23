@@ -362,6 +362,17 @@ the grassland actually marching on a zero-filled input is 0.212 ha
 globally at 2010. Both quantities are reported at run time rather than
 left to be re-derived.
 
+The support is keyed on the
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+`polity_area_code` bucket, because that is what every national table the
+path joins to carries: `.aggregate_to_polities()` groups on that column
+and renames it `area_code`. Sudan and South Sudan therefore report
+together under `206`, as they do in the production and CBS series. The
+fold is read through the live crosswalk, so
+`options(whep.unfold_rest_of_world)` and any future un-fold of `206`
+(whep#680) move the grid and the national tables together rather than
+separating them (whep#1168).
+
 ## Polity columns
 
 Every area-keyed output carries the polity its `area_code` resolves to

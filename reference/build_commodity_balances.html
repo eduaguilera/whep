@@ -76,6 +76,7 @@ destiny filling, and final balancing.</p></li>
 <span>  negative_supply <span class="op">=</span> <span class="fu">.cbs_negative_supply_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  hist_trade_scale <span class="op">=</span> <span class="fu">.hist_trade_scale_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  export_share_overflow <span class="op">=</span> <span class="fu">.cbs_export_overflow_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  seed_backcast <span class="op">=</span> <span class="fu">.cbs_seed_backcast_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -297,6 +298,34 @@ deliberately no clamp, unlike <code>share_overflow</code>: a destiny cannot exce
 the supply it is apportioned from, so 1 is a true bound there, while
 here the denominator is incomplete and capping at 1 would book a
 country's whole processed output as export.</p></dd>
+
+
+<dt id="arg-seed-backcast">seed_backcast<a class="anchor" aria-label="anchor" href="#arg-seed-backcast"></a></dt>
+<dd><p>One of <code>"area_rate"</code> (default) or
+<code>"production_share"</code>, selecting what the pre-1962 seed back-cast reads
+its rate off and spends it on (whep#699). The fill carries a rate along
+the year axis: a rate is read from the years that report <code>seed</code>,
+interpolated and extrapolated into the years that do not, and multiplied
+back out. It yields tonnes only if the quantity it is spent on is the
+quantity it was divided by.</p>
+<p><code>"area_rate"</code> is tonnes of seed per hectare harvested,
+<code>seed / area_ha</code> spent as <code>area_ha * seed_rate</code>, and is the default: a
+seeding rate is an agronomic quantity that holds while yields change, so
+it is the ratio worth carrying across decades. <code>"production_share"</code> is
+tonnes of seed per tonne of output, <code>seed / production</code> spent as
+<code>production * seed_rate</code>; it moves with yield, but reaches keys the
+production build gives no harvested area.</p>
+<p><strong>The default moves published values</strong>, because neither is what shipped:
+a rate defined per hectare used to be spent on production, giving
+<code>t x t/ha</code>. Measured on a real 1850-2023 build, pre-1962 <code>seed</code> falls
+from 38.62 Gt to 7.13 Gt while the number of keys carrying one rises
+from 87,882 to 118,332, total tonnage moves -0.934% and pre-1962
+tonnage -2.716%, and no 1962-or-later value changes at all. World seed
+at 1960 goes from 680.3 Mt to 77.7 Mt against the 126.1 Mt FAOSTAT
+reports for 1961, and <code><a href="check_series_jumps.html">check_series_jumps()</a></code> on <code>seed</code> over 1950-1970
+falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
+than 295. Under <code>"production_share"</code> pre-1962 <code>seed</code> is 5.22 Gt, total
+tonnage moves -1.023%, and the seam holds 5 jumps.</p></dd>
 
 
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
