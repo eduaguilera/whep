@@ -11,20 +11,38 @@ calculate_cohorts_systems(data, system_shares = NULL)
 optionally \code{iso3} or \code{region}.}
 
 \item{system_shares}{Optional dataframe with \code{species_gen},
-\code{system}, \code{system_share} columns. If \code{NULL}, uses GLEAM
-defaults and routes dairy/non-dairy commodities to their
-matching production system. Supplying this overrides both,
-so the supplied shares are used verbatim.}
+\code{system}, \code{system_share} columns. If \code{NULL}, a herd whose commodity names
+a production system goes wholly to it, and every other herd uses WHEP's
+assumed, unverified default shares. Supplying this overrides both, so the
+supplied shares are used verbatim.}
 }
 \value{
 Dataframe expanded to cohort level with
 \code{cohort}, \code{system}, \code{cohort_heads}, and
-\code{cohort_fraction} columns.
+\code{cohort_fraction} columns, plus \code{method_system_share}: \code{"reported"} when
+the commodity itself names the system, \code{"assumed"} when WHEP's unsourced
+default split was applied, or \code{"supplied"} when \code{system_shares} was given.
 }
 \description{
 Distributes national herd totals across GLEAM-defined
 cohorts and production systems using
 \code{gleam_livestock_categories} and regional weight data.
+
+GLEAM supplies only the taxonomy here: which systems and cohorts each
+species has. It supplies no herd shares. \code{gleam_livestock_categories} has no
+share column, and the herd-parameter tables of the GLEAM 2.0 and 3.0
+supplements give demographic rates and live weights, not a dairy/meat or
+layer/broiler split of the herd (whep#1194).
+
+Where FAOSTAT already reports the herd split into the items
+\code{\link[=build_primary_production]{build_primary_production()}} carries (\code{"Cattle, dairy"} /
+\code{"Cattle, non-dairy"}, \code{"Pigs"} / \code{"Hogs"} for market / breeding swine, and
+\code{"Chickens, layers"} / \code{"Chickens, broilers"}), the whole herd goes to the
+system its item names and no share is applied. Every other herd (buffalo,
+sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
+poultry label) is split by WHEP's default shares, which are \strong{assumed,
+unverified} placeholders with no source. The \code{method_system_share} column
+says which of the two applied to each row.
 }
 \examples{
 tibble::tibble(
