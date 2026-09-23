@@ -19,6 +19,11 @@ testthat::test_that("get_feed_intake builds internally instead of reading feed_i
   testthat::local_mocked_bindings(
     get_wide_cbs = function(...) whep:::.example_get_wide_cbs(),
     get_primary_production = function(...) whep:::.ex_get_primary_prod(),
+    # The residue crop mix that converts CBS residue feed to dry matter
+    # (whep#1215).
+    get_primary_residues = function(...) {
+      whep:::.example_get_primary_residues()
+    },
     whep_read_file = function(name, ...) {
       if (identical(name, "feed_intake")) {
         stop("feed_intake pin should not be read", call. = FALSE)
