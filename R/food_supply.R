@@ -7,11 +7,15 @@
 # per-capita supply directly (the nourishment cross-check / sensitivity of
 # locked plan decision 7).
 #
-# Integration note: re-enabling FAOSTAT's per-capita FBS nutritional elements,
-# which R/read_raw_inputs.R currently drops at extraction (the cb_elements
-# selection), so that data$fbs_supply can be assembled from the pins rather than
-# injected, is the "faostat_fbs" wiring step and is out of scope for this
-# fixture-tested function.
+# Wiring (#413): with no `data$fbs_supply` injected, "faostat_fbs" reads the
+# per-capita elements from the same two FBS pins `build_commodity_balances()`
+# and `read_fbs_population()` read -- item 2901 Grand Total, elements 664
+# (kcal/capita/day) and 674 (protein g/capita/day), and item 2501 / element 511
+# population. `R/read_raw_inputs.R`'s `cb_elements` allow-list still drops them
+# from the CBS extraction; this reader goes to the raw pins instead, so the CBS
+# build is untouched. The FAOSTAT-area -> bucket resolution, the aggregate
+# exclusion (area 351 China, #939) and the new-over-old vintage rule are those
+# of `read_fbs_population()`, not a new mapping.
 
 #' Build per-capita food supply for the nourishment axis.
 #'
@@ -43,8 +47,26 @@
 #' Atwater factors could refine it (O-B). Food items with no protein
 #' coefficient after the coalesce chain are excluded with a warning naming the
 #' count and a few examples (the residual gap-fill, O-B), never silently
-#' dropped. The `"faostat_fbs"` method returns the injected FAOSTAT Food
-#' Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+#' dropped.
+#'
+#' The `"faostat_fbs"` method is FAOSTAT's own per-capita supply, the
+#' independent benchmark for the default. With `data$fbs_supply` injected it is
+#' returned unchanged. Otherwise it is read from the `faostat-fbs-old`
+#' (1961-2013) and `faostat-fbs-new` (2010-2023) pins: protein and dietary
+#' energy per capita per day from item 2901 "Grand Total" (elements 674 and
+#' 664), which FAOSTAT reports directly, and population from item 2501
+#' (element 511, thousands, converted to persons). FAOSTAT's energy element is
+#' dietary energy as FAOSTAT derives it from food composition, not the gross
+#' (combustion) energy of `"whep_native"`, so the two methods' energy columns
+#' are not like for like. FAOSTAT areas are
+#' resolved onto `area_code` exactly as [read_fbs_population()] resolves them:
+#' year by year, dropping any area that resolves to no polity (the regional
+#' aggregates and area 351 "China", the aggregate over areas 41, 96, 128 and
+#' 214, #939); where more than one FAOSTAT area lands in a bucket-year the
+#' per-capita values are population-weighted. `faostat-fbs-new` wins an
+#' overlapping `(year, area_code)`. The old pin follows FAOSTAT's pre-2014
+#' FBS methodology and the new one the revised methodology, so a series
+#' crossing 2010 changes vintage there.
 #'
 #' An area with food but no `population` row has no denominator, so it is
 #' absent from the output rather than wrong in it. Those areas are **named at
@@ -65,14 +87,18 @@
 #'
 #' @param method Supply source: `"whep_native"` (default, commodity-balance
 #'   food tonnes times `whep::biomass_coefs` divided by population) or
-#'   `"faostat_fbs"` (the injected FAOSTAT FBS per-capita supply).
+#'   `"faostat_fbs"` (FAOSTAT FBS per-capita supply, injected or read from
+#'   the FBS pins).
 #' @param data Named list of injected inputs. For `"whep_native"`:
 #'   `cbs_food` (`year`, `area_code`, `item_cbs_code`, `food_t`) and
 #'   `population` (`year`, `area_code`, `population`) are required, and
 #'   `biomass_coefs` / `items_full` override the packaged
 #'   `whep::biomass_coefs` / `whep::items_full`. For `"faostat_fbs"`:
 #'   `fbs_supply` (`year`, `area_code`, `protein_g_cap_day`,
-#'   `energy_kcal_cap_day`, `population`) is required.
+#'   `energy_kcal_cap_day`, `population`) is returned as given if supplied;
+#'   otherwise `fbs_old` and/or `fbs_new`, the raw pins in their own long
+#'   FAOSTAT layout (`Area Code`, `Item Code`, `Element Code`, `Year`,
+#'   `Value`), replace the [whep_read_file()] read of whichever is absent.
 #' @param protein_basis How the inedible fraction is treated when converting
 #'   nitrogen density to protein, for `"whep_native"` only:
 #'   `"edible_portion"` (default) scales the nitrogen density by
@@ -123,18 +149,155 @@ build_food_supply <- function(
 
 # ---- Private helpers -------------------------------------------------------
 
-# faostat_fbs: pass the injected FAOSTAT FBS per-capita supply through, keeping
-# only the contract columns.
+# faostat_fbs: an injected `data$fbs_supply` passes through, keeping only the
+# contract columns; otherwise the supply is read from the two FBS pins (#413).
 .food_supply_fbs <- function(data) {
-  cols <- c(
+  cols <- .food_supply_cols()
+  if (is.null(data$fbs_supply)) {
+    return(.read_fbs_supply(data))
+  }
+  .check_columns(data$fbs_supply, cols, "data$fbs_supply")
+  dplyr::select(data$fbs_supply, dplyr::all_of(cols))
+}
+
+.food_supply_cols <- function() {
+  c(
     "year",
     "area_code",
     "protein_g_cap_day",
     "energy_kcal_cap_day",
     "population"
   )
-  .check_columns(data$fbs_supply, cols, "data$fbs_supply")
-  dplyr::select(data$fbs_supply, dplyr::all_of(cols))
+}
+
+# Both vintages, each parsed and bucketed on its own, then the newer pin's row
+# kept for an overlapping (year, area_code) -- `read_fbs_population()`'s rule.
+.read_fbs_supply <- function(data) {
+  old <- data$fbs_old %||% whep_read_file("faostat-fbs-old")
+  new <- data$fbs_new %||% whep_read_file("faostat-fbs-new")
+  dplyr::bind_rows(
+    .fbs_supply_parse(old, "FAOSTAT FBS old", 2L),
+    .fbs_supply_parse(new, "FAOSTAT FBS new", 1L)
+  ) |>
+    .fbs_pop_prefer_new() |>
+    dplyr::arrange(.data$year, .data$area_code) |>
+    dplyr::select(dplyr::all_of(.food_supply_cols()))
+}
+
+# One pin reduced to Grand Total protein and energy per capita plus population,
+# one row per FAOSTAT area and year. Only the five columns named are read, so a
+# pin's other columns (the new pin's logical `Note`, #1178) cannot matter.
+.fbs_supply_parse <- function(raw, label, rank) {
+  needed <- c("Area Code", "Item Code", "Element Code", "Year", "Value")
+  .check_columns(raw, needed, "the FAOSTAT FBS table")
+  elements <- .fbs_supply_elements()
+  tibble::as_tibble(raw) |>
+    dplyr::transmute(
+      year = as.integer(.data[["Year"]]),
+      area_code = as.integer(.data[["Area Code"]]),
+      key = paste(
+        as.integer(.data[["Item Code"]]),
+        as.integer(.data[["Element Code"]])
+      ),
+      value = as.numeric(.data[["Value"]])
+    ) |>
+    dplyr::filter(.data$key %in% names(elements)) |>
+    dplyr::mutate(variable = unname(elements[.data$key])) |>
+    .fbs_supply_require(label) |>
+    tidyr::pivot_wider(
+      id_cols = c("year", "area_code"),
+      names_from = "variable",
+      values_from = "value",
+      values_fn = dplyr::first
+    ) |>
+    ensure_columns(.fbs_supply_prototype()) |>
+    dplyr::mutate(population = .data$population_thousands * 1000) |>
+    .fbs_supply_bucket(rank)
+}
+
+# item-element keys -> output column. Item 2901 is FAOSTAT's Grand Total, the
+# per-capita supply over every leaf commodity, reported directly; summing
+# leaves reproduces it (median relative difference 2e-4 on protein, #413) but
+# needs every aggregate item excluded first. Population is in thousands in
+# both pins ("1000 persons" old, "1000 No" new).
+.fbs_supply_elements <- function() {
+  c(
+    "2901 674" = "protein_g_cap_day",
+    "2901 664" = "energy_kcal_cap_day",
+    "2501 511" = "population_thousands"
+  )
+}
+
+.fbs_supply_prototype <- function() {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    protein_g_cap_day = numeric(),
+    energy_kcal_cap_day = numeric(),
+    population_thousands = numeric()
+  )
+}
+
+# An FBS pin that holds rows but none of the Grand Total protein or population
+# elements is a changed pin layout, not a year with no food: abort rather than
+# return an empty benchmark that reads as "no data".
+.fbs_supply_require <- function(long, label) {
+  missing <- setdiff(
+    c("protein_g_cap_day", "population_thousands"),
+    unique(long$variable)
+  )
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "{.val {label}} carries no {.field {missing}} element.",
+      i = "Expected item 2901 / element 674 (protein) and item 2501 /
+           element 511 (population) in the FAOSTAT FBS layout."
+    ))
+  }
+  long
+}
+
+# FAOSTAT area -> polity bucket, year by year, keeping only areas that resolve
+# to a polity (the #939 rule `.fbs_pop_bucket()` applies to population). An
+# area-year with no positive population or no protein value cannot be
+# expressed per capita and is dropped. A bucket-year holding several FAOSTAT
+# areas gets population-weighted per-capita values, never a sum of two
+# per-capita figures.
+.fbs_supply_bucket <- function(parsed, rank) {
+  resolved <- add_polity_code(
+    parsed,
+    code_column = "area_code",
+    year_column = "year"
+  )
+  .fbs_pop_report_aggregates(resolved)
+  resolved |>
+    dplyr::filter(
+      !is.na(.data$year),
+      !is.na(.data$polity_area_code),
+      !is.na(.data$polity_code),
+      is.finite(.data$population),
+      .data$population > 0,
+      !is.na(.data$protein_g_cap_day)
+    ) |>
+    dplyr::summarise(
+      protein_g_cap_day = stats::weighted.mean(
+        .data$protein_g_cap_day,
+        .data$population
+      ),
+      energy_kcal_cap_day = stats::weighted.mean(
+        .data$energy_kcal_cap_day,
+        .data$population
+      ),
+      population = sum(.data$population),
+      .by = c("year", "polity_area_code")
+    ) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = as.integer(.data$polity_area_code),
+      protein_g_cap_day = .data$protein_g_cap_day,
+      energy_kcal_cap_day = .data$energy_kcal_cap_day,
+      population = .data$population,
+      source_rank = .env$rank
+    )
 }
 
 # whep_native: commodity-balance food tonnes times the per-item nutrition
