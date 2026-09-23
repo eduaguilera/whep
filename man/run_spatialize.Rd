@@ -33,8 +33,9 @@ Unknown keys raise an error. Recognised entries:
 type-aware allocation.
 \item \code{aggregate_to_cft} (logical, default \code{TRUE}): write a
 CFT-aggregated parquet alongside the crop-level output.
-\item \code{max_iterations}, \code{expansion_threshold}: forwarded to the
-landuse engine.
+\item \code{max_iterations}: forwarded to the landuse engine.
+\item \code{expansion_threshold}: defunct, dropped with a warning; it never
+changed the allocation (whep#1001). See \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}.
 \item \code{pattern_signal_floor}: forwarded to the landuse engine as
 \code{config$pattern_signal_floor}; the \code{harvest_fraction} below which a
 \code{crop_patterns} cell is float underflow rather than an allocated

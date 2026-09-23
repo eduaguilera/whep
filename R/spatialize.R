@@ -89,9 +89,13 @@
 #'     physical cropland).
 #'   - `max_iterations`: Maximum iterations for the redistribution
 #'     loop. Default: `1000L`.
-#'   - `expansion_threshold`: Iteration number after which crops are
-#'     allowed to expand into cells without an existing pattern.
-#'     Default: `100L`.
+#'   - `expansion_threshold`: Defunct. It was documented as the iteration
+#'     after which crops may expand into cells without an existing pattern,
+#'     but that expansion was never implemented and the value never reached
+#'     the redistribution (whep#1001). It is now dropped with a warning of
+#'     class `whep_defunct_config_key`. A crop is only ever placed in cells
+#'     its `crop_patterns` (or uniform fallback) gives it; when those cells
+#'     are too small the per-cell ceiling gives way and a warning reports it.
 #'   - `area_key`: Which area code the output is keyed on, `"grid"`
 #'     (default) or `"polity_area"`. See *Which area code the output is
 #'     keyed on*.
@@ -217,7 +221,6 @@ build_gridded_landuse <- function(
   type_mapping <- config$type_mapping
   multicropping <- config$multicropping
   max_iterations <- config$max_iterations
-  expansion_threshold <- config$expansion_threshold
 
   country_areas <- .ensure_irrigation_cols(country_areas)
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
@@ -298,8 +301,7 @@ build_gridded_landuse <- function(
         dplyr::filter(type_cropland, year == yr)
       },
       multicropping = multicropping,
-      max_iterations = max_iterations,
-      expansion_threshold = expansion_threshold
+      max_iterations = max_iterations
     )
   }
 
@@ -335,8 +337,7 @@ build_gridded_landuse <- function(
   country_grid,
   type_cropland_yr = NULL,
   multicropping,
-  max_iterations,
-  expansion_threshold
+  max_iterations
 ) {
   t_alloc0 <- proc.time()[["elapsed"]]
 
@@ -506,8 +507,7 @@ build_gridded_landuse <- function(
       cropland,
       country_grid,
       multicropping_yr,
-      max_iterations,
-      expansion_threshold
+      max_iterations
     ) |>
     dplyr::mutate(year = yr, .before = 1L)
 
@@ -527,7 +527,6 @@ build_gridded_landuse <- function(
     type_mapping = NULL,
     multicropping = NULL,
     max_iterations = 1000L,
-    expansion_threshold = 100L,
     n_workers = 1L,
     area_key = "grid",
     pattern_signal_floor = .crop_pattern_signal_floor()
@@ -542,6 +541,7 @@ build_gridded_landuse <- function(
   ) {
     cli::cli_abort("{.arg config} must be a named list.")
   }
+  config <- .drop_defunct_config_keys(config, "config")
   unknown <- setdiff(names(config), names(defaults))
   if (length(unknown) > 0L) {
     cli::cli_abort(c(
@@ -554,6 +554,39 @@ build_gridded_landuse <- function(
   config <- utils::modifyList(defaults, config)
   config$area_key <- .resolve_spatialize_area_key(config$area_key)
   config
+}
+
+# Config keys that were once accepted but never did anything. A caller passing
+# one is warned and the key dropped, rather than aborted on as an unknown key,
+# because the key was documented and accepted for months.
+#
+# `expansion_threshold` (whep#1001) named the LandInG step that, after that
+# many redistribution iterations, seeds a crop into cropland cells outside its
+# base pattern (`redist_exp_thresh <- 100` in LandInG's
+# `landuse/harvested_area_timeseries.R`; Ostberg et al. 2023, GMD 16,
+# 3375-3406, doi:10.5194/gmd-16-3375-2023). WHEP ported the parameter but
+# never the step. Implementing it is a science decision -- the seed size, and
+# whether the LUH2 type constraint binds in the new cells -- so it is left to
+# the maintainer instead of being guessed here.
+.defunct_config_keys <- function() {
+  c(expansion_threshold = "whep#1001")
+}
+
+.drop_defunct_config_keys <- function(config, arg) {
+  defunct <- intersect(names(config), names(.defunct_config_keys()))
+  if (length(defunct) == 0L) {
+    return(config)
+  }
+  cli::cli_warn(
+    c(
+      "{.arg {arg}} entr{?y/ies} {.val {defunct}} {?is/are} defunct and
+       ignored.",
+      i = "{?It/They} never changed the allocation; see
+           {.val {unname(.defunct_config_keys()[defunct])}}."
+    ),
+    class = "whep_defunct_config_key"
+  )
+  config[setdiff(names(config), defunct)]
 }
 
 #' Validate that required columns exist.
@@ -634,8 +667,7 @@ build_gridded_landuse <- function(
   cropland,
   country_grid,
   multicropping,
-  max_iterations,
-  expansion_threshold
+  max_iterations
 ) {
   country_cols <- .compartment_id_cols(country_grid)
   country_lookup <- data.table::as.data.table(country_grid)[,
@@ -704,8 +736,7 @@ build_gridded_landuse <- function(
     allocated_dt,
     capacity_dt,
     countries_to_fix,
-    max_iterations,
-    expansion_threshold
+    max_iterations
   )
 
   out_cols <- unique(c(
@@ -779,8 +810,7 @@ build_gridded_landuse <- function(
   allocated,
   capacity,
   countries,
-  max_iterations,
-  expansion_threshold
+  max_iterations
 ) {
   join_cols <- .compartment_join_cols(
     allocated,
@@ -817,11 +847,9 @@ build_gridded_landuse <- function(
       on = join_cols
     ]
 
-    fixed[[idx]] <- .redistribute_country_dt(
-      work,
-      max_iterations,
-      expansion_threshold
-    )[, ..out_cols]
+    fixed[[idx]] <- .redistribute_country_dt(work, max_iterations)[,
+      ..out_cols
+    ]
   }
 
   data.table::rbindlist(fixed, use.names = TRUE, fill = TRUE)
@@ -829,11 +857,7 @@ build_gridded_landuse <- function(
 
 #' Redistribute for one country using vectorized logit updates.
 #' @noRd
-.redistribute_country_dt <- function(
-  work,
-  max_iterations,
-  expansion_threshold
-) {
+.redistribute_country_dt <- function(work, max_iterations) {
   tolerance <- 1e-4
   cell_cols <- .compartment_cell_cols(work)
 

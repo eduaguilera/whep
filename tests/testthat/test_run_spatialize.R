@@ -604,3 +604,24 @@ testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping pac
   )
   testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
 })
+
+testthat::test_that("an expansion_threshold override warns, not aborts", {
+  # whep#1001: the key was accepted for years without doing anything, so a
+  # script passing it keeps running and is told it never had an effect.
+  testthat::expect_false(
+    "expansion_threshold" %in% whep:::.known_override_keys()
+  )
+  testthat::expect_false(
+    "expansion_threshold" %in% names(whep:::.spatialize_presets()$whep)
+  )
+  kept <- NULL
+  testthat::expect_warning(
+    kept <- whep:::.drop_defunct_config_keys(
+      list(expansion_threshold = 5L, max_iterations = 10L),
+      "overrides"
+    ),
+    class = "whep_defunct_config_key"
+  )
+  testthat::expect_identical(kept, list(max_iterations = 10L))
+  testthat::expect_silent(whep:::.validate_overrides(kept))
+})
