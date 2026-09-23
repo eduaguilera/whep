@@ -1859,3 +1859,17 @@ testthat::test_that("a complete grid reports no cell shortfall", {
     class = "whep_socd_cell_shortfall"
   )
 })
+
+# A non-land cell carries NA in both the per-CFT cube and cftfrac.nc. Its row
+# JOINS (an anti-join finds nothing unmatched) but carries an NA stand
+# fraction, and `NA > 0` made the unmatched-band check index one NA row per
+# such cell: on the 2010 global run it warned that 4,500,640 rows "carry water
+# but match no stand fraction" while naming no band and no year (#916).
+testthat::test_that("NA water on a non-land cell is not an unmatched band", {
+  cube <- .wb_two_band_cube(NA_real_, 200)
+  frac <- .wb_two_band_frac(NA_real_, 0.1)
+  testthat::expect_no_warning(
+    out <- whep:::.wb_cell_consump(cube, "blue_mm", frac)
+  )
+  testthat::expect_true(is.na(out$blue_mm))
+})

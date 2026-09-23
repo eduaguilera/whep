@@ -40,10 +40,12 @@ reading data. Defaults to \code{FALSE}.}
 A tibble. For \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{year}, \code{band}
 (when the input carries it), \code{band_name}, \code{crop_group} (the soil-carbon
 crop group of the band, as in \code{\link[=build_crop_water_use]{build_crop_water_use()}}: \code{NA} for the
-\code{others}, grassland and bioenergy bands), \code{stand_frac}, and \code{blue_consump_mm}, \code{green_consump_mm}
-and \code{cft_nir_mm} (mm/yr over the whole cell; \code{NA} where that cube does
-not carry the band). Divide by \code{stand_frac} for a per-hectare-of-crop
-intensity. For \code{resolution = "polity"}: \code{year}, \code{area_code}, the band
+\code{others}, grassland and bioenergy bands), \code{stand_frac}, and
+\code{blue_consump_mm}, \code{green_consump_mm} and \code{cft_nir_mm} (mm/yr over the
+whole cell; \code{NA} where that cube does not carry the band or was not
+supplied). Divide by \code{stand_frac} for a per-hectare-of-crop intensity.
+Band rows NA in every term (cells LPJmL did not simulate) are dropped;
+they carry no water, so no band sum changes. For \code{resolution = "polity"}: \code{year}, \code{area_code}, the band
 columns, \code{stand_area_ha}, and \code{blue_consump_m3}, \code{green_consump_m3} and
 \code{cft_nir_m3}, each the depth times \code{polity_frac * cell_area_ha} (the
 weight \code{\link[=build_water_balance]{build_water_balance()}} uses for its polity means) summed over

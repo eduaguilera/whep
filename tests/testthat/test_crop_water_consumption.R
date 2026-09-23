@@ -166,6 +166,29 @@ testthat::test_that("an absent cube stays NA, never zero", {
   testthat::expect_true(all(is.na(poly$cft_nir_m3)))
 })
 
+testthat::test_that("unsimulated cells are dropped, partial NA is kept", {
+  inputs <- .cwc_inputs()
+  ocean <- inputs$cft_consump_water_b |>
+    dplyr::filter(lon == min(lon)) |>
+    dplyr::mutate(lon = 170.25, value = NA_real_)
+  cubes <- c("cft_consump_water_b", "cft_consump_water_g", "cft_nir")
+  inputs[c(cubes, "stand_frac")] <- purrr::map(
+    inputs[c(cubes, "stand_frac")],
+    \(x) dplyr::bind_rows(x, ocean)
+  )
+  # One band NA in a single cube only: that row must survive, showing NA.
+  inputs$cft_nir <- dplyr::mutate(
+    inputs$cft_nir,
+    value = dplyr::if_else(band == 1L & lon < 0, NA_real_, value)
+  )
+  grid <- testthat::expect_no_warning(
+    whep::build_crop_water_consumption(data = inputs)
+  )
+  testthat::expect_false(170.25 %in% grid$lon)
+  testthat::expect_equal(nrow(grid), 6L)
+  testthat::expect_equal(sum(is.na(grid$cft_nir_mm)), 1L)
+})
+
 testthat::test_that("absent cubes are read for the requested years only", {
   inputs <- .cwc_inputs()
   seen <- list()

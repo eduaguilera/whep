@@ -68,10 +68,12 @@
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `year`, `band`
 #'   (when the input carries it), `band_name`, `crop_group` (the soil-carbon
 #'   crop group of the band, as in [build_crop_water_use()]: `NA` for the
-#'   `others`, grassland and bioenergy bands), `stand_frac`, and `blue_consump_mm`, `green_consump_mm`
-#'   and `cft_nir_mm` (mm/yr over the whole cell; `NA` where that cube does
-#'   not carry the band). Divide by `stand_frac` for a per-hectare-of-crop
-#'   intensity. For `resolution = "polity"`: `year`, `area_code`, the band
+#'   `others`, grassland and bioenergy bands), `stand_frac`, and
+#'   `blue_consump_mm`, `green_consump_mm` and `cft_nir_mm` (mm/yr over the
+#'   whole cell; `NA` where that cube does not carry the band or was not
+#'   supplied). Divide by `stand_frac` for a per-hectare-of-crop intensity.
+#'   Band rows NA in every term (cells LPJmL did not simulate) are dropped;
+#'   they carry no water, so no band sum changes. For `resolution = "polity"`: `year`, `area_code`, the band
 #'   columns, `stand_area_ha`, and `blue_consump_m3`, `green_consump_m3` and
 #'   `cft_nir_m3`, each the depth times `polity_frac * cell_area_ha` (the
 #'   weight [build_water_balance()] uses for its polity means) summed over
@@ -140,7 +142,18 @@ build_crop_water_consumption <- function(
   }
   purrr::reduce(parts, .cwc_join_bands) |>
     .cwc_complete_columns(cubes) |>
+    .cwc_drop_unsimulated(cubes) |>
     .cwc_label_bands()
+}
+
+# Drop band rows where every term is NA: the cubes span the full 720 x 277
+# grid, and a cell LPJmL did not simulate (ocean, ice) carries NA on every
+# band -- 4,500,640 of 6,382,080 rows on the 2010 global run. They hold no
+# water, so dropping them changes no band sum; a row where only one cube is
+# NA is kept, so a missing term stays visibly NA.
+.cwc_drop_unsimulated <- function(grid, cubes) {
+  terms <- grid[unname(cubes)]
+  grid[rowSums(!is.na(terms)) > 0L, ]
 }
 
 # Full join two per-band parts. The stand fraction is the same weight on both
