@@ -212,7 +212,7 @@ get_livestock_cbs <- function(
 # slaughter is the same either way. Folding keeps supply and trade on one key.
 # Only swine is folded: the dairy-cattle (960) and layer (1052) shares are
 # dropped by the same join, but each of those is an IO sector of its own, so
-# where their cull belongs is a separate question.
+# where their cull belongs is a separate question (whep#1237).
 .fold_split_slaughter <- function(slaughter) {
   folds <- tibble::tribble(
     ~item_cbs_code, ~folded_code,
