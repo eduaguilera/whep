@@ -148,7 +148,7 @@ read_fbs_population <- function(years = NULL, data = list(), example = FALSE) {
       area_code = as.integer(.data[["Area Code"]]),
       # FAOSTAT publishes this item in thousands in both pins ("1000 persons"
       # in the old one, "1000 No" in the new one).
-      population = as.numeric(.data[["Value"]]) * 1000,
+      population = as.numeric(.data[["Value"]]) * .persons_per_thousand(),
       source_pop = .env$label,
       source_rank = .env$rank
     ) |>

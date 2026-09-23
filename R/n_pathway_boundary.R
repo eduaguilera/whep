@@ -192,7 +192,7 @@ build_n_pathway_exceedance <- function(
     dplyr::mutate(
       actual_air_kgn_ha = dplyr::if_else(
         .data$area_ha > 0,
-        .data$nh3_air_n_t * 1000 / .data$area_ha,
+        .data$nh3_air_n_t * .kg_per_tonne() / .data$area_ha,
         NA_real_
       )
     )
@@ -243,7 +243,7 @@ build_n_pathway_exceedance <- function(
     dplyr::mutate(
       actual_water_kgn_ha = dplyr::if_else(
         .data$area_ha > 0,
-        .data$no3_n_t * 1000 / .data$area_ha,
+        .data$no3_n_t * .kg_per_tonne() / .data$area_ha,
         NA_real_
       ),
       critical_water_kgn_ha = pmin(
@@ -266,15 +266,18 @@ build_n_pathway_exceedance <- function(
   actual <- x[[paste0("actual_", medium, "_kgn_ha")]]
   critical <- x[[paste0("critical_", medium, "_kgn_ha")]]
   area <- x$area_ha
+  # An emitted or leached N mass per hectare cannot be negative; report any
+  # that is rather than let it through unseen (#378). Values are unchanged.
+  .warn_out_of_bounds(actual, paste0("actual_", medium, "_kgn_ha"), lower = 0)
   share <- .n_exceed_split(actual, critical)
   dplyr::mutate(
     x,
     "exceed_share_{medium}" := share,
     "exceedance_{medium}_kgn_ha" := actual * share,
     "within_{medium}_kgn_ha" := actual * (1 - share),
-    "exceedance_{medium}_n_t" := actual * share * area / 1000,
-    "within_{medium}_n_t" := actual * (1 - share) * area / 1000,
-    "actual_{medium}_n_t" := actual * area / 1000
+    "exceedance_{medium}_n_t" := actual * share * area / .kg_per_tonne(),
+    "within_{medium}_n_t" := actual * (1 - share) * area / .kg_per_tonne(),
+    "actual_{medium}_n_t" := actual * area / .kg_per_tonne()
   )
 }
 

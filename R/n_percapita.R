@@ -161,7 +161,7 @@ build_n_percapita <- function(
     "anthropogenic_n_t",
     "anthropogenic nitrogen"
   )
-  anthropogenic |>
+  out <- anthropogenic |>
     dplyr::inner_join(
       dplyr::select(population, "year", "area_code", "population"),
       by = c("year", "area_code")
@@ -169,8 +169,15 @@ build_n_percapita <- function(
     dplyr::transmute(
       year = .data$year,
       area_code = .data$area_code,
-      n_percapita_kg = .data$anthropogenic_n_t * 1000 / .data$population
+      n_percapita_kg = .data$anthropogenic_n_t *
+        .kg_per_tonne() /
+        .data$population
     )
+  # Synthetic fertiliser and BNF are both non-negative masses, so a negative
+  # per-capita total can only come from a defective input. Reported, not
+  # clipped (#378).
+  .warn_out_of_bounds(out$n_percapita_kg, "n_percapita_kg", lower = 0)
+  out
 }
 
 # Toy fixture for a runnable example: two countries' per-capita reactive N,
