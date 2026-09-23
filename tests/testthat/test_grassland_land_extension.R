@@ -273,3 +273,23 @@ testthat::test_that("a missing pasture item code is refused", {
   testthat::expect_identical(condition$absent, "6655")
   testthat::expect_identical(condition$observed, "6621")
 })
+
+testthat::test_that("a logical Note in the landuse pin does not move the result", {
+  # whep#1178: the registered faostat-landuse pin carries `Note` as an all-NA
+  # logical (readr's type guess on an empty column). Nothing here reads it,
+  # and this pins that down: the result is the same whichever type it has.
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    10,           6655,         "Area",   2000,  50000,
+    68,           6655,         "Area",   2000,  1000
+  )
+  build <- function(note) {
+    whep::build_grassland_land_extension(
+      source = "faostat_pasture",
+      data = list(landuse = dplyr::mutate(landuse, Note = note))
+    )
+  }
+
+  testthat::expect_identical(build(NA), build(NA_character_))
+  testthat::expect_equal(nrow(build(NA)), 2L)
+})
