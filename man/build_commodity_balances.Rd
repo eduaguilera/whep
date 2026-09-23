@@ -18,6 +18,7 @@ build_commodity_balances(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 )
@@ -214,7 +215,44 @@ booked as no export at all. \code{"abort"} refuses to build. There is
 deliberately no clamp, unlike \code{share_overflow}: a destiny cannot exceed
 the supply it is apportioned from, so 1 is a true bound there, while
 here the denominator is incomplete and capping at 1 would book a
-country's whole processed output as export.}
+country's whole processed output as export. Those figures are for the
+step-4 denominator, \code{export_share_basis = "snapshot"}; on a 1955–2023
+build that basis applies 60 shares above 1, all at 2014–2023, while the
+default \code{"current"} leaves 25 above 1 (Tobacco, whep#1085) and applies
+none of them.}
+
+\item{export_share_basis}{One of \code{"current"} (default), \code{"processed"} or
+\code{"snapshot"}, selecting which world balance the second processed-products
+round reads its export share \code{export / (production + import)} off
+(whep#1143). The share is multiplied by a country's newly created
+processed production, so its denominator must contain that kind of
+production. \code{"current"} reads the balance the round runs on and adds its
+rows to: processed production from the first round, trade after
+imputation. It is also the self-consistent choice, since a share \code{E / S}
+leaves the world share unchanged once the round's own production and
+export are added. \code{"processed"} reads the same production with trade as
+read, before imputation. \code{"snapshot"} reads the balance before any
+processed production exists, which is what every build before whep#1143
+did: wherever FAOSTAT reports no production of a processed product — all
+of them before 1961, and the new food balance sheets' oilseed cakes and
+molasses from 2014 — its denominator is world import alone.
+
+\strong{The default moves published values}, at 1961–2023 only. Measured on
+a real 1955–2023 build against \code{"snapshot"}: 34,691 rows change, world
+\code{export} falls 33.0 Mt summed over all years (52.2 Mt gross) and
+\code{domestic_supply} rises by the same, landing 30.4 Mt on \code{feed}. The
+largest share applied falls from 15.7 (Sesameseed Cake 2016) to 0.66;
+world Sesameseed Cake export at 2020 goes from 612 kt to 1.7 kt against
+0.4 kt of world import, Oilseed Cakes, Other from 3.91 Mt to 2.18 Mt
+against 1.85 Mt. Of the export change, 48.5 Mt gross is at 2014–2023,
+where the step-4 sheet carries no cake or molasses production at all.
+\code{"processed"} moves the
+same 2014–2023 cakes (export −42.4 Mt net) but almost nothing earlier
+(−0.09 Mt at 1961–2013 against \code{"current"}'s +3.45 Mt): the two differ
+on items whose trade only step 7 supplies — DDGS (+3.2 Mt of export),
+Sugarbeet pulp (+1.1 Mt), which \code{"processed"} books no export for at all
+— and on Beverages, Fermented (+4.2 Mt), whose imputed trade is itself
+in question (whep#960). Production is identical under all three.}
 
 \item{seed_backcast}{One of \code{"area_rate"} (default) or
 \code{"production_share"}, selecting what the pre-1962 seed back-cast reads
