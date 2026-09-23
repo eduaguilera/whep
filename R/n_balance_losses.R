@@ -221,7 +221,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
-  .n_check_climate(x$climate)
+  .n_check_climate(x)
   med_rows <- which(x$climate == "MED")
   ef_med <- rep(NA_real_, nrow(x))
   if (length(med_rows) > 0L) {
@@ -501,7 +501,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # 0.010/0.005 factors -- the same 0.010 documented as EF1 in
 # build_crop_soil_n2o_extension(), not re-hardcoded here.
 .soil_n2o_ipcc2019 <- function(x) {
-  .n_check_climate(x$climate)
+  .n_check_climate(x)
   ef_atl <- .n2o_disaggregated_row("Tier_1", "ATL")
   ef_med <- .n2o_disaggregated_row("Med_average", "MED")
   x |>
@@ -706,7 +706,19 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     dplyr::pull("value")
 }
 
-.n_check_climate <- function(climate) {
+# Takes the whole table: a missing column must abort here, not pass as
+# unique(NULL) and resurface in if_else() as "object 'climate' not found".
+.n_check_climate <- function(x) {
+  if (!rlang::has_name(x, "climate")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} is missing required column {.field climate}.",
+        i = "Expected {.val ATL} or {.val MED} on every row."
+      ),
+      class = "whep_missing_climate"
+    )
+  }
+  climate <- x$climate
   valid <- c("ATL", "MED")
   bad <- unique(climate[is.na(climate) | !climate %in% valid])
   if (length(bad) > 0L) {
