@@ -1768,6 +1768,22 @@ test_that("mapping tables have unique keys and no duplicate rows", {
   assert_unique_key(whep::animals_codes, "animals_codes", "item_cbs_code")
 })
 
+test_that("cbs_trade_codes maps no FAOSTAT trade group row (#960)", {
+  # On the `faostat-trade-totals` pin (20260325T120525Z-7b85f) every item code
+  # up to 1296 is a single commodity and every code from 1719 up is a FAOSTAT
+  # group total -- "Beverages", "Alcoholic Beverages", "Tobacco", "Fodder and
+  # Feeding Stuff" -- reported next to the items it sums. The bilateral pin
+  # carries none of them. Mapping a group onto a CBS item adds its members a
+  # second time: at 2010, 1895 "Beverages" put 62.5 Mt of world export on CBS
+  # 2657 against 0.73 Mt from 2657's own members, and 1896 "Tobacco" doubled
+  # CBS tobacco exactly.
+  group_codes <- whep::cbs_trade_codes |>
+    dplyr::filter(item_code_trade >= 1700) |>
+    dplyr::pull(item_code_trade)
+
+  expect_length(group_codes, 0L)
+})
+
 test_that("FAOSTAT production code 1807 maps only to Sheep and Goat Meat", {
   # Verified against FAOSTAT: 1807 = Sheep and Goat Meat,
   # Citrus Fruit, Total = 1804 (issue #178).
