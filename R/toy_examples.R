@@ -406,7 +406,8 @@
     .add_trade_polity_columns() |>
     dplyr::mutate(
       method_unbacked_quantity = "drop",
-      method_head_units = "convert"
+      method_head_units = "convert",
+      method_time_coverage = NA_character_
     )
 }
 
