@@ -790,6 +790,12 @@ build_detailed_trade <- function(
 .cbs_flow_cells <- function(cbs) {
   cbs <- data.table::as.data.table(cbs)
   data.table::setnames(cbs, tolower)
+  # The trade side is aggregated onto the polity bucket, so coverage is keyed
+  # on it too when the CBS carries it; `area_code` there is provenance, and
+  # e.g. Sudan's 276 folds into bucket 206.
+  if ("polity_area_code" %in% names(cbs)) {
+    cbs[, area_code := polity_area_code]
+  }
   keys <- c("year", "area_code", "item_cbs_code")
   flows <- intersect(c("import", "export"), names(cbs))
 

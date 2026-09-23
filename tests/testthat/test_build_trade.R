@@ -823,6 +823,21 @@ testthat::test_that(".extract_cbs_cells_for_dtm returns reported cells", {
   )
 })
 
+testthat::test_that("CBS coverage is keyed on the polity bucket", {
+  # The trade side is aggregated onto polity_area_code, so a CBS row whose
+  # provenance area_code folds into another bucket (Sudan 276 into 206) must
+  # cover that bucket, not its own provenance code.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_cbs_code, ~import, ~export,
+    2020L, 276L, 206L, 2511, 1000, 0
+  )
+
+  cells <- whep:::.extract_cbs_cells_for_dtm(cbs)
+
+  testthat::expect_equal(cells$area_code, 206L)
+  testthat::expect_equal(cells$element, "import")
+})
+
 testthat::test_that("build_detailed_trade rejects an unknown coverage method", {
   testthat::expect_error(
     build_detailed_trade(
