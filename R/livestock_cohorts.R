@@ -65,6 +65,10 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
   # the mapped "Swine" species_gen, so pigs dropped out entirely.
   cohort_fracs <- .get_cohort_fractions(categories)
 
+  # A species the share table does not list (horses, asses, mules, camels:
+  # GLEAM publishes no production systems or cohorts for them) cannot be split,
+  # so it stays one row holding its whole herd. Without this its fraction was
+  # NA, and every count taken downstream lost the herd (whep#1028).
   data |>
     dplyr::left_join(
       cohort_fracs,
@@ -75,7 +79,11 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       relationship = "many-to-many"
     ) |>
     dplyr::mutate(
-      cohort_fraction = system_share * cohort_share,
+      cohort_fraction = dplyr::if_else(
+        .data$species_gen %in% system_shares$species_gen,
+        system_share * cohort_share,
+        1
+      ),
       cohort_heads = heads * cohort_fraction
     ) |>
     dplyr::select(
