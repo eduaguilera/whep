@@ -26,10 +26,15 @@
 #   WHEP_NBD_SKIP_HEAVY=1   skip the two multi-minute stages (the SOC carbon
 #                           balance and the feed redistribution) to get a fast
 #                           coverage report of everything else.
-#   WHEP_NBD_OUT=<file.rds> save the coverage report, balance, surplus and
+#   WHEP_NBD_OUT=<file.rds> save the coverage report, the synthetic N removed
+#                           for want of a cropland cell, balance, surplus and
 #                           boundary exceedance, so
 #                           `validation/n_balance_gridded.R` can check them
 #                           without re-running the assembly.
+#   WHEP_NBD_UNSUPPORTED_FERTILIZER=drop|abort
+#                           what to do with synthetic N of polities that have
+#                           no cropland cell (default `drop`; see
+#                           .nbd_drop_unsupported_fertilizer() below).
 #
 # Requires the local surfaces (CLAUDE.md, "New data sources"):
 #   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
@@ -45,6 +50,11 @@ year <- as.integer(if (length(args) >= 1L) args[[1L]] else "2010")
 resolution <- if (length(args) >= 2L) args[[2L]] else "grid"
 skip_heavy <- nzchar(Sys.getenv("WHEP_NBD_SKIP_HEAVY"))
 out_path <- Sys.getenv("WHEP_NBD_OUT")
+unsupported_fertilizer <- rlang::arg_match0(
+  Sys.getenv("WHEP_NBD_UNSUPPORTED_FERTILIZER", "drop"),
+  c("drop", "abort"),
+  arg_nm = "WHEP_NBD_UNSUPPORTED_FERTILIZER"
+)
 
 # ---- staging ----------------------------------------------------------------
 
@@ -199,28 +209,46 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     )
 }
 
-# Drop fertiliser for polities that have no cropland to spread it on.
+# Drop fertiliser for polities that have no cropland cell to spread it on.
 #
 # spatialize_country_n_to_crops() aborts rather than lose that nitrogen
-# silently, which is right -- but for 2010 the offenders are Greenland, Palau,
-# French Guiana, Martinique, Reunion and the residual Rest-of-World bucket:
-# territories reporting a little fertiliser with no crop production in WHEP's
-# data. Together 1367 t, 0.0013% of the global 101.33 Mt. Aborting a global run
-# on that is disproportionate; losing it unremarked is what the guard exists to
-# prevent. So the driver makes the call, in the open, and prints what it cost.
+# silently, which is right. This driver instead removes it BEFORE the balance,
+# and the removal is recorded -- per year and area_code, tonnes N and share of
+# global synthetic N -- in the result's `unsupported_fertilizer` table and as
+# an `unsupported_fertilizer` row of `report`, both saved by WHEP_NBD_OUT.
+# WHEP_NBD_UNSUPPORTED_FERTILIZER=abort refuses the run instead (whep#1196).
 #
-# This is a data-coverage gap, not a fix: either those polities should carry
-# crop area, or their fertiliser should not be attributed to them (#446).
+# The loss is NOT a rounding error in every year. Measured at whep 2bae0917
+# for 1961-2023 (share of that year's global synthetic N, the
+# .synthetic_n_country() total):
+#
+#   1961-1991  11.1-20.3%  1.27-13.2 Mt N/yr. Almost all of it the USSR (228),
+#                          Czechoslovakia (51), Yugoslav SFR (248) and
+#                          Belgium-Luxembourg (15): FAOSTAT reports their
+#                          fertiliser under the union codes, and the
+#                          year-invariant cell-polity map has no cell for any.
+#                          1990: 10.07 Mt of 77.11 Mt, 13.1%.
+#   1992-2005  0.28-0.84%  Serbia and Montenegro (186), Belgium-Luxembourg to
+#                          1999, Czechoslovakia in 1992, and Sudan.
+#   2006-2023  0.05-0.24%  Mostly the Sudan bucket 206 (11-250 kt/yr, present
+#                          in EVERY year): the national total is keyed on 206
+#                          while the cell map carries 276/277. The rest is
+#                          small territories (Iceland, Qatar, French Guiana).
+#                          2010: 149 kt of 101.33 Mt, 0.15%.
+#
+# So a gridded balance for any year up to 1991 carries 80-89% of the synthetic N
+# FAOSTAT reports. The fix is spreading a union's (or bucket's) total over its
+# successors' cells, which is polity work (whep#458), not done here.
 .nbd_drop_unsupported_fertilizer <- function(
   fertilizer,
   primary_prod,
   year,
-  cropland_ha = NULL
+  cropland_ha = NULL,
+  action = "drop"
 ) {
   if (is.null(fertilizer) || is.null(primary_prod)) {
-    return(fertilizer)
+    return(list(fertilizer = fertilizer, removed = NULL))
   }
-  totals <- whep:::.synthetic_n_country(fertilizer)
   shares <- whep:::.n_synthetic_crop_shares(primary_prod, "coello", NULL)
   supported <- dplyr::distinct(shares, .data$year, .data$area_code)
   # Crop shares are not enough: a polity can have crop production and still no
@@ -233,37 +261,38 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
       by = c("year", "area_code")
     )
   }
-  unsupported <- totals |>
-    dplyr::filter(.data$synthetic_n_t > 0) |>
-    dplyr::anti_join(supported, by = c("year", "area_code"))
-  if (nrow(unsupported) == 0L) {
-    return(fertilizer)
+  # The selection, the drop and the per-code record live in the package
+  # (R/n_balance_spatialize.R), where they are tested; this script is
+  # .Rbuildignored and no test can source it.
+  out <- whep:::.n_drop_uncelled_fertilizer(fertilizer, supported, action)
+  removed <- out$removed
+  if (nrow(removed) > 0L) {
+    cli::cli_inform(c(
+      "!" = "Dropping {nrow(removed)} polit{?y/ies} with fertiliser but no
+             cropland cell: {signif(sum(removed$synthetic_n_t), 4)} t,
+             {signif(100 * sum(removed$share_of_global), 3)}% of {year}
+             synthetic N. Codes: {removed$area_code}.",
+      i = "Recorded per code in the result's {.field unsupported_fertilizer}."
+    ))
   }
-  cli::cli_inform(c(
-    "!" = "Dropping {nrow(unsupported)} polit{?y/ies} with fertiliser but no
-           cropland: {signif(sum(unsupported$synthetic_n_t), 4)} t,
-           {signif(100 * sum(unsupported$synthetic_n_t) / sum(totals$synthetic_n_t), 3)}%
-           of {year} synthetic N. Codes: {unsupported$area_code}."
-  ))
-  # The SAME crosswalk .synthetic_n_country() re-keys with, or the reverse
-  # mapping disagrees with the forward one -- and it is .polity_crosswalk(),
-  # NOT the static whep::polity_area_crosswalk this read from. The two differ by
-  # .unfold_rest_of_world(): since whep#628 the Rest-of-World bucket is unfolded,
-  # so a former member keeps its own code as its polity code, and that code
-  # appears nowhere in the static table's polity_area_code column. Measured at
-  # 2010: area codes 22, 69, 85, 135, 180 and 182 were all matched by the
-  # forward re-keying, all unmatched by the static reverse lookup, so their raw
-  # fertiliser rows survived the drop and .n_polity_crop_totals() still aborted
-  # on exactly those six -- "Cannot allocate 6 polity N totals".
-  bridge <- whep:::.polity_crosswalk() |>
-    as.data.frame() |>
-    tibble::as_tibble() |>
-    dplyr::transmute(
-      raw = as.integer(.data$area_code),
-      polity = as.integer(.data$polity_area_code)
-    )
-  drop_raw <- bridge$raw[bridge$polity %in% unsupported$area_code]
-  dplyr::filter(fertilizer, !as.integer(.data[["Area Code"]]) %in% drop_raw)
+  .nbd_record(
+    "unsupported_fertilizer",
+    if (nrow(removed) > 0L) "drop" else "ok",
+    0,
+    nrow(removed),
+    if (nrow(removed) > 0L) {
+      paste0(
+        signif(sum(removed$synthetic_n_t), 4),
+        " t synthetic N removed (",
+        signif(100 * sum(removed$share_of_global), 3),
+        "% of global); area codes ",
+        paste(removed$area_code, collapse = ", ")
+      )
+    } else {
+      NA_character_
+    }
+  )
+  out
 }
 
 # The loss cascade's method set, and the one driver column it still needs.
@@ -375,12 +404,15 @@ fertilizer <- nbd_stage(
 )
 manure_pin <- nbd_stage("manure", whep_read_file("faostat-emissions-livestock"))
 primary_residues <- nbd_stage("primary_residues", get_primary_residues())
-fertilizer <- .nbd_drop_unsupported_fertilizer(
+fertilizer_support <- .nbd_drop_unsupported_fertilizer(
   fertilizer,
   primary_prod,
   year,
-  cropland_ha
+  cropland_ha,
+  action = unsupported_fertilizer
 )
+fertilizer <- fertilizer_support$fertilizer
+unsupported_fertilizer_n <- fertilizer_support$removed
 
 # ---- 3. the crop NPP chain ---------------------------------------------------
 
@@ -721,6 +753,7 @@ if (nrow(blockers) > 0L) {
     year = year,
     resolution = resolution,
     report = dplyr::bind_rows(.nbd_log$rows),
+    unsupported_fertilizer = unsupported_fertilizer_n,
     balance = balance,
     surplus = surplus,
     exceedance = exceedance
