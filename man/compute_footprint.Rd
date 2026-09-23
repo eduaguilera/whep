@@ -15,6 +15,7 @@ compute_footprint(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   report_conservation = FALSE
 )
@@ -62,6 +63,18 @@ Physical biomass systems can require more than one unit of intermediate
 input per unit of output, so the footprint path defaults to \code{100} and only
 clips extreme columns caused by residual inconsistencies or tiny outputs.}
 
+\item{a_denominator}{Which outputs A divides by when using \code{z_mat}.
+\code{"traceable"} (the default) treats a sector with \code{x_vec <= output_tol} as
+having no output, exactly as the extension intensities and
+\code{\link[=check_footprint_conservation]{check_footprint_conservation()}} do, so its A column is zero.
+\code{"nonzero"} divides by any non-zero output, which is the behaviour before
+whep#1110: a residue output such as \code{1e-12} then inflates its column by
+up to \code{1e12}, clipped only by \code{max_column_sum}. The two differ only for a
+residue-output sector that still receives intermediate inputs, and a
+warning of class \code{whep_residue_output_inputs} names how many there are
+under either rule. Ignored when a precomputed \code{l_inv} is supplied without
+\code{z_mat}. The choice is recorded in the \code{method_a_denominator} column.}
+
 \item{conserve_extensions}{If \code{TRUE}, rescale positive footprint
 flows within each origin area/item so their sum does not exceed
 the corresponding positive extension total. This keeps footprint
@@ -89,6 +102,8 @@ A tibble with footprint results containing:
 \item \code{target_fd}: Demand category (e.g. \code{"food"}). Only
 present when \code{fd_labels} is provided.
 \item \code{value}: Footprint value in extension units.
+\item \code{method_a_denominator}: The \code{a_denominator} rule A was built with, or
+\code{"precomputed_l_inv"} when a precomputed \code{l_inv} was used.
 }
 }
 \description{

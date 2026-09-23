@@ -147,3 +147,55 @@ testthat::test_that("Leontief validates value_added_floor", {
     "value_added_floor"
   )
 })
+
+testthat::test_that("min_output zeroes A columns of residue outputs (#1110)", {
+  # The 2x2 case from issue whep#1110: sector 2's output 1e-12 is residue.
+  z <- matrix(c(0, 0, 5, 0), nrow = 2)
+  x <- c(100, 1e-12)
+
+  testthat::expect_warning(
+    divided <- .technical_coefficients(z, x, max_column_sum = 100),
+    "Capping"
+  )
+  testthat::expect_equal(unname(Matrix::colSums(divided)), c(0, 100))
+
+  traced <- testthat::expect_no_warning(
+    .technical_coefficients(z, x, max_column_sum = 100, min_output = 1e-8)
+  )
+  testthat::expect_equal(unname(Matrix::colSums(traced)), c(0, 0))
+  testthat::expect_equal(
+    as.matrix(Matrix::solve(Matrix::Diagonal(2) - traced)),
+    diag(2)
+  )
+
+  # Outputs above the threshold are divided exactly as before.
+  x_ok <- c(100, 10)
+  testthat::expect_equal(
+    .technical_coefficients(z, x_ok, max_column_sum = 100, min_output = 1e-8),
+    .technical_coefficients(z, x_ok, max_column_sum = 100)
+  )
+})
+
+testthat::test_that("residue-output warning counts only columns with inputs", {
+  z <- matrix(c(0, 0, 5, 0), nrow = 2)
+
+  testthat::expect_equal(
+    .warn_residue_output_inputs(z, c(100, 1e-3), 1e-8, "traceable"),
+    0L
+  )
+  testthat::expect_equal(
+    .warn_residue_output_inputs(z * 0, c(100, 1e-12), 1e-8, "traceable"),
+    0L
+  )
+  testthat::expect_warning(
+    n <- .warn_residue_output_inputs(z, c(100, 1e-12), 1e-8, "traceable"),
+    "not traced",
+    class = "whep_residue_output_inputs"
+  )
+  testthat::expect_equal(n, 1L)
+  testthat::expect_warning(
+    .warn_residue_output_inputs(z, c(100, 1e-12), 1e-8, "nonzero"),
+    "over-trace",
+    class = "whep_residue_output_inputs"
+  )
+})

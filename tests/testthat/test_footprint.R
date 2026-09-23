@@ -274,7 +274,11 @@ testthat::test_that("sparse and dense paths agree when A stays productive", {
   dense <- dplyr::arrange(dense, dplyr::across(dplyr::all_of(key)))
   sparse <- dplyr::arrange(sparse, dplyr::across(dplyr::all_of(key)))
 
-  testthat::expect_equal(sparse, dense, tolerance = 1e-8)
+  testthat::expect_equal(
+    dplyr::select(sparse, -method_a_denominator),
+    dplyr::select(dense, -method_a_denominator),
+    tolerance = 1e-8
+  )
 })
 
 testthat::test_that("sparse path warns when A column sum reaches 1", {
@@ -552,7 +556,140 @@ testthat::test_that("fd_labels zero footprint keeps output schema", {
       "target_polity_has_geometry",
       "target_item",
       "target_fd",
-      "value"
+      "value",
+      "method_a_denominator"
     )
+  )
+})
+
+# Issue whep#1110: the intensity step treats `x_vec <= output_tol` as residue
+# and zeroes that sector's extension, but A used to divide by any non-zero
+# output. Sector 2 below has a residue output (1e-12) yet takes 5 of sector 1
+# as input and delivers 5 to final demand -- the inconsistent shape a CBS
+# production residue would produce.
+.residue_io_fixture <- function() {
+  list(
+    z_mat = matrix(c(0, 0, 5, 0), nrow = 2),
+    x_vec = c(100, 1e-12),
+    y_mat = matrix(c(95, 5), ncol = 1),
+    extensions = c(10, 0),
+    labels = tibble::tibble(
+      area_code = c(1L, 1L),
+      item_cbs_code = c(10L, 20L)
+    ),
+    fd_labels = tibble::tibble(area_code = 1L, fd_col = "food")
+  )
+}
+
+.residue_footprint <- function(fx, ...) {
+  compute_footprint(
+    x_vec = fx$x_vec,
+    y_mat = fx$y_mat,
+    extensions = fx$extensions,
+    labels = fx$labels,
+    z_mat = fx$z_mat,
+    fd_labels = fx$fd_labels,
+    ...
+  )
+}
+
+testthat::test_that("A treats residue outputs as the intensities do (#1110)", {
+  fx <- .residue_io_fixture()
+
+  testthat::expect_warning(
+    result <- .residue_footprint(fx, conserve_extensions = FALSE),
+    class = "whep_residue_output_inputs"
+  )
+
+  # Only sector 1's own final demand carries its pressure: 0.1 * 95. The 5 it
+  # shipped into the residue sector is not traced, and that is reported (the
+  # warning above, the conservation check below) instead of being multiplied
+  # by 1e12 and capped at 100.
+  testthat::expect_equal(sum(result$value), 9.5)
+  testthat::expect_equal(result$target_item, 10L)
+  testthat::expect_equal(unique(result$method_a_denominator), "traceable")
+
+  report <- check_footprint_conservation(
+    result,
+    fx$extensions,
+    fx$labels,
+    fx$x_vec
+  )
+  origin_1 <- report[report$origin_item == 10L, ]
+  testthat::expect_equal(origin_1$status, "under_traced")
+  testthat::expect_equal(origin_1$rel_discrepancy, -0.05)
+})
+
+testthat::test_that("a_denominator = 'nonzero' keeps the old A (#1110)", {
+  fx <- .residue_io_fixture()
+
+  warnings <- character()
+  result <- withCallingHandlers(
+    .residue_footprint(
+      fx,
+      a_denominator = "nonzero",
+      conserve_extensions = FALSE
+    ),
+    warning = function(w) {
+      warnings <<- c(warnings, class(w)[1])
+      invokeRestart("muffleWarning")
+    }
+  )
+  testthat::expect_true("whep_residue_output_inputs" %in% warnings)
+
+  # 0.1 * (95 + 100 * 5): the capped 1 / 1e-12 multiplier over-traces sector
+  # 1 six-fold, and 50 of the 59.5 lands on the residue sector's demand.
+  testthat::expect_equal(sum(result$value), 59.5)
+  testthat::expect_equal(result$value[result$target_item == 20L], 50)
+  testthat::expect_equal(unique(result$method_a_denominator), "nonzero")
+
+  report <- check_footprint_conservation(
+    result,
+    fx$extensions,
+    fx$labels,
+    fx$x_vec
+  )
+  testthat::expect_equal(
+    report$status[report$origin_item == 10L],
+    "over_traced"
+  )
+})
+
+testthat::test_that("residue columns without inputs give identical A", {
+  fx <- .residue_io_fixture()
+  fx$z_mat <- matrix(0, 2, 2)
+  fx$y_mat <- matrix(c(100, 1e-12), ncol = 1)
+
+  traceable <- testthat::expect_no_warning(.residue_footprint(fx))
+  nonzero <- testthat::expect_no_warning(
+    .residue_footprint(fx, a_denominator = "nonzero")
+  )
+
+  testthat::expect_equal(
+    dplyr::select(traceable, -method_a_denominator),
+    dplyr::select(nonzero, -method_a_denominator)
+  )
+  testthat::expect_equal(sum(traceable$value), 10)
+})
+
+testthat::test_that("compute_footprint validates a_denominator", {
+  fx <- .residue_io_fixture()
+  testthat::expect_error(
+    .residue_footprint(fx, a_denominator = "bogus"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a precomputed l_inv is recorded as such", {
+  result <- compute_footprint(
+    diag(2),
+    c(100, 100),
+    matrix(c(1, 1), ncol = 1),
+    c(1, 1),
+    tibble::tibble(area_code = c(1L, 1L), item_cbs_code = c(10L, 20L))
+  )
+  testthat::expect_equal(
+    unique(result$method_a_denominator),
+    "precomputed_l_inv"
   )
 })
