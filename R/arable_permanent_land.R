@@ -1459,15 +1459,21 @@ check_arable_composition <- function(
       .(area_code, year)
     ]
   )
-  first <- reported[, .(first_fodder_year = min(year)), by = area_code]
-  panel <- merge(panel, first, by = "area_code", all.x = TRUE)
   panel[, fodder_coverage := "not_reported"]
-  panel[
-    !is.na(first_fodder_year) & year > first_fodder_year,
-    fodder_coverage := "lapsed"
-  ]
   panel[reported, on = c("area_code", "year"), fodder_coverage := "reported"]
-  panel[, .(area_code, year, fodder_coverage)]
+  # "Lapsed" is a statement about the year axis: absent now, reported in an
+  # earlier year of the same area. The cumulative count runs along the year.
+  data.table::setorder(panel, area_code, year)
+  panel[,
+    fodder_coverage := data.table::fifelse(
+      fodder_coverage == "not_reported" &
+        cumsum(fodder_coverage == "reported") > 0L,
+      "lapsed",
+      fodder_coverage
+    ),
+    by = area_code
+  ]
+  panel[]
 }
 
 # Hold each fodder series' last observed physical area over the panel years

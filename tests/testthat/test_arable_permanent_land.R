@@ -180,9 +180,15 @@ testthat::test_that("fodder_coverage marks the years after fodder stops", {
     nrow(dplyr::distinct(res, area_code, year, fodder_coverage)),
     nrow(dplyr::distinct(res, area_code, year))
   )
-  testthat::expect_equal(.coverage_by_year(res, 20L)$fodder_coverage, "not_reported")
+  testthat::expect_equal(
+    .coverage_by_year(res, 20L)$fodder_coverage,
+    "not_reported"
+  )
   # A perennial-only country-year has no fodder input either.
-  testthat::expect_equal(.coverage_by_year(res, 30L)$fodder_coverage, "not_reported")
+  testthat::expect_equal(
+    .coverage_by_year(res, 30L)$fodder_coverage,
+    "not_reported"
+  )
 })
 
 testthat::test_that("fodder_coverage describes the input, not the treatment", {

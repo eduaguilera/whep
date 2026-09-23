@@ -2275,9 +2275,8 @@ utils::globalVariables(
     # dropout completion grid starts
     ".time_first",
     # arable_permanent_land.R (whep#938) — the per-country-year fodder input
-    # coverage label and the first year that country reports fodder
+    # coverage label
     "fodder_coverage",
-    "first_fodder_year",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
