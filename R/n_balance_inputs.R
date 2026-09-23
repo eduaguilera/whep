@@ -143,6 +143,9 @@
 #'     support).
 #'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
 #'     inputs.
+#'   * `method_urban_residual`: [build_urban_n()]'s `method_residual`
+#'     (default `"nearest"`), for urban N the transport step leaves on a
+#'     cell with no cropland.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -1027,6 +1030,7 @@ build_n_inputs <- function(
   }
   build_urban_n(
     polity_validity = .ni_polity_validity(data),
+    method_residual = data$method_urban_residual %||% "nearest",
     data = list(
       urban_population = data$urban_population,
       cell_polity = data$cell_polity,
