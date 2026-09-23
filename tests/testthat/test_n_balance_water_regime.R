@@ -119,6 +119,21 @@ testthat::test_that("every tonnage term conserves across the split", {
   testthat::expect_equal(totals(split), totals(base))
 })
 
+testthat::test_that("identical input rows are all split, none collapsed", {
+  # build_n_inputs() can emit two identical rows for one key and fert_type
+  # (two streams landing the same tonnage); both carry nitrogen.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  twice <- dplyr::bind_rows(.nbw_inputs()[1, ], .nbw_inputs()[1, ])
+  shares <- whep:::.nb_regime_shares(
+    "area_share",
+    list(crop_regime_area = .nbw_regime_area()),
+    key
+  )
+  out <- whep:::.nb_split_regime(twice, shares, key)
+  testthat::expect_equal(sum(out$n_input_t), sum(twice$n_input_t))
+  testthat::expect_equal(nrow(out), 4L)
+})
+
 testthat::test_that("the split conserves at polity resolution too", {
   n_inputs <- .nbw_inputs()
   polity_inputs <- dplyr::select(n_inputs, -"lon", -"lat")

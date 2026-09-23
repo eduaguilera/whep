@@ -136,7 +136,10 @@
     )
   split <- joined |>
     dplyr::filter(!is.na(.data$irrigated_share)) |>
-    tidyr::crossing(water_regime = c("rainfed", "irrigated")) |>
+    # expand_grid(), not crossing(): crossing() de-duplicates its inputs, and
+    # build_n_inputs() can emit identical rows for one key and fert_type, so
+    # it silently dropped nitrogen before the loss cascade.
+    tidyr::expand_grid(water_regime = c("rainfed", "irrigated")) |>
     dplyr::mutate(
       regime_share = dplyr::if_else(
         .data$water_regime == "irrigated",
