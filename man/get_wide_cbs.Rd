@@ -11,12 +11,14 @@ get_wide_cbs(
 )
 }
 \arguments{
-\item{years}{Optional integer vector of years to build. When \code{NULL}
-(default) the whole series is built. Supplying a window builds only that
-range rather than building 1850-2023 and discarding the rest, and caches it
-under a window-specific key. The window is widened internally to 2011 when
-it reaches 2013, because that overlap is what splices the old FBS series
-onto \code{FAOSTAT_FBS_New}.}
+\item{years}{Optional integer vector of years to return. When \code{NULL}
+(default) the whole series is returned. A window returns exactly those
+years of the full-range result. The balances themselves are always built
+over the whole series, once per session and then cached, because several
+of their gap fills carry an observation across the whole year axis: a
+balance built over the window alone would differ from the same years of
+the full build (whep#833). A window therefore costs as much as the full
+series the first time, and nothing after that.}
 
 \item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, passed
 to \code{\link[=build_commodity_balances]{build_commodity_balances()}}, which documents what each does and what

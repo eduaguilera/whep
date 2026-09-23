@@ -12,9 +12,10 @@ get_processing_coefs(
 }
 \arguments{
 \item{years}{Optional integer vector of years to build. When \code{NULL}
-(default) the whole series is built. Supplying a window builds only that
-range rather than building 1850-2023 and discarding the rest, and caches it
-under a window-specific key.}
+(default) the whole series is built. Supplying a window calibrates the
+coefficients on that range of the full-range commodity balances (see
+\code{\link[=get_wide_cbs]{get_wide_cbs()}} for why those are always built over the whole series)
+and caches them under a window-specific key.}
 
 \item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
 the CBS the coefficients are calibrated on. See

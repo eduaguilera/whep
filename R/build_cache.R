@@ -95,9 +95,8 @@ whep_clear_cache <- function() {
 
 # --- Why a scoped CBS is cut from the full-range one (whep#833) --------------
 #
-# A year window asks for a subset, so the contract is an identity:
-#
-#     get_wide_cbs(years = Y) == get_wide_cbs() |> filter(year %in% Y)
+# A year window asks for a subset, so the contract is an identity: a scoped
+# get_wide_cbs() must equal the full-range one restricted to the same years.
 #
 # The CBS chain cannot be built over a window and keep it. Two fills inside
 # `.fix_cbs()` carry a single observation across the whole year axis, however
