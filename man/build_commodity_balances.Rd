@@ -112,44 +112,48 @@ at 1960 or earlier — against \code{"report"}, \code{"clamp"} moves 755 rows
 (\code{other_uses} +23.21 Mt, \code{stock_variation} −22.97 Mt, \code{food} −1.00 Mt)
 and \code{"drop"} moves 544 (\code{other_uses} +825 Mt, \code{stock_variation}
 −825 Mt), both upwards because the values they touch are negative
-(whep#1065). Which of those is right is
+(whep#1065; measured under \code{negative_supply = "report"}, which leaves
+those negatives in place). Which of those is right is
 an open question — see whep#980 — so the reporting default is the one
 that invents nothing.}
 
-\item{negative_supply}{One of \code{"report"} (default), \code{"floor"} or
+\item{negative_supply}{One of \code{"floor"} (default), \code{"report"} or
 \code{"abort"}, selecting what happens when a pre-1962 row has no observed
 \code{domestic_supply} and the \code{production + import - export} reconstruction
 that replaces it comes out below zero (whep#1065). Every destiny of such
-a row is apportioned from that negative supply, so every destiny comes
-out negative — including \code{other_uses}, which is not a quantity that can
-be negative.
+a row is apportioned from that supply, so a negative one makes every
+destiny negative -- including \code{other_uses}, which is not a quantity that
+can be negative.
 
 Measured on a real 1950–1965 build, 151 rows reconstruct a negative
-supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
-output as 121 negative \code{other_uses} rows worth −883.91 Mt (29.2\% of the
-positive pre-1962 \code{other_uses} mass they net against), plus −123.22 Mt
-of \code{production}, −76.66 Mt of \code{feed}, −64.62 Mt of \code{processing} and
-−15.61 Mt of \code{food}.
+supply totalling −1,015.70 Mt, all in 1950–1960. The cause is upstream:
+US tobacco 1951 carries a 117,504,000 t export against 728,949 t of
+production, 115,136,000 t of it \code{historical-trade-exports} item 831
+(whep#1085). With \code{hist_trade_scale = "drop"} the count falls to 83 rows
+worth −6.87 Mt, some of which a stock draw can describe.
 
-It is \strong{not} a stock draw: 83 of the 151 rows are the United States
-(99.77\% of the mass), the export/(production + import) ratio has median
-1.96 and maximum 107.98, and it persists for eleven consecutive years.
-The cause is upstream — US tobacco 1951 carries a 117,504,000 t export
-against 728,949 t of production, 115,136,000 t of which is
-\code{historical-trade-exports} item 831 recorded as 115,136 \code{"1000 MT"},
-46× the world's 1951 tobacco production and 473× the same country's
-observed 1961 export. So neither treatment makes the row physical.
+\code{"floor"} clamps the reconstruction at zero, the treatment an observed
+negative supply already receives, and so books the exported mass the
+supply cannot source as a stock withdrawal: \code{stock_variation} is
+recomputed downstream as \code{production + import - export - domestic_supply}. It leaves no negative mass anywhere in the published
+balance. \code{"report"} keeps the negative supply and its destinies as
+computed, which is what every build before this default did; against
+\code{"floor"} it moves 3,911 rows, all in 1950–1960, and the published
+balance then carries 1,155 negative masses worth −1,164.2 Mt, 147 of
+them \code{other_uses} worth −883.94 Mt (−3.9\% of the 1950–1965 net
+\code{other_uses} total of 22,749 Mt), with \code{stock_variation} 916 Mt
+smaller in magnitude. \code{"abort"} refuses to build any range starting
+before 1961.
 
-\code{"report"} keeps every value as computed, so it \strong{moves no published
-value}, and warns with the count, the total and the three largest.
-\code{"floor"} clamps the reconstruction at zero, which is what
-\code{.select_best_source()} already does to an observed negative supply, and
-is also the stock-draw treatment, because the residual is rebooked as
-\code{stock_withdrawal} downstream; it moves 3,981 rows, raises \code{other_uses}
-by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny anywhere, and
-adds 880.18 Mt of \code{stock_withdrawal}. \code{"abort"} refuses to build any
-range starting before 1961. Which is right is an open question — see
-whep#1065 — so the reporting default is the one that invents nothing.}
+Neither \code{"floor"} nor \code{"report"} makes a 97× export physical; \code{"floor"}
+is the default because it keeps every published use non-negative and
+puts the imbalance in the balancing item. Both stay visible: the build
+warns with the count, the total and the largest rows; the values WHEP
+estimated for such a key carry the \code{source}
+\code{"historical_fill_floored_supply"} (or
+\code{"historical_fill_negative_supply"} under \code{"report"}); and any negative
+mass that reaches the published balance, from this or any other cause,
+is reported by a separate warning of class \code{whep_negative_cbs_value}.}
 
 \item{hist_trade_scale}{One of \code{"report"} (default), \code{"drop"} or
 \code{"abort"}, selecting what happens when a pre-1961 row of the

@@ -4130,10 +4130,45 @@ test_that("an observed negative domestic supply is not reported", {
   expect_equal(nrow(reported), 0L)
 })
 
-test_that("the default passes the negative destinies through", {
-  # The published behaviour, pinned so the reporting default cannot quietly
-  # start moving numbers. Asserted on the SIGN, because the balance identity
-  # cannot see this: the same negative sits on both sides of it.
+test_that("the default floors the reconstruction", {
+  # whep#1065: the default leaves no negative destiny. Pinned so that
+  # switching back to passing negatives through is a visible change.
+  a <- .negative_supply_args()
+  out <- suppressWarnings(
+    whep:::.fill_historical_destinies(
+      .negative_supply_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    )
+  )
+
+  expect_equal(out, suppressWarnings(.run_negative_supply("floor")))
+  expect_equal(nrow(whep:::.negative_cbs_values(out)), 0L)
+})
+
+test_that("the default still warns about a negative reconstruction", {
+  # Flooring rebooks the mass; it must not do so in silence.
+  a <- .negative_supply_args()
+  expect_warning(
+    whep:::.fill_historical_destinies(
+      .negative_supply_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    ),
+    regexp = "stock withdrawal",
+    class = "whep_negative_supply"
+  )
+})
+
+test_that("report passes the negative destinies through", {
+  # The pre-whep#1065-default behaviour, pinned so `"report"` stays a faithful
+  # sensitivity run against the old numbers. Asserted on the SIGN, because
+  # the balance identity cannot see this: the same negative sits on both
+  # sides of it.
   out <- suppressWarnings(.run_negative_supply("report"))
 
   supply <- out |>
@@ -4251,6 +4286,140 @@ test_that("a frame with no negative reconstruction is silent", {
       whep::items_full,
       negative_supply = "report"
     )
+  )
+})
+
+# -- negative values reaching the published balance (#1065) --------------------
+
+# The reconstruction report above names ONE cause of a negative use. The
+# published balance can carry one from others -- the processed-products round
+# books `production - export`, and user-supplied `historical_data` bypasses the
+# observed-value clamp -- so the guard sits on the output, whatever the cause.
+# Every element of the long balance is a non-negative mass except
+# `stock_variation`, which is signed by definition.
+.negative_output_frame <- function() {
+  tibble::tribble(
+    ~year, ~element,          ~value,
+    1950L, "production",         100,
+    1950L, "export",             400,
+    1950L, "domestic_supply",      0,
+    1950L, "other_uses",        -240,
+    1950L, "food",               -60,
+    1950L, "stock_variation",    -300,
+    1962L, "production",         100,
+    1962L, "domestic_supply",    100,
+    1962L, "food",               100
+  ) |>
+    dplyr::mutate(
+      area = "United States",
+      area_code = 231L,
+      item_cbs = "Tobacco",
+      item_cbs_code = 2671L,
+      source = "historical_fill"
+    )
+}
+
+test_that("a negative use in the published balance is reported", {
+  expect_warning(
+    build_commodity_balances(.fixed_data = .negative_output_frame()),
+    class = "whep_negative_cbs_value"
+  )
+})
+
+test_that("the report names every negative non-stock row and nothing else", {
+  negative <- .negative_output_frame() |>
+    whep:::.negative_cbs_values()
+
+  expect_setequal(negative$element, c("other_uses", "food"))
+  expect_true(all(negative$value < 0))
+  expect_false("stock_variation" %in% negative$element)
+})
+
+test_that("a negative stock variation alone is not reported", {
+  # A stock draw is what `stock_variation < 0` means; it is not a defect.
+  frame <- .negative_output_frame() |>
+    dplyr::filter(!element %in% c("other_uses", "food"))
+
+  expect_no_warning(
+    build_commodity_balances(.fixed_data = frame),
+    class = "whep_negative_cbs_value"
+  )
+})
+
+test_that("the reported values are published unchanged", {
+  # The guard reports; it does not alter. `negative_supply` is where the
+  # treatment is chosen.
+  out <- suppressWarnings(
+    build_commodity_balances(.fixed_data = .negative_output_frame())
+  )
+
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1950L, element == "other_uses") |>
+      dplyr::pull(value),
+    -240
+  )
+})
+
+test_that("the report states which negative_supply produced it", {
+  # The treatment is recorded in the message, so a log shows under which
+  # setting a published negative was produced.
+  expect_warning(
+    whep:::.report_negative_cbs_values(
+      .negative_output_frame(),
+      negative_supply = "floor"
+    ),
+    "floor"
+  )
+})
+
+test_that("a key with a negative reconstruction is stamped on its rows", {
+  # The published row must carry its own provenance, not only the build log:
+  # the 1950 key reconstructs -300, the observed 1951 key does not.
+  out <- suppressWarnings(.run_negative_supply("report"))
+
+  expect_true(all(out$supply_negative[out$year == 1950L]))
+  expect_false(any(out$supply_negative[out$year == 1951L]))
+})
+
+test_that("the stamp becomes a source label naming the treatment", {
+  flag <- c(TRUE, FALSE, NA)
+
+  expect_equal(
+    whep:::.historical_fill_source(flag, "report"),
+    c("historical_fill_negative_supply", "historical_fill", "historical_fill")
+  )
+  expect_equal(
+    whep:::.historical_fill_source(flag, "floor"),
+    c("historical_fill_floored_supply", "historical_fill", "historical_fill")
+  )
+})
+
+test_that("the negative-supply labels rank as historical rows", {
+  # They are assigned after every ranking runs, but if one ever met
+  # `.cbs_source_rank()` it must rank where the plain back-cast does.
+  labels <- c(
+    "historical_fill_negative_supply",
+    "historical_fill_floored_supply"
+  )
+
+  expect_equal(
+    whep:::.cbs_source_rank(labels, 1950L),
+    whep:::.cbs_source_rank(c("historical_fill", "historical_fill"), 1950L)
+  )
+})
+
+test_that("flooring leaves nothing for the output guard to report", {
+  # The invariant, end to end on the reconstruction fixture: under `"floor"`
+  # no non-stock element of any row is negative.
+  out <- suppressWarnings(.run_negative_supply("floor"))
+
+  expect_equal(nrow(whep:::.negative_cbs_values(out)), 0L)
+  expect_gt(
+    nrow(whep:::.negative_cbs_values(
+      suppressWarnings(.run_negative_supply("report"))
+    )),
+    0L
   )
 })
 
