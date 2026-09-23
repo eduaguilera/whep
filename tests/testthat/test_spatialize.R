@@ -1696,3 +1696,74 @@ testthat::test_that(".country_mean_yield checks its columns", {
     class = "rlang_error"
   )
 })
+
+# expansion_threshold (whep#1001) ----------------------------------------------
+
+# Crop 15 has 900 ha and a pattern only in cell A (capacity 500); cell B has
+# 500 ha of spare cropland and no crop-15 pattern. The LandInG-style expansion
+# that `expansion_threshold` used to promise would seed crop 15 into B. WHEP
+# never implemented it: B stays empty and the ceiling in A gives way instead.
+.pattern_full_fixture <- function() {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                900
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          500,
+      0.75, 50.25, 2000L,          500
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    )
+  )
+}
+
+.run_pattern_full <- function(config = list()) {
+  fix <- .pattern_full_fixture()
+  whep::build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = config
+  )
+}
+
+testthat::test_that("a crop never expands outside its pattern cells", {
+  out <- NULL
+  testthat::expect_warning(out <- .run_pattern_full(), "capacity")
+  cell_b <- dplyr::filter(out, lon == 0.75, item_prod_code == 15L)
+  testthat::expect_equal(sum(cell_b$rainfed_ha), 0)
+  testthat::expect_equal(sum(out$rainfed_ha), 900, tolerance = 1e-9)
+})
+
+testthat::test_that("expansion_threshold is not a live config key", {
+  defaults <- whep:::.landuse_config_defaults()
+  testthat::expect_false("expansion_threshold" %in% names(defaults))
+  testthat::expect_false(
+    "expansion_threshold" %in% names(formals(whep:::.redistribute_country_dt))
+  )
+})
+
+testthat::test_that("a supplied expansion_threshold warns, changes nothing", {
+  baseline <- suppressWarnings(.run_pattern_full())
+  warned <- NULL
+  out <- withCallingHandlers(
+    .run_pattern_full(list(expansion_threshold = 1L)),
+    whep_defunct_config_key = function(w) {
+      warned <<- w
+      invokeRestart("muffleWarning")
+    },
+    warning = function(w) invokeRestart("muffleWarning")
+  )
+  testthat::expect_s3_class(warned, "whep_defunct_config_key")
+  testthat::expect_equal(out, baseline)
+})
