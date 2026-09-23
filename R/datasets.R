@@ -287,7 +287,8 @@
 #' a `Proteinas` value but no nitrogen, so for those five the lookup was
 #' replaced by the agronomic `Product_kgN_kgDM * Product_kgDM_kgFM`. Other
 #' rows, `Vegetables, other`, `Olive` and `Honey` among them, hold a bare
-#' literal. Those eight are the ones #1096 tracks.
+#' literal. Those eight are the ones #1096 tracks; what became of each is
+#' below.
 #'
 #' `Wheat` was the largest consequence. It carried 0.018951324393104405 kg N
 #' per kg, 118.45 g of protein per kg at N x 6.25, which is exactly
@@ -344,11 +345,47 @@
 #' value stays selectable as
 #' `build_food_supply(protein_basis = "product_nitrogen")`, which reads the
 #' agronomic route directly and returns exactly 0.11844577745690253 kg protein
-#' per kg; the choice is recorded per row in `method_protein_basis`. The other
-#' seven rows are left alone and tracked in #1096: for `Rice` the basis
-#' question was settled in #751/#755, and for `Oats` and `Maize` the
-#' food-composition figure moves *away* from the FBS oracle, so they need the
-#' expert rather than this edit.
+#' per kg; the choice is recorded per row in `method_protein_basis`.
+#'
+#' The other seven rows were settled one by one (#1096), by the same test as
+#' wheat: does the row's own `Conversores_Dieta` entry, the one that already
+#' fills its other nutrients, carry a protein value, and does following it
+#' agree with the FBS oracle? The oracle ratios below are WHEP world food
+#' protein over the FBS World row (area 5000), 2010, on a real build.
+#'
+#' - `Olive` now carries **0.00128** (8 g protein/kg), from row 39
+#'   `Aceituna de mesa` (table olive), whose lipids 200, carbohydrates 10,
+#'   calcium 630, vitamin A 220 and edible portion 0.8 are the values already
+#'   shipped. The bare literal 0.0038 it replaces put olive protein at 3.23x
+#'   FBS; at 0.00128 it is 1.09x.
+#' - `Rye` now carries **0.016** (100 g/kg), from row 6 `Harina de Centeno`
+#'   (rye flour), whose lipids 19.3, carbohydrates 597 and calcium 270 are
+#'   already shipped -- the wheat case exactly, flour basis. The agronomic
+#'   0.01367 it replaces was 0.90x FBS; 0.016 is 1.06x.
+#' - `Honey` now carries **0.0008** (5 g/kg), carbohydrates **780 g/kg** and
+#'   calcium **50 mg/kg**, from row 36 `Miel`. Its block had been a
+#'   hand-typed placeholder (protein 0, carbohydrate 1000 g/kg, calcium 0)
+#'   that matched no row and put 1000 g of carbohydrate in 785 g of dry
+#'   matter; protein and carbohydrate from `Miel` sum to exactly that dry
+#'   matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
+#'   protein moves a computed number: nothing in the package reads the
+#'   carbohydrate or calcium columns.
+#' - `Oats` and `Maize` are **unchanged**, on the agronomic value. Their rows,
+#'   5 `Avena grano` 117 g/kg and 7 `Harina de Maiz` 87 g/kg, move *away* from
+#'   the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
+#'   83.8 and 78.0 are closer, so following the row would be consistency at
+#'   the cost of accuracy. Open for an expert.
+#' - `Rice` is **unchanged**: its basis was settled in #751/#755.
+#' - `Vegetables, other` is **unchanged** and moves no food number: no
+#'   `item_cbs_code` bridges to it (`Vegetables, Other` 2605 reaches
+#'   `Artichoke` through `items_full`). Its row 113 would give 33.3 g/kg
+#'   against the literal's 14.0, and neither is checked.
+#'
+#' All three new values are the workbook's own composition figures, which,
+#' like the rest of this block, have no `Sources` entry: they are corroborated
+#' by the FBS oracle, not cited upstream. The workbook copy read was
+#' `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still carries the old
+#' values in `Coefs` and should follow.
 #'
 #' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
 #' every row**, upstream in the source workbook as well as here, so no
