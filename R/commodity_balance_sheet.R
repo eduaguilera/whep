@@ -122,11 +122,12 @@ get_livestock_cbs <- function(
     dplyr::rename(item_cbs_code = live_anim_code)
 
   slaughtered <- primary_prod |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    .fold_split_slaughter() |>
     dplyr::inner_join(
       slaughter_livestock,
       dplyr::join_by(item_cbs_code)
     ) |>
-    dplyr::filter(unit == "slaughtered_heads") |>
     dplyr::summarise(
       slaughtered = sum(value, na.rm = TRUE),
       .by = c(year, area_code, item_cbs_code)
@@ -193,6 +194,36 @@ get_livestock_cbs <- function(
       stock_addition,
       domestic_supply
     )
+}
+
+# Put the slaughter FAOSTAT books on a stock sub-item back onto the live
+# animal its products and its trade are keyed on (whep#1149).
+#
+# `.split_slaughter_by_shares()` divides pig slaughter between 1049 "Swine,
+# market" and 1051 "Swine, breeding" by stock share, but every pig product
+# carries `live_anim_code = 1049` and live-pig trade (FAOSTAT 1034) resolves to
+# 1049 too, so the inner_join on `.slaughter_livestock_items()` kept only the
+# 1049 half: on a real 2020 build 131,912,454 of 1,319,124,485 slaughtered
+# pigs (10.0%) never reached the live-pig balance, while trade entered whole.
+#
+# Folding is a choice, not an identity. The alternative is a live-animal
+# balance of its own for 1051, which needs an `items_cbs` row and so a new
+# husbandry sector in `build_supply_use()` and every footprint; the total
+# slaughter is the same either way. Folding keeps supply and trade on one key.
+# Only swine is folded: the dairy-cattle (960) and layer (1052) shares are
+# dropped by the same join, but each of those is an IO sector of its own, so
+# where their cull belongs is a separate question.
+.fold_split_slaughter <- function(slaughter) {
+  folds <- tibble::tribble(
+    ~item_cbs_code, ~folded_code,
+    1051, 1049
+  )
+  slaughter |>
+    dplyr::left_join(folds, by = "item_cbs_code") |>
+    dplyr::mutate(
+      item_cbs_code = dplyr::coalesce(.data$folded_code, .data$item_cbs_code)
+    ) |>
+    dplyr::select(-"folded_code")
 }
 
 # Report (year, area_code, item_cbs_code) keys that trade live animals with no

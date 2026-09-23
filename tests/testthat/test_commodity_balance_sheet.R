@@ -563,3 +563,45 @@ testthat::test_that("the wide CBS aborts on one item in two units (#1055)", {
     "mixes 2 units"
   )
 })
+
+# whep#1149 -- FAOSTAT splits pig slaughter between 1049 "Swine, market" and
+# 1051 "Swine, breeding" by stock share, and every pig product keys its live
+# animal on 1049, as does live-pig trade (1034 -> 1049). The breeding share
+# of slaughter must land on the live-pig balance, not vanish from it.
+testthat::test_that("breeding-swine slaughter counts toward live pigs (#1149)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = function(livestock_items, ...) {
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+        2000L,         1L,          1049L,      5,      15
+      )
+    }
+  )
+
+  primary <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,               ~unit, ~value,
+    2000L,         1L,          1049L,              NA, "slaughtered_heads",     90,
+    2000L,         1L,          1051L,              NA, "slaughtered_heads",     10,
+    2000L,         1L,          1049L,              NA,             "heads",     60,
+    2000L,         1L,          1051L,              NA,             "heads",      6,
+    2000L,         1L,          2733L,           1049L,            "tonnes",      8
+  )
+
+  result <- get_livestock_cbs(primary)
+  pigs <- dplyr::filter(result, item_cbs_code == 1049L)
+
+  # 90 + 10 slaughtered, plus 15 exported, less 5 imported.
+  testthat::expect_equal(pigs$production, 110)
+  testthat::expect_equal(pigs$domestic_supply, 100)
+  # The fold does not open a live-animal balance of its own for 1051.
+  testthat::expect_false(1051L %in% result$item_cbs_code)
+  # No slaughtered head is lost between production and the balance.
+  slaughtered <- primary |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    dplyr::pull(value) |>
+    sum()
+  testthat::expect_equal(
+    sum(result$production + result$import - result$export),
+    slaughtered
+  )
+})
