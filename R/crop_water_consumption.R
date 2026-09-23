@@ -13,7 +13,7 @@
 # into "others"), and how to split a band between the items sharing it is a
 # methodological choice this function does not make.
 
-#' Build per-crop LPJmL water use, one row per crop band.
+#' Build per-crop consumptive water from an LPJmL run, one row per band.
 #'
 #' @description
 #' Returns the LPJmL per-crop-functional-type (CFT) consumptive blue and green
@@ -24,6 +24,12 @@
 #' same weighting [build_water_balance()] applies before summing, so summing
 #' this output over bands per cell-year returns its `blue_consump_mm`,
 #' `green_consump_mm` and `cft_nir_mm` exactly.
+#'
+#' It is the annual, consumptive counterpart of [build_crop_water_use()],
+#' which keeps the *applied* irrigation (`cft_airrig_month`) per crop and
+#' month. The two read different LPJmL outputs and answer different
+#' questions (water evaporated by a crop versus water delivered to it), and
+#' share the band vocabulary and the `crop_group` column.
 #'
 #' The crop dimension is LPJmL's, not WHEP's: a run distinguishes about 16
 #' CFTs (each rainfed and irrigated), and many WHEP items share one CFT --
@@ -41,11 +47,11 @@
 #' *requirement*, not the gross water applied; which of the two a footprint
 #' should charge is a methodological choice.
 #'
+#' @param resolution `"grid"` (per cell and band, depths in mm/yr, default)
+#'   or `"polity"` (per `area_code`, `year` and band, volumes in m3/yr).
 #' @param years Optional integer vector of calendar years to read. `NULL`
 #'   reads every year the files carry; each per-CFT cube is about 3 GB for a
 #'   full run, so restrict it when reading from disk.
-#' @param resolution `"grid"` (per cell and band, depths in mm/yr, default)
-#'   or `"polity"` (per `area_code`, `year` and band, volumes in m3/yr).
 #' @param bands Optional character vector of band names (e.g.
 #'   `"rainfed grassland"`) to keep. `NULL` keeps every band. Matched on the
 #'   `band_name` the file carries, as in [build_water_balance()]; an unknown
@@ -60,9 +66,9 @@
 #' @param example If `TRUE`, run on a small built-in fixture instead of
 #'   reading data. Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `year`, `band`
-#'   (when the input carries it), `band_name`, `water_regime` (`"rainfed"` or
-#'   `"irrigated"`, parsed from `band_name`, else `NA`), `cft` (the rest of
-#'   `band_name`), `stand_frac`, and `blue_consump_mm`, `green_consump_mm`
+#'   (when the input carries it), `band_name`, `crop_group` (the soil-carbon
+#'   crop group of the band, as in [build_crop_water_use()]: `NA` for the
+#'   `others`, grassland and bioenergy bands), `stand_frac`, and `blue_consump_mm`, `green_consump_mm`
 #'   and `cft_nir_mm` (mm/yr over the whole cell; `NA` where that cube does
 #'   not carry the band). Divide by `stand_frac` for a per-hectare-of-crop
 #'   intensity. For `resolution = "polity"`: `year`, `area_code`, the band
@@ -73,11 +79,11 @@
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
-#' build_cft_water_use(example = TRUE)
-#' build_cft_water_use(resolution = "polity", example = TRUE)
-build_cft_water_use <- function(
-  years = NULL,
+#' build_crop_water_consumption(example = TRUE)
+#' build_crop_water_consumption(resolution = "polity", example = TRUE)
+build_crop_water_consumption <- function(
   resolution = c("grid", "polity"),
+  years = NULL,
   bands = NULL,
   data = list(),
   example = FALSE
@@ -86,19 +92,19 @@ build_cft_water_use <- function(
   if (isTRUE(example)) {
     data <- .example_cft_water_inputs()
   }
-  data <- .cftw_read_inputs(data, years)
-  grid <- .cftw_grid(data, bands)
+  data <- .cwc_read_inputs(data, years)
+  grid <- .cwc_grid(data, bands)
   if (resolution == "grid") {
     return(grid)
   }
-  .cftw_aggregate_polity(grid, data$cell_polity) |>
+  .cwc_aggregate_polity(grid, data$cell_polity) |>
     .add_reporting_polity_columns()
 }
 
 # ---- Private helpers --------------------------------------------------
 
 # Names of the per-CFT water cubes and the output column each becomes.
-.cftw_cubes <- function() {
+.cwc_cubes <- function() {
   c(
     cft_consump_water_b = "blue_consump_mm",
     cft_consump_water_g = "green_consump_mm",
@@ -108,8 +114,8 @@ build_cft_water_use <- function(
 
 # Fill each absent cube from the reader, then the stand fractions for the
 # years those cubes cover.
-.cftw_read_inputs <- function(data, years) {
-  for_read <- setdiff(names(.cftw_cubes()), names(data))
+.cwc_read_inputs <- function(data, years) {
+  for_read <- setdiff(names(.cwc_cubes()), names(data))
   read <- purrr::map(
     rlang::set_names(for_read),
     \(var) read_lpjml_hydrology(var, years = years, monthly = FALSE)
@@ -120,9 +126,9 @@ build_cft_water_use <- function(
 }
 
 # Weight each cube per band and join the three on the cell-year-band key.
-.cftw_grid <- function(data, bands) {
+.cwc_grid <- function(data, bands) {
   .wb_warn_rainfed_blue(data$cft_consump_water_b, data$cft_consump_water_g)
-  cubes <- .cftw_cubes()
+  cubes <- .cwc_cubes()
   parts <- purrr::imap(cubes, function(out_col, var) {
     data[[var]] |>
       .wb_filter_bands(bands) |>
@@ -132,14 +138,14 @@ build_cft_water_use <- function(
   if (length(parts) == 0L) {
     cli::cli_abort("No per-CFT water cube supplied or readable.")
   }
-  purrr::reduce(parts, .cftw_join_bands) |>
-    .cftw_complete_columns(cubes) |>
-    .cftw_label_bands()
+  purrr::reduce(parts, .cwc_join_bands) |>
+    .cwc_complete_columns(cubes) |>
+    .cwc_label_bands()
 }
 
 # Full join two per-band parts. The stand fraction is the same weight on both
 # sides (one stand_frac table), so it is coalesced rather than joined on.
-.cftw_join_bands <- function(x, y) {
+.cwc_join_bands <- function(x, y) {
   key <- intersect(
     c("lon", "lat", "year", "band", "band_name"),
     intersect(names(x), names(y))
@@ -153,7 +159,7 @@ build_cft_water_use <- function(
 
 # Add an all-NA column for every cube that was not supplied, so the output
 # schema does not depend on which inputs were present.
-.cftw_complete_columns <- function(grid, cubes) {
+.cwc_complete_columns <- function(grid, cubes) {
   prototype <- tibble::as_tibble(
     rlang::set_names(rep(list(double()), length(cubes)), unname(cubes))
   )
@@ -161,51 +167,42 @@ build_cft_water_use <- function(
     dplyr::relocate(dplyr::all_of(unname(cubes)), .after = "stand_frac")
 }
 
-# Split "rainfed maize" into water_regime "rainfed" and cft "maize". A name
-# that does not start with a regime keeps it whole as `cft`.
-.cftw_label_bands <- function(grid) {
+# The soil-carbon crop group of each band, in build_crop_water_use()'s
+# vocabulary so the two per-crop water layers share it.
+.cwc_label_bands <- function(grid) {
   if (!rlang::has_name(grid, "band_name")) {
     grid$band_name <- NA_character_
   }
-  regime <- stringr::str_extract(grid$band_name, "^(rainfed|irrigated)(?= )")
-  cft <- dplyr::if_else(
-    is.na(regime),
-    grid$band_name,
-    stringr::str_remove(grid$band_name, "^(rainfed|irrigated) ")
-  )
   grid |>
-    dplyr::mutate(water_regime = regime, cft = cft) |>
-    dplyr::relocate("water_regime", "cft", .after = "band_name") |>
+    dplyr::mutate(crop_group = .cwu_band_group(.data$band_name)) |>
+    dplyr::relocate("crop_group", .after = "band_name") |>
     tibble::as_tibble()
 }
 
 # Aggregate the per-band depths to per-polity volumes: mm over a cell times
 # its polity-allocated hectares, times 10 (1 mm over 1 ha is 10 m3).
-.cftw_aggregate_polity <- function(grid, crosswalk) {
+.cwc_aggregate_polity <- function(grid, crosswalk) {
   crosswalk <- .wb_require_input(
     crosswalk,
     "cell_polity",
     c("lon", "lat", "area_code", "polity_frac", "cell_area_ha")
   )
-  keys <- intersect(
-    c("band", "band_name", "water_regime", "cft"),
-    names(grid)
-  )
+  keys <- intersect(c("band", "band_name", "crop_group"), names(grid))
   grid |>
     dplyr::inner_join(crosswalk, by = c("lon", "lat")) |>
     dplyr::mutate(weight_ha = .data$polity_frac * .data$cell_area_ha) |>
     dplyr::summarise(
       stand_area_ha = sum(.data$stand_frac * .data$weight_ha),
-      blue_consump_m3 = .cftw_volume(.data$blue_consump_mm, .data$weight_ha),
-      green_consump_m3 = .cftw_volume(.data$green_consump_mm, .data$weight_ha),
-      cft_nir_m3 = .cftw_volume(.data$cft_nir_mm, .data$weight_ha),
+      blue_consump_m3 = .cwc_volume(.data$blue_consump_mm, .data$weight_ha),
+      green_consump_m3 = .cwc_volume(.data$green_consump_mm, .data$weight_ha),
+      cft_nir_m3 = .cwc_volume(.data$cft_nir_mm, .data$weight_ha),
       .by = dplyr::all_of(c("year", "area_code", keys))
     )
 }
 
 # Sum of depth x area in m3, NA (never 0) when no depth is available, so an
 # absent cube stays visibly absent after aggregation.
-.cftw_volume <- function(depth_mm, weight_ha) {
+.cwc_volume <- function(depth_mm, weight_ha) {
   if (all(is.na(depth_mm))) {
     return(NA_real_)
   }

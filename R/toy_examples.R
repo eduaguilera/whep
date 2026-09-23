@@ -1738,7 +1738,7 @@
     .add_reporting_polity_columns()
 }
 
-# Per-CFT water inputs for build_cft_water_use(example = TRUE): two cells, one
+# Per-CFT water inputs for build_crop_water_consumption(example = TRUE): two cells, one
 # year, three bands, in the reader's shape (per-STAND densities, mm/yr) with
 # their stand fractions and a cell-polity crosswalk. The example runs the real
 # weighting and aggregation over these rather than returning a frozen output.

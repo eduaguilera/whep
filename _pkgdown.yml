@@ -94,6 +94,7 @@ reference:
   - read_cru_climate
   - read_soil_hydraulic
   - build_water_balance
+  - build_crop_water_consumption
   - build_crop_water_use
   - get_soc_climate_drivers
 
