@@ -687,3 +687,27 @@ test_that(".assert_unit_labels names the pin it refused", {
     "faostat-cbs-new"
   )
 })
+
+# -- Note column type (whep#1178) ----------------------------------------------
+
+# The registered `faostat-fbs-new` pin carries `Note` as an all-NA logical --
+# readr's type guess on a column FAO ships empty, the same mechanism as the
+# `Unit` coercion above. Unlike `Unit` it is annotation, and `.extract_fao()`
+# drops it; this pins that down, so the logical type cannot reach a consumer.
+.extract_with_note <- function(note) {
+  fixture <- .unit_label_fixture(c("t", "t"))
+  fixture[, Note := note]
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+  whep:::.extract_fao("faostat-fbs-new")
+}
+
+test_that(".extract_fao drops a logical Note and is unaffected by its type", {
+  as_logical <- .extract_with_note(NA)
+  expect_false("Note" %in% names(as_logical))
+  expect_identical(as_logical, .extract_with_note(NA_character_))
+})

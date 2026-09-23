@@ -616,3 +616,27 @@ test_that("spillover says so when it cannot place, instead of capping", {
   expect_gt(sum(out$unplaceable_statistical_ha), 0)
   expect_true(all(out$method_overfull == "spillover"))
 })
+
+# whep#1178: the registered faostat-landuse pin carries `Note` as an all-NA
+# logical (readr's type guess on an empty column). The meadow read never
+# selects it, so its type must not move the result.
+.plu_meadows_with_note <- function(note) {
+  raw <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~`Element Code`, ~Year, ~Value,
+    10,           6633,         5110,            2000,  2,
+    10,           6620,         5110,            2000,  9
+  ) |>
+    dplyr::mutate(Note = note)
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::as.data.table(raw)
+    }
+  )
+  whep:::.plu_read_landuse_item(6633L, years = 2000L)
+}
+
+test_that("a logical Note in the landuse pin does not move the meadow read", {
+  as_logical <- .plu_meadows_with_note(NA)
+  expect_identical(as_logical, .plu_meadows_with_note(NA_character_))
+  expect_equal(as_logical$meadow_ha, 2000)
+})

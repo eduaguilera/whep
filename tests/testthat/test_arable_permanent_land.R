@@ -84,3 +84,18 @@ testthat::test_that("an intact table is read unchanged", {
   testthat::expect_equal(out$arable_ha, 7e5)
   testthat::expect_equal(out$permanent_ha, 3e5)
 })
+
+testthat::test_that("a logical Note in the landuse pin does not move the result", {
+  # whep#1178: the registered faostat-landuse pin carries `Note` as an all-NA
+  # logical (readr's type guess on an empty column). The reader never selects
+  # it; the result must not depend on which type it has.
+  read <- function(note) {
+    whep::get_arable_permanent_land(
+      years = 2010L,
+      data = dplyr::mutate(.rl_raw_fixture(), Note = note)
+    )
+  }
+
+  testthat::expect_identical(read(NA), read(NA_character_))
+  testthat::expect_equal(nrow(read(NA)), 1L)
+})
