@@ -124,6 +124,7 @@ get_primary_residues <- function(example = FALSE) {
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
+    .residue_area_from_polity() |>
     .warn_residues_no_area() |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",
@@ -152,28 +153,135 @@ get_primary_residues <- function(example = FALSE) {
     .add_reporting_polity_columns()
 }
 
+# Resolve a residue area label the NAME join could not, through the polity the
+# label names.
+#
+# `add_area_code()` matches the crosswalk's canonical area names exactly, and
+# this pin -- the only source resolved by name -- spells 14 of its 185 labels in
+# the common short form: "Tanzania" against "United Republic of Tanzania",
+# "Turkey" against "Turkiye", "Netherlands" against "Netherlands (Kingdom of
+# the)". Measured on the current pin, those 14 labels are 44,985 of 475,688 rows
+# (9.5%) and 16,651,046,476 t of residue dry matter (5.08%), and every one of
+# them then took a missing-value path through the rest of the package:
+# `.read_crop_residues()` drops a row that reaches no polity, and
+# `calculate_residue_destinies()` gives a row with no `region_krausmann` a
+# recovery rate of 0, so the whole residue is booked to soil with nothing
+# recovered, nothing fed and nothing burned (whep#1175, whep#684).
+#
+# NOTHING IS INVENTED HERE. The label goes through `resolve_polity_label()` --
+# WHEP's curated alias table, regenerated together with `polities` from one
+# upstream revision -- and the polity it names is mapped back to the single area
+# that reports it. All 14 resolve, and none of the 14 target codes is already
+# carried by another label in the pin, so no country is counted twice.
+#
+# It is asked per (label, year) because a label's referent moves. "Tanzania" is
+# TZA-1964-2025 from 1964 on but the pre-union TZA-1961-1964 before it, and no
+# FAOSTAT area reports Tanganyika: those 150 rows (23,413,534 t, 0.14% of the
+# gap) keep `NA` rather than being booked to the United Republic, and
+# `.warn_residues_no_area()` below names what is left.
+#
+# Only rows the name join left `NA` are touched, so the 171 labels that already
+# resolve keep exactly the code they had.
+.residue_area_from_polity <- function(dt) {
+  if (!all(c("area", "area_code", "year") %in% names(dt))) {
+    return(dt)
+  }
+  unresolved <- is.na(dt$area_code)
+  if (!any(unresolved)) {
+    return(dt)
+  }
+  keys <- tibble::tibble(
+    .residue_label = as.character(dt$area[unresolved]),
+    .residue_year = as.integer(dt$year[unresolved])
+  ) |>
+    dplyr::distinct() |>
+    dplyr::mutate(
+      polity_code = resolve_polity_label(
+        .data$.residue_label,
+        year = .data$.residue_year
+      )
+    ) |>
+    dplyr::left_join(.unique_polity_area(), by = "polity_code") |>
+    dplyr::filter(!is.na(.data$area_code_from_polity)) |>
+    dplyr::select(-"polity_code")
+  if (nrow(keys) == 0L) {
+    return(dt)
+  }
+  out <- dt |>
+    dplyr::mutate(
+      .residue_label = as.character(.data$area),
+      .residue_year = as.integer(.data$year)
+    ) |>
+    dplyr::left_join(keys, by = c(".residue_label", ".residue_year")) |>
+    dplyr::mutate(
+      area_code = dplyr::coalesce(
+        .data$area_code,
+        .data$area_code_from_polity
+      )
+    )
+  .inform_residue_area_route(
+    dt$area[unresolved],
+    out$area_code[unresolved]
+  )
+  dplyr::select(
+    out,
+    -".residue_label",
+    -".residue_year",
+    -"area_code_from_polity"
+  )
+}
+
+# The one area that reports each polity. A polity several areas map to resolves
+# to none: in the shipped crosswalk that is only the Rest-of-World bucket
+# ROW-1850-2025, which 15 areas share, and picking one of them would be a guess.
+.unique_polity_area <- function() {
+  .current_area_lookup(include_unmapped = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::filter(!is.na(.data$polity_code), !is.na(.data$area_code)) |>
+    dplyr::distinct(.data$polity_code, .data$area_code) |>
+    dplyr::filter(dplyr::n() == 1L, .by = "polity_code") |>
+    dplyr::transmute(
+      polity_code = .data$polity_code,
+      area_code_from_polity = as.integer(.data$area_code)
+    )
+}
+
+# Changing where a row's area comes from is a change of attribution, so say it.
+# No cli pluralisation markers, for the reason `.warn_residues_no_area()` gives.
+.inform_residue_area_route <- function(labels, codes) {
+  gained <- !is.na(codes)
+  if (!any(gained)) {
+    return(invisible(NULL))
+  }
+  n_rows <- sum(gained)
+  named <- sort(unique(as.character(labels[gained])))
+  n_labels <- length(named)
+  cli::cli_inform(c(
+    "v" = "{n_rows} crop-residue rows took their area code from the polity
+       their label names, because no canonical area name matched it.",
+    "i" = "{n_labels} labels resolved this way: {.val {named}}"
+  ))
+  invisible(NULL)
+}
+
 # Say when a residue row cannot be attributed to any area, instead of emitting
 # it silently.
 #
 # `add_area_code()` resolves this source by NAME -- it is the only builder that
-# does -- and leaves `area_code` as NA where no name matches. Those rows then
-# travel all the way to the output with NA polity columns and reach
-# `build_supply_use()` from there. Measured on the current pin: 44,985 of 475,688
-# rows (9.5%) have no area code, over 14 labels and years 1961-2021, and 3,937
-# rows of `get_primary_residues()`'s own output carry NA polity columns as a
-# result. Every one of the 14 is a common short form of an area the crosswalk
-# holds under a FAOSTAT long form -- "Tanzania" against "United Republic of
-# Tanzania", "Netherlands" against "Netherlands (Kingdom of the)" -- so the codes
-# are reachable and the spellings are not.
+# does -- and leaves `area_code` as NA where no name matches.
+# `.residue_area_from_polity()` above now recovers the 14 short-form labels that
+# caused nearly all of it; what reaches here is what neither route resolves.
+# Those rows travel all the way to the output with NA polity columns and reach
+# `build_supply_use()` from there, so the gap stays named rather than silent.
 #
-# Nothing said so. Every other unattributable-row path in this package names
-# itself; this was the exception, and it is the origin of the gap, so tracing it
-# from downstream took a full-range run instead of reading a warning.
+# Nothing said so before whep#684. Every other unattributable-row path in this
+# package names itself; this was the exception, and it is the origin of the gap,
+# so tracing it from downstream took a full-range run instead of reading a
+# warning.
 #
-# Reports rather than drops. The rows stay in the output exactly as before,
-# because whether an unattributable residue row should be dropped is a modelling
-# question and this is a diagnostic. Repairing the name-based join itself is a
-# separate change.
+# Reports rather than drops. The rows stay in the output, because whether an
+# unattributable residue row should be dropped is a modelling question and this
+# is a diagnostic.
 .warn_residues_no_area <- function(dt) {
   if (!all(c("area", "area_code", "year") %in% names(dt))) {
     return(dt)

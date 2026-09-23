@@ -219,7 +219,17 @@ test_that("the enumerated baseline can only shrink", {
   # reports rather than a value for a year. The whep#1117 rows above and these
   # are independent, so the cap is RE-DERIVED by running the audit on the
   # merged tree, never by adding the two deltas.
-  expect_lte(sum(baseline$n), 80L)
+  # 76 since whep#1175: `.residue_area_from_polity()` reads the area that
+  # reports a polity, for the 14 residue labels the canonical NAME join cannot
+  # match. It is the `.land_in_polygons` and `.pop_overlap_pairs` shape a third
+  # time -- the key is the polity PERIOD, which is the year-scoped identity
+  # itself -- and here the year is applied BEFORE the join rather than after,
+  # by `resolve_polity_label(label, year)`. One year-free identity row buys
+  # 16.65 Gt of residue dry matter, 5.08% of the pin, that was reaching no area
+  # at all and was therefore booked entirely to soil at a recovery rate of zero.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(baseline$n), 81L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -362,7 +372,14 @@ test_that("every year-free territorial grouping is classified", {
   # `crop_patterns` -- a single-vintage gridded map with no year axis, so the
   # grouping cannot carry one. Re-derived by running the audit, not by adding
   # one to the previous cap.
-  expect_lte(sum(full$n), 95L)
+  # 90 since whep#1175: `.unique_polity_area()`'s two groups, the polity -> area
+  # map the residue label route reads and the guard that keeps a polity several
+  # areas share -- the Rest-of-World bucket, held by 15 codes -- from resolving
+  # to whichever row came first. Both are `identity_lookup` on `polity_code`,
+  # which carries its own period, so neither has a year to collapse.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(full$n), 97L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
