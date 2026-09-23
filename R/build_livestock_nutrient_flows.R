@@ -173,6 +173,7 @@ build_livestock_nutrient_flows <- function(
       resolution = resolution,
       method_n_excretion = excretion$method_n_excretion[1],
       method_vs = excretion$method_vs[1],
+      method_digestibility = excretion$method_digestibility[1],
       method_c_excretion = excretion$method_c_excretion[1],
       method_forage_n = excretion$method_forage_n[1],
       method_mms = split$method_mms[1],
