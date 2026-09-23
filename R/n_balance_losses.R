@@ -50,6 +50,19 @@
 #' [calculate_manner_nh3_default()]'s Details for the gross-assumption
 #' reasoning), never invented per-row.
 #'
+#' Where the MANNER drivers come from: nothing in the package produces them
+#' on any build path, so a caller supplies them. The one exception with a
+#' reader is `windspeed_ms`, which [read_lpjml_wind()] returns as monthly
+#' 0.5-degree GSWP3-W5E5 wind speed (m/s, the forcing LPJmL is driven with,
+#' from the `lpjml-wind-isimip-1901-2019` input via `WHEP_WIND_DIR`). It is
+#' not joined onto the N-loss rows by any builder: the grain of that join,
+#' the averaging window (growing season, application month or year) and the
+#' rule for years outside the wind record are open modelling choices
+#' (whep#1078). [build_nitrogen_balance()] therefore refuses a MANNER
+#' `nh3` method before assembling anything unless its
+#' `data$n_balance_drivers` carries the columns listed above. `"ipcc"`
+#' needs none of them.
+#'
 #' @param x A tibble with `n_input_t` (numeric, tonnes N) and `fert_type`.
 #'   `method = "manner"` additionally requires `manner_fertiliser` and the
 #'   driver columns listed in Details. `method = "manner_default"`
@@ -240,6 +253,56 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 # ---- Private helpers: calculate_nh3 ------------------------------------
 
+# Where each MANNER driver can come from, said wherever a missing one aborts.
+# Only windspeed_ms has an in-package reader, and it is not wired into any
+# builder (whep#1078): which grain, season and out-of-record rule to join it
+# on are open modelling choices. Every other driver has no producer at all.
+.nh3_driver_provenance <- function() {
+  c(
+    i = "Only {.field windspeed_ms} has a reader in whep,
+         {.fn read_lpjml_wind} (monthly, 0.5-degree, needs
+         {.envvar WHEP_WIND_DIR}); no function supplies the other MANNER
+         drivers.",
+    i = "Supply them yourself, or use the IPCC Tier 1 method,
+         {.code method = \"ipcc\"}, which needs only {.field fert_type}."
+  )
+}
+
+# Entry-time form of the driver check, for a caller that would otherwise
+# reach calculate_nh3() only after an expensive assembly: build_nitrogen_
+# balance() used to build every input (the NPP chain, build_n_inputs()) and
+# only then abort inside calculate_nh3() on the default method (whep#1078).
+# `drivers` is the table the caller will join onto the loss rows. Recycling
+# and SOM rows are dropped first because .nb_losses() never sends them to
+# calculate_nh3(), so an NA manner_fertiliser there must not demand drivers.
+.nh3_check_drivers_supplied <- function(method, drivers, arg = "drivers") {
+  if (method == "ipcc") {
+    return(invisible(NULL))
+  }
+  if (is.null(drivers)) {
+    cli::cli_abort(
+      c(
+        "{.code nh3 = {.val {method}}} needs MANNER driver columns, but
+         {.arg {arg}} was not supplied.",
+        .nh3_driver_provenance()
+      ),
+      class = "whep_error_nh3_drivers_absent"
+    )
+  }
+  if (rlang::has_name(drivers, "fert_type")) {
+    drivers <- dplyr::filter(
+      drivers,
+      !.data$fert_type %in% c("Recycling", "SOM")
+    )
+  }
+  if (method == "manner") {
+    .nh3_manner_require_columns(drivers, arg)
+  } else {
+    .nh3_manner_default_req_cols(drivers, arg)
+  }
+  invisible(NULL)
+}
+
 # IPCC Tier 1: a single global fraction per fert_type, from
 # n_attenuation_constants (n_fun.r:914-930).
 .nh3_ipcc <- function(x) {
@@ -291,15 +354,19 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   "incorporation_delay_h"
 )
 
-.nh3_manner_require_columns <- function(x) {
+.nh3_manner_require_columns <- function(x, arg = "x") {
   if (!rlang::has_name(x, "manner_fertiliser")) {
-    cli::cli_abort(c(
-      "{.arg x} is missing required column {.field manner_fertiliser}.",
-      i = paste0(
-        "calculate_nh3(method = \"manner\") requires the exact ",
-        "calculate_manner_nh3() fertiliser key on every row."
-      )
-    ))
+    cli::cli_abort(
+      c(
+        "{.arg {arg}} is missing required column {.field manner_fertiliser}.",
+        i = paste0(
+          "calculate_nh3(method = \"manner\") requires the exact ",
+          "calculate_manner_nh3() fertiliser key on every row."
+        ),
+        .nh3_driver_provenance()
+      ),
+      class = "whep_error_nh3_missing_driver"
+    )
   }
   synthetic <- c("Urea", "AN", "CAN", "AS")
   needs_species <- !all(x$manner_fertiliser %in% c(synthetic, "urban"))
@@ -312,10 +379,14 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   )
   missing <- required[!purrr::map_lgl(required, \(col) rlang::has_name(x, col))]
   if (length(missing) > 0) {
-    cli::cli_abort(c(
-      "{.arg x} is missing required MANNER driver column{?s} {.field {missing}}.",
-      i = "calculate_nh3(method = \"manner\") never invents driver values."
-    ))
+    cli::cli_abort(
+      c(
+        "{.arg {arg}} is missing required MANNER driver column{?s} {.field {missing}}.",
+        i = "calculate_nh3(method = \"manner\") never invents driver values.",
+        .nh3_driver_provenance()
+      ),
+      class = "whep_error_nh3_missing_driver"
+    )
   }
 }
 
@@ -363,15 +434,19 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   "temp_c"
 )
 
-.nh3_manner_default_req_cols <- function(x) {
+.nh3_manner_default_req_cols <- function(x, arg = "x") {
   if (!rlang::has_name(x, "manner_fertiliser")) {
-    cli::cli_abort(c(
-      "{.arg x} is missing required column {.field manner_fertiliser}.",
-      i = paste0(
-        "calculate_nh3(method = \"manner_default\") requires the exact ",
-        "calculate_manner_nh3_default() fertiliser key on every row."
-      )
-    ))
+    cli::cli_abort(
+      c(
+        "{.arg {arg}} is missing required column {.field manner_fertiliser}.",
+        i = paste0(
+          "calculate_nh3(method = \"manner_default\") requires the exact ",
+          "calculate_manner_nh3_default() fertiliser key on every row."
+        ),
+        .nh3_driver_provenance()
+      ),
+      class = "whep_error_nh3_missing_driver"
+    )
   }
   needs_species <- !all(x$manner_fertiliser == "urban")
   required <- c(
@@ -380,10 +455,14 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   )
   missing <- required[!purrr::map_lgl(required, \(col) rlang::has_name(x, col))]
   if (length(missing) > 0) {
-    cli::cli_abort(c(
-      "{.arg x} is missing required MANNER driver column{?s} {.field {missing}}.",
-      i = "calculate_nh3(method = \"manner_default\") never invents driver values."
-    ))
+    cli::cli_abort(
+      c(
+        "{.arg {arg}} is missing required MANNER driver column{?s} {.field {missing}}.",
+        i = "calculate_nh3(method = \"manner_default\") never invents driver values.",
+        .nh3_driver_provenance()
+      ),
+      class = "whep_error_nh3_missing_driver"
+    )
   }
 }
 
