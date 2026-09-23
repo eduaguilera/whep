@@ -231,11 +231,11 @@ build_primary_production <- function(
 # Three `fill_linear()` calls in it -- `yield_c` per country, `yield_glo` per
 # item, `prod_cbs_ratio` per country and CBS item -- interpolate or carry a
 # value from the nearest year that has one, and that year can be decades away:
-# Singapore duck meat (1091) has a `yield_c` anchor only far outside a +-3-year
-# margin. A scoped chain then falls through to the global yield, itself the
-# ratio of sums over whichever areas the window holds, and ships a value that
-# differs from the full-range one by up to 79% on shared `t_LU`/`t_head` rows,
-# while the totals agree to 3e-04. No finite margin is safe, because the
+# with no anchor inside a 2010 +-3-year window, Singapore duck meat (1091) fell
+# through to the global yield -- itself a ratio of sums over whichever areas the
+# window holds -- and shipped 0.508 t_LU against the full build's 0.107. Shared
+# `t_LU`/`t_head` rows differed by up to 79% at 2010 and 97% at 1995, while the
+# totals agreed to 3e-04. No finite margin is safe, because the
 # look-back is data-dependent and unbounded, so the chain reads the whole span
 # and only its output is trimmed. `max()`/`min()` keep a request outside the
 # default span reading at least what it asks for.
