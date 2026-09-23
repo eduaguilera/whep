@@ -13,9 +13,11 @@
 #' With `extend_time = TRUE` every `(area, item, partner, element, unit)`
 #' group observed in any trade year is carried across the union of trade and
 #' CBS years, and [fill_linear()] interpolates inside a group's observed span
-#' and holds the first and last observed share constant outside it.
-#' `method_time_coverage` then decides which of those extended shares are
-#' kept:
+#' and holds the first and last observed share constant outside it. That
+#' fills two kinds of row: years outside the trade record, and trade years
+#' in which the reporter reported nothing at all for that item and element
+#' (the group's share there is 0/0). `method_time_coverage` then decides
+#' which of those filled shares are kept:
 #'
 #' - `"cbs_cells"` (default) keeps an extended share only in a
 #'   `(year, area_code, item_cbs_code, element)` cell where `cbs` reports a
@@ -29,10 +31,19 @@
 #'
 #' The two methods differ only in which rows survive: a share kept by both
 #' is identical, because it comes from the same interpolation of the group's
-#' own anchors. Measured on the `"faostat-trade-bilateral"` pin against a
-#' 1850-2023 CBS, half of the `(year, area, item, element)` cells the
-#' uniform extension emits are cells CBS never reports (3.42 of 6.85
-#' million; whep#232).
+#' own anchors, and every kept cell keeps all its partners, so its shares
+#' still sum to one. Because filled rows inside the trade record are scoped
+#' too, a `cbs` that omits some trade years drops the filled rows of those
+#' years under `"cbs_cells"`; pass a CBS spanning the trade record.
+#'
+#' Measured on the `"faostat-trade-bilateral"` pin against a 1850-2023 CBS,
+#' half of the `(year, area, item, element)` cells the uniform extension
+#' emits are cells CBS never reports (3.42 of 6.85 million; whep#232).
+#' Against single-year CBS builds, `"cbs_cells"` keeps 144,812 of the
+#' 286,762 rows `"cbs_years"` emits for 1975 (50.5%) and 342,617 of 384,954
+#' for 2023 (89.0%), extending from trade years 1986-1987 and 2020-2021;
+#' and 231,530 of 249,833 for 2000 (92.7%) and 279,210 of 293,815 for 2010
+#' (95.0%), with trade years 1999-2001 and 2009-2011.
 #'
 #' Neither method bounds the **year axis**. The pin covers 1986-2021, while
 #' [build_commodity_balances()] defaults to 1850-2023, so 138 of the 174
