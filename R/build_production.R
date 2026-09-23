@@ -284,8 +284,14 @@ build_primary_production <- function(
   # `.yield_chain_years()`. Only the yield table leaves it, trimmed to `years`.
   chain_years <- .yield_chain_years(start_year, end_year)
 
-  # 1. Read commodity balances (for gap-filling)
-  cbs_prod_raw <- .read_cbs_production(years = chain_years)
+  # 1. Read commodity balances (for gap-filling). The CBS build reuses the
+  # extracts, so they stay on the window; the chain reads only `production`
+  # over its own span, which costs a tenth of the full extraction.
+  cbs_prod_raw <- .read_cbs_production(years = years)
+  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+  if (!identical(chain_years, years)) {
+    cbs_prod_raw <- .read_cbs_production(chain_years, elements = "production")
+  }
 
   # 2. Read and process FAOSTAT crop/livestock production
   fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
@@ -348,14 +354,6 @@ build_primary_production <- function(
 
   # 10. Add grassland + historical yields
   grassland <- .build_grassland(land_areas)
-
-  # The CBS build reuses these extracts, so it sees the window it asked for.
-  cb_extracts <- lapply(
-    attr(cbs_prod_raw, ".cb_extracts"),
-    .trim_yield_chain,
-    chain_years = chain_years,
-    years = years
-  )
 
   prod_long <- primary_ext |>
     dplyr::bind_rows(grassland)
@@ -482,18 +480,12 @@ build_primary_production <- function(
 
 # -- Input reading helpers -----------------------------------------------------
 
-.read_cbs_production <- function(years = NULL) {
+.read_cbs_production <- function(years = NULL, elements = NULL) {
   cli::cli_progress_step("Reading CBS production")
-  fbs_new <- .extract_cb("faostat-fbs-new", years = years)
-  fbs_old <- .extract_cb("faostat-fbs-old", years = years)
-  cbs_anim <- .extract_cb(
-    "faostat-cbs-old-animal",
-    years = years
-  )
-  cbs_crops <- .extract_cb(
-    "faostat-cbs-old-crops",
-    years = years
-  )
+  fbs_new <- .extract_cb("faostat-fbs-new", years, elements)
+  fbs_old <- .extract_cb("faostat-fbs-old", years, elements)
+  cbs_anim <- .extract_cb("faostat-cbs-old-animal", years, elements)
+  cbs_crops <- .extract_cb("faostat-cbs-old-crops", years, elements)
 
   dt <- data.table::rbindlist(
     list(

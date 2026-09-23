@@ -1651,9 +1651,9 @@ test_that(".fodder_crop_liv ignores NA years when comparing spans", {
 # -- Year-scoped yield chain (whep#834) ----------------------------------------
 
 test_that("a scoped build ships the full-range yield for a shared year", {
-  # whep#834: shared t_LU/t_head rows of a 2010 build differed from the
-  # full-range build by up to 79%, because the yield chain only saw 2007-2013
-  # and its fills reach anchors decades away.
+  # whep#834: the shared t_LU and t_head rows of a 2010 build differed from
+  # the full-range build by up to 79%, because the yield chain only saw
+  # 2007-2013 and its fills reach anchors decades away.
   full <- .run_stubbed_read_production(1850, 2023)
   scoped <- .run_stubbed_read_production(2010, 2010)
 
@@ -1669,7 +1669,8 @@ test_that("a scoped build ships the full-range yield for a shared year", {
 test_that("a scoped build reads the yield chain over the full-range span", {
   seen <- .run_stubbed_read_production(2010, 2010)$seen
 
-  expect_equal(seen$cbs, 1850L:2023L)
+  expect_equal(seen$cbs_chain, 1850L:2023L)
+  expect_equal(seen$cbs_elements, "production")
   expect_equal(seen$fao, 1850L:2023L)
   expect_equal(seen$fodder, 1850L:2023L)
   expect_equal(seen$stocks, 1850L:2023L)
@@ -1684,7 +1685,15 @@ test_that("a scoped build hands the CBS only its own window of extracts", {
   scoped <- .run_stubbed_read_production(2010, 2010)
   extracts <- attr(scoped$out, ".cb_extracts")
 
+  expect_equal(scoped$seen$cbs_window, 2007L:2013L)
   expect_equal(sort(unique(extracts$fbs_new$year)), 2007L:2013L)
+})
+
+test_that("a full-range build reads the CBS once, with every element", {
+  seen <- .run_stubbed_read_production(1850, 2023)$seen
+
+  expect_equal(seen$cbs_window, 1850L:2023L)
+  expect_null(seen$cbs_chain)
 })
 
 test_that(".yield_chain_years is the default span for any window inside it", {

@@ -8,8 +8,13 @@
 .run_stubbed_read_production <- function(start_year, end_year) {
   seen <- new.env()
   testthat::local_mocked_bindings(
-    .read_cbs_production = function(years = NULL) {
-      seen$cbs <- years
+    .read_cbs_production = function(years = NULL, elements = NULL) {
+      if (is.null(elements)) {
+        seen$cbs_window <- years
+      } else {
+        seen$cbs_chain <- years
+        seen$cbs_elements <- elements
+      }
       out <- data.table::as.data.table(.stub_fao_rows(years))
       attr(out, ".cb_extracts") <- list(fbs_new = .stub_fao_rows(years))
       out

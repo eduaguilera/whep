@@ -733,3 +733,39 @@ test_that(".extract_fao drops a logical Note and is unaffected by its type", {
   expect_false("Note" %in% names(as_logical))
   expect_identical(as_logical, .extract_with_note(NA_character_))
 })
+
+# whep#834: the yield chain reads `production` over the whole span. `elements`
+# must return exactly the rows a full extraction returns for that element,
+# including the rice milled/paddy resolution, which is keyed by element.
+test_that(".extract_fao elements = keeps exactly the full extraction's rows", {
+  fixture <- data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = c(2511L, 2511L, 2805L, 2807L, 2805L),
+    Item = c(
+      "Wheat and products",
+      "Wheat and products",
+      "Rice (Milled Equivalent)",
+      "Rice (Paddy Equivalent)",
+      "Rice (Milled Equivalent)"
+    ),
+    Element = c("Production", "Feed", "Production", "Production", "Feed"),
+    Unit = "tonnes",
+    Year = 2000L,
+    Value = c(100, 40, 70, 100, 5)
+  )
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  full <- whep:::.extract_fao("faostat-cbs-new")
+  prod <- whep:::.extract_fao("faostat-cbs-new", elements = "production")
+
+  expect_equal(unique(prod$element), "production")
+  expect_equal(prod, full[element == "production"])
+  # The paddy row is dropped in favour of the milled one either way.
+  expect_equal(prod[item_cbs_code == 2807L, value], 70)
+})
