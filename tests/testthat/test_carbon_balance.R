@@ -1372,14 +1372,15 @@ testthat::test_that("vectorised RothC modifier is indistinguishable from the ref
 
 # ---- polity_validity (#675) -------------------------------------------
 
-# One cell over two years on area 277 (South Sudan, SSD-2011-2025): the 2000
-# rows name a state that did not exist that year, the 2020 rows do not.
+# One cell over two years on area 277 (South Sudan, SSD-2011-2025): the 2010
+# rows name a state that did not exist that year, the 2011 rows do not. The
+# years are consecutive because the march refuses a gap (whep#1073).
 .cbpv_data <- function() {
   keys <- tidyr::expand_grid(
     lon = 0.25,
     lat = 0.25,
     area_code = 277L,
-    year = c(2000L, 2020L)
+    year = c(2010L, 2011L)
   )
   list(
     land_use = dplyr::mutate(keys, land_use = "cropland", area_ha = 100),
@@ -1401,7 +1402,7 @@ testthat::test_that("build_carbon_balance names an anachronistic polity", {
   )
 
   # "keep" is the default: both years survive and the stocks do not move.
-  testthat::expect_setequal(out$year, c(2000L, 2020L))
+  testthat::expect_setequal(out$year, c(2010L, 2011L))
   testthat::expect_true(all(out$reporting_polity_code == "SSD-2011-2025"))
 })
 
@@ -1422,10 +1423,10 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
     )
   )
 
-  testthat::expect_equal(unique(dropped$year), 2020L)
+  testthat::expect_equal(unique(dropped$year), 2011L)
   testthat::expect_equal(
     flagged$reporting_polity_out_of_span,
-    flagged$year == 2000L
+    flagged$year == 2010L
   )
   # "flag" is "keep" plus one logical column: no number moves.
   testthat::expect_equal(
@@ -2692,4 +2693,180 @@ testthat::test_that("1168: the fold follows the crosswalk's fold state", {
   withr::with_options(list(whep.unfold_rest_of_world = "none"), {
     testthat::expect_identical(keyed(), 999L)
   })
+})
+
+# -- Key-lattice completeness of the march and its climate (whep#1073) --------
+
+# Two cells over three years, every class present every year. Removing rows
+# from it is how each test below builds an incomplete lattice.
+.cb_lattice_classes <- function() {
+  tidyr::expand_grid(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000:2002,
+    land_use = c("cropland", "natural")
+  ) |>
+    dplyr::mutate(
+      area_ha = 50,
+      c_input_mgc_ha_yr = dplyr::if_else(land_use == "cropland", 2, 1.5),
+      soc_eq_mgc_ha = dplyr::if_else(land_use == "cropland", 40, 80),
+      frac = 0.5
+    )
+}
+
+.cb_lattice_init <- function(classes) {
+  whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == min(.data$year)),
+    "own_equilibrium"
+  )
+}
+
+# The march with its lattice guard switched off: what `main` computed before
+# the guard existed, kept so each test can show the damage is finite and silent.
+.cb_unguarded_march <- function(classes, init) {
+  testthat::local_mocked_bindings(
+    .cb_check_march_years = function(classes) invisible(classes)
+  )
+  whep:::.cb_march(classes, init)
+}
+
+testthat::test_that("a complete (cell, year) lattice marches unchanged", {
+  classes <- .cb_lattice_classes()
+  init <- .cb_lattice_init(classes)
+  testthat::expect_identical(
+    whep:::.cb_march(classes, init),
+    .cb_unguarded_march(classes, init)
+  )
+})
+
+testthat::test_that("a cell absent for one year is refused, not reset", {
+  classes <- .cb_lattice_classes()
+  holed <- dplyr::filter(classes, !(.data$lon == 0.75 & .data$year == 2001L))
+  init <- .cb_lattice_init(classes)
+  out <- .cb_unguarded_march(holed, init)
+  back <- out[out$lon == 0.75 & out$year == 2002L, ]
+  ref <- .cb_unguarded_march(classes, init)
+  ref_back <- ref[ref$lon == 0.75 & ref$year == 2002L, ]
+  expect_lattice_guard(
+    # Nothing is NA and every stock is finite -- yet the returning cell lost
+    # its whole store: it restarts from zero instead of from ~40/80 MgC/ha.
+    all(is.finite(out$stock_mgc_ha)) &&
+      all(back$stock_mgc_ha < 0.1 * ref_back$stock_mgc_ha),
+    whep:::.cb_march(holed, init)
+  )
+  cnd <- .lattice_cnd(whep:::.cb_march(holed, init))
+  testthat::expect_equal(
+    cnd$missing,
+    tibble::tibble(lon = 0.75, lat = 0.25, area_code = 1L, year = 2001L)
+  )
+})
+
+testthat::test_that("a year missing from the whole span is refused", {
+  classes <- .cb_lattice_classes()
+  gapped <- dplyr::filter(classes, .data$year != 2001L)
+  init <- .cb_lattice_init(classes)
+  out <- .cb_unguarded_march(gapped, init)
+  ref <- .cb_unguarded_march(classes, init)
+  expect_lattice_guard(
+    # 2000 -> 2002 is marched as ONE annual step: the 2002 stock equals the
+    # complete run's 2001 stock, not its 2002 one.
+    all(is.finite(out$stock_mgc_ha)) &&
+      isTRUE(all.equal(
+        out$stock_mgc_ha[out$year == 2002L],
+        ref$stock_mgc_ha[ref$year == 2001L]
+      )),
+    whep:::.cb_march(gapped, init)
+  )
+  testthat::expect_error(
+    whep:::.cb_march(gapped, init),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("a cell that first appears after the start is refused", {
+  classes <- .cb_lattice_classes()
+  late <- dplyr::filter(classes, !(.data$lon == 0.75 & .data$year == 2000L))
+  testthat::expect_error(
+    whep:::.cb_march(late, .cb_lattice_init(classes)),
+    class = "whep_incomplete_lattice"
+  )
+})
+
+testthat::test_that("an empty class table is not judged", {
+  classes <- .cb_lattice_classes()[0L, ]
+  testthat::expect_identical(
+    whep:::.cb_check_march_years(classes),
+    classes
+  )
+})
+
+testthat::test_that("build_carbon_balance refuses non-contiguous years", {
+  d <- .cb_test_data()
+  keep <- \(x) dplyr::filter(x, .data$year != 2001L)
+  d$land_use <- keep(d$land_use)
+  d$c_inputs <- keep(d$c_inputs)
+  d$climate <- keep(d$climate)
+  testthat::expect_error(
+    whep::build_carbon_balance(data = d, method_grazing = "lpjml"),
+    class = "whep_incomplete_lattice"
+  )
+})
+
+testthat::test_that("raw climate short a month is refused, not averaged", {
+  d <- .cb_raw_test_data()
+  short <- d
+  short$climate <- dplyr::filter(d$climate, .data$month != 7L)
+  unguarded <- function(data) {
+    testthat::local_mocked_bindings(
+      .cb_check_climate_months = function(climate, keys) invisible(climate)
+    )
+    whep::build_carbon_balance(data = data, method_grazing = "lpjml")
+  }
+  out <- unguarded(short)
+  ref <- unguarded(d)
+  expect_lattice_guard(
+    # Every stock finite, same rows -- but the modifier was averaged over
+    # eleven months, so the stocks are a different number.
+    all(is.finite(out$stock_mgc_ha)) &&
+      nrow(out) == nrow(ref) &&
+      !isTRUE(all.equal(out$stock_mgc_ha, ref$stock_mgc_ha)),
+    whep::build_carbon_balance(data = short, method_grazing = "lpjml")
+  )
+  cnd <- .lattice_cnd(
+    whep::build_carbon_balance(data = short, method_grazing = "lpjml")
+  )
+  testthat::expect_setequal(cnd$missing$year, 2000:2002)
+  testthat::expect_true(all(cnd$missing$month == 7L))
+})
+
+testthat::test_that("complete raw climate passes the month guard unchanged", {
+  d <- .cb_raw_test_data()
+  keys <- c("lon", "lat", "area_code", "year")
+  testthat::expect_identical(
+    whep:::.cb_check_climate_months(d$climate, keys),
+    d$climate
+  )
+  # A precomputed modifier, and a table with no month column, are not monthly.
+  annual <- .cb_climate_fixture()
+  testthat::expect_identical(
+    whep:::.cb_check_climate_months(annual, keys),
+    annual
+  )
+})
+
+testthat::test_that("the month guard keys on the columns the table carries", {
+  climate <- .cb_raw_climate_fixture() |>
+    dplyr::select(-"area_code") |>
+    dplyr::filter(!(.data$year == 2001L & .data$month == 12L))
+  cnd <- .lattice_cnd(
+    whep:::.cb_check_climate_months(
+      climate,
+      c("lon", "lat", "area_code", "year")
+    )
+  )
+  testthat::expect_equal(
+    cnd$missing,
+    tibble::tibble(lon = 0.25, lat = 0.25, year = 2001L, month = 12L)
+  )
 })
