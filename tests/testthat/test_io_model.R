@@ -234,7 +234,89 @@ testthat::test_that("build_io_model validates missing columns", {
   bad_su <- dplyr::select(f$su, -value)
   testthat::expect_error(
     build_io_model(bad_su, f$btd, f$cbs),
-    "missing column"
+    class = "whep_error_schema_violation"
+  )
+})
+
+# whep#181: boundary contracts at the build_io_model seam. Each malformed
+# input below used to build a model -- silently short of mass or of a whole
+# demand category -- rather than stop.
+
+testthat::test_that("build_io_model refuses a cbs without a final-demand column", {
+  f <- io_two_country_fixture()
+  purrr::walk(c("food", "other_uses"), function(col) {
+    testthat::expect_error(
+      build_io_model(f$su, f$btd, dplyr::select(f$cbs, -dplyr::all_of(col))),
+      class = "whep_error_schema_violation"
+    )
+  })
+})
+
+testthat::test_that("the dropped final-demand column used to vanish from Y", {
+  # What the guard prevents, shown on the unguarded internals: without `food`
+  # the detected final demand simply has no food category.
+  f <- io_two_country_fixture()
+  fd_cols <- .detect_fd_columns(dplyr::select(f$cbs, -food))
+  testthat::expect_false("food" %in% fd_cols)
+})
+
+testthat::test_that("build_io_model refuses NA area or item codes", {
+  f <- io_two_country_fixture()
+  na_item_su <- dplyr::mutate(
+    f$su,
+    item_cbs_code = dplyr::if_else(dplyr::row_number() == 3L, NA, item_cbs_code)
+  )
+  na_area_cbs <- dplyr::mutate(
+    f$cbs,
+    area_code = dplyr::if_else(dplyr::row_number() == 1L, NA, area_code)
+  )
+  testthat::expect_error(
+    build_io_model(na_item_su, f$btd, f$cbs),
+    class = "whep_error_schema_violation"
+  )
+  testthat::expect_error(
+    build_io_model(f$su, f$btd, na_area_cbs),
+    class = "whep_error_schema_violation"
+  )
+})
+
+testthat::test_that("a NA item code used to leave the model with its mass", {
+  # The mechanism the NA guard closes: the item axis drops NA, and the
+  # matrix builder filters the unplaceable row out, so 40 t of supply
+  # disappears from the supply matrix without a message.
+  f <- io_single_country_fixture()
+  su <- dplyr::mutate(
+    f$su,
+    item_cbs_code = dplyr::if_else(dplyr::row_number() == 3L, NA, item_cbs_code)
+  )
+  dims <- .get_io_dims(su, f$cbs)
+  supply <- .build_mr_supply(su, dims)
+  full <- .build_mr_supply(f$su, .get_io_dims(f$su, f$cbs))
+  testthat::expect_equal(sum(full) - sum(supply), 40)
+})
+
+testthat::test_that("endogenize_losses = TRUE without losses warns", {
+  f <- io_two_country_fixture()
+  testthat::expect_warning(
+    with_losses <- build_io_model(
+      f$su,
+      f$btd,
+      f$cbs,
+      endogenize_losses = TRUE
+    ),
+    class = "whep_endogenize_losses_unmet"
+  )
+  without <- build_io_model(f$su, f$btd, f$cbs)
+  testthat::expect_equal(with_losses$Z, without$Z)
+  testthat::expect_equal(with_losses$Y, without$Y)
+})
+
+testthat::test_that("endogenize_losses = TRUE with losses does not warn", {
+  f <- io_two_country_fixture()
+  cbs <- dplyr::mutate(f$cbs, losses = 1)
+  testthat::expect_no_warning(
+    build_io_model(f$su, f$btd, cbs, endogenize_losses = TRUE),
+    class = "whep_endogenize_losses_unmet"
   )
 })
 

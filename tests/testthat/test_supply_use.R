@@ -646,7 +646,8 @@ testthat::test_that(".build_supply_use_from_inputs includes all livestock item t
     year = integer(),
     area_code = integer(),
     item_cbs_code = integer(),
-    seed = double()
+    seed = double(),
+    processing = double()
   )
   crop_residues <- tibble::tibble(
     year = integer(),
@@ -717,7 +718,8 @@ testthat::test_that(".build_supply_use_from_inputs connects animal draught to cr
     year = 2000L,
     area_code = 1L,
     item_cbs_code = 20L,
-    seed = 0
+    seed = 0,
+    processing = 0
   )
   crop_residues <- tibble::tibble(
     year = integer(),
@@ -852,4 +854,76 @@ testthat::test_that("supply-use supplies the recovered residue, not the whole cr
   # which is the invariant the two sides were violating.
   cbs_side <- whep:::.residue_recovered_split(residues, warn = FALSE)
   testthat::expect_equal(supply$value, cbs_side$recovered)
+})
+
+# whep#181: boundary contract at the supply-use assembly entry.
+
+supply_use_seam_inputs <- function() {
+  list(
+    cbs = tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~seed, ~processing,
+      2000L, 1L,         1L,             0,     10
+    ),
+    feed_intake = tibble::tribble(
+      ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~supply,
+      2000L, 1L,         1L,              50L,            10
+    )
+  )
+}
+
+testthat::test_that("supply-use inputs pass the seam contract when complete", {
+  x <- supply_use_seam_inputs()
+  testthat::expect_no_error(
+    whep:::.check_supply_use_inputs(x$cbs, x$feed_intake)
+  )
+})
+
+testthat::test_that("a cbs without processing is refused, not unslaughtered", {
+  x <- supply_use_seam_inputs()
+  cbs <- dplyr::select(x$cbs, -processing)
+  # The silent outcome the guard prevents: no slaughtering rows at all.
+  slaughtered <- whep:::.build_slaughtering(
+    tibble::tibble(live_anim_code = 1L),
+    tibble::tibble(item_cbs_code = 50L),
+    cbs,
+    tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~unit,    ~value,
+      2000L, 1L,         50L,            1L,              "tonnes", 100
+    )
+  )
+  testthat::expect_equal(nrow(slaughtered), 0L)
+  testthat::expect_error(
+    whep:::.check_supply_use_inputs(cbs, x$feed_intake),
+    class = "whep_error_schema_violation"
+  )
+})
+
+testthat::test_that("feed_intake with a missing column or NA code is refused", {
+  x <- supply_use_seam_inputs()
+  no_supply <- dplyr::select(x$feed_intake, -supply)
+  testthat::expect_error(
+    whep:::.check_supply_use_inputs(x$cbs, no_supply),
+    class = "whep_error_schema_violation"
+  )
+  na_item <- dplyr::mutate(x$feed_intake, item_cbs_code = NA_integer_)
+  testthat::expect_error(
+    whep:::.check_supply_use_inputs(x$cbs, na_item),
+    class = "whep_error_schema_violation"
+  )
+})
+
+testthat::test_that("the supply-use assembly applies the seam contract", {
+  x <- supply_use_seam_inputs()
+  testthat::expect_error(
+    whep:::.build_supply_use_from_inputs(
+      items_prod = tibble::tibble(item_prod_code = integer(), item_type = ""),
+      items_cbs = tibble::tibble(item_cbs_code = integer(), item_type = ""),
+      coeffs = NULL,
+      cbs = dplyr::select(x$cbs, -processing),
+      crop_residues = NULL,
+      primary_prod = NULL,
+      feed_intake = x$feed_intake
+    ),
+    class = "whep_error_schema_violation"
+  )
 })
