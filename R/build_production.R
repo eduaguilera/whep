@@ -1747,8 +1747,8 @@ build_primary_production <- function(
   # value rather than a label for one of its parts -- a FAOSTAT tonnage bound to
   # a reconstructed fodder tonnage on the same key is not "official" because one
   # half of it was. Kept when every part agrees, `NA` when they disagree
-  # (whep#581).
-  .add_folded_fao_flags(out, bound, by_cols) |>
+  # (whep#581). An unflagged part blocks it as well (whep#1044).
+  .add_folded_fao_flags(out, bound, by_cols, unflagged = "blocks") |>
     tibble::as_tibble()
 }
 

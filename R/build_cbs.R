@@ -1785,9 +1785,10 @@ build_processing_coefs <- function(
   # tonnage built from an official item and an imputed one is neither
   # (whep#581, whep#1044). Without this the flag would not survive
   # `.primary_to_cbs()` at all, and the FAOSTAT_prod rows of the CBS would stay
-  # NA however faithfully `build_primary_production()` reported it.
+  # NA however faithfully `build_primary_production()` reported it. An
+  # unflagged part is WHEP's own estimate, so it blocks the flag too.
   agg <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
-  dt <- .add_folded_fao_flags(agg, dt, by_cols)
+  dt <- .add_folded_fao_flags(agg, dt, by_cols, unflagged = "blocks")
   dt <- dt[!is.na(area)]
 
   feed_dt <- dt[item_cbs_code %in% fodder_codes]
