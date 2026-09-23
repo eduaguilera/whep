@@ -44,7 +44,7 @@ following columns:
 - `Cat_1`: Primary category label used in material flow accounting.
 
 - `Name_biomass`: Corresponding item name in `biomass_coefs`, enabling
-  joins with the biomass coefficient table. `NA` for the 21 live-animal
+  joins with the biomass coefficient table. `NA` for the 22 live-animal
   items, which are heads rather than biomass and have no coefficient row
   by design. Three rows instead carry the literal string `"0"`, an
   upstream placeholder that matches no `biomass_coefs` row: 2775 Aquatic
