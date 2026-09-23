@@ -22,7 +22,15 @@ result); see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} for the
 
 \item{methods}{A named list of per-stage option lists, any of \code{excretion},
 \code{split}, \code{bedding}, \code{losses}, \code{allocation} and \code{transport}, each forwarded
-to the matching pipeline function's \code{options}.}
+to the matching pipeline function's \code{options}. \code{transport} also takes
+\code{land_split}, which decides where manure trucked into a cell lands inside
+that cell's remaining room: \code{"cropland_first"} (default) fills the
+remaining cropland room and puts the rest on grassland, the same priority
+\code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}} gives a cell's own collected manure;
+\code{"room_share"} splits it in proportion to the remaining cropland and
+grassland room; \code{"cropland_only"} books all of it as cropland, the
+behaviour before whep#341, which counts grassland room as cropland. The
+total delivered to each cell is the same under all three.}
 
 \item{gridded}{The land-surface layer (\code{crops} and optional \code{grass} tibbles)
 passed to \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}; required for the default
@@ -44,7 +52,9 @@ residue used as bedding is unset in this package pending a source
 \value{
 A named list with \code{applied} (manure applied per
 \verb{land_use x crop (x cell)} with \code{manure_type} (\code{"Excreta"}/\code{"Solid"}/
-\code{"Liquid"}) and all \verb{method_*} provenance columns), \code{losses}
+\code{"Liquid"}) and all \verb{method_*} provenance columns, including
+\code{method_transport_land_use}, the \code{land_split} used, \code{NA} unless the
+resolution is \code{"subnational"}), \code{losses}
 (management-loss side-streams per polity) and \code{excretion} (the
 per-category excretion totals).
 }
