@@ -49,7 +49,12 @@ testthat::test_that("every surviving cell keeps its land-use total", {
   out <- whep:::.floor_landuse_fractions(lu)
   before <- .cell_sums(lu)[.cell_sums(out), on = .(year, row, col)]
 
-  testthat::expect_equal(before$i.total, before$total, tolerance = 1e-15)
+  # At most five bands per cell here: the rescale-and-sum rounding bound is
+  # five DBL_EPSILON (see the random-grid test below for the derivation).
+  testthat::expect_lt(
+    max(abs(before$i.total / before$total - 1)),
+    5 * .Machine$double.eps
+  )
   # The fold-back is of the order of float32 resolution, not a real shift.
   testthat::expect_lt(
     abs(out[pft == 1L & col == 1L, value] / 0.4 - 1),
@@ -60,22 +65,48 @@ testthat::test_that("every surviving cell keeps its land-use total", {
 testthat::test_that("the floor conserves mass on a heavy-tailed random grid", {
   withr::local_seed(985)
   n_cells <- 2000L
+  n_bands <- 32L
+  # Exact powers of two, 2^-5 .. 2^-157 (~5.5e-48): the log-uniform shape of
+  # the allocation tail in #985, reaching past FLT_TRUE_MIN. Powers of two are
+  # exact in every libm, so the input is bit-identical on every platform and
+  # 32 bands of at most 2^-5 keep each cell total at or below 1.
   lu <- data.table::data.table(
     year = 2000L,
-    row = rep(seq_len(n_cells), each = 32L),
+    row = rep(seq_len(n_cells), each = n_bands),
     col = 1L,
-    pft = rep(seq_len(32L), times = n_cells),
-    # Log-uniform over 1e-46..1: the shape of the allocation tail in #985.
-    value = 10^stats::runif(32L * n_cells, -46, 0)
+    pft = rep(seq_len(n_bands), times = n_cells),
+    value = 2^-(5L + sample.int(153L, n_bands * n_cells, replace = TRUE) - 1L)
   )
-  lu[, value := value / max(1, sum(value)), by = row]
   out <- whep:::.floor_landuse_fractions(lu)
   totals <- .cell_sums(lu)[.cell_sums(out), on = .(year, row, col)]
 
+  # Tolerances are rounding bounds, not tuned. Per cell the rescale is one
+  # correctly rounded product per band plus a sum of at most `n_bands` terms,
+  # so its error is below `n_bands * DBL_EPSILON`. The global sum of `n` terms
+  # carries the recursive-summation bound `n * DBL_EPSILON`, which also covers
+  # platforms that accumulate `sum()` in plain double rather than long double
+  # (arm64 macOS) -- the difference that failed CI at a fixed 1e-14.
+  cell_tol <- n_bands * .Machine$double.eps
+  global_tol <- nrow(lu) * .Machine$double.eps
+  cell_err <- abs(totals$i.total / totals$total - 1)
+  global_err <- abs(sum(out$value) / sum(lu$value) - 1)
+
+  # The check can fail: the mass the floor drops is far above both bounds,
+  # so a floor that dropped it without folding it back would be caught.
+  dropped <- lu[!out, on = .(year, row, col, pft)]
+  testthat::expect_gt(sum(dropped$value) / sum(lu$value), 1e3 * global_tol)
+  testthat::expect_gt(
+    max(dropped$value / .cell_sums(lu)$total[dropped$row]),
+    1e3 * cell_tol
+  )
+
   testthat::expect_lt(nrow(out), nrow(lu))
   testthat::expect_equal(nrow(totals), n_cells)
-  testthat::expect_equal(totals$i.total, totals$total, tolerance = 1e-14)
-  testthat::expect_equal(sum(out$value), sum(lu$value), tolerance = 1e-14)
+  testthat::expect_lt(max(cell_err), cell_tol)
+  testthat::expect_lt(global_err, global_tol)
+  # Both bounds sit far inside float32 resolution: no total moves by a bit
+  # the float32 file could store.
+  testthat::expect_lt(global_tol, .flt_eps * 1e-3)
   # Nothing survives that sits past the last significant bit of its cell.
   out[, cell_total := sum(value), by = row]
   testthat::expect_true(all(out$value >= out$cell_total * .flt_eps))
