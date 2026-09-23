@@ -1648,6 +1648,63 @@ test_that(".fodder_crop_liv ignores NA years when comparing spans", {
   )
 })
 
+# -- Year-scoped yield chain (whep#834) ----------------------------------------
+
+test_that("a scoped build ships the full-range yield for a shared year", {
+  # whep#834: shared t_LU/t_head rows of a 2010 build differed from the
+  # full-range build by up to 79%, because the yield chain only saw 2007-2013
+  # and its fills reach anchors decades away.
+  full <- .run_stubbed_read_production(1850, 2023)
+  scoped <- .run_stubbed_read_production(2010, 2010)
+
+  expect_equal(unique(scoped$out$year), 2010L)
+  expect_equal(
+    scoped$out$yield_c,
+    full$out |> dplyr::filter(year == 2010L) |> dplyr::pull(yield_c)
+  )
+  # 1995 -> 2020 is 1 -> 4 over 25 years; 2010 sits 15 years in.
+  expect_equal(scoped$out$yield_c, 1 + 3 * 15 / 25)
+})
+
+test_that("a scoped build reads the yield chain over the full-range span", {
+  seen <- .run_stubbed_read_production(2010, 2010)$seen
+
+  expect_equal(seen$cbs, 1850L:2023L)
+  expect_equal(seen$fao, 1850L:2023L)
+  expect_equal(seen$fodder, 1850L:2023L)
+  expect_equal(seen$stocks, 1850L:2023L)
+  # Only the chain widens: what leaves it is back on the read window
+  # (2010 plus the +-3 margin), and slaughter counts stay scoped.
+  expect_equal(seen$assembled, 2007L:2013L)
+  expect_equal(seen$stocks_assembled, 2007L:2013L)
+  expect_equal(seen$slaughter, 2007L:2013L)
+})
+
+test_that("a scoped build hands the CBS only its own window of extracts", {
+  scoped <- .run_stubbed_read_production(2010, 2010)
+  extracts <- attr(scoped$out, ".cb_extracts")
+
+  expect_equal(sort(unique(extracts$fbs_new$year)), 2007L:2013L)
+})
+
+test_that(".yield_chain_years is the default span for any window inside it", {
+  expect_identical(whep:::.yield_chain_years(1850, 2023), 1850L:2023L)
+  expect_identical(whep:::.yield_chain_years(2010, 2010), 1850L:2023L)
+  expect_identical(whep:::.yield_chain_years(1900, 1950), 1850L:2023L)
+  # A request outside the default span still reads what it asks for.
+  expect_identical(whep:::.yield_chain_years(1800, 2025), 1800L:2025L)
+})
+
+test_that(".trim_yield_chain passes a full-range table through untouched", {
+  df <- tibble::tibble(year = c(2009L, 2010L, 2011L), value = 1:3)
+
+  expect_identical(whep:::.trim_yield_chain(df, 1850L:2023L, 1850L:2023L), df)
+
+  trimmed <- whep:::.trim_yield_chain(df, 1850L:2023L, 2010L)
+  expect_s3_class(trimmed, "tbl_df")
+  expect_equal(trimmed$year, 2010L)
+})
+
 test_that(".split_stock_share keys on the code, so a shared label cannot dilute", {
   # THE #589 REGRESSION, in one fixture.
   #

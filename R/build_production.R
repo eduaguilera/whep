@@ -224,6 +224,36 @@ build_primary_production <- function(
 # full-range request takes the historical branch and is unaffected.
 .yield_year_margin <- 3L
 
+# The span the yield chain (steps 1-7 of `.read_production()`) reads: the
+# full-range build's own span, whatever window was requested.
+#
+# The chain cannot be scoped to a window and stay exact (whep#834, #1082).
+# Three `fill_linear()` calls in it -- `yield_c` per country, `yield_glo` per
+# item, `prod_cbs_ratio` per country and CBS item -- interpolate or carry a
+# value from the nearest year that has one, and that year can be decades away:
+# Singapore duck meat (1091) has a `yield_c` anchor only far outside a +-3-year
+# margin. A scoped chain then falls through to the global yield, itself the
+# ratio of sums over whichever areas the window holds, and ships a value that
+# differs from the full-range one by up to 79% on shared `t_LU`/`t_head` rows,
+# while the totals agree to 3e-04. No finite margin is safe, because the
+# look-back is data-dependent and unbounded, so the chain reads the whole span
+# and only its output is trimmed. `max()`/`min()` keep a request outside the
+# default span reading at least what it asks for.
+.yield_chain_years <- function(start_year, end_year) {
+  min(start_year, 1850L):max(end_year, 2023L)
+}
+
+# Trim a yield-chain table back to the window the rest of the build reads. A
+# full-range build reads the same span in both places and gets its input back
+# untouched, so its output cannot move.
+.trim_yield_chain <- function(df, chain_years, years) {
+  if (identical(chain_years, years)) {
+    return(df)
+  }
+  out <- .filter_years(df, years)
+  if (tibble::is_tibble(df)) tibble::as_tibble(out) else out
+}
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
@@ -239,11 +269,10 @@ build_primary_production <- function(
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
   #
-  # A requested window is also widened by a margin either side, for the same
-  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
-  # window with no neighbouring years cannot reconstruct a yield the full-range
-  # build reconstructs, and the row is dropped instead (#666). A full-range
-  # request takes the historical branch and is therefore unaffected.
+  # A requested window is also widened by a margin either side (#666). The
+  # yield chain no longer reads `years` at all (see `.yield_chain_years()`), so
+  # the margin now only widens the land-area and historical-yield reads. A
+  # full-range request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
@@ -251,14 +280,18 @@ build_primary_production <- function(
     max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
+  # 1-7 are the yield chain. It reads its own span, not `years`: see
+  # `.yield_chain_years()`. Only the yield table leaves it, trimmed to `years`.
+  chain_years <- .yield_chain_years(start_year, end_year)
+
   # 1. Read commodity balances (for gap-filling)
-  cbs_prod_raw <- .read_cbs_production(years = years)
+  cbs_prod_raw <- .read_cbs_production(years = chain_years)
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(years = years)
+  fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years)
+  fodder <- .build_fodder(fao_crop_liv, years = chain_years)
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -266,11 +299,13 @@ build_primary_production <- function(
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    years = years
+    years = chain_years
   )
 
-  # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(fao_combined)
+  # 5b. Livestock slaughter counts (read counts, no year-axis fill: scoped)
+  fao_slaughter <- .build_livestock_slaughter(
+    .trim_yield_chain(fao_combined, chain_years, years)
+  )
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -279,10 +314,14 @@ build_primary_production <- function(
   yield_all <- .compute_yields(
     primary_raw,
     cbs_prod_raw
-  )
+  ) |>
+    .trim_yield_chain(chain_years, years)
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
-  primary_raw2 <- .assemble_production_raw(yield_all, primary_raw)
+  primary_raw2 <- .assemble_production_raw(
+    yield_all,
+    .trim_yield_chain(primary_raw, chain_years, years)
+  )
 
   historical_rows <- .prepare_historical_production(
     historical_data,
@@ -310,7 +349,13 @@ build_primary_production <- function(
   # 10. Add grassland + historical yields
   grassland <- .build_grassland(land_areas)
 
-  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+  # The CBS build reuses these extracts, so it sees the window it asked for.
+  cb_extracts <- lapply(
+    attr(cbs_prod_raw, ".cb_extracts"),
+    .trim_yield_chain,
+    chain_years = chain_years,
+    years = years
+  )
 
   prod_long <- primary_ext |>
     dplyr::bind_rows(grassland)
