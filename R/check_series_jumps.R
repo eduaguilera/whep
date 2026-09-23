@@ -29,6 +29,13 @@
 #' ratios, per the Hampel/MAD anchors in the framework) is a documented
 #' future extension, not implemented here.
 #'
+#' A term that switches off inside a panel is not a jump by default: its
+#' series stops having rows, or falls to zero, and the `min_value` gate skips
+#' any pair involving a zero. That is how the FAOSTAT fodder items leave the
+#' arable land extension at 2020 without a flag (whep#938). `dropouts` makes
+#' such a stop a flagged step, and the `allowlist` can then mark the
+#' documented ones.
+#'
 #' @param data A data frame with one observation per row.
 #' @param value_col The column holding the series values to scan.
 #' @param time_col The column holding time values. Default: `year`.
@@ -45,6 +52,18 @@
 #'   Default: `0`.
 #' @param consecutive_only Logical. If `TRUE` (default), only pairs one
 #'   time step apart are scanned; larger gaps are skipped.
+#' @param dropouts Whether to also flag a series that stops: one that falls
+#'   from above `min_value` to exactly zero, or has no row at a time value its
+#'   panel has after the series began. Each series is completed with zero over
+#'   those time values, so the flag carries `value = 0` and `ratio = 0`, and
+#'   the step back up from zero is an onset the `min_value` gate keeps quiet.
+#'   `FALSE` (default) scans only the rows supplied and skips any pair
+#'   involving a zero. `TRUE` takes the panel to be every time value in
+#'   `data`. A character vector, a subset of `.by`, takes it to be the time
+#'   values present within that coarser group instead: with
+#'   `.by = c("area_code", "item_cbs_code")`, `dropouts = "area_code"` flags an
+#'   item that stops while its country goes on, and not a country that leaves
+#'   the panel.
 #' @param allowlist Optional data frame of documented break years, matched
 #'   on the grouping columns plus `time_col`. Matching flags are returned
 #'   with `allowlisted = TRUE` rather than dropped.
@@ -80,7 +99,8 @@ check_series_jumps <- function(
   min_value = 0,
   consecutive_only = TRUE,
   allowlist = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  dropouts = FALSE
 ) {
   value_col_name <- rlang::as_name(rlang::enquo(value_col))
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
@@ -96,17 +116,17 @@ check_series_jumps <- function(
     min_value,
     allowlist
   )
+  panel_by <- .dropout_panel_by(dropouts, by_cols)
 
   flags <- .scan_series_jumps(
     data,
     value_col_name,
     time_col_name,
     by_cols,
-    ratio_bounds,
-    bands,
-    min_value,
+    list(ratio_bounds = ratio_bounds, bands = bands, min_value = min_value),
     consecutive_only,
-    allowlist
+    allowlist,
+    panel_by
   )
 
   if (verbose) {
@@ -122,24 +142,28 @@ check_series_jumps <- function(
   value_col,
   time_col,
   by_cols,
-  ratio_bounds,
-  bands,
-  min_value,
+  gate,
   consecutive_only,
-  allowlist
+  allowlist,
+  panel_by
 ) {
   dt <- .series_consecutive_pairs(
     data,
     value_col,
     time_col,
     by_cols,
-    consecutive_only
+    consecutive_only,
+    panel_by
   )
-  dt <- .apply_jump_bands(dt, bands, ratio_bounds, by_cols)
+  dropouts <- !is.null(panel_by)
+  dt <- .apply_jump_bands(dt, gate$bands, gate$ratio_bounds, by_cols)
+  min_value <- gate$min_value
+  # A dropout is a fall to exactly zero, so only that value passes the gate on
+  # the later side; a fall to a small positive value is still gated out.
   flagged <- dt[
     (ratio < .lo | ratio > .hi) &
       .value_prev > min_value &
-      .value_now > min_value
+      (.value_now > min_value | (dropouts & .value_now == 0))
   ]
   flagged <- .mark_allowlisted(flagged, allowlist, by_cols, time_col)
   .shape_jump_flags(flagged, by_cols, time_col)
@@ -152,7 +176,8 @@ check_series_jumps <- function(
   value_col,
   time_col,
   by_cols,
-  consecutive_only
+  consecutive_only,
+  panel_by = NULL
 ) {
   keep <- unique(c(by_cols, time_col, value_col))
   dt <- data.table::as.data.table(data)[, ..keep]
@@ -160,6 +185,9 @@ check_series_jumps <- function(
   dt[, .time_num := as.double(get(time_col))]
   if (!value_col %in% c(by_cols, time_col)) {
     dt[, (value_col) := NULL]
+  }
+  if (!is.null(panel_by)) {
+    dt <- .complete_series_dropouts(dt, time_col, by_cols, panel_by)
   }
   data.table::setorderv(dt, c(by_cols, ".time_num"))
 
@@ -173,6 +201,51 @@ check_series_jumps <- function(
   }
   dt[, ratio := .value_now / .value_prev]
   dt[]
+}
+
+# `dropouts` resolved to the columns whose time values make a series' panel:
+# NULL when off, character(0) for the whole table.
+.dropout_panel_by <- function(dropouts, by_cols) {
+  if (isFALSE(dropouts)) {
+    return(NULL)
+  }
+  if (isTRUE(dropouts)) {
+    return(character(0))
+  }
+  if (!is.character(dropouts) || anyNA(dropouts) || length(dropouts) == 0) {
+    cli::cli_abort(
+      "{.arg dropouts} must be TRUE, FALSE or a character vector of columns."
+    )
+  }
+  extra <- setdiff(dropouts, by_cols)
+  if (length(extra) > 0) {
+    cli::cli_abort(
+      "{.arg dropouts} column{?s} {.field {extra}} not in {.arg .by}."
+    )
+  }
+  unique(dropouts)
+}
+
+# Complete each series with zero over its panel's time values from the
+# series' own first time onwards, so a series that stops having rows falls to
+# zero where it stops (whep#938). The panel is the time values present within
+# `panel_by` (the whole table when empty). Values the data holds, NA
+# included, are left as they are; only absent rows are added.
+.complete_series_dropouts <- function(dt, time_col, by_cols, panel_by) {
+  times <- unique(dt[, c(panel_by, time_col, ".time_num"), with = FALSE])
+  lag_by <- if (length(by_cols) > 0) by_cols else NULL
+  starts <- dt[, .(.time_first = min(.time_num)), by = lag_by]
+  grid <- if (length(panel_by) == 0) {
+    .cross_join(starts, times)
+  } else {
+    merge(starts, times, by = panel_by, allow.cartesian = TRUE)
+  }
+  grid <- grid[.time_num >= .time_first]
+  grid[, .time_first := NULL]
+  present <- unique(dt[, c(by_cols, ".time_num"), with = FALSE])
+  absent <- grid[!present, on = c(by_cols, ".time_num")]
+  absent[, .value_now := 0]
+  data.table::rbindlist(list(dt, absent), use.names = TRUE)
 }
 
 # Set the per-row plausible band, overriding the global default with any
