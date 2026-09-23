@@ -17,8 +17,20 @@ build_nitrogen_balance(
 \item{methods}{A named list of method choices: \code{nh3} (forwarded to
 \code{\link[=calculate_nh3]{calculate_nh3()}}, default \code{"manner"}), \code{n2o} (forwarded to
 \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the globally applicable
-IPCC 2019 Tier 1 method) and \code{leaching} (forwarded to
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}).}
+IPCC 2019 Tier 1 method), \code{leaching} (forwarded to
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}) and
+\code{water_regime}, whether crop rows are split into rainfed and irrigated
+parts (whep#1233). \code{"none"} (default) keeps one row per crop and cell, as
+before. \code{"area_share"} splits each crop row by the crop's irrigated share
+of its harvested area from \code{data$crop_regime_area}, scaling every
+tonnage and hectare term by that share -- equal per-hectare N rates under
+both regimes, an allocation assumption, since no N input is
+regime-resolved upstream. The split happens before the losses, so
+\code{n_balance_drivers} and \code{n_balance_leaching_drivers} can be keyed on
+\code{water_regime} too; a driver table without that column applies to both
+parts. Rows with no regime basis (grassland, the \code{item_cbs_code = NA}
+SOM-sequestration rows, crops the layer does not cover) stay
+whole with \code{water_regime = NA}; see \emph{Rainfed and irrigated rows}.}
 
 \item{resolution}{\code{"grid"} (default) or \code{"polity"}, as in
 \code{\link[=build_n_inputs]{build_n_inputs()}}; \code{"polity"} sums every term (and re-derives every
@@ -76,6 +88,11 @@ balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column.
+\item \code{crop_regime_area}: required when \code{methods$water_regime = "area_share"}; \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s crop areas (\code{lon}, \code{lat},
+\code{area_code}, \code{item_prod_code}, \code{year}, \code{rainfed_ha}, \code{irrigated_ha}),
+keyed on the same \code{area_code} vocabulary as the nitrogen inputs. The
+share is formed from hectares summed over the \code{item_prod_code}s of
+each \code{item_cbs_code}.
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
@@ -109,7 +126,9 @@ columns below. When the supplied \code{n_inputs} carry them, the
 \code{method_unattributed} stamps from
 \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
 input conventions that produced it. Gains
-\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}, and
+\code{water_regime} (in the key) plus \code{method_water_regime} when
+\code{methods$water_regime = "area_share"}.
 }
 \description{
 Assembles \code{\link[=build_n_inputs]{build_n_inputs()}}'s long-format nitrogen inputs into the
@@ -131,6 +150,19 @@ themselves, so one choice governs the whole build (whep#727). A
 own call with its own choice, and the balance rows derived from it still get
 this argument's fate at the tail.
 }
+\section{Rainfed and irrigated rows}{
+
+Under \code{methods$water_regime = "area_share"} a crop row becomes a
+\code{"rainfed"} and an \code{"irrigated"} row (one only when the share is 0 or 1),
+stamped \code{method_water_regime = "area_share"}, and the two sum back to the
+unsplit row exactly. The only regime-resolved input is the crop's harvested
+area; every nitrogen term is split in proportion to it, so the split adds
+no information to the inputs themselves and matters through the
+regime-keyed loss drivers. Rows the layer gives no basis for are kept
+whole, \code{water_regime = NA}, \code{method_water_regime = "unsplit_no_basis"},
+rather than booked as rainfed.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in
