@@ -566,17 +566,60 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
 # ---- calculate_indirect_n2o_nh3 ------------------------------------------
 
 testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows", {
+  # whep#1234: IPCC (2019) Vol. 4 Ch. 11 Table 11.3 (p. 11.26) gives the
+  # wet-climate EF4 as 0.014. The 0.016 the constant used to carry is Table
+  # 11.1's EF1 for synthetic fertiliser in wet climates (p. 11.13).
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
     1, "ATL", "Solid", "Tier_1"
   )
   out <- whep::calculate_indirect_n2o_nh3(x)
 
-  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
+  testthat::expect_equal(out$method_indirect_nh3, "ipcc2019_wet")
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 selects the ATL EF4 by method", {
+  x <- tibble::tribble(
+    ~nh3_n_t, ~climate,
+    2, "ATL"
+  )
+  ef <- purrr::map_dbl(
+    c("ipcc2019_wet", "ipcc2019_aggregated", "legacy_ef1_wet"),
+    \(m) {
+      whep::calculate_indirect_n2o_nh3(x, method = m) |>
+        dplyr::pull("n2o_indirect_nh3_n_t")
+    }
+  ) /
+    2
+  testthat::expect_equal(ef, c(0.014, 0.010, 0.016), tolerance = 1e-12)
+  out <- whep::calculate_indirect_n2o_nh3(x, method = "legacy_ef1_wet")
+  testthat::expect_equal(out$method_indirect_nh3, "legacy_ef1_wet")
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 method does not move MED rows", {
+  x <- tibble::tribble(
+    ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
+    1, "MED", "Solid", "Drip"
+  )
+  wet <- whep::calculate_indirect_n2o_nh3(x)
+  legacy <- whep::calculate_indirect_n2o_nh3(x, method = "legacy_ef1_wet")
+  testthat::expect_equal(
+    wet$n2o_indirect_nh3_n_t,
+    legacy$n2o_indirect_nh3_n_t
+  )
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 rejects an unknown method", {
+  x <- tibble::tibble(nh3_n_t = 1, climate = "ATL")
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(x, method = "tier_9"),
+    class = "rlang_error"
+  )
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows without touching the EF lookup", {
-  # The ATL branch is a flat nh3 * 0.016 that needs no emission factor or
+  # The ATL branch is a flat nh3 * EF4 that needs no emission factor or
   # irrig_type column at all.
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type,
@@ -584,7 +627,7 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows wi
   )
   out <- whep::calculate_indirect_n2o_nh3(x)
 
-  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf) for Mediterranean rows", {
@@ -622,6 +665,14 @@ testthat::test_that("calculate_indirect_n2o_nh3 example fixture is schema-comple
   out <- whep::calculate_indirect_n2o_nh3(example = TRUE)
   pointblank::expect_col_exists(
     out,
-    c("nh3_n_t", "climate", "n2o_indirect_nh3_n_t")
+    c("nh3_n_t", "climate", "n2o_indirect_nh3_n_t", "method_indirect_nh3")
+  )
+  # The fixture must agree with what the function computes on its own rows.
+  recomputed <- out |>
+    dplyr::select("nh3_n_t", "climate") |>
+    whep::calculate_indirect_n2o_nh3()
+  testthat::expect_equal(
+    out$n2o_indirect_nh3_n_t,
+    recomputed$n2o_indirect_nh3_n_t
   )
 })

@@ -535,6 +535,7 @@
 #'   \item{constant}{Constant name: \code{"a_cn_min_cn"},
 #'     \code{"a_cn_span"}, \code{"a_cn_span_other"}, \code{"a_cn_max"},
 #'     \code{"ef5_no3_to_n2o"}, \code{"ef4_nh3_to_n2o_atl"},
+#'     \code{"ef4_nh3_to_n2o_aggregated"}, \code{"ef4_nh3_to_n2o_legacy"},
 #'     \code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"}.}
 #'   \item{value}{Numeric value of the constant.}
 #'   \item{description}{Human-readable description of the constant.}
@@ -544,9 +545,14 @@
 #'   pipeline (\code{n_fun.r}). Indirect emission factors and ammonia
 #'   volatilisation fractions: IPCC (2019), 2019 Refinement to the 2006
 #'   IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
-#'   Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.016 for
-#'   Atlantic ammonia to N2O; NH3 volatilisation fractions 0.11 synthetic
-#'   and 0.21 organic, Table 11.3).
+#'   Chapter 11, Table 11.3 (printed p. 11.26): EF5 = 0.011 for nitrate
+#'   leaching to N2O; EF4 = 0.014 (wet climate, used for Atlantic rows) and
+#'   0.010 (aggregated) for volatilised ammonia to N2O; FracGASF = 0.11
+#'   (synthetic) and FracGASM = 0.21 (organic) volatilisation fractions.
+#'   \code{"ef4_nh3_to_n2o_legacy"} = 0.016 is the Atlantic value used
+#'   before whep#1234: it is Table 11.1's (p. 11.13) EF1 for synthetic
+#'   fertiliser in wet climates, a direct-N2O factor mis-cited as EF4, kept
+#'   only so [calculate_indirect_n2o_nh3()] can reproduce earlier results.
 #'
 #' @examples
 #' n_attenuation_constants

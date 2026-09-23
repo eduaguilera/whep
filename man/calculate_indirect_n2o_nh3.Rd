@@ -4,25 +4,50 @@
 \alias{calculate_indirect_n2o_nh3}
 \title{Estimate indirect N2O from volatilised ammonia.}
 \usage{
-calculate_indirect_n2o_nh3(x, example = FALSE)
+calculate_indirect_n2o_nh3(
+  x,
+  method = c("ipcc2019_wet", "ipcc2019_aggregated", "legacy_ef1_wet"),
+  example = FALSE
+)
 }
 \arguments{
 \item{x}{A tibble with \code{nh3_n_t}, \code{climate} and (for MED rows) the
 \code{irrig_type} column \link{n2o_efs_disaggregated} is keyed on.}
 
+\item{method}{Which EF4 to apply on Atlantic rows: \code{"ipcc2019_wet"}
+(default), \code{"ipcc2019_aggregated"} or \code{"legacy_ef1_wet"}. See
+Description.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
 }
 \value{
-\code{x} with \code{n2o_indirect_nh3_n_t} appended.
+\code{x} with \code{n2o_indirect_nh3_n_t} and \code{method_indirect_nh3}
+appended.
 }
 \description{
 Converts the ammonia-N already volatilised (\code{\link[=calculate_nh3]{calculate_nh3()}}'s
 \code{nh3_n_t}) into indirect nitrous oxide (\code{n_fun.r:955-957}). Atlantic rows
-use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.016) and touch no
-emission-factor lookup; Mediterranean rows use the disaggregated
-\link{n2o_efs_disaggregated} \code{ef} on \verb{(irrig_type, climate)} alone (\code{NH3_MgN * N2O_EF}), WITHOUT the \link{fertiliser_n2o_modifiers} \code{mf} that
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} applies to direct N2O.
+use a flat IPCC EF4 factor chosen by \code{method} and touch no emission-factor
+lookup; Mediterranean rows use the disaggregated \link{n2o_efs_disaggregated}
+\code{ef} on \verb{(irrig_type, climate)} alone (\code{NH3_MgN * N2O_EF}), WITHOUT the
+\link{fertiliser_n2o_modifiers} \code{mf} that \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s
+\code{method = "aguilera"} applies to direct N2O, whatever \code{method} is.
+
+The Atlantic EF4 values are IPCC (2019), 2019 Refinement, Vol. 4, Ch. 11,
+Table 11.3 (printed p. 11.26), in kg N2O-N per kg NH3-N + NOx-N
+volatilised (whep#1234):
+\itemize{
+\item \code{"ipcc2019_wet"} (default): the wet-climate EF4, 0.014
+(\code{ef4_nh3_to_n2o_atl}).
+\item \code{"ipcc2019_aggregated"}: the climate-independent EF4, 0.010
+(\code{ef4_nh3_to_n2o_aggregated}), the value the livestock and footprint
+paths use.
+\item \code{"legacy_ef1_wet"}: 0.016 (\code{ef4_nh3_to_n2o_legacy}), the value this
+function used before whep#1234. It is not an EF4 at all but Table 11.1's
+(p. 11.13) EF1 for synthetic fertiliser in wet climates, a direct-N2O
+factor; kept only to reproduce earlier results.
+}
 }
 \examples{
 calculate_indirect_n2o_nh3(example = TRUE)

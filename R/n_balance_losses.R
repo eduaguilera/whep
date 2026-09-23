@@ -203,21 +203,43 @@ calculate_n_leaching <- function(
 #' @description
 #' Converts the ammonia-N already volatilised ([calculate_nh3()]'s
 #' `nh3_n_t`) into indirect nitrous oxide (`n_fun.r:955-957`). Atlantic rows
-#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.016) and touch no
-#' emission-factor lookup; Mediterranean rows use the disaggregated
-#' [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)` alone (`NH3_MgN *
-#' N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf` that
-#' [calculate_soil_n2o()]'s `method = "aguilera"` applies to direct N2O.
+#' use a flat IPCC EF4 factor chosen by `method` and touch no emission-factor
+#' lookup; Mediterranean rows use the disaggregated [n2o_efs_disaggregated]
+#' `ef` on `(irrig_type, climate)` alone (`NH3_MgN * N2O_EF`), WITHOUT the
+#' [fertiliser_n2o_modifiers] `mf` that [calculate_soil_n2o()]'s
+#' `method = "aguilera"` applies to direct N2O, whatever `method` is.
+#'
+#' The Atlantic EF4 values are IPCC (2019), 2019 Refinement, Vol. 4, Ch. 11,
+#' Table 11.3 (printed p. 11.26), in kg N2O-N per kg NH3-N + NOx-N
+#' volatilised (whep#1234):
+#' * `"ipcc2019_wet"` (default): the wet-climate EF4, 0.014
+#'   (`ef4_nh3_to_n2o_atl`).
+#' * `"ipcc2019_aggregated"`: the climate-independent EF4, 0.010
+#'   (`ef4_nh3_to_n2o_aggregated`), the value the livestock and footprint
+#'   paths use.
+#' * `"legacy_ef1_wet"`: 0.016 (`ef4_nh3_to_n2o_legacy`), the value this
+#'   function used before whep#1234. It is not an EF4 at all but Table 11.1's
+#'   (p. 11.13) EF1 for synthetic fertiliser in wet climates, a direct-N2O
+#'   factor; kept only to reproduce earlier results.
 #'
 #' @param x A tibble with `nh3_n_t`, `climate` and (for MED rows) the
 #'   `irrig_type` column [n2o_efs_disaggregated] is keyed on.
+#' @param method Which EF4 to apply on Atlantic rows: `"ipcc2019_wet"`
+#'   (default), `"ipcc2019_aggregated"` or `"legacy_ef1_wet"`. See
+#'   Description.
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
-#' @return `x` with `n2o_indirect_nh3_n_t` appended.
+#' @return `x` with `n2o_indirect_nh3_n_t` and `method_indirect_nh3`
+#'   appended.
 #' @export
 #' @examples
 #' calculate_indirect_n2o_nh3(example = TRUE)
-calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
+calculate_indirect_n2o_nh3 <- function(
+  x,
+  method = c("ipcc2019_wet", "ipcc2019_aggregated", "legacy_ef1_wet"),
+  example = FALSE
+) {
+  method <- rlang::arg_match(method)
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
@@ -227,14 +249,15 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   if (length(med_rows) > 0L) {
     ef_med[med_rows] <- .indirect_nh3_ef_med(x[med_rows, , drop = FALSE])
   }
-  ef4_atl <- .n_constant("ef4_nh3_to_n2o_atl")
+  ef4_atl <- .n_constant(.indirect_nh3_ef4_constant(method))
   x |>
     dplyr::mutate(
       n2o_indirect_nh3_n_t = dplyr::if_else(
         .data$climate == "ATL",
         .data$nh3_n_t * ef4_atl,
         .data$nh3_n_t * .env$ef_med
-      )
+      ),
+      method_indirect_nh3 = method
     )
 }
 
@@ -751,7 +774,17 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 .example_indirect_n2o_nh3 <- function() {
   tibble::tribble(
-    ~nh3_n_t, ~climate, ~n2o_indirect_nh3_n_t,
-    1.1, "ATL", 0.0176
+    ~nh3_n_t, ~climate, ~n2o_indirect_nh3_n_t, ~method_indirect_nh3,
+    1.1, "ATL", 0.0154, "ipcc2019_wet"
   )
+}
+
+# n_attenuation_constants row holding each calculate_indirect_n2o_nh3()
+# method's Atlantic EF4 (IPCC 2019 Table 11.3, p. 11.26; whep#1234).
+.indirect_nh3_ef4_constant <- function(method) {
+  c(
+    ipcc2019_wet = "ef4_nh3_to_n2o_atl",
+    ipcc2019_aggregated = "ef4_nh3_to_n2o_aggregated",
+    legacy_ef1_wet = "ef4_nh3_to_n2o_legacy"
+  )[[method]]
 }
