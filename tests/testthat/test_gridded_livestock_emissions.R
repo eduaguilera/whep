@@ -163,7 +163,7 @@ testthat::test_that("options reach the manure kernel from the cells", {
   ))
   testthat::expect_true(all(
     refined$method_manure_ch4 ==
-      "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019"
+      "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019; pasture_bo_paired"
   ))
   # The table actually bites: manure CH4 moves, and only manure CH4.
   testthat::expect_false(isTRUE(all.equal(

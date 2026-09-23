@@ -401,11 +401,17 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # 0.00730 -> 0.006945), while sheep gain on the MCF (0.470 -> 1.600
   # percent, 32 percent of their manure moving from pasture to solid storage)
   # and lose less on the EF3 (0.0100 -> 0.0084).
+  #
+  # Since whep#1137 the pasture stream is priced at the Bo 0.19 the 2019
+  # Refinement pairs with its pasture MCF. Against `pasture_bo = "species"`
+  # that moves cattle 961 +0.018 percent (2221562951.73), cattle 960
+  # -0.089 percent (483894485.80) and leaves sheep 976, already at Bo 0.19,
+  # unchanged.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2221562951.7340550,
+    10L, 961L, 2221967275.0028458,
     10L, 976L, 1576986611.5624502,
-    100L, 960L, 483894485.79632449
+    100L, 960L, 483461873.99136716
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
@@ -425,7 +431,10 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   )
   testthat::expect_true(all(
     tier2$method_manure_ch4 ==
-      "IPCC_2019_Tier2; climate_assumed_temperate; mcf_ipcc_2019"
+      paste(
+        "IPCC_2019_Tier2; climate_assumed_temperate; mcf_ipcc_2019;",
+        "pasture_bo_paired"
+      )
   ))
   testthat::expect_true(all(
     tier2$method_mms == "gleam_2_0/regional_default"
@@ -507,11 +516,11 @@ testthat::test_that("assumed_climate_zone reaches the manure kernel", {
   )))
   testthat::expect_true(all(
     warm$method_manure_ch4 ==
-      "IPCC_2019_Tier2; climate_assumed_warm; mcf_ipcc_2019"
+      "IPCC_2019_Tier2; climate_assumed_warm; mcf_ipcc_2019; pasture_bo_paired"
   ))
   testthat::expect_true(all(
     cool$method_manure_ch4 ==
-      "IPCC_2019_Tier2; climate_assumed_cool; mcf_ipcc_2019"
+      "IPCC_2019_Tier2; climate_assumed_cool; mcf_ipcc_2019; pasture_bo_paired"
   ))
   # Temperate is the default, so asking for it explicitly changes nothing.
   default <- suppressWarnings(
