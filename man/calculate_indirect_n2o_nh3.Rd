@@ -19,7 +19,7 @@ from \code{x}. Defaults to \code{FALSE}.}
 \description{
 Converts the ammonia-N already volatilised (\code{\link[=calculate_nh3]{calculate_nh3()}}'s
 \code{nh3_n_t}) into indirect nitrous oxide (\code{n_fun.r:955-957}). Atlantic rows
-use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.016) and touch no
+use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.014) and touch no
 emission-factor lookup; Mediterranean rows use the disaggregated
 \link{n2o_efs_disaggregated} \code{ef} on \verb{(irrig_type, climate)} alone (\code{NH3_MgN * N2O_EF}), WITHOUT the \link{fertiliser_n2o_modifiers} \code{mf} that
 \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} applies to direct N2O.

@@ -203,7 +203,7 @@ calculate_n_leaching <- function(
 #' @description
 #' Converts the ammonia-N already volatilised ([calculate_nh3()]'s
 #' `nh3_n_t`) into indirect nitrous oxide (`n_fun.r:955-957`). Atlantic rows
-#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.016) and touch no
+#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.014) and touch no
 #' emission-factor lookup; Mediterranean rows use the disaggregated
 #' [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)` alone (`NH3_MgN *
 #' N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf` that
@@ -752,6 +752,6 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 .example_indirect_n2o_nh3 <- function() {
   tibble::tribble(
     ~nh3_n_t, ~climate, ~n2o_indirect_nh3_n_t,
-    1.1, "ATL", 0.0176
+    1.1, "ATL", 0.0154
   )
 }

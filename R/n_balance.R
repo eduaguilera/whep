@@ -971,7 +971,7 @@ build_nitrogen_balance <- function(
     12,
     3,
     0.132,
-    0.56,
+    0.49,
     0,
     0,
     0,
@@ -980,7 +980,7 @@ build_nitrogen_balance <- function(
     42 / 100,
     60 / 100,
     100 / 99,
-    (1.5 + 0.56 + 0.132) * (44 / 28) * 273 * 1000,
+    (1.5 + 0.49 + 0.132) * (44 / 28) * 273 * 1000,
     "manner",
     "ipcc2019",
     "meisinger_drainage"
