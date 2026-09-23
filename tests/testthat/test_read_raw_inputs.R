@@ -415,6 +415,49 @@ test_that(".extract_cb row order does not depend on the read order", {
   expect_identical(forward, reversed)
 })
 
+# -- .extract_cb keys items on the code ----------------------------------------
+
+# The new Food Balances spell three items with a lower-case "other" --
+# "Cereals, other" (2520), "Vegetables, other" (2605), "Fruits, other" (2625)
+# -- where `items_full` and the old Food Balances write "Other". Keyed on the
+# name as well as the code, every row of those three items fell out of the
+# extract, so from 2010 on the CBS had their production but none of their food,
+# feed, seed or processing (whep#961). Aggregates such as 2905 are not CBS
+# items and must still be dropped.
+test_that(".extract_cb keeps an item whose label differs only in case", {
+  fixture <- tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                      ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2520,         "Cereals, other",           "Production", "tonnes", 2015L, 100,
+    203L,         "Testland", 2520,         "Cereals, other",           "Feed",       "tonnes", 2015L, 60,
+    203L,         "Testland", 2605,         "Vegetables, other",        "Food",       "tonnes", 2015L, 30,
+    203L,         "Testland", 2625,         "Fruits, other",            "Food",       "tonnes", 2015L, 20,
+    203L,         "Testland", 2511,         "Wheat and products",       "Food",       "tonnes", 2015L, 40,
+    203L,         "Testland", 2905,         "Cereals - Excluding Beer", "Food",       "tonnes", 2015L, 999
+  ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_cb("faostat-fbs-new") |>
+    tibble::as_tibble()
+
+  expect_setequal(out$item_cbs_code, c(2511, 2520, 2605, 2625))
+  labels <- dplyr::distinct(out, item_cbs_code, item_cbs)
+  expected <- whep::items_full$item_cbs[
+    match(labels$item_cbs_code, whep::items_full$item_cbs_code)
+  ]
+  expect_identical(labels$item_cbs, expected)
+  expect_true("Cereals, Other" %in% labels$item_cbs)
+  out |>
+    dplyr::filter(item_cbs_code == 2520, element == "feed") |>
+    dplyr::pull(value) |>
+    expect_equal(60)
+})
+
 # -- .extract_fao row order ----------------------------------------------------
 
 # The same defect one stage earlier, and the stage the CBS build consumes
