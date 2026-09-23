@@ -122,14 +122,12 @@ test_that(".cached_cbs_built keeps the two trade_recovery builds apart", {
   seen <- character()
   local_mocked_bindings(
     .cached_primary_prod = function(years) tibble::tibble(year = 2010),
-    .build_cbs_years = function(
-      primary_prod,
-      years,
-      context_years = years,
+    build_commodity_balances = function(
+      primary_all,
       trade_recovery = "none"
     ) {
       seen <<- c(seen, trade_recovery)
-      tibble::tibble(trade_recovery = trade_recovery)
+      tibble::tibble(year = 2010L, trade_recovery = trade_recovery)
     },
     .package = "whep"
   )
@@ -143,4 +141,91 @@ test_that(".cached_cbs_built keeps the two trade_recovery builds apart", {
   expect_equal(first$trade_recovery, "none")
   expect_equal(second$trade_recovery, "net_import")
   expect_equal(again$trade_recovery, "none")
+})
+
+# whep#833. Two fills inside `.fix_cbs()` carry one observation across the
+# whole year axis and decide whether a processing output exists at all, so a
+# CBS built over a window loses what the full-range build carries in from
+# outside it (and invents what the full-range build does not). The stand-in
+# below is that mechanism and nothing else: the only anchor sits at 1961, and
+# `fill_linear()` carries it to every year the frame covers.
+.fake_anchored_cbs <- function(start_year = 1850, end_year = 2023) {
+  tibble::tibble(
+    year = start_year:end_year,
+    area_code = 106L,
+    item_cbs_code = 2581L,
+    value = dplyr::if_else(year == 1961L, 4339.65, NA_real_)
+  ) |>
+    whep::fill_linear(value, time_col = year) |>
+    dplyr::filter(!is.na(value))
+}
+
+local_fake_cbs_chain <- function(envir = parent.frame()) {
+  seen <- new.env(parent = emptyenv())
+  seen$windows <- list()
+  testthat::local_mocked_bindings(
+    .cached_primary_prod = function(years) tibble::tibble(year = 2010L),
+    build_commodity_balances = function(
+      primary_all,
+      start_year = 1850,
+      end_year = 2023,
+      trade_recovery = "none"
+    ) {
+      seen$windows <- c(seen$windows, list(c(start_year, end_year)))
+      .fake_anchored_cbs(start_year, end_year)
+    },
+    .package = "whep",
+    .env = envir
+  )
+  seen
+}
+
+test_that("the stand-in CBS really is window-dependent (whep#833)", {
+  # Guards the fixture: if the stand-in stopped depending on its window, the
+  # test below would pass on the old wiring too and prove nothing.
+  full <- .fake_anchored_cbs() |> dplyr::filter(year == 2010L)
+  scoped <- .fake_anchored_cbs(2005, 2015) |> dplyr::filter(year == 2010L)
+
+  expect_equal(nrow(full), 1L)
+  expect_equal(nrow(scoped), 0L)
+})
+
+test_that("a scoped CBS is the full-range CBS filtered (whep#833)", {
+  local_isolated_build_cache()
+  seen <- local_fake_cbs_chain()
+
+  full <- suppressMessages(whep:::.cached_cbs_built(NULL))
+  scoped <- suppressMessages(whep:::.cached_cbs_built(2010L))
+  wider <- suppressMessages(whep:::.cached_cbs_built(2005:2015))
+
+  # The identity the year window promises, exactly: the scoped build keeps
+  # the key the full-range build carries in from its 1961 anchor.
+  expect_equal(scoped, dplyr::filter(full, year == 2010L))
+  expect_equal(wider, dplyr::filter(full, year %in% 2005:2015))
+  expect_s3_class(scoped, "tbl_df")
+  expect_equal(dplyr::pull(scoped, value), 4339.65)
+  # Each window is cut from the one full-range build, never a build of its
+  # own, so a narrow window can never see a narrower axis than the full one.
+  expect_equal(seen$windows, list(c(1850, 2023)))
+})
+
+test_that("a scoped CBS reads the full-range primary production", {
+  local_isolated_build_cache()
+  asked <- list()
+  testthat::local_mocked_bindings(
+    .cached_primary_prod = function(years) {
+      asked <<- c(asked, list(years))
+      tibble::tibble(year = 2010L)
+    },
+    build_commodity_balances = function(primary_all, ...) {
+      .fake_anchored_cbs()
+    },
+    .package = "whep"
+  )
+
+  suppressMessages(whep:::.cached_cbs_built(2010L))
+
+  # The CBS reads production across every year it fills over, so a scoped
+  # request must hand it the full-range production, not the window's.
+  expect_equal(asked, list(NULL))
 })

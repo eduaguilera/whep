@@ -831,8 +831,8 @@
   # a full-range build keeps. Measured at 2010, the 14 keys the scoped build
   # lost sit 7 to 49 years from their nearest anchor -- Italy's Ricebran Oil is
   # calibrated at 2010 off a single 1961 observation carried forward 49 years.
-  # A wider `.context_years()` margin therefore cannot fix it; see the margin
-  # comment in R/build_cache.R.
+  # No finite margin reaches that, so a scoped CBS is cut from the full-range
+  # build instead; see the whep#833 comment in R/build_cache.R.
   dt <- fill_linear(
     dt,
     scaling_raw,

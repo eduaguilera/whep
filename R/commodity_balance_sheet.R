@@ -72,7 +72,7 @@ get_wide_cbs <- function(
   }
   build_years <- .build_years(years)
   cbs_built <- .cached_cbs_built(build_years, trade_recovery)
-  primary_prod <- .cached_primary_prod(.context_years(build_years))
+  primary_prod <- .cached_cbs_primary_prod()
 
   .cache_get(
     .cache_key("cbs_wide", build_years, .cbs_cache_method(trade_recovery)),
