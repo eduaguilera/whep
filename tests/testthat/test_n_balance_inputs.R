@@ -1075,6 +1075,96 @@ testthat::test_that("reallocate_drop places what it can and drops the rest", {
   testthat::expect_true(all(out$method_unsupported == "reallocate_drop"))
 })
 
+# whep#1191: `unattributed_method` and `method_unsupported` share one support.
+# These pin the coupled semantics so a future split is a visible choice.
+testthat::test_that("the agricultural policy widens the stranded rescue", {
+  run <- function(policy) {
+    suppressMessages(whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = policy
+      ),
+      method_unsupported = "reallocate"
+    ))
+  }
+  narrow <- run("cropland_area")
+  wide <- run("agricultural_area")
+  grass <- function(x) sum(x$n_input_t[x$item_cbs_code == 3000L])
+
+  testthat::expect_equal(sum(narrow$n_input_t), 14)
+  testthat::expect_equal(sum(wide$n_input_t), 14)
+  testthat::expect_equal(grass(narrow), 0)
+  # Both the locally placed 10 t and the rescued 4 t see 500 of 1500 ha grass.
+  testthat::expect_equal(grass(wide), 14 * 500 / 1500, tolerance = 1e-8)
+})
+
+testthat::test_that("a grassland-only cell is stranded only under cropland", {
+  support <- dplyr::bind_rows(
+    .nbi_ag_land_support(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.25,
+      area_code = 10L,
+      item_cbs_code = 3000L,
+      year = 2010L,
+      land_use = "grassland",
+      area_ha = 200
+    )
+  )
+
+  testthat::expect_error(
+    suppressMessages(whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = support)
+    )),
+    class = "whep_n_unallocated_non_item"
+  )
+  wide <- suppressMessages(whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(ag_land_support = support, unattributed_method = "agricultural_area")
+  ))
+  # Not stranded, so the default "abort" never fires: the 4 t stay local.
+  testthat::expect_equal(sum(wide$n_input_t), 14)
+  testthat::expect_equal(sum(wide$n_input_t[wide$lon == 0.75]), 4)
+})
+
+testthat::test_that("the rescue message names the land it spread over", {
+  messages <- character()
+  withCallingHandlers(
+    whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "agricultural_area"
+      ),
+      method_unsupported = "reallocate"
+    ),
+    message = function(m) {
+      messages <<- c(messages, cli::ansi_strip(conditionMessage(m)))
+      invokeRestart("muffleMessage")
+    }
+  )
+  rescue <- stringr::str_subset(messages, "Reallocated")
+
+  testthat::expect_length(rescue, 1L)
+  testthat::expect_match(rescue, "cropland and grassland cells", fixed = TRUE)
+})
+
+testthat::test_that("excluding leaves nothing for the stranded rule to see", {
+  out <- suppressWarnings(whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(
+      ag_land_support = .nbi_ag_land_support(),
+      unattributed_method = "exclude"
+    ),
+    method_unsupported = "abort"
+  ))
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_true(all(out$method_unsupported == "abort"))
+})
+
 testthat::test_that("build_n_inputs refuses an unknown unsupported rule", {
   testthat::expect_error(
     whep::build_n_inputs(

@@ -28,17 +28,22 @@ keeps every year the assembled inputs cover.}
 
 \item{method_unsupported}{What happens to non-item nitrogen (deposition,
 urban, soil-organic-matter mineralization, unattributed manure) whose own
-cell-year carries no cropland support at all. \code{"abort"} (the default, and
+cell-year carries no allocation support at all. The support is the one
+\code{unattributed_method} selects: cropland under the default
+\code{"cropland_area"}, cropland plus grassland under \code{"agricultural_area"},
+so the second argument decides both which rows are stranded and where
+they are rescued to (whep#1191). \code{"abort"} (the default, and
 the behaviour before this argument existed) refuses to continue and names
 the streams and the mass, so a coverage gap cannot be lost silently.
-\code{"reallocate"} spreads each such row over its own polity-year's cropland
-support in proportion to area, which conserves mass and is the same rule
+\code{"reallocate"} spreads each such row over its own polity-year's support
+in proportion to area, which conserves mass and is the same rule
 \code{spatialize_country_n_to_crops()} already applies to a polity-crop with
-no crop-pattern cell; it still aborts when the polity-year has no cropland
-support anywhere. \code{"reallocate_drop"} places the same rows the same way
+no crop-pattern cell; it still aborts when the polity-year has no support
+anywhere. \code{"reallocate_drop"} places the same rows the same way
 and then discards that irreducible remainder, warning with its mass, so a
 global build is not refused over a few polities with population and no
-cropland. \code{"drop"} reallocates nothing and discards every such row.
+agricultural land. \code{"drop"} reallocates nothing and discards every such
+row.
 Whichever is chosen is stamped on every output row as
 \code{method_unsupported}. May also be supplied as \code{data$method_unsupported},
 which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} forwards it.}
@@ -55,7 +60,16 @@ the pre-whep#532 behaviour, retained as a measurable sensitivity and not
 as a fallback -- it warns with the excluded tonnage by stream. The
 allocating methods conserve mass or abort; \code{"exclude"} does not conserve
 it. When \code{NULL} (default), uses
-\code{data$unattributed_method \%||\% "cropland_area"}.}
+\code{data$unattributed_method \%||\% "cropland_area"}.
+
+This choice also governs \code{method_unsupported} (whep#1191): both run on
+one allocation support. Under \code{"agricultural_area"} a cell holding only
+grassland is no longer a stranded cell -- its nitrogen lands on its own
+grassland and \code{method_unsupported} never sees it -- and a
+\code{"reallocate"}/\code{"reallocate_drop"} rescue spreads over the polity-year's
+cropland \emph{and} grassland rather than its cropland alone. Under
+\code{"exclude"} nothing reaches the stranded step, so \code{method_unsupported}
+is inert apart from its stamp.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -193,7 +207,8 @@ which of the polycell's territory the \code{"deposition"} term was credited
 with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
 \code{fert_type}.
 \code{method_unsupported} records the rule applied to non-item nitrogen with no
-cropland support in its own cell, and is the same on every row.
+allocation support in its own cell, and is the same on every row; read
+it together with \code{method_unattributed}, which fixed that support.
 \code{method_unattributed} records the \code{unattributed_method} the whole assembly
 ran under and is stamped on \strong{every} row, not only on the reallocated
 ones: under \code{"exclude"} no reallocated row survives to carry it, and a
