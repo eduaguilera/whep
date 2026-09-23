@@ -3855,6 +3855,24 @@ test_that(".primary_to_cbs drops a flag its parts disagree about", {
   expect_true(is.na(wheat$fao_flag))
 })
 
+test_that(".primary_to_cbs does not credit an unflagged part's share", {
+  # whep#1044: an `NA` flag on a production row means FAOSTAT published no
+  # flag for that number -- it is WHEP's own estimate. A CBS sum over an "A"
+  # item and an unflagged one is not an official measurement, but the fold
+  # used to skip the `NA` and report "A": Argentina 2010 "Oilcrops, Other"
+  # read "A" for 79,459 t of which 32,170 t carried no flag.
+  result <- .make_flagged_primary_all(c("A", NA, "E", "I")) |>
+    whep:::.primary_to_cbs() |>
+    tibble::as_tibble()
+
+  wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
+  expect_equal(wheat$value, 5e6)
+  expect_true(is.na(wheat$fao_flag))
+  # A single-item row is unaffected by the stricter rule.
+  barley <- result |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(barley$fao_flag, "E")
+})
+
 test_that(".primary_to_cbs emits fao_flag when production carries none", {
   result <- .make_flagged_primary_all(NA_character_) |>
     dplyr::select(-fao_flag) |>

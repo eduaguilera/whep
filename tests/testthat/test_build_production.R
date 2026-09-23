@@ -1841,6 +1841,22 @@ test_that(".combine_primary_raw folds the FAOSTAT flag over its sum", {
   expect_true(is.na(dropped$fao_flag))
 })
 
+test_that(".combine_primary_raw does not credit an unflagged part's share", {
+  # The case this function's own comment names: a FAOSTAT tonnage bound to a
+  # reconstructed one (no FAOSTAT flag) is not "official" because one half
+  # of it was. The fold used to skip the `NA` and keep "A" (whep#1044).
+  mixed <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "t",   3e6,    "FAOSTAT_prod", "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "t",   2e6,    "EuropeAgriDB", NA
+  )
+
+  result <- whep:::.combine_primary_raw(mixed, .empty_fao_liv_all())
+
+  expect_equal(result$value, 5e6)
+  expect_true(is.na(result$fao_flag))
+})
+
 test_that(".combine_primary_raw emits fao_flag with no flag anywhere", {
   # One stable shape, so the steps downstream can assume the column and the
   # final select can demand it with `all_of()`.
