@@ -53,7 +53,8 @@ fuel, and left on the field for soil incorporation.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_residue_destinies</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"recovery_regional"</span>, <span class="st">"shares"</span><span class="op">)</span>,</span>
-<span>  bedding_fraction <span class="op">=</span> <span class="fl">0</span></span>
+<span>  bedding_fraction <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  unmatched_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"report"</span>, <span class="st">"abort"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -83,12 +84,24 @@ as livestock bedding, one number in <code>[0, 1]</code>. Default <code>0</code>,
 rather than measured; see the Bedding section for why, and what a caller
 setting it must convert from.</p></dd>
 
+
+<dt id="arg-unmatched-recovery">unmatched_recovery<a class="anchor" aria-label="anchor" href="#arg-unmatched-recovery"></a></dt>
+<dd><p>What the <code>recovery_regional</code> method does with a
+row that reaches no recovery rate at all, because its crop carries no
+Krausmann category or its region label reaches no recovery region:
+<code>"report"</code> (default) keeps the historical all-to-soil treatment and warns
+with the row count and tonnage, <code>"abort"</code> refuses to continue. Ignored by
+the <code>"shares"</code> method.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input tibble with <code>residue_feed_dm_t</code>, <code>residue_bedding_dm_t</code>,
 <code>residue_burn_dm_t</code>, <code>residue_soil_dm_t</code>, <code>residue_bedding_fraction</code> and
-<code>method_residue_destiny</code>.</p>
+<code>method_residue_destiny</code>. The <code>"recovery_regional"</code> method also returns
+<code>residue_recovery_matched</code>, <code>FALSE</code> where no recovery rate was found,
+which is what separates a rate the table gives as zero from a zero
+standing in for a failed lookup.</p>
     </div>
     <div class="section level2">
     <h2 id="bedding">Bedding<a class="anchor" aria-label="anchor" href="#bedding"></a></h2>
@@ -192,11 +205,12 @@ truth (whep#1132, whep#1041).</p>
 <span class="r-in"><span>    region_krausmann <span class="op">=</span> <span class="st">"Western Europe"</span>, region_un_sub <span class="op">=</span> <span class="st">"Western Europe"</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_un_sub  residue_feed_dm_t</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100 West Europe      Western Europe              10.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: residue_burn_dm_t &lt;dbl&gt;, residue_soil_dm_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 11</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_un_sub </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100 West Europe      Western Europe</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: residue_recovery_matched &lt;lgl&gt;, residue_feed_dm_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   residue_burn_dm_t &lt;dbl&gt;, residue_soil_dm_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   residue_bedding_dm_t &lt;dbl&gt;, residue_bedding_fraction &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_residue_destiny &lt;chr&gt;</span></span>
 </code></pre></div>

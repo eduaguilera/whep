@@ -91,7 +91,7 @@ framing is stamped on every row.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_n_percapita</span><span class="op">(</span></span>
 <span>  <span class="va">n_inputs</span>,</span>
-<span>  <span class="va">population</span>,</span>
+<span>  population <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  framing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"synthetic_bnf"</span><span class="op">)</span>,</span>
 <span>  params <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -110,7 +110,10 @@ framing is stamped on every row.</p>
 
 <dt id="arg-population">population<a class="anchor" aria-label="anchor" href="#arg-population"></a></dt>
 <dd><p>A tibble keyed by <code>year</code>, <code>area_code</code> with <code>population</code>
-(absolute persons).</p></dd>
+(absolute persons). Defaults to <code>NULL</code>, which reads
+<code><a href="read_population.html">read_population()</a></code> at its own default composition over the years of
+<code>n_inputs</code>; supply a table to use any other source (for instance
+<code>read_population(population_source = "pin_wpp_fbs_fallback")</code>).</p></dd>
 
 
 <dt id="arg-framing">framing<a class="anchor" aria-label="anchor" href="#arg-framing"></a></dt>
@@ -133,8 +136,10 @@ here for <code>syn_tot_agri_ratio</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>year</code>, <code>area_code</code> with <code>n_percapita_kg</code>, the
 country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
-and <code>framing</code>, the anthropogenic definition it was computed under, plus the
-polity columns below.</p>
+<code>framing</code>, the anthropogenic definition it was computed under, and
+<code>method_population</code>, <code>"read_population"</code> when the denominator was read by
+default or <code>"supplied"</code> when the caller passed it, plus the polity columns
+below.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
@@ -178,13 +183,13 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_percapita</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 9</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000        10               10 AUS-1901-2025         Australia            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000        20               20 BWA-1966-2025         Botswana             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_percapita_kg &lt;dbl&gt;, framing &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_percapita_kg &lt;dbl&gt;, framing &lt;chr&gt;, method_population &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

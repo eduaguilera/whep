@@ -25,7 +25,7 @@ framing is stamped on every row.
 ``` r
 build_n_percapita(
   n_inputs,
-  population,
+  population = NULL,
   framing = c("synthetic_bnf"),
   params = NULL,
   example = FALSE
@@ -45,7 +45,11 @@ build_n_percapita(
 - population:
 
   A tibble keyed by `year`, `area_code` with `population` (absolute
-  persons).
+  persons). Defaults to `NULL`, which reads
+  [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
+  at its own default composition over the years of `n_inputs`; supply a
+  table to use any other source (for instance
+  `read_population(population_source = "pin_wpp_fbs_fallback")`).
 
 - framing:
 
@@ -68,9 +72,11 @@ build_n_percapita(
 ## Value
 
 A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the country
-total anthropogenic reactive nitrogen per capita (kg N/cap/yr), and
-`framing`, the anthropogenic definition it was computed under, plus the
-polity columns below.
+total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
+`framing`, the anthropogenic definition it was computed under, and
+`method_population`, `"read_population"` when the denominator was read
+by default or `"supplied"` when the caller passed it, plus the polity
+columns below.
 
 ## Polity columns
 
@@ -127,11 +133,11 @@ extra column.
 
 ``` r
 build_n_percapita(example = TRUE)
-#> # A tibble: 2 × 8
+#> # A tibble: 2 × 9
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2000        10               10 AUS-1901-2025         Australia            
 #> 2  2000        20               20 BWA-1966-2025         Botswana             
-#> # ℹ 3 more variables: reporting_polity_has_geometry <lgl>,
-#> #   n_percapita_kg <dbl>, framing <chr>
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>,
+#> #   n_percapita_kg <dbl>, framing <chr>, method_population <chr>
 ```

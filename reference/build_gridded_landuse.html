@@ -179,9 +179,13 @@ If <code>NULL</code> (default), the capacity constraint still runs with
 physical cropland).</p></li>
 <li><p><code>max_iterations</code>: Maximum iterations for the redistribution
 loop. Default: <code>1000L</code>.</p></li>
-<li><p><code>expansion_threshold</code>: Iteration number after which crops are
-allowed to expand into cells without an existing pattern.
-Default: <code>100L</code>.</p></li>
+<li><p><code>expansion_threshold</code>: Defunct. It was documented as the iteration
+after which crops may expand into cells without an existing pattern,
+but that expansion was never implemented and the value never reached
+the redistribution (whep#1001). It is now dropped with a warning of
+class <code>whep_defunct_config_key</code>. A crop is only ever placed in cells
+its <code>crop_patterns</code> (or uniform fallback) gives it; when those cells
+are too small the per-cell ceiling gives way and a warning reports it.</p></li>
 <li><p><code>area_key</code>: Which area code the output is keyed on, <code>"grid"</code>
 (default) or <code>"polity_area"</code>. See <em>Which area code the output is
 keyed on</em>.</p></li>

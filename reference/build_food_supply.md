@@ -32,8 +32,26 @@ energy, and so is only a secondary cross-check for SJOS-N; Atwater
 factors could refine it (O-B). Food items with no protein coefficient
 after the coalesce chain are excluded with a warning naming the count
 and a few examples (the residual gap-fill, O-B), never silently dropped.
-The `"faostat_fbs"` method returns the injected FAOSTAT Food Balance
-Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+
+The `"faostat_fbs"` method is FAOSTAT's own per-capita supply, the
+independent benchmark for the default. With `data$fbs_supply` injected
+it is returned unchanged. Otherwise it is read from the
+`faostat-fbs-old` (1961-2013) and `faostat-fbs-new` (2010-2023) pins:
+protein and dietary energy per capita per day from item 2901 "Grand
+Total" (elements 674 and 664), which FAOSTAT reports directly, and
+population from item 2501 (element 511, thousands, converted to
+persons). FAOSTAT's energy element is dietary energy as FAOSTAT derives
+it from food composition, not the gross (combustion) energy of
+`"whep_native"`, so the two methods' energy columns are not like for
+like. FAOSTAT areas are resolved onto `area_code` exactly as
+[`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md)
+resolves them: year by year, dropping any area that resolves to no
+polity (the regional aggregates and area 351 "China", the aggregate over
+areas 41, 96, 128 and 214, \#939); where more than one FAOSTAT area
+lands in a bucket-year the per-capita values are population-weighted.
+`faostat-fbs-new` wins an overlapping `(year, area_code)`. The old pin
+follows FAOSTAT's pre-2014 FBS methodology and the new one the revised
+methodology, so a series crossing 2010 changes vintage there.
 
 An area with food but no `population` row has no denominator, so it is
 absent from the output rather than wrong in it. Those areas are **named
@@ -70,8 +88,8 @@ build_food_supply(
   Supply source: `"whep_native"` (default, commodity-balance food tonnes
   times
   [`whep::biomass_coefs`](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
-  divided by population) or `"faostat_fbs"` (the injected FAOSTAT FBS
-  per-capita supply).
+  divided by population) or `"faostat_fbs"` (FAOSTAT FBS per-capita
+  supply, injected or read from the FBS pins).
 
 - data:
 
@@ -83,7 +101,12 @@ build_food_supply(
   /
   [`whep::items_full`](https://eduaguilera.github.io/whep/reference/items_full.md).
   For `"faostat_fbs"`: `fbs_supply` (`year`, `area_code`,
-  `protein_g_cap_day`, `energy_kcal_cap_day`, `population`) is required.
+  `protein_g_cap_day`, `energy_kcal_cap_day`, `population`) is returned
+  as given if supplied; otherwise `fbs_old` and/or `fbs_new`, the raw
+  pins in their own long FAOSTAT layout (`Area Code`, `Item Code`,
+  `Element Code`, `Year`, `Value`), replace the
+  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md)
+  read of whichever is absent.
 
 - protein_basis:
 

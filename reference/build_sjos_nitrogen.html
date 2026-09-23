@@ -115,12 +115,15 @@ single coherent fixture set drives the whole chain without any real data.</p>
 <dd><p>Named list of injected module inputs. When <code>example = FALSE</code> it
 must carry a <code>balance</code> (<code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> output), a <code>critical</code>
 (<code><a href="read_critical_n.html">read_critical_n()</a></code> critical surplus), a <code>critical_loads</code> list (the three
-medium critical loads for the pathway boundary), <code>cbs_food</code>, <code>population</code>,
-<code>n_inputs</code>, and optionally <code>biomass_coefs</code> / <code>items_full</code> for the food
-supply, <code>manure_mgmt_nh3_n_t</code> for the pathway boundary when
-<code>nh3_source = "total_agricultural"</code>, and either an <code>io</code> model or <code>fp_flows</code>
-for the footprint. A real call without either source aborts rather than
-fabricating a domestic-only footprint.
+medium critical loads for the pathway boundary), <code>cbs_food</code> and
+<code>n_inputs</code>, and optionally <code>population</code> (read with <code><a href="read_population.html">read_population()</a></code>
+at its own default composition over the years of <code>cbs_food</code> and
+<code>n_inputs</code> when absent; inject a table to use any other source),
+<code>biomass_coefs</code> / <code>items_full</code> for the food supply,
+<code>manure_mgmt_nh3_n_t</code> for the pathway boundary when
+<code>nh3_source = "total_agricultural"</code>, and either an <code>io</code> model or
+<code>fp_flows</code> for the footprint. A real call without either source aborts
+rather than fabricating a domestic-only footprint.
 Defaults to <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code>.</p></dd>
 
 
@@ -182,9 +185,10 @@ surplus), <code>boundary_surplus</code> (a list with the <code>grid</code> and <
 surplus-mode exceedance), <code>boundary_pathway</code> (the pathway-mode exceedance
 with <code>binding_boundary</code>), <code>nourishment</code> (per-capita food supply with the
 normalized adequacy score and class), <code>scatter</code> (the per-capita boundary
-versus nourishment points), <code>sjos_class</code> (the 2-way classification) and
-<code>footprint</code> (a list with the <code>fp_all</code> and <code>fp_food</code> embodied-nitrogen
-footprints).</p>
+versus nourishment points; it and <code>nourishment</code> carry
+<code>method_population</code>, <code>"read_population"</code> or <code>"supplied"</code>), <code>sjos_class</code>
+(the 2-way classification) and <code>footprint</code> (a list with the <code>fp_all</code> and
+<code>fp_food</code> embodied-nitrogen footprints).</p>
     </div>
 
     <div class="section level2">
@@ -267,22 +271,22 @@ footprints).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_water_kgn_ha &lt;dbl&gt;, actual_water_kgn_ha &lt;dbl&gt;, …</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $nourishment</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 14</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   protein_g_cap_day &lt;dbl&gt;, energy_kcal_cap_day &lt;dbl&gt;, population &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_food_supply &lt;chr&gt;, method_protein_basis &lt;chr&gt;, value_norm &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, method_population &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $scatter</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code nourish_norm boundary_norm population</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1         1.13          1.71 <span style="text-decoration: underline;">4</span>000<span style="text-decoration: underline;">000</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2         1.38          1.83 <span style="text-decoration: underline;">3</span>000<span style="text-decoration: underline;">000</span>000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 6</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code nourish_norm boundary_norm population method_population</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1         1.13          1.71 <span style="text-decoration: underline;">4</span>000<span style="text-decoration: underline;">000</span>000 supplied         </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2         1.38          1.83 <span style="text-decoration: underline;">3</span>000<span style="text-decoration: underline;">000</span>000 supplied         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $sjos_class</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 9</span></span>

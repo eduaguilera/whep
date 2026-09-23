@@ -56,8 +56,11 @@ run_spatialize(
   - `aggregate_to_cft` (logical, default `TRUE`): write a CFT-aggregated
     parquet alongside the crop-level output.
 
-  - `max_iterations`, `expansion_threshold`: forwarded to the landuse
-    engine.
+  - `max_iterations`: forwarded to the landuse engine.
+
+  - `expansion_threshold`: defunct, dropped with a warning; it never
+    changed the allocation (whep#1001). See
+    [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md).
 
   - `pattern_signal_floor`: forwarded to the landuse engine as
     `config$pattern_signal_floor`; the `harvest_fraction` below which a

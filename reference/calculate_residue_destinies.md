@@ -10,7 +10,8 @@ for fuel, and left on the field for soil incorporation.
 calculate_residue_destinies(
   x,
   method = c("recovery_regional", "shares"),
-  bedding_fraction = 0
+  bedding_fraction = 0,
+  unmatched_recovery = c("report", "abort")
 )
 ```
 
@@ -39,11 +40,23 @@ calculate_residue_destinies(
   than measured; see the Bedding section for why, and what a caller
   setting it must convert from.
 
+- unmatched_recovery:
+
+  What the `recovery_regional` method does with a row that reaches no
+  recovery rate at all, because its crop carries no Krausmann category
+  or its region label reaches no recovery region: `"report"` (default)
+  keeps the historical all-to-soil treatment and warns with the row
+  count and tonnage, `"abort"` refuses to continue. Ignored by the
+  `"shares"` method.
+
 ## Value
 
 The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
-`method_residue_destiny`.
+`method_residue_destiny`. The `"recovery_regional"` method also returns
+`residue_recovery_matched`, `FALSE` where no recovery rate was found,
+which is what separates a rate the table gives as zero from a zero
+standing in for a failed lookup.
 
 ## Bedding
 
@@ -158,11 +171,12 @@ calculate_residue_destinies(
     region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
-#> # A tibble: 1 × 10
-#>   item_prod_code residue_dm_t region_krausmann region_un_sub  residue_feed_dm_t
-#>   <chr>                 <dbl> <chr>            <chr>                      <dbl>
-#> 1 15                      100 West Europe      Western Europe              10.5
-#> # ℹ 5 more variables: residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
+#> # A tibble: 1 × 11
+#>   item_prod_code residue_dm_t region_krausmann region_un_sub 
+#>   <chr>                 <dbl> <chr>            <chr>         
+#> 1 15                      100 West Europe      Western Europe
+#> # ℹ 7 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
+#> #   residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
 #> #   residue_bedding_dm_t <dbl>, residue_bedding_fraction <dbl>,
 #> #   method_residue_destiny <chr>
 ```

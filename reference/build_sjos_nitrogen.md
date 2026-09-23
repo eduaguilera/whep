@@ -58,8 +58,12 @@ build_sjos_nitrogen(
   output), a `critical`
   ([`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
   critical surplus), a `critical_loads` list (the three medium critical
-  loads for the pathway boundary), `cbs_food`, `population`, `n_inputs`,
-  and optionally `biomass_coefs` / `items_full` for the food supply,
+  loads for the pathway boundary), `cbs_food` and `n_inputs`, and
+  optionally `population` (read with
+  [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
+  at its own default composition over the years of `cbs_food` and
+  `n_inputs` when absent; inject a table to use any other source),
+  `biomass_coefs` / `items_full` for the food supply,
   `manure_mgmt_nh3_n_t` for the pathway boundary when
   `nh3_source = "total_agricultural"`, and either an `io` model or
   `fp_flows` for the footprint. A real call without either source aborts
@@ -131,9 +135,10 @@ surplus), `boundary_surplus` (a list with the `grid` and `country`
 surplus-mode exceedance), `boundary_pathway` (the pathway-mode
 exceedance with `binding_boundary`), `nourishment` (per-capita food
 supply with the normalized adequacy score and class), `scatter` (the
-per-capita boundary versus nourishment points), `sjos_class` (the 2-way
-classification) and `footprint` (a list with the `fp_all` and `fp_food`
-embodied-nitrogen footprints).
+per-capita boundary versus nourishment points; it and `nourishment`
+carry `method_population`, `"read_population"` or `"supplied"`),
+`sjos_class` (the 2-way classification) and `footprint` (a list with the
+`fp_all` and `fp_food` embodied-nitrogen footprints).
 
 ## Examples
 
@@ -216,22 +221,22 @@ build_sjos_nitrogen(example = TRUE)
 #> #   critical_water_kgn_ha <dbl>, actual_water_kgn_ha <dbl>, …
 #> 
 #> $nourishment
-#> # A tibble: 2 × 13
+#> # A tibble: 2 × 14
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
 #> 2  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>,
 #> #   protein_g_cap_day <dbl>, energy_kcal_cap_day <dbl>, population <dbl>,
 #> #   method_food_supply <chr>, method_protein_basis <chr>, value_norm <dbl>,
-#> #   nourish <chr>
+#> #   nourish <chr>, method_population <chr>
 #> 
 #> $scatter
-#> # A tibble: 2 × 5
-#>    year area_code nourish_norm boundary_norm population
-#>   <int>     <int>        <dbl>         <dbl>      <dbl>
-#> 1  2010         1         1.13          1.71 4000000000
-#> 2  2010         2         1.38          1.83 3000000000
+#> # A tibble: 2 × 6
+#>    year area_code nourish_norm boundary_norm population method_population
+#>   <int>     <int>        <dbl>         <dbl>      <dbl> <chr>            
+#> 1  2010         1         1.13          1.71 4000000000 supplied         
+#> 2  2010         2         1.38          1.83 3000000000 supplied         
 #> 
 #> $sjos_class
 #> # A tibble: 6 × 9

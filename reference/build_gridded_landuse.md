@@ -142,9 +142,14 @@ build_gridded_landuse(
   - `max_iterations`: Maximum iterations for the redistribution loop.
     Default: `1000L`.
 
-  - `expansion_threshold`: Iteration number after which crops are
-    allowed to expand into cells without an existing pattern. Default:
-    `100L`.
+  - `expansion_threshold`: Defunct. It was documented as the iteration
+    after which crops may expand into cells without an existing pattern,
+    but that expansion was never implemented and the value never reached
+    the redistribution (whep#1001). It is now dropped with a warning of
+    class `whep_defunct_config_key`. A crop is only ever placed in cells
+    its `crop_patterns` (or uniform fallback) gives it; when those cells
+    are too small the per-cell ceiling gives way and a warning reports
+    it.
 
   - `area_key`: Which area code the output is keyed on, `"grid"`
     (default) or `"polity_area"`. See *Which area code the output is
