@@ -223,7 +223,43 @@
 #'   deliberately no clamp, unlike `share_overflow`: a destiny cannot exceed
 #'   the supply it is apportioned from, so 1 is a true bound there, while
 #'   here the denominator is incomplete and capping at 1 would book a
-#'   country's whole processed output as export.
+#'   country's whole processed output as export. Those figures are for the
+#'   step-4 denominator, `export_share_basis = "snapshot"`; on a 1955–2023
+#'   build that basis applies 60 shares above 1, all at 2014–2023, while the
+#'   default `"current"` leaves 25 above 1 (Tobacco, whep#1085) and applies
+#'   none of them.
+#' @param export_share_basis One of `"current"` (default), `"processed"` or
+#'   `"snapshot"`, selecting which world balance the second processed-products
+#'   round reads its export share `export / (production + import)` off
+#'   (whep#1143). The share is multiplied by a country's newly created
+#'   processed production, so its denominator must contain that kind of
+#'   production. `"current"` reads the balance the round runs on and adds its
+#'   rows to: processed production from the first round, trade after
+#'   imputation. It is also the self-consistent choice, since a share `E / S`
+#'   leaves the world share unchanged once the round's own production and
+#'   export are added. `"processed"` reads the same production with trade as
+#'   read, before imputation. `"snapshot"` reads the balance before any
+#'   processed production exists, which is what every build before whep#1143
+#'   did: wherever FAOSTAT reports no production of a processed product — all
+#'   of them before 1961, and the new food balance sheets' oilseed cakes and
+#'   molasses from 2014 — its denominator is world import alone.
+#'
+#'   **The default moves published values**, at 1961–2023 only. Measured on
+#'   a real 1955–2023 build against `"snapshot"`: 34,691 rows change, world
+#'   `export` falls 33.0 Mt summed over all years (52.2 Mt gross) and
+#'   `domestic_supply` rises by the same, landing 30.4 Mt on `feed`. The
+#'   largest share applied falls from 15.7 (Sesameseed Cake 2016) to 0.66;
+#'   world Sesameseed Cake export at 2020 goes from 612 kt to 1.7 kt against
+#'   0.4 kt of world import, Oilseed Cakes, Other from 3.91 Mt to 2.18 Mt
+#'   against 1.85 Mt. Of the export change, 48.5 Mt gross is at 2014–2023,
+#'   where the step-4 sheet carries no cake or molasses production at all.
+#'   `"processed"` moves the
+#'   same 2014–2023 cakes (export −42.4 Mt net) but almost nothing earlier
+#'   (−0.09 Mt at 1961–2013 against `"current"`'s +3.45 Mt): the two differ
+#'   on items whose trade only step 7 supplies — DDGS (+3.2 Mt of export),
+#'   Sugarbeet pulp (+1.1 Mt), which `"processed"` books no export for at all
+#'   — and on Beverages, Fermented (+4.2 Mt), whose imputed trade is itself
+#'   in question (whep#960). Production is identical under all three.
 #' @param seed_backcast One of `"area_rate"` (default) or
 #'   `"production_share"`, selecting what the pre-1962 seed back-cast reads
 #'   its rate off and spends it on (whep#699). The fill carries a rate along
@@ -817,6 +853,8 @@ build_commodity_balances <- function(
 #'   `"abort"`. See [build_commodity_balances()].
 #' @param unmatched_processing One of `"other_uses"` (default),
 #'   `"processing"` or `"redistribute"`. See [build_commodity_balances()].
+#' @param export_share_basis One of `"current"` (default), `"processed"` or
+#'   `"snapshot"`. See [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
@@ -5985,8 +6023,9 @@ build_processing_coefs <- function(
 # 1 (whep#1086), most conservative first.
 #
 # `export_share` is world `export / (production + import)` for the
-# `(year, item_cbs)` key, taken from `cbs_glob` -- the world aggregate of
-# `cbs_raw` as it stood BEFORE `.cbs_add_processed()` ran. It is then
+# `(year, item_cbs)` key, taken from the world sheet `export_share_basis`
+# names (whep#1143; before it, always `cbs_glob` -- the world aggregate of
+# `cbs_raw` as it stood BEFORE `.cbs_add_processed()` ran). It is then
 # multiplied by a country's newly created processed production, so a share
 # above 1 books more export than that country produced and `domestic_supply`
 # comes out negative.
@@ -6030,7 +6069,10 @@ build_processing_coefs <- function(
 # final keys, 2.4-4.4 Mt of export a year and 33.6 Mt over 2014-2023, which
 # "drop" books mostly as feed. The 2005-2015 build gives the same 12 keys for
 # 2014-2015 with 7.01 Mt of export between the two policies. Why the share
-# exceeds 1 for these keys has not been traced.
+# exceeds 1 for these keys is whep#1143: the step-4 world sheet carries no
+# production for them from 2014 (the new FBS reports none), so the
+# denominator is world import alone. Those figures are for
+# `export_share_basis = "snapshot"`; see `.cbs_export_basis_choices()`.
 #
 # The -123.22 Mt of negative `production` whep#1086 cites is therefore not
 # from here: that figure is whep#1065's, and `.resolve_historical_supply()`
