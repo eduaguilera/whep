@@ -18,7 +18,7 @@ conv_bouwman <- file.path(feed_dir, "conv_bouwman.csv") |>
     conversion
   )
 
-# 2. conv_krausmann: Krausmann et al. 2013 intake (kg DM / head / yr) for draft and
+# 2. conv_krausmann: Krausmann et al. 2013 intake (t DM / head / yr) for draft and
 #    non-productive species that lack a product-based feed conversion.
 conv_krausmann <- file.path(feed_dir, "conv_krausmann.csv") |>
   readr::read_csv(show_col_types = FALSE) |>
