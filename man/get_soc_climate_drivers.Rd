@@ -114,6 +114,13 @@ input basis is recorded in \code{method_water_input} (\code{"lpjml_prec_irrig"},
 precipitation plus irrigation). Air temperature (CRU) and the soil texture
 products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 sources.
+
+The drivers cover the intersection of the CRU and LPJmL grids. CRU TS 4.09
+masks as water 22 of the 58,795 cells the \code{lpjml-soc-hydrology} pin carries
+(small islands, coasts and large lakes), so those cells are excluded; the
+function reports the count every time it drops any (a message of class
+\code{whep_socd_cell_shortfall}) and aborts (class \code{whep_socd_cell_loss}) when
+more than 0.1\% of the LPJmL cells in any year have no climate series.
 }
 \section{Polity columns}{
 
