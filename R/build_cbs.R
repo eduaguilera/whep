@@ -4897,12 +4897,17 @@ build_processing_coefs <- function(
 # -3.77 Mt of stock variation. `check_supply_use_balance()` still passes on
 # every row, because the identity is what the cascade closes.
 #
-# One item carries most of the tonnage and is worth naming: CBS 2657
-# "Beverages, Fermented" is 5.75 Mt of the import total, and the food balance
-# sheet reports 0.63 Mt of imports worldwide against it while production is
-# 23.5 Mt -- a trade column FAO effectively never populated. If it ever turns
-# out that FAO standardizes that flow into a primary equivalent counted
-# elsewhere, this item is where the double count would sit (whep#866).
+# The figures above were measured while `cbs_trade_codes` still mapped ten
+# FAOSTAT group totals onto CBS items, and CBS 2657 "Beverages, Fermented" was
+# 5.75 Mt of that import total. It was a double count, but not of the kind
+# first suspected (FAO standardising the flow into a primary equivalent): the
+# trade record's group 1895 "Beverages" -- beer, wine, spirits, soft drinks,
+# waters -- was summed onto 2657 next to 2657's own members (26, 39, 66, 82,
+# 86, 517). Those members give 0.64 Mt of world import at 2010, which is what
+# the food balance sheet itself reports (0.63 Mt), so the balance sheet was
+# right and the "recovered" tonnage was the group. The group rows are gone
+# from the crosswalk (whep#960); with them, the conflicts over 2009-2011 fall
+# from 24,362 keys / 66.7 Mt to 24,031 keys / 24.1 Mt.
 .fill_tier1_trade <- function(cbs_value, trade_value, trade_zero) {
   filled <- dplyr::coalesce(cbs_value, trade_value)
   if (trade_zero == "keep") {

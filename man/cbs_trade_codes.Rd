@@ -30,6 +30,12 @@ Maps detailed FAOSTAT trade item codes to their corresponding CBS item
 categories, enabling aggregation of bilateral trade data into the CBS
 framework.
 }
+\details{
+Only single commodities are mapped. The FAOSTAT trade totals also carry
+group rows (codes from 1719 up, such as 1895 "Beverages" or 1896
+"Tobacco") that sum the items listed here, so mapping a group would count
+its members twice (whep#960).
+}
 \examples{
 head(cbs_trade_codes)
 }
