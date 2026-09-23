@@ -17,7 +17,8 @@
     area_code = integer(),
     item_cbs_code_crop = integer(),
     item_cbs_code_residue = integer(),
-    value = numeric()
+    value = numeric(),
+    value_dm = numeric()
   )
   manure <- tibble::tibble(
     Item = character(),
@@ -107,7 +108,8 @@ testthat::test_that("soil-N2O synthetic split follows Coello rates", {
         year = integer(),
         area_code = integer(),
         item_cbs_code_crop = integer(),
-        value = double()
+        value = double(),
+        value_dm = double()
       )
     )
   )
@@ -120,9 +122,11 @@ testthat::test_that("soil-N2O synthetic split follows Coello rates", {
 testthat::test_that("residue N adds via the leaching-only factor", {
   f <- .soil_n2o_fixture()
   f$fertilizer$Value <- 0 # isolate the residue contribution
+  # 1000 t of fresh straw at wheat's residue dry-matter content of 0.866.
   f$primary_residues <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
-    2010L, 10L, 2511L, 2105L, 1000
+    ~value_dm,
+    2010L, 10L, 2511L, 2105L, 1000, 866
   )
   result <- whep::build_crop_soil_n2o_extension(
     residue_removed_frac = 0.45,
@@ -130,11 +134,28 @@ testthat::test_that("residue N adds via the leaching-only factor", {
   )
 
   # residue factor excludes volatilisation (Eq 11.9): EF1 + FracLEACH*EF5
-  n_t <- 1000 * 0.006 * (1 - 0.45) # residue DM * N_AG(wheat) * (1 - removed)
+  # N_AG is per kg of residue DRY matter (IPCC 2019 Table 11.1a), so it
+  # multiplies `value_dm`, not the fresh `value` (whep#1215).
+  n_t <- 866 * 0.006 * (1 - 0.45) # residue DM * N_AG(wheat) * (1 - removed)
   expected <- n_t * (0.010 + 0.24 * 0.011) * (44 / 28) * 1000 * 273
   testthat::expect_equal(
     result$impact_u[result$item_cbs_code == 2511L],
     expected
+  )
+})
+
+testthat::test_that("residue N refuses residues with no dry-matter column", {
+  # The fresh `value` used to be read as dry matter, overstating residue N by
+  # the inverse of the residue's dry-matter content -- 7.6x for tomato haulm.
+  # A table without `value_dm` must not fall back to that silently.
+  f <- .soil_n2o_fixture()
+  f$primary_residues <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+    2010L, 10L, 2511L, 2105L, 1000
+  )
+  testthat::expect_error(
+    whep::build_crop_soil_n2o_extension(data = f),
+    class = "whep_residue_no_dry_matter"
   )
 })
 

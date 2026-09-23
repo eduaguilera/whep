@@ -100,7 +100,20 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #'    These are actually not FAOSTAT defined items, but custom defined by us.
 #'    When necessary, FAOSTAT codes are extended for our needs.
-#' - `value`: The amount of residue produced, measured in tonnes.
+#' - `value`: The amount of residue produced, in tonnes of **fresh matter**,
+#'    like every other commodity-balance quantity.
+#' - `value_dm`: The same residue in tonnes of **dry matter**: each crop's
+#'    fresh residue times its own residue dry-matter content,
+#'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
+#'    crop with residue mass carries no such coefficient, so the gap stays
+#'    visible rather than reading as zero.
+#'
+#' The pin's residue quantities are fresh matter. Across its crops the ratio of
+#' pinned residue to product tracks the fresh-matter residue:product ratio
+#' `kg_residue_kg_product_FM` of [biomass_coefs] (about 0.8 of it for nearly
+#' every crop), not the residue's dry-matter content, which runs from 0.13
+#' (tomato) to 1.0 (rapeseed) (whep#1215). Use `value_dm` wherever a quantity
+#' is defined per unit of dry matter, such as a residue nitrogen content.
 #'
 #' @inheritSection whep_read_file The two batch pins on the build path
 #'
@@ -134,11 +147,13 @@ get_primary_residues <- function(example = FALSE) {
       name_column = "item_cbs",
       code_column = "item_cbs_code_residue"
     ) |>
+    .add_residue_dm_content() |>
     dplyr::summarise(
       # whep#167: a single NA `prod_ygpit_mg` sibling otherwise poisons the
       # whole group sum to NA, which `filter(value > 0)` below then silently
       # drops -- erasing real, non-NA residue rows along with the missing one.
       value = sum(prod_ygpit_mg, na.rm = TRUE),
+      value_dm = .sum_residue_dm(prod_ygpit_mg, residue_kgdm_kgfm),
       .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
     ) |>
     dplyr::filter(value > 0) |>
@@ -147,7 +162,8 @@ get_primary_residues <- function(example = FALSE) {
       area_code,
       item_cbs_code_crop,
       item_cbs_code_residue,
-      value
+      value,
+      value_dm
     ) |>
     .use_crop_process_cbs_item() |>
     .add_reporting_polity_columns()
@@ -161,7 +177,7 @@ get_primary_residues <- function(example = FALSE) {
 # the common short form: "Tanzania" against "United Republic of Tanzania",
 # "Turkey" against "Turkiye", "Netherlands" against "Netherlands (Kingdom of
 # the)". Measured on the current pin, those 14 labels are 44,985 of 475,688 rows
-# (9.5%) and 16,651,046,476 t of residue dry matter (5.08%), and every one of
+# (9.5%) and 16,651,046,476 t of residue fresh matter (5.08%), and every one of
 # them then took a missing-value path through the rest of the package:
 # `.read_crop_residues()` drops a row that reaches no polity, and
 # `calculate_residue_destinies()` gives a row with no `region_krausmann` a
@@ -306,6 +322,71 @@ get_primary_residues <- function(example = FALSE) {
        {.val {labels}}"
   ))
   dt
+}
+
+# Attach each pin row's residue dry-matter content (kg DM per kg fresh
+# residue), keyed on the row's own `name_biomass`, so the conversion follows
+# the crop that produced the residue and not the CBS residue item it is booked
+# to. "Other crop residues" (2106) mixes vegetable haulm at 0.13-0.30 with
+# pulse straw at 0.9; a single coefficient for the item cannot convert it
+# (whep#1215).
+#
+# Joined many-to-one on purpose: `biomass_coefs` repeats a few livestock names,
+# and a crop name that ever matched two different contents would be a guess,
+# so it aborts rather than duplicating residue mass.
+.add_residue_dm_content <- function(dt, biomass_coefs = whep::biomass_coefs) {
+  if (!rlang::has_name(dt, "name_biomass")) {
+    cli::cli_abort(
+      "The crop-residue table has no {.field name_biomass} column, so its
+       residue cannot be converted to dry matter."
+    )
+  }
+  coefs <- biomass_coefs |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Name_biomass %in% dt$name_biomass) |>
+    dplyr::distinct(
+      name_biomass = .data$Name_biomass,
+      residue_kgdm_kgfm = .data$Residue_kgDM_kgFM
+    )
+  dt |>
+    dplyr::left_join(
+      coefs,
+      by = "name_biomass",
+      relationship = "many-to-one"
+    ) |>
+    .warn_residue_no_dm()
+}
+
+# Name the residue mass that has no dry-matter content, instead of letting it
+# vanish from `value_dm`. No cli pluralisation markers, for the reason
+# `.warn_residues_no_area()` gives.
+.warn_residue_no_dm <- function(dt) {
+  gap <- is.na(dt$residue_kgdm_kgfm) &
+    !is.na(dt$prod_ygpit_mg) &
+    dt$prod_ygpit_mg > 0
+  if (!any(gap)) {
+    return(dt)
+  }
+  mass_mt <- round(sum(dt$prod_ygpit_mg[gap]) / 1e6, 3)
+  names_gap <- sort(unique(as.character(dt$name_biomass[gap])))
+  cli::cli_warn(c(
+    "!" = "{mass_mt} Mt of crop residue has no residue dry-matter content in
+       {.field biomass_coefs}, so {.field value_dm} is NA for it.",
+    "i" = "Biomass names without {.field Residue_kgDM_kgFM}:
+       {.val {names_gap}}"
+  ))
+  dt
+}
+
+# Dry matter of one residue group. A missing fresh mass is ignored, as in
+# `value` (whep#167); a missing dry-matter content on real mass is not, and
+# makes the group NA.
+.sum_residue_dm <- function(fresh_t, kgdm_kgfm) {
+  has_mass <- !is.na(fresh_t) & fresh_t > 0
+  if (any(has_mass & is.na(kgdm_kgfm))) {
+    return(NA_real_)
+  }
+  sum(fresh_t[has_mass] * kgdm_kgfm[has_mass])
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.

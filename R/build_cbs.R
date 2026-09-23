@@ -2235,6 +2235,11 @@ build_processing_coefs <- function(
 # evenly between them rather than being assigned to whichever came first.
 # The representative `item_prod_code` per category is exact, not an
 # approximation: the destiny function reads nothing else from it.
+#
+# Units: `value` is FRESH matter (whep#1215), and so is everything derived from
+# it here, `residue_dm_t` and `feed_dm_t` included -- the names are the destiny
+# function's column contract, and its rates are unitless. The feed allocator
+# converts to dry matter with `.residue_feed_kgdm()`.
 .residue_recovered_split <- function(
   res,
   warn = TRUE,
