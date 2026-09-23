@@ -2624,9 +2624,10 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
 # `.cbs_final_balance()` repairs a `default_prone` row -- one whose supply side
 # already agrees with `domestic_supply`, so only the destiny split is out of
 # balance -- by booking the gap on the item's `default_destiny`. Palmkernel
-# Cake (2595) defaults to `Food`, so a row that already spends its whole
-# domestic supply on `feed` used to end up with `food` AND `feed` each holding
-# the full supply: `use` came out at 2x `supply`.
+# Cake (2595) defaulted to `Food` when this was found, so a row that already
+# spent its whole domestic supply on `feed` ended up with `food` AND `feed`
+# each holding the full supply: `use` came out at 2x `supply`. It defaults to
+# `Feed` since whep#1066, so these fixtures now book the residual on `feed`.
 .default_prone_cbs <- function(destinies) {
   tibble::tibble(
     element = c("import", "domestic_supply", names(destinies)),
@@ -2690,12 +2691,12 @@ test_that("the default destiny does not book domestic supply twice", {
 
 test_that("the default destiny keeps the split the row reported", {
   # Which column the supply lands on: the residual goes to the item's default
-  # destiny and the observed split stays. Clearing the other destinies instead
-  # would move the whole 1000 t from `feed` to human `food`.
+  # destiny (`feed`) and the observed split stays. Clearing the other
+  # destinies instead would drop the 5 t of `food` the row reported.
   result <- .default_prone_wide(c(feed = 1000, food = 5))
 
-  expect_equal(result$feed, 1000)
-  expect_equal(result$food, 0)
+  expect_equal(result$feed, 995)
+  expect_equal(result$food, 5)
 })
 
 test_that("a row with no destiny still gets the whole domestic supply", {
@@ -2703,8 +2704,37 @@ test_that("a row with no destiny still gets the whole domestic supply", {
   # booked, the default destiny still takes all of `domestic_supply`.
   result <- .default_prone_wide(c(food = 0))
 
-  expect_equal(result$food, 1000)
+  expect_equal(result$feed, 1000)
+  expect_equal(result$food, 0)
   expect_true(all(whep::check_supply_use_balance(result)$balanced))
+})
+
+test_that("an oilseed cake with no destiny is booked as feed (whep#1066)", {
+  # Five oilseed cakes used to default to `Food`, so a row reporting no
+  # destiny put its whole domestic supply into human food.
+  cakes <- tibble::tribble(
+    ~item_cbs,            ~item_cbs_code,
+    "Groundnut Cake",     2591L,
+    "Sunflowerseed Cake", 2592L,
+    "Cottonseed Cake",    2594L,
+    "Palmkernel Cake",    2595L,
+    "Copra Cake",         2596L
+  )
+  cbs <- cakes |>
+    dplyr::mutate(
+      rows = purrr::map2(item_cbs, item_cbs_code, \(name, code) {
+        .default_prone_cbs(c(food = 0)) |>
+          dplyr::mutate(item_cbs = name, item_cbs_code = code)
+      })
+    ) |>
+    dplyr::pull(rows) |>
+    dplyr::bind_rows()
+
+  result <- .cbs_final_wide(cbs)
+
+  expect_setequal(result$item_cbs_code, cakes$item_cbs_code)
+  expect_equal(result$feed, rep(1000, 5))
+  expect_equal(result$food, rep(0, 5))
 })
 
 
@@ -2744,7 +2774,8 @@ test_that("a last-bit supply residue still counts as agreement", {
   # The invariant, not a hand-picked number: supply must equal use. Before the
   # fix the repair did not fire and 1000 t of domestic supply went unbooked.
   expect_true(all(whep::check_supply_use_balance(result)$balanced))
-  expect_equal(result$food, ds)
+  # Palmkernel Cake's default destiny is `feed` (whep#1066).
+  expect_equal(result$feed, ds)
 })
 
 .agrees_supply <- function(production, stock_variation, domestic_supply) {
