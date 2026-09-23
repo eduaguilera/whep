@@ -91,6 +91,8 @@ create_n_prov_destiny <- function(example = FALSE) {
   ) |>
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
+  .calculate_processing_excess(spain_coefs_observed, national_production) |>
+    .warn_processing_excess()
 
   prod_combined_boxes_no_seeds <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
@@ -885,6 +887,90 @@ create_n_nat_destiny <- function(example = FALSE) {
       )
     ) |>
     dplyr::select(Year, Item, share_processing)
+}
+
+#' @title Processing volume the share cap leaves out (#1014) -----------------
+#' @description `.calculate_processing_shares()` caps the processed share of
+#' an item's domestic production at 1. Where the builder's processing volume
+#' (`value_to_process`) is larger than what Spain grows -- the soybean crush
+#' runs almost entirely on imported beans -- the part above domestic
+#' production is not processed in this pipeline at all: the processed
+#' outputs it would have yielded are met by imports of the outputs
+#' themselves (cake, oil) in `.calculate_trade()`, and the primary item shows
+#' no import for it. This returns that excluded volume so it can be reported
+#' instead of vanishing without trace.
+#'
+#' Whether the excess should instead be processed as imported feedstock, and
+#' how its outputs and losses would then be booked, is an open science
+#' decision (#1014); nothing here changes the flows.
+#'
+#' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param national_production Output of `.national_item_production()`.
+#'
+#' @return A dataframe with Year, Item, value_to_process,
+#' national_production_fm and excess_fm (tonnes FM of processing volume above
+#' domestic production, 0 where there is none).
+#' @keywords internal
+#' @noRd
+.calculate_processing_excess <- function(spain_coefs, national_production) {
+  spain_coefs |>
+    dplyr::summarise(
+      value_to_process = mean(value_to_process, na.rm = TRUE),
+      .by = c(Year, Item)
+    ) |>
+    dplyr::left_join(national_production, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      national_production_fm = dplyr::coalesce(national_production_fm, 0),
+      excess_fm = pmax(value_to_process - national_production_fm, 0)
+    )
+}
+
+#' @title Warn about processing volume the share cap leaves out ---------------
+#' @description Surfaces `.calculate_processing_excess()` so the capped
+#' volume is never dropped silently. The warning carries class
+#' `whep_processing_excess`, so a caller who has read it can muffle it.
+#'
+#' @param excess Output of `.calculate_processing_excess()`.
+#'
+#' @return `excess`, unchanged.
+#' @keywords internal
+#' @noRd
+.warn_processing_excess <- function(excess) {
+  by_item <- excess |>
+    dplyr::filter(excess_fm > 0) |>
+    dplyr::summarise(
+      excess_fm = sum(excess_fm),
+      n_years = dplyr::n_distinct(Year),
+      .by = Item
+    ) |>
+    dplyr::arrange(dplyr::desc(excess_fm))
+
+  if (nrow(by_item) == 0) {
+    return(excess)
+  }
+
+  top <- utils::head(by_item, 5)
+  details <- sprintf(
+    "%s: %s t over %d year%s",
+    top$Item,
+    format(round(top$excess_fm), big.mark = ",", trim = TRUE),
+    top$n_years,
+    ifelse(top$n_years == 1, "", "s")
+  )
+  total <- format(round(sum(by_item$excess_fm)), big.mark = ",")
+
+  cli::cli_warn(
+    c(
+      "Processing exceeds domestic production for {nrow(by_item)} item{?s};
+       {total} t FM of processing volume is left out (#1014).",
+      i = "Its outputs are booked as imports of the processed items, not of
+           the primary item they were made from.",
+      rlang::set_names(details, rep("*", length(details)))
+    ),
+    class = "whep_processing_excess"
+  )
+
+  excess
 }
 
 #' @title Backfill early-year processing shares -------------------------------

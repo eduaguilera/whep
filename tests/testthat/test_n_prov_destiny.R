@@ -356,6 +356,102 @@ test_that(".calculate_processing_shares returns 0 for zero national production",
 })
 
 
+# .calculate_processing_excess (#1014) -----------------------------------------
+
+# Spain's soybean crush runs on imported beans: the national processing volume
+# is far above what the country grows, so the share cap at 1 excludes most of
+# it. Grapes stay below domestic production and carry no excess.
+.test_excess_inputs <- function() {
+  list(
+    spain_coefs = tibble::tribble(
+      ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+      2015, "Soyabeans", "Soyabean Cake", 3000, 0.8,
+      2015, "Soyabeans", "Soyabean Oil", 3000, 0.18,
+      2015, "Grapes", "Wine", 40, 0.5,
+      2015, "Rape and Mustardseed", "Rape and Mustard Cake", 25, 0.6
+    ),
+    national_production = tibble::tribble(
+      ~Year, ~Item, ~national_production_fm,
+      2015, "Soyabeans", 5,
+      2015, "Grapes", 100
+    )
+  )
+}
+
+test_that(".calculate_processing_excess returns what the share cap drops", {
+  inputs <- .test_excess_inputs()
+
+  out <- .calculate_processing_excess(
+    inputs$spain_coefs,
+    inputs$national_production
+  )
+
+  # One row per Year/Item, even though Soyabeans has two outputs.
+  expect_equal(nrow(out), 3)
+  excess <- rlang::set_names(out$excess_fm, out$Item)
+  expect_equal(excess[["Soyabeans"]], 3000 - 5)
+  expect_equal(excess[["Grapes"]], 0)
+  # No domestic production at all: the whole volume is import-fed.
+  expect_equal(excess[["Rape and Mustardseed"]], 25)
+})
+
+test_that(".calculate_processing_excess and the capped share add back up", {
+  inputs <- .test_excess_inputs()
+
+  shares <- .calculate_processing_shares(
+    inputs$spain_coefs,
+    inputs$national_production
+  )
+  excess <- .calculate_processing_excess(
+    inputs$spain_coefs,
+    inputs$national_production
+  )
+
+  # Invariant: what the capped share processes plus what the cap drops is the
+  # builder's whole processing volume, item by item.
+  rebuilt <- excess |>
+    dplyr::left_join(shares, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      represented = share_processing * national_production_fm,
+      total = represented + excess_fm
+    )
+  expect_equal(rebuilt$total, rebuilt$value_to_process)
+})
+
+test_that(".warn_processing_excess reports the dropped volume by item", {
+  inputs <- .test_excess_inputs()
+  excess <- .calculate_processing_excess(
+    inputs$spain_coefs,
+    inputs$national_production
+  )
+
+  expect_warning(
+    out <- .warn_processing_excess(excess),
+    class = "whep_processing_excess"
+  )
+  expect_identical(out, excess)
+
+  msg <- tryCatch(
+    .warn_processing_excess(excess),
+    warning = function(w) conditionMessage(w)
+  )
+  expect_match(msg, "Soyabeans")
+  expect_match(msg, "Rape and Mustardseed")
+  expect_no_match(msg, "Grapes")
+  expect_match(msg, "3,020")
+})
+
+test_that(".warn_processing_excess is silent when nothing is dropped", {
+  excess <- tibble::tribble(
+    ~Year, ~Item, ~value_to_process, ~national_production_fm, ~excess_fm,
+    2015, "Grapes", 40, 100, 0
+  )
+
+  expect_no_warning(out <- .warn_processing_excess(excess))
+  expect_identical(out, excess)
+})
+
+
 # .expand_processed_items ---------------------------------------------------------
 
 test_that(".expand_processed_items multiplies processed mass by cf", {

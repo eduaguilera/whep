@@ -2264,6 +2264,10 @@ utils::globalVariables(
     # recovery rate the table gives as zero from a zero standing in for a
     # lookup that found nothing
     "residue_recovery_matched",
+    # n_prov_destiny.R (issue 1014) -- processing volume above domestic
+    # production that the share cap leaves out, and the years it spans
+    "excess_fm",
+    "n_years",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
