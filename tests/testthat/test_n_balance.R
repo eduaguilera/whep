@@ -1126,3 +1126,95 @@ testthat::test_that("a grid balance refuses an incomplete input key", {
   )
   testthat::expect_error(.nb_run(data = data), "complete grid and item keys")
 })
+
+# ---- whep#1034: removals that go absent must not become zero ---------------
+#
+# Each output term below is merged onto the balance by a full join and
+# zero-filled, and the balance is then input minus output. So a term that
+# silently lands as zero leaves n_balance_t == n_input_full_t -
+# n_output_full_t holding exactly: the identity cannot see it, and the surplus
+# absorbs the whole lost removal. These tests assert the identity HOLDS on the
+# zero-filled row and that the guard fires anyway.
+
+.nb_zero_removal_row <- function() {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 3000L,
+    year = 2010L,
+    n_input_full_t = 20,
+    prod_n_t = 0,
+    used_residue_n_t = 0,
+    bedding_residue_n_t = 0,
+    burnt_residue_n_t = 0,
+    grazed_weeds_n_t = 0,
+    nh3_n_t = 0,
+    som_sequestration_n_t = 0
+  )
+}
+
+# The balance key alone, before any output term is merged onto it.
+.nb_bare_key_row <- function(item_cbs_code = 3000L) {
+  dplyr::mutate(
+    dplyr::select(.nb_zero_removal_row(), lon:n_input_full_t),
+    item_cbs_code = item_cbs_code
+  )
+}
+
+.nb_balance_closes <- function(row) {
+  out <- whep:::.nb_indicators_pass1(row)
+  isTRUE(all.equal(out$n_balance_t, out$n_input_full_t - out$n_output_full_t))
+}
+
+.nb_grass_intake <- function(feed_quality = "grass", intake_dm_t = 600) {
+  tibble::tibble(
+    year = 2010L,
+    territory = "10",
+    sub_territory = "0.25_50.25",
+    feed_quality = feed_quality,
+    intake_dm_t = intake_dm_t
+  )
+}
+
+testthat::test_that("a moved feed_quality label cannot pass as no grazing", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()),
+    guard = whep:::.nb_add_grazed_weeds(
+      .nb_bare_key_row(),
+      list(livestock_intake = .nb_grass_intake(feed_quality = "Grass")),
+      key
+    ),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("grass rows that carry no dry matter are refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()),
+    guard = whep:::.nb_add_grazed_weeds(
+      .nb_bare_key_row(),
+      list(livestock_intake = .nb_grass_intake(intake_dm_t = NA_real_)),
+      key
+    )
+  )
+})
+
+testthat::test_that("residue destinies no N coefficient joins are refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  destiny <- dplyr::mutate(
+    .nb_residue_destiny_input(),
+    item_prod_code = "0015"
+  )
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()) &&
+      sum(destiny$residue_dm_t) > 0,
+    guard = whep:::.nb_add_residue_destiny(
+      .nb_bare_key_row(2511L),
+      list(residue_destiny_input = destiny),
+      key
+    )
+  )
+})

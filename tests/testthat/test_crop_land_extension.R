@@ -349,15 +349,17 @@ test_that("build_hayr_land_extension occupation counts every harvest", {
     2807L, 5,
     2511L, 8
   )
+  # Wheat carries some fallow: the default base is fallow-inclusive, and a
+  # fallow table that is zero everywhere is refused under that label.
   fallow <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
     2000L, 1L, 2807L, 0,
-    2000L, 1L, 2511L, 0
+    2000L, 1L, 2511L, 10
   )
   res <- whep::build_hayr_land_extension(harvested, fallow, season)
   # occupation is harvested area times cycle fraction of the year
   expect_equal(res$impact_u[res$item_cbs_code == 2807L], 200 * 5 / 12)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100 * 8 / 12)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100 * 8 / 12 + 10)
   expect_true(all(res$method_land == "cropgrids_fallow_hayr"))
 })
 
@@ -1584,5 +1586,92 @@ test_that("no composition warning fires when the terms reach the panel end", {
       temporary_grassland = temp,
       items_prod_full = .fao_fodder_items()
     )
+  )
+})
+
+# ---- whep#1034: absent inputs must not become zeros ------------------------
+
+.hayr_harvested_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2807L, 200,
+    2000L, 1L, 2511L, 100
+  )
+}
+
+.hayr_season_fixture <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 5,
+    2511L, 8
+  )
+}
+
+test_that("fallow that lands nowhere cannot ship under the fallow label", {
+  # The fallow table is real, but keyed on a code space the harvested rows do
+  # not share. Unguarded, every row is cropped-only land stamped
+  # `cropgrids_fallow_hayr`, and it is still non-negative and still sums.
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 901L, 2807L, 40,
+    2000L, 901L, 2511L, 30
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    ),
+    check_inputs_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = all(unguarded$impact_u >= 0) &&
+      isTRUE(all.equal(sum(unguarded$impact_u), 200 * 5 / 12 + 100 * 8 / 12)) &&
+      all(unguarded$method_land == "cropgrids_fallow_hayr"),
+    guard = whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    )
+  )
+})
+
+test_that("zero fallow everywhere is refused only under the fallow label", {
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 1L, 2807L, 0,
+    2000L, 1L, 2511L, 0
+  )
+  expect_error(
+    whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    ),
+    class = "whep_absent_input"
+  )
+  res <- whep::build_hayr_land_extension(
+    .hayr_harvested_fixture(),
+    fallow,
+    .hayr_season_fixture(),
+    base = "cropgrids"
+  )
+  expect_equal(sum(res$impact_u), 200 * 5 / 12 + 100 * 8 / 12)
+})
+
+test_that("a moved harvested-area unit cannot read as no cropland", {
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 1L, 2511L, "hectares", 100,
+    2000L, 1L, 2511L, "tonnes", 300
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep:::.harvested_area_by_cbs(prod),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 0L && sum(unguarded$harvested_ha) == 0,
+    guard = whep:::.harvested_area_by_cbs(prod),
+    class = "whep_absent_label"
   )
 })

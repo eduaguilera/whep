@@ -1014,3 +1014,29 @@ testthat::test_that("the shipped GLEAM coefficient tables pass the guard", {
     }
   )
 })
+
+# ---- whep#1034: a carcass unit vocabulary that moved -----------------------
+
+testthat::test_that("a moved carcass unit cannot ship as no energy CO2", {
+  # Same production, the unit spelled the way build_production.R's own
+  # intermediates spell it. Unguarded, the extension comes back with no rows,
+  # and an empty extension satisfies every property a footprint checks.
+  relabelled <- dplyr::mutate(
+    .energy_prod_fixture(),
+    unit = dplyr::if_else(.data$unit == "tonnes", "t", .data$unit)
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep::build_energy_co2_extension(data = list(primary_prod = relabelled)),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 0L &&
+      all(unguarded$impact_u >= 0) &&
+      sum(unguarded$impact_u) == 0,
+    guard = whep::build_energy_co2_extension(
+      data = list(primary_prod = relabelled)
+    ),
+    class = "whep_absent_label"
+  )
+})
