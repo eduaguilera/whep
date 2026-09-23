@@ -2334,6 +2334,12 @@ utils::globalVariables(
     "part_key",
     "barred_leftover",
     "granivore",
+    # production.R + residue_dry_matter.R (issue 1215) -- each crop's residue
+    # dry-matter content, and the fresh vs dry residue feed summed per polity
+    "residue_kgdm_kgfm",
+    "value_dm",
+    "feed_fm_t",
+    "feed_true_dm_t",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
