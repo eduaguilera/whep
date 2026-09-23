@@ -17,8 +17,9 @@
 #'   country total, allocated to crops by harvested area (Coello is a
 #'   synthetic-N rate basis only).
 #' - **Crop residues** (F_CR): the dry matter of above-ground residues returned
-#'   to soil (from [get_primary_residues()], net of the removed fraction) times
-#'   the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
+#'   to soil (`value_dm` from [get_primary_residues()], net of the removed
+#'   fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+#'   11.1a).
 #'
 #' Both country totals are read under raw FAOSTAT `Area Code` values and
 #' harmonised to the whep polity `area_code` through [polity_area_crosswalk]
@@ -340,11 +341,26 @@ build_crop_soil_n2o_extension <- function(
 
 # Above-ground crop-residue N returned to soil (tonnes N) per crop: residue dry
 # matter (net of the removed fraction) times residue N content.
+#
+# The dry matter is `value_dm`, not `value`. `get_primary_residues()` reports
+# `value` in fresh matter, and N_AG is per kg of dry matter, so reading `value`
+# here overstated residue N by the inverse of each crop's residue dry-matter
+# content -- about 1.15x for cereal straw, 7.6x for tomato haulm (whep#1215).
 .residue_n_inputs <- function(primary_residues, removed_frac) {
+  if (!rlang::has_name(primary_residues, "value_dm")) {
+    cli::cli_abort(
+      c(
+        "The crop residues carry no {.field value_dm} column.",
+        i = "Residue N is dry matter times N content; {.field value} is fresh
+          matter. Pass the output of {.fn get_primary_residues}."
+      ),
+      class = "whep_residue_no_dry_matter"
+    )
+  }
   n_content <- .crop_residue_n_content()
   primary_residues |>
     dplyr::summarise(
-      residue_dm_t = sum(.data$value, na.rm = TRUE),
+      residue_dm_t = sum(.data$value_dm, na.rm = TRUE),
       .by = c(year, area_code, item_cbs_code_crop)
     ) |>
     dplyr::rename(item_cbs_code = item_cbs_code_crop) |>

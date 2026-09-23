@@ -30,7 +30,8 @@
   feed_mode,
   production = NULL,
   cbs = NULL,
-  years = NULL
+  years = NULL,
+  residues = NULL
 ) {
   if (grain == "local") {
     cli::cli_abort(c(
@@ -42,14 +43,24 @@
   }
   production <- .filter_years(production %||% get_primary_production(), years)
   cbs <- .filter_years(cbs %||% get_wide_cbs(), years)
+  # The CBS residue feed is fresh matter of a crop mix; convert it with that
+  # mix's own dry-matter content, not the item's single one (whep#1215).
+  data <- .with_residue_kgdm(
+    .feed_demand_data(),
+    .filter_years(residues %||% get_primary_residues(), years)
+  )
   engine <- .national_redistribute(
     production,
     cbs,
     demand_tier,
-    .feed_demand_data(),
+    data,
     options = list(distribute_surplus = feed_mode == "scenario")
   )
-  .reshape_redistribute_intake(engine$result, engine$code_shares)
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    data = .reshape_data(data$residue_kgdm)
+  )
 }
 
 #' Build local (per-cell) feed intake, chunked by year.
@@ -227,7 +238,7 @@ build_feed_demand <- function(
     ),
     production = .normalise_feed_primary(get_primary_production()),
     cbs = .normalise_feed_cbs(get_wide_cbs()),
-    data = .feed_demand_data(),
+    data = .with_residue_kgdm(.feed_demand_data(), get_primary_residues()),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
     # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
@@ -266,6 +277,7 @@ build_feed_demand <- function(
   .reshape_redistribute_intake(
     engine$result,
     engine$code_shares,
+    data = .reshape_data(ctx$data$residue_kgdm),
     local = TRUE
   ) |>
     .add_reporting_polity_columns()
@@ -950,7 +962,8 @@ build_feed_demand <- function(
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
-  feed_avail <- .build_feed_avail_national(cbs) |>
+  feed_avail <- cbs |>
+    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
     .add_scavenging_avail(feed_demand)
   list(
     result = redistribute_feed(feed_demand, feed_avail, options = options),
@@ -993,11 +1006,16 @@ build_feed_demand <- function(
 # feed_group + feed_quality from `feed_taxonomy` and feed_scale = "national"
 # (served to every territory by the national-scale allocator). Grass is not a
 # CBS item; it enters redistribute_feed as the grassland sink, not here.
+#
+# `residue_kgdm` (from `.residue_feed_kgdm()`) gives the crop residue items
+# their own per-country dry-matter content in place of the item's single one
+# (whep#1215); `NULL` applies the item coefficient to every row.
 .build_feed_avail_national <- function(
   cbs,
   items_full = whep::items_full,
   biomass_coefs = whep::biomass_coefs,
-  feed_taxonomy = whep::feed_taxonomy
+  feed_taxonomy = whep::feed_taxonomy,
+  residue_kgdm = NULL
 ) {
   cbs <- .normalise_feed_cbs(cbs)
   items <- .feed_items_lookup(items_full)
@@ -1011,6 +1029,7 @@ build_feed_demand <- function(
     dplyr::left_join(items, by = "item_cbs_code") |>
     dplyr::left_join(biomass, by = "Name_biomass") |>
     dplyr::left_join(tax, by = "item_cbs_code") |>
+    .apply_residue_kgdm(residue_kgdm, mass_col = "feed") |>
     dplyr::mutate(avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm)
   .warn_unclassified_feed(joined)
   joined |>
@@ -1109,7 +1128,8 @@ build_feed_demand <- function(
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data) |>
     .distribute_demand_to_cells(spatial$cell_shares)
-  feed_avail <- .build_feed_avail_national(cbs) |>
+  feed_avail <- cbs |>
+    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
     .add_scavenging_avail(feed_demand)
   result <- redistribute_feed(
     feed_demand,
@@ -1533,7 +1553,7 @@ build_feed_demand <- function(
   result |>
     .split_intake_to_animals(code_shares) |>
     .label_feed_type(data$item_feedtype) |>
-    .intake_to_fresh_matter(data$item_kgdm) |>
+    .intake_to_fresh_matter(data$item_kgdm, data$residue_kgdm) |>
     .summarise_feed_intake(local)
 }
 
@@ -1615,9 +1635,12 @@ build_feed_demand <- function(
 # Substitute rows have no item; report them at a dry-roughage density (0.9) so
 # their fresh matter is realistic, not the 5x over-statement a grass density
 # would give (a documented MVP value, until the substitute's items are tracked).
-.intake_to_fresh_matter <- function(result, item_kgdm) {
+.intake_to_fresh_matter <- function(result, item_kgdm, residue_kgdm = NULL) {
   result |>
     dplyr::left_join(item_kgdm, by = "item_cbs_code") |>
+    # The same per-country residue content availability was converted with, so
+    # a residue tonne returns to the fresh mass it left the balance as.
+    .apply_residue_kgdm(residue_kgdm) |>
     dplyr::mutate(
       product_kgdm_kgfm = dplyr::if_else(
         feed_group %in% "substitute",
@@ -1698,11 +1721,19 @@ build_feed_demand <- function(
 
 # Datasets the reshape needs (feed-type labels and DM->fresh densities), grouped
 # so the reshape signature stays small and tests can inject fixtures.
-.reshape_data <- function() {
+# `residue_kgdm` is the per-country residue content from `.residue_feed_kgdm()`.
+.reshape_data <- function(residue_kgdm = NULL) {
   list(
     item_feedtype = .item_feedtype_lookup(),
-    item_kgdm = .item_kgdm_lookup()
+    item_kgdm = .item_kgdm_lookup(),
+    residue_kgdm = residue_kgdm
   )
+}
+
+# Attach the residue crop-mix dry-matter table to a `.feed_demand_data()` list.
+.with_residue_kgdm <- function(data, residues) {
+  data$residue_kgdm <- .residue_feed_kgdm(residues)
+  data
 }
 
 # item_cbs_code -> Bouwman feed type. grazer_feedtype is the complete per-item
