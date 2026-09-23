@@ -1135,6 +1135,11 @@ generate_gleam_pdf_tables <- function() {
       "Animal products", "Animal",     "Milk, fish meal"
     ),
 
+    # Despite the name, these are IPCC defaults, not GLEAM values (#959):
+    # cattle/buffalo 6.5 + feedlot 3.0 = 2006 Table 10.12; sheep 6.5 = 2006
+    # Table 10.13 mature sheep; goats 5.5 = 2019 Table 10.13 (Updated); pigs
+    # 0.0 is in no IPCC or GLEAM table (assumed, unverified). Row-by-row
+    # sources are in `?gleam_enteric_params`.
     gleam_enteric_params = tibble::tribble(
       ~species,   ~system,   ~ym_percent, ~notes,
       "Cattle",   "Grazing", 6.5, "IPCC default",
