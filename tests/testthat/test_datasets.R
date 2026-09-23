@@ -25,6 +25,20 @@ test_that("items_full has correct default_destiny for non-food items", {
   expect_true(all(wool$default_destiny == "Other_uses", na.rm = TRUE))
 })
 
+test_that("every oilseed cake defaults to Feed (whep#1066)", {
+  # Oilseed cake is the solid residue of oil extraction and is traded as
+  # feed. Five of the nine used to default to `Food`.
+  cakes <- whep::items_full |>
+    dplyr::filter(comm_group == "Oil cakes")
+
+  expect_equal(nrow(cakes), 9)
+  expect_setequal(
+    cakes$item_cbs_code,
+    c(2590, 2591, 2592, 2593, 2594, 2595, 2596, 2597, 2598)
+  )
+  expect_equal(unique(cakes$default_destiny), "Feed")
+})
+
 
 # -- polity coverage -----------------------------------------------------------
 

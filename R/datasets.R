@@ -624,7 +624,13 @@
 #'   database.
 #' - `FEDNA`: Item name used in FEDNA feed composition tables.
 #' - `default_destiny`: Default CBS use category for this item. One of
-#'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`.
+#'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`. It is
+#'   where the final balance books the domestic supply a row's reported
+#'   destinies leave unexplained. The values come from the `items_full` sheet
+#'   of afsetools' `Codes_coefs.xlsx`, which records no derivation for them.
+#'   All nine oilseed cakes (`comm_group == "Oil cakes"`) are `"Feed"`: five
+#'   of them (2591, 2592, 2594, 2595, 2596) were `"Food"` until whep#1066,
+#'   unlike the other four.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS)
 #'   and internal commodity classification work.
 #'
