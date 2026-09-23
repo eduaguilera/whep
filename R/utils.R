@@ -2303,6 +2303,9 @@ utils::globalVariables(
     "species_share",
     "share_key",
     "heads_item",
+    # livestock_cohorts.R (issue 1194) -- per-row provenance of the production
+    # system split: reported by the commodity, assumed default, or supplied
+    "method_system_share",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

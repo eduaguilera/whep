@@ -118,3 +118,70 @@ testthat::test_that("supplied system_shares bypass commodity routing", {
   testthat::expect_setequal(unique(result$system), c("Dairy", "Beef"))
   testthat::expect_equal(sum(result$cohort_heads), 1000, tolerance = 1)
 })
+
+testthat::test_that("chicken layers and broilers route to their own system", {
+  # whep#1194: production splits the FAOSTAT chicken stock into 1052
+  # "Chickens, layers" and 1053 "Chickens, broilers" by the reported
+  # emissions-domain stock items, exactly as it does for swine. Applying the
+  # assumed Layers 0.50 / Broilers 0.50 blend on top booked half of each
+  # reported flock in the other system.
+  result <- tibble::tribble(
+    ~species,             ~heads,
+    "Chickens, layers",      300,
+    "Chickens, broilers",    700
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  by_system <- result |>
+    dplyr::summarise(
+      heads = sum(.data$cohort_heads),
+      .by = c("species", "system")
+    ) |>
+    dplyr::arrange(.data$species)
+
+  testthat::expect_equal(
+    by_system,
+    tibble::tribble(
+      ~species,             ~system,    ~heads,
+      "Chickens, broilers", "Broilers",    700,
+      "Chickens, layers",   "Layers",      300
+    )
+  )
+})
+
+testthat::test_that("method_system_share records where each split came from", {
+  # whep#1194: the default shares are unsourced, so every expanded row says
+  # whether its system split was reported (the commodity names the system),
+  # assumed (WHEP's unverified default blend) or supplied by the caller.
+  result <- tibble::tribble(
+    ~species,           ~heads,
+    "Cattle, dairy",       100,
+    "Chickens, layers",    100,
+    "Sheep",               100,
+    "Ducks",               100
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  methods <- result |>
+    dplyr::distinct(.data$species, .data$method_system_share) |>
+    dplyr::arrange(.data$species)
+
+  testthat::expect_equal(
+    methods,
+    tibble::tribble(
+      ~species,           ~method_system_share,
+      "Cattle, dairy",    "reported",
+      "Chickens, layers", "reported",
+      "Ducks",            "assumed",
+      "Sheep",            "assumed"
+    )
+  )
+
+  custom <- tibble::tribble(
+    ~species_gen, ~system, ~system_share,
+    "Sheep",      "Meat",  1
+  )
+  supplied <- tibble::tibble(species = "Sheep", heads = 100) |>
+    whep::calculate_cohorts_systems(system_shares = custom)
+  testthat::expect_setequal(supplied$method_system_share, "supplied")
+})
