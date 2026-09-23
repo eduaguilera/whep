@@ -97,3 +97,31 @@ test_that("Bouwman feed class assignment supports Global-style column names", {
 
   expect_equal(out$item_bouwman, c("Dairy cattle", "Beef cattle"))
 })
+
+# whep#1151 -------------------------------------------------------------------
+#
+# `conversion` is tonnes DM per head per year. `.build_feed_demand_head()`
+# multiplies head counts straight by it and books the product next to the
+# tonnes-of-product path, so a kilogram reading would make draft animals eat
+# 1000x too little. The bounds below are loose plausibility ranges for daily
+# dry-matter intake (assumed, not sourced), wide enough to hold any sensible
+# coefficient and far too narrow to hold a kg-for-t mix-up.
+
+test_that("conv_krausmann conversion is tonnes DM per head per year", {
+  daily <- whep::conv_krausmann |>
+    dplyr::mutate(kg_dm_day = .data$conversion * 1000 / 365)
+
+  large <- daily |>
+    dplyr::filter(.data$species %in% c("Horses", "Asses", "Mules", "Camels")) |>
+    dplyr::pull(kg_dm_day)
+  small <- daily |>
+    dplyr::filter(
+      .data$species %in% c("Rabbits and hares", "Rodents, other")
+    ) |>
+    dplyr::pull(kg_dm_day)
+
+  expect_length(large, 4L)
+  expect_length(small, 2L)
+  expect_true(all(large >= 1 & large <= 25))
+  expect_true(all(small >= 0.01 & small <= 1))
+})
