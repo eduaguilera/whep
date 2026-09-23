@@ -14,7 +14,8 @@
     "reporting_polity_name",
     "reporting_polity_has_geometry",
     "n_percapita_kg",
-    "framing"
+    "framing",
+    "method_population"
   )
 }
 
@@ -178,4 +179,35 @@ testthat::test_that("the example fixture matches the output contract", {
   testthat::expect_named(out, .npc_contract())
   testthat::expect_true(all(out$n_percapita_kg > 0))
   testthat::expect_true(all(out$framing == "synthetic_bnf"))
+})
+
+testthat::test_that("population defaults to read_population() over input years", {
+  # #484: the reader existed but nothing called it, so every caller had to
+  # hand-assemble the denominator. Mocked: the suite never reads a pin.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    read_population = function(years = NULL, ...) {
+      seen <<- years
+      .npc_population()
+    }
+  )
+  defaulted <- whep::build_n_percapita(.npc_n_inputs())
+  supplied <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
+  testthat::expect_equal(seen, 2000L)
+  testthat::expect_equal(
+    dplyr::select(defaulted, -"method_population"),
+    dplyr::select(supplied, -"method_population")
+  )
+  testthat::expect_true(all(defaulted$method_population == "read_population"))
+  testthat::expect_true(all(supplied$method_population == "supplied"))
+})
+
+testthat::test_that("a supplied population never reaches read_population()", {
+  testthat::local_mocked_bindings(
+    read_population = function(...) {
+      testthat::fail("read_population() reached with population supplied")
+    }
+  )
+  out <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
+  testthat::expect_equal(nrow(out), 2L)
 })
