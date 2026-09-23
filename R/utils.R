@@ -2328,6 +2328,12 @@ utils::globalVariables(
     "raw_prod",
     "has_raw_use",
     "has_processed",
+    # redistribute_feed.R / feed_intake_redistribute.R (issue 1218) -- feed
+    # eligibility: the barred-category key partitioning availability, the
+    # leftover a barred category may not eat, and the granivore flag
+    "part_key",
+    "barred_leftover",
+    "granivore",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

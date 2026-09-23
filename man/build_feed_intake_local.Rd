@@ -14,7 +14,8 @@ build_feed_intake_local(
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  feed_eligibility = c("feed_table", "none")
 )
 }
 \arguments{
@@ -52,6 +53,15 @@ tibble/data frame passed to \code{\link[=build_grass_availability_lpjml]{build_g
 
 \item{grass_availability_path}{Optional path to an already-derived grass
 availability artifact passed to \code{\link[=build_grass_availability_lpjml]{build_grass_availability_lpjml()}}.}
+
+\item{feed_eligibility}{Which feeds each livestock category may receive.
+\code{"feed_table"} (default) follows \code{feed_taxonomy}: an item with a grazer
+feed type but no granivore feed type (straw and green fodder) is fibrous
+roughage that pigs and poultry do not eat, so it is never allocated to
+them, at any allocation level. Granivore demand that the feeds they may
+eat cannot cover stays unmet rather than being filled with roughage.
+\code{"none"} lets any category receive any item (the behaviour before
+whep#1218), for sensitivity analysis.}
 }
 \value{
 When \code{out_dir} is \code{NULL}, a tibble in the \code{get_feed_intake()} contract plus a
