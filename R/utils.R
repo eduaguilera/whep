@@ -2284,6 +2284,9 @@ utils::globalVariables(
     "kept_total_",
     # livestock_energy.R (issue 217) -- which NEl equation each row used
     "method_lactation",
+    # build_trade.R (issue 232) -- fill_linear()'s provenance column, read to
+    # keep observed trade rows when the time extension is scoped to CBS cells
+    "source_country_share",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
