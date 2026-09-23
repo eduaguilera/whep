@@ -1737,4 +1737,37 @@
     ) |>
     .add_reporting_polity_columns()
 }
+
+# Per-CFT water inputs for build_cft_water_use(example = TRUE): two cells, one
+# year, three bands, in the reader's shape (per-STAND densities, mm/yr) with
+# their stand fractions and a cell-polity crosswalk. The example runs the real
+# weighting and aggregation over these rather than returning a frozen output.
+# The values are illustrative, not taken from a run.
+.example_cft_water_inputs <- function() {
+  list(
+    cft_consump_water_b = .example_cft_cube(c(0, 0, 180, 0, 0, 350)),
+    cft_consump_water_g = .example_cft_cube(c(420, 510, 260, 280, 330, 190)),
+    cft_nir = .example_cft_cube(c(0, 0, 150, 0, 0, 320)),
+    stand_frac = .example_cft_cube(c(0.30, 0.40, 0.05, 0.20, 0.25, 0.10)),
+    cell_polity = tibble::tribble(
+      ~lon,   ~lat,  ~area_code, ~polity_frac, ~cell_area_ha,
+      9.25,   47.75, 79L,        1,            30100,
+      -3.25,  40.25, 203L,       1,            27500
+    )
+  )
+}
+
+# One per-CFT cube over the example's two cells and three bands.
+.example_cft_cube <- function(values) {
+  tibble::tribble(
+    ~lon,   ~lat,  ~year, ~band, ~band_name,
+    9.25,   47.75, 2000L, 1L,    "rainfed temperate cereals",
+    9.25,   47.75, 2000L, 14L,   "rainfed grassland",
+    9.25,   47.75, 2000L, 17L,   "irrigated temperate cereals",
+    -3.25,  40.25, 2000L, 1L,    "rainfed temperate cereals",
+    -3.25,  40.25, 2000L, 14L,   "rainfed grassland",
+    -3.25,  40.25, 2000L, 17L,   "irrigated temperate cereals"
+  ) |>
+    dplyr::mutate(value = values)
+}
 # nolint end
