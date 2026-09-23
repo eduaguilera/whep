@@ -2295,9 +2295,11 @@ generate_ipcc_tier2_params <- function() {
     # single 0.47 percent "must be used in conjunction with a single B0 value
     # of 0.19 m3 CH4 kg-1 of VS excreted", judged more accurate than
     # "regionally based MCFs and animal category based B0" -- which is what
-    # WHEP computes. The Tier 2 kernel applies one per-species Bo to the
-    # share-weighted MCF, so the pair cannot be honoured without a per-stream
-    # product. See `?climate_mcf_ipcc` and #1022.
+    # WHEP computes. Footnote 2 of the table repeats it ("must always be used
+    # in conjunction with a B0 value of 0.19"). The pair is carried in the
+    # `paired_bo_m3_kg_vs` column below, and the Tier 2 kernel prices the
+    # pasture stream at it under the default `pasture_bo = "paired"` option.
+    # See `?climate_mcf_ipcc`, #1022 and #1137.
     #
     # The 2006 anaerobic digester is `NA` on purpose: the edition publishes
     # "0-100%" and requires the compiler to compute it with its Formula 1, so
@@ -2414,7 +2416,18 @@ generate_ipcc_tier2_params <- function() {
         "Temperate", 12.97,
       "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
         "Warm", 13.17
-    ),
+    ) |>
+      # The Bo an MCF is published with, where the edition pairs one: only
+      # the 2019 pasture/range/paddock row (Table 10.17 (Updated) footnote 2,
+      # p. 10.70; Section 10.4.2, p. 10.66; Annex 10B.6, p. 10.164). `NA`
+      # everywhere else, meaning "use the animal-category Bo". See whep#1137.
+      dplyr::mutate(
+        paired_bo_m3_kg_vs = dplyr::if_else(
+          edition == "ipcc_2019" & mms_type == "Pasture/Range/Paddock",
+          0.19,
+          NA_real_
+        )
+      ),
 
     # Regional MMS Distribution, the pre-whep#958 placeholder.
     # UNVERIFIED (whep#881, whep#921). Annotated "GLEAM 3.0 / FAO statistics

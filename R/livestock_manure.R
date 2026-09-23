@@ -4,12 +4,14 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but two defaults
-#'   reproduce the behaviour in force before whep#949. The exceptions are
-#'   `mcf_source`, which moved from the shipped table to the 2019 Refinement
-#'   in whep#1022 and does move Tier 2 manure CH4, and `mms_shares`, which
-#'   moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
-#'   whep#958 and does move both tiers' manure N2O.
+#' @param options A named list of manure-engine options. All but three
+#'   defaults reproduce the behaviour in force before whep#949. The exceptions
+#'   are `mcf_source`, which moved from the shipped table to the 2019
+#'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
+#'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
+#'   in whep#958 and does move both tiers' manure N2O, and `pasture_bo`, which
+#'   since whep#1137 pairs the 2019 pasture MCF with its published `Bo` and
+#'   moves Tier 2 manure CH4.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -51,10 +53,24 @@
 #'   see [climate_mcf_ipcc]. Both rules are WHEP's, not the IPCC's, and the
 #'   default makes them live. `method_manure_ch4` records the table used.
 #'
-#'   The default carries one known incompleteness: the Refinement pairs its
-#'   single 0.47 percent pasture MCF with a mandatory `Bo` of 0.19, and this
-#'   engine applies one per-species `Bo` to every stream, so the pair cannot be
-#'   honoured here. See the corresponding section of [climate_mcf_ipcc].
+#'   `pasture_bo` selects the methane potential (`Bo`) the Tier 2 manure CH4
+#'   prices the pasture/range/paddock stream at. The 2019 Refinement publishes
+#'   its single 0.47 percent pasture MCF as half of a pair that "must always be
+#'   used in conjunction with a B0 value of 0.19" (Vol 4, Ch 10, Table 10.17
+#'   (Updated) footnote 2, p. 10.70; Section 10.4.2, p. 10.66); the pair is
+#'   the `paired_bo_m3_kg_vs` column of [climate_mcf_ipcc] (whep#1137).
+#'   * `"paired"` (default): a stream whose MCF row carries a paired `Bo` is
+#'     priced at it, every other stream at the animal-category `Bo` of
+#'     [ipcc_tier2_bo_values]. Only `mcf_source = "ipcc_2019"` publishes a
+#'     pair, so under the other two sources this changes nothing.
+#'   * `"species"`: every stream takes the animal-category `Bo`, the
+#'     behaviour before whep#1137. Under `"ipcc_2019"` that is the hybrid the
+#'     Refinement rejects; kept so the earlier figures stay reproducible and
+#'     the sensitivity to the pairing stays measurable.
+#'
+#'   `method_manure_ch4` records per row which applied (`pasture_bo_paired` or
+#'   `pasture_bo_species`) wherever the row has manure on a stream that
+#'   carries a published pair.
 #'
 #'   `climate_source` selects where the climate zone the methane conversion
 #'   factors in the MCF table are read at comes from. A `climate_zone` a row
@@ -205,16 +221,18 @@ NULL
 
   ch4_density <- 0.67 # kg/m3 CH4 at STP
 
+  # Streams with a published paired Bo (whep#1137) carry their own Bo x MCF
+  # product in `paired_bo_mcf`; the rest take the animal-category Bo.
   n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
       manure_ch4_per_head = volatile_solids *
         365 *
-        methane_potential *
         ch4_density *
-        weighted_mcf,
+        (methane_potential * unpaired_mcf + paired_bo_mcf),
       manure_ch4_tier2 = n_animals * manure_ch4_per_head
-    )
+    ) |>
+    dplyr::select(-unpaired_mcf, -paired_bo_mcf)
 }
 
 #' IPCC 2019 manure N2O (direct + indirect).
@@ -734,8 +752,14 @@ NULL
     .check_mms_matched("mcf_percent")
 
   mms_joined <- mcf_rows |>
+    .split_paired_bo(opt$pasture_bo) |>
     dplyr::summarise(
       weighted_mcf = sum(fraction * mcf_percent / 100),
+      unpaired_mcf = sum(fraction * mcf_percent / 100 * is.na(paired_bo)),
+      paired_bo_mcf = sum(
+        fraction * mcf_percent / 100 * dplyr::coalesce(paired_bo, 0)
+      ),
+      has_pair = any(published_pair & fraction > 0),
       mms_basis = dplyr::first(mms_basis),
       .by = row_id
     )
@@ -750,7 +774,31 @@ NULL
       paste0("mms_assumed_", out$mms_basis),
       !is.na(out$mms_basis)
     ) |>
-    dplyr::select(-mms_basis)
+    .stamp_assumption(
+      "method_manure_ch4",
+      paste0("pasture_bo_", opt$pasture_bo),
+      out$has_pair
+    ) |>
+    dplyr::select(-mms_basis, -has_pair)
+}
+
+#' Keep or decline the Bo an MCF row is published with.
+#'
+#' `published_pair` records that the table carries a pair whatever the option,
+#' so a declined pair is still stamped; `paired_bo` is what the kernel prices
+#' the stream at, `NA` meaning the animal-category Bo (whep#1137).
+#' @noRd
+.split_paired_bo <- function(mcf_rows, pasture_bo) {
+  mcf_rows |>
+    dplyr::mutate(
+      published_pair = !is.na(paired_bo_m3_kg_vs),
+      paired_bo = if (identical(pasture_bo, "paired")) {
+        paired_bo_m3_kg_vs
+      } else {
+        NA_real_
+      }
+    ) |>
+    dplyr::select(-paired_bo_m3_kg_vs)
 }
 
 #' The climate zones `climate_mcf` actually keys.
@@ -1119,10 +1167,11 @@ NULL
 #' The `mms_region` and climate defaults reproduce the behaviour in force
 #' before whep#949 exactly: the `region == "Global"` MMS split on any frame
 #' that does not already carry a `region` column, and an assumed Temperate
-#' climate zone. Two defaults do not: whep#1022 moved `mcf_source` off the
-#' shipped MCF table onto the 2019 Refinement, and whep#958 moved
-#' `mms_shares` off the unsourced placeholder table onto the GLEAM 2.0
-#' ingest.
+#' climate zone. Three defaults do not: whep#1022 moved `mcf_source` off the
+#' shipped MCF table onto the 2019 Refinement, whep#958 moved `mms_shares`
+#' off the unsourced placeholder table onto the GLEAM 2.0 ingest, and
+#' whep#1137 made `pasture_bo` honour the Bo the Refinement pairs with its
+#' pasture MCF.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1130,7 +1179,8 @@ NULL
     mms_region = "as_available",
     mcf_source = "ipcc_2019",
     climate_source = "assumed",
-    assumed_climate_zone = "Temperate"
+    assumed_climate_zone = "Temperate",
+    pasture_bo = "paired"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1147,6 +1197,7 @@ NULL
   mcf_source <- opt$mcf_source
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
+  pasture_bo <- opt$pasture_bo
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1164,7 +1215,8 @@ NULL
     assumed_climate_zone = rlang::arg_match(
       assumed_climate_zone,
       c("Cool", "Temperate", "Warm")
-    )
+    ),
+    pasture_bo = rlang::arg_match(pasture_bo, c("paired", "species"))
   )
 }
 
@@ -1188,17 +1240,25 @@ NULL
 #' `"ipcc_2006"` differs from `"as_shipped"` in the latter two only, and
 #' `"as_shipped"` stays selectable so an older run can be reproduced.
 #'
+#' Each also returns `paired_bo_m3_kg_vs`, the `Bo` an MCF is published with
+#' where the edition pairs one (only the 2019 pasture row; whep#1137), `NA`
+#' elsewhere and throughout `"as_shipped"`.
+#'
 #' All three keep `climate_mcf`'s key space, so the join in
 #' `.calc_weighted_mcf()` is unchanged and an MMS label no table carries
 #' still aborts in `.check_mms_matched()`.
 #' @noRd
 .mcf_table <- function(mcf_source) {
   if (identical(mcf_source, "as_shipped")) {
-    return(dplyr::select(climate_mcf, mms_type, climate_zone, mcf_percent))
+    return(
+      climate_mcf |>
+        dplyr::select(mms_type, climate_zone, mcf_percent) |>
+        dplyr::mutate(paired_bo_m3_kg_vs = NA_real_)
+    )
   }
   climate_mcf_ipcc |>
     dplyr::filter(edition == mcf_source) |>
-    dplyr::select(mms_type, climate_zone, mcf_percent)
+    dplyr::select(mms_type, climate_zone, mcf_percent, paired_bo_m3_kg_vs)
 }
 
 #' Resolve the IPCC region the MMS split is keyed on, and record which split

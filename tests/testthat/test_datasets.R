@@ -1378,7 +1378,13 @@ test_that("climate_mcf_ipcc is a clean tibble over both editions", {
   assert_clean_tibble(
     obj,
     "climate_mcf_ipcc",
-    c("edition", "mms_type", "climate_zone", "mcf_percent"),
+    c(
+      "edition",
+      "mms_type",
+      "climate_zone",
+      "mcf_percent",
+      "paired_bo_m3_kg_vs"
+    ),
     min_rows = 60L
   )
   testthat::expect_setequal(
@@ -1398,6 +1404,22 @@ test_that("climate_mcf_ipcc is a clean tibble over both editions", {
   na_rows <- obj[is.na(obj$mcf_percent), ]
   testthat::expect_setequal(na_rows$mms_type, "Anaerobic Digester")
   testthat::expect_setequal(na_rows$edition, "ipcc_2006")
+})
+
+test_that("climate_mcf_ipcc pairs only the 2019 pasture MCF with a Bo", {
+  # 2019 Refinement, Vol 4, Ch 10, Table 10.17 (Updated) footnote 2, p. 10.70:
+  # pasture/range/paddock MCFs "must always be used in conjunction with a B0
+  # value of 0.19". No other row of either edition publishes a pair
+  # (whep#1137).
+  paired <- whep::climate_mcf_ipcc |>
+    dplyr::filter(!is.na(.data$paired_bo_m3_kg_vs))
+  testthat::expect_setequal(paired$edition, "ipcc_2019")
+  testthat::expect_setequal(paired$mms_type, "Pasture/Range/Paddock")
+  testthat::expect_setequal(
+    paired$climate_zone,
+    c("Cool", "Temperate", "Warm")
+  )
+  testthat::expect_setequal(paired$paired_bo_m3_kg_vs, 0.19)
 })
 
 test_that("climate_mcf_ipcc transcribes Table 10.17 of each edition", {
