@@ -143,7 +143,7 @@ test_that(".cached_cbs_built keeps the two trade_recovery builds apart", {
   expect_equal(again$trade_recovery, "none")
 })
 
-# whep#833. Two fills inside `.fix_cbs()` carry one observation across the
+# Issue 833: two fills inside `.fix_cbs()` carry one observation across the
 # whole year axis and decide whether a processing output exists at all, so a
 # CBS built over a window loses what the full-range build carries in from
 # outside it (and invents what the full-range build does not). The stand-in
