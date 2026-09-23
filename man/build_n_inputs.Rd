@@ -83,16 +83,29 @@ observation there as well as a symptom.
 \item \code{bnf_input}: \code{\link[=calculate_bnf]{calculate_bnf()}}'s required input tibble (\code{lon}, \code{lat},
 \code{area_code}, \code{year}, \code{item_prod_code}, \code{crop_npp_n_t}, \code{product_n_t},
 \code{weed_npp_n_t}, \code{land_use}, \code{legumes_seeded},
-\code{seeded_cover_crop_share}, \code{area_ha}).
+\code{seeded_cover_crop_share}, \code{area_ha}). The \code{"bnf"} term's
+\code{n_input_t} is the \code{bnf_t} column of \code{\link[=calculate_bnf]{calculate_bnf()}}'s output.
 \item \code{npp_n_input}: \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}'s required input
 tibble (\code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{item_prod_code},
 \code{item_cbs_code}, \code{product_dm_t}, \code{residue_dm_t}, \code{root_dm_t},
-optionally \code{residue_soil_dm_t}).
+optionally \code{residue_soil_dm_t}). The \code{"recycling"} term's
+\code{n_input_t} is \code{root_n_t} plus \code{residue_soil_n_t} from
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}'s output, or plus \code{residue_n_t} when
+\code{residue_soil_n_t} is absent (see \code{method_recycling_n}).
 \item \code{livestock_intake}: \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s \code{intake}
 argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-intake contract), plus
 \code{gridded} (its land-surface layer) and \code{resolution}/\code{methods}
-(forwarded as-is).
-\item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
+(forwarded as-is). The manure terms sum \code{applied_n} from the
+\verb{$applied} table of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s output,
+keyed by its \code{territory}, \code{sub_territory}, \code{crop}, \code{land_use},
+\code{manure_type} and \code{year}; \code{manure_type} selects the \code{"excreta"},
+\code{"manure_solid"} or \code{"manure_liquid"} term.
+\item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs. From
+its output the \code{"deposition"} term reads \code{deposition_kgn_ha} (the
+whole-cell rate), \code{deposition_n_t} and \code{area_category} (only to form
+the in-scope share of each polycell's mass, see \code{deposition_scope})
+and \code{method_deposition}; \code{n_input_t} is \code{deposition_kgn_ha} times that
+share times the support's \code{area_ha}, divided by 1000.
 \item \code{deposition_scope}: which of a polycell's territory the \code{"deposition"}
 term is credited with. \code{"territory"} (default) is land plus inland
 water plus ice: nitrogen deposited on a lake or a glacier still drives
@@ -116,16 +129,24 @@ forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when 
 (\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
 support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
-inputs.
+inputs. The \code{"urban"} term's \code{n_input_t} is the \code{urban_n_t} column of
+\code{\link[=build_urban_n]{build_urban_n()}}'s output.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it
-is never computed here.
+is never computed here. The \code{"som_mineralization"} term keeps the
+cropland rows with \code{son_change_kgn_ha > 0} and takes
+\code{son_change_kgn_ha} times \code{area_ha}, divided by 1000, as \code{n_input_t}.
 \item \code{primary_prod}, \code{fertilizer}, \code{crop_patterns}, \code{type_cropland},
 \code{cell_polity}: the synthetic-fertiliser assembly (country total from
 \code{fertilizer}, the \code{faostat-fertilizer-nutrients} pin, split to crops
 by the chosen crop-share method, then to cells by
-\code{crop_patterns}/\code{type_cropland}).
+\code{crop_patterns}/\code{type_cropland}). From \code{fertilizer} it reads the
+raw FAOSTAT columns \code{Element} (\code{"Agricultural Use"}), \code{Item}
+(\code{"Nutrient nitrogen N (total)"}), \code{Year}, \verb{Area Code} and \code{Value};
+\code{Value} becomes the country total \code{synthetic_n_t}, passed on as the
+\code{n_t} column of \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}'s \code{country_totals},
+whose output \code{n_t} is the \code{"synthetic"} term's \code{n_input_t}.
 \item \code{synthetic_method}: how the synthetic-N country total is split across
 crops, \code{"coello"} (default; Coello 2025 rate-weighted, FAOSTAT-
 conserving) or \code{"area_share"} (harvested-area shares only).
