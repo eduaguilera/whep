@@ -75,7 +75,10 @@ balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_c
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
-exact column.
+exact column; for the MANNER \code{nh3} methods the check runs on
+\code{n_balance_drivers} before any input is assembled, because no
+function in the package supplies those drivers (only \code{windspeed_ms}
+has a reader, \code{\link[=read_lpjml_wind]{read_lpjml_wind()}}, not wired in).
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
