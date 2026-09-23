@@ -91,6 +91,22 @@
 #'   Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
 #'   `tonnes` rows and 88.2% of `ha` rows.
 #'
+#'   Green fodder area is reconstructed, and `source` says how. FAOSTAT
+#'   reports fodder tonnage only (`faostat-production-old`, to 2012); EU
+#'   AgriDB reports area and yield (to 2019), and its rows read
+#'   `"EuropeAgriDB"`. A fodder area held flat past its series' last
+#'   observation reads `"DM_yield_estimate_carried_forward"`, one held flat
+#'   before its first `"DM_yield_estimate_carried_backward"`, and one
+#'   interpolated between two observations `"DM_yield_estimate"`. From 2013
+#'   every non-EU fodder area is its 2012 value carried forward: measured on
+#'   the real inputs, 75.0 of the 100.0 Mha of green fodder area in 2013,
+#'   against 2.2 of 99.5 Mha in 2012. A fodder series therefore changes what
+#'   it is made of at 2012/2013 with no change in level (whep#1027). That is
+#'   why [check_series_jumps()] finds nothing at 2013 in fodder area per
+#'   country (no area of 100 is flagged), and why it finds the break at once
+#'   in the yearly share of fodder area whose `source` is a carried one (0.022
+#'   to 0.750, a ratio of 33.5).
+#'
 #' @export
 #'
 #' @examples
@@ -199,6 +215,8 @@ build_primary_production <- function(
 #'   The `source` column indicates data provenance:
 #'   `"FAOSTAT_prod"` (original FAOSTAT production), `"EuropeAgriDB"` (European AgriDB fodder),
 #'   `"DM_yield_estimate"` (dry-matter yield imputation),
+#'   `"DM_yield_estimate_carried_forward"` /
+#'   `"DM_yield_estimate_carried_backward"` (fodder area held flat),
 #'   `"fill_linear"` (interpolation), `"imputed_yield"` (yield × area),
 #'   `"imputed_cbs_ratio"` (CBS ratio imputation),
 #'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy),
@@ -1197,6 +1215,7 @@ build_primary_production <- function(
       t_dm,
       ha_share,
       ha,
+      source_ha,
       kgnha_euadb
     )
   ]
@@ -1225,17 +1244,34 @@ build_primary_production <- function(
     t_dmbased = ha * yield_dm / Product_kgDM_kgFM
   )]
   dt[, t_2 := data.table::fifelse(!is.na(t_euadb), t_euadb, t_dmbased)]
-  dt[,
-    source := data.table::fcase(
-      !is.na(t)       ,
-      "FAOSTAT_prod"  ,
-      !is.na(t_euadb) ,
-      "EuropeAgriDB"  ,
-      default = "DM_yield_estimate"
-    )
-  ]
+  dt[, source := .fodder_row_source(t, t_euadb, source_ha)]
+  dt[, source_ha := NULL]
 
   tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
+}
+
+# Provenance of a fodder row's numbers (#1027). An area `fill_linear()` held
+# flat past a series' last anchor, or before its first, is a carried value and
+# says so: FAOSTAT's fodder tonnage ends in 2012 while EU AgriDB runs to 2019,
+# so from 2013 every non-EU fodder area is its 2012 value held flat, and under
+# the one label an interpolated area also gets that switch was invisible.
+# Carried comes first because the area is what was carried; the tonnage is that
+# area times a dry-matter or EU AgriDB yield. EU AgriDB comes before FAOSTAT
+# because where it exists it supplies both the hectares and the tonnage (`t_2`);
+# keying on the FAOSTAT tonnage relabelled every EU row the year that series
+# ended, with no number changing.
+.fodder_row_source <- function(t, t_euadb, source_ha) {
+  data.table::fcase(
+    source_ha == "Last value carried forward"    ,
+    "DM_yield_estimate_carried_forward"          ,
+    source_ha == "First value carried backwards" ,
+    "DM_yield_estimate_carried_backward"         ,
+    !is.na(t_euadb)                              ,
+    "EuropeAgriDB"                               ,
+    !is.na(t)                                    ,
+    "FAOSTAT_prod"                               ,
+    default = "DM_yield_estimate"
+  )
 }
 
 .correct_tea <- function(df) {
@@ -3847,7 +3883,7 @@ build_primary_production <- function(
     stringr::str_starts(source, "historical_") ~ 3L,
     stringr::str_starts(source, "imputed_yield") ~ 4L,
     source == "imputed_cbs_ratio" ~ 5L,
-    source == "DM_yield_estimate" ~ 6L,
+    stringr::str_starts(source, "DM_yield_estimate") ~ 6L,
     source == "fill_linear" ~ 7L,
     source == "fill_linear_historical" ~ 8L,
     source == "LUH2_cropland" ~ 9L,

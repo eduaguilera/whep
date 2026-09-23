@@ -2268,6 +2268,9 @@ utils::globalVariables(
     # production that the share cap leaves out, and the years it spans
     "excess_fm",
     "n_years",
+    # build_production.R (issue 1027) -- `fill_linear()`'s provenance of a
+    # fodder area, kept so a carried area is labelled as carried
+    "source_ha",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
