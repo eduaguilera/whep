@@ -135,7 +135,8 @@ test_that("output has the locked column schema and non-negative scaling", {
       "hierarchy_level",
       "requested_item",
       "source_compartment",
-      "fixed_demand"
+      "fixed_demand",
+      "method_feed_eligibility"
     ),
     ignore.order = TRUE
   )
@@ -483,4 +484,146 @@ test_that("redistribute_feed attaches a grass_deficit_diagnosis with maintenance
   diag <- attr(out, "grass_deficit_diagnosis")
   expect_false(is.null(diag))
   expect_s3_class(diag, "tbl_df")
+})
+
+# ---- Feed eligibility (whep#1218) --------------------------------------------
+
+# Pigs and cattle both demand "residues"; straw is the residue pigs may not eat.
+.straw_demand <- function() {
+  tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "1", NA, "Pigs",        NA_integer_, NA, "residues", 60, FALSE,
+    2000L, "1", NA, "Cattle_milk", NA_integer_, NA, "residues", 40, FALSE
+  )
+}
+
+.straw_avail <- function(straw = 100, other = 0) {
+  tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+    ~feed_quality, ~avail_dm_t, ~feed_scale,
+    2000L, "1", NA, 2105L, "Straw",         "residues", straw, "national",
+    2000L, "1", NA, 2106L, "Crop residues", "residues", other, "national"
+  ) |>
+    dplyr::filter(avail_dm_t > 0)
+}
+
+.pig_straw_exclusion <- function() {
+  tibble::tibble(livestock_category = "Pigs", item_cbs_code = 2105L)
+}
+
+.intake_by <- function(out, category, item) {
+  out |>
+    dplyr::filter(
+      livestock_category %in% category,
+      item_cbs_code %in% item
+    ) |>
+    dplyr::pull(intake_dm_t) |>
+    sum()
+}
+
+test_that("feed_exclusions keep an excluded item away from a category", {
+  out <- whep::redistribute_feed(
+    .straw_demand(),
+    .straw_avail(),
+    options = list(feed_exclusions = .pig_straw_exclusion())
+  )
+  expect_equal(.intake_by(out, "Pigs", 2105L), 0)
+  # Cattle may eat straw: their residue demand is met, and the surplus pass
+  # hands them the rest of the straw rather than the pigs.
+  expect_equal(.intake_by(out, "Cattle_milk", 2105L), 100, tolerance = 1e-9)
+  # The unmet pig demand stays visible as underfeeding, not hidden.
+  pigs <- out[out$livestock_category == "Pigs", ]
+  expect_true(all(pigs$scaling_factor == 0))
+  expect_equal(unique(out$method_feed_eligibility), "custom")
+})
+
+test_that("without feed_exclusions the allocator is unrestricted", {
+  out <- whep::redistribute_feed(.straw_demand(), .straw_avail())
+  expect_gt(.intake_by(out, "Pigs", 2105L), 0)
+  expect_equal(unique(out$method_feed_eligibility), "none")
+})
+
+test_that("feed_exclusions hold in the substitute pool", {
+  # Pig demand is for high-quality feed that is absent, so only the priority
+  # pool (level 4) could reach the straw.
+  d <- .straw_demand() |>
+    dplyr::mutate(
+      feed_quality = dplyr::if_else(
+        livestock_category == "Pigs",
+        "high_quality",
+        feed_quality
+      )
+    )
+  out <- whep::redistribute_feed(
+    d,
+    .straw_avail(straw = 500),
+    options = list(
+      feed_exclusions = .pig_straw_exclusion(),
+      distribute_surplus = FALSE
+    )
+  )
+  expect_equal(.intake_by(out, "Pigs", 2105L), 0)
+  expect_equal(.intake_by(out, "Cattle_milk", 2105L), 40, tolerance = 1e-9)
+})
+
+test_that("an excluded category still shares the items it may eat", {
+  out <- whep::redistribute_feed(
+    .straw_demand(),
+    .straw_avail(straw = 20, other = 50),
+    options = list(
+      feed_exclusions = .pig_straw_exclusion(),
+      distribute_surplus = FALSE
+    )
+  )
+  expect_equal(.intake_by(out, "Pigs", 2105L), 0)
+  expect_gt(.intake_by(out, "Pigs", 2106L), 0)
+  expect_lte(.intake_by(out, c("Pigs", "Cattle_milk"), 2105L), 20 + 1e-9)
+  expect_lte(.intake_by(out, c("Pigs", "Cattle_milk"), 2106L), 50 + 1e-9)
+  # Straw is offered to its only eligible eater first, so the demand met
+  # overall is the whole supply (20 straw + 50 other).
+  expect_equal(sum(out$intake_dm_t), 70, tolerance = 1e-9)
+})
+
+test_that("feed_exclusions reach the max_intake_share reroute", {
+  # Cattle-milk grass is capped, so freed DM goes to leftover non-grass supply;
+  # that reroute must not hand the pigs straw either.
+  d <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~livestock_category, ~item_cbs_code,
+    ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+    2000L, "1", NA, "Pigs", NA_integer_, NA, "high_quality", 50, FALSE,
+    2000L, "1", NA, "Pigs", 2514L, "cereals", "high_quality", 50, FALSE
+  )
+  a <- tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+    ~feed_quality, ~avail_dm_t, ~feed_scale,
+    2000L, "1", NA, 2514L, "cereals", "high_quality", 100, "national",
+    2000L, "1", NA, 2105L, "Straw",   "residues",     100, "national"
+  )
+  caps <- tibble::tribble(
+    ~livestock_category, ~var, ~var_value, ~max_intake_share,
+    "Pigs", "item_cbs_code", "2514", 0.5,
+    "Pigs", "feed_quality", "grass", 0
+  )
+  out <- whep::redistribute_feed(
+    d,
+    a,
+    options = list(
+      feed_exclusions = .pig_straw_exclusion(),
+      max_intake_share = caps,
+      distribute_surplus = FALSE
+    )
+  )
+  expect_equal(.intake_by(out, "Pigs", 2105L), 0)
+})
+
+test_that("feed_exclusions reject a malformed table", {
+  expect_error(
+    whep::redistribute_feed(
+      .straw_demand(),
+      .straw_avail(),
+      options = list(feed_exclusions = tibble::tibble(item_cbs_code = 2105L))
+    ),
+    regexp = "livestock_category"
+  )
 })

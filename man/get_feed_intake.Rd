@@ -9,7 +9,8 @@ get_feed_intake(
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
   feed_mode = c("historical", "scenario"),
-  years = NULL
+  years = NULL,
+  feed_eligibility = c("feed_table", "none")
 )
 }
 \arguments{
@@ -37,6 +38,15 @@ intake). \code{"scenario"} distributes the surplus.}
 year in the production data (1850-2023 via the LUH2 extension). Restricting
 the range cuts run time proportionally; allocation is independent per year,
 so a subset returns exactly the same rows for those years.}
+
+\item{feed_eligibility}{Which feeds each livestock category may receive.
+\code{"feed_table"} (default) follows \code{feed_taxonomy}: an item with a grazer
+feed type but no granivore feed type (straw and green fodder) is fibrous
+roughage that pigs and poultry do not eat, so it is never allocated to
+them, at any allocation level. Granivore demand that the feeds they may
+eat cannot cover stays unmet rather than being filled with roughage.
+\code{"none"} lets any category receive any item (the behaviour before
+whep#1218), for sensitivity analysis.}
 }
 \value{
 A tibble with the feed intake data.

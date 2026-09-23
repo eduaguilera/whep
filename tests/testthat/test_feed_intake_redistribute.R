@@ -1940,3 +1940,71 @@ test_that("the Rest-of-World mix is a weighted average of its regions", {
 
   expect_equal(blended, dplyr::relocate(per_region, "demand_dm_t", .after = -1))
 })
+
+# ---- Feed eligibility (whep#1218) --------------------------------------------
+
+test_that(".feed_table_exclusions bars roughage from granivores only", {
+  excl <- whep:::.feed_table_exclusions(whep:::.livestock_crosswalk())
+  expect_setequal(unique(excl$livestock_category), c("Pigs", "Poultry"))
+  # Straw and the green fodders have no granivore feed type in feed_taxonomy.
+  expect_setequal(unique(excl$item_cbs_code), c(2105L, 2000L, 2001L, 2003L))
+  # Other crop residues (2106) is a granivore feed in the taxonomy.
+  expect_false(2106L %in% excl$item_cbs_code)
+  expect_equal(nrow(excl), 8L)
+})
+
+test_that(".with_feed_eligibility derives, disables and yields to options", {
+  cw <- whep:::.livestock_crosswalk()
+  derived <- whep:::.with_feed_eligibility(list(), "feed_table", cw)
+  expect_equal(derived$feed_eligibility, "feed_table")
+  expect_gt(nrow(derived$feed_exclusions), 0)
+  none <- whep:::.with_feed_eligibility(list(), "none", cw)
+  expect_null(none$feed_exclusions)
+  own <- tibble::tibble(livestock_category = "Pigs", item_cbs_code = 1L)
+  kept <- whep:::.with_feed_eligibility(
+    list(feed_exclusions = own),
+    "feed_table",
+    cw
+  )
+  expect_equal(kept$feed_exclusions, own)
+  expect_error(whep:::.with_feed_eligibility(list(), "bogus", cw))
+})
+
+test_that("national engine never feeds straw to pigs under feed_table", {
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  codes <- tibble::tribble(
+    ~year, ~area_code, ~live_anim_code, ~demand_dm_t, ~method_demand,
+    1970L, area,       1049L,           1e5,          "bouwman_fcr",
+    1970L, area,       960L,            1e5,          "ipcc_tier2"
+  )
+  testthat::local_mocked_bindings(
+    .build_feed_demand_codes = function(...) codes
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, area,       2105L,          1e6
+  )
+  straw_to <- function(out, category) {
+    sum(out$intake_dm_t[
+      out$livestock_category == category & out$item_cbs_code %in% 2105L
+    ])
+  }
+  restricted <- whep:::.run_redistribute_national(NULL, cbs, "ipcc")
+  expect_equal(straw_to(restricted, "Pigs"), 0)
+  expect_gt(straw_to(restricted, "Cattle_milk"), 0)
+  expect_equal(unique(restricted$method_feed_eligibility), "feed_table")
+  # The unmet pig demand is reported as underfeeding, not hidden.
+  pigs <- restricted[restricted$livestock_category == "Pigs", ]
+  expect_lt(sum(pigs$intake_dm_t), sum(unique(pigs$demand_dm_t)))
+
+  open <- whep:::.run_redistribute_national(
+    NULL,
+    cbs,
+    "ipcc",
+    feed_eligibility = "none"
+  )
+  expect_gt(straw_to(open, "Pigs"), 0)
+  expect_equal(unique(open$method_feed_eligibility), "none")
+})
