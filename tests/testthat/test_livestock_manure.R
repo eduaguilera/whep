@@ -1344,3 +1344,120 @@ testthat::test_that("a row with no weighted EF3 aborts, never passes NA", {
   )
   testthat::expect_match(msg, "weighted_ef3", fixed = TRUE)
 })
+
+# pasture_bo: the Bo the 2019 pasture MCF is published with (whep#1137) -------
+
+pasture_bo_fixture <- function() {
+  tibble::tribble(
+    ~species,       ~cohort,        ~weight, ~milk_yield_kg_day, ~heads,
+    "Buffalo",      "Adult Female",     500,                  5,    100,
+    "Goats",        "Adult Female",      40,                0.5,    100,
+    "Dairy Cattle", "Adult Female",     600,                 20,    100
+  ) |>
+    dplyr::mutate(diet_quality = "Medium") |>
+    whep::estimate_energy_demand()
+}
+
+manure_ch4_under <- function(options) {
+  pasture_bo_fixture() |>
+    whep:::.calc_manure_ch4_tier2(options = options)
+}
+
+testthat::test_that("the 2019 pasture stream is priced at its paired Bo", {
+  paired <- manure_ch4_under(list())
+  species <- manure_ch4_under(list(pasture_bo = "species"))
+
+  # Referential: the pasture term of the weighted MCF, read off the tables
+  # outside the engine, is the only part of the product the option reprices.
+  pasture_mcf <- whep:::.mms_global_shares() |>
+    dplyr::filter(mms_type == "Pasture/Range/Paddock") |>
+    dplyr::inner_join(
+      whep::climate_mcf_ipcc |>
+        dplyr::filter(
+          edition == "ipcc_2019",
+          mms_type == "Pasture/Range/Paddock",
+          climate_zone == "Temperate"
+        ),
+      by = "mms_type"
+    ) |>
+    dplyr::transmute(
+      species_gen = species,
+      pasture_mcf = fraction * mcf_percent / 100
+    )
+  expected <- species |>
+    dplyr::left_join(pasture_mcf, by = "species_gen") |>
+    dplyr::mutate(
+      pasture_mcf = dplyr::coalesce(pasture_mcf, 0),
+      expected = manure_ch4_per_head +
+        volatile_solids * 365 * 0.67 * pasture_mcf * (0.19 - methane_potential)
+    )
+  testthat::expect_equal(paired$manure_ch4_per_head, expected$expected)
+  testthat::expect_true(all(expected$pasture_mcf > 0))
+
+  # Buffalo (Bo 0.10) and goats (0.18) rise, dairy cattle (0.24) falls, and
+  # every row with pasture manure says which Bo it took.
+  ratio <- stats::setNames(
+    paired$manure_ch4_tier2 / species$manure_ch4_tier2,
+    paired$species
+  )
+  testthat::expect_gt(ratio[["Buffalo"]], 1)
+  testthat::expect_gt(ratio[["Goats"]], 1)
+  testthat::expect_lt(ratio[["Dairy Cattle"]], 1)
+  testthat::expect_true(
+    all(grepl("pasture_bo_paired", paired$method_manure_ch4))
+  )
+  testthat::expect_true(
+    all(grepl("pasture_bo_species", species$method_manure_ch4))
+  )
+  # The per-stream split does not leak into the output schema.
+  testthat::expect_setequal(names(paired), names(species))
+  testthat::expect_false(
+    any(c("unpaired_mcf", "paired_bo_mcf") %in% names(paired))
+  )
+})
+
+testthat::test_that("pasture_bo = 'species' reproduces the single-Bo kernel", {
+  species <- manure_ch4_under(list(pasture_bo = "species"))
+  testthat::expect_equal(
+    species$manure_ch4_per_head,
+    species$volatile_solids *
+      365 *
+      species$methane_potential *
+      0.67 *
+      species$weighted_mcf
+  )
+})
+
+testthat::test_that("pasture_bo is inert where the edition publishes no pair", {
+  for (src in c("ipcc_2006", "as_shipped")) {
+    paired <- manure_ch4_under(list(mcf_source = src))
+    species <- manure_ch4_under(
+      list(mcf_source = src, pasture_bo = "species")
+    )
+    testthat::expect_identical(
+      paired$manure_ch4_per_head,
+      species$manure_ch4_per_head,
+      label = src
+    )
+    testthat::expect_false(any(grepl("pasture_bo", paired$method_manure_ch4)))
+  }
+})
+
+testthat::test_that("the default MCF table supplies the published pair", {
+  # Guards the input rather than the arithmetic: a table that lost the value
+  # would read as NA, i.e. the "species" behaviour, and every identity above
+  # would still hold.
+  pairs <- whep:::.mcf_table("ipcc_2019") |>
+    dplyr::filter(!is.na(paired_bo_m3_kg_vs))
+  testthat::expect_equal(unique(pairs$mms_type), "Pasture/Range/Paddock")
+  testthat::expect_equal(unique(pairs$paired_bo_m3_kg_vs), 0.19)
+  testthat::expect_equal(nrow(pairs), 3L)
+  testthat::expect_identical(whep:::.manure_options()$pasture_bo, "paired")
+})
+
+testthat::test_that("an unknown pasture_bo value aborts", {
+  testthat::expect_error(
+    whep:::.manure_options(list(pasture_bo = "0.19")),
+    "pasture_bo"
+  )
+})
