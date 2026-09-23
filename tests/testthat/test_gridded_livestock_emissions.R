@@ -458,15 +458,53 @@ testthat::test_that("unanchored feed mass never drags the mean", {
 
 # Coverage gaps ---------------------------------------------------------------
 
-testthat::test_that("a species with no Tier 2 coefficients warns and is NA", {
+testthat::test_that("a species with no Tier 2 method takes Tier 1, stamped", {
+  # whep#1028: pigs have no Tier 2 energy coefficients. By default they take
+  # the Tier 1 factors the IPCC suggests for them, which a Tier 1 grid of the
+  # same herd reproduces exactly, and every row says so.
+  grid <- .grid_fixture() |>
+    dplyr::mutate(species_group = "pigs")
+  run <- function(tier) {
+    suppressMessages(whep::build_gridded_livestock_emissions(
+      grid,
+      method_diet = "uniform_medium",
+      tier = tier,
+      data = list(cell_climate = .climate_fixture())
+    ))
+  }
+
+  testthat::expect_message(
+    whep::build_gridded_livestock_emissions(
+      grid,
+      method_diet = "uniform_medium",
+      data = list(cell_climate = .climate_fixture())
+    ),
+    class = "whep_tier2_uncovered"
+  )
+  tier2 <- run(2)
+  tier1 <- run(1)
+
+  testthat::expect_false(anyNA(tier2$enteric_ch4_kt))
+  testthat::expect_true(all(tier2$enteric_ch4_kt > 0))
+  testthat::expect_true(all(tier2$method_enteric == "IPCC_2019_Tier1"))
+  testthat::expect_true(all(tier2$method_manure_ch4 == "IPCC_2019_Tier1"))
+  testthat::expect_equal(sum(tier2$enteric_ch4_kt), sum(tier1$enteric_ch4_kt))
+  testthat::expect_equal(sum(tier2$manure_ch4_kt), sum(tier1$manure_ch4_kt))
+})
+
+testthat::test_that("leave_na keeps an uncovered species NA, with a warning", {
   grid <- .grid_fixture() |>
     dplyr::mutate(species_group = "pigs")
 
   testthat::expect_warning(
-    result <- whep::build_gridded_livestock_emissions(
-      grid,
-      method_diet = "uniform_medium",
-      data = list(cell_climate = .climate_fixture())
+    result <- suppressWarnings(
+      whep::build_gridded_livestock_emissions(
+        grid,
+        method_diet = "uniform_medium",
+        options = list(tier2_uncovered = "leave_na"),
+        data = list(cell_climate = .climate_fixture())
+      ),
+      classes = "whep_tier2_uncovered"
     ),
     "Unresolved emissions"
   )
@@ -489,15 +527,17 @@ testthat::test_that("a mixed herd keeps the species Tier 2 does resolve", {
     )
   )
 
-  result <- suppressWarnings(whep::build_gridded_livestock_emissions(
+  result <- suppressMessages(whep::build_gridded_livestock_emissions(
     grid,
     method_diet = "uniform_medium",
     data = list(cell_climate = .climate_fixture())
   ))
 
   cattle <- dplyr::filter(result, species != "Pigs")
+  pigs <- dplyr::filter(result, species == "Pigs")
   testthat::expect_false(anyNA(cattle$enteric_ch4_kt))
-  testthat::expect_true(all(is.na(
-    result$enteric_ch4_kt[result$species == "Pigs"]
-  )))
+  testthat::expect_true(all(cattle$method_enteric == "IPCC_2019_Tier2"))
+  testthat::expect_gt(nrow(pigs), 0L)
+  testthat::expect_false(anyNA(pigs$enteric_ch4_kt))
+  testthat::expect_true(all(pigs$method_enteric == "IPCC_2019_Tier1"))
 })

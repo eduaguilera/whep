@@ -18,9 +18,10 @@
 # - The FAOSTAT emission family (`*_kt`, kilotonnes) and the IPCC family
 #   (`enteric_ch4_tier1|2`, kilograms) never met anywhere in the package.
 #   `livestock_emissions_to_kt()` below is that bridge, in one place.
-# - `ipcc_tier2_energy_coefs` covers Cattle, Buffalo, Sheep and Goats only, so
-#   Tier 2 leaves camels, equines, swine and poultry unresolved (NA, warned),
-#   never zero.
+# - `ipcc_tier2_energy_coefs` covers Cattle, Buffalo, Sheep and Goats only.
+#   Since whep#1028 Tier 2 gives camels, equines, swine and poultry their
+#   Tier 1 value by default, stamped in `method_*`; with
+#   `options$tier2_uncovered = "leave_na"` they stay NA (warned), never zero.
 
 #' Build per-cell livestock greenhouse-gas emissions.
 #'
@@ -504,9 +505,10 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
       {nrow(unresolved)} species: {.val {unresolved$species}}.",
     i = "Head count affected, in the same order:
          {.val {round(unresolved$heads)}}.",
-    i = "{.field ipcc_tier2_energy_coefs} covers Cattle, Buffalo, Sheep and
-         Goats only, so Tier 2 cannot resolve the others. They are returned as
-         {.val NA}, never as zero."
+    i = "They are returned as {.val NA}, never as zero. A species with no
+         Tier 2 method is NA only under
+         {.code options$tier2_uncovered = \"leave_na\"}; otherwise the
+         inputs these rows need (diet, weight) are missing."
   ))
   emissions
 }

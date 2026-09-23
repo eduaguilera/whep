@@ -179,24 +179,106 @@ testthat::test_that(".warn_dropped_ghg distinguishes a systematic species gap fr
   testthat::expect_false(grepl("Swine", partial_warning, fixed = TRUE))
 })
 
-testthat::test_that("Tier 2 warns explicitly when a real species has no energy coefficients", {
-  # End-to-end: item_cbs_code 1049 (pig meat) maps to species_gen "Swine" via
-  # prepare_livestock_emissions(), which has no Tier 2 Cfi row.
+# whep#1028: every live-animal item FAOSTAT reports that has no Tier 2 energy
+# coefficients -- swine (both halves), poultry, horses, asses, mules, camels.
+.uncovered_prod_fixture <- function() {
+  tibble::tibble(
+    year = 2000L,
+    area_code = 10L,
+    item_cbs_code = c(1049L, 1051L, 1052L, 1053L, 1096L, 1107L, 1110L, 1126L),
+    unit = "heads",
+    value = 100000
+  )
+}
+
+testthat::test_that("Tier 2 covers the species Tier 1 covers", {
+  # The invariant the issue asks for: choosing Tier 2 must not choose fewer
+  # animals. Before whep#1028 every sector below was dropped at Tier 2.
+  prod <- dplyr::bind_rows(.ghg_prod_fixture(), .uncovered_prod_fixture())
+  tier1 <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    data = list(primary_prod = prod)
+  )
+  tier2 <- suppressMessages(whep::build_livestock_ghg_extension(
+    tier = 2,
+    method_diet = "uniform_medium",
+    data = list(primary_prod = prod)
+  ))
+
+  testthat::expect_setequal(tier2$item_cbs_code, tier1$item_cbs_code)
+  testthat::expect_false(anyNA(tier2$impact_u))
+})
+
+testthat::test_that("species with no Tier 2 method take Tier 1, and say so", {
+  prod <- .uncovered_prod_fixture()
+
+  testthat::expect_message(
+    tier2 <- whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = prod)
+    ),
+    class = "whep_tier2_uncovered"
+  )
+  tier1 <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    data = list(primary_prod = prod)
+  )
+
+  joined <- dplyr::inner_join(
+    tier1,
+    tier2,
+    by = c("year", "area_code", "item_cbs_code"),
+    suffix = c("_t1", "_t2")
+  )
+  testthat::expect_equal(nrow(joined), nrow(tier1))
+  testthat::expect_equal(joined$impact_u_t2, joined$impact_u_t1)
+  testthat::expect_true(all(tier2$method_manure_ch4 == "IPCC_2019_Tier1"))
+})
+
+testthat::test_that("leave_na drops the uncovered species, warning twice", {
+  # The pre-whep#1028 behaviour, kept selectable: the calculator warns that
+  # it has no method, and the extension warns that it dropped the rows.
   prod <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
     2000L, 10L, 1049L, "heads", 100000
   )
 
   testthat::expect_warning(
-    result <- whep::build_livestock_ghg_extension(
-      tier = 2,
-      method_diet = "uniform_medium",
-      data = list(primary_prod = prod)
+    testthat::expect_warning(
+      result <- whep::build_livestock_ghg_extension(
+        tier = 2,
+        method_diet = "uniform_medium",
+        options = list(tier2_uncovered = "leave_na"),
+        data = list(primary_prod = prod)
+      ),
+      "no Tier 2 coefficients"
     ),
-    "no Tier 2 coefficients"
+    class = "whep_tier2_uncovered"
   )
 
   testthat::expect_equal(nrow(result), 0L)
+})
+
+testthat::test_that("tier2_uncovered = abort names the species", {
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      options = list(tier2_uncovered = "abort"),
+      data = list(primary_prod = .uncovered_prod_fixture())
+    ),
+    class = "whep_tier2_uncovered"
+  )
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      options = list(tier2_uncovered = "bogus"),
+      data = list(primary_prod = .uncovered_prod_fixture())
+    ),
+    "tier1"
+  )
 })
 
 # .sum_emission_cols: an absent gas is not a zero gas --------------------------
