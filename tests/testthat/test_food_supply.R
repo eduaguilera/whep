@@ -374,3 +374,150 @@ testthat::test_that("wheat food protein is on the flour basis (#796)", {
     0.11844577745690253 / 0.093
   )
 })
+
+# ---- faostat_fbs read from the FBS pins (#413) ------------------------------
+
+# The pins' own long FAOSTAT layout, real `faostat-fbs-old` values: Spain in
+# 2000 and 2010, the four China members in 2000 with the area 351 aggregate
+# over them (#939), the `World` aggregate, and one leaf item (2511 Wheat) that
+# must not be mistaken for the Grand Total. Population is in thousands.
+.fbs413_old <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~`Element Code`, ~Year, ~Value,
+    203L,         2501L,        511L,            2000L, 40283,
+    203L,         2901L,        664L,            2000L, 3360,
+    203L,         2901L,        674L,            2000L, 112.25,
+    203L,         2511L,        674L,            2000L, 30.0,
+    203L,         2501L,        511L,            2010L, 46182,
+    203L,         2901L,        664L,            2010L, 3183,
+    203L,         2901L,        674L,            2010L, 106.96,
+    41L,          2501L,        511L,            2000L, 1280429,
+    41L,          2901L,        664L,            2000L, 2808,
+    41L,          2901L,        674L,            2000L, 83.71,
+    96L,          2501L,        511L,            2000L, 6835,
+    96L,          2901L,        664L,            2000L, 3049,
+    96L,          2901L,        674L,            2000L, 100.67,
+    128L,         2501L,        511L,            2000L, 432,
+    128L,         2901L,        664L,            2000L, 2474,
+    128L,         2901L,        674L,            2000L, 71.30,
+    214L,         2501L,        511L,            2000L, 21935,
+    214L,         2901L,        664L,            2000L, 3119,
+    214L,         2901L,        674L,            2000L, 94.47,
+    351L,         2501L,        511L,            2000L, 1309631,
+    351L,         2901L,        664L,            2000L, 2814,
+    351L,         2901L,        674L,            2000L, 83.97,
+    5000L,        2501L,        511L,            2000L, 6018298,
+    5000L,        2901L,        664L,            2000L, 2727,
+    5000L,        2901L,        674L,            2000L, 75.04
+  )
+}
+
+# Real `faostat-fbs-new` Spain 2010, which must win over the old vintage, plus
+# a logical Note column of the kind #1178 describes, which must not matter.
+.fbs413_new <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~`Element Code`, ~Year, ~Value,   ~Note,
+    203L,         2501L,        511L,            2010L, 46840.47, NA,
+    203L,         2901L,        664L,            2010L, 3181.45,  NA,
+    203L,         2901L,        674L,            2010L, 109.69,   TRUE
+  )
+}
+
+.fbs413_build <- function(old = .fbs413_old(), new = .fbs413_new()) {
+  suppressMessages(
+    whep::build_food_supply(
+      method = "faostat_fbs",
+      data = list(fbs_old = old, fbs_new = new)
+    )
+  )
+}
+
+testthat::test_that("faostat_fbs reads the Grand Total from the pins", {
+  out <- .fbs413_build()
+  spain_2000 <- dplyr::filter(out, area_code == 203L, year == 2000L)
+  testthat::expect_equal(spain_2000$protein_g_cap_day, 112.25)
+  testthat::expect_equal(spain_2000$energy_kcal_cap_day, 3360)
+  testthat::expect_equal(spain_2000$population, 40283 * 1000)
+  testthat::expect_true(all(out$method_food_supply == "faostat_fbs"))
+  testthat::expect_true(all(is.na(out$method_protein_basis)))
+  testthat::expect_equal(anyDuplicated(out[c("year", "area_code")]), 0L)
+})
+
+testthat::test_that("faostat_fbs prefers the new vintage in an overlap", {
+  spain_2010 <- .fbs413_build() |>
+    dplyr::filter(area_code == 203L, year == 2010L)
+  testthat::expect_equal(nrow(spain_2010), 1L)
+  testthat::expect_equal(spain_2010$protein_g_cap_day, 109.69)
+  testthat::expect_equal(spain_2010$population, 46840.47 * 1000)
+})
+
+testthat::test_that("faostat_fbs drops the China and World aggregates", {
+  in_2000 <- dplyr::filter(.fbs413_build(), year == 2000L)
+  # Spain plus the four China members, and nothing else: the 351 aggregate
+  # (#939) and World (5000) are not areas.
+  testthat::expect_equal(nrow(in_2000), 5L)
+  members <- (1280429 + 6835 + 432 + 21935) * 1000
+  testthat::expect_equal(sum(in_2000$population), members + 40283 * 1000)
+  testthat::expect_message(
+    whep::build_food_supply(
+      method = "faostat_fbs",
+      data = list(fbs_old = .fbs413_old(), fbs_new = .fbs413_new())
+    ),
+    "351"
+  )
+})
+
+testthat::test_that("faostat_fbs population agrees with read_fbs_population", {
+  data <- list(fbs_old = .fbs413_old(), fbs_new = .fbs413_new())
+  supply <- .fbs413_build()
+  pop <- suppressMessages(whep::read_fbs_population(data = data))
+  joined <- dplyr::inner_join(
+    dplyr::select(supply, "year", "area_code", "population"),
+    dplyr::select(pop, "year", "area_code", population_ref = "population"),
+    by = c("year", "area_code")
+  )
+  testthat::expect_equal(nrow(joined), nrow(supply))
+  testthat::expect_equal(nrow(joined), nrow(pop))
+  testthat::expect_equal(joined$population, joined$population_ref)
+})
+
+testthat::test_that("faostat_fbs population-weights a shared bucket", {
+  # 276 Sudan and 277 South Sudan both land on bucket 206 in 2015. The
+  # per-capita values are hypothetical; what is asserted is that the bucket
+  # gets the population-weighted mean, not the sum of two per-capita figures.
+  shared <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~`Element Code`, ~Year, ~Value,
+    276L,         2501L,        511L,            2015L, 30000,
+    276L,         2901L,        664L,            2015L, 2400,
+    276L,         2901L,        674L,            2015L, 70,
+    277L,         2501L,        511L,            2015L, 10000,
+    277L,         2901L,        664L,            2015L, 2000,
+    277L,         2901L,        674L,            2015L, 50
+  )
+  out <- dplyr::filter(.fbs413_build(new = shared), year == 2015L)
+  testthat::expect_equal(out$area_code, 206L)
+  testthat::expect_equal(out$population, 40000 * 1000)
+  testthat::expect_equal(out$protein_g_cap_day, (70 * 3 + 50) / 4)
+  testthat::expect_equal(out$energy_kcal_cap_day, (2400 * 3 + 2000) / 4)
+})
+
+testthat::test_that("faostat_fbs aborts on a pin with no Grand Total protein", {
+  no_protein <- dplyr::filter(.fbs413_new(), `Element Code` != 674L)
+  testthat::expect_error(.fbs413_build(new = no_protein), "protein_g_cap_day")
+  testthat::expect_error(
+    .fbs413_build(new = dplyr::select(.fbs413_new(), -"Value")),
+    "Value"
+  )
+})
+
+testthat::test_that("an injected fbs_supply still wins over the pins", {
+  fbs <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
+    2010L, 203L,       1,                  2,                    3
+  )
+  out <- whep::build_food_supply(
+    method = "faostat_fbs",
+    data = list(fbs_supply = fbs, fbs_old = .fbs413_old())
+  )
+  testthat::expect_equal(out$protein_g_cap_day, 1)
+})
