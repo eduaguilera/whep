@@ -260,6 +260,7 @@ build_commodity_balances <- function(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 ) {
@@ -270,6 +271,7 @@ build_commodity_balances <- function(
   negative_supply <- rlang::arg_match(negative_supply)
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   export_share_overflow <- rlang::arg_match(export_share_overflow)
+  export_share_basis <- rlang::arg_match(export_share_basis)
   seed_backcast <- rlang::arg_match(seed_backcast)
   if (example) {
     return(
@@ -300,7 +302,8 @@ build_commodity_balances <- function(
       .fix_cbs(
         trade_recovery = trade_recovery,
         trade_zero = trade_zero,
-        export_share_overflow = export_share_overflow
+        export_share_overflow = export_share_overflow,
+        export_share_basis = export_share_basis
       )
   } else {
     if (!is.null(historical_data)) {
@@ -339,6 +342,12 @@ build_commodity_balances <- function(
     if (export_share_overflow != "report") {
       cli::cli_warn(
         "{.arg export_share_overflow} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (export_share_basis != "current") {
+      cli::cli_warn(
+        "{.arg export_share_basis} is ignored when {.arg .fixed_data} is \
          supplied."
       )
     }
@@ -686,7 +695,8 @@ build_commodity_balances <- function(
   df,
   trade_recovery = "none",
   trade_zero = "prefer_record",
-  export_share_overflow = .cbs_export_overflow_choices()
+  export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices()
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
@@ -746,7 +756,8 @@ build_commodity_balances <- function(
   cbs_raw6 <- .cbs_second_processed_round(
     cbs_raw5,
     proc_result,
-    export_share_overflow = export_share_overflow
+    export_share_overflow = export_share_overflow,
+    export_share_basis = export_share_basis
   )
 
   # 10. Reclassify processing
@@ -5457,10 +5468,16 @@ build_processing_coefs <- function(
 .cbs_second_processed_round <- function(
   cbs_raw5,
   proc_result,
-  export_share_overflow = .cbs_export_overflow_choices()
+  export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices()
 ) {
+  export_share_basis <- rlang::arg_match(
+    export_share_basis,
+    .cbs_export_basis_choices()
+  )
   cb_proc_glo <- proc_result$cb_processing_glo
   cbs_glob <- proc_result$cbs_glob
+  export_glob <- .export_share_world(cbs_raw5, cbs_glob, export_share_basis)
 
   processd_raw2 <- .processed_raw(cbs_raw5, cb_proc_glo)
 
@@ -5505,7 +5522,8 @@ build_processing_coefs <- function(
   processed_new_bal <- .build_new_processed_balance(
     processed_agg_raw2,
     cbs_glob,
-    export_share_overflow = export_share_overflow
+    export_share_overflow = export_share_overflow,
+    export_glob = export_glob
   )
 
   join_keys <- c(
@@ -5664,10 +5682,47 @@ build_processing_coefs <- function(
     )
 }
 
+# -- Export share denominator (whep#1143) -------------------------------------
+
+# Which world balance the second round's export share is read off.
+#
+# `"current"` (default) is the world aggregate of `cbs_raw5`, the balance the
+# round actually runs on: it carries the processed production that
+# `.cbs_add_processed()` created at step 5, and the trade `.cbs_impute_trade()`
+# filled at step 7. `"snapshot"` is `proc_result$cbs_glob`, the world
+# aggregate of step 4, which is what every build before whep#1143 used. It
+# predates the processed production entirely, so for a processed product its
+# denominator is observed FAOSTAT production (none at all before 1961) plus
+# import -- not the production the share is then multiplied by.
+#
+# `"current"` is also the self-consistent choice: the round adds a new
+# production `P` and books `s * P` of it as export, and the share that leaves
+# the world export share unchanged by that addition solves
+# `s = (E + s * P) / (S + P)`, i.e. `s = E / S` with `E` and `S` the world
+# export and `production + import` BEFORE the round -- exactly `cbs_raw5`.
+# Measured on a real build: see `build_commodity_balances()`
+# `export_share_basis`.
+.cbs_export_basis_choices <- function() {
+  c("current", "snapshot")
+}
+
+.export_share_world <- function(cbs_raw5, cbs_glob, basis) {
+  if (basis == "snapshot") {
+    return(cbs_glob)
+  }
+  tibble::as_tibble(cbs_raw5) |>
+    dplyr::filter(element %in% c("production", "import", "export")) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, item_cbs, element)
+    )
+}
+
 .build_new_processed_balance <- function(
   processed_agg_raw2,
   cbs_glob,
-  export_share_overflow = .cbs_export_overflow_choices()
+  export_share_overflow = .cbs_export_overflow_choices(),
+  export_glob = cbs_glob
 ) {
   export_share_overflow <- rlang::arg_match(
     export_share_overflow,
@@ -5675,7 +5730,7 @@ build_processing_coefs <- function(
   )
   items <- whep::items_full
 
-  export_share <- cbs_glob |>
+  export_share <- export_glob |>
     dplyr::filter(
       element %in% c("production", "import")
     ) |>
@@ -5684,7 +5739,7 @@ build_processing_coefs <- function(
       .by = c(year, item_cbs)
     ) |>
     dplyr::left_join(
-      cbs_glob |>
+      export_glob |>
         dplyr::filter(element == "export") |>
         dplyr::rename(export_val = value) |>
         dplyr::select(-element),
