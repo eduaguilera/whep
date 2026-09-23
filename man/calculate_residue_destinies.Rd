@@ -8,7 +8,8 @@ calculate_residue_destinies(
   x,
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
-  unmatched_recovery = c("report", "abort")
+  unmatched_recovery = c("report", "abort"),
+  recovery = c("wirsenius", "legacy")
 )
 }
 \arguments{
@@ -35,11 +36,19 @@ Krausmann category or its region label reaches no recovery region:
 \code{"report"} (default) keeps the historical all-to-soil treatment and warns
 with the row count and tonnage, \code{"abort"} refuses to continue. Ignored by
 the \code{"shares"} method.}
+
+\item{recovery}{Which recovery-rate variant the \code{recovery_regional}
+method reads: \code{"wirsenius"} (default, every rate Wirsenius 2000 states,
+at the value it states) or \code{"legacy"} (the table as shipped before
+whep#1163). See the Two recovery variants section. Ignored by the
+\code{"shares"} method.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
 \code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
-\code{method_residue_destiny}. The \code{"recovery_regional"} method also returns
+\code{method_residue_destiny}, and \code{method_residue_recovery} (the \code{recovery}
+variant, \code{NA} for the \code{"shares"} method). The \code{"recovery_regional"}
+method also returns
 \code{residue_recovery_matched}, \code{FALSE} where no recovery rate was found,
 which is what separates a rate the table gives as zero from a zero
 standing in for a failed lookup.
@@ -85,10 +94,10 @@ Table 5 -- Denmark, barley 16\% and wheat 11\% of \emph{production}.
 \section{Where the recovery rates come from}{
 
 The \code{recovery_regional} recovery rates live in
-\code{inst/extdata/coefs/residue_recovery.csv}. Its two numeric columns are
-sourced separately and carry a provenance column each, \code{source_ratio} and
-\code{source_recovery}, because they agree with the source to different degrees.
-Both are \strong{Wirsenius (2000)}, \emph{Human Use of Land and
+\code{inst/extdata/coefs/residue_recovery.csv}. Its numeric columns are
+sourced separately and carry a provenance column each (\code{source_ratio},
+\code{source_recovery} and \code{source_recovery_wirsenius}), because they agree
+with the source to different degrees. All are \strong{Wirsenius (2000)}, \emph{Human Use of Land and
 Organic Materials}, PhD thesis, Chalmers University of Technology --
 Table 3.17 (recovery rates, p. 94) and Table 3.16 (harvest index, p. 92,
 from which \code{residue_dm_product_dm} is the residue:product ratio rounded to
@@ -107,26 +116,52 @@ here, and \code{source_recovery} splits them (whep#1150):
 \item nine match it cell for cell;
 \item three sit \strong{below} it -- \verb{Groundnuts in Shell}, \verb{Sugar Beets} and
 \verb{Sugar Crops nes}, each against 0.90 in every region;
-\item seven -- roots and tubers, cassava, dry beans, pulses, oil palm, castor
-beans and permanent crops -- it omits, and Wirsenius states that recovery
-rates for the flows it omits "were assumed to be close to 100 percent"
-(p. 94). None of the seven reaches 0.90 in its most generous region;
-\item \verb{Fodder crops} has no residue flow in the thesis at all. Its nearest
-row, grass-legume, is 0.90; the rate here is 0 in all eight regions.
+\item three -- roots and tubers, cassava and oil palm -- are residues the
+thesis does model (Table 2.6, pp. 48-49: cassava leaves and tops,
+potato tops, oil palm leaves and trunks) but Table 3.17 does not list,
+and for those Wirsenius states that recovery rates "were assumed to be
+close to 100 percent" (p. 94);
+\item five -- dry beans, pulses, castor beans, permanent crops and fodder
+crops -- have \strong{no residue flow in the thesis at all}: Table 2.6 gives
+pulses, fruits, tree nuts, vegetables and stimulants "no representation
+of by-products" (p. 47), models forage crops whole, and has no castor.
+The p. 94 default does not reach them, so the source is silent on them
+(whep#1163).
+}
 }
 
-The departures are one-directional: no rate in the table exceeds the rate
-its source gives. Substituting the source value everywhere, with 1.00 for
-the seven omitted flows, raises recovered residue from 256.4 to 273.3 Gt DM
-over 1961--2021 (+6.59\%) and the feed destiny from 72.1 to 76.7 Gt
-(+6.44\%), on the \code{crop_residues} pin as read by \code{\link[=get_primary_residues]{get_primary_residues()}}.
-\verb{Permanent crops} alone is 23\% of all residue mass and two thirds of that
-gap. That substitution is \strong{not} made here, because the gross residue base
-these rates multiply is itself too high, so re-anchoring the rate first
-would land further from the truth (whep#1132, whep#1041).
+\section{Two recovery variants}{
 
-Three of the unsourced categories move no mass at all today, which is why
-the fodder rate of 0 is not the live problem it looks like:
+\verb{recovery =} selects the rate column, and \code{method_residue_recovery}
+records which one was used:
+\itemize{
+\item \code{"wirsenius"} (default) reads \code{recovery_rates_wirsenius}: every rate the
+thesis states, at the value it states. The three below-source
+categories take 0.90, the three p. 94 categories take 1.00 -- "close to
+100 percent" read as 1.00, which is a reading of the text and not a
+number it prints -- and the five categories the source is silent on
+keep the legacy assumed rate. \code{source_recovery_wirsenius} labels each.
+\item \code{"legacy"} reads \code{recovery_rates}, the table as shipped before
+whep#1163, whose departures from the source are all downward.
+}
+
+\code{"wirsenius"} is the default because it is the only variant in which
+every rate is traceable to the cited source; the legacy values it replaces
+have no source of their own. On the \code{crop_residues} pin as read by
+\code{\link[=get_primary_residues]{get_primary_residues()}}, 1961--2021, it raises recovered residue from
+269.9 to 276.4 Gt DM (+2.43\%), the feed destiny from 76.5 to 78.4 Gt
+(+2.51\%) and the burned/other-use destiny from 193.4 to 198.0 Gt
+(+2.40\%), and lowers the soil destiny from 57.8 to 51.3 Gt (-11.3\%).
+Roots and tubers (+3.52 Gt recovered), cassava (+1.69), sugar beet
+(+1.20) and groundnut (+0.14) are the only categories that move.
+
+The gross residue base these rates multiply is itself thought to be too
+high (whep#1132), so raising the rate before that base is corrected moves
+recovered residue further from the literature, not closer. Pass
+\code{recovery = "legacy"} to reproduce the pre-whep#1163 numbers.
+
+Three categories move no mass at all today, which is why the fodder rate
+of 0 is not the live problem it looks like:
 \verb{Sugar Crops nes} and \verb{Oil Palm Fruit} are in the table and in no
 production item, and no \verb{Fodder crops} item reaches the residue pin.
 }

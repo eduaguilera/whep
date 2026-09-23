@@ -2286,6 +2286,7 @@ build_processing_coefs <- function(
       # used to be discarded here, so the CBS recorded nowhere how its residue
       # rows had been produced.
       method_residue_destiny = dplyr::first(.data$method_residue_destiny),
+      method_residue_recovery = dplyr::first(.data$method_residue_recovery),
       .by = ".residue_row"
     )
   out <- dplyr::left_join(res, dest, by = ".residue_row")
