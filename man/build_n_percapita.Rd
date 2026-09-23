@@ -6,7 +6,7 @@
 \usage{
 build_n_percapita(
   n_inputs,
-  population,
+  population = NULL,
   framing = c("synthetic_bnf"),
   params = NULL,
   example = FALSE
@@ -18,7 +18,10 @@ build_n_percapita(
 \code{lon}/\code{lat}/\code{item_cbs_code} are summed away).}
 
 \item{population}{A tibble keyed by \code{year}, \code{area_code} with \code{population}
-(absolute persons).}
+(absolute persons). Defaults to \code{NULL}, which reads
+\code{\link[=read_population]{read_population()}} at its own default composition over the years of
+\code{n_inputs}; supply a table to use any other source (for instance
+\code{read_population(population_source = "pin_wpp_fbs_fallback")}).}
 
 \item{framing}{How the total anthropogenic reactive nitrogen is defined.
 \code{"synthetic_bnf"} (default) scales the \code{"synthetic"} term by
@@ -33,8 +36,10 @@ here for \code{syn_tot_agri_ratio}.}
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{n_percapita_kg}, the
 country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
-and \code{framing}, the anthropogenic definition it was computed under, plus the
-polity columns below.
+\code{framing}, the anthropogenic definition it was computed under, and
+\code{method_population}, \code{"read_population"} when the denominator was read by
+default or \code{"supplied"} when the caller passed it, plus the polity columns
+below.
 }
 \description{
 Aggregates a \code{\link[=build_n_inputs]{build_n_inputs()}} long-format nitrogen-input tibble to the
