@@ -3320,6 +3320,42 @@ test_that(".mass_only_trade aborts on a frame with no unit", {
 })
 
 
+# -- FAOSTAT group rows are not a commodity (#960) -----------------------------
+
+# The `faostat-trade-totals` pin carries FAOSTAT's group totals alongside the
+# items they sum. Group 1895 "Beverages" (beer, wine, spirits, soft drinks,
+# waters, juices) was mapped onto CBS 2657 "Beverages, Fermented", so every
+# member of the group was added a second time to the item: 62.5 Mt of world
+# export at 2010 against 0.73 Mt from 2657's own members. The shape here is
+# Italy at 2010 on the real pin: beer of maize (66) is a 2657 member, the
+# group row is not.
+.trade_group_rows <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~unit, ~element, ~item_trade, ~item_code_trade, ~value,
+    2010, 106L, "t", "export", "Beer of maize", 66, 120,
+    2010, 106L, "t", "export", "Beverages", 1895, 9620567,
+    2010, 106L, "t", "export", "Alcoholic Beverages", 1907, 2500000,
+    2010, 106L, "t", "export", "Tobacco, unmanufactured", 826, 300,
+    2010, 106L, "t", "export", "Tobacco", 1896, 300
+  ) |>
+    data.table::as.data.table()
+}
+
+.group_rows_value <- function(result, code) {
+  result$value[result$item_cbs_code == code]
+}
+
+test_that(".aggregate_fao_trade_to_cbs does not add a group to its members", {
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_group_rows())
+
+  expect_equal(.group_rows_value(result, 2657), 120)
+  expect_equal(.group_rows_value(result, 2671), 300)
+  # Alcoholic Beverages has no member in the fixture, so the group must yield
+  # no row at all rather than its own total.
+  expect_length(.group_rows_value(result, 2658), 0L)
+})
+
+
 # -- trade recovery must not duplicate a territory (#884) ----------------------
 
 # Belgium's shape: FishStat keys the territory 255 from 1976, while every
