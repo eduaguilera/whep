@@ -107,7 +107,10 @@
 #'     balance key (a many-to-one join aborts on duplicate keys rather than
 #'     fanning the rows out and misaligning `drainage_mm`). Missing required
 #'     drivers abort inside the called `calculate_*()` function, naming the
-#'     exact column.
+#'     exact column; for the MANNER `nh3` methods the check runs on
+#'     `n_balance_drivers` before any input is assembled, because no
+#'     function in the package supplies those drivers (only `windspeed_ms`
+#'     has a reader, [read_lpjml_wind()], not wired in).
 #'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()], as
 #'     a numeric vector aligned to the balance-key rows, or already present
 #'     as a `drainage_mm` column via `n_balance_leaching_drivers`.
@@ -172,6 +175,11 @@ build_nitrogen_balance <- function(
     ))
   }
   m <- .nb_methods(methods)
+  .nh3_check_drivers_supplied(
+    m$nh3,
+    data$n_balance_drivers,
+    "data$n_balance_drivers"
+  )
   key <- .nb_key(resolution)
 
   # Compute calculate_npp_carbon_nitrogen() once and cache it on data, so

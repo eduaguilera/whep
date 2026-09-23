@@ -1218,3 +1218,84 @@ testthat::test_that("residue destinies no N coefficient joins are refused", {
     )
   )
 })
+
+# whep#1078: the default ammonia method (MANNER) needs per-row driver columns
+# that no reader in the package produces (only windspeed_ms has one,
+# read_lpjml_wind()). Without them the balance used to assemble every input --
+# the NPP chain, build_n_inputs() -- and only then abort inside calculate_nh3().
+# The stub below stands for that expensive work: reaching it means the refusal
+# came too late.
+.nb_stub_assembly <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    .n_balance_npp = function(...) {
+      cli::cli_abort("assembly reached", class = "nb_test_assembly_reached")
+    },
+    .package = "whep",
+    .env = env
+  )
+}
+
+testthat::test_that("default MANNER ammonia without drivers is refused before any assembly", {
+  .nb_stub_assembly()
+  testthat::expect_error(
+    whep::build_nitrogen_balance(data = list()),
+    class = "whep_error_nh3_drivers_absent"
+  )
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = list(nh3 = "manner_default"),
+      data = list()
+    ),
+    class = "whep_error_nh3_drivers_absent"
+  )
+})
+
+testthat::test_that("the refusal names the IPCC alternative and the wind reader", {
+  .nb_stub_assembly()
+  err <- rlang::catch_cnd(
+    whep::build_nitrogen_balance(data = list()),
+    classes = "whep_error_nh3_drivers_absent"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "ipcc", fixed = TRUE)
+  testthat::expect_match(msg, "read_lpjml_wind", fixed = TRUE)
+})
+
+testthat::test_that("MANNER drivers lacking windspeed_ms are refused before any assembly", {
+  .nb_stub_assembly()
+  drivers <- tibble::tribble(
+    ~fert_type, ~manner_fertiliser, ~rainfall_mm, ~irrigated, ~technique,
+    ~system, ~temp_c, ~incorporation_delay_h, ~species,
+    "Liquid", "cattle_slurry", 40, FALSE, "Broadcast",
+    "Arable", 15, 24, "Cattle"
+  )
+  err <- rlang::catch_cnd(
+    whep::build_nitrogen_balance(data = list(n_balance_drivers = drivers)),
+    classes = c("whep_error_nh3_missing_driver", "nb_test_assembly_reached")
+  )
+  testthat::expect_s3_class(err, "whep_error_nh3_missing_driver")
+  testthat::expect_match(conditionMessage(err), "windspeed_ms", fixed = TRUE)
+})
+
+testthat::test_that("the entry check lets complete drivers and the IPCC method through", {
+  .nb_stub_assembly()
+  # Recycling/SOM never reach calculate_nh3() (.nb_losses() zeroes them), so an
+  # NA manner_fertiliser there must not demand the organic driver set.
+  drivers <- tibble::tribble(
+    ~fert_type, ~manner_fertiliser, ~soil_ph, ~rate_kg_ha, ~rainfall_mm,
+    ~irrigated, ~temp_c, ~temp_c_annual_mean,
+    "Synthetic", "Urea", 6, 50, 0, FALSE, 8.6, 8.6,
+    "Recycling", NA, NA, NA, NA, NA, NA, NA
+  )
+  testthat::expect_error(
+    whep::build_nitrogen_balance(data = list(n_balance_drivers = drivers)),
+    class = "nb_test_assembly_reached"
+  )
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = list(nh3 = "ipcc"),
+      data = list()
+    ),
+    class = "nb_test_assembly_reached"
+  )
+})
