@@ -467,6 +467,7 @@ build_nitrogen_balance <- function(
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>
+    .nb_check_residue_n_joined() |>
     dplyr::summarise(
       used_residue_n_t = sum(
         .data$residue_feed_dm_t * .data$residue_n_kgdm,
@@ -485,6 +486,24 @@ build_nitrogen_balance <- function(
   .nb_merge_output_term(x, destiny, key)
 }
 
+# The N content is joined on item_prod_code, and a key that does not match
+# (a code space or a spelling bio_coefs does not share) leaves residue_n_kgdm
+# NA on every row. The three sums below then drop it through na.rm, so the
+# used, bedding and burnt residue removals all ship as zero, the surplus rises
+# by their whole N, and the balance still closes (whep#1034). One crop without
+# a coefficient is a partial absence and passes; none at all is refused.
+.nb_check_residue_n_joined <- function(destiny) {
+  check_inputs_supplied(
+    destiny,
+    c("residue N content" = "residue_n_kgdm"),
+    details = c(
+      i = "No {.field item_prod_code} of {.arg data$residue_destiny_input}
+           matched {.code whep_coef_table(\"bio_coefs\")}, so no residue
+           removal could be converted to N."
+    )
+  )
+}
+
 # grazed_weeds_n_t: real grazed-forage intake from data$livestock_intake
 # (redistribute_feed()'s feed_quality == "grass" rows), converted to N with
 # whep::whep_coef_table("weed_coefs")$residue_n_kgdm_weed -- the SAME
@@ -498,6 +517,7 @@ build_nitrogen_balance <- function(
     return(dplyr::mutate(x, grazed_weeds_n_t = 0))
   }
   weed_n_kgdm <- whep::whep_coef_table("weed_coefs")$residue_n_kgdm_weed
+  .nb_check_grazed_label(data$livestock_intake)
   grazed <- data$livestock_intake |>
     dplyr::filter(.data$feed_quality == "grass") |>
     dplyr::summarise(
@@ -508,8 +528,39 @@ build_nitrogen_balance <- function(
     dplyr::summarise(
       grazed_weeds_n_t = sum(.data$intake_dm_t * weed_n_kgdm, na.rm = TRUE),
       .by = dplyr::all_of(key)
+    ) |>
+    check_inputs_supplied(
+      c("grazed forage N" = "grazed_weeds_n_t"),
+      details = .nb_grazed_remedy()
     )
   .nb_merge_output_term(x, grazed, key)
+}
+
+# `"grass"` is redistribute_feed()'s vocabulary, not a contract this function
+# controls. A supplied intake whose label has moved matches no row, the grazed
+# term is then an empty frame, and .nb_merge_output_term() zero-fills it into
+# every balance row: n_output_full_t loses its whole grazing removal, the
+# surplus rises by the same amount, and n_balance_t = input - output still
+# closes exactly, because zero satisfies it (whep#1034). The label is asserted
+# before the filter; check_inputs_supplied() after it catches an intake whose
+# grass rows exist but carry no dry matter.
+.nb_check_grazed_label <- function(intake) {
+  check_labels_supplied(
+    intake,
+    "feed_quality",
+    "grass",
+    details = .nb_grazed_remedy()
+  )
+}
+
+.nb_grazed_remedy <- function() {
+  c(
+    i = "{.arg data$livestock_intake} is the {.fn redistribute_feed} result;
+         its {.val grass} rows are the grazed forage the balance removes as
+         {.field grazed_weeds_n_t}.",
+    i = "Leave {.arg data$livestock_intake} out to build a balance with no
+         grazing removal at all."
+  )
 }
 
 # Reuse build_n_inputs()'s manure territory/coordinate resolution verbatim

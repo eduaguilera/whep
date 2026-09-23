@@ -1151,7 +1151,23 @@ build_grass_natural_carbon_inputs <- function(
 
 # Total grazed carbon (MgC) per polity-year: tonnes of grass dry matter times
 # the carbon fraction (1 t DM = 1 Mg DM, so the product is already MgC).
+#
+# `"grass"` is redistribute_feed()'s vocabulary. A supplied intake whose label
+# has moved matches no row here, the density join below finds nothing, and
+# `.gn_grazing_terms()` coalesces the missing density to zero: every grassland
+# cell then keeps its whole NPP as litter while `method_c_input` still says
+# `"lpjml_npp_minus_whep_grazing"`, and the charged-mass conservation check
+# holds vacuously over no rows (whep#1034). So the label is asserted first.
 .gn_grazed_mass <- function(intake, w_c_dm) {
+  check_labels_supplied(
+    intake,
+    "feed_quality",
+    "grass",
+    details = c(
+      i = "{.arg data$livestock_intake} is the {.fn redistribute_feed}
+           result; its {.val grass} rows are the carbon grazing removes."
+    )
+  )
   intake |>
     dplyr::filter(.data$feed_quality == "grass") |>
     dplyr::summarise(

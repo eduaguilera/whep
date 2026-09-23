@@ -1690,3 +1690,47 @@ testthat::test_that("the whep grazing method names both missing inputs", {
     NULL
   )
 })
+
+# ---- whep#1034: a moved feed_quality label ---------------------------------
+
+testthat::test_that("a moved grass label cannot read as an ungrazed sward", {
+  # Unguarded, an intake whose grass rows are spelled "Grass" removes nothing:
+  # every grassland cell comes out identical to a run where nobody grazed,
+  # still stamped as WHEP's grazing having been subtracted.
+  relabelled <- dplyr::mutate(
+    .gn_intake_fixture(),
+    feed_quality = dplyr::if_else(
+      .data$feed_quality == "grass",
+      "Grass",
+      .data$feed_quality
+    )
+  )
+  grass_c <- function(intake) {
+    suppressWarnings(.gn_build_npp(
+      resolution = "grid",
+      data = .gn_fixture_data(excreta = TRUE, intake = intake),
+      method_grazing = "whep"
+    )) |>
+      dplyr::filter(.data$land_use == "grassland")
+  }
+  unguarded <- testthat::with_mocked_bindings(
+    grass_c(relabelled),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  ungrazed <- grass_c(.gn_intake_fixture(grass_dm_t = 0))
+  grazed <- grass_c(.gn_intake_fixture())
+
+  testthat::expect_false(isTRUE(all.equal(
+    grazed$c_input_mgc_ha_yr,
+    ungrazed$c_input_mgc_ha_yr
+  )))
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      unguarded$c_input_mgc_ha_yr,
+      ungrazed$c_input_mgc_ha_yr
+    )) &&
+      all(unguarded$method_c_input == "lpjml_npp_minus_whep_grazing"),
+    guard = grass_c(relabelled),
+    class = "whep_absent_label"
+  )
+})

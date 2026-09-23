@@ -700,6 +700,7 @@ build_energy_co2_extension <- function(
   groups <- .energy_meat_groups()
   area2iso <- .energy_area_iso3()
   dressing <- .energy_dressing_by_group()
+  .energy_check_carcass_unit(primary_prod)
 
   primary_prod |>
     dplyr::filter(
@@ -722,6 +723,24 @@ build_energy_co2_extension <- function(
       co2e_kg = .data$carcass_t * 1000 / .data$dressing * .data$ef_total
     ) |>
     dplyr::select("year", "area_code", "grp", "co2e_kg", "ef_scope")
+}
+
+# Carcass production is selected by `unit == "tonnes"`. A production table in
+# another unit vocabulary (build_production.R's own intermediates say `"t"`)
+# matches no row, the extension comes back with no rows at all, and a footprint
+# built on it has no energy CO2 while every conservation check passes -- an
+# empty extension distributes to nothing (whep#1034). The unmatched-area
+# warning below cannot fire either: there is no production to report on.
+.energy_check_carcass_unit <- function(primary_prod) {
+  check_labels_supplied(
+    primary_prod,
+    "unit",
+    "tonnes",
+    details = c(
+      i = "Carcass production is read from the {.val tonnes} rows of
+           {.fn get_primary_production} (or {.arg data$primary_prod})."
+    )
+  )
 }
 
 # Report the meat production no GLEAM grouping can price -- and, when the caller
