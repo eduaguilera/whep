@@ -357,7 +357,12 @@ test_that("every year-free territorial grouping is classified", {
   # reported year, and `.iso3c_keep_live_area()` groups by ISO3 to pick the
   # live one of two codes. Re-derived by running the audit on the merged tree,
   # not by adding whep#680's delta to the whep#1117/whep#1146 cap.
-  expect_lte(sum(full$n), 94L)
+  # 89 since whep#1091: `.country_mean_yield()` collapses a crop's cells to a
+  # national mean weighted by `harvest_fraction`, which comes from
+  # `crop_patterns` -- a single-vintage gridded map with no year axis, so the
+  # grouping cannot carry one. Re-derived by running the audit, not by adding
+  # one to the previous cap.
+  expect_lte(sum(full$n), 95L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

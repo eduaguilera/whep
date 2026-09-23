@@ -1158,3 +1158,95 @@ build_gridded_landuse <- function(
     dplyr::anti_join(groups, by = "item_prod_code") |>
     dplyr::bind_rows(pooled)
 }
+
+# The national mean yield a crop's cells vote on, weighted by how much of the
+# crop each cell actually grows.
+#
+# `cell_yields` is EarthStat's per-cell yield surface joined to the country
+# grid and then to the crop-pattern table, so `harvest_fraction` is missing
+# exactly where the pattern table has no row for that (cell, crop).
+#
+# A missing weight there is not "unknown". `prepare_crop_patterns()` keeps a
+# row wherever EarthStat's HarvestedAreaFraction raster is positive, so no row
+# means that raster said the crop is ABSENT from the cell -- EarthStat still
+# publishes a yield for it, because its yield surface is interpolated over a
+# wider footprint than its area surface. On the 20260825 `spatialize-crop-
+# patterns` pin that is 211 of the 1,895,622 country-keyed yield cells, every
+# one of them maize.
+#
+# So the weight for an absent crop is 0, not the 1.0 this used to coalesce to
+# (whep#1091). In a weighted mean the neutral default is exclusion, not the
+# maximum: 99.99942% of the present weights in that table are below 1 and the
+# median is 2.7e-05, so 1.0 gave a cell growing no maize some 37,000 times the
+# say of a typical cell that does. It moved nine country mean maize yields by
+# -43% to +141% (Botswana 0.77 -> 0.32 t/ha).
+#
+# A (country, crop) whose every cell is absent or zero has no pattern to weight
+# with at all and falls back to the unweighted mean (whep#1070). `weight_total`
+# is a sum of non-negative terms, exactly zero only if every term is zero, so
+# `> 0` is a sound test on that shape -- it is a sum, not a difference.
+.country_mean_yield <- function(cell_yields) {
+  needed <- c("area_code", "item_prod_code", "yield_t_ha", "harvest_fraction")
+  absent_cols <- needed[!rlang::has_name(cell_yields, needed)]
+  if (length(absent_cols) > 0L) {
+    cli::cli_abort(
+      "{.arg cell_yields} is missing {cli::qty(length(absent_cols))}\\
+       column{?s} {.field {absent_cols}}."
+    )
+  }
+  .warn_patternless_yield_cells(cell_yields)
+  cell_yields |>
+    dplyr::mutate(weight = dplyr::coalesce(.data$harvest_fraction, 0)) |>
+    dplyr::summarise(
+      weight_total = sum(.data$weight, na.rm = TRUE),
+      weighted_yield = sum(.data$yield_t_ha * .data$weight, na.rm = TRUE),
+      unweighted_yield = mean(.data$yield_t_ha, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      country_mean = dplyr::if_else(
+        .data$weight_total > 0,
+        .data$weighted_yield / .data$weight_total,
+        .data$unweighted_yield
+      )
+    ) |>
+    dplyr::select("area_code", "item_prod_code", "country_mean") |>
+    dplyr::filter(.data$country_mean > 0)
+}
+
+# Say out loud how much of the yield surface had no pattern to weight it.
+#
+# A crop absent from a CELL is ordinary -- EarthStat's own rasters disagree
+# about where a crop grows. A crop absent from EVERY cell is a coverage gap in
+# the pattern table, which is the whep#1034 shape: an absent input that no
+# downstream check can tell from a real one. It is how barley -- the fourth
+# largest crop on Earth -- was missing from the pattern pin for a whole vintage
+# (whep#877), silently taking the unweighted mean of its yield surface. The two
+# cases are mutually exclusive per call, so exactly one warning is raised.
+.warn_patternless_yield_cells <- function(cell_yields) {
+  absent <- is.na(cell_yields$harvest_fraction)
+  n_absent <- sum(absent)
+  if (n_absent == 0L) {
+    return(invisible(cell_yields))
+  }
+  n_total <- nrow(cell_yields)
+  codes <- cell_yields$item_prod_code
+  gone <- sort(unique(setdiff(codes[absent], codes[!absent])))
+  msg <- "Excluded {n_absent} yield cell{?s} with no crop-pattern row from the
+          country mean yield, of {n_total} cells in all (whep#1091)."
+  if (length(gone) == 0L) {
+    cli::cli_warn(msg, class = "whep_patternless_cells")
+    return(invisible(cell_yields))
+  }
+  cli::cli_warn(
+    c(
+      msg,
+      x = "{cli::qty(length(gone))}Item{?s} with no pattern row anywhere:
+           {.val {gone}}.",
+      i = "Their country mean yields fall back to the unweighted mean of the
+           yield surface. Check the crosswalk and the pattern pin vintage."
+    ),
+    class = "whep_patternless_crop"
+  )
+  invisible(cell_yields)
+}
