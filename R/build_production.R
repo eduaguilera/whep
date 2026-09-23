@@ -1307,12 +1307,9 @@ build_primary_production <- function(
   # 2010, Italy, Kazakhstan and Latvia have no duck stock row of their own that
   # year, so a scoped read never formed the combination at all.
   #
-  # This is a partial improvement, not a fix for #666. It does now form the
-  # combination -- the rows appear -- but a scoped build still derives `LU` as NA
-  # where a full build derives 0, so the duck-product rows are still lost at 2010
-  # and 1995 and only half recovered at 2015. `LU` = heads * LU_head via a join
-  # on `Animal_class`, which the completion's `nesting()` does not carry; why the
-  # full build nonetheless lands on 0 is the open question. See #666.
+  # This alone did not recover #666's duck-product rows: the rest of the yield
+  # chain still ran on the window. Since whep#834 the whole chain reads the full
+  # span (see `.yield_chain_years()`), and those rows match the full build.
   #
   # Trimmed back below, so only the read widens: full-range output is unchanged.
   fao_stocks <- .read_livestock_stocks(years = NULL)
