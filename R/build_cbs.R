@@ -717,6 +717,8 @@ build_commodity_balances <- function(
     proc_result,
     years
   )
+  # The `"processed"` export-share basis of step 9 (whep#1143).
+  proc_result$cbs_glob_processed <- .cbs_world_trade_supply(cbs_raw2)
 
   # Extract source provenance once for all remaining steps.
   # Each step re-joins the same lookup at its end.
@@ -5477,7 +5479,11 @@ build_processing_coefs <- function(
   )
   cb_proc_glo <- proc_result$cb_processing_glo
   cbs_glob <- proc_result$cbs_glob
-  export_glob <- .export_share_world(cbs_raw5, cbs_glob, export_share_basis)
+  export_glob <- .export_share_world(
+    cbs_raw5,
+    proc_result,
+    export_share_basis
+  )
 
   processd_raw2 <- .processed_raw(cbs_raw5, cb_proc_glo)
 
@@ -5686,37 +5692,60 @@ build_processing_coefs <- function(
 
 # Which world balance the second round's export share is read off.
 #
-# `"current"` (default) is the world aggregate of `cbs_raw5`, the balance the
-# round actually runs on: it carries the processed production that
-# `.cbs_add_processed()` created at step 5, and the trade `.cbs_impute_trade()`
-# filled at step 7. `"snapshot"` is `proc_result$cbs_glob`, the world
-# aggregate of step 4, which is what every build before whep#1143 used. It
-# predates the processed production entirely, so for a processed product its
-# denominator is observed FAOSTAT production (none at all before 1961) plus
-# import -- not the production the share is then multiplied by.
+# The round splits a country's newly created processed production `P` into
+# `export = s * P` and `domestic_supply = P - s * P`, with `s` a world
+# `export / (production + import)` ratio. The three bases differ only in
+# which world sheet that ratio is taken from:
 #
-# `"current"` is also the self-consistent choice: the round adds a new
-# production `P` and books `s * P` of it as export, and the share that leaves
-# the world export share unchanged by that addition solves
-# `s = (E + s * P) / (S + P)`, i.e. `s = E / S` with `E` and `S` the world
-# export and `production + import` BEFORE the round -- exactly `cbs_raw5`.
-# Measured on a real build: see `build_commodity_balances()`
+# * `"current"` (default) -- `cbs_raw5`, the balance the round runs on and
+#   adds its rows to. It carries the processed production `.cbs_add_processed()`
+#   created at step 5 and the trade `.cbs_impute_trade()` filled at step 7. It
+#   is the self-consistent choice: the share that leaves the world export
+#   share unchanged when the round adds `P` and books `s * P` of it as export
+#   solves `s = (E + s * P) / (S + P)`, i.e. `s = E / S` with `E` and `S` the
+#   world export and `production + import` the round starts from.
+# * `"processed"` -- `cbs_raw2`, the step-5 balance: processed production
+#   included, trade as read. It isolates the production fix from whatever
+#   step 7 imputes, which matters for items the CBS carries no trade for
+#   (DDGS, Sugarbeet pulp: share 0 here, 0.08-0.55 under `"current"`) and for
+#   Beverages, Fermented, whose step-7 world export is about twice its world
+#   import (7.18 Mt against 3.46 Mt at 1965).
+# * `"snapshot"` -- `proc_result$cbs_glob`, the step-4 balance, which is what
+#   every build before whep#1143 used. It predates the processed production,
+#   so for a processed product whose FAOSTAT production is absent (every one
+#   before 1961, the oilseed cakes and molasses from 2014) the denominator is
+#   world import alone and the share is not bounded by 1.
+#
+# The measured before/after is in `build_commodity_balances()`
 # `export_share_basis`.
 .cbs_export_basis_choices <- function() {
-  c("current", "snapshot")
+  c("current", "processed", "snapshot")
 }
 
-.export_share_world <- function(cbs_raw5, cbs_glob, basis) {
-  if (basis == "snapshot") {
-    return(cbs_glob)
-  }
-  tibble::as_tibble(cbs_raw5) |>
+.export_share_world <- function(cbs_raw5, proc_result, basis) {
+  switch(
+    basis,
+    current = .cbs_world_trade_supply(cbs_raw5),
+    processed = proc_result$cbs_glob_processed %||%
+      cli::cli_abort(
+        "{.arg proc_result} carries no step-5 world sheet \\
+        ({.field cbs_glob_processed}), which {.val processed} reads."
+      ),
+    snapshot = proc_result$cbs_glob
+  )
+}
+
+# The world `production`, `import` and `export` of a balance, per
+# `(year, item_cbs)`: everything an export share reads.
+.cbs_world_trade_supply <- function(cbs) {
+  tibble::as_tibble(cbs) |>
     dplyr::filter(element %in% c("production", "import", "export")) |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
       .by = c(year, item_cbs, element)
     )
 }
+
 
 .build_new_processed_balance <- function(
   processed_agg_raw2,

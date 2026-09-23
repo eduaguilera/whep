@@ -4759,6 +4759,13 @@ test_that("the new processed balance returns no share column", {
       1965L, "Soyabean Oil", "import",    200,
       1965L, "Soyabean Oil", "food",      900
     ),
+    # Step 5: the processed production exists, the step-7 trade does not.
+    cbs_glob_processed = tibble::tribble(
+      ~year, ~item_cbs,      ~element,     ~value,
+      1965L, "Soyabean Oil", "production",   1000,
+      1965L, "Soyabean Oil", "export",        300,
+      1965L, "Soyabean Oil", "import",        100
+    ),
     processed_agg = tibble::tribble(
       ~year, ~area,    ~area_code, ~item_cbs,      ~value,
       1965L, "Brazil", 21L,        "Soyabean Oil",   1000
@@ -4821,6 +4828,33 @@ test_that("export_share_basis = 'snapshot' keeps the step-4 world sheet", {
   )
   expect_equal(.argentina_value(out, "export"), 400 * 1.5)
   expect_equal(.argentina_value(out, "domestic_supply"), 400 - 600)
+})
+
+test_that("export_share_basis = 'processed' reads the step-5 world sheet", {
+  expect_no_warning(
+    out <- .run_basis_round(export_share_basis = "processed")
+  )
+  expect_equal(.argentina_value(out, "export"), 400 * 300 / 1100)
+})
+
+test_that("the 'processed' basis refuses a result with no step-5 sheet", {
+  pr <- .basis_proc_result()
+  pr$cbs_glob_processed <- NULL
+  expect_error(
+    whep:::.export_share_world(.basis_cbs_raw5(), pr, "processed"),
+    "step-5 world sheet"
+  )
+})
+
+test_that("every export share basis emits the same production", {
+  # The basis moves the export / domestic supply split, never the tonnage
+  # being split.
+  prod <- c("current", "processed", "snapshot") |>
+    purrr::map_dbl(\(b) {
+      suppressWarnings(.run_basis_round(export_share_basis = b)) |>
+        .argentina_value("production")
+    })
+  expect_equal(prod, rep(400, 3))
 })
 
 test_that("export_share_basis rejects an unknown basis", {
