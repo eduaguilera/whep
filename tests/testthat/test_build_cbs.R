@@ -4721,6 +4721,156 @@ test_that("the new processed balance returns no share column", {
   expect_false("dest_share" %in% names(.run_no_destiny()))
 })
 
+# -- Export share denominator (whep#1143) -------------------------------------
+
+# The second processed round apportions a new country's processed production
+# into export and domestic supply by the WORLD export share. The step-4
+# snapshot (`proc_result$cbs_glob`) predates the processed production that
+# `.cbs_add_processed()` creates at step 5, so for a processed product it is
+# world export over world import alone. Here the balance the round actually
+# runs on (`cbs_raw5`) carries 1,000 t of Brazilian Soyabean Oil production
+# that the snapshot lacks: the snapshot share is 300 / 200 = 1.5, the current
+# one 300 / (1,000 + 200) = 0.25. Argentina is the new processor.
+.soy_oil_code <- function() {
+  whep::items_full |>
+    dplyr::filter(.data$item_cbs == "Soyabean Oil") |>
+    dplyr::pull(.data$item_cbs_code) |>
+    unique()
+}
+
+.basis_cbs_raw5 <- function() {
+  tibble::tribble(
+    ~year, ~area,    ~area_code, ~item_cbs,      ~element,     ~value,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "production",   1000,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "export",        300,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "food",          700,
+    1965L, "USA",    231L,       "Soyabean Oil", "import",        200,
+    1965L, "USA",    231L,       "Soyabean Oil", "food",          200
+  ) |>
+    dplyr::mutate(item_cbs_code = .soy_oil_code(), source = "Processed")
+}
+
+.basis_proc_result <- function() {
+  list(
+    cb_processing_glo = NULL,
+    cbs_glob = tibble::tribble(
+      ~year, ~item_cbs,      ~element, ~value,
+      1965L, "Soyabean Oil", "export",    300,
+      1965L, "Soyabean Oil", "import",    200,
+      1965L, "Soyabean Oil", "food",      900
+    ),
+    # Step 5: the processed production exists, the step-7 trade does not.
+    cbs_glob_processed = tibble::tribble(
+      ~year, ~item_cbs,      ~element,     ~value,
+      1965L, "Soyabean Oil", "production",   1000,
+      1965L, "Soyabean Oil", "export",        300,
+      1965L, "Soyabean Oil", "import",        100
+    ),
+    processed_agg = tibble::tribble(
+      ~year, ~area,    ~area_code, ~item_cbs,      ~value,
+      1965L, "Brazil", 21L,        "Soyabean Oil",   1000
+    ),
+    no_data_products = character()
+  )
+}
+
+.run_basis_round <- function(...) {
+  testthat::local_mocked_bindings(
+    .processed_raw = function(...) tibble::tibble(),
+    .correct_processed = function(...) {
+      tibble::tribble(
+        ~year, ~area,       ~area_code, ~item_cbs,      ~element,
+        1965L, "Argentina", 9L,         "Soyabean Oil", "production"
+      ) |>
+        dplyr::mutate(
+          value_proc = 400,
+          scaling_raw = NA_real_,
+          source_scaling_raw = NA_character_
+        )
+    },
+    .package = "whep"
+  )
+  whep:::.cbs_second_processed_round(
+    .basis_cbs_raw5(),
+    .basis_proc_result(),
+    ...
+  )
+}
+
+.argentina_value <- function(out, el) {
+  out |>
+    dplyr::filter(.data$area_code == 9L, .data$element == el) |>
+    dplyr::pull(.data$value)
+}
+
+test_that("the export share divides by the balance the round runs on", {
+  # Called the way `.fix_cbs()` calls it by default.
+  out <- .run_basis_round()
+
+  expect_equal(.argentina_value(out, "production"), 400)
+  expect_equal(.argentina_value(out, "export"), 400 * 300 / 1200)
+  expect_equal(.argentina_value(out, "domestic_supply"), 400 * 900 / 1200)
+})
+
+test_that("a balanced current sheet yields no export share above one", {
+  # The invariant: every area of `cbs_raw5` exports no more than it produces
+  # and imports, so neither does the world, and the round can book no
+  # negative domestic supply. The snapshot basis breaks it on this fixture.
+  expect_no_warning(out <- .run_basis_round())
+  ds <- out |> dplyr::filter(.data$element == "domestic_supply")
+  expect_true(all(ds$value >= 0))
+})
+
+test_that("export_share_basis = 'snapshot' keeps the step-4 world sheet", {
+  expect_warning(
+    out <- .run_basis_round(export_share_basis = "snapshot"),
+    class = "whep_export_share_overflow"
+  )
+  expect_equal(.argentina_value(out, "export"), 400 * 1.5)
+  expect_equal(.argentina_value(out, "domestic_supply"), 400 - 600)
+})
+
+test_that("export_share_basis = 'processed' reads the step-5 world sheet", {
+  expect_no_warning(
+    out <- .run_basis_round(export_share_basis = "processed")
+  )
+  expect_equal(.argentina_value(out, "export"), 400 * 300 / 1100)
+})
+
+test_that("the 'processed' basis refuses a result with no step-5 sheet", {
+  pr <- .basis_proc_result()
+  pr$cbs_glob_processed <- NULL
+  expect_error(
+    whep:::.export_share_world(.basis_cbs_raw5(), pr, "processed"),
+    "step-5 world sheet"
+  )
+})
+
+test_that("every export share basis emits the same production", {
+  # The basis moves the export / domestic supply split, never the tonnage
+  # being split.
+  prod <- c("current", "processed", "snapshot") |>
+    purrr::map_dbl(\(b) {
+      suppressWarnings(.run_basis_round(export_share_basis = b)) |>
+        .argentina_value("production")
+    })
+  expect_equal(prod, rep(400, 3))
+})
+
+test_that("export_share_basis rejects an unknown basis", {
+  expect_error(
+    .run_basis_round(export_share_basis = "world"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances validates export_share_basis", {
+  expect_error(
+    build_commodity_balances(example = TRUE, export_share_basis = "world"),
+    class = "rlang_error"
+  )
+})
+
 # -- reporter-level bound on the historical trade screen -----------------------
 
 # Issue whep#1117. The world bound above only catches a flow larger than every
