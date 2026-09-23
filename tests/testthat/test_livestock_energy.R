@@ -101,6 +101,91 @@ testthat::test_that("NEl increases with milk yield", {
   testthat::expect_gt(high_milk, low_milk)
 })
 
+# Lactation method (whep#217) --------------------------------------------------
+
+.small_ruminant_milk_fixture <- function() {
+  tibble::tibble(
+    species = c("Sheep", "Goats"),
+    cohort = "Adult Female",
+    weight = c(60, 50),
+    milk_yield_kg_day = 2,
+    diet_quality = "Medium",
+    heads = 1
+  )
+}
+
+testthat::test_that("ipcc2019 lactation uses the Eq 10.9 default EVmilk", {
+  # IPCC 2019 Refinement Vol 4 Ch 10, Eq 10.9/10.10: EVmilk 4.6 MJ/kg for
+  # sheep (7% fat) and 3 MJ/kg for goats (3.8% fat).
+  result <- .small_ruminant_milk_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, c(2 * 4.6, 2 * 3.0))
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "ipcc2019_eq10_9_default_ev"
+    )
+})
+
+testthat::test_that("ipcc2019 lactation uses Eq 10.8 for cattle", {
+  result <- dairy_tier2_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, 20 * (1.47 + 0.40 * 4.0))
+  testthat::expect_equal(result$method_lactation, "ipcc2019_eq10_8")
+})
+
+testthat::test_that("the default lactation method is the milk composition", {
+  # Sheep default composition: 7% fat, 5.5% protein, 4.8% lactose.
+  # Goats: 4% fat, 3.5% protein, 4.5% lactose.
+  result <- .small_ruminant_milk_fixture() |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(
+    result$ne_lactation,
+    2 *
+      c(
+        0.389 * 7 + 0.229 * 5.5 + 0.165 * 4.8,
+        0.389 * 4 + 0.229 * 3.5 + 0.165 * 4.5
+      )
+  )
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "nrc2001_milk_composition"
+    )
+})
+
+testthat::test_that("composition without protein falls back to Eq 10.9", {
+  result <- .small_ruminant_milk_fixture() |>
+    dplyr::mutate(protein_percent = 0) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(result$ne_lactation, c(2 * 4.6, 2 * 3.0))
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "ipcc2019_eq10_9_default_ev"
+    )
+})
+
+testthat::test_that("non-lactating rows are labelled with no lactation", {
+  result <- beef_tier2_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, 0)
+  testthat::expect_equal(result$method_lactation, "none")
+})
+
+testthat::test_that("an unknown lactation method aborts", {
+  testthat::expect_error(
+    dairy_tier2_fixture() |>
+      estimate_energy_demand(lactation_method = "afrc"),
+    class = "rlang_error"
+  )
+})
+
 # .calc_energy_growth -----------------------------------------------------------
 
 testthat::test_that("NEg is zero when weight_gain is zero", {

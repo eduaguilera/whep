@@ -4,7 +4,11 @@
 \alias{estimate_energy_demand}
 \title{Estimate energy demand (Gross Energy) - Tier 2}
 \usage{
-estimate_energy_demand(data, method = "ipcc2019")
+estimate_energy_demand(
+  data,
+  method = "ipcc2019",
+  lactation_method = c("milk_composition", "ipcc2019")
+)
 }
 \arguments{
 \item{data}{A dataframe with columns \code{species}, \code{cohort}, \code{heads},
@@ -21,10 +25,31 @@ national inventory (e.g. a housed dairy herd calibrated to a
 Zootecnicas/NIR Cfi), without changing the global default.}
 
 \item{method}{Method for calculation (default \code{"ipcc2019"}).}
+
+\item{lactation_method}{How net energy for lactation (NEl) is derived
+from milk yield. One of:
+\itemize{
+\item \code{"milk_composition"} (default): the NRC (2001) milk-energy equation,
+\code{NEl = Milk * (0.389 * Fat + 0.229 * Protein + 0.165 * Lactose)}
+(MJ/kg: the published Mcal/kg coefficients 0.0929, 0.0547 and 0.0395
+times 4.184), for rows with a positive protein and lactose content.
+Rows without that composition use the \code{"ipcc2019"} equations.
+\item \code{"ipcc2019"}: IPCC 2019 Refinement Vol 4 Ch 10. Eq 10.8,
+\code{NEl = Milk * (1.47 + 0.40 * Fat)}, for cattle, buffalo and other
+species; Eq 10.9, \code{NEl = Milk * EVmilk}, for sheep and goats with the
+default \code{EVmilk} of 4.6 MJ/kg for sheep (7\% fat; AFRC 1993, 1995) and
+3 MJ/kg for goats (3.8\% fat; AFRC 1998). The defaults ignore
+\code{fat_percent}.
+}
+
+The equation used for each row is recorded in \code{method_lactation}
+(\code{"nrc2001_milk_composition"}, \code{"ipcc2019_eq10_8"},
+\code{"ipcc2019_eq10_9_default_ev"}, or \code{"none"} when there is no milk).}
 }
 \value{
 Dataframe with added \code{gross_energy} (MJ/day), intermediate
-net energy components, and \code{method_energy} tracking column.
+net energy components, and \code{method_energy} and \code{method_lactation}
+tracking columns.
 }
 \description{
 Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
