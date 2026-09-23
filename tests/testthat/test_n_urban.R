@@ -673,3 +673,316 @@ testthat::test_that("the urban area_code check is the identity on the numeric vo
   )
   testthat::expect_identical(with_na$area_code, c(203L, NA_integer_))
 })
+
+# ---- urban N the transport step cannot deliver (#1171) -----------------
+#
+# allocate_manure_transport() hands back, at the SOURCE cell, whatever it could
+# not send to a ring-1 neighbour. On a source cell with no cropland there is no
+# land to put it on, and until #1171 build_urban_n() returned it there with
+# nothing marking it -- on the 2010 global grid 1,985 cells and 38,425 t N,
+# which build_n_inputs() then could not place.
+#
+# Polity 203: source A at lon 0.25 has people and no cropland; no ring-1
+# neighbour has cropland either; cropland sits at ring 2 (lon 1.25, 1000 ha
+# and lon -0.75, 3000 ha) and ring 5 (lon 2.75, 4000 ha). Polity 68: source D
+# has people and its polity has no cropland anywhere.
+.urban_undelivered_data <- function() {
+  list(
+    urban_population = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~urban_pop,
+      0.25,  -0.25, 2000L, 1000,
+      10.25, -0.25, 2000L, 500
+    ),
+    cell_polity = tibble::tribble(
+      ~lon,  ~lat,  ~area_code,
+      0.25,  -0.25, 203L,
+      1.25,  -0.25, 203L,
+      -0.75, -0.25, 203L,
+      2.75,  -0.25, 203L,
+      10.25, -0.25, 68L
+    ),
+    cropland_ha = tibble::tribble(
+      ~lon,  ~lat,  ~area_code, ~year, ~cropland_ha,
+      0.25,  -0.25, 203L,       2000L, 0,
+      1.25,  -0.25, 203L,       2000L, 1000,
+      -0.75, -0.25, 203L,       2000L, 3000,
+      2.75,  -0.25, 203L,       2000L, 4000,
+      10.25, -0.25, 68L,        2000L, 0
+    )
+  )
+}
+
+.urban_undelivered_load <- function(pop) {
+  pop * .urban_c0_rate_2000() / 1000
+}
+
+.urban_n_at <- function(out, lon, col = "urban_n_t") {
+  sum(out[[col]][out$lon %in% lon])
+}
+
+testthat::test_that("undelivered urban N is reported, never returned silently", {
+  cnd <- testthat::expect_warning(
+    out <- whep::build_urban_n(data = .urban_undelivered_data()),
+    class = "whep_urban_n_undelivered"
+  )
+  testthat::expect_match(conditionMessage(cnd), "2 urban-N source cell-years")
+
+  summary <- attr(out, "urban_n_undelivered")
+  pointblank::expect_col_exists(
+    summary,
+    c(
+      "year",
+      "n_cells",
+      "undelivered_t",
+      "relocated_t",
+      "stranded_t",
+      "dropped_t",
+      "undelivered_share",
+      "method_urban_residual"
+    )
+  )
+  testthat::expect_equal(summary$n_cells, 2L)
+  testthat::expect_equal(
+    summary$undelivered_t,
+    .urban_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(summary$undelivered_share, 1, tolerance = 1e-9)
+  # The default is "nearest": A's load is relocated, D's cannot be (its polity
+  # has no cropland) and stays, flagged, on its own cell.
+  testthat::expect_equal(
+    summary$relocated_t,
+    .urban_undelivered_load(1000),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    summary$stranded_t,
+    .urban_undelivered_load(500),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(summary$dropped_t, 0)
+  pointblank::expect_col_vals_in_set(out, "method_urban_residual", "nearest")
+})
+
+testthat::test_that("nearest moves undelivered N to the closest ring with cropland", {
+  out <- suppressWarnings(
+    whep::build_urban_n(data = .urban_undelivered_data())
+  )
+  load_a <- .urban_undelivered_load(1000)
+
+  # Nothing left on A; nothing reaches the ring-5 cell; the two ring-2 cells
+  # split it by cropland room, 1000 : 3000.
+  testthat::expect_equal(.urban_n_at(out, 0.25), 0)
+  testthat::expect_equal(.urban_n_at(out, 2.75), 0)
+  testthat::expect_equal(
+    .urban_n_at(out, 1.25),
+    0.25 * load_a,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    .urban_n_at(out, -0.75),
+    0.75 * load_a,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    .urban_n_at(out, -0.75, "urban_n_relocated_t"),
+    0.75 * load_a,
+    tolerance = 1e-9
+  )
+  # D stays, and says so.
+  testthat::expect_equal(
+    .urban_n_at(out, 10.25, "urban_n_stranded_t"),
+    .urban_undelivered_load(500),
+    tolerance = 1e-9
+  )
+  # Mass is conserved.
+  testthat::expect_equal(
+    sum(out$urban_n_t),
+    .urban_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("polity spreads undelivered N over the polity's cropland", {
+  out <- suppressWarnings(
+    whep::build_urban_n(
+      data = .urban_undelivered_data(),
+      method_residual = "polity"
+    )
+  )
+  load_a <- .urban_undelivered_load(1000)
+
+  # 1000 : 3000 : 4000 ha, distance ignored.
+  testthat::expect_equal(
+    .urban_n_at(out, c(1.25, -0.75, 2.75)),
+    load_a,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    .urban_n_at(out, 2.75),
+    0.5 * load_a,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    .urban_n_at(out, 1.25),
+    0.125 * load_a,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(.urban_n_at(out, 0.25), 0)
+  pointblank::expect_col_vals_in_set(out, "method_urban_residual", "polity")
+})
+
+testthat::test_that("keep leaves undelivered N in place, flagged", {
+  out <- suppressWarnings(
+    whep::build_urban_n(
+      data = .urban_undelivered_data(),
+      method_residual = "keep"
+    )
+  )
+  testthat::expect_equal(
+    .urban_n_at(out, 0.25, "urban_n_stranded_t"),
+    .urban_undelivered_load(1000),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(sum(out$urban_n_relocated_t), 0)
+  testthat::expect_equal(
+    sum(out$urban_n_stranded_t),
+    .urban_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    attr(out, "urban_n_undelivered")$stranded_t,
+    .urban_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("drop discards undelivered N and records what it cost", {
+  testthat::expect_warning(
+    out <- whep::build_urban_n(
+      data = .urban_undelivered_data(),
+      method_residual = "drop"
+    ),
+    class = "whep_urban_n_undelivered"
+  )
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_equal(
+    attr(out, "urban_n_undelivered")$dropped_t,
+    .urban_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("a fully relocated residual is a message, not a warning", {
+  data <- .urban_undelivered_data()
+  data$urban_population <- data$urban_population[1, ]
+  testthat::expect_no_warning(
+    testthat::expect_message(
+      out <- whep::build_urban_n(data = data),
+      class = "whep_urban_n_undelivered"
+    )
+  )
+  testthat::expect_equal(sum(out$urban_n_stranded_t), 0)
+})
+
+testthat::test_that("residual on a cell with cropland is not undelivered", {
+  # One cell, cropland, no neighbour: the whole load is residual but lands on
+  # land it can be applied to, so there is nothing to report or relocate.
+  data <- list(
+    urban_population = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~urban_pop,
+      -0.25, -0.25, 2000L, 1000
+    ),
+    cell_polity = .example_cell_polity_urban(),
+    cropland_ha = tibble::tribble(
+      ~lon,  ~lat,  ~area_code, ~year, ~cropland_ha,
+      -0.25, -0.25, 203L,       2000L, 1000
+    )
+  )
+  out <- testthat::expect_no_message(whep::build_urban_n(data = data))
+  testthat::expect_equal(out$urban_n_relocated_t, 0)
+  testthat::expect_equal(out$urban_n_stranded_t, 0)
+  testthat::expect_equal(attr(out, "urban_n_undelivered")$n_cells, 0L)
+})
+
+testthat::test_that("the example carries the undelivered-N columns", {
+  out <- whep::build_urban_n(example = TRUE, method_residual = "polity")
+  pointblank::expect_col_exists(
+    out,
+    c("urban_n_relocated_t", "urban_n_stranded_t", "method_urban_residual")
+  )
+  testthat::expect_equal(out$method_urban_residual, "polity")
+})
+
+testthat::test_that("nearest fills the nearest ring to its room, then widens", {
+  # A's load is sized to overflow the two ring-2 cells: their room is
+  # 170 kg N/ha x 4000 ha = 680 t, so the rest goes on to the ring-5 cell,
+  # never beyond any cell's room.
+  data <- .urban_undelivered_data()
+  data$urban_population <- data$urban_population[1, ]
+  load_a <- 1000
+  data$urban_population$urban_pop <- load_a * 1000 / .urban_c0_rate_2000()
+  testthat::expect_message(
+    out <- whep::build_urban_n(data = data),
+    class = "whep_urban_n_undelivered"
+  )
+  testthat::expect_equal(.urban_n_at(out, 1.25), 170, tolerance = 1e-9)
+  testthat::expect_equal(.urban_n_at(out, -0.75), 510, tolerance = 1e-9)
+  testthat::expect_equal(.urban_n_at(out, 2.75), 320, tolerance = 1e-9)
+  testthat::expect_equal(sum(out$urban_n_t), load_a, tolerance = 1e-9)
+})
+
+testthat::test_that("nearest strands only what the polity has no room for", {
+  # Total room in polity 203 is 170 kg N/ha x 8000 ha = 1360 t.
+  data <- .urban_undelivered_data()
+  data$urban_population <- data$urban_population[1, ]
+  data$urban_population$urban_pop <- 2000 * 1000 / .urban_c0_rate_2000()
+  testthat::expect_warning(
+    out <- whep::build_urban_n(data = data),
+    class = "whep_urban_n_undelivered"
+  )
+  testthat::expect_equal(sum(out$urban_n_relocated_t), 1360, tolerance = 1e-9)
+  testthat::expect_equal(
+    .urban_n_at(out, 0.25, "urban_n_stranded_t"),
+    640,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(sum(out$urban_n_t), 2000, tolerance = 1e-9)
+})
+
+testthat::test_that("nearest counts room already taken by the transport step", {
+  # B (lon 1.25) is a ring-1 neighbour of source E (lon 1.75, no cropland),
+  # whose transported load fills 100 of B's 170 t. A's relocated N then sees
+  # only the 70 t B has left, alongside the 510 t at lon -0.75.
+  data <- .urban_undelivered_data()
+  rate <- .urban_c0_rate_2000()
+  data$urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    0.25, -0.25, 2000L, 580 * 1000 / rate,
+    1.75, -0.25, 2000L, 100 * 1000 / rate
+  )
+  data$cell_polity <- dplyr::bind_rows(
+    data$cell_polity,
+    tibble::tibble(lon = 1.75, lat = -0.25, area_code = 203L)
+  )
+  out <- suppressMessages(whep::build_urban_n(data = data))
+  testthat::expect_equal(.urban_n_at(out, 1.25), 170, tolerance = 1e-9)
+  testthat::expect_equal(
+    .urban_n_at(out, 1.25, "urban_n_relocated_t"),
+    70,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(.urban_n_at(out, -0.75), 510, tolerance = 1e-9)
+  testthat::expect_equal(.urban_n_at(out, 2.75), 0)
+})
+
+testthat::test_that("the ring distance wraps at the antimeridian", {
+  testthat::expect_equal(
+    whep:::.urban_ring_distance(179.75, 65.25, -179.75, 65.25),
+    1
+  )
+  testthat::expect_equal(
+    whep:::.urban_ring_distance(0.25, -0.25, 2.75, 0.75),
+    5
+  )
+})

@@ -117,6 +117,9 @@ forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when 
 support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
 inputs.
+\item \code{method_urban_residual}: \code{\link[=build_urban_n]{build_urban_n()}}'s \code{method_residual}
+(default \code{"nearest"}), for urban N the transport step leaves on a
+cell with no cropland.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it

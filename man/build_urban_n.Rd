@@ -8,7 +8,8 @@ build_urban_n(
   years = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  method_residual = c("nearest", "polity", "keep", "drop")
 )
 }
 \arguments{
@@ -48,11 +49,56 @@ is not every territory's own code (\code{"SSD"} would become 206, Sudan
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
+
+\item{method_residual}{What happens to urban N that the transport step
+cannot deliver and that sits on a source cell with \strong{no cropland} (the
+residual on a source cell that has cropland is applied there under every
+method). On the 2010 global grid this is 1,985 cells and 38,425 t N,
+0.955\% of the 4.02 Mt of urban N, most of it in Russia, Algeria, the
+United States, Saudi Arabia and Australia.
+\itemize{
+\item \code{"nearest"} (default): run the transport step's own rule again with a
+growing radius. Each such cell offers its nitrogen to the same-polity
+cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
+steps, wrapped at the antimeridian) that still has room, in proportion
+to that room; a cell's room is its 170 kg N/ha ceiling minus the urban
+N already on it, and an over-subscribed cell is filled only to its
+room. The radius grows one ring at a time until the nitrogen is placed
+or the polity has no room left. Conserves mass and keeps the nitrogen
+as close to the people who produced it as the room allows. No distance
+cap or transport coefficient is applied.
+\item \code{"polity"}: pool it per polity-year and spread it over all of that
+polity-year's cropland in proportion to cropland room (area), the rule
+\code{\link[=build_n_inputs]{build_n_inputs()}} applies under \code{method_unsupported = "reallocate"}.
+Conserves mass, but places the nitrogen anywhere in the polity.
+\item \code{"keep"}: leave it on its source cell, as before this argument
+existed, flagged in \code{urban_n_stranded_t}. \code{\link[=build_n_inputs]{build_n_inputs()}}'s
+\code{method_unsupported} then decides its fate (by default, it aborts).
+\item \code{"drop"}: discard it. Loses the mass, biased towards dense,
+cropland-free cells.
+}
+
+\code{"nearest"} and \code{"polity"} never cross a polity, like the transport step
+itself, so a polity-year with population and no cropland anywhere keeps
+its nitrogen on the source cell under either (51 cells, 834 t N at
+2010), flagged in \code{urban_n_stranded_t}; \code{"nearest"} does the same with
+whatever its polity has no room left for. Whenever any cell is
+undelivered, the count, the tonnes and the share of urban N are reported
+(a warning, class \code{whep_urban_n_undelivered}, when any nitrogen is
+dropped or left stranded; otherwise a message of the same class), and the
+per-year figures are attached as \code{attr(x, "urban_n_undelivered")}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{urban_n_t} and
-\code{method_urban}, plus the polity columns below, plus
-\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
+A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{urban_n_t},
+\code{urban_n_relocated_t} (the part of \code{urban_n_t} placed on the cell by
+\code{method_residual}), \code{urban_n_stranded_t} (the part sitting on a cell with
+no cropland, which no downstream cropland allocation can place),
+\code{method_urban} and \code{method_urban_residual}, plus the polity columns below,
+plus \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}. The
+attribute \code{"urban_n_undelivered"} is a tibble with one row per year:
+\code{year}, \code{urban_n_t}, \code{n_cells} (undelivered source cells), \code{undelivered_t},
+\code{relocated_t}, \code{stranded_t}, \code{dropped_t}, \code{undelivered_share} (of
+\code{urban_n_t}) and \code{method_urban_residual}.
 }
 \description{
 Estimates the nitrogen from urban human excreta and municipal waste

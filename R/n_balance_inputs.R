@@ -143,6 +143,9 @@
 #'     support).
 #'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
 #'     inputs.
+#'   * `method_urban_residual`: [build_urban_n()]'s `method_residual`
+#'     (default `"nearest"`), for urban N the transport step leaves on a
+#'     cell with no cropland.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -1027,6 +1030,7 @@ build_n_inputs <- function(
   }
   build_urban_n(
     polity_validity = .ni_polity_validity(data),
+    method_residual = data$method_urban_residual %||% "nearest",
     data = list(
       urban_population = data$urban_population,
       cell_polity = data$cell_polity,
@@ -1278,7 +1282,11 @@ build_n_inputs <- function(
 # The condition is real, not hypothetical: build_urban_n() hands back the urban
 # nitrogen its transport step could not deliver, at the SOURCE cell, and on a
 # 2010 global run 1985 of those cells hold no cropland -- 38,425 t of 4.02 Mt
-# urban N, which took the whole balance down (whep#446).
+# urban N, which took the whole balance down (whep#446). Since whep#1171
+# build_urban_n() places that nitrogen itself (`method_residual`, default
+# "nearest"), so what still reaches this rule from urban N is the part in a
+# polity with no cropland at all: 51 cells, 834 t N at 2010 (Qatar, Iceland,
+# Samoa).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.
