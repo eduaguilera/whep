@@ -936,41 +936,80 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @keywords internal
 #' @noRd
 .warn_processing_excess <- function(excess) {
-  by_item <- excess |>
-    dplyr::filter(excess_fm > 0) |>
+  dropped <- excess |> dplyr::filter(excess_fm > 0)
+  if (nrow(dropped) == 0) {
+    return(excess)
+  }
+
+  # Two different gaps: the share cap binding on an item Spain does grow
+  # (soybeans), and processing of an item this pipeline never produces at
+  # all (second-stage inputs such as Wine or Molasses, or unproduced oils),
+  # whose share is 0 rather than capped.
+  capped <- dropped |> dplyr::filter(national_production_fm > 0)
+  unproduced <- dropped |> dplyr::filter(national_production_fm <= 0)
+  total <- .format_tonnes(sum(dropped$excess_fm))
+
+  cli::cli_warn(
+    c(
+      "Processing volume above domestic production is left out:
+       {total} t FM (#1014).",
+      i = "Its outputs are booked as imports of the processed items, not of
+           the primary item they were made from.",
+      .excess_bullets(capped, "Above domestic production (share capped at 1)"),
+      .excess_bullets(unproduced, "No domestic production of the input")
+    ),
+    class = "whep_processing_excess"
+  )
+
+  excess
+}
+
+#' @title Bullet lines for one group of the processing excess -----------------
+#' @description Formats the five largest items of `rows` as cli bullets under
+#' a heading, for `.warn_processing_excess()`.
+#'
+#' @param rows Rows of `.calculate_processing_excess()` with `excess_fm > 0`.
+#' @param heading Heading line for the group.
+#'
+#' @return A named character vector of cli bullets, empty when `rows` is.
+#' @keywords internal
+#' @noRd
+.excess_bullets <- function(rows, heading) {
+  if (nrow(rows) == 0) {
+    return(character(0))
+  }
+  by_item <- rows |>
     dplyr::summarise(
       excess_fm = sum(excess_fm),
       n_years = dplyr::n_distinct(Year),
       .by = Item
     ) |>
     dplyr::arrange(dplyr::desc(excess_fm))
-
-  if (nrow(by_item) == 0) {
-    return(excess)
-  }
-
   top <- utils::head(by_item, 5)
-  details <- sprintf(
-    "%s: %s t over %d year%s",
+  lines <- sprintf(
+    "  %s: %s t over %d year%s",
     top$Item,
-    format(round(top$excess_fm), big.mark = ",", trim = TRUE),
+    .format_tonnes(top$excess_fm),
     top$n_years,
     ifelse(top$n_years == 1, "", "s")
   )
-  total <- format(round(sum(by_item$excess_fm)), big.mark = ",")
-
-  cli::cli_warn(
-    c(
-      "Processing exceeds domestic production for {nrow(by_item)} item{?s};
-       {total} t FM of processing volume is left out (#1014).",
-      i = "Its outputs are booked as imports of the processed items, not of
-           the primary item they were made from.",
-      rlang::set_names(details, rep("*", length(details)))
-    ),
-    class = "whep_processing_excess"
+  header <- sprintf(
+    "%s: %d item%s, %s t.",
+    heading,
+    nrow(by_item),
+    ifelse(nrow(by_item) == 1, "", "s"),
+    .format_tonnes(sum(by_item$excess_fm))
   )
+  c("*" = header, rlang::set_names(lines, rep(" ", length(lines))))
+}
 
-  excess
+#' @title Round tonnes and add thousands separators ---------------------------
+#' @param x Numeric vector of tonnes.
+#' @return A character vector.
+#' @keywords internal
+#' @noRd
+.format_tonnes <- function(x) {
+  format(round(x), big.mark = ",", trim = TRUE, scientific = FALSE)
 }
 
 #' @title Backfill early-year processing shares -------------------------------

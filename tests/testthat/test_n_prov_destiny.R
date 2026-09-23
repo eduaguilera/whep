@@ -439,6 +439,10 @@ test_that(".warn_processing_excess reports the dropped volume by item", {
   expect_match(msg, "Rape and Mustardseed")
   expect_no_match(msg, "Grapes")
   expect_match(msg, "3,020")
+  # The cap binding on a grown item and an input with no domestic production
+  # at all are reported apart.
+  expect_match(msg, "share capped at 1\\): 1 item, 2,995 t")
+  expect_match(msg, "No domestic production of the input: 1 item, 25 t")
 })
 
 test_that(".warn_processing_excess is silent when nothing is dropped", {
