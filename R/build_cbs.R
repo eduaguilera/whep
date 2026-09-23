@@ -2811,7 +2811,12 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(year) & !is.na(area) & !is.na(element)]
 
-  dt_pp <- dt[item_cbs %in% .cbs_pp_items() & source != "trade_hist"]
+  # Copy the production row only. Relabelling every element would leave
+  # import, export and supply rows under `processing_primary` too, which
+  # `.select_best_source()` sums within a source and averages across the
+  # non-primary ones: harmless only while FAOSTAT_prod reports the key
+  # (whep#1189).
+  dt_pp <- dt[item_cbs %in% .cbs_pp_items() & element == "production"]
   dt_pp[, element := "processing_primary"]
 
   data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)

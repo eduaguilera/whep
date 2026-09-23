@@ -2040,6 +2040,83 @@ test_that(".assemble_cbs_sources binds historical trade under its source", {
   )
 })
 
+# A `.cbs_pp_items()` item reported by FAOSTAT_prod and FBS_New, with trade in
+# FBS_New and FAOSTAT_trade too: every element a relabelled copy could come
+# from (whep#1189).
+.make_pp_item_inputs <- function(with_prod = TRUE) {
+  pp_row <- function(element, value) {
+    data.table::data.table(
+      year = 2015L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Hops",
+      item_cbs_code = 677L,
+      element = element,
+      value = value,
+      unit = "tonnes"
+    )
+  }
+  fbs_new <- data.table::rbindlist(list(
+    pp_row("production", 100),
+    pp_row("import", 30),
+    pp_row("export", 50),
+    pp_row("domestic_supply", 80)
+  ))
+  empty <- .empty_cbs_component()
+  list(
+    fbs_new = fbs_new,
+    fbs_old = empty,
+    cbs_animals = empty,
+    cbs_crops = empty,
+    primary_cbs = if (with_prod) pp_row("production", 100) else empty,
+    crop_residues = empty,
+    trade = data.table::rbindlist(list(
+      pp_row("import", 31),
+      pp_row("export", 49)
+    ))
+  )
+}
+
+.assemble_pp_item <- function(inputs) {
+  empty <- .empty_cbs_component()
+  whep:::.assemble_cbs_sources(
+    inputs,
+    empty,
+    inputs$trade,
+    empty,
+    whep::items_full
+  )
+}
+
+test_that(".assemble_cbs_sources copies only production to processing_primary", {
+  result <- .assemble_pp_item(.make_pp_item_inputs()) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$element == "processing_primary")
+
+  # One copy per source that reports production -- not one per element.
+  expect_setequal(result$source, c("FAOSTAT_prod", "FAOSTAT_FBS_New"))
+  expect_equal(nrow(result), 2L)
+  expect_true(all(result$value == 100))
+})
+
+test_that("processing_primary equals production when FAOSTAT_prod is absent", {
+  # Without the top-ranked source, selection falls through to FBS_New and to
+  # the non-primary mean. A copy of every element would sum FBS_New's
+  # production, trade and supply into one cell (260) and let FAOSTAT_trade's
+  # import/export reach the key as well.
+  selected <- .assemble_pp_item(.make_pp_item_inputs(with_prod = FALSE)) |>
+    whep:::.select_best_source() |>
+    tibble::as_tibble()
+  value_of <- function(el) {
+    selected |>
+      dplyr::filter(.data$element == el) |>
+      dplyr::pull(value)
+  }
+
+  expect_equal(value_of("processing_primary"), value_of("production"))
+  expect_equal(value_of("processing_primary"), 100)
+})
+
 test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
   ext_inputs <- list(
     primary_cbs_area = tibble::tibble(
