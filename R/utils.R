@@ -2264,6 +2264,9 @@ utils::globalVariables(
     # recovery rate the table gives as zero from a zero standing in for a
     # lookup that found nothing
     "residue_recovery_matched",
+    # livestock_cohorts.R (issue 1194) -- per-row provenance of the production
+    # system split: reported by the commodity, assumed default, or supplied
+    "method_system_share",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

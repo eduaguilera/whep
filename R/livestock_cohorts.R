@@ -5,17 +5,35 @@
 #' cohorts and production systems using
 #' `gleam_livestock_categories` and regional weight data.
 #'
+#' GLEAM supplies only the taxonomy here: which systems and cohorts each
+#' species has. It supplies no herd shares. `gleam_livestock_categories` has no
+#' share column, and the herd-parameter tables of the GLEAM 2.0 and 3.0
+#' supplements give demographic rates and live weights, not a dairy/meat or
+#' layer/broiler split of the herd (whep#1194).
+#'
+#' Where FAOSTAT already reports the herd split into the items
+#' [build_primary_production()] carries (`"Cattle, dairy"` /
+#' `"Cattle, non-dairy"`, `"Pigs"` / `"Hogs"` for market / breeding swine, and
+#' `"Chickens, layers"` / `"Chickens, broilers"`), the whole herd goes to the
+#' system its item names and no share is applied. Every other herd (buffalo,
+#' sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
+#' poultry label) is split by WHEP's default shares, which are **assumed,
+#' unverified** placeholders with no source. The `method_system_share` column
+#' says which of the two applied to each row.
+#'
 #' @param data Dataframe with `species`, `heads`, and
 #'   optionally `iso3` or `region`.
 #' @param system_shares Optional dataframe with `species_gen`,
-#'   `system`, `system_share` columns. If `NULL`, uses GLEAM
-#'   defaults and routes dairy/non-dairy commodities to their
-#'   matching production system. Supplying this overrides both,
-#'   so the supplied shares are used verbatim.
+#'   `system`, `system_share` columns. If `NULL`, a herd whose commodity names
+#'   a production system goes wholly to it, and every other herd uses WHEP's
+#'   assumed, unverified default shares. Supplying this overrides both, so the
+#'   supplied shares are used verbatim.
 #'
 #' @return Dataframe expanded to cohort level with
 #'   `cohort`, `system`, `cohort_heads`, and
-#'   `cohort_fraction` columns.
+#'   `cohort_fraction` columns, plus `method_system_share`: `"reported"` when
+#'   the commodity itself names the system, `"assumed"` when WHEP's unsourced
+#'   default split was applied, or `"supplied"` when `system_shares` was given.
 #' @export
 #'
 #' @examples
@@ -43,6 +61,9 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       system_shares,
       by = "species_gen",
       relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      method_system_share = if (use_default) "assumed" else "supplied"
     )
 
   # Default shares are keyed by general species, so both cattle commodities
@@ -91,27 +112,40 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
 
 #' Default production system shares.
 #'
-#' The cattle and swine shares here are the fallback for a herd whose commodity
-#' names no subcategory. When it does -- `"Cattle, dairy"`, `"Pigs"` (FAOSTAT
-#' 1049, market swine), `"Hogs"` (1051, breeding swine) --
-#' [.route_to_commodity_system()] sends the whole herd to the system the
-#' commodity names and these shares do not apply.
+#' **Assumed, unverified (whep#1194).** These are WHEP's own round numbers and
+#' have no source. They used to be attributed to GLEAM, but no GLEAM table WHEP
+#' holds carries herd shares (see [calculate_cohorts_systems()]). They are kept
+#' only so that a herd no reported item splits still reaches cohorts, and every
+#' row they reach is stamped `method_system_share = "assumed"`.
+#'
+#' What each row still applies to, given that [.route_to_commodity_system()]
+#' sends a herd whose commodity names its system wholly to that system:
+#' * Cattle, Swine: only a herd under an aggregate label (`"Cattle"`,
+#'   `"Swine"`). The production items are reported-split (cattle 960/961,
+#'   swine 1049/1051).
+#' * Poultry: ducks, turkeys, geese and an aggregate `"Poultry"` label. The
+#'   chicken items are reported-split (1052/1053).
+#' * Buffalo, Sheep, Goats: every herd. FAOSTAT publishes one stock item per
+#'   species; its only dairy signal is the QCL "Milk Animals" element, a count
+#'   of milked females. That is one cohort of the dairy system, not the
+#'   system's share of the herd, so it does not give these values directly.
 #' @noRd
 .default_system_shares <- function() {
+  # Assumed, unverified: no source for any value below (whep#1194).
   tibble::tribble(
-    ~species_gen, ~system, ~system_share,
-    "Cattle", "Dairy", 0.30,
-    "Cattle", "Beef", 0.70,
-    "Buffalo", "Dairy", 0.60,
-    "Buffalo", "Other", 0.40,
-    "Sheep", "Dairy", 0.20,
-    "Sheep", "Meat", 0.80,
-    "Goats", "Dairy", 0.30,
-    "Goats", "Meat", 0.70,
-    "Swine", "Breeding", 0.15,
-    "Swine", "Fattening", 0.85,
-    "Poultry", "Layers", 0.50,
-    "Poultry", "Broilers", 0.50
+    ~species_gen, ~system,     ~system_share,
+    "Cattle",     "Dairy",              0.30,
+    "Cattle",     "Beef",               0.70,
+    "Buffalo",    "Dairy",              0.60,
+    "Buffalo",    "Other",              0.40,
+    "Sheep",      "Dairy",              0.20,
+    "Sheep",      "Meat",               0.80,
+    "Goats",      "Dairy",              0.30,
+    "Goats",      "Meat",               0.70,
+    "Swine",      "Breeding",           0.15,
+    "Swine",      "Fattening",          0.85,
+    "Poultry",    "Layers",             0.50,
+    "Poultry",    "Broilers",           0.50
   )
 }
 
@@ -132,7 +166,12 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
     dplyr::left_join(routing, by = c("species_gen", "subcategory")) |>
     dplyr::filter(is.na(routed_system) | system == routed_system) |>
     dplyr::mutate(
-      system_share = dplyr::if_else(is.na(routed_system), system_share, 1)
+      system_share = dplyr::if_else(is.na(routed_system), system_share, 1),
+      method_system_share = dplyr::if_else(
+        is.na(routed_system),
+        method_system_share,
+        "reported"
+      )
     ) |>
     dplyr::select(-routed_system, -subcategory)
 }
@@ -149,6 +188,12 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
 #' `Breeding 0.15 / Fattening 0.85` blend must not be applied on top of it --
 #' that would book 15% of the reported *market* herd as breeding on top of the
 #' reported breeding herd.
+#'
+#' Chickens joined at whep#1194 for the same reason. Production splits the
+#' chicken stock into 1052 `"Chickens, layers"` and 1053 `"Chickens,
+#' broilers"` by the emissions-domain stock items, and the assumed
+#' `Layers 0.50 / Broilers 0.50` blend booked half of each reported flock in
+#' the other system. Ducks, turkeys and geese name no system and keep it.
 #' @noRd
 .commodity_subcategory <- function(species) {
   is_swine <- .get_general_species(species) == "Swine"
@@ -157,22 +202,27 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
     stringr::str_detect(species, "(?i)non[- ]?dairy") ~ "Non-Dairy",
     is_swine & .is_breeding_swine(species) ~ "Breeding",
     is_swine ~ "Market",
+    stringr::str_detect(species, "(?i)chicken.*layer") ~ "Layers",
+    stringr::str_detect(species, "(?i)chicken.*broiler") ~ "Broilers",
     TRUE ~ NA_character_
   )
 }
 
 #' Production system each commodity subcategory routes to, by species.
 #'
-#' Cattle (dairy / non-dairy) and swine (breeding / market) are the species
-#' `animals_codes` splits into separate commodities.
+#' Cattle (dairy / non-dairy), swine (breeding / market) and chickens
+#' (layers / broilers) are the species `animals_codes` splits into separate
+#' commodities.
 #' @noRd
 .subcategory_system_map <- function() {
   tibble::tribble(
     ~species_gen, ~subcategory, ~system,
-    "Cattle", "Dairy", "Dairy",
-    "Cattle", "Non-Dairy", "Beef",
-    "Swine", "Breeding", "Breeding",
-    "Swine", "Market", "Fattening"
+    "Cattle",     "Dairy",      "Dairy",
+    "Cattle",     "Non-Dairy",  "Beef",
+    "Swine",      "Breeding",   "Breeding",
+    "Swine",      "Market",     "Fattening",
+    "Poultry",    "Layers",     "Layers",
+    "Poultry",    "Broilers",   "Broilers"
   )
 }
 
