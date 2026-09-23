@@ -511,3 +511,55 @@ testthat::test_that("get_livestock_cbs rejects an unknown head method", {
     class = "rlang_error"
   )
 })
+
+# The wide CBS binds head-counted live-animal rows onto the tonnes CBS, so a
+# row's denomination has to travel with it (whep#1055). Each row's `unit` is
+# set by the builder that produced it: the mass-only long CBS, or
+# `get_livestock_cbs()`.
+testthat::test_that("the wide CBS says which rows are head counts (#1055)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+
+  pointblank::expect_col_vals_not_null(wide, "unit")
+  pointblank::expect_col_vals_in_set(wide, "unit", c("tonnes", "heads"))
+  units <- wide |>
+    dplyr::distinct(item_cbs_code, unit) |>
+    dplyr::arrange(item_cbs_code)
+  testthat::expect_equal(units$item_cbs_code, c(1096L, 2511L, 2513L))
+  testthat::expect_equal(units$unit, c("heads", "tonnes", "tonnes"))
+})
+
+testthat::test_that("get_livestock_cbs labels its rows as heads (#1055)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+
+  result <- get_livestock_cbs(.make_livestock_fixture())
+
+  testthat::expect_gt(nrow(result), 0L)
+  pointblank::expect_col_vals_equal(result, "unit", "heads")
+})
+
+testthat::test_that("the wide CBS aborts on one item in two units (#1055)", {
+  # A live-animal code reaching the tonnes CBS as well as the livestock
+  # builder would carry one item in both denominations.
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+  long <- .make_cbs_long_fixture() |>
+    dplyr::mutate(
+      item_cbs_code = dplyr::if_else(item_cbs_code == 2513L, 1096L, 2511L)
+    )
+
+  testthat::expect_error(
+    .cbs_wide_core(long, .make_livestock_fixture(), 2000L),
+    "mixes 2 units"
+  )
+})
