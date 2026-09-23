@@ -174,13 +174,13 @@ build_sjos_nitrogen <- function(
   list(
     grid = .sjos_exceedance(
       surplus,
-      data$critical,
+      data[["critical"]],
       opts$boundary_land_use,
       "grid"
     ),
     country = .sjos_exceedance(
       surplus,
-      data$critical,
+      data[["critical"]],
       opts$boundary_land_use,
       "country"
     )

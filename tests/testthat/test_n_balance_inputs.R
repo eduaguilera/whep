@@ -2058,3 +2058,22 @@ testthat::test_that("every stream key maps to a fert_type this file emits", {
     whep::build_n_inputs(data = .nbi_full_data())$fert_type |> unique()
   )
 })
+
+testthat::test_that("gridded_pasture is never read as gridded (#1214)", {
+  # R's `$` partially matches list names: without a `gridded` entry,
+  # `data$gridded` returned `gridded_pasture` (an entry this same list
+  # documents) and handed it to the manure allocation as its land layer.
+  seen <- "not called"
+  testthat::local_mocked_bindings(
+    build_livestock_nutrient_flows = function(intake, ..., gridded = NULL) {
+      seen <<- gridded
+      list(applied = NULL)
+    },
+    .manure_to_n_inputs = function(applied) NULL
+  )
+  whep:::.n_inputs_manure(list(
+    livestock_intake = .nbi_livestock_intake(),
+    gridded_pasture = .nbi_gridded()$grass
+  ))
+  testthat::expect_null(seen)
+})

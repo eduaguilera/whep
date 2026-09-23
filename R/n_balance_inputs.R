@@ -660,7 +660,7 @@ build_n_inputs <- function(
     data$livestock_intake,
     resolution = data$resolution %||% "national",
     methods = data$methods %||% list(),
-    gridded = data$gridded
+    gridded = data[["gridded"]]
   )
   .manure_to_n_inputs(flows$applied)
 }

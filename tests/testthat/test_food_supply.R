@@ -276,6 +276,19 @@ testthat::test_that("build_food_supply aborts on a missing input column", {
   )
 })
 
+testthat::test_that("population_age is never read as the population (#1214)", {
+  # R's `$` partially matches list names: with no `population` entry,
+  # `data$population` returned `population_age`, which carries the same key
+  # columns, so food was divided by age-group head counts, one row per group.
+  data <- .food_data()
+  data$population_age <- tidyr::crossing(.food_pop(), age = c("0-4", "5-9"))
+  data$population <- NULL
+  testthat::expect_error(
+    whep::build_food_supply(data = data),
+    "data\\$population"
+  )
+})
+
 testthat::test_that("build_food_supply aborts on a missing coefficient", {
   bad <- .food_data()
   bad$biomass_coefs <- dplyr::select(bad$biomass_coefs, -"Edible_portion")

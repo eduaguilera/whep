@@ -304,7 +304,7 @@ build_food_supply <- function(
 # coefficients, aggregated per country-year and divided by national population.
 .food_supply_whep_native <- function(data, protein_basis) {
   cbs_food <- data$cbs_food
-  population <- data$population
+  population <- data[["population"]]
   coefs <- data$biomass_coefs %||% whep::biomass_coefs
   items <- data$items_full %||% whep::items_full
   .check_columns(
