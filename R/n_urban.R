@@ -69,12 +69,16 @@
 #'   method). On the 2010 global grid this is 1,985 cells and 38,425 t N,
 #'   0.955% of the 4.02 Mt of urban N, most of it in Russia, Algeria, the
 #'   United States, Saudi Arabia and Australia.
-#'   * `"nearest"` (default): move it to the same-polity cropland cell(s) at
-#'     the smallest grid distance (Chebyshev, in 0.5-degree steps -- the
-#'     transport step's own ring metric, widened until a ring holds
-#'     cropland), split between tied cells by cropland room. Conserves mass
-#'     and keeps the nitrogen as close to the people who produced it as the
-#'     grid allows. No distance cap is applied.
+#'   * `"nearest"` (default): run the transport step's own rule again with a
+#'     growing radius. Each such cell offers its nitrogen to the same-polity
+#'     cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
+#'     steps, wrapped at the antimeridian) that still has room, in proportion
+#'     to that room; a cell's room is its 170 kg N/ha ceiling minus the urban
+#'     N already on it, and an over-subscribed cell is filled only to its
+#'     room. The radius grows one ring at a time until the nitrogen is placed
+#'     or the polity has no room left. Conserves mass and keeps the nitrogen
+#'     as close to the people who produced it as the room allows. No distance
+#'     cap or transport coefficient is applied.
 #'   * `"polity"`: pool it per polity-year and spread it over all of that
 #'     polity-year's cropland in proportion to cropland room (area), the rule
 #'     [build_n_inputs()] applies under `method_unsupported = "reallocate"`.
@@ -88,7 +92,8 @@
 #'   `"nearest"` and `"polity"` never cross a polity, like the transport step
 #'   itself, so a polity-year with population and no cropland anywhere keeps
 #'   its nitrogen on the source cell under either (51 cells, 834 t N at
-#'   2010), flagged in `urban_n_stranded_t`. Whenever any cell is
+#'   2010), flagged in `urban_n_stranded_t`; `"nearest"` does the same with
+#'   whatever its polity has no room left for. Whenever any cell is
 #'   undelivered, the count, the tonnes and the share of urban N are reported
 #'   (a warning, class `whep_urban_n_undelivered`, when any nitrogen is
 #'   dropped or left stranded; otherwise a message of the same class), and the
@@ -341,7 +346,8 @@ build_urban_n <- function(
 # conserves mass. "nearest" and "polity" move nitrogen only inside its own
 # polity-year, as the transport step does, so an undelivered row in a
 # polity-year with no cropland anywhere stays where it is, re-tagged
-# "stranded" -- 51 cells and 834 t N at 2010.
+# "stranded" -- 51 cells and 834 t N at 2010. "nearest" also strands what a
+# polity has no room left for.
 .urban_place_undelivered <- function(flows, sink_cells, method) {
   undelivered <- dplyr::filter(flows, .data$route == "undelivered")
   kept <- dplyr::filter(flows, .data$route != "undelivered")
@@ -355,7 +361,7 @@ build_urban_n <- function(
   reachable <- dplyr::semi_join(undelivered, sink_cells, by = by)
   stranded <- dplyr::anti_join(undelivered, sink_cells, by = by)
   relocated <- if (method == "nearest") {
-    .urban_relocate_nearest(reachable, sink_cells)
+    .urban_relocate_nearest(reachable, sink_cells, kept)
   } else {
     .urban_relocate_polity(reachable, sink_cells)
   }
@@ -366,50 +372,172 @@ build_urban_n <- function(
   dplyr::mutate(rows, route = "stranded")
 }
 
-# "nearest": each undelivered cell's nitrogen goes to the same-polity cropland
-# cell(s) at the smallest Chebyshev distance on the grid. That is the transport
-# step's own ring metric, widened until a ring holds cropland, so no distance
-# cap or transport coefficient is introduced. Ties are split by room_n, the
-# weight the transport step itself uses. The metric counts grid steps, not km:
-# a step of longitude shortens towards the poles.
-.urban_relocate_nearest <- function(undelivered, sink_cells) {
-  src_xy <- .parse_cell_id(undelivered$sub_territory)
-  snk_xy <- .parse_cell_id(sink_cells$sub_territory)
-  sources <- undelivered |>
+# "nearest": the transport step's own rule, widened. Each undelivered cell
+# offers its nitrogen to the same-polity cropland cells in its nearest ring
+# that still has room, in proportion to that room, and an over-subscribed sink
+# is filled only to its room -- exactly allocate_manure_transport()'s rule,
+# with the ring radius growing one step at a time instead of stopping at 1.
+# A sink's room is its room_n minus the urban N already on it (transported
+# there, or its own residual), so a sink the ring-1 pass filled takes nothing
+# more. No distance cap and no transport coefficient is introduced: the
+# radius grows until the nitrogen is placed or the polity has no room left.
+# What is left then stays on its source cell, "stranded".
+#
+# Why room matters: without it, the whole load of a city lands on the one
+# nearest cropland cell. At 2010 that put 3,459 t N on 1,219 ha next to Jeddah
+# (3,985 kg N/ha) and lifted the 99th percentile of urban N per cropland
+# hectare from 182 to 4,141 kg N/ha.
+.urban_relocate_nearest <- function(undelivered, sink_cells, kept) {
+  sinks <- .urban_sink_room(sink_cells, kept)
+  pairs <- .urban_nearest_pairs(undelivered, sinks)
+  remaining <- undelivered |>
     dplyr::transmute(
-      year = .data$year,
-      territory = .data$territory,
       .source = dplyr::row_number(),
-      slon = src_xy$lon,
-      slat = src_xy$lat,
-      applied_n = .data$applied_n
+      rem_n = .data$applied_n,
+      rem_n0 = .data$applied_n
     )
-  sinks <- sink_cells |>
+  room <- dplyr::transmute(
+    sinks,
+    .data$.sink,
+    .data$room_left,
+    room_left0 = .data$room_left
+  )
+  placed <- list()
+  # Sequential by construction: each ring sees the room the previous one left.
+  # Every pass either places a source's whole load or fills every sink in its
+  # nearest ring with room, so the loop ends within the number of rings.
+  while (nrow(pairs) > 0L) {
+    step <- .urban_ring_step(pairs, remaining, room)
+    placed[[length(placed) + 1L]] <- step$flows
+    remaining <- step$remaining
+    room <- step$room
+    pairs <- .urban_prune_pairs(pairs, remaining, room)
+  }
+  relocated <- dplyr::bind_rows(placed) |>
+    dplyr::inner_join(dplyr::select(sinks, -"room_left"), by = ".sink") |>
+    .urban_relocated_rows()
+  left <- undelivered |>
+    dplyr::mutate(.source = dplyr::row_number()) |>
+    dplyr::inner_join(remaining, by = ".source") |>
+    dplyr::filter(.data$rem_n > .urban_live_tol() * .data$rem_n0) |>
+    dplyr::mutate(applied_n = .data$rem_n) |>
+    dplyr::select(-".source", -"rem_n", -"rem_n0")
+  dplyr::bind_rows(relocated, .urban_mark_stranded(left))
+}
+
+# Room left on each cropland cell once the transport step has run.
+.urban_sink_room <- function(sink_cells, kept) {
+  landed <- dplyr::summarise(
+    kept,
+    landed_n = sum(.data$applied_n),
+    .by = c("year", "territory", "sub_territory")
+  )
+  xy <- .parse_cell_id(sink_cells$sub_territory)
+  sink_cells |>
+    dplyr::mutate(lon = xy$lon, lat = xy$lat) |>
+    dplyr::left_join(landed, by = c("year", "territory", "sub_territory")) |>
     dplyr::transmute(
+      .sink = dplyr::row_number(),
       year = .data$year,
       territory = .data$territory,
       sub_territory = .data$sub_territory,
-      lon = snk_xy$lon,
-      lat = snk_xy$lat,
-      room_n = .data$room_n
+      lon = .data$lon,
+      lat = .data$lat,
+      room_left = pmax(.data$room_n - dplyr::coalesce(.data$landed_n, 0), 0)
     )
-  sources |>
+}
+
+# Every (undelivered source, same-polity sink with room) pair, with its ring.
+.urban_nearest_pairs <- function(undelivered, sinks) {
+  xy <- .parse_cell_id(undelivered$sub_territory)
+  undelivered |>
+    dplyr::transmute(
+      .source = dplyr::row_number(),
+      year = .data$year,
+      territory = .data$territory,
+      slon = xy$lon,
+      slat = xy$lat
+    ) |>
     dplyr::inner_join(
-      sinks,
+      dplyr::filter(sinks, .data$room_left > 0),
       by = c("year", "territory"),
       relationship = "many-to-many"
     ) |>
-    dplyr::mutate(
-      ring = round(
-        pmax(abs(.data$lon - .data$slon), abs(.data$lat - .data$slat)) / 0.5
-      )
-    ) |>
+    dplyr::transmute(
+      .data$.source,
+      .data$.sink,
+      ring = .urban_ring_distance(.data$slon, .data$slat, .data$lon, .data$lat)
+    )
+}
+
+# One pass of the transport rule: each source's nearest ring that still has
+# room, room-weighted offers, over-subscribed sinks scaled to their room.
+.urban_ring_step <- function(pairs, remaining, room) {
+  flows <- pairs |>
     dplyr::filter(.data$ring == min(.data$ring), .by = ".source") |>
+    dplyr::inner_join(
+      dplyr::select(remaining, ".source", "rem_n"),
+      by = ".source"
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(room, ".sink", "room_left"),
+      by = ".sink"
+    ) |>
     dplyr::mutate(
-      applied_n = .data$applied_n * .data$room_n / sum(.data$room_n),
+      offer = .data$rem_n * .data$room_left / sum(.data$room_left),
       .by = ".source"
     ) |>
-    .urban_relocated_rows()
+    dplyr::mutate(
+      applied_n = .data$offer *
+        pmin(1, .data$room_left / sum(.data$offer)),
+      .by = ".sink"
+    )
+  sent <- dplyr::summarise(flows, sent = sum(.data$applied_n), .by = ".source")
+  took <- dplyr::summarise(flows, took = sum(.data$applied_n), .by = ".sink")
+  list(
+    flows = dplyr::select(flows, ".sink", "applied_n"),
+    remaining = .urban_subtract(remaining, sent, ".source", "rem_n", "sent"),
+    room = .urban_subtract(room, took, ".sink", "room_left", "took")
+  )
+}
+
+.urban_subtract <- function(x, delta, key, value, by_value) {
+  x |>
+    dplyr::left_join(delta, by = key) |>
+    dplyr::mutate(
+      !!value := pmax(
+        .data[[value]] - dplyr::coalesce(.data[[by_value]], 0),
+        0
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of(by_value))
+}
+
+# Drop the pairs whose source is placed or whose sink is full. "Placed" and
+# "full" are relative to the starting amount, so the rounding residue of the
+# room scaling (~1e-16 of the load) cannot keep the loop alive.
+.urban_prune_pairs <- function(pairs, remaining, room) {
+  tol <- .urban_live_tol()
+  live_sources <- remaining$.source[remaining$rem_n > tol * remaining$rem_n0]
+  live_sinks <- room$.sink[room$room_left > tol * room$room_left0]
+  dplyr::filter(
+    pairs,
+    .data$.source %in% live_sources,
+    .data$.sink %in% live_sinks
+  )
+}
+
+.urban_live_tol <- function() {
+  1e-12
+}
+
+# Chebyshev distance in 0.5-degree grid steps, with longitude wrapped across
+# the antimeridian: Chukotka's cells at 179.75 and -179.75 are one step apart,
+# not 719.
+.urban_ring_distance <- function(lon1, lat1, lon2, lat2) {
+  dlon <- abs(lon1 - lon2) %% 360
+  dlon <- pmin(dlon, 360 - dlon)
+  round(pmax(dlon, abs(lat1 - lat2)) / 0.5)
 }
 
 # "polity": the undelivered nitrogen of each polity-year is pooled and spread

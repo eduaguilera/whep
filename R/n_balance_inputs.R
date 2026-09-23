@@ -1282,7 +1282,11 @@ build_n_inputs <- function(
 # The condition is real, not hypothetical: build_urban_n() hands back the urban
 # nitrogen its transport step could not deliver, at the SOURCE cell, and on a
 # 2010 global run 1985 of those cells hold no cropland -- 38,425 t of 4.02 Mt
-# urban N, which took the whole balance down (whep#446).
+# urban N, which took the whole balance down (whep#446). Since whep#1171
+# build_urban_n() places that nitrogen itself (`method_residual`, default
+# "nearest"), so what still reaches this rule from urban N is the part in a
+# polity with no cropland at all: 51 cells, 834 t N at 2010 (Qatar, Iceland,
+# Samoa).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.

@@ -57,12 +57,16 @@ method). On the 2010 global grid this is 1,985 cells and 38,425 t N,
 0.955\% of the 4.02 Mt of urban N, most of it in Russia, Algeria, the
 United States, Saudi Arabia and Australia.
 \itemize{
-\item \code{"nearest"} (default): move it to the same-polity cropland cell(s) at
-the smallest grid distance (Chebyshev, in 0.5-degree steps -- the
-transport step's own ring metric, widened until a ring holds
-cropland), split between tied cells by cropland room. Conserves mass
-and keeps the nitrogen as close to the people who produced it as the
-grid allows. No distance cap is applied.
+\item \code{"nearest"} (default): run the transport step's own rule again with a
+growing radius. Each such cell offers its nitrogen to the same-polity
+cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
+steps, wrapped at the antimeridian) that still has room, in proportion
+to that room; a cell's room is its 170 kg N/ha ceiling minus the urban
+N already on it, and an over-subscribed cell is filled only to its
+room. The radius grows one ring at a time until the nitrogen is placed
+or the polity has no room left. Conserves mass and keeps the nitrogen
+as close to the people who produced it as the room allows. No distance
+cap or transport coefficient is applied.
 \item \code{"polity"}: pool it per polity-year and spread it over all of that
 polity-year's cropland in proportion to cropland room (area), the rule
 \code{\link[=build_n_inputs]{build_n_inputs()}} applies under \code{method_unsupported = "reallocate"}.
@@ -77,7 +81,8 @@ cropland-free cells.
 \code{"nearest"} and \code{"polity"} never cross a polity, like the transport step
 itself, so a polity-year with population and no cropland anywhere keeps
 its nitrogen on the source cell under either (51 cells, 834 t N at
-2010), flagged in \code{urban_n_stranded_t}. Whenever any cell is
+2010), flagged in \code{urban_n_stranded_t}; \code{"nearest"} does the same with
+whatever its polity has no room left for. Whenever any cell is
 undelivered, the count, the tonnes and the share of urban N are reported
 (a warning, class \code{whep_urban_n_undelivered}, when any nitrogen is
 dropped or left stranded; otherwise a message of the same class), and the
