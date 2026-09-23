@@ -30,7 +30,8 @@
   feed_mode,
   production = NULL,
   cbs = NULL,
-  years = NULL
+  years = NULL,
+  feed_eligibility = "feed_table"
 ) {
   if (grain == "local") {
     cli::cli_abort(c(
@@ -47,7 +48,8 @@
     cbs,
     demand_tier,
     .feed_demand_data(),
-    options = list(distribute_surplus = feed_mode == "scenario")
+    options = list(distribute_surplus = feed_mode == "scenario"),
+    feed_eligibility = feed_eligibility
   )
   .reshape_redistribute_intake(engine$result, engine$code_shares)
 }
@@ -87,6 +89,14 @@
 #'   tibble/data frame passed to [build_grass_availability_lpjml()].
 #' @param grass_availability_path Optional path to an already-derived grass
 #'   availability artifact passed to [build_grass_availability_lpjml()].
+#' @param feed_eligibility Which feeds each livestock category may receive.
+#'   `"feed_table"` (default) follows `feed_taxonomy`: an item with a grazer
+#'   feed type but no granivore feed type (straw and green fodder) is fibrous
+#'   roughage that pigs and poultry do not eat, so it is never allocated to
+#'   them, at any allocation level. Granivore demand that the feeds they may
+#'   eat cannot cover stays unmet rather than being filled with roughage.
+#'   `"none"` lets any category receive any item (the behaviour before
+#'   whep#1218), for sensitivity analysis.
 #'
 #' @returns
 #' When `out_dir` is `NULL`, a tibble in the `get_feed_intake()` contract plus a
@@ -109,13 +119,15 @@ build_feed_intake_local <- function(
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  feed_eligibility = c("feed_table", "none")
 ) {
   if (example) {
     return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
   feed_mode <- rlang::arg_match(feed_mode)
+  feed_eligibility <- rlang::arg_match(feed_eligibility)
   ctx <- .local_run_context(
     demand_tier,
     feed_mode,
@@ -124,6 +136,7 @@ build_feed_intake_local <- function(
     grass_availability = grass_availability,
     grass_availability_path = grass_availability_path
   )
+  ctx$feed_eligibility <- feed_eligibility
   years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
     return(.bind_local_years(years, ctx))
@@ -261,7 +274,10 @@ build_feed_demand <- function(
     ctx$demand_tier,
     spatial,
     ctx$data,
-    distribute_surplus = ctx$feed_mode == "scenario"
+    list(
+      distribute_surplus = ctx$feed_mode == "scenario",
+      feed_eligibility = ctx$feed_eligibility %||% "feed_table"
+    )
   )
   .reshape_redistribute_intake(
     engine$result,
@@ -932,9 +948,17 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   data = .feed_demand_data(),
-  options = list()
+  options = list(),
+  feed_eligibility = "feed_table"
 ) {
-  .national_redistribute(production, cbs, demand_tier, data, options)$result
+  .national_redistribute(
+    production,
+    cbs,
+    demand_tier,
+    data,
+    options,
+    feed_eligibility
+  )$result
 }
 
 # Run the national-grain engine, returning both the raw redistribute result and
@@ -945,13 +969,15 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   data = .feed_demand_data(),
-  options = list()
+  options = list(),
+  feed_eligibility = "feed_table"
 ) {
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
   feed_avail <- .build_feed_avail_national(cbs) |>
     .add_scavenging_avail(feed_demand)
+  options <- .with_feed_eligibility(options, feed_eligibility, data$crosswalk)
   list(
     result = redistribute_feed(feed_demand, feed_avail, options = options),
     code_shares = .demand_code_shares(codes, data$crosswalk)
@@ -986,6 +1012,47 @@ build_feed_demand <- function(
       feed_scale = "national"
     )
   dplyr::bind_rows(feed_avail, scav_avail)
+}
+
+# Feed eligibility (whep#1218). `feed_taxonomy` gives each item a feed type
+# for grazers and one for granivores; `granivore_feedtype` is NA for the fibrous
+# roughage granivores never request (data-raw/feed_coefficients.R: "granivores
+# get a restricted set; only grazers eat fibrous roughage"). Under
+# "feed_table", every item a grazer eats but a granivore does not (Straw 2105
+# and the green fodders 2000, 2001, 2003) is barred from every category whose
+# crosswalk rows are all Granivores (Pigs, Poultry). An explicit
+# `options$feed_exclusions` from the caller wins over the derived table.
+.with_feed_eligibility <- function(options, feed_eligibility, crosswalk) {
+  feed_eligibility <- rlang::arg_match(
+    feed_eligibility,
+    c("feed_table", "none")
+  )
+  derived <- list(feed_eligibility = feed_eligibility)
+  if (feed_eligibility == "feed_table") {
+    derived$feed_exclusions <- .feed_table_exclusions(crosswalk)
+  }
+  # Not utils::modifyList(): it recurses into a data-frame value column by
+  # column and would merge a caller's exclusion table into the derived one.
+  c(derived[setdiff(names(derived), names(options))], options)
+}
+
+.feed_table_exclusions <- function(
+  crosswalk,
+  feed_taxonomy = whep::feed_taxonomy
+) {
+  granivores <- tibble::as_tibble(crosswalk) |>
+    dplyr::summarise(
+      granivore = all(graniv_grazers %in% "Granivores"),
+      .by = livestock_category
+    ) |>
+    dplyr::filter(granivore) |>
+    dplyr::pull(livestock_category)
+  roughage <- tibble::as_tibble(feed_taxonomy) |>
+    dplyr::filter(is.na(granivore_feedtype), !is.na(grazer_feedtype)) |>
+    dplyr::pull(item_cbs_code) |>
+    as.integer() |>
+    unique()
+  tidyr::expand_grid(livestock_category = granivores, item_cbs_code = roughage)
 }
 
 # National feed availability from the Commodity Balance Sheet `feed` element:
@@ -1103,22 +1170,27 @@ build_feed_demand <- function(
   demand_tier,
   spatial,
   data = .feed_demand_data(),
-  distribute_surplus = FALSE
+  run = list(distribute_surplus = FALSE, feed_eligibility = "feed_table")
 ) {
+  run <- utils::modifyList(
+    list(distribute_surplus = FALSE, feed_eligibility = "feed_table"),
+    run
+  )
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data) |>
     .distribute_demand_to_cells(spatial$cell_shares)
   feed_avail <- .build_feed_avail_national(cbs) |>
     .add_scavenging_avail(feed_demand)
-  result <- redistribute_feed(
-    feed_demand,
-    feed_avail,
-    options = list(
+  options <- .with_feed_eligibility(
+    list(
       grass_availability = spatial$grass_avail,
-      distribute_surplus = distribute_surplus
-    )
+      distribute_surplus = run$distribute_surplus
+    ),
+    run$feed_eligibility,
+    data$crosswalk
   )
+  result <- redistribute_feed(feed_demand, feed_avail, options = options)
   allowance <- spatial$grass_border_allowance
   if (!is.null(allowance) && allowance > 0) {
     result <- .apply_grass_border_grazing(

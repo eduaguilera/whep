@@ -30,10 +30,22 @@
 #'   pushes leftover CBS availability onto variable-demand livestock (correct for
 #'   historical analyses where the CBS feed element is the realised consumption;
 #'   keep `TRUE`, the default, for unconstrained scenario projections).
+#'   Supply `feed_exclusions` (a tibble with `livestock_category` and
+#'   `item_cbs_code`) to bar those items from those categories at every
+#'   allocation level, including the substitute pool, the surplus pass, the
+#'   grass-deficit substitute and the `max_intake_share` reroute. A barred item
+#'   is offered first to the categories allowed to eat it, then the
+#'   unrestricted items are shared among everyone. Demand that no allowed item
+#'   can fill stays unmet (`scaling_factor < 1`) rather than being filled with
+#'   a barred item. `feed_eligibility` names the rule the exclusions come from
+#'   and is recorded in the `method_feed_eligibility` column (default
+#'   `"custom"` when `feed_exclusions` is supplied, `"none"` otherwise).
 #'
-#' @return A tibble of realised intake per demand row. When `maintenance_share`
-#'   is supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
-#'   attribute lists demand rows underfed below maintenance.
+#' @return A tibble of realised intake per demand row, with a
+#'   `method_feed_eligibility` column naming the eligibility rule applied. When
+#'   `maintenance_share` is supplied alongside `grass_availability`, a
+#'   `grass_deficit_diagnosis` attribute lists demand rows underfed below
+#'   maintenance.
 #'
 #' @export
 #'
@@ -61,6 +73,7 @@
 redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   options <- .redistribute_feed_options(options)
   .validate_feed_inputs(feed_demand, feed_avail)
+  options$feed_exclusions <- .prep_feed_exclusions(options$feed_exclusions)
 
   demand <- .prep_feed_demand(feed_demand)
   avail <- .prep_feed_avail(feed_avail)
@@ -69,19 +82,13 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   }
 
   mode <- .allocation_mode(demand)
+  parts <- .eligibility_parts(avail, options$feed_exclusions)
   state <- .init_state(demand, avail)
   state <- .apply_zoot_fixed(state, demand, avail, options)
-  state <- .run_allocation_levels(state, demand, avail, mode, options)
+  state <- .run_allocation_levels(state, demand, avail, mode, options, parts)
   caps <- .resolve_max_intake_caps(options$max_intake_share)
-  .assemble_result(
-    state,
-    demand,
-    avail,
-    mode,
-    caps,
-    options$grass_availability,
-    options$maintenance_share
-  )
+  .assemble_result(state, demand, avail, mode, caps, options) |>
+    .stamp_feed_eligibility(options)
 }
 
 .redistribute_feed_options <- function(options = list()) {
@@ -95,6 +102,8 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     grass_availability = NULL,
     maintenance_share = NULL,
     distribute_surplus = TRUE,
+    feed_exclusions = NULL,
+    feed_eligibility = NULL,
     verbose = FALSE
   )
   utils::modifyList(defaults, options)
@@ -666,9 +675,16 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # ---- Level driver -----------------------------------------------------------
 
-.run_allocation_levels <- function(state, demand, avail, mode, options) {
-  state <- .run_primary_levels(state, demand, avail)
-  state <- .run_secondary_levels(state, demand, avail, mode)
+.run_allocation_levels <- function(
+  state,
+  demand,
+  avail,
+  mode,
+  options,
+  parts = .eligibility_parts(avail, NULL)
+) {
+  state <- .run_primary_levels(state, demand, avail, parts)
+  state <- .run_secondary_levels(state, demand, avail, mode, parts)
   if (mode %in% c("fixed", "mixed")) {
     state <- .allocate_grassland_sink(
       state,
@@ -677,65 +693,67 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     )
   }
   if (mode %in% c("variable", "mixed") && isTRUE(options$distribute_surplus)) {
-    state <- .distribute_surplus(
+    state <- .by_eligibility(
       state,
       demand,
       avail,
+      parts,
+      .distribute_surplus,
       only_variable = mode == "mixed"
     )
   }
   state
 }
 
-.run_secondary_levels <- function(state, demand, avail, mode) {
+.run_secondary_levels <- function(state, demand, avail, mode, parts) {
   pool_level <- if (mode == "variable") {
     "4_all_substitute"
   } else {
     "5_all_substitute"
   }
   if (mode %in% c("fixed", "mixed")) {
-    state <- .allocate_trade(state, demand, avail)
+    state <- .by_eligibility(state, demand, avail, parts, .allocate_trade)
   }
-  state <- .allocate_priority_pool(
+  state <- .by_eligibility(
     state,
     demand,
     avail,
+    parts,
+    .allocate_priority_pool,
     pool_level,
     list(scope = "non_grass")
   )
-  state <- .allocate_priority_pool(
+  state <- .by_eligibility(
     state,
     demand,
     avail,
+    parts,
+    .allocate_priority_pool,
     pool_level,
     list(scope = "grass")
   )
-  .run_release_pass(state, demand, avail, pool_level)
+  .by_eligibility(state, demand, avail, parts, .run_release_pass, pool_level)
 }
 
-.run_primary_levels <- function(state, demand, avail) {
+.run_primary_levels <- function(state, demand, avail, parts) {
+  levels <- c(
+    item_cbs_code = "1_item_exact",
+    feed_group = "2_feed_group_sub",
+    feed_quality = "3_feed_quality_sub"
+  )
+  purrr::reduce2(
+    names(levels),
+    levels,
+    function(st, key, level) {
+      .by_eligibility(st, demand, avail, parts, .primary_pair, key, level)
+    },
+    .init = state
+  )
+}
+
+.primary_pair <- function(state, demand, avail, key, level) {
   prov <- avail[avail$feed_scale == "provincial", , drop = FALSE]
   nat <- avail[avail$feed_scale == "national", , drop = FALSE]
-  state <- .primary_pair(
-    state,
-    demand,
-    prov,
-    nat,
-    "item_cbs_code",
-    "1_item_exact"
-  )
-  state <- .primary_pair(
-    state,
-    demand,
-    prov,
-    nat,
-    "feed_group",
-    "2_feed_group_sub"
-  )
-  .primary_pair(state, demand, prov, nat, "feed_quality", "3_feed_quality_sub")
-}
-
-.primary_pair <- function(state, demand, prov, nat, key, level) {
   prov_cols <- c("year", "territory", "sub_territory", key)
   nat_cols <- c("year", "territory", key)
   alloc <- .allocate_cartesian(state, demand, prov, prov_cols, level)
@@ -1157,26 +1175,26 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # ---- Assembly ---------------------------------------------------------------
 
-.assemble_result <- function(
-  state,
-  demand,
-  avail,
-  mode,
-  caps,
-  grass_availability = NULL,
-  maintenance_share = NULL
-) {
+.assemble_result <- function(state, demand, avail, mode, caps, options) {
   if (length(state$allocations) == 0) {
     return(.empty_redistribute_result())
   }
+  grass_availability <- options$grass_availability
+  maintenance_share <- options$maintenance_share
+  exclusions <- options$feed_exclusions
   result <- dplyr::bind_rows(state$allocations)
   result <- .add_zero_rows(result, demand)
   result <- .reroute_excess_to_grass(result, avail, mode)
   live_avail <- .avail_with_remaining(state, avail)
   if (!is.null(grass_availability)) {
-    result <- .grass_deficit_cascade(result, grass_availability, live_avail)
+    result <- .grass_deficit_cascade(
+      result,
+      grass_availability,
+      live_avail,
+      exclusions
+    )
   }
-  result <- .apply_max_intake_caps(result, live_avail, caps)
+  result <- .apply_max_intake_caps(result, live_avail, caps, exclusions)
   result$demand_dm_t <- demand$demand_dm_t[result$demand_id]
   result$fixed_demand <- demand$fixed_demand[result$demand_id]
   result$scaling_factor <- .compute_scaling(result, demand)
@@ -1352,7 +1370,12 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 #      scaling_factor < 1).
 # A separate maintenance diagnosis (.grass_deficit_diagnosis) flags polities
 # pushed below maintenance.
-.grass_deficit_cascade <- function(result, grass_availability, live_avail) {
+.grass_deficit_cascade <- function(
+  result,
+  grass_availability,
+  live_avail,
+  exclusions = NULL
+) {
   capped <- .cap_grass_to_availability(
     result,
     grass_availability,
@@ -1363,7 +1386,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   if (is.null(deficit) || nrow(deficit) == 0) {
     return(result)
   }
-  .redistribute_grass_deficit(result, deficit, live_avail)
+  .redistribute_grass_deficit(result, deficit, live_avail, exclusions)
 }
 
 # Cap the pasture grass at the polity ceiling, removing the excess pro-rata.
@@ -1433,14 +1456,21 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 # Redistribute the grass deficit to leftover non-grass availability in the same
 # polity (year, territory), pro-rata across the deficit grazers and capped at
 # that leftover. The filled portion is added as substitution intake; the rest
-# stays as underfeeding.
-.redistribute_grass_deficit <- function(result, deficit, live_avail) {
+# stays as underfeeding. A category barred from some items (`exclusions`) only
+# counts the leftover it may eat, so the fill never exceeds the total leftover.
+.redistribute_grass_deficit <- function(
+  result,
+  deficit,
+  live_avail,
+  exclusions = NULL
+) {
   leftover <- .leftover_nongrass(live_avail)
   if (nrow(leftover) == 0) {
     return(result)
   }
   fill <- deficit |>
     dplyr::left_join(leftover, by = c("year", "territory")) |>
+    .net_barred_leftover(live_avail, exclusions) |>
     dplyr::mutate(leftover = dplyr::coalesce(leftover, 0)) |>
     dplyr::mutate(
       terr_deficit = sum(reduction, na.rm = TRUE),
@@ -1617,7 +1647,12 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 # its allowed share of the livestock's diet, then reroute the freed DM to the
 # unlimited grassland sink so conservation per demand row is preserved. The
 # strict-share limit keeps the post-reduction share at or below the cap.
-.apply_max_intake_caps <- function(result, live_avail, caps) {
+.apply_max_intake_caps <- function(
+  result,
+  live_avail,
+  caps,
+  exclusions = NULL
+) {
   if (nrow(caps) == 0) {
     return(result)
   }
@@ -1634,7 +1669,13 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   result <- .reduce_item_caps(result, item_viol)
   result <- .reduce_quality_caps(result, qual_viol)
   freed <- .freed_excess(item_viol, qual_viol)
-  result <- .reroute_freed_excess(result, freed, live_avail, caps)
+  result <- .reroute_freed_excess(
+    result,
+    freed,
+    live_avail,
+    caps,
+    exclusions
+  )
   result[result$intake_dm_t > 1e-9, , drop = FALSE]
 }
 
@@ -1647,7 +1688,13 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 # for the livestock; in that case it draws from remaining non-grass
 # availability (priority order) and any leftover is dropped (the strict cap
 # wins over conservation, matching the afsetools Phase-3 behaviour).
-.reroute_freed_excess <- function(result, freed, live_avail, caps) {
+.reroute_freed_excess <- function(
+  result,
+  freed,
+  live_avail,
+  caps,
+  exclusions = NULL
+) {
   if (nrow(freed) == 0) {
     return(result)
   }
@@ -1665,7 +1712,10 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     drop = FALSE
   ]
   result <- dplyr::bind_rows(result, .cap_grass_rows(result, to_grass))
-  dplyr::bind_rows(result, .cap_nongrass_rows(result, to_other, live_avail))
+  dplyr::bind_rows(
+    result,
+    .cap_nongrass_rows(result, to_other, live_avail, exclusions)
+  )
 }
 
 .strict_limit <- function(other_dm, max_share) {
@@ -1858,7 +1908,12 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
 
 # Route freed DM to remaining non-grass availability within the same
 # compartment, priority order, capped by what is left; leftover is dropped.
-.cap_nongrass_rows <- function(result, freed, live_avail) {
+.cap_nongrass_rows <- function(
+  result,
+  freed,
+  live_avail,
+  exclusions = NULL
+) {
   if (nrow(freed) == 0) {
     return(.empty_alloc())
   }
@@ -1883,11 +1938,11 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
         livestock_category
       )
     )
-  matched <- .match_nongrass_supply(freed, supply)
+  matched <- .match_nongrass_supply(freed, supply, exclusions)
   .nongrass_alloc_rows(matched, donors)
 }
 
-.match_nongrass_supply <- function(freed, supply) {
+.match_nongrass_supply <- function(freed, supply, exclusions = NULL) {
   supply$rank <- .feed_quality_rank(supply$feed_quality)
   freed |>
     dplyr::inner_join(
@@ -1904,6 +1959,7 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
       by = c("year", "territory"),
       relationship = "many-to-many"
     ) |>
+    .drop_barred(exclusions) |>
     dplyr::arrange(
       year,
       territory,
@@ -1986,6 +2042,131 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
     hierarchy_level = character(),
     requested_item = integer(),
     source_compartment = character(),
-    fixed_demand = logical()
+    fixed_demand = logical(),
+    method_feed_eligibility = character()
   )
+}
+
+# ---- Feed eligibility (whep#1218) --------------------------------------------
+
+# Validate and normalise the (livestock_category, item_cbs_code) pairs barred
+# from allocation. NULL (or zero rows) means every category may eat every item.
+.prep_feed_exclusions <- function(feed_exclusions) {
+  if (is.null(feed_exclusions)) {
+    return(NULL)
+  }
+  excl <- tibble::as_tibble(feed_exclusions)
+  .check_required_cols(
+    excl,
+    c("livestock_category", "item_cbs_code"),
+    "feed_exclusions"
+  )
+  excl |>
+    dplyr::transmute(
+      livestock_category = as.character(livestock_category),
+      item_cbs_code = as.integer(item_cbs_code)
+    ) |>
+    dplyr::filter(!is.na(livestock_category), !is.na(item_cbs_code)) |>
+    dplyr::distinct()
+}
+
+# Partition availability by the set of categories barred from each item. Each
+# part pairs its avail_ids with the categories barred from them. Restricted
+# parts come first, so a barred item is offered to the categories that may eat
+# it before the unrestricted items are shared among everyone; the reverse order
+# would let those categories fill up on shared items and leave the restricted
+# item stranded. With no exclusions there is one part holding every item.
+.eligibility_parts <- function(avail, exclusions) {
+  if (is.null(exclusions) || nrow(exclusions) == 0) {
+    return(list(list(avail_ids = avail$avail_id, barred = character())))
+  }
+  barred <- exclusions |>
+    dplyr::summarise(
+      part_key = paste(sort(unique(livestock_category)), collapse = "\r"),
+      .by = item_cbs_code
+    )
+  keyed <- tibble::tibble(
+    avail_id = avail$avail_id,
+    item_cbs_code = as.integer(avail$item_cbs_code)
+  ) |>
+    dplyr::left_join(barred, by = "item_cbs_code") |>
+    dplyr::mutate(part_key = dplyr::coalesce(part_key, ""))
+  keys <- unique(keyed$part_key)
+  keys <- c(sort(setdiff(keys, "")), intersect("", keys))
+  purrr::map(keys, function(k) {
+    list(
+      avail_ids = keyed$avail_id[keyed$part_key == k],
+      barred = if (k == "") character() else stringr::str_split_1(k, "\r")
+    )
+  })
+}
+
+# Run one allocation step once per eligibility part: the part's items against
+# the demand of the categories allowed to eat them. `allocate` has the
+# signature (state, demand, avail, ...). Demand and availability are row
+# subsets of the full tables, so the id-indexed state vectors still line up.
+.by_eligibility <- function(state, demand, avail, parts, allocate, ...) {
+  purrr::reduce(
+    parts,
+    function(st, part) {
+      allocate(
+        st,
+        demand[!demand$livestock_category %in% part$barred, , drop = FALSE],
+        avail[avail$avail_id %in% part$avail_ids, , drop = FALSE],
+        ...
+      )
+    },
+    .init = state
+  )
+}
+
+# Drop candidate (category, item) rows that the exclusions bar.
+.drop_barred <- function(rows, exclusions) {
+  if (is.null(exclusions) || nrow(exclusions) == 0) {
+    return(rows)
+  }
+  dplyr::anti_join(
+    rows,
+    exclusions,
+    by = c("livestock_category", "item_cbs_code")
+  )
+}
+
+# Subtract, per deficit row, the leftover of items barred from its category.
+.net_barred_leftover <- function(fill, live_avail, exclusions) {
+  if (is.null(exclusions) || nrow(exclusions) == 0 || nrow(fill) == 0) {
+    return(fill)
+  }
+  barred <- live_avail |>
+    dplyr::filter(feed_quality != "grass", avail_remaining > 1e-9) |>
+    dplyr::mutate(item_cbs_code = as.integer(item_cbs_code)) |>
+    dplyr::inner_join(exclusions, by = "item_cbs_code") |>
+    dplyr::summarise(
+      barred_leftover = sum(avail_remaining, na.rm = TRUE),
+      .by = c(year, territory, livestock_category)
+    )
+  fill |>
+    dplyr::left_join(
+      barred,
+      by = c("year", "territory", "livestock_category")
+    ) |>
+    dplyr::mutate(
+      leftover = pmax(0, leftover - dplyr::coalesce(barred_leftover, 0))
+    ) |>
+    dplyr::select(-barred_leftover)
+}
+
+# Record which eligibility rule the allocation applied.
+.stamp_feed_eligibility <- function(result, options) {
+  label <- options$feed_eligibility
+  if (is.null(label)) {
+    has_rule <- !is.null(options$feed_exclusions) &&
+      nrow(options$feed_exclusions) > 0
+    label <- if (has_rule) "custom" else "none"
+  }
+  if (!rlang::is_string(label)) {
+    cli::cli_abort("{.arg feed_eligibility} must be a single string.")
+  }
+  result$method_feed_eligibility <- rep(label, nrow(result))
+  result
 }
