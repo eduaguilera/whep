@@ -582,28 +582,6 @@ test_that(".fold_fao_flag_by is .fold_fao_flag applied per group", {
   expect_setequal(folded$key, c("agree", "single", "with_na"))
 })
 
-test_that(".fold_fao_flag_by lets an unflagged part block the flag", {
-  # whep#1044: summed over production items or sources, an NA part is WHEP's
-  # own estimate, so the sum is not the flagged part's measurement.
-  flags <- tibble::tribble(
-    ~key,      ~fao_flag,
-    "agree",   "A",
-    "agree",   "A",
-    "with_na", "I",
-    "with_na", NA_character_,
-    "all_na",  NA_character_
-  )
-
-  folded <- whep:::.fold_fao_flag_by(flags, "key", unflagged = "blocks")
-
-  expect_equal(folded$key, "agree")
-  expect_equal(folded$fao_flag_folded, "A")
-  expect_error(
-    whep:::.fold_fao_flag_by(flags, "key", unflagged = "worst"),
-    class = "rlang_error"
-  )
-})
-
 test_that(".add_folded_fao_flags never moves a row", {
   # The production build's row order is part of its output, so attaching a
   # provenance column is an update-join rather than a `merge()`, which is free

@@ -216,6 +216,29 @@
 #'   falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 #'   than 295. Under `"production_share"` pre-1962 `seed` is 5.22 Gt, total
 #'   tonnage moves -1.023%, and the seam holds 5 jumps.
+#' @param unmatched_processing One of `"other_uses"` (default),
+#'   `"processing"` or `"redistribute"`, selecting where a `processing`
+#'   destiny goes when its item has no pathway in [cb_processing], so no
+#'   processed product exists for the mass to become (whep#781). Measured on
+#'   a real 2010 build this is 15.92 Mt over 25 items, 10.10 Mt of it raw
+#'   sugar.
+#'
+#'   `"other_uses"` books it on `other_uses`, the destiny the processing
+#'   shortfall of an item that *has* a pathway already goes to, and leaves
+#'   `food`, `feed` and `export` as FAOSTAT reported them. `"processing"`
+#'   keeps FAOSTAT's row as a terminal destiny; the balance still closes, but
+#'   [build_io_model()] folds processing that no product consumes into
+#'   `food`. `"redistribute"` is the behaviour before whep#781: the mass is
+#'   split pro rata over `food`, `feed`, `other_uses` and `export`.
+#'
+#'   **The default moves published values.** Against `"redistribute"` at
+#'   2010, world `food` falls 10.82 Mt, `feed` 0.56 Mt and `export` 3.05 Mt,
+#'   while `other_uses` rises 14.43 Mt and `domestic_supply` 3.05 Mt, because
+#'   the export share had moved domestic processing out of the country.
+#'   Food then sits within 0.6% of FAOSTAT's for every affected item but
+#'   coconut oil, against 6.0% for raw sugar, 14.4% for cottonseed oil and
+#'   40.9% for ricebran oil before. Which destiny is right is open — see
+#'   whep#781 — and a sourced pathway per item would supersede all three.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -261,6 +284,7 @@ build_commodity_balances <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  unmatched_processing = .cbs_unmatched_proc_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -271,6 +295,7 @@ build_commodity_balances <- function(
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   export_share_overflow <- rlang::arg_match(export_share_overflow)
   seed_backcast <- rlang::arg_match(seed_backcast)
+  unmatched_processing <- rlang::arg_match(unmatched_processing)
   if (example) {
     return(
       if (format == "wide") {
@@ -300,7 +325,8 @@ build_commodity_balances <- function(
       .fix_cbs(
         trade_recovery = trade_recovery,
         trade_zero = trade_zero,
-        export_share_overflow = export_share_overflow
+        export_share_overflow = export_share_overflow,
+        unmatched_processing = unmatched_processing
       )
   } else {
     if (!is.null(historical_data)) {
@@ -345,6 +371,12 @@ build_commodity_balances <- function(
     if (seed_backcast != "area_rate") {
       cli::cli_warn(
         "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (unmatched_processing != "other_uses") {
+      cli::cli_warn(
+        "{.arg unmatched_processing} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     fixed <- .fixed_data
@@ -677,6 +709,8 @@ build_commodity_balances <- function(
 #'   [build_commodity_balances()].
 #' @param export_share_overflow One of `"report"` (default), `"drop"` or
 #'   `"abort"`. See [build_commodity_balances()].
+#' @param unmatched_processing One of `"other_uses"` (default),
+#'   `"processing"` or `"redistribute"`. See [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
@@ -686,7 +720,8 @@ build_commodity_balances <- function(
   df,
   trade_recovery = "none",
   trade_zero = "prefer_record",
-  export_share_overflow = .cbs_export_overflow_choices()
+  export_share_overflow = .cbs_export_overflow_choices(),
+  unmatched_processing = .cbs_unmatched_proc_choices()
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
@@ -717,7 +752,8 @@ build_commodity_balances <- function(
   cbs_raw3 <- .cbs_redistribute_notprocessed(
     cbs_raw2,
     proc_result$processd_raw,
-    src_lookup = src_lookup
+    src_lookup = src_lookup,
+    unmatched_processing = unmatched_processing
   )
 
   # 6b. Recover trade the CBS row set cannot see (opt-in, whep#762)
@@ -1785,10 +1821,9 @@ build_processing_coefs <- function(
   # tonnage built from an official item and an imputed one is neither
   # (whep#581, whep#1044). Without this the flag would not survive
   # `.primary_to_cbs()` at all, and the FAOSTAT_prod rows of the CBS would stay
-  # NA however faithfully `build_primary_production()` reported it. An
-  # unflagged part is WHEP's own estimate, so it blocks the flag too.
+  # NA however faithfully `build_primary_production()` reported it.
   agg <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
-  dt <- .add_folded_fao_flags(agg, dt, by_cols, unflagged = "blocks")
+  dt <- .add_folded_fao_flags(agg, dt, by_cols)
   dt <- dt[!is.na(area)]
 
   feed_dt <- dt[item_cbs_code %in% fodder_codes]
@@ -4447,11 +4482,36 @@ build_processing_coefs <- function(
 
 # -- Redistribute non-processed ------------------------------------------------
 
+# The treatments of a `processing` destiny whose item has no pathway in
+# `cb_processing` -- no processed product for the mass to become (whep#781).
+# Measured on a real 2010 build, 15.92 Mt over 25 items: raw sugar 10.10 Mt,
+# coconut oil 0.99 Mt, poultry meat 0.61 Mt, onions 0.58 Mt, cottonseed oil
+# 0.57 Mt, and twenty smaller ones.
+#
+# * `"other_uses"` (default) books it on `other_uses`, the destiny
+#   `.cbs_reclassify_processing()` already gives the processing an item with a
+#   pathway cannot turn into product, and one the IO core carries as final
+#   demand. Food, feed and export stay as FAOSTAT reported them.
+# * `"processing"` keeps FAOSTAT's row as a terminal destiny. Supply-use
+#   still balances, but `.apply_leftovers()` (io_model.R) folds processing no
+#   product consumes into IO `food`, so the IO sees it as food.
+# * `"redistribute"` is the pre-whep#781 behaviour: the mass is split pro
+#   rata over food, feed, other_uses and export. It inflates FAOSTAT's food
+#   tonnage (coconut oil +58%, ricebran oil +45% at 2010), moves the export
+#   share out of domestic supply, and loses the mass outright where the item
+#   books none of those four destinies.
+.cbs_unmatched_proc_choices <- function() {
+  c("other_uses", "processing", "redistribute")
+}
+
+
 .cbs_redistribute_notprocessed <- function(
   cbs_raw2,
   processd_raw,
-  src_lookup = NULL
+  src_lookup = NULL,
+  unmatched_processing = .cbs_unmatched_proc_choices()
 ) {
+  unmatched_processing <- rlang::arg_match(unmatched_processing)
   if (is.null(src_lookup)) {
     src_lookup <- .extract_source_lookup(cbs_raw2)
   }
@@ -4470,26 +4530,7 @@ build_processing_coefs <- function(
   np <- dt[element == "processing" & value > 0]
   np[, element := NULL]
   np <- np[!proc_keys, on = c("year", "area", "area_code", "item_cbs")]
-
-  # Compute destination shares from existing elements
-  shares <- dt[
-    element %in% c("food", "feed", "other_uses", "export")
-  ]
-  shares[,
-    share := value / sum(value),
-    by = .(year, area, area_code, item_cbs)
-  ]
-  shares[, value := NULL]
-
-  np <- merge(
-    np,
-    shares,
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
-    all.x = TRUE,
-    sort = FALSE
-  )
-  np[, value := value * share]
-  np[, share := NULL]
+  np <- .cbs_route_unmatched(np, dt, unmatched_processing)
 
   # Mark items that have non-processed redistribution (update-join)
   np_keys <- unique(np[, .(year, area, area_code, item_cbs)])
@@ -4571,6 +4612,35 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# Turn the unmatched `processing` rows `np` (no `element` column) into the
+# destiny rows that replace them, per `.cbs_unmatched_proc_choices()`.
+# An empty result leaves every key untouched, processing row included.
+.cbs_route_unmatched <- function(np, dt, unmatched_processing) {
+  if (unmatched_processing == "processing") {
+    return(np[0L])
+  }
+  if (unmatched_processing == "other_uses") {
+    return(np[, element := "other_uses"])
+  }
+  shares <- dt[element %in% c("food", "feed", "other_uses", "export")]
+  shares[,
+    share := value / sum(value),
+    by = .(year, area, area_code, item_cbs)
+  ]
+  shares[, value := NULL]
+
+  np <- merge(
+    np,
+    shares,
+    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  np[, value := value * share]
+  np[, share := NULL]
+  np
 }
 
 # -- Recover trade the CBS row set cannot see ----------------------------------

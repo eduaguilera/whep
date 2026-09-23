@@ -19,6 +19,7 @@ build_commodity_balances(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  unmatched_processing = .cbs_unmatched_proc_choices(),
   .fixed_data = NULL
 )
 }
@@ -243,6 +244,30 @@ reports for 1961, and \code{\link[=check_series_jumps]{check_series_jumps()}} on
 falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 than 295. Under \code{"production_share"} pre-1962 \code{seed} is 5.22 Gt, total
 tonnage moves -1.023\%, and the seam holds 5 jumps.}
+
+\item{unmatched_processing}{One of \code{"other_uses"} (default),
+\code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
+destiny goes when its item has no pathway in \link{cb_processing}, so no
+processed product exists for the mass to become (whep#781). Measured on
+a real 2010 build this is 15.92 Mt over 25 items, 10.10 Mt of it raw
+sugar.
+
+\code{"other_uses"} books it on \code{other_uses}, the destiny the processing
+shortfall of an item that \emph{has} a pathway already goes to, and leaves
+\code{food}, \code{feed} and \code{export} as FAOSTAT reported them. \code{"processing"}
+keeps FAOSTAT's row as a terminal destiny; the balance still closes, but
+\code{\link[=build_io_model]{build_io_model()}} folds processing that no product consumes into
+\code{food}. \code{"redistribute"} is the behaviour before whep#781: the mass is
+split pro rata over \code{food}, \code{feed}, \code{other_uses} and \code{export}.
+
+\strong{The default moves published values.} Against \code{"redistribute"} at
+2010, world \code{food} falls 10.82 Mt, \code{feed} 0.56 Mt and \code{export} 3.05 Mt,
+while \code{other_uses} rises 14.43 Mt and \code{domestic_supply} 3.05 Mt, because
+the export share had moved domestic processing out of the country.
+Food then sits within 0.6\% of FAOSTAT's for every affected item but
+coconut oil, against 6.0\% for raw sugar, 14.4\% for cottonseed oil and
+40.9\% for ricebran oil before. Which destiny is right is open — see
+whep#781 — and a sourced pathway per item would supersede all three.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
