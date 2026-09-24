@@ -381,6 +381,9 @@ dynamics.
   : Read gridded soil hydraulic properties from HWSD onto WHEP's grid.
 - [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
   : Build a gridded soil water balance from LPJmL hydrology.
+- [`build_crop_water_consumption()`](https://eduaguilera.github.io/whep/reference/build_crop_water_consumption.md)
+  : Build per-crop consumptive water from an LPJmL run, one row per
+  band.
 - [`build_crop_water_use()`](https://eduaguilera.github.io/whep/reference/build_crop_water_use.md)
   : Build per-crop monthly applied irrigation from an LPJmL run.
 - [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)

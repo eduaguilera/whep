@@ -250,8 +250,14 @@ build_commodity_balances(
   on a real 1950–1965 build, 77 of 2,012 keys exceed 1 and the largest
   is 443 (Soyabean Cake 1956) — but **none of them is applied**: every
   one is pre-1961 and the round emits rows from 1961 on only, so
-  `"report"` and `"drop"` give identical output on that range and no
-  published value moves either way. Of the 77, 50 have no world
+  `"report"` and `"drop"` give identical output on that range. **That
+  does not hold after 2013** (whep#1177). On a real 2011–2023 build, 60
+  keys above 1 are applied, every one of them in 2014–2023 (oilseed
+  cakes and molasses, up to 15.7 for Sesameseed Cake 2016): the round
+  books 2,297 rows with a negative `domestic_supply`, −18.33 Mt in
+  total, and the finished balance under `"report"` carries 2.4–4.4 Mt
+  more `export` a year than under `"drop"`, 33.6 Mt over 2014–2023,
+  which `"drop"` books mostly as `feed`. Of the 77, 50 have no world
   production in the denominator at all (the oils and cakes, whose
   production is what this round is about to create) and the other 27 are
   the `historical-trade-exports` defect of whep#1085. `"report"` keeps
