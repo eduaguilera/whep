@@ -19,6 +19,7 @@ build_commodity_balances(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  silk_basis = .silk_basis_choices(),
   .fixed_data = NULL
 )
 }
@@ -243,6 +244,37 @@ reports for 1961, and \code{\link[=check_series_jumps]{check_series_jumps()}} on
 falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 than 295. Under \code{"production_share"} pre-1962 \code{seed} is 5.22 Gt, total
 tonnage moves -1.023\%, and the seam holds 5 jumps.}
+
+\item{silk_basis}{One of \code{"cocoon"} (default), \code{"raw_silk"} or \code{"mixed"},
+selecting the mass basis of the Silk balance from 2014 on (whep#1251).
+Silk is a FAOSTAT chain -- reelable cocoons (1185) reeled into raw silk
+(1186), plus silk waste (1187) -- that the non-food Commodity Balances
+report link by link, each in its own mass, and that WHEP maps onto one
+item. Summed unconverted, with the cocoons sent to reeling dropped as a
+chain transfer, the reeled cocoons were left as stock build-up: 267 kt of
+\code{stock_variation} against 536 kt of production at 2020, 391 kt against
+517 kt at 2021, measured on a real 2019-2021 build.
+
+\code{"cocoon"} counts production once, as cocoons, books the cocoons reeled
+at FAO's own cocoon mass, and converts only the raw silk that crossed a
+border or a stock, dividing by a raw-silk extraction rate of 0.16 -- the
+midpoint of the 12-20\% of fresh cocoon weight in Lee (1999), \emph{Silk
+reeling and testing manual}, FAO Agricultural Services Bulletin 136; FAO's
+Technical Conversion Factors carry no silk entry. \code{"raw_silk"} is the
+same balance multiplied by that rate, so every Silk quantity depends on
+it. \code{"mixed"} keeps each link's own mass and books the reeled cocoons as
+\code{other_uses}, the convention of FAO's pre-2014 aggregate item 2747: the
+balance closes but raw silk is counted twice, once as the cocoons it was
+reeled from. Silk waste keeps its own mass under every setting.
+
+Measured at 2020 on that build, production is 443 / 71 / 536 kt
+(cocoon / raw_silk / mixed) and \code{stock_variation} -170 / -32 / -164 kt,
+of which -157 kt is one FAOSTAT record under every setting: China
+mainland's 2020 cocoons are booked both as \code{Processed} and as
+\verb{Other uses} (FAOSTAT's own \code{Residuals} is -156,943 t). No non-Silk row
+moves. Years before 2014 come from the aggregated old Commodity Balances,
+which carry no link breakdown, and are unchanged, so under \code{"cocoon"} the
+2013-2014 seam steps by roughly the raw silk production.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
