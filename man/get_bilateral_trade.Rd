@@ -7,7 +7,8 @@
 get_bilateral_trade(
   example = FALSE,
   cbs = NULL,
-  method_items_not_in_cbs = c("drop", "keep", "abort")
+  method_items_not_in_cbs = c("drop", "keep", "abort"),
+  method_seed_unit = c("target", "tonnes")
 )
 }
 \arguments{
@@ -34,6 +35,21 @@ Under \strong{every} method, an item that survives this step whose tonnes
 are not masses is refused; see the \emph{Items with no CBS row} section.
 
 \code{example = TRUE} always returns the \code{"drop"} fixture.}
+
+\item{method_seed_unit}{Which reported bilateral rows seed each trade
+matrix before it is balanced. See the \emph{Which unit seeds a matrix}
+section. One of:
+\itemize{
+\item \code{"target"} (default): seed each (year, item) matrix from the rows
+reported in the unit of the CBS margins it is balanced onto, i.e.
+head counts for the live-animal rows of the livestock balance and
+tonnes for everything else.
+\item \code{"tonnes"}: seed every matrix from its tonnes rows only, the
+behaviour before whep#1031. A live-animal (year, item) with no
+tonnes rows gets no matrix at all.
+}
+
+\code{example = TRUE} always returns the \code{"target"} fixture.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient
@@ -53,8 +69,9 @@ details see e.g. \code{add_area_name()}.
 item. See row name explanation above.
 }
 
-If \code{m} is the matrix, the value at \code{m["A", "B"]} is the trade in tonnes
-from country \code{"A"} to country \code{"B"}, for the corresponding year and item.
+If \code{m} is the matrix, the value at \code{m["A", "B"]} is the trade from
+country \code{"A"} to country \code{"B"}, for the corresponding year and item, in
+the row's \code{unit} (tonnes, or head counts for live animals).
 The matrix can be considered \emph{balanced}. This means:
 \itemize{
 \item The sum of all values from row \code{"A"}, where \code{"A"} is any country,
@@ -76,6 +93,13 @@ flows themselves. Always \code{TRUE} unless
 \item \code{method_items_not_in_cbs}: the treatment chosen for items with no
 CBS row, recorded so a downstream consumer can tell which variant it
 is holding.
+\item \code{unit}: the denomination of the matrix values, taken from the CBS
+margins it was balanced onto: \code{"tonnes"}, or \code{"heads"} for the live
+animals. A matrix balanced onto its own reported flows
+(\code{has_cbs_totals == FALSE}) is seeded from, and so denominated in,
+tonnes.
+\item \code{method_seed_unit}: the seed-unit method chosen, see
+\code{method_seed_unit}.
 }
 
 The step by step approach to obtain this data tries to follow the FABIO
@@ -143,6 +167,68 @@ exports and imports computed from the commodity balance sheet.
 \description{
 Reports trade between pairs of countries in given years.
 }
+\section{Which unit seeds a matrix}{
+
+Each matrix is balanced onto the CBS \code{export}/\code{import} margins of its
+(year, item), so it is denominated in the \code{unit} of those margins: tonnes
+for the FAO-style balance and \strong{head counts} for the live-animal rows
+that \code{\link[=get_livestock_cbs]{get_livestock_cbs()}} adds, whose margins are summed from exactly the
+\code{Head} rows of the same bilateral data. The seed only supplies the partner
+structure; iterative proportional fitting imposes the level. The choice is
+therefore which observed rows supply that structure (whep#1031).
+
+\code{"tonnes"} keeps the mass rows alone. On the \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392}, FAOSTAT reports the live-animal items in \code{Head}
+only up to 2013, so 283 of the pin's 4,589 (year, item) groups, over 11
+items and 1986-2013, have no tonnes row. Such a group has no seed cell at
+all, so it produces \strong{no matrix}, and \code{\link[=build_io_model]{build_io_model()}} then treats the
+item as wholly domestically sourced (\code{.item_trade_shares()} returns the
+identity for an item with no matrix). In 2010 that is all 9 live-animal
+items with CBS trade: 62.9 million imported head with no country of
+origin. Over 2014-2021 a further 86 groups carry both units; their
+structure then comes from the tonnes rows while their margins are head
+counts.
+
+\code{"target"} seeds each matrix in its margins' own unit, so seed and target
+agree and the observed head-count partner structure is kept. Measured on
+that pin against the 2010 and 2016 wide CBS:
+\itemize{
+\item every tonnes-denominated matrix (110 in 2010, 111 in 2016) is
+identical under both methods;
+\item 2010: \code{"target"} returns 9 head-count matrices where \code{"tonnes"} returns
+none. Their export-weighted partner shares differ from the reported
+head flows by a total-variation distance of 0 to 0.096 (0.0001 for
+pigs, 0.0006 for sheep).
+\item 2016: both return the 10 head-count matrices with non-zero margins. The
+export-weighted total-variation distance between the two methods'
+partner shares is 0.11 (camels) to 0.82 (mules), 0.49 for pigs and 0.70
+for sheep, and the \code{"tonnes"} shares sit that far from the reported
+head flows while the \code{"target"} ones sit within 0.056.
+}
+
+\code{"tonnes"} also returns 5 more 2016 matrices, all zero: chickens,
+turkeys, rabbits, geese and rodents, whose CBS head margins are zero
+because the pin carries their \verb{1000 Head} rows nowhere (whep#1092). An
+all-zero matrix carries no partner structure either, so \code{"target"} drops
+them as seedless (with a warning) and nothing observed is lost.
+
+The seed is not only a structure. \code{.fill_missing_trade()} fills each
+unreported cell from the margins, capped by the gap between an exporter's
+margin and its reported row sum, and the balancing step then starts from
+reported and estimated cells together. Both comparisons are made in the
+margins' unit, so a tonnes seed under head-count margins leaves most of
+each gap unfilled by what was reported and lets the estimate outweigh it.
+In 2016 the pin's summed live-animal head counts exceed its summed tonnes
+by 4.6 times for non-dairy cattle and 31 times for sheep, consistent with
+how far the 2016 \code{"tonnes"} shares sit from the reported flows.
+
+Converting head counts to mass is deliberately not offered. It would put
+the seed in tonnes under head-count margins, the mismatch just
+described, unless the margins were converted as well, and converting them
+needs a sourced live weight per species. The package holds none:
+\code{gleam_animal_weights} is an unsourced placeholder (whep#881, whep#182).
+}
+
 \section{Items with no CBS row}{
 
 The bilateral trade matrices are balanced against the total exports and
