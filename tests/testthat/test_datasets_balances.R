@@ -347,7 +347,7 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["a_cn_span_other"]], 60)
   testthat::expect_equal(lookup[["a_cn_max"]], 0.98)
   testthat::expect_equal(lookup[["ef5_no3_to_n2o"]], 0.011)
-  testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.016)
+  testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.014)
   testthat::expect_equal(lookup[["nh3_frac_synthetic"]], 0.11)
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
 })
