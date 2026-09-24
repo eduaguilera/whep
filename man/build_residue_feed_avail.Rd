@@ -2,25 +2,39 @@
 % Please edit documentation in R/residue_destiny.R
 \name{build_residue_feed_avail}
 \alias{build_residue_feed_avail}
-\title{Build residue feed availability for feed allocation.}
+\title{Build residue feed availability for feed allocation (deprecated).}
 \usage{
 build_residue_feed_avail(x, loss_fraction = 0.15, feed_scale = "national")
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code}, \code{year}, \code{sub_territory} and
-\code{residue_feed_dm_t} (from \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).}
+\code{residue_feed_dm_t} (from \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
+\code{sub_territory} names the territory the residue belongs to.}
 
 \item{loss_fraction}{Fraction of the feed residue lost before intake
-(default 0.15).}
+(default 0.15; assumed, unverified).}
 
 \item{feed_scale}{Value for the \code{feed_scale} column (default \code{"national"}).}
 }
 \value{
 A tibble with the \code{redistribute_feed()} \code{feed_avail} columns: \code{year},
-\code{sub_territory}, \code{item_cbs_code}, \code{feed_group}, \code{feed_quality}
-(\code{"residues"}), \code{avail_dm_t} and \code{feed_scale}.
+\code{territory}, \code{sub_territory}, \code{item_cbs_code}, \code{feed_group},
+\code{feed_quality} (\code{"residues"}), \code{avail_dm_t} and \code{feed_scale}. \code{territory}
+repeats \code{sub_territory}, because \code{redistribute_feed()} keys national-scale
+availability on \code{territory} alone.
 }
 \description{
+\strong{Deprecated, and not WHEP's residue feed availability.} Nothing in the
+package calls it, and it warns (class
+\code{whep_residue_feed_avail_deprecated}) on every call. The pipeline's residue
+feed comes from the commodity balance instead: \code{\link[=build_commodity_balances]{build_commodity_balances()}}
+books the recovered residue's feed share as the \code{feed} element of Straw
+(2105) and Other crop residues (2106), and the feed allocator converts that
+to available dry matter with the same \code{0.9} factor it applies to every CBS
+feed item. This function applies a different loss (\code{loss_fraction}, default
+\code{0.15}: assumed, unverified, no source on record) to a different residue
+estimate, so the two do not agree (whep#1138).
+
 Turns the feed destiny of crop residues into the \code{feed_avail} contract
 consumed by \code{\link[=redistribute_feed]{redistribute_feed()}}: maps each crop to its residue commodity
 item, applies a feed-availability loss, and aggregates to year / territory /
