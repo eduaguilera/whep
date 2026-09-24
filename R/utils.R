@@ -2282,6 +2282,8 @@ utils::globalVariables(
     "cell_total_",
     "keep_",
     "kept_total_",
+    # livestock_energy.R (issue 217) -- which NEl equation each row used
+    "method_lactation",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
