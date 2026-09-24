@@ -2268,6 +2268,10 @@ utils::globalVariables(
     # production that the share cap leaves out, and the years it spans
     "excess_fm",
     "n_years",
+    # commodity_balance_sheet.R (issue 1237) -- the live animal a dairy /
+    # layer cull is folded onto, and the cull method column
+    "meat_code",
+    "method_cull",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

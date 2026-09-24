@@ -605,3 +605,92 @@ testthat::test_that("breeding-swine slaughter counts toward live pigs (#1149)", 
     slaughtered
   )
 })
+
+# whep#1237 -- FAOSTAT slaughter for cattle (866) and chickens (1057) is split
+# by stock share between 961/960 and 1053/1052, but beef and poultry meat key
+# their live animal on 961/1053, as does live-animal trade. The dairy-cow and
+# layer share of slaughter must not vanish from the live-animal balance.
+.make_cull_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,               ~unit, ~value,
+    2000L,         1L,           961L,              NA, "slaughtered_heads",     80,
+    2000L,         1L,           960L,              NA, "slaughtered_heads",     20,
+    2000L,         1L,          1053L,              NA, "slaughtered_heads",    700,
+    2000L,         1L,          1052L,              NA, "slaughtered_heads",    300,
+    2000L,         1L,          2731L,            961L,            "tonnes",     30,
+    2000L,         1L,          2734L,           1053L,            "tonnes",      2
+  )
+}
+
+.mock_cattle_trade <- function(livestock_items, ...) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2000L,         1L,           961L,      5,      15
+  )
+}
+
+testthat::test_that("dairy and layer cull count toward live cattle and chickens (#1237)", {
+  local_mocked_bindings(.get_livestock_trade_totals = .mock_cattle_trade)
+  primary <- .make_cull_fixture()
+
+  result <- get_livestock_cbs(primary)
+  cattle <- dplyr::filter(result, item_cbs_code == 961L)
+  chickens <- dplyr::filter(result, item_cbs_code == 1053L)
+
+  # 80 + 20 slaughtered, plus 15 exported, less 5 imported.
+  testthat::expect_equal(cattle$production, 110)
+  testthat::expect_equal(cattle$domestic_supply, 100)
+  testthat::expect_equal(chickens$production, 1000)
+  testthat::expect_false(any(c(960L, 1052L) %in% result$item_cbs_code))
+  pointblank::expect_col_vals_equal(result, "method_cull", "fold")
+  # No slaughtered head is lost between production and the balance.
+  slaughtered <- primary |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    dplyr::pull(value) |>
+    sum()
+  testthat::expect_equal(
+    sum(result$production + result$import - result$export),
+    slaughtered
+  )
+})
+
+testthat::test_that("method_cull = 'separate' keeps the cull on 960/1052 (#1237)", {
+  local_mocked_bindings(.get_livestock_trade_totals = .mock_cattle_trade)
+
+  result <- get_livestock_cbs(.make_cull_fixture(), method_cull = "separate")
+  by_item <- dplyr::arrange(result, item_cbs_code)
+
+  testthat::expect_equal(by_item$item_cbs_code, c(960L, 961L, 1052L, 1053L))
+  # The sub-item holds its cull and no trade; trade stays on the meat sector.
+  testthat::expect_equal(by_item$production, c(20, 90, 300, 700))
+  testthat::expect_equal(by_item$import, c(0, 5, 0, 0))
+  testthat::expect_equal(by_item$processing, c(20, 80, 300, 700))
+  pointblank::expect_col_vals_equal(result, "method_cull", "separate")
+  # Same total slaughter under either method.
+  testthat::expect_equal(
+    sum(result$production + result$import - result$export),
+    1100
+  )
+})
+
+testthat::test_that("the swine fold does not depend on method_cull (#1237)", {
+  local_mocked_bindings(.get_livestock_trade_totals = .empty_livestock_trade)
+  primary <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,               ~unit, ~value,
+    2000L,         1L,          1049L,              NA, "slaughtered_heads",     90,
+    2000L,         1L,          1051L,              NA, "slaughtered_heads",     10,
+    2000L,         1L,          2733L,           1049L,            "tonnes",      8
+  )
+
+  separate <- get_livestock_cbs(primary, method_cull = "separate")
+
+  testthat::expect_equal(separate$item_cbs_code, 1049L)
+  testthat::expect_equal(separate$production, 100)
+})
+
+testthat::test_that("get_livestock_cbs rejects an unknown cull method (#1237)", {
+  testthat::expect_error(
+    get_livestock_cbs(.make_cull_fixture(), method_cull = "drop"),
+    class = "rlang_error"
+  )
+})
