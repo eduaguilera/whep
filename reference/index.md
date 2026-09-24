@@ -480,7 +480,7 @@ multi-method.
 - [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)
   : Estimate the destinies of crop residues.
 - [`build_residue_feed_avail()`](https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.md)
-  : Build residue feed availability for feed allocation.
+  : Build residue feed availability for feed allocation (deprecated).
 - [`build_residue_bedding_supply()`](https://eduaguilera.github.io/whep/reference/build_residue_bedding_supply.md)
   : Build the bedding straw supply reaching the managed manure chain.
 

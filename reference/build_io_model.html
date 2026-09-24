@@ -100,7 +100,9 @@ internally. Must have columns: <code>year</code>, <code>item_cbs_code</code>,
 function calls <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> internally. Must have
 columns: <code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>, <code>production</code>,
 <code>import</code>, <code>export</code>, <code>stock_withdrawal</code>, <code>stock_addition</code>,
-plus final demand columns (<code>food</code>, <code>other_uses</code>).</p></dd>
+plus final demand columns (<code>food</code>, <code>other_uses</code>). <code>year</code>, <code>area_code</code>
+and <code>item_cbs_code</code> must hold no <code>NA</code>, here and in <code>supply_use</code>: a row
+with a missing code cannot be placed in the model.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
@@ -115,7 +117,9 @@ a subset of available years.</p></dd>
 contains a <code>losses</code> column, losses are moved from final
 demand to the diagonal of <code>Z</code> (self-use), following the
 FABIO convention. The <code>losses</code> column is removed from Y
-and <code>fd_labels</code>. Defaults to <code>FALSE</code>.</p></dd>
+and <code>fd_labels</code>. <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> emits no <code>losses</code> column, so <code>TRUE</code>
+with such a <code>cbs</code> warns and builds the same model as <code>FALSE</code>. Defaults
+to <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>

@@ -26,6 +26,7 @@ compute_fp_product_paths(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   min_value = 0
 )
@@ -92,6 +93,15 @@ compute_fp_product_paths(
   [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
   (default `100`) so the path decomposition and the footprint it
   decomposes share an identical A cap.
+
+- a_denominator:
+
+  Which outputs A divides by. Must match the value used by
+  [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
+  (default `"traceable"`, which treats `x_vec <= output_tol` as no
+  output) so the paths decompose the same A. See
+  [`compute_footprint()`](https://eduaguilera.github.io/whep/reference/compute_footprint.md)
+  for the alternatives.
 
 - conserve_extensions:
 

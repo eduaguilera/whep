@@ -102,15 +102,15 @@ build_footprint(extension, io = io)
 #> Sparse solve path (no dense Leontief inverse).
 #> Computing footprints...
 #> ✔ Footprint complete: 4 non-zero flows.
-#> # A tibble: 4 × 13
+#> # A tibble: 4 × 14
 #>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry
 #>         <int> <chr>              <chr>              <lgl>                     
 #> 1           1 ARM-1991-2025      Armenia            TRUE                      
 #> 2           1 ARM-1991-2025      Armenia            TRUE                      
 #> 3           1 ARM-1991-2025      Armenia            TRUE                      
 #> 4           1 ARM-1991-2025      Armenia            TRUE                      
-#> # ℹ 9 more variables: origin_item <int>, target_area <int>,
+#> # ℹ 10 more variables: origin_item <int>, target_area <int>,
 #> #   target_polity_code <chr>, target_polity_name <chr>,
 #> #   target_polity_has_geometry <lgl>, target_item <int>, target_fd <chr>,
-#> #   value <dbl>, year <int>
+#> #   value <dbl>, method_a_denominator <chr>, year <int>
 ```

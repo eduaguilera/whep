@@ -42,6 +42,7 @@ compute_footprint(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   report_conservation = FALSE
 )
@@ -112,6 +113,21 @@ compute_footprint(
   of output, so the footprint path defaults to `100` and only clips
   extreme columns caused by residual inconsistencies or tiny outputs.
 
+- a_denominator:
+
+  Which outputs A divides by when using `z_mat`. `"traceable"` (the
+  default) treats a sector with `x_vec <= output_tol` as having no
+  output, exactly as the extension intensities and
+  [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md)
+  do, so its A column is zero. `"nonzero"` divides by any non-zero
+  output, which is the behaviour before whep#1110: a residue output such
+  as `1e-12` then inflates its column by up to `1e12`, clipped only by
+  `max_column_sum`. The two differ only for a residue-output sector that
+  still receives intermediate inputs, and a warning of class
+  `whep_residue_output_inputs` names how many there are under either
+  rule. Ignored when a precomputed `l_inv` is supplied without `z_mat`.
+  The choice is recorded in the `method_a_denominator` column.
+
 - conserve_extensions:
 
   If `TRUE`, rescale positive footprint flows within each origin
@@ -151,6 +167,9 @@ A tibble with footprint results containing:
 
 - `value`: Footprint value in extension units.
 
+- `method_a_denominator`: The `a_denominator` rule A was built with, or
+  `"precomputed_l_inv"` when a precomputed `l_inv` was used.
+
 ## Examples
 
 ``` r
@@ -175,14 +194,15 @@ compute_footprint(l_inv, x_vec, y_mat, extensions, labels)
 #> Computing multiplier matrix...
 #> Computing footprints...
 #> ✔ Footprint complete: 2 non-zero flows.
-#> # A tibble: 2 × 11
+#> # A tibble: 2 × 12
 #>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry
 #>         <int> <chr>              <chr>              <lgl>                     
 #> 1           1 ARM-1991-2025      Armenia            TRUE                      
 #> 2           1 ARM-1991-2025      Armenia            TRUE                      
-#> # ℹ 7 more variables: origin_item <int>, target_area <int>,
+#> # ℹ 8 more variables: origin_item <int>, target_area <int>,
 #> #   target_polity_code <chr>, target_polity_name <chr>,
-#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>
+#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>,
+#> #   method_a_denominator <chr>
 
 # Using Z directly (computes L internally)
 compute_footprint(
@@ -196,12 +216,13 @@ compute_footprint(
 #> Sparse solve path (no dense Leontief inverse).
 #> Computing footprints...
 #> ✔ Footprint complete: 2 non-zero flows.
-#> # A tibble: 2 × 11
+#> # A tibble: 2 × 12
 #>   origin_area origin_polity_code origin_polity_name origin_polity_has_geometry
 #>         <int> <chr>              <chr>              <lgl>                     
 #> 1           1 ARM-1991-2025      Armenia            TRUE                      
 #> 2           1 ARM-1991-2025      Armenia            TRUE                      
-#> # ℹ 7 more variables: origin_item <int>, target_area <int>,
+#> # ℹ 8 more variables: origin_item <int>, target_area <int>,
 #> #   target_polity_code <chr>, target_polity_name <chr>,
-#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>
+#> #   target_polity_has_geometry <lgl>, target_item <int>, value <dbl>,
+#> #   method_a_denominator <chr>
 ```

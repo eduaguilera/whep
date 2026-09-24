@@ -53,6 +53,8 @@ build_io_model(
   internally. Must have columns: `year`, `area_code`, `item_cbs_code`,
   `production`, `import`, `export`, `stock_withdrawal`,
   `stock_addition`, plus final demand columns (`food`, `other_uses`).
+  `year`, `area_code` and `item_cbs_code` must hold no `NA`, here and in
+  `supply_use`: a row with a missing code cannot be placed in the model.
 
 - years:
 
@@ -65,7 +67,10 @@ build_io_model(
   Logical. If `TRUE` and `cbs` contains a `losses` column, losses are
   moved from final demand to the diagonal of `Z` (self-use), following
   the FABIO convention. The `losses` column is removed from Y and
-  `fd_labels`. Defaults to `FALSE`.
+  `fd_labels`.
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
+  emits no `losses` column, so `TRUE` with such a `cbs` warns and builds
+  the same model as `FALSE`. Defaults to `FALSE`.
 
 - method:
 
