@@ -857,3 +857,33 @@ test_that("non-finite computed diagnostics fail closed", {
     class = "whep_ratio_numerical"
   )
 })
+
+test_that(".ratio_log_mean is correct to rounding at the switch point", {
+  pair <- log_mean_switch_pairs()
+  expected <- log_mean_series_reference(pair$a, pair$b)
+
+  # log(a) - log(b) keeps only ~8 significant digits here (#1089).
+  expect_lte(
+    max(abs(whep:::.ratio_log_mean(pair$a, pair$b) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+  expect_lte(
+    max(abs(whep:::.ratio_log_mean(pair$b, pair$a) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+})
+
+test_that(".ratio_log_mean keeps equal pairs and extreme ratios", {
+  k <- c(1, 10, 60)
+  expect_equal(
+    whep:::.ratio_log_mean(2^k, rep(1, 3)),
+    (2^k - 1) / (k * log(2)),
+    tolerance = 4 * 2^-52
+  )
+  expect_identical(whep:::.ratio_log_mean(c(3, 5), c(3, 5)), c(3, 5))
+  expect_equal(
+    whep:::.ratio_log_mean(1e300, 1e-300),
+    (1e300 - 1e-300) / (log(1e300) - log(1e-300)),
+    tolerance = 4 * 2^-52
+  )
+})
