@@ -157,8 +157,46 @@
 #'   Recorded per row in `method_som_cn`, which instead reads
 #'   `"land_use_default"` on a row whose input C:N is unknown and
 #'   `"directional_ipcc_range"` when no input C:N is carried at all.
+#' @param block_years How many consecutive years are built at a time. The
+#'   climate drivers and the land-use areas are read, the class table and its
+#'   equilibria built, the stocks marched and the output tail run one block of
+#'   years at a time, and each cell's soil state is carried across a block
+#'   boundary exactly as the march carries it from one year to the next. The
+#'   result is therefore identical, bit for bit, to building the whole span in
+#'   one pass, whatever the value: only memory and run time move. Memory then
+#'   grows with the block rather than with the span; see the section below.
+#'   `Inf` builds the whole span as one block, which is the fastest and the
+#'   largest. A block is cut from `years` when the land use is read, and from
+#'   the years of `data$land_use` when it is supplied; with neither, the span
+#'   is unknown before reading and the build runs as one block.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
+#' @section Memory, and why the span is built in blocks:
+#' Built in one pass, every stage holds the whole span at once, and two of them
+#' hold many times the table they return: the monthly climate read peaks at
+#' about 15 times its output and the output tail at 5 to 6 times its own
+#' (whep#1287). Measured on the real grid at 1961-1966, the climate read's peak
+#' grows by about 1.45 GB of committed memory per year read and the tail's by
+#' 0.55 to 0.65 GB per year, so a century-long span needs well over 100 GB in
+#' one pass.
+#'
+#' `block_years` bounds both by the block instead. What still grows with the
+#' span is what the build must return or cannot split: the output itself
+#' (about 0.115 GB per year at `"grid"`), and the carbon inputs, which are read
+#' once over the whole span because a year-scoped production and commodity
+#' build returns different rows for the same years (whep#833, whep#834). The
+#' default of 10 years keeps a block's own peak near 20 GB on the real grid,
+#' against the 45-55 GB the carbon-input read alone is extrapolated to over
+#' 1931-2023, so no stage but that read and the output grows with the span.
+#' Each block re-reads the static cell support and clay, which costs a few
+#' minutes per block, so a shorter block trades run time for memory.
+#'
+#' Nothing about the carbon itself is decided per block. The balance opens
+#' from the first year it marches and the equilibrium-climate normal, which
+#' has no year, is read only then; the check that every cell carries every
+#' year runs across block boundaries; and each warning and message the class
+#' table and the output tail raise is gathered over the blocks and raised once
+#' for the whole span, as a single pass raises it.
 #' @section The land-use-change ledger closes on mass, not on density:
 #' \code{luc_transfer_mgc_ha} is the carbon a class received (positive) or
 #' gave up (negative) through land-use change, per hectare of the class's
@@ -308,6 +346,7 @@ build_carbon_balance <- function(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  block_years = 10L,
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
@@ -316,6 +355,7 @@ build_carbon_balance <- function(
   method_grazing <- rlang::arg_match(method_grazing)
   method_som_cn <- rlang::arg_match(method_som_cn)
   polity_validity <- rlang::arg_match(polity_validity)
+  block_years <- .cb_check_block_years(block_years)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
       .example_carbon_balance(),
@@ -326,53 +366,503 @@ build_carbon_balance <- function(
   init <- rlang::arg_match(init)
   resolution <- rlang::arg_match(resolution)
   .cb_check_grazing_inputs(data, method_grazing)
-  progress <- .cb_show_progress()
-  if (progress) {
-    cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
-  }
-  d <- .cb_resolve_inputs(
-    data,
-    years,
-    crop_groups,
-    list(basis = density_basis, grazing = method_grazing)
+  opts <- list(
+    model = model,
+    init = init,
+    resolution = resolution,
+    polity_validity = polity_validity,
+    method_som_cn = method_som_cn,
+    crop_groups = crop_groups,
+    class_water = class_water,
+    methods = list(basis = density_basis, grazing = method_grazing),
+    progress = .cb_show_progress()
   )
-  d$class_water <- class_water
-  if (progress) {
-    cli::cli_progress_step("Computing per-class equilibrium")
+  opts$stamps <- .cb_method_stamps(opts, density_basis, method_grazing)
+  blocks <- .cb_block_plan(data, years, block_years)
+  data <- .cb_span_inputs(data, years, opts)
+  .cb_run_blocks(blocks, data, opts)
+}
+
+# -- The span, built one block of years at a time (whep#1287) -----------------
+#
+# Every stage between the reads and the output is keyed by year or steps one
+# year at a time, so the span decomposes into blocks with one carried term:
+#
+# * The monthly climate and the land use are read per block. Both readers
+#   scope their read to the years they are asked for and never look across
+#   years (`.socd_build()` reduces each year's months on their own, and its
+#   soil water is the per-cell-year `.wb_swc_topsoil()`, not the year-lagged
+#   `.wb_swc_change()`), so reading a block returns exactly the block's rows
+#   of a span read. `test_carbon_balance_blocks.R` re-proves that for the
+#   climate driver build.
+# * The carbon inputs are NOT read per block. `get_primary_production()` and
+#   `get_wide_cbs()` return different rows for the same years depending on the
+#   window asked for (whep#833, whep#834; R/build_cache.R), so they are read
+#   once over the span, as one pass reads them, and sliced.
+# * The class table joins on (cell, year) and the equilibrium is row-wise, so
+#   a block's class rows are the span's rows of those years, in the same
+#   order.
+# * The march carries two tables from one year to the next -- `state` (the
+#   transferred stock with the cell's coordinates) and `prev` (last year's
+#   rate, input and area) -- and replaces both from each year's own rows. A
+#   block starts from where the previous one left them, which is exactly what
+#   one pass does at that year.
+# * The tail is keyed by year: the input C:N joins on (cell, class, year), the
+#   soil-nitrogen ratio is chosen per (cell, year, class kind), the stamps are
+#   constants, the polity roll-up sums per (area, year) and the polity
+#   validity resolves (area, year) pairs.
+#
+# Three terms belong to the span rather than to a year, and are kept there:
+# the opening stock (taken from the first year marched, so only the first
+# block with rows initialises; the year-less equilibrium-climate normal is read
+# only then), the check that every cell carries every year (run across block
+# boundaries by carrying the previous block's cells), and the warnings and
+# messages that describe the span (gathered per block and raised once).
+# Output ORDER is span-level too: one pass sorts cells by their string key and
+# then by year, so the blocks are interleaved back into that order at the end.
+
+# `block_years` is a count of years: a positive whole number, or `Inf` for the
+# whole span in one block.
+.cb_check_block_years <- function(block_years) {
+  ok <- is.numeric(block_years) &&
+    length(block_years) == 1L &&
+    !is.na(block_years) &&
+    block_years >= 1 &&
+    (is.infinite(block_years) || block_years == round(block_years))
+  if (!ok) {
+    cli::cli_abort(
+      c(
+        "{.arg block_years} must be a positive whole number of years, or
+         {.code Inf} for the whole span in one block.",
+        i = "Got {.val {format(block_years)}}."
+      ),
+      class = "whep_bad_block_years"
+    )
   }
+  block_years
+}
+
+# The method columns the tail stamps. Every choice that moves a published
+# number is recorded, per the package's multi-method contract.
+# `density_basis` shifts the per-cell class density by an area-weighted median
+# 0.988 (p5-p95 0.922-1.043) over 40,065 cropland cells, `method_grazing`
+# changes grassland's carbon input outright, and `crop_groups` decides what a
+# class IS -- yet two runs differing in any of them were previously identical
+# in every method column. `method_som_cn` is stamped by `.cb_derive_son()`.
+.cb_method_stamps <- function(opts, density_basis, method_grazing) {
+  list(
+    method_soc = opts$model,
+    method_soc_init = opts$init,
+    method_class_water = opts$class_water,
+    method_area_basis = density_basis,
+    method_grazing = method_grazing,
+    method_crop_groups = opts$crop_groups$method %||% "none"
+  )
+}
+
+# The blocks, in order, each with the years it slices the supplied inputs to
+# and the years its readers are scoped to. One block keeps both exactly as a
+# single pass has them -- no slicing, and the readers scoped to `years` as the
+# caller gave it -- so `block_years = Inf` is the single pass.
+.cb_block_plan <- function(data, years, block_years) {
+  span <- .cb_plan_years(data$land_use, years)
+  if (is.null(span) || length(span) <= block_years) {
+    return(list(list(index = 1L, years = NULL, read = years)))
+  }
+  starts <- seq.int(1L, length(span), by = block_years)
+  purrr::imap(starts, function(start, i) {
+    block <- span[start:min(start + block_years - 1L, length(span))]
+    list(index = i, years = block, read = block)
+  })
+}
+
+# The years the balance marches, known before anything is read: those of a
+# supplied land use, or the `years` its reader is scoped to. NULL -- one
+# block -- when neither says, and when a supplied land use carries a year
+# outside `years`: a single pass scopes the climate read to `years` there, and
+# a block of years outside it would have nothing to read.
+.cb_plan_years <- function(land_use, years) {
+  if (is.null(land_use)) {
+    return(if (is.null(years)) NULL else sort(unique(as.integer(years))))
+  }
+  span <- sort(unique(as.integer(land_use$year)))
+  if (length(span) == 0L || (!is.null(years) && !all(span %in% years))) {
+    return(NULL)
+  }
+  span
+}
+
+# The inputs resolved once over the whole span. The carbon inputs, because a
+# year-scoped read changes their rows (see above). The clay, when the caller
+# supplied the climate, because it is then taken from the whole supplied
+# table, exactly as a single pass takes it; a climate read per block brings its
+# own clay, and every cell a block models has a climate row, and so a clay
+# row, in that block.
+.cb_span_inputs <- function(data, years, opts) {
+  if (opts$progress) {
+    cli::cli_progress_step("Reading the carbon inputs over the whole span")
+  }
+  data$c_inputs <- data$c_inputs %||%
+    .cb_read_c_inputs(data, years, opts$crop_groups, opts$methods)
+  if (is.null(data$clay) && !is.null(data$climate)) {
+    data$clay <- .cb_clay_from_climate(data$climate) %||% .cb_read_clay()
+  }
+  if (opts$progress) {
+    cli::cli_progress_done()
+  }
+  data
+}
+
+# Build every block, carrying the soil state from one to the next, then put
+# the blocks back into the single pass's row order. The warnings and messages
+# the blocks gathered are raised once each on the way out -- also when a block
+# aborts, so a failed build still reports what it dropped before it failed,
+# as a single pass does. The parts move into an environment before they are
+# bound so that the binding can release each block's columns as it copies
+# them, instead of holding the output twice.
+.cb_run_blocks <- function(blocks, data, opts) {
+  log <- .cb_report_log()
+  on.exit(.cb_emit_reports(log), add = TRUE)
+  run <- purrr::reduce(
+    blocks,
+    .cb_run_block,
+    .init = .cb_run_start(),
+    data = data,
+    opts = opts,
+    log = log
+  )
+  .cb_check_blocks_marched(run)
+  store <- new.env(parent = emptyenv())
+  store$parts <- run$parts
+  rm(run)
+  .cb_assemble(store, opts$resolution)
+}
+
+.cb_run_start <- function() {
+  list(state = NULL, prev = NULL, carry = NULL, parts = list())
+}
+
+# A span with no class rows at all marches nothing, and the single pass fails
+# on it inside `.cb_march()` with a data.table error about missing columns;
+# say what happened instead.
+.cb_check_blocks_marched <- function(run) {
+  if (length(run$parts) > 0L) {
+    return(invisible(run))
+  }
+  cli::cli_abort(
+    c(
+      "No land-use class survived to the soil-carbon march.",
+      i = "Every class row of the span was dropped, or the inputs carry none;
+           the warnings raised with this error say which."
+    ),
+    class = "whep_empty_carbon_march"
+  )
+}
+
+# One block: read, build the class table, march from the carried state, run
+# the tail. The inputs are released as soon as the class table is built and
+# the opening stock (first block only) is taken from them, and the block's
+# garbage is collected before the next block reads, because a read is where a
+# block peaks.
+.cb_run_block <- function(run, block, data, opts, log) {
+  .cb_block_step(opts, block, "Reading land use and climate")
+  inputs <- .cb_capture(.cb_block_inputs(data, block, opts))
+  .cb_log_reports(log, "inputs", inputs$reports, block)
+  .cb_block_step(opts, block, "Building the class table")
+  built <- .cb_capture(.cb_block_classes(inputs$value, opts$model))
+  .cb_log_reports(log, "classes", built$reports, block)
+  if (nrow(built$value$classes) > 0L) {
+    .cb_block_step(opts, block, "Marching soil carbon")
+    run <- .cb_march_into(run, built$value$classes, inputs$value, opts)
+    inputs <- NULL
+    tail <- .cb_capture(.cb_block_tail(run$rows, built$value, opts))
+    .cb_log_reports(log, "tail", tail$reports, block)
+    run$rows <- NULL
+    run$parts <- c(run$parts, list(tail$value))
+  }
+  if (opts$progress) {
+    cli::cli_progress_done()
+  }
+  rm(inputs, built)
+  invisible(gc(full = TRUE))
+  run
+}
+
+.cb_block_step <- function(opts, block, what) {
+  if (!opts$progress) {
+    return(invisible(NULL))
+  }
+  years <- if (is.null(block$years)) "the span" else range(block$years)
+  cli::cli_progress_step("{what}: {paste(unique(years), collapse = '-')}")
+}
+
+# One block's inputs: the supplied tables cut to the block's years, and the
+# readers scoped to them.
+.cb_block_inputs <- function(data, block, opts) {
+  d <- .cb_resolve_inputs(
+    .cb_block_data(data, block),
+    block$read,
+    opts$crop_groups,
+    opts$methods
+  )
+  d$class_water <- opts$class_water
+  d
+}
+
+# The year-keyed inputs cut to a block. The cover layers and the
+# equilibrium-climate normal pass through whole: the covers are joined on
+# (cell, year), so rows of other years match nothing, and the normal has no
+# year at all.
+.cb_block_data <- function(data, block) {
+  data$c_inputs <- .cb_slice_years(data$c_inputs, block$years)
+  data$land_use <- .cb_slice_years(data$land_use, block$years)
+  data$climate <- .cb_slice_years(data$climate, block$years)
+  data
+}
+
+# Rows of `x` in `years`, in their original order. A table with no year, or a
+# block that keeps every row, is returned as it is.
+.cb_slice_years <- function(x, years) {
+  if (is.null(x) || is.null(years) || !rlang::has_name(x, "year")) {
+    return(x)
+  }
+  keep <- x$year %in% years
+  if (all(keep)) {
+    return(x)
+  }
+  vctrs::vec_slice(x, keep)
+}
+
+.cb_block_classes <- function(d, model) {
   classes <- .cb_class_table(d, model)
   # Read before the first dplyr verb: the coverage record rides on an
   # attribute, which `.cb_attach_equilibrium()` would drop (whep#1166).
   coverage <- .cb_take_land_coverage(classes)
-  classes <- .cb_attach_equilibrium(classes, model)
-  if (progress) {
-    cli::cli_progress_step("Initialising soil-carbon pools")
+  list(classes = .cb_attach_equilibrium(classes, model), coverage = coverage)
+}
+
+# Check the block's lattice against the blocks before it, open the pools if
+# this is the first block with rows, march, and keep what the next block
+# needs. The rows keep their cell key, which the tail carries through and the
+# assembly sorts on.
+.cb_march_into <- function(run, classes, d, opts) {
+  .cb_check_march_years(classes, run$carry)
+  if (is.null(run$state)) {
+    if (opts$progress) {
+      cli::cli_progress_step("Initialising soil-carbon pools")
+    }
+    opening <- .cb_initialise(classes, opts$model, d, opts$init)
+    run$state <- .cb_march_state(opening)
   }
-  init_stock <- .cb_initialise(classes, model, d, init)
-  if (progress) {
-    cli::cli_progress_done()
-  }
-  marched <- .cb_march(classes, init_stock)
+  step <- .cb_march_block(classes, run$state, run$prev)
+  run$state <- step$state
+  run$prev <- step$prev
+  run$carry <- .cb_lattice_carry(classes)
+  run$rows <- .cb_march_sort(step$rows, keep_key = TRUE)
+  run
+}
+
+# What the next block's lattice check needs from this one: its cells and its
+# last year. A complete block carries every one of its cells in every one of
+# its years, so its cells are the span's cells.
+.cb_lattice_carry <- function(classes) {
+  list(
+    cells = dplyr::distinct(classes[c("lon", "lat", "area_code")]),
+    year = max(classes$year)
+  )
+}
+
+# The tail on one block's marched rows. At polity resolution the first cell
+# key of each (area, year) in the block rides along, because the single pass
+# orders its polity rows by where each (area, year) first appears in its
+# cell-sorted march, and that is the block's first appearance too.
+.cb_block_tail <- function(marched, built, opts) {
+  firsts <- .cb_polity_firsts(marched, opts$resolution)
   marched |>
-    .cb_attach_input_cn(classes) |>
-    .cb_derive_son(method_som_cn) |>
-    dplyr::mutate(
-      method_soc = model,
-      method_soc_init = init,
-      method_class_water = class_water,
-      # Every choice that moves a published number is recorded, per the
-      # package's multi-method contract. `density_basis` shifts the per-cell
-      # class density by an area-weighted median 0.988 (p5-p95 0.922-1.043)
-      # over 40,065 cropland cells, `method_grazing` changes grassland's
-      # carbon input outright, and `crop_groups` decides what a class IS --
-      # yet two runs differing in any of them were previously identical in
-      # every method column.
-      method_area_basis = density_basis,
-      method_grazing = method_grazing,
-      method_crop_groups = crop_groups$method %||% "none"
-    ) |>
-    .cb_finalise(resolution, coverage) |>
-    .resolve_polity_validity(polity_validity)
+    .cb_attach_input_cn(built$classes) |>
+    .cb_derive_son(opts$method_som_cn) |>
+    dplyr::mutate(!!!opts$stamps) |>
+    .cb_finalise(opts$resolution, built$coverage) |>
+    .resolve_polity_validity(opts$polity_validity) |>
+    .cb_attach_firsts(firsts)
+}
+
+.cb_polity_firsts <- function(marched, resolution) {
+  if (resolution != "polity") {
+    return(NULL)
+  }
+  first <- vctrs::vec_unique_loc(marched[c("area_code", "year")])
+  tibble::tibble(
+    area_code = marched$area_code[first],
+    year = marched$year[first],
+    .first_key = marched$.cell_key[first]
+  )
+}
+
+.cb_attach_firsts <- function(out, firsts) {
+  if (is.null(firsts)) {
+    return(out)
+  }
+  dplyr::left_join(out, firsts, by = c("area_code", "year"))
+}
+
+# Bind the blocks and restore the single pass's order: cells by their string
+# key, then year, then class at grid; (area, year) by first appearance in that
+# order at polity. `setorderv()` sorts strings in C-locale order, as the
+# march's own `setorder()` does, and is stable, so rows that tie keep the
+# order their year's march produced.
+.cb_assemble <- function(store, resolution) {
+  key <- if (resolution == "grid") {
+    c(".cell_key", "year", "land_use")
+  } else {
+    c(".first_key", "year")
+  }
+  out <- .cb_bind_parts(store)
+  data.table::setDT(out)
+  data.table::setorderv(out, key)
+  out[, (key[[1L]]) := NULL]
+  data.table::setDF(out)
+  out <- tibble::as_tibble(out)
+  attr(out, ".internal.selfref") <- NULL
+  out
+}
+
+# Column by column, releasing each block's copy of a column once it is bound,
+# so the peak is the output plus one column rather than twice the output.
+.cb_bind_parts <- function(store) {
+  cols <- names(store$parts[[1L]])
+  same <- purrr::map_lgl(store$parts, \(p) identical(names(p), cols))
+  if (!all(same)) {
+    cli::cli_abort("The soil-carbon blocks returned different columns.")
+  }
+  store$parts <- lapply(store$parts, unclass)
+  out <- lapply(cols, function(col) {
+    bound <- vctrs::vec_c(!!!lapply(store$parts, `[[`, col))
+    store$parts <- lapply(store$parts, `[[<-`, col, NULL)
+    bound
+  })
+  names(out) <- cols
+  out
+}
+
+# -- Warnings and messages that describe the span -----------------------------
+#
+# The class table and the tail report on what they drop or fill: land without
+# a climate driver, land on a zero-filled input, grouped inputs that draw no
+# area, polities with no modelled land, rows labelled with an anachronistic
+# polity. Each report is a sum over the span, so a block raising its own would
+# report its own years only, once per block. Each is therefore raised through
+# a condition of class `whep_report` that carries its summary; the block
+# driver catches and silences them, combines each kind's summaries over the
+# blocks, and raises the combined one when every block is done. Called on
+# their own, the helpers raise as they always did. A report with nothing to
+# say still signals its summary (silently), because some combined figures --
+# a polity's whole land, against which its lost share is reported -- need
+# every block's share, not only the blocks that lost land.
+
+# Run `expr`, catching and silencing the `whep_report` conditions it raises.
+.cb_capture <- function(expr) {
+  found <- list()
+  value <- withCallingHandlers(
+    expr,
+    whep_report = function(cnd) {
+      found[[length(found) + 1L]] <<- list(
+        kind = cnd$report_kind,
+        summary = cnd$report_summary,
+        cnd = cnd
+      )
+      rlang::cnd_muffle(cnd)
+    }
+  )
+  list(value = value, reports = found)
+}
+
+# The reports gathered so far, phase by phase. An environment, so that what
+# the finished blocks gathered survives a later block's abort.
+.cb_report_log <- function() {
+  log <- new.env(parent = emptyenv())
+  log$inputs <- list()
+  log$classes <- list()
+  log$tail <- list()
+  log
+}
+
+.cb_log_reports <- function(log, phase, reports, block) {
+  stamped <- lapply(reports, \(r) c(r, block = block$index))
+  log[[phase]] <- c(log[[phase]], stamped)
+  invisible(log)
+}
+
+# A report with nothing to say, signalled so a block driver can still count it.
+.cb_signal_report <- function(kind, summary) {
+  rlang::signal(
+    "",
+    class = "whep_report",
+    report_kind = kind,
+    report_summary = summary
+  )
+  invisible(NULL)
+}
+
+# Each report kind: how to combine its per-block summaries, and how to raise
+# one. Listed in the order a single pass raises them.
+.cb_report_kinds <- function() {
+  list(
+    cb_undrawn_groups = list(
+      combine = .cb_combine_undrawn,
+      emit = .cb_emit_undrawn
+    ),
+    cb_zero_input = list(
+      combine = .cb_combine_zero_input,
+      emit = .cb_emit_zero_input
+    ),
+    # Lost polities before the climate gap: `.cb_attach_land_coverage()`
+    # measures the coverage, and warns, before it forces the dropped table.
+    cb_lost_polities = list(
+      combine = \(s) dplyr::bind_rows(s),
+      emit = .cb_emit_lost_polities
+    ),
+    cb_climate_gap = list(
+      combine = .cb_combine_climate_gap,
+      emit = .cb_emit_climate_gap
+    ),
+    polity_validity = list(
+      combine = .combine_polity_validity,
+      emit = .emit_polity_validity
+    )
+  )
+}
+
+# Raise what the blocks gathered: phase by phase in the order a single pass
+# reaches them, and within a phase kind by kind in the order it raises them.
+# A kind raised more than once within one block's phase has several sources
+# whose summaries cannot be told apart, so each is raised as it came rather
+# than merged; and a kind this file does not know how to combine is re-raised
+# as it came, never dropped.
+.cb_emit_reports <- function(log) {
+  kinds <- .cb_report_kinds()
+  purrr::walk(c("inputs", "classes", "tail"), function(phase) {
+    items <- log[[phase]]
+    present <- unique(purrr::map_chr(items, "kind"))
+    order <- c(intersect(names(kinds), present), setdiff(present, names(kinds)))
+    purrr::walk(order, function(kind) {
+      .cb_emit_kind(purrr::keep(items, \(x) x$kind == kind), kinds[[kind]])
+    })
+  })
+  invisible(NULL)
+}
+
+.cb_emit_kind <- function(items, spec) {
+  if (is.null(spec)) {
+    purrr::walk(items, \(x) rlang::cnd_signal(x$cnd))
+    return(invisible(NULL))
+  }
+  summaries <- purrr::map(items, "summary")
+  if (anyDuplicated(purrr::map_int(items, "block")) > 0L) {
+    purrr::walk(summaries, spec$emit)
+    return(invisible(NULL))
+  }
+  spec$emit(spec$combine(summaries))
 }
 
 # -- Input resolution ---------------------------------------------------------
@@ -542,25 +1032,37 @@ build_carbon_balance <- function(
 # missing from a table of polities, which reads as "has no land". Twelve real
 # polities are in this position on the pinned LPJmL grid (whep#1166).
 .cb_warn_lost_polities <- function(coverage) {
-  lost <- coverage |>
+  coverage |>
     dplyr::filter(
       .data$modelled_land_ha <= 0,
       .data$input_land_ha > 0
-    )
+    ) |>
+    .cb_emit_lost_polities()
+}
+
+# `lost` holds the polity-years with land but no modelled land. That is a
+# property of each row, so the lost rows of several blocks bound together are
+# the span's.
+.cb_emit_lost_polities <- function(lost) {
   if (nrow(lost) == 0) {
-    return(invisible(NULL))
+    return(.cb_signal_report("cb_lost_polities", lost))
   }
   codes <- sort(unique(lost$area_code))
   n_lost <- length(codes)
-  cli::cli_warn(c(
-    "!" = "{n_lost} polit{?y/ies} hold{?s/} land in the land-use input but no
-      modelled land at all, so {?it carries/they carry} no row in the output
-      rather than a row reporting the loss.",
-    i = "{cli::qty(n_lost)}Area code{?s}: {.val {cli::cli_vec(codes,
-      list('vec-trunc' = 12))}}.",
-    i = "A polity total that is absent is not a polity total that is zero;
-      treat the output as a table of the polities that COULD be modelled."
-  ))
+  cli::cli_warn(
+    c(
+      "!" = "{n_lost} polit{?y/ies} hold{?s/} land in the land-use input but no
+        modelled land at all, so {?it carries/they carry} no row in the output
+        rather than a row reporting the loss.",
+      i = "{cli::qty(n_lost)}Area code{?s}: {.val {cli::cli_vec(codes,
+        list('vec-trunc' = 12))}}.",
+      i = "A polity total that is absent is not a polity total that is zero;
+        treat the output as a table of the polities that COULD be modelled."
+    ),
+    class = "whep_report",
+    report_kind = "cb_lost_polities",
+    report_summary = lost
+  )
   invisible(NULL)
 }
 
@@ -594,22 +1096,63 @@ build_carbon_balance <- function(
   if (nrow(gap) == 0L) {
     return(invisible(NULL))
   }
-  area <- .cb_area_per_year(gap)
-  classes <- .cb_area_by_class(gap)
-  cli::cli_inform(c(
-    "i" = "{nrow(gap)} class row{?s} carry no carbon-input row and march on a
-           zero carbon input: {area} of LUH2 land per year ({classes}).",
-    "i" = "Urban is excluded -- its zero is by design. Anything else here is a
-           class the input builders did not reach (whep#1146)."
-  ))
+  .cb_emit_zero_input(.cb_area_summary(gap))
+}
+
+.cb_emit_zero_input <- function(summary) {
+  n_rows <- summary$rows
+  area <- .cb_area_per_year(summary)
+  classes <- .cb_area_by_class(summary)
+  cli::cli_inform(
+    c(
+      "i" = "{n_rows} class row{?s} carry no carbon-input row and march on a
+             zero carbon input: {area} of LUH2 land per year ({classes}).",
+      "i" = "Urban is excluded -- its zero is by design. Anything else here is a
+             class the input builders did not reach (whep#1146)."
+    ),
+    class = "whep_report",
+    report_kind = "cb_zero_input",
+    report_summary = summary
+  )
   invisible(NULL)
+}
+
+.cb_combine_zero_input <- function(summaries) {
+  .cb_combine_area_summaries(summaries)
+}
+
+# The rows, years and hectares a land report is built from: the area summed
+# over all of `x`, and per land-use class. Kept as sums, not per-year means,
+# so the summaries of several blocks add up to the span's.
+.cb_area_summary <- function(x) {
+  list(
+    rows = nrow(x),
+    years = unique(x$year),
+    total_ha = sum(x$area_ha, na.rm = TRUE),
+    by_class = dplyr::summarise(
+      x,
+      ha = sum(.data$area_ha, na.rm = TRUE),
+      .by = "land_use"
+    )
+  )
+}
+
+.cb_combine_area_summaries <- function(summaries) {
+  list(
+    rows = sum(purrr::map_int(summaries, "rows")),
+    years = unique(unlist(purrr::map(summaries, "years"))),
+    total_ha = sum(purrr::map_dbl(summaries, "total_ha")),
+    by_class = purrr::map(summaries, "by_class") |>
+      dplyr::bind_rows() |>
+      dplyr::summarise(ha = sum(.data$ha), .by = "land_use")
+  )
 }
 
 # Land area per year, formatted for a message. Per YEAR, so a multi-year table
 # is not reported as the sum of its years, which would count the same hectare
 # once per year.
-.cb_area_per_year <- function(x) {
-  .cb_area_text(sum(x$area_ha, na.rm = TRUE) / dplyr::n_distinct(x$year))
+.cb_area_per_year <- function(summary) {
+  .cb_area_text(summary$total_ha / length(summary$years))
 }
 
 # Hectares below a megahectare and megahectares above it. The same two messages
@@ -624,13 +1167,10 @@ build_carbon_balance <- function(
 
 # "natural 215 Mha, grassland 46.6 Mha" -- per-year land area by land-use
 # class, largest first, for a cli message.
-.cb_area_by_class <- function(x) {
-  years <- dplyr::n_distinct(x$year)
-  x |>
-    dplyr::summarise(
-      ha = sum(.data$area_ha, na.rm = TRUE) / years,
-      .by = "land_use"
-    ) |>
+.cb_area_by_class <- function(summary) {
+  years <- length(summary$years)
+  summary$by_class |>
+    dplyr::mutate(ha = .data$ha / years) |>
     dplyr::arrange(dplyr::desc(.data$ha)) |>
     dplyr::mutate(
       txt = paste(.data$land_use, vapply(.data$ha, .cb_area_text, ""))
@@ -682,15 +1222,39 @@ build_carbon_balance <- function(
   if (nrow(undrawn) == 0L) {
     return(invisible(NULL))
   }
-  cells <- dplyr::n_distinct(undrawn[keys])
-  mha <- sum(undrawn$group_area_ha, na.rm = TRUE) / 1e6
-  cli::cli_inform(c(
-    "i" = "{nrow(undrawn)} grouped carbon-input row{?s} in {cells} cell-year{?s}
-           ({format(mha, digits = 3)} Mha of crop-pattern area) fall where
-           LUH2 has no cropland and draw no area: their carbon does not enter
-           the march."
+  .cb_emit_undrawn(list(
+    rows = nrow(undrawn),
+    cell_years = dplyr::n_distinct(undrawn[keys]),
+    area_ha = sum(undrawn$group_area_ha, na.rm = TRUE)
   ))
+}
+
+# The cell-years are keyed by year, so no two blocks share one and the
+# blocks' counts add up to the span's.
+.cb_emit_undrawn <- function(summary) {
+  n_rows <- summary$rows
+  cells <- summary$cell_years
+  mha <- summary$area_ha / 1e6
+  cli::cli_inform(
+    c(
+      "i" = "{n_rows} grouped carbon-input row{?s} in {cells} cell-year{?s}
+             ({format(mha, digits = 3)} Mha of crop-pattern area) fall where
+             LUH2 has no cropland and draw no area: their carbon does not
+             enter the march."
+    ),
+    class = "whep_report",
+    report_kind = "cb_undrawn_groups",
+    report_summary = summary
+  )
   invisible(NULL)
+}
+
+.cb_combine_undrawn <- function(summaries) {
+  list(
+    rows = sum(purrr::map_int(summaries, "rows")),
+    cell_years = sum(purrr::map_int(summaries, "cell_years")),
+    area_ha = sum(purrr::map_dbl(summaries, "area_ha"))
+  )
 }
 
 # Join the modifier table onto the class table. The raw-driver modifier table
@@ -728,53 +1292,95 @@ build_carbon_balance <- function(
 # divides a polity total by.
 .cb_drop_uncovered_climate <- function(classes) {
   keep <- !is.na(classes$climate_modifier)
+  .cb_emit_climate_gap(.cb_climate_gap_summary(classes, keep))
   if (all(keep)) {
     return(classes)
   }
-  .cb_warn_climate_gap(classes[!keep, ], classes)
   classes[keep, ]
+}
+
+# What the climate-gap warning reports, as sums a block driver can add up.
+# `by_area` holds every polity's whole land, not only the land it lost,
+# because the warning reports the lost share of it; that is why a table with
+# nothing dropped still yields a summary.
+.cb_climate_gap_summary <- function(classes, keep) {
+  missing <- classes[!keep, ]
+  c(
+    .cb_area_summary(missing),
+    list(
+      cells = dplyr::distinct(missing[c("lon", "lat", "area_code")]),
+      by_area = .cb_gap_by_area(tibble::tibble(
+        area_code = classes$area_code,
+        lost_ha = dplyr::if_else(keep, 0, classes$area_ha),
+        all_ha = classes$area_ha
+      ))
+    )
+  )
+}
+
+.cb_combine_climate_gap <- function(summaries) {
+  cells <- purrr::map(summaries, "cells") |> dplyr::bind_rows()
+  c(
+    .cb_combine_area_summaries(summaries),
+    list(
+      cells = dplyr::distinct(cells),
+      by_area = purrr::map(summaries, "by_area") |>
+        dplyr::bind_rows() |>
+        .cb_gap_by_area()
+    )
+  )
+}
+
+# The lost and the whole land of each polity, both taken in ONE pass rather
+# than by joining a dropped-only total onto a full one, so the ledger this file
+# keeps (`.territorial_join_baseline()`) gains no year-free territorial join
+# for a message. Adding a kept row's zero leaves a floating sum unchanged, so
+# this is the sum of the dropped hectares exactly.
+.cb_gap_by_area <- function(x) {
+  dplyr::summarise(
+    x,
+    lost_ha = sum(.data$lost_ha, na.rm = TRUE),
+    all_ha = sum(.data$all_ha, na.rm = TRUE),
+    .by = "area_code"
+  )
 }
 
 # The climate-gap warning: how much LAND leaves the balance, not only how many
 # cell-years do. `cli_warn()` interpolates in its OWN caller's frame, so the
 # warning is raised here, where the pieces are bound, rather than assembled
 # into a message vector for the caller to raise.
-.cb_warn_climate_gap <- function(missing, classes) {
-  cells <- nrow(dplyr::distinct(missing[c("lon", "lat", "area_code")]))
-  years <- dplyr::n_distinct(missing$year)
-  area <- .cb_area_per_year(missing)
-  by_class <- .cb_area_by_class(missing)
-  worst <- .cb_climate_gap_worst(classes)
-  cli::cli_warn(c(
-    "!" = "Dropped {cells} cell-polity compartment{?s} over {years} year{?s}
-       with land-use/carbon-input coverage but no climate modifier: {area} of
-       LUH2 land per year leaves the soil-carbon balance ({by_class}).",
-    "i" = "Worst hit: {worst}.",
-    "i" = "The climate drivers are on the LPJmL run's grid, a coarser land mask
-       than LUH2's, so the loss is mostly coastline. This land is not modelled
-       -- it is not marched at zero carbon input (whep#1146).",
-    "i" = "Supply {.code data$climate} for these compartments to retain them."
-  ))
+.cb_emit_climate_gap <- function(summary) {
+  if (nrow(summary$cells) == 0L) {
+    return(.cb_signal_report("cb_climate_gap", summary))
+  }
+  cells <- nrow(summary$cells)
+  years <- length(summary$years)
+  area <- .cb_area_per_year(summary)
+  by_class <- .cb_area_by_class(summary)
+  worst <- .cb_climate_gap_worst(summary$by_area, years)
+  cli::cli_warn(
+    c(
+      "!" = "Dropped {cells} cell-polity compartment{?s} over {years} year{?s}
+         with land-use/carbon-input coverage but no climate modifier: {area} of
+         LUH2 land per year leaves the soil-carbon balance ({by_class}).",
+      "i" = "Worst hit: {worst}.",
+      "i" = "The climate drivers are on the LPJmL run's grid, a coarser land
+         mask than LUH2's, so the loss is mostly coastline. This land is not
+         modelled -- it is not marched at zero carbon input (whep#1146).",
+      "i" = "Supply {.code data$climate} for these compartments to retain them."
+    ),
+    class = "whep_report",
+    report_kind = "cb_climate_gap",
+    report_summary = summary
+  )
   invisible(NULL)
 }
 
 # The three polities losing the most land, each with the share of its own land
 # that is lost -- a global percentage hides a polity that loses a third of its
-# grassland. Both sums are taken in ONE pass over the whole class table rather
-# than by joining a dropped-only total onto a full one, so the ledger this file
-# keeps (`.territorial_join_baseline()`) gains no year-free territorial join
-# for a message.
-.cb_climate_gap_worst <- function(classes) {
-  years <- dplyr::n_distinct(classes$year[is.na(classes$climate_modifier)])
-  classes |>
-    dplyr::summarise(
-      lost_ha = sum(
-        .data$area_ha[is.na(.data$climate_modifier)],
-        na.rm = TRUE
-      ),
-      all_ha = sum(.data$area_ha, na.rm = TRUE),
-      .by = "area_code"
-    ) |>
+# grassland.
+.cb_climate_gap_worst <- function(by_area, years) {
+  by_area |>
     dplyr::slice_max(.data$lost_ha, n = 3L, with_ties = FALSE) |>
     dplyr::mutate(
       txt = sprintf(
@@ -2161,6 +2767,33 @@ build_carbon_balance <- function(
 # an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
   .cb_check_march_years(classes)
+  .cb_march_block(classes, .cb_march_state(init), NULL)$rows |>
+    .cb_march_sort()
+}
+
+# The march's opening state: the transferred stock per (cell_key, land_use),
+# carried across years. lon/lat/area_code ride along so a class whose row
+# vanishes in a later year can be re-added at zero area (see
+# .cb_keep_vanished()).
+.cb_march_state <- function(init) {
+  init_dt <- data.table::as.data.table(init)
+  init_dt[, cell_key := paste(lon, lat, area_code, sep = "\r")]
+  init_dt[, .(
+    cell_key,
+    land_use,
+    lon,
+    lat,
+    area_code,
+    prev_stock = stock_mgc_ha
+  )]
+}
+
+# March the years of `classes` in order from `state` and `prev`, and return
+# the rows with the state and prev the last year left. `prev` is NULL only
+# for the span's first year, which takes no step and no transfer. Each year's
+# step reads nothing but its own rows and these two tables, which is what
+# lets a later block continue from where an earlier one stopped.
+.cb_march_block <- function(classes, state, prev) {
   dt <- data.table::as.data.table(classes)
   dt[, `:=`(
     cell_key = paste(lon, lat, area_code, sep = "\r"),
@@ -2171,32 +2804,27 @@ build_carbon_balance <- function(
     )
   )]
   years <- sort(unique(dt$year))
-  init_dt <- data.table::as.data.table(init)
-  init_dt[, cell_key := paste(lon, lat, area_code, sep = "\r")]
-  # state: transferred stock per (cell_key, land_use), carried across years.
-  # lon/lat/area_code ride along so a class whose row vanishes in a later year
-  # can be re-added at zero area (see .cb_keep_vanished()).
-  state <- init_dt[, .(
-    cell_key,
-    land_use,
-    lon,
-    lat,
-    area_code,
-    prev_stock = stock_mgc_ha
-  )]
-  prev <- NULL
   out <- vector("list", length(years))
+  # A loop, not a map: each year starts from the state the previous one left.
   for (i in seq_along(years)) {
     out[[i]] <- .cb_march_year(dt[year == years[i]], state, prev)
     state <- out[[i]]$state
     prev <- out[[i]]$prev
     out[[i]] <- out[[i]]$rows
   }
-  # Match the previous per-cell order: cells by their string key, then year,
-  # then land_use (the old split()/arrange order).
-  res <- data.table::rbindlist(out)
+  list(rows = data.table::rbindlist(out), state = state, prev = prev)
+}
+
+# Match the previous per-cell order: cells by their string key, then year,
+# then land_use (the old split()/arrange order). `keep_key` keeps the key, as
+# `.cell_key`, for a block whose rows are interleaved with other blocks' later.
+.cb_march_sort <- function(res, keep_key = FALSE) {
   data.table::setorder(res, cell_key, year, land_use)
-  res[, cell_key := NULL]
+  if (keep_key) {
+    data.table::setnames(res, "cell_key", ".cell_key")
+  } else {
+    res[, cell_key := NULL]
+  }
   tibble::as_tibble(as.data.frame(res))
 }
 
@@ -2219,15 +2847,31 @@ build_carbon_balance <- function(
 # the table's first to its last. Abort, not warn: neither shape has a
 # continuation that is right, and the SON change the nitrogen balance reads
 # is derived from these same steps.
-.cb_check_march_years <- function(classes) {
+#
+# `carry` extends the check across a block boundary: the previous block's
+# cells are added at its last year, and the expected years start there. A
+# cell new in this block then misses that year, a cell gone from it misses
+# every year of the block, and a year missing between the blocks is missing
+# for every cell -- so a span passes block by block exactly when it passes
+# whole.
+.cb_check_march_years <- function(classes, carry = NULL) {
   if (nrow(classes) == 0L) {
     return(invisible(classes))
   }
-  span <- range(classes$year)
   cell_cols <- c("lon", "lat", "area_code")
+  keys <- classes[c(cell_cols, "year")]
+  first <- min(classes$year)
+  if (!is.null(carry)) {
+    .cb_check_block_order(first, carry$year)
+    keys <- dplyr::bind_rows(
+      keys,
+      dplyr::mutate(carry$cells, year = carry$year)
+    )
+    first <- carry$year
+  }
   check_keys_complete(
-    classes[c(cell_cols, "year")],
-    list(year = seq.int(span[[1L]], span[[2L]])),
+    keys,
+    list(year = seq.int(first, max(classes$year))),
     .by = cell_cols,
     details = c(
       i = "The soil-carbon march takes one annual step per year present and
@@ -2240,6 +2884,25 @@ build_carbon_balance <- function(
     )
   )
   invisible(classes)
+}
+
+# A block must start after the last year the march has already stepped
+# through. A block reaching back into it would march that year a second time
+# from the state it already left, and the lattice check alone cannot see that:
+# the repeated year is present for every cell.
+.cb_check_block_order <- function(first, carried) {
+  if (first > carried) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(
+    c(
+      "A block of years starts at {first}, but the march has already stepped
+       through {carried}.",
+      i = "Blocks must be consecutive and disjoint; a year marched twice
+           carries its own soil state forward onto itself."
+    ),
+    class = "whep_block_overlap"
+  )
 }
 
 # Advance one year for ALL cells at once, apply the land-use-change transfer

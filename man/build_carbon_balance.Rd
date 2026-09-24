@@ -24,6 +24,7 @@ build_carbon_balance(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  block_years = 10L,
   example = FALSE
 )
 }
@@ -174,6 +175,19 @@ Recorded per row in \code{method_som_cn}, which instead reads
 \code{"land_use_default"} on a row whose input C:N is unknown and
 \code{"directional_ipcc_range"} when no input C:N is carried at all.}
 
+\item{block_years}{How many consecutive years are built at a time. The
+climate drivers and the land-use areas are read, the class table and its
+equilibria built, the stocks marched and the output tail run one block of
+years at a time, and each cell's soil state is carried across a block
+boundary exactly as the march carries it from one year to the next. The
+result is therefore identical, bit for bit, to building the whole span in
+one pass, whatever the value: only memory and run time move. Memory then
+grows with the block rather than with the span; see the section below.
+\code{Inf} builds the whole span as one block, which is the fastest and the
+largest. A block is cut from \code{years} when the land use is read, and from
+the years of \code{data$land_use} when it is supplied; with neither, the span
+is unknown before reading and the build runs as one block.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
 }
@@ -214,6 +228,35 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{Memory, and why the span is built in blocks}{
+
+Built in one pass, every stage holds the whole span at once, and two of them
+hold many times the table they return: the monthly climate read peaks at
+about 15 times its output and the output tail at 5 to 6 times its own
+(whep#1287). Measured on the real grid at 1961-1966, the climate read's peak
+grows by about 1.45 GB of committed memory per year read and the tail's by
+0.55 to 0.65 GB per year, so a century-long span needs well over 100 GB in
+one pass.
+
+\code{block_years} bounds both by the block instead. What still grows with the
+span is what the build must return or cannot split: the output itself
+(about 0.115 GB per year at \code{"grid"}), and the carbon inputs, which are read
+once over the whole span because a year-scoped production and commodity
+build returns different rows for the same years (whep#833, whep#834). The
+default of 10 years keeps a block's own peak near 20 GB on the real grid,
+against the 45-55 GB the carbon-input read alone is extrapolated to over
+1931-2023, so no stage but that read and the output grows with the span.
+Each block re-reads the static cell support and clay, which costs a few
+minutes per block, so a shorter block trades run time for memory.
+
+Nothing about the carbon itself is decided per block. The balance opens
+from the first year it marches and the equilibrium-climate normal, which
+has no year, is read only then; the check that every cell carries every
+year runs across block boundaries; and each warning and message the class
+table and the output tail raise is gathered over the blocks and raised once
+for the whole span, as a single pass raises it.
+}
+
 \section{The land-use-change ledger closes on mass, not on density}{
 
 \code{luc_transfer_mgc_ha} is the carbon a class received (positive) or
