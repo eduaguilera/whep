@@ -82,7 +82,14 @@ A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 that country-year's arable target, \code{0} where the netting term is
 structurally absent), \code{method_temp_grassland} (the \code{temp_grassland_basis}
 in force), \code{method_fodder} (the \code{fodder_gap} in force) and
-\code{method_unsupported_target} (the \code{unsupported_target} in force). Under
+\code{method_unsupported_target} (the \code{unsupported_target} in force), and
+\code{fodder_coverage}, which says per country-year whether the fodder input
+was there before any \code{fodder_gap} treatment: \code{"reported"} (the base
+carries fodder area that year), \code{"lapsed"} (it carries none, but did in an
+earlier year of that country's panel -- the 2020 break of whep#938, whose
+land the other arable crops absorb under \code{"as_reported"}, or which
+\code{"carry_forward"} fills) or \code{"not_reported"} (none that year or before).
+Under
 \code{unsupported_target = "unallocated"} a row with \code{item_cbs_code} \code{NA} carries
 the FAO land no crop can be named for.
 }
@@ -188,6 +195,10 @@ say so in \code{source} (\code{"DM_yield_estimate_carried_forward"}, whep#1027),
 this extension does not see \code{source}, and fodder is present on both sides
 of 2013, so \code{\link[=check_arable_composition]{check_arable_composition()}} does not flag that year.
 \code{fodder_gap} exposes the treatments; \code{"as_reported"} remains the default.
+Whatever the treatment, \code{fodder_coverage} in the output marks every
+country-year after the fodder input stops as \code{"lapsed"}, and
+\code{\link[=check_series_jumps]{check_series_jumps()}} with \code{dropouts = TRUE} flags each fodder series at
+the year it stops.
 }
 
 \section{Unsupported land targets}{
