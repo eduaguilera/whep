@@ -408,6 +408,7 @@ allocate_manure_to_land <- function(
   )
   crops |>
     dplyr::left_join(coll, by = c("year", "territory", "sub_territory")) |>
+    .check_crops_joined(streams) |>
     dplyr::filter(!is.na(.data$coll_n) & .data$coll_n > 0) |>
     dplyr::mutate(
       sum_w = sum(.data$weight),
@@ -424,6 +425,30 @@ allocate_manure_to_land <- function(
         ),
       .by = c("year", "territory", "sub_territory")
     )
+}
+
+# A crop layer keyed on another territory vocabulary (an ISO3 against the
+# stringified `area_code` estimate_n_excretion() writes, a cell id against a
+# polity) joins no stream. Every crop then receives nothing, and the whole
+# collected pool leaves through the grassland spill or the disposal path: N, C
+# and VS are still conserved to the tonne and `over_cap` stays FALSE on every
+# grassland row, so no mass balance downstream can see that cropland got no
+# manure at all (whep#1034). Only judged when some collected manure exists and
+# the layer has rows, so a grazing-only run and an empty layer are left alone.
+.check_crops_joined <- function(joined, streams) {
+  if (nrow(joined) == 0L || !any(streams$coll_n > 0)) {
+    return(joined)
+  }
+  check_inputs_supplied(
+    joined,
+    c(collected_manure_on_cropland = "coll_n"),
+    details = c(
+      i = "No {.field crops} row shares a {.field year}, {.field territory}
+           and {.field sub_territory} with collected manure.",
+      i = "Key the crop layer on the same {.field territory} as
+           {.arg applied}."
+    )
+  )
 }
 
 .assemble_allocation <- function(streams, cropland, grass_cap, opt) {
@@ -536,10 +561,37 @@ allocate_manure_to_land <- function(
   }
   leftover |>
     dplyr::left_join(
-      dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
+      dplyr::mutate(
+        dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
+        grass_layer_joined = 1
+      ),
       by = c("year", "territory", "sub_territory")
     ) |>
-    dplyr::mutate(grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0))
+    .check_grass_joined(grass_cap) |>
+    dplyr::mutate(grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0)) |>
+    dplyr::select(-"grass_layer_joined")
+}
+
+# A supplied grassland layer that joins no stream reads, after the coalesce
+# below, exactly like the documented "no grassland sink": cap zero everywhere,
+# so the spill that should land on grassland goes to disposal or is over-applied
+# on cropland, and the allocation still conserves N exactly (whep#1034). Absent
+# grassland (`grass = NULL`) stays a legitimate zero-cap choice; a layer that was
+# passed and matched nothing is a key mismatch. The test is on the join, not on
+# the cap's value, because a cap floored to zero is a real answer.
+.check_grass_joined <- function(joined, grass_cap) {
+  if (nrow(grass_cap) == 0L) {
+    return(joined)
+  }
+  check_inputs_supplied(
+    joined,
+    c(grassland_cap = "grass_layer_joined"),
+    details = c(
+      i = "No {.field grass} row shares a {.field year}, {.field territory}
+           and {.field sub_territory} with {.arg applied}.",
+      i = "Pass {.code grass = NULL} to allocate with no grassland sink."
+    )
+  )
 }
 
 .disposal_rows <- function(leftover, opt) {

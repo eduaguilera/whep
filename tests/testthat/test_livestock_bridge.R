@@ -176,3 +176,60 @@ test_that("a data.table production table comes back as a tibble", {
   expect_false(data.table::is.data.table(from_dt))
   expect_equal(as.data.frame(from_dt), as.data.frame(from_tibble))
 })
+
+# ---- whep#1034: a moved head unit --------------------------------------------
+
+test_that("a moved head unit cannot ship as no livestock", {
+  # Same herd, the unit spelled the way FAOSTAT's Stocks element spells it.
+  # Unguarded, no row passes the head filter and every emission engine
+  # downstream receives no animals: the herd sums to exactly zero heads.
+  relabelled <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value,
+    960L,           "Head",   1000,
+    976L,           "Head",   500,
+    960L,           "tonnes", 5000
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    prepare_livestock_emissions(relabelled),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 0L && sum(unguarded$heads) == 0,
+    guard = prepare_livestock_emissions(relabelled),
+    class = "whep_absent_label"
+  )
+})
+
+test_that("yield rows that tag to no product cannot fall back to defaults", {
+  # The milk row's product code arrives in another vocabulary (the CBS milk
+  # item rather than FAOSTAT's 882). Unguarded, no yield joins, the head row
+  # goes on unchanged, and the energy model would take the species default.
+  recoded <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
+    ~live_anim_code, ~item_prod_code,
+    960L,  "heads",  1000, 2020L, 4L, NA_character_, "960",
+    960L,  "t_head", 5.0,  2020L, 4L, "960",        "2848"
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    prepare_livestock_emissions(recoded),
+    check_inputs_supplied = function(data, ...) invisible(data)
+  )
+  keyed <- prepare_livestock_emissions(
+    dplyr::mutate(recoded, item_prod_code = c("960", "882"))
+  )
+  expect_true(rlang::has_name(keyed, "milk_yield_kg_day"))
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 1L &&
+      unguarded$heads == 1000 &&
+      !rlang::has_name(unguarded, "milk_yield_kg_day"),
+    guard = prepare_livestock_emissions(recoded)
+  )
+})
+
+test_that("a production table with no yield rows is not judged", {
+  heads_only <- tibble::tribble(
+    ~item_cbs_code, ~unit,   ~value, ~live_anim_code, ~item_prod_code,
+    960L,           "heads", 1000,   NA_character_,   "960"
+  )
+  expect_no_error(prepare_livestock_emissions(heads_only))
+})
