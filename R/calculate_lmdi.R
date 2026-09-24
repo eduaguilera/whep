@@ -58,6 +58,12 @@
 #'   - Grouping variables if using `.by`.
 #'   - No missing values in key variables for decomposition periods.
 #'
+#'   The panel is balanced (and smoothed, with `rolling_mean`) over its key
+#'   columns: every non-numeric column, the bracket selectors and the `.by`
+#'   columns. Any other numeric column is carried along as a value and is
+#'   not a key, so a numeric identifier that must keep its series apart
+#'   belongs in `.by` or a selector.
+#'
 #' @param data A data frame containing the variables for decomposition. Must
 #'   include all variables specified in the identity, time variable, and any
 #'   grouping variables.
@@ -313,7 +319,8 @@ calculate_lmdi <- function(
     target_var,
     {{ time_var }},
     rolling_mean,
-    verbose
+    verbose,
+    .by = .by
   )
 
   labels <- .lmdi_handle_identity_labels(identity_labels, factors, target_var)
@@ -365,9 +372,16 @@ calculate_lmdi <- function(
   target_var,
   time_var,
   rolling_mean,
-  verbose
+  verbose,
+  .by = NULL
 ) {
-  vars_info <- .lmdi_extract_vars(data, identity, target_var, {{ time_var }})
+  vars_info <- .lmdi_extract_vars(
+    data,
+    identity,
+    target_var,
+    {{ time_var }},
+    .by = .by
+  )
   numeric_vars <- vars_info$numeric_vars
   group_cols <- vars_info$group_cols
 
@@ -589,11 +603,8 @@ calculate_lmdi <- function(
 # misses and `(a - b) / log(a / b)` evaluates on pure accumulation residue:
 # it does not error or return Inf, it returns a plausible weight that is
 # wrong by up to 15 percent, and that weight multiplies every factor's
-# log-ratio (#1071). Near equality `log1p()` of the relative difference
-# keeps its significant digits where `log(a / b)` has lost all of them.
-#
-# This is the same stable form as `.ratio_log_mean()` in
-# R/decompose_weighted_ratio.R, adopted here rather than reinvented.
+# log-ratio (#1071). The numerics are in `.log_mean_positive()`, shared
+# with `.ratio_log_mean()` in R/decompose_weighted_ratio.R.
 # Non-positive or missing inputs keep the previous behaviour: an exactly
 # equal pair returns its common value, anything else returns 0.
 .log_mean <- function(a, b) {
@@ -602,17 +613,33 @@ calculate_lmdi <- function(
   b <- rep_len(b, size)
   difference <- a - b
   equal <- !is.na(difference) & difference == 0
-  usable <- !is.na(difference) & a > 0 & b > 0
-  near <- usable &
-    !equal &
-    abs(difference) <= sqrt(.Machine$double.eps) * pmax(a, b)
-  far <- usable & !equal & !near
+  changed <- !is.na(difference) & a > 0 & b > 0 & !equal
   result <- rep(0, size)
   result[is.na(difference)] <- NA_real_
   result[equal] <- a[equal]
-  result[near] <- difference[near] / log1p(difference[near] / b[near])
-  result[far] <- difference[far] / (log(a[far]) - log(b[far]))
+  result[changed] <- .log_mean_positive(a[changed], b[changed])
   result
+}
+
+# Logarithmic mean (a - b) / log(a / b) of two distinct positive numbers.
+#
+# Written as d / log1p(d / m), with d = |a - b| and m = min(a, b), so the
+# argument of log1p() is never negative. That form is accurate to a few
+# ulps everywhere (#1089): `d` is exact for close pairs (Sterbenz), and
+# log1p(x) for x >= 0 has a condition number x / ((1 + x) log1p(x)) <= 1.
+# `log(a) - log(b)` has condition number 1 / |log(a / b)|, so near a == b it
+# loses digits: at a relative difference of sqrt(eps), where both previous
+# implementations switched to it, it was off by up to 5.5e-8 relative. No
+# tolerance switch is needed any more. The only fallback is for a ratio past
+# the double range, where d / m overflows to Inf and the two logs are exact
+# enough because their difference is then large.
+.log_mean_positive <- function(a, b) {
+  difference <- abs(a - b)
+  lower <- pmin(a, b)
+  log_ratio <- log1p(difference / lower)
+  overflow <- !is.finite(log_ratio)
+  log_ratio[overflow] <- log(pmax(a, b)[overflow]) - log(lower[overflow])
+  difference / log_ratio
 }
 
 .parse_identity <- function(identity_expr) {
@@ -740,7 +767,13 @@ calculate_lmdi <- function(
   list(group_vars = group_vars, .by = .by)
 }
 
-.lmdi_extract_vars <- function(data, identity, target_var, time_var) {
+.lmdi_extract_vars <- function(
+  data,
+  identity,
+  target_var,
+  time_var,
+  .by = NULL
+) {
   time_var_str <- rlang::as_name(rlang::enquo(time_var))
   all_vars <- unique(c(
     target_var,
@@ -750,9 +783,30 @@ calculate_lmdi <- function(
   numeric_vars <- numeric_vars[purrr::map_lgl(data[numeric_vars], is.numeric)]
   # Bracket selectors (e.g. `sector` in `activity[sector]`) are grouping keys,
   # never numeric decomposition variables, even when integer-coded (#247).
-  numeric_vars <- setdiff(numeric_vars, .extract_selectors(identity))
-  group_cols <- setdiff(names(data), c(time_var_str, numeric_vars))
-  list(numeric_vars = numeric_vars, group_cols = group_cols)
+  selectors <- .extract_selectors(identity)
+  numeric_vars <- setdiff(numeric_vars, selectors)
+  list(
+    numeric_vars = numeric_vars,
+    group_cols = .lmdi_key_cols(
+      data,
+      c(time_var_str, numeric_vars),
+      selectors,
+      .by
+    )
+  )
+}
+
+# Panel keys: the non-numeric columns, plus the selectors and `.by` columns
+# whatever their type. Any other numeric column (a helper carried next to the
+# identity's variables) is a value, not a key: keyed on, it made balancing
+# cross every distinct value with every year, n^(k + 1) rows for n years and
+# k such columns, and split each year into its own rolling-mean series
+# (#1232).
+.lmdi_key_cols <- function(data, exclude, selectors, .by) {
+  candidates <- setdiff(names(data), exclude)
+  is_key <- !purrr::map_lgl(data[candidates], is.numeric) |
+    candidates %in% c(selectors, .by)
+  candidates[is_key]
 }
 
 .lmdi_balance_panel <- function(
