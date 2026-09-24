@@ -3,8 +3,9 @@
 # The `spatialize-crop-patterns` pin carries no fodder crop: the 16 forage
 # layers of the Monfreda et al. (2008) 175-crop archive are the rows of
 # `inst/extdata/earthstat_mapping.csv` with `unmapped_reason ==
-# "no_fao_crop_name"` (15) plus `legumenes`, which that crosswalk sends to 463.
-# At 2010 that leaves ~298 of the ~310 Mt C the crop-pattern join cannot
+# "no_fao_crop_name"` (15) plus `legumenes`, which that crosswalk sends to 463
+# (whep#1271).
+# At 2010 that leaves 293.7 of the 310.0 Mt C the crop-pattern join cannot
 # place on fodder items, and `method_unspatialized = "reallocate"` spreads it
 # uniformly over the polity's cropland. The rasters themselves exist and are
 # reproducibly obtainable (`inst/scripts/download/download_monfreda.R`); this
@@ -160,10 +161,23 @@
 # Add the fodder layer's cell weights for the polity-crops the crop-pattern
 # weights do not already place. A crop that the crop pattern carries keeps its
 # own cells: the fodder layer only fills the hole, it never overrides a layer.
+#
+# An empty or all-zero layer is refused, not passed through: it would leave
+# every fodder crop on the uniform rule while the rows say "fodder_pattern",
+# and the carbon totals would reconcile either way.
 .sci_add_fodder_weights <- function(weights, country_grid, fodder_patterns) {
   if (is.null(fodder_patterns) || nrow(fodder_patterns) == 0) {
-    return(weights)
+    cli::cli_abort(
+      c(
+        "The fodder layer for {.code method_unspatialized =
+         \"fodder_pattern\"} has no rows.",
+        i = "Check {.code data$fodder_patterns} or the rasters under
+             {.envvar WHEP_MONFREDA_DIR}."
+      ),
+      class = "whep_absent_input"
+    )
   }
+  check_inputs_supplied(fodder_patterns, "crop_area_ha")
   fodder <- .sci_grid_weights(country_grid, fodder_patterns) |>
     dplyr::anti_join(
       dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
