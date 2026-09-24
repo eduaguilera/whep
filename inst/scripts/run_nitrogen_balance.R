@@ -402,8 +402,6 @@ fertilizer <- nbd_stage(
   whep_read_file("faostat-fertilizer-nutrients") |>
     dplyr::filter(as.integer(.data$Year) == year)
 )
-manure_pin <- nbd_stage("manure", whep_read_file("faostat-emissions-livestock"))
-primary_residues <- nbd_stage("primary_residues", get_primary_residues())
 fertilizer_support <- .nbd_drop_unsupported_fertilizer(
   fertilizer,
   primary_prod,
@@ -580,8 +578,11 @@ if (nrow(blockers) > 0L) {
     cropland_ha = cropland_ha,
     primary_prod = primary_prod,
     fertilizer = fertilizer,
-    manure = manure_pin,
-    primary_residues = primary_residues,
+    # No `manure` or `primary_residues` here: those names belong to
+    # build_crop_soil_n2o_extension()'s `data` contract, not this one. The
+    # balance's manure term comes from `livestock_intake` and its residue
+    # recycling from `npp_n_input` (.ni_stream_inputs()), so building them
+    # changed no number and only let their failure block the run (#1197).
     npp_n_input = npp,
     bnf_input = .nbd_bnf_input(npp),
     residue_destiny_input = npp,
