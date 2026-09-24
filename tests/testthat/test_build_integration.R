@@ -82,6 +82,8 @@ test_that("build_primary_production sources are from known set", {
     "FAOSTAT_prod",
     "EuropeAgriDB",
     "DM_yield_estimate",
+    "DM_yield_estimate_carried_forward",
+    "DM_yield_estimate_carried_backward",
     "fill_linear",
     "fill_linear_historical",
     "imputed_yield",
