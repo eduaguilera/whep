@@ -232,12 +232,16 @@
     "Processing" = "processing",
     "Production" = "production"
   )
-  # The 2026-06-15 Commodity Balances (non-food) release added a "Processed"
-  # element (5023) for rubber, wool and silk. It is absent here, so those rows
-  # are filtered out by .extract_fao() before .get_fiber_tobacco() ever sees
-  # them -- even though cbs_trade_codes maps all three onto CBS items. Adding
-  # it would introduce a processing flow those items do not currently carry,
-  # which moves published values; that is #811, not this change.
+  # "Processed" (element 5023, Commodity Balances (non-food) from the
+  # 2026-06-15 release) is deliberately left unmapped, so .extract_fao()
+  # drops it. It is not a final use: it is the quantity passed to the next
+  # link of a CB chain, and it reappears there as `production` -- rubber
+  # 836 -> 837 (ratio ~1.0), silk cocoons 1185 -> raw silk 1186 (~0.14-0.25),
+  # greasy wool 987 -> 988 (~0.6). cbs_trade_codes maps every link of each
+  # chain onto the same CBS item, so the chain's use is already booked by
+  # the last link's `other_uses`. Booking "Processed" as well counts it twice:
+  # on a real 2020 build it adds 12.9 Mt to Rubber `other_uses` (13.5 -> 26.3
+  # Mt) and balances it with a 12.2 Mt stock withdrawal (whep#811).
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }

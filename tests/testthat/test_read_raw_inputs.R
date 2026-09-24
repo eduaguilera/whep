@@ -498,6 +498,57 @@ test_that(".extract_fao returns exactly the requested years", {
   expect_equal(nrow(out), 2L)
 })
 
+# whep#811. CB's `Processed` element (5023) is the quantity handed to the next
+# link of a chain (natural rubber 836 -> 837), which reports it again as its
+# own `production`, and both links map onto CBS `Rubber`. The chain's use is
+# the last link's `other_uses`; booking `Processed` too -- as `processing` or
+# `other_uses` -- doubles it. This guard fails under that one-line mapping.
+test_that("CB Processed is not booked as a use of the aggregated item", {
+  fixture <- tibble::tribble(
+    ~`Item Code`, ~Item,                             ~Element,               ~Value,
+    836L,         "Natural rubber in primary forms", "Production",           100,
+    836L,         "Natural rubber in primary forms", "Processed",            90,
+    836L,         "Natural rubber in primary forms", "Export quantity",      10,
+    837L,         "Natural rubber in other forms",   "Production",           90,
+    837L,         "Natural rubber in other forms",   "Other uses (non-food)", 90,
+    837L,         "Natural rubber in other forms",   "Residuals",            0
+  ) |>
+    dplyr::mutate(
+      `Area Code` = 203L,
+      Area = "Testland",
+      Unit = "t",
+      Year = 2020L
+    ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  extracted <- whep:::.extract_fao("faostat-cbs-new")
+  expect_false(any(c("Processed", "processed") %in% extracted$element))
+
+  booked <- whep:::.get_fiber_tobacco(
+    extracted,
+    tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      836L,             "Rubber",
+      837L,             "Rubber"
+    ),
+    tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Rubber",  2672L
+    )
+  )
+  uses <- booked |>
+    dplyr::filter(element %in% c("processing", "other_uses", "food", "feed"))
+
+  expect_equal(uses$element, "other_uses")
+  expect_equal(uses$value, 90)
+})
+
 # Issue whep#833. `.correct_processed()` calibrates a processing output by
 # dividing the observed production of that output by the production its parent's
 # `processing` implies, and then carries the one ratio it finds across the
