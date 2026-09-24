@@ -1851,3 +1851,105 @@ testthat::test_that("a complete SOC driver build is silent about lattices", {
   testthat::expect_equal(results[[2]], results[[1]])
   testthat::expect_equal(results[[3]], results[[1]])
 })
+
+# ---- whep#1095: cells the LPJmL grid carries but CRU does not ---------------
+
+# A `.socd_synthetic()`-shaped input on `n` cells, every source on every cell.
+.socd_grid <- function(n) {
+  cells <- tidyr::expand_grid(
+    lat = 10.25 + 0.5 * (0:99),
+    lon = -179.75 + 0.5 * (0:99)
+  )[seq_len(n), c("lon", "lat")]
+  months <- tidyr::expand_grid(cells, year = 2000L, month = 1:12)
+  list(
+    temp = dplyr::mutate(months, value = 10),
+    pet = dplyr::mutate(months, value = 2),
+    prec = dplyr::mutate(months, value = 60),
+    irrig = dplyr::mutate(months, value = 5),
+    swc = tidyr::expand_grid(months, layer = 1:2) |>
+      dplyr::mutate(value = 0.4),
+    clay = dplyr::mutate(cells, clay_pct = 22),
+    cell_polity = dplyr::mutate(cells, area_code = 11L),
+    soil_hydraulic = dplyr::mutate(
+      cells,
+      t_field = 0.29,
+      t_wilt = 0.14,
+      porosity = 0.43
+    )
+  )
+}
+
+testthat::test_that("a cell CRU lacks is reported, not silently dropped", {
+  # Measured on CRU TS 4.09 x the lpjml-soc-hydrology pin: 22 of 58,795 LPJmL
+  # cells have no CRU PET (20 have no temperature) -- small islands, coasts
+  # and lakes CRU masks as water. The inner joins drop them; the drop must be
+  # reported with its size, because no total will ever reveal it.
+  data <- .socd_grid(2000L)
+  gone <- data$pet[1L, c("lon", "lat")]
+  data$pet <- dplyr::anti_join(data$pet, gone, by = c("lon", "lat"))
+  testthat::expect_message(
+    drv <- whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_equal(nrow(dplyr::distinct(drv, lon, lat)), 1999L)
+  testthat::expect_equal(
+    nrow(dplyr::semi_join(drv, gone, by = c("lon", "lat"))),
+    0L
+  )
+})
+
+testthat::test_that("the cell shortfall report names the short source", {
+  data <- .socd_grid(2000L)
+  data$pet <- dplyr::anti_join(
+    data$pet,
+    data$pet[1L, c("lon", "lat")],
+    by = c("lon", "lat")
+  )
+  cnd <- testthat::expect_message(
+    whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_s3_class(cnd, "whep_socd_cell_shortfall")
+  testthat::expect_equal(cnd$shortfall$n_grid, 2000L)
+  testthat::expect_equal(cnd$shortfall$n_lost, 1L)
+  testthat::expect_equal(cnd$shortfall$pet, 1L)
+  testthat::expect_equal(cnd$shortfall$temp, 0L)
+  testthat::expect_match(conditionMessage(cnd), "CRU PET: 1")
+})
+
+testthat::test_that("a cell shortfall beyond the expected one aborts", {
+  # A count assertion, not a membership one: the known ~0.04% passes, a
+  # change of mask or grid that loses far more fails loudly.
+  data <- .socd_synthetic()
+  data$temp <- dplyr::filter(data$temp, lon != data$temp$lon[[1L]])
+  testthat::expect_error(
+    whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_loss"
+  )
+})
+
+testthat::test_that("the real 22-cell shortfall is within the cell tolerance", {
+  shortfall <- tibble::tibble(
+    year = 2000L,
+    n_grid = 58795L,
+    n_lost = c(22L, 2200L),
+    temp = c(20L, 2200L),
+    pet = c(22L, 2200L),
+    irrig = 0L
+  )
+  testthat::expect_message(
+    whep:::.socd_report_cell_loss(shortfall[1, ]),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_error(
+    whep:::.socd_report_cell_loss(shortfall),
+    class = "whep_socd_cell_loss"
+  )
+})
+
+testthat::test_that("a complete grid reports no cell shortfall", {
+  testthat::expect_no_message(
+    whep::get_soc_climate_drivers(data = .socd_grid(3L)),
+    class = "whep_socd_cell_shortfall"
+  )
+})
