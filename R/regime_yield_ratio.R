@@ -128,6 +128,10 @@
 #'   - `method_regime_yield`: the adjustments applied, joined by `";"`:
 #'     `"anchor_floor"` (SPAM ratio below 1), `"level_cap"` (level above 10),
 #'     `"ratio_floor"` (level times anomaly below 1), or `"none"`.
+#'
+#'   Plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #' @source Yu, Q. et al. (2020). A cultivated planet in 2010 -- Part 2: The
 #'   global gridded agricultural-production maps. Earth System Science Data
 #'   12, 3545-3572. \doi{10.5194/essd-12-3545-2020}. LPJmL 6.1.1 band
@@ -149,8 +153,9 @@ build_regime_yield_ratio <- function(
   cells <- .ryr_check_cells(cells)
   keys <- dplyr::left_join(
     cells,
-    .ryr_bucket_map(unique(cells$area_code)),
-    by = "area_code"
+    .ryr_bucket_table(),
+    by = "area_code",
+    relationship = "many-to-one"
   )
   anchor <- .ryr_anchor(
     dplyr::distinct(keys, .data$bucket, .data$item_prod_code),
@@ -174,7 +179,8 @@ build_regime_yield_ratio <- function(
       by = c("lon", "lat", "area_code", "item_prod_code", "year"),
       relationship = "one-to-one"
     ) |>
-    .ryr_combine()
+    .ryr_combine() |>
+    .add_reporting_polity_columns()
 }
 
 #' Split a cell-crop's production between its rainfed and irrigated regimes.
@@ -437,9 +443,11 @@ split_regime_yield <- function(
 
 # Each area code's polity bucket, the key of every national table this ratio
 # reads (FAOSTAT fertiliser, cropland, production, and SPAM through its ISO3).
-# A code that is itself a bucket but no reporting area maps to itself; a code
-# that is neither maps to NA and so finds no national value.
-.ryr_bucket_map <- function(area_codes) {
+# `polity_area_code` is functionally determined by `area_code` (asserted), so
+# the lookup has no year. A bucket code that is no reporting area of its own
+# maps to itself; a code that is neither finds no row, so its bucket is NA and
+# it finds no national value.
+.ryr_bucket_table <- function() {
   cw <- .polity_crosswalk() |>
     as.data.frame() |>
     tibble::as_tibble() |>
@@ -454,15 +462,8 @@ split_regime_yield <- function(
       class = "whep_regime_yield_buckets"
     )
   }
-  tibble::tibble(area_code = as.integer(area_codes)) |>
-    dplyr::left_join(cw, by = "area_code") |>
-    dplyr::mutate(
-      bucket = dplyr::if_else(
-        is.na(.data$bucket) & .data$area_code %in% cw$bucket,
-        .data$area_code,
-        .data$bucket
-      )
-    )
+  own <- setdiff(cw$bucket, cw$area_code)
+  dplyr::bind_rows(cw, tibble::tibble(area_code = own, bucket = own))
 }
 
 # -- Anchor: SPAM2010 ratio per bucket and item -------------------------------
@@ -1200,24 +1201,19 @@ split_regime_yield <- function(
 }
 
 .ryr_attach_yield_max <- function(cells, yield_max, bound) {
-  cells <- dplyr::mutate(
-    cells,
-    .ryr_item = as.integer(.data$item_prod_code),
-    .ryr_area = as.integer(.data$area_code)
-  )
+  cells <- dplyr::mutate(cells, .ryr_item = as.integer(.data$item_prod_code))
+  keys <- c(.ryr_item = "item_prod_code")
   if (identical(bound, "region")) {
-    regions <- dplyr::rename(
-      .ryr_region_map(),
-      .ryr_area = "area_code",
-      .ryr_region = "region"
+    cells <- dplyr::left_join(
+      cells,
+      dplyr::rename(.ryr_region_map(), .ryr_region = "region"),
+      by = "area_code",
+      relationship = "many-to-one"
     )
-    cells <- dplyr::left_join(cells, regions, by = ".ryr_area")
-    keys <- c(.ryr_item = "item_prod_code", .ryr_region = "region")
-  } else {
-    keys <- c(.ryr_item = "item_prod_code")
+    keys <- c(keys, .ryr_region = "region")
   }
   cells |>
-    dplyr::left_join(yield_max, by = keys) |>
+    dplyr::left_join(yield_max, by = keys, relationship = "many-to-one") |>
     dplyr::mutate(method_yield_bound = bound)
 }
 

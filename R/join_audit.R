@@ -321,6 +321,26 @@
      by construction, so a year in the key would return the year; and the join
      feeds only a warning -- the reporter class is never dropped and never
      aborts, so no published value passes through it.",
+    ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
+    "time_invariant",
+    "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
+     which is ONE number per (area, crop) by construction: plan decision D15
+     divides each cell-year's ratio by the crop x country ratio pooled over the
+     fixed 1994-2023 window. The cell-year ratio it divides is joined on
+     (cell, year, crop) the line before.",
+    ".ryr_attach_yield_max", "left_join", "area_code", 1L, "time_invariant",
+    "WHEP region membership (`regions_full`, no year) for the D20 plausibility
+     bound under its `region` pool. The bound itself is a pooled 1961-2023
+     percentile, joined on (item, region) next.",
+    ".ryr_yield_max", "left_join", "area_code", 1L, "time_invariant",
+    "The same region membership, attached to the national yields the D20
+     percentile pools; every yield row keeps its own year.",
+    "build_regime_yield_ratio", "left_join", "area_code", 1L,
+    "identity_lookup",
+    "Resolves each cell's area code to its polity bucket, the key of the
+     national inputs; `polity_area_code` is functionally determined by
+     `area_code` (asserted in `.ryr_bucket_table()`). The year enters at the
+     next two joins, on (bucket, year) and (cell, item, year).",
     ".sci_crop_prod_wide", "left_join", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
@@ -418,6 +438,33 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".ryr_anomaly", "distinct", "lon, lat, area_code", 1L, "time_invariant",
+    "The cells each area owns, which the D15 normaliser pools LPJmL over for
+     the fixed 1994-2023 window: a cell-to-area map, not a year's data.",
+    ".ryr_bucket_table", "distinct", "area_code, bucket, <dynamic>", 1L,
+    "identity_lookup",
+    "The area code -> polity bucket fold, deduplicated from the crosswalk's
+     periods; asserted one bucket per code.",
+    ".ryr_dominance_tonnes", "summarise", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "Plan decision D17 picks Linum's and Hemp's SPAM aggregate by which product
+     dominates the country's FAOSTAT production, one choice per country: the
+     sum over 1961-2023 IS the reduction over the year axis.",
+    ".ryr_lpjml_normal", "summarise", "area_code, lpjml_crop", 1L, "year_axis",
+    "D15's normaliser: LPJmL's crop x country ratio pooled over the 1994-2023
+     window, so the window's years are what is being reduced over.",
+    ".ryr_smil_backcast", "summarise", "area_code", 1L, "year_axis",
+    "Each country's mean 1961-1965 share of synthetic N, the constant the Smil
+     (2001) back-cast scales by (as prepare_nitrogen_inputs() does); the five
+     years are the axis reduced over.",
+    ".ryr_spam_totals", "[", "area_code, spam_crop, technology", 1L,
+    "single_year",
+    "SPAM2010 v2.0 is one vintage (the 2009-2011 average), and D16 makes it the
+     single anchor year of the regime ratio.",
+    ".ryr_spam_totals", "[", "iso3c, spam_crop, technology", 1L,
+    "single_year",
+    "The same SPAM2010 vintage, summed by ISO3 before the ISO3 -> bucket
+     bridge.",
     ".area_last_reporting_year", "summarise", "area_code", 1L, "year_axis",
     "`max(map_year_end)` IS the reduction over the crosswalk's periods: the
      last year the upstream FAOSTAT map reports each area, which is what tells

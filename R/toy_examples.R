@@ -788,57 +788,59 @@
 # build_regime_yield_ratio() fixture: ten 2010 cell-crops sampled from a real
 # run (gridded land use of the spatialization pins, SPAM2010 v2.0, the
 # faostat-fertilizer-nutrients and faostat-landuse pins, and the LPJmL 6.1.1
-# run of read_lpjml_regime_yield()), chosen to show each stamp: a missing 2010
-# N value (Somalia cassava), an anchor floor (Ethiopia mustard seed, SPAM
-# `rape`), a level cap (Viet Nam other fibre crops), a ratio floor (Bangladesh
-# tea) and anomalies from LPJmL.
+# run of read_lpjml_regime_yield()), each in a cell its country owns alone in
+# the `spatialize-country-grid` pin. They show each stamp: a missing 2010 N
+# value (Somalia seed cotton), an anchor floor (China oil palm on the global
+# SPAM `oilp` ratio of 0.89), a level cap (Mexico rapeseed, SPAM 12.9), ratio
+# floors (Spain maize, Thailand sesame) and LPJmL anomalies.
 .example_regime_yield_ratio <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~ratio_spam,
     ~ratio_anchor, ~ratio_level, ~ratio_anomaly, ~ratio, ~spam_crop_used,
     ~method_ratio_anchor, ~method_ratio_trend, ~method_ratio_anomaly,
     ~method_regime_yield,
-    -64.75, -26.75, 9L, 15L, 2010L, 1.24876,
-    1.24876, 1.24876, 2.00641, 2.50551, "whea",
+    44.25, 40.75, 1L, 15L, 2010L, 2.04114,
+    2.04114, 2.04114, 0.685191, 1.39857, "whea",
     "spam_country", "faostat", "lpjml",
     "none",
-    88.25, 27.25, 100L, 15L, 2010L, 2.10087,
-    2.10087, 2.10087, 2.78139, 5.84333, "whea",
+    133.25, 34.75, 110L, 15L, 2010L, 1.47077,
+    1.47077, 1.47077, 0.835079, 1.22821, "whea",
     "spam_country", "faostat", "lpjml",
     "none",
-    103.25, 29.75, 41L, 27L, 2010L, 1.40231,
+    108.75, 30.25, 41L, 27L, 2010L, 1.40231,
     1.40231, 1.40231, 1.0828, 1.51843, "rice",
     "spam_country", "faostat", "lpjml",
     "none",
-    120.25, 30.75, 41L, 56L, 2010L, 1.203,
-    1.203, 1.203, 1.18553, 1.42619, "maiz",
-    "spam_country", "faostat", "lpjml",
-    "none",
-    -98.25, 38.25, 231L, 71L, 2010L, 1.13232,
-    1.13232, 1.13232, 1, 1.13232, "ocer",
-    "spam_country", "faostat", "no_cell_ratio",
-    "none",
-    48.75, 11.25, 201L, 125L, 2010L, 2.12177,
-    2.12177, NA, 1, NA, "cass",
-    "spam_global", "no_n_2010", "no_cell_ratio",
-    "none",
-    44.75, 39.25, 52L, 220L, 2010L, 2.12092,
-    2.12092, 2.12092, 1.32709, 2.81466, "rest",
+    0.75, 41.75, 203L, 56L, 2010L, 1.51748,
+    1.51748, 1.51748, 0.51517, 1, "maiz",
     "spam_global", "faostat", "lpjml",
-    "none",
-    38.25, 14.75, 238L, 292L, 2010L, 0.638898,
-    1, 1, 1, 1, "rape",
-    "spam_country", "faostat", "no_cell_ratio",
-    "anchor_floor",
-    88.25, 24.25, 16L, 667L, 2010L, 1.01505,
-    1.01505, 1.01505, 0.922688, 1, "teas",
-    "spam_country", "faostat", "lpjml",
     "ratio_floor",
-    105.75, 17.75, 237L, 821L, 2010L, 10.3937,
-    10.3937, 10, 1.03666, 10.3666, "ofib",
+    116.25, 32.75, 41L, 254L, 2010L, 0.891805,
+    1, 1, 0.63773, 1, "oilp",
+    "spam_global", "faostat", "lpjml",
+    "anchor_floor;ratio_floor",
+    -100.75, 21.75, 138L, 270L, 2010L, 12.8699,
+    12.8699, 10, 1.64675, 16.4675, "rape",
     "spam_country", "faostat", "lpjml",
-    "level_cap"
-  )
+    "level_cap",
+    102.75, 15.25, 216L, 289L, 2010L, 1.0266,
+    1.0266, 1.0266, 0.855569, 1, "sesa",
+    "spam_global", "faostat", "lpjml",
+    "ratio_floor",
+    42.25, 0.25, 201L, 328L, 2010L, 2.27919,
+    2.27919, NA, 1, NA, "cott",
+    "spam_country", "no_n_2010", "no_cell_ratio",
+    "none",
+    103.75, 26.25, 41L, 603L, 2010L, 1.31215,
+    1.31215, 1.31215, 1, 1.31215, "trof",
+    "spam_global", "faostat", "no_cell_ratio",
+    "none",
+    6.25, 7.25, 159L, 723L, 2010L, 1.98677,
+    1.98677, 1.98677, 1, 1.98677, "rest",
+    "spam_country", "faostat", "no_cell_ratio",
+    "none"
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # SPAM2010 v2.0 harvested area, production and yield fixture: six pixels

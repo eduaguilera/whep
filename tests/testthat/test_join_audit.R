@@ -229,7 +229,17 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  #
+  # 85 since #1233 (plan task T12e): the irrigated:rainfed regime yield ratio
+  # adds four year-free joins, and none reads a year's value on the wrong
+  # year. One is the area -> polity-bucket identity its national inputs are
+  # keyed on; two attach WHEP region membership, which `regions_full` holds
+  # without a year, for the D20 yield bound (the loss wedge's shape); and one
+  # attaches the D15 LPJmL normaliser, which is one number per crop and country
+  # by construction because it is pooled over a fixed 1994-2023 window. Every
+  # value that varies by year -- synthetic N, cropland, the cell-year LPJmL
+  # ratio -- is joined on its year. Measured by running the audit: 85.
+  expect_lte(sum(baseline$n), 85L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -379,7 +389,15 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 97L)
+  #
+  # 104 since #1233 (plan task T12e): the regime yield ratio's seven. Three
+  # are `year_axis` -- plan decisions pool a country's years on purpose: the
+  # D15 LPJmL normaliser over 1994-2023, the D17 product dominance over
+  # 1961-2023, and the Smil back-cast's 1961-1965 share. Two are
+  # `single_year`, the one SPAM2010 vintage D16 anchors on, summed by ISO3 and
+  # then by bucket. One is the area -> bucket identity fold, and one the
+  # cell -> area map the normaliser pools over. Measured by running the audit.
+  expect_lte(sum(full$n), 104L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
