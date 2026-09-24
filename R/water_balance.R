@@ -592,6 +592,27 @@ get_soc_climate_drivers <- function(
     )
 }
 
+# The same stand-weighted contributions, kept per band instead of summed
+# (#916). Each row is one band's water as a depth over the WHOLE cell, so
+# summing this over bands per cell-year reproduces .wb_cell_consump() exactly:
+# both reduce the same `weighted` vector, only the grouping differs.
+.wb_band_consump <- function(raw, out_col, stand_frac) {
+  if (is.null(raw)) {
+    return(NULL)
+  }
+  raw |>
+    .wb_weight_by_stand(out_col, stand_frac) |>
+    dplyr::mutate(stand_frac = dplyr::coalesce(.data$stand_frac, 0)) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      dplyr::any_of(c("band", "band_name")),
+      "stand_frac",
+      dplyr::all_of(stats::setNames("weighted", out_col))
+    )
+}
+
 # Attach each band's stand fraction and form the area-weighted contribution.
 #
 # Refuses rather than falling back to an unweighted sum: the unweighted number
@@ -646,7 +667,11 @@ get_soc_climate_drivers <- function(
 # because a caller may legitimately supply a narrower cube than its weights,
 # but it names what failed so the zero is never silent.
 .wb_check_stand_match <- function(joined, out_col, key) {
-  bad <- joined[is.na(joined$stand_frac) & joined$value > 0, ]
+  # `which()`, not a logical subscript: a non-land cell carries NA in both the
+  # cube and cftfrac.nc, `NA > 0` is NA, and an NA subscript returns an
+  # all-NA row -- 4,500,640 phantom "unmatched" rows naming no band on the
+  # 2010 global run (#916). An NA value carries no water to drop.
+  bad <- joined[which(is.na(joined$stand_frac) & joined$value > 0), ]
   if (nrow(bad) == 0L) {
     return(joined)
   }
