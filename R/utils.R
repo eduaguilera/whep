@@ -2277,6 +2277,11 @@ utils::globalVariables(
     # arable_permanent_land.R (whep#938) — the per-country-year fodder input
     # coverage label
     "fodder_coverage",
+    # lpjml_landuse_floor.R (issue 985) -- the per-cell land-use total, the
+    # float32-resolution keep flag and the surviving total it renormalises to
+    "cell_total_",
+    "keep_",
+    "kept_total_",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
