@@ -2707,6 +2707,10 @@ build_processing_coefs <- function(
   .abort_if_units_mixed(cbs_new, "faostat-cbs-new")
 
   cbs_new |>
+    dplyr::filter(
+      !(element == "production" &
+        item_cbs_code %in% .cb_chain_downstream_codes())
+    ) |>
     dplyr::rename(
       item_trade = item_cbs,
       item_code_trade = item_cbs_code
@@ -2732,6 +2736,28 @@ build_processing_coefs <- function(
       )
     ) |>
     dplyr::filter(year > 2013)
+}
+
+# Commodity Balances (non-food) item codes that are a downstream link of a
+# chain mapped onto the same CBS item, so their `production` is the upstream
+# link's `Processed` reported a second time (whep#1250). Rubber 836 -> 837:
+# on the `faostat-cbs-new` pin (reporting areas, 2010-2023) 837 production /
+# 836 Processed has median 1.00 over 374 rows, and no 837 production row
+# lacks an 836 Processed row. Summing both links booked Thailand 2020 at
+# 8.26 Mt against 4.86 Mt in FAOSTAT_prod, and Uzbekistan -- which grows no
+# rubber but processes imported 836 -- as a 3.2 kt producer. Dropping the
+# downstream production counts the chain's production once, at its primary
+# link, and closes the aggregated balance: supply (primary production plus
+# both links' net trade and stock change) then equals the last link's uses.
+#
+# Deliberately NOT listed, though the shape is the same: wool 987 -> 988
+# (greasy -> degreased, ~0.6 t/t) and silk 1185 -> 1186/1187 (cocoons -> raw
+# silk, ~0.14 t/t, whep#1251) change mass basis along the chain, so which
+# link's production to keep is a basis decision, not a dedup; tobacco 826 ->
+# 828/829/831 (manufactured products) reports no `Processed` at all, so the
+# link is unconfirmed.
+.cb_chain_downstream_codes <- function() {
+  837L
 }
 
 .assemble_cbs_sources <- function(
