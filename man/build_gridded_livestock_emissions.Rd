@@ -7,6 +7,7 @@
 build_gridded_livestock_emissions(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
+  method_species = c("national_head_share", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -20,8 +21,8 @@ build_gridded_livestock_emissions(
 \code{area_code}, \code{heads}, and either \code{species} (an IPCC species label such as
 \code{"Cattle, dairy"}) or \code{species_group} (a spatializer group label). Groups
 that name more than one IPCC species (\code{"sheep_goats"}, \code{"equines"},
-\code{"poultry"}, \code{"other"}) abort rather than being split on an assumption.
-Polity columns and cell identifiers are preserved when present.}
+\code{"poultry"}, \code{"other"}) are split as \code{method_species} says. Polity
+columns and cell identifiers are preserved when present.}
 
 \item{method_diet}{How each row's \code{diet_quality} is resolved, in decreasing
 rigour:
@@ -38,6 +39,29 @@ assumption, not a measurement, and is never selected implicitly.
 
 Whatever is requested, the value actually used is recorded per row in
 \code{method_diet}. A row that no requested method resolves aborts.}
+
+\item{method_species}{How a \code{species_group} that names more than one IPCC
+species is split into its species:
+\itemize{
+\item \code{"national_head_share"} (default): each cell's group head count is
+divided among the group's members in the proportions the country itself
+reports, from the national head counts by live-animal item
+(\code{data$species_heads}). The members are read from the same
+\code{livestock_mapping.csv} the spatializer summed them with, so the split
+inverts that grouping at national level: a country's gridded species
+mix equals its reported one, and the group's gridded head total is
+conserved exactly. It assumes the species mix is the
+same in every cell of a country, which is also what the spatializer
+assumed, because it gave all members of a group one spatial proxy.
+Countries are matched on \code{area_code}; a cell whose \code{area_code} the head
+table does not carry is matched on \code{polity_area_code} instead (for
+example Sudan and South Sudan, reported together as polity 206), and
+\code{method_species} says which. A cell matched by neither is returned with
+\code{NA} emissions and a warning, never split on an invented ratio.
+\item \code{"refuse"}: abort on any aggregate group, the behaviour before whep#1126.
+}
+
+The rung used is recorded per row in \code{method_species}.}
 
 \item{tier}{IPCC tier, \code{2} (default) or \code{1}. Tier 2 is the default here
 because the per-cell drivers only enter the Tier 2 energy and
@@ -118,11 +142,17 @@ applied, and this argument exists so the sensitivity to the assumption can
 be measured (whep#949).}
 
 \item{data}{Optional named list of pre-loaded inputs: \code{cell_climate} (a
-\code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}} output) and \code{feed_intake} (a feed-intake
-table). \code{cell_climate} falls back to \code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}}, which
-reads CRU from \code{WHEP_CRU_DIR}. \code{feed_intake} has no fallback: the readers
-that produce it rebuild the whole feed allocation, so it is supplied or
-the diet method is \code{"uniform_medium"}.}
+\code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}} output), \code{feed_intake} (a feed-intake table)
+and \code{species_heads} (national head counts by live-animal item, with
+\code{year}, \code{area_code}, \code{item_cbs_code} and \code{value} or \code{heads}, optionally
+\code{polity_area_code} and \code{unit}; rows with a \code{unit} other than \code{"heads"}
+are ignored). \code{cell_climate} falls back to \code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}},
+which reads CRU from \code{WHEP_CRU_DIR}. \code{species_heads} falls back to
+\code{\link[=get_primary_production]{get_primary_production()}}, the source the spatializer's country table
+is built from, and is read only when an aggregate group is present.
+\code{feed_intake} has no fallback: the readers that produce it rebuild the
+whole feed allocation, so it is supplied or the diet method is
+\code{"uniform_medium"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -142,6 +172,11 @@ cell, so summing these over a country reproduces the national-grain run.
 national-grain total. \code{1} means the two grains agree.
 \item \code{mean_annual_temp_c}, \code{climate_zone}, \code{diet_quality}: The resolved
 per-cell drivers.
+\item \code{species_group}: The spatializer group, when the input carried one.
+\item \code{method_species}: How the row's \code{species} was resolved: \code{"supplied"},
+\code{"one_to_one"} (the group is a single species), \code{"national_head_share"},
+\code{"polity_bucket_head_share"} or \code{"unsplit_no_national_mix"} (emissions
+\code{NA}, see \code{method_species}).
 \item \code{method_climate_zone}, \code{method_diet}, \code{method_enteric},
 \code{method_manure_ch4}, \code{method_manure_n2o}: Method tracking.
 }

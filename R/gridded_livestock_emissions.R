@@ -51,8 +51,8 @@
 #'   `area_code`, `heads`, and either `species` (an IPCC species label such as
 #'   `"Cattle, dairy"`) or `species_group` (a spatializer group label). Groups
 #'   that name more than one IPCC species (`"sheep_goats"`, `"equines"`,
-#'   `"poultry"`, `"other"`) abort rather than being split on an assumption.
-#'   Polity columns and cell identifiers are preserved when present.
+#'   `"poultry"`, `"other"`) are split as `method_species` says. Polity
+#'   columns and cell identifiers are preserved when present.
 #' @param method_diet How each row's `diet_quality` is resolved, in decreasing
 #'   rigour:
 #'   - `"per_cell_feed"` (default): from the cell's own feed mix, falling back
@@ -66,6 +66,26 @@
 #'
 #'   Whatever is requested, the value actually used is recorded per row in
 #'   `method_diet`. A row that no requested method resolves aborts.
+#' @param method_species How a `species_group` that names more than one IPCC
+#'   species is split into its species:
+#'   - `"national_head_share"` (default): each cell's group head count is
+#'     divided among the group's members in the proportions the country itself
+#'     reports, from the national head counts by live-animal item
+#'     (`data$species_heads`). The members are read from the same
+#'     `livestock_mapping.csv` the spatializer summed them with, so the split
+#'     inverts that grouping at national level: a country's gridded species
+#'     mix equals its reported one, and the group's gridded head total is
+#'     conserved exactly. It assumes the species mix is the
+#'     same in every cell of a country, which is also what the spatializer
+#'     assumed, because it gave all members of a group one spatial proxy.
+#'     Countries are matched on `area_code`; a cell whose `area_code` the head
+#'     table does not carry is matched on `polity_area_code` instead (for
+#'     example Sudan and South Sudan, reported together as polity 206), and
+#'     `method_species` says which. A cell matched by neither is returned with
+#'     `NA` emissions and a warning, never split on an invented ratio.
+#'   - `"refuse"`: abort on any aggregate group, the behaviour before whep#1126.
+#'
+#'   The rung used is recorded per row in `method_species`.
 #' @param tier IPCC tier, `2` (default) or `1`. Tier 2 is the default here
 #'   because the per-cell drivers only enter the Tier 2 energy and
 #'   manure-management equations; Tier 1 emission factors carry no climate,
@@ -73,11 +93,17 @@
 #'   disaggregated national total only by rounding.
 #' @inheritParams manure_engine_options
 #' @param data Optional named list of pre-loaded inputs: `cell_climate` (a
-#'   [build_cell_climate_zone()] output) and `feed_intake` (a feed-intake
-#'   table). `cell_climate` falls back to [build_cell_climate_zone()], which
-#'   reads CRU from `WHEP_CRU_DIR`. `feed_intake` has no fallback: the readers
-#'   that produce it rebuild the whole feed allocation, so it is supplied or
-#'   the diet method is `"uniform_medium"`.
+#'   [build_cell_climate_zone()] output), `feed_intake` (a feed-intake table)
+#'   and `species_heads` (national head counts by live-animal item, with
+#'   `year`, `area_code`, `item_cbs_code` and `value` or `heads`, optionally
+#'   `polity_area_code` and `unit`; rows with a `unit` other than `"heads"`
+#'   are ignored). `cell_climate` falls back to [build_cell_climate_zone()],
+#'   which reads CRU from `WHEP_CRU_DIR`. `species_heads` falls back to
+#'   [get_primary_production()], the source the spatializer's country table
+#'   is built from, and is read only when an aggregate group is present.
+#'   `feed_intake` has no fallback: the readers that produce it rebuild the
+#'   whole feed allocation, so it is supplied or the diet method is
+#'   `"uniform_medium"`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -94,6 +120,11 @@
 #'   national-grain total. `1` means the two grains agree.
 #' - `mean_annual_temp_c`, `climate_zone`, `diet_quality`: The resolved
 #'   per-cell drivers.
+#' - `species_group`: The spatializer group, when the input carried one.
+#' - `method_species`: How the row's `species` was resolved: `"supplied"`,
+#'   `"one_to_one"` (the group is a single species), `"national_head_share"`,
+#'   `"polity_bucket_head_share"` or `"unsplit_no_national_mix"` (emissions
+#'   `NA`, see `method_species`).
 #' - `method_climate_zone`, `method_diet`, `method_enteric`,
 #'   `method_manure_ch4`, `method_manure_n2o`: Method tracking.
 #'
@@ -108,6 +139,7 @@
 build_gridded_livestock_emissions <- function(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
+  method_species = c("national_head_share", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -117,13 +149,16 @@ build_gridded_livestock_emissions <- function(
     return(.example_gridded_livestock_emissions())
   }
   method_diet <- rlang::arg_match(method_diet)
+  method_species <- rlang::arg_match(method_species)
   tier <- .check_ghg_tier(tier)
   # Validated here so an unknown option aborts before the climate join, not
   # minutes later inside the manure engine.
   .manure_options(options)
-  cells <- gridded_livestock |>
+  herd <- gridded_livestock |>
     .check_gridded_livestock() |>
-    .resolve_gridded_species() |>
+    .resolve_gridded_species(method_species, data$species_heads)
+  cells <- herd |>
+    dplyr::filter(!is.na(species)) |>
     .join_cell_climate(data$cell_climate) |>
     dplyr::mutate(sub_territory = .cell_id(lon, lat)) |>
     .resolve_diet_quality(method_diet, data$feed_intake)
@@ -143,6 +178,7 @@ build_gridded_livestock_emissions <- function(
     .emissions_at_grain(tier, c("year", "area_code", "species"), options)
 
   .attach_national_grain(gridded, national) |>
+    .bind_unsplit_rows(dplyr::filter(herd, is.na(species))) |>
     .add_reporting_polity_columns()
 }
 
@@ -246,14 +282,14 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
 }
 
 # Spatializer group -> IPCC species label and the live-animal commodity code the
-# feed-intake tables key their diets on.
+# feed-intake tables key their diets on, for the groups that are one species.
 #
-# The four groups left out are aggregates over species whose IPCC coefficients
-# differ, and splitting them needs a head split this function does not have:
-# "sheep_goats" (Ym 6.7 vs 5.5 and different weights), "equines" (horses vs
-# mules and asses), "poultry" (ducks, geese and turkeys share an EF but not one
-# commodity code) and "other". They abort rather than being assigned to
-# whichever member sorts first.
+# The groups left out ("sheep_goats", "equines", "poultry", "other") are
+# aggregates over species whose IPCC coefficients differ: sheep Ym 6.7 vs goats
+# 5.5 and different weights, horses vs mules and asses, ducks, geese and
+# turkeys on different commodity codes, and three unrelated small stock. They
+# are never assigned to whichever member sorts first; `.split_aggregate_groups()`
+# divides them by the country's own reported species mix (whep#1126).
 .gridded_species_map <- function() {
   tibble::tribble(
     ~species_group,       ~species,             ~item_cbs_code,
@@ -267,26 +303,208 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
   )
 }
 
-# Give every row an IPCC `species` and the `item_cbs_code` the diet is keyed on.
-# A caller-supplied `species` wins; a `species_group` is resolved through the
-# crosswalk above and aborts where the group is an aggregate.
-.resolve_gridded_species <- function(cells) {
+# Give every row an IPCC `species` and the `item_cbs_code` the diet is keyed on,
+# and say how in `method_species`. A caller-supplied `species` wins; a
+# single-species `species_group` is resolved through the crosswalk above; an
+# aggregate group is split, or refused under `method_species = "refuse"`. Rows
+# an aggregate split cannot resolve come back with `species` NA.
+.resolve_gridded_species <- function(
+  cells,
+  method_species = "national_head_share",
+  species_heads = NULL
+) {
   if (rlang::has_name(cells, "species")) {
-    return(.attach_species_item_code(cells))
+    return(
+      .attach_species_item_code(cells) |>
+        dplyr::mutate(method_species = "supplied")
+    )
   }
   lookup <- .gridded_species_map()
   unresolved <- setdiff(unique(cells$species_group), lookup$species_group)
-  if (length(unresolved) > 0L) {
+  if (length(unresolved) > 0L && method_species == "refuse") {
     cli::cli_abort(c(
       "{length(unresolved)} {.field species_group} value{?s} name{?s/} more
        than one IPCC species: {.val {unresolved}}.",
-      i = "Splitting {cli::qty(unresolved)}{?it/them} is a category decision
-           this function will not take.",
-      i = "Supply a {.field species} column with an IPCC species label
-           instead, or spatialize at species grain."
+      i = "{.code method_species = \"refuse\"} does not split
+           {cli::qty(unresolved)}{?it/them}.",
+      i = "Select {.val national_head_share}, supply a {.field species}
+           column with an IPCC species label, or spatialize at species grain."
     ))
   }
-  dplyr::left_join(cells, lookup, by = "species_group")
+  single <- cells |>
+    dplyr::filter(species_group %in% lookup$species_group) |>
+    dplyr::left_join(lookup, by = "species_group") |>
+    dplyr::mutate(method_species = "one_to_one")
+  aggregate <- dplyr::filter(cells, !species_group %in% lookup$species_group)
+  if (nrow(aggregate) == 0L) {
+    return(single)
+  }
+  dplyr::bind_rows(
+    single,
+    .split_aggregate_groups(
+      aggregate,
+      species_heads %||% .read_species_heads(sort(unique(cells$year)))
+    )
+  )
+}
+
+# The members of every group the spatializer sums, read from the same
+# `livestock_mapping.csv` its producer groups national stocks with, so the split
+# cannot disagree with the grouping it inverts. The species label is the
+# `animals_codes` name of the same commodity code, which is what the emission
+# calculators and the feed-intake tables key on.
+.livestock_group_members <- function() {
+  path <- system.file("extdata", "livestock_mapping.csv", package = "whep")
+  labels <- tibble::as_tibble(animals_codes) |>
+    dplyr::distinct(item_cbs_code, .keep_all = TRUE) |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(item_cbs_code),
+      species = item_cbs
+    )
+  readr::read_csv(path, show_col_types = FALSE) |>
+    dplyr::transmute(species_group, item_cbs_code = as.integer(item_code)) |>
+    dplyr::inner_join(labels, by = "item_cbs_code")
+}
+
+# National head counts by live-animal item, from the production table the
+# spatializer's country input is built from. Read only when a split is needed.
+.read_species_heads <- function(years) {
+  get_primary_production(years = years) |>
+    tibble::as_tibble()
+}
+
+# Each member's share of its group's national herd, per year and country key.
+# A member the country does not report contributes no row, and a group the
+# country reports no member of has no share at all: that is a missing input,
+# which the caller reports, never a zero-head split.
+.national_species_shares <- function(species_heads, members, key) {
+  heads <- .check_species_heads(species_heads, key)
+  heads |>
+    dplyr::transmute(
+      year = as.integer(year),
+      share_key = as.integer(.data[[key]]),
+      item_cbs_code = as.integer(item_cbs_code),
+      heads_item = .data[[.species_heads_value_col(heads)]]
+    ) |>
+    dplyr::inner_join(members, by = "item_cbs_code") |>
+    dplyr::filter(!is.na(heads_item), heads_item > 0) |>
+    dplyr::summarise(
+      heads_item = sum(heads_item),
+      .by = c(year, share_key, species_group, species, item_cbs_code)
+    ) |>
+    dplyr::mutate(
+      species_share = heads_item / sum(heads_item),
+      .by = c(year, share_key, species_group)
+    ) |>
+    dplyr::select(-heads_item)
+}
+
+# Columns a national head table must carry, and only its head rows.
+.check_species_heads <- function(species_heads, key) {
+  heads <- tibble::as_tibble(species_heads)
+  if (rlang::has_name(heads, "unit")) {
+    heads <- dplyr::filter(heads, unit == "heads")
+  }
+  missing <- setdiff(c("year", key, "item_cbs_code"), names(heads))
+  if (length(missing) > 0L || is.null(.species_heads_value_col(heads))) {
+    cli::cli_abort(c(
+      "{.code data$species_heads} cannot split an aggregate species group.",
+      i = "It needs {.field year}, {.field {key}}, {.field item_cbs_code} and
+           a {.field value} or {.field heads} column, as
+           {.fun get_primary_production} returns."
+    ))
+  }
+  heads
+}
+
+.species_heads_value_col <- function(heads) {
+  cols <- intersect(c("heads", "value"), names(heads))
+  if (length(cols) == 0L) NULL else cols[[1]]
+}
+
+# Divide each aggregate row's heads among the group's members by the national
+# share: first by the row's own `area_code`, then, for rows whose `area_code`
+# the head table does not carry, by the `polity_area_code` bucket both tables
+# are aggregated on. Rows neither resolves keep `species` NA.
+.split_aggregate_groups <- function(cells, species_heads) {
+  members <- .livestock_group_members()
+  by_area <- .national_species_shares(species_heads, members, "area_code")
+  split <- .split_by_share(cells, by_area, "area_code", "national_head_share")
+  rest <- dplyr::anti_join(
+    cells,
+    dplyr::rename(by_area, area_code = share_key),
+    by = c("year", "area_code", "species_group")
+  )
+  bucketed <- NULL
+  if (nrow(rest) > 0L && .has_polity_key(rest, species_heads)) {
+    by_polity <- .national_species_shares(
+      species_heads,
+      members,
+      "polity_area_code"
+    )
+    bucketed <- .split_by_share(
+      rest,
+      by_polity,
+      "polity_area_code",
+      "polity_bucket_head_share"
+    )
+    rest <- dplyr::anti_join(
+      rest,
+      dplyr::rename(by_polity, polity_area_code = share_key),
+      by = c("year", "polity_area_code", "species_group")
+    )
+  }
+  unsplit <- dplyr::mutate(
+    rest,
+    species = NA_character_,
+    item_cbs_code = NA_integer_,
+    method_species = "unsplit_no_national_mix"
+  )
+  dplyr::bind_rows(split, bucketed, unsplit)
+}
+
+.has_polity_key <- function(cells, species_heads) {
+  rlang::has_name(cells, "polity_area_code") &&
+    rlang::has_name(species_heads, "polity_area_code")
+}
+
+# One row per cell and member, carrying the member's share of the cell's heads.
+# Many-to-many by design: many cells per country, several members per group.
+.split_by_share <- function(cells, shares, key, label) {
+  cells |>
+    dplyr::inner_join(
+      dplyr::rename(shares, !!key := share_key),
+      by = c("year", key, "species_group"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(heads = heads * species_share, method_species = label) |>
+    dplyr::select(-species_share)
+}
+
+# Rows an aggregate split could not resolve reach the output with NA emissions
+# rather than being dropped or split on a guess, and the head count is named.
+.bind_unsplit_rows <- function(emissions, unsplit) {
+  if (nrow(unsplit) == 0L) {
+    return(emissions)
+  }
+  lost <- dplyr::summarise(
+    unsplit,
+    heads = sum(heads),
+    .by = c(year, species_group, area_code)
+  )
+  cli::cli_warn(c(
+    "!" = "{nrow(unsplit)} gridded row{?s} of an aggregate species group
+      could not be split: the national head table reports no member of the
+      group for {nrow(lost)} country, group and year combination{?s}.",
+    i = "Groups: {.val {unique(lost$species_group)}}; area codes:
+         {.val {unique(lost$area_code)}}; head count
+         {.val {round(sum(lost$heads))}}.",
+    i = "Their emissions are {.val NA}, never zero."
+  ))
+  dplyr::bind_rows(
+    emissions,
+    dplyr::select(unsplit, dplyr::any_of(names(emissions)))
+  )
 }
 
 # Key a species-labelled herd to the live-animal commodity code the feed-intake
@@ -362,6 +580,7 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
     intersect(
       c(
         "species_group",
+        "method_species",
         "item_cbs_code",
         "polity_area_code",
         "reporting_polity_code",
