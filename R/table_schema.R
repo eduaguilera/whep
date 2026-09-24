@@ -892,3 +892,33 @@ empty_table_from_schema <- function(schema) {
     call = rlang::caller_env()
   )
 }
+
+# Schema for a pipeline seam (whep#181): the columns a consumer reads, of any
+# type, plus the key columns among them that must carry no NA. A key column's
+# type is read off `data` itself, because a seam judges presence and
+# completeness, not whether an upstream builder chose integer or double codes;
+# only the NA rule needs a declared type. A NA key matters where the consumer
+# discards it: `.get_io_dims()` builds its axes with `sort(unique())`, which
+# drops NA, and `.tidy_to_matrix()` then filters the unmatched rows out, so a
+# NA-coded row leaves the model without a message.
+.seam_schema <- function(data, required, complete = character()) {
+  columns <- purrr::map(required, function(name) {
+    type <- if (name %in% complete) .schema_type_of(data[[name]]) else "any"
+    spec <- list(name = name, type = type)
+    if (type != "any") {
+      spec$allow_missing <- FALSE
+    }
+    spec
+  })
+  list(columns = columns)
+}
+
+.schema_type_of <- function(x) {
+  if (inherits(x, "Date")) {
+    return("Date")
+  }
+  if (is.null(x) || is.factor(x) || !typeof(x) %in% .schema_value_types) {
+    return("any")
+  }
+  typeof(x)
+}
