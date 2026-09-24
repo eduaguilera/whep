@@ -180,7 +180,7 @@ test_that("a data.table production table comes back as a tibble", {
 # ---- whep#1034: a moved head unit --------------------------------------------
 
 test_that("a moved head unit cannot ship as no livestock", {
-  # Same herd, the unit spelled the way FAOSTAT's Stocks element spells it.
+  # Same herd, the unit spelled in another vocabulary ("Head").
   # Unguarded, no row passes the head filter and every emission engine
   # downstream receives no animals: the herd sums to exactly zero heads.
   relabelled <- tibble::tribble(
