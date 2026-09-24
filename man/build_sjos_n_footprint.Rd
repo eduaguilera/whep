@@ -33,7 +33,16 @@ ignored when \code{io} is supplied.}
 pre-traced tidy footprint flows (as from \code{\link[=build_footprint]{build_footprint()}}) directly,
 bypassing the model build, for testing the split logic in isolation.
 \code{data$origin_classes} may supply producer classifications keyed by \code{year},
-\code{area_code}, \code{item_cbs_code} (for example \code{\link[=classify_sjos_n]{classify_sjos_n()}} output).}
+\code{area_code}, \code{item_cbs_code} (for example \code{\link[=classify_sjos_n]{classify_sjos_n()}} output).
+\code{data$target_classes} may supply consumer classifications, one row per
+country-year keyed by \code{year} and \code{area_code}, carrying \code{nourish} (for
+example \code{\link[=normalize_nourishment]{normalize_nourishment()}} output) and optionally a country-year
+\code{boundary_side} and \code{sjos_class}. They join on \code{target_area} and \code{year} as
+\code{target_nourish}, \code{target_boundary_side} and \code{target_sjos_class}. This
+function classifies nothing: a country-year boundary class is the caller's
+to classify after aggregation, and a table with more than one class per
+country-year (a crop-level \code{\link[=classify_sjos_n]{classify_sjos_n()}} output, for instance)
+aborts rather than duplicating flows.}
 
 \item{example}{If \code{TRUE}, return a small hardcoded fixture instead of running
 the pipeline. Defaults to \code{FALSE}.}
@@ -45,8 +54,17 @@ A named list with two tibbles:
 \code{origin_item}, consumer \code{target_area} / \code{target_item}, \code{target_fd},
 \code{origin} (\code{"Domestic consumption"} or \code{"Traded"}), \code{item_cbs_code}
 (an alias of \code{target_item}) and \code{impact_u} (tonnes N), stamped with the
-traced \code{category} and optional producer classes.
+traced \code{category}, optional producer classes and, when
+\code{data$target_classes} is supplied, the \verb{target_*} consumer classes.
 \item \code{fp_food}: \code{fp_all} restricted to food consumption (\code{target_fd == "food"}).
+\item \code{target_class_diag}: only when \code{data$target_classes} is supplied. One row
+per output table (\code{table}, \code{"fp_all"} or \code{"fp_food"}) and \code{year}: the
+flow and consumer-area counts, \code{impact_u} (tonnes N), and how many flows,
+consumer areas and tonnes N went to a country-year with no \code{nourish}
+class (\code{n_flows_unclassified}, \code{n_target_areas_unclassified},
+\code{impact_u_unclassified}). Those flows keep \code{NA} in \code{target_nourish} and
+stay in the tables; a warning of class
+\code{whep_sjos_fp_unclassified_target} names the consumer areas.
 }
 }
 \description{

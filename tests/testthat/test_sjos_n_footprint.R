@@ -244,3 +244,211 @@ testthat::test_that("producer classes are retained on footprint flows", {
   testthat::expect_equal(traded$nourish, "Adequate")
   testthat::expect_equal(traded$boundary_side, "Exceedance")
 })
+
+# Consumer-side country-year classes for the two fixture areas. Area 2 is the
+# importer of the one traded flow (area 1's item 10).
+.sjos_fp_target_classes <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate",
+    2000L, 2L, "Under"
+  )
+}
+
+.sjos_fp_run_target <- function(target_classes, origin_classes = NULL) {
+  suppressMessages(
+    whep::build_sjos_n_footprint(
+      .sjos_fp_exceedance(),
+      io = .sjos_fp_io(),
+      data = purrr::compact(list(
+        origin_classes = origin_classes,
+        target_classes = target_classes
+      ))
+    )
+  )
+}
+
+testthat::test_that("consumer nourishment classes join on target_area and year", {
+  out <- .sjos_fp_run_target(.sjos_fp_target_classes())
+  testthat::expect_named(out, c("fp_all", "fp_food", "target_class_diag"))
+  traded <- dplyr::filter(out$fp_all, .data$origin == "Traded")
+  testthat::expect_equal(traded$origin_area, 1L)
+  testthat::expect_equal(traded$target_area, 2L)
+  testthat::expect_equal(traded$target_nourish, "Under")
+  expected <- c(`1` = "Adequate", `2` = "Under")
+  testthat::expect_equal(
+    out$fp_all$target_nourish,
+    unname(expected[as.character(out$fp_all$target_area)])
+  )
+  testthat::expect_false(anyNA(out$fp_all$target_nourish))
+  testthat::expect_equal(sum(out$target_class_diag$n_flows_unclassified), 0L)
+})
+
+testthat::test_that("the consumer cross-tab sums to the footprint total", {
+  base <- .sjos_fp_run()
+  out <- .sjos_fp_run_target(.sjos_fp_target_classes())
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_equal(nrow(out[[tbl]]), nrow(base[[tbl]]))
+    testthat::expect_equal(sum(out[[tbl]]$impact_u), sum(base[[tbl]]$impact_u))
+    for (key in c("origin_area", "target_area", "origin")) {
+      crosstab <- out[[tbl]] |>
+        dplyr::summarise(
+          impact_u = sum(.data$impact_u),
+          .by = dplyr::all_of(c(key, "target_nourish"))
+        ) |>
+        dplyr::summarise(
+          impact_u = sum(.data$impact_u),
+          .by = dplyr::all_of(key)
+        )
+      total <- base[[tbl]] |>
+        dplyr::summarise(
+          impact_u = sum(.data$impact_u),
+          .by = dplyr::all_of(key)
+        )
+      testthat::expect_equal(
+        dplyr::arrange(crosstab, .data[[key]]),
+        dplyr::arrange(total, .data[[key]])
+      )
+    }
+  }
+  # Area 2 consumes 40 t traded from area 1 plus 55 t of its own.
+  by_band <- out$fp_all |>
+    dplyr::summarise(impact_u = sum(.data$impact_u), .by = "target_nourish")
+  testthat::expect_equal(
+    by_band$impact_u[by_band$target_nourish == "Under"],
+    95
+  )
+  testthat::expect_equal(
+    by_band$impact_u[by_band$target_nourish == "Adequate"],
+    80
+  )
+})
+
+testthat::test_that("producer-side output is unchanged without target_classes", {
+  origin <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~nourish, ~boundary_side,
+    2000L, 1L, 10L, "Adequate", "Exceedance",
+    2000L, 1L, 20L, "Adequate", "Exceedance",
+    2000L, 2L, 10L, "Under", "Within_boundary",
+    2000L, 2L, 20L, "Under", "Exceedance"
+  )
+  without <- .sjos_fp_run_target(NULL, origin_classes = origin)
+  with <- .sjos_fp_run_target(
+    .sjos_fp_target_classes(),
+    origin_classes = origin
+  )
+  testthat::expect_named(without, c("fp_all", "fp_food"))
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_false(any(startsWith(names(without[[tbl]]), "target_n")))
+    testthat::expect_identical(
+      dplyr::select(with[[tbl]], -"target_nourish"),
+      without[[tbl]]
+    )
+  }
+  # The pre-change golden: the example fixture is the no-classes output.
+  plain <- .sjos_fp_run()
+  golden <- whep::build_sjos_n_footprint(example = TRUE)
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_equal(
+      dplyr::arrange(
+        plain[[tbl]],
+        .data$origin_area,
+        .data$origin_item,
+        .data$target_area,
+        .data$target_fd
+      ),
+      dplyr::arrange(
+        golden[[tbl]],
+        .data$origin_area,
+        .data$origin_item,
+        .data$target_area,
+        .data$target_fd
+      ) |>
+        dplyr::select(dplyr::all_of(names(plain[[tbl]])))
+    )
+  }
+})
+
+testthat::test_that("unclassified consumer country-years stay NA and are reported", {
+  partial <- tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate"
+  )
+  testthat::expect_warning(
+    out <- .sjos_fp_run_target(partial),
+    class = "whep_sjos_fp_unclassified_target"
+  )
+  base <- .sjos_fp_run()
+  testthat::expect_equal(nrow(out$fp_all), nrow(base$fp_all))
+  testthat::expect_equal(sum(out$fp_all$impact_u), 175)
+  to_area_2 <- dplyr::filter(out$fp_all, .data$target_area == 2L)
+  testthat::expect_true(all(is.na(to_area_2$target_nourish)))
+  diag <- out$target_class_diag
+  testthat::expect_setequal(diag$table, c("fp_all", "fp_food"))
+  all_row <- dplyr::filter(diag, .data$table == "fp_all")
+  # Flows into area 2: 40 t traded from area 1, 40 + 15 t domestic.
+  testthat::expect_equal(all_row$n_flows, 5L)
+  testthat::expect_equal(all_row$n_flows_unclassified, 3L)
+  testthat::expect_equal(all_row$n_target_areas, 2L)
+  testthat::expect_equal(all_row$n_target_areas_unclassified, 1L)
+  testthat::expect_equal(all_row$impact_u, 175)
+  testthat::expect_equal(all_row$impact_u_unclassified, 95)
+  food_row <- dplyr::filter(diag, .data$table == "fp_food")
+  testthat::expect_equal(food_row$impact_u, 155)
+  testthat::expect_equal(food_row$impact_u_unclassified, 95)
+
+  # A country-year present with an NA class counts the same as an absent one.
+  na_class <- dplyr::bind_rows(
+    partial,
+    tibble::tibble(year = 2000L, area_code = 2L, nourish = NA_character_)
+  )
+  testthat::expect_warning(
+    out_na <- .sjos_fp_run_target(na_class),
+    class = "whep_sjos_fp_unclassified_target"
+  )
+  testthat::expect_equal(out_na$target_class_diag, diag)
+})
+
+testthat::test_that("a country-year joint class is carried when supplied", {
+  joint <- .sjos_fp_target_classes() |>
+    dplyr::mutate(
+      boundary_side = c("Exceedance", "Within_boundary"),
+      sjos_class = factor(
+        paste(.data$boundary_side, .data$nourish),
+        levels = whep::sjos_levels$level
+      )
+    )
+  out <- .sjos_fp_run_target(joint)
+  traded <- dplyr::filter(out$fp_all, .data$origin == "Traded")
+  testthat::expect_equal(traded$target_boundary_side, "Within_boundary")
+  testthat::expect_equal(
+    as.character(traded$target_sjos_class),
+    "Within_boundary Under"
+  )
+  testthat::expect_s3_class(out$fp_all$target_sjos_class, "factor")
+})
+
+testthat::test_that("a crop-level consumer table is refused, not duplicated", {
+  crop_level <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~nourish, ~boundary_side,
+    2000L, 1L, 10L, "Adequate", "Exceedance",
+    2000L, 1L, 20L, "Adequate", "Within_boundary",
+    2000L, 2L, 10L, "Under", "Within_boundary"
+  )
+  testthat::expect_error(
+    .sjos_fp_run_target(crop_level),
+    "one class per country-year"
+  )
+  # The same table reduced to nourish is one class per country-year and joins.
+  out <- .sjos_fp_run_target(
+    dplyr::select(crop_level, "year", "area_code", "nourish")
+  )
+  testthat::expect_false(anyNA(out$fp_all$target_nourish))
+})
+
+testthat::test_that("target_classes without nourish aborts", {
+  testthat::expect_error(
+    .sjos_fp_run_target(dplyr::select(.sjos_fp_target_classes(), -"nourish")),
+    "nourish"
+  )
+})
