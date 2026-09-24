@@ -137,6 +137,35 @@ testthat::test_that("fodder_pattern refuses to run without the layer", {
   )
 })
 
+testthat::test_that("an empty or all-zero fodder layer is refused", {
+  # The identity -- gridded carbon equals component carbon -- holds on an
+  # all-zero layer, because the fodder crops then fall back to the uniform
+  # rule; the guard has to fire anyway, or the rows would say
+  # "fodder_pattern" while no carbon went on the layer.
+  zeroed <- .fod_data()
+  zeroed$fodder_patterns$crop_area_ha <- 0
+  vacuous <- .fod_data()
+  vacuous$fodder_patterns <- NULL
+  kept <- suppressWarnings(whep::build_soil_carbon_inputs(
+    resolution = "grid",
+    data = vacuous,
+    method_unspatialized = "reallocate"
+  ))
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      sum(kept$total_c_input_mgc_ha_yr * kept$crop_area_ha),
+      .fod_mass(vacuous)
+    )),
+    guard = .fod_run("fodder_pattern", zeroed)
+  )
+  empty <- .fod_data()
+  empty$fodder_patterns <- empty$fodder_patterns[0, ]
+  testthat::expect_error(
+    .fod_run("fodder_pattern", empty),
+    class = "whep_absent_input"
+  )
+})
+
 testthat::test_that("the other methods never read the fodder layer", {
   withr::local_envvar(WHEP_MONFREDA_DIR = "")
   data <- .fod_data()
