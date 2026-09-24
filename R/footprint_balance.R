@@ -201,6 +201,14 @@ melt_bilateral_trade <- function(bilateral_trade) {
 #' balance cannot route, so it is reported by the orphan-land warning rather
 #' than folded into a crop (whep#1026).
 #'
+#' Its temporary-grassland netting basis is pinned explicitly too, to
+#' `temp_grassland_basis = "modelled"`: modelled CBS 3002 covers 26 EU polities
+#' over 2001-2019 only, so for any other country, and for every country from
+#' 2020, nothing is netted and the arable land keeps FAO's temporary meadows
+#' (whep#937). The balance output does not carry that provenance per row; read
+#' `temp_grassland_source` in [build_fao_arable_fallow_extension()]'s output,
+#' or [check_arable_composition()], to see which country-years were netted.
+#'
 #' Grass items (`item_cbs_code` 3000 and 3002) are barely traded, so
 #' their land stays with the producing country: the balance, unlike
 #' the input-output model, does not route grass through the
@@ -372,8 +380,12 @@ build_land_balance_footprint <- function(
   # NA-item rows it emits carry that land; the balance cannot route an item it
   # has no production or trade for, so they are dropped with a warning by
   # .warn_orphan_land() rather than folded into a crop.
+  # The netting basis is pinned for the same reason: modelled CBS 3002 exists
+  # for 26 EU polities over 2001-2019 only, and choosing another basis is an
+  # open decision that must not arrive through a default change (whep#937).
   crop <- build_fao_arable_fallow_extension(
     temporary_grassland = grass_full,
+    temp_grassland_basis = "modelled",
     unsupported_target = "unallocated"
   ) |>
     dplyr::filter(year == .env$year) |>

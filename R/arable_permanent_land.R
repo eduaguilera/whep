@@ -581,6 +581,17 @@ get_arable_permanent_land <- function(
 #' published number until a basis is chosen deliberately.
 #' `temp_grassland_netted_ha` in the output, and
 #' [check_arable_composition()], make the switch-off visible either way.
+#' `temp_grassland_source` says, per country-year, which source supplied the
+#' netted term: `"modelled_cbs_3002"`, `"fao_6633_official"` or
+#' `"fao_6633_all"`, or `"absent"` where the chosen basis has no value there,
+#' so a country-year with no measurement never reads as one with no temporary
+#' meadows. On the real 2001-2023 inputs under `"modelled"`, 494 of the
+#' 4,549 country-years in the output are `"modelled_cbs_3002"` (26 polities,
+#' 2001-2019) and the other 4,055 are `"absent"`, including all 787 from 2020.
+#' Under the `"fao_*"` bases the column also separates a reported value that
+#' nets 0 ha from a missing report: 103 country-years under `"fao_official"`
+#' and 993 under `"fao_all"` have a value yet net nothing, and before this
+#' column they read exactly like the country-years with no value at all.
 #'
 #' FAO's own item 6633 "Temporary meadows and pastures" measures the same
 #' concept, runs 2001-2023, and is what the `"fao_*"` bases read. It is not a
@@ -696,8 +707,11 @@ get_arable_permanent_land <- function(
 #'   `impact_u` (fallow-inclusive physical land in hectares), `method_land`
 #'   (`"fao_arable_fallow"`), `temp_grassland_netted_ha` (hectares netted out of
 #'   that country-year's arable target, `0` where the netting term is
-#'   structurally absent), `method_temp_grassland` (the `temp_grassland_basis`
-#'   in force), `method_fodder` (the `fodder_gap` in force) and
+#'   structurally absent), `temp_grassland_source` (the source that supplied
+#'   that netted term: `"modelled_cbs_3002"`, `"fao_6633_official"`,
+#'   `"fao_6633_all"`, `"absent"` where the basis has no value for that
+#'   country-year, or `"not_netted"` under `"none"`),
+#'   `method_temp_grassland` (the `temp_grassland_basis` in force), `method_fodder` (the `fodder_gap` in force) and
 #'   `method_unsupported_target` (the `unsupported_target` in force). Under
 #'   `unsupported_target = "unallocated"` a row with `item_cbs_code` `NA` carries
 #'   the FAO land no crop can be named for.
@@ -836,13 +850,17 @@ build_fao_arable_fallow_extension <- function(
   )]
   out <- merge(
     out,
-    ap[, .(area_code, year, temp_grassland_netted_ha)],
+    ap[, .(area_code, year, temp_grassland_netted_ha, temp_grassland_source)],
     by = c("area_code", "year"),
     all.x = TRUE
   )
   out[
     is.na(temp_grassland_netted_ha),
     temp_grassland_netted_ha := 0
+  ]
+  out[
+    is.na(temp_grassland_source),
+    temp_grassland_source := .temp_grassland_unsourced(temp_grassland_basis)
   ]
   out <- out[impact_u > 0]
   data.table::setorder(out, year, area_code, item_cbs_code)
@@ -993,9 +1011,12 @@ check_fodder_land_share <- function(
 #'
 #' @param extension Tibble of the arable/permanent land extension as returned
 #'   by [build_fao_arable_fallow_extension()]: `year`, `area_code`,
-#'   `item_cbs_code`, `impact_u`, and optionally `temp_grassland_netted_ha`.
-#'   The `temp_grassland_netting` term is reported only when that column is
-#'   present.
+#'   `item_cbs_code`, `impact_u`, and optionally `temp_grassland_source` or
+#'   `temp_grassland_netted_ha`. The `temp_grassland_netting` term is reported
+#'   only when one of them is present. With `temp_grassland_source` a
+#'   country-year counts as covered whenever a source supplied the term, zero
+#'   included; with `temp_grassland_netted_ha` alone, only when it is
+#'   positive.
 #' @param items_prod_full Crosswalk used to classify `item_cbs_code` as
 #'   perennial via `Herb_Woody`. Defaults to [items_prod_full].
 #'
@@ -1004,8 +1025,8 @@ check_fodder_land_share <- function(
 #'   - `area_code`: the country.
 #'   - `panel_first_year`, `panel_last_year`: the years that country has arable
 #'     rows for.
-#'   - `term_first_year`, `term_last_year`: the years the term is positive
-#'     (`NA` when it never is).
+#'   - `term_first_year`, `term_last_year`: the years the term is present,
+#'     as defined under `extension` (`NA` when it never is).
 #'   - `n_years_absent`: panel years in which the term is absent.
 #'   - `break_year`: the first panel year after `term_last_year` with no term
 #'     (`NA` when the term runs to the end of the panel, or never appears).
@@ -1056,7 +1077,17 @@ check_arable_composition <- function(
       dplyr::filter(.data$item_cbs_code %in% .item_cbs_fodder()) |>
       dplyr::summarise(term_ha = sum(.data$impact_u), .by = c(year, area_code))
   )
-  if (rlang::has_name(arable, "temp_grassland_netted_ha")) {
+  if (rlang::has_name(arable, "temp_grassland_source")) {
+    # The source, not the hectares, says whether the term exists: a measured
+    # zero is covered, a country-year the basis has no value for is not.
+    terms$temp_grassland_netting <- arable |>
+      dplyr::summarise(
+        term_ha = as.numeric(any(
+          !.data$temp_grassland_source %in% c("absent", "not_netted")
+        )),
+        .by = c(year, area_code)
+      )
+  } else if (rlang::has_name(arable, "temp_grassland_netted_ha")) {
     terms$temp_grassland_netting <- arable |>
       dplyr::summarise(
         term_ha = max(.data$temp_grassland_netted_ha),
@@ -1233,8 +1264,10 @@ check_arable_composition <- function(
 # target so ordinary arable crops reconcile to the arable land they alone
 # occupy. Modelled CBS 3002 can exceed FAO arable land for a few country-years
 # (survey vs. fodder-reconstruction mismatch); those are clamped at 0 and warned.
-# `temp_grassland_netted_ha` is always added, zero included, so a country-year
-# where the netting term is structurally absent says so in the output (whep#937).
+# `temp_grassland_netted_ha` is always added, zero included, and
+# `temp_grassland_source` names the source that supplied the term, or
+# `"absent"` where the basis has no value for that country-year, so a missing
+# term cannot read as a country with no temporary meadows (whep#937).
 .net_temporary_grassland <- function(ap, temporary_grassland, basis) {
   temp <- .temporary_grassland_ha(
     temporary_grassland,
@@ -1242,10 +1275,14 @@ check_arable_composition <- function(
     years = sort(unique(ap$year))
   )
   if (nrow(temp) == 0L) {
-    ap[, temp_grassland_netted_ha := 0]
+    ap[, `:=`(
+      temp_grassland_netted_ha = 0,
+      temp_grassland_source = .temp_grassland_unsourced(basis)
+    )]
     return(ap[])
   }
   ap <- merge(ap, temp, by = c("area_code", "year"), all.x = TRUE)
+  ap[is.na(temp_grassland_source), temp_grassland_source := "absent"]
   ap[is.na(temp_grassland_ha), temp_grassland_ha := 0]
   ap[, temp_grassland_netted_ha := pmin(temp_grassland_ha, arable_ha)]
   overshoot <- ap[temp_grassland_ha > arable_ha]
@@ -1264,6 +1301,17 @@ check_arable_composition <- function(
   ap[]
 }
 
+# `temp_grassland_source` of a country-year the basis supplies no value for:
+# `"not_netted"` when the basis nets nothing by design, `"absent"` otherwise.
+.temp_grassland_unsourced <- function(basis) {
+  if (identical(basis, "none")) "not_netted" else "absent"
+}
+
+# Tag a temporary-grassland table with the source that supplied its rows.
+.tag_temp_grassland <- function(dt, source) {
+  dt[, temp_grassland_source := rep(source, .N)][]
+}
+
 # Temporary grassland hectares per (area_code, year) under one netting basis.
 # `"none"` nets nothing; the two `"fao_*"` bases read FAOSTAT RL item 6633
 # instead of the modelled series; `"modelled_then_fao"` keeps the modelled value
@@ -1278,16 +1326,21 @@ check_arable_composition <- function(
     return(data.table::data.table(
       area_code = integer(0),
       year = integer(0),
-      temp_grassland_ha = numeric(0)
+      temp_grassland_ha = numeric(0),
+      temp_grassland_source = character(0)
     ))
   }
   if (basis %in% c("fao_official", "fao_all")) {
-    return(.fao_temp_meadows_ha(
-      official_only = identical(basis, "fao_official"),
-      years = years
+    official <- identical(basis, "fao_official")
+    return(.tag_temp_grassland(
+      .fao_temp_meadows_ha(official_only = official, years = years),
+      if (official) "fao_6633_official" else "fao_6633_all"
     ))
   }
-  modelled <- .modelled_temp_grassland_ha(temporary_grassland)
+  modelled <- .tag_temp_grassland(
+    .modelled_temp_grassland_ha(temporary_grassland),
+    "modelled_cbs_3002"
+  )
   if (identical(basis, "modelled")) {
     return(modelled)
   }
@@ -1296,7 +1349,10 @@ check_arable_composition <- function(
   # (flag "A") 6633 rows fill the gap -- ~81% of item 6633 is FAO-imputed and
   # Greece and Poland are imputed zeros throughout, so filling from every flag
   # would net FAO's gap-filling (see whep#354 and validation/temp_grassland_6633.R).
-  fao <- .fao_temp_meadows_ha(official_only = TRUE, years = years)
+  fao <- .tag_temp_grassland(
+    .fao_temp_meadows_ha(official_only = TRUE, years = years),
+    "fao_6633_official"
+  )
   data.table::rbindlist(list(
     modelled,
     fao[!modelled, on = c("area_code", "year")]
