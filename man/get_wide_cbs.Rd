@@ -75,6 +75,10 @@ is destined for processing. Zero for every other item.
 
 There is an additional column \code{domestic_supply} which is
 computed as total use excluding \code{export}.
+
+The live-animal rows also carry \code{method_cull}, saying where the slaughter
+of culled dairy cattle and laying hens was booked (see the argument of that
+name in \code{get_livestock_cbs()}); it is \code{NA} on the tonnes rows.
 }
 \description{
 Retrieve supply and use parts for each commodity balance sheet

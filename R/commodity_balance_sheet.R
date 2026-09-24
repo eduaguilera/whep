@@ -62,6 +62,10 @@
 #' There is an additional column `domestic_supply` which is
 #' computed as total use excluding `export`.
 #'
+#' The live-animal rows also carry `method_cull`, saying where the slaughter
+#' of culled dairy cattle and laying hens was booked (see the argument of that
+#' name in `get_livestock_cbs()`); it is `NA` on the tonnes rows.
+#'
 #' @export
 #'
 #' @examples
