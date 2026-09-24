@@ -25,23 +25,26 @@
 #   the order raised: `class` (`"warning"` or `"message"`) and `message` (its
 #   text, trimmed of the trailing newline `message()` conditions carry).
 .nbd_capture_conditions <- function(expr) {
-  conditions <- list()
-  record <- function(class) {
-    function(cnd) {
-      conditions[[length(conditions) + 1L]] <<- tibble::tibble(
-        class = class,
-        message = trimws(conditionMessage(cnd))
-      )
-      restart <- if (class == "warning") "muffleWarning" else "muffleMessage"
-      invokeRestart(restart)
-    }
-  }
+  log <- new.env(parent = emptyenv())
+  log$conditions <- list()
   value <- withCallingHandlers(
     tryCatch(force(expr), error = function(e) e),
-    warning = record("warning"),
-    message = record("message")
+    warning = function(cnd) .nbd_log_condition(log, cnd, "warning"),
+    message = function(cnd) .nbd_log_condition(log, cnd, "message")
   )
-  list(value = value, conditions = .nbd_bind_conditions(conditions))
+  list(value = value, conditions = .nbd_bind_conditions(log$conditions))
+}
+
+# Append one condition to `log$conditions` and muffle it, so it is recorded
+# rather than printed. `log` is an environment, so the append is visible to
+# .nbd_capture_conditions() without a superassignment.
+.nbd_log_condition <- function(log, cnd, class) {
+  log$conditions[[length(log$conditions) + 1L]] <- tibble::tibble(
+    class = class,
+    message = trimws(conditionMessage(cnd))
+  )
+  restart <- if (class == "warning") "muffleWarning" else "muffleMessage"
+  invokeRestart(restart)
 }
 
 # dplyr::bind_rows(list()) already returns a zero-row tibble, but with no
