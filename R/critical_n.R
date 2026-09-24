@@ -146,25 +146,43 @@ read_critical_n <- function(
 #' quantity: it records which thresholds the 2010 surplus exceeds.
 #'
 #' `binding_threshold` is `"deposition"`, `"groundwater"`,
-#' `"surface_water"`, a two-way tie, or `"yield_potential_cap"`. A two-way tie
-#' is recorded explicitly by joining both tied thresholds with `+` in that
-#' fixed order, for example `"groundwater+surface_water"`. Ties are exact
-#' equalities of the deposited values: on the real archive no surface lies
-#' within 1e-6 kg N/ha of the cell minimum without equalling it, so a
-#' tolerance would change nothing. A cell missing from any of the three
-#' surfaces gets `NA`.
+#' `"surface_water"`, a two-way tie, `"yield_potential_cap"` or
+#' `"non_agricultural_floor"`. A two-way tie is recorded explicitly by joining
+#' both tied thresholds with `+` in that fixed order, for example
+#' `"groundwater+surface_water"`. Ties are exact equalities of the deposited
+#' values: on the real archive no surface lies within 1e-6 kg N/ha of the cell
+#' minimum without equalling it, so a tolerance would change nothing. A cell
+#' missing from any of the three surfaces gets `NA`.
 #'
-#' A cell where all three critical surpluses are equal is labelled
-#' `"yield_potential_cap"`: no environmental threshold binds there. The source
-#' Methods (Step 4) state that "for areas with no threshold exceedance" the
-#' critical inputs and surplus are cut off "at a maximum value, set to the
-#' input level required to obtain crop yield potentials",
-#' `Nin(crit,max) = Nup(Yp) / NUE(act)`, where `Nup(Yp)` is crop nitrogen
-#' uptake at potential yield and `NUE(act)` the actual nitrogen use efficiency,
-#' capped at 0.8. That cap does not depend on the threshold, so it gives the
-#' same value on all three surfaces. On the real archive the three critical
-#' inputs are identical as well in every such cell (9,431 of 28,881 cells for
-#' `"all"`, 9,188 of 28,573 for `"ara"`, 1,727 of 11,740 for `"igl"`).
+#' A cell where all three critical surpluses are equal has no environmental
+#' threshold that binds on its own. Schulte-Uebbing et al. (2022, Nature 610,
+#' Methods) set such a threshold-independent value by one of two rules, and
+#' the label names which one:
+#'
+#' * `"non_agricultural_floor"`: all three thresholds are exceeded (each
+#'   threshold-specific exceedance of the critical surplus is positive) or the
+#'   tied critical surplus is negative. The source's "Aggregation to regional
+#'   and planetary boundaries" section states: "Where N losses from
+#'   non-agricultural sources alone exceeded thresholds, critical N inputs
+#'   from fertilizer and manure were set to zero." The critical input is then
+#'   the fixation and deposition left over, the same for every threshold.
+#' * `"yield_potential_cap"`: every other tie. Step 4 of the source's Methods
+#'   reads: "for areas with no threshold exceedance, cut off critical inputs
+#'   and surplus at a maximum value, set to the input level required to obtain
+#'   crop yield potentials", with `Nin(crit,max) = Nup(Yp) / NUE(act)`, where
+#'   `Nup(Yp)` is crop nitrogen uptake at potential yield and `NUE(act)` the
+#'   current nitrogen use efficiency, "capped ... at 0.8".
+#'
+#' A tie whose critical surplus is not negative and whose exceedance is
+#' missing on any threshold cannot be assigned to either rule and gets `NA`.
+#' On the real archive the three critical inputs are identical in every tied
+#' cell. The two labels count 293 floor and 8,895 cap cells of 28,573 for
+#' `"ara"`, 293 and 9,138 of 28,881 for `"all"`, and 0 and 1,727 of 11,740
+#' for `"igl"`. The split matches the archive's threshold-exceedance map
+#' exactly: every floor cell carries code 8 and every cap cell code 1. The 293
+#' floor cells include 3 with a negative critical surplus (minimum -21.78
+#' kg N/ha), and their median critical input is 38.7 kg N/ha against 90.7 for
+#' the `"all"` cap cells.
 #'
 #' When the deposited minimum-of-all-media surface (`"mi"`) is supplied,
 #' `binding_matches_mi` reports whether it equals the lowest of the three
@@ -181,7 +199,11 @@ read_critical_n <- function(
 #'   layers (`var = "critical_n_surplus"`) with elements `de`, `gw` and `sw`,
 #'   and optionally `mi`, each stamped with its own threshold and with
 #'   `land_use`. When `NULL` (default) the four layers are read from the
-#'   archive with [read_critical_n()].
+#'   archive with [read_critical_n()], together with `exceedance`.
+#' @param exceedance Named list of [read_critical_n()] exceedance layers
+#'   (`var = "exceedance"`) with elements `de`, `gw` and `sw`, used only to
+#'   tell the two kinds of three-way tie apart. Required when `critical` is
+#'   supplied; read from the archive when both are `NULL` (default).
 #' @param land_use Land-use scope: `"all"`, `"ara"` or `"igl"`, as in
 #'   [read_critical_n()]. Supplied layers must carry this scope.
 #' @param dir Optional archive directory passed to [read_critical_n()] when
@@ -191,14 +213,17 @@ read_critical_n <- function(
 #' @return A tibble with one row per cell: `cell_id`, `lon`, `lat`,
 #'   `critical_land_use`, the three threshold-specific critical surpluses
 #'   `critical_de_kgn_ha`, `critical_gw_kgn_ha`, `critical_sw_kgn_ha` (kg N per
-#'   hectare per year), their minimum `binding_critical_kgn_ha`, the
-#'   `binding_threshold` label, the deposited `critical_mi_kgn_ha` and the
-#'   logical `binding_matches_mi` (both `NA` when `mi` is not supplied).
+#'   hectare per year), their exceedances `exceedance_de_kgn_ha`,
+#'   `exceedance_gw_kgn_ha`, `exceedance_sw_kgn_ha`, the minimum critical
+#'   surplus `binding_critical_kgn_ha`, the `binding_threshold` label, the
+#'   deposited `critical_mi_kgn_ha` and the logical `binding_matches_mi` (both
+#'   `NA` when `mi` is not supplied).
 #' @export
 #' @examples
 #' build_critical_n_binding(example = TRUE)
 build_critical_n_binding <- function(
   critical = NULL,
+  exceedance = NULL,
   land_use = c("all", "ara", "igl"),
   dir = NULL,
   example = FALSE
@@ -207,10 +232,20 @@ build_critical_n_binding <- function(
     return(.example_critical_n_binding())
   }
   land_use <- rlang::arg_match(land_use)
-  critical <- critical %||% .critn_read_thresholds(land_use, dir)
+  if (is.null(critical)) {
+    critical <- .critn_read_thresholds(land_use, dir)
+    exceedance <- exceedance %||%
+      .critn_read_thresholds(land_use, dir, "exceedance")
+  }
   .critn_validate_thresholds(critical, land_use)
-  critical |>
-    .critn_threshold_wide() |>
+  .critn_validate_exceedance(exceedance, land_use)
+  dplyr::full_join(
+    .critn_threshold_wide(critical, "critical"),
+    .critn_threshold_wide(exceedance, "exceedance"),
+    by = c("cell_id", "lon", "lat"),
+    relationship = "one-to-one"
+  ) |>
+    dplyr::arrange(.data$cell_id) |>
     .critn_label_binding() |>
     dplyr::mutate(critical_land_use = .env$land_use, .after = "lat")
 }
@@ -241,19 +276,51 @@ build_critical_n_binding <- function(
   c(de = "deposition", gw = "groundwater", sw = "surface_water")
 }
 
-.critn_read_thresholds <- function(land_use, dir) {
-  thresholds <- c("de", "gw", "sw", "mi")
+.critn_read_thresholds <- function(
+  land_use,
+  dir,
+  var = "critical_n_surplus"
+) {
+  thresholds <- if (var == "exceedance") {
+    c("de", "gw", "sw")
+  } else {
+    c("de", "gw", "sw", "mi")
+  }
   purrr::map(
     rlang::set_names(thresholds),
     \(threshold) {
       read_critical_n(
-        "critical_n_surplus",
+        var,
         threshold = threshold,
         land_use = land_use,
         dir = dir
       )
     }
   )
+}
+
+# The exceedance layers only classify three-way ties, but without them a tie
+# cannot be assigned to either source rule, so their absence is refused here
+# rather than turned into a guessed label.
+.critn_validate_exceedance <- function(exceedance, land_use) {
+  if (
+    !is.list(exceedance) ||
+      !all(c("de", "gw", "sw") %in% names(exceedance))
+  ) {
+    cli::cli_abort(c(
+      "{.arg exceedance} must be a named list with elements {.val de},
+       {.val gw} and {.val sw}.",
+      i = "Read each with {.code read_critical_n(\"exceedance\", threshold)};
+           they tell a yield-potential cap from a non-agricultural floor."
+    ))
+  }
+  purrr::iwalk(
+    exceedance[c("de", "gw", "sw")],
+    \(layer, threshold) {
+      .critn_validate_layer(layer, threshold, land_use, "exceedance")
+    }
+  )
+  invisible(TRUE)
 }
 
 .critn_validate_thresholds <- function(critical, land_use) {
@@ -270,10 +337,15 @@ build_critical_n_binding <- function(
   invisible(TRUE)
 }
 
-# Each element must be the critical SURPLUS of its own threshold and of the
-# requested land use: a critical-input or wrong-scope grid would otherwise be
-# compared silently.
-.critn_validate_layer <- function(layer, threshold, land_use) {
+# Each element must be the expected layer (the critical SURPLUS, or its
+# exceedance) of its own threshold and of the requested land use: a
+# critical-input or wrong-scope grid would otherwise be compared silently.
+.critn_validate_layer <- function(
+  layer,
+  threshold,
+  land_use,
+  var = "critical_n_surplus"
+) {
   .check_columns(
     layer,
     c(
@@ -284,10 +356,10 @@ build_critical_n_binding <- function(
       "critical_threshold",
       "critical_land_use"
     ),
-    paste0("critical$", threshold)
+    paste0(var, "$", threshold)
   )
   stamps <- list(
-    critical_var = "critical_n_surplus",
+    critical_var = var,
     critical_threshold = threshold,
     critical_land_use = land_use
   )
@@ -295,7 +367,7 @@ build_critical_n_binding <- function(
     found <- unique(layer[[col]])
     if (!identical(found, expected)) {
       cli::cli_abort(c(
-        "{.field critical${threshold}} is not the expected layer.",
+        "{.field {var}${threshold}} is not the expected layer.",
         i = "Expected {.field {col}} {.val {expected}}; found {.val {found}}."
       ))
     }
@@ -303,14 +375,14 @@ build_critical_n_binding <- function(
   invisible(TRUE)
 }
 
-.critn_threshold_wide <- function(critical) {
-  critical[intersect(c("de", "gw", "sw", "mi"), names(critical))] |>
+.critn_threshold_wide <- function(layers, prefix) {
+  layers[intersect(c("de", "gw", "sw", "mi"), names(layers))] |>
     purrr::imap(\(layer, threshold) {
       layer |>
-        .nbx_add_cell_key(paste0("critical$", threshold)) |>
+        .nbx_add_cell_key(paste0(prefix, "$", threshold)) |>
         dplyr::select("cell_id", "lon", "lat", value = "value") |>
         dplyr::rename_with(
-          \(x) paste0("critical_", threshold, "_kgn_ha"),
+          \(x) paste0(prefix, "_", threshold, "_kgn_ha"),
           "value"
         )
     }) |>
@@ -329,8 +401,8 @@ build_critical_n_binding <- function(
 
 # Argmin of the three threshold-specific critical surpluses, with a two-way tie
 # named in the fixed deposition/groundwater/surface_water order. All three
-# equal is the source's Step 4 yield-potential cap, where no environmental
-# threshold binds (see the roxygen above), so it gets its own label.
+# equal means no environmental threshold binds on its own; the tie is then
+# assigned to the source rule that produced it (see the roxygen above).
 .critn_label_binding <- function(wide) {
   if (!rlang::has_name(wide, "critical_mi_kgn_ha")) {
     wide$critical_mi_kgn_ha <- NA_real_
@@ -348,10 +420,15 @@ build_critical_n_binding <- function(
   wide |>
     dplyr::mutate(
       binding_critical_kgn_ha = .env$low,
-      binding_threshold = dplyr::case_when(
-        is.na(.env$low) ~ NA_character_,
-        .env$de == .env$gw & .env$gw == .env$sw ~ "yield_potential_cap",
-        .default = stringr::str_remove(.env$label, "\\+$")
+      binding_threshold = dplyr::if_else(
+        .env$de == .env$gw & .env$gw == .env$sw,
+        .critn_tie_rule(
+          .env$low,
+          .data$exceedance_de_kgn_ha,
+          .data$exceedance_gw_kgn_ha,
+          .data$exceedance_sw_kgn_ha
+        ),
+        stringr::str_remove(.env$label, "\\+$")
       ),
       binding_matches_mi = .data$critical_mi_kgn_ha == .env$low
     ) |>
@@ -362,11 +439,28 @@ build_critical_n_binding <- function(
       "critical_de_kgn_ha",
       "critical_gw_kgn_ha",
       "critical_sw_kgn_ha",
+      "exceedance_de_kgn_ha",
+      "exceedance_gw_kgn_ha",
+      "exceedance_sw_kgn_ha",
       "binding_critical_kgn_ha",
       "binding_threshold",
       "critical_mi_kgn_ha",
       "binding_matches_mi"
     )
+}
+
+# Which source rule set a three-way tie. A negative tied surplus can only come
+# from zeroed fertilizer and manure (the non-agricultural floor); otherwise the
+# floor applies where every threshold is exceeded and the yield-potential cap
+# where none is. A non-negative tie with any exceedance missing stays NA.
+.critn_tie_rule <- function(tied, exc_de, exc_gw, exc_sw) {
+  all_exceeded <- exc_de > 0 & exc_gw > 0 & exc_sw > 0
+  dplyr::case_when(
+    tied < 0 ~ "non_agricultural_floor",
+    is.na(all_exceeded) ~ NA_character_,
+    all_exceeded ~ "non_agricultural_floor",
+    .default = "yield_potential_cap"
+  )
 }
 
 # Resolve the critical-nitrogen archive directory: an explicit argument, else

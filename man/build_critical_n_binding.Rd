@@ -6,6 +6,7 @@
 \usage{
 build_critical_n_binding(
   critical = NULL,
+  exceedance = NULL,
   land_use = c("all", "ara", "igl"),
   dir = NULL,
   example = FALSE
@@ -16,7 +17,12 @@ build_critical_n_binding(
 layers (\code{var = "critical_n_surplus"}) with elements \code{de}, \code{gw} and \code{sw},
 and optionally \code{mi}, each stamped with its own threshold and with
 \code{land_use}. When \code{NULL} (default) the four layers are read from the
-archive with \code{\link[=read_critical_n]{read_critical_n()}}.}
+archive with \code{\link[=read_critical_n]{read_critical_n()}}, together with \code{exceedance}.}
+
+\item{exceedance}{Named list of \code{\link[=read_critical_n]{read_critical_n()}} exceedance layers
+(\code{var = "exceedance"}) with elements \code{de}, \code{gw} and \code{sw}, used only to
+tell the two kinds of three-way tie apart. Required when \code{critical} is
+supplied; read from the archive when both are \code{NULL} (default).}
 
 \item{land_use}{Land-use scope: \code{"all"}, \code{"ara"} or \code{"igl"}, as in
 \code{\link[=read_critical_n]{read_critical_n()}}. Supplied layers must carry this scope.}
@@ -31,9 +37,11 @@ Defaults to \code{FALSE}.}
 A tibble with one row per cell: \code{cell_id}, \code{lon}, \code{lat},
 \code{critical_land_use}, the three threshold-specific critical surpluses
 \code{critical_de_kgn_ha}, \code{critical_gw_kgn_ha}, \code{critical_sw_kgn_ha} (kg N per
-hectare per year), their minimum \code{binding_critical_kgn_ha}, the
-\code{binding_threshold} label, the deposited \code{critical_mi_kgn_ha} and the
-logical \code{binding_matches_mi} (both \code{NA} when \code{mi} is not supplied).
+hectare per year), their exceedances \code{exceedance_de_kgn_ha},
+\code{exceedance_gw_kgn_ha}, \code{exceedance_sw_kgn_ha}, the minimum critical
+surplus \code{binding_critical_kgn_ha}, the \code{binding_threshold} label, the
+deposited \code{critical_mi_kgn_ha} and the logical \code{binding_matches_mi} (both
+\code{NA} when \code{mi} is not supplied).
 }
 \description{
 Identifies, for every 0.5-degree cell, the impact threshold whose critical
@@ -45,25 +53,44 @@ is the one that binds. The archive's own threshold-exceedance map
 quantity: it records which thresholds the 2010 surplus exceeds.
 
 \code{binding_threshold} is \code{"deposition"}, \code{"groundwater"},
-\code{"surface_water"}, a two-way tie, or \code{"yield_potential_cap"}. A two-way tie
-is recorded explicitly by joining both tied thresholds with \code{+} in that
-fixed order, for example \code{"groundwater+surface_water"}. Ties are exact
-equalities of the deposited values: on the real archive no surface lies
-within 1e-6 kg N/ha of the cell minimum without equalling it, so a
-tolerance would change nothing. A cell missing from any of the three
-surfaces gets \code{NA}.
+\code{"surface_water"}, a two-way tie, \code{"yield_potential_cap"} or
+\code{"non_agricultural_floor"}. A two-way tie is recorded explicitly by joining
+both tied thresholds with \code{+} in that fixed order, for example
+\code{"groundwater+surface_water"}. Ties are exact equalities of the deposited
+values: on the real archive no surface lies within 1e-6 kg N/ha of the cell
+minimum without equalling it, so a tolerance would change nothing. A cell
+missing from any of the three surfaces gets \code{NA}.
 
-A cell where all three critical surpluses are equal is labelled
-\code{"yield_potential_cap"}: no environmental threshold binds there. The source
-Methods (Step 4) state that "for areas with no threshold exceedance" the
-critical inputs and surplus are cut off "at a maximum value, set to the
-input level required to obtain crop yield potentials",
-\code{Nin(crit,max) = Nup(Yp) / NUE(act)}, where \code{Nup(Yp)} is crop nitrogen
-uptake at potential yield and \code{NUE(act)} the actual nitrogen use efficiency,
-capped at 0.8. That cap does not depend on the threshold, so it gives the
-same value on all three surfaces. On the real archive the three critical
-inputs are identical as well in every such cell (9,431 of 28,881 cells for
-\code{"all"}, 9,188 of 28,573 for \code{"ara"}, 1,727 of 11,740 for \code{"igl"}).
+A cell where all three critical surpluses are equal has no environmental
+threshold that binds on its own. Schulte-Uebbing et al. (2022, Nature 610,
+Methods) set such a threshold-independent value by one of two rules, and
+the label names which one:
+\itemize{
+\item \code{"non_agricultural_floor"}: all three thresholds are exceeded (each
+threshold-specific exceedance of the critical surplus is positive) or the
+tied critical surplus is negative. The source's "Aggregation to regional
+and planetary boundaries" section states: "Where N losses from
+non-agricultural sources alone exceeded thresholds, critical N inputs
+from fertilizer and manure were set to zero." The critical input is then
+the fixation and deposition left over, the same for every threshold.
+\item \code{"yield_potential_cap"}: every other tie. Step 4 of the source's Methods
+reads: "for areas with no threshold exceedance, cut off critical inputs
+and surplus at a maximum value, set to the input level required to obtain
+crop yield potentials", with \code{Nin(crit,max) = Nup(Yp) / NUE(act)}, where
+\code{Nup(Yp)} is crop nitrogen uptake at potential yield and \code{NUE(act)} the
+current nitrogen use efficiency, "capped ... at 0.8".
+}
+
+A tie whose critical surplus is not negative and whose exceedance is
+missing on any threshold cannot be assigned to either rule and gets \code{NA}.
+On the real archive the three critical inputs are identical in every tied
+cell. The two labels count 293 floor and 8,895 cap cells of 28,573 for
+\code{"ara"}, 293 and 9,138 of 28,881 for \code{"all"}, and 0 and 1,727 of 11,740
+for \code{"igl"}. The split matches the archive's threshold-exceedance map
+exactly: every floor cell carries code 8 and every cap cell code 1. The 293
+floor cells include 3 with a negative critical surplus (minimum -21.78
+kg N/ha), and their median critical input is 38.7 kg N/ha against 90.7 for
+the \code{"all"} cap cells.
 
 When the deposited minimum-of-all-media surface (\code{"mi"}) is supplied,
 \code{binding_matches_mi} reports whether it equals the lowest of the three

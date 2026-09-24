@@ -492,4 +492,9 @@ testthat::test_that("keep reproduces the published 2010 decomposition", {
   testthat::expect_equal(clamp$current, keep$current)
   testthat::expect_lt(clamp$exceedance, keep$exceedance)
   testthat::expect_false(round(clamp$exceedance) == 76)
+  # The clamp moves 0.43 Mt N from exceedance to allowable.
+  testthat::expect_equal(
+    round(c(clamp$allowable, clamp$exceedance), 2),
+    c(43.50, 75.25)
+  )
 })

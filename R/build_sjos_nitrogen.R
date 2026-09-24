@@ -93,7 +93,8 @@
 #'   source) or `"clamp"` (zero allowance, a declared departure from
 #'   Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
 #'   through them the classification and the footprint, and is stamped as
-#'   `negative_critical` in both boundary tables.
+#'   `negative_critical` in both boundary tables, in `sjos_class` and in both
+#'   footprint tables.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -104,7 +105,8 @@
 #'   versus nourishment points; it and `nourishment` carry
 #'   `method_population`, `"read_population"` or `"supplied"`), `sjos_class`
 #'   (the 2-way classification) and `footprint` (a list with the `fp_all` and
-#'   `fp_food` embodied-nitrogen footprints).
+#'   `fp_food` embodied-nitrogen footprints). The boundary tables,
+#'   `sjos_class` and both footprint tables carry `negative_critical`.
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -154,17 +156,26 @@ build_sjos_nitrogen <- function(
     ),
     scatter = .sjos_scatter(data, nourishment) |>
       dplyr::mutate(method_population = .env$method_population),
-    sjos_class = sjos_class,
+    sjos_class = .sjos_stamp_critical(sjos_class, opts),
     footprint = .sjos_footprint(
       boundary$country,
       data,
       opts,
       sjos_class
-    )
+    ) |>
+      purrr::map(\(x) .sjos_stamp_critical(x, opts))
   )
 }
 
 # ---- Private helpers -------------------------------------------------------
+
+# Every table downstream of the surplus boundary records how negative critical
+# surpluses were treated, so a classification or footprint cannot be read
+# without it. Stamped on the returned tables only: the classification passed
+# to the footprint keeps the column set classify_sjos_n() produces.
+.sjos_stamp_critical <- function(x, opts) {
+  dplyr::mutate(x, negative_critical = .env$opts$negative_critical)
+}
 
 # The one denominator both per-capita axes divide by (#484): the nourishment
 # supply and the anthropogenic-N scatter, read once over every year either

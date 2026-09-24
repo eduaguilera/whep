@@ -427,17 +427,22 @@ testthat::test_that("negative_critical and the binding table thread through", {
     sw = c(55, -40),
     mi = c(50, -40)
   )
+  layer <- function(value, threshold, var = "critical_n_surplus") {
+    tibble::tibble(
+      lon = c(0.25, 0.75),
+      lat = 0.25,
+      value = value,
+      critical_var = var,
+      critical_threshold = threshold,
+      critical_land_use = "ara"
+    )
+  }
   data$critical_binding <- whep::build_critical_n_binding(
-    purrr::imap(values, \(value, threshold) {
-      tibble::tibble(
-        lon = c(0.25, 0.75),
-        lat = 0.25,
-        value = value,
-        critical_var = "critical_n_surplus",
-        critical_threshold = threshold,
-        critical_land_use = "ara"
-      )
-    }),
+    purrr::imap(values, layer),
+    purrr::map(
+      c(de = "de", gw = "gw", sw = "sw"),
+      \(threshold) layer(c(-5, 3), threshold, "exceedance")
+    ),
     land_use = "ara"
   )
   keep <- whep::build_sjos_nitrogen(data = data)
@@ -450,10 +455,17 @@ testthat::test_that("negative_critical and the binding table thread through", {
   testthat::expect_equal(second(clamp)$exceedance_n_t, 1)
   testthat::expect_equal(second(clamp)$within_boundary_n_t, 0)
   for (out in list(keep, clamp)) {
-    stamp <- unique(c(
-      out$boundary_surplus$grid$negative_critical,
-      out$boundary_surplus$country$negative_critical
-    ))
+    stamped <- list(
+      out$boundary_surplus$grid,
+      out$boundary_surplus$country,
+      out$sjos_class,
+      out$footprint$fp_all,
+      out$footprint$fp_food
+    )
+    for (table in stamped) {
+      testthat::expect_true(rlang::has_name(table, "negative_critical"))
+    }
+    stamp <- unique(unlist(purrr::map(stamped, "negative_critical")))
     testthat::expect_length(stamp, 1L)
     grid <- dplyr::arrange(out$boundary_surplus$grid, lon)
     testthat::expect_equal(

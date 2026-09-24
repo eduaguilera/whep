@@ -1096,34 +1096,46 @@
   )
 }
 
-# Four cells run through the real build_critical_n_binding(): one per single
-# binding threshold and one with all three surfaces equal (the source's
-# yield-potential cap). The supplied "mi" surface equals the minimum everywhere
-# except the last cell, where it is lower: the undetermined mismatch found in
-# 1,540 of the 28,881 deposited "all" cells.
+# Five cells run through the real build_critical_n_binding(): one per single
+# binding threshold and two with all three surfaces equal, one of each source
+# rule. The yield-potential-cap cell exceeds no threshold (negative
+# exceedances); the non-agricultural-floor cell exceeds all three. The
+# supplied "mi" surface equals the minimum everywhere except the groundwater
+# cell, where it is lower: the undetermined mismatch found in 1,540 of the
+# 28,881 deposited "all" cells.
 .example_critical_n_binding <- function() {
   cells <- tibble::tribble(
-    ~lon, ~lat, ~de, ~gw, ~sw, ~mi,
-    0.25, 0.25,  12,  40,  35,  12,
-    0.75, 0.25,  60,  18,  25,  18,
-    0.25, 0.75,  50,  45, -20, -20,
-    0.75, 0.75,  30,  30,  30,  24
+    ~lon, ~lat, ~de, ~gw, ~sw, ~mi, ~exc,
+    0.25, 0.25,  12,  40,  35,  12,    6,
+    0.75, 0.25,  60,  18,  25,  15,   -4,
+    0.25, 0.75,  50,  45, -20, -20,   30,
+    0.75, 0.75,  90,  90,  90,  90,  -35,
+    1.25, 0.75,   4,   4,   4,   4,   22
   )
-  layers <- purrr::map(
-    rlang::set_names(c("de", "gw", "sw", "mi")),
+  thresholds <- c("de", "gw", "sw", "mi")
+  critical <- purrr::map(
+    rlang::set_names(thresholds),
     \(threshold) {
-      cells |>
-        dplyr::transmute(
-          lon = .data$lon,
-          lat = .data$lat,
-          value = .data[[threshold]],
-          critical_var = "critical_n_surplus",
-          critical_threshold = .env$threshold,
-          critical_land_use = "ara"
-        )
+      .example_binding_layer(cells, threshold, "critical_n_surplus", threshold)
     }
   )
-  build_critical_n_binding(layers, land_use = "ara")
+  exceedance <- purrr::map(
+    rlang::set_names(thresholds[1:3]),
+    \(threshold) .example_binding_layer(cells, threshold, "exceedance", "exc")
+  )
+  build_critical_n_binding(critical, exceedance, land_use = "ara")
+}
+
+.example_binding_layer <- function(cells, threshold, var, column) {
+  dplyr::transmute(
+    cells,
+    lon = .data$lon,
+    lat = .data$lat,
+    value = .data[[column]],
+    critical_var = .env$var,
+    critical_threshold = .env$threshold,
+    critical_land_use = "ara"
+  )
 }
 
 # A small build_nitrogen_balance()-shaped fixture (8 crop-cell-year rows, two

@@ -73,7 +73,8 @@ zero, passed to \code{\link[=build_n_boundary_exceedance]{build_n_boundary_excee
 source) or \code{"clamp"} (zero allowance, a declared departure from
 Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
 through them the classification and the footprint, and is stamped as
-\code{negative_critical} in both boundary tables.}
+\code{negative_critical} in both boundary tables, in \code{sjos_class} and in both
+footprint tables.}
 
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}
@@ -87,7 +88,8 @@ normalized adequacy score and class), \code{scatter} (the per-capita boundary
 versus nourishment points; it and \code{nourishment} carry
 \code{method_population}, \code{"read_population"} or \code{"supplied"}), \code{sjos_class}
 (the 2-way classification) and \code{footprint} (a list with the \code{fp_all} and
-\code{fp_food} embodied-nitrogen footprints).
+\code{fp_food} embodied-nitrogen footprints). The boundary tables,
+\code{sjos_class} and both footprint tables carry \code{negative_critical}.
 }
 \description{
 Composes the Safe and Just Operating Space for nitrogen (SJOS-N) modules into
