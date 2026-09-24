@@ -17,6 +17,32 @@
 #' [build_commodity_balances()], and [build_processing_coefs()]
 #' so that the next call rebuilds from scratch.
 #'
+#' @section Memory that clearing the cache does not return:
+#' Clearing the cache releases the cached tibbles to R, but the process may
+#' keep far more resident memory than it holds. That excess is not held by
+#' the cache or by any reachable object, so neither this function nor
+#' `gc()` recovers it (whep#777).
+#'
+#' It is memory R has already freed and the C allocator keeps. On Linux,
+#' glibc serves a large allocation with its own mapping, which goes back to
+#' the operating system on free, only while it is bigger than the "mmap
+#' threshold". Each such free raises that threshold (up to 32 MB), so later
+#' vectors below it come from the heap, and freed heap blocks stay resident.
+#' The build chain frees many vectors of that size.
+#'
+#' Measured with `get_primary_production()` and `get_wide_cbs()` for
+#' 2008-2012, after `gc()`, holding 1.17 GB of live R objects: 5.5-5.8 GB
+#' resident by default, 3.3 GB with a fixed threshold, identical outputs.
+#' Fixing the threshold switches the raising off. glibc reads it when the
+#' process starts, so it must be set in the shell that launches R, not in
+#' `.Renviron`:
+#'
+#' ```sh
+#' GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072 Rscript build.R
+#' ```
+#'
+#' Other platforms and allocators are unaffected by the variable.
+#'
 #' @return Invisible `NULL`.
 #' @export
 #'
