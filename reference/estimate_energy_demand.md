@@ -10,7 +10,11 @@ All coefficients come from internal package data.
 ## Usage
 
 ``` r
-estimate_energy_demand(data, method = "ipcc2019")
+estimate_energy_demand(
+  data,
+  method = "ipcc2019",
+  lactation_method = c("milk_composition", "ipcc2019")
+)
 ```
 
 ## Arguments
@@ -34,10 +38,31 @@ estimate_energy_demand(data, method = "ipcc2019")
 
   Method for calculation (default `"ipcc2019"`).
 
+- lactation_method:
+
+  How net energy for lactation (NEl) is derived from milk yield. One of:
+
+  - `"milk_composition"` (default): the NRC (2001) milk-energy equation,
+    `NEl = Milk * (0.389 * Fat + 0.229 * Protein + 0.165 * Lactose)`
+    (MJ/kg: the published Mcal/kg coefficients 0.0929, 0.0547 and 0.0395
+    times 4.184), for rows with a positive protein and lactose content.
+    Rows without that composition use the `"ipcc2019"` equations.
+
+  - `"ipcc2019"`: IPCC 2019 Refinement Vol 4 Ch 10. Eq 10.8,
+    `NEl = Milk * (1.47 + 0.40 * Fat)`, for cattle, buffalo and other
+    species; Eq 10.9, `NEl = Milk * EVmilk`, for sheep and goats with
+    the default `EVmilk` of 4.6 MJ/kg for sheep (7% fat; AFRC
+    1993, 1995) and 3 MJ/kg for goats (3.8% fat; AFRC 1998). The
+    defaults ignore `fat_percent`.
+
+  The equation used for each row is recorded in `method_lactation`
+  (`"nrc2001_milk_composition"`, `"ipcc2019_eq10_8"`,
+  `"ipcc2019_eq10_9_default_ev"`, or `"none"` when there is no milk).
+
 ## Value
 
 Dataframe with added `gross_energy` (MJ/day), intermediate net energy
-components, and `method_energy` tracking column.
+components, and `method_energy` and `method_lactation` tracking columns.
 
 ## Examples
 
