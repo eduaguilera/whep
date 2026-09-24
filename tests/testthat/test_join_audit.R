@@ -229,7 +229,11 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  # 84 since whep#1118: `.sci_add_fodder_weights()` fills the polity-crops the
+  # single-vintage crop pattern cannot place from the circa-2000 fodder layer,
+  # and `.sci_inform_fodder_placed()` reports them (two diagnostic joins).
+  # Re-derived by running the audit, not by adding three to the old cap.
+  expect_lte(sum(baseline$n), 84L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -379,7 +383,9 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 97L)
+  # 100 since whep#1118: the fodder layer's `distinct()` pairs, one
+  # time-invariant and two diagnostic. Re-derived by running the audit.
+  expect_lte(sum(full$n), 100L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

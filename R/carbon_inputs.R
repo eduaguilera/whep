@@ -99,7 +99,7 @@ build_carbon_inputs <- function(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("reallocate", "fodder_pattern", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
