@@ -9,25 +9,48 @@
 #' Optionally extends the time series by joining with commodity balance
 #' sheet years and gap-filling country shares via linear interpolation.
 #'
-#' @section Time extension is uniform across groups:
-#' With `extend_time = TRUE` the extension is driven by the **year axis** of
-#' CBS only. Every `(area, item, partner, element, unit)` group observed in
-#' any trade year is carried across the union of trade and CBS years, and
-#' [fill_linear()] interpolates inside a group's observed span and holds the
-#' first and last observed share constant outside it. Whether CBS actually
-#' reports that area/item/element in that year is **not** consulted, so shares
-#' are also emitted for country-item-year cells CBS never reports.
+#' @section Time extension and CBS coverage:
+#' With `extend_time = TRUE` every `(area, item, partner, element, unit)`
+#' group observed in any trade year is carried across the union of trade and
+#' CBS years, and [fill_linear()] interpolates inside a group's observed span
+#' and holds the first and last observed share constant outside it. That
+#' fills two kinds of row: years outside the trade record, and trade years
+#' in which the reporter reported nothing at all for that item and element
+#' (the group's share there is 0/0). `method_time_coverage` then decides
+#' which of those filled shares are kept:
 #'
-#' The year axis this rests on is wide. The `"faostat-trade-bilateral"` pin
-#' covers 1986-2021, while [build_commodity_balances()] defaults to 1850-2023,
-#' so 138 of the 174 extended years (79%) lie outside the trade record
-#' entirely and carry the 1986 (or 2021) partner mix held constant. On the
-#' full pin that is 1.17 million groups spread over up to 174 years each,
-#' against 9.97 million observed rows, and half of the emitted
-#' `(year, area, item, element)` cells are cells CBS never reports (measured:
-#' 3.42 of 6.85 million). Scoping the extension to the CBS
-#' coverage a group actually has is a methodological choice, not a bug fix,
-#' and is tracked in issue #232.
+#' - `"cbs_cells"` (default) keeps an extended share only in a
+#'   `(year, area_code, item_cbs_code, element)` cell where `cbs` reports a
+#'   non-missing, non-zero flow for that element. A share partitions a CBS
+#'   total among partners; where there is no total there is nothing to
+#'   partition, so no share is invented there. Observed trade rows are
+#'   always kept, whether or not CBS reports the cell.
+#' - `"cbs_years"` keeps every extended share in every CBS year. The
+#'   historical behaviour: the CBS *year axis* alone drives the extension,
+#'   so shares are also emitted for cells CBS never reports.
+#'
+#' The two methods differ only in which rows survive: a share kept by both
+#' is identical, because it comes from the same interpolation of the group's
+#' own anchors, and every kept cell keeps all its partners, so its shares
+#' still sum to one. Because filled rows inside the trade record are scoped
+#' too, a `cbs` that omits some trade years drops the filled rows of those
+#' years under `"cbs_cells"`; pass a CBS spanning the trade record.
+#'
+#' Measured on the `"faostat-trade-bilateral"` pin against a 1850-2023 CBS,
+#' half of the `(year, area, item, element)` cells the uniform extension
+#' emits are cells CBS never reports (3.42 of 6.85 million; whep#232).
+#' Against single-year CBS builds, `"cbs_cells"` keeps 144,812 of the
+#' 286,762 rows `"cbs_years"` emits for 1975 (50.5%) and 342,617 of 384,954
+#' for 2023 (89.0%), extending from trade years 1986-1987 and 2020-2021;
+#' and 231,530 of 249,833 for 2000 (92.7%) and 279,210 of 293,815 for 2010
+#' (95.0%), with trade years 1999-2001 and 2009-2011.
+#'
+#' Neither method bounds the **year axis**. The pin covers 1986-2021, while
+#' [build_commodity_balances()] defaults to 1850-2023, so 138 of the 174
+#' extended years (79%) lie outside the trade record entirely and carry the
+#' 1986 (or 2021) partner mix held constant. CBS is itself extended back to
+#' 1850, so scoping to its cells does not shorten that back-cast; pass a
+#' year-scoped `cbs` to limit it.
 #'
 #' @section Quantities FAOSTAT does not back with a mass:
 #' The Detailed Trade Matrix carries a `tonnes` column for every item, but
@@ -110,6 +133,14 @@
 #' @param extend_time Logical. If `TRUE`, extend the time series using
 #'   CBS years and linear interpolation of country shares.
 #'   Default `FALSE`.
+#' @param method_time_coverage Which extended shares `extend_time` keeps.
+#'   See the *Time extension and CBS coverage* section. One of:
+#'   - `"cbs_cells"` (default): only in the year, area, item and element
+#'     cells where `cbs` reports a non-zero flow.
+#'   - `"cbs_years"`: in every CBS year, whether or not CBS reports the
+#'     cell. The historical behaviour.
+#'
+#'   Ignored when `extend_time = FALSE`.
 #' @param method_unbacked_quantity How to treat a reported `tonnes`
 #'   quantity for a FAOSTAT trade item whose country-level mass FAOSTAT
 #'   itself does not publish. See the *Quantities FAOSTAT does not back
@@ -153,6 +184,8 @@
 #'     consumer can tell which variant it is holding.
 #'   - `method_head_units`: the treatment chosen for the `1000 Head`
 #'     rows, recorded for the same reason.
+#'   - `method_time_coverage`: the coverage rule of the time extension, or
+#'     `NA` when `extend_time = FALSE`.
 #'
 #' @export
 #'
@@ -165,10 +198,12 @@ build_detailed_trade <- function(
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
   method_head_units = c("convert", "drop", "abort"),
+  method_time_coverage = c("cbs_cells", "cbs_years"),
   example = FALSE
 ) {
   method <- rlang::arg_match(method_unbacked_quantity)
   head_method <- rlang::arg_match(method_head_units)
+  coverage_method <- rlang::arg_match(method_time_coverage)
 
   if (example) {
     return(.example_build_detailed_trade())
@@ -182,7 +217,9 @@ build_detailed_trade <- function(
   dtm <- .compute_country_shares(dtm)
 
   if (extend_time) {
-    dtm <- .extend_dtm_time(dtm, cbs, min_share)
+    dtm <- .extend_dtm_time(dtm, cbs, min_share, coverage_method)
+  } else {
+    coverage_method <- NA_character_
   }
 
   dtm <- .add_trade_polity_columns(dtm)
@@ -191,7 +228,8 @@ build_detailed_trade <- function(
     tibble::as_tibble() |>
     dplyr::mutate(
       method_unbacked_quantity = method,
-      method_head_units = head_method
+      method_head_units = head_method,
+      method_time_coverage = coverage_method
     )
 }
 
@@ -645,10 +683,11 @@ build_detailed_trade <- function(
     )
 }
 
-.extend_dtm_time <- function(dt, cbs, min_share) {
+.extend_dtm_time <- function(dt, cbs, min_share, coverage = "cbs_cells") {
   cli::cli_progress_step("Extending time series")
 
-  cbs_years <- .extract_cbs_years_for_dtm(cbs)
+  cbs_flows <- .cbs_flow_cells(cbs)
+  cbs_years <- sort(unique(cbs_flows$year))
 
   # Drop small partners to reduce dataset size
   dt[country_share < min_share, value := NA_real_]
@@ -712,44 +751,96 @@ build_detailed_trade <- function(
   data.table::setDT(dt)
 
   dt <- dt[!is.na(country_share) & country_share != 0]
+  if (coverage == "cbs_cells") {
+    dt <- .scope_to_cbs_cells(dt, .covered_cbs_cells(cbs_flows))
+  }
   dt
 }
 
-# Years in which CBS reports an import or export flow for anything.
-#
-# The extension consumes the year axis and nothing else: it returns a plain
-# year vector rather than the (year, area, item, element) coverage tuples,
-# because the per-tuple coverage was never read. That made the code look as
-# though the extension were scoped to what CBS reports when it is not (#232);
-# the granularity is deliberately dropped here so the omission is visible, and
-# the documented consequence lives in build_detailed_trade()'s "Time extension
-# is uniform across groups" section.
-#
-# Measured on the full pin against a real 1850-2023 CBS, 30.8% of the 201.9
-# million partner-level grid rows also sit in cells CBS never reports.
-#
-# Accepts wide format (import/export as columns) or long format (element col).
+# Keep an extended share only where CBS reports the flow it partitions
+# (whep#232). Observed rows (`source_country_share == "Original"`) are data
+# and stay; only the rows fill_linear() created are scoped. The key carries
+# the year, so this is not a year-free territorial join.
+.scope_to_cbs_cells <- function(dt, cbs_cells) {
+  covered <- data.table::copy(cbs_cells)[, covered := TRUE]
+  dt[, `:=`(
+    area_code = as.integer(area_code),
+    item_cbs_code = as.integer(item_cbs_code)
+  )]
+  dt <- covered[dt, on = c("year", "area_code", "item_cbs_code", "element")]
+  dt <- dt[source_country_share == "Original" | !is.na(covered)]
+  dt[, covered := NULL]
+  dt
+}
+
+# The (year, area_code, item_cbs_code, element) cells in which CBS reports a
+# non-missing, non-zero import or export flow: the cells an extended share is
+# kept in under `method_time_coverage = "cbs_cells"` (whep#232). A zero is not
+# coverage: a share of a zero total partitions nothing, and a CBS that
+# zero-fills absent flows would otherwise cover every cell.
+.extract_cbs_cells_for_dtm <- function(cbs) {
+  .covered_cbs_cells(.cbs_flow_cells(cbs))
+}
+
+# Years in which CBS reports an import or export flow for anything: the year
+# axis of the extension under either coverage method. Unlike the cells above
+# it counts a zero flow, as it always has, so `"cbs_years"` keeps its
+# historical axis.
 .extract_cbs_years_for_dtm <- function(cbs) {
+  sort(unique(.cbs_flow_cells(cbs)$year))
+}
+
+.covered_cbs_cells <- function(flows) {
+  flows <- flows[!is.na(value) & value != 0]
+  unique(flows[, c("year", "area_code", "item_cbs_code", "element")])
+}
+
+# One row per reported CBS import/export flow, keyed by year, area, item and
+# element. Wide format (import/export as columns) keeps the non-missing
+# values; long format (an element column) keeps every import/export row.
+.cbs_flow_cells <- function(cbs) {
   cbs <- data.table::as.data.table(cbs)
   data.table::setnames(cbs, tolower)
-  nms <- names(cbs)
+  # The trade side is aggregated onto the polity bucket, so coverage is keyed
+  # on it too when the CBS carries it; `area_code` there is provenance, and
+  # e.g. Sudan's 276 folds into bucket 206.
+  if ("polity_area_code" %in% names(cbs)) {
+    cbs[, area_code := polity_area_code]
+  }
+  keys <- c("year", "area_code", "item_cbs_code")
+  flows <- intersect(c("import", "export"), names(cbs))
 
-  # Wide format: import / export are value columns
-  flows <- intersect(c("import", "export"), nms)
   if (length(flows) > 0) {
-    reported <- rowSums(!is.na(cbs[, flows, with = FALSE])) > 0
-    return(sort(unique(cbs$year[reported])))
+    cells <- data.table::melt(
+      cbs[, c(keys, flows), with = FALSE],
+      id.vars = keys,
+      measure.vars = flows,
+      variable.name = "element",
+      value.name = "value",
+      variable.factor = FALSE,
+      na.rm = TRUE
+    )
+  } else if ("element" %in% names(cbs)) {
+    if (!"value" %in% names(cbs)) {
+      cbs[, value := NA_real_]
+    }
+    cells <- cbs[
+      element %in% c("import", "export"),
+      c(keys, "element", "value"),
+      with = FALSE
+    ]
+  } else {
+    cli::cli_abort(
+      "CBS must have either {.field import}/{.field export} columns (wide
+       format) or an {.field element} column (long format)."
+    )
   }
-
-  # Long format: element column present
-  if ("element" %in% nms) {
-    return(sort(unique(cbs$year[cbs$element %in% c("import", "export")])))
-  }
-
-  cli::cli_abort(
-    "CBS must have either {.field import}/{.field export} columns (wide format)
-     or an {.field element} column (long format)."
-  )
+  cells[, `:=`(
+    year = as.integer(year),
+    area_code = as.integer(area_code),
+    item_cbs_code = as.integer(item_cbs_code)
+  )]
+  cells
 }
 
 .warn_unmapped_items <- function(dt) {
