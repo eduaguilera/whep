@@ -2269,6 +2269,10 @@ utils::globalVariables(
     # stamping the technology it was read for
     "spam_crop",
     "technology",
+    # regime_yield_ratio.R (issue #1233, T12e) -- the Smil (2001) global
+    # synthetic-N series interpolated by fill_linear() for the pre-1961
+    # back-cast of the regime ratio's fertiliser scaling
+    "global_t",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

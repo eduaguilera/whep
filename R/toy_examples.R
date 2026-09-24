@@ -785,6 +785,62 @@
   )
 }
 
+# build_regime_yield_ratio() fixture: ten 2010 cell-crops sampled from a real
+# run (gridded land use of the spatialization pins, SPAM2010 v2.0, the
+# faostat-fertilizer-nutrients and faostat-landuse pins, and the LPJmL 6.1.1
+# run of read_lpjml_regime_yield()), chosen to show each stamp: a missing 2010
+# N value (Somalia cassava), an anchor floor (Ethiopia mustard seed, SPAM
+# `rape`), a level cap (Viet Nam other fibre crops), a ratio floor (Bangladesh
+# tea) and anomalies from LPJmL.
+.example_regime_yield_ratio <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~ratio_spam,
+    ~ratio_anchor, ~ratio_level, ~ratio_anomaly, ~ratio, ~spam_crop_used,
+    ~method_ratio_anchor, ~method_ratio_trend, ~method_ratio_anomaly,
+    ~method_regime_yield,
+    -64.75, -26.75, 9L, 15L, 2010L, 1.24876,
+    1.24876, 1.24876, 2.00641, 2.50551, "whea",
+    "spam_country", "faostat", "lpjml",
+    "none",
+    88.25, 27.25, 100L, 15L, 2010L, 2.10087,
+    2.10087, 2.10087, 2.78139, 5.84333, "whea",
+    "spam_country", "faostat", "lpjml",
+    "none",
+    103.25, 29.75, 41L, 27L, 2010L, 1.40231,
+    1.40231, 1.40231, 1.0828, 1.51843, "rice",
+    "spam_country", "faostat", "lpjml",
+    "none",
+    120.25, 30.75, 41L, 56L, 2010L, 1.203,
+    1.203, 1.203, 1.18553, 1.42619, "maiz",
+    "spam_country", "faostat", "lpjml",
+    "none",
+    -98.25, 38.25, 231L, 71L, 2010L, 1.13232,
+    1.13232, 1.13232, 1, 1.13232, "ocer",
+    "spam_country", "faostat", "no_cell_ratio",
+    "none",
+    48.75, 11.25, 201L, 125L, 2010L, 2.12177,
+    2.12177, NA, 1, NA, "cass",
+    "spam_global", "no_n_2010", "no_cell_ratio",
+    "none",
+    44.75, 39.25, 52L, 220L, 2010L, 2.12092,
+    2.12092, 2.12092, 1.32709, 2.81466, "rest",
+    "spam_global", "faostat", "lpjml",
+    "none",
+    38.25, 14.75, 238L, 292L, 2010L, 0.638898,
+    1, 1, 1, 1, "rape",
+    "spam_country", "faostat", "no_cell_ratio",
+    "anchor_floor",
+    88.25, 24.25, 16L, 667L, 2010L, 1.01505,
+    1.01505, 1.01505, 0.922688, 1, "teas",
+    "spam_country", "faostat", "lpjml",
+    "ratio_floor",
+    105.75, 17.75, 237L, 821L, 2010L, 10.3937,
+    10.3937, 10, 1.03666, 10.3666, "ofib",
+    "spam_country", "faostat", "lpjml",
+    "level_cap"
+  )
+}
+
 # SPAM2010 v2.0 harvested area, production and yield fixture: six pixels
 # (Russia, Afghanistan, USA, India, Mali, Gambia), one crop each, both
 # technologies (12 rows). Mirrors read_spam_yields() output. Sampled from
