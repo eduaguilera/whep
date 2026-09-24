@@ -419,7 +419,7 @@ build_n_boundary_exceedance <- function(
     return(x$surplus_n_t)
   }
   .check_columns(x, "surplus_kgn_ha", "surplus")
-  x$surplus_kgn_ha * x$area_ha / 1000
+  x$surplus_kgn_ha * x$area_ha / .kg_per_tonne()
 }
 
 .nbx_prepare_actual <- function(x, metric) {
@@ -537,12 +537,12 @@ build_n_boundary_exceedance <- function(
       ),
       cell_critical_n_t = dplyr::if_else(
         .data$coverage_state == "valid",
-        .data$critical_kgn_ha * .data$source_area_ha / 1000,
+        .data$critical_kgn_ha * .data$source_area_ha / .kg_per_tonne(),
         NA_real_
       ),
       cell_actual_kgn_ha = dplyr::if_else(
         .data$coverage_state == "valid",
-        .data$cell_actual_n_t * 1000 / .data$source_area_ha,
+        .data$cell_actual_n_t * .kg_per_tonne() / .data$source_area_ha,
         NA_real_
       ),
       cell_signed_margin_n_t = dplyr::if_else(

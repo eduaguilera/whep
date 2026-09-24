@@ -182,8 +182,8 @@ read_wpp_population <- function(
         1L,
         as.integer(.data$AgeGrpSpan)
       ),
-      male = as.numeric(.data$PopMale) * 1000,
-      female = as.numeric(.data$PopFemale) * 1000
+      male = as.numeric(.data$PopMale) * .persons_per_thousand(),
+      female = as.numeric(.data$PopFemale) * .persons_per_thousand()
     )
   if (!is.null(years)) {
     out <- dplyr::filter(out, .data$year %in% years)
