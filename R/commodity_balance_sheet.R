@@ -62,6 +62,10 @@
 #' There is an additional column `domestic_supply` which is
 #' computed as total use excluding `export`.
 #'
+#' The live-animal rows also carry `method_cull`, saying where the slaughter
+#' of culled dairy cattle and laying hens was booked (see the argument of that
+#' name in `get_livestock_cbs()`); it is `NA` on the tonnes rows.
+#'
 #' @export
 #'
 #' @examples
@@ -109,23 +113,46 @@ get_wide_cbs <- function(
 #'   animals are reported in two head units* section. `"convert"`
 #'   (default) rescales them by 1,000 onto `heads`, `"drop"` discards
 #'   them with a warning, `"abort"` refuses.
+#' @param method_cull Where the slaughter FAOSTAT books on dairy cattle (960)
+#'   and laying hens (1052) goes. FAOSTAT reports one slaughter count per
+#'   species (cattle 866, chickens 1057); WHEP splits it between the dairy /
+#'   layer and the non-dairy / broiler stock sub-items by stock share, while
+#'   beef, poultry meat and live-animal trade are all keyed on 961 and 1053.
+#'   - `"fold"` (default): count that slaughter toward the live-animal balance
+#'     of 961 (non-dairy cattle) and 1053 (broilers), next to the meat and the
+#'     trade it belongs with. The balance then holds FAOSTAT's whole observed
+#'     slaughter. The cost: in the live-animal balance, culled dairy cows and
+#'     spent hens are counted as raised by the non-dairy / broiler sector.
+#'   - `"separate"`: give 960 and 1052 a live-animal balance of their own, in
+#'     which production and processing are the cull and trade is zero (FAOSTAT
+#'     does not split live-animal trade by sub-item). Total slaughter is the
+#'     same. No slaughtering process consumes those rows, because the meat of
+#'     culled animals is still keyed on 961 / 1053, but `build_io_model()` reads
+#'     CBS `production` as the 960 / 1052 output.
 #'
-#' @returns A tibble with the same columns as [get_wide_cbs()].
+#'   Breeding swine (1051) are always folded onto 1049 (whep#1149): 1051 has
+#'   no sector of its own to keep a balance on. The choice is recorded in the
+#'   `method_cull` column.
+#'
+#' @returns A tibble with the same columns as [get_wide_cbs()], plus
+#'   `method_cull`.
 #'
 #' @keywords internal
 get_livestock_cbs <- function(
   primary_prod,
-  method_head_units = c("convert", "drop", "abort")
+  method_head_units = c("convert", "drop", "abort"),
+  method_cull = c("fold", "separate")
 ) {
   head_method <- rlang::arg_match(method_head_units)
+  method_cull <- rlang::arg_match(method_cull)
   slaughter_livestock <- .slaughter_livestock_items(primary_prod) |>
     dplyr::rename(item_cbs_code = live_anim_code)
 
   slaughtered <- primary_prod |>
     dplyr::filter(unit == "slaughtered_heads") |>
-    .fold_split_slaughter() |>
+    .fold_split_slaughter(method_cull) |>
     dplyr::inner_join(
-      slaughter_livestock,
+      .live_balance_codes(slaughter_livestock, method_cull),
       dplyr::join_by(item_cbs_code)
     ) |>
     dplyr::summarise(
@@ -150,6 +177,9 @@ get_livestock_cbs <- function(
   )
   .warn_trade_only_livestock(live_prod_raw)
 
+  # Under `method_cull = "separate"` the 960 / 1052 keys never match a trade
+  # row, so their import and export fill to 0 below. That zero is structural:
+  # live-animal trade is reported per species, and all of it is on 961 / 1053.
   live_prod <- live_prod_raw |>
     dplyr::mutate(
       slaughtered = tidyr::replace_na(slaughtered, 0),
@@ -174,7 +204,8 @@ get_livestock_cbs <- function(
       processing_primary = 0,
       other_uses = 0,
       stock_withdrawal = 0,
-      stock_addition = 0
+      stock_addition = 0,
+      method_cull = method_cull
     ) |>
     dplyr::select(
       year,
@@ -192,7 +223,8 @@ get_livestock_cbs <- function(
       other_uses,
       stock_withdrawal,
       stock_addition,
-      domestic_supply
+      domestic_supply,
+      method_cull
     )
 }
 
@@ -210,20 +242,63 @@ get_livestock_cbs <- function(
 # balance of its own for 1051, which needs an `items_cbs` row and so a new
 # husbandry sector in `build_supply_use()` and every footprint; the total
 # slaughter is the same either way. Folding keeps supply and trade on one key.
-# Only swine is folded: the dairy-cattle (960) and layer (1052) shares are
-# dropped by the same join, but each of those is an IO sector of its own, so
-# where their cull belongs is a separate question (whep#1237).
-.fold_split_slaughter <- function(slaughter) {
+#
+# The same join dropped the dairy-cattle (960) and layer (1052) shares
+# (whep#1237): on a real 2020 build 54.0 M of 285.7 M slaughtered cattle
+# (18.9%) and 23.8 bn of 72.8 bn slaughtered chickens (32.7%). Unlike 1051,
+# each of those is an IO sector of its own, so `method_cull` chooses. "fold"
+# is the default because (1) FAOSTAT observes one slaughter count per species;
+# the 960 / 1052 share is imputed from stock shares in
+# `.split_slaughter_by_shares()`, not a reported cull, so folding returns the
+# observed figure; (2) the balance is `slaughter + export - import`, and the
+# meat and the trade are both on 961 / 1053, so the slaughter belongs on the
+# same key; (3) under "separate" no slaughtering process consumes the 960 /
+# 1052 rows, while `build_io_model()` reads their `production` as the sector
+# output. What "fold" gives up: the live-animal balance credits culled dairy
+# cows and spent hens to the non-dairy / broiler sector. The meat of those
+# animals was credited there already, since it is keyed on 961 / 1053.
+.fold_split_slaughter <- function(slaughter, method_cull = "fold") {
   folds <- tibble::tribble(
     ~item_cbs_code, ~folded_code,
-    1051, 1049
+    1051,           1049
   )
+  if (method_cull == "fold") {
+    folds <- dplyr::bind_rows(
+      folds,
+      dplyr::rename(.cull_sub_items(), folded_code = meat_code)
+    )
+  }
   slaughter |>
     dplyr::left_join(folds, by = "item_cbs_code") |>
     dplyr::mutate(
       item_cbs_code = dplyr::coalesce(.data$folded_code, .data$item_cbs_code)
     ) |>
     dplyr::select(-"folded_code")
+}
+
+# Stock sub-items that are IO sectors of their own but whose slaughter's meat
+# is keyed on a sibling (whep#1237): dairy cattle beside non-dairy cattle,
+# layers beside broilers. See `.fold_split_slaughter()`.
+.cull_sub_items <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~meat_code,
+    960,            961,
+    1052,           1053
+  )
+}
+
+# The live-animal codes whose slaughter enters the balance: those that some
+# slaughter product is keyed on, and under `method_cull = "separate"` also the
+# cull sub-items of any of them.
+.live_balance_codes <- function(slaughter_livestock, method_cull) {
+  if (method_cull == "fold") {
+    return(slaughter_livestock)
+  }
+  cull_codes <- .cull_sub_items() |>
+    dplyr::filter(meat_code %in% slaughter_livestock$item_cbs_code) |>
+    dplyr::select(item_cbs_code)
+  dplyr::bind_rows(slaughter_livestock, cull_codes) |>
+    dplyr::distinct(item_cbs_code)
 }
 
 # Report (year, area_code, item_cbs_code) keys that trade live animals with no
