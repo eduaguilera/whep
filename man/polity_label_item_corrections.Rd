@@ -14,7 +14,8 @@ was taken from a \code{whep-polities} revision that published no rules. Columns:
 \item \code{year_start}, \code{year_end}: Inclusive year range.
 \item \code{correct_label}: The label to resolve instead.
 \item \code{polity_code}: Where \code{correct_label} resolves in the same upstream
-revision.
+revision, or \code{"UNROUTED"} when the rows belong to no polity and
+\code{\link[=resolve_polity_label]{resolve_polity_label()}} leaves them unassigned.
 \item \code{observed_rows}: Source rows the rule relabels upstream.
 \item \code{issue}: The \code{whep-polities} issue that decided the rule.
 \item \code{evidence}: Why the rows belong to the other territory.

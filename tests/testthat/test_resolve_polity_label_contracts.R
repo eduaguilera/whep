@@ -46,7 +46,15 @@
     "FID-1887-1954", "French Indochina",
     1887L, 1954L, "FID", "draft", NA, NA,
     "VNM-1887-1954", "Vietnam (French Indochina)",
-    1887L, 1954L, "VNM", "draft", NA, NA
+    1887L, 1954L, "VNM", "draft", NA, NA,
+    # whep-polities b44802d8 (#692): the targets of its unrouting and
+    # iso-clearing rules.
+    "JAM-1800-2025", "Jamaica",
+    1800L, 2025L, "JAM", "draft", NA, NA,
+    "BWI-1833-1962", "British West Indies (colonial aggregate)",
+    1833L, 1962L, "BWI", "draft", NA, NA,
+    "SPM-1816-2025", "Saint Pierre and Miquelon",
+    1816L, 2025L, "SPM", "draft", NA, NA
   ) |>
     # Upstream types every unit whose code carries a unit segment
     # (`BOL-SZ-...`) as subnational, and these fixture rows follow it.
@@ -88,6 +96,23 @@
     "NAT-1895-1910",
     "mitchell", "natal", "horses", 1945L, 1957L, "south africa",
     "ZAF-1910-2025"
+  )
+}
+
+# whep-polities #692's rules, verbatim apart from `evidence`: the doubled
+# British West Indies cotton iia files under "jamaica" belongs to no polity,
+# and Saint-Pierre-et-Miquelon's eggs iia files under "france" are relabelled
+# with the row's iso code cleared.
+.contract_corrections_692 <- function() {
+  tibble::tribble(
+    ~source, ~source_label, ~item, ~year_start, ~year_end, ~correct_label,
+    ~polity_code,
+    "iia", "jamaica", "cotton lint", 1934L, 1945L,
+    "british west indies federation", "UNROUTED",
+    "iia", "jamaica", "cotton seed", 1934L, 1945L,
+    "british west indies federation", "UNROUTED",
+    "iia", "france", "eggs, hen, in shell", 1939L, 1945L,
+    "saint pierre and miquelon", "SPM-1816-2025"
   )
 }
 
@@ -298,7 +323,11 @@ test_that("item corrections need the source, the item and a year", {
       year = NA,
       rules = .contract_corrections()
     ),
-    labels
+    list(
+      label = labels,
+      relabelled = rep(FALSE, 3),
+      unrouted = rep(FALSE, 3)
+    )
   )
 })
 
@@ -315,8 +344,135 @@ test_that("item corrections do not chain", {
       item = "sugar cane",
       year = 1860L,
       rules = rules
-    ),
+    )$label,
     c("natal", "south africa")
+  )
+})
+
+test_that("an UNROUTED rule leaves its rows unassigned", {
+  # whep-polities #692: iia's "jamaica" cotton 1934-1945 is the British West
+  # Indies total, doubled. Routing it to BWI-1833-1962 would sum it beside
+  # iia's Barbados, which it contains, so upstream routes it nowhere.
+  rules <- .contract_corrections_692()
+  resolved <- .resolve_on_contract(
+    rep("jamaica", 6),
+    source = "iia",
+    item = c(
+      "cotton lint",
+      "cotton seed",
+      "cotton lint",
+      "cotton lint",
+      "cotton lint",
+      "sugar cane"
+    ),
+    year = c(1934L, 1945L, 1933L, 1946L, 1940L, 1940L),
+    country = c("JAM", "JAM", "JAM", "JAM", NA, "JAM"),
+    corrections = rules
+  )
+  # Inside the rule, with or without `country`: NA. Outside its years or
+  # items, Jamaica as before.
+  expect_equal(
+    resolved,
+    c(NA, NA, "JAM-1800-2025", "JAM-1800-2025", NA, "JAM-1800-2025")
+  )
+  # NA even where the corrected label WOULD resolve: the sentinel, not the
+  # label, is what drops the rows.
+  routable <- rules
+  routable$correct_label <- "british west indies (colonial aggregate)"
+  expect_true(is.na(
+    .resolve_on_contract(
+      "jamaica",
+      source = "iia",
+      item = "cotton lint",
+      year = 1940L,
+      corrections = routable
+    )
+  ))
+  expect_equal(
+    .resolve_on_contract(
+      "british west indies (colonial aggregate)",
+      source = "iia",
+      item = "cotton lint",
+      year = 1940L,
+      corrections = routable
+    ),
+    "BWI-1833-1962"
+  )
+  expect_identical(
+    whep:::.apply_label_item_corrections(
+      c("jamaica", "france", "jamaica"),
+      source = "iia",
+      item = c("cotton lint", "eggs, hen, in shell", "maize"),
+      year = 1940L,
+      rules = rules
+    ),
+    list(
+      label = c(
+        "british west indies federation",
+        "saint pierre and miquelon",
+        "jamaica"
+      ),
+      relabelled = c(TRUE, TRUE, FALSE),
+      unrouted = c(TRUE, FALSE, FALSE)
+    )
+  )
+})
+
+test_that("an UNROUTED row raises no ambiguous-name warning", {
+  # "distrito federal" is shared across countries in the fixture. A row an
+  # UNROUTED rule drops was never offered to the name route, so even with
+  # that as its corrected label there is no ambiguity to report.
+  rules <- .contract_corrections_692()[1, ]
+  rules$correct_label <- "distrito federal"
+  expect_no_warning(
+    resolved <- .resolve_on_contract(
+      "jamaica",
+      source = "iia",
+      item = "cotton lint",
+      year = 1940L,
+      corrections = rules
+    )
+  )
+  expect_true(is.na(resolved))
+})
+
+test_that("a relabelled row does not keep its misfiled country", {
+  # whep-polities #692 clears the row's iso code on relabelling: it came with
+  # the misfiled label. Here the reporter is France, and restricting the
+  # corrected "saint pierre and miquelon" to French polities would lose it.
+  rules <- .contract_corrections_692()
+  expect_equal(
+    .resolve_on_contract(
+      c("france", "saint pierre and miquelon"),
+      source = "iia",
+      item = "eggs, hen, in shell",
+      year = 1940L,
+      country = "FRA",
+      corrections = rules
+    ),
+    # The unrelabelled row keeps its `country`, so the guard still applies.
+    c("SPM-1816-2025", NA)
+  )
+})
+
+test_that("a relabelled row is not read as an ISO3 code", {
+  # A corrected label is a territory's name. Reading a three-letter one as an
+  # ISO3 code would reopen the code route the correction bypasses.
+  rules <- .contract_corrections_692()[3, ]
+  rules$correct_label <- "jam"
+  expect_true(is.na(
+    .resolve_on_contract(
+      "france",
+      source = "iia",
+      item = "eggs, hen, in shell",
+      year = 1940L,
+      corrections = rules
+    )
+  ))
+  # The same label passed by the caller still takes the ISO3 route.
+  expect_equal(
+    .resolve_on_contract("jam", year = 1940L, corrections = rules),
+    "JAM-1800-2025"
   )
 })
 
@@ -354,7 +510,7 @@ test_that("the shipped corrections table keeps the published contract", {
   expect_equal(
     setdiff(
       whep::polity_label_item_corrections$polity_code,
-      whep::polities$polity_code
+      c(whep::polities$polity_code, "UNROUTED")
     ),
     character(0)
   )

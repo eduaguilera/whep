@@ -229,9 +229,11 @@ polity_label_item_corrections <- readr::read_csv(
     evidence = readr::col_character()
   )
 )
+# `UNROUTED` (whep-polities #692) is a sentinel, not a polity: its rows belong
+# to none, and `resolve_polity_label()` leaves them unassigned.
 unknown_correction_targets <- setdiff(
   polity_label_item_corrections$polity_code,
-  polities$polity_code
+  c(polities$polity_code, "UNROUTED")
 )
 if (length(unknown_correction_targets) > 0L) {
   cli::cli_abort(c(

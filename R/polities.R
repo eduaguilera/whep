@@ -1949,7 +1949,11 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   label is replaced by the rule's `correct_label` BEFORE any route below
 #'   runs, so the usual alias and year rules then place it. Rules do not chain:
 #'   each is tested against the label the caller passed. A row without a year
-#'   is never corrected, as upstream specifies for period-average rows.
+#'   is never corrected. A corrected row ignores `country`, which named the
+#'   territory it was misfiled under, and its new label is not read as an ISO3
+#'   code, so only the corrected label decides. A rule whose `polity_code` is
+#'   `"UNROUTED"` marks rows that belong to no polity (a wrong territory with
+#'   no right one to land on), and those resolve to `NA`.
 #' - **`country`: the reporting country, as an ISO3 code.** The name route
 #'   compares normalised names, and normalisation drops parenthesised
 #'   qualifiers, so a bare subnational name meets another country's unit:
@@ -2053,13 +2057,20 @@ resolve_polity_label <- function(
   item <- recycle(query$item, "item")
   country <- toupper(trimws(as.character(recycle(query$country, "country"))))
 
-  label <- .apply_label_item_corrections(
+  corrected <- .apply_label_item_corrections(
     label,
     source,
     item,
     year,
     tables$corrections
   )
+  label <- corrected$label
+  # The caller's `country` came WITH the misfiled label -- the reporter the
+  # source filed the row under -- so keeping it would restrict the name and
+  # ISO3 routes to the territory the row was just taken away from. Upstream
+  # clears the row's iso code for the same reason (whep-polities #692): the
+  # corrected label alone decides.
+  country[corrected$relabelled] <- NA_character_
   aliases <- .alias_rules_by_disposition(tables$aliases, back_cast)
   periods <- tables$polities
 
@@ -2148,7 +2159,14 @@ resolve_polity_label <- function(
     hit <- which(name_key == label_key[i])
     # An ISO3 code is only ever three letters, so trying the ISO3 index for
     # anything longer cannot match and would only widen the failure surface.
-    if (length(hit) == 0L && grepl("^[a-z]{3}$", label_key[i])) {
+    # Not for a relabelled row: its corrected label is a territory's NAME, and
+    # reading it as an ISO3 code would reopen the code route the correction
+    # exists to bypass.
+    if (
+      length(hit) == 0L &&
+        !corrected$relabelled[i] &&
+        grepl("^[a-z]{3}$", label_key[i])
+    ) {
       hit <- which(!is.na(iso_key) & iso_key == toupper(label_key[i]))
     }
     if (!is.na(country[i])) {
@@ -2199,6 +2217,12 @@ resolve_polity_label <- function(
   resolved <- vapply(
     seq_len(n),
     function(i) {
+      # An UNROUTED rule's rows belong to no polity: a wrong territory with no
+      # right one to land on. Upstream says to drop them rather than resolve
+      # `correct_label`, so no route gets a turn.
+      if (corrected$unrouted[i]) {
+        return(NA_character_)
+      }
       hit <- which(alias_key == label_key[i])
       if (length(hit) == 0L) {
         return(by_name(i))
@@ -2262,7 +2286,12 @@ resolve_polity_label <- function(
     character(1)
   )
   .warn_ambiguous_polity_names(
-    label[is.na(resolved) & is.na(country) & label_key %in% shared_names]
+    label[
+      is.na(resolved) &
+        !corrected$unrouted &
+        is.na(country) &
+        label_key %in% shared_names
+    ]
   )
   resolved
 }
@@ -2273,9 +2302,16 @@ resolve_polity_label <- function(
 # the year must lie inside the INCLUSIVE range, a row with no year is never
 # corrected, and every rule is tested against the ORIGINAL label, so one
 # correction cannot feed another.
+#
+# Returns a list: `label`, the corrected labels; `relabelled`, which rows a
+# rule hit; and `unrouted`, which of those a rule whose `polity_code` is the
+# `UNROUTED` sentinel hit (whep-polities #692). Those rows are relabelled too,
+# as upstream does, but the resolver must leave them unassigned.
 .apply_label_item_corrections <- function(label, source, item, year, rules) {
+  none <- rep(FALSE, length(label))
+  unchanged <- list(label = label, relabelled = none, unrouted = none)
   if (is.null(rules) || nrow(rules) == 0L || all(is.na(item))) {
-    return(label)
+    return(unchanged)
   }
   original <- .norm_polity_label(label)
   rule_key <- .norm_polity_label(rules$source_label)
@@ -2302,8 +2338,19 @@ resolve_polity_label <- function(
     )
   }
   label[rows] <- rep(rules$correct_label, lengths(hits))
-  label
+  relabelled <- none
+  relabelled[rows] <- TRUE
+  unrouted <- none
+  unrouted[rows] <- rep(
+    rules$polity_code %in% .label_item_unrouted,
+    lengths(hits)
+  )
+  list(label = label, relabelled = relabelled, unrouted = unrouted)
 }
+
+# The `polity_code` whep-polities writes on a label-item rule whose rows belong
+# to no polity (#692, `matchlib.LABEL_ITEM_UNROUTED`).
+.label_item_unrouted <- "UNROUTED"
 
 # The alias rules a caller asked for. `disposition` arrived with whep-polities
 # #667: empty for an observed territory, `"back_cast"` where the source

@@ -15,7 +15,11 @@
   column marks them as reconstructions. The shipped snapshot is still
   whep-polities e10c7421, which predates all three, so no shipped resolution
   moves. `polity_label_item_corrections` ships with zero rows and
-  `disposition` is all `NA` until the next re-sync.
+  `disposition` is all `NA` until the next re-sync. It also honours two
+  rules whep-polities added in #692: a correction whose `polity_code` is
+  `"UNROUTED"` leaves its rows unassigned (`NA`) instead of resolving its
+  `correct_label`, and a corrected row drops the caller's `country` and is not
+  read as an ISO3 code, since both came with the label it was misfiled under.
 
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it

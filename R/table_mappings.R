@@ -338,7 +338,8 @@
 #' - `year_start`, `year_end`: Inclusive year range.
 #' - `correct_label`: The label to resolve instead.
 #' - `polity_code`: Where `correct_label` resolves in the same upstream
-#'   revision.
+#'   revision, or `"UNROUTED"` when the rows belong to no polity and
+#'   [resolve_polity_label()] leaves them unassigned.
 #' - `observed_rows`: Source rows the rule relabels upstream.
 #' - `issue`: The `whep-polities` issue that decided the rule.
 #' - `evidence`: Why the rows belong to the other territory.

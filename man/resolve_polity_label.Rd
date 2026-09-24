@@ -125,7 +125,11 @@ label, \code{item} and a year inside the rule's inclusive range all match, the
 label is replaced by the rule's \code{correct_label} BEFORE any route below
 runs, so the usual alias and year rules then place it. Rules do not chain:
 each is tested against the label the caller passed. A row without a year
-is never corrected, as upstream specifies for period-average rows.
+is never corrected. A corrected row ignores \code{country}, which named the
+territory it was misfiled under, and its new label is not read as an ISO3
+code, so only the corrected label decides. A rule whose \code{polity_code} is
+\code{"UNROUTED"} marks rows that belong to no polity (a wrong territory with
+no right one to land on), and those resolve to \code{NA}.
 \item \strong{\code{country}: the reporting country, as an ISO3 code.} The name route
 compares normalised names, and normalisation drops parenthesised
 qualifiers, so a bare subnational name meets another country's unit:
