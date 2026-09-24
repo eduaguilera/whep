@@ -379,7 +379,10 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 97L)
+  # 99 since whep#1002: `.sci_spatialized_weights()` renormalises and sums one
+  # year's engine output per (area, crop), both `single_year`. Re-derived by
+  # RUNNING `sum(.territorial_grouping_baseline()$n)`, not by adding two.
+  expect_lte(sum(full$n), 99L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

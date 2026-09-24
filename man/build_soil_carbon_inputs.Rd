@@ -9,6 +9,7 @@ build_soil_carbon_inputs(
   data = list(),
   years = NULL,
   method_unspatialized = c("reallocate", "drop"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 )
 }
@@ -29,8 +30,12 @@ case-insensitively), and \code{territory} a stringified \code{area_code} -- an
 \code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, the polycell's
 share of the cell's land), refused when a cell-\code{area_code} group is
 duplicated or \code{NA} (DA-23);
-\code{crop_patterns} (the spatialization input carrying per-cell
-\code{crop_area_ha}); \code{harvested_area} (the
+\code{crop_patterns} (the static per-cell \code{crop_area_ha} layer, read only
+under \code{method_crop_weights = "static"}); \code{gridded_crops} (the crop-level
+\code{\link[=build_gridded_landuse]{build_gridded_landuse()}} output on the same \code{country_grid} support,
+\code{lon}, \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{rainfed_ha},
+\code{irrigated_ha}, read only under \code{"spatialized"} and built from the pinned
+spatialization inputs when absent); \code{harvested_area} (the
 FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}
 in a \code{faostat_area_ha} column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are
@@ -60,6 +65,22 @@ national area to put the carbon on, so a polity-crop with no
 which no rule here can reach (see whep#1002) -- is dropped under both
 methods, reported separately.}
 
+\item{method_crop_weights}{Where each crop's within-polity cell weights
+come from. \code{"spatialized"} (default) takes them from the spatialization
+engine's crop-level output, \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} run on the pinned
+spatialization inputs and the same cell support, year by year: the
+crop's placement follows that year's cropland, its irrigated share and
+the engine's per-cell capacity ceiling, so the carbon lands where the
+gridded land use puts the crop. \code{data$gridded_crops} supplies that output
+pre-built. \code{"static"} uses the time-invariant \code{crop_patterns} layer
+(\code{harvest_fraction} times each cell's cropland averaged over every year
+of the gridded-cropland pin), one map for every year, which is what the
+package did before (whep#1002). Measured on the pins, the L1 distance
+between the two cell-share vectors of a polity-crop (0 = same placement,
+2 = disjoint) has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and
+0.47 in 2020. Polity totals are the same under both; only where the
+carbon sits moves. Recorded in \code{method_crop_weights}.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
@@ -68,7 +89,8 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction}, \code{method_c_input}, \code{method_unspatialized} and
+\code{humified_fraction}, \code{method_c_input}, \code{method_unspatialized},
+\code{method_crop_weights} and
 \code{crop_area_ha} -- the crop's area at that grain on the basis the
 densities are computed on: the FAOSTAT-renormalised cell area where a
 national harvested area was supplied, the spatialized area otherwise, so
