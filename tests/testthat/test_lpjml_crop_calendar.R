@@ -340,6 +340,58 @@ testthat::test_that("band regimes come from the name, not the index", {
   )
 })
 
+# whep#1034: the regime rule is "irrigated prefix or not", so a run spelling
+# its irrigated stands any other way puts every band in "rainfed". The pool of
+# one regime is that regime, so the pooled-versus-regime identity above still
+# holds exactly while the irrigated cover is simply gone.
+testthat::test_that("a calendar with no irrigated band is refused per regime", {
+  respelled <- c("rice", "rice irrigated", "maize irrigated")
+  group <- whep:::.crop_band_regime(respelled)
+  slab <- .regime_slab()
+  per <- whep:::.crop_cover_rows(
+    whep:::.crop_cover_accumulate(slab, 1:3, group, c(2L, 1L)),
+    2010L,
+    c(0.25, 0.75),
+    5.25,
+    by = "regime"
+  )
+  pooled <- whep:::.crop_cover_rows(
+    whep:::.crop_cover_accumulate(slab, 1:3, rep("cropland", 3), c(2L, 1L)),
+    2010L,
+    c(0.25, 0.75),
+    5.25,
+    by = "cropland"
+  )
+  repooled <- per |>
+    dplyr::summarise(
+      cropland_cover = stats::weighted.mean(cropland_cover, cropped_frac),
+      .by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::arrange(lon, month)
+  testthat::expect_false("irrigated" %in% per$regime)
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      repooled$cropland_cover,
+      dplyr::arrange(pooled, lon, month)$cropland_cover
+    )),
+    guard = whep:::.crop_band_groups(respelled, "regime"),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("band groups pass a calendar carrying both regimes", {
+  bands <- c("rainfed rice", "irrigated rice")
+  testthat::expect_identical(
+    whep:::.crop_band_groups(bands, "regime"),
+    c("rainfed", "irrigated")
+  )
+  # The pooled read has no regime to find.
+  testthat::expect_identical(
+    whep:::.crop_band_groups(c("rice", "maize"), "cropland"),
+    c("cropland", "cropland")
+  )
+})
+
 testthat::test_that("the by argument is validated before any file is touched", {
   testthat::expect_error(
     whep::read_lpjml_crop_cover(run_dir = tempdir(), by = "crop"),
