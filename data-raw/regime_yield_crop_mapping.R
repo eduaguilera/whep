@@ -7,7 +7,8 @@
 # The SPAM side transcribes Table S3 of the Yu et al. (2020) ESSD supplement
 # (doi:10.5194/essd-12-3545-2020, supplement pp. 9-10), the published SPAM2010
 # crop-to-FAO-code list; the LPJmL side is cft_mapping's `cft_lpjml`. Items
-# neither source classifies carry a hand-chosen proxy with its rationale.
+# neither source classifies carry a stand-in with its rationale; the fodder
+# composites and the Linum/Hemp dominance rule are plan decisions D17-D19.
 
 regime_yield_crop_mapping <- here::here(
   "inst",

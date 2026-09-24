@@ -108,13 +108,60 @@ testthat::test_that("every crop item has a SPAM crop and an LPJmL CFT", {
 
 testthat::test_that("SPAM crops are SPAM2010 codes", {
   map <- whep::regime_yield_crop_mapping
-  tokens <- unlist(stringr::str_split(map$spam_crop, stringr::fixed("+")))
+  tokens <- unlist(stringr::str_split(map$spam_crop, "[+|]"))
 
   testthat::expect_true(all(tokens %in% .spam2010_crops()))
-  # Only FAO millet and coffee are split by SPAM, and only they pool two codes.
-  pooled <- map |> dplyr::filter(stringr::str_detect(.data$spam_crop, "\\+"))
+  # Anything else would be a separator T12e cannot read.
+  testthat::expect_true(all(stringr::str_detect(
+    map$spam_crop,
+    "^[a-z]{4}([+|][a-z]{4})*$"
+  )))
+})
+
+testthat::test_that("each joined SPAM crop carries the basis that reads it", {
+  map <- whep::regime_yield_crop_mapping
+  pooled <- map |>
+    dplyr::filter(
+      stringr::str_detect(.data$spam_crop, stringr::fixed("+")),
+      .data$spam_basis == "direct"
+    )
+  composite <- map |>
+    dplyr::filter(.data$spam_basis == "composite_weighted")
+  dominance <- map |>
+    dplyr::filter(.data$spam_basis == "product_dominance")
+  grasses <- c(638L, 639L, 645L, 651L, 996L)
+  legumes <- c(640L, 641L, 643L)
+
+  # `+` on a direct row: SPAM's own split of one FAO item, summed.
   testthat::expect_setequal(pooled$item_prod_code, c(79L, 656L))
   testthat::expect_setequal(pooled$spam_crop, c("pmil+smil", "acof+rcof"))
+  # `+` on a composite row: area-weighted mean of per-crop ratios (D18, D19).
+  testthat::expect_setequal(composite$item_prod_code, c(grasses, legumes))
+  testthat::expect_equal(
+    composite$spam_crop[composite$item_prod_code %in% grasses],
+    rep("whea+barl+ocer", length(grasses))
+  )
+  testthat::expect_equal(
+    composite$spam_crop[composite$item_prod_code %in% legumes],
+    rep("bean+chic+cowp+pige+lent+opul+rest", length(legumes))
+  )
+  # `|`: one of two per country, by product dominance (D17).
+  testthat::expect_setequal(dominance$item_prod_code, c(772L, 776L))
+  testthat::expect_equal(dominance$spam_crop, c("ooil|ofib", "ooil|ofib"))
+  # No other row joins codes.
+  joined <- map |> dplyr::filter(stringr::str_detect(.data$spam_crop, "[+|]"))
+  testthat::expect_equal(
+    nrow(joined),
+    nrow(pooled) + nrow(composite) + nrow(dominance)
+  )
+  testthat::expect_false(any(stringr::str_detect(
+    pooled$spam_crop,
+    stringr::fixed("|")
+  )))
+  testthat::expect_false(any(stringr::str_detect(
+    composite$spam_crop,
+    stringr::fixed("|")
+  )))
 })
 
 testthat::test_that("LPJmL CFTs are crop bands the regime layer reads", {
@@ -131,13 +178,18 @@ testthat::test_that("LPJmL CFTs are crop bands the regime layer reads", {
 testthat::test_that("basis columns use the declared vocabulary", {
   map <- whep::regime_yield_crop_mapping
   basis <- c("direct", "direct_aggregate", "group_proxy", "proxy")
+  spam_only <- c("composite_weighted", "product_dominance")
 
-  testthat::expect_true(all(map$spam_basis %in% basis))
+  testthat::expect_true(all(map$spam_basis %in% c(basis, spam_only)))
   testthat::expect_true(all(map$lpjml_basis %in% basis))
   # A SPAM aggregate is never a crop's own code, and vice versa.
   aggr <- map |> dplyr::filter(.data$spam_basis == "direct_aggregate")
   testthat::expect_true(all(aggr$spam_crop %in% .spam2010_aggregates()))
-  own <- map |> dplyr::filter(.data$spam_basis == "direct")
+  own <- map |>
+    dplyr::filter(
+      .data$spam_basis == "direct",
+      !stringr::str_detect(.data$spam_crop, stringr::fixed("+"))
+    )
   testthat::expect_false(any(
     own$spam_crop %in% setdiff(.spam2010_aggregates(), "rape")
   ))
@@ -154,5 +206,10 @@ testthat::test_that("every non-direct assignment carries a rationale", {
   testthat::expect_gt(nrow(non_direct), 0)
   testthat::expect_true(all(
     !is.na(non_direct$rationale) & nzchar(non_direct$rationale)
+  ))
+  # Every open choice has been decided (plan D17-D19).
+  testthat::expect_false(any(
+    stringr::str_detect(map$rationale, "UNDECIDED|PLACEHOLDER"),
+    na.rm = TRUE
   ))
 })
