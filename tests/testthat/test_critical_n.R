@@ -600,9 +600,19 @@ testthat::test_that("the binding threshold is the argmin with explicit ties", {
 })
 
 testthat::test_that("ties are exact: a 0.001 kg N/ha lead still binds", {
-  values <- list(de = 10, gw = 10.001, sw = 20)
-  out <- .binding_call(values, exc = -1)
-  testthat::expect_equal(out$binding_threshold, "deposition")
+  # Each surface in turn sits 0.001 above the minimum, so a tolerance on any
+  # one of the de/gw/sw comparisons turns a row into a tie and fails. The last
+  # row is a three-way near-tie that must stay a two-way tie.
+  values <- list(
+    de = c(10, 10.001, 20, 8),
+    gw = c(10.001, 10, 10, 8),
+    sw = c(20, 20, 10.001, 8.001)
+  )
+  out <- .binding_call(values, exc = rep(-1, 4))
+  testthat::expect_equal(
+    out$binding_threshold,
+    c("deposition", "groundwater", "groundwater", "deposition+groundwater")
+  )
 })
 
 testthat::test_that("three-way ties split into the two source rules", {
