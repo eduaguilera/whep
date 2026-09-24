@@ -233,28 +233,39 @@ balance rows.
 Built in one pass, every stage holds the whole span at once, and two of them
 hold many times the table they return: the monthly climate read peaks at
 about 15 times its output and the output tail at 5 to 6 times its own
-(whep#1287). Measured on the real grid at 1961-1966, the climate read's peak
-grows by about 1.45 GB of committed memory per year read and the tail's by
-0.55 to 0.65 GB per year, so a century-long span needs well over 100 GB in
-one pass.
+(whep#1287). \code{block_years} bounds both by the block instead. Measured on the
+real grid as the process's peak committed memory, with the carbon inputs
+supplied, and the output identical in every case:\tabular{lllll}{
+   span \tab one pass \tab 10-year blocks \tab 3-year blocks \tab 2-year blocks \cr
+   1961-1966 \tab 13.8 GB \tab (one block) \tab 12.4 GB \tab 11.6 GB \cr
+   1961-1972 \tab 18.5 GB \tab 17.1 GB \tab 13.6 GB \tab  \cr
+}
 
-\code{block_years} bounds both by the block instead. What still grows with the
-span is what the build must return or cannot split: the output itself
-(about 0.115 GB per year at \code{"grid"}), and the carbon inputs, which are read
+
+The single pass grows by about 0.8 GB per year of span. A blocked build
+grows only by what it must keep: the output (about 0.12 GB per year at
+\code{"grid"}) and the carbon inputs (about 0.08 GB per year), which are read
 once over the whole span because a year-scoped production and commodity
-build returns different rows for the same years (whep#833, whep#834). The
-default of 10 years keeps a block's own peak near 20 GB on the real grid,
-against the 45-55 GB the carbon-input read alone is extrapolated to over
-1931-2023, so no stage but that read and the output grows with the span.
-Each block re-reads the static cell support and clay, which costs a few
-minutes per block, so a shorter block trades run time for memory.
+build returns different rows for the same years (whep#833, whep#834). From
+1961-1966 to 1961-1972 the 3-year build rose 1.20 GB, against 1.17 GB for
+those two terms. Each year added to the block costs about 0.5 GB.
+
+Extrapolated linearly from these points to 1931-2023 (not measured there),
+one pass would need about 80 GB, 10-year blocks about 33 GB and 3-year
+blocks about 29 GB, while the span-wide carbon-input read that precedes
+the blocks is extrapolated in whep#1287 to 45-55 GB. The default of 10
+years keeps the blocks below that read, which is then the build's peak;
+every block re-reads the static cell support, clay and climate series, at
+3 to 4 minutes a block, so 3-year blocks would cost about an hour more over
+1931-2023 to save about 4 GB that the carbon-input read has already spent.
 
 Nothing about the carbon itself is decided per block. The balance opens
-from the first year it marches and the equilibrium-climate normal, which
-has no year, is read only then; the check that every cell carries every
-year runs across block boundaries; and each warning and message the class
-table and the output tail raise is gathered over the blocks and raised once
-for the whole span, as a single pass raises it.
+from the first year it marches, and the year-less equilibrium-climate
+normal is read only then; the check that every cell carries every year runs
+across block boundaries; and each warning and message the class table and
+the output tail raise is gathered over the blocks and raised once for the
+whole span, as a single pass raises it. Messages the land-use and climate
+readers raise about their own read are raised by each block's read.
 }
 
 \section{The land-use-change ledger closes on mass, not on density}{
