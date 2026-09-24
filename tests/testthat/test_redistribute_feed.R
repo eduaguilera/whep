@@ -485,8 +485,8 @@ test_that("redistribute_feed attaches a grass_deficit_diagnosis with maintenance
   expect_s3_class(diag, "tbl_df")
 })
 
-# whep#181: `.check_required_cols()` is the column gate of redistribute_feed()
-# and of ~20 land-extension call sites. It aborts with the seam-schema class,
+# whep#181: the private column gate shared by redistribute_feed and about
+# twenty land-extension call sites. It aborts with the seam-schema class,
 # so a caller can catch a contract violation by class, not by message text.
 test_that(".check_required_cols aborts with the seam-schema class", {
   data <- tibble::tibble(lon = 0, lat = 0)

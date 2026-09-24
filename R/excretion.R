@@ -190,7 +190,11 @@ estimate_n_excretion <- function(intake, options = list()) {
   # vocabularies share only `year` and `item_cbs_code`, and no mapping between
   # them is lossless (whep#181), so name the right source instead of only
   # listing columns.
-  if (all(rlang::has_name(intake, c("live_anim_code", "intake_dry_matter")))) {
+  cbs_shaped <- c("live_anim_code", "intake_dry_matter")
+  if (
+    !all(rlang::has_name(intake, req)) &&
+      all(rlang::has_name(intake, cbs_shaped))
+  ) {
     cli::cli_abort(
       c(
         "{.arg intake} looks like {.fn get_feed_intake} output, which
