@@ -227,3 +227,21 @@ testthat::test_that("the PACKAGED item mapping resolves into Table 5", {
   singles <- measured$source_name[measured$entry_type == "single_food"]
   testthat::expect_true(all(items$source_default %in% singles))
 })
+
+testthat::test_that("the items table is never read as the classes (#1214)", {
+  # R's `$` partially matches list names: with only
+  # `protein_digestibility_items` supplied, `data$protein_digestibility`
+  # returned it in place of the packaged class table.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~protein_t,
+    2010L, 10L,        2731L,          40,
+    2010L, 10L,        2511L,          60
+  )
+  items <- whep::whep_coef_table("protein_digestibility_items")
+  testthat::expect_equal(
+    whep::build_protein_quality(
+      data = list(protein_supply = supply, protein_digestibility_items = items)
+    ),
+    whep::build_protein_quality(data = list(protein_supply = supply))
+  )
+})

@@ -404,3 +404,14 @@ testthat::test_that("an injected population never reaches read_population()", {
   out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
   testthat::expect_gt(nrow(out$scatter), 0)
 })
+
+testthat::test_that("critical_loads is never read as critical (#1214)", {
+  # R's `$` partially matches list names: without a `critical` entry,
+  # `data$critical` returned the pathway-mode `critical_loads` table.
+  data <- whep:::.sjos_n_example_data()
+  data$critical <- NULL
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data),
+    "boundary surface are required"
+  )
+})
