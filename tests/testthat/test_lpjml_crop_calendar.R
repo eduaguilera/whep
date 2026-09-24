@@ -369,12 +369,20 @@ testthat::test_that("a calendar with no irrigated band is refused per regime", {
     ) |>
     dplyr::arrange(lon, month)
   testthat::expect_false("irrigated" %in% per$regime)
+  # The build refuses before it opens a single slab, so no file is needed:
+  # both calendars carry the same band names and the name match succeeds.
+  testthat::local_mocked_bindings(.lpjml_band_names = function(nc) respelled)
   expect_supplied_guard(
     identity = isTRUE(all.equal(
       repooled$cropland_cover,
       dplyr::arrange(pooled, lon, month)$cropland_cover
     )),
-    guard = whep:::.crop_band_groups(respelled, "regime"),
+    guard = whep:::.crop_cover_build(
+      list(sdate = NULL, cftfrac = NULL),
+      years = NULL,
+      first_year = 1901L,
+      by = "regime"
+    ),
     class = "whep_absent_label"
   )
 })

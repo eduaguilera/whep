@@ -228,9 +228,9 @@ test_that("the example fixture has the seam's shape", {
   expect_equal(fixture$agriland, fixture$Cropland + fixture$Pasture)
 })
 
-# whep#1034: `.land_series_to_wide()` fills a class with no rows with 0, so a
-# series missing a whole class leaves `agriland == Cropland + Pasture` holding
-# exactly.
+# whep#1034: the wide recode fills a class that has no rows with zero, so a
+# series missing a whole class still has agriland equal to Cropland plus
+# Pasture, exactly.
 .two_cell_land_on <- function(cell_areas) {
   build_historical_land_areas(
     years = 1:4,
