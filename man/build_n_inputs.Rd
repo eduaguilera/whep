@@ -8,6 +8,8 @@ build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  method_unsupported = NULL,
+  unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -24,6 +26,37 @@ keeps every year the assembled inputs cover.}
 \code{"area_share"}. When \code{NULL} (default), uses
 \code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
 
+\item{method_unsupported}{What happens to non-item nitrogen (deposition,
+urban, soil-organic-matter mineralization, unattributed manure) whose own
+cell-year carries no cropland support at all. \code{"abort"} (the default, and
+the behaviour before this argument existed) refuses to continue and names
+the streams and the mass, so a coverage gap cannot be lost silently.
+\code{"reallocate"} spreads each such row over its own polity-year's cropland
+support in proportion to area, which conserves mass and is the same rule
+\code{spatialize_country_n_to_crops()} already applies to a polity-crop with
+no crop-pattern cell; it still aborts when the polity-year has no cropland
+support anywhere. \code{"reallocate_drop"} places the same rows the same way
+and then discards that irreducible remainder, warning with its mass, so a
+global build is not refused over a few polities with population and no
+cropland. \code{"drop"} reallocates nothing and discards every such row.
+Whichever is chosen is stamped on every output row as
+\code{method_unsupported}. May also be supplied as \code{data$method_unsupported},
+which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} forwards it.}
+
+\item{unattributed_method}{Where nitrogen that reached agricultural land but
+no single crop goes -- manure the engine placed on Cropland or landed by
+transport without a crop, plus deposition, urban N and SOM mineralization,
+all of which carry \code{item_cbs_code = NA}. \code{"cropland_area"} (default)
+spreads it over the cell-year's cropland support in proportion to each
+crop's hectares; \code{"agricultural_area"} spreads it over cropland \emph{and}
+grassland support (CBS 3000), which is the land the manure engine's own
+transport sizing already counts as available room; \code{"exclude"} drops it,
+the pre-whep#532 behaviour, retained as a measurable sensitivity and not
+as a fallback -- it warns with the excluded tonnage by stream. The
+allocating methods conserve mass or abort; \code{"exclude"} does not conserve
+it. When \code{NULL} (default), uses
+\code{data$unattributed_method \%||\% "cropland_area"}.}
+
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
 crosswalk has no year dimension, so an early-20th-century cell is labelled
@@ -37,22 +70,42 @@ already-built table.}
 
 \item{data}{Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding \code{fert_type} to
-be emitted (a missing one silently skips that source rather than
-erroring, since callers may only want a subset):
+be emitted (a missing one skips that source rather than erroring, since
+callers may only want a subset). Supplying one and getting \strong{no}
+nitrogen back is a different matter and is refused with a
+\code{whep_absent_input} error, because a stream that arrived empty is
+subtracted from the balance without changing anything the mass check can
+see -- that check compares the assembled rows against themselves
+(#1034). The one exception is \code{carbon_balance}, which warns instead: its
+stream keeps only \code{son_change_kgn_ha > 0}, so contributing nothing is an
+observation there as well as a symptom.
 \itemize{
 \item \code{bnf_input}: \code{\link[=calculate_bnf]{calculate_bnf()}}'s required input tibble (\code{lon}, \code{lat},
 \code{area_code}, \code{year}, \code{item_prod_code}, \code{crop_npp_n_t}, \code{product_n_t},
 \code{weed_npp_n_t}, \code{land_use}, \code{legumes_seeded},
-\code{seeded_cover_crop_share}, \code{area_ha}).
+\code{seeded_cover_crop_share}, \code{area_ha}). The \code{"bnf"} term's
+\code{n_input_t} is the \code{bnf_t} column of \code{\link[=calculate_bnf]{calculate_bnf()}}'s output.
 \item \code{npp_n_input}: \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}'s required input
 tibble (\code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{item_prod_code},
 \code{item_cbs_code}, \code{product_dm_t}, \code{residue_dm_t}, \code{root_dm_t},
-optionally \code{residue_soil_dm_t}).
+optionally \code{residue_soil_dm_t}). The \code{"recycling"} term's
+\code{n_input_t} is \code{root_n_t} plus \code{residue_soil_n_t} from
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}'s output, or plus \code{residue_n_t} when
+\code{residue_soil_n_t} is absent (see \code{method_recycling_n}).
 \item \code{livestock_intake}: \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s \code{intake}
 argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-intake contract), plus
 \code{gridded} (its land-surface layer) and \code{resolution}/\code{methods}
-(forwarded as-is).
-\item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
+(forwarded as-is). The manure terms sum \code{applied_n} from the
+\verb{$applied} table of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s output,
+keyed by its \code{territory}, \code{sub_territory}, \code{crop}, \code{land_use},
+\code{manure_type} and \code{year}; \code{manure_type} selects the \code{"excreta"},
+\code{"manure_solid"} or \code{"manure_liquid"} term.
+\item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs. From
+its output the \code{"deposition"} term reads \code{deposition_kgn_ha} (the
+whole-cell rate), \code{deposition_n_t} and \code{area_category} (only to form
+the in-scope share of each polycell's mass, see \code{deposition_scope})
+and \code{method_deposition}; \code{n_input_t} is \code{deposition_kgn_ha} times that
+share times the support's \code{area_ha}, divided by 1000.
 \item \code{deposition_scope}: which of a polycell's territory the \code{"deposition"}
 term is credited with. \code{"territory"} (default) is land plus inland
 water plus ice: nitrogen deposited on a lake or a glacier still drives
@@ -76,16 +129,24 @@ forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when 
 (\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
 support).
 \item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
-inputs.
+inputs. The \code{"urban"} term's \code{n_input_t} is the \code{urban_n_t} column of
+\code{\link[=build_urban_n]{build_urban_n()}}'s output.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it
-is never computed here.
+is never computed here. The \code{"som_mineralization"} term keeps the
+cropland rows with \code{son_change_kgn_ha > 0} and takes
+\code{son_change_kgn_ha} times \code{area_ha}, divided by 1000, as \code{n_input_t}.
 \item \code{primary_prod}, \code{fertilizer}, \code{crop_patterns}, \code{type_cropland},
 \code{cell_polity}: the synthetic-fertiliser assembly (country total from
 \code{fertilizer}, the \code{faostat-fertilizer-nutrients} pin, split to crops
 by the chosen crop-share method, then to cells by
-\code{crop_patterns}/\code{type_cropland}).
+\code{crop_patterns}/\code{type_cropland}). From \code{fertilizer} it reads the
+raw FAOSTAT columns \code{Element} (\code{"Agricultural Use"}), \code{Item}
+(\code{"Nutrient nitrogen N (total)"}), \code{Year}, \verb{Area Code} and \code{Value};
+\code{Value} becomes the country total \code{synthetic_n_t}, passed on as the
+\code{n_t} column of \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}'s \code{country_totals},
+whose output \code{n_t} is the \code{"synthetic"} term's \code{n_input_t}.
 \item \code{synthetic_method}: how the synthetic-N country total is split across
 crops, \code{"coello"} (default; Coello 2025 rate-weighted, FAOSTAT-
 conserving) or \code{"area_share"} (harvested-area shares only).
@@ -93,6 +154,9 @@ conserving) or \code{"area_share"} (harvested-area shares only).
 \link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
 \code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
 \code{synthetic_method = "coello"}.
+\item \code{method_unsupported}: the \code{method_unsupported} argument, supplied on
+\code{data} instead, so that \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} can select it by
+forwarding its own \code{data} list.
 \item \code{gridded}, \code{resolution}, \code{methods}: forwarded to
 \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}. \code{resolution} is the manure engine's
 own axis, not this function's: it defaults to \code{"subnational"} at
@@ -106,19 +170,34 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
-\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition_scope}. At
+\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
+\code{method_deposition_scope}, \code{method_unsupported},
+\code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
-\code{method_deposition_scope}, \code{n_input_t} (summed over cells).
+\code{method_deposition}, \code{method_deposition_scope}, \code{method_unsupported},
+\code{method_unattributed}, \code{n_input_t} (summed over cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
 \code{"total_residue"} when only gross residue N was available; it is \code{NA} for
 every other \code{fert_type}. \code{method_synthetic} records the synthetic
 crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
-is \code{NA} for every other \code{fert_type}. \code{method_deposition_scope} records
+is \code{NA} for every other \code{fert_type}. \code{method_deposition} records which
+deposition product the \code{"deposition"} term's field came from, read off
+the supplied \code{nhx}/\code{noy} by \code{\link[=build_n_deposition]{build_n_deposition()}} (\code{"hani"} for
+\code{\link[=read_n_deposition]{read_n_deposition()}}'s own rows, \code{"supplied"} for an injected field
+carrying no tag of its own), so a corrected field stays visible here.
+\code{method_deposition_scope} records
 which of the polycell's territory the \code{"deposition"} term was credited
-with (\code{"territory"} or \code{"land"}) and is \code{NA} for every other \code{fert_type}.
+with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
+\code{fert_type}.
+\code{method_unsupported} records the rule applied to non-item nitrogen with no
+cropland support in its own cell, and is the same on every row.
+\code{method_unattributed} records the \code{unattributed_method} the whole assembly
+ran under and is stamped on \strong{every} row, not only on the reallocated
+ones: under \code{"exclude"} no reallocated row survives to carry it, and a
+choice that removes nitrogen has to stay readable from the table.
 Both grains also carry the polity columns below, plus
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }

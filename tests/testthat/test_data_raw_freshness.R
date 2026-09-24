@@ -18,7 +18,7 @@
 # Coverage is partial by construction, and the partition is asserted below so a
 # new dataset cannot arrive both unchecked and unexcluded:
 #
-#   * checked  -- the 56 datasets written by the seven builders in
+#   * checked  -- the 49 datasets written by the seven builders in
 #     `.offline_data_builders()`, which read only inst/extdata/, data-raw/ and
 #     committed data/*.rda.
 #   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
@@ -76,7 +76,7 @@
     "polities",              "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "polity_area_crosswalk", "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "polity_label_aliases",  "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "polity_containment",    "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polity_containment",  "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "coello_synthetic_n",    "coello_synthetic_n.R",     "WHEP_COELLO_DIR",
     "livestock_coefs",       "livestock_coefficients.R", "openxlsx"
   )
@@ -267,8 +267,7 @@ testthat::test_that("a data/*.rda built from its inputs passes", {
   c(
     WHEP_POLITIES_GPKG = "polities_database.gpkg",
     WHEP_POLITIES_FAOSTAT_MAP = "faostat_area_polity_map.csv",
-    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv",
-    WHEP_POLITY_CONTAINMENT_CSV = "polity_containment.csv"
+    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv"
   )
 }
 
@@ -322,6 +321,55 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
   })
 })
 
+
+# Evaluates one top-level `<name> <- function(...)` out of a builder, so a
+# guard can be exercised without running the builder's CSV reads.
+.builder_function <- function(builder, name, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  wanted <- purrr::keep(exprs, function(expr) {
+    rlang::is_call(expr, c("<-", "=")) &&
+      identical(rlang::expr_text(expr[[2]]), name)
+  })
+  testthat::expect_length(wanted, 1L)
+  env <- new.env(parent = globalenv())
+  eval(wanted[[1]], envir = env)
+  rlang::env_get(env, name)
+}
+
+testthat::test_that("the non-unique-key guard names the values (#621)", {
+  # `.assert_unique_key()` is the build-time gate that stops a fanned-out join
+  # key from shipping, and its whole point is to say which values repeat. Keys
+  # are usually numeric code columns, so with two duplicates the plural marker
+  # had nothing numeric ahead of it, cli read the quantity off the code vector
+  # and aborted inside its own formatter -- "length(object) == 1 is not TRUE",
+  # a bare simpleError with none of the values in it. One duplicate hides the
+  # defect, hence two here.
+  root <- .skip_without_data_raw()
+  assert_unique_key <- .builder_function(
+    "harmonization_tables.R",
+    ".assert_unique_key",
+    root
+  )
+  dup <- tibble::tibble(
+    item_cbs_code = c(2511, 2511, 2513, 2513),
+    label = c("a", "b", "c", "d")
+  )
+  cnd <- testthat::expect_error(
+    assert_unique_key(dup, "item_cbs_code", "items_cbs"),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "2511")
+  testthat::expect_match(conditionMessage(cnd), "2513")
+  testthat::expect_match(conditionMessage(cnd), "Duplicated values")
+  # A unique key passes the table straight back.
+  ok <- tibble::tibble(item_cbs_code = c(2511, 2513), label = c("a", "b"))
+  testthat::expect_identical(
+    assert_unique_key(ok, "item_cbs_code", "items_cbs"),
+    ok
+  )
+})
+
+
 # The builder's own guards, read without running the builder ---------------
 #
 # `harmonization_tables.R` refuses a malformed inst/extdata CSV, and what a
@@ -340,6 +388,7 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
   if (assigned) rlang::as_name(expr[[2]]) else NA_character_
 }
 
+
 # Evaluates only the named top-level definitions of a builder, so a guard
 # can be called without the builder's file reads and .rda writes.
 .builder_definitions <- function(builder, defs, root) {
@@ -349,6 +398,7 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
   purrr::walk(wanted, eval, envir = env)
   env
 }
+
 
 testthat::test_that("a mistyped mapping_kind names the vocabulary it missed", {
   root <- .skip_without_data_raw()

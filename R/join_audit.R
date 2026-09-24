@@ -197,6 +197,11 @@
      which is year-free on purpose, because carrying a share into a year that
      did not report it is what the interpolation is for. The label is
      re-attached once from the code afterwards.",
+    ".iso3c_keep_live_area", "left_join", "area_code", 1L, "identity_lookup",
+    "Attaches each area's LAST reported year so an ISO3 carrying both a retired
+     area and its successor resolves to the live one (whep#680). The joined
+     side is `.area_last_reporting_year()`, one row per area reducing the year
+     axis, so the year is the value here rather than a missing key.",
     ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
     "A polity code already names its own period (`ETH-1952-1993`), so the
      territory it is joined to cannot vary within it. Since whep#800 that
@@ -214,6 +219,18 @@
      (`pmax(start_year, start_year_edge)`, `pmin(end_year, end_year_edge)`,
      then `start_year < end_year`). Keying it on a year instead would need one
      row per polity-year. Same shape as `.add_polity_columns_dt()`.",
+    ".lineage_attach", "left_join", "lineage_polity_code, polity_code", 1L,
+    "identity_lookup",
+    "Attaches the polity's display name once, at the output stage, after the
+     lineage has been decided on codes. A polity code already names its own
+     period (`RUS-1991-2014`), so the name cannot vary within it.",
+    ".lineage_expand", "inner_join", "code, polity_code", 1L,
+    "identity_lookup",
+    "The `predecessor` edge is a property of the polity PERIOD, not of a
+     calendar year -- the same reason `.land_in_polygons` reads a polygon on
+     `polity_code` alone. The year is the walk's stop condition and is applied
+     in `.lineage_carried()`, against the support's own interval, on every
+     candidate this join produces.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -232,6 +249,23 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
+    ".pop_overlap_pairs", "inner_join", "reporting_polity_code", 1L,
+    "identity_lookup",
+    "Attaches a polity's transitive successors so `read_population()` can see
+     that two area codes name the same ground in one year (whep#939). The key
+     is `reporting_polity_code`, which IS the year-scoped identity -- a polity
+     code carries its own period -- and the succession relation is an attribute
+     of that period, not of a calendar year. The year enters at the next join,
+     which keys on (year, successor polity).",
+    ".predecessor_bucket_codes", "inner_join", "area_code", 1L,
+    "identity_lookup",
+    "Attaches the member area's last reported year, one row per area. The join
+     decides which FOLD is a predecessor-shaped one (whep#680), not which value
+     a row gets, and the years it compares are the value.",
+    ".predecessor_bucket_codes", "inner_join", "polity_area_code", 1L,
+    "identity_lookup",
+    "The same table read again for the BUCKET code, so the two windows can be
+     compared. Same reason it carries no year: the years are what is joined.",
     ".prepare_historical_cbs", "merge", "area_code", 1L, "identity_lookup",
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
@@ -263,6 +297,28 @@
     "The same window attach, on the grid of areas whose bucket membership is
      then resolved year-aware by `.add_polity_columns_dt()`. The window is a
      property of the area, not of one of its years (whep#884).",
+    ".residue_area_from_polity", "left_join", "polity_code", 1L,
+    "time_invariant",
+    "Reads the area that reports a polity, for the residue labels the canonical
+     NAME join cannot match (whep#1175). A polity code already names its own
+     period (`TZA-1964-2025`), so the area reporting it cannot vary inside one
+     -- the same reason `.land_in_polygons` reads a polygon on `polity_code`
+     alone. The year is applied BEFORE this join, not after: the label is
+     resolved per (label, year) by `resolve_polity_label()`, which is what
+     keeps pre-union Tanganyika out of the United Republic.",
+    ".residue_recovered_split", "left_join", "area_code", 1L,
+    "time_invariant",
+    "Attaches the residue recovery region and the UN M49 sub-region a crop
+     residue's destiny coefficients are published for. Neither table has a time
+     dimension: `residue_recovery.csv` is keyed on (crop category, HANPP
+     region) and `residue_feed_fraction.csv` on the sub-region alone (Smil
+     1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992). Keying the
+     lookup on the year would be the defect rather than the fix, exactly as for
+     Gustavsson's Annex 1: it would leave every successor area without the
+     region its own coefficients come from. It reads the SAME two vocabularies
+     `.sci_crop_regions` already classifies for the crop-NPP coefficients. The
+     residue rows carry `year` into and out of this join; only the region
+     membership is year-free.",
     ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
     "The first year the upstream FAOSTAT map reports each area at all: one
      number per area by construction, and the year bound the predicate right
@@ -273,6 +329,18 @@
     ".resolve_hist_trade_polities", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> area bridge, immediately followed by the year-aware polity
      resolution.",
+    ".hist_trade_reporter_reference", "merge", "area_code", 1L,
+    "identity_lookup",
+    "The same ISO3 <-> FAOSTAT area bridge as `.resolve_hist_trade_polities`
+     above, read in the other direction so a FAOSTAT reporter can bound the
+     pin's ISO3-keyed rows. It resolves an identity, not a flow.",
+    ".add_hist_trade_reporter_max", "[", "iso3c, item_code_trade, element", 1L,
+    "diagnostic",
+    "Attaches the reporter bound of whep#1117 to the historical trade rows. The
+     bound is one number per (reporter, item, element) over all FAOSTAT years
+     by construction, so a year in the key would return the year; and the join
+     feeds only a warning -- the reporter class is never dropped and never
+     aborts, so no published value passes through it.",
     ".sci_crop_prod_wide", "left_join", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
@@ -280,6 +348,16 @@
     "time_invariant",
     "`crop_patterns` is a single-vintage gridded map, applied to every year on
      purpose.",
+    ".sci_reallocate", "anti_join", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "Selects the polity-crops the row above could not place, against the same
+     single-vintage `crop_patterns` map: a crop the map does not carry is
+     missing in every year, so a year in the key would return the year.",
+    ".sci_reallocate", "inner_join", "area_code", 1L, "time_invariant",
+    "Fans those polity-crops onto the polity's cropland cells. The cropland
+     support is summed from the same single-vintage map, so it has no year to
+     key on; the crop's own area DOES come from a year-keyed join, the one
+     above it on `(area_code, item_prod_code, year)` (whep#599, whep#1002).",
     ".sci_warn_unspatialized", "anti_join", "area_code, item_prod_code", 1L,
     "diagnostic", "Reports the carbon the join above cannot spatialize.",
     ".select_best_source", "[", "area_code", 1L, "identity_lookup",
@@ -457,6 +535,11 @@
      those exposures returned the same number. Both sides are the same
      `layer` frame of one call, so the key cannot cross a succession, and the
      report moves no allocated hectare.",
+    ".area_last_reporting_year", "summarise", "area_code", 1L, "year_axis",
+    "`max(map_year_end)` IS the reduction over the crosswalk's periods: the
+     last year the upstream FAOSTAT map reports each area, which is what tells
+     a retired reporting code from its live successor (whep#680). Keying on the
+     year would return the year itself.",
     ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reported-year window per area, the bound that
@@ -494,6 +577,12 @@
     ".carbon_warn_unkeyed", "summarise", "polity_code", 1L, "diagnostic",
     "Ranks the polities named in the DA-23 unkeyed-land warning. It reaches no
      value.",
+    ".cb_climate_gap_worst", "summarise", "area_code", 1L, "diagnostic",
+    "Ranks the polities losing the most land to the carbon balance's
+     climate-coverage gap, and the share of each one's own land that goes, for
+     the warning that reports it (whep#1146). A year in the key would report
+     one line per polity-year instead of one per polity, and the quantity it
+     names is already per year. It reaches no value.",
     ".cb_init_density", "mutate", "lon, lat, area_code", 1L, "single_year",
     "`first` is the earliest year of each cell, selected one step earlier; the
      equilibrium density sums the land-use classes WITHIN that one year.",
@@ -590,6 +679,13 @@
     ".feed_region_lookup", "distinct", "area_code", 1L, "time_invariant",
     "Bouwman region membership, one row per area; the published table has no
      year and the FCRs it leads to are joined on (year, region).",
+    ".hist_trade_reporter_reference", "[",
+    "iso3c, item_code_trade, element", 1L, "year_axis",
+    "`max(value)` over the FAOSTAT years IS the reduction: the largest flow a
+     reporter has ever recorded for one item and element, which is the bound
+     whep#1117 screens the pre-1961 pins against. Keying it on the year would
+     make every group one point long and give each row itself as its own
+     bound.",
     ".iso3_area_code_bridge", "[", "iso3c", 1L, "identity_lookup",
     "Picks the canonical FAOSTAT area for each ISO3, and aborts rather than let
      row order decide when the rule leaves two. A year cannot break the tie:
@@ -602,6 +698,10 @@
      then applied to.",
     ".iso3c_area_code_lookup", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup", "ISO3 -> bucket, one row per pair, off `regions_full`.",
+    ".iso3c_keep_live_area", "filter", "iso3c", 1L, "identity_lookup",
+    "Keeps one area per ISO3 where the un-fold leaves two, by their last
+     reported year (whep#680). The group IS the identity resolution, and the
+     year is the statistic being compared inside it rather than a key.",
     ".label_reporting_polity_lookup", "distinct", "area_code", 1L,
     "identity_lookup",
     "One row per area_code with its reporting-polity columns; the same lookup
@@ -665,6 +765,21 @@
      the gap where BOTH sides are legitimately empty (Mexico holds
      (-99.25, 27.75) whole until 1848 and 0.0022 of it from 1867). Same
      interval grain, same report, allocates nothing.",
+    ".lineage_attach", "distinct", "polity_code", 1L, "identity_lookup",
+    "One display name per polity period, deduped before it is attached once at
+     the output stage. Keyed on the code alone, so the name is carried, never
+     a key.",
+    ".lineage_carried", "distinct", "polity_code, start_year, end_year", 1L,
+    "identity_lookup",
+    "The intervals the spatial support actually holds cells for.
+     `start_year`/`end_year` ARE the time dimension here; the year the caller
+     asks about is compared against them on the very next line, which is what
+     makes a candidate carried or not.",
+    ".lineage_expand", "distinct", "polity_code, predecessor", 1L,
+    "identity_lookup",
+    "The succession edge list, deduped to one row per (period, predecessor). An
+     edge has no calendar year of its own -- both of its endpoints carry their
+     own periods.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it
@@ -693,6 +808,15 @@
     "Reduces an area's off-window rows to the span they cover, so `year` is
      what the group is summarising, not a key it is missing. The window
      columns ride along as attributes of the area (whep#884).",
+    ".predecessor_bucket_codes", "summarise", "area_code", 1L, "year_axis",
+    "`max(map_year_end)` over an area's crosswalk periods: the same reduction
+     as `.area_last_reporting_year()`, computed here off whichever crosswalk
+     the caller supplied (whep#680).",
+    ".predecessor_bucket_codes", "distinct",
+    "area_code, polity_area_code, <dynamic>", 1L, "identity_lookup",
+    "Reduces the crosswalk to its distinct (area, bucket) fold pairs. The fold
+     is a property of the two codes and has no year of its own; which years
+     each of them reports is joined on next.",
     ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
     "year_axis",
     "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
@@ -746,15 +870,32 @@
      crosswalk's rows for one period: the output is that period's reporting
      span, so keying on the year would return the year itself. The period is
      already the year-scoped identity.",
+    ".residue_destiny_regions", "distinct", "area_code", 1L, "time_invariant",
+    "One row per area carrying its Krausmann region and UN M49 sub-region, the
+     two vocabularies the residue destiny split reads. It is
+     `.sci_crop_regions` on the residue side: the same groupings, published
+     without a year (see the matching join row), so this cannot be year-keyed.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
+    ".sci_cropland_weights", "mutate", "area_code", 1L, "time_invariant",
+    "Normalises each cell's cropland share within its polity. The cropland it
+     sums is the same single-vintage `crop_patterns` map, so there is no year
+     to collapse.",
+    ".sci_cropland_weights", "summarise", "lon, lat, area_code", 1L,
+    "time_invariant",
+    "Sums the per-crop cell areas of that one map into the cell's cropland
+     area, for the same reason.",
     ".sci_grid_weights", "mutate", "area_code, item_prod_code", 1L,
     "time_invariant",
     "Renormalises cell crop area within (area, crop). `crop_patterns` is a
      single-vintage gridded map applied to every year on purpose -- the same
      source the `.sci_join_weights` join row rests on -- so the frame has no
      year to collapse.",
+    ".sci_reallocate", "distinct", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The same (area, crop) pairs, taken so the crops the map does not carry can
+     be reallocated instead of dropped.",
     ".sci_warn_unspatialized", "distinct", "area_code, item_prod_code", 1L,
     "diagnostic",
     "The (area, crop) pairs the crop-pattern weights cover, so the warning can
@@ -782,6 +923,15 @@
     "The same four denominators at unit grain, so a unit's target is spread
      over that unit's own potential and not its container's. Same year
      scope.",
+    ".unique_polity_area", "distinct", "polity_code, area_code", 1L,
+    "identity_lookup",
+    "The polity -> area map itself, for the residue label route (whep#1175).
+     Both columns are identities carrying their own period, so there is no year
+     to collapse: the pair IS the lookup.",
+    ".unique_polity_area", "filter", "polity_code", 1L, "identity_lookup",
+    "Keeps only a polity exactly ONE area reports, so the Rest-of-World bucket
+     -- which 15 area codes share -- resolves to none rather than to whichever
+     row came first. The guard on the lookup above, on the same year-free key.",
     ".summarise_folded_rows", "[", "area_code, polity_area_code, <dynamic>", 1L,
     "diagnostic",
     "Counts the rows each area folds into its bucket, for the fold warning's
@@ -819,6 +969,20 @@
      named instead of being averaged into its container's success. Both grains
      are written out at the call site; `.alloc_target_cols()` chooses which
      one runs.",
+    ".country_mean_yield", "summarise", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The national mean yield a crop's cells vote on, weighted by
+     `harvest_fraction`. The weight comes from `crop_patterns`, a
+     single-vintage gridded map with no year axis of its own, so the grouping
+     that collapses its cells cannot carry one either; the yield values it
+     averages are already keyed on their own year upstream.",
+    ".zero_pattern_underflow", "[", "area_code, item_prod_code", 1L,
+    "diagnostic",
+    "`max(harvest_fraction)` over the crop's cells, to count the (country,
+     crop) pairs whose whole pattern was float underflow for the message that
+     says how many fall back to uniform placement. `crop_patterns` is a
+     single-vintage gridded map with no year axis of its own, and the count
+     reaches no value.",
     ".weight_supply_by_value", "mutate", "area_code, proc_group, proc_cbs_code",
     1L, "single_year",
     "`all(price_ok | type != \"supply\")` over one year's supply-use, so a

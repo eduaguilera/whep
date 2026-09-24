@@ -19,13 +19,23 @@ calculate_soc_hsoc(
 )
 }
 \arguments{
-\item{initial_soc_mgc_ha}{Initial soil organic carbon stock (Mg C per ha).}
+\item{initial_soc_mgc_ha}{Initial soil organic carbon stock (Mg C per ha).
+The trajectory starts here: year 0 of the returned tibble reports this
+stock, as it does for the four sibling models.}
 
 \item{c_input_mgc_ha_yr}{Annual carbon input (Mg C per ha per year).}
 
 \item{years}{Number of years to simulate.}
 
-\item{clay_pct}{Soil clay content (percent); unused, kept for contract.}
+\item{clay_pct}{Soil clay content (percent). Scales
+\code{humification_fraction} by the Aguilera et al. (2018) Eq. 5-6
+texture modifier, which runs 0.72 at 5\% clay to 1.13 at 60\% and is 1
+at RothC's Rothamsted reference of 23.4\%: coarse soils stabilise less
+of the same carbon input. \code{NA}, the default, means no texture
+information was supplied and applies no texture adjustment. The
+gridded balance always supplies clay, so this function and
+\code{build_carbon_balance(model = "hsoc")} now return the same stock
+for the same inputs.}
 
 \item{climate_modifier}{Annual climate rate modifier (dimensionless).}
 
@@ -39,9 +49,14 @@ A tibble with one row per year: \code{year}, \code{fresh},
 \description{
 Annual HSOC trajectory (Spain historical pipeline): a fresh and a humus
 decomposing pool plus an inert organic matter pool. The inert pool is the
-Falloon (1998) function of initial carbon. Each year a pool stock loses
-first-order decomposition and gains its carbon input. Land-use-change carbon
-transfer is deferred to a later phase (single land use here).
+Falloon (1998) function of initial carbon and, as in that paper, is a
+component of the measured stock rather than an addition to it, so the two
+decomposing pools open on the remainder
+\code{initial_soc_mgc_ha - iom}, split between them in the proportion of
+their steady states \code{input_pool / k_pool}. Each year a pool stock loses
+first-order decomposition and gains its carbon input, so the trajectory
+relaxes from the supplied stock toward that steady state. Land-use-change
+carbon transfer is deferred to a later phase (single land use here).
 }
 \examples{
 calculate_soc_hsoc(

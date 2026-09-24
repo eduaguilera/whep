@@ -1135,6 +1135,11 @@ generate_gleam_pdf_tables <- function() {
       "Animal products", "Animal",     "Milk, fish meal"
     ),
 
+    # Despite the name, these are IPCC defaults, not GLEAM values (#959):
+    # cattle/buffalo 6.5 + feedlot 3.0 = 2006 Table 10.12; sheep 6.5 = 2006
+    # Table 10.13 mature sheep; goats 5.5 = 2019 Table 10.13 (Updated); pigs
+    # 0.0 is in no IPCC or GLEAM table (assumed, unverified). Row-by-row
+    # sources are in `?gleam_enteric_params`.
     gleam_enteric_params = tibble::tribble(
       ~species,   ~system,   ~ym_percent, ~notes,
       "Cattle",   "Grazing", 6.5, "IPCC default",
@@ -1521,6 +1526,25 @@ generate_ipcc_2019_tables <- function() {
     # (40) and 68 Indian Subcontinent (50). Other cattle needs the cohort
     # population mix of Table 10A.2 (New) weighted the same way.
     # See `?ipcc_2019_n_excretion` and #601.
+    #
+    # The two SWINE rows were checked the same way at whep#1107, because
+    # `.join_n_excretion_tier1()` now keys the market and breeding halves of
+    # the herd on them separately instead of averaging them. Table 10.19
+    # (Updated) swine rates x Table 10A.5 (New) live weights x 365, over the
+    # nine regional mean columns:
+    #   breeding  16.1 NAm, 26.4 WEur, 26.8 EEur, 18.4 Oce, 18.3 LatAm,
+    #             10.6 Afr, 17.2 MidE, 16.5 Asia, 19.0 India -> mean 18.8
+    #   finishing 10.2 NAm, 16.9 WEur, 16.6 EEur, 10.8 Oce, 13.6 LatAm,
+    #              7.3 Afr, 13.9 MidE, 12.5 Asia, 14.1 India -> mean 12.9
+    # So `"Swine - Breeding"` 18 is reproduced by that derivation to within
+    # rounding; `"Swine - Market"` 15 is not (the derivation gives 12.9) and
+    # stays unverified, like the cattle rows above. What the split depends on
+    # is the ORDER, and that is solid: a breeding sow excretes more N per head
+    # per year than a finishing pig in every one of the nine regions, because
+    # she is 2-3x the live weight at about half the rate per unit mass. The
+    # derivation puts her 46 % above; the shipped 18-against-15 pair puts her
+    # 20 % above, so these rows understate rather than overstate the
+    # difference the separation exists to represent.
     table_10_19 = tibble::tribble(
       ~region, ~category, ~nex_kg_n_head_yr,
       "North America",        "Dairy Cattle",      105,
@@ -1717,6 +1741,330 @@ generate_ipcc_2006_tables <- function() {
   )
 }
 
+# GLEAM 2.0 manure-management shares ----
+#
+# Tab. 4.2-4.11 of the GLEAM 2.0 Supplement S1 workbook are the only published
+# regional manure-management (MMS) shares in any GLEAM release: version 3.0
+# dropped the whole table family, which is why the committed 3.0 workbook has
+# no sheet for them. They are read here from
+# data-raw/GLEAM_2.0_Supplement_S1.xlsx, byte-identical (219715 bytes, md5
+# 72fd2ea477dfe8b30cd3657b2baa4af1) to
+# https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx
+# re-downloaded and verified 2026-09-09.
+#
+# FAO. 2018. GLEAM Model description, Version 2.0, Revision 5, July 2018.
+# Data reference year 2010. FAO issues no DOI for it.
+#
+# The published grain is finer than `regional_mms_distribution`'s in three
+# ways at once -- production system, region and MMS vocabulary -- so the
+# ingest is a crosswalk, not a copy. The four choices it forces are whep#958;
+# each one is stated where it is applied below and summarised in the
+# `@source` block of `?regional_mms_distribution`.
+
+# The 10 GLEAM regions, in the column order every Tab. 4.x sheet uses. They
+# are read positionally, not by header: openxlsx reads the "NA" (North
+# America) header as a missing value, and Tab. 4.5 / 4.6 head the same two
+# columns "RUSS" and "OC".
+gleam2_mms_regions <- c(
+  "NA",
+  "RUS",
+  "WE",
+  "EE",
+  "NENA",
+  "ESEA",
+  "OCE",
+  "SA",
+  "LAC",
+  "SSA"
+)
+
+# CHOICE 1 of 4 -- species collapse. GLEAM publishes one table per production
+# system; `regional_mms_distribution` is keyed on `species_gen` alone, so the
+# systems have to be collapsed onto a species.
+#
+# Tab. 4.4 (feedlot cattle) is deliberately NOT read: GLEAM models the feedlot
+# as a sub-system of the beef herd rather than a herd of its own, and WHEP has
+# no feedlot category to attach it to, so reading it would give a minority
+# system a third of the weight of all cattle manure. Tab. 4.7 covers sheep and
+# goats together, so both species take it.
+#
+# Tab. 4.11 holds three systems (Layer / Broiler / Backyard) in one sheet,
+# marked by its "Share (...)" rows, so its system is read from the sheet.
+gleam2_mms_sheets <- function() {
+  tibble::tribble(
+    ~sheet, ~system, ~species,
+    "Tab. 4.2", "Dairy cattle", "Cattle",
+    "Tab. 4.3", "Beef cattle", "Cattle",
+    "Tab. 4.5", "Dairy buffalo", "Buffalo",
+    "Tab. 4.6", "Non-dairy buffalo", "Buffalo",
+    "Tab. 4.7", "Small ruminants", "Sheep",
+    "Tab. 4.7", "Small ruminants", "Goats",
+    "Tab. 4.8", "Backyard pig", "Swine",
+    "Tab. 4.9", "Intermediate pig", "Swine",
+    "Tab. 4.10", "Industrial pig", "Swine",
+    "Tab. 4.11", NA_character_, "Poultry"
+  )
+}
+
+# CHOICE 2 of 4 -- region collapse. GLEAM's 10 regions are mapped onto the
+# IPCC labels `.add_ipcc_region()` emits, so the ingested rows are keyed in
+# exactly the vocabulary the runtime resolves a territory to. That crosswalk
+# sends the Russian Federation and Eastern Europe to the same label, so those
+# two published columns are averaged (unweighted) into one row.
+gleam2_mms_ipcc_region <- function() {
+  tibble::tribble(
+    ~gleam_region, ~region,
+    "NA", "North America",
+    "RUS", "Eastern Europe",
+    "WE", "Western Europe",
+    "EE", "Eastern Europe",
+    "NENA", "Middle East",
+    "ESEA", "Asia",
+    "OCE", "Oceania",
+    "SA", "Indian Subcontinent",
+    "LAC", "Latin America",
+    "SSA", "Africa"
+  )
+}
+
+# CHOICE 4 of 4 -- MMS vocabulary. GLEAM names 14 systems; WHEP's manure chain
+# serves six labels, and only those six, in all four tables it reads by MMS
+# name (`climate_mcf` at the three real climate zones, `.manure_ef3()`,
+# `manure_loss_fractions.csv` and `.mms_manure_type()`). Every GLEAM system is
+# therefore mapped onto one of the six, or excluded:
+#
+# - Six map by identity (pasture, daily spread, solid storage, liquid slurry,
+#   uncovered anaerobic lagoon, poultry manure with litter). GLEAM assumes 50
+#   percent of its liquid slurry carries a natural crust; WHEP's
+#   "Liquid/Slurry" EF3 is the no-crust 0.002, not the 0.0035 a half-and-half
+#   mix would give.
+# - Drylot -> "Solid Storage", following IPCC's own combined category "solid
+#   storage and dry lot", which `ipcc_2019_n2o_ef_direct` carries at the same
+#   EF3 (0.005) as solid storage. The alternative is a separate "Dry Lot"
+#   label, which `climate_mcf` already serves at a LOWER methane conversion
+#   factor (2.5 against 4.0 percent, Temperate).
+# - Composting - intensive windrow -> "Solid Storage". ASSUMED, UNVERIFIED.
+#   Reached only by Tab. 4.4, which is not read, so it moves nothing today.
+# - Pit storage (all three published variants) -> "Poultry Manure" for
+#   chickens, "Liquid/Slurry" otherwise. ASSUMED, UNVERIFIED. A layer deep pit
+#   is IPCC's "poultry manure without litter", which `ipcc_2019_n2o_ef_direct`
+#   holds at the same 0.001 as the with-litter row; a pig pit below the
+#   confinement is a slurry system. WHEP has no pit-storage label of its own,
+#   and adding one needs an MCF and an EF3 this ingest cannot source.
+# - Burned for fuel and anaerobic digester are EXCLUDED, and the remaining
+#   systems renormalised to one. Neither has a servable WHEP label: both are
+#   in `climate_mcf` only at `climate_zone == "All"`, which the MCF join
+#   cannot reach, and neither is in `manure_loss_fractions.csv` at all.
+#   Excluding them says the excreted nitrogen and volatile solids pass through
+#   the systems that remain, which OVERSTATES those systems. It matters most
+#   for buffalo: over the tables read, 18.5 percent of published buffalo
+#   shares are excluded this way (dung burnt for fuel), against 4.1 percent
+#   for cattle and 5.2 percent for swine, and none for the other species.
+gleam2_mms_crosswalk <- function() {
+  tibble::tribble(
+    ~gleam_mms, ~mms_type,
+    "Pasture, range, paddock", "Pasture/Range/Paddock",
+    "Daily spread", "Daily Spread",
+    "Solid storage", "Solid Storage",
+    "Liquid slurry", "Liquid/Slurry",
+    "Liquid slurry*", "Liquid/Slurry",
+    "Uncovered anaerobic lagoon", "Anaerobic Lagoon",
+    "Poultry manure with litter", "Poultry Manure",
+    "Drylot", "Solid Storage",
+    "Composting – intensive windrow", "Solid Storage",
+    "Pit storage", "<pit>",
+    "Pit storage (<1 month)", "<pit>",
+    "Pit storage (>1 month)", "<pit>",
+    "Burned for fuel", NA_character_,
+    "Anaerobic digester", NA_character_
+  )
+}
+
+# Species `regional_mms_distribution` carries that GLEAM 2.0 has no table for.
+# Their rows are the pre-whep#958 placeholder values, kept so the manure engine
+# still resolves a split for them, and flagged unsourced in `reference`.
+gleam2_mms_unsourced_species <- function() {
+  c("Horses", "Camels", "Mules and Asses")
+}
+
+# One Tab. 4.x sheet, long. Returns `system` (from the sheet's "Share (...)"
+# rows, NA where the sheet has only the bare "Share" marker), `gleam_region`,
+# `gleam_mms` and `share_percent`, with the unpublished "-" cells dropped.
+parse_gleam2_mms_sheet <- function(path, sheet) {
+  raw <- openxlsx::read.xlsx(path, sheet = sheet, colNames = FALSE)
+  label <- stringr::str_trim(as.character(raw[[1]]))
+  label[is.na(label)] <- ""
+  is_share <- stringr::str_detect(label, "^Share")
+  block <- label[is_share] |>
+    stringr::str_remove("^Share") |>
+    stringr::str_remove_all("[()]") |>
+    stringr::str_squish()
+  block[block == ""] <- NA_character_
+  is_note <- stringr::str_detect(
+    label,
+    "^(TABLE|Regions:|\\*|Manure management system)"
+  )
+  values <- raw[, 2:11] |>
+    purrr::map(~ suppressWarnings(as.numeric(.x))) |>
+    rlang::set_names(gleam2_mms_regions) |>
+    tibble::as_tibble()
+
+  tibble::tibble(
+    system = c(NA_character_, block)[cumsum(is_share) + 1L],
+    gleam_mms = label,
+    keep = !is_share & !is_note & label != ""
+  ) |>
+    dplyr::bind_cols(values) |>
+    dplyr::filter(.data$keep) |>
+    dplyr::select(-"keep") |>
+    tidyr::pivot_longer(
+      dplyr::all_of(gleam2_mms_regions),
+      names_to = "gleam_region",
+      values_to = "share_percent"
+    ) |>
+    dplyr::filter(!is.na(.data$share_percent))
+}
+
+# Tab. 4.2-4.11 as published, one row per
+# (species, production system, GLEAM region, GLEAM MMS label).
+parse_gleam2_mms <- function(path) {
+  sheets <- gleam2_mms_sheets()
+  unique(sheets$sheet) |>
+    rlang::set_names() |>
+    purrr::map(~ parse_gleam2_mms_sheet(path, .x)) |>
+    purrr::list_rbind(names_to = "sheet") |>
+    dplyr::inner_join(
+      sheets,
+      by = "sheet",
+      suffix = c("", "_sheet"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      system = dplyr::coalesce(.data$system, .data$system_sheet)
+    ) |>
+    dplyr::select(
+      "sheet",
+      "species",
+      "system",
+      "gleam_region",
+      "gleam_mms",
+      "share_percent"
+    )
+}
+
+# The published shares crosswalked onto WHEP's six `mms_type` labels and
+# renormalised within each (species, system, GLEAM region), so the excluded
+# systems are reallocated to the ones that remain rather than leaving the
+# split short of one.
+gleam2_mms_by_system <- function(published) {
+  published |>
+    dplyr::left_join(gleam2_mms_crosswalk(), by = "gleam_mms") |>
+    dplyr::mutate(
+      mms_type = dplyr::case_when(
+        is.na(.data$mms_type) ~ NA_character_,
+        .data$mms_type != "<pit>" ~ .data$mms_type,
+        .data$species == "Poultry" ~ "Poultry Manure",
+        .default = "Liquid/Slurry"
+      )
+    ) |>
+    dplyr::filter(!is.na(.data$mms_type), .data$share_percent > 0) |>
+    dplyr::summarise(
+      share = sum(.data$share_percent),
+      .by = c("species", "system", "gleam_region", "mms_type")
+    ) |>
+    dplyr::mutate(
+      fraction = .data$share / sum(.data$share),
+      .by = c("species", "system", "gleam_region")
+    ) |>
+    dplyr::select(-"share")
+}
+
+# Unweighted mean of the distributions in `keys`, over the groups that publish
+# one. A system or region with no published column simply does not vote; a
+# label absent from one voter's distribution counts as zero there, which is
+# what dividing by the number of voters rather than by the number of rows
+# does.
+gleam2_mms_mean <- function(shares, keys, over) {
+  voters <- shares |>
+    dplyr::distinct(dplyr::across(dplyr::all_of(c(keys, over)))) |>
+    dplyr::count(dplyr::across(dplyr::all_of(keys)), name = "n_voters")
+  shares |>
+    dplyr::summarise(
+      fraction = sum(.data$fraction),
+      .by = dplyr::all_of(c(keys, "mms_type"))
+    ) |>
+    dplyr::left_join(voters, by = keys) |>
+    dplyr::mutate(fraction = .data$fraction / .data$n_voters) |>
+    dplyr::select(-"n_voters")
+}
+
+# CHOICE 3 of 4 -- the `Global` row. GLEAM publishes regional tables and no
+# global one, and most WHEP output resolves to `Global` (whep#678), so the row
+# carrying the most weight is the one with no published value.
+#
+# It is derived here as the unweighted mean over the 10 GLEAM regions of the
+# species-collapsed distributions, counting a region only where the source
+# publishes one. A herd-weighted or manure-weighted mean would be better, and
+# is NOT available from the source: Supplement S1 publishes herd *parameters*
+# (Tab. 2.4-2.21: live weights, fertility, mortality, yields) and no regional
+# animal numbers or production-system shares anywhere, so any weighting would
+# have to come from outside GLEAM. Averaging over the 10 published regions
+# rather than over the 9 IPCC labels keeps the Russian Federation and Eastern
+# Europe at one vote each instead of half a vote each.
+#
+# This row is WHEP's, not FAO's. `reference` says so on every row of it.
+gleam2_mms_distribution <- function(path, placeholder) {
+  by_system <- parse_gleam2_mms(path) |>
+    gleam2_mms_by_system()
+  by_region <- gleam2_mms_mean(
+    by_system,
+    keys = c("species", "gleam_region"),
+    over = "system"
+  )
+  global <- by_region |>
+    gleam2_mms_mean(keys = "species", over = "gleam_region") |>
+    dplyr::mutate(
+      region = "Global",
+      reference = paste(
+        "GLEAM 2.0 Supplement S1 Tab. 4.2-4.11, unweighted mean over the",
+        "10 GLEAM regions (WHEP-derived; GLEAM publishes no global row)"
+      )
+    )
+  regional <- by_region |>
+    dplyr::left_join(gleam2_mms_ipcc_region(), by = "gleam_region") |>
+    gleam2_mms_mean(keys = c("species", "region"), over = "gleam_region") |>
+    dplyr::mutate(
+      reference = "GLEAM 2.0 Supplement S1 Tab. 4.2-4.11"
+    )
+  unsourced <- placeholder |>
+    dplyr::filter(
+      .data$species %in% gleam2_mms_unsourced_species(),
+      .data$region == "Global"
+    ) |>
+    dplyr::mutate(
+      reference = paste(
+        "unsourced placeholder retained: GLEAM 2.0 publishes no manure-",
+        "management table for this species (whep#921, whep#958)"
+      )
+    )
+
+  dplyr::bind_rows(global, regional, unsourced) |>
+    dplyr::mutate(
+      fraction = .data$fraction / sum(.data$fraction),
+      .by = c("region", "species")
+    ) |>
+    dplyr::mutate(source = "gleam_2_0") |>
+    dplyr::select(
+      "source",
+      "region",
+      "species",
+      "mms_type",
+      "fraction",
+      "reference"
+    ) |>
+    dplyr::arrange(.data$species, .data$region, .data$mms_type)
+}
+
 # IPCC Tier 2 Parameters ----
 
 generate_ipcc_tier2_params <- function() {
@@ -1883,7 +2231,14 @@ generate_ipcc_tier2_params <- function() {
     # columns of the 2006 per-degree rows rather than the class bound; and
     # dry lot 1.5/2.5/4.0, the single-value composting rows and Anaerobic
     # Digester 0 match neither edition (assumed, unverified).
-    # See `?climate_mcf` and #601.
+    # Only six of the eleven systems are reachable: regional_mms_distribution
+    # routes manure to daily spread, solid storage, liquid/slurry, anaerobic
+    # lagoon, pasture/range/paddock and poultry manure, so the dry lot,
+    # composting and digester cells enter no published number today. The four
+    # climate_zone "All" rows are unreachable for a second reason: the MCF
+    # join is on mms_type and climate_zone and never asks for "All".
+    # climate_mcf_ipcc below carries the as-published alternative.
+    # See `?climate_mcf` and #601, #1022.
     climate_mcf = tibble::tribble(
       ~mms_type, ~climate_zone, ~mcf_percent,
       "Daily Spread",              "Cool",       0.1,
@@ -1913,21 +2268,170 @@ generate_ipcc_tier2_params <- function() {
       "Burned for Fuel",           "All",       10.0
     ),
 
-    # Regional MMS Distribution.
+    # As-published MCF alternatives to `climate_mcf`, over the same
+    # (mms_type, climate_zone) key space so either can be substituted for it.
+    # Read off the published PDFs, both re-downloaded and md5-checked
+    # 2026-09-08:
+    #   2006: IPCC 2006 Guidelines, Vol 4, Ch 10, Table 10.17, pp. 10.44-10.47
+    #     (md5 97b97e8d0e4ca101c77fac2d63a0cb86).
+    #   2019: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17 (Updated),
+    #     pp. 10.68-10.70 (md5 c1784e747af9bb307e93f4170c12679a).
+    #
+    # Neither edition publishes exactly three numbers for every system, so two
+    # collapse rules are applied. Both are WHEP choices, not IPCC statements:
+    #
+    #   2006, per-degree rows (liquid/slurry, uncovered lagoon): the middle
+    #     column of each temperature class. Table 10.15 of the same chapter
+    #     defines the classes as Cool below 15 C, Temperate 15 to 25 C and
+    #     Warm above 25 C, and Table 10.17 groups its 19 per-degree columns
+    #     the same way, so the middle columns are 12 C, 20 C and 27 C.
+    #     Liquid/slurry takes the "without natural crust cover" series; the
+    #     40 percent crust reduction is not applied.
+    #   2019, sub-zone rows: the unweighted mean over the sub-zones the
+    #     Refinement groups into each of Cool, Temperate and Warm --
+    #     Cool = Cool Temperate Moist, Cool Temperate Dry, Boreal Moist,
+    #     Boreal Dry; Temperate = Warm Temperate Moist, Warm Temperate Dry;
+    #     Warm = Tropical Montane, Tropical Wet, Tropical Moist, Tropical Dry.
+    #     Liquid/slurry is read at the 6-month retention time, which is the
+    #     Refinement's own stated default where retention time is unknown
+    #     (Table 10.17 footnote 1).
+    #
+    # The 2019 pasture value is half of a pair. Section 10.4.2 states that the
+    # single 0.47 percent "must be used in conjunction with a single B0 value
+    # of 0.19 m3 CH4 kg-1 of VS excreted", judged more accurate than
+    # "regionally based MCFs and animal category based B0" -- which is what
+    # WHEP computes. The Tier 2 kernel applies one per-species Bo to the
+    # share-weighted MCF, so the pair cannot be honoured without a per-stream
+    # product. See `?climate_mcf_ipcc` and #1022.
+    #
+    # The 2006 anaerobic digester is `NA` on purpose: the edition publishes
+    # "0-100%" and requires the compiler to compute it with its Formula 1, so
+    # there is no default to ship. An MMS split that routes manure to a
+    # digester therefore aborts under `mcf_source = "ipcc_2006"` instead of
+    # asserting a number the edition does not give.
+    #
+    # The 2019 digester is published as six leakage-and-storage classes, which
+    # a single "Anaerobic Digester" label cannot hold. They are carried here as
+    # six distinct `mms_type` values; no shipped MMS vocabulary selects one, so
+    # picking a class is an open decision (whep#1022) rather than a default.
+    climate_mcf_ipcc = tibble::tribble(
+      ~edition, ~mms_type, ~climate_zone, ~mcf_percent,
+      # -- 2006 Guidelines, Table 10.17 --
+      "ipcc_2006", "Daily Spread",           "Cool",       0.1,
+      "ipcc_2006", "Daily Spread",           "Temperate",  0.5,
+      "ipcc_2006", "Daily Spread",           "Warm",       1.0,
+      "ipcc_2006", "Solid Storage",          "Cool",       2.0,
+      "ipcc_2006", "Solid Storage",          "Temperate",  4.0,
+      "ipcc_2006", "Solid Storage",          "Warm",       5.0,
+      "ipcc_2006", "Dry Lot",                "Cool",       1.0,
+      "ipcc_2006", "Dry Lot",                "Temperate",  1.5,
+      "ipcc_2006", "Dry Lot",                "Warm",       2.0,
+      "ipcc_2006", "Liquid/Slurry",          "Cool",      20.0,
+      "ipcc_2006", "Liquid/Slurry",          "Temperate", 42.0,
+      "ipcc_2006", "Liquid/Slurry",          "Warm",      78.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Cool",      70.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Temperate", 78.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Warm",      80.0,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Cool",       1.0,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Temperate",  1.5,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Warm",       2.0,
+      "ipcc_2006", "Poultry Manure",         "Cool",       1.5,
+      "ipcc_2006", "Poultry Manure",         "Temperate",  1.5,
+      "ipcc_2006", "Poultry Manure",         "Warm",       1.5,
+      "ipcc_2006", "Composting - Intensive", "Cool",       0.5,
+      "ipcc_2006", "Composting - Intensive", "Temperate",  1.0,
+      "ipcc_2006", "Composting - Intensive", "Warm",       1.5,
+      "ipcc_2006", "Composting - Passive",   "Cool",       0.5,
+      "ipcc_2006", "Composting - Passive",   "Temperate",  1.0,
+      "ipcc_2006", "Composting - Passive",   "Warm",       1.5,
+      "ipcc_2006", "Anaerobic Digester",     "Cool",       NA,
+      "ipcc_2006", "Anaerobic Digester",     "Temperate",  NA,
+      "ipcc_2006", "Anaerobic Digester",     "Warm",       NA,
+      "ipcc_2006", "Burned for Fuel",        "Cool",      10.0,
+      "ipcc_2006", "Burned for Fuel",        "Temperate", 10.0,
+      "ipcc_2006", "Burned for Fuel",        "Warm",      10.0,
+      # -- 2019 Refinement, Table 10.17 (Updated) --
+      "ipcc_2019", "Daily Spread",           "Cool",       0.1,
+      "ipcc_2019", "Daily Spread",           "Temperate",  0.5,
+      "ipcc_2019", "Daily Spread",           "Warm",       1.0,
+      "ipcc_2019", "Solid Storage",          "Cool",       2.0,
+      "ipcc_2019", "Solid Storage",          "Temperate",  4.0,
+      "ipcc_2019", "Solid Storage",          "Warm",       5.0,
+      "ipcc_2019", "Dry Lot",                "Cool",       1.0,
+      "ipcc_2019", "Dry Lot",                "Temperate",  1.5,
+      "ipcc_2019", "Dry Lot",                "Warm",       2.0,
+      "ipcc_2019", "Liquid/Slurry",          "Cool",      18.75,
+      "ipcc_2019", "Liquid/Slurry",          "Temperate", 39.0,
+      "ipcc_2019", "Liquid/Slurry",          "Warm",      70.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Cool",      56.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Temperate", 74.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Warm",      79.0,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Cool",       0.47,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Temperate",  0.47,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Warm",       0.47,
+      "ipcc_2019", "Poultry Manure",         "Cool",       1.5,
+      "ipcc_2019", "Poultry Manure",         "Temperate",  1.5,
+      "ipcc_2019", "Poultry Manure",         "Warm",       1.5,
+      "ipcc_2019", "Composting - Intensive", "Cool",       0.5,
+      "ipcc_2019", "Composting - Intensive", "Temperate",  1.0,
+      "ipcc_2019", "Composting - Intensive", "Warm",       1.5,
+      "ipcc_2019", "Composting - Passive",   "Cool",       1.0,
+      "ipcc_2019", "Composting - Passive",   "Temperate",  2.0,
+      "ipcc_2019", "Composting - Passive",   "Warm",       2.5,
+      "ipcc_2019", "Burned for Fuel",        "Cool",      10.0,
+      "ipcc_2019", "Burned for Fuel",        "Temperate", 10.0,
+      "ipcc_2019", "Burned for Fuel",        "Warm",      10.0,
+      # The six 2019 digester classes, unreachable by the shipped MMS
+      # vocabulary and deliberately not collapsed onto "Anaerobic Digester".
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Cool", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Temperate", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Warm", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Cool", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Temperate", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Warm", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Cool", 3.55,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Temperate", 4.38,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Warm", 4.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Cool", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Temperate", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Warm", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Cool", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Temperate", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Warm", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Cool", 12.14,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Temperate", 12.97,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Warm", 13.17
+    ),
+
+    # Regional MMS Distribution, the pre-whep#958 placeholder.
     # UNVERIFIED (whep#881, whep#921). Annotated "GLEAM 3.0 / FAO statistics
     # (simplified)" but traceable to no table: the GLEAM 3.0 workbook carries
-    # no MMS shares, and these are round to 5 percentage points. Unlike
-    # gleam_mms_shares this table IS live -- .resolve_mms_shares() weights the
-    # Tier 2 manure CH4 MCF and the Tier 1 manure direct-N2O EF3 with it
-    # (Tier 2 direct N2O never sees it: those rows carry no `region`).
-    # GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real regional
-    # shares, per production system and over the 10 GLEAM regions. Adopting
-    # them needs four crosswalk choices (species collapse, region collapse, a
-    # Global row GLEAM does not publish, and the richer MMS vocabulary), and
-    # whep#921 measured one illustrative crosswalk on FAOSTAT 2020 heads at
-    # Tier 1 direct N2O -11.1% and Tier 2 manure CH4 -26.9%. Maintainer
-    # decision, not a cleanup.
-    regional_mms_distribution = tibble::tribble(
+    # no MMS shares, and these are round to 5 percentage points.
+    # Since whep#958 this is no longer what the manure engines read by
+    # default. It ships as the `source == "placeholder"` half of
+    # `regional_mms_distribution`, selectable with the `mms_shares` engine
+    # option, so the values published before the GLEAM 2.0 ingest stay
+    # reproducible and the sensitivity to the ingest stays measurable.
+    # The sourced half is built by gleam2_mms_distribution() above.
+    regional_mms_placeholder = tibble::tribble(
       ~region, ~species, ~mms_type, ~fraction,
       "North America", "Cattle",
         "Liquid/Slurry", 0.40,
@@ -2174,6 +2678,39 @@ main <- function() {
   # IPCC Tier 2 parameters
   message("\nGenerating IPCC Tier 2 parameters...")
   ipcc_t2_raw <- generate_ipcc_tier2_params()
+
+  # regional_mms_distribution: the GLEAM 2.0 ingest (whep#958) plus the
+  # placeholder it replaced, kept selectable. The workbook is required -- the
+  # sourced half cannot be reconstructed without it, and a silent fall back to
+  # the placeholder is exactly the provenance failure whep#921 was opened for.
+  gleam2_file <- "data-raw/GLEAM_2.0_Supplement_S1.xlsx"
+  if (!file.exists(gleam2_file)) {
+    stop("GLEAM 2.0 workbook not found: ", gleam2_file)
+  }
+  message("\nIngesting GLEAM 2.0 Tab. 4.2-4.11 manure-management shares...")
+  regional_mms_distribution <- dplyr::bind_rows(
+    gleam2_mms_distribution(
+      gleam2_file,
+      ipcc_t2_raw$regional_mms_placeholder
+    ),
+    ipcc_t2_raw$regional_mms_placeholder |>
+      dplyr::mutate(
+        source = "placeholder",
+        reference = paste(
+          "unsourced placeholder, superseded by the GLEAM 2.0 ingest",
+          "(whep#921, whep#958)"
+        )
+      ) |>
+      dplyr::select(
+        "source",
+        "region",
+        "species",
+        "mms_type",
+        "fraction",
+        "reference"
+      )
+  )
+
   ipcc_tier2 <- list(
     ipcc_tier2_energy_coefs = ipcc_t2_raw$energy_coefs,
     ipcc_tier2_ym_values = ipcc_t2_raw$ym_values,
@@ -2183,7 +2720,8 @@ main <- function() {
     livestock_production_defaults = ipcc_t2_raw$production_defaults,
     feed_characteristics = ipcc_t2_raw$feed_characteristics,
     climate_mcf = ipcc_t2_raw$climate_mcf,
-    regional_mms_distribution = ipcc_t2_raw$regional_mms_distribution,
+    climate_mcf_ipcc = ipcc_t2_raw$climate_mcf_ipcc,
+    regional_mms_distribution = regional_mms_distribution,
     temperature_adjustment = ipcc_t2_raw$temperature_adjustment,
     indirect_n2o_ef = ipcc_t2_raw$indirect_n2o_ef,
     uncertainty_ranges = ipcc_t2_raw$uncertainty_ranges,

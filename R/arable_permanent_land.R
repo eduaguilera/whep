@@ -48,7 +48,12 @@
 #'   (default) the pinned `faostat-landuse` dataset is read via [whep_read_file()].
 #' @param data Optional in-memory FAOSTAT RL table in the raw pin schema (columns
 #'   `Area Code`, `Item Code`, `Element`, `Unit`, `Year`, `Value`), used instead
-#'   of the pin (chiefly for testing).
+#'   of the pin (chiefly for testing). The two vocabularies this read selects
+#'   on -- `Element == "Area"` and the `"1000 ha"` unit label -- are checked
+#'   before the filter runs: either one moving takes every row with it, and a
+#'   zero-row land base is indistinguishable downstream from a world with no
+#'   cropland, so it is refused with a `whep_absent_label` error naming the
+#'   labels the table does carry (#1034).
 #' @param luh2_data Optional in-memory LUH2 land-use table (columns `ISO3`,
 #'   `Year`, `Land_Use`, `Area_Mha`) used for the pre-1961 backcast instead of
 #'   the pinned `luh2-areas` dataset (chiefly for testing).
@@ -163,10 +168,15 @@ get_arable_permanent_land <- function(
   if (!"unit" %in% names(dt)) {
     dt[, unit := "1000 ha"]
   }
+  # Case and spacing are the only variation FAOSTAT has shown in this label
+  # ("1000 ha", "1000 Ha", "1000ha"), so fold them into one spelling once and
+  # let the filter and the guard below read the same vocabulary.
+  dt[, unit_key := .rl_unit_key(unit)]
+  .rl_check_vocabulary(dt)
   items <- .fao_rl_items()
   dt <- dt[
     element == "Area" &
-      unit %in% c("1000 ha", "1000 Ha", "1000ha") &
+      unit_key == .rl_unit_key("1000 ha") &
       item_code %in% items
   ]
   dt[, `:=`(
@@ -199,6 +209,50 @@ get_arable_permanent_land <- function(
   bridge <- unique(bridge, by = "area_code_fao")
   dt <- merge(dt, bridge, by = "area_code_fao")
   dt[, .(area_code = polity, year, item_code, ha)]
+}
+
+# One spelling for the "1000 ha" unit label, so a recased or respaced value
+# still matches and a moved one is still visible to the guard below.
+.rl_unit_key <- function(unit) {
+  stringr::str_remove_all(stringr::str_to_lower(as.character(unit)), "\\s+")
+}
+
+# Refuse the two whole-table vocabularies this read selects on (whep#1034).
+#
+# `element == "Area"` and the unit label are not per-country filters: if
+# either moves, EVERY row goes, `get_arable_permanent_land()` returns a
+# zero-row table, and the land base it feeds becomes "no cropland anywhere"
+# rather than an error. Nothing downstream can tell that from a country that
+# genuinely reports none. This is whep#1016's mechanism, one pin along, and it
+# is invisible to any rule written around `coalesce()` / `replace_na()` /
+# `na.rm` -- none of them appear here.
+#
+# It is not hypothetical on this vocabulary. FAOSTAT recased `Export Quantity`
+# to `Export quantity` between two shipped revisions, and the sibling
+# `faostat-cbs-new` pin shipped every one of its 58,107 `Unit` values as the
+# boolean `TRUE` (whep#1025), which is exactly the label this filter reads.
+#
+# The three `item_code` values are deliberately NOT checked here: item
+# coverage legitimately varies by country and by fixture, so their absence is
+# an absent ROW rather than an absent label, and needs a completeness
+# assertion against an expected key lattice (whep#1073) instead.
+.rl_check_vocabulary <- function(dt) {
+  remedy <- c(
+    i = "Source: the {.val faostat-landuse} pin, or the local
+         {.file faostat_land_use.csv} under {.arg input_dir}.",
+    i = "FAOSTAT has recased a label in a shipped revision before
+         ({.val Export Quantity} to {.val Export quantity}), and the sibling
+         {.val faostat-cbs-new} pin shipped every {.field Unit} value as the
+         boolean {.val TRUE} (whep#1025)."
+  )
+  check_labels_supplied(dt, "element", "Area", details = remedy)
+  check_labels_supplied(
+    dt,
+    "unit_key",
+    .rl_unit_key("1000 ha"),
+    details = remedy
+  )
+  invisible(dt)
 }
 
 .fetch_fao_rl <- function(data = NULL, input_dir = NULL) {
@@ -487,8 +541,9 @@ get_arable_permanent_land <- function(
 #'   scaled so their total equals FAO `permanent_ha`, preserving the within-group
 #'   physical pattern.
 #' A positive target without a corresponding arable crop row or positive
-#' perennial base area is reported as an error because it cannot be reconciled
-#' without inventing a crop allocation.
+#' perennial base area cannot be reconciled without inventing a crop
+#' allocation; `unsupported_target` decides what happens to it (see the
+#' unsupported-target section).
 #'
 #' This is the crop-side default of the land-balance footprint
 #' ([build_land_balance_footprint()]).
@@ -547,9 +602,52 @@ get_arable_permanent_land <- function(
 #' extension in 2001 and 7.6% in 2019, then **0%** from 2020, with ordinary
 #' arable crops absorbing the difference (whep#938). A second, earlier
 #' composition change sits inside the covered window: from 2013 the
-#' FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
-#' jumps from 2.3 to 75.0 Mha, held flat to 2019.
+#' FAOSTAT-derived fodder area disappears and the 2012 area is carried forward,
+#' 2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to 2019. Production rows
+#' say so in `source` (`"DM_yield_estimate_carried_forward"`, whep#1027), but
+#' this extension does not see `source`, and fodder is present on both sides
+#' of 2013, so [check_arable_composition()] does not flag that year.
 #' `fodder_gap` exposes the treatments; `"as_reported"` remains the default.
+#' Whatever the treatment, `fodder_coverage` in the output marks every
+#' country-year after the fodder input stops as `"lapsed"`, and
+#' [check_series_jumps()] with `dropouts = TRUE` flags each fodder series at
+#' the year it stops.
+#'
+#' @section Unsupported land targets:
+#' FAO reports positive land for some country-years in which the crop panel has
+#' nothing of the matching kind to carry it, so the reconciliation has no crop
+#' to attribute the land to. Over the full 1850-2023 span on the real default
+#' inputs there are 923 such country-years (whep#1026):
+#' - **arable**: 33 country-years, all Marshall Islands (`area_code` 127),
+#'   1991-2023, 500 ha of FAO Arable land each (16,500 ha in total) with no
+#'   arable crop row at all -- its only crop area is perennial.
+#' - **permanent crops**: 890 country-years in 8 areas whose perennial base
+#'   area is zero: Poland (173) 1850-1964, 27.72 Mha summed over years
+#'   (up to 287,779 ha in a year); Nepal (149) 1850-1973, 2.40 Mha;
+#'   Burkina Faso (233) 1850-1976, 1.35 Mha; Denmark (54) 1850-1984,
+#'   1.10 Mha; Saint Kitts and Nevis (188) 1850-1984, 0.67 Mha;
+#'   Sweden (210) 1850-1965, 0.39 Mha; Chad (39) 1850-1984, 0.35 Mha;
+#'   Mongolia (141) 1983-1985, 3,000 ha. 33.98 Mha summed over all
+#'   890 country-years.
+#'
+#' Before whep#1026 this was an error, which made the function's own documented
+#' span unreachable and blocked [build_land_balance_footprint()] entirely.
+#' `unsupported_target` now selects the treatment, and none of them invents a
+#' crop allocation:
+#' - `"unallocated"` (default) keeps the hectares in the ledger as one row per
+#'   affected country-year with `item_cbs_code` `NA` -- real reported land that
+#'   no crop can be named for. Nothing is lost and the gap is visible.
+#' - `"zero"` treats the FAO total as the error: the unreconcilable target
+#'   contributes no land, the rest of the country-year reconciles unchanged.
+#' - `"drop"` removes the whole affected `(area_code, year)`, including the
+#'   crop rows that *were* supported. For Poland that deletes 115 years of
+#'   Polish arable land, so it is the most destructive option.
+#' - `"abort"` is the pre-whep#1026 behaviour and refuses to continue.
+#'
+#' Only the `NA`-item rows separate `"unallocated"` from `"zero"`; every other
+#' country-year is identical under all three continuing treatments. Restricted
+#' to 2001-2023 the whole difference from `"abort"`'s (unreachable) output is
+#' the 23 Marshall Islands rows, 11,500 ha.
 #'
 #' @param harvested Tibble of harvested area with columns `year`, `area_code`,
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
@@ -594,13 +692,29 @@ get_arable_permanent_land <- function(
 #'   land. `"carry_forward"` extends each fodder series' last observed physical
 #'   area over the rest of that country's panel. `"drop"` removes fodder from
 #'   the whole panel. See the fodder-gap section.
+#' @param unsupported_target What happens to a country-year whose positive FAO
+#'   land target has no crop row of the matching kind to carry it.
+#'   `"unallocated"` (default) keeps the hectares as an `item_cbs_code` `NA`
+#'   row, `"zero"` lets the unreconcilable target contribute no land, `"drop"`
+#'   removes the whole affected country-year, and `"abort"` refuses to continue
+#'   (the behaviour before whep#1026). See the unsupported-target section.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (fallow-inclusive physical land in hectares), `method_land`
 #'   (`"fao_arable_fallow"`), `temp_grassland_netted_ha` (hectares netted out of
 #'   that country-year's arable target, `0` where the netting term is
 #'   structurally absent), `method_temp_grassland` (the `temp_grassland_basis`
-#'   in force) and `method_fodder` (the `fodder_gap` in force).
+#'   in force), `method_fodder` (the `fodder_gap` in force) and
+#'   `method_unsupported_target` (the `unsupported_target` in force), and
+#'   `fodder_coverage`, which says per country-year whether the fodder input
+#'   was there before any `fodder_gap` treatment: `"reported"` (the base
+#'   carries fodder area that year), `"lapsed"` (it carries none, but did in an
+#'   earlier year of that country's panel -- the 2020 break of whep#938, whose
+#'   land the other arable crops absorb under `"as_reported"`, or which
+#'   `"carry_forward"` fills) or `"not_reported"` (none that year or before).
+#'   Under
+#'   `unsupported_target = "unallocated"` a row with `item_cbs_code` `NA` carries
+#'   the FAO land no crop can be named for.
 #'
 #' @export
 #'
@@ -648,10 +762,12 @@ build_fao_arable_fallow_extension <- function(
     "fao_all",
     "none"
   ),
-  fodder_gap = c("as_reported", "carry_forward", "drop")
+  fodder_gap = c("as_reported", "carry_forward", "drop"),
+  unsupported_target = c("unallocated", "zero", "drop", "abort")
 ) {
   temp_grassland_basis <- rlang::arg_match(temp_grassland_basis)
   fodder_gap <- rlang::arg_match(fodder_gap)
+  unsupported_target <- rlang::arg_match(unsupported_target)
   if (is.null(base_extension)) {
     base_extension <- build_cropgrids_land_extension(
       harvested = harvested,
@@ -705,6 +821,7 @@ build_fao_arable_fallow_extension <- function(
       "arable"
     )
   ]
+  coverage <- .fodder_coverage(base)
   base <- .apply_fodder_gap(base, fodder_gap)
 
   # Static (year-independent) allocation weight, e.g. gridded_fallow_weights().
@@ -725,11 +842,12 @@ build_fao_arable_fallow_extension <- function(
     weights <- weights[!item_cbs_code %in% perennial_codes]
   }
 
-  out <- .reconcile_fao_arable_fallow(base, ap, weights)
+  out <- .reconcile_fao_arable_fallow(base, ap, weights, unsupported_target)
   out[, `:=`(
     method_land = "fao_arable_fallow",
     method_temp_grassland = temp_grassland_basis, # nolint: object_length_linter.
-    method_fodder = fodder_gap
+    method_fodder = fodder_gap,
+    method_unsupported_target = unsupported_target # nolint: object_length_linter.
   )]
   out <- merge(
     out,
@@ -741,6 +859,9 @@ build_fao_arable_fallow_extension <- function(
     is.na(temp_grassland_netted_ha),
     temp_grassland_netted_ha := 0
   ]
+  out <- merge(out, coverage, by = c("area_code", "year"), all.x = TRUE)
+  # A country-year with no arable base rows at all has no fodder either.
+  out[is.na(fodder_coverage), fodder_coverage := "not_reported"]
   out <- out[impact_u > 0]
   data.table::setorder(out, year, area_code, item_cbs_code)
   out <- tibble::as_tibble(out) |>
@@ -831,7 +952,12 @@ check_fodder_land_share <- function(
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code)
     ) |>
-    dplyr::filter(!.data$item_cbs_code %in% perennial_codes) |>
+    # An NA item is unallocated FAO land, not a crop, so it belongs in neither
+    # the fodder numerator nor the arable denominator (whep#1026).
+    dplyr::filter(
+      !is.na(.data$item_cbs_code),
+      !.data$item_cbs_code %in% perennial_codes
+    ) |>
     dplyr::summarise(
       fodder_ha = sum(
         .data$impact_u[.data$item_cbs_code %in% fodder_codes],
@@ -878,10 +1004,14 @@ check_fodder_land_share <- function(
 #' behaviour.
 #'
 #' @details
-#' [check_series_jumps()] cannot find either break. A term does not fall to a
-#' small value at the boundary, it stops having rows, and its `min_value`
-#' guard skips any pair involving a zero, so a scan over the completed series
-#' would not flag it either. Coverage, not a ratio, is what has to be checked.
+#' [check_series_jumps()] does not find either break by default. A term does
+#' not fall to a small value at the boundary, it stops having rows, and its
+#' `min_value` guard skips any pair involving a zero. With `dropouts = TRUE` it
+#' completes each series with zero and flags the stop, so
+#' `check_series_jumps(extension, impact_u, .by = c("area_code",
+#' "item_cbs_code"), dropouts = TRUE)` reports each fodder series at its break
+#' year. This function answers the coverage question per term and area
+#' instead, and also covers the netting term, which is not an item series.
 #'
 #' @param extension Tibble of the arable/permanent land extension as returned
 #'   by [build_fao_arable_fallow_extension()]: `year`, `area_code`,
@@ -931,7 +1061,11 @@ check_arable_composition <- function(
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code)
     ) |>
-    dplyr::filter(!.data$item_cbs_code %in% perennial_codes)
+    # An NA item is unallocated FAO land, not a crop (whep#1026).
+    dplyr::filter(
+      !is.na(.data$item_cbs_code),
+      !.data$item_cbs_code %in% perennial_codes
+    )
 
   panel <- arable |>
     dplyr::distinct(.data$year, .data$area_code)
@@ -1311,6 +1445,37 @@ check_arable_composition <- function(
   .carry_fodder_forward(base, fodder_codes)
 }
 
+# Per (area_code, year) of the arable base, before any fodder_gap treatment:
+# "reported" where fodder carries positive area, "lapsed" where it does not
+# but did in an earlier year of that area (whep#938), "not_reported"
+# otherwise. Relative to the panel built, so a build that starts after the
+# fodder sources end reads "not_reported" rather than "lapsed".
+.fodder_coverage <- function(base) {
+  fodder_codes <- .item_cbs_fodder()
+  panel <- unique(base[kind == "arable", .(area_code, year)])
+  reported <- unique(
+    base[
+      kind == "arable" & item_cbs_code %in% fodder_codes & physical_ha > 0,
+      .(area_code, year)
+    ]
+  )
+  panel[, fodder_coverage := "not_reported"]
+  panel[reported, on = c("area_code", "year"), fodder_coverage := "reported"]
+  # "Lapsed" is a statement about the year axis: absent now, reported in an
+  # earlier year of the same area. The cumulative count runs along the year.
+  data.table::setorder(panel, area_code, year)
+  panel[,
+    fodder_coverage := data.table::fifelse(
+      fodder_coverage == "not_reported" &
+        cumsum(fodder_coverage == "reported") > 0L,
+      "lapsed",
+      fodder_coverage
+    ),
+    by = area_code
+  ]
+  panel[]
+}
+
 # Hold each fodder series' last observed physical area over the panel years
 # that follow it, with `fill_linear()`'s carry-forward -- the same instrument
 # the fodder reconstruction itself already uses upstream in
@@ -1364,53 +1529,20 @@ check_arable_composition <- function(
 # land (scaling the cropped physical down instead when it already exceeds it, the
 # physical-container correction), and scale perennial crops to FAO Permanent
 # crops. The additive fallow distribution reuses attribute_fallow_to_crops().
-.reconcile_fao_arable_fallow <- function(base, ap, weights) {
-  arable <- base[kind == "arable"]
-  peren <- base[kind == "perennial"]
-
+.reconcile_fao_arable_fallow <- function(
+  base,
+  ap,
+  weights,
+  unsupported_target = "abort"
+) {
   # A positive target cannot be manufactured when the corresponding crop kind
   # has no row (or, for proportional perennial scaling, has zero base area).
-  support <- base[,
-    .(
-      arable_rows = sum(kind == "arable"),
-      perennial_base = sum(physical_ha[kind == "perennial"])
-    ),
-    by = .(area_code, year)
-  ]
-  support <- merge(
-    support,
-    ap[, .(area_code, year, arable_ha, permanent_ha)],
-    by = c("area_code", "year"),
-    all.x = TRUE
-  )
-  unsupported_arable <- support[
-    !is.na(arable_ha) & arable_ha > 0 & arable_rows == 0L
-  ]
-  if (nrow(unsupported_arable) > 0L) {
-    keys <- paste(
-      paste(unsupported_arable$area_code, unsupported_arable$year, sep = "/"),
-      collapse = ", "
-    )
-    cli::cli_abort(
-      "Cannot reconcile positive arable totals without arable crop rows: {.val {keys}}."
-    )
-  }
-  unsupported_perennial <- support[
-    !is.na(permanent_ha) & permanent_ha > 0 & perennial_base <= 0
-  ]
-  if (nrow(unsupported_perennial) > 0L) {
-    keys <- paste(
-      paste(
-        unsupported_perennial$area_code,
-        unsupported_perennial$year,
-        sep = "/"
-      ),
-      collapse = ", "
-    )
-    cli::cli_abort(
-      "Cannot reconcile positive permanent-crop totals without positive perennial base area: {.val {keys}}."
-    )
-  }
+  # `unsupported_target` decides what happens there (whep#1026).
+  resolved <- .resolve_unsupported_target(base, ap, unsupported_target)
+  base <- resolved$base
+  ap <- resolved$ap
+  arable <- base[kind == "arable"]
+  peren <- base[kind == "perennial"]
 
   # --- arable: pre-scale any per-year overshoot down to FAO arable, then let
   #     attribute_fallow_to_crops() distribute the remaining slack as fallow. ---
@@ -1563,7 +1695,131 @@ check_arable_composition <- function(
   data.table::rbindlist(
     list(
       arable_out,
-      peren[, .(year, area_code, item_cbs_code, impact_u)]
-    )
+      peren[, .(year, area_code, item_cbs_code, impact_u)],
+      resolved$unallocated
+    ),
+    use.names = TRUE
   )
+}
+
+# Country-years whose positive FAO land target has no crop row of the matching
+# kind to carry it, one row per (area_code, year, kind) with the hectares at
+# stake. `support` is keyed on the crop panel, so a country-year with no crop
+# rows at all never reaches the reconciliation and is not reported here.
+.unsupported_targets <- function(base, ap) {
+  support <- base[,
+    .(
+      arable_rows = sum(kind == "arable"),
+      perennial_base = sum(physical_ha[kind == "perennial"])
+    ),
+    by = .(area_code, year)
+  ]
+  support <- merge(
+    support,
+    ap[, .(area_code, year, arable_ha, permanent_ha)],
+    by = c("area_code", "year"),
+    all.x = TRUE
+  )
+  data.table::rbindlist(list(
+    support[
+      !is.na(arable_ha) & arable_ha > 0 & arable_rows == 0L,
+      .(area_code, year, kind = "arable", ha = arable_ha)
+    ],
+    support[
+      !is.na(permanent_ha) & permanent_ha > 0 & perennial_base <= 0,
+      .(area_code, year, kind = "perennial", ha = permanent_ha)
+    ]
+  ))
+}
+
+# Apply the chosen `unsupported_target` treatment, returning the crop panel and
+# the FAO targets to reconcile plus the unallocated rows to append. No treatment
+# invents a crop allocation: the land is either carried on an NA item, left out
+# of the reconciled total, or removed with its country-year.
+.resolve_unsupported_target <- function(base, ap, treatment) {
+  unsupported <- .unsupported_targets(base, ap)
+  if (nrow(unsupported) == 0L) {
+    return(list(base = base, ap = ap, unallocated = NULL))
+  }
+  if (identical(treatment, "abort")) {
+    .abort_unsupported_target(unsupported)
+  }
+  .warn_unsupported_target(unsupported, treatment)
+  if (identical(treatment, "drop")) {
+    keys <- unique(unsupported[, .(area_code, year)])
+    return(list(
+      base = base[!keys, on = c("area_code", "year")],
+      ap = ap[!keys, on = c("area_code", "year")],
+      unallocated = NULL
+    ))
+  }
+  # "zero" and "unallocated" both take the unreconcilable target out of the
+  # reconciliation; only "unallocated" keeps its hectares in the ledger.
+  ap[
+    unsupported[kind == "arable", .(area_code, year)],
+    arable_ha := 0,
+    on = c("area_code", "year")
+  ]
+  ap[
+    unsupported[kind == "perennial", .(area_code, year)],
+    permanent_ha := 0,
+    on = c("area_code", "year")
+  ]
+  unallocated <- NULL
+  if (identical(treatment, "unallocated")) {
+    unallocated <- unsupported[,
+      .(item_cbs_code = NA_integer_, impact_u = sum(ha)),
+      by = .(year, area_code)
+    ]
+  }
+  list(base = base, ap = ap, unallocated = unallocated)
+}
+
+# The pre-whep#1026 behaviour, kept selectable. The arable message fires first
+# when both kinds are unsupported, as it did before the treatments existed.
+.abort_unsupported_target <- function(unsupported) {
+  arable <- unsupported[kind == "arable"]
+  hint <- paste(
+    "Set {.arg unsupported_target} to {.val unallocated}, {.val zero} or",
+    "{.val drop} to continue instead."
+  )
+  if (nrow(arable) > 0L) {
+    keys <- .unsupported_keys(arable)
+    cli::cli_abort(c(
+      "Cannot reconcile positive arable totals without arable crop rows: {.val {keys}}.",
+      i = hint
+    ))
+  }
+  keys <- .unsupported_keys(unsupported)
+  cli::cli_abort(c(
+    "Cannot reconcile positive permanent-crop totals without positive perennial base area: {.val {keys}}.",
+    i = hint
+  ))
+}
+
+.unsupported_keys <- function(unsupported) {
+  paste(
+    paste(unsupported$area_code, unsupported$year, sep = "/"),
+    collapse = ", "
+  )
+}
+
+# One aggregated warning naming the hectares at stake, so a continuing
+# treatment is never a silent fallback.
+.warn_unsupported_target <- function(unsupported, treatment) {
+  n <- nrow(unsupported)
+  by_kind <- unsupported[, .(n = .N, ha = round(sum(ha))), by = kind]
+  detail <- paste0(by_kind$kind, " ", by_kind$n, " (", by_kind$ha, " ha)")
+  worst <- unsupported[, .(ha = sum(ha)), by = area_code]
+  data.table::setorder(worst, -ha)
+  areas <- utils::head(worst$area_code, 5L)
+  cli::cli_warn(c(
+    "!" = "No crop row can carry the positive FAO land target in
+      {cli::qty(n)}{n} country-year{?s}.",
+    "*" = "Country-years by kind: {detail}.",
+    "*" = "Treated as {.val {treatment}}; largest {.field area_code}
+      {.val {areas}}.",
+    "i" = "{.arg unsupported_target} {.val abort} refuses to continue instead;
+      see {.fun build_fao_arable_fallow_extension}."
+  ))
 }

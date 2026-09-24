@@ -4,15 +4,32 @@
 \alias{read_soil_hydraulic}
 \title{Read gridded soil hydraulic properties from HWSD onto WHEP's grid.}
 \usage{
-read_soil_hydraulic(hwsd_dir = NULL, data = list(), example = FALSE)
+read_soil_hydraulic(
+  hwsd_dir = NULL,
+  data = list(),
+  source = c("auto", "pin", "local"),
+  version = NULL,
+  example = FALSE
+)
 }
 \arguments{
 \item{hwsd_dir}{Path to the directory holding \code{hwsd_data.csv} and
-\code{hwsd.bil}. Defaults to \code{Sys.getenv("WHEP_HWSD_DIR")}.}
+\code{hwsd.bil}. Defaults to \code{Sys.getenv("WHEP_HWSD_DIR")}. Supplying it
+derives the grid locally rather than reading the pin.}
 
 \item{data}{Optional named list of pre-loaded inputs: \code{cell_polity}
 (\code{lon}, \code{lat}, at minimum), used both to crop the HWSD raster and as the
 gap-filling target grid.}
+
+\item{source}{Where the grid comes from. \code{"auto"} (default) reads the
+published pin unless \code{hwsd_dir} is given; \code{"pin"} always reads it;
+\code{"local"} always derives it from an HWSD archive. The pin is preferred so
+that every user shares one vintage: HWSD exists in two incompatible
+versions (v1.2 topsoil 0-30 cm, HWSD2 D1 0-20 cm) and the carbon balance
+reports 0-30 cm.}
+
+\item{version}{Pin version, passed to \code{\link[=whep_read_file]{whep_read_file()}}. \code{NULL} takes the
+version frozen in \code{\link{whep_inputs}}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -34,6 +51,19 @@ column. Cropping to \code{data$cell_polity} follows the same regional-crop path
 as \code{\link[=read_soil_ph]{read_soil_ph()}}; missing cells are gap-filled from the nearest
 available neighbour when a target grid is supplied.
 }
+\section{Caching}{
+
+Aggregating the HWSD raster to the 0.5-degree grid takes about an hour per
+pass, and its result depends only on the archive and the target grid, so it
+is cached under \code{rappdirs::user_cache_dir("whep")}. The cache key covers the
+archive's raster and header (size and modification time), the resolution,
+the requested columns, the target grid's cells and the derived map-unit
+values, plus an algorithm version that is bumped whenever a change would
+move the numbers. Set \code{WHEP_HWSD_CACHE_DIR} to relocate it; the test suite
+points it at a temporary directory so a fixture-derived grid can never reach
+a real cache.
+}
+
 \examples{
 read_soil_hydraulic(example = TRUE)
 }

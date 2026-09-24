@@ -39,29 +39,70 @@
 # float32 round-off (ISIMIP3a stores the field bit-groomed), not a release
 # difference, so the joint needs no correction -- as issue #371 assumed.
 #
-# DO NOT "SIMPLIFY" THIS BY TAKING 1901-2016 FROM ISIMIP3a TOO.
+# DO NOT "SIMPLIFY" THIS BY TAKING 1901-2016 FROM ISIMIP3a TOO -- not without
+# a decision. ISIMIP3a publishes sfcwind for 1901-2019, so fetching one
+# dataset instead of two looks like an obvious cleanup. What that swap would
+# and would not change is measured below: issue #929, re-measured 2026-09-09
+# against the pin and three freshly downloaded ISIMIP3a decades.
 #
-# ISIMIP3a publishes sfcwind for 1901-2019, so fetching one dataset instead of
-# two looks like an obvious cleanup. It is not: it would change the forcing.
-# The 2016 agreement above holds only because 2016 is in W5E5's OBSERVATIONAL
-# era (ISIMIP3a is "combined with W5E5 v2.0" from 1979). In the bias-adjusted
-# era the two releases really do differ -- measured over 1901-1910:
+# WHICH YEARS IT TOUCHES: 1901-1978, and nothing else. ISIMIP3a is "combined
+# with W5E5 v2.0 (1979-2019)" and, empirically, so is ISIMIP2a -- over
+# 1981-1990 the two releases agree at max |2a - 3a| = 1.55e-04 m/s across
+# 720x360x120, float32 round-off, the same order as the 2016 check above.
+# Only the bias-adjusted era (v2.4.1 vs v2.5.0) differs at all.
 #
-#   unweighted global mean   2a 6.347690   3a 6.347587   m/s
-#   mean |2a - 3a|           0.0386 m/s
-#   p99  |2a - 3a|           0.620  m/s
-#   max  |2a - 3a|           2.552  m/s
+# HOW MUCH. Measured over 1901-1910 and again over 1941-1950, which agree to
+# two digits, so one decade is representative:
 #
-# Note the shape: the GLOBAL MEAN is unchanged to 1e-4, so a global sanity
-# check sees nothing, while 1% of cell-months move by more than 0.62 m/s
-# (~10% of the mean speed). ISIMIP3BASD v2.5.0 redistributes wind spatially
-# while conserving the global mean, and LPJmL is forced per cell -- so gridded
-# output would move on a change no summary statistic would catch.
+#                                     1901-1910  1941-1950  1981-1990
+#   area-weighted global mean 2a       6.105586   6.052855   6.066486
+#   area-weighted global mean 3a       6.105565   6.052933   6.066486
+#   area-weighted mean |2a - 3a|         0.0386     0.0381     1e-06
+#   p99  |2a - 3a| over cell-months      0.180      0.178      0
+#   max  |2a - 3a| over cell-months      2.552      2.561      1.55e-04
 #
-# Switching the base to ISIMIP3a is therefore a methodological decision for
-# the maintainer, not a tidy-up, and it must not happen as a side effect of
-# editing this script. The upside would be consistency with rsds/rlds, which
-# are pure ISIMIP3a.
+# AT WHICH GRAIN -- this is the part #371 read wrong, and it is the whole
+# question. Over the 58795 land cells LPJmL simulates, 1901-1910:
+#
+#   individual cell-months        mean 0.0367  p99 0.180  max 1.332 m/s
+#   per-cell seasonal cycle       mean 0.0347  p99 0.168  max 1.003 m/s
+#     (the ten Januaries averaged, and so on -- the grain LPJmL sees, since
+#      it interpolates the monthly field to daily)
+#   per-cell decadal mean         mean 0.0020  p99 0.012  max 0.081 m/s
+#
+# The difference survives seasonal averaging and dies under annual averaging:
+# 88.8% of its variance is a fixed per-cell seasonal signal that repeats every
+# year. ISIMIP3BASD v2.5.0 therefore does NOT redistribute wind spatially --
+# every land cell keeps its own annual mean to within 0.081 m/s, p99 0.012,
+# 0.35% of the local mean (0.256 m/s worst over all 259200 cells, ocean
+# included). It reshapes the seasonal cycle WITHIN each cell.
+#
+# So a per-cell ANNUAL-mean check would see almost nothing, while a per-cell,
+# per-CALENDAR-MONTH check catches it at once. That is the check to run if the
+# base is ever swapped. (#371 quoted "p99 = 0.620 m/s, ~1% of cell-months":
+# the mean and the max above reproduce exactly, but that percentile does not.
+# 0.62 m/s is exceeded by 0.005% of cell-months, not 1% -- it is the p99.99,
+# not the p99.)
+#
+# WHAT IT WOULD DO TO A RUN. In this configuration wind reaches exactly one
+# process: NH3 volatilization from soil NH4 (src/soil/volatilization.c, after
+# Montes et al. 2009 Eq. 19), whose mass-transfer coefficient goes as
+# wind^0.8. It does NOT reach evapotranspiration -- LPJmL's petpar() takes
+# radiation and temperature only -- and SPITFIRE's wind terms are inert
+# because lpjml_config.cjson sets "fire" : "globfirm". The flux change is
+# therefore exactly the wind^0.8 change, over land cells:
+#
+#   annual              signed -0.020%   mean |.| 0.052%   max 1.20%
+#   per calendar month  signed +-0.35%   mean |.| 0.94%    max 23%
+#
+# Small in the annual integral, less so where fertiliser lands in one month;
+# and the spinup recycles 1901-1905 shuffled (nspinyear = 5) for 300 years, so
+# the affected decade also sets the state the whole run starts from. Only an
+# LPJmL run can say what the model does with that, and none was made.
+#
+# The upside would be consistency with rsds/rlds, which are pure ISIMIP3a --
+# though temp, prec and wetdays already come from CRU TS, so the forcing set
+# is a mosaic either way. The decision is the maintainer's: issue #929.
 #
 # Segment 1 alone streams ~31 GB of daily global fields. Each chunk is reduced
 # to monthly means and the daily file deleted immediately, so peak disk stays

@@ -4,7 +4,11 @@
 \alias{get_wide_cbs}
 \title{Commodity balance sheet data.}
 \usage{
-get_wide_cbs(years = NULL, example = FALSE)
+get_wide_cbs(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Optional integer vector of years to build. When \code{NULL}
@@ -14,8 +18,16 @@ under a window-specific key. The window is widened internally to 2011 when
 it reaches 2013, because that overlap is what splices the old FBS series
 onto \code{FAOSTAT_FBS_New}.}
 
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, passed
+to \code{\link[=build_commodity_balances]{build_commodity_balances()}}, which documents what each does and what
+\code{"net_import"} moves. Each method is built and cached under its own slot,
+so asking for one never serves the other's result. \code{"net_import"} is not
+the default because two allocation questions it raises are still open
+(whep#762).}
+
 \item{example}{If \code{TRUE}, return a small example output without
-downloading remote data. Default is \code{FALSE}.}
+downloading remote data. Default is \code{FALSE}. The example is the same
+fixture under either \code{trade_recovery}.}
 }
 \value{
 A tibble with the commodity balance sheet data in wide format.
@@ -26,11 +38,16 @@ It contains the following columns:
 For code details see e.g. \code{add_area_name()}.
 \item \code{item_cbs_code}: FAOSTAT internal code for each item. For
 code details see e.g. \code{add_item_cbs_name()}.
+\item \code{unit}: The denomination of every quantity in the row. \code{"tonnes"} for
+the rows of the FAO-style balance sheet and \code{"heads"} (number of
+animals) for the live-animal rows added by the livestock balance. Set by
+the builder that produced the row, so a derived row carries the same
+unit as a reported one. Never sum quantities across rows of different
+units.
 }
 
 The other columns are quantities where total supply and total
-use should be balanced. Units are tonnes for most items,
-and heads for live animals (see \link{items_cbs} \code{item_type}).
+use should be balanced, in the row's \code{unit}.
 
 For supply:
 \itemize{

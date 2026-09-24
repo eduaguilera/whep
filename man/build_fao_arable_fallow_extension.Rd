@@ -13,7 +13,8 @@ build_fao_arable_fallow_extension(
   items_prod_full = whep::items_prod_full,
   temp_grassland_basis = c("modelled", "modelled_then_fao", "fao_official", "fao_all",
     "none"),
-  fodder_gap = c("as_reported", "carry_forward", "drop")
+  fodder_gap = c("as_reported", "carry_forward", "drop"),
+  unsupported_target = c("unallocated", "zero", "drop", "abort")
 )
 }
 \arguments{
@@ -66,6 +67,13 @@ published behaviour: no fodder from 2020, so ordinary crops absorb its
 land. \code{"carry_forward"} extends each fodder series' last observed physical
 area over the rest of that country's panel. \code{"drop"} removes fodder from
 the whole panel. See the fodder-gap section.}
+
+\item{unsupported_target}{What happens to a country-year whose positive FAO
+land target has no crop row of the matching kind to carry it.
+\code{"unallocated"} (default) keeps the hectares as an \code{item_cbs_code} \code{NA}
+row, \code{"zero"} lets the unreconcilable target contribute no land, \code{"drop"}
+removes the whole affected country-year, and \code{"abort"} refuses to continue
+(the behaviour before whep#1026). See the unsupported-target section.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
@@ -73,7 +81,17 @@ A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 (\code{"fao_arable_fallow"}), \code{temp_grassland_netted_ha} (hectares netted out of
 that country-year's arable target, \code{0} where the netting term is
 structurally absent), \code{method_temp_grassland} (the \code{temp_grassland_basis}
-in force) and \code{method_fodder} (the \code{fodder_gap} in force).
+in force), \code{method_fodder} (the \code{fodder_gap} in force) and
+\code{method_unsupported_target} (the \code{unsupported_target} in force), and
+\code{fodder_coverage}, which says per country-year whether the fodder input
+was there before any \code{fodder_gap} treatment: \code{"reported"} (the base
+carries fodder area that year), \code{"lapsed"} (it carries none, but did in an
+earlier year of that country's panel -- the 2020 break of whep#938, whose
+land the other arable crops absorb under \code{"as_reported"}, or which
+\code{"carry_forward"} fills) or \code{"not_reported"} (none that year or before).
+Under
+\code{unsupported_target = "unallocated"} a row with \code{item_cbs_code} \code{NA} carries
+the FAO land no crop can be named for.
 }
 \description{
 Turn per-crop harvested-derived physical area into a fallow-inclusive physical
@@ -104,8 +122,9 @@ arable total equals FAO \code{arable_ha} by construction.
 scaled so their total equals FAO \code{permanent_ha}, preserving the within-group
 physical pattern.
 A positive target without a corresponding arable crop row or positive
-perennial base area is reported as an error because it cannot be reconciled
-without inventing a crop allocation.
+perennial base area cannot be reconciled without inventing a crop
+allocation; \code{unsupported_target} decides what happens to it (see the
+unsupported-target section).
 }
 
 This is the crop-side default of the land-balance footprint
@@ -170,9 +189,58 @@ reaching 2020 has \strong{no fodder at all} from that year: measured over
 extension in 2001 and 7.6\% in 2019, then \strong{0\%} from 2020, with ordinary
 arable crops absorbing the difference (whep#938). A second, earlier
 composition change sits inside the covered window: from 2013 the
-FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
-jumps from 2.3 to 75.0 Mha, held flat to 2019.
+FAOSTAT-derived fodder area disappears and the 2012 area is carried forward,
+2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to 2019. Production rows
+say so in \code{source} (\code{"DM_yield_estimate_carried_forward"}, whep#1027), but
+this extension does not see \code{source}, and fodder is present on both sides
+of 2013, so \code{\link[=check_arable_composition]{check_arable_composition()}} does not flag that year.
 \code{fodder_gap} exposes the treatments; \code{"as_reported"} remains the default.
+Whatever the treatment, \code{fodder_coverage} in the output marks every
+country-year after the fodder input stops as \code{"lapsed"}, and
+\code{\link[=check_series_jumps]{check_series_jumps()}} with \code{dropouts = TRUE} flags each fodder series at
+the year it stops.
+}
+
+\section{Unsupported land targets}{
+
+FAO reports positive land for some country-years in which the crop panel has
+nothing of the matching kind to carry it, so the reconciliation has no crop
+to attribute the land to. Over the full 1850-2023 span on the real default
+inputs there are 923 such country-years (whep#1026):
+\itemize{
+\item \strong{arable}: 33 country-years, all Marshall Islands (\code{area_code} 127),
+1991-2023, 500 ha of FAO Arable land each (16,500 ha in total) with no
+arable crop row at all -- its only crop area is perennial.
+\item \strong{permanent crops}: 890 country-years in 8 areas whose perennial base
+area is zero: Poland (173) 1850-1964, 27.72 Mha summed over years
+(up to 287,779 ha in a year); Nepal (149) 1850-1973, 2.40 Mha;
+Burkina Faso (233) 1850-1976, 1.35 Mha; Denmark (54) 1850-1984,
+1.10 Mha; Saint Kitts and Nevis (188) 1850-1984, 0.67 Mha;
+Sweden (210) 1850-1965, 0.39 Mha; Chad (39) 1850-1984, 0.35 Mha;
+Mongolia (141) 1983-1985, 3,000 ha. 33.98 Mha summed over all
+890 country-years.
+}
+
+Before whep#1026 this was an error, which made the function's own documented
+span unreachable and blocked \code{\link[=build_land_balance_footprint]{build_land_balance_footprint()}} entirely.
+\code{unsupported_target} now selects the treatment, and none of them invents a
+crop allocation:
+\itemize{
+\item \code{"unallocated"} (default) keeps the hectares in the ledger as one row per
+affected country-year with \code{item_cbs_code} \code{NA} -- real reported land that
+no crop can be named for. Nothing is lost and the gap is visible.
+\item \code{"zero"} treats the FAO total as the error: the unreconcilable target
+contributes no land, the rest of the country-year reconciles unchanged.
+\item \code{"drop"} removes the whole affected \verb{(area_code, year)}, including the
+crop rows that \emph{were} supported. For Poland that deletes 115 years of
+Polish arable land, so it is the most destructive option.
+\item \code{"abort"} is the pre-whep#1026 behaviour and refuses to continue.
+}
+
+Only the \code{NA}-item rows separate \code{"unallocated"} from \code{"zero"}; every other
+country-year is identical under all three continuing treatments. Restricted
+to 2001-2023 the whole difference from \code{"abort"}'s (unreachable) output is
+the 23 Marshall Islands rows, 11,500 ha.
 }
 
 \examples{

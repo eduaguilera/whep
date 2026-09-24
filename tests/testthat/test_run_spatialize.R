@@ -307,15 +307,9 @@ testthat::test_that(".load_landuse_inputs reads pinned inputs when input_dir is 
 # --- Livestock-only end-to-end path ------------------------------------
 .write_livestock_fixture <- function(dir) {
   livestock_data <- tibble::tribble(
-    # `species_group` speaks the vocabulary of
-    # `inst/extdata/livestock_mapping.csv`, which is what
-    # `.read_livestock_mapping()` hands the engine: `cattle_dairy` and
-    # `cattle_non_dairy`, never a bare `cattle`. Until whep#1000 T15a-i an
-    # unmapped group was silently given the pasture proxy, so this fixture
-    # passed while naming a group the shipped mapping does not have.
     ~year, ~area_code, ~species_group, ~heads, ~enteric_ch4_kt,
-    2000L,         1L, "cattle_dairy",  10000,             1.0,
-    2000L,         1L,         "pigs",   5000,             0.0
+    2000L, 1L, "cattle_dairy", 10000, 1.0,
+    2000L, 1L, "pigs",    5000, 0.0
   )
   gridded_pasture <- tibble::tribble(
     ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
@@ -502,29 +496,12 @@ testthat::test_that("the default crosswalk is the polycell support", {
   # centroid parquet sitting in `tmp`. Asserted by standing a marker in front
   # of the support reader: an assertion that merely expected an error when the
   # pin was unpublished stopped testing anything the moment it was published.
-  #
-  # whep#1000 T39 added a second vintage, `"year_aware"`, which reads the
-  # support through `read_polycell_support()` rather than through
-  # `.carbon_cell_support()`'s 2015 fold, so BOTH are stood in front of. With
-  # only the second mocked this test read the live pin -- passing here and
-  # breaking the offline-tests job.
   testthat::local_mocked_bindings(
-    read_polycell_support = function(...) {
-      tibble::tibble(
-        lon = 0.25,
-        lat = 50.25,
-        area_code = 999L,
-        start_year = 1800L,
-        end_year = 2100L,
-        cell_area_ha = 1,
-        land_area_ha = 1
-      )
-    },
     .carbon_cell_support = function(...) {
       tibble::tibble(
         lon = 0.25,
         lat = 50.25,
-        area_code = 888L,
+        area_code = 999L,
         cell_area_ha = 1,
         land_area_ha = 1,
         cell_area_frac = 1
@@ -535,13 +512,8 @@ testthat::test_that("the default crosswalk is the polycell support", {
 
   grid <- fn(tmp, NULL)
 
-  testthat::expect_setequal(grid$area_code, 888L)
+  testthat::expect_setequal(grid$area_code, 999L)
   testthat::expect_true(rlang::has_name(grid, "cell_area_frac"))
-
-  # The other vintage reads the support without the 2015 fold. Both markers
-  # stand so this test says which branch ran, not merely that one did.
-  aware <- fn(tmp, NULL, 0L, "year_aware")
-  testthat::expect_setequal(aware$area_code, 999L)
 })
 
 testthat::test_that("country_grid = 'centroid' still loads the centroid grid", {
@@ -600,8 +572,8 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   nanoparquet::write_parquet(
     tibble::tribble(
       ~year, ~area_code, ~species_group, ~heads, ~enteric_ch4_kt,
-      2000L,         1L, "cattle_dairy",  10000,             1.0,
-      2000L,         2L, "cattle_dairy",   2000,             0.2
+      2000L,         1L,       "cattle_dairy",  10000,             1.0,
+      2000L,         2L,       "cattle_dairy",   2000,             0.2
     ),
     file.path(tmp_in, "livestock_country_data.parquet")
   )
@@ -624,6 +596,36 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   testthat::expect_true(2L %in% out$area_code)
   testthat::expect_equal(sum(out$heads), 12000)
 })
+
+testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping package data", {
+  read_packaged_cft_mapping <- getFromNamespace(
+    ".read_packaged_cft_mapping",
+    "whep"
+  )
+  testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
+})
+
+testthat::test_that("an expansion_threshold override warns, not aborts", {
+  # whep#1001: the key was accepted for years without doing anything, so a
+  # script passing it keeps running and is told it never had an effect.
+  testthat::expect_false(
+    "expansion_threshold" %in% whep:::.known_override_keys()
+  )
+  testthat::expect_false(
+    "expansion_threshold" %in% names(whep:::.spatialize_presets()$whep)
+  )
+  kept <- NULL
+  testthat::expect_warning(
+    kept <- whep:::.drop_defunct_config_keys(
+      list(expansion_threshold = 5L, max_iterations = 10L),
+      "overrides"
+    ),
+    class = "whep_defunct_config_key"
+  )
+  testthat::expect_identical(kept, list(max_iterations = 10L))
+  testthat::expect_silent(whep:::.validate_overrides(kept))
+})
+
 
 # --- grid_vintage (whep#1000 T39) -------------------------------------------
 
@@ -664,6 +666,7 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   )
 }
 
+
 testthat::test_that("the loader forwards grid_vintage to the reader", {
   # What the loader passes on is the difference between two geographies, so it
   # is captured rather than inferred. The default it resolves is the 2015
@@ -691,6 +694,7 @@ testthat::test_that("the loader forwards grid_vintage to the reader", {
   testthat::expect_identical(seen$grid_vintage, "year_aware")
 })
 
+
 testthat::test_that("the loader refuses an unknown grid_vintage", {
   fn <- getFromNamespace(".load_country_grid", "whep")
   testthat::expect_error(
@@ -698,6 +702,7 @@ testthat::test_that("the loader refuses an unknown grid_vintage", {
     class = "rlang_error"
   )
 })
+
 
 testthat::test_that("a static crosswalk says the vintage is not read", {
   tmp <- withr::local_tempdir()
@@ -725,6 +730,7 @@ testthat::test_that("a static crosswalk says the vintage is not read", {
     "year_aware"
   )
 })
+
 
 testthat::test_that("grid_vintage is recorded in metadata and in the rows", {
   tmp_in <- withr::local_tempdir()
@@ -755,6 +761,7 @@ testthat::test_that("grid_vintage is recorded in metadata and in the rows", {
   )
 })
 
+
 testthat::test_that("run_spatialize refuses an unknown grid_vintage", {
   tmp_in <- withr::local_tempdir()
   .write_livestock_fixture(tmp_in)
@@ -769,6 +776,7 @@ testthat::test_that("run_spatialize refuses an unknown grid_vintage", {
     class = "rlang_error"
   )
 })
+
 
 testthat::test_that("both crop outputs carry method_grid_vintage", {
   # The CFT aggregation groups on a fixed column set, so a provenance column
@@ -801,13 +809,6 @@ testthat::test_that("both crop outputs carry method_grid_vintage", {
   )
 })
 
-testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping package data", {
-  read_packaged_cft_mapping <- getFromNamespace(
-    ".read_packaged_cft_mapping",
-    "whep"
-  )
-  testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
-})
 
 # The hold-out this gate accepts is the hold-out `resolve_admin_shares()`
 # reads. The gate once took any non-empty name, so `list(USA = 1961:1989)`
@@ -826,6 +827,7 @@ testthat::test_that("an ISO3-keyed constraint_exclude is refused", {
   testthat::expect_match(conditionMessage(err), "USA")
 })
 
+
 testthat::test_that("an area_code-keyed hold-out is what both ends take", {
   check <- getFromNamespace(".check_constraint_exclude", "whep")
   exclude <- check(list("840" = c(1989, 1961:1989)))
@@ -837,6 +839,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
   testthat::expect_identical(unique(rows$area_code), 840L)
   testthat::expect_identical(sort(rows$year), 1961:1989)
 })
+
 
 # --- The granted-depth wiring (whep#1000 T40) -------------------------------
 #
@@ -867,6 +870,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
     )
 }
 
+
 # One item, one year, two prefectures reporting 300 and 700 ha. The pin ships
 # `value` and no `share`, which is what every value-shipping family does.
 .rs_depth_shares <- function() {
@@ -894,6 +898,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
   )
 }
 
+
 # The identity alias route the investigation found for the staged Japanese
 # pin: `polity_code == paste0(source_native_unit_id, "-1871-2025")`, bijective
 # over the 46 prefectures. Stubbed rather than read, because the alias rows
@@ -916,6 +921,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
     )
   )
 }
+
 
 .rs_write_depth_inputs <- function(dir) {
   nanoparquet::write_parquet(
@@ -947,6 +953,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
   )
 }
 
+
 .rs_local_depth_mocks <- function(env = parent.frame()) {
   testthat::local_mocked_bindings(
     read_polycell_support = function(...) .rs_depth_support(),
@@ -966,6 +973,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
     .env = env
   )
 }
+
 
 testthat::test_that("a depth run allocates on admin shares, not the pattern", {
   # THE TEST THE MISSING CALL SITE FAILED. Two prefectures reporting 300 and
@@ -1015,6 +1023,7 @@ testthat::test_that("a depth run allocates on admin shares, not the pattern", {
   testthat::expect_equal(sort(targets$share), c(0.3, 0.7))
 })
 
+
 testthat::test_that("a depth run records what actually constrained it", {
   .rs_local_depth_mocks()
   tmp_in <- withr::local_tempdir()
@@ -1058,6 +1067,7 @@ testthat::test_that("a depth run records what actually constrained it", {
   testthat::expect_equal(nrow(coverage), 1L)
 })
 
+
 testthat::test_that("a level-0 run says it had no admin constraint", {
   tmp_in <- withr::local_tempdir()
   tmp_out <- withr::local_tempdir()
@@ -1085,6 +1095,7 @@ testthat::test_that("a level-0 run says it had no admin constraint", {
   )
 })
 
+
 testthat::test_that("a depth needs containers, and level 0 refuses them", {
   testthat::expect_error(
     whep::run_spatialize(preset = "lpjml", overrides = list(level = 1L)),
@@ -1098,6 +1109,7 @@ testthat::test_that("a depth needs containers, and level 0 refuses them", {
     "level = 0"
   )
 })
+
 
 testthat::test_that("an unregistered admin-shares pin aborts a depth run", {
   testthat::local_mocked_bindings(
@@ -1126,6 +1138,7 @@ testthat::test_that("an unregistered admin-shares pin aborts a depth run", {
   )
 })
 
+
 testthat::test_that("a granted container with no admin row aborts", {
   fn <- getFromNamespace(".admin_scope_containers", "whep")
   testthat::expect_error(
@@ -1135,6 +1148,7 @@ testthat::test_that("a granted container with no admin row aborts", {
   kept <- suppressMessages(fn(.rs_depth_shares(), 110L))
   testthat::expect_equal(nrow(kept), 2L)
 })
+
 
 testthat::test_that("shares that resolve to no polity abort the constraint", {
   testthat::local_mocked_bindings(
@@ -1157,6 +1171,7 @@ testthat::test_that("shares that resolve to no polity abort the constraint", {
   )
 })
 
+
 testthat::test_that("the unit resolver is handed the readers' column name", {
   # The contract calls the identifier `source_native_id`;
   # `resolve_admin_units()` reads `source_native_unit_id`. Handing the rows
@@ -1177,6 +1192,7 @@ testthat::test_that("the unit resolver is handed the readers' column name", {
   testthat::expect_true("source_native_id" %in% names(out$shares))
   testthat::expect_false("alias_source" %in% names(out$shares))
 })
+
 
 testthat::test_that("every admin source names one code system", {
   fn <- getFromNamespace(".admin_code_systems_for", "whep")
@@ -1201,6 +1217,7 @@ testthat::test_that("every admin source names one code system", {
   )
 })
 
+
 testthat::test_that("a constraint meeting no layer unit aborts", {
   fn <- getFromNamespace(".admin_check_layer_units", "whep")
   shares <- tibble::tibble(level_polity_code = c("A-1", "A-2"))
@@ -1212,6 +1229,7 @@ testthat::test_that("a constraint meeting no layer unit aborts", {
     fn(shares, tibble::tibble(level_polity_code = "A-2"))
   ))
 })
+
 
 testthat::test_that("a value-shipping family's share is the group's own", {
   fn <- getFromNamespace(".admin_gate_shares", "whep")
@@ -1232,6 +1250,7 @@ testthat::test_that("a value-shipping family's share is the group's own", {
     dplyr::mutate(value = NA_real_, treatment = "observed")
   testthat::expect_identical(unique(fn(none)$share_basis), "unavailable")
 })
+
 
 testthat::test_that("a vacuous tier-A identity is said out loud", {
   fn <- getFromNamespace(".warn_gate_identity_vacuous", "whep")

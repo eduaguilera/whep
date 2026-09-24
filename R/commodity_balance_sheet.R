@@ -11,8 +11,15 @@
 #'   under a window-specific key. The window is widened internally to 2011 when
 #'   it reaches 2013, because that overlap is what splices the old FBS series
 #'   onto `FAOSTAT_FBS_New`.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, passed
+#'   to [build_commodity_balances()], which documents what each does and what
+#'   `"net_import"` moves. Each method is built and cached under its own slot,
+#'   so asking for one never serves the other's result. `"net_import"` is not
+#'   the default because two allocation questions it raises are still open
+#'   (whep#762).
 #' @param example If `TRUE`, return a small example output without
-#'   downloading remote data. Default is `FALSE`.
+#'   downloading remote data. Default is `FALSE`. The example is the same
+#'   fixture under either `trade_recovery`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
@@ -22,10 +29,15 @@
 #'    For code details see e.g. `add_area_name()`.
 #' - `item_cbs_code`: FAOSTAT internal code for each item. For
 #'   code details see e.g. `add_item_cbs_name()`.
+#' - `unit`: The denomination of every quantity in the row. `"tonnes"` for
+#'   the rows of the FAO-style balance sheet and `"heads"` (number of
+#'   animals) for the live-animal rows added by the livestock balance. Set by
+#'   the builder that produced the row, so a derived row carries the same
+#'   unit as a reported one. Never sum quantities across rows of different
+#'   units.
 #'
 #' The other columns are quantities where total supply and total
-#' use should be balanced. Units are tonnes for most items,
-#' and heads for live animals (see [items_cbs] `item_type`).
+#' use should be balanced, in the row's `unit`.
 #'
 #' For supply:
 #'    - `production`: Produced locally.
@@ -54,16 +66,21 @@
 #'
 #' @examples
 #' get_wide_cbs(example = TRUE)
-get_wide_cbs <- function(years = NULL, example = FALSE) {
+get_wide_cbs <- function(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+) {
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (example) {
     return(.example_get_wide_cbs())
   }
   build_years <- .build_years(years)
-  cbs_built <- .cached_cbs_built(build_years)
+  cbs_built <- .cached_cbs_built(build_years, trade_recovery)
   primary_prod <- .cached_primary_prod(.context_years(build_years))
 
   .cache_get(
-    .cache_key("cbs_wide", build_years),
+    .cache_key("cbs_wide", build_years, .cbs_cache_method(trade_recovery)),
     .cbs_long_to_wide(cbs_built, primary_prod, build_years)
   )
 }
@@ -86,27 +103,39 @@ get_wide_cbs <- function(years = NULL, example = FALSE) {
 #' Units are heads (number of animals).
 #'
 #' @param primary_prod Tibble from [get_primary_production()].
+#' @param method_head_units How the live-animal trade this balance rests
+#'   on treats FAOSTAT's `1000 Head` rows. Passed to
+#'   [build_detailed_trade()]'s helper of the same name; see its *Live
+#'   animals are reported in two head units* section. `"convert"`
+#'   (default) rescales them by 1,000 onto `heads`, `"drop"` discards
+#'   them with a warning, `"abort"` refuses.
 #'
 #' @returns A tibble with the same columns as [get_wide_cbs()].
 #'
 #' @keywords internal
-get_livestock_cbs <- function(primary_prod) {
+get_livestock_cbs <- function(
+  primary_prod,
+  method_head_units = c("convert", "drop", "abort")
+) {
+  head_method <- rlang::arg_match(method_head_units)
   slaughter_livestock <- .slaughter_livestock_items(primary_prod) |>
     dplyr::rename(item_cbs_code = live_anim_code)
 
   slaughtered <- primary_prod |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    .fold_split_slaughter() |>
     dplyr::inner_join(
       slaughter_livestock,
       dplyr::join_by(item_cbs_code)
     ) |>
-    dplyr::filter(unit == "slaughtered_heads") |>
     dplyr::summarise(
       slaughtered = sum(value, na.rm = TRUE),
       .by = c(year, area_code, item_cbs_code)
     )
 
   live_trade <- .get_livestock_trade_totals(
-    slaughter_livestock$item_cbs_code
+    slaughter_livestock$item_cbs_code,
+    head_method
   )
 
   # A left_join here would drop any (year, area_code, item_cbs_code) that
@@ -133,6 +162,11 @@ get_livestock_cbs <- function(primary_prod) {
 
   live_prod |>
     dplyr::mutate(
+      # Every quantity here is a count of animals: `slaughtered` sums the
+      # `slaughtered_heads` rows and the trade totals keep `unit == "heads"`
+      # only. Labelled so the wide CBS, which binds these rows onto the
+      # tonnes CBS, says which rows are counts (whep#1055).
+      unit = "heads",
       food = 0,
       feed = 0,
       seed = 0,
@@ -146,6 +180,7 @@ get_livestock_cbs <- function(primary_prod) {
       year,
       area_code,
       item_cbs_code,
+      unit,
       production,
       import,
       export,
@@ -159,6 +194,36 @@ get_livestock_cbs <- function(primary_prod) {
       stock_addition,
       domestic_supply
     )
+}
+
+# Put the slaughter FAOSTAT books on a stock sub-item back onto the live
+# animal its products and its trade are keyed on (whep#1149).
+#
+# `.split_slaughter_by_shares()` divides pig slaughter between 1049 "Swine,
+# market" and 1051 "Swine, breeding" by stock share, but every pig product
+# carries `live_anim_code = 1049` and live-pig trade (FAOSTAT 1034) resolves to
+# 1049 too, so the inner_join on `.slaughter_livestock_items()` kept only the
+# 1049 half: on a real 2020 build 131,912,454 of 1,319,124,485 slaughtered
+# pigs (10.0%) never reached the live-pig balance, while trade entered whole.
+#
+# Folding is a choice, not an identity. The alternative is a live-animal
+# balance of its own for 1051, which needs an `items_cbs` row and so a new
+# husbandry sector in `build_supply_use()` and every footprint; the total
+# slaughter is the same either way. Folding keeps supply and trade on one key.
+# Only swine is folded: the dairy-cattle (960) and layer (1052) shares are
+# dropped by the same join, but each of those is an IO sector of its own, so
+# where their cull belongs is a separate question (whep#1237).
+.fold_split_slaughter <- function(slaughter) {
+  folds <- tibble::tribble(
+    ~item_cbs_code, ~folded_code,
+    1051, 1049
+  )
+  slaughter |>
+    dplyr::left_join(folds, by = "item_cbs_code") |>
+    dplyr::mutate(
+      item_cbs_code = dplyr::coalesce(.data$folded_code, .data$item_cbs_code)
+    ) |>
+    dplyr::select(-"folded_code")
 }
 
 # Report (year, area_code, item_cbs_code) keys that trade live animals with no
@@ -203,17 +268,44 @@ get_livestock_cbs <- function(primary_prod) {
 
 # Extract per-country import and export totals for live animals
 # from the raw bilateral trade data.
-.get_livestock_trade_totals <- function(livestock_items) {
+#
+# The head counts this returns are FAOSTAT's, not model output: the
+# `bilateral_trade` pin's values match the raw FAOSTAT Detailed Trade Matrix
+# exactly. FAOSTAT reports the small species in `1000 Head`, though, and a
+# bare filter on `"heads"` dropped every one of those rows -- 89,073 rows and
+# 76,141,882 thousand head over 1986-2021, against the 11,707,083,640 head
+# that survived -- so live broiler chicken, turkey, duck, goose, rabbit and
+# rodent trade left without a word, and `production` below collapsed to
+# `slaughtered` alone for exactly the species whose live trade is largest
+# (whep#1092, same class as whep#865, which fixed `1000 An` for
+# `faostat-trade-totals`; surfaced by #1054).
+#
+# `.normalise_trade_units()` is what now makes the `unit == "heads"` filter
+# below cover the whole live-animal record. The pin
+# `20250714T123347Z-2c392` still carries `tonnes` and `Head` only, because
+# its producer applied the same filter, so this changes no published number
+# until that pin is rebuilt from `build_detailed_trade()`; it is the filter,
+# not the pin, that has to stop dropping them first.
+.get_livestock_trade_totals <- function(
+  livestock_items,
+  method_head_units = "convert"
+) {
   btd <- tryCatch(
     "bilateral_trade" |>
       whep_read_file() |>
       .clean_bilateral_trade() |>
+      .normalise_trade_units(method_head_units) |>
       dplyr::filter(
         unit == "heads",
         item_cbs_code %in% livestock_items
       ) |>
       .map_livestock_trade_polities(),
     error = function(e) {
+      # A refused unit is a deliberate stop, not a failed read: let it out
+      # instead of degrading `method_head_units = "abort"` into a warning.
+      if (inherits(e, "whep_unhandled_trade_unit")) {
+        rlang::cnd_signal(e)
+      }
       cli::cli_warn(
         "Could not read bilateral trade for livestock: {e$message}"
       )
@@ -296,6 +388,11 @@ get_livestock_cbs <- function(primary_prod) {
 #'   (default) the whole series is built. Supplying a window builds only that
 #'   range rather than building 1850-2023 and discarding the rest, and caches it
 #'   under a window-specific key.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#'   the CBS the coefficients are calibrated on. See
+#'   [build_commodity_balances()] and [get_wide_cbs()]. Pass the same value
+#'   here as to [get_wide_cbs()]: coefficients calibrated on one CBS do not
+#'   describe the other.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
@@ -346,14 +443,20 @@ get_livestock_cbs <- function(primary_prod) {
 #'
 #' @examples
 #' get_processing_coefs(example = TRUE)
-get_processing_coefs <- function(years = NULL, example = FALSE) {
+get_processing_coefs <- function(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+) {
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (example) {
     return(.example_get_processing_coefs())
   }
   build_years <- .build_years(years)
-  cbs_built <- .cached_cbs_built(build_years)
+  cbs_built <- .cached_cbs_built(build_years, trade_recovery)
+  method <- .cbs_cache_method(trade_recovery)
 
-  .cache_get(.cache_key("proc_coefs", build_years), {
+  .cache_get(.cache_key("proc_coefs", build_years, method), {
     cli::cli_h1("Building processing coefficients")
     .build_proc_coefs_years(cbs_built, build_years)
   })

@@ -101,6 +101,14 @@
 #'     physical cropland).
 #'   - `max_iterations`: Maximum iterations for the redistribution
 #'     loop. Default: `1000L`.
+#'   - `pattern_signal_floor`: The `harvest_fraction` below which a
+#'     `crop_patterns` cell is treated as float underflow rather than an
+#'     allocated area, and zeroed before the placement weights are formed.
+#'     Default `1e-12`, argued from EarthStat's own float32 precision in
+#'     `.crop_pattern_signal_floor()`. `0` restores the untoleranced
+#'     behaviour of whep#1070, in which a (country, crop) whose whole
+#'     pattern is underflow is placed proportional to that underflow instead
+#'     of uniformly.
 #'   - `expansion_threshold`: Iteration number after which crops are
 #'     allowed to expand into cells without an existing pattern.
 #'     Default: `100L`.
@@ -295,7 +303,6 @@ build_gridded_landuse <- function(
   type_mapping <- config$type_mapping
   multicropping <- config$multicropping
   max_iterations <- config$max_iterations
-  expansion_threshold <- config$expansion_threshold
 
   country_areas <- .ensure_irrigation_cols(country_areas)
   # DELIBERATELY UNGUARDED AT LEVEL 0. `.check_irrigation_within_area()` runs
@@ -353,12 +360,16 @@ build_gridded_landuse <- function(
   base_grid_cp <- if (country_grid_is_dynamic) {
     NULL
   } else {
-    .build_base_grid_cp(country_grid, crop_patterns, type_lookup)
+    .build_base_grid_cp(
+      country_grid,
+      crop_patterns,
+      type_lookup,
+      config$pattern_signal_floor
+    )
   }
 
   opts <- list(
     max_iterations = max_iterations,
-    expansion_threshold = expansion_threshold,
     mc_factor = config$mc_factor,
     pattern_extension = config$pattern_extension
   )
@@ -375,7 +386,8 @@ build_gridded_landuse <- function(
         .build_base_grid_cp(
           country_grid_yr,
           crop_patterns,
-          type_lookup
+          type_lookup,
+          config$pattern_signal_floor
         )
       } else {
         base_grid_cp
@@ -844,9 +856,9 @@ build_gridded_landuse <- function(
     type_mapping = NULL,
     multicropping = NULL,
     max_iterations = 1000L,
-    expansion_threshold = 100L,
     n_workers = 1L,
     area_key = "grid",
+    pattern_signal_floor = .crop_pattern_signal_floor(),
     mc_factor = "unit",
     pattern_extension = "none"
   )
@@ -860,6 +872,7 @@ build_gridded_landuse <- function(
   ) {
     cli::cli_abort("{.arg config} must be a named list.")
   }
+  config <- .drop_defunct_config_keys(config, "config")
   unknown <- setdiff(names(config), names(defaults))
   if (length(unknown) > 0L) {
     cli::cli_abort(c(
@@ -882,6 +895,39 @@ build_gridded_landuse <- function(
     arg_nm = "pattern_extension"
   )
   config
+}
+
+# Config keys that were once accepted but never did anything. A caller passing
+# one is warned and the key dropped, rather than aborted on as an unknown key,
+# because the key was documented and accepted for months.
+#
+# `expansion_threshold` (whep#1001) named the LandInG step that, after that
+# many redistribution iterations, seeds a crop into cropland cells outside its
+# base pattern (`redist_exp_thresh <- 100` in LandInG's
+# `landuse/harvested_area_timeseries.R`; Ostberg et al. 2023, GMD 16,
+# 3375-3406, doi:10.5194/gmd-16-3375-2023). WHEP ported the parameter but
+# never the step. Implementing it is a science decision -- the seed size, and
+# whether the LUH2 type constraint binds in the new cells -- so it is left to
+# the maintainer instead of being guessed here.
+.defunct_config_keys <- function() {
+  c(expansion_threshold = "whep#1001")
+}
+
+.drop_defunct_config_keys <- function(config, arg) {
+  defunct <- intersect(names(config), names(.defunct_config_keys()))
+  if (length(defunct) == 0L) {
+    return(config)
+  }
+  cli::cli_warn(
+    c(
+      "{.arg {arg}} entr{?y/ies} {.val {defunct}} {?is/are} defunct and
+       ignored.",
+      i = "{?It/They} never changed the allocation; see
+           {.val {unname(.defunct_config_keys()[defunct])}}."
+    ),
+    class = "whep_defunct_config_key"
+  )
+  config[setdiff(names(config), defunct)]
 }
 
 #' Validate that required columns exist.
@@ -1647,11 +1693,15 @@ build_gridded_landuse <- function(
     cli::cli_abort(c(
       "{.arg cft_mapping} must have one row per \\
        {.field item_prod_code}.",
-      i = "Duplicated code{?s}: {.val {dupes}}."
+      # qty() pinned: `dupes` holds numeric item codes, and a marker with
+      # nothing numeric before it makes cli read the quantity off that vector
+      # and abort on "length(object) == 1 is not TRUE" (#621).
+      i = "{cli::qty(length(dupes))}Duplicated code{?s}: {.val {dupes}}."
     ))
   }
   invisible(cft_mapping)
 }
+
 
 # `.normalize_to_cropland()` and `.get_area_code_from_grid()` were removed in
 # C8 (AM-5 risk 26). Both were unreachable -- no caller anywhere in the package
@@ -1665,3 +1715,132 @@ build_gridded_landuse <- function(
 # Reinstate neither. The polycell-keyed equivalents are
 # `.apply_capacity_constraint()` (with `.warn_capacity_breach()`) and
 # `.compartment_id_cols()` carried through from `country_grid`.
+
+# Give every code in a `pattern_group` the SUM of the group's patterns.
+#
+# FAOSTAT splits one plant into several items where EarthStat publishes one
+# raster per item: hemp is 336 Hempseed and 777 True hemp fibre, both from
+# the same fields. Left separate, each item is spatialized on its own
+# raster, so a country reporting hempseed area is placed only where the
+# hempseed raster has cells, and vice versa. Pooling gives both items the
+# plant's footprint. Each item KEEPS its own code -- and so its own FAOSTAT
+# area -- because a code with no pattern loses its whole world total
+# silently (the barley failure, whep#877). Decision 2026-09-01 (Edu):
+# "hempseed mix with hemp".
+.share_pattern_groups <- function(patterns, xwalk) {
+  groups <- xwalk |>
+    dplyr::filter(!is.na(.data$pattern_group), !is.na(.data$item_prod_code)) |>
+    dplyr::distinct(.data$pattern_group, .data$item_prod_code)
+  if (nrow(groups) == 0L) {
+    return(patterns)
+  }
+  pooled <- patterns |>
+    dplyr::inner_join(groups, by = "item_prod_code") |>
+    dplyr::summarise(
+      harvest_fraction = sum(.data$harvest_fraction),
+      .by = c("lon", "lat", "pattern_group")
+    ) |>
+    dplyr::inner_join(
+      groups,
+      by = "pattern_group",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select("lon", "lat", "item_prod_code", "harvest_fraction")
+  patterns |>
+    dplyr::anti_join(groups, by = "item_prod_code") |>
+    dplyr::bind_rows(pooled)
+}
+
+
+# The national mean yield a crop's cells vote on, weighted by how much of the
+# crop each cell actually grows.
+#
+# `cell_yields` is EarthStat's per-cell yield surface joined to the country
+# grid and then to the crop-pattern table, so `harvest_fraction` is missing
+# exactly where the pattern table has no row for that (cell, crop).
+#
+# A missing weight there is not "unknown". `prepare_crop_patterns()` keeps a
+# row wherever EarthStat's HarvestedAreaFraction raster is positive, so no row
+# means that raster said the crop is ABSENT from the cell -- EarthStat still
+# publishes a yield for it, because its yield surface is interpolated over a
+# wider footprint than its area surface. On the 20260825 `spatialize-crop-
+# patterns` pin that is 211 of the 1,895,622 country-keyed yield cells, every
+# one of them maize.
+#
+# So the weight for an absent crop is 0, not the 1.0 this used to coalesce to
+# (whep#1091). In a weighted mean the neutral default is exclusion, not the
+# maximum: 99.99942% of the present weights in that table are below 1 and the
+# median is 2.7e-05, so 1.0 gave a cell growing no maize some 37,000 times the
+# say of a typical cell that does. It moved nine country mean maize yields by
+# -43% to +141% (Botswana 0.77 -> 0.32 t/ha).
+#
+# A (country, crop) whose every cell is absent or zero has no pattern to weight
+# with at all and falls back to the unweighted mean (whep#1070). `weight_total`
+# is a sum of non-negative terms, exactly zero only if every term is zero, so
+# `> 0` is a sound test on that shape -- it is a sum, not a difference.
+.country_mean_yield <- function(cell_yields) {
+  needed <- c("area_code", "item_prod_code", "yield_t_ha", "harvest_fraction")
+  absent_cols <- needed[!rlang::has_name(cell_yields, needed)]
+  if (length(absent_cols) > 0L) {
+    cli::cli_abort(
+      "{.arg cell_yields} is missing {cli::qty(length(absent_cols))}\\
+       column{?s} {.field {absent_cols}}."
+    )
+  }
+  .warn_patternless_yield_cells(cell_yields)
+  cell_yields |>
+    dplyr::mutate(weight = dplyr::coalesce(.data$harvest_fraction, 0)) |>
+    dplyr::summarise(
+      weight_total = sum(.data$weight, na.rm = TRUE),
+      weighted_yield = sum(.data$yield_t_ha * .data$weight, na.rm = TRUE),
+      unweighted_yield = mean(.data$yield_t_ha, na.rm = TRUE),
+      .by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      country_mean = dplyr::if_else(
+        .data$weight_total > 0,
+        .data$weighted_yield / .data$weight_total,
+        .data$unweighted_yield
+      )
+    ) |>
+    dplyr::select("area_code", "item_prod_code", "country_mean") |>
+    dplyr::filter(.data$country_mean > 0)
+}
+
+
+# Say out loud how much of the yield surface had no pattern to weight it.
+#
+# A crop absent from a CELL is ordinary -- EarthStat's own rasters disagree
+# about where a crop grows. A crop absent from EVERY cell is a coverage gap in
+# the pattern table, which is the whep#1034 shape: an absent input that no
+# downstream check can tell from a real one. It is how barley -- the fourth
+# largest crop on Earth -- was missing from the pattern pin for a whole vintage
+# (whep#877), silently taking the unweighted mean of its yield surface. The two
+# cases are mutually exclusive per call, so exactly one warning is raised.
+.warn_patternless_yield_cells <- function(cell_yields) {
+  absent <- is.na(cell_yields$harvest_fraction)
+  n_absent <- sum(absent)
+  if (n_absent == 0L) {
+    return(invisible(cell_yields))
+  }
+  n_total <- nrow(cell_yields)
+  codes <- cell_yields$item_prod_code
+  gone <- sort(unique(setdiff(codes[absent], codes[!absent])))
+  msg <- "Excluded {n_absent} yield cell{?s} with no crop-pattern row from the
+          country mean yield, of {n_total} cells in all (whep#1091)."
+  if (length(gone) == 0L) {
+    cli::cli_warn(msg, class = "whep_patternless_cells")
+    return(invisible(cell_yields))
+  }
+  cli::cli_warn(
+    c(
+      msg,
+      x = "{cli::qty(length(gone))}Item{?s} with no pattern row anywhere:
+           {.val {gone}}.",
+      i = "Their country mean yields fall back to the unweighted mean of the
+           yield surface. Check the crosswalk and the pattern pin vintage."
+    ),
+    class = "whep_patternless_crop"
+  )
+  invisible(cell_yields)
+}

@@ -41,8 +41,12 @@ a review on them while leaving 1 and 2 unexamined.
   A pin shipped with **zero** inland water and ice — 533 Mha of lakes and
   glaciers booked as land — while `territory == land + water + ice` still
   held, because zero satisfies it. The layers were optional arguments that
-  zero-filled silently. Assert that an input was *supplied* (row count,
-  a provenance column), not merely that the totals reconcile. The same shape
+  zero-filled silently. Assert that an input was *supplied* (a provenance
+  column, or at least one non-missing non-zero value — a row count is not
+  enough), not merely that the totals reconcile; the helpers for this are
+  `check_inputs_supplied()` and `check_labels_supplied()`, and the rule is
+  [Absent inputs must not become zeros](#absent-inputs-must-not-become-zeros).
+  The same shape
   has appeared in a balance check with no unit dimension (head counts balanced
   against head counts), a global mean unchanged while every cell moved, and
   two Rest-of-World buckets matching by code while covering different
@@ -159,6 +163,43 @@ worth having — apply it only after checking the verification path really is
 offline, and never apply it to code that is not on `main` (work living on an
 unmerged feature branch cannot be picked up from a fresh clone).
 
+### Writing a PR or issue body
+
+**Lead with what the change adds: the problem, then the result.** A reviewer
+must be able to learn what they are being asked to merge from the opening
+lines. Then the details, then the numbers, then the evidence.
+
+**Process goes last.** Reconciliation with a branch that landed mid-flight, an
+approach that turned out wrong, a claim that failed its own check, a figure
+corrected on a second pass — all of it belongs in a closing section, never in
+the opening and never woven through the substance. This is about placement,
+not disclosure: a correction that changes the reviewer's decision is still
+mandatory, and a wrong number is still fixed and stated. Do not tally your own
+errors; state what is true now.
+
+**Never use a bare number as a heading or a reference.** Every mention of a
+pull request or an issue says which of the two it is and carries a short title
+naming its subject — `PR #1042 — gridded livestock emissions restored`,
+`issue #1043 — truncated aggregation factor`, never `#1042` alone. A reader
+scanning headings, a release-notes assembler, and anyone reading `git log` a
+year from now all need the subject without opening a link. The `Closes #N` /
+`Refs #N` lines are the exception: those are machine-read and stay bare.
+
+**State the base of every percentage**, and never quote a change in a
+component as though it were the change in the total that contains it. Where
+several figures come from different variants of one computation, either report
+a single consistent series or label every variant — a figure taken from a
+different variant than its neighbours is not a series.
+
+**Ask open questions with the questioning tool, not in prose.** A science
+decision surfaced under [Classify every change](#classify-every-change-mechanical-or-science-decision)
+is put to the maintainer through the structured question interface, with the
+alternatives and what changes numerically between them, not mentioned in a
+paragraph and left to be noticed. A question buried in a PR body or a report is
+a question that does not get answered: the work stalls, or proceeds on an
+assumption nobody agreed to. Keep working on whatever does not depend on the
+answer while it is outstanding.
+
 ## Running things
 
 `.Rprofile` runs `devtools::load_all()` on session start, so a plain
@@ -191,6 +232,13 @@ Gotchas worth knowing before losing an hour:
   `WHEP_*` path an R session started at the root would otherwise see. That was
   #456, fixed by moving `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron`
   into the R-CMD-check workflow env and `.Rprofile`.
+- `.Rprofile` has the same shape and the same trap: R reads the
+  working-directory one *instead of* `~/.Rprofile`. The repo profile therefore
+  **chain-sources the user profile first**, and must keep doing so. That line
+  is not cosmetic: `r-lib/actions/setup-r` delivers `use-public-rspm: true` by
+  writing the RSPM `repos` option into `~/.Rprofile`, so while it was shadowed
+  every cold dependency install on ubuntu built all 141 packages from source
+  instead of taking Linux binaries (#1102).
 - Long pipeline builds are minutes-to-hours and read pins or multi-GB local
   rasters. Never put one in a test or an example; use the
   [`example = FALSE` fixture pattern](#documentation).
@@ -205,16 +253,54 @@ Gotchas worth knowing before losing an hour:
 
 ### Area codes and polity columns
 
-There are **two code spaces**, and confusing them silently misattributes data:
+There are **three** territorial columns, they do three different jobs, and
+using one for another job silently misattributes data:
 
-- `area_code` — the FAOSTAT-style area key of the row.
-- `polity_area_code` — the numeric key rows are **aggregated on** for the
-  matrix workflows. It is a *bucket, not an identity*: 999 is Rest of World,
-  206 is Sudan (former), and 62 of the 257 ISO3 codes in `regions_full` do not
-  get their own code.
-- `reporting_polity_code` — the polity itself (`"ESP-1846-1914"`), year-aware:
-  the same `area_code` resolves to different polities in different years.
-  Use this to say which territory a row belongs to.
+- `reporting_polity_code` — **the identity.** The polity itself
+  (`"ESP-1846-1914"`), year-aware: the same `area_code` resolves to different
+  polities in different years. This is what says which territory a row is
+  about, and it is the column a published output must carry.
+- `polity_area_code` — **the aggregation key.** `coalesce(fabio_code,
+  area_code)`: FABIO's country numbering, adopted so WHEP's builds sum on the
+  same grain FABIO does. It is a *bucket, not an identity* — several reporting
+  areas can share one. Legitimate in a `by =`; never a statement about who a
+  row is.
+- `area_code` — **the provenance.** The FAOSTAT-style area key the source
+  used. Belongs at ingestion; it is not an identity either, because FAOSTAT
+  retires and re-cuts codes as history happens.
+
+The bucket is **not** required by the input-output model: `build_io_model()`
+sizes each year's matrix from that year's own areas
+(`.get_io_dims(su, cbs_yr)`), so every year is solved independently and no
+fixed country list is needed. The folding is inherited FABIO numbering, and
+almost all of it is gone — the Rest-of-World fold was removed in #628 and is
+un-folded by default. Measured live through `.polity_crosswalk()`, exactly
+three area codes still fold into a different bucket (276 and 277 into 206,
+62 into 238), and `polity_bucket_coverage()` reports **one** bucket summing
+two live territories: 206, Sudan and South Sudan, from 2012. Un-folding it is
+#680.
+
+#### A published row is a polity-period
+
+**Decided 2026-09-22 (#1192).** One published row answers for the entity that
+existed that year, not for a reporting area across all time. A territorial
+handover is a real discontinuity and the series steps at it.
+
+The comparable-across-time view is **derived, not the default**: call the
+exported `build_constant_territory_series()`, which reallocates onto a
+reference year's boundaries and reports `imputed_share` so the estimate says
+how much of itself was filled in.
+
+This matters at every reduction, because a `by =` answers it implicitly. 50
+area codes carry more than one polity in or after 1961 (119 across all time),
+overwhelmingly decolonisation handovers — area 4 Algeria splits at 1962, 7
+Angola at 1975, 16 Bangladesh at 1971. Grouping on the polity splits those
+series; grouping on the area does not.
+
+**Verify such a change by row and distinct-key counts, never by totals.**
+Mass is conserved either way — it just spreads over more rows — so a totals
+diff reads as success. That is exactly how #561/#563 shipped a bucket that
+stopped summing without one value moving.
 
 `R/polity_columns_doc.R` documents these once; inherit that section instead of
 writing a fresh, subtly different description. Rows that resolve to no polity
@@ -248,14 +334,98 @@ not base R, and abort with `cli::cli_abort()`. For completing a tibble to a
 known schema, use the exported `ensure_columns()` with a zero-row prototype
 rather than ad-hoc `if (!has_name(...)) mutate(x = NA)` chains.
 
+### Absent inputs must not become zeros
+
+Three times in one week an absent input silently became a zero and every check
+downstream passed (#1010, #1016, #1034). **A guard must sit where the absence
+is created, not where it is consumed**: once a zero is downstream it is
+indistinguishable from a measurement, and no care at the consuming end
+recovers the distinction.
+
+Two exported helpers, in `R/absent_input.R`:
+
+- `check_inputs_supplied(data, required)` — the column exists **and** holds at
+  least one value that is neither missing nor zero. Use it at a boundary an
+  external table crosses. It does not judge a zero-row frame (a filter that
+  matched nothing is the caller's to answer for) and one non-zero value
+  anywhere passes, so it cannot see a partial absence.
+- `check_labels_supplied(data, column, labels)` — the labels a `filter()`
+  selects on still occur in the column. This is #1016's mechanism, and it is
+  invisible to any rule written around `coalesce()`, `replace_na()` or
+  `na.rm`: none of those appear anywhere near it. The message names the labels
+  that *are* there, because a rename is only obvious once you see the new
+  spelling.
+
+`stamp_inputs_supplied()` writes the provenance label the first reads: a
+comma-separated list of the optional inputs a build consumed. A label cannot
+be satisfied by arithmetic, which is the whole point — see `layers_supplied`
+in `build_polycell_support()` and `read_polycell_support()`, the prior art
+both helpers generalise, and `method_weed_npp` in
+`calculate_npp_carbon_nitrogen()` for the per-row form.
+
+Three states, and the middle one is where the completeness principle bites:
+
+1. a bare zero or silent literal — forbidden, because it cannot be told from a
+   measurement;
+2. a refusal — also wrong wherever the quantity is known to exist, because
+   excluding it biases the total just as silently;
+3. a **declared assumption** — a named value, a citation or an explicit
+   "assumed, unverified" note, and a `method_*` / `source` / `*_supplied`
+   stamp on the row.
+
+The line between (2) and (3) is not abort-versus-fill. It is whether the
+absent thing is a **quantity** (a species with no published emission factor —
+fill it and declare it) or a **contract** (a corrupted lookup, a label in an
+unrecognised vocabulary — no defensible fill exists; abort). And before
+filling anything: **run the lookup and look at what it returns.** A value the
+code failed to reach is a defect, not an absent quantity, and a `method_*`
+stamp on it makes a missed lookup read as a considered choice.
+
+A structural zero — one where the right-hand side is a ledger or lattice WHEP
+itself defines, so absence really is "did not happen" — is fine, but **say so
+in a comment at the point of use**. There are ~170 silent sites in ~51 files;
+they stay a documented backlog rather than a build-stopping gate, and turning
+the readable ones into readable code is what makes any future gate possible.
+
+Every guard ships with a test of the shape in
+`tests/testthat/helper_absent_input.R`:
+
+```r
+expect_supplied_guard(
+  identity = <the reconciliation, which HOLDS on the vacuous input>,
+  guard = <the call, which must fire anyway>
+)
+```
+
+Its subject is the inadequacy of the identity, not the identity. #1016's own
+test is named *"enteric_ch4_kt conservation is exact"* and passes today while
+the pin ships nothing, because zero distributes to zero. A row count is not
+enough either: an Element whose rows exist while every `Value` is `NA`
+collapses to a literal zero through `sum(na.rm = TRUE)` with a positive row
+count.
+
 ### NSE globals
 
-Every NSE symbol must be declared in the `utils::globalVariables()` call at the
-top of `R/utils.R` or `R CMD check` NOTEs. It is ~1700 entries long: **append**
-a small block at the end, preceded by a comment naming the file and what the
+Every NSE symbol must be declared in the `utils::globalVariables()` call at
+the top of `R/utils.R` or `R CMD check` NOTEs — and the CI action fails on
+warnings and above, never on notes, so an undeclared symbol merges green.
+That is how #1114 shipped `predecessor` and `reporting_polity_code`
+undeclared, and why #1135 had to be opened after it.
+`tests/testthat/test_utils.R` now runs the same scan `R CMD check` runs, with
+the same settings, and **fails** on it, naming the symbol, its file and its
+lines.
+
+The call is ~2000 entries long: **append** a small block at the end, above
+the `NULL` sentinel, preceded by a comment naming the file and what the
 symbols are for, following the existing pattern. Do not reorder or
 alphabetise it — the file-grouped comments are the only thing making it
 reviewable.
+
+The file must contain **nothing but** that one call, and the list must keep
+ending in `NULL`. Both are preconditions of the `merge=union` entry the next
+section explains, and the same test file asserts them: without the sentinel,
+two branches each appending a block merge into `"last of A"` followed by
+`"first of B"` with no comma between — a syntax error, introduced silently.
 
 ### data.table inside private helpers
 
@@ -303,6 +473,40 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   record 15556812) and the critical-nitrogen archive (`read_critical_n()`,
   Zenodo record 6395016).
 
+#### Fixing the reader is half the job: the pin it feeds is now stale
+
+A pin is a **frozen output of code in this repository**. So whenever a change
+alters what a producer function emits, the pin that function made is wrong
+from that moment, and **the fix moves no published number until the pin is
+regenerated and re-uploaded**. A merged PR whose effect is still sitting
+behind a stale pin is not done; it is latent.
+
+This is not hypothetical. whep#1092 restored FAOSTAT's `1000 Head` live-animal
+trade -- 76.1 billion head of poultry the reader had been dropping. The reader
+fix merged as PR #1113 and changed nothing anyone can see, because
+`build_detailed_trade()` is the `bilateral_trade` **producer** and has no
+caller in `R/`: every published figure still comes from the pin built by the
+old, filtering reader.
+
+So when you touch a producer:
+
+1. **Say so in the PR body**, explicitly: name the pin, and state that the
+   change is latent until it is regenerated. "No published value changes" is
+   the right measurement and the wrong conclusion if the reason is a stale pin
+   -- distinguish "this genuinely moves nothing" from "this moves nothing
+   *yet*".
+2. **Open a follow-up issue for the regeneration** if you cannot do it in the
+   PR, and link it. Regenerating usually needs board credentials and a long
+   run, so it is legitimately separate work -- but it must be tracked, not
+   assumed.
+3. **Check whether the function you changed is a producer at all.** `git grep`
+   its name across `R/`: no caller outside `inst/scripts/` is the signature of
+   one.
+
+The LPJmL-derived pins carry an extra constraint -- regenerate all four
+together, from one run, via `regenerate_whep_lpjml_pins()`. See the data
+pipeline section.
+
 ### NEWS.md — do not edit it per PR
 
 **Do not add a `NEWS.md` entry in a PR.** Every PR touching the same
@@ -323,6 +527,35 @@ That is the same information the old per-PR entries carried, recorded where it
 cannot conflict and where `git log` can find it. If a change is large enough
 that a user needs prose beyond a commit message, write it in the PR body and
 flag it for the release notes there.
+
+### Generated and append-only files — regenerate, never hand-merge
+
+`.gitattributes` writes down the deterministic resolution for the tracked
+files that unrelated branches collide on by construction, so it is not
+rediscovered per merge. Over the 30 days to 2026-09-16, of 608 commits on
+`main`, **52** touched `R/utils.R`, **37** `NAMESPACE` and **22**
+`data/whep_inputs.rda` — the last of those conflicts unconditionally, because
+git cannot merge a binary at all.
+
+- **`R/utils.R`** — `merge=union`, so two appended blocks both survive. That
+  is always the right answer for an allowlist of strings: order carries no
+  meaning, `globalVariables()` drops duplicates, and each side keeps its own
+  comment header. Its two preconditions are in
+  [NSE globals](#nse-globals).
+- **`NAMESPACE` and `man/`** — roxygen output. Never hand-merge either: take
+  one side and re-run `devtools::document()`, which regenerates both from
+  `R/`. `NAMESPACE` also carries `merge=union` so the common case — two
+  branches each adding an export — resolves itself, and the `document()` run
+  that *Before committing* requires anyway puts the block back in sorted
+  order.
+- **`data/*.rda`** — marked `binary`, so git leaves the conflict for a human
+  instead of half-merging it. Resolve the **source** — the CSV under
+  `inst/extdata/harmonization/`, or `inst/extdata/whep_inputs.csv` — then
+  re-run the builder from
+  [Package data updates](#package-data-updates). Never pick a side of the
+  `.rda` itself: `tests/testthat/test_data_raw_freshness.R` fails when a
+  table stops matching its own source, and that gate is the only thing
+  standing between a lazy resolution and a pin version going missing unseen.
 
 ### File naming
 
@@ -438,7 +671,9 @@ Conventions of the codebase (follow them; they are how the code reads):
 
 The PR must pass these GitHub Actions checks:
 
-1. **R-CMD-check** (4 platforms, 45-min timeout): `rcmdcheck::rcmdcheck()`
+1. **R-CMD-check** (4 platforms, 60-min job cap over a 40-min cap on the check
+   step itself — setup is download and varies, the check step is what can
+   hang): `rcmdcheck::rcmdcheck()`
    with no errors, warnings, or notes. Tests run here, which is why a
    network-dependent test breaks the build. **R-devel is not one of the four**:
    RSPM ships no R-devel binaries, so that leg source-builds the geo stack every
@@ -464,6 +699,16 @@ and commits the result back. That is a safety net for the case where someone
 forgets, not a licence to skip — a PR is not ready until you have run
 `air format .` yourself, so that the diff under review is the diff that lands
 and `main` does not fill up with formatting-only commits.
+
+`cache-prune` is not a check and never runs on a pull request's check path. It
+deletes the dependency caches a pull request leaves behind once that PR closes,
+on close and on a six-hourly sweep. A cache written from `refs/pull/N/merge` is
+readable only by that same PR and GitHub never deletes it on merge, so without
+this the repository sat at 10.51 GB against the 10 GB quota with 6.14 GB of it
+held by five already-merged PRs — bytes nothing could ever read, evicting
+`main`'s shared caches and making later runs do cold installs (#1104). If a
+cache seems to have vanished, read that workflow's log before suspecting a key
+change.
 
 ## Before committing
 

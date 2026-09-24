@@ -62,6 +62,14 @@ for livestock.
 \item \code{t_LU}: tonnes per Livestock Unit, available for livestock products.
 }
 \item \code{value}: The amount of item produced, measured in \code{unit}.
+\item \code{source}: Where the value came from, e.g. \code{"FAOSTAT_prod"},
+\code{"EuropeAgriDB"}, \code{"LUH2_cropland"}, \code{"imputed_yield"}.
+\item \code{fao_flag}: FAOSTAT's observation-status code for the value (\code{"A"}
+official, \code{"E"} estimated, \code{"I"} imputed, \code{"M"}, \code{"X"}), or \code{NA} where
+the number is not one FAOSTAT published under a flag. It describes the
+value rather than the item or area, so it is \code{NA} on WHEP's computed
+yields, on the livestock-unit conversions, and on every gap-filled or
+back-cast row. See \code{\link[=build_primary_production]{build_primary_production()}} for the full rule.
 }
 }
 \description{

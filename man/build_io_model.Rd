@@ -11,7 +11,8 @@ build_io_model(
   years = NULL,
   endogenize_losses = FALSE,
   method = c("mass", "value"),
-  prices = NULL
+  prices = NULL,
+  trade_recovery = c("none", "net_import")
 )
 }
 \arguments{
@@ -29,7 +30,9 @@ internally. Must have columns: \code{year}, \code{item_cbs_code},
 function calls \code{\link[=get_wide_cbs]{get_wide_cbs()}} internally. Must have
 columns: \code{year}, \code{area_code}, \code{item_cbs_code}, \code{production},
 \code{import}, \code{export}, \code{stock_withdrawal}, \code{stock_addition},
-plus final demand columns (\code{food}, \code{other_uses}).}
+plus final demand columns (\code{food}, \code{other_uses}). \code{year}, \code{area_code}
+and \code{item_cbs_code} must hold no \code{NA}, here and in \code{supply_use}: a row
+with a missing code cannot be placed in the model.}
 
 \item{years}{Numeric vector of years to compute, or NULL.
 If NULL, computes all years in the intersection of
@@ -40,7 +43,9 @@ a subset of available years.}
 contains a \code{losses} column, losses are moved from final
 demand to the diagonal of \code{Z} (self-use), following the
 FABIO convention. The \code{losses} column is removed from Y
-and \code{fd_labels}. Defaults to \code{FALSE}.}
+and \code{fd_labels}. \code{\link[=get_wide_cbs]{get_wide_cbs()}} emits no \code{losses} column, so \code{TRUE}
+with such a \code{cbs} warns and builds the same model as \code{FALSE}. Defaults
+to \code{FALSE}.}
 
 \item{method}{Co-product allocation method. \code{"mass"} (default) splits a
 multi-output process's inputs across its products by physical mass;
@@ -52,6 +57,14 @@ falls back to mass.}
 \item{prices}{Optional tibble of item prices as from \code{\link[=build_cbs_prices]{build_cbs_prices()}}
 (\code{year}, \code{element}, \code{item_cbs_code}, \code{price}). Used only when
 \code{method = "value"}; built automatically when \code{NULL}.}
+
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+the CBS every internally built input is derived from — the wide CBS, the
+processing coefficients, the supply-use tables, the bilateral trade
+matrices and the prices. See \code{\link[=build_commodity_balances]{build_commodity_balances()}} for what each
+method does. It has no effect on an input supplied directly, so a \code{cbs}
+built with one method and the rest left to build under another is the
+caller's to avoid; pass the same value everywhere.}
 }
 \value{
 A tibble with one row per year and list-columns:

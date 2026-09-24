@@ -20,9 +20,9 @@ C:N attenuation parameters from the Spain historical nitrogen
 pipeline (\code{n_fun.r}). Indirect emission factors and ammonia
 volatilisation fractions: IPCC (2019), 2019 Refinement to the 2006
 IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
-Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.016 for
-Atlantic ammonia to N2O; NH3 volatilisation fractions 0.11 synthetic
-and 0.21 organic, Table 11.3).
+Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for
+Atlantic, i.e. wet-climate, ammonia to N2O, p. 11.26; NH3
+volatilisation fractions 0.11 synthetic and 0.21 organic, Table 11.3).
 }
 \usage{
 n_attenuation_constants

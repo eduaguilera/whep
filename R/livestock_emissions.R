@@ -34,6 +34,7 @@
 #'     manure_n2o_total)
 calculate_livestock_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
 
   if (tier == 2) {
     .run_tier2(data, options)
@@ -72,6 +73,7 @@ calculate_livestock_emissions <- function(data, tier = NULL, options = list()) {
 #'   calculate_enteric_ch4(tier = 1)
 calculate_enteric_ch4 <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data |>
       estimate_energy_demand() |>
@@ -97,8 +99,9 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'
 #' @return Dataframe with all input columns preserved, plus:
 #'   - `method_manure_ch4`: tracking label.
-#'   - `method_mms`: which manure-management split was used
-#'     (`"regional_default"` or `"region_specific"`).
+#'   - `method_mms`: which half of [regional_mms_distribution] was read and
+#'     how it was keyed, `"<shares>/<keying>"` (e.g.
+#'     `"gleam_2_0/region_specific"`).
 #'   - Tier 1: `manure_ef_kgch4`, `manure_ch4_tier1`.
 #'   - Tier 2: `volatile_solids`, `methane_potential`,
 #'     `weighted_mcf`, `manure_ch4_per_head`,
@@ -116,6 +119,7 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'   calculate_manure_emissions(tier = 1)
 calculate_manure_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data <- data |>
       estimate_energy_demand() |>

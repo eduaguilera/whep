@@ -71,7 +71,11 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
     dplyr::filter(model == "hsoc", component == "humus") |>
     dplyr::pull(value)
   c_input <- 2.5
-  humified_fraction <- 0.3
+  clay_pct <- 20
+  # Aguilera et al. (2018) Eq. 5-6: the tabulated coefficient is scaled by the
+  # texture modifier d, normalised to 1 at RothC's 23.4% clay reference.
+  d <- 3.51 / (1.67 * (1.85 + 1.60 * exp(-0.0786 * clay_pct)))
+  humified_fraction <- 0.3 * d
   fresh_eq <- c_input * (1 - humified_fraction) / k_fresh
   humus_eq <- c_input * humified_fraction / k_humus
   active_eq <- fresh_eq + humus_eq
@@ -83,9 +87,9 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
     classes = tibble::tibble(
       land_use = "Cropland",
       c_input_mgc_ha_yr = c_input,
-      humified_fraction = humified_fraction,
+      humified_fraction = 0.3,
       climate_modifier = 1,
-      clay_pct = 20
+      clay_pct = clay_pct
     )
   )
   testthat::expect_equal(eq$soc_eq_mgc_ha, expected_total, tolerance = 1e-3)
@@ -93,7 +97,11 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
 
 test_that("vectorised closed-form equilibria match the spin-up they replace", {
   # .cb_equilibrium() computes the equilibrium with a closed form instead of a
-  # 5000-year spin-up per input combination for all five models. Guard each
+  # 5000-year spin-up per input combination. FIVE of the six are checked here;
+  # LPJmL is not, and cannot be -- see the stationarity test below, and the
+  # note in .cb_equilibrium(). The combinations below all sit at climate
+  # modifiers >= 0.4 because the spin-up itself has not converged much under
+  # that, so widening them would test the oracle rather than the formula. Guard each
   # fast path against the trajectory it replaces across a grid of inputs. HSOC,
   # AMG and RothC reach a flat/converged spin-up so match to machine precision;
   # ICBM and Century match the true fixed point, which differs slightly from
@@ -146,10 +154,70 @@ test_that("init weights per-class equilibria by land-use fractions", {
     soc_eq_mgc_ha = c(40, 70),
     frac = c(0.6, 0.4)
   )
-  init <- whep:::.cb_init_density(classes)
-  # Per-class init density equals the cell-weighted mean equilibrium.
-  expected <- 0.6 * 40 + 0.4 * 70
-  testthat::expect_equal(unique(init$stock_mgc_ha), expected, tolerance = 1e-9)
+  # The default opens each class at its own equilibrium.
+  own <- whep:::.cb_init_density(classes, "own_equilibrium")
+  testthat::expect_equal(own$stock_mgc_ha, c(40, 70), tolerance = 1e-9)
+  # "cell_average" is the Spain historical behaviour, still selectable: every
+  # class in the cell opens at the fraction-weighted mean.
+  avg <- whep:::.cb_init_density(classes, "cell_average")
+  testthat::expect_equal(
+    unique(avg$stock_mgc_ha),
+    0.6 * 40 + 0.4 * 70,
+    tolerance = 1e-9
+  )
+})
+
+test_that("the shipped opening is own_equilibrium, and it is recorded", {
+  # whep#1128: this default sets the single largest term the carbon balance
+  # hands the nitrogen balance -- 309 against 209 Tg N on a 1980-2010 build --
+  # and it is not settled evidence, only a deliberately held position (see
+  # `.cb_init_density()`). Nothing pinned it, so a flip could arrive as a
+  # one-word diff with green tests. This is that pin.
+  testthat::expect_equal(
+    eval(formals(whep::build_carbon_balance)$init)[[1]],
+    "own_equilibrium"
+  )
+  out <- whep::build_carbon_balance(data = .cb_test_data())
+  testthat::expect_setequal(out$method_soc_init, "own_equilibrium")
+  chosen <- whep::build_carbon_balance(
+    data = .cb_test_data(),
+    init = "cell_average"
+  )
+  testthat::expect_setequal(chosen$method_soc_init, "cell_average")
+})
+
+test_that("cell_average opens the low-input class above its own target", {
+  # The disagreement the two rationales in `.cb_init_density()` are about,
+  # made executable (whep#1128). Areas are held constant so the land-use-change
+  # transfer cannot fire: every gram of nitrogen reported here is the opening
+  # transient and nothing else.
+  data <- .cb_test_data()
+  data$land_use <- dplyr::mutate(
+    data$land_use,
+    area_ha = dplyr::if_else(land_use == "Cropland", 60, 40)
+  )
+  own <- whep::build_carbon_balance(data = data, init = "own_equilibrium")
+  avg <- whep::build_carbon_balance(data = data, init = "cell_average")
+
+  # NonCropland has the lower carbon input, hence the lower equilibrium, so
+  # the cell mean opens it above its own target while own_equilibrium opens it
+  # on target -- and it then drains toward that target for the whole span.
+  low_own <- dplyr::filter(own, land_use == "NonCropland")
+  low_avg <- dplyr::filter(avg, land_use == "NonCropland")
+  testthat::expect_gt(min(low_avg$stock_mgc_ha), max(low_own$stock_mgc_ha))
+  testthat::expect_equal(length(unique(low_own$stock_mgc_ha)), 1L)
+
+  # Only the cell-average opening mineralizes: starting on target, with areas
+  # fixed, releases no nitrogen at all.
+  testthat::expect_equal(sum(low_own$son_change_kgn_ha), 0)
+  testthat::expect_gt(sum(low_avg$son_change_kgn_ha), 0)
+
+  # The high-input class mirrors it. The cell mean opens Cropland BELOW its
+  # target, so it immobilises nitrogen where the other class releases it --
+  # which is why the two openings differ in the published total, not merely in
+  # how the same total is split between classes.
+  high_avg <- dplyr::filter(avg, land_use == "Cropland")
+  testthat::expect_lt(sum(high_avg$son_change_kgn_ha), 0)
 })
 
 test_that("each cell initialises at its own earliest available year", {
@@ -164,7 +232,8 @@ test_that("each cell initialises at its own earliest available year", {
   init <- whep:::.cb_initialise(
     classes,
     model = "hsoc",
-    d = list(equilibrium_climate = NULL)
+    d = list(equilibrium_climate = NULL),
+    init = "cell_average"
   ) |>
     dplyr::arrange(.data$area_code, .data$land_use)
 
@@ -339,27 +408,86 @@ test_that("LUC transfer conserves total cell carbon when A shrinks, B grows", {
   testthat::expect_equal(total_after, total_before, tolerance = 1e-6)
 })
 
+test_that("the LUC transfer conserves carbon when the shrink pool is empty", {
+  # Regression: a class growing 10 -> 50 ha at 100 Mg C/ha, against a shrinking
+  # class holding no carbon, used to keep its per-hectare DENSITY over the
+  # larger area and turn 1,000 Mg C into 5,000. `mass_moved` summed to zero
+  # throughout, so every balance check on the transfer column passed. A grower
+  # must dilute whatever it holds over its new hectares, drawing from the pool
+  # only what the pool has.
+  d <- data.table::data.table(
+    cell_key = "c",
+    land_use = c("cropland", "natural"),
+    stepped = c(100, 0),
+    old_area = c(10, 90),
+    area_ha = c(50, 50)
+  )
+  out <- whep:::.cb_luc_all(data.table::copy(d))
+  testthat::expect_equal(
+    sum(out$new_stock * out$area_ha),
+    sum(d$stepped * d$old_area),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(out$mass_moved), 0, tolerance = 1e-8)
+})
+
+test_that("the LUC transfer conserves carbon when the pool outlasts growers", {
+  # The mirror case: shrinking land releases more carbon than the growing
+  # classes can absorb. The undrawn remainder must not vanish.
+  d <- data.table::data.table(
+    cell_key = "c",
+    land_use = c("natural", "cropland", "urban"),
+    stepped = c(200, 50, 10),
+    old_area = c(80, 10, 10),
+    area_ha = c(20, 20, 60)
+  )
+  out <- whep:::.cb_luc_all(data.table::copy(d))
+  testthat::expect_equal(
+    sum(out$new_stock * out$area_ha),
+    sum(d$stepped * d$old_area),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(out$mass_moved), 0, tolerance = 1e-8)
+})
+
 test_that("build_carbon_balance conserves cell C across the LUC year", {
   cb <- whep::build_carbon_balance(
     model = "hsoc",
     resolution = "grid",
     data = .cb_test_data()
   )
-  # Total cell carbon (stock x area) must be conserved from the pre-LUC
-  # mineralization+input state into the post-transfer state. We assert that the
-  # year-over-year change of total cell C equals net input minus mineralization
-  # (the transfer itself adds nothing), so no carbon is created or destroyed by
-  # the land-use shift in 2001.
+  # The land-use-change transfer column sums to ~0 within each cell-year: it
+  # only moves carbon between classes of one cell.
   totals <- cb |>
     dplyr::summarise(
-      cell_c = sum(stock_mgc_ha * area_ha),
-      input_c = sum(c_input_mgc_ha * area_ha),
-      miner_c = sum(mineralization_mgc_ha * area_ha),
       luc_c = sum(luc_transfer_mgc_ha * area_ha),
-      .by = year
+      .by = c(lon, lat, area_code, year)
     )
-  # The land-use-change transfer column sums to ~0 within each cell-year.
   testthat::expect_true(all(abs(totals$luc_c) < 1e-6))
+
+  # And the march itself conserves carbon, which this test computed the terms
+  # for but never asserted: for each class, the carbon mass carried into a year
+  # is the previous year's mass plus that year's net rate over the previous
+  # year's hectares, plus whatever the transfer moved in or out. A grower that
+  # cannot draw from the shrink pool keeps its per-hectare density over more
+  # hectares, which would manufacture carbon and show up here.
+  step <- cb |>
+    dplyr::arrange(lon, lat, area_code, land_use, year) |>
+    dplyr::mutate(
+      prev_stock = dplyr::lag(stock_mgc_ha),
+      prev_rate = dplyr::lag(rate_mgc_ha),
+      prev_area = dplyr::lag(area_ha),
+      .by = c(lon, lat, area_code, land_use)
+    ) |>
+    dplyr::filter(!is.na(prev_stock))
+  testthat::expect_gt(nrow(step), 0L)
+  testthat::expect_equal(
+    step$stock_mgc_ha * step$area_ha,
+    (step$prev_stock + step$prev_rate) *
+      step$prev_area +
+      step$luc_transfer_mgc_ha * step$area_ha,
+    tolerance = 1e-8
+  )
 })
 
 # -- dSON asymmetry + sign ----------------------------------------------------
@@ -388,12 +516,16 @@ test_that("son_change resolves C:N for the lowercase 4-class land-use vocab", {
   # The LUH2 reader (phase 2B) emits lowercase cropland / grassland / natural /
   # urban. .cb_cn_lookup must map "cropland" to the Cropland C:N pair and every
   # other class to NonCropland (case-insensitive), never leaving son_change NA.
+  # One row per CELL, because the C:N ratio is now chosen by the cell's net
+  # change: this test is about the class vocabulary, so keeping each class in
+  # its own cell leaves the cell net equal to the row and tests what it always
+  # tested.
   marched <- tibble::tribble(
-    ~land_use, ~rate_mgc_ha,
-    "cropland", -0.5,
-    "grassland", -0.5,
-    "natural", 0.5,
-    "urban", -0.5
+    ~lon, ~lat, ~year, ~area_ha, ~land_use, ~rate_mgc_ha,
+    0.25, 0.25, 2000L, 100, "cropland", -0.5,
+    0.75, 0.25, 2000L, 100, "grassland", -0.5,
+    1.25, 0.25, 2000L, 100, "natural", 0.5,
+    1.75, 0.25, 2000L, 100, "urban", -0.5
   )
   out <- whep:::.cb_derive_son(marched)
   testthat::expect_false(any(is.na(out$son_change_kgn_ha)))
@@ -606,14 +738,16 @@ test_that("RothC/HSOC modifier differs between cropland and perennial classes", 
       clay = .cb_clay_only()
     )
   )
-  # The first year initialises every class to the cell-weighted-mean stock, so
-  # the class-specific modifier surfaces in the per-class equilibrium decay rate:
-  # cropland (faster mineralization) and grassland must have distinct rates in
-  # the first year and diverging stocks once the march applies those rates.
+  # Each class opens at its own equilibrium, so the class-specific cover term
+  # surfaces directly in the first-year stock: cropland's seasonal canopy leaves
+  # its soil barer than grassland's perennial cover, so it decomposes faster and
+  # equilibrates lower under identical climate. (Under the default
+  # initialisation both classes start ON their equilibrium, so the first-year
+  # net rate is zero for both and cannot carry this signal.)
   first <- dplyr::filter(cb, year == 2000L)
   testthat::expect_false(isTRUE(all.equal(
-    first$rate_mgc_ha[first$land_use == "cropland"],
-    first$rate_mgc_ha[first$land_use == "grassland"]
+    first$stock_mgc_ha[first$land_use == "cropland"],
+    first$stock_mgc_ha[first$land_use == "grassland"]
   )))
   later <- dplyr::filter(cb, year == 2001L)
   testthat::expect_false(isTRUE(all.equal(
@@ -749,6 +883,18 @@ test_that("polity resolution conserves carbon mass vs grid", {
   testthat::expect_true(all(abs(cmp$m.x - cmp$m.y) < 1e-6))
 })
 
+# The polity-year coverage record `.cb_finalise()` reports, for a marched
+# fixture nothing was dropped from: every hectare that reached the march is
+# every hectare the land-use input carried.
+.cb_full_coverage <- function(marched) {
+  marched |>
+    dplyr::summarise(
+      input_land_ha = sum(area_ha),
+      modelled_land_ha = sum(area_ha),
+      .by = c(area_code, year)
+    )
+}
+
 # A single-class row for one cell-year, used to build a multi-cell marched
 # fixture for .cb_finalise() with independently chosen stock_mgc_ha/area_ha
 # per cell, so the polity aggregation's area-weighted mean can be checked
@@ -776,7 +922,11 @@ test_that("polity area-weighted mean is exercised across multiple cells", {
     .cb_finalise_cell_row(0.25, 0.25, stock_mgc_ha = 40, area_ha = 30),
     .cb_finalise_cell_row(0.75, 0.75, stock_mgc_ha = 100, area_ha = 70)
   )
-  pol <- whep:::.cb_finalise(marched, resolution = "polity")
+  pol <- whep:::.cb_finalise(
+    marched,
+    resolution = "polity",
+    coverage = .cb_full_coverage(marched)
+  )
 
   expected_wmean <- (40 * 30 + 100 * 70) / (30 + 70)
   unweighted_mean <- (40 + 100) / 2
@@ -828,7 +978,10 @@ test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
     -3.75, 40.25, 203L,
     -3.25, 40.25, 203L
   )
-  clay <- whep:::.cb_hwsd_clay(cell_polity)
+  # `source = "local"` explicitly: this test exists to exercise the LOCAL
+  # aggregation from the HWSD archive it just checked for, and the reader now
+  # defaults to the published grid so that every user shares one vintage.
+  clay <- whep:::.cb_hwsd_clay(cell_polity, source = "local")
   testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
   testthat::expect_true(all(clay$clay_pct >= 0 & clay$clay_pct <= 100))
 })
@@ -1219,14 +1372,15 @@ testthat::test_that("vectorised RothC modifier is indistinguishable from the ref
 
 # ---- polity_validity (#675) -------------------------------------------
 
-# One cell over two years on area 277 (South Sudan, SSD-2011-2025): the 2000
-# rows name a state that did not exist that year, the 2020 rows do not.
+# One cell over two years on area 277 (South Sudan, SSD-2011-2025): the 2010
+# rows name a state that did not exist that year, the 2011 rows do not. The
+# years are consecutive because the march refuses a gap (whep#1073).
 .cbpv_data <- function() {
   keys <- tidyr::expand_grid(
     lon = 0.25,
     lat = 0.25,
     area_code = 277L,
-    year = c(2000L, 2020L)
+    year = c(2010L, 2011L)
   )
   list(
     land_use = dplyr::mutate(keys, land_use = "cropland", area_ha = 100),
@@ -1248,7 +1402,7 @@ testthat::test_that("build_carbon_balance names an anachronistic polity", {
   )
 
   # "keep" is the default: both years survive and the stocks do not move.
-  testthat::expect_setequal(out$year, c(2000L, 2020L))
+  testthat::expect_setequal(out$year, c(2010L, 2011L))
   testthat::expect_true(all(out$reporting_polity_code == "SSD-2011-2025"))
 })
 
@@ -1269,10 +1423,10 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
     )
   )
 
-  testthat::expect_equal(unique(dropped$year), 2020L)
+  testthat::expect_equal(unique(dropped$year), 2011L)
   testthat::expect_equal(
     flagged$reporting_polity_out_of_span,
-    flagged$year == 2000L
+    flagged$year == 2010L
   )
   # "flag" is "keep" plus one logical column: no number moves.
   testthat::expect_equal(
@@ -1281,7 +1435,293 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
   )
 })
 
-# -- whep#907: the carbon support is keyed on the reporting vocabulary --------
+test_that("the sequential and vectorised marches agree", {
+  # .cb_march() is what runs; .cb_march_cell() is the reference implementation
+  # it replaced and is called from nowhere in the package, so the fast path has
+  # had no oracle. That gap is not hypothetical: the empty-pool grower bug was
+  # fixed in the vectorised transfer while the sequential twin still turned
+  # 1,000 Mg C into 5,000, and nothing compared them.
+  classes <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 0.25, 1L, "cropland", 2000L, 60, 2.5, 40, 0.6,
+    0.25, 0.25, 1L, "natural", 2000L, 40, 1.5, 70, 0.4,
+    0.25, 0.25, 1L, "cropland", 2001L, 30, 2.5, 40, 0.3,
+    0.25, 0.25, 1L, "natural", 2001L, 70, 1.5, 70, 0.7,
+    0.25, 0.25, 1L, "cropland", 2002L, 55, 2.5, 40, 0.55,
+    0.25, 0.25, 1L, "natural", 2002L, 45, 1.5, 70, 0.45
+  )
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+
+  cell <- classes |>
+    dplyr::mutate(
+      eff_rate = dplyr::if_else(
+        .data$soc_eq_mgc_ha > 0,
+        .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+        0
+      )
+    )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+
+  for (col in c(
+    "stock_mgc_ha",
+    "mineralization_mgc_ha",
+    "c_input_mgc_ha",
+    "luc_transfer_mgc_ha",
+    "rate_mgc_ha"
+  )) {
+    testthat::expect_equal(
+      fast[[col]],
+      slow[[col]],
+      tolerance = 1e-10,
+      label = paste("vectorised vs sequential", col)
+    )
+  }
+})
+
+test_that("the sequential transfer conserves carbon against an empty pool", {
+  # The twin of the .cb_luc_all() regression: a grower that can draw nothing
+  # must dilute what it holds over its new area, not carry its old density onto
+  # more hectares.
+  before <- tibble::tibble(
+    land_use = c("cropland", "natural"),
+    stock_mgc_ha = c(100, 0),
+    old_area_ha = c(10, 90),
+    new_area_ha = c(50, 50)
+  )
+  after <- whep:::.cb_luc_transfer(before)
+  testthat::expect_equal(
+    sum(after$stock_mgc_ha * after$new_area_ha),
+    sum(before$stock_mgc_ha * before$old_area_ha),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(after$mass_moved), 0, tolerance = 1e-8)
+})
+
+test_that("the LPJmL equilibrium is a fixed point of its own dynamics", {
+  # This model cannot be guarded the way the other five are. Its slow pool
+  # decays at 0.001/yr, so at a response of 0.2 its e-folding time is 5,000
+  # years -- a 5,000-year spin-up is one e-folding and lands 4% short. That is
+  # the spin-up failing to converge, not the closed form being wrong, and it is
+  # why LPJmL solves its own equilibrium analytically rather than spinning up.
+  #
+  # The right check is therefore the defining property: start AT the closed form
+  # and the trajectory must not move.
+  for (cm in c(0.2, 0.5, 1.0, 1.6)) {
+    eq <- whep:::.cb_lpjml_equilibrium(2.5, cm)
+    traj <- whep::calculate_soc_lpjml(
+      initial_soc_mgc_ha = eq,
+      c_input_mgc_ha_yr = 2.5,
+      years = 500,
+      climate_modifier = cm
+    )
+    testthat::expect_equal(
+      utils::tail(traj$soc_total, 1),
+      eq,
+      tolerance = 1e-9,
+      label = paste("LPJmL equilibrium is stationary at cm =", cm)
+    )
+  }
+})
+
+test_that("the LPJmL equilibrium matches its published closed form", {
+  # The equilibrium is the soil-bound input divided between the two pools:
+  # the fast share over its rate plus the slow share over its rate, all over
+  # the response (Schaphoff et al. 2018 Eqs. 98-100, layer weights summed).
+  # (Schaphoff et al. 2018 Eqs. 98-100, with the normalised layer weights summed
+  # out). With the run's parameters the bracket is 22.25 years, and the slow
+  # pool holds most of the stock off 2% of the input.
+  expected <- 1 * (1 - 0.5) * (0.98 / 0.04 + 0.02 / 0.001)
+  testthat::expect_equal(expected, 22.25)
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(1, 1), 22.25)
+  # Proportional to input, inversely proportional to the response.
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(4, 1), 4 * 22.25)
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(1, 0.5), 2 * 22.25)
+  # The slow pool takes 2% of the soil-bound input and holds 45% of the stock.
+  slow_share <- (0.02 / 0.001) / (0.98 / 0.04 + 0.02 / 0.001)
+  testthat::expect_equal(slow_share, 0.4494, tolerance = 1e-3)
+})
+
+# `.cb_attach_equilibrium()` evaluates a closed form in place rather than
+# deduping the drivers and joining the result back (#394). Two things have to
+# hold for that to be safe, and neither is obvious from reading it.
+.cb_fake_classes <- function(n) {
+  set.seed(11)
+  tibble::tibble(
+    lon = round(stats::runif(n, -180, 180), 2),
+    lat = round(stats::runif(n, -60, 80), 2),
+    area_code = sample.int(50L, n, replace = TRUE),
+    year = sample(1900:2020, n, replace = TRUE),
+    land_use = sample(c("cropland", "grassland", "natural"), n, replace = TRUE),
+    area_ha = stats::runif(n, 1, 5000),
+    # Coarse on purpose, so driver combinations genuinely repeat: with unique
+    # drivers the join could not duplicate a row even if it were wrong.
+    c_input_mgc_ha_yr = round(stats::runif(n, 0.5, 8), 1),
+    humified_fraction = round(stats::runif(n, 0.1, 0.4), 2),
+    climate_modifier = round(stats::runif(n, 0.2, 1.6), 1),
+    clay_pct = round(stats::runif(n, 3, 60), 0)
+  )
+}
+
+test_that("attaching the equilibrium neither drops nor duplicates a row", {
+  # The join this replaced keyed on `climate_modifier` and `clay_pct`, both
+  # doubles. Repeated driver combinations are exactly the case where a join
+  # can fan a row out; evaluating in place cannot.
+  classes <- .cb_fake_classes(2000L)
+
+  for (model in c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")) {
+    out <- whep:::.cb_attach_equilibrium(classes, model)
+    testthat::expect_equal(nrow(out), nrow(classes))
+    testthat::expect_true(all(is.finite(out$soc_eq_mgc_ha)))
+  }
+})
+
+test_that("the attached equilibrium is the model's own closed form", {
+  classes <- .cb_fake_classes(2000L)
+
+  for (model in c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")) {
+    out <- whep:::.cb_attach_equilibrium(classes, model)
+    closed <- whep:::.cb_closed_form_equilibrium(model, classes)
+    # Exact, not approximate: it is the same expression on the same doubles.
+    testthat::expect_equal(out$soc_eq_mgc_ha, closed, tolerance = 0)
+  }
+})
+
+test_that("the non-finite equilibrium guard survives the in-place path", {
+  # Every closed form is proportional to 1 / climate_modifier, and a zero
+  # modifier is reachable (HSOC/RothC at or below -18.27 C). The guard used to
+  # sit on the deduped table; it now sees the class table directly, and it
+  # still has to abort rather than let an Inf reach the march.
+  classes <- .cb_fake_classes(50L)
+  classes$climate_modifier[7] <- 0
+
+  testthat::expect_error(
+    whep:::.cb_attach_equilibrium(classes, "hsoc"),
+    "not finite"
+  )
+})
+
+# ---- irrigation is applied to managed land, not to natural land --------
+
+# Monthly drivers for one cell, carrying rain and irrigation separately the
+# way get_soc_climate_drivers() does: precip_mm is precipitation ALONE, while
+# water_minus_pet_mm already has the cell's irrigation folded in.
+.irrigated_cell_drivers <- function(irrig_mm = 40) {
+  tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      temp_c = 18,
+      precip_mm = 20,
+      pet_mm = 80,
+      clay_pct = 25,
+      water_minus_pet_mm = precip_mm + irrig_mm - pet_mm
+    )
+}
+
+testthat::test_that(".cb_attach_class_water strips irrigation from natural", {
+  prepared <- .irrigated_cell_drivers() |>
+    tidyr::crossing(land_use = c("cropland", "grassland", "natural")) |>
+    whep:::.cb_attach_class_water()
+
+  natural <- dplyr::filter(prepared, land_use == "natural")
+  managed <- dplyr::filter(prepared, land_use != "natural")
+
+  # Natural land falls back to rain minus PET: 20 - 80.
+  testthat::expect_true(all(natural$water_minus_pet_mm == -60))
+  # Managed land keeps the cell value, irrigation included: 20 + 40 - 80.
+  testthat::expect_true(all(managed$water_minus_pet_mm == -20))
+})
+
+testthat::test_that("a driver table without rain columns is untouched", {
+  # The precomputed-climate_modifier path carries no precip_mm/pet_mm, so
+  # rain and irrigation cannot be separated. Passing it through unchanged is
+  # the only honest option; silently treating the surplus as rainfed would
+  # dry out every natural cell in that path.
+  bare <- .irrigated_cell_drivers() |>
+    dplyr::select(-"precip_mm", -"pet_mm") |>
+    tidyr::crossing(land_use = c("cropland", "natural"))
+
+  testthat::expect_identical(whep:::.cb_attach_class_water(bare), bare)
+})
+
+testthat::test_that("phantom irrigation raised natural decomposition", {
+  # The defect this guards: an irrigated cell's natural land was decomposing
+  # at the moisture of the irrigated crop beside it. A wetter soil has a
+  # HIGHER RothC moisture term, so the modifier must fall once the phantom
+  # water is removed -- and equilibrium SOC scales as 1 / modifier.
+  drivers <- .irrigated_cell_drivers()
+  classes <- c("cropland", "natural")
+
+  fixed <- drivers |>
+    tidyr::crossing(land_use = classes) |>
+    whep:::.cb_attach_class_water() |>
+    dplyr::mutate(soil_cover = 0.85)
+  unfixed <- drivers |>
+    tidyr::crossing(land_use = classes) |>
+    dplyr::mutate(soil_cover = 0.85)
+
+  keys <- c("lon", "lat", "area_code", "year", "land_use")
+  m_fixed <- whep:::.cb_rothc_modifier_vectorised(fixed, "hsoc", keys)
+  m_unfixed <- whep:::.cb_rothc_modifier_vectorised(unfixed, "hsoc", keys)
+
+  nat <- \(x) x$climate_modifier[x$land_use == "natural"]
+  crop <- \(x) x$climate_modifier[x$land_use == "cropland"]
+
+  testthat::expect_lt(nat(m_fixed), nat(m_unfixed))
+  # Cropland is untouched by this change.
+  testthat::expect_equal(crop(m_fixed), crop(m_unfixed))
+})
+
+# ---- RothC sub-step count comes from one expression --------------------
+
+testthat::test_that("the RothC closed form and the model agree on n_sub", {
+  # These were two separately-written floating-point expressions:
+  # `max(rates) * cm / 12` in the closed form against `max(rates) * cm * dt`
+  # with `dt <- 1/12` in the model. Over 49,991 modifiers in [0.001, 5] they
+  # split at exactly one, cm = 4.8000000000000007, for a 0.14% difference in
+  # the equilibrium. Sweeping the whole range is what found it; keep the
+  # sweep rather than a spot check.
+  rates <- whep:::.soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  cm <- seq(0.001, 5, length.out = 20000)
+
+  shared <- whep:::.rothc_substeps(rates, cm, 1 / 12)
+  old_closed_form <- pmax(1L, as.integer(ceiling(max(rates) * cm / 12)))
+
+  testthat::expect_length(shared, length(cm))
+  testthat::expect_true(all(shared >= 1L))
+  # The exact boundaries are where the two used to be able to disagree.
+  boundaries <- c(1.2, 2.4, 3.6, 4.8, 4.8000000000000007)
+  testthat::expect_equal(
+    whep:::.rothc_substeps(rates, boundaries, 1 / 12),
+    pmax(1L, as.integer(ceiling(max(rates) * boundaries * (1 / 12))))
+  )
+  # Documented as agreeing with the old form everywhere except those ulps.
+  testthat::expect_lte(sum(shared != old_closed_form), 2L)
+})
+
+testthat::test_that(".rothc_substeps is unchanged for a scalar modifier", {
+  # pmax replaced max so the closed form can call it vectorised. A scalar
+  # caller -- calculate_soc_rothc() -- must be completely unaffected.
+  rates <- whep:::.soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  for (cm in c(0.05, 0.5, 1, 1.2, 2.4, 5)) {
+    testthat::expect_identical(
+      whep:::.rothc_substeps(rates, cm, 1 / 12),
+      max(1L, as.integer(ceiling(max(rates) * cm * (1 / 12))))
+    )
+  }
+})
 
 # One border cell shared by Sudan and South Sudan plus a Syrian cell -- the two
 # folds the deployed pin's bucket-keyed `area_code` column performs. The codes
@@ -1302,20 +1742,21 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
   )
 }
 
-testthat::test_that("C7/907: the support is keyed on reporting area codes", {
-  # Before the fix the two Sudanese polities folded onto bucket 206 and Syria
-  # arrived as 999 (Rest of World), so `country_areas` -- keyed on 276, 277 and
-  # 212 -- joined to nothing for all three.
+testthat::test_that("C7/907: the pinned frozen bucket column is re-keyed", {
+  # Before the fix the two Sudanese polities arrived folded onto bucket 206 and
+  # Syria as 999 (Rest of World) -- the vocabulary FROZEN in the pin, which the
+  # crosswalk has since moved on from. The re-key recovers each polity's own
+  # reporting code from `polity_code`; whether the result is then folded onto
+  # today's bucket is a separate step (whep#1168), so this asserts the re-key
+  # itself rather than the support's final key.
   out <- suppressMessages(
-    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    whep:::.carbon_rekey_area_code(.c907_bucket_support())
   )
   testthat::expect_setequal(out$area_code, c(276L, 277L, 212L))
   testthat::expect_false(any(out$area_code %in% c(206L, 999L)))
-  border <- dplyr::filter(out, lon == 27.25)
-  testthat::expect_equal(nrow(border), 2L)
   testthat::expect_equal(
-    sort(border$land_area_ha),
-    c(20000, 60000)
+    sort(out$land_area_ha),
+    sort(.c907_bucket_support()$land_area_ha)
   )
 })
 
@@ -1323,9 +1764,9 @@ testthat::test_that("C7/907: re-keying conserves land and the cell shares", {
   # The re-key is a relabelling: it may not create, destroy or move a hectare,
   # and the land shares of a cell must still sum to exactly one.
   support <- .c907_bucket_support()
-  out <- suppressMessages(
+  out <- suppressMessages(suppressWarnings(
     whep:::.carbon_cell_support(support, year = 2015L)
-  )
+  ))
   testthat::expect_equal(sum(out$land_area_ha), sum(support$land_area_ha))
   totals <- out |>
     dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
@@ -1335,7 +1776,9 @@ testthat::test_that("C7/907: re-keying conserves land and the cell shares", {
 
 testthat::test_that("C7/907: the re-key reports itself", {
   testthat::expect_message(
-    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L),
+    suppressWarnings(
+      whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    ),
     "Re-keyed 3 polycells"
   )
 })
@@ -1349,4 +1792,1081 @@ testthat::test_that("C7/907: a support without polity_code is left alone", {
     "fold more than one"
   )
   testthat::expect_setequal(out$area_code, c(206L, 999L))
+})
+
+# ---- a class whose row vanishes must not take its carbon with it -----------
+
+.cb_vanish_fixture <- function() {
+  # Natural land is present in 2000 and 2001, then its ROW disappears in 2002
+  # while cropland takes over the whole cell. Until 2026-09-02 both marches
+  # dropped its stock: the vectorised one because state[cur] is a right join
+  # onto the current year, the sequential one because the named state vector
+  # kept an entry nothing released. Found while preparing the per-crop-group
+  # balance, where classes legitimately come and go per cell.
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 0.25, 1L, "cropland", 2000L, 40, 2.0, 40, 0.4,
+    0.25, 0.25, 1L, "natural", 2000L, 60, 1.5, 80, 0.6,
+    0.25, 0.25, 1L, "cropland", 2001L, 40, 2.0, 40, 0.4,
+    0.25, 0.25, 1L, "natural", 2001L, 60, 1.5, 80, 0.6,
+    0.25, 0.25, 1L, "cropland", 2002L, 100, 2.0, 40, 1.0
+  )
+}
+
+testthat::test_that("a vanished class releases its carbon into the cell", {
+  classes <- .cb_vanish_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  out <- whep:::.cb_march(classes, init)
+  mass <- out |>
+    dplyr::summarise(
+      mass = sum(.data$stock_mgc_ha * .data$area_ha),
+      .by = "year"
+    ) |>
+    dplyr::arrange(.data$year)
+  # The cell keeps its 100 ha: 2002 must NOT lose natural land's 60 ha of
+  # ~80 MgC/ha. Cropland absorbs it, so its density rises well above its own
+  # 40 MgC/ha equilibrium, and the cell mass survives the vanish year.
+  crop_2002 <- out$stock_mgc_ha[out$year == 2002L & out$land_use == "cropland"]
+  testthat::expect_gt(crop_2002, 40)
+  testthat::expect_gt(mass$mass[3], 0.9 * mass$mass[2])
+  # The vanished class is reported at zero area, not dropped.
+  nat_2002 <- out[out$year == 2002L & out$land_use == "natural", ]
+  testthat::expect_identical(nrow(nat_2002), 1L)
+  testthat::expect_equal(nat_2002$area_ha, 0)
+})
+
+testthat::test_that("both marches agree when a class vanishes", {
+  classes <- .cb_vanish_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  cell <- dplyr::mutate(
+    classes,
+    eff_rate = dplyr::if_else(
+      .data$soc_eq_mgc_ha > 0,
+      .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+      0
+    )
+  )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  testthat::expect_identical(nrow(fast), nrow(slow))
+  testthat::expect_equal(fast$stock_mgc_ha, slow$stock_mgc_ha, tolerance = 1e-9)
+  testthat::expect_equal(fast$area_ha, slow$area_ha)
+})
+
+.cb_appear_fixture <- function() {
+  # The mirror of .cb_vanish_fixture(): a class ABSENT in the opening year that
+  # appears later. Irrigated cropland shows up in 2001 when a crop's irrigated
+  # share turns positive, which under the crop-group default is the normal
+  # case rather than the exception -- `.ci_split_into_groups()` keeps only
+  # `crop_area_ha > 0`, so a group enters and leaves per cell per year.
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 5.25, 1L, "cropland_rainfed", 2000L, 60, 2.0, 40, 0.6,
+    0.25, 5.25, 1L, "natural", 2000L, 40, 1.5, 80, 0.4,
+    0.25, 5.25, 1L, "cropland_rainfed", 2001L, 40, 2.0, 40, 0.4,
+    0.25, 5.25, 1L, "cropland_irrigated", 2001L, 20, 3.0, 50, 0.2,
+    0.25, 5.25, 1L, "natural", 2001L, 40, 1.5, 80, 0.4
+  )
+}
+
+testthat::test_that("a class appearing mid-span keeps its cell coordinates", {
+  # Regression for the vectorised march's state join. `state` carries
+  # lon/lat/area_code for `.cb_keep_vanished()`, and in `state[cur]` those win
+  # the names, so a class with no state row came out with lon = lat =
+  # area_code = NA -- written into the output AND back into state, so the
+  # class stayed NA-keyed for every later year. At resolution = "polity" every
+  # such row worldwide then pooled into one spurious NA-coded bucket.
+  classes <- .cb_appear_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  out <- whep:::.cb_march(classes, init)
+  new_row <- out[out$year == 2001L & out$land_use == "cropland_irrigated", ]
+  testthat::expect_equal(nrow(new_row), 1L)
+  testthat::expect_false(is.na(new_row$lon))
+  testthat::expect_false(is.na(new_row$lat))
+  testthat::expect_false(is.na(new_row$area_code))
+  testthat::expect_equal(new_row$lon, 0.25)
+  testthat::expect_equal(new_row$lat, 5.25)
+  testthat::expect_equal(new_row$area_code, 1L)
+  # No row of any year may lose its keys, not only the new one.
+  testthat::expect_false(anyNA(out$lon))
+  testthat::expect_false(anyNA(out$area_code))
+})
+
+testthat::test_that("both marches agree when a class appears", {
+  classes <- .cb_appear_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  cell <- dplyr::mutate(
+    classes,
+    eff_rate = dplyr::if_else(
+      .data$soc_eq_mgc_ha > 0,
+      .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+      0
+    )
+  )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  testthat::expect_identical(nrow(fast), nrow(slow))
+  testthat::expect_equal(fast$stock_mgc_ha, slow$stock_mgc_ha, tolerance = 1e-9)
+  testthat::expect_equal(fast$lon, slow$lon)
+  testthat::expect_equal(fast$area_code, slow$area_code)
+})
+
+testthat::test_that("every method choice reaches both resolutions", {
+  # The multi-method contract: a choice that moves a number must be recorded.
+  # Two runs differing in density_basis or method_grazing used to be identical
+  # in every method column, and method_soc_init was dropped at "polity"
+  # because the roll-up hand-listed the columns it kept and any_of() omits a
+  # missing name in silence.
+  cols <- c(
+    "method_soc",
+    "method_soc_init",
+    "method_class_water",
+    "method_area_basis",
+    "method_grazing",
+    "method_crop_groups"
+  )
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(0.25, 0.25),
+    area_code = 1L,
+    land_use = c("cropland", "natural"),
+    year = 2000L,
+    area_ha = c(40, 60),
+    stock_mgc_ha = c(40, 80),
+    mineralization_mgc_ha = 1,
+    c_input_mgc_ha = 2,
+    luc_transfer_mgc_ha = 0,
+    luc_transfer_mgc = 0,
+    rate_mgc_ha = 1,
+    son_change_kgn_ha = 0.1,
+    method_soc = "hsoc",
+    method_soc_init = "own_equilibrium",
+    method_class_water = "none",
+    method_area_basis = "renormalised",
+    method_grazing = "whep",
+    method_crop_groups = "spain_hist"
+  )
+  cover <- .cb_full_coverage(marched)
+  grid <- whep:::.cb_finalise(marched, "grid", cover)
+  polity <- whep:::.cb_finalise(marched, "polity", cover)
+  testthat::expect_true(all(cols %in% names(grid)))
+  # The roll-up is the half that regressed: assert it carries EVERY method
+  # column, not merely some.
+  testthat::expect_true(all(cols %in% names(polity)))
+  testthat::expect_equal(polity$method_soc_init, "own_equilibrium")
+  testthat::expect_equal(polity$method_area_basis, "renormalised")
+  testthat::expect_equal(polity$method_grazing, "whep")
+  # A new method column must survive without anyone editing the roll-up.
+  marched$method_future_choice <- "x"
+  testthat::expect_true(
+    "method_future_choice" %in%
+      names(whep:::.cb_finalise(marched, "polity", cover))
+  )
+})
+
+testthat::test_that("crop groups do not manufacture nitrogen at an unchanged cell", {
+  # whep#1006: the C:N ratios are documented as applying to the NET carbon
+  # change, and they are asymmetric (8 on loss, 11 on gain). Choosing between
+  # them per crop-group row made a cell whose net cropland carbon did not move
+  # book +125 kg N/ha of mineralization and -90.9 of sequestration, inflating
+  # BOTH sides of the nitrogen balance and leaving ~34 kg N/ha net from
+  # nothing. The ratio now comes from the cell's net change.
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c(
+      "cropland_rainfed_herbaceous",
+      "cropland_irrigated_herbaceous"
+    ),
+    year = 2000L,
+    area_ha = c(100, 100),
+    rate_mgc_ha = c(-1, 1)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  # Net nitrogen over the cell must be zero, because net carbon is zero.
+  testthat::expect_equal(
+    sum(out$son_change_kgn_ha * out$area_ha),
+    0,
+    tolerance = 1e-8
+  )
+  # And the per-group detail survives: the losing group still mineralises and
+  # the gaining group still sequesters, they are just on one ratio.
+  testthat::expect_gt(out$son_change_kgn_ha[1], 0)
+  testthat::expect_lt(out$son_change_kgn_ha[2], 0)
+  testthat::expect_equal(out$son_change_kgn_ha[1], -out$son_change_kgn_ha[2])
+})
+
+testthat::test_that("a genuinely losing cell still uses the mineralization ratio", {
+  # The other half: the fix must not flatten the asymmetry, only decide it at
+  # the right grain. A cell losing carbon overall takes cn_mineralization for
+  # every one of its groups, including one that is gaining.
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c(
+      "cropland_rainfed_herbaceous",
+      "cropland_irrigated_herbaceous"
+    ),
+    year = 2000L,
+    area_ha = c(300, 100),
+    rate_mgc_ha = c(-1, 1)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  cn <- whep:::.cb_cn_lookup()
+  mineral <- cn$cn_mineralization[cn$cropland_class == "Cropland"]
+  testthat::expect_equal(out$son_change_kgn_ha[1], 1000 / mineral)
+  testthat::expect_equal(out$son_change_kgn_ha[2], -1000 / mineral)
+  # Net carbon is -200 Mg, so net nitrogen is that over the loss ratio.
+  testthat::expect_equal(
+    sum(out$son_change_kgn_ha * out$area_ha),
+    200 * 1000 / mineral,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("a single-class cell is unchanged by the regrouping", {
+  # Non-cropland and ungrouped cropland have one row per cell, so the cell net
+  # IS the row and nothing about their numbers may move.
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c("cropland", "natural"),
+    year = 2000L,
+    area_ha = c(100, 100),
+    rate_mgc_ha = c(-2, 3)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  cn <- whep:::.cb_cn_lookup()
+  crop_min <- cn$cn_mineralization[cn$cropland_class == "Cropland"]
+  nat_seq <- cn$cn_sequestration[cn$cropland_class == "NonCropland"]
+  testthat::expect_equal(out$son_change_kgn_ha[1], 2 * 1000 / crop_min)
+  testthat::expect_equal(out$son_change_kgn_ha[2], -3 * 1000 / nat_seq)
+})
+
+testthat::test_that(".soc_marginal_cn is a saturating function of the input C:N", {
+  # CN_new = a - b/CN_input, floored, then bounded by the IPCC land-use range.
+  # Two independent derivations agree on this shape: Nicolardot et al. (2001)
+  # and Justes et al. (2009) fitted it to residue incubations, and
+  # CENTURY/DayCent's agdrat implements it.
+  cn <- function(x, m = "justes_2009") {
+    whep:::.soc_marginal_cn(x, rep("Cropland", length(x)), m)
+  }
+  # Monotone increasing in the input ratio: N-poor inputs form wider SOM.
+  v <- cn(c(15, 25, 40, 80))
+  testthat::expect_true(all(diff(v) > 0))
+  # Saturating, so the increments shrink.
+  testthat::expect_true(all(diff(diff(v)) < 0))
+  # DAMPED: input C:N spans more than fivefold here, the output must not.
+  testthat::expect_lt(max(v) / min(v), 1.6)
+})
+
+testthat::test_that("the two published parameter sets agree closely", {
+  # Justes 2009 and Nicolardot 2001 are refits of one relation; CENTURY is an
+  # independent process-model derivation of the same algebra. If they ever
+  # diverge materially, one of them has been transcribed wrongly.
+  x <- c(30, 50, 80, 130)
+  cls <- rep("Cropland", length(x))
+  a <- whep:::.soc_marginal_cn(x, cls, "nicolardot_2001")
+  b <- whep:::.soc_marginal_cn(x, cls, "century")
+  testthat::expect_true(all(abs(a - b) < 0.3))
+})
+
+testthat::test_that("the marginal C:N stays inside the IPCC land-use range", {
+  # The bounds are the published uncertainty ranges: cropland 8-15,
+  # non-cropland 10-30 (IPCC 2019 Vol.4 Ch.11 Eq 11.8).
+  wide <- c(1, 5, 15, 50, 200, 1000)
+  crop <- whep:::.soc_marginal_cn(wide, rep("Cropland", length(wide)))
+  testthat::expect_true(all(crop >= 8 & crop <= 15))
+  nat <- whep:::.soc_marginal_cn(wide, rep("NonCropland", length(wide)))
+  testthat::expect_true(all(nat >= 10 & nat <= 30))
+})
+
+testthat::test_that("no input ratio falls back to the land-use default", {
+  # Absent information is not a zero. Without an input ratio the function must
+  # return exactly what the package used before one existed.
+  bad <- c(NA, 0, -5, Inf, NaN)
+  crop <- whep:::.soc_marginal_cn(bad, rep("Cropland", length(bad)))
+  testthat::expect_true(all(crop == 10))
+  nat <- whep:::.soc_marginal_cn(bad, rep("NonCropland", length(bad)))
+  testthat::expect_true(all(nat == 15))
+})
+
+testthat::test_that(".cb_derive_son uses the input ratio only when it is there", {
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = "cropland",
+    year = 2000L,
+    area_ha = 100,
+    rate_mgc_ha = -1
+  )
+  # Without input_cn: the directional path, and it says so.
+  a <- whep:::.cb_derive_son(marched)
+  testthat::expect_equal(a$method_som_cn, "directional_ipcc_range")
+  # With input_cn: the input-driven path, and it says so.
+  b <- whep:::.cb_derive_son(dplyr::mutate(marched, input_cn = 80))
+  testthat::expect_equal(b$method_som_cn, "justes_2009")
+  # A wide (N-poor) input forms wider SOM, so the SAME carbon loss releases
+  # LESS nitrogen than the narrow-input case.
+  c_narrow <- whep:::.cb_derive_son(dplyr::mutate(marched, input_cn = 15))
+  testthat::expect_lt(b$son_change_kgn_ha, c_narrow$son_change_kgn_ha)
+})
+
+testthat::test_that("an unknown SOM C:N method aborts", {
+  testthat::expect_error(
+    whep:::.soc_marginal_cn(30, "Cropland", "made_up"),
+    "Unknown"
+  )
+})
+
+testthat::test_that("the climate modifier depends on a class only through profile and regime", {
+  # The premise of the performance fix: the modifier reads nothing off a class
+  # except its cover profile and whether it is irrigated. If that ever stops
+  # being true, reducing on the key and expanding afterwards would collapse
+  # classes that should differ -- so assert the premise directly.
+  # Several woody species, because that is where the saving is: they all share
+  # one profile, so the key count stays flat as the class count grows.
+  classes <- c(
+    "cropland",
+    "cropland_rainfed_herbaceous",
+    "cropland_irrigated_herbaceous",
+    "cropland_rainfed_olive",
+    "cropland_irrigated_olive",
+    "cropland_rainfed_almond",
+    "cropland_rainfed_vine",
+    "cropland_irrigated_almond",
+    "grassland",
+    "natural"
+  )
+  p <- whep:::.cb_profile_of(classes)
+  # Woody classes of BOTH regimes share one profile, which is why the
+  # irrigation flag has to travel with the key and the profile alone will not
+  # do.
+  woody <- p[p$.cover_key == "woody_cropland", ]
+  testthat::expect_equal(nrow(woody), 5L)
+  testthat::expect_setequal(woody$.irrigated, c(TRUE, FALSE))
+  # Five woody classes, but only TWO keys between them: that collapse is the
+  # saving, and it is why the profile alone will not do.
+  woody_keys <- dplyr::distinct(dplyr::select(
+    woody,
+    ".cover_key",
+    ".irrigated"
+  ))
+  testthat::expect_equal(nrow(woody_keys), 2L)
+  # And the key set really is coarser than the class set overall.
+  keys <- dplyr::distinct(dplyr::select(p, ".cover_key", ".irrigated"))
+  testthat::expect_lt(nrow(keys), length(classes))
+})
+
+testthat::test_that("expanding to classes gives every sharer the same modifier", {
+  classes <- c(
+    "cropland_rainfed_olive",
+    "cropland_irrigated_olive",
+    "cropland_rainfed_almond",
+    "grassland"
+  )
+  modifier <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    .cover_key = c("woody_cropland", "woody_cropland", "grassland"),
+    .irrigated = c(FALSE, TRUE, FALSE),
+    climate_modifier = c(0.4, 0.6, 0.9)
+  )
+  out <- whep:::.cb_expand_to_classes(modifier, classes)
+  testthat::expect_setequal(out$land_use, classes)
+  # The two rainfed woody classes share a key, so they must share a value.
+  olive <- out$climate_modifier[out$land_use == "cropland_rainfed_olive"]
+  almond <- out$climate_modifier[out$land_use == "cropland_rainfed_almond"]
+  testthat::expect_equal(olive, almond)
+  testthat::expect_equal(olive, 0.4)
+  # And the irrigated one must NOT: that is the distinction the flag exists for.
+  irrig <- out$climate_modifier[out$land_use == "cropland_irrigated_olive"]
+  testthat::expect_equal(irrig, 0.6)
+  testthat::expect_false(isTRUE(all.equal(olive, irrig)))
+  # The helper keys are gone from the output.
+  testthat::expect_false(any(c(".cover_key", ".irrigated") %in% names(out)))
+})
+
+testthat::test_that("method_som_cn records the route that actually ran", {
+  # The column being PRESENT does not mean it holds a ratio. Measured on a real
+  # 2020 build, `input_cn` was NA on all 811,138 cropland rows, so stamping the
+  # requested method regardless made every row claim an input-driven ratio
+  # while using the land-use default -- a constant wearing an input-driven
+  # name.
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    land_use = "cropland",
+    area_ha = 1,
+    rate_mgc_ha = c(-1, 1),
+    input_cn = c(NA_real_, 40)
+  )
+
+  out <- whep:::.cb_derive_son(marched)
+
+  testthat::expect_equal(
+    out$method_som_cn[is.na(out$input_cn)],
+    "land_use_default"
+  )
+  testthat::expect_equal(
+    out$method_som_cn[!is.na(out$input_cn)],
+    "justes_2009"
+  )
+  # The VALUE follows the same predicate, checked through the nitrogen it
+  # produces since `cn_used` is intermediate: the unknown row uses the
+  # land-use default of 10, so losing 1 MgC/ha mineralises 100 kgN/ha; the
+  # known row uses 15.4 - 76/40 = 13.5, so gaining 1 MgC/ha immobilises
+  # 1000/13.5 = 74.1.
+  testthat::expect_equal(out$son_change_kgn_ha[is.na(out$input_cn)], 100)
+  testthat::expect_equal(
+    out$son_change_kgn_ha[!is.na(out$input_cn)],
+    -1000 / 13.5,
+    tolerance = 1e-6
+  )
+})
+
+testthat::test_that("the whep grazing default is refused before any reader runs", {
+  # Issue whep#1120: `build_carbon_balance()` cannot be called on its own
+  # defaults. `method_grazing = "whep"` needs `data$livestock_intake` and
+  # `data$excreta`, neither of which has a reader to fall back on. The abort itself is right --
+  # it is loud and prints the remedy -- but its PLACE was not: it fired inside
+  # `build_grass_natural_carbon_inputs()`, which the balance only reaches after
+  # the per-crop cropland inputs, the LUH2 areas and the 537 MB grassland pin
+  # have all been read and thrown away (5m37s on a real 2000 grid run). The
+  # entry condition is knowable at the entry, so it is checked there.
+  reached <- character()
+  trap <- function(name) {
+    function(...) {
+      reached <<- c(reached, name)
+      cli::cli_abort("A default reader ran.")
+    }
+  }
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = trap("c_inputs"),
+    .cb_read_land_use = trap("land_use"),
+    .cb_read_climate = trap("climate"),
+    .cb_read_clay = trap("clay"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(resolution = "grid", years = 2000L),
+    "livestock_intake"
+  )
+  testthat::expect_equal(reached, character())
+})
+
+testthat::test_that("the entry guard fires only when it owns the choice", {
+  # Three cases the guard must NOT take over. `method_grazing = "lpjml"` needs
+  # neither input; a caller-supplied `c_inputs` means the grazing method is
+  # never read at all (the inputs were built elsewhere); and supplying both
+  # inputs is the way the default is meant to be run. In each the guard must
+  # stand aside and let the readers -- here trapped -- proceed.
+  reached <- character()
+  trap <- function(name) {
+    function(...) {
+      reached <<- c(reached, name)
+      cli::cli_abort("A default reader ran.")
+    }
+  }
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = trap("c_inputs"),
+    .cb_read_land_use = trap("land_use"),
+    .cb_read_climate = trap("climate"),
+    .cb_read_clay = trap("clay"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(years = 2000L, method_grazing = "lpjml"),
+    "A default reader ran"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      years = 2000L,
+      data = list(c_inputs = tibble::tibble(lon = 0.25))
+    ),
+    "A default reader ran"
+  )
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      years = 2000L,
+      data = list(
+        livestock_intake = tibble::tibble(year = 2000L),
+        excreta = tibble::tibble(year = 2000L)
+      )
+    ),
+    "A default reader ran"
+  )
+  testthat::expect_equal(reached, c("c_inputs", "land_use", "c_inputs"))
+})
+
+testthat::test_that("the example fixture is not refused by the entry guard", {
+  # `example = TRUE` returns a hardcoded fixture and reads nothing, so the
+  # grazing requirement must not reach it -- the documented example runs on
+  # the defaults during `R CMD check`.
+  out <- whep::build_carbon_balance(example = TRUE)
+  testthat::expect_s3_class(out, "tbl_df")
+  testthat::expect_gt(nrow(out), 0L)
+})
+
+# method_som_cn, reachable from the exported function (whep#1100) -------------
+
+.som_cn_toy_data <- function() {
+  # One cell, one class, two years, with the carbon input stepping up in the
+  # second so the stock is off its equilibrium and the rate -- and therefore
+  # the nitrogen -- is not zero.
+  land_use <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2000L, "cropland", 100,
+    0.25, 0.25, 1L, 2001L, "cropland", 100
+  )
+  c_inputs <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~land_use, ~c_input_mgc_ha_yr, ~input_cn,
+    0.25, 0.25, 1L, 2000L, "cropland", 2.5, 40,
+    0.25, 0.25, 1L, 2001L, "cropland", 5.0, 40
+  ) |>
+    dplyr::mutate(humified_fraction = 0.3)
+  climate <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~climate_modifier,
+    0.25, 0.25, 1L, 2000L, 1,
+    0.25, 0.25, 1L, 2001L, 1
+  )
+  list(
+    land_use = land_use,
+    c_inputs = c_inputs,
+    climate = climate,
+    clay = tibble::tribble(~lon, ~lat, ~clay_pct, 0.25, 0.25, 20)
+  )
+}
+
+testthat::test_that("every shipped SOM C:N parameterisation is selectable", {
+  # whep#1100: all three parameterisations ship in som_marginal_cn.csv and
+  # .cb_derive_son() takes them, but build_carbon_balance() called it with no
+  # argument, so only the default could ever run and `method_som_cn` recorded
+  # a choice nobody could make. The signature must offer exactly what the
+  # table ships, so neither can gain a row the other does not know about.
+  shipped <- whep:::.som_marginal_cn_coefs()$method
+  offered <- eval(formals(whep::build_carbon_balance)$method_som_cn)
+  testthat::expect_setequal(offered, shipped)
+  # The default is the parameterisation fitted to the larger dataset.
+  testthat::expect_equal(offered[1], "justes_2009")
+})
+
+testthat::test_that("the SOM C:N choice reaches the nitrogen, and only it", {
+  d <- .som_cn_toy_data()
+  jus <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d,
+    method_som_cn = "justes_2009"
+  )
+  nic <- whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d,
+    method_som_cn = "nicolardot_2001"
+  )
+  # The route each run took is recorded, not assumed.
+  testthat::expect_equal(unique(jus$method_som_cn), "justes_2009")
+  testthat::expect_equal(unique(nic$method_som_cn), "nicolardot_2001")
+  # Carbon is untouched: this coefficient sets the C:N of the organic matter
+  # that forms, never how much of it forms.
+  testthat::expect_equal(nic$stock_mgc_ha, jus$stock_mgc_ha)
+  testthat::expect_equal(nic$rate_mgc_ha, jus$rate_mgc_ha)
+  # Nitrogen moves by exactly the ratio of the two marginal C:N values at the
+  # input ratio of 40: justes 15.4 - 76/40 = 13.5, nicolardot 16.1 - 123/40 =
+  # 13.025, both inside the IPCC cropland range so neither is clamped.
+  testthat::expect_true(any(abs(jus$son_change_kgn_ha) > 0))
+  testthat::expect_equal(
+    nic$son_change_kgn_ha,
+    jus$son_change_kgn_ha * 13.5 / 13.025,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("an unshipped SOM C:N parameterisation is refused", {
+  testthat::expect_error(
+    whep::build_carbon_balance(
+      data = .som_cn_toy_data(),
+      method_som_cn = "nicolardot"
+    ),
+    class = "rlang_error"
+  )
+})
+
+# -- Coverage of the polity totals (whep#1166) --------------------------------
+
+# A copy of the fixture's cell at another coordinate, optionally in another
+# polity. Used to add land the climate table does not cover, so the run drops
+# it and the polity total is built on less land than the input carried.
+.cb_shift_cell <- function(df, lon, lat, area_code = NULL) {
+  df$lon <- lon
+  df$lat <- lat
+  if (!is.null(area_code)) {
+    df$area_code <- area_code
+  }
+  df
+}
+
+test_that("polity resolution reports the land it did not model", {
+  d <- .cb_test_data()
+  # A second cell of the SAME polity, present in land_use and c_inputs but
+  # absent from climate: it is dropped, so the polity's SOC densities are a
+  # total over half the land the input gave it (whep#1166).
+  d$land_use <- dplyr::bind_rows(
+    d$land_use,
+    .cb_shift_cell(d$land_use, 88.25, 8.25)
+  )
+  d$c_inputs <- dplyr::bind_rows(
+    d$c_inputs,
+    .cb_shift_cell(d$c_inputs, 88.25, 8.25)
+  )
+  pol <- suppressWarnings(
+    whep::build_carbon_balance(resolution = "polity", data = d)
+  )
+  pointblank::expect_col_exists(
+    pol,
+    c("input_land_ha", "modelled_land_frac")
+  )
+  testthat::expect_equal(pol$area_ha, rep(100, nrow(pol)))
+  testthat::expect_equal(pol$input_land_ha, rep(200, nrow(pol)))
+  testthat::expect_equal(pol$modelled_land_frac, rep(0.5, nrow(pol)))
+})
+
+test_that("a fully covered polity reports a coverage of one", {
+  pol <- whep::build_carbon_balance(
+    resolution = "polity",
+    data = .cb_test_data()
+  )
+  testthat::expect_equal(pol$input_land_ha, pol$area_ha)
+  testthat::expect_equal(pol$modelled_land_frac, rep(1, nrow(pol)))
+})
+
+test_that("grid resolution carries no coverage columns", {
+  grid <- whep::build_carbon_balance(
+    resolution = "grid",
+    data = .cb_test_data()
+  )
+  testthat::expect_false(
+    any(c("input_land_ha", "modelled_land_frac") %in% names(grid))
+  )
+})
+
+test_that("a polity with no modelled land at all is named, not silent", {
+  d <- .cb_test_data()
+  # Polity 777 is entirely outside the climate table, so every one of its rows
+  # is dropped and it never reaches the output. Twelve real polities are in
+  # this position on the pinned LPJmL grid (Malta, Singapore, Bahrain,
+  # Mauritius and nine more), and a coverage column keyed on the output cannot
+  # show them, because they have no row to carry it.
+  d$land_use <- dplyr::bind_rows(
+    d$land_use,
+    .cb_shift_cell(d$land_use, 88.25, 8.25, area_code = 777L)
+  )
+  d$c_inputs <- dplyr::bind_rows(
+    d$c_inputs,
+    .cb_shift_cell(d$c_inputs, 88.25, 8.25, area_code = 777L)
+  )
+  drop_muffled <- function(expr) {
+    withCallingHandlers(
+      expr,
+      warning = function(w) {
+        if (grepl("Dropped", conditionMessage(w))) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    )
+  }
+  testthat::expect_warning(
+    drop_muffled(
+      whep::build_carbon_balance(resolution = "polity", data = d)
+    ),
+    "no modelled land"
+  )
+  pol <- suppressWarnings(
+    whep::build_carbon_balance(resolution = "polity", data = d)
+  )
+  testthat::expect_false(any(pol$area_code == 777L))
+  testthat::expect_equal(pol$modelled_land_frac, rep(1, nrow(pol)))
+})
+
+# -- Coverage reporting (whep#1146) -------------------------------------------
+
+# One cell whose climate is covered and one whose climate is not, each holding
+# the same four LUH2 classes. The uncovered cell is the shape of the 296.8 Mha
+# the LPJmL grid does not reach; the covered cell's grassland carries no
+# carbon-input row, which is the shape of the zero fill whep#1146 was about.
+.cb_coverage_fixture <- function() {
+  land_use <- tidyr::expand_grid(
+    lon = c(0.25, 10.25),
+    lat = 40.25,
+    year = 2000L,
+    land_use = c("cropland", "grassland", "natural", "urban")
+  ) |>
+    dplyr::mutate(
+      area_code = dplyr::if_else(.data$lon == 0.25, 1L, 2L),
+      area_ha = c(60, 30, 8, 2, 100, 400, 500, 10)
+    )
+  c_inputs <- land_use |>
+    dplyr::filter(.data$land_use %in% c("cropland", "natural")) |>
+    dplyr::mutate(c_input_mgc_ha_yr = 2, humified_fraction = 0.3) |>
+    dplyr::select(-"area_ha")
+  list(
+    land_use = land_use,
+    c_inputs = c_inputs,
+    # Only the first cell has a climate modifier.
+    climate = tibble::tibble(
+      lon = 0.25,
+      lat = 40.25,
+      area_code = 1L,
+      year = 2000L,
+      climate_modifier = 1
+    ),
+    clay = tibble::tribble(
+      ~lon, ~lat, ~clay_pct,
+      0.25, 40.25, 20,
+      10.25, 40.25, 20
+    )
+  )
+}
+
+test_that("the climate gap is reported in hectares, classes and polities", {
+  # whep#1146: the warning used to give a cell-year COUNT only, which reads as
+  # housekeeping for what is 296.8 Mha of LUH2 land at 2010 and a third of
+  # Greece's grassland. The area, the per-class split and the worst-hit polity
+  # must all be in the message.
+  d <- .cb_coverage_fixture()
+  w <- testthat::capture_warnings(
+    suppressMessages(whep::build_carbon_balance(
+      model = "hsoc",
+      resolution = "grid",
+      data = d
+    ))
+  )
+  msg <- paste(w, collapse = " ")
+  testthat::expect_match(msg, "1,010 ha of LUH2 land per year")
+  testthat::expect_match(msg, "natural 500 ha")
+  testthat::expect_match(msg, "area 2")
+  testthat::expect_match(msg, "100.0% of its land")
+  testthat::expect_match(msg, "not marched at zero carbon input")
+})
+
+test_that("uncovered climate drops the land, it does not march it at zero", {
+  # The distinction whep#1146 turned on. The second cell has land in every
+  # class and no climate: none of it appears in the output, at zero input or
+  # otherwise. Only the covered cell's four classes survive.
+  d <- .cb_coverage_fixture()
+  out <- suppressWarnings(suppressMessages(whep::build_carbon_balance(
+    model = "hsoc",
+    resolution = "grid",
+    data = d
+  )))
+  testthat::expect_setequal(out$area_code, 1L)
+  testthat::expect_equal(sum(out$area_ha), 100)
+})
+
+test_that("land marching on a zero-filled carbon input is reported in ha", {
+  # The number that refuted whep#1146 (0.212 ha of grassland globally at 2010)
+  # is only meaningful if it is measured on every run rather than assumed. The
+  # covered cell's grassland has no carbon-input row; urban never does, and is
+  # excluded because its zero is by design.
+  d <- .cb_coverage_fixture()
+  m <- testthat::capture_messages(
+    suppressWarnings(whep::build_carbon_balance(
+      model = "hsoc",
+      resolution = "grid",
+      data = d
+    ))
+  )
+  msg <- paste(m, collapse = " ")
+  testthat::expect_match(msg, "march on a zero carbon input")
+  # Cell 1 grassland (30 ha) plus cell 2 grassland (400 ha); urban excluded.
+  testthat::expect_match(msg, "430 ha of LUH2 land per year")
+  testthat::expect_match(msg, "grassland 430 ha")
+  testthat::expect_no_match(msg, "urban")
+})
+
+# ---- #1168: the support must be keyed on the national tables' code space ----
+
+testthat::test_that("1168: the support folds onto the matrix bucket", {
+  # The carbon path's NATIONAL tables come from `.aggregate_to_polities()`,
+  # which renames `polity_area_code` to `area_code`, so Sudan's crop totals
+  # arrive as bucket 206. Keying the cell support on the reporting codes 276
+  # and 277 left both sides of the join naming the same ground in different
+  # vocabularies, and the join was empty.
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+  ))
+  testthat::expect_true(206L %in% out$area_code)
+  testthat::expect_false(any(out$area_code %in% c(276L, 277L)))
+  # Syria's bucket IS its reporting code, so the stale 999 the pin carries is
+  # recovered to 212 and stays there.
+  testthat::expect_true(212L %in% out$area_code)
+})
+
+testthat::test_that("1168: the bucket fold conserves land", {
+  # A relabelling plus an extent fold: no hectare is created, destroyed or
+  # moved between cells, and each cell's land shares still sum to one.
+  support <- .c907_bucket_support()
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2015L)
+  ))
+  testthat::expect_equal(sum(out$land_area_ha), sum(support$land_area_ha))
+  totals <- out |>
+    dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(totals, rep(1, length(totals)))
+  border <- dplyr::filter(out, lon == 27.25)
+  testthat::expect_equal(nrow(border), 1L)
+  testthat::expect_equal(border$land_area_ha, 80000)
+})
+
+testthat::test_that("1168: the bucket fold reports itself", {
+  testthat::expect_message(
+    suppressWarnings(
+      whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+    ),
+    "Folded 2 polycells"
+  )
+})
+
+testthat::test_that("1168: a code that is its own bucket is untouched", {
+  # The fold must move only the codes the crosswalk actually buckets; every
+  # other reporting code is its own bucket and may not be relabelled.
+  support <- tibble::tribble(
+    ~lon, ~lat, ~polity_code, ~area_code, ~cell_area_ha, ~land_area_ha,
+    ~start_year, ~end_year,
+    -3.75, 40.25, "ESP-1975-2025", 203L, 100000, 90000, 1975L, 2025L
+  )
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2015L)
+  ))
+  testthat::expect_identical(out$area_code, 203L)
+})
+
+testthat::test_that("1168: the fold follows the crosswalk's fold state", {
+  # The fold reads `.polity_crosswalk()`, the one place the regionalisation
+  # switches are applied, so the support tracks whatever code space the
+  # national tables are in rather than a frozen one. Restoring the
+  # Rest-of-World fold must therefore move the support with it -- which is why
+  # publishing the 206 un-fold (whep#680) makes this step a no-op instead of
+  # needing a second edit here.
+  # No `polity_code`, so the re-key stands aside and the fold is the only step
+  # under test. Area 5 is a Rest-of-World member the published default keeps in
+  # its own right.
+  support <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha,
+    17.75, 12.25, 5L, 100000, 90000
+  )
+  keyed <- function() {
+    suppressMessages(suppressWarnings(
+      whep:::.carbon_cell_support(support, year = 2015L)$area_code
+    ))
+  }
+  withr::with_options(list(whep.unfold_rest_of_world = "all"), {
+    testthat::expect_identical(keyed(), 5L)
+  })
+  withr::with_options(list(whep.unfold_rest_of_world = "none"), {
+    testthat::expect_identical(keyed(), 999L)
+  })
+})
+
+# -- Key-lattice completeness of the march and its climate (whep#1073) --------
+
+# Two cells over three years, every class present every year. Removing rows
+# from it is how each test below builds an incomplete lattice.
+.cb_lattice_classes <- function() {
+  tidyr::expand_grid(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000:2002,
+    land_use = c("cropland", "natural")
+  ) |>
+    dplyr::mutate(
+      area_ha = 50,
+      c_input_mgc_ha_yr = dplyr::if_else(land_use == "cropland", 2, 1.5),
+      soc_eq_mgc_ha = dplyr::if_else(land_use == "cropland", 40, 80),
+      frac = 0.5
+    )
+}
+
+.cb_lattice_init <- function(classes) {
+  whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == min(.data$year)),
+    "own_equilibrium"
+  )
+}
+
+# The march with its lattice guard switched off: what `main` computed before
+# the guard existed, kept so each test can show the damage is finite and silent.
+.cb_unguarded_march <- function(classes, init) {
+  testthat::local_mocked_bindings(
+    .cb_check_march_years = function(classes) invisible(classes)
+  )
+  whep:::.cb_march(classes, init)
+}
+
+testthat::test_that("a complete (cell, year) lattice marches unchanged", {
+  classes <- .cb_lattice_classes()
+  init <- .cb_lattice_init(classes)
+  testthat::expect_identical(
+    whep:::.cb_march(classes, init),
+    .cb_unguarded_march(classes, init)
+  )
+})
+
+testthat::test_that("a cell absent for one year is refused, not reset", {
+  classes <- .cb_lattice_classes()
+  holed <- dplyr::filter(classes, !(.data$lon == 0.75 & .data$year == 2001L))
+  init <- .cb_lattice_init(classes)
+  out <- .cb_unguarded_march(holed, init)
+  back <- out[out$lon == 0.75 & out$year == 2002L, ]
+  ref <- .cb_unguarded_march(classes, init)
+  ref_back <- ref[ref$lon == 0.75 & ref$year == 2002L, ]
+  expect_lattice_guard(
+    # Nothing is NA and every stock is finite -- yet the returning cell lost
+    # its whole store: it restarts from zero instead of from ~40/80 MgC/ha.
+    all(is.finite(out$stock_mgc_ha)) &&
+      all(back$stock_mgc_ha < 0.1 * ref_back$stock_mgc_ha),
+    whep:::.cb_march(holed, init)
+  )
+  cnd <- .lattice_cnd(whep:::.cb_march(holed, init))
+  testthat::expect_equal(
+    cnd$missing,
+    tibble::tibble(lon = 0.75, lat = 0.25, area_code = 1L, year = 2001L)
+  )
+})
+
+testthat::test_that("a year missing from the whole span is refused", {
+  classes <- .cb_lattice_classes()
+  gapped <- dplyr::filter(classes, .data$year != 2001L)
+  init <- .cb_lattice_init(classes)
+  out <- .cb_unguarded_march(gapped, init)
+  ref <- .cb_unguarded_march(classes, init)
+  expect_lattice_guard(
+    # 2000 -> 2002 is marched as ONE annual step: the 2002 stock equals the
+    # complete run's 2001 stock, not its 2002 one.
+    all(is.finite(out$stock_mgc_ha)) &&
+      isTRUE(all.equal(
+        out$stock_mgc_ha[out$year == 2002L],
+        ref$stock_mgc_ha[ref$year == 2001L]
+      )),
+    whep:::.cb_march(gapped, init)
+  )
+  testthat::expect_error(
+    whep:::.cb_march(gapped, init),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("a cell that first appears after the start is refused", {
+  classes <- .cb_lattice_classes()
+  late <- dplyr::filter(classes, !(.data$lon == 0.75 & .data$year == 2000L))
+  testthat::expect_error(
+    whep:::.cb_march(late, .cb_lattice_init(classes)),
+    class = "whep_incomplete_lattice"
+  )
+})
+
+testthat::test_that("an empty class table is not judged", {
+  classes <- .cb_lattice_classes()[0L, ]
+  testthat::expect_identical(
+    whep:::.cb_check_march_years(classes),
+    classes
+  )
+})
+
+testthat::test_that("build_carbon_balance refuses non-contiguous years", {
+  d <- .cb_test_data()
+  keep <- \(x) dplyr::filter(x, .data$year != 2001L)
+  d$land_use <- keep(d$land_use)
+  d$c_inputs <- keep(d$c_inputs)
+  d$climate <- keep(d$climate)
+  testthat::expect_error(
+    whep::build_carbon_balance(data = d, method_grazing = "lpjml"),
+    class = "whep_incomplete_lattice"
+  )
+})
+
+testthat::test_that("raw climate short a month is refused, not averaged", {
+  d <- .cb_raw_test_data()
+  short <- d
+  short$climate <- dplyr::filter(d$climate, .data$month != 7L)
+  unguarded <- function(data) {
+    testthat::local_mocked_bindings(
+      .cb_check_climate_months = function(climate, keys) invisible(climate)
+    )
+    whep::build_carbon_balance(data = data, method_grazing = "lpjml")
+  }
+  out <- unguarded(short)
+  ref <- unguarded(d)
+  expect_lattice_guard(
+    # Every stock finite, same rows -- but the modifier was averaged over
+    # eleven months, so the stocks are a different number.
+    all(is.finite(out$stock_mgc_ha)) &&
+      nrow(out) == nrow(ref) &&
+      !isTRUE(all.equal(out$stock_mgc_ha, ref$stock_mgc_ha)),
+    whep::build_carbon_balance(data = short, method_grazing = "lpjml")
+  )
+  cnd <- .lattice_cnd(
+    whep::build_carbon_balance(data = short, method_grazing = "lpjml")
+  )
+  testthat::expect_setequal(cnd$missing$year, 2000:2002)
+  testthat::expect_true(all(cnd$missing$month == 7L))
+})
+
+testthat::test_that("complete raw climate passes the month guard unchanged", {
+  d <- .cb_raw_test_data()
+  keys <- c("lon", "lat", "area_code", "year")
+  testthat::expect_identical(
+    whep:::.cb_check_climate_months(d$climate, keys),
+    d$climate
+  )
+  # A precomputed modifier, and a table with no month column, are not monthly.
+  annual <- .cb_climate_fixture()
+  testthat::expect_identical(
+    whep:::.cb_check_climate_months(annual, keys),
+    annual
+  )
+})
+
+testthat::test_that("the month guard keys on the columns the table carries", {
+  climate <- .cb_raw_climate_fixture() |>
+    dplyr::select(-"area_code") |>
+    dplyr::filter(!(.data$year == 2001L & .data$month == 12L))
+  cnd <- .lattice_cnd(
+    whep:::.cb_check_climate_months(
+      climate,
+      c("lon", "lat", "area_code", "year")
+    )
+  )
+  testthat::expect_equal(
+    cnd$missing,
+    tibble::tibble(lon = 0.25, lat = 0.25, year = 2001L, month = 12L)
+  )
 })

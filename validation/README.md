@@ -55,7 +55,7 @@ a hardcoded grid.
 | `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
 | `lpjml_forcing_pins.R` | Guards the six **climate-forcing pins** (the NetCDF grids that feed *into* LPJmL) against their grid contract and physical impossibility bounds. Its sibling above excludes them by design; #824 is why they still need a check. See below. |
 | `gt_lpjml_forcing_pins.json` | Recorded state of those pins, including the **known** negative-radiation count of #824. **Committed** — compared bidirectionally, so a count that falls is as loud as one that rises. |
-| `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. |
+| `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. A second mode, `WHEP_ISIMIP3A_WIND_DIR`, measures what the open alternative base would change instead: it reports the ISIMIP2a vs ISIMIP3a difference at both the cell-month and the per-cell annual grain, whose ratio separates a seasonal-cycle change from a spatial one (#929). Either directory alone is enough to run it. |
 | `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
 | `admin_drift_tvd.R` | Sizes the within-country geography a spatialization pattern frozen at one reference year cannot represent (#1000): total variation distance between an admin-unit share vector and its reference year, on observed subnational statistics. Also emits the per-source discrepancy and gap-year distributions the allocation policy is decided against. Needs `WHEP_SUBNATIONAL`; skips with a message when unset. See below. |
@@ -65,6 +65,9 @@ a hardcoded grid.
 | `japan_pilot.R` | Runs **one whole constrained spatialization** end to end (#1000): Japan at depth 1, its national crop totals split across 46 prefectures by MAFF's reported areas, 1961–2022, six crops. The first `run_spatialize(level = 1)` on real administrative statistics rather than a fixture. Reproduces a hand-computed anchor (Hokkaido, paddy rice, 2000) and reports coverage, discrepancy, capacity breaches, straddling, interior gaps and the seam gate on real numbers. Needs `WHEP_POLYCELL_SUPPORT_PATH` (the Japan pilot support) and `VAL_JP_INPUT_DIR`; skips loudly when either is absent, which a fresh clone always does. See below. |
 | `gt_japan_pilot.json` | Recorded state of that run: the pre-scan per item over the full stated scope, the per-item coverage and breach summary, the seam-gate tiers at their own gate grain, the interior-gap summary, and the anchor. **Committed** — a tripwire, meant to fail when the allocation, the pin or the support moves. |
 | `spatialize_grid_vintage.R` | Sizes what changes when the level-0 country grid stops being the 2015 snapshot and becomes year-aware (#1000, T39): support coverage, the national tables with no cell to land in, and optionally the gridded crop output itself. A **measurement behind an open decision**, not a gate. Reads the polycell-support pin (network on a machine with no pins cache) and caches the year-aware grid it builds; the sweep runs it only once that cache exists. See below. |
+| `n_deposition_emep.R` | Checks WHEP's HaNi deposition input against the **EMEP MSC-W** model over Europe, per country and per year, on WHEP's own 0.5° grid. **Downloads** EMEP01 rv5.6 yearly NetCDF (~78 MB/year) from met.no; HaNi side needs `WHEP_HANI_DIR`. See below. |
+| `n_balance_gridded.R` | Checks a REAL gridded nitrogen-balance run (the `inst/scripts/run_nitrogen_balance.R` driver's saved output): the harvest-removal surplus is loss-free, the balance key is unique, the global standard N input is inside 50-300 Tg N/yr, and WHEP's arable surplus against the Schulte-Uebbing critical arable surplus integrated from the archive itself. See below. |
+| `gt_n_balance_gridded.json` | Recorded state of that run. **Committed** — compared bidirectionally, so a term quietly dropping out of the assembly is as loud as one appearing. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -465,7 +468,94 @@ to score, and inventing a threshold would be a methodological choice hidden in
 a scorecard. Because building the year-aware grid costs minutes and reads a
 pin — and the sweep does not start a build without being asked — the row reads
 `not run` until `grid_vintage_year_aware.rds` exists, i.e. until the script has
-been run once by hand.
+been run once by hand.,
+## Gridded nitrogen balance (`n_balance_gridded.R`)
+
+Issue #446 asked for the chain
+
+```
+build_nitrogen_balance() -> calculate_n_surplus() -> build_n_boundary_exceedance()
+```
+
+to run once on real inputs and for the resulting global surplus to be defensible.
+Every test on that path is fixture-driven, so the suite proves the arithmetic and
+cannot see whether a real build assembles at all — which is how three separate
+blockers sat behind a green CI.
+
+This script is the net. It does **not** build anything: the assembly reads local
+rasters and pins and takes minutes, so the driver saves its result and the check
+reads it.
+
+```bash
+WHEP_NBD_OUT=validation/cache/findings/n_balance_2010.rds \
+  Rscript --no-init-file inst/scripts/run_nitrogen_balance.R 2010 grid
+
+WHEP_NBD_RESULT=validation/cache/findings/n_balance_2010.rds \
+  Rscript --no-init-file validation/n_balance_gridded.R
+```
+
+The four checks and why each exists are documented at the top of the script. The
+one worth repeating here is the first: the default harvest-removal surplus is
+net inputs minus harvested exports, and all four of those terms are computed
+*before* the loss cascade. That is what lets a global run quote a surplus at all
+while the cascade still has no global per-cell drivers (#359) and has to be fed
+a placeholder `climate`. If that identity ever stops holding, every surplus from
+such a run silently becomes a function of an invented value — so it is asserted,
+not assumed.
+
+The comparison against Schulte-Uebbing et al. (2022) integrates the *critical*
+arable surplus layer over the archive's own deposited source areas, from the
+Zenodo record `read_critical_n()` already downloads. It is derived here, not
+quoted, so it cannot drift away from a figure nobody can re-derive.
+
+## N deposition vs EMEP MSC-W (`n_deposition_emep.R`)
+
+WHEP's deposition input is HaNi (Tian et al. 2022), a **global reconstruction**.
+Over Europe the EMEP MSC-W chemical transport model is the stronger constraint:
+it is driven by the emissions European countries report under the Gothenburg
+Protocol and evaluated against the EMEP measurement network. This check puts
+the two on WHEP's own 0.5° grid and reports the ratio per country and per year
+(#1097).
+
+**HaNi is too flat over Europe.** It largely misses both the European
+deposition peak around 1990 and the fall that emission controls drove
+afterwards. Over the 3193 cells assigned to an EMEP core country, area-weighted
+kg N/ha/yr:
+
+| year | HaNi | EMEP | HaNi / EMEP | gap |
+|---|---|---|---|---|
+| 1990 | 9.81 | 14.08 | **0.696** | 2.49 Tg N/yr |
+| 2000 | 9.65 | 11.28 | 0.856 | 0.94 Tg N/yr |
+| 2010 | 9.04 | 9.56 | 0.946 | 0.30 Tg N/yr |
+| 2019 | 8.00 | 8.07 | 0.992 | 0.04 Tg N/yr |
+
+Across 1990–2019 HaNi falls **18.4%** where EMEP falls **42.7%**, and the
+shortfall summed over those cells and years is **22.6 Tg N**. The error is a
+*function of time*, largest exactly where and when European deposition was
+largest, and it compounds backwards into the pre-1990 period where EMEP offers
+no check at all.
+
+Two limits are part of the finding, not caveats to it:
+
+- **EMEP's domain is wider than the region EMEP represents.** It reaches
+  Xinjiang and the Arabian peninsula, where the two products disagree by
+  factors of 3–5 in *both* directions. `emep_core_iso3` in the script is the
+  judged subset; every other country is still written to the per-country CSV,
+  flagged `emep_core = FALSE`, and must not be read as a bias estimate.
+- **Neither product is a measurement.** EMEP is the stronger constraint *for
+  Europe over this period*; that is a judgement, and correcting HaNi toward it
+  is a science decision for the maintainer, not one this script settles.
+
+```bash
+# ~2.3 GB of EMEP NetCDF on the first run, plus a full global HaNi read
+WHEP_HANI_DIR=... Rscript validation/n_deposition_emep.R 1990 2019
+```
+
+Both halves are cached (`cache/emep/`, `cache/hani_deposition_*.rds`), and
+`validate_all.R` runs this check only when the HaNi aggregate already exists or
+`VAL_ND_FORCE` is set. Per-country, per-year ratios land in
+`cache/hani_emep_by_country.csv` — that series is what any correction between
+the two products would have to be parameterised on.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 

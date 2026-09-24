@@ -52,8 +52,10 @@ carries.
 \item \code{residue_destiny_input}: \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}'s required
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{residue_destiny_method} needs), for \code{used_residue_n_t}/
-\code{burnt_residue_n_t}. \code{residue_destiny_method} selects the method
-(default \code{"krausmann_regional"}).
+\code{bedding_residue_n_t}/\code{burnt_residue_n_t}. \code{residue_destiny_method}
+selects the method (default \code{"recovery_regional"}) and
+\code{residue_bedding_fraction} the share of the recovered non-feed residue
+used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
@@ -102,9 +104,11 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
 columns below. When the supplied \code{n_inputs} carry them, the
-\code{method_recycling_n}, \code{method_synthetic} and \code{method_deposition_scope}
-stamps from \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance
-names the input conventions that produced it. Gains
+\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
+\code{method_deposition_scope}, \code{method_unsupported} and
+\code{method_unattributed} stamps from
+\code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
+input conventions that produced it. Gains
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{

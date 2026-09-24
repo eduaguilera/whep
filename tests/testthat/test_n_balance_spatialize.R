@@ -1165,3 +1165,115 @@ testthat::test_that("an in-span key reports nothing", {
     )
   )
 })
+
+# .n_drop_uncelled_fertilizer (whep#1196) -------------------------------------
+
+.uncelled_fixture <- function() {
+  tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    # USSR: a union code with crop production but no grid cell.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 1990L, 228L, 800,
+    "Agricultural Use", "Nutrient phosphate P2O5 (total)", 1990L, 228L, 50,
+    # Australia: supported.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 1990L, 10L, 200,
+    # Sudan + South Sudan re-key onto bucket 206; both raw codes must go.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 90,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 10,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 10L, 900,
+    # Zero fertiliser needs no cell, so it is neither dropped nor recorded.
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 22L, 0
+  )
+}
+
+.uncelled_supported <- function() {
+  tibble::tribble(
+    ~year, ~area_code,
+    1990L, 10L,
+    2015L, 10L
+  )
+}
+
+testthat::test_that("dropped fertiliser is returned, per year and code", {
+  out <- whep:::.n_drop_uncelled_fertilizer(
+    .uncelled_fixture(),
+    .uncelled_supported()
+  )
+  removed <- out$removed
+
+  testthat::expect_equal(removed$year, c(1990L, 2015L))
+  testthat::expect_equal(removed$area_code, c(228L, 206L))
+  testthat::expect_equal(removed$synthetic_n_t, c(800, 100))
+  testthat::expect_equal(removed$global_synthetic_n_t, c(1000, 1000))
+  testthat::expect_equal(removed$share_of_global, c(0.8, 0.1))
+  testthat::expect_true(all(removed$method_unsupported_fertilizer == "drop"))
+
+  # Every raw row of a dropped polity goes, including the phosphate row and
+  # both raw codes behind bucket 206.
+  testthat::expect_setequal(
+    unique(out$fertilizer[["Area Code"]]),
+    c(10L, 22L)
+  )
+  # Mass balance: what is kept plus what is recorded is what came in.
+  kept <- whep:::.synthetic_n_country(out$fertilizer)
+  testthat::expect_equal(
+    sum(kept$synthetic_n_t) + sum(removed$synthetic_n_t),
+    sum(whep:::.synthetic_n_country(.uncelled_fixture())$synthetic_n_t)
+  )
+})
+
+testthat::test_that("abort refuses unsupported fertiliser, naming it", {
+  testthat::expect_error(
+    whep:::.n_drop_uncelled_fertilizer(
+      .uncelled_fixture(),
+      .uncelled_supported(),
+      action = "abort"
+    ),
+    class = "whep_uncelled_fertilizer"
+  )
+  testthat::expect_error(
+    whep:::.n_drop_uncelled_fertilizer(
+      .uncelled_fixture(),
+      .uncelled_supported(),
+      action = "abort"
+    ),
+    "80%"
+  )
+})
+
+testthat::test_that("fully supported fertiliser passes through unchanged", {
+  fertilizer <- dplyr::filter(
+    .uncelled_fixture(),
+    `Area Code` %in% c(10L, 22L)
+  )
+  purrr::walk(c("drop", "abort"), \(action) {
+    out <- whep:::.n_drop_uncelled_fertilizer(
+      fertilizer,
+      .uncelled_supported(),
+      action = action
+    )
+    testthat::expect_identical(out$fertilizer, fertilizer)
+    testthat::expect_equal(nrow(out$removed), 0L)
+    testthat::expect_named(
+      out$removed,
+      c(
+        "year",
+        "area_code",
+        "synthetic_n_t",
+        "global_synthetic_n_t",
+        "share_of_global",
+        "method_unsupported_fertilizer"
+      )
+    )
+  })
+})
+
+testthat::test_that("an unknown action is rejected", {
+  testthat::expect_error(
+    whep:::.n_drop_uncelled_fertilizer(
+      .uncelled_fixture(),
+      .uncelled_supported(),
+      action = "keep"
+    ),
+    class = "rlang_error"
+  )
+})

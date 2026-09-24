@@ -82,8 +82,10 @@
 #'   * `residue_destiny_input`: [calculate_residue_destinies()]'s required
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
-#'     `burnt_residue_n_t`. `residue_destiny_method` selects the method
-#'     (default `"krausmann_regional"`).
+#'     `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
+#'     selects the method (default `"recovery_regional"`) and
+#'     `residue_bedding_fraction` the share of the recovered non-feed residue
+#'     used as bedding (default `0`; see [calculate_residue_destinies()]).
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -129,9 +131,11 @@
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 #'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 #'   columns below. When the supplied `n_inputs` carry them, the
-#'   `method_recycling_n`, `method_synthetic` and `method_deposition_scope`
-#'   stamps from [build_n_inputs()] are carried through as well, so a balance
-#'   names the input conventions that produced it. Gains
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
+#'   `method_deposition_scope`, `method_unsupported` and
+#'   `method_unattributed` stamps from
+#'   [build_n_inputs()] are carried through as well, so a balance names the
+#'   input conventions that produced it. Gains
 #'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #'
 #' @details
@@ -205,8 +209,13 @@ build_nitrogen_balance <- function(
   valid_names <- c("nh3", "n2o", "leaching")
   unknown <- setdiff(names(methods), valid_names)
   if (length(unknown) > 0L) {
+    # qty() pinned: the marker sat ahead of both interpolations, so cli had to
+    # defer it to post-processing, which refuses a message carrying more than
+    # one candidate quantity -- every unknown name aborted with "Multiple
+    # quantities for pluralization" instead of naming the name (#621).
     cli::cli_abort(
-      "Unknown {.arg methods} name{?s}: {.val {unknown}}. Use {.val {valid_names}}."
+      "Unknown {.arg methods} {cli::qty(length(unknown))}name{?s}: \\
+       {.val {unknown}}. Use {.val {valid_names}}."
     )
   }
   nh3 <- methods$nh3 %||% "manner"
@@ -426,14 +435,25 @@ build_nitrogen_balance <- function(
   dplyr::mutate(npp, area_ha = NA_real_)
 }
 
-# used_residue_n_t / burnt_residue_n_t: calculate_residue_destinies() splits
-# residue_dm_t into feed/burn/soil destinies; the feed and burn shares are
-# converted to N with the SAME residue_n_kgdm coefficient
-# calculate_npp_carbon_nitrogen() uses internally (whep::whep_coef_table
-# ("bio_coefs"), joined on item_prod_code).
+# used_residue_n_t / bedding_residue_n_t / burnt_residue_n_t:
+# calculate_residue_destinies() splits residue_dm_t into feed/bedding/burn/soil
+# destinies; the three removed shares are converted to N with the SAME
+# residue_n_kgdm coefficient calculate_npp_carbon_nitrogen() uses internally
+# (whep::whep_coef_table("bio_coefs"), joined on item_prod_code).
+#
+# Bedding needs its own term rather than being left inside the burn share it is
+# carved from: all three leave the field and so all three belong in
+# n_output_full_t, but bedding is the only one that comes back as manure, so a
+# reader has to be able to see it separately. Folding it into burnt_residue_n_t
+# would keep the balance closed and mislabel the flow.
 .nb_add_residue_destiny <- function(x, data, key) {
   if (is.null(data$residue_destiny_input)) {
-    return(dplyr::mutate(x, used_residue_n_t = 0, burnt_residue_n_t = 0))
+    return(dplyr::mutate(
+      x,
+      used_residue_n_t = 0,
+      bedding_residue_n_t = 0,
+      burnt_residue_n_t = 0
+    ))
   }
   n_kgdm <- whep::whep_coef_table("bio_coefs") |>
     dplyr::transmute(
@@ -442,13 +462,19 @@ build_nitrogen_balance <- function(
     )
   destiny <- data$residue_destiny_input |>
     calculate_residue_destinies(
-      method = data$residue_destiny_method %||% "krausmann_regional"
+      method = data$residue_destiny_method %||% "recovery_regional",
+      bedding_fraction = data$residue_bedding_fraction %||% 0
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>
+    .nb_check_residue_n_joined() |>
     dplyr::summarise(
       used_residue_n_t = sum(
         .data$residue_feed_dm_t * .data$residue_n_kgdm,
+        na.rm = TRUE
+      ),
+      bedding_residue_n_t = sum(
+        .data$residue_bedding_dm_t * .data$residue_n_kgdm,
         na.rm = TRUE
       ),
       burnt_residue_n_t = sum(
@@ -458,6 +484,24 @@ build_nitrogen_balance <- function(
       .by = dplyr::all_of(key)
     )
   .nb_merge_output_term(x, destiny, key)
+}
+
+# The N content is joined on item_prod_code, and a key that does not match
+# (a code space or a spelling bio_coefs does not share) leaves residue_n_kgdm
+# NA on every row. The three sums below then drop it through na.rm, so the
+# used, bedding and burnt residue removals all ship as zero, the surplus rises
+# by their whole N, and the balance still closes (whep#1034). One crop without
+# a coefficient is a partial absence and passes; none at all is refused.
+.nb_check_residue_n_joined <- function(destiny) {
+  check_inputs_supplied(
+    destiny,
+    c("residue N content" = "residue_n_kgdm"),
+    details = c(
+      i = "No {.field item_prod_code} of {.arg data$residue_destiny_input}
+           matched {.code whep_coef_table(\"bio_coefs\")}, so no residue
+           removal could be converted to N."
+    )
+  )
 }
 
 # grazed_weeds_n_t: real grazed-forage intake from data$livestock_intake
@@ -473,6 +517,7 @@ build_nitrogen_balance <- function(
     return(dplyr::mutate(x, grazed_weeds_n_t = 0))
   }
   weed_n_kgdm <- whep::whep_coef_table("weed_coefs")$residue_n_kgdm_weed
+  .nb_check_grazed_label(data$livestock_intake)
   grazed <- data$livestock_intake |>
     dplyr::filter(.data$feed_quality == "grass") |>
     dplyr::summarise(
@@ -483,8 +528,39 @@ build_nitrogen_balance <- function(
     dplyr::summarise(
       grazed_weeds_n_t = sum(.data$intake_dm_t * weed_n_kgdm, na.rm = TRUE),
       .by = dplyr::all_of(key)
+    ) |>
+    check_inputs_supplied(
+      c("grazed forage N" = "grazed_weeds_n_t"),
+      details = .nb_grazed_remedy()
     )
   .nb_merge_output_term(x, grazed, key)
+}
+
+# `"grass"` is redistribute_feed()'s vocabulary, not a contract this function
+# controls. A supplied intake whose label has moved matches no row, the grazed
+# term is then an empty frame, and .nb_merge_output_term() zero-fills it into
+# every balance row: n_output_full_t loses its whole grazing removal, the
+# surplus rises by the same amount, and n_balance_t = input - output still
+# closes exactly, because zero satisfies it (whep#1034). The label is asserted
+# before the filter; check_inputs_supplied() after it catches an intake whose
+# grass rows exist but carry no dry matter.
+.nb_check_grazed_label <- function(intake) {
+  check_labels_supplied(
+    intake,
+    "feed_quality",
+    "grass",
+    details = .nb_grazed_remedy()
+  )
+}
+
+.nb_grazed_remedy <- function() {
+  c(
+    i = "{.arg data$livestock_intake} is the {.fn redistribute_feed} result;
+         its {.val grass} rows are the grazed forage the balance removes as
+         {.field grazed_weeds_n_t}.",
+    i = "Leave {.arg data$livestock_intake} out to build a balance with no
+         grazing removal at all."
+  )
 }
 
 # Reuse build_n_inputs()'s manure territory/coordinate resolution verbatim
@@ -520,7 +596,9 @@ build_nitrogen_balance <- function(
     return(dplyr::mutate(x, som_sequestration_n_t = 0))
   }
   seq_n <- data$carbon_balance |>
-    dplyr::filter(stringr::str_to_lower(.data$land_use) == "cropland") |>
+    # Crop GROUPS are cropland too (crop_groups = list(method = "spain_hist")),
+    # so this keys on the prefix, not the literal.
+    dplyr::filter(.soc_is_cropland(.data$land_use)) |>
     dplyr::mutate(item_cbs_code = NA_integer_) |>
     dplyr::summarise(
       som_sequestration_n_t = sum(
@@ -660,6 +738,7 @@ build_nitrogen_balance <- function(
       n_output_std_t = .data$prod_n_t + .data$grazed_weeds_n_t,
       n_output_full_t = .data$prod_n_t +
         .data$used_residue_n_t +
+        .data$bedding_residue_n_t +
         .data$burnt_residue_n_t +
         .data$grazed_weeds_n_t +
         .data$nh3_n_t +
@@ -792,6 +871,7 @@ build_nitrogen_balance <- function(
     "n_input_for_n2o_t",
     "prod_n_t",
     "used_residue_n_t",
+    "bedding_residue_n_t",
     "burnt_residue_n_t",
     "grazed_weeds_n_t",
     "som_sequestration_n_t",
@@ -828,8 +908,27 @@ build_nitrogen_balance <- function(
 # `method_deposition_scope` is here because DA-14 made deposition scope a
 # choice: a territory-scope balance and a land-scope balance differ by about
 # 1.4% of the deposition term and would otherwise be indistinguishable.
+# `method_deposition` is the other deposition axis (whep#1105): which product
+# the field itself came from. HaNi is measurably biased over Europe and the
+# bias grows backwards in time (whep#1097/#1121), so a balance built on a
+# corrected field and one built on raw HaNi have to be tellable apart.
+#
+# `method_unattributed` is here for the same reason (whep#532): the nitrogen
+# that reached agricultural land but no single crop is a real mass, and whether
+# a balance spread it over cropland, over all agricultural land, or dropped it
+# is not recoverable from the numbers.
+#
+# `intersect()`ed against the actual columns by the caller, so an `n_inputs`
+# table supplied from an older build that predates a stamp still balances.
 .nb_input_method_cols <- function() {
-  c("method_recycling_n", "method_synthetic", "method_deposition_scope")
+  c(
+    "method_recycling_n",
+    "method_synthetic",
+    "method_deposition",
+    "method_deposition_scope",
+    "method_unsupported",
+    "method_unattributed"
+  )
 }
 
 .nb_present_key <- function(x) {
@@ -871,6 +970,7 @@ build_nitrogen_balance <- function(
     ~n_input_for_n2o_t,
     ~prod_n_t,
     ~used_residue_n_t,
+    ~bedding_residue_n_t,
     ~burnt_residue_n_t,
     ~grazed_weeds_n_t,
     ~som_sequestration_n_t,
@@ -908,6 +1008,7 @@ build_nitrogen_balance <- function(
     97,
     40,
     10,
+    0,
     5,
     8,
     2,
@@ -921,7 +1022,7 @@ build_nitrogen_balance <- function(
     12,
     3,
     0.132,
-    0.56,
+    0.49,
     0,
     0,
     0,
@@ -930,7 +1031,7 @@ build_nitrogen_balance <- function(
     42 / 100,
     60 / 100,
     100 / 99,
-    (1.5 + 0.56 + 0.132) * (44 / 28) * 273 * 1000,
+    (1.5 + 0.49 + 0.132) * (44 / 28) * 273 * 1000,
     "manner",
     "ipcc2019",
     "meisinger_drainage"

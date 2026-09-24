@@ -4,29 +4,150 @@
 \alias{calculate_residue_destinies}
 \title{Estimate the destinies of crop residues.}
 \usage{
-calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
+calculate_residue_destinies(
+  x,
+  method = c("recovery_regional", "shares"),
+  bedding_fraction = 0,
+  unmatched_recovery = c("report", "abort")
+)
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
-\code{krausmann_regional} method also needs \code{region_krausmann} (for the recovery
+\code{recovery_regional} method also needs \code{region_krausmann} (for the recovery
 rate) and \code{region_un_sub} (for the feed-use fraction, the UN M49
 sub-regions of \code{regions_full$region_UN_sub}). \code{region_krausmann} can use
 the recovery-table labels or the matching \code{regions_full} labels. The
 \code{shares} method needs \code{year}.}
 
-\item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
-recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
-Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
+\item{method}{Destiny method: \code{"recovery_regional"} (default, the regional
+recovery rate times the UN-sub-regional feed-use fraction) or \code{"shares"}
+(the Spain-specific per-crop-year use/burn shares, flagged
+\code{to_be_revised}).}
+
+\item{bedding_fraction}{Fraction of the recovered \strong{non-feed} residue used
+as livestock bedding, one number in \verb{[0, 1]}. Default \code{0}, which is unset
+rather than measured; see the Bedding section for why, and what a caller
+setting it must convert from.}
+
+\item{unmatched_recovery}{What the \code{recovery_regional} method does with a
+row that reaches no recovery rate at all, because its crop carries no
+Krausmann category or its region label reaches no recovery region:
+\code{"report"} (default) keeps the historical all-to-soil treatment and warns
+with the row count and tonnage, \code{"abort"} refuses to continue. Ignored by
+the \code{"shares"} method.}
 }
 \value{
-The input tibble with \code{residue_feed_dm_t}, \code{residue_burn_dm_t},
-\code{residue_soil_dm_t} and \code{method_residue_destiny}.
+The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
+\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
+\code{method_residue_destiny}. The \code{"recovery_regional"} method also returns
+\code{residue_recovery_matched}, \code{FALSE} where no recovery rate was found,
+which is what separates a rate the table gives as zero from a zero
+standing in for a failed lookup.
 }
 \description{
-Splits crop residue dry matter into three destinies that sum to the total
-residue: fed to livestock, burned / removed for fuel, and left on the field
-for soil incorporation.
+Splits crop residue dry matter into four destinies that sum to the total
+residue: fed to livestock, used as livestock bedding, burned / removed for
+fuel, and left on the field for soil incorporation.
 }
+\section{Bedding}{
+
+Bedding straw leaves the field with the rest of the recovered residue and
+comes back to the soil later, through the yard, as part of the managed
+manure. It is therefore carved out of the recovered \strong{non-feed} residue --
+the mass the commodity balance books as \code{other_uses} -- and \strong{never} out of
+\code{residue_soil_dm_t}, which is the residue that stays on the field. That is
+the split IPCC 2019 Refinement Vol. 4 Ch. 10 p. 10.95 asks for when it tells
+inventory compilers to cross-check bedding nitrogen "relative to the amount
+of agricultural residues that is removed for other purposes (i.e. bedding)
+other than the amount of agricultural residues returned to soils or burnt",
+so as "to eliminate the possibility of double counting".
+
+\code{bedding_fraction} defaults to \strong{0}, and that default is \emph{unset, not
+measured}: no global bedding-only fraction of crop residue could be sourced
+(whep#1005). FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove}
+both merge bedding with feed and construction into one term. Three partial
+anchors exist and none is on this function's denominator, so each needs
+converting before it can be used here:
+\itemize{
+\item Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
+3.21 p. 126 -- litter is 14\% of \emph{distributed} cereal straw and stover and
+11\% of distributed crop by-products. The author grades these "very rough",
+and the South & Central Asia cattle entry is 0 because the data were
+absent, which must not be inherited as an estimate.
+\item Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
+bedding-only column: 16-21\% of straw \emph{production}, about 30\% of \emph{removed}
+straw.
+\item Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
+Table 5 -- Denmark, barley 16\% and wheat 11\% of \emph{production}.
+}
+}
+
+\section{Where the recovery rates come from}{
+
+The \code{recovery_regional} recovery rates live in
+\code{inst/extdata/coefs/residue_recovery.csv}. Its two numeric columns are
+sourced separately and carry a provenance column each, \code{source_ratio} and
+\code{source_recovery}, because they agree with the source to different degrees.
+Both are \strong{Wirsenius (2000)}, \emph{Human Use of Land and
+Organic Materials}, PhD thesis, Chalmers University of Technology --
+Table 3.17 (recovery rates, p. 94) and Table 3.16 (harvest index, p. 92,
+from which \code{residue_dm_product_dm} is the residue:product ratio rounded to
+one decimal). The file was named after Krausmann and its two key columns
+still are, but no coefficient in it is Krausmann's. Only the crop category
+(\code{items_prod_full$Cat_Krausmann}) really is his: \code{region_krausmann} here
+holds \code{regions_full$region_HANPP} labels, whose eight values are
+Wirsenius's eight regions (whep#1132).
+
+Table 3.17 states its rates per crop \strong{category}, not per crop: one
+"Cereals straw & stover" row governs every cereal, and one "Sugar crops
+tops & leaves" row governs both crops Table 3.16 files under sugar crops,
+cane and beet. Read that way it governs twelve of the twenty categories
+here, and \code{source_recovery} splits them (whep#1150):
+\itemize{
+\item nine match it cell for cell;
+\item three sit \strong{below} it -- \verb{Groundnuts in Shell}, \verb{Sugar Beets} and
+\verb{Sugar Crops nes}, each against 0.90 in every region;
+\item seven -- roots and tubers, cassava, dry beans, pulses, oil palm, castor
+beans and permanent crops -- it omits, and Wirsenius states that recovery
+rates for the flows it omits "were assumed to be close to 100 percent"
+(p. 94). None of the seven reaches 0.90 in its most generous region;
+\item \verb{Fodder crops} has no residue flow in the thesis at all. Its nearest
+row, grass-legume, is 0.90; the rate here is 0 in all eight regions.
+}
+
+The departures are one-directional: no rate in the table exceeds the rate
+its source gives. Substituting the source value everywhere, with 1.00 for
+the seven omitted flows, raises recovered residue from 256.4 to 273.3 Gt DM
+over 1961--2021 (+6.59\%) and the feed destiny from 72.1 to 76.7 Gt
+(+6.44\%), on the \code{crop_residues} pin as read by \code{\link[=get_primary_residues]{get_primary_residues()}}.
+\verb{Permanent crops} alone is 23\% of all residue mass and two thirds of that
+gap. That substitution is \strong{not} made here, because the gross residue base
+these rates multiply is itself too high, so re-anchoring the rate first
+would land further from the truth (whep#1132, whep#1041).
+
+Three of the unsourced categories move no mass at all today, which is why
+the fodder rate of 0 is not the live problem it looks like:
+\verb{Sugar Crops nes} and \verb{Oil Palm Fruit} are in the table and in no
+production item, and no \verb{Fodder crops} item reaches the residue pin.
+}
+
+\section{The feed-use fraction is a different, unpaired source}{
+
+Wirsenius coordinates Table 3.17 directly with the feed assignments of his
+Table 3.20 (p. 102) -- "assumptions on recovery rates were directly
+coordinated with those on assignment for use as feed". WHEP does not use
+Table 3.20: the feed half comes from \code{residue_feed_fraction.csv} (Smil
+1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose named
+values span 0.05 to 0.45 around a 0.20 global default. That is well under
+the "some 33 percent of the amount generated" Wirsenius reports for cereals
+straw and stover fed to animals (p. 177), and under the livestock share of
+Smerald, Rahimi & Scheer (2023), \emph{Scientific Data} \strong{10}:685,
+\doi{10.1038/s41597-023-02587-0}. Re-anchoring it is \strong{not} done here on
+purpose: the gross residue base it multiplies is itself too high, so the
+two errors partly cancel and fixing one alone would land further from the
+truth (whep#1132, whep#1041).
+}
+
 \examples{
 calculate_residue_destinies(
   tibble::tibble(

@@ -255,3 +255,42 @@ testthat::test_that(".build_feed_demand drops the dead columns", {
   ))
   testthat::expect_gt(sum(out$demand_aft, na.rm = TRUE), 0)
 })
+
+# whep#1151 --------------------------------------------------------------------
+#
+# The per-head path books `heads * conv_krausmann$conversion` in `demand_aft`,
+# which `.build_feed_demand_codes()` names `demand_dm_t`. One head must
+# therefore demand exactly its `conversion` in tonnes DM, summed over feed
+# types (the grazer DM shares sum to one), for the unit to hold end to end.
+
+testthat::test_that("per head demand is conversion tonnes DM per head", {
+  regs <- tibble::tibble(area_code = 41L, region_bouwman = "East Asia")
+  fcr <- whep:::.build_bouwman_fcr(whep::conv_bouwman, 1995L)
+  primary <- tibble::tibble(
+    year = 1995L,
+    area_code = 41L,
+    item_prod_code = c(1096, 1126),
+    unit = "heads",
+    value = c(1, 250)
+  )
+
+  out <- whep:::.build_feed_demand_head(
+    primary,
+    whep::conv_krausmann,
+    regs,
+    fcr
+  ) |>
+    dplyr::summarise(
+      demand_aft = sum(.data$demand_aft),
+      .by = "live_anim_code"
+    ) |>
+    dplyr::arrange(.data$live_anim_code)
+
+  per_head <- whep::conv_krausmann |>
+    dplyr::filter(.data$item_cbs_code %in% c(1096, 1126)) |>
+    dplyr::arrange(.data$item_cbs_code) |>
+    dplyr::pull(conversion)
+
+  testthat::expect_equal(out$live_anim_code, c(1096L, 1126L))
+  testthat::expect_equal(out$demand_aft, per_head * c(1, 250))
+})

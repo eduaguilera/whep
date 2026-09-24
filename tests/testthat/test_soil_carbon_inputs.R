@@ -145,8 +145,13 @@ test_that("grid to polity aggregation conserves total C mass", {
     data = .sci_fixture_data()
   )
   # Recover per-cell C mass = per-ha x crop area, sum over cells per crop.
+  # The area is rebuilt from the crop patterns on purpose, independently of
+  # the crop_area_ha the layer itself now carries.
   cp <- .sci_grid_fixture()$crop_patterns
+  # The area comes from the fixture's own crop patterns, not from the column
+  # the layer carries, so the check stays independent of what it returns.
   grid_mass <- grid |>
+    dplyr::select(-"crop_area_ha") |>
     dplyr::left_join(
       dplyr::select(cp, lon, lat, item_prod_code, crop_area_ha),
       by = c("lon", "lat", "item_prod_code")
@@ -289,15 +294,20 @@ test_that("npp missing residue_soil_c_t or weed_npp_c_t aborts", {
 })
 
 test_that("a crop with no crop-pattern cells warns and is not silent", {
-  # Crop 27 has NPP carbon but is absent from crop_patterns (no cells): its
-  # carbon must not vanish silently.
+  # Crop 27 has NPP carbon but is absent from crop_patterns (no cells): under
+  # method_unspatialized = "drop" its carbon leaves the grid, and must not do
+  # so silently.
   data <- .sci_fixture_data()
   data$crop_patterns <- dplyr::filter(
     data$crop_patterns,
     .data$item_prod_code == "15"
   )
   testthat::expect_warning(
-    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    out <- whep::build_soil_carbon_inputs(
+      resolution = "polity",
+      data = data,
+      method_unspatialized = "drop"
+    ),
     "no crop-pattern cells"
   )
   testthat::expect_setequal(out$item_prod_code, "15")
@@ -315,7 +325,11 @@ test_that("a crop with zero-only pattern area warns instead of producing NaN", {
     )
 
   testthat::expect_warning(
-    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    out <- whep::build_soil_carbon_inputs(
+      resolution = "polity",
+      data = data,
+      method_unspatialized = "drop"
+    ),
     "no crop-pattern cells"
   )
   testthat::expect_setequal(out$item_prod_code, "15")
@@ -409,7 +423,8 @@ test_that("renormalization conserves the national carbon mass on the grid", {
     dplyr::summarise(spatial = sum(crop_area_ha), .by = "item_prod_code")
   faostat <- .sci_harvested_area_fixture() |>
     dplyr::select("item_prod_code", "faostat_area_ha")
-  recovered <- grid |>
+  scaled <- grid |>
+    dplyr::rename(layer_area = "crop_area_ha") |>
     dplyr::left_join(
       dplyr::select(cp, lon, lat, item_prod_code, crop_area_ha),
       by = c("lon", "lat", "item_prod_code")
@@ -418,7 +433,11 @@ test_that("renormalization conserves the national carbon mass on the grid", {
     dplyr::left_join(faostat, by = "item_prod_code") |>
     dplyr::mutate(
       scaled_area = crop_area_ha / spatial * faostat_area_ha
-    ) |>
+    )
+  # The layer's own crop_area_ha IS that renormalised area: the basis the
+  # densities were computed on, exposed for the class collapse to reuse.
+  testthat::expect_equal(scaled$layer_area, scaled$scaled_area)
+  recovered <- scaled |>
     dplyr::summarise(
       mass = sum(total_c_input_mgc_ha_yr * scaled_area),
       .by = "item_prod_code"
@@ -501,7 +520,9 @@ test_that(".sci_npp_from_primary_prod runs the crop chain to soil carbon", {
       "year",
       "residue_soil_c_t",
       "root_c_t",
-      "weed_npp_c_t"
+      "weed_npp_c_t",
+      "residue_soil_n_t",
+      "root_n_t"
     )
   )
   # Only the two crops survive (livestock and grassland dropped).
@@ -512,6 +533,13 @@ test_that(".sci_npp_from_primary_prod runs the crop chain to soil carbon", {
   wheat <- out[out$item_prod_code == "15", ]
   testthat::expect_gt(wheat$residue_soil_c_t, 0)
   testthat::expect_gt(wheat$root_c_t, 0)
+  # And their NITROGEN travels with them, which is what lets `input_cn` be the
+  # ratio of the whole input rather than of the manure alone.
+  testthat::expect_gt(wheat$residue_soil_n_t, 0)
+  testthat::expect_gt(wheat$root_n_t, 0)
+  # A plausible residue stoichiometry rather than merely non-zero.
+  testthat::expect_gt(wheat$residue_soil_c_t / wheat$residue_soil_n_t, 20)
+  testthat::expect_lt(wheat$residue_soil_c_t / wheat$residue_soil_n_t, 200)
 })
 
 test_that(".sci_combine_crop_patterns scales harvest_fraction by cropland", {
@@ -674,4 +702,385 @@ testthat::test_that("unspatialized carbon warning reads singular for one crop", 
     .sci_warn_unspatialized(components, weights),
     "1 polity-crop carbon component"
   )
+})
+
+testthat::test_that("the input C:N is formed from matched carbon and nitrogen", {
+  # The ratio must come from components whose nitrogen is KNOWN, paired with
+  # the carbon of those same components. Dividing ALL the carbon by SOME of
+  # the nitrogen would overstate the ratio, and it would do so invisibly.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "root", "manure"),
+    c_mass_mg = c(800, 200, 300),
+    # The root component's nitrogen is unknown; it must drop out of BOTH
+    # sides rather than count as nitrogen-free.
+    n_mass_mg = c(10, NA, 20)
+  )
+  out <- whep:::.sci_sum_components(
+    gridded,
+    c("area_code", "item_prod_code", "year")
+  )
+  testthat::expect_equal(out$input_n_mg, 30)
+  testthat::expect_equal(out$input_c_with_n_mg, 1100)
+  per_ha <- whep:::.sci_per_hectare(out)
+  # 1100 / 30, NOT 1300 / 30.
+  testthat::expect_equal(per_ha$input_cn, 1100 / 30)
+})
+
+testthat::test_that("components with no nitrogen at all give an absent ratio", {
+  # Absent, not infinite: an all-unknown nitrogen must not read as zero, which
+  # would peg the derived SOM C:N at its ceiling.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "manure"),
+    c_mass_mg = c(800, 300)
+  )
+  out <- whep:::.sci_sum_components(
+    gridded,
+    c("area_code", "item_prod_code", "year")
+  )
+  per_ha <- whep:::.sci_per_hectare(out)
+  testthat::expect_false(is.finite(per_ha$input_cn))
+  # And that absence must resolve to the land-use default, not to a ceiling.
+  testthat::expect_equal(
+    whep:::.soc_marginal_cn(per_ha$input_cn, "Cropland"),
+    10
+  )
+})
+
+testthat::test_that("a manure-rich input forms narrower SOM than a straw-rich one", {
+  # The mechanism, end to end at this stage: manure is nitrogen-rich, straw is
+  # not, so a manure-fed soil forms organic matter with a narrower C:N.
+  base <- function(c_mass, n_mass, type) {
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      area_code = 1L,
+      item_prod_code = "15",
+      year = 2000L,
+      crop_area_ha = 10,
+      input_type = type,
+      c_mass_mg = c_mass,
+      n_mass_mg = n_mass
+    )
+  }
+  keys <- c("area_code", "item_prod_code", "year")
+  straw <- whep:::.sci_per_hectare(
+    whep:::.sci_sum_components(base(1000, 12.5, "crop_residue"), keys)
+  )
+  manure <- whep:::.sci_per_hectare(
+    whep:::.sci_sum_components(base(1000, 66.7, "manure"), keys)
+  )
+  testthat::expect_gt(straw$input_cn, manure$input_cn)
+  cn_straw <- whep:::.soc_marginal_cn(straw$input_cn, "Cropland")
+  cn_manure <- whep:::.soc_marginal_cn(manure$input_cn, "Cropland")
+  testthat::expect_gt(cn_straw, cn_manure)
+})
+
+testthat::test_that(".sci_join_weights carries nitrogen, scaled like carbon", {
+  # THE TEST THAT WAS MISSING. Every other input_cn test hand-builds a
+  # `gridded` tibble that already carries `n_mass_mg` and hands it straight to
+  # `.sci_sum_components()` -- asserting a shape the gridding join never
+  # produced. The join dropped the column, `.sci_sum_components()`'s
+  # missing-column guard rebuilt it as all-NA, and `input_cn` came out NA on
+  # all 811,138 cropland rows of a real build while every test stayed green.
+  components <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2020L,
+    input_type = c("crop_residue", "manure"),
+    c_mass_mg = c(100, 50),
+    n_mass_mg = c(NA_real_, 5)
+  )
+  weights <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    area_weight = c(0.25, 0.75),
+    crop_area_ha = c(10, 30)
+  )
+
+  out <- whep:::.sci_join_weights(components, weights)
+
+  testthat::expect_true("n_mass_mg" %in% names(out))
+  # Nitrogen must take the SAME area weight as carbon. Scaling only the carbon
+  # would put a polity-level nitrogen mass on every cell and drive the input
+  # C:N far too narrow.
+  manure <- out[out$input_type == "manure", ]
+  testthat::expect_equal(manure$c_mass_mg, c(50 * 0.25, 50 * 0.75))
+  testthat::expect_equal(manure$n_mass_mg, c(5 * 0.25, 5 * 0.75))
+  testthat::expect_equal(
+    manure$c_mass_mg / manure$n_mass_mg,
+    rep(10, 2)
+  )
+  # A component with unknown nitrogen stays unknown rather than becoming 0.
+  testthat::expect_true(all(is.na(out$n_mass_mg[
+    out$input_type == "crop_residue"
+  ])))
+})
+
+testthat::test_that("input_cn survives the join into .sci_sum_components", {
+  # End to end through the REAL join, which is what no existing test did.
+  components <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2020L,
+    input_type = c("crop_residue", "manure"),
+    c_mass_mg = c(100, 50),
+    n_mass_mg = c(NA_real_, 5)
+  )
+  weights <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    lon = 0.25,
+    lat = 0.25,
+    area_weight = 1,
+    crop_area_ha = 10
+  )
+
+  out <- whep:::.sci_join_weights(components, weights) |>
+    whep:::.sci_sum_components(keys = c("area_code", "year")) |>
+    whep:::.sci_per_hectare()
+
+  # Only the manure carried a nitrogen, so the ratio is formed from the
+  # matched pair 50/5 -- not from all 150 MgC over 5 MgN.
+  testthat::expect_equal(out$input_cn, 10)
+})
+
+testthat::test_that(".sci_npp_from_primary_prod keeps the component nitrogen", {
+  # `calculate_npp_carbon_nitrogen()` produces `residue_soil_n_t` and
+  # `root_n_t`; the transmute used to drop them, which left `input_cn` formed
+  # from the manure alone -- a manure C:N setting the C:N of organic matter
+  # built from residues and roots as well.
+  fns <- names(formals(whep:::.sci_npp_from_primary_prod))
+  testthat::expect_true("primary_prod" %in% fns)
+
+  body_txt <- paste(
+    deparse(body(whep:::.sci_npp_from_primary_prod)),
+    collapse = " "
+  )
+  for (col in c("residue_soil_n_t", "root_n_t")) {
+    testthat::expect_match(body_txt, col, fixed = TRUE)
+  }
+  # And the carbon columns it always carried are still there.
+  for (col in c("residue_soil_c_t", "root_c_t", "weed_npp_c_t")) {
+    testthat::expect_match(body_txt, col, fixed = TRUE)
+  }
+})
+
+testthat::test_that("a residue-plus-manure mix gives a mixed input C:N", {
+  # The point of carrying the NPP nitrogen: the ratio must reflect ALL the
+  # carbon, not just the stream that happened to have a nitrogen column.
+  components <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2020L,
+    input_type = c("crop_residue", "manure"),
+    c_mass_mg = c(100, 50),
+    n_mass_mg = c(100 / 80, 50 / 12)
+  )
+  weights <- tibble::tibble(
+    area_code = 1L,
+    item_prod_code = "15",
+    lon = 0.25,
+    lat = 0.25,
+    area_weight = 1,
+    crop_area_ha = 10
+  )
+
+  out <- whep:::.sci_join_weights(components, weights) |>
+    whep:::.sci_sum_components(keys = c("area_code", "year")) |>
+    whep:::.sci_per_hectare()
+
+  # 150 MgC over (100/80 + 50/12) MgN = 27.7, between the residue's 80 and the
+  # manure's 12 rather than equal to either.
+  testthat::expect_equal(out$input_cn, 150 / (100 / 80 + 50 / 12))
+  testthat::expect_gt(out$input_cn, 12)
+  testthat::expect_lt(out$input_cn, 80)
+})
+
+# -- Unspatialized carbon: reallocate vs drop (#599) ---------------------------
+
+# A fixture where crop 27 has NPP and manure carbon but no crop-pattern cells,
+# and the FAOSTAT national harvested area of both crops IS supplied -- the
+# turnkey path always supplies it, so this is the shape a real build has.
+.sci_unspatialized_data <- function() {
+  data <- .sci_fixture_data()
+  data$crop_patterns <- dplyr::filter(
+    data$crop_patterns,
+    .data$item_prod_code == "15"
+  )
+  data$harvested_area <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~year, ~faostat_area_ha,
+    1L, "15", 2020L, 40,
+    1L, "27", 2020L, 20
+  )
+  data
+}
+
+# The total carbon the components carry: the mass a conserving rule must keep.
+.sci_component_mass <- function(data) {
+  sum(data$npp$residue_soil_c_t) +
+    sum(data$npp$root_c_t) +
+    sum(data$npp$weed_npp_c_t) +
+    sum(data$manure$applied_c)
+}
+
+# Every warning, not just the first: the reallocating path reports each fate
+# separately, so a plain expect_warning() would let the others bubble.
+.sci_run_reporting <- function(...) {
+  seen <- character()
+  value <- withCallingHandlers(
+    whep::build_soil_carbon_inputs(...),
+    warning = function(w) {
+      seen <<- c(seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(out = value, warnings = seen)
+}
+
+testthat::test_that("unspatialized carbon is reallocated, not dropped, by default", {
+  data <- .sci_unspatialized_data()
+  run <- .sci_run_reporting(resolution = "polity", data = data)
+  testthat::expect_match(run$warnings, "reallocating uniformly", all = FALSE)
+  testthat::expect_setequal(run$out$item_prod_code, c("15", "27"))
+  # Mass is conserved: per-hectare density times the crop area it is computed
+  # on gives back every megagram the components carried.
+  testthat::expect_equal(
+    sum(run$out$total_c_input_mgc_ha_yr * run$out$crop_area_ha),
+    .sci_component_mass(data)
+  )
+  testthat::expect_true(all(run$out$method_unspatialized == "reallocate"))
+})
+
+testthat::test_that("reallocated carbon follows the polity's cropland area", {
+  data <- .sci_unspatialized_data()
+  run <- .sci_run_reporting(resolution = "grid", data = data)
+  crop27 <- run$out[run$out$item_prod_code == "27", ]
+  testthat::expect_equal(nrow(crop27), 2L)
+  # Crop 15 is the polity's whole crop-pattern cropland here: 30 ha in cell A
+  # and 10 ha in cell B, so the cropland shares are 30/40 and 10/40 of crop
+  # 27's 20 ha national harvested area.
+  testthat::expect_equal(crop27$crop_area_ha[crop27$lon == 0.25], 20 * 30 / 40)
+  testthat::expect_equal(crop27$crop_area_ha[crop27$lon == 0.75], 20 * 10 / 40)
+  # Crop 27 carries residue-soil 30 + root 10 + weed 5 + manure 10 = 55 Mg C
+  # over its 20 ha, so both cells get the national density.
+  testthat::expect_equal(crop27$total_c_input_mgc_ha_yr, rep(55 / 20, 2))
+})
+
+testthat::test_that("method_unspatialized = 'drop' keeps the old loss", {
+  data <- .sci_unspatialized_data()
+  run <- .sci_run_reporting(
+    resolution = "polity",
+    data = data,
+    method_unspatialized = "drop"
+  )
+  testthat::expect_match(run$warnings, "no crop-pattern cells", all = FALSE)
+  testthat::expect_setequal(run$out$item_prod_code, "15")
+  testthat::expect_true(all(run$out$method_unspatialized == "drop"))
+  testthat::expect_lt(
+    sum(run$out$total_c_input_mgc_ha_yr * run$out$crop_area_ha),
+    .sci_component_mass(data)
+  )
+})
+
+testthat::test_that("an unknown allocation rule is refused", {
+  testthat::expect_error(
+    whep::build_soil_carbon_inputs(
+      data = .sci_unspatialized_data(),
+      method_unspatialized = "smear"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("reallocation needs a national area, and says so when absent", {
+  # No harvested_area: there is no area basis for a density, so the carbon is
+  # still dropped rather than smeared onto an invented area.
+  data <- .sci_unspatialized_data()
+  data$harvested_area <- NULL
+  run <- .sci_run_reporting(resolution = "polity", data = data)
+  testthat::expect_match(
+    run$warnings,
+    "no national harvested area",
+    all = FALSE
+  )
+  testthat::expect_setequal(run$out$item_prod_code, "15")
+})
+
+testthat::test_that("a polity absent from the cell support cannot be reallocated", {
+  data <- .sci_unspatialized_data()
+  # Polity 2 reports a crop but has no cell anywhere in the support.
+  data$npp <- dplyr::bind_rows(
+    data$npp,
+    tibble::tibble(
+      area_code = 2L,
+      item_prod_code = "15",
+      year = 2020L,
+      residue_c_t = 10,
+      residue_soil_c_t = 6,
+      root_c_t = 4,
+      weed_npp_c_t = 1
+    )
+  )
+  data$harvested_area <- dplyr::bind_rows(
+    data$harvested_area,
+    tibble::tibble(
+      area_code = 2L,
+      item_prod_code = "15",
+      year = 2020L,
+      faostat_area_ha = 5
+    )
+  )
+  run <- .sci_run_reporting(resolution = "polity", data = data)
+  testthat::expect_match(
+    run$warnings,
+    "no cell in the polity support",
+    all = FALSE
+  )
+  testthat::expect_false(2L %in% run$out$area_code)
+})
+
+testthat::test_that("the reallocated carbon survives into build_carbon_inputs", {
+  data <- .sci_unspatialized_data()
+  data$grass_natural <- tibble::tibble(
+    lon = numeric(),
+    lat = numeric(),
+    area_code = integer(),
+    year = integer(),
+    land_use = character(),
+    c_input_mgc_ha_yr = numeric(),
+    humified_fraction = numeric(),
+    class_area_ha = numeric(),
+    method_c_input = character()
+  )
+  # `crop_groups = "none"` keeps the single `cropland` class this test was
+  # written against. The package default now resolves cropland into crop
+  # GROUPS, which is its own behaviour with its own tests; pinning it here
+  # keeps this one measuring the reallocation and nothing else.
+  run <- withCallingHandlers(
+    whep::build_carbon_inputs(
+      resolution = "grid",
+      data = data,
+      crop_groups = list(method = "none")
+    ),
+    warning = function(w) invokeRestart("muffleWarning")
+  )
+  # Both cells keep a cropland class, and the class carbon mass is the whole
+  # component mass -- the .ci_cropland_class() join used to drop the
+  # reallocated crop a second time.
+  cropland <- run[run$land_use == "cropland", ]
+  testthat::expect_equal(nrow(cropland), 2L)
 })

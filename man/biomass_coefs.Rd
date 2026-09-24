@@ -43,11 +43,93 @@ matter).
 \item \code{Calcium_mg_kgFM}: Calcium content in mg per kg fresh matter.
 \item \code{VitaminA_microg_kgFM}: Vitamin A content in micrograms per kg fresh
 matter.
+}
+
+\code{N_kgN_kgFM} is the food-composition nitrogen density of the edible part,
+and is what \code{\link[=build_food_supply]{build_food_supply()}} turns into protein. Its provenance is
+weak and worth knowing before trusting a row. Upstream it sits under the
+\verb{NUTRIENTS IN EDIBLE PART} group header with the four columns above, but
+the workbook's \code{Sources} sheet has \strong{no column for any of the five}: its
+columns run from \code{kg_residue_kg_product_FM} straight to
+\code{Product_kgN_kgDM}, so the whole nutrition block is undocumented at source
+(#500 section 6, #1074). Most rows are a \code{VLOOKUP} into the workbook's
+food-composition sheet \code{Conversores_Dieta}, the same sheet that fills the
+four columns above; that sheet derives its own nitrogen column as
+\code{Proteinas / (6.25 * 1000)}. The derivation is missing for exactly its five
+\strong{cereal} rows -- \code{Wheat}, \code{Oats}, \code{Rye}, \code{Maize} and \code{Rice} -- which carry
+a \code{Proteinas} value but no nitrogen, so for those five the lookup was
+replaced by the agronomic \code{Product_kgN_kgDM * Product_kgDM_kgFM}. Other
+rows, \verb{Vegetables, other}, \code{Olive} and \code{Honey} among them, hold a bare
+literal. Those eight are the ones #1096 tracks.
+
+\code{Wheat} was the largest consequence. It carried 0.018951324393104405 kg N
+per kg, 118.45 g of protein per kg at N x 6.25, which is exactly
+\code{Product_kgN_kgDM * Product_kgDM_kgFM} -- the agronomic whole-grain
+nitrogen the \code{Sources} sheet attributes to FEDNA 2016, a \emph{feed} table.
+Applied to a commodity-balance \code{food} quantity that is the wheat-grain
+equivalent of the milled products people eat, that counts the bran and germ
+protein milling diverts away from food.
+
+It now carries \strong{0.01488 kg N per kg, i.e. 93 g of protein per kg: the
+flour basis}. The value is read from the workbook cell, not recalled:
+\code{Biomass_coefs.xlsx}, sheet \code{Conversores_Dieta}, row 4, labelled
+\verb{Harina de Trigo} (wheat flour) and keyed to \code{Name_biomass = "Wheat"},
+column \code{Proteinas} = 93 g/kg. That row is where this table already takes
+the wheat lipids (12 g/kg), carbohydrates (800 g/kg), calcium (150 mg/kg)
+and vitamin A (0) from -- all four ship today -- so the wheat nutrition
+block was flour composition everywhere except protein, and the change makes
+the row internally consistent rather than importing a foreign number.
+
+\strong{Neither 118.45 nor 93 has a \code{Sources} entry}, so 93 is corroborated, not
+cited upstream. What "flour basis" means numerically is protein per kg of
+\emph{grain equivalent}, which is flour protein times the milling extraction
+rate, so the published tables were read on that basis:
+\itemize{
+\item FAO, \emph{Food composition tables for international use}, 2nd ed., Rome,
+1953, \url{https://www.fao.org/4/x5557e/x5557e04.htm} (FAO flags it as
+historical). Medium wheat: whole meal 12.2 g/100 g at 100\% extraction,
+flour 11.7 at 85\%, 10.9 at 72\% -- so 99.4 and 78.5 g per kg of grain
+equivalent, which bracket 93.
+\item USDA FoodData Central 168894 (SR Legacy), "Wheat flour, white,
+all-purpose, enriched, bleached": protein 10.33 g/100 g, so 103.3 g per
+kg of flour, 72-88 g per kg of grain equivalent at 70-85\% extraction.
+\item FAO, \emph{Technical conversion factors for agricultural commodities}, Rome,
+\url{https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf}
+-- its per-country \verb{Flour of Wheat} extraction rates run 70-97\% with a
+median of 75\%, which is why no single flour figure maps to one
+grain-equivalent density.
+}
+
+The oracle is FAOSTAT FBS itself, which builds its protein the same way:
+composition factors on the products eaten, over the standardised
+primary-equivalent quantity that WHEP's \code{food_t} also is (FAO, \emph{Food
+balance sheets: a handbook}, section III,
+\url{https://www.fao.org/4/X9892E/X9892e03.htm}). For item 2511 its \strong{World
+row (area 5000)} implies 91.71-93.15 g/kg over 2010-2023, 92.99 in 2010;
+summed instead over the 171 countries reporting both elements it is
+94.96-96.90, 96.60 in 2010. So 93 lands within 0.02\% of the World row and
+3.7\% below the country sum, where 118.45 was above both: 27.4\% above the
+World row and 22.6\% above the country sum (whep#796).
+
+One global coefficient cannot carry the extraction pattern country by
+country: FBS's own per-country implied density for 2511 in 2010 spans
+41-115 g/kg (q10 69, median 81, q90 90), so 93 is the mass-weighted world
+point of that distribution and leaves the median country high. The previous
+value stays selectable as
+\code{build_food_supply(protein_basis = "product_nitrogen")}, which reads the
+agronomic route directly and returns exactly 0.11844577745690253 kg protein
+per kg; the choice is recorded per row in \code{method_protein_basis}. The other
+seven rows are left alone and tracked in #1096: for \code{Rice} the basis
+question was settled in #751/#755, and for \code{Oats} and \code{Maize} the
+food-composition figure moves \emph{away} from the FBS oracle, so they need the
+expert rather than this edit.
+
 The ten \verb{Edible_*} and \verb{NonEdible_*} nutrient columns below are \strong{empty in
 every row}, upstream in the source workbook as well as here, so no
 edible/non-edible nutrient split can be read from them (#361). Use
 \code{Edible_portion} with \code{N_kgN_kgFM} or \code{Product_kgN_kgDM} to derive an edible
 basis instead, as \code{\link[=build_food_supply]{build_food_supply()}} does.
+\itemize{
 \item \code{Edible_kgDM_kgFM}: Edible dry matter in kg per kg fresh matter. Empty.
 \item \code{Edible_kgC_kgFM}: Edible carbon in kg C per kg fresh matter. Empty.
 \item \code{Edible_N_kgFM}: Edible nitrogen in kg N per kg fresh matter. Empty.
@@ -64,6 +146,25 @@ Empty.
 Empty.
 \item \code{Product_kgN_kgDM}: Nitrogen content of product in kg N per kg dry
 matter.
+}
+
+The synthetic feed-additive rows take this column from the FEDNA feed
+tables as crude protein divided by 6.25, the same way \code{Threonine},
+\code{Tryptophan}, \code{Valine} and \code{Urea} still do. \code{Methionine} carried 0.1143
+instead, which is 21.7\% above the most nitrogen the molecule can hold:
+methionine is C5H11NO2S with one nitrogen atom, so its mass fraction is
+14.007 over 149.208, or 0.0939 kg N per kg. It is now FEDNA's DL-Metionina
+entry, 58.5\% crude protein and better than 99\% purity, giving 0.0936
+(whep#931; \url{https://fundacionfedna.org/ingredientes-para-piensos}).
+The alternative is the other commercial methionine source,
+the hydroxy analogue FEDNA lists as HIDROXI-ANAL MET, which is C5H10O3S
+and holds no nitrogen at all; it is the value the retired pin carried.
+That \code{items_full$FEDNA} names HIDROXI-ANAL MET for this item is not
+evidence for the analogue: that column is a feed-table stand-in, not a
+product identity (see \link{items_full}, whep#1131). \code{Lysine} at
+0.2015 is the other hand-entered override and is still 5.2\% above the free
+base's own 0.1916; FEDNA's L-Lisina HCl would give 0.1512.
+\itemize{
 \item \code{Product_kgP_kgDM}: Phosphorus content of product in kg P per kg dry
 matter.
 \item \code{Product_kgK_kgDM}: Potassium content of product in kg K per kg dry
@@ -71,6 +172,45 @@ matter.
 \item \code{Product_kgC_kgDM}: Carbon content of product in kg C per kg dry matter.
 \item \code{Residue_kgN_kgDM}: Nitrogen content of residue in kg N per kg dry
 matter.
+}
+
+For the wood and forest rows this column prices two physically different
+quantities through one cell. \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}} sends the harvested
+\code{Wood} item to \verb{Average wood}, and also relabels the residue production of
+forest and shrubland land as \code{Firewood}, which resolves to the same row.
+Harvested wood is stemwood; forest residue is branches, bark and foliage.
+
+\strong{The shipped value is assumed, unverified.} No value the upstream
+workbook has carried for these rows has a citation that can be opened: the
+beech anchor's source cell begins \code{ChatGPT.}, the conifer anchor's two
+citations do not resolve as written, and the holm-oak anchor's cell is
+blank (whep#932). The anchors can still be placed against an independent
+compilation. Thurner et al. (2025) pool 1048 stem, 599 branch, 267 root and
+5944 leaf nitrogen measurements for boreal and temperate trees -- the woody
+ones almost entirely from 192 literature studies -- and report medians, in
+kg N per kg dry matter, of 0.0010 in stem sapwood, 0.0035 in branches,
+0.0060 in roots and 0.0167 in leaves. Against
+those, \verb{Average wood}'s 0.0030 is 0.86 of the branch median and 3.0 times
+the stem median -- a branch concentration -- while the retired pin's
+0.00095 is 0.95 of the stem median, a stemwood one.
+
+So the gap whep#932 records is not two estimates of one quantity in
+disagreement; it is the 3.5-fold gap between stem and branch tissue, and
+whichever single number the cell carries is wrong by about that factor for
+one of its two uses. The same ordering appears in the trembling-aspen
+budget of Morrison and Foster (1979, reproduced in Hacker 2005, "Effects of
+Logging Residue Removal on Forest Sites"), where stemwood holds 84 kg N in
+119 t of dry matter, 0.00071 kg N per kg, against 0.0042 for bark, 0.0049
+for branches and 0.024 for foliage. Splitting the row, not picking a side,
+is what whep#932 needs, so the value must not be moved before that is
+settled. \code{tests/testthat/test_biomass_coefs_wood_provenance.R} holds the
+comparison and fails if either side of it drifts.
+
+Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang, Z.,
+and Hickler, T. (2025). Nitrogen concentrations in boreal and temperate
+tree tissues vary with tree age/size, growth rate, and climate.
+\emph{Biogeosciences} 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.
+\itemize{
 \item \code{Residue_kgP_kgDM}: Phosphorus content of residue in kg P per kg dry
 matter.
 \item \code{Residue_kgK_kgDM}: Potassium content of residue in kg K per kg dry

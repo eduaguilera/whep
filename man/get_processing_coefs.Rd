@@ -4,13 +4,23 @@
 \alias{get_processing_coefs}
 \title{Processed products share factors}
 \usage{
-get_processing_coefs(years = NULL, example = FALSE)
+get_processing_coefs(
+  years = NULL,
+  trade_recovery = c("none", "net_import"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Optional integer vector of years to build. When \code{NULL}
 (default) the whole series is built. Supplying a window builds only that
 range rather than building 1850-2023 and discarding the rest, and caches it
 under a window-specific key.}
+
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+the CBS the coefficients are calibrated on. See
+\code{\link[=build_commodity_balances]{build_commodity_balances()}} and \code{\link[=get_wide_cbs]{get_wide_cbs()}}. Pass the same value
+here as to \code{\link[=get_wide_cbs]{get_wide_cbs()}}: coefficients calibrated on one CBS do not
+describe the other.}
 
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}

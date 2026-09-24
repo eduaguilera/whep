@@ -95,13 +95,13 @@
 
 .example_ghg_extension <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg,
-    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6",
-    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
-    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
-    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg, ~method_mms, ~method_manure_ch4,
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6", "gleam_2_0/region_specific", "IPCC_2019_Tier1"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -133,15 +133,19 @@
 
 .example_soil_carbon_inputs <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~crop_area_ha,
     ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~weed_c_mgc_ha_yr,
     ~manure_c_mgc_ha_yr, ~total_c_input_mgc_ha_yr, ~humified_fraction,
-    0.25, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
-    0.75, 0.25, 1L, "15", 2020L, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
-    0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
-    0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
+    0.25, 0.25, 1L, "15", 2020L, 30, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.75, 0.25, 1L, "15", 2020L, 10, 1.5, 1.0, 0.25, 0.5, 3.25, 0.156083313609467,
+    0.25, 0.25, 1L, "27", 2020L, 5, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
+    0.75, 0.25, 1L, "27", 2020L, 15, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      crop_area_ha = c(100, 50, 60, 40),
+      method_unspatialized = "reallocate"
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -210,6 +214,7 @@
     1961L, 236L, 2620, 11177., 11177., 0., 0., 0., 1.12e4, 0., 0., 0., 0., 0.,
     1995L, 49L, 2734, 71117., 71117., 56724., 0., 0., 1.48e4, 0., 0., 0., 0., 0.
   ) |>
+    dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
     .add_reporting_polity_columns()
 }
 
@@ -325,19 +330,26 @@
   )
 }
 
+# The two `fao_flag` values are not invented. Each is the flag the
+# `faostat-production` pin carries on the row whose value this fixture holds:
+# Comoros 1979 "Meat of sheep" Production 33 t and Argentina 2000 "Mangoes,
+# guavas and mangosteens" Area harvested 236 ha are both `I` there. The other
+# eight rows are `NA` because their values are not figures FAOSTAT published
+# under a flag -- an LUH2 back-cast, a WHEP-computed yield, or a stock with no
+# source at all (whep#1044).
 .example_build_primary_prod <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source,
-    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland",
-    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",
-    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland",
-    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",
-    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland",
-    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,
-    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland",
-    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland",
-    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland",
-    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod"
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value, ~source, ~fao_flag,
+    1912, 165, "772",  772,  NA_character_, "tonnes", 325.,      "LUH2_cropland", NA_character_,
+    2012, 112, "982",  2848, "976",         "t_head", 0.0268,    "FAOSTAT_prod",  NA_character_,
+    1943,  41, "515",  2617, NA_character_, "t_ha",   0.600,     "LUH2_cropland", NA_character_,
+    1979,  45, "977",  2732, "976",         "tonnes", 33.,       "FAOSTAT_prod",  "I",
+    1910, 141, "1098", 2736, "1096",        "t_LU",   0.00186,   "LUH2_agriland", NA_character_,
+    1867,  90, "976",  976,  NA_character_, "heads",  111941.,   NA_character_,   NA_character_,
+    1939,  15, "157",  2537, NA_character_, "ha",     45921.,    "LUH2_cropland", NA_character_,
+    1935, 211, "270",  2558, NA_character_, "ha",     4018.,     "LUH2_cropland", NA_character_,
+    1937,   9, "772",  772,  NA_character_, "ha",     785953.,   "LUH2_cropland", NA_character_,
+    2000,   9, "571",  2625, NA_character_, "ha",     236.,      "FAOSTAT_prod",  "I"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -391,7 +403,12 @@
     2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
   ) |>
-    .add_trade_polity_columns()
+    .add_trade_polity_columns() |>
+    dplyr::mutate(
+      method_unbacked_quantity = "drop",
+      method_head_units = "convert",
+      method_time_coverage = NA_character_
+    )
 }
 
 .example_build_trade_prices <- function() {
@@ -633,28 +650,39 @@
 }
 
 # Historical gridded SOC balance fixture (one cell, two land-use classes, three
-# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
-# cell starts at the fraction-weighted equilibrium density, marches forward on
-# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
-# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: each
+# class starts at its own equilibrium density, so both sit still with a zero net
+# rate until 2001, when Cropland shrinks and NonCropland grows. The transfer
+# (luc_transfer_mgc_ha) sums to zero across the cell, and NonCropland -- having
+# absorbed carbon at Cropland's richer density -- then relaxes back toward its
+# own equilibrium, which is what makes its rate and son_change non-zero.
 .example_carbon_balance <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
     ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
-    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
-    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.346076,
-    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 37.346076,
-    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 37.749198,
-    2.119512, 2.500000, -7.549840, 0.380488, -34.589790, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.940424,
-    2.084950, 1.500000, 7.549840, -0.584950, 53.177282, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.129686,
-    2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
-    2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc, ~method_soc_init,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 25.712848,
+    1.500000, 1.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 43.077946,
+    2.500000, 2.500000, -8.615589, 0.000000, 0.000000, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 29.185868,
+    1.702604, 1.500000, 8.615589, -0.202604, 18.418557, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 28.983264,
+    1.690785, 1.500000, 0.000000, -0.190785, 17.344081, "hsoc",
+    "own_equilibrium"
   ) |>
+    dplyr::mutate(
+      method_class_water = "cell",
+      # No class vanishes in the toy, so the mass is exactly density x area.
+      luc_transfer_mgc = luc_transfer_mgc_ha * area_ha,
+      .after = "luc_transfer_mgc_ha"
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -748,14 +776,19 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~method_excreta_area, ~method_grazed_area,
     26.25, 35.25, 84L, 2000L, "grassland",
-    4.35, 0.1153467, "lpjml_npp_minus_harvest",
+    4.631947, 0.1153467, "lpjml_npp_minus_harvest",
+    "luh2_grassland", "luh2_grassland",
     26.25, 35.25, 84L, 2000L, "natural",
-    4.56, 0.325, "lpjml_npp_minus_harvest",
+    5.089049, 0.2955049, "lpjml_litterfall",
+    "luh2_grassland", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "grassland",
-    1.95, 0.1153467, "lpjml_npp_minus_harvest",
+    8.740661, 0.1153467, "lpjml_npp_minus_harvest",
+    "luh2_grassland", "luh2_grassland",
     -64.25, -35.75, 9L, 2000L, "natural",
-    9.26, 0.325, "lpjml_npp_minus_harvest"
+    8.989904, 0.3168902, "lpjml_litterfall",
+    "luh2_grassland", "luh2_grassland"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -769,9 +802,13 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~method_unspatialized,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
-    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
-    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+    "reallocate",
+    0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467,
+    "lpjml_npp_minus_harvest", NA,
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325,
+    "lpjml_litterfall", NA
   ) |>
     .add_reporting_polity_columns()
 }
@@ -1638,6 +1675,104 @@
     dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
 }
 
+# Six rows of a real `build_cell_climate_zone()` run over CRU TS 4.07: three
+# cells around Lake Victoria in 1961 (measured) and the same three in 1880
+# (backcast from the 1901-1930 climatology), so the fixture shows both
+# `method_climate_zone` values and both sides of the 18 degC Temperate/Warm cut.
+.example_cell_climate_zone <- function() {
+  tibble::tribble(
+    ~lon,   ~lat, ~year, ~mean_annual_temp_c, ~climate_zone,
+    ~method_climate_zone,
+    34.25, -0.25, 1880L,            21.61694,        "Warm",
+    "climatology_1901_1930",
+    34.75,  0.25, 1880L,            20.00972,        "Warm",
+    "climatology_1901_1930",
+    35.25,  0.75, 1880L,            17.16806,   "Temperate",
+    "climatology_1901_1930",
+    34.25, -0.25, 1961L,            22.51667,        "Warm",
+    "cru_ts_annual",
+    34.75,  0.25, 1961L,            20.90833,        "Warm",
+    "cru_ts_annual",
+    35.25,  0.75, 1961L,            16.97500,   "Temperate",
+    "cru_ts_annual"
+  )
+}
+
+# nolint start: object_length_linter.
+# Three real Tier 2 rows from a `build_gridded_livestock_emissions()` run on a
+# three-row Kenyan herd: one dairy herd split between a Warm lowland cell and a
+# Temperate highland cell (the 1961 CRU means either side of the 18 degC cut),
+# plus a non-dairy herd confined to the lowland cell. The dairy manure CH4
+# therefore diverges from its national-mean-temperature counterpart (0.868)
+# while the single-cell non-dairy herd cannot diverge (1). Cells and their
+# `area_code` are the real `spatialize-country-grid` rows, registered in
+# `tests/testthat/fixtures/country_grid_example_cells.csv`.
+.example_gridded_livestock_emissions <- function() {
+  tibble::tribble(
+    ~year, ~area_code,  ~lon,  ~lat,             ~species,  ~heads,
+    ~mean_annual_temp_c, ~climate_zone, ~diet_quality,
+    ~enteric_ch4_kt, ~manure_ch4_kt, ~manure_n2o_kt,
+    ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
+    1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
+    22.51667, "Warm", "Medium",
+    4.7876219, 1.24019956, 0.0600324493,
+    1, 0.86828055, 1,
+    1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
+    16.97500, "Temperate", "Medium",
+    3.1917479, 0.55453570, 0.0400216329,
+    1, 0.86828055, 1,
+    1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
+    22.51667, "Warm", "Medium",
+    2.8982329, 0.56307504, 0.0422466683,
+    1, 1.00000000, 1
+  ) |>
+    dplyr::mutate(
+      enteric_ch4_national_kt = enteric_ch4_kt / divergence_enteric_ch4,
+      manure_ch4_national_kt = manure_ch4_kt / divergence_manure_ch4,
+      manure_n2o_national_kt = manure_n2o_kt / divergence_manure_n2o,
+      method_climate_zone = "cru_ts_annual",
+      method_diet = "uniform_medium",
+      method_enteric = "IPCC_2019_Tier2",
+      method_manure_ch4 = "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019",
+      method_manure_n2o = "IPCC_2019_Tier2"
+    ) |>
+    .add_reporting_polity_columns()
+}
+
+# Per-CFT water inputs for build_crop_water_consumption(example = TRUE): two cells, one
+# year, three bands, in the reader's shape (per-STAND densities, mm/yr) with
+# their stand fractions and a cell-polity crosswalk. The example runs the real
+# weighting and aggregation over these rather than returning a frozen output.
+# The values are illustrative, not taken from a run.
+.example_cft_water_inputs <- function() {
+  list(
+    cft_consump_water_b = .example_cft_cube(c(0, 0, 180, 0, 0, 350)),
+    cft_consump_water_g = .example_cft_cube(c(420, 510, 260, 280, 330, 190)),
+    cft_nir = .example_cft_cube(c(0, 0, 150, 0, 0, 320)),
+    stand_frac = .example_cft_cube(c(0.30, 0.40, 0.05, 0.20, 0.25, 0.10)),
+    cell_polity = tibble::tribble(
+      ~lon,   ~lat,  ~area_code, ~polity_frac, ~cell_area_ha,
+      9.25,   47.75, 79L,        1,            30100,
+      -3.25,  40.25, 203L,       1,            27500
+    )
+  )
+}
+
+# One per-CFT cube over the example's two cells and three bands.
+.example_cft_cube <- function(values) {
+  tibble::tribble(
+    ~lon,   ~lat,  ~year, ~band, ~band_name,
+    9.25,   47.75, 2000L, 1L,    "rainfed temperate cereals",
+    9.25,   47.75, 2000L, 14L,   "rainfed grassland",
+    9.25,   47.75, 2000L, 17L,   "irrigated temperate cereals",
+    -3.25,  40.25, 2000L, 1L,    "rainfed temperate cereals",
+    -3.25,  40.25, 2000L, 14L,   "rainfed grassland",
+    -3.25,  40.25, 2000L, 17L,   "irrigated temperate cereals"
+  ) |>
+    dplyr::mutate(value = values)
+}
+# nolint end
+
 # ---- admin_stats_nass.R (#1000) ------------------------------------------------------
 
 # Ten rows of one read_admin_stats_nass("crops") run over the test fixture,
@@ -1719,6 +1854,7 @@
   )
 }
 
+
 # ---- admin_stats_eurostat.R (#1000) --------------------------------------------------
 
 # Ten rows taken from a real read of all four tables on 2026-09-02, after
@@ -1740,6 +1876,7 @@
     "Eurostat_ef_lsk_poultry", "FRF2", "Champagne-Ardenne", "A5000", "Live poultry", "heads", NA_character_, 2020L, 6600200, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "17/06/26 23:00:00", "2026-09-02T00:00:00Z"
   )
 }
+
 
 # ---- admin_stats_sidra.R (#1000) -----------------------------------------------------
 
@@ -1789,6 +1926,7 @@
       recorded_at = "2026-09-02T00:00:00Z"
     )
 }
+
 
 # ---- admin_shares_pins.R (#1000) -----------------------------------------------------
 
@@ -1853,6 +1991,7 @@
   )
 }
 
+
 # Illustrative, NOT sampled from GLW3: the rasters need a WHEP_GLW3_DIR
 # tree, which the example surface may not have. The shape is exact -- the
 # four contract columns, one row per cell and group, cattle_dairy and
@@ -1878,6 +2017,7 @@
     -3.25,  40.25, "sheep_goats",          97600, "DA"
   )
 }
+
 
 # `.example_admin_family()`; it is defined here only because that file was
 # out of bounds to the wave that wrote `read_admin_shares()`. Sampled from

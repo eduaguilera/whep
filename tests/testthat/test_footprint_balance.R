@@ -98,6 +98,23 @@ testthat::test_that("balance surfaces extension land without prod/trade", {
   testthat::expect_equal(sum(dplyr::filter(fp, item_cbs_code == 10L)$value), 50)
 })
 
+testthat::test_that("balance names an unallocated (NA item) land record", {
+  inp <- .balance_inputs()
+  # The arable-fallow extension, under its unallocated treatment, carries FAO
+  # land no crop can be named for on an NA item (whep#1026). The balance cannot
+  # route it, so it must be reported, not quietly dropped when items are sorted.
+  ext <- dplyr::bind_rows(
+    inp$extension,
+    tibble::tibble(area_code = 5L, item_cbs_code = NA_integer_, value = 500)
+  )
+  testthat::expect_warning(
+    fp <- whep::compute_footprint_balance(inp$production, inp$trade, ext),
+    "NA"
+  )
+  testthat::expect_false(any(is.na(fp$item_cbs_code)))
+  testthat::expect_equal(sort(fp$value), c(20, 30))
+})
+
 testthat::test_that("balance aborts on NA extension rather than wiping item", {
   inp <- .balance_inputs()
   # A single NA land value used to make solve() return an all-NA vector,

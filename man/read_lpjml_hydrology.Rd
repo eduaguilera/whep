@@ -6,13 +6,14 @@
 \usage{
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
-    "runoff", "discharge", "swc", "cft_nir", "cft_consump_water_b",
-    "cft_consump_water_g"),
+    "runoff", "discharge", "swc", "pet", "soiltemp1", "soiltemp2", "stand_frac",
+    "cft_nir", "cft_airrig_month", "cft_consump_water_b", "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   monthly = TRUE,
   agg = c("sum", "mean"),
+  partial_year = c("abort", "warn", "drop"),
   data = NULL,
   example = FALSE
 )
@@ -20,10 +21,20 @@ read_lpjml_hydrology(
 \arguments{
 \item{var}{Logical variable name, one of \code{"drainage"}, \code{"transp"},
 \code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"},
-\code{"discharge"}, \code{"swc"}, \code{"cft_nir"} (per-CFT net irrigation requirement)
-or the per-CFT consumptive-water cubes \code{"cft_consump_water_b"} (blue) and
+\code{"discharge"}, \code{"swc"}, \code{"pet"} (potential evapotranspiration),
+\code{"soiltemp1"} and \code{"soiltemp2"} (soil temperature by layer),
+\code{"stand_frac"} (per-CFT stand area fraction, from \code{cftfrac.nc}: the
+weight every other per-CFT cube needs before it can be summed to a
+cell),
+\code{"cft_nir"} (per-CFT net irrigation requirement), \code{"cft_airrig_month"}
+(per-CFT APPLIED irrigation by month) or the per-CFT
+consumptive-water cubes \code{"cft_consump_water_b"} (blue) and
 \code{"cft_consump_water_g"} (green). The per-CFT variables keep their \code{band}
-dimension, and carry \code{band_name} when the file names its bands.}
+dimension, and carry \code{band_name} when the file names its bands.
+
+\code{"pet"} and the two soil temperatures exist because the SOC drivers take
+both from CRU instead, mixing two models' quantities in one expression;
+see the note at \code{.hydro_var_map()}. Nothing consumes them yet.}
 
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}
@@ -34,7 +45,8 @@ have aborts, naming the coverage it does have: LPJmL runs ending in
 different years sit side by side in one folder, so the coverage is a
 property of \code{run_dir}, never an assumption of this reader.}
 
-\item{first_year}{First calendar year of the run's monthly time axis. The
+\item{first_year}{First calendar year of the run's monthly time axis.
+\code{NULL} (default) reads it from each file's own \code{time} axis. The
 last year is not an argument — it is read from the file's own time
 dimension.}
 
@@ -47,6 +59,14 @@ are already one per cell-year-band.}
 
 \item{agg}{Annual aggregation for \code{monthly = FALSE}, \code{"sum"} (flux default)
 or \code{"mean"} (soil-water default).}
+
+\item{partial_year}{What to do when \code{monthly = FALSE} and a cell-year does
+not carry all twelve months, so that aggregating it would silently return
+a total over eleven. \code{"abort"} (default) refuses, naming the absent
+cell-months; \code{"warn"} returns the short aggregate anyway; \code{"drop"} removes
+the incomplete cell-years and reports how many went, so the year is
+\emph{absent} rather than wrong. Immaterial for the annual per-CFT variables,
+which carry no \code{month}. See \emph{Partial years} below.}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
 \code{value}, plus \code{layer} for \code{"swc"} or \code{band} for \code{"cft_nir"}) used in
@@ -70,6 +90,51 @@ variable name, so callers need not know the LPJmL naming quirks. The
 synthetic \code{"aet"} variable sums the three actual-evapotranspiration
 components (transpiration, evaporation, interception).
 }
+\section{Per-CFT cubes are per-STAND densities}{
+
+Every per-CFT variable is a density per square metre of ITS OWN CROP'S
+STAND, not of the gridcell. Summing the bands therefore does NOT give a
+cell total, and comparing that sum against a whole-cell cube overstates it
+badly: on the 2026-09-01 run, \code{"cft_airrig_month"} summed raw across bands
+is \strong{122.8 times} \code{"irrig"} (from \code{mirrig.nc}) for July 2010. Weight each
+band by its \code{cftfrac} stand fraction first and the same comparison closes
+to \strong{0.999}, and to 1.000-1.001 cell by cell on the most irrigated cells.
+
+So: multiply by the stand fraction before aggregating over bands, over
+cells, or against anything crop-less. The reader returns the model's own
+units and does not do this for you, because which weighting is wanted
+depends on the question -- a per-hectare-of-crop intensity keeps the
+per-stand value, a cell or catchment total does not.
+}
+
+\section{Rainfed rice carries applied water}{
+
+\code{"cft_airrig_month"} and \code{"cft_nir"} both book water on the \emph{rainfed} rice
+band -- 36\% of the stand-weighted applied total at July 2010. That is
+LPJmL's paddy management rather than a defect: flooded rice receives water
+whether or not the stand is classed as irrigated. Filtering to bands whose
+name starts with \code{"irrigated"} therefore drops real water.
+}
+
+\section{Partial years}{
+
+An LPJmL monthly output grows one time step at a time, so a run that was
+interrupted, or is still writing, leaves a final year with fewer than twelve
+steps. Aggregating that year sums \strong{eleven} months and says nothing: no
+value is \code{NA}, the row count is unchanged (one row per cell-year either
+way), and every downstream total and identity goes on balancing over the
+eleven. Reproduced on a real 24-month run truncated to 23 with
+\verb{ncks -d time,0,22}: the second year's summed deep seepage fell 3.05\% over
+500 land cells (98,478 to 95,477 mm), with an identical 3,392-row output and
+no \code{NA} in any land cell (whep#1073).
+
+The refusal lives here, at the reader, because this is where the absence is
+created; once the short annual total is downstream it is indistinguishable
+from a measurement. \verb{years = } was already safe -- the coverage check counts
+only whole years, so requesting a partial one aborts -- and \code{partial_year}
+closes the \code{years = NULL} whole-file read that it does not cover.
+}
+
 \examples{
 read_lpjml_hydrology(example = TRUE)
 }

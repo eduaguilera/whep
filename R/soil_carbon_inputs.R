@@ -15,6 +15,14 @@
 #' [residue_humification], with the weed carbon humified at the weed
 #' (spontaneous-grass) coefficient.
 #'
+#' The weed stream is structurally present but ZERO on the default path: the
+#' turnkey chain runs [calculate_crop_npp()] and
+#' [calculate_npp_carbon_nitrogen()] without [calculate_crop_npp_components()],
+#' which is the only producer of `weed_ag_dm_t`, so weed carbon is zero for
+#' every crop, polity and year unless `data$npp` is supplied from a chain that
+#' includes it. Whether to wire it into the default path is open (whep#806);
+#' until then the zero is reported rather than passed off as computed.
+#'
 #' At `"polity"` resolution the component carbon masses are summed back to
 #' `(area_code, item_prod_code, year)` and the per-hectare values and humified
 #' fraction re-derived from the polity totals.
@@ -47,6 +55,21 @@
 #'   `get_primary_production()` table the NPP reader uses, and is skipped when a
 #'   hand-supplied `npp` keeps the pipeline offline unless supplied here);
 #'   `residue_humification` (defaults to [residue_humification]).
+#' @param method_unspatialized What happens to a polity-crop whose crop has no
+#'   hectares in the (time-invariant) `crop_patterns` layer. `"reallocate"`
+#'   (default) spreads that carbon over the polity's crop-pattern cropland
+#'   cells in proportion to each cell's total cropland area, and puts it on the
+#'   crop's FAOSTAT national harvested area, so the polity's gridded carbon
+#'   mass equals its national mass; this is the rule the sibling nitrogen
+#'   spatialization already applies to the same gap
+#'   ([spatialize_country_n_to_crops()]). `"drop"` discards it, which is what
+#'   the package did before and what a caller who prefers a hole to a smear
+#'   should ask for. Either way the mass and the affected crops are reported,
+#'   and the choice is recorded in `method_unspatialized`. Reallocation needs a
+#'   national area to put the carbon on, so a polity-crop with no
+#'   `harvested_area` row -- and a polity with no cell at all in the support,
+#'   which no rule here can reach (see whep#1002) -- is dropped under both
+#'   methods, reported separately.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -54,7 +77,12 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'   `humified_fraction`, `method_c_input`, `method_unspatialized` and
+#'   `crop_area_ha` -- the crop's area at that grain on the basis the
+#'   densities are computed on: the FAOSTAT-renormalised cell area where a
+#'   national harvested area was supplied, the spatialized area otherwise, so
+#'   a consumer can recover the carbon mass without re-deriving it -- plus the
+#'   polity columns below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -66,13 +94,15 @@ build_soil_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("reallocate", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  method_unspatialized <- rlang::arg_match(method_unspatialized)
   if (isTRUE(example)) {
     return(.example_soil_carbon_inputs())
   }
-  .sci_build(resolution, data, years) |>
+  .sci_build(resolution, data, years, method = method_unspatialized) |>
     .add_reporting_polity_columns()
 }
 
@@ -84,10 +114,16 @@ build_soil_carbon_inputs <- function(
 # 20 s on that 5.0e7-row intermediate -- two of the four are character columns --
 # and .ci_cropland_class() then discards all four. So the internal caller takes
 # this, and only the exported wrapper above pays for the columns (#624).
-.sci_build <- function(resolution, data, years, reduce = NULL) {
+.sci_build <- function(
+  resolution,
+  data,
+  years,
+  reduce = NULL,
+  method = "reallocate"
+) {
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  .sci_grid_and_finalise(components, d, resolution, reduce)
+  .sci_grid_and_finalise(components, d, resolution, reduce, method)
 }
 
 # Private helpers ----
@@ -106,11 +142,20 @@ build_soil_carbon_inputs <- function(
 # Output is unchanged: `year` is one of the .sci_finalise() grouping keys, so
 # grouping within a year gives exactly what grouping across years gave, and the
 # weights each year sees are identical.
-.sci_grid_and_finalise <- function(components, d, resolution, reduce = NULL) {
+.sci_grid_and_finalise <- function(
+  components,
+  d,
+  resolution,
+  reduce = NULL,
+  method = "reallocate"
+) {
   weights <- .sci_grid_weights(d$country_grid, d$crop_patterns)
+  # The cropland support a reallocated polity-crop lands on. Built once, like
+  # the crop weights, and only when the rule asks for it.
+  fallback <- if (method == "reallocate") .sci_cropland_weights(weights)
   # Once, over all components: this reports totals, so warning per year would
   # both spam the caller and change the numbers it reports.
-  .sci_warn_unspatialized(components, weights)
+  .sci_warn_unspatialized(components, weights, fallback, d$harvested_area)
 
   # Split ONCE rather than filtering inside the loop. Filtering per year rescans
   # the whole component table every iteration -- 6.7e6 rows x 123 years is 8.3e8
@@ -125,11 +170,26 @@ build_soil_carbon_inputs <- function(
   # exported build_soil_carbon_inputs() returns (#624).
   parts <- lapply(by_year[order(as.integer(names(by_year)))], function(chunk) {
     gridded <- chunk |>
-      .sci_join_weights(weights, d$harvested_area) |>
-      .sci_finalise(resolution, d$residue_humification)
+      .sci_grid_chunk(weights, fallback, d$harvested_area) |>
+      .sci_finalise(resolution, d$residue_humification, method)
     if (is.null(reduce)) gridded else reduce(gridded)
   })
   dplyr::bind_rows(parts)
+}
+
+# One year's components on cells: the crop-pattern cells of the crops that have
+# them, plus -- under "reallocate" -- the polity's cropland cells for the crops
+# that do not. A crop is in exactly one of the two branches, so no cell-crop
+# group is built twice.
+.sci_grid_chunk <- function(chunk, weights, fallback, harvested_area) {
+  matched <- .sci_join_weights(chunk, weights, harvested_area)
+  if (is.null(fallback)) {
+    return(matched)
+  }
+  dplyr::bind_rows(
+    matched,
+    .sci_reallocate(chunk, weights, fallback, harvested_area)
+  )
 }
 
 # harvested_area is the FAOSTAT national harvested area per (area_code,
@@ -160,14 +220,22 @@ build_soil_carbon_inputs <- function(
 # carbon humified at the spontaneous-grass coefficient.
 .sci_assemble_components <- function(npp, manure) {
   .sci_check_npp(npp)
-  residue <- .sci_npp_component(npp, "crop_residue", "residue_soil_c_t")
-  root <- .sci_npp_component(npp, "root", "root_c_t")
-  weed <- .sci_npp_component(npp, "weed", "weed_npp_c_t")
+  # The nitrogen of each component travels with its carbon, so the input C:N
+  # the SOM stoichiometry needs (`.soc_marginal_cn()`) can be formed from the
+  # same masses rather than from a second, differently-keyed table.
+  residue <- .sci_npp_component(
+    npp,
+    "crop_residue",
+    "residue_soil_c_t",
+    "residue_soil_n_t"
+  )
+  root <- .sci_npp_component(npp, "root", "root_c_t", "root_n_t")
+  weed <- .sci_npp_component(npp, "weed", "weed_npp_c_t", "weed_npp_n_t")
   dplyr::bind_rows(residue, root, weed, .sci_manure_components(manure))
 }
 
-.sci_npp_component <- function(npp, input_type, c_col) {
-  npp |>
+.sci_npp_component <- function(npp, input_type, c_col, n_col = NULL) {
+  out <- npp |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       item_prod_code = as.character(.data$item_prod_code),
@@ -175,6 +243,39 @@ build_soil_carbon_inputs <- function(
       input_type = input_type,
       c_mass_mg = .data[[c_col]]
     )
+  # NA rather than 0 when the nitrogen column is absent: a component whose
+  # nitrogen is unknown must not be counted as nitrogen-free, which would make
+  # the input C:N infinite and the derived SOM C:N its ceiling.
+  out$n_mass_mg <- if (!is.null(n_col) && rlang::has_name(npp, n_col)) {
+    npp[[n_col]]
+  } else {
+    NA_real_
+  }
+  out
+}
+
+# Report a weed stream that is identically zero. The exported description
+# advertises weeds as one of the four cropland carbon components, but the
+# turnkey chain never calls calculate_crop_npp_components(), the only function
+# creating weed_ag_dm_t, so the column exists and is zero throughout. Checking
+# that the column is PRESENT -- which is all this file used to do -- cannot tell
+# those two cases apart (whep#806).
+.sci_warn_zero_weeds <- function(npp) {
+  weed <- npp$weed_npp_c_t
+  if (length(weed) > 0 && all(is.na(weed) | weed == 0)) {
+    cli::cli_warn(
+      c(
+        "Weed carbon is zero for every row of {.field npp}.",
+        "i" = "The default chain omits {.fun calculate_crop_npp_components}, \
+        weeds contribute nothing to the cropland carbon input (whep#806)."
+      ),
+      # Weeds are zero on EVERY default build, so an unconditional
+      # warning would drown the ones that mean something (whep#647).
+      .frequency = "once",
+      .frequency_id = "sci_zero_weeds"
+    )
+  }
+  invisible(npp)
 }
 
 .sci_check_npp <- function(npp) {
@@ -183,7 +284,7 @@ build_soil_carbon_inputs <- function(
     !purrr::map_lgl(required, \(col) rlang::has_name(npp, col))
   ]
   if (length(missing) == 0) {
-    return(invisible(npp))
+    return(.sci_warn_zero_weeds(npp))
   }
   cli::cli_abort(c(
     "{.field npp} is missing required carbon column{?s} {.field {missing}}.",
@@ -199,8 +300,39 @@ build_soil_carbon_inputs <- function(
 # item_prod_code strings; resolve either form through items_prod_full. Territory
 # is a stringified area_code or an iso3c, resolved via the same helper the
 # N-inputs manure engine uses (both mappings abort rather than silently emit NA).
+# The default disposal method puts manure above the nitrogen ceiling back on
+# CROPLAND with no crop attached, and gives it carbon like any other applied row
+# (R/manure_allocation.R:462-481, :380). The filter below then drops it, because
+# it has no crop -- so the nitrogen balance applies that manure and the carbon
+# balance does not. Which way the two should agree is a science decision
+# (whep#805); reporting the mass is what stops it being invisible meanwhile.
+.sci_warn_dropped_manure_c <- function(manure) {
+  if (!rlang::has_name(manure, "applied_c")) {
+    return(invisible(manure))
+  }
+  dropped <- manure |>
+    dplyr::filter(.data$land_use == "Cropland", is.na(.data$crop)) |>
+    dplyr::pull("applied_c")
+  total <- sum(dropped, na.rm = TRUE)
+  if (total <= 0) {
+    return(invisible(manure))
+  }
+  cli::cli_warn(c(
+    "{.val {round(total)}} t C of cropland manure has no crop and is dropped \
+    from the carbon input.",
+    "i" = "The nitrogen balance keeps this manure; the carbon balance does not \
+      (whep#805)."
+  ))
+  invisible(manure)
+}
+
 .sci_manure_components <- function(manure) {
+  .sci_warn_dropped_manure_c(manure)
   manure |>
+    # Same rule as the crop components: a manure stream with no nitrogen is
+    # missing information, not nitrogen-free, so the column arrives as NA and
+    # the input C:N for it comes out NA rather than infinite.
+    ensure_columns(tibble::tibble(applied_n = numeric())) |>
     dplyr::filter(
       .data$land_use == "Cropland",
       !is.na(.data$crop)
@@ -210,6 +342,10 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::summarise(
       c_mass_mg = sum(.data$applied_c, na.rm = TRUE),
+      # NOT na.rm: summing an all-NA nitrogen with na.rm would give 0, which
+      # reads as "no nitrogen" rather than "nitrogen unknown" and would send
+      # the input C:N to infinity.
+      n_mass_mg = sum(.data$applied_n),
       .by = c("year", "territory", "item_prod_code")
     ) |>
     dplyr::transmute(
@@ -217,7 +353,8 @@ build_soil_carbon_inputs <- function(
       item_prod_code = .data$item_prod_code,
       year = as.integer(.data$year),
       input_type = "manure",
-      c_mass_mg = .data$c_mass_mg
+      c_mass_mg = .data$c_mass_mg,
+      n_mass_mg = .data$n_mass_mg
     )
 }
 
@@ -305,7 +442,17 @@ build_soil_carbon_inputs <- function(
       relationship = "many-to-many"
     ) |>
     .sci_rescale_cell_area(harvested_area) |>
-    dplyr::mutate(c_mass_mg = .data$c_mass_mg * .data$area_weight) |>
+    # Nitrogen is scaled by the SAME area weight as carbon and carried through
+    # the select. Dropping it here is what made `input_cn` NA on all 811,138
+    # cropland rows of a real build: the column was rebuilt as all-NA by the
+    # missing-column guard in `.sci_sum_components()`, so the loss presented as
+    # "no component carried a nitrogen" rather than as an error. Scaling only
+    # the carbon would be worse than dropping it -- a polity-level nitrogen
+    # mass on every cell makes the input C:N far too narrow.
+    dplyr::mutate(
+      c_mass_mg = .data$c_mass_mg * .data$area_weight,
+      n_mass_mg = .data$n_mass_mg * .data$area_weight
+    ) |>
     dplyr::select(
       "lon",
       "lat",
@@ -314,6 +461,7 @@ build_soil_carbon_inputs <- function(
       "year",
       "input_type",
       "c_mass_mg",
+      "n_mass_mg",
       "crop_area_ha"
     )
 }
@@ -327,16 +475,10 @@ build_soil_carbon_inputs <- function(
 # mass, so mass is conserved. Groups with no supplied FAOSTAT area (NA/<=0) keep
 # their spatialized area unchanged, preserving the offline BYO-inputs path.
 .sci_rescale_cell_area <- function(joined, harvested_area) {
-  if (is.null(harvested_area) || nrow(harvested_area) == 0) {
+  faostat <- .sci_faostat_area(harvested_area)
+  if (is.null(faostat)) {
     return(joined)
   }
-  faostat <- harvested_area |>
-    dplyr::transmute(
-      area_code = as.integer(.data$area_code),
-      item_prod_code = as.character(.data$item_prod_code),
-      year = as.integer(.data$year),
-      faostat_area_ha = as.numeric(.data$faostat_area_ha)
-    )
   joined |>
     dplyr::left_join(
       faostat,
@@ -352,11 +494,105 @@ build_soil_carbon_inputs <- function(
     dplyr::select(-"faostat_area_ha")
 }
 
+# The FAOSTAT national harvested area in the key types the joins use. NULL when
+# no table was supplied, which is the offline bring-your-own-inputs path.
+.sci_faostat_area <- function(harvested_area) {
+  if (is.null(harvested_area) || nrow(harvested_area) == 0) {
+    return(NULL)
+  }
+  harvested_area |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      year = as.integer(.data$year),
+      faostat_area_ha = as.numeric(.data$faostat_area_ha)
+    ) |>
+    dplyr::filter(
+      is.finite(.data$faostat_area_ha),
+      .data$faostat_area_ha > 0
+    )
+}
+
+# Each cell's share of its polity's crop-pattern cropland: the support a crop
+# with no pattern of its own is spread over. Summing the per-crop cell areas is
+# the same cropland the matched crops are gridded onto, so the two branches
+# cannot disagree about where a polity's cropland is; the nitrogen sibling uses
+# the LUH2 cropland layer instead, which is a different (yearly) support for the
+# same idea -- see whep#1002, which is about making all of these one layer.
+.sci_cropland_weights <- function(weights) {
+  weights |>
+    dplyr::summarise(
+      cropland_area_ha = sum(.data$crop_area_ha),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    dplyr::filter(
+      is.finite(.data$cropland_area_ha),
+      .data$cropland_area_ha > 0
+    ) |>
+    dplyr::mutate(
+      cropland_weight = .data$cropland_area_ha /
+        sum(.data$cropland_area_ha),
+      .by = "area_code"
+    ) |>
+    dplyr::select("lon", "lat", "area_code", "cropland_weight")
+}
+
+# Fan the polity-crops that have NO crop-pattern cells onto the polity's
+# cropland cells instead, uniformly per hectare of cropland. The cell area a
+# reallocated crop carries is its share of the polity's FAOSTAT national
+# harvested area, exactly as .sci_rescale_cell_area() gives a matched crop, so
+# the per-hectare density is the national density and the cell masses sum back
+# to the polity mass. A group with no national area has no basis for a density
+# -- inventing one would smear the carbon over an area it never grew on -- so it
+# stays out, and .sci_warn_unspatialized() reports it.
+.sci_reallocate <- function(chunk, weights, fallback, harvested_area) {
+  faostat <- .sci_faostat_area(harvested_area)
+  if (is.null(faostat) || nrow(fallback) == 0) {
+    return(NULL)
+  }
+  chunk |>
+    dplyr::anti_join(
+      dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
+      by = c("area_code", "item_prod_code")
+    ) |>
+    dplyr::inner_join(
+      faostat,
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::inner_join(
+      fallback,
+      by = "area_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      area_code = .data$area_code,
+      item_prod_code = .data$item_prod_code,
+      year = .data$year,
+      input_type = .data$input_type,
+      c_mass_mg = .data$c_mass_mg * .data$cropland_weight,
+      crop_area_ha = .data$cropland_weight * .data$faostat_area_ha
+    )
+}
+
 # The inner_join that spatializes polity-crop carbon to cells silently drops any
 # (area_code, item_prod_code) present in the carbon components but absent from
 # the (time-invariant) crop_patterns. Surface that carbon loss rather than
 # letting it vanish, matching this codebase's no-silent-failures convention.
-.sci_warn_unspatialized <- function(components, weights) {
+#
+# Under "reallocate" (fallback supplied) most of that carbon is not lost but
+# moved, so the report splits by what actually happened to each group: moved
+# onto the polity's cropland cells, or still dropped because no national area
+# gives it a density, or still dropped because the polity has no cell at all in
+# the support. Only the first is a policy choice; the other two are coverage
+# gaps (whep#1002) that no allocation rule inside this file can close.
+.sci_warn_unspatialized <- function(
+  components,
+  weights,
+  fallback = NULL,
+  harvested_area = NULL
+) {
   lost <- components |>
     dplyr::anti_join(
       dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
@@ -364,6 +600,9 @@ build_soil_carbon_inputs <- function(
     )
   if (nrow(lost) == 0) {
     return(invisible(NULL))
+  }
+  if (!is.null(fallback)) {
+    return(.sci_warn_reallocated(lost, fallback, harvested_area))
   }
   crops <- sort(unique(lost$item_prod_code))
   # Every plural marker gets its quantity pinned with cli::qty(), and the numbers
@@ -391,6 +630,81 @@ build_soil_carbon_inputs <- function(
   invisible(lost)
 }
 
+# Report the three fates of an unspatialized polity-crop under "reallocate".
+.sci_warn_reallocated <- function(lost, fallback, harvested_area) {
+  faostat <- .sci_faostat_area(harvested_area)
+  no_cells <- dplyr::filter(lost, !.data$area_code %in% fallback$area_code)
+  rest <- dplyr::filter(lost, .data$area_code %in% fallback$area_code)
+  moved <- if (is.null(faostat)) {
+    rest[0, ]
+  } else {
+    dplyr::semi_join(
+      rest,
+      faostat,
+      by = c("area_code", "item_prod_code", "year")
+    )
+  }
+  no_area <- dplyr::anti_join(
+    rest,
+    moved,
+    by = c("area_code", "item_prod_code", "year")
+  )
+  .sci_warn_moved(moved)
+  .sci_warn_dropped(
+    no_area,
+    "no national harvested area to put it on",
+    "Supply {.code data$harvested_area} for these crops; without a national
+     area the carbon has no basis for a per-hectare density."
+  )
+  .sci_warn_dropped(
+    no_cells,
+    "no cell in the polity support",
+    "Affected area_code values: {.val {codes}}. No allocation rule can reach a
+     polity the cell support does not carry (whep#1002)."
+  )
+  invisible(lost)
+}
+
+# Carbon moved onto the polity's cropland cells rather than dropped.
+.sci_warn_moved <- function(moved) {
+  if (nrow(moved) == 0) {
+    return(invisible(NULL))
+  }
+  # Plural quantities are pinned with cli::qty() and the numbers precomputed
+  # into scalars: left to infer, cli aborts from inside its own warning when a
+  # bullet carries more than one quantity (see .sci_warn_unspatialized()).
+  n <- nrow(moved)
+  crops <- sort(unique(moved$item_prod_code))
+  n_crops <- length(crops)
+  mass <- round(sum(moved$c_mass_mg, na.rm = TRUE), 3)
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n)}{n} polity-crop carbon component{?s} ({mass} Mg C) had
+           no crop-pattern cells; reallocating uniformly across the polity's
+           cropland cells.",
+    i = "{cli::qty(n_crops)}Reallocated item_prod_code{?s}: {.val {crops}}.
+         Adding {cli::qty(n_crops)}{?its/their} cells to {.field crop_patterns}
+         would place the carbon instead of spreading it."
+  ))
+  invisible(moved)
+}
+
+# Carbon that no rule in this file can place, with the reason it cannot.
+.sci_warn_dropped <- function(dropped, reason, hint) {
+  if (nrow(dropped) == 0) {
+    return(invisible(NULL))
+  }
+  n <- nrow(dropped)
+  codes <- sort(unique(dropped$area_code))
+  mass <- round(sum(dropped$c_mass_mg, na.rm = TRUE), 3)
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n)}{n} polity-crop carbon component{?s} ({mass} Mg C) had
+           {reason} and {cli::qty(n)}{?was/were} dropped from the gridded soil
+           carbon input.",
+    i = hint
+  ))
+  invisible(dropped)
+}
+
 # Per-cell harvested area of each crop, split between the cell's polycells by
 # their share of the cell's land.
 .sci_cell_crop_area <- function(country_grid, crop_patterns) {
@@ -414,7 +728,12 @@ build_soil_carbon_inputs <- function(
 
 # Sum component masses to the requested grain, derive per-hectare values and the
 # carbon-weighted humified fraction, stamp the method.
-.sci_finalise <- function(gridded, resolution, residue_humification) {
+.sci_finalise <- function(
+  gridded,
+  resolution,
+  residue_humification,
+  method = "reallocate"
+) {
   keys <- if (resolution == "polity") {
     c("area_code", "item_prod_code", "year")
   } else {
@@ -424,7 +743,10 @@ build_soil_carbon_inputs <- function(
     .sci_sum_components(keys) |>
     .sci_per_hectare() |>
     .sci_humified_fraction(keys, residue_humification) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      method_unspatialized = method
+    ) |>
     tibble::as_tibble()
 }
 
@@ -441,11 +763,27 @@ build_soil_carbon_inputs <- function(
   # `c_mass_mg[input_type == ...]` subset did; data.table `by=` keeps
   # first-appearance group order, matching dplyr `.by`.
   dt <- data.table::as.data.table(gridded)
+  # A caller (or a fixture) may supply components with no nitrogen at all.
+  # That is "no information", so the column is created as NA and the input C:N
+  # comes out NA, which `.soc_marginal_cn()` answers with the land-use default.
+  # A hand-built fixture may legitimately arrive with no nitrogen column at
+  # all. A PIPELINE table must not: `.sci_join_weights()` carries `n_mass_mg`
+  # through, and its silent absence is how a dropped column presented as "no
+  # component carried a nitrogen" for every row of a real build rather than as
+  # an error.
+  if (!("n_mass_mg" %in% names(dt))) {
+    dt[, n_mass_mg := NA_real_]
+  }
   dt[, `:=`(
     .residue = data.table::fifelse(input_type == "crop_residue", c_mass_mg, 0),
     .root = data.table::fifelse(input_type == "root", c_mass_mg, 0),
     .weed = data.table::fifelse(input_type == "weed", c_mass_mg, 0),
-    .manure = data.table::fifelse(input_type == "manure", c_mass_mg, 0)
+    .manure = data.table::fifelse(input_type == "manure", c_mass_mg, 0),
+    # Nitrogen totals only the components that HAVE a nitrogen, and counts how
+    # much carbon those were, so the ratio below is formed from a matched pair
+    # rather than dividing all the carbon by some of the nitrogen.
+    .n_known = data.table::fifelse(is.na(n_mass_mg), 0, n_mass_mg),
+    .c_with_n = data.table::fifelse(is.na(n_mass_mg), 0, c_mass_mg)
   )]
   per_cell <- dt[,
     .(
@@ -453,7 +791,9 @@ build_soil_carbon_inputs <- function(
       residue_c_mg = sum(.residue),
       root_c_mg = sum(.root),
       weed_c_mg = sum(.weed),
-      manure_c_mg = sum(.manure)
+      manure_c_mg = sum(.manure),
+      input_n_mg = sum(.n_known),
+      input_c_with_n_mg = sum(.c_with_n)
     ),
     by = cell_keys
   ]
@@ -463,7 +803,9 @@ build_soil_carbon_inputs <- function(
       residue_c_mg = sum(residue_c_mg),
       root_c_mg = sum(root_c_mg),
       weed_c_mg = sum(weed_c_mg),
-      manure_c_mg = sum(manure_c_mg)
+      manure_c_mg = sum(manure_c_mg),
+      input_n_mg = sum(input_n_mg),
+      input_c_with_n_mg = sum(input_c_with_n_mg)
     ),
     by = keys
   ]
@@ -478,6 +820,21 @@ build_soil_carbon_inputs <- function(
     root_c_mgc_ha_yr = .sci_safe_div(.data$root_c_mg, .data$crop_area_ha),
     weed_c_mgc_ha_yr = .sci_safe_div(.data$weed_c_mg, .data$crop_area_ha),
     manure_c_mgc_ha_yr = .sci_safe_div(.data$manure_c_mg, .data$crop_area_ha),
+    # The C:N of the carbon input, over the components whose nitrogen is
+    # known. Unitless, so both masses may stay in Mg. It is what
+    # `.soc_marginal_cn()` reads to set the C:N of the organic matter this
+    # input forms; NA where no component carried a nitrogen, which that
+    # function treats as "no information" and answers with the land-use
+    # default.
+    # NA, not 0, when no component carried a nitrogen. `.sci_safe_div()` would
+    # return 0 for 0/0, and a 0 ratio is a value, not an absence -- it happens
+    # to reach the same fallback because `.soc_marginal_cn()` also rejects
+    # non-positive inputs, but only by luck. Say "unknown" explicitly.
+    input_cn = dplyr::if_else(
+      .data$input_n_mg > 0,
+      .sci_safe_div(.data$input_c_with_n_mg, .data$input_n_mg),
+      NA_real_
+    ),
     total_c_input_mgc_ha_yr = .data$residue_c_mgc_ha_yr +
       .data$root_c_mgc_ha_yr +
       .data$weed_c_mgc_ha_yr +
@@ -509,11 +866,16 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::select(
       dplyr::all_of(keys),
+      # The area the densities were divided by, carried so a consumer can
+      # recover the carbon mass without re-deriving it from the static pattern
+      # -- which a reallocated crop is by definition absent from.
+      "crop_area_ha",
       "residue_c_mgc_ha_yr",
       "root_c_mgc_ha_yr",
       "weed_c_mgc_ha_yr",
       "manure_c_mgc_ha_yr",
       "total_c_input_mgc_ha_yr",
+      "input_cn",
       "humified_fraction"
     )
 }
@@ -589,7 +951,7 @@ build_soil_carbon_inputs <- function(
   primary_prod |>
     .sci_crop_prod_wide() |>
     calculate_crop_npp() |>
-    calculate_residue_destinies(method = "krausmann_regional") |>
+    calculate_residue_destinies(method = "recovery_regional") |>
     calculate_npp_carbon_nitrogen() |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
@@ -597,7 +959,23 @@ build_soil_carbon_inputs <- function(
       year = as.integer(.data$year),
       residue_soil_c_t = .data$residue_soil_c_t,
       root_c_t = .data$root_c_t,
-      weed_npp_c_t = .data$weed_npp_c_t
+      weed_npp_c_t = .data$weed_npp_c_t,
+      # The NITROGEN of the two components that carry carbon here.
+      # `calculate_npp_carbon_nitrogen()` already produces both -- `root_n_t`
+      # and, via `.npp_cn_soil_residue()`, `residue_soil_n_t` -- and this
+      # transmute simply dropped them, so `input_cn` was formed from the manure
+      # alone: a manure C:N (median 12.5 against the manure stream's own 11.97)
+      # setting the C:N of organic matter built from residues and roots too.
+      #
+      # Weed nitrogen is deliberately absent rather than forgotten: weed CARBON
+      # is identically zero in this chain, because only
+      # `calculate_crop_npp_components()` creates `weed_ag_dm_t` and the
+      # turnkey path does not call it (see `.sci_warn_zero_weeds()`). A
+      # component contributing no carbon cannot move a carbon-weighted ratio,
+      # so its absence costs nothing until that function is wired in, at which
+      # point `weed_npp_n_t` should join this list.
+      residue_soil_n_t = .data$residue_soil_n_t,
+      root_n_t = .data$root_n_t
     )
 }
 
@@ -637,7 +1015,7 @@ build_soil_carbon_inputs <- function(
 # region_krausmann for the residue recovery rate, region_hanpp for the
 # modern-variety adoption share (whose table really is HANPP-valued), and
 # region_un_sub for the residue feed-use fraction (whose table is M49
-# sub-region-valued; see .residue_destiny_krausmann and #405).
+# sub-region-valued; see .residue_destiny_recovery and #405).
 .sci_crop_regions <- function() {
   whep::regions_full |>
     dplyr::transmute(

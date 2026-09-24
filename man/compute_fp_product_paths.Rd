@@ -16,6 +16,7 @@ compute_fp_product_paths(
   output_tol = 1e-08,
   value_added_floor = 0.001,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   min_value = 0
 )
@@ -53,6 +54,11 @@ constructing technical coefficients from \code{z_mat}.}
 \item{max_column_sum}{Maximum allowed column sum in A. Must match the value
 used by \code{\link[=compute_footprint]{compute_footprint()}} (default \code{100}) so the path decomposition
 and the footprint it decomposes share an identical A cap.}
+
+\item{a_denominator}{Which outputs A divides by. Must match the value
+used by \code{\link[=compute_footprint]{compute_footprint()}} (default \code{"traceable"}, which treats
+\code{x_vec <= output_tol} as no output) so the paths decompose the same A.
+See \code{\link[=compute_footprint]{compute_footprint()}} for the alternatives.}
 
 \item{conserve_extensions}{If \code{TRUE}, rescale positive paths within each
 origin area/item so their sum does not exceed the corresponding positive

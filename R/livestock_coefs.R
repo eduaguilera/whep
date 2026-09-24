@@ -440,16 +440,47 @@
 #' gleam_feed_categories
 "gleam_feed_categories"
 
-#' GLEAM enteric fermentation parameters.
+#' Enteric methane conversion factors (IPCC defaults, not GLEAM).
 #'
 #' @description
-#' Ym (% GE) values by species and production system.
-#' Feedlot cattle use 3.0% per IPCC 2019 Table 10.12.
+#' Ym (% of gross energy converted to CH4) by species and production
+#' system. Despite the object name, the values are IPCC defaults, mixed
+#' across the 2006 and 2019 editions, plus one unsourced row; none is a
+#' GLEAM value. No function in `R/` reads this object; the Tier 2 enteric
+#' chain uses [ipcc_tier2_ym_values] instead.
 #'
 #' @format A tibble with `species`, `system`, `ym_percent`,
 #'   `notes`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+#' @source Traced row by row against the published tables (whep#959):
+#'   - Cattle and buffalo 6.5% (grazing, mixed) and feedlot cattle 3.0% are
+#'     the 2006 IPCC Guidelines, Vol 4, Ch 10, Table 10.12, which gives
+#'     6.5% for every non-feedlot cattle and buffalo class and 3.0% for
+#'     cattle fed diets of 90 percent or more concentrates. They are not the
+#'     2019 Refinement's Table 10.12 (Updated), which resolves Ym by
+#'     production level and digestibility (5.7 / 6.0 / 6.3 / 6.5 for dairy
+#'     cows and buffalo, 7.0 / 6.3 for non-dairy, 4.0 for grain feedlots and
+#'     3.0 only for steam-flaked-corn feedlots).
+#'   - Sheep 6.5% is the 2006 Table 10.13 "Mature Sheep" value (lambs under
+#'     one year are 4.5% there). The 2019 Refinement's Table 10.13 (Updated)
+#'     replaces it with a single 6.7% for all sheep.
+#'   - Goats 5.5% is the 2019 Refinement, Vol 4, Ch 10, Table 10.13
+#'     (Updated); the 2006 edition has no goat Ym.
+#'   - Pigs 0.0% ("negligible") appears in no IPCC table. **Assumed,
+#'     unverified.** IPCC gives swine no Ym, only a Tier 1 enteric factor
+#'     of 1.5 (developed) and 1.0 (developing countries)
+#'     kg CH4 head-1 yr-1 (2006 Table 10.10; the same in the 2019 Table
+#'     10.10 (Updated)).
+#'
+#'   GLEAM does not publish fixed Ym values of this shape. FAO. 2018.
+#'   *Global Livestock Environmental Assessment Model, Model description,
+#'   Version 2.0, Revision 5*, Table 4.12, p. 67, computes Ym for
+#'   non-feedlot cattle, buffalo and adult small ruminants as
+#'   9.75 - 0.05 x ration digestibility (7.75 - 0.05 x digestibility for
+#'   young small ruminants), uses 3 for feedlot cattle, and gives pigs 1.01
+#'   (adult reproductive) and 0.39 (replacement and fattening), not 0. The
+#'   GLEAM 2.0 and 3.0 Supplement S1 workbooks in `data-raw/` contain no Ym
+#'   table. The Version 3.0 model description was not checked.
 #'
 #' @examples
 #' gleam_enteric_params
@@ -479,8 +510,9 @@
 #'   GLEAM against 60/30/10 here, and the Sub-Saharan Africa (90/10), Latin
 #'   America (95/5) and South Asia (60/30/10) rows omit the drylot share
 #'   GLEAM gives as 35%, 42% and 54% respectively. Not re-ingested here
-#'   because no function in `R/` reads this object -- the manure chain uses
-#'   `regional_mms_distribution`, which is separately unsourced.
+#'   because no function in `R/` reads this object. The manure chain reads
+#'   [regional_mms_distribution] instead, which whep#958 re-ingested from the
+#'   same GLEAM 2.0 tables.
 #'
 #' @examples
 #' gleam_mms_shares
@@ -1079,8 +1111,11 @@
 #' @source Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
 #'   **not** the 2019 Refinement, and with the same provenance profile as
 #'   [ipcc_2019_mcf_manure], which holds the same values under the Tier 1
-#'   system labels. This object is the live one: `.calc_manure_ch4_tier2()`
-#'   weights it by the manure-system mix. Verified against both editions:
+#'   system labels. Since whep#1022 this object is **no longer the default**
+#'   the Tier 2 path reads: `.calc_manure_ch4_tier2()` weights the
+#'   `edition == "ipcc_2019"` rows of [climate_mcf_ipcc] by the manure-system
+#'   mix, and this table is reached only with `mcf_source = "as_shipped"`.
+#'   Verified against both editions:
 #'   - Matching both: daily spread 0.1/0.5/1.0, solid storage 2.0/4.0/5.0,
 #'     poultry manure 1.5 and burned for fuel 10.
 #'   - The 2006 edition only: pasture/range/paddock 1.0/1.5/2.0, against a
@@ -1097,49 +1132,226 @@
 #'     by neither: 2006 gives the range 0-100 percent and requires a
 #'     calculation, the 2019 Refinement six leakage-and-storage classes
 #'     spanning 1.00 to 13.17 percent. **Assumed, unverified.**
-#'   Tracked in whep#601.
+#'
+#'   Only six of the eleven systems here are reachable on the live path:
+#'   [regional_mms_distribution] routes manure to daily spread, solid storage,
+#'   liquid/slurry, the anaerobic lagoon, pasture/range/paddock and poultry
+#'   manure, and `.calc_weighted_mcf()` aborts on any label outside that set.
+#'   So the dry-lot, composting and anaerobic-digester cells enter no published
+#'   number today, and the four rows keyed `climate_zone` `"All"` are
+#'   unreachable for a second reason: the MCF join is on
+#'   `(mms_type, climate_zone)` and never asks for `"All"`. The cells that both
+#'   are live and depend on the edition are pasture/range/paddock,
+#'   liquid/slurry and the anaerobic lagoon. [climate_mcf_ipcc] carries the
+#'   as-published alternative for each and now supplies the default.
+#'
+#'   Tracked in whep#601 and whep#1022.
 #'
 #' @examples
 #' climate_mcf
 "climate_mcf"
 
+#' As-published MCF alternatives to [climate_mcf].
+#'
+#' @description
+#' Methane conversion factors transcribed from Table 10.17 of each IPCC
+#' edition, over the same `mms_type` / `climate_zone` key space as
+#' [climate_mcf] so that either can be substituted for it. Selected with the
+#' `mcf_source` manure-engine option (see [manure_engine_options]). Since
+#' whep#1022 the `edition == "ipcc_2019"` rows are the **default**: the 2019
+#' Refinement is the current IPCC guidance, and the six cells of
+#' [climate_mcf] whose provenance could not be established should not be what
+#' ships. [climate_mcf] stays reachable as `mcf_source = "as_shipped"` so an
+#' older run can be reproduced.
+#'
+#' Six cells of [climate_mcf] match no published IPCC value, and three of the
+#' `mms_type` labels that carry them -- dry lot, the two composting rows and
+#' the anaerobic digester -- are unreachable on the live Tier 2 path, because
+#' [regional_mms_distribution] routes manure to only six systems and none of
+#' them is one of those. The cells that *are* live and edition-dependent are
+#' pasture/range/paddock, liquid/slurry and the anaerobic lagoon, and it is
+#' those three that the default change moves.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{edition}{`"ipcc_2006"` or `"ipcc_2019"`, the two values the
+#'     `mcf_source` option takes.}
+#'   \item{mms_type}{Manure-management system, in the [climate_mcf]
+#'     vocabulary, plus the six 2019 anaerobic-digester classes.}
+#'   \item{climate_zone}{`"Cool"`, `"Temperate"` or `"Warm"`.}
+#'   \item{mcf_percent}{Methane conversion factor (percent of `Bo`
+#'     achieved). `NA` where the edition publishes no default -- the 2006
+#'     anaerobic digester, which is "0-100 percent, calculate".}
+#' }
+#'
+#' @section Collapse rules:
+#' Neither edition publishes exactly three numbers for every system, so two
+#' collapse rules are applied. Both are WHEP choices, stated here because
+#' they are not IPCC statements -- and because the 2019 edition is now the
+#' default, the second of them is live on every Tier 2 run:
+#'
+#' * **2006 per-degree rows** (liquid/slurry, uncovered anaerobic lagoon) are
+#'   read at the middle column of each temperature class. Table 10.15 of the
+#'   same chapter defines the classes as Cool below 15 C, Temperate 15 to
+#'   25 C and Warm above 25 C, and Table 10.17 groups its 19 per-degree
+#'   columns the same way, so the middle columns are 12 C, 20 C and 27 C.
+#'   Liquid/slurry takes the "without natural crust cover" series and the
+#'   optional 40 percent crust reduction is not applied.
+#' * **2019 sub-zone rows** are the unweighted mean over the sub-zones the
+#'   Refinement itself groups into each of Cool (Cool Temperate Moist, Cool
+#'   Temperate Dry, Boreal Moist, Boreal Dry), Temperate (Warm Temperate
+#'   Moist, Warm Temperate Dry) and Warm (Tropical Montane, Tropical Wet,
+#'   Tropical Moist, Tropical Dry). Liquid/slurry is read at the 6-month
+#'   retention time, which is the Refinement's own default where retention
+#'   time is unknown (Table 10.17 footnote 1).
+#'
+#' @section The 2019 pasture value is half of a pair:
+#' The Refinement's single 0.47 percent for pasture, range and paddock is
+#' **not** a drop-in replacement for the 2006 triple. Section 10.4.2 of the
+#' same chapter states that it "must be used in conjunction with a single B0
+#' value of 0.19 m3 CH4 kg-1 of VS excreted", and that this pair "was judged
+#' by the expert panel to be more accurate than emission factors estimated
+#' from regionally based MCFs and animal category based B0" -- which is
+#' precisely what WHEP computes. `.calc_manure_ch4_tier2()` multiplies one
+#' per-species `Bo` from [ipcc_tier2_bo_values] by the share-weighted MCF, so
+#' it cannot hold a system-specific `Bo` without computing the product per
+#' manure stream instead. Because `"ipcc_2019"` is the default, **the shipped
+#' Tier 2 path now runs that hybrid**: the Refinement's pasture MCF against
+#' WHEP's animal-category `Bo`, which is the combination the Refinement
+#' rejects.
+#'
+#' Measured, on FAOSTAT 2020 heads at the Temperate default, repricing only
+#' the pasture stream at `Bo` 0.19 moves global Tier 2 manure CH4 by
+#' **+0.18 percent** (14.385 to 14.411 Tg). It is small in total because the
+#' species that reach Tier 2 are dominated by cattle, for which pasture is
+#' only 3.2 percent of the weighted MCF, and because sheep already carry
+#' `Bo` 0.19 exactly. It is not small everywhere: buffalo (`Bo` 0.10) would
+#' rise **30.5 percent**, goats (0.18) 5.6 percent and cattle fall
+#' 0.07 percent. Horses (0.30), mules and asses (0.33) and camels (0.26)
+#' would move most of all, but contribute no Tier 2 CH4 today because they
+#' are dropped for want of cohort and energy inputs. Restructuring the kernel
+#' to a per-stream `Bo` is out of scope for the table and open in whep#1022.
+#'
+#' @section What the table cannot hold:
+#' The 2019 Refinement resolves the anaerobic digester into **six**
+#' leakage-and-storage classes spanning 1.00 to 13.17 percent, so no single
+#' `"Anaerobic Digester"` MCF exists to ship. They are carried as six
+#' distinct `mms_type` values rather than flattened to one number, and no
+#' shipped MMS vocabulary selects one: which class a country's digesters
+#' belong to is an inventory input WHEP does not have (whep#1022). The 2006
+#' digester is `NA` for the same reason -- that edition publishes a 0 to 100
+#' percent range and requires the compiler to evaluate its Formula 1.
+#'
+#' @source
+#'   IPCC. 2006. *2006 IPCC Guidelines for National Greenhouse Gas
+#'   Inventories*, Vol 4, Ch 10, Table 10.17 "MCF values by temperature for
+#'   manure management systems", pp. 10.44-10.47 (PDF md5
+#'   `97b97e8d0e4ca101c77fac2d63a0cb86`).
+#'
+#'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
+#'   Greenhouse Gas Inventories*, Vol 4, Ch 10, Table 10.17 (Updated)
+#'   "Methane conversion factors for manure management systems",
+#'   pp. 10.68-10.70 (PDF md5 `c1784e747af9bb307e93f4170c12679a`).
+#'
+#'   Both PDFs re-downloaded from `ipcc-nggip.iges.or.jp` and checksummed on
+#'   2026-09-08. Every cell here was read off them; the collapse rules above
+#'   are the only step that is not a transcription.
+#'
+#' @examples
+#' climate_mcf_ipcc
+"climate_mcf_ipcc"
+
 #' Regional MMS distribution.
 #'
 #' @description
-#' Fraction of manure managed in each MMS type by region
-#' and species.
+#' Fraction of manure managed in each manure-management system (MMS) by region
+#' and species, in two selectable halves: the GLEAM 2.0 ingest that the manure
+#' engines read by default, and the unsourced placeholder it replaced.
 #'
-#' @format A tibble with `region`, `species`, `mms_type`,
-#'   `fraction`.
+#' @format A tibble with `source`, `region`, `species`, `mms_type`, `fraction`
+#'   and `reference`. `source` is either "gleam_2_0" or "placeholder", and is
+#'   the value the manure engines' MMS-shares option takes (see
+#'   [manure_engine_options]). `reference` cites each row. `fraction` sums to
+#'   one within every `(source, region, species)`. `region` is the IPCC label
+#'   vocabulary `.add_ipcc_region()` emits, plus a "Global" fallback.
 #'
-#' @source Unverified. The values are a hardcoded `tribble()` in
-#'   `generate_ipcc_tier2_params()` in `data-raw/livestock_coefficients.R`,
-#'   annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
-#'   to the nearest 5 percentage points and match no table of the committed
-#'   GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
-#'   `gleam_mms_shares` this object **is** result-affecting, through
-#'   `.resolve_mms_shares()`: it weights the Tier 2 manure CH4 methane
-#'   conversion factor (`climate_mcf`) and the Tier **1** manure direct-N2O
-#'   emission factor (`ipcc_2019_n2o_ef_direct`). It does not reach Tier 2
-#'   direct N2O, whose rows carry no `region` column and so take the pasture
-#'   EF3 for every stream (measured, whep#921).
+#' @source
+#' `source == "gleam_2_0"` is ingested from Tables 4.2-4.11 of Supplement S1
+#'   to FAO. 2018. *GLEAM Model description, Version 2.0, Revision 5*, July
+#'   2018, data reference year 2010 (workbook
+#'   <https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx>,
+#'   219715 bytes, md5 `72fd2ea477dfe8b30cd3657b2baa4af1`, re-downloaded from
+#'   FAO and verified 2026-09-09; FAO issues no DOI). Those ten tables are the
+#'   only published regional MMS shares in any GLEAM release: version 3.0
+#'   dropped the family, and its Supplement S1 carries MMS *definitions* only.
+#'   The read and the crosswalk are in `data-raw/livestock_coefficients.R`.
 #'
-#'   The real shares are published in Supplement S1, Tables 4.2-4.11 of
-#'   FAO. 2018. *GLEAM Model description, Version 2.0, Revision 5* (workbook
-#'   md5 `72fd2ea477dfe8b30cd3657b2baa4af1`, re-downloaded from FAO and
-#'   verified 2026-08-26; see `gleam_mms_shares`), per production system
-#'   (dairy / beef / feedlot cattle, dairy / non-dairy buffalo, small
-#'   ruminants, backyard / intermediate / industrial pigs, chickens) over the
-#'   10 GLEAM regions. Adopting them takes four choices that each move
-#'   numbers: collapsing the per-system tables onto `species_gen`, collapsing
-#'   GLEAM's regions onto the IPCC labels `.add_ipcc_region()` emits, deriving
-#'   the `Global` row GLEAM does not publish, and mapping GLEAM's richer MMS
-#'   vocabulary (Drylot, Pit storage, Burned for fuel, Uncovered anaerobic
-#'   lagoon) onto `mms_type`. Under one illustrative crosswalk (equal weights
-#'   throughout) on FAOSTAT 2020 head counts, whep#921 measured Tier 1 manure
-#'   direct N2O -11.1% (Buffalo -57%, Poultry +22%), Tier 1 manure CO2e
-#'   -4.2% and Tier 2 manure CH4 -26.9%. Treat as unverified until a
-#'   crosswalk is chosen.
+#'   The published grain is finer than this table's on three axes at once, so
+#'   the ingest is a crosswalk and each of its four choices moves numbers
+#'   (whep#958). Stated here, and at the point of use in the builder:
+#'
+#'   1. **Species collapse.** GLEAM publishes one table per production system;
+#'      this table is keyed on `species_gen`. Systems are averaged
+#'      **unweighted** within a species and region, counting only the systems
+#'      the source publishes a column for. A herd- or manure-weighted mean
+#'      would be better and is **not available from the source**: Supplement
+#'      S1 publishes herd *parameters* (Tab. 2.4-2.21) and no regional animal
+#'      numbers or system shares anywhere. Tab. 4.4 (feedlot cattle) is not
+#'      read: GLEAM models the feedlot as a sub-system of the beef herd, so
+#'      reading it would give a minority system a third of all cattle manure.
+#'      The equal-weight collapse is coarsest for poultry, where the flat
+#'      backyard assumption (50 percent pasture, 50 percent daily spread,
+#'      identical in all ten regions) gets a third of the weight.
+#'   2. **Region collapse.** GLEAM's 10 regions are mapped onto the IPCC
+#'      labels `.add_ipcc_region()` emits. Only one pair collides -- the
+#'      Russian Federation and Eastern Europe both map to `"Eastern Europe"`
+#'      -- and those two published columns are averaged unweighted.
+#'   3. **The `Global` row.** GLEAM publishes no global row, and most WHEP
+#'      output resolves to `"Global"` (whep#678), so the row carrying the most
+#'      weight is the one with no published value. It is the unweighted mean
+#'      over the 10 GLEAM regions of the species-collapsed distributions,
+#'      counting a region only where the source publishes one, and taken over
+#'      the 10 published regions rather than the 9 IPCC labels so that the
+#'      Russian Federation and Eastern Europe keep one vote each. **This row
+#'      is WHEP-derived, not FAO-published**, and its `reference` says so.
+#'   4. **MMS vocabulary.** GLEAM names 14 systems; WHEP's manure chain serves
+#'      six labels and only six, in all four tables it reads by MMS name.
+#'      Pasture, daily spread, solid storage, liquid slurry, uncovered
+#'      anaerobic lagoon and poultry manure with litter map by identity.
+#'      Drylot maps to `"Solid Storage"`, following IPCC's own combined "solid
+#'      storage and dry lot" category, which [ipcc_2019_n2o_ef_direct] carries
+#'      at the same EF3; a separate `"Dry Lot"` label would give a *lower*
+#'      methane conversion factor (2.5 against 4.0 percent, Temperate). Pit
+#'      storage maps to `"Poultry Manure"` for chickens (a layer deep pit is
+#'      IPCC's poultry manure without litter, held at the same EF3 as the
+#'      with-litter row) and to `"Liquid/Slurry"` otherwise -- **assumed,
+#'      unverified**, as is intensive-windrow composting to `"Solid Storage"`.
+#'      Burned for fuel and anaerobic digester are **excluded** and the rest
+#'      renormalised: neither has a servable WHEP label, both being in
+#'      [climate_mcf] only at the unjoinable `climate_zone == "All"` and in
+#'      `manure_loss_fractions.csv` not at all. Excluding them says the
+#'      excreted nitrogen passes through the systems that remain, which
+#'      overstates those systems; it removes 18.5 percent of published buffalo
+#'      shares (dung burnt for fuel), 5.2 percent of swine and 4.1 percent of
+#'      cattle, and none of the others.
+#'
+#'   GLEAM 2.0 publishes no manure-management table for horses, camels or
+#'   mules and asses. Those four rows are the placeholder's, retained so the
+#'   engine still resolves a split for them, and flagged unsourced in
+#'   `reference`.
+#'
+#' `source == "placeholder"` is the table WHEP shipped before whep#958:
+#'   a hardcoded `tribble()` annotated "GLEAM 3.0 / FAO statistics
+#'   (simplified)", round to the nearest 5 percentage points, matching no
+#'   table of any GLEAM release (whep#921). It is kept selectable so the
+#'   values published before the ingest stay reproducible and the sensitivity
+#'   to the ingest stays measurable. It is **not** a defensible alternative
+#'   estimate.
+#'
+#'   This object is result-affecting through `.resolve_mms_shares()`: it
+#'   weights the Tier 2 manure CH4 methane conversion factor ([climate_mcf])
+#'   and the manure direct-N2O emission factor ([ipcc_2019_n2o_ef_direct]) at
+#'   both tiers.
 #'
 #' @examples
 #' regional_mms_distribution

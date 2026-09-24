@@ -63,6 +63,17 @@
 #'   Physical biomass systems can require more than one unit of intermediate
 #'   input per unit of output, so the footprint path defaults to `100` and only
 #'   clips extreme columns caused by residual inconsistencies or tiny outputs.
+#' @param a_denominator Which outputs A divides by when using `z_mat`.
+#'   `"traceable"` (the default) treats a sector with `x_vec <= output_tol` as
+#'   having no output, exactly as the extension intensities and
+#'   [check_footprint_conservation()] do, so its A column is zero.
+#'   `"nonzero"` divides by any non-zero output, which is the behaviour before
+#'   whep#1110: a residue output such as `1e-12` then inflates its column by
+#'   up to `1e12`, clipped only by `max_column_sum`. The two differ only for a
+#'   residue-output sector that still receives intermediate inputs, and a
+#'   warning of class `whep_residue_output_inputs` names how many there are
+#'   under either rule. Ignored when a precomputed `l_inv` is supplied without
+#'   `z_mat`. The choice is recorded in the `method_a_denominator` column.
 #' @param conserve_extensions If `TRUE`, rescale positive footprint
 #'   flows within each origin area/item so their sum does not exceed
 #'   the corresponding positive extension total. This keeps footprint
@@ -87,6 +98,8 @@
 #'   - `target_fd`: Demand category (e.g. `"food"`). Only
 #'     present when `fd_labels` is provided.
 #'   - `value`: Footprint value in extension units.
+#'   - `method_a_denominator`: The `a_denominator` rule A was built with, or
+#'     `"precomputed_l_inv"` when a precomputed `l_inv` was used.
 #'
 #' @export
 #'
@@ -121,9 +134,11 @@ compute_footprint <- function(
   output_tol = 1e-8,
   value_added_floor = 1e-3,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   report_conservation = FALSE
 ) {
+  a_denominator <- rlang::arg_match(a_denominator)
   n <- length(x_vec)
   .validate_footprint_inputs(
     l_inv,
@@ -169,7 +184,13 @@ compute_footprint <- function(
       z_mat,
       x_vec,
       value_added_floor = value_added_floor,
-      max_column_sum = max_column_sum
+      max_column_sum = max_column_sum,
+      min_output = .footprint_a_min_output(
+        z_mat,
+        x_vec,
+        output_tol,
+        a_denominator
+      )
     )
     .warn_sparse_dense_divergence(a_mat)
     ia <- Matrix::Diagonal(n) - a_mat
@@ -209,7 +230,14 @@ compute_footprint <- function(
   cli::cli_alert_success(
     "Footprint complete: {nrow(result)} non-zero flows."
   )
-  result
+  result |>
+    dplyr::mutate(
+      method_a_denominator = if (is.null(z_mat)) {
+        "precomputed_l_inv"
+      } else {
+        a_denominator
+      }
+    )
 }
 
 # Emit a one-line conservation gap report for the computed footprint.

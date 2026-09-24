@@ -7,6 +7,8 @@
 build_livestock_ghg_extension(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
+  options = list(),
   data = list(),
   example = FALSE
 )
@@ -17,18 +19,107 @@ build_livestock_ghg_extension(
 \item{gwp}{100-year global warming potential standard, \code{"ar6"} (default),
 \code{"ar5"} or \code{"ar4"}.}
 
+\item{method_diet}{How Tier 2 resolves each herd's \code{diet_quality}, which
+sets DE\% and so gross energy, enteric CH4, volatile solids and nitrogen
+excretion at once. \code{"per_cell_feed"} (default) derives it from the feed
+mix of the cell the herd is in; \code{"national_feed"} from the country's own
+mix; \code{"uniform_medium"} assumes the IPCC \code{"Medium"} diet for every herd.
+The gridded rung is the default because WHEP resolves a diet per cell and
+a diet varies within a country, so a national mix is a coarsening and an
+assumed Medium is coarser still. Both remain selectable. The assumption is
+never chosen implicitly, and the rung used is recorded in \code{method_ghg}.
+Ignored at Tier 1, whose emission factors carry no diet dimension.}
+
+\item{options}{A named list of manure-engine options. All but two defaults
+reproduce the behaviour in force before whep#949. The exceptions are
+\code{mcf_source}, which moved from the shipped table to the 2019 Refinement
+in whep#1022 and does move Tier 2 manure CH4, and \code{mms_shares}, which
+moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
+whep#958 and does move both tiers' manure N2O.
+
+\code{mms_shares} selects which half of \link{regional_mms_distribution} the
+split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
+S1 Tab. 4.2-4.11 ingest, \code{"placeholder"} the unsourced table it replaced
+in whep#958. The placeholder stays selectable so the values WHEP
+published before that ingest remain reproducible and the sensitivity to
+it stays measurable; it is not a defensible alternative estimate.
+
+\code{mms_region} selects how the manure-management split in
+\link{regional_mms_distribution} is keyed:
+\itemize{
+\item \code{"as_available"} (default): a row uses its own region when the frame
+already carries a \code{region} column, and the \code{region == "Global"} split
+otherwise. Tier 1 resolves a region for the (sourced) per-head
+N-excretion table and so takes the region-specific split; Tier 2 carries
+no region and so takes the Global one.
+\item \code{"resolve"}: the IPCC region is resolved from \code{iso3}, \code{area_code} or
+\code{polity_area_code} where it is missing, which makes the table's
+region-specific rows live on the Tier 2 path too. Opt-in because it
+changes which rows of the table apply, not because the rows are
+doubtful: since whep#958 they are the GLEAM 2.0 ingest.
+\item \code{"global"}: every row takes the \code{region == "Global"} split, whatever
+region column it carries.
+}
+
+\code{mcf_source} selects which methane conversion factor table the Tier 2
+manure CH4 weighting reads:
+\itemize{
+\item \code{"ipcc_2019"} (default): the matching \code{edition} rows of
+\link{climate_mcf_ipcc}, read off Table 10.17 (Updated) of the 2019
+Refinement, which is the current IPCC guidance.
+\item \code{"ipcc_2006"}: the matching \code{edition} rows of \link{climate_mcf_ipcc}, read
+off Table 10.17 of the 2006 Guidelines.
+\item \code{"as_shipped"}: \link{climate_mcf}, whose live rows are predominantly the
+2006 Guidelines Table 10.17 but with six cells that match no published
+IPCC value (whep#601, whep#1022). Kept selectable so an older run can
+be reproduced; it is no longer the default, because values whose
+provenance could not be established should not be what ships.
+}
+
+Neither edition publishes one number per Cool/Temperate/Warm zone for
+every system, so both as-published tables apply a stated collapse rule;
+see \link{climate_mcf_ipcc}. Both rules are WHEP's, not the IPCC's, and the
+default makes them live. \code{method_manure_ch4} records the table used.
+
+The default carries one known incompleteness: the Refinement pairs its
+single 0.47 percent pasture MCF with a mandatory \code{Bo} of 0.19, and this
+engine applies one per-species \code{Bo} to every stream, so the pair cannot be
+honoured here. See the corresponding section of \link{climate_mcf_ipcc}.
+
+\code{climate_source} selects where the climate zone the methane conversion
+factors in the MCF table are read at comes from. A \code{climate_zone} a row
+already carries is always used and stamped \code{climate_from_data}; the option
+governs only the rows left without one, whether that is a hole in a
+supplied column or a wholly absent column.
+\itemize{
+\item \code{"assumed"} (default): fill with \code{assumed_climate_zone}.
+\item \code{"from_data"}: abort instead of assuming.
+}
+
+\code{assumed_climate_zone} is the zone \code{"assumed"} fills in: \code{"Cool"},
+\code{"Temperate"} (default) or \code{"Warm"}. It is an assumption, not a
+measurement; \code{method_manure_ch4} records per row which of the sources
+applied, and this argument exists so the sensitivity to the assumption can
+be measured (whep#949).}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
-\code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output). It falls back to
-its reader when absent.}
+\code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output) and, for Tier 2
+with either feed-derived diet, \code{feed_intake} (the
+\code{\link[=get_feed_intake]{get_feed_intake()}} output). \code{primary_prod} falls back to its reader when
+absent; \code{feed_intake} does not, because \code{\link[=get_feed_intake]{get_feed_intake()}} rebuilds the
+whole feed allocation and would silently turn this extension into an
+hours-long build. Supply it, or choose \code{method_diet = "uniform_medium"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (livestock emissions in kilograms CO2e) and \code{method_ghg} (the
-chosen tier and GWP standard, e.g. \code{"IPCC_2019_Tier1_AR6"}), plus the
-polity columns below.
+\code{impact_u} (livestock emissions in kilograms CO2e), \code{method_ghg} (the
+chosen tier and GWP standard, e.g. \code{"IPCC_2019_Tier1_AR6"}), \code{method_mms}
+and \code{method_manure_ch4} (the manure-engine choices the summed rows took,
+\code{NA} when nothing reached the manure engine), plus the polity columns
+below.
 }
 \description{
 Aggregate per-animal IPCC livestock emissions into a footprint extension
@@ -71,6 +162,18 @@ N2O = 273.
 feedback).
 \item \code{"ar4"}: IPCC AR4 (2007), CH4 = 25, N2O = 298.
 }
+
+\code{options} is handed to \code{\link[=calculate_livestock_emissions]{calculate_livestock_emissions()}} unchanged, so the
+manure engine's method levers (which half of the manure-management table is
+read and how it is keyed, and which methane conversion factor table is read
+at which climate zone) are selectable from here too; passing none takes the
+engine's own defaults, so this entry point publishes what the engine does.
+\code{mms_shares} and \code{mms_region} bite at both tiers; the \code{tier = 1} default
+here is unaffected by \code{mcf_source} and by the climate options, because Tier
+1 manure CH4 comes from regional emission factors rather than a
+climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
+choice each row took is recorded in \code{method_mms} and \code{method_manure_ch4},
+which the extension carries into its own output.
 }
 \section{Polity columns}{
 

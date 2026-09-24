@@ -120,7 +120,11 @@ scoping_baseline <- "validation/gt_year_scoping.json"
   if (length(missing) > 0) {
     cli::cli_abort("Wide CBS is missing quantity column{?s}: {missing}.")
   }
+  # The wide CBS's own `unit` column (tonnes or heads, whep#1055) is fixed by
+  # `item_cbs_code`, which is already in the key, and would collide with the
+  # `unit` this harness names its quantity columns by.
   x |>
+    dplyr::select(-dplyr::any_of("unit")) |>
     tidyr::pivot_longer(
       dplyr::all_of(.scoping_cbs_quantities),
       names_to = "unit",

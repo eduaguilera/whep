@@ -9,15 +9,15 @@ Model bodies and climate functions as cited in
 }
 \usage{
 calculate_soc_dynamics(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   data = list(),
   example = FALSE
 )
 }
 \arguments{
 \item{model}{SOC model to run: one of \code{"hsoc"}, \code{"rothc"},
-\code{"icbm"}, \code{"amg"} or \code{"century"}. Defaults to the most
-detailed pool structure available, \code{"hsoc"}.}
+\code{"icbm"}, \code{"amg"}, \code{"century"} or \code{"lpjml"}.
+Defaults to the most detailed pool structure available, \code{"hsoc"}.}
 
 \item{data}{Named list of model arguments. Always carries
 \code{initial_soc_mgc_ha}, \code{c_input_mgc_ha_yr} and \code{years};

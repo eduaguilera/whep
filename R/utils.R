@@ -1,5 +1,27 @@
 # Suppress R CMD check warnings for NSE (Non Standard Evaluation)
-# data.table symbols (.N, .SD, ., ..) and package-internal dt variables
+# data.table symbols (.N, .SD, ., ..) and package-internal dt variables.
+#
+# Nothing generates this list -- it is hand-maintained, file-grouped prose plus
+# strings, and `devtools::document()` never touches it. Two invariants keep it
+# workable with many branches in flight, and `tests/testthat/test_utils.R`
+# asserts both (#1129):
+#
+#   1. This file contains nothing but the one `utils::globalVariables()` call.
+#      That is what makes the `R/utils.R merge=union` line in `.gitattributes`
+#      safe: union merge keeps both sides of a conflicting hunk, which is the
+#      right answer for an allowlist of strings -- order carries no meaning and
+#      `globalVariables()` drops duplicates -- and the wrong answer for
+#      anything else. A helper belongs in another file.
+#   2. The list ends in the `NULL` sentinel below, so every entry line is
+#      comma-terminated. Without it, two branches that each append a block
+#      merge into `"last of A"` followed by `"first of B"` with no comma
+#      between them -- a syntax error, which union merge would introduce
+#      silently. `c()` drops the `NULL`, so the sentinel costs nothing.
+#
+# Append new symbols as a block at the end, above the sentinel, preceded by a
+# comment naming the file and what the symbols are for. Do not reorder or
+# alphabetise: the file-grouped comments are the only thing making 2000 lines
+# reviewable.
 
 utils::globalVariables(
   c(
@@ -2397,19 +2419,166 @@ utils::globalVariables(
     "run_start",
     "share_divergence",
     "sown_ha",
-    "usable"
-  )
-)
+    "usable",
 
-# admin_shares_gate.R (#1000) — the three symbols the file's own header block
-# lists and that were never appended here. `offset` is created by a
-# `mutate()` and read on the next line of the same call
-# (`.sg_cell_pair_plan`, `.sg_regime_mismatch`); `pass` likewise in
-# `.sg_judged_series`. R CMD check reports both as "no visible binding".
-utils::globalVariables(
-  c(
+    # admin_shares_gate.R (#1000) — the three symbols the file's own header block
+    # lists and that were never appended here. `offset` is created by a
+    # `mutate()` and read on the next line of the same call
+    # (`.sg_cell_pair_plan`, `.sg_regime_mismatch`); `pass` likewise in
+    # `.sg_judged_series`. R CMD check reports both as "no visible binding".
     "matches_seam_start",
     "offset",
-    "pass"
+    "pass",
+    # livestock_climate.R (#1016) -- CRU annual reduction and the held
+    # climatology that stands in for the years before the record starts
+    "n_months",
+    "mean_annual_temp_c",
+    "method_climate_zone",
+    # gridded_livestock_emissions.R (#1016) -- per-cell IPCC emissions, the
+    # kilogram-to-kilotonne bridge, and the diet ladder that resolves
+    # diet_quality per row instead of defaulting it
+    "de_anchor_class",
+    "de_anchor_percent",
+    "de_percent_diet",
+    "intake_dry_matter",
+    "layer_diet",
+    "enteric_ch4_kt",
+    "manure_ch4_kt",
+    "manure_n2o_kt",
+    "enteric_ch4_kt_grid",
+    "enteric_ch4_kt_nat",
+    "manure_ch4_kt_grid",
+    "manure_ch4_kt_nat",
+    "manure_n2o_kt_grid",
+    "manure_n2o_kt_nat",
+    "divergence_enteric_ch4",
+    "divergence_manure_ch4",
+    "divergence_manure_n2o",
+    # livestock_manure.R (#1010, #1016) -- the declared assumptions a species
+    # outside the IPCC coefficient tables takes, and the base-category leg that
+    # makes swine and poultry reach their own nitrogen retention
+    "mms_basis",
+    "husbandry_like",
+    "n_ret_base",
+    "n_retention_base",
+    # gridded_livestock_emissions.R (#1016) -- `method_diet` is created by an
+    # earlier `mutate()` and read again on the right-hand side of the
+    # `if_else()` in `.apply_diet_layer()`, which R CMD check reports as a
+    # missing binding.
+    "method_diet",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms",
+    # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
+    # flag is folded on, so the restored `fao_flag` follows the source the
+    # value was selected from, plus the joined-in flag column
+    "source_group",
+    "n_group_flags",
+    "i.fao_flag",
+    # read_raw_inputs.R / build_production.R (#1044) — carrying the FAOSTAT
+    # observation-status flag from the production pin to the CBS. The two
+    # per-unit flags the yield dcast pivots ("Area harvested" and "Production"
+    # are flagged separately), their update-join counterparts, the grouped
+    # fold's own columns, and the character unit the parked lookup joins on
+    "flag_fu",
+    "flag_t",
+    "i.flag_fu",
+    "i.flag_t",
+    ".n_group_flags",
+    "fao_flag_folded",
+    "i.fao_flag_folded",
+    ".join_unit",
+    # build_cbs.R (#1024) — the per-key count of distinct units, used by
+    # `.abort_if_units_mixed()` to reject a sum that would add two
+    # denominations into one `value`
+    "n_units",
+    # build_cbs.R (#1065) — the reconstructed `production + import - export`
+    # domestic supply of a pre-1962 row, reported when it comes out negative
+    "computed_supply",
+    # build_cbs.R (#1085) — the historical-trade scale screen: the per-item
+    # world bound it joins on and the running world sum it is built from
+    "world_max",
+    "i.world_max",
+    "world",
+    # polity_lineage.R (#1004) — the national-side lineage walk. The per-pair
+    # key and frontier columns, the candidate/support match columns, and the
+    # published lineage columns
+    "pair_id",
+    "depth",
+    "path",
+    "edge_rank",
+    "live_code",
+    "family",
+    ".lineage_row",
+    ".lineage_area",
+    ".lineage_year",
+    "lineage_polity_code",
+    "method_polity_lineage",
+    # soil_carbon_inputs.R (#1006) — the nitrogen that travels with each
+    # carbon component so an input C:N can be formed, and the data.table
+    # masks `.sci_sum_components()` builds to total ONLY the components whose
+    # nitrogen is known together with the carbon that matched them
+    "n_mass_mg",
+    ".n_known",
+    ".c_with_n",
+    "input_n_mg",
+    "input_c_with_n_mg",
+    # livestock_coefs.R / livestock_manure.R (#1022) — the as-published MCF
+    # table the `mcf_source` option can read instead of `climate_mcf`, and
+    # the IPCC-edition column that selects one of its two transcriptions
+    "climate_mcf_ipcc",
+    "edition",
+    # polity_lineage.R (issue 1004) -- the succession edge list the polity
+    # lineage walk consumes, and the year-aware polity column it reads each
+    # row anchor from
+    "predecessor",
+    "reporting_polity_code",
+    # build_cbs.R (issue 980) -- flags a destiny share above one that comes
+    # from the `.cbs_pp_items()` construction rather than from a reported
+    # value, so the overflow report can separate the two
+    "structural",
+    # build_cbs.R (issue 1117) -- the reporter-level bound the historical
+    # trade scale screen reports against, and its join-side alias
+    "reporter_max",
+    "i.reporter_max",
+    # arable_permanent_land.R (issue 1034) -- the one folded spelling of the
+    # FAOSTAT RL unit label that both the land filter and its
+    # check_labels_supplied() guard read
+    "unit_key",
+    # read_raw_inputs.R (issue 1111) -- the `.test_cbs()` flag saying a row's
+    # supply side reconstructs `domestic_supply` to within rounding noise,
+    # which replaces the exact `ds_destinies == balance` equality
+    "supply_agrees",
+    # residue_destiny.R (issue 1175) -- the per-row flag that separates a
+    # recovery rate the table gives as zero from a zero standing in for a
+    # lookup that found nothing
+    "residue_recovery_matched",
+    # n_prov_destiny.R (issue 1014) -- processing volume above domestic
+    # production that the share cap leaves out, and the years it spans
+    "excess_fm",
+    "n_years",
+    # build_production.R (issue 1027) -- `fill_linear()`'s provenance of a
+    # fodder area, kept so a carried area is labelled as carried
+    "source_ha",
+    # check_series_jumps.R (whep#938) — each series' first time, where the
+    # dropout completion grid starts
+    ".time_first",
+    # arable_permanent_land.R (whep#938) — the per-country-year fodder input
+    # coverage label
+    "fodder_coverage",
+    # lpjml_landuse_floor.R (issue 985) -- the per-cell land-use total, the
+    # float32-resolution keep flag and the surviving total it renormalises to
+    "cell_total_",
+    "keep_",
+    "kept_total_",
+    # livestock_energy.R (issue 217) -- which NEl equation each row used
+    "method_lactation",
+    # build_trade.R (issue 232) -- fill_linear()'s provenance column, read to
+    # keep observed trade rows when the time extension is scoped to CBS cells
+    "source_country_share",
+    # Append sentinel. Keeps every entry above it comma-terminated, so two
+    # branches appending at once merge into valid R; `c()` drops it.
+    NULL
   )
 )

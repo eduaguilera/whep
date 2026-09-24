@@ -278,6 +278,14 @@ testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") rejects an unknow
   testthat::expect_error(whep::calculate_soil_n2o(x), "climate")
 })
 
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") aborts on a missing climate column", {
+  x <- tibble::tibble(n_input_t = 10)
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_missing_climate"
+  )
+})
+
 testthat::test_that("calculate_soil_n2o(method = \"ipcc2006\") distinguishes flooded from rainfed MED", {
   x <- tibble::tribble(
     ~n_input_t, ~climate, ~irrig_type,
@@ -572,11 +580,11 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows", 
   )
   out <- whep::calculate_indirect_n2o_nh3(x)
 
-  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows without touching the EF lookup", {
-  # The ATL branch is a flat nh3 * 0.016 that needs no emission factor or
+  # The ATL branch is a flat nh3 * 0.014 that needs no emission factor or
   # irrig_type column at all.
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type,
@@ -584,7 +592,7 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows wi
   )
   out <- whep::calculate_indirect_n2o_nh3(x)
 
-  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.016, tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf) for Mediterranean rows", {
@@ -616,6 +624,14 @@ testthat::test_that("calculate_indirect_n2o_nh3 aborts on an unsupported MED irr
 testthat::test_that("calculate_indirect_n2o_nh3 rejects an unknown climate", {
   x <- tibble::tibble(nh3_n_t = 1, climate = "MDE")
   testthat::expect_error(whep::calculate_indirect_n2o_nh3(x), "climate")
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 aborts on a missing climate column", {
+  x <- tibble::tibble(nh3_n_t = 1)
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(x),
+    class = "whep_missing_climate"
+  )
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 example fixture is schema-complete", {

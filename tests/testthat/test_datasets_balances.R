@@ -86,7 +86,7 @@ test_that("soc_turnover_params namespaces all five models", {
 
   testthat::expect_setequal(
     models,
-    c("hsoc", "rothc", "icbm", "amg", "century")
+    c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   )
 })
 
@@ -347,7 +347,7 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["a_cn_span_other"]], 60)
   testthat::expect_equal(lookup[["a_cn_max"]], 0.98)
   testthat::expect_equal(lookup[["ef5_no3_to_n2o"]], 0.011)
-  testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.016)
+  testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.014)
   testthat::expect_equal(lookup[["nh3_frac_synthetic"]], 0.11)
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
 })
@@ -456,4 +456,64 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   testthat::expect_equal(nrow(x), 10L)
   testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
   testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
+})
+
+# ---- the extdata CSVs must be well-formed CSV ---------------------------
+
+testthat::test_that("every balances CSV parses to a rectangle", {
+  # soc_turnover_params.csv shipped one description containing an unquoted
+  # comma. utils::read.csv() split it into a 7th field on a 6-column header,
+  # returning 48 rows with the description truncated at "dimensionless",
+  # while readr - which data-raw/ uses - returned 47 rows with it intact. The
+  # .rda was therefore right and the CSV it is built from was not, and the
+  # freshness gate could not see it because both sides ran the same reader.
+  dir <- system.file("extdata", "balances", package = "whep")
+  testthat::skip_if(dir == "")
+  for (f in list.files(dir, pattern = "[.]csv$", full.names = TRUE)) {
+    # Cross-READER, not self: two read.csv() calls on one file derive their
+    # column count from the same header and the same first lines, so they
+    # agree for every possible input including a corrupt one. Only comparing
+    # the reader that broke against the reader data-raw/ uses can see an
+    # unquoted comma, which spills a surplus field onto a NEW ROW under
+    # read.csv()'s fill = TRUE while readr keeps the record intact.
+    testthat::skip_if_not_installed("readr")
+    full <- utils::read.csv(f, check.names = FALSE)
+    tidy <- readr::read_csv(f, show_col_types = FALSE, progress = FALSE)
+    testthat::expect_equal(
+      ncol(full),
+      ncol(tidy),
+      label = paste(basename(f), "column count agrees between readers")
+    )
+    testthat::expect_equal(
+      nrow(full),
+      nrow(tidy),
+      label = paste(basename(f), "row count agrees between readers")
+    )
+    # A ragged row shows up as an all-NA trailing column or as a row whose
+    # last field is NA where the file has text.
+    testthat::expect_false(
+      any(vapply(full, \(col) all(is.na(col)), logical(1))),
+      label = paste(basename(f), "has no all-NA column")
+    )
+  }
+})
+
+testthat::test_that("soc_turnover_params reads identically through two readers", {
+  f <- system.file(
+    "extdata",
+    "balances",
+    "soc_turnover_params.csv",
+    package = "whep"
+  )
+  testthat::skip_if(f == "")
+  testthat::skip_if_not_installed("readr")
+
+  base_r <- utils::read.csv(f, stringsAsFactors = FALSE)
+  tidy <- as.data.frame(readr::read_csv(f, show_col_types = FALSE))
+
+  testthat::expect_equal(nrow(base_r), nrow(tidy))
+  testthat::expect_equal(names(base_r), names(tidy))
+  testthat::expect_equal(base_r$description, tidy$description)
+  # And the shipped .rda must match both, not just one of them.
+  testthat::expect_equal(nrow(whep::soc_turnover_params), nrow(base_r))
 })

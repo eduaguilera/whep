@@ -232,17 +232,21 @@ testthat::test_that("Volatile solids match IPCC 2019 Eq 10.24 (#160)", {
 # .calc_weighted_mcf ------------------------------------------------------------
 
 testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
-  # "Africa" has no region-specific rows in regional_mms_distribution, so the
-  # Global Cattle distribution must be used instead of the flat 2% default.
-  # Global Cattle mix x Temperate MCF (Table 10.17):
-  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 % -> 0.07225.
+  # A region with no rows for that species in regional_mms_distribution must
+  # use the species Global distribution, not the flat 2% default. Since the
+  # GLEAM 2.0 ingest (whep#958) covers all nine region labels for cattle, the
+  # gap has to be found in a species the source leaves one for: Tab. 4.5 and
+  # 4.6 publish no Oceania column for either buffalo herd.
+  # Global buffalo mix x Temperate MCF, at the default mcf_source of
+  # ipcc_2019 (2019 Refinement Table 10.17 Updated):
+  #   0.2155*0.5 + 0.2137*39.0 + 0.2000*0.47 + 0.3707*4.0 = 10.0203 %.
   result <- tibble::tribble(
-    ~species_gen, ~region,  ~climate_zone,
-    "Cattle",     "Africa", "Temperate"
+    ~species_gen, ~region,   ~climate_zone,
+    "Buffalo",    "Oceania", "Temperate"
   ) |>
     whep:::.calc_weighted_mcf()
 
-  testthat::expect_equal(result$weighted_mcf, 0.07225)
+  testthat::expect_equal(result$weighted_mcf, 0.1002032, tolerance = 1e-6)
   # Must not collapse to the flat 2% (0.02) default.
   testthat::expect_false(isTRUE(all.equal(result$weighted_mcf, 0.02)))
 })
@@ -250,16 +254,17 @@ testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
 # .calc_direct_n2o --------------------------------------------------------------
 
 testthat::test_that("Direct N2O falls back to Global MMS mix (#201)", {
-  # A region without region-specific MMS rows ("Africa") must reuse the Global
+  # A region without region-specific MMS rows must reuse the Global
   # distribution, giving the same weighted EF3 as an explicit "Global" region,
-  # not the flat pasture default (EF3 = 0.005).
+  # not the flat pasture default (EF3 = 0.005). Buffalo in Oceania is the gap
+  # the GLEAM 2.0 ingest leaves; cattle now have all nine labels.
   base <- tibble::tribble(
     ~species_gen, ~n_excretion, ~heads,
-    "Cattle",     100,          10
+    "Buffalo",    100,          10
   )
 
   africa <- base |>
-    dplyr::mutate(region = "Africa") |>
+    dplyr::mutate(region = "Oceania") |>
     whep:::.calc_direct_n2o() |>
     dplyr::pull(manure_n2o_direct)
   global <- base |>
@@ -356,12 +361,17 @@ testthat::test_that("Global poultry direct N2O uses the litter EF3 (#950)", {
   ) |>
     whep:::.calc_direct_n2o()
 
-  # Global poultry MMS split: 0.80 "Poultry Manure" + 0.20 "Solid Storage".
   # ipcc_2019_n2o_ef_direct carries no "Poultry Manure" row, so the label-only
-  # join left 0.80 of the split on the 0.005 "Other" coalesce default and the
-  # weighted EF3 came out a flat 0.005. Resolved through .manure_ef3() the
-  # deep-litter row applies: 0.80 * 0.001 + 0.20 * 0.005 = 0.0018.
-  testthat::expect_equal(result$manure_n2o_direct, 0.0018 * (44 / 28))
+  # join left the poultry-manure share of the split on the 0.005 "Other"
+  # coalesce default and the weighted EF3 came out a flat 0.005. Resolved
+  # through .manure_ef3() the deep-litter row applies instead. Under the GLEAM
+  # 2.0 Global poultry split (Tab. 4.11, layer / broiler / backyard averaged)
+  # that gives a weighted EF3 of 0.004526.
+  testthat::expect_equal(
+    result$manure_n2o_direct,
+    0.004526109375 * (44 / 28),
+    tolerance = 1e-8
+  )
   testthat::expect_false(
     isTRUE(all.equal(result$manure_n2o_direct, 0.005 * (44 / 28)))
   )
@@ -392,7 +402,7 @@ testthat::test_that("every shipped MMS label resolves an EF3 and an MCF (#950)",
 
 testthat::test_that("an MMS label with no EF3 aborts instead of taking 0.005", {
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,          ~fraction,
         "Cattle", "Composting - Bin", 1
@@ -415,7 +425,7 @@ testthat::test_that("an MMS label with no MCF row aborts instead of taking 2%", 
   # "Anaerobic Digester" exists in climate_mcf only with climate_zone "All",
   # so a Temperate lookup misses it and used to coalesce to a flat 2.0 percent.
   testthat::local_mocked_bindings(
-    .mms_global_shares = function() {
+    .mms_global_shares = function(shares = "gleam_2_0") {
       tibble::tribble(
         ~species, ~mms_type,            ~fraction,
         "Cattle", "Anaerobic Digester", 1
@@ -467,15 +477,91 @@ testthat::test_that("Tier 2 manure resolves the IPCC region on request (#949)", 
 
   testthat::expect_false("region" %in% names(default))
   testthat::expect_equal(unique(regional$region), "North America")
-  # Global cattle mix x Temperate MCF (Table 10.17):
-  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 percent.
-  # North America's mix is 0.40 Liquid/Slurry, 0.30 Solid Storage,
-  # 0.25 Pasture, 0.05 Daily Spread:
-  #   0.40*35.0 + 0.30*4.0 + 0.25*1.5 + 0.05*0.5 = 15.6 percent.
-  testthat::expect_equal(unique(default$weighted_mcf), 0.07225)
-  testthat::expect_equal(unique(regional$weighted_mcf), 0.156)
-  testthat::expect_equal(unique(default$method_mms), "regional_default")
-  testthat::expect_equal(unique(regional$method_mms), "region_specific")
+  # Global cattle mix under the GLEAM 2.0 ingest, weighted by the Temperate
+  # MCFs of the default mcf_source of ipcc_2019: shares 0.4435 pasture,
+  # 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon and 0.0090
+  # daily spread, against MCFs of 0.47, 4.0, 39.0, 74.5 and 0.5 percent, give
+  # 6.4894 percent.
+  # North America's shares are 0.275, 0.405, 0.135, 0.135 and 0.05 over the
+  # same five systems, giving 17.09675 percent.
+  testthat::expect_equal(
+    unique(default$weighted_mcf),
+    0.064894367234,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(unique(regional$weighted_mcf), 0.1709675)
+  testthat::expect_equal(
+    unique(default$method_mms),
+    "gleam_2_0/regional_default"
+  )
+  testthat::expect_equal(
+    unique(regional$method_mms),
+    "gleam_2_0/region_specific"
+  )
+})
+
+testthat::test_that("mms_shares selects the table half the engine weights", {
+  # whep#958: the manure engines default to the GLEAM 2.0 ingest and keep the
+  # unsourced placeholder selectable. Both effective factors must move with
+  # the option, and an unknown name must abort.
+  data <- tibble::tribble(
+    ~species_gen, ~region,  ~climate_zone, ~n_excretion, ~heads,
+    "Cattle",     "Global", "Temperate",   100,          10
+  )
+
+  gleam <- whep:::.calc_weighted_mcf(data)
+  old <- whep:::.calc_weighted_mcf(
+    data,
+    options = list(mms_shares = "placeholder")
+  )
+  # Both at the default mcf_source of ipcc_2019, Temperate. The GLEAM 2.0
+  # split is the five-system mix above; the placeholder's is
+  #   0.50*0.47 + 0.30*4.0 + 0.15*39.0 + 0.05*0.5 = 7.31 percent.
+  testthat::expect_equal(
+    gleam$weighted_mcf,
+    0.064894367234,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(old$weighted_mcf, 0.0731)
+
+  gleam_n2o <- whep:::.calc_direct_n2o(data)$manure_n2o_direct
+  old_n2o <- whep:::.calc_direct_n2o(
+    data,
+    options = list(mms_shares = "placeholder")
+  )$manure_n2o_direct
+  testthat::expect_equal(
+    gleam_n2o,
+    1000 * 0.00694502 * (44 / 28),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(old_n2o, 1000 * 0.0073 * (44 / 28))
+
+  # The half is recorded, not only applied: `method_mms` names it before the
+  # keying, the same string `split_manure_management()` stamps, so a frame
+  # cannot reach the extension output saying how it was keyed while staying
+  # silent about which table it was keyed into.
+  testthat::expect_equal(
+    unique(whep:::.calc_direct_n2o(data)$method_mms),
+    "gleam_2_0/region_specific"
+  )
+  testthat::expect_equal(
+    unique(
+      whep:::.calc_direct_n2o(
+        data,
+        options = list(mms_shares = "placeholder")
+      )$method_mms
+    ),
+    "placeholder/region_specific"
+  )
+
+  testthat::expect_error(
+    whep::calculate_manure_emissions(
+      single_tier1_fixture(),
+      tier = 1,
+      options = list(mms_shares = "gleam_3_0")
+    ),
+    "mms_shares"
+  )
 })
 
 testthat::test_that("a region request with no area key warns and is recorded", {
@@ -490,7 +576,7 @@ testthat::test_that("a region request with no area key warns and is recorded", {
     class = "whep_no_region_key"
   )
   testthat::expect_false("region" %in% names(out))
-  testthat::expect_equal(unique(out$method_mms), "regional_default")
+  testthat::expect_equal(unique(out$method_mms), "gleam_2_0/regional_default")
 })
 
 testthat::test_that("mms_region 'global' ignores a region column", {
@@ -509,7 +595,10 @@ testthat::test_that("mms_region 'global' ignores a region column", {
   testthat::expect_false(
     isTRUE(all.equal(regional$manure_n2o_direct, global$manure_n2o_direct))
   )
-  testthat::expect_equal(unique(forced$method_mms), "regional_default")
+  testthat::expect_equal(
+    unique(forced$method_mms),
+    "gleam_2_0/regional_default"
+  )
 })
 
 testthat::test_that("the assumed climate zone is selectable and recorded", {
@@ -527,11 +616,12 @@ testthat::test_that("the assumed climate zone is selectable and recorded", {
     options = list(assumed_climate_zone = "Cool")
   )
 
-  # Global cattle mix x Warm MCF:
-  #   0.50*2.0 + 0.30*5.0 + 0.15*80.0 + 0.05*1.0 = 14.55 percent.
-  # x Cool MCF: 0.50*1.0 + 0.30*2.0 + 0.15*17.0 + 0.05*0.1 = 3.655 percent.
-  testthat::expect_equal(warm$weighted_mcf, 0.1455)
-  testthat::expect_equal(cool$weighted_mcf, 0.03655)
+  # Global cattle mix (GLEAM 2.0 ingest) over the same five systems as above,
+  # at the default mcf_source of ipcc_2019. Warm MCFs of 0.47, 5.0, 70.5,
+  # 79.0 and 1.0 percent give 9.6756 percent; Cool MCFs of 0.47, 2.0, 18.75,
+  # 56.5 and 0.1 percent give 3.5922 percent.
+  testthat::expect_equal(warm$weighted_mcf, 0.096755978175, tolerance = 1e-9)
+  testthat::expect_equal(cool$weighted_mcf, 0.035921982087, tolerance = 1e-9)
   testthat::expect_match(warm$method_manure_ch4, "climate_assumed_warm")
   testthat::expect_match(cool$method_manure_ch4, "climate_assumed_cool")
 })
@@ -553,8 +643,173 @@ testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
   supplied <- data |>
     dplyr::mutate(climate_zone = "Warm") |>
     whep:::.calc_weighted_mcf(options = list(climate_source = "from_data"))
-  testthat::expect_equal(supplied$weighted_mcf, 0.1455)
+  testthat::expect_equal(
+    supplied$weighted_mcf,
+    0.096755978175,
+    tolerance = 1e-9
+  )
   testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
+})
+
+testthat::test_that("mcf_source selects the MCF table and records it", {
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+  weighted <- function(src) {
+    whep:::.calc_weighted_mcf(data, options = list(mcf_source = src))
+  }
+
+  shipped <- weighted("as_shipped")
+  gl2006 <- weighted("ipcc_2006")
+  ref2019 <- weighted("ipcc_2019")
+
+  # Global cattle mix under the default `mms_shares` of gleam_2_0 -- 0.4435
+  # pasture, 0.4469 solid storage, 0.0845 liquid slurry, 0.0160 lagoon,
+  # 0.0090 daily spread -- read at the Temperate default. Only the pasture,
+  # liquid-slurry and lagoon MCFs differ between the three tables:
+  #   as shipped: pasture 1.5,  slurry 35, lagoon 73.0 is 6.5841 percent.
+  #   2006:       pasture 1.5,  slurry 42, lagoon 78.0 is 7.2559 percent.
+  #   2019:       pasture 0.47, slurry 39, lagoon 74.5 is 6.4894 percent.
+  testthat::expect_equal(shipped$weighted_mcf, 0.065841425311, tolerance = 1e-9)
+  testthat::expect_equal(gl2006$weighted_mcf, 0.072558568169, tolerance = 1e-9)
+  testthat::expect_equal(ref2019$weighted_mcf, 0.064894367234, tolerance = 1e-9)
+
+  testthat::expect_match(shipped$method_manure_ch4, "mcf_as_shipped")
+  testthat::expect_match(gl2006$method_manure_ch4, "mcf_ipcc_2006")
+  testthat::expect_match(ref2019$method_manure_ch4, "mcf_ipcc_2019")
+
+  # The default is the 2019 Refinement (whep#1022), so an unasked-for call
+  # must equal the ipcc_2019 one and stamp it.
+  default <- whep:::.calc_weighted_mcf(data)
+  testthat::expect_equal(default$weighted_mcf, ref2019$weighted_mcf)
+  testthat::expect_match(default$method_manure_ch4, "mcf_ipcc_2019")
+})
+
+testthat::test_that("each mcf_source reproduces its own table exactly", {
+  # The referential form: over every species and zone the engine can reach,
+  # the weighted MCF equals the share-weighted sum computed from the selected
+  # table outside the engine. Run for all three sources, so the guarantee is
+  # not tied to whichever one happens to be the default.
+  grid <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+
+  for (src in c("ipcc_2019", "ipcc_2006", "as_shipped")) {
+    engine <- whep:::.calc_weighted_mcf(grid, options = list(mcf_source = src))
+
+    independent <- whep:::.mms_global_shares() |>
+      dplyr::rename(species_gen = "species") |>
+      dplyr::inner_join(
+        grid,
+        by = "species_gen",
+        relationship = "many-to-many"
+      ) |>
+      dplyr::inner_join(
+        whep:::.mcf_table(src),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::summarise(
+        expected_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+        .by = c("species_gen", "climate_zone")
+      )
+
+    joined <- dplyr::inner_join(
+      engine,
+      independent,
+      by = c("species_gen", "climate_zone")
+    )
+    testthat::expect_equal(nrow(joined), nrow(grid), label = src)
+    testthat::expect_equal(joined$weighted_mcf, joined$expected_mcf)
+  }
+})
+
+testthat::test_that("the shipped default mcf_source is the 2019 Refinement", {
+  # whep#1022: the default moved off `climate_mcf`, whose live rows carry six
+  # cells matching no published IPCC value, onto the 2019 Refinement. Pinned
+  # over the whole reachable grid so a silent revert cannot pass.
+  grid <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  default <- whep:::.calc_weighted_mcf(grid)
+  ref2019 <- whep:::.calc_weighted_mcf(
+    grid,
+    options = list(mcf_source = "ipcc_2019")
+  )
+  shipped <- whep:::.calc_weighted_mcf(
+    grid,
+    options = list(mcf_source = "as_shipped")
+  )
+
+  testthat::expect_equal(default$weighted_mcf, ref2019$weighted_mcf)
+  testthat::expect_true(all(grepl("mcf_ipcc_2019", default$method_manure_ch4)))
+  # And the flip is not a no-op: the two tables disagree on the live rows.
+  testthat::expect_false(
+    isTRUE(all.equal(default$weighted_mcf, shipped$weighted_mcf))
+  )
+})
+
+testthat::test_that("every shipped MMS label resolves an MCF, any source", {
+  # Extends the whep#950 referential invariant to the selectable tables: a
+  # label the engine can hand the MCF join must resolve a non-NA factor in all
+  # three zones whichever table is in force. This is what would catch an MMS
+  # vocabulary that starts routing manure to the 2006 anaerobic digester,
+  # which has no published default.
+  labels <- unique(whep::regional_mms_distribution$mms_type)
+  grid <- tidyr::expand_grid(
+    mms_type = labels,
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  for (src in c("as_shipped", "ipcc_2006", "ipcc_2019")) {
+    matched <- grid |>
+      dplyr::inner_join(
+        whep:::.mcf_table(src),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::filter(!is.na(.data$mcf_percent))
+    testthat::expect_equal(
+      nrow(matched),
+      nrow(grid),
+      label = paste("resolved MCF cells under", src)
+    )
+  }
+})
+
+testthat::test_that("the 2006 anaerobic digester has no MCF and aborts", {
+  # 2006 Table 10.17 gives the digester as 0 to 100 percent and requires the
+  # compiler to evaluate its Formula 1, so `climate_mcf_ipcc` carries NA. A
+  # split that routes manure there must abort rather than take a number the
+  # edition does not publish.
+  testthat::local_mocked_bindings(
+    .mms_global_shares = function(shares = "gleam_2_0") {
+      tibble::tribble(
+        ~species, ~mms_type,            ~fraction,
+        "Cattle", "Anaerobic Digester", 1
+      )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(
+      data,
+      options = list(mcf_source = "ipcc_2006")
+    ),
+    class = "whep_missing_mcf"
+  )
+})
+
+testthat::test_that("an unknown mcf_source value aborts", {
+  testthat::expect_error(
+    whep:::.manure_options(list(mcf_source = "ipcc_2013")),
+    "mcf_source"
+  )
 })
 
 testthat::test_that("an unknown manure option name aborts", {
@@ -566,4 +821,526 @@ testthat::test_that("an unknown manure option name aborts", {
     ),
     class = "whep_manure_options"
   )
+})
+# .calc_weighted_mcf: declare the climate assumption, never hide it -----------
+
+testthat::test_that("a missing climate zone is assumed, stamped, not refused", {
+  # The absent-column case has always assumed Temperate and stamped it. A hole
+  # inside a supplied column is the same absence, so it takes the same declared
+  # assumption -- refusing it would exclude an animal whose manure exists.
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Dairy Cattle"),
+    species_gen = "Cattle",
+    subcategory = "Dairy",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = c("Warm", NA_character_)
+  )
+
+  testthat::expect_warning(
+    result <- whep:::.calc_weighted_mcf(data),
+    "climate_zone"
+  )
+
+  testthat::expect_false(anyNA(result$weighted_mcf))
+  # Only the unresolved row is stamped: the measured row stays measured.
+  testthat::expect_equal(
+    grepl("climate_assumed_temperate", result$method_manure_ch4),
+    c(FALSE, TRUE)
+  )
+  # And the assumed row really took the Temperate mix, not the Warm one.
+  temperate <- data |>
+    dplyr::mutate(climate_zone = "Temperate") |>
+    whep:::.calc_weighted_mcf()
+  testthat::expect_equal(result$weighted_mcf[2], temperate$weighted_mcf[2])
+})
+
+testthat::test_that("an absent climate column keeps its declared assumption", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    subcategory = "Dairy",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_weighted_mcf(data)
+
+  testthat::expect_true(
+    grepl("climate_assumed_temperate", result$method_manure_ch4)
+  )
+})
+
+
+testthat::test_that("an unknown climate zone aborts instead of taking 2%", {
+  # `climate_mcf` keys Cool, Temperate and Warm. Any other non-NA label found
+  # no MCF row and was handed the 2% liquid/slurry default one line below the
+  # NA guard -- silently, with no warning and no method stamp. `cell_climate`
+  # is a caller-supplied argument, so any label can arrive here.
+  data <- tibble::tibble(
+    species = "Cattle, dairy",
+    species_gen = "Cattle",
+    subcategory = "Dairy",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = "Boreal"
+  )
+
+  msg <- tryCatch(
+    {
+      whep:::.calc_weighted_mcf(data)
+      "<no error was raised>"
+    },
+    error = conditionMessage
+  )
+  testthat::expect_match(msg, "Boreal", fixed = TRUE)
+  testthat::expect_match(msg, "climate_zone", fixed = TRUE)
+})
+
+
+testthat::test_that("the three keyed zones all resolve without a default", {
+  # The complement of the test above: every zone `climate_mcf` keys must go
+  # through, or the new guard would be rejecting valid input.
+  data <- tibble::tibble(
+    species = "Cattle, dairy",
+    species_gen = "Cattle",
+    subcategory = "Dairy",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+
+  result <- whep:::.calc_weighted_mcf(data)
+  testthat::expect_equal(nrow(result), 3L)
+  testthat::expect_false(any(is.na(result$weighted_mcf)))
+  # A real weighted MCF, not the 2% default standing in for one.
+  testthat::expect_false(all(result$weighted_mcf == 0.02))
+})
+
+
+testthat::test_that("the residual FAOSTAT species takes a declared split", {
+  # "Animals live nes" is one of the four species WHEP's livestock vocabulary
+  # carries and `regional_mms_distribution` omits. It argues no neighbour --
+  # it is a residual category with no single husbandry -- so it takes the
+  # minor-livestock fallback and says so in `method_manure_ch4`.
+  data <- tibble::tibble(
+    species = "Animals live nes",
+    species_gen = "Animals live nes",
+    subcategory = "All",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = "Temperate"
+  )
+
+  testthat::expect_warning(
+    result <- whep:::.calc_weighted_mcf(data),
+    "Animals live nes"
+  )
+
+  # All of it deposited where it falls, so the weighted MCF is the Temperate
+  # pasture row of whatever table `mcf_source` defaults to -- read from that
+  # table rather than written down, so flipping the default cannot leave this
+  # assertion silently checking a table the engine no longer reads.
+  pasture_mcf <- whep:::.mcf_table(whep:::.manure_options(list())$mcf_source) |>
+    dplyr::filter(
+      mms_type == "Pasture/Range/Paddock",
+      climate_zone == "Temperate"
+    ) |>
+    dplyr::pull(mcf_percent)
+  testthat::expect_equal(result$weighted_mcf, pasture_mcf / 100)
+  testthat::expect_match(result$method_manure_ch4, "mms_assumed_pasture")
+})
+
+
+testthat::test_that("a species outside the argued list still aborts", {
+  # The complement of the test above, and the line between an absent quantity
+  # and an absent contract. The four species the fill covers are named; a
+  # species nobody has argued a husbandry for is a vocabulary defect a
+  # maintainer can fix, so it aborts rather than being given an invented split.
+  data <- tibble::tibble(
+    species = "Llamas",
+    species_gen = "Llamas",
+    subcategory = "All",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = "Temperate"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(data),
+    class = "whep_missing_mms_species"
+  )
+})
+
+
+testthat::test_that("rabbits take the poultry MMS split, and say so", {
+  # `livestock_mapping.csv`'s species_group == "other" (Rabbits and hares,
+  # Rodents other, Animals live nes) is what actually reaches this. Rabbits and
+  # cavies are caged small stock whose manure is collected dry, so the shipped
+  # Poultry split is the argued neighbour -- not a bare 2 %.
+  data <- tibble::tibble(
+    species = "Rabbits and hares",
+    species_gen = "Rabbits and hares",
+    subcategory = "All",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = "Temperate"
+  )
+
+  result <- suppressWarnings(whep:::.calc_weighted_mcf(data))
+
+  poultry <- tibble::tibble(
+    species = "Chickens",
+    species_gen = "Poultry",
+    subcategory = "All",
+    heads = 100,
+    method_manure_ch4 = "IPCC_2019_Tier2",
+    climate_zone = "Temperate"
+  ) |>
+    whep:::.calc_weighted_mcf()
+
+  testthat::expect_equal(result$weighted_mcf, poultry$weighted_mcf)
+  testthat::expect_match(result$method_manure_ch4, "mms_assumed_poultry")
+  # The poultry row is measured, so it carries no assumption stamp at all.
+  testthat::expect_false(grepl("assumed", poultry$method_manure_ch4))
+
+  # The borrowed split must be a distribution, in EITHER half. whep#958 gave
+  # `regional_mms_distribution` two `source` halves; a neighbour lookup that
+  # filters only on `region == "Global"` then matches both at once and hands
+  # the borrowing species fractions summing to 2 -- mass the engine multiplies
+  # straight into its emissions, with every group still "summing to one" in the
+  # table itself. Asserted on the sum, not on a value, so it cannot be
+  # satisfied by a half that happens to be zero.
+  for (half in c("placeholder", "gleam_2_0")) {
+    assumed <- whep:::.assumed_mms_shares("Rabbits and hares", half)
+    testthat::expect_equal(sum(assumed$fraction), 1)
+    testthat::expect_gt(nrow(assumed), 0L)
+    borrowed <- suppressWarnings(whep:::.calc_weighted_mcf(
+      data,
+      list(mms_shares = half)
+    ))
+    lender <- whep:::.calc_weighted_mcf(
+      tibble::tibble(
+        species = "Chickens",
+        species_gen = "Poultry",
+        subcategory = "All",
+        heads = 100,
+        method_manure_ch4 = "IPCC_2019_Tier2",
+        climate_zone = "Temperate"
+      ),
+      list(mms_shares = half)
+    )
+    testthat::expect_equal(borrowed$weighted_mcf, lender$weighted_mcf)
+  }
+})
+
+
+testthat::test_that("Tier 2 manure CH4 resolves for a species IPCC omits", {
+  # Regression for the abort this replaces: one unmapped species used to take
+  # the whole run down, including every species that WAS resolvable. With the
+  # energy balance supplied by the caller, both rows now produce a number.
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Rabbits and hares"),
+    species_gen = c("Cattle", "Rabbits and hares"),
+    subcategory = "All",
+    heads = c(100, 100),
+    gross_energy = c(250, 2),
+    de_percent = 65,
+    climate_zone = "Temperate",
+    method_manure_ch4 = "IPCC_2019_Tier2"
+  )
+
+  result <- suppressWarnings(whep:::.calc_manure_ch4_tier2(data))
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_false(anyNA(result$manure_ch4_tier2))
+  testthat::expect_true(all(result$manure_ch4_tier2 > 0))
+  # Every assumption the unmapped row took is filterable from its method stamp.
+  testthat::expect_false(grepl("assumed", result$method_manure_ch4[1]))
+  testthat::expect_match(result$method_manure_ch4[2], "mms_assumed_poultry")
+  testthat::expect_match(result$method_manure_ch4[2], "bo_assumed_")
+  testthat::expect_match(result$method_manure_ch4[2], "ash_assumed_")
+})
+
+
+testthat::test_that("a row with no weighted MCF aborts, never passes NA", {
+  msg <- tryCatch(
+    {
+      whep:::.check_weighted_mcf(tibble::tibble(weighted_mcf = NA_real_))
+      "<no error was raised>"
+    },
+    error = conditionMessage
+  )
+  testthat::expect_match(msg, "weighted_mcf", fixed = TRUE)
+})
+
+
+# Declared assumptions for species no IPCC table covers -----------------------
+
+testthat::test_that(".join_bo declares an assumed Bo, never invents one", {
+  # `ipcc_tier2_bo_values` covers twelve categories. Anything else used to take
+  # a bare 0.18 -- Other Cattle's Bo -- with nothing recording that it was not
+  # measured.
+  data <- tibble::tribble(
+    ~species,            ~species_gen,        ~method_manure_ch4,
+    "Dairy Cattle",      "Cattle",            "IPCC_2019_Tier2",
+    "Rabbits and hares", "Rabbits and hares", "IPCC_2019_Tier2",
+    "Llamas",            "Llamas",            "IPCC_2019_Tier2"
+  )
+
+  result <- suppressWarnings(whep:::.join_bo(data))
+
+  horses_bo <- ipcc_tier2_bo_values |>
+    dplyr::filter(category == "Horses") |>
+    dplyr::pull(bo_m3_kg_vs)
+  testthat::expect_equal(result$methane_potential[1], 0.24)
+  testthat::expect_equal(result$methane_potential[2], horses_bo)
+  testthat::expect_equal(
+    result$methane_potential[3],
+    mean(ipcc_tier2_bo_values$bo_m3_kg_vs)
+  )
+  # Measured rows stay unstamped; assumed rows are filterable.
+  testthat::expect_equal(
+    grepl("bo_assumed_", result$method_manure_ch4),
+    c(FALSE, TRUE, TRUE)
+  )
+  # And the old bare 0.18 is not what an unmapped species gets any more.
+  testthat::expect_false(any(result$methane_potential[2:3] == 0.18))
+})
+
+
+testthat::test_that("volatile solids declare an assumed ash content", {
+  data <- tibble::tribble(
+    ~species,            ~species_gen,        ~gross_energy, ~de_percent,
+    "Dairy Cattle",      "Cattle",            200,           65,
+    "Rabbits and hares", "Rabbits and hares", 2,             65,
+    "Llamas",            "Llamas",            5,             65
+  )
+
+  result <- suppressWarnings(whep:::.calc_volatile_solids(data))
+
+  horses_ash <- ipcc_tier2_manure_ash |>
+    dplyr::filter(category == "Horses") |>
+    dplyr::pull(ash_percent)
+  testthat::expect_equal(
+    result$ash_percent,
+    c(8, horses_ash, mean(ipcc_tier2_manure_ash$ash_percent))
+  )
+  testthat::expect_equal(
+    grepl("ash_assumed_", result$method_manure_ch4),
+    c(FALSE, TRUE, TRUE)
+  )
+})
+
+
+testthat::test_that("an absent diet declares the crude protein it assumed", {
+  # 12 % is not a free-standing number: it is the Medium diet's crude protein
+  # in `feed_characteristics`. Say so, and stamp the row that took it.
+  data <- tibble::tribble(
+    ~species,       ~species_gen, ~gross_energy, ~method_manure_n2o,
+    "Dairy Cattle", "Cattle",     250,           "IPCC_2019_Tier2"
+  )
+
+  result <- suppressWarnings(whep:::.calc_n_excretion(data))
+
+  medium_cp <- feed_characteristics |>
+    dplyr::filter(diet_quality == "Medium") |>
+    dplyr::pull(cp_percent)
+  testthat::expect_equal(result$cp_percent, medium_cp)
+  testthat::expect_match(result$method_manure_n2o, "cp_assumed_medium_diet")
+})
+
+
+testthat::test_that("a supplied diet leaves the crude protein unstamped", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    gross_energy = 250,
+    diet_quality = "High",
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_n_excretion(data)
+
+  testthat::expect_equal(result$cp_percent, 16)
+  testthat::expect_equal(result$method_manure_n2o, "IPCC_2019_Tier2")
+})
+
+
+testthat::test_that("swine and poultry reach their own N retention, not 0.07", {
+  # `.get_bo_category()` keys swine and poultry by subcategory
+  # ("Swine - Market", "Poultry - Layers") but `ipcc_tier2_n_retention` keys
+  # them by species, so the join never matched and both took the invented 0.07
+  # -- inflating their nitrogen excretion by (1-0.07)/(1-0.30) = 33 %.
+  data <- tibble::tibble(
+    species = c("Swine", "Chickens, layers", "Dairy Cattle"),
+    species_gen = c("Swine", "Poultry", "Cattle"),
+    gross_energy = c(100, 10, 250),
+    diet_quality = "Medium",
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_n_excretion(data)
+
+  testthat::expect_equal(result$n_retention_frac, c(0.30, 0.30, 0.20))
+  testthat::expect_false(any(grepl("assumed", result$method_manure_n2o)))
+})
+
+
+testthat::test_that("breeding swine take the breeding Bo, not the market one", {
+  # whep#1107. The Bo category helper matched only the literal "Breed", but
+  # animals_codes carries FAOSTAT 1051 "Swine, breeding" under the item_cbs
+  # name "Hogs", which is what the emissions bridge puts in the species
+  # column. So the breeding herd would have taken the market-swine methane
+  # potential, 0.45 against 0.27 m3 CH4 per kg VS.
+  categories <- whep:::.get_bo_category(
+    c("Pigs", "Hogs", "Swine - Breeding", "Chickens, layers"),
+    c("Swine", "Swine", "Swine", "Poultry")
+  )
+
+  testthat::expect_equal(
+    categories,
+    c(
+      "Swine - Market",
+      "Swine - Breeding",
+      "Swine - Breeding",
+      "Poultry - Layers"
+    )
+  )
+})
+
+
+testthat::test_that("each swine half takes its own published N excretion", {
+  # `ipcc_2019_n_excretion` publishes "Swine - Market" 15 and
+  # "Swine - Breeding" 18 kg N head-1 yr-1. Before whep#1107 the whole herd
+  # arrived as one "Swine" key and took their mean, 16.5 -- a rate no animal
+  # has. FAOSTAT reports the halves separately, so key each on its own row.
+  data <- tibble::tibble(
+    species = c("Pigs", "Hogs"),
+    species_gen = c("Swine", "Swine"),
+    heads = c(900, 100)
+  )
+
+  result <- whep:::.join_n_excretion_tier1(data)
+
+  testthat::expect_equal(
+    result$manure_category,
+    c(
+      "Swine - Market",
+      "Swine - Breeding"
+    )
+  )
+  testthat::expect_equal(result$n_excretion, c(15, 18))
+})
+
+
+testthat::test_that("an unmapped species declares its assumed N retention", {
+  data <- tibble::tribble(
+    ~species,            ~species_gen,        ~gross_energy, ~diet_quality,
+    "Rabbits and hares", "Rabbits and hares", 2,             "Medium",
+    "Llamas",            "Llamas",            5,             "Medium"
+  )
+
+  result <- suppressWarnings(whep:::.calc_n_excretion(data))
+
+  poultry_ret <- ipcc_tier2_n_retention |>
+    dplyr::filter(category == "Poultry") |>
+    dplyr::pull(n_retention_frac)
+  testthat::expect_equal(result$n_retention_frac[1], poultry_ret)
+  testthat::expect_equal(
+    result$n_retention_frac[2],
+    mean(ipcc_tier2_n_retention$n_retention_frac)
+  )
+  testthat::expect_true(all(
+    grepl("n_retention_assumed_", result$method_manure_n2o)
+  ))
+})
+
+
+# Direct N2O: a sourced EF3, never an invented one ----------------------------
+
+testthat::test_that("a frame with no region still weights over the MMS split", {
+  # The pasture-only path this replaces put the whole excreted N of every Tier 2
+  # row on the pasture EF3 of 0.010, liquid slurry and poultry litter included
+  # (whep#949). No region is not no distribution: with none, the Global split
+  # applies and is weighted like any other.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    n_excretion = 100,
+    heads = 10,
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_direct_n2o(data)
+
+  # GLEAM 2.0 Global cattle split x .manure_ef3():
+  #   0.016000000*0.001 + 0.009000000*0.010 + 0.084530612*0.002 +
+  #   0.443522579*0.010 + 0.446946808*0.005 = 0.00694502106.
+  testthat::expect_equal(
+    result$manure_n2o_direct,
+    10 * 100 * 0.00694502106 * (44 / 28),
+    tolerance = 1e-8
+  )
+  # The placeholder half still reproduces the pre-whep#958 arithmetic:
+  #   0.50*0.010 + 0.30*0.005 + 0.15*0.002 + 0.05*0.010 = 0.00730.
+  testthat::expect_equal(
+    whep:::.calc_direct_n2o(
+      data,
+      list(mms_shares = "placeholder")
+    )$manure_n2o_direct,
+    10 * 100 * 0.0073 * (44 / 28)
+  )
+  # And emphatically not the flat pasture factor it used to take.
+  testthat::expect_false(
+    isTRUE(all.equal(result$manure_n2o_direct, 10 * 100 * 0.010 * (44 / 28)))
+  )
+  testthat::expect_false(grepl("ef3_pasture_only", result$method_manure_n2o))
+})
+
+
+testthat::test_that("a fully keyed MMS mix carries no EF3 assumption stamp", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    n_excretion = 100,
+    heads = 10,
+    region = "Global",
+    method_manure_n2o = "IPCC_2019_Tier1"
+  )
+
+  result <- whep:::.calc_direct_n2o(data)
+
+  testthat::expect_false(grepl("assumed", result$method_manure_n2o))
+  testthat::expect_false(grepl("pasture_only", result$method_manure_n2o))
+})
+
+
+testthat::test_that("an unmapped species reaches direct N2O, and declares it", {
+  data <- tibble::tibble(
+    species = "Rabbits and hares",
+    species_gen = "Rabbits and hares",
+    n_excretion = 1,
+    heads = 100,
+    region = "Global",
+    method_manure_n2o = "IPCC_2019_Tier1"
+  )
+
+  result <- suppressWarnings(whep:::.calc_direct_n2o(data))
+
+  testthat::expect_false(is.na(result$manure_n2o_direct))
+  testthat::expect_gt(result$manure_n2o_direct, 0)
+  testthat::expect_match(result$method_manure_n2o, "mms_assumed_poultry")
+})
+
+
+testthat::test_that("a row with no weighted EF3 aborts, never passes NA", {
+  msg <- tryCatch(
+    {
+      whep:::.check_weighted_ef3(tibble::tibble(weighted_ef3 = NA_real_))
+      "<no error was raised>"
+    },
+    error = conditionMessage
+  )
+  testthat::expect_match(msg, "weighted_ef3", fixed = TRUE)
 })

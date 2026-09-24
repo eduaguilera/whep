@@ -14,7 +14,8 @@ build_food_supply(
 \arguments{
 \item{method}{Supply source: \code{"whep_native"} (default, commodity-balance
 food tonnes times \code{whep::biomass_coefs} divided by population) or
-\code{"faostat_fbs"} (the injected FAOSTAT FBS per-capita supply).}
+\code{"faostat_fbs"} (FAOSTAT FBS per-capita supply, injected or read from
+the FBS pins).}
 
 \item{data}{Named list of injected inputs. For \code{"whep_native"}:
 \code{cbs_food} (\code{year}, \code{area_code}, \code{item_cbs_code}, \code{food_t}) and
@@ -22,7 +23,10 @@ food tonnes times \code{whep::biomass_coefs} divided by population) or
 \code{biomass_coefs} / \code{items_full} override the packaged
 \code{whep::biomass_coefs} / \code{whep::items_full}. For \code{"faostat_fbs"}:
 \code{fbs_supply} (\code{year}, \code{area_code}, \code{protein_g_cap_day},
-\code{energy_kcal_cap_day}, \code{population}) is required.}
+\code{energy_kcal_cap_day}, \code{population}) is returned as given if supplied;
+otherwise \code{fbs_old} and/or \code{fbs_new}, the raw pins in their own long
+FAOSTAT layout (\verb{Area Code}, \verb{Item Code}, \verb{Element Code}, \code{Year},
+\code{Value}), replace the \code{\link[=whep_read_file]{whep_read_file()}} read of whichever is absent.}
 
 \item{protein_basis}{How the inedible fraction is treated when converting
 nitrogen density to protein, for \code{"whep_native"} only:
@@ -57,7 +61,14 @@ The nitrogen density is \code{N_kgN_kgFM} where available, otherwise
 \code{Product_kgN_kgDM * Product_kgDM_kgFM}. \code{Edible_N_kgFM} is not read: it is
 empty in every coefficient row, upstream as well as in the packaged data, so
 the edible basis is derived from \code{Edible_portion} instead of stored
-redundantly. Energy per kilogram
+redundantly. \code{N_kgN_kgFM} must be a \strong{food-composition} density for this to
+mean anything, because \code{food_t} for a processed FBS item is the primary
+equivalent of the products actually eaten: a whole-grain nitrogen density on
+that mass counts milling offal as food. Five cereal rows carry the
+agronomic value instead, and others a bare literal; both sets are named in
+\link{biomass_coefs}. \code{Wheat} was the largest, at 1.27x FAOSTAT FBS world
+protein until #796, and now ships on the \strong{flour basis}, 93 g of protein
+per kg, sourced and measured in \link{biomass_coefs}. Energy per kilogram
 fresh matter follows \code{GE_product_edible_portion_MJ_kgFM}, then
 \code{GE_product_MJ_kgFM} (MJ per kg fresh matter), converted to kilocalories via
 \code{MJ / 0.004184}. The energy term is GROSS (combustion) energy, not Atwater
@@ -65,8 +76,26 @@ metabolisable energy, and so is only a secondary cross-check for SJOS-N;
 Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
-dropped. The \code{"faostat_fbs"} method returns the injected FAOSTAT Food
-Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+dropped.
+
+The \code{"faostat_fbs"} method is FAOSTAT's own per-capita supply, the
+independent benchmark for the default. With \code{data$fbs_supply} injected it is
+returned unchanged. Otherwise it is read from the \code{faostat-fbs-old}
+(1961-2013) and \code{faostat-fbs-new} (2010-2023) pins: protein and dietary
+energy per capita per day from item 2901 "Grand Total" (elements 674 and
+664), which FAOSTAT reports directly, and population from item 2501
+(element 511, thousands, converted to persons). FAOSTAT's energy element is
+dietary energy as FAOSTAT derives it from food composition, not the gross
+(combustion) energy of \code{"whep_native"}, so the two methods' energy columns
+are not like for like. FAOSTAT areas are
+resolved onto \code{area_code} exactly as \code{\link[=read_fbs_population]{read_fbs_population()}} resolves them:
+year by year, dropping any area that resolves to no polity (the regional
+aggregates and area 351 "China", the aggregate over areas 41, 96, 128 and
+214, #939); where more than one FAOSTAT area lands in a bucket-year the
+per-capita values are population-weighted. \code{faostat-fbs-new} wins an
+overlapping \verb{(year, area_code)}. The old pin follows FAOSTAT's pre-2014
+FBS methodology and the new one the revised methodology, so a series
+crossing 2010 changes vintage there.
 
 An area with food but no \code{population} row has no denominator, so it is
 absent from the output rather than wrong in it. Those areas are \strong{named at

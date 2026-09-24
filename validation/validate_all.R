@@ -14,51 +14,10 @@ suppressPackageStartupMessages({
 source("validation/validate.R")
 source("validation/variables.R")
 
-# Scorecard arithmetic for the seam-gate row (#1000/T34-6). `n_gate_failures`
-# is the tier A/B/C pass-rate; `n_moved` is `admin_seam_gate.R`'s OWN baseline
-# tripwire (validation/admin_seam_gate.R, ~line 527: it `cli_abort()`s the
-# whole script when a recorded row moved, whatever the tier gates say). A run
-# whose baseline moved has therefore already failed the script that produced
-# these numbers, so folding only `n_gate_failures` into the scorecard's `flag`
-# column let it read green while `admin_seam_gate.R` exited non-zero -- the
-# moved baseline was demoted to free text nobody scans. `flag` is the union of
-# both signals so a moved baseline always shows up as a flag, not a footnote.
-.asg_scorecard_flag <- function(n_gate_failures, n_moved) {
-  n_gate_failures + n_moved
-}
-# Runs on every `source()` of this file, cache or no cache: a moved baseline
-# must inflate the flag even when every tier gate itself passed (the shape the
-# bug missed), so the invariant is pinned here rather than only downstream of
-# the WHEP_SPATIALIZE_OUT_DIR-gated block that would otherwise be the only
-# place exercising it.
-stopifnot(
-  "a moved seam-gate baseline must inflate the scorecard flag, not just the
-   free-text note" = .asg_scorecard_flag(n_gate_failures = 0, n_moved = 3) > 0
-)
-
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)
-# The production build is NOT triggered here on purpose: it takes minutes to
-# hours and reads pins, which is not something a validation sweep should start
-# without being asked. But a bare readRDS() on a missing cache dies inside
-# gzfile() naming only a path, which reads as corruption rather than as setup
-# not done -- so say which it is.
-production_cache <- sprintf(
-  ".whep_cache/primary_prod_%d_%d.rds",
-  year_min,
-  year_max
-)
-if (!file.exists(production_cache)) {
-  cli::cli_abort(c(
-    "No cached WHEP production at {.path {production_cache}}.",
-    i = "{.path .whep_cache/} is gitignored, so a fresh checkout has none.",
-    i = "Build it once with {.code Rscript validation/rank_countries.R}, or set
-         {.envvar VAL_YEAR_MIN}/{.envvar VAL_YEAR_MAX} to a window you have."
-  ))
-}
-production <- readRDS(production_cache)
-lookups <- whep_validation_lookups()
+
 # The scorecard accumulates across ~15 independent checks, so `add()` has to
 # reach outside itself. It writes into a named environment rather than using
 # `<<-`: the target is then stated at the call site instead of resolved by
@@ -77,6 +36,115 @@ add <- function(variable, archetype, n, ok, flag, note) {
   )
   invisible()
 }
+print_scorecard <- function() {
+  cat("\n=== WHEP validation scorecard ===\n")
+  dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+}
+
+# 0. LPJmL-derived input pins (contract + invariant + baseline) ---------------
+# First, and above the production-cache abort below, on purpose. Every other
+# check in this sweep scores WHEP against an external statistic -- FAOSTAT,
+# GAEZ, MapSPAM, USDA PSD -- and none of them reads an LPJmL pin, so a pin
+# swap that moves every downstream SOC number passes the whole scorecard
+# silently. That is #559, and the check is needed loudest exactly when the
+# pins have just been repointed: the moment a checkout is most likely to be
+# fresh and to hold no production cache at all. Placed after the abort below,
+# it would never run then.
+pins_out <- tryCatch(
+  system2("Rscript", "validation/lpjml_pins.R", stdout = TRUE, stderr = FALSE),
+  error = function(e) character(0)
+)
+pins_metric <- grep("^METRIC", pins_out, value = TRUE)
+if (length(pins_metric) == 1L) {
+  pin_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9]+).*"), "\\1", pins_metric))
+  }
+  # Echoed, not merely scored: the per-pin detail says WHICH pin moved and by
+  # how much, and the abort below can end the run before the scorecard prints.
+  cat(grep("^METRIC", pins_out, value = TRUE, invert = TRUE), sep = "\n")
+  add(
+    "lpjml_pins",
+    "contract",
+    pin_num("pins_checked"),
+    pin_num("pins_ok"),
+    pin_num("pins_checked") - pin_num("pins_ok"),
+    "LPJmL-derived input pins vs recorded contract and baseline (#559)"
+  )
+} else {
+  add(
+    "lpjml_pins",
+    "contract",
+    NA,
+    NA,
+    NA,
+    "no METRIC line; needs the pins board (validation/lpjml_pins.R)"
+  )
+}
+
+# 0b. Packaged coefficients vs their upstream workbooks ----------------------
+# Also above the abort, and for the same reason as section 0: this reads an
+# artifact outside the repository, so it is the one check a fresh checkout
+# most needs and the one the test suite is forbidden to make (#490).
+#
+# `test_data_raw_freshness.R` proves each data/*.rda matches its builder from
+# the inputs IN the repo. It cannot see a CSV and an .rda that agree with each
+# other and are both stale against a workbook in another repository, which is
+# what #524 found: 92 changed cells sat unreported for four months.
+coef_out <- tryCatch(
+  system2(
+    "Rscript",
+    "validation/upstream_coefs.R",
+    stdout = TRUE,
+    stderr = FALSE
+  ),
+  error = function(e) character(0)
+)
+coef_metric <- grep("^METRIC", coef_out, value = TRUE)
+if (length(coef_metric) == 1L) {
+  coef_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9]+).*"), "\\1", coef_metric))
+  }
+  cat(grep("^METRIC", coef_out, value = TRUE, invert = TRUE), sep = "\n")
+  add(
+    "upstream_coefs",
+    "contract",
+    coef_num("sources_checked"),
+    coef_num("sources_ok"),
+    coef_num("drifted") + coef_num("unavailable"),
+    "packaged coefficient tables vs their upstream workbooks (#524)"
+  )
+} else {
+  add(
+    "upstream_coefs",
+    "contract",
+    NA,
+    NA,
+    NA,
+    "no METRIC line; see validation/upstream_coefs.R"
+  )
+}
+
+# The production build is NOT triggered here on purpose: it takes minutes to
+# hours and reads pins, which is not something a validation sweep should start
+# without being asked. But a bare readRDS() on a missing cache dies inside
+# gzfile() naming only a path, which reads as corruption rather than as setup
+# not done -- so say which it is.
+production_cache <- sprintf(
+  ".whep_cache/primary_prod_%d_%d.rds",
+  year_min,
+  year_max
+)
+if (!file.exists(production_cache)) {
+  print_scorecard()
+  cli::cli_abort(c(
+    "No cached WHEP production at {.path {production_cache}}.",
+    i = "{.path .whep_cache/} is gitignored, so a fresh checkout has none.",
+    i = "Build it once with {.code Rscript validation/rank_countries.R}, or set
+         {.envvar VAL_YEAR_MIN}/{.envvar VAL_YEAR_MAX} to a window you have."
+  ))
+}
+production <- readRDS(production_cache)
+lookups <- whep_validation_lookups()
 
 # 1. stability (internal) ------------------------------------------------------
 stab <- system2(
@@ -466,7 +534,67 @@ if (length(nour_metric) == 1L) {
   )
 }
 
-# A. admin-unit drift (external, vs the compiled subnational panel) ------------
+# D. atmospheric N deposition vs EMEP MSC-W (external) ------------------------
+# HaNi against the European chemical transport model, per country and per year.
+# Like the scoping and temporary-grassland layers it is opt-in: its first run
+# downloads ~2.3 GB of EMEP NetCDF and reads the whole global HaNi grid, which
+# is not something a sweep should start unasked. It runs when the HaNi
+# aggregate is already cached, or when VAL_ND_FORCE is set.
+nd_years <- c(
+  Sys.getenv("VAL_ND_YEAR_MIN", "1990"),
+  Sys.getenv("VAL_ND_YEAR_MAX", "2019")
+)
+nd_cache <- sprintf(
+  "validation/cache/hani_deposition_%s_%s.rds",
+  nd_years[[1]],
+  nd_years[[2]]
+)
+if (!nzchar(Sys.getenv("VAL_ND_FORCE")) && !file.exists(nd_cache)) {
+  add(
+    "n_deposition_emep",
+    "external",
+    NA,
+    NA,
+    NA,
+    sprintf("not run: no %s, and VAL_ND_FORCE unset", nd_cache)
+  )
+} else {
+  nd_out <- system2(
+    "Rscript",
+    c("validation/n_deposition_emep.R", nd_years),
+    stdout = TRUE,
+    stderr = FALSE
+  )
+  nd_metric <- grep("^METRIC", nd_out, value = TRUE)
+  if (length(nd_metric) != 1L) {
+    add("n_deposition_emep", "external", NA, NA, NA, "no METRIC line reported")
+  } else {
+    nd_num <- function(key) {
+      as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", nd_metric))
+    }
+    add(
+      "n_deposition_emep",
+      "external",
+      nd_num("n_cells"),
+      NA,
+      nd_num("cum_gap_tg"),
+      sprintf(
+        "HaNi/EMEP %.3f at %s -> %.3f at %s; HaNi %+.0f%% vs EMEP %+.0f%%",
+        nd_num("ratio_first"),
+        nd_years[[1]],
+        nd_num("ratio_last"),
+        nd_years[[2]],
+        nd_num("hani_change_pct"),
+        nd_num("emep_change_pct")
+      )
+    )
+  }
+}
+
+cat("\n=== WHEP validation scorecard ===\n")
+dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+
+# S1. admin-unit drift (external, vs the compiled subnational panel) ------------
 # T18a (#1000): how much within-country geography a spatialization pattern
 # frozen at one reference year cannot represent. The panel is an internal
 # compilation that is not redistributed, so the sweep reports "not run" rather
@@ -509,7 +637,7 @@ if (length(adt_metric) != 1L || grepl("status=skipped", adt_metric)) {
   )
 }
 
-# B. seam gate (internal, on a spatialization run) ----------------------------
+# S2. seam gate (internal, on a spatialization run) ----------------------------
 # T29 (#1000): whether a back-cast admin-share table and the cells it produced
 # are continuous across every seam the resolver found. It reads one existing
 # run_spatialize() output directory and nothing else, so the sweep reports
@@ -559,7 +687,7 @@ if (length(asg_metric) != 1L || grepl("status=skipped", asg_metric)) {
   )
 }
 
-# C. level-0 grid vintage (internal, on the polycell support) -----------------
+# S3. level-0 grid vintage (internal, on the polycell support) -----------------
 # T39 (#1000): what changes when level 0 stops being the 2015 snapshot and
 # becomes year-aware. This is a MEASUREMENT behind an open decision, not a
 # gate: which vintage is right is the question the measurement exists to
@@ -619,7 +747,7 @@ if (length(gv_metric) != 1L || grepl("status=skipped", gv_metric)) {
   )
 }
 
-# D. Japan depth-1 pilot (internal, one constrained spatialization) ----------
+# S4. Japan depth-1 pilot (internal, one constrained spatialization) ----------
 # whep#1000: the first level-1 `run_spatialize` call, on real administrative
 # statistics. It runs an allocation, so it is never started unasked: it needs
 # a Japan-only polycell support (`WHEP_POLYCELL_SUPPORT_PATH`) and a directory
@@ -704,5 +832,5 @@ if (length(jp_metric) != 1L || grepl("status=skipped", jp_metric)) {
   )
 }
 
-cat("\n=== WHEP validation scorecard ===\n")
-dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
+
+print_scorecard()

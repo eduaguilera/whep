@@ -39,11 +39,13 @@
 #'   tonnes-denominated items (live-animal trade is in heads and arrives
 #'   through [get_livestock_cbs()]), to net importers, and to areas the CBS
 #'   already covers in that year. Selecting it **moves published values** —
-#'   at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+#'   at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
+#'   current build; 1,164 keys when whep#864 landed), and reclassifies three
 #'   areas on the nourishment axis. `NEWS.md` states the rest, and whep#762
 #'   keeps the remaining decisions open.
-#'   [get_wide_cbs()] always uses `"none"`; ask for `format = "wide"` here to
-#'   get the wide table with recovery applied.
+#'   [get_wide_cbs()], [get_processing_coefs()] and [build_io_model()] take the
+#'   same argument and pass it into the shared build chain, each method under
+#'   its own cache slot, so a downstream build can be run either way.
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
 #'   selecting what happens when the CBS carries a **zero** import or export
 #'   and the trade record for the same `(year, area_code, item_cbs_code)`
@@ -60,6 +62,166 @@
 #'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 #'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
 #'   The conflict count is reported by every build under either setting.
+#' @param share_overflow One of `"report"` (default), `"clamp"`, `"drop"` or
+#'   `"abort"`, selecting what happens when a pre-1962 destiny share exceeds 1
+#'   — a destiny larger than the `domestic_supply` it is apportioned from
+#'   (whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows do:
+#'   `other_uses` 70, `processing_primary` 19, `food` 15, `feed` 4. They are
+#'   1.03% of the 1961 `other_uses` mass and 0.17% of the `food` mass. The
+#'   cause is not this arithmetic: 89 of them are FAOSTAT's own 1961 balances
+#'   not closing (the non-food Commodity Balances, which carry tobacco, hides
+#'   and skins, silk, wool and fibres as `other_uses` and which no
+#'   better-ranked source overwrites), and the other 19 are hops in
+#'   net-exporting years, whose `processing_primary` is the whole production
+#'   by construction — a trade ratio rather than an apportionment, which no
+#'   setting can move, so the warning names that subset separately.
+#'   `"report"` therefore keeps every value as measured and
+#'   only warns, so it **moves no published value**; it names the count, the
+#'   split by destiny and the three largest. `"clamp"` caps the share at 1,
+#'   `"drop"` sets it to `NA` so the key is filled from a neighbouring year
+#'   instead (and booked as 0 where the violating year is the only
+#'   observation), and `"abort"` refuses to build. The share is an
+#'   intermediate, not a published number: `.cbs_fill_destinies()` later
+#'   re-derives each destiny as `domestic_supply` times a share normalised to
+#'   sum to one, so on that build no published row from 1961 on carries a
+#'   destiny above its supply and every difference between the settings sits
+#'   at 1960 or earlier — against `"report"`, `"clamp"` moves 755 rows
+#'   (`other_uses` +23.21 Mt, `stock_variation` −22.97 Mt, `food` −1.00 Mt)
+#'   and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation`
+#'   −825 Mt), both upwards because the values they touch are negative
+#'   (whep#1065). Which of those is right is
+#'   an open question — see whep#980 — so the reporting default is the one
+#'   that invents nothing.
+#' @param negative_supply One of `"report"` (default), `"floor"` or
+#'   `"abort"`, selecting what happens when a pre-1962 row has no observed
+#'   `domestic_supply` and the `production + import - export` reconstruction
+#'   that replaces it comes out below zero (whep#1065). Every destiny of such
+#'   a row is apportioned from that negative supply, so every destiny comes
+#'   out negative — including `other_uses`, which is not a quantity that can
+#'   be negative.
+#'
+#'   Measured on a real 1950–1965 build, 151 rows reconstruct a negative
+#'   supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
+#'   output as 121 negative `other_uses` rows worth −883.91 Mt (29.2% of the
+#'   positive pre-1962 `other_uses` mass they net against), plus −123.22 Mt
+#'   of `production`, −76.66 Mt of `feed`, −64.62 Mt of `processing` and
+#'   −15.61 Mt of `food`.
+#'
+#'   It is **not** a stock draw: 83 of the 151 rows are the United States
+#'   (99.77% of the mass), the export/(production + import) ratio has median
+#'   1.96 and maximum 107.98, and it persists for eleven consecutive years.
+#'   The cause is upstream — US tobacco 1951 carries a 117,504,000 t export
+#'   against 728,949 t of production, 115,136,000 t of which is
+#'   `historical-trade-exports` item 831 recorded as 115,136 `"1000 MT"`,
+#'   46× the world's 1951 tobacco production and 473× the same country's
+#'   observed 1961 export. So neither treatment makes the row physical.
+#'
+#'   `"report"` keeps every value as computed, so it **moves no published
+#'   value**, and warns with the count, the total and the three largest.
+#'   `"floor"` clamps the reconstruction at zero, which is what
+#'   `.select_best_source()` already does to an observed negative supply, and
+#'   is also the stock-draw treatment, because the residual is rebooked as
+#'   `stock_withdrawal` downstream; it moves 3,981 rows, raises `other_uses`
+#'   by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny anywhere, and
+#'   adds 880.18 Mt of `stock_withdrawal`. `"abort"` refuses to build any
+#'   range starting before 1961. Which is right is an open question — see
+#'   whep#1065 — so the reporting default is the one that invents nothing.
+#' @param hist_trade_scale One of `"report"` (default), `"drop"` or
+#'   `"abort"`, selecting what happens when a pre-1961 row of the
+#'   `historical-trade-*` pins carries a quantity no mass unit can express
+#'   (whep#1085). The screen bounds a single reporter's flow by the largest
+#'   **world** flow FAOSTAT records for the same trade item, summed over
+#'   reporters, over the FAOSTAT years the build already reads — a measured
+#'   bound, not a chosen cap, because world trade in these commodities grew
+#'   through the twentieth century. Re-measured on the real pins at
+#'   1850–2023 for whep#1117, 1,693 rows exceed it, carrying 3,874.4 Mt,
+#'   21.0% of the pins' whole 18,455.4 Mt; a further 10,243 rows have no
+#'   FAOSTAT reference and go unchecked. **97.2% of the flagged mass is the
+#'   USA**, whose block over roughly 1900–1960 is inflated by a factor of
+#'   ten, interleaved with correct values in the same series (cotton lint 767
+#'   and raw sugar imports 162 alternate correct and ten-fold values year to
+#'   year; whep#1117), and by far more on
+#'   item 831, "Tobacco products nes", published at 115.1 Mt for 1951 — 159x
+#'   the largest world flow of that item FAOSTAT has ever recorded and 32x
+#'   the entire 1961 world tobacco crop. `"report"` keeps every value and
+#'   only warns, so it **moves no published value** (verified: the screened
+#'   read is `identical()` to the unscreened one); it names the count, the
+#'   mass, the reporters and the three largest. `"drop"` removes the flagged
+#'   rows, taking 3,874.2 Mt out of the historical trade input and with it
+#'   the impossible pre-1962 exports behind whep#1065's negative
+#'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
+#'   clamp: the defect is in the pin's producer and no conversion factor
+#'   recovers the true value, so a clamped tonnage would be a fabricated one.
+#'
+#'   The warning also carries a second, informational class: rows larger than
+#'   any flow FAOSTAT records for the **same reporter**, item and element.
+#'   That bound is far tighter — 19,375 pre-1961 rows carrying 9,154.0 Mt,
+#'   against the world bound's 1,693 — and it is what makes whep#1117's
+#'   ten-fold block visible at all. USA raw sugar imports (item 162) are the
+#'   clearest case: 37 rows, 35–43 Mt over 1955–1959 against the pins' own
+#'   4.7 Mt at 1960 and FAOSTAT's 3.7 Mt at 1961, and **not one of them is
+#'   above the world bound**, so today nothing reports them. It is **never
+#'   dropped and never aborts**, under any setting, because it provably mixes
+#'   two populations that no offline anchor separates: the pins' 1961 layer is
+#'   FAOSTAT verbatim (all 18,531 overlapping rows agree to machine
+#'   precision), FAOSTAT itself starts in 1961, so no pre-1961 row has a
+#'   per-row anchor, and nineteenth-century Britain genuinely imported more
+#'   flax fibre, cotton lint, linseed and cheese than modern Britain does. A
+#'   ÷10 repair is a change to the pin's producer, not to this reader.
+#' @param export_share_overflow One of `"report"` (default), `"drop"` or
+#'   `"abort"`, selecting what happens when the global export share the
+#'   second processed-products round apportions a new product with exceeds 1
+#'   (whep#1086). The share is world `export / (production + import)` for the
+#'   `(year, item_cbs)` key, multiplied by a country's newly created
+#'   processed production, so a share above 1 books more export than that
+#'   country produced. Measured on a real 1950–1965 build, 77 of 2,012 keys
+#'   exceed 1 and the largest is 443 (Soyabean Cake 1956) — but **none of
+#'   them is applied**: every one is pre-1961 and the round emits rows from
+#'   1961 on only, so `"report"` and `"drop"` give identical output on that
+#'   range. **That does not hold after 2013** (whep#1177). On a real
+#'   2011–2023 build, 60 keys above 1 are applied, every one of them in
+#'   2014–2023 (oilseed cakes and molasses, up to 15.7 for Sesameseed Cake
+#'   2016): the round books 2,297 rows with a negative `domestic_supply`,
+#'   −18.33 Mt in total, and the finished balance under `"report"` carries
+#'   2.4–4.4 Mt more `export` a year than under `"drop"`, 33.6 Mt over
+#'   2014–2023, which `"drop"` books mostly as `feed`. Of the 77, 50 have no
+#'   world production in the denominator at all (the oils and cakes, whose
+#'   production is what this round is about to create) and the other 27 are
+#'   the `historical-trade-exports` defect of whep#1085. `"report"` keeps every
+#'   share as measured and names the count, the largest, and how many are
+#'   actually applied. `"drop"` sets a violating share to `NA`, which is
+#'   booked as no export at all. `"abort"` refuses to build. There is
+#'   deliberately no clamp, unlike `share_overflow`: a destiny cannot exceed
+#'   the supply it is apportioned from, so 1 is a true bound there, while
+#'   here the denominator is incomplete and capping at 1 would book a
+#'   country's whole processed output as export.
+#' @param seed_backcast One of `"area_rate"` (default) or
+#'   `"production_share"`, selecting what the pre-1962 seed back-cast reads
+#'   its rate off and spends it on (whep#699). The fill carries a rate along
+#'   the year axis: a rate is read from the years that report `seed`,
+#'   interpolated and extrapolated into the years that do not, and multiplied
+#'   back out. It yields tonnes only if the quantity it is spent on is the
+#'   quantity it was divided by.
+#'
+#'   `"area_rate"` is tonnes of seed per hectare harvested,
+#'   `seed / area_ha` spent as `area_ha * seed_rate`, and is the default: a
+#'   seeding rate is an agronomic quantity that holds while yields change, so
+#'   it is the ratio worth carrying across decades. `"production_share"` is
+#'   tonnes of seed per tonne of output, `seed / production` spent as
+#'   `production * seed_rate`; it moves with yield, but reaches keys the
+#'   production build gives no harvested area.
+#'
+#'   **The default moves published values**, because neither is what shipped:
+#'   a rate defined per hectare used to be spent on production, giving
+#'   `t x t/ha`. Measured on a real 1850-2023 build, pre-1962 `seed` falls
+#'   from 38.62 Gt to 7.13 Gt while the number of keys carrying one rises
+#'   from 87,882 to 118,332, total tonnage moves -0.934% and pre-1962
+#'   tonnage -2.716%, and no 1962-or-later value changes at all. World seed
+#'   at 1960 goes from 680.3 Mt to 77.7 Mt against the 126.1 Mt FAOSTAT
+#'   reports for 1961, and [check_series_jumps()] on `seed` over 1950-1970
+#'   falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
+#'   than 295. Under `"production_share"` pre-1962 `seed` is 5.22 Gt, total
+#'   tonnage moves -1.023%, and the seam holds 5 jumps.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -72,7 +234,20 @@
 #'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
 #'   become one column each, `stock_variation` is split into the non-negative
 #'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
-#'   excluding `export`.
+#'   excluding `export`. A `unit` column says each row's denomination:
+#'   `"tonnes"`, or `"heads"` for the live-animal rows (see [get_wide_cbs()]).
+#'
+#'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
+#'   from the source that `source` names (`"A"` official, `"E"` estimated,
+#'   `"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever
+#'   the number is not one FAOSTAT published under a flag: a WHEP-derived row
+#'   (the processing pathway, the destiny gap-fills, the pre-1961 historical
+#'   extension), a row whose source carries no flag, and a row summed or
+#'   averaged from parts whose flags disagree. The flag is a claim about the
+#'   value, so it is dropped rather than guessed when the parts do not agree.
+#'   Rows sourced from `"FAOSTAT_prod"` are `NA` today because
+#'   [build_primary_production()] does not carry the flag out of the
+#'   production pin.
 #'
 #' @export
 #'
@@ -88,11 +263,21 @@ build_commodity_balances <- function(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices(),
+  export_share_overflow = .cbs_export_overflow_choices(),
+  seed_backcast = .cbs_seed_backcast_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
+  share_overflow <- rlang::arg_match(share_overflow)
+  negative_supply <- rlang::arg_match(negative_supply)
+  hist_trade_scale <- rlang::arg_match(hist_trade_scale)
+  export_share_overflow <- rlang::arg_match(export_share_overflow)
+  seed_backcast <- rlang::arg_match(seed_backcast)
   if (example) {
     return(
       if (format == "wide") {
@@ -109,8 +294,21 @@ build_commodity_balances <- function(
     ))
   }
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
-      .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
+    fixed <- .read_cbs(
+      primary_all,
+      start_year,
+      end_year,
+      historical_data,
+      share_overflow = share_overflow,
+      negative_supply = negative_supply,
+      hist_trade_scale = hist_trade_scale,
+      seed_backcast = seed_backcast
+    ) |>
+      .fix_cbs(
+        trade_recovery = trade_recovery,
+        trade_zero = trade_zero,
+        export_share_overflow = export_share_overflow
+      )
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
@@ -125,6 +323,35 @@ build_commodity_balances <- function(
     if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (share_overflow != "report") {
+      cli::cli_warn(
+        "{.arg share_overflow} is ignored when {.arg .fixed_data} is
+         supplied."
+      )
+    }
+    if (negative_supply != "report") {
+      cli::cli_warn(
+        "{.arg negative_supply} is ignored when {.arg .fixed_data} is
+         supplied."
+      )
+    }
+    if (hist_trade_scale != "report") {
+      cli::cli_warn(
+        "{.arg hist_trade_scale} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (export_share_overflow != "report") {
+      cli::cli_warn(
+        "{.arg export_share_overflow} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (seed_backcast != "area_rate") {
+      cli::cli_warn(
+        "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -151,9 +378,49 @@ build_commodity_balances <- function(
     get_livestock_cbs() |>
     .filter_years(years)
 
+  # The long CBS is mass-only by construction (the whep#865 guards drop every
+  # non-mass row), while the livestock rows are head counts. The label says
+  # which is which, and each item must carry one of them (whep#1055).
   cbs_long |>
     .pivot_cbs_wide() |>
-    dplyr::bind_rows(livestock_cbs)
+    .ensure_wide_cbs_destinies() |>
+    dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
+    dplyr::bind_rows(livestock_cbs) |>
+    .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
+}
+
+# `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
+# with no row anywhere in `cbs_long` never becomes a column at all, and the
+# bind above then NA-fills it across every crop row -- because
+# `get_livestock_cbs()` always emits the full destiny set. The damage is that
+# an NA is invisible rather than loud: `check_supply_use_balance()` returns
+# `use = NA` and `balanced = NA`, and `.qc_supply_use_balance()` drops NA
+# `rel_diff` before warning, so the build-time supply-use QC goes silently
+# inert for the whole crop side. `processing_primary` is the element this
+# actually bites: it is nonzero only for the handful of pp_items, so any
+# window without one loses the check (whep#177).
+.ensure_wide_cbs_destinies <- function(wide) {
+  cols <- c(
+    "production",
+    "import",
+    "export",
+    "food",
+    "feed",
+    "seed",
+    "processing",
+    "processing_primary",
+    "other_uses",
+    "stock_addition",
+    "stock_withdrawal",
+    "domestic_supply"
+  )
+
+  wide |>
+    ensure_columns(
+      tibble::as_tibble(rlang::rep_named(cols, list(double()))),
+      defaults = rlang::rep_named(cols, list(0))
+    ) |>
+    dplyr::relocate(dplyr::any_of(c("year", "area_code", "item_cbs_code")))
 }
 
 # The wide CBS dataset as users consume it. It lives beside the long build so
@@ -218,11 +485,15 @@ build_commodity_balances <- function(
   # below handles differing sources for the same key+value.
   dt <- unique(dt, by = c(by_cols, "value"))
   if (has_flag) {
+    # `source[1L]` is an arbitrary pick and always was; the flag must not be,
+    # because it is a claim about the summed value rather than a label for one
+    # of its parts. `.fold_fao_flag()` keeps the flag when every row of the
+    # group agrees and reports the disagreement as NA (whep#581).
     dt <- dt[,
       .(
         value = .sum_if_any_cbs(value),
         source = source[1L],
-        fao_flag = fao_flag[1L]
+        fao_flag = .fold_fao_flag(fao_flag)
       ),
       by = by_cols
     ]
@@ -300,7 +571,11 @@ build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -318,7 +593,8 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reading CBS inputs")
   inputs <- .cbs_read_inputs(
     primary_all,
-    years
+    years,
+    hist_trade_scale = hist_trade_scale
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -341,7 +617,10 @@ build_commodity_balances <- function(
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
-    years
+    years,
+    share_overflow = share_overflow,
+    negative_supply = negative_supply,
+    seed_backcast = seed_backcast
   )
 
   # Trim to requested years and attach context for downstream
@@ -408,6 +687,8 @@ build_commodity_balances <- function(
 #'   [build_commodity_balances()].
 #' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
 #'   [build_commodity_balances()].
+#' @param export_share_overflow One of `"report"` (default), `"drop"` or
+#'   `"abort"`. See [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
@@ -416,7 +697,8 @@ build_commodity_balances <- function(
 .fix_cbs <- function(
   df,
   trade_recovery = "none",
-  trade_zero = "prefer_record"
+  trade_zero = "prefer_record",
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
@@ -475,7 +757,8 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Second round of processed products")
   cbs_raw6 <- .cbs_second_processed_round(
     cbs_raw5,
-    proc_result
+    proc_result,
+    export_share_overflow = export_share_overflow
   )
 
   # 10. Reclassify processing
@@ -712,8 +995,13 @@ build_processing_coefs <- function(
 
 .cbs_read_inputs <- function(
   primary_all,
-  years
+  years,
+  hist_trade_scale = .hist_trade_scale_choices()
 ) {
+  hist_trade_scale <- rlang::arg_match(
+    hist_trade_scale,
+    .hist_trade_scale_choices()
+  )
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -735,7 +1023,16 @@ build_processing_coefs <- function(
   # Trade
   fao_trade <- .read_fao_trade(years = years)
   fishstat_trade <- .read_fishstat_trade(years = years)
-  trade_hist <- .read_historical_trade(years = years)
+  # The screen bounds a pre-1961 reporter flow by the largest world flow
+  # FAOSTAT records for the same item, so it reads its reference from the
+  # FAOSTAT trade this build has already loaded -- no extra pin read
+  # (whep#1085).
+  trade_hist <- .read_historical_trade(
+    years = years,
+    reference = .hist_trade_world_reference(fao_trade),
+    scale_screen = hist_trade_scale,
+    reporter_reference = .hist_trade_reporter_reference(fao_trade)
+  )
 
   # GDP over population
   gdp_pop <- .read_gdp_pop(years = years)
@@ -858,16 +1155,34 @@ build_processing_coefs <- function(
 # dropping `unit` without collapsing would leave two rows on a key that
 # `.abort_if_trade_key_duplicated()` requires to be unique.
 .mass_only_trade <- function(trade, source_label) {
-  dt <- data.table::as.data.table(trade)
+  out <- .drop_non_mass_rows(trade, source_label)
+  out[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area_code, item_cbs_code, element)
+  ]
+}
+
+# Keep only the mass rows of a unit-carrying frame, saying what went. `unit`
+# survives, so the caller decides its own aggregation key -- the two CBS
+# callers keep `item_cbs` and `area`, which `.mass_only_trade()`'s fixed
+# `(year, area_code, item_cbs_code, element)` contract does not.
+#
+# Filtering rather than summing is the whep#865 remedy: adding head counts to
+# a tonnes column is the bug, and dropping them without a word is why it went
+# unnoticed for as long as it did. Nothing downstream can catch it either --
+# `check_supply_use_balance()` is row-wise and carries no unit dimension.
+.drop_non_mass_rows <- function(df, source_label) {
+  dt <- data.table::as.data.table(df)
   if (!rlang::has_name(dt, "unit")) {
     cli::cli_abort(c(
-      "{.arg trade} from {.val {source_label}} has no {.field unit} column.",
-      "i" = "A trade aggregate must carry the unit of the quantity it sums."
+      "The {.val {source_label}} record has no {.field unit} column.",
+      "i" = "A frame summed on {.field value} must carry the unit of the \\
+             quantity it sums."
     ))
   }
   non_mass <- dt[!unit %in% .mass_trade_units()]
   if (nrow(non_mass) > 0L) {
-    units <- sort(unique(non_mass$unit))
+    units <- sort(unique(as.character(non_mass$unit)))
     items <- length(unique(non_mass$item_cbs_code))
     cli::cli_warn(c(
       "Dropped {nrow(non_mass)} {.val {source_label}} trade row{?s} \\
@@ -879,11 +1194,82 @@ build_processing_coefs <- function(
              column is tonnes."
     ))
   }
-  out <- dt[unit %in% .mass_trade_units()]
-  out[,
-    .(value = sum(value, na.rm = TRUE)),
-    by = .(year, area_code, item_cbs_code, element)
+  dt[unit %in% .mass_trade_units()]
+}
+
+# Abort when a frame about to be summed with `unit` outside the grouping key
+# carries more than one unit, so the sum cannot add two denominations into one
+# `value`. That mixup has shipped twice -- whep#865 put 135.3 M head into a
+# tonnes column, whep#962 did the same to the bilateral trade matrix -- and
+# both times nothing downstream noticed, because `check_supply_use_balance()`
+# is row-wise over a frame that carries no unit column at all.
+#
+# `key_cols = NULL` checks the whole frame. Otherwise the check is per output
+# key, which is the precise statement of the hazard: one summed row built from
+# two denominations. Two units on DIFFERENT keys are fine -- that is how a
+# mixed-unit source is meant to travel, one row per unit.
+#
+# Rows with a missing `unit` are excluded. Several CBS sources reach
+# `.select_best_source()` without the column at all -- crop residues, the
+# pre-1961 historical trade, and `.get_traded_residues()` /
+# `.get_fiber_tobacco()`, which each check their unit before dropping it --
+# and they are tonnes by construction, so counting `NA` as a unit of its own
+# would fire on every build without a number being wrong. The column itself is
+# still required: a frame that lost it is the shape of whep#865.
+.abort_if_units_mixed <- function(df, source_label, key_cols = NULL) {
+  dt <- data.table::as.data.table(df)
+  if (!rlang::has_name(dt, "unit")) {
+    cli::cli_abort(c(
+      "The {.val {source_label}} record has no {.field unit} column.",
+      "i" = "A frame summed on {.field value} must carry the unit of the \\
+             quantity it sums."
+    ))
+  }
+  if (is.null(key_cols)) {
+    .abort_on_units(.distinct_units(dt), source_label)
+    return(invisible(df))
+  }
+  # The NA filter goes in `i` rather than into a subset of its own: this runs
+  # over the whole assembled CBS, so materialising a filtered copy of it is a
+  # cost the check does not need to pay.
+  per_key <- dt[
+    !is.na(unit),
+    .(n_units = data.table::uniqueN(unit)),
+    by = key_cols
   ]
+  mixed <- per_key[n_units > 1L]
+  if (nrow(mixed) > 0L) {
+    offending <- dt[mixed, on = key_cols, nomatch = NULL]
+    .abort_on_units(
+      .distinct_units(offending),
+      source_label,
+      n_keys = nrow(mixed)
+    )
+  }
+  invisible(df)
+}
+
+.distinct_units <- function(dt) {
+  units <- unique(as.character(dt$unit))
+  sort(units[!is.na(units)])
+}
+
+.abort_on_units <- function(units, source_label, n_keys = NULL) {
+  if (length(units) <= 1L) {
+    return(invisible(NULL))
+  }
+  scope <- if (is.null(n_keys)) {
+    "in one sum"
+  } else {
+    cli::format_inline("on {n_keys} summed key{?s}")
+  }
+  cli::cli_abort(c(
+    "The {.val {source_label}} record mixes {length(units)} units \\
+     {scope}.",
+    "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+    "x" = "Summing {.field value} across units adds different quantities \\
+           into one column (whep#865)."
+  ))
 }
 
 # Read FishStat trade data (pre-aggregated to CBS items) from pins.
@@ -968,7 +1354,16 @@ build_processing_coefs <- function(
   out[, keep, with = FALSE]
 }
 
-.read_historical_trade <- function(years = NULL) {
+.read_historical_trade <- function(
+  years = NULL,
+  reference = NULL,
+  scale_screen = .hist_trade_scale_choices(),
+  reporter_reference = NULL
+) {
+  scale_screen <- rlang::arg_match(
+    scale_screen,
+    .hist_trade_scale_choices()
+  )
   items <- data.table::as.data.table(whep::items_full)[,
     .(item_cbs, item_cbs_code)
   ]
@@ -1011,6 +1406,15 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
+  if (!is.null(reference)) {
+    dt <- .screen_hist_trade_scale(
+      dt,
+      reference,
+      scale_screen,
+      reporter_reference = reporter_reference
+    )
+  }
+
   dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
@@ -1048,6 +1452,312 @@ build_processing_coefs <- function(
   dt[!is.na(polity_code)]
 }
 
+# What happens to a pre-1961 historical trade flow that no mass unit can make
+# physical. See `.screen_hist_trade_scale()` for the bound and whep#1085 for
+# the measurement.
+.hist_trade_scale_choices <- function() {
+  c("report", "drop", "abort")
+}
+
+# The bound the historical trade screen measures against: for each
+# `(item_code_trade, element)`, the largest WORLD flow FAOSTAT records in the
+# years the build is already reading, summed over reporters.
+#
+# It is a measured bound, not a chosen cap. World trade in agricultural
+# commodities grew through the twentieth century, so a single country's flow
+# in 1850-1960 exceeding the largest world flow FAOSTAT has ever published for
+# the same item is not a quantity any mass unit can express.
+#
+# Only the mass rows can bound a tonnage: FAOSTAT trade also carries live
+# animals in `An` / `1000 An`, and a head count is not a mass (whep#865).
+.hist_trade_world_reference <- function(fao_trade) {
+  empty <- data.table::data.table(
+    item_code_trade = integer(),
+    element = character(),
+    world_max = numeric()
+  )
+  if (is.null(fao_trade) || nrow(fao_trade) == 0L) {
+    return(empty)
+  }
+  dt <- .hist_trade_mass_rows(fao_trade)
+  if (nrow(dt) == 0L) {
+    return(empty)
+  }
+  world <- dt[,
+    .(world = sum(value, na.rm = TRUE)),
+    by = c("item_code_trade", "element", "year")
+  ]
+  world[,
+    .(world_max = max(world, na.rm = TRUE)),
+    by = c("item_code_trade", "element")
+  ]
+}
+
+# The second, tighter bound, added for whep#1117: for each
+# `(iso3c, item_code_trade, element)`, the largest flow FAOSTAT records for
+# that SAME reporter, item and element.
+#
+# The world bound above is deliberately loose -- one reporter against the whole
+# world -- so it sees only the very largest corrupt rows. Measured on the real
+# pins at 1850-2023 it flags 1,693 rows, while 19,375 pre-1961 rows are larger
+# than anything FAOSTAT ever records for their own reporter. The ten-fold USA
+# block whep#1117 describes is almost entirely in that gap: USA raw sugar
+# imports (item 162) run at 35-43 Mt over 1955-1959 against the pin's own
+# 4.7 Mt at 1960 and FAOSTAT's 3.7 Mt at 1961, and world raw sugar imports are
+# larger still, so the world bound never sees them.
+#
+# This bound is REPORTED ONLY and never drops or aborts, because it provably
+# mixes two populations it cannot separate. Nineteenth-century Britain imported
+# more flax fibre, cotton lint, linseed and cheese than modern Britain does, so
+# a pre-1961 flow above the reporter's modern maximum is as often genuine
+# history as it is a scale error. See `.screen_hist_trade_scale()`.
+.hist_trade_reporter_reference <- function(fao_trade) {
+  empty <- data.table::data.table(
+    iso3c = character(),
+    item_code_trade = integer(),
+    element = character(),
+    reporter_max = numeric()
+  )
+  if (is.null(fao_trade) || nrow(fao_trade) == 0L) {
+    return(empty)
+  }
+  dt <- .hist_trade_mass_rows(fao_trade, "area_code")
+  if (nrow(dt) == 0L) {
+    return(empty)
+  }
+  bridge <- .iso3_area_code_bridge()
+  data.table::setnames(bridge, "area_code_fao", "area_code")
+  dt <- merge(dt, bridge, by = "area_code", sort = FALSE)
+  dt[,
+    .(reporter_max = max(value, na.rm = TRUE)),
+    by = c("iso3c", "item_code_trade", "element")
+  ]
+}
+
+# The FAOSTAT trade rows either bound may use: import and export flows carried
+# in a mass unit. A head count in `An` / `1000 An` is not a mass and cannot
+# bound a tonnage (whep#865).
+.hist_trade_mass_rows <- function(fao_trade, extra_cols = character()) {
+  dt <- data.table::as.data.table(fao_trade)
+  needed <- c("item_code_trade", "element", "unit", "value", "year", extra_cols)
+  if (!all(needed %in% names(dt))) {
+    cli::cli_abort(c(
+      "{.arg fao_trade} is missing {.field {setdiff(needed, names(dt))}}.",
+      "i" = "The historical trade screen bounds a tonnage with a tonnage."
+    ))
+  }
+  dt[unit %in% .mass_trade_units() & element %in% c("import", "export")]
+}
+
+# Screen the pre-1961 historical trade rows against that bound.
+#
+# whep#1085: the `historical-trade-exports` pin publishes item 831 ("Tobacco
+# products nes") for the USA at 115,136 under a `"1000 MT"` label at 1951 --
+# 115.1 Mt of tobacco products from one country in one year, against the
+# 3.57 Mt of world tobacco production FAOSTAT records at 1961, the earliest
+# year it covers. Nine of the pin's ten largest values are that one
+# reporter-item. Three independent checks say the number is not a mass:
+#
+#   * mirror trade -- no reporter anywhere in the companion imports pin books
+#     item 831 after 1909, and over 1900-1909 world imports are 1-3 kt against
+#     2.8-25 Mt of exports;
+#   * the source contradicts itself -- the same pin puts USA item 826
+#     (unmanufactured tobacco, the raw material for 831) at 43-460 kt before
+#     1931, and its own 1961 row for 831 is 4.722 kt, matching FAOSTAT's
+#     4,722 t exactly;
+#   * the block breaks at both ends -- x415 between 1892 and 1900, and /2911
+#     between 1960 and 1961.
+#
+# No conversion factor repairs it. The same USA block over 1903-1960 carries a
+# second defect, whep#1117: a x10 inflation interleaved with correct values in
+# the same series -- USA cotton lint (767) alternates 1,524 / 16,437 / 2,160 /
+# 25,291 against FAOSTAT's 1,450 at 1961, and USA raw sugar imports (162) sit
+# at 35-43 Mt over 1955-1959 against the pin's own 4.7 Mt at 1960.
+#
+# That second defect is NOT repaired here either, and whep#1117 measured why a
+# repair cannot be anchored from inside WHEP:
+#
+#   * the pin's 1961 layer is FAOSTAT verbatim -- all 18,531 overlapping
+#     reporter-item-element rows agree to machine precision -- so the "FAOSTAT
+#     anchor" bounds the LEVEL at one year and confirms no pre-1961 row;
+#   * FAOSTAT starts in 1961 and every affected row is earlier, so no per-row
+#     anchor exists at all;
+#   * the only FAOSTAT-derived per-series bound, the reporter's own modern
+#     maximum, cannot separate a scale error from genuine history: applying it
+#     with the alternation whep#1117 describes selects 6,921 rows carrying
+#     5,117 Mt as published, and would take 4,606 Mt of it away -- a quarter
+#     of the 18,640 Mt the two pins carry before polity resolution -- while
+#     including nineteenth-century British flax, cotton, linseed and cheese
+#     imports that are simply larger than modern Britain's.
+#
+# So the pin is wrong at the producer and has to be fixed there, against the
+# source the byte-copied `total_exports.csv` came from. This screen only
+# refuses to consume it silently, and now reports the reporter-level class
+# as well so the ten-fold block is visible at all.
+#
+# `method` is a policy, not an estimate: `"report"` keeps every value and only
+# warns, so it moves no published number; `"drop"` removes the flagged rows;
+# `"abort"` refuses to build. There is deliberately no "clamp" and no
+# "rescale" -- a clamped or divided tonnage would be a fabricated one. `method`
+# governs the world bound only; the reporter bound is informational under every
+# setting, for the reason `.hist_trade_reporter_reference()` records.
+.screen_hist_trade_scale <- function(
+  dt,
+  reference,
+  method,
+  reporter_reference = NULL
+) {
+  method <- rlang::arg_match(method, .hist_trade_scale_choices())
+  out <- data.table::as.data.table(dt)
+  ref <- data.table::as.data.table(reference)
+  if (nrow(ref) == 0L) {
+    cli::cli_warn(c(
+      "!" = "The historical trade scale screen has no FAOSTAT world reference.",
+      "*" = "{.val {nrow(out)}} pre-1961 trade rows went unchecked.",
+      "i" = "The reference comes from the FAOSTAT trade years the build
+             reads, so a build that reads none cannot run it (whep#1085)."
+    ))
+    return(out)
+  }
+  out[ref, world_max := i.world_max, on = c("item_code_trade", "element")]
+  out <- .add_hist_trade_reporter_max(out, reporter_reference)
+  # The reporter class is restricted to the rows the CBS actually consumes
+  # from these pins. `.prepare_trade_hist_source()` keeps `year < 1961`, and
+  # the pins' 1961 layer is FAOSTAT verbatim, so including it would only
+  # report the 46 rows where one ISO3 aggregates reporters FAOSTAT splits
+  # (the USSR, Belgium-Luxembourg) -- a bridge artefact, not a scale error.
+  .report_hist_trade_scale(
+    out[!is.na(world_max) & value > world_max],
+    out[year < 1961L & !is.na(reporter_max) & value > reporter_max],
+    out,
+    method
+  )
+  if (method == "drop") {
+    out <- out[is.na(world_max) | value <= world_max]
+  }
+  out[, c("world_max", "reporter_max") := NULL]
+  out[]
+}
+
+# Attach the reporter bound, leaving it all-`NA` when no reporter reference was
+# supplied so the screen behaves exactly as it did before whep#1117.
+.add_hist_trade_reporter_max <- function(out, reporter_reference) {
+  reporter_ref <- if (is.null(reporter_reference)) {
+    NULL
+  } else {
+    data.table::as.data.table(reporter_reference)
+  }
+  if (is.null(reporter_ref) || nrow(reporter_ref) == 0L) {
+    out[, reporter_max := NA_real_]
+    return(out)
+  }
+  out[
+    reporter_ref,
+    reporter_max := i.reporter_max,
+    on = c("iso3c", "item_code_trade", "element")
+  ]
+  out
+}
+
+# Say what the screen found in terms a maintainer can act on: how much mass,
+# which reporter-items, and what the other settings would have done instead.
+#
+# Two classes, reported together but acted on differently: `flagged` breaks the
+# world bound and `method` governs it, `reporter_flagged` breaks only the
+# reporter bound and is informational under every setting (whep#1117).
+.report_hist_trade_scale <- function(
+  flagged,
+  reporter_flagged,
+  all_rows,
+  method
+) {
+  # The reporter class first, so it is still on record when the world class
+  # aborts the build.
+  .warn_hist_trade_reporter(reporter_flagged)
+  .signal_hist_trade_world(flagged, all_rows, method)
+  invisible(flagged)
+}
+
+.signal_hist_trade_world <- function(flagged, all_rows, method) {
+  if (nrow(flagged) == 0L) {
+    return(invisible(flagged))
+  }
+  worst <- flagged[order(-value)][seq_len(min(3L, nrow(flagged)))]
+  labels <- paste0(
+    worst$iso3c,
+    " item ",
+    worst$item_code_trade,
+    " ",
+    worst$year,
+    " = ",
+    round(worst$value / 1e6, 1),
+    " Mt vs ",
+    round(worst$world_max / 1e6, 1),
+    " Mt world"
+  )
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(flagged)} pre-1961 trade row{?s} cannot be the tonnage the ",
+      "{.val 1000 MT} label claims."
+    ),
+    "*" = paste0(
+      "Each exceeds the largest world flow FAOSTAT records for its item; ",
+      "{.val {paste0(round(sum(flagged$value) / 1e6, 1), ' Mt')}} over ",
+      "{.val {sort(unique(flagged$iso3c))}}."
+    ),
+    "*" = "Largest: {.val {labels}}.",
+    "*" = paste0(
+      "{.val {paste0(sum(is.na(all_rows$world_max)), ' rows')}} had no ",
+      "FAOSTAT reference and went unchecked."
+    ),
+    "i" = paste0(
+      "{.arg hist_trade_scale} is {.val {method}}; ",
+      "{.val {setdiff(.hist_trade_scale_choices(), method)}} also select",
+      "able. The pin is wrong at the producer (whep#1085) and no conversion ",
+      "factor recovers the true value."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_hist_trade_scale")
+  }
+  cli::cli_warn(bullets, class = "whep_hist_trade_scale")
+  invisible(flagged)
+}
+
+# The reporter class is the one that makes whep#1117's ten-fold block visible.
+# It is never dropped and never aborts: the same bound also catches pre-modern
+# flows genuinely larger than the reporter's modern maximum, and nothing
+# available offline separates the two.
+.warn_hist_trade_reporter <- function(reporter_flagged) {
+  if (nrow(reporter_flagged) == 0L) {
+    return(invisible(reporter_flagged))
+  }
+  reporters <- sort(unique(reporter_flagged$iso3c))
+  mass <- paste0(round(sum(reporter_flagged$value) / 1e6, 1), " Mt")
+  cli::cli_warn(
+    c(
+      "!" = paste0(
+        "{nrow(reporter_flagged)} pre-1961 trade row{?s} {?is/are} larger ",
+        "than any flow FAOSTAT records for the same reporter, item and ",
+        "element."
+      ),
+      "*" = paste0(
+        "{.val {mass}} over {cli::qty(length(reporters))}",
+        "{length(reporters)} reporter{?s}, {.val {utils::head(reporters, 5L)}}",
+        " first."
+      ),
+      "i" = paste0(
+        "Reported only, never dropped: this class mixes the ten-fold scale ",
+        "corruption of whep#1117 with pre-modern flows that genuinely exceed ",
+        "the reporter's modern maximum, and no offline anchor separates ",
+        "them. The repair belongs at the pin's producer."
+      )
+    ),
+    class = "whep_hist_trade_reporter_scale"
+  )
+  invisible(reporter_flagged)
+}
+
 # Enrich codes-only primary output with names needed by the CBS pipeline.
 # build_primary_production() may already return item_cbs_name (a newer, richer
 # output than the "codes-only" shape this function originally assumed);
@@ -1082,7 +1792,15 @@ build_processing_coefs <- function(
     "unit",
     "element"
   )
-  dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+  # The sum is over the production items that map to one CBS item, so the flag
+  # of the CBS row is only defined when every one of them agrees -- a CBS
+  # tonnage built from an official item and an imputed one is neither
+  # (whep#581, whep#1044). Without this the flag would not survive
+  # `.primary_to_cbs()` at all, and the FAOSTAT_prod rows of the CBS would stay
+  # NA however faithfully `build_primary_production()` reported it. An
+  # unflagged part is WHEP's own estimate, so it blocks the flag too.
+  agg <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+  dt <- .add_folded_fao_flags(agg, dt, by_cols, unflagged = "blocks")
   dt <- dt[!is.na(area)]
 
   feed_dt <- dt[item_cbs_code %in% fodder_codes]
@@ -1093,6 +1811,25 @@ build_processing_coefs <- function(
   dt[unit == "tonnes"]
 }
 
+# The harvested area the pre-1962 seed back-cast recovers its rate from.
+#
+# Keyed on the CODE, never on the `area` label. This table is joined onto the
+# pre-1962 CBS frame in `.fill_historical_destinies()`, and the two sides speak
+# different dialects of one vocabulary. Both carry exactly one label per code,
+# but they pick it by different rules: here `.enrich_primary_with_names()`
+# takes the FAOSTAT-facing name of the code's LATEST polity via
+# `add_area_name()` ("Poland", "Czechoslovakia", "Russian Federation"), while
+# the CBS side carries what `.cbs_area_labels()` stamps -- best source, first
+# year, alphabetical -- which is the periodized polity name ("Poland
+# (1945-2025)", "Czechoslovakia (1947-1993)", "Russia (1991-2014)"). Measured
+# on a real 1850-2023 build, 38 of the 186 codes both sides carry disagree,
+# and joining on the label as well as the code dropped 101,578 of 423,836
+# harvested-area keys, 24.0% of them (whep#699).
+#
+# Dropping `area` from the aggregation as well as from the join is what keeps
+# that join one-to-one: a code that arrived under two labels would otherwise
+# give one `(year, area_code, item_cbs_code)` two rows and duplicate the CBS
+# row it matches.
 .primary_to_cbs_area <- function(primary_all) {
   dt <- .enrich_primary_with_names(primary_all)
   if (!data.table::is.data.table(dt)) {
@@ -1102,7 +1839,6 @@ build_processing_coefs <- function(
   dt <- dt[!is.na(item_cbs_code)]
   by_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1404,10 +2140,22 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  dt <- dt[,
-    .(value = mean(value, na.rm = TRUE)),
-    by = c(key_cols, "source")
-  ]
+  # The flag folds with the mean rather than being dropped: this collapse runs
+  # over the WHOLE frame when `historical_data` is supplied, so dropping it
+  # here would put every 1961+ row back to NA on that path alone (whep#953).
+  # The best-source pick below keeps one row per key, so the surviving flag is
+  # the one belonging to the source that survived with it.
+  if ("fao_flag" %in% names(dt)) {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
+      by = c(key_cols, "source")
+    ]
+  } else {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE)),
+      by = c(key_cols, "source")
+    ]
+  }
   dt <- dt[!is.nan(value)]
   dt[, .source_rank := .cbs_source_rank(source, year)]
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
@@ -1444,28 +2192,206 @@ build_processing_coefs <- function(
   )
 }
 
+# The residue rows the CBS carries, and only those.
+#
+# This used to copy the whole residue PRODUCTION row and relabel the copy as a
+# use: `feed` for Straw and Other crop residues, `other_uses` for Firewood. So
+# 100% of residue production was booked as eaten or burned, with no recovery
+# rate and no feed-use fraction -- 7.21 Pg DM of residue feed at 2020, against
+# the ~1.3 Pg the package's own coefficients give, and 5.74 Pg of it reaching
+# feed availability, where it displaced pasture: grass demand was met as grass
+# only 37% of the time while residues ran at 202% of theirs.
+#
+# The balance now carries only the residue that LEAVES the field.
+# `production` is the recovered residue, `feed` its feed-use share and
+# `other_uses` the rest, so production = feed + other_uses exactly. What stays
+# on the field is not a commodity and never enters the balance; it reaches the
+# soil through `residue_soil_dm_t` on the crop-NPP path, which is what stops
+# the two sides of WHEP disagreeing about the same straw.
+#
+# Firewood is recovered like the others but is fuel, never feed, so its whole
+# recovered mass is `other_uses`. Keyed on the residue item CODE rather than
+# its name, unlike the name test this replaces.
+.residue_cbs_elements <- function(res, bedding_fraction = 0) {
+  feed_items <- c(2105L, 2106L) # Straw, Other crop residues
+  split <- .residue_recovered_split(res, bedding_fraction = bedding_fraction)
+  base <- dplyr::select(split, -"value", -"recovered", -"feed_dm_t")
+  is_feed_item <- as.integer(split$item_cbs_code_residue) %in% feed_items
+  dplyr::bind_rows(
+    dplyr::mutate(base, element = "production", value = split$recovered),
+    dplyr::mutate(
+      base,
+      element = "feed",
+      value = dplyr::if_else(is_feed_item, split$feed_dm_t, 0)
+    ),
+    dplyr::mutate(
+      base,
+      element = "other_uses",
+      value = dplyr::if_else(
+        is_feed_item,
+        split$recovered - split$feed_dm_t,
+        split$recovered
+      )
+    )
+  ) |>
+    dplyr::filter(.data$value > 0)
+}
+
+# Recovered residue and its feed share, per row of `get_primary_residues()`.
+#
+# `calculate_residue_destinies()` keys on `item_prod_code` (for the Krausmann
+# recovery category) while the pinned residue table is keyed on the CBS crop
+# item, so each row is bridged to the category (or categories) its CBS code
+# covers. The bridge is 1:1 for 72 of the 73 CBS codes that carry a category;
+# only 2570 spans two (Castor Beans and Rapeseed), and its mass is split
+# evenly between them rather than being assigned to whichever came first.
+# The representative `item_prod_code` per category is exact, not an
+# approximation: the destiny function reads nothing else from it.
+.residue_recovered_split <- function(
+  res,
+  warn = TRUE,
+  method_destiny = "recovery_regional",
+  bedding_fraction = 0
+) {
+  res <- dplyr::mutate(
+    res,
+    item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
+    .residue_row = dplyr::row_number()
+  )
+  dest <- res |>
+    dplyr::left_join(
+      .residue_krausmann_bridge(),
+      by = "item_cbs_code_crop",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::left_join(.residue_destiny_regions(), by = "area_code") |>
+    # Split a multi-category CBS crop by how many PRODUCTION ITEMS each of its
+    # categories covers, not evenly. Only item 2570 ("Oilcrops, Other") spans
+    # two, and its twelve production items are not one-and-eleven: an even
+    # split silently gives the minority category half the mass, which is an
+    # unweighted mean of two recovery rates rather than the crop's own.
+    dplyr::mutate(
+      residue_dm_t = .data$value *
+        .data$category_weight /
+        sum(.data$category_weight),
+      .by = ".residue_row"
+    ) |>
+    calculate_residue_destinies(
+      method = method_destiny,
+      bedding_fraction = bedding_fraction
+    ) |>
+    dplyr::summarise(
+      # EVERY removed destiny, not just feed and burn. Bedding is carved out of
+      # the burn share by calculate_residue_destinies(), so summing only those
+      # two would drop the bedding mass from residue `production` while leaving
+      # `feed` untouched -- silently breaking `production = feed + other_uses`,
+      # since `other_uses` is derived as `recovered - feed` below. Bedding is
+      # not a CBS element of its own: it is part of `other_uses`, which is
+      # exactly what it is, a non-feed use of the straw that left the field.
+      recovered = sum(
+        .data$residue_feed_dm_t +
+          .data$residue_bedding_dm_t +
+          .data$residue_burn_dm_t,
+        na.rm = TRUE
+      ),
+      feed_dm_t = sum(.data$residue_feed_dm_t, na.rm = TRUE),
+      # Keep the multi-method stamp `calculate_residue_destinies()` sets. It
+      # used to be discarded here, so the CBS recorded nowhere how its residue
+      # rows had been produced.
+      method_residue_destiny = dplyr::first(.data$method_residue_destiny),
+      .by = ".residue_row"
+    )
+  out <- dplyr::left_join(res, dest, by = ".residue_row")
+  if (isTRUE(warn)) {
+    .warn_unrecovered_residue(out)
+  }
+  dplyr::select(out, -".residue_row")
+}
+
+# CBS crop item -> a representative production item for each Krausmann
+# recovery category it covers, WITH the number of production items that
+# category covers for this CBS code, so a crop spanning two categories can be
+# split by how much of it each really is.
+.residue_krausmann_bridge <- function(items = whep::items_prod_full) {
+  keyed <- items |>
+    dplyr::filter(!is.na(.data$Cat_Krausmann)) |>
+    dplyr::mutate(item_cbs_code_crop = as.integer(.data$item_cbs_code))
+  weights <- keyed |>
+    dplyr::summarise(
+      category_weight = dplyr::n(),
+      .by = c("item_cbs_code_crop", "Cat_Krausmann")
+    )
+  keyed |>
+    dplyr::distinct(
+      .data$item_cbs_code_crop,
+      .data$Cat_Krausmann,
+      .keep_all = TRUE
+    ) |>
+    dplyr::transmute(
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      Cat_Krausmann = .data$Cat_Krausmann,
+      item_prod_code = as.character(.data$item_prod_code)
+    ) |>
+    dplyr::left_join(weights, by = c("item_cbs_code_crop", "Cat_Krausmann")) |>
+    dplyr::select(-"Cat_Krausmann")
+}
+
+# The two regional vocabularies the destiny split needs, per area_code:
+# region_krausmann for the recovery rate, UN M49 sub-region for the feed-use
+# fraction. They are different vocabularies on purpose (see
+# .residue_destiny_recovery): region_UN_sub -> region_HANPP is not 1:1.
+.residue_destiny_regions <- function(regions = whep::regions_full) {
+  regions |>
+    dplyr::transmute(
+      area_code = .data$code,
+      region_krausmann = .data$region_krausmann,
+      region_un_sub = .data$region_UN_sub
+    ) |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+}
+
+# Residue that recovers nothing leaves the balance entirely: all of it stays on
+# the field, so no CBS row is written for it. That is the right default --
+# inventing a recovery rate would be worse -- but it is mass leaving the CBS,
+# so it is said out loud rather than simply not appearing.
+#
+# THREE DIFFERENT THINGS PRODUCE A ZERO HERE and this warning cannot tell them
+# apart, which is why it names none of them: the recovery table really gives
+# zero (18 of its 160 rows), the crop reaches no `Cat_Krausmann` category, or
+# the row's region label reaches no recovery region (whep#1175).
+# `calculate_residue_destinies()` separates the last two from the first, and
+# warns about them itself, through `residue_recovery_matched`.
+.warn_unrecovered_residue <- function(out) {
+  gone <- out[!is.na(out$recovered) & out$recovered == 0 & out$value > 0, ]
+  if (nrow(gone) == 0) {
+    return(invisible(NULL))
+  }
+  items <- sort(unique(gone$item_cbs_code_crop))
+  cli::cli_warn(c(
+    "{nrow(gone)} crop-residue row{?s} recover nothing, so they carry no CBS
+     production: {round(sum(gone$value, na.rm = TRUE) / 1e6)} Mt over
+     {length(items)} crop item{?s}.",
+    i = "Their recovery rate is zero -- given as zero, or missing and read as
+         zero -- so the whole residue is left on the field and reaches the soil
+         rather than the balance. {.field residue_recovery_matched} says
+         which."
+  ))
+  invisible(NULL)
+}
+
 .read_crop_residues <- function(years = NULL) {
   items_prod <- whep::items_prod_full
 
   res <- get_primary_residues() |>
-    .filter_years(years)
+    .filter_years(years) |>
+    .residue_cbs_elements()
 
   # Map back to item_cbs names for CBS integration
-  res <- res |>
-    dplyr::mutate(element = "production") |>
-    add_item_cbs_name(code_column = "item_cbs_code_residue") |>
+  res <- add_item_cbs_name(res, code_column = "item_cbs_code_residue") |>
     dplyr::rename(item_cbs = item_cbs_name)
 
   dt <- data.table::as.data.table(res)
-  dt_extra <- data.table::copy(dt)
-  dt_extra[,
-    element := data.table::fifelse(
-      item_cbs %in% c("Straw", "Other crop residues"),
-      "feed",
-      "other_uses"
-    )
-  ]
-  dt <- data.table::rbindlist(list(dt, dt_extra), use.names = TRUE, fill = TRUE)
   dt <- dt[!is.na(item_cbs)]
 
   items_bridge <- data.table::as.data.table(items_prod)[,
@@ -1719,6 +2645,17 @@ build_processing_coefs <- function(
   )
 }
 
+# Oil cakes, molasses, fibres, palm kernels and hides taken straight from the
+# FAOSTAT trade record, which the commodity balances do not cover from 2014 on.
+#
+# `.mass_only_trade()`'s rule applies here too, for the same source: the
+# summarise below drops `unit` from the key, and `.read_fao_trade()` emits
+# `An`, `1000 An` and `No` alongside `t` (whep#865). None of them reaches this
+# point today -- measured on the real pin at 2014+, all 85,635 rows of these 63
+# trade codes are `t` and no output key draws from two units -- so the filter
+# is a no-op on current data. It is the crosswalk edit or the FAOSTAT relabel
+# it guards against, which would otherwise add head counts to a tonnes column
+# with nothing downstream able to see it.
 .get_traded_residues <- function(fao_trade, cbs_trade, items) {
   fao_trade |>
     dplyr::filter(year > 2013) |>
@@ -1746,6 +2683,7 @@ build_processing_coefs <- function(
             "Hides and skins"
           )
     ) |>
+    .drop_non_mass_rows("faostat-trade-totals") |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
       .by = c(
@@ -1759,7 +2697,21 @@ build_processing_coefs <- function(
     )
 }
 
+# Fibre and tobacco rows from the Commodity Balances (non-food) record, which
+# the food balance sheets do not carry.
+#
+# The summarise below drops `unit` from the key, so a mixed-unit `cbs_new`
+# would sum two denominations into one `value` -- the same shape as whep#865
+# one source over. This cannot happen today, and not for a reassuring reason:
+# the `faostat-cbs-new` pin ships `Unit` as a logical column holding a single
+# `TRUE` for all 58,107 rows, which `.normalise_units()` stringifies to
+# `"TRUE"` (whep#1025). One unit is one unit, so the assertion passes and no
+# value moves -- and it is what will catch the mixture the moment that pin
+# carries real unit labels again. A mass-only filter is deliberately NOT used
+# here: against `"TRUE"` it would drop the entire record.
 .get_fiber_tobacco <- function(cbs_new, cbs_trade, items) {
+  .abort_if_units_mixed(cbs_new, "faostat-cbs-new")
+
   cbs_new |>
     dplyr::rename(
       item_trade = item_cbs,
@@ -1872,7 +2824,24 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(year) & !is.na(area) & !is.na(element)]
 
-  pp_items <- c(
+  # Copy the production row only. Relabelling every element would leave
+  # import, export and supply rows under `processing_primary` too, which
+  # `.select_best_source()` sums within a source and averages across the
+  # non-primary ones: harmless only while FAOSTAT_prod reports the key
+  # (whep#1189).
+  dt_pp <- dt[item_cbs %in% .cbs_pp_items() & element == "production"]
+  dt_pp[, element := "processing_primary"]
+
+  data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
+}
+
+# The items whose entire production is destined for processing, so that their
+# `processing_primary` row is a copy of the production row rather than a
+# reported destiny (whep#143). Named here rather than inline because the
+# construction is what makes their destiny share a trade ratio instead of an
+# apportionment -- see `.apply_share_overflow()`.
+.cbs_pp_items <- function() {
+  c(
     "Oil, palm fruit",
     "Hops",
     "Seed cotton",
@@ -1881,10 +2850,6 @@ build_processing_coefs <- function(
     "Kapok fruit",
     "Linum"
   )
-  dt_pp <- dt[item_cbs %in% pp_items & source != "trade_hist"]
-  dt_pp[, element := "processing_primary"]
-
-  data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
 }
 
 # Label historical trade with its source and restrict it to the pre-1961
@@ -1923,10 +2888,36 @@ build_processing_coefs <- function(
     "element"
   )
 
+  # `unit` is deliberately not a key -- the selected CBS is tonnes throughout
+  # and the output carries no unit column -- so assert that, instead of
+  # assuming it. Everything below reads `value` with `unit` already gone: the
+  # `fun.aggregate` SUMS a duplicated (key, source) pair and the `other_mean`
+  # below AVERAGES across the non-primary sources, so one key reported in two
+  # units would silently become one number denominated in neither. The
+  # comment on `fun.aggregate` already named that hazard; this is the part
+  # that makes it an error rather than a sum.
+  #
+  # It holds on the real record, and by more than luck: every source that
+  # reaches here with a `unit` normalises to `"tonnes"` -- FBS_New's `1000 t`,
+  # FBS_Old's `1000 tonnes`, both old CBS pins' `tonnes`, and
+  # `.primary_to_cbs()`'s explicit `unit == "tonnes"` filter. FBS_New's one
+  # non-mass unit (`1000 No`, total population) is on an element
+  # `.extract_fao()` drops. The rest arrive without the column and are tonnes
+  # by construction; see `.abort_if_units_mixed()` on why `NA` is tolerated.
+  .abort_if_units_mixed(cbs_raw_all, "cbs_raw_all", key_cols = key_cols)
+
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
   area_lookup <- .cbs_area_labels(dt_raw)
-  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
+  # `fao_flag` is kept here on purpose. Reducing to (key, source, value) is
+  # what made the documented `fao_flag` column structurally NA: it was gone
+  # before `.format_cbs_output()` could carry it, so the branch that stamps
+  # NA_character_ was the only one that ever ran (whep#953).
+  keep_cols <- c(key_cols, "source", "value")
+  if ("fao_flag" %in% names(dt_raw)) {
+    keep_cols <- c(keep_cols, "fao_flag")
+  }
+  dt_raw <- dt_raw[, keep_cols, with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
   # Avoids expensive frankv over many source columns.
@@ -1967,9 +2958,11 @@ build_processing_coefs <- function(
   #     Sudan and South Sudan from 2011, asserted in test_polity_folds.R) now emits one row.
   #
   # `fun.aggregate` STAYS regardless, as a guard rather than as a fix for a known duplicate:
-  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket, a re-mapped
-  # item code, one key reported in two units, since `key_cols` excludes `unit` -- would silently
-  # turn every cell of the table into a row count instead of erroring.
+  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket or a re-mapped
+  # item code -- would silently turn every cell of the table into a row count instead of
+  # erroring. The third case this used to list, one key reported in two units, is no longer
+  # left to it: summing across units is not a repaired duplicate but a wrong number, so
+  # `.abort_if_units_mixed()` above rejects it before the cast (whep#1024).
   #
   # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
   # zero where there is no observation is a different claim from a missing one. `fill = NA` is
@@ -2104,6 +3097,7 @@ build_processing_coefs <- function(
   ]
 
   wide[area_lookup, area := i.area, on = "area_code"]
+  wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
   wide <- wide |>
     dplyr::select(
@@ -2114,8 +3108,66 @@ build_processing_coefs <- function(
       element,
       year,
       source,
-      value
+      value,
+      fao_flag
     )
+}
+
+# The FAOSTAT observation-status flag of the source the value was TAKEN from.
+#
+# The pick has to follow the value. `.select_best_source()` chooses the value
+# by a stated priority (FAOSTAT_prod > FBS_New > scaled FBS_Old > mean of the
+# rest), and the sources disagree about provenance: measured on a real
+# 2010-2013 `cbs_raw_all`, 289,262 of its 1,010,180 selection keys (28.6%) are
+# reported with more than one distinct flag across sources. Keeping whichever
+# flag sorted first would therefore attribute one vintage's provenance to
+# another vintage's number in a quarter of the table.
+#
+# Within a single source there is nothing to choose: 0 of 1,906,689
+# (key, source) groups carry two distinct flags, because
+# `.aggregate_to_polities()` has already folded the polity buckets with
+# `.fold_fao_flag()`. The `mean` branch is the one place that really does
+# average several sources, so it gets that same fold -- keep the flag when
+# every averaged source agrees, `NA` when they do not (whep#581).
+.add_best_source_flag <- function(wide, dt_raw, key_cols, primary_sources) {
+  wide[, fao_flag := NA_character_]
+  if (!"fao_flag" %in% names(dt_raw)) {
+    return(wide)
+  }
+  flags <- dt_raw[!is.na(fao_flag)]
+  flags[,
+    source_group := data.table::fifelse(
+      source %in% primary_sources,
+      source,
+      "mean"
+    )
+  ]
+  flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
+  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag; every other label is the group name already.
+  wide[,
+    source_group := data.table::fifelse(
+      source == "FAOSTAT_FBS_Old_scaled",
+      "FAOSTAT_FBS_Old",
+      source
+    )
+  ]
+  wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
+  wide[, source_group := NULL]
+  wide
+}
+
+# `.fold_fao_flag()`'s rule -- one flag if the group agrees, otherwise none --
+# applied per group without calling it once per group. A group that keeps two
+# rows after the distinct-flag dedup disagrees, so dropping those leaves
+# exactly the agreeing groups, and a key absent from the result joins as NA.
+# It is the same answer (asserted against the helper in test_build_cbs.R) and
+# 5x cheaper: measured on a real 2010-2013 `cbs_raw_all`, 1.4 s against 6.8 s
+# for 1.9M groups, which is most of what carrying the flag costs at all.
+.fold_flags_by <- function(flags, by_cols) {
+  out <- unique(flags, by = c(by_cols, "fao_flag"))
+  out[, n_group_flags := .N, by = by_cols]
+  out[n_group_flags == 1L, c(by_cols, "fao_flag"), with = FALSE]
 }
 
 # The order `.assemble_cbs_sources()` binds its sources in. It is what decided
@@ -2170,10 +3222,12 @@ build_processing_coefs <- function(
 # multiplies rows there. whep#691 has since taken the destiny-share skeleton off
 # it too -- `.interpolate_destiny_shares()` keys on the code and calls
 # `.attach_cbs_area_label()` at the end, so this lookup now feeds the label back
-# on in three places instead of being read as a key. ONE join still
-# reads the label: the `primary_area` seed join (whep#699, which also needs the
-# seed expression settled). Until it is gone, a second label for one code is
-# still the whep#563 shape, so this stays one label per code.
+# on in three places instead of being read as a key. whep#699 has taken the
+# last of them -- the `primary_area` seed join keys on the code now -- so no
+# join inside the historical extension reads this label any more; it is a
+# display name that `.finalise_historical()` carries out. It stays one label
+# per code because that is what a display name is, and because whep#731 is the
+# issue that decides whether the CBS should carry the column at all.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
@@ -2205,7 +3259,10 @@ build_processing_coefs <- function(
 .cbs_extend_historical <- function(
   cbs_raw0,
   inputs,
-  years
+  years,
+  share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
   items <- whep::items_full
 
@@ -2259,8 +3316,14 @@ build_processing_coefs <- function(
   ]
   data.table::setnames(observed_sources, "source", "observed_source")
 
+  # `fao_flag` goes with `source` here, and unlike `source` it does not come
+  # back. Below, the year skeleton and `.fill_historical_destinies()` replace
+  # the value of most of these rows, and `observed_source` is coalesced to
+  # `"historical_fill"` precisely because the result is WHEP's estimate rather
+  # than a reported figure. A FAOSTAT flag carried across that would describe
+  # a number FAOSTAT never published, so the pre-1961 extension keeps NA.
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of(c("source", "area")))
+    dplyr::select(-dplyr::any_of(c("source", "area", "fao_flag")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
@@ -2272,7 +3335,10 @@ build_processing_coefs <- function(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
       inputs$land_areas_wide,
-      items
+      items,
+      share_overflow = share_overflow,
+      negative_supply = negative_supply,
+      seed_backcast = seed_backcast
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -2329,8 +3395,23 @@ build_processing_coefs <- function(
   primary_area,
   gdp_pop,
   land_wide,
-  items
+  items,
+  share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
+  seed_backcast = .cbs_seed_backcast_choices()
 ) {
+  share_overflow <- rlang::arg_match(
+    share_overflow,
+    .cbs_share_overflow_choices()
+  )
+  negative_supply <- rlang::arg_match(
+    negative_supply,
+    .cbs_negative_supply_choices()
+  )
+  seed_backcast <- rlang::arg_match(
+    seed_backcast,
+    .cbs_seed_backcast_choices()
+  )
   expected_elements <- c(
     "domestic_supply",
     "production",
@@ -2356,15 +3437,8 @@ build_processing_coefs <- function(
       }
       d
     })() |>
+    .resolve_historical_supply(negative_supply) |>
     dplyr::mutate(
-      domestic_supply = dplyr::coalesce(
-        domestic_supply,
-        dplyr::if_else(
-          !is.na(production) & !is.na(import) & !is.na(export),
-          production + import - export,
-          NA_real_
-        )
-      ),
       food_share = .cbs_safe_ratio(food, domestic_supply),
       feed_share = .cbs_safe_ratio(feed, domestic_supply),
       other_uses_share = .cbs_safe_ratio(other_uses, domestic_supply),
@@ -2374,15 +3448,109 @@ build_processing_coefs <- function(
         domestic_supply
       )
     ) |>
+    .apply_share_overflow(share_overflow) |>
     dplyr::left_join(
-      primary_area,
-      by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
+      # The label is dropped from the right-hand side as well as from the key:
+      # it is present on both frames and carries no information the code does
+      # not, so keeping it would only suffix the column the frame is finalised
+      # on (whep#699).
+      primary_area |> dplyr::select(-dplyr::any_of("area")),
+      by = c("year", "area_code", "item_cbs", "item_cbs_code")
     ) |>
-    dplyr::mutate(seed_rate = .cbs_safe_ratio(seed, area_ha)) |>
+    .derive_seed_rate(seed_backcast) |>
     .fill_share_columns() |>
-    .apply_filled_shares() |>
+    .report_seed_backcast(seed_backcast) |>
+    .apply_filled_shares(seed_backcast) |>
     .fill_with_proxies(gdp_pop, land_wide) |>
     .finalise_historical(items)
+}
+
+# -- The pre-1962 seed back-cast ----------------------------------------------
+
+# What the seed back-cast divides an observed seed by, and multiplies the
+# recovered rate back by, most physically grounded first (whep#699).
+#
+# The fill is a rate carried along the year axis: `.derive_seed_rate()` reads a
+# rate off the years that report seed, `.fill_share_columns()` interpolates and
+# extrapolates it into the years that do not, and `.apply_filled_shares()`
+# spends it again. That only yields tonnes if the quantity it is spent on is
+# the quantity it was divided by, and until whep#699 it was not -- the rate was
+# `seed / area_ha` (t/ha) and it was spent as `production * seed_rate`
+# (t x t/ha), which is not a mass. Neither reading of that pair is a defensible
+# method, so the shipped expression is not offered as one.
+#
+# `"area_rate"` is the default and the more rigorous of the two: a seeding rate
+# is tonnes of seed per hectare sown, an agronomic quantity that holds while
+# yields change, so `seed / area_ha` is the ratio that is stable enough to
+# carry across decades. It needs the production build to report a harvested
+# area for the key in the target year.
+#
+# `"production_share"` reads the same fill as a seed-to-output ratio,
+# `seed / production` spent as `production * seed_rate`. It is what the shipped
+# multiplication would have been the arithmetic for, and it reaches the keys
+# `"area_rate"` cannot -- items with no harvested area at all, and crops whose
+# area series does not reach that year -- at the cost of a ratio that moves
+# with yield, so a low-yield back-cast year is credited with more seed per
+# tonne than the observation it was read from.
+.cbs_seed_backcast_choices <- function() {
+  c("area_rate", "production_share")
+}
+
+# The basis of the seed rate: the column it is a rate *of*. Read off the frame
+# rather than named in the calling expression so the ratio and the product that
+# undoes it cannot drift apart.
+.seed_backcast_basis <- function(df, seed_backcast) {
+  if (seed_backcast == "area_rate") df[["area_ha"]] else df[["production"]]
+}
+
+.derive_seed_rate <- function(df, seed_backcast) {
+  dplyr::mutate(
+    df,
+    seed_rate = .cbs_safe_ratio(
+      seed,
+      .seed_backcast_basis(df, seed_backcast)
+    )
+  )
+}
+
+# Name the method out loud, and separate the two ways a pre-1962 seed can come
+# out as nothing. A key whose rate the fill never recovered is a gap; a key
+# that HAS a rate and still books no seed, because the basis that rate is per
+# unit of is missing in that year, is an absent input turning into a zero
+# (`.finalise_historical()` replaces the NA with 0), and that is exactly what
+# whep#699 was: the whole basis went missing on a label-keyed join and every
+# pre-1962 seed the fill should have produced was booked as zero in silence.
+.report_seed_backcast <- function(df, seed_backcast) {
+  has_rate <- !is.na(df[["seed_rate"]]) & is.na(df[["seed"]])
+  basis <- .seed_backcast_basis(df, seed_backcast)
+  filled <- sum(has_rate & !is.na(basis))
+  blocked <- sum(has_rate & is.na(basis))
+  basis_name <- if (seed_backcast == "area_rate") "area_ha" else "production"
+  # Counts are formatted to strings first: a bare numeric next to a `{?s}`
+  # marker aborts inside cli's own message. Each `{}` substitution also RESETS
+  # the pluralisation quantity, so `{cli::qty()}` goes immediately before the
+  # marker it governs, never before the count it is the quantity of.
+  filled_txt <- format(filled, big.mark = ",", trim = TRUE)
+  blocked_txt <- format(blocked, big.mark = ",", trim = TRUE)
+  bullets <- c(
+    "i" = paste0(
+      "{.arg seed_backcast} is {.val {seed_backcast}}: the pre-1962 seed ",
+      "fill spends its rate on {.field {basis_name}} and reaches ",
+      "{filled_txt} {cli::qty(filled)}row{?s}."
+    )
+  )
+  if (blocked > 0L) {
+    bullets <- c(
+      bullets,
+      "!" = paste0(
+        "{blocked_txt} {cli::qty(blocked)}row{?s} recovered a rate but ",
+        "{cli::qty(blocked)}{?has/have} no {.field {basis_name}} that year, ",
+        "so {cli::qty(blocked)}{?its/their} seed is booked as zero."
+      )
+    )
+  }
+  cli::cli_inform(bullets, class = "whep_seed_backcast")
+  df
 }
 
 # A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
@@ -2393,6 +3561,339 @@ build_processing_coefs <- function(
 # carried forward as non-finite data.
 .cbs_safe_ratio <- function(num, denom) {
   dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
+}
+
+# -- Destiny shares above one --------------------------------------------------
+
+# The five destiny shares of `.fill_historical_destinies()`, each with the
+# element it divides by `domestic_supply`. `seed_rate` is deliberately absent:
+# it is seed per hectare, not a share of supply, so it has no reason to sit
+# below one.
+.destiny_share_map <- function() {
+  c(
+    food_share = "food",
+    feed_share = "feed",
+    other_uses_share = "other_uses",
+    processing_share = "processing",
+    processing_primary_share = "processing_primary"
+  )
+}
+
+# What to do with a destiny that exceeds the domestic supply it is apportioned
+# from (whep#980), most conservative first.
+#
+# `"report"` is the default and is the behaviour every published build has had:
+# the share is kept exactly as measured, and is now named out loud instead of
+# passing in silence. It is the default because the overflow is a property of
+# the FAOSTAT source rather than of this arithmetic -- see
+# `.apply_share_overflow()` -- so overriding it here would replace a reported
+# number by an invented one.
+#
+# `"clamp"` caps the share at 1, which asserts that the destiny is at most the
+# whole supply. `"drop"` sets it to `NA` so `.fill_share_columns()` fills the
+# key from a neighbouring year instead of trusting the violating one; where the
+# violating year is the only observation, the destiny stays missing and
+# `.finalise_historical()` books it as 0. `"abort"` refuses to build.
+.cbs_share_overflow_choices <- function() {
+  c("report", "clamp", "drop", "abort")
+}
+
+# Every row whose destiny exceeds the `domestic_supply` it is divided by.
+.destiny_shares_above_one <- function(df) {
+  shares <- .destiny_share_map()
+  purrr::map2(
+    names(shares),
+    unname(shares),
+    \(share_col, element) .one_share_above_one(df, share_col, element)
+  ) |>
+    purrr::list_rbind()
+}
+
+.one_share_above_one <- function(df, share_col, element) {
+  tibble::as_tibble(df) |>
+    dplyr::filter(!is.na(.data[[share_col]]), .data[[share_col]] > 1) |>
+    dplyr::transmute(
+      destiny = element,
+      year,
+      area_code,
+      item_cbs,
+      item_cbs_code,
+      value = .data[[element]],
+      domestic_supply,
+      share = .data[[share_col]],
+      structural = element == "processing_primary" &
+        item_cbs %in% .cbs_pp_items()
+    )
+}
+
+# A destiny share above one says a single destiny exceeds the domestic supply
+# it is apportioned from -- a balance violation, and one that propagates,
+# because `.fill_share_columns()` carries the share to every other year of the
+# same key and `.apply_filled_shares()` multiplies it back by that year's
+# supply.
+#
+# Measured on a real 1950-1965 build of `main` (207,816 rows), 108 shares
+# exceed one, every one of them at the 1961 FAOSTAT anchor except the
+# `processing_primary` block: `other_uses` 70, `processing_primary` 19,
+# `food` 15, `feed` 4, `processing` 0. Two mechanisms, neither of them in this
+# arithmetic:
+#
+# * 89 of them are FAOSTAT's own 1961 balances not closing. Traced back to the
+#   source extracts, `faostat-cbs-old-crops` has 46 keys with
+#   `other_uses > domestic_supply`, `faostat-cbs-old-animal` 27 and
+#   `faostat-fbs-old` 2 -- e.g. Kuwait hides and skins, 1,373 t of other uses
+#   against 123 t of supply. `other_uses` dominates because it is the destiny
+#   the *non-food* Commodity Balances carry (tobacco, hides and skins, silk,
+#   wool, fibres), and those items exist in no better-ranked source, so
+#   `.select_best_source()` cannot overwrite them the way `FAOSTAT_FBS_Old`
+#   overwrites the food/feed rows of the same file.
+# * The 19 `processing_primary` cases are structural rather than reported, and
+#   are flagged as such in the `structural` column of the census.
+#   `.assemble_cbs_sources()` copies the `.cbs_pp_items()` production row into
+#   a `processing_primary` row, so the numerator is the whole production while
+#   `domestic_supply` nets trade out of it; every one of the 19 is hops in a
+#   net-exporting year, and the same construction is what puts seven
+#   `processing_primary` shares below zero. On the same build every one of the
+#   3,205 rows carrying a `processing_primary` is a `.cbs_pp_items()` row whose
+#   destiny equals its production exactly, so that share is a trade ratio, not
+#   an apportionment, and no setting can move it: not one
+#   `processing_primary` value differs between `"report"`, `"clamp"` and
+#   `"drop"`.
+#
+# The offending rows are 1.03% of the frame's 1961 `other_uses` mass, 0.32% of
+# `processing_primary`, 0.17% of `food` and 0.001% of `feed`, so this is small
+# -- but it was invisible, which is what this reports.
+#
+# What reaches the published output is smaller still, because these shares are
+# an intermediate: `.cbs_fill_destinies()` re-derives every destiny as
+# `domestic_supply * dest_share` with `dest_share` normalised to sum to one
+# over the row's destinies, so an inflated share changes the split between
+# destinies rather than lifting one above the supply. On the same build no
+# published row from 1961 on has a destiny above its `domestic_supply`, and
+# every difference between the four settings sits at 1960 or earlier: against
+# `"report"`, `"clamp"` moves 755 rows (`other_uses` +23.21 Mt,
+# `stock_variation` -22.97 Mt, `food` -1.00 Mt, `domestic_supply` -1.00 Mt)
+# and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation` -825 Mt).
+# Both raise `other_uses` because the values they touch are negative, which is
+# whep#1065 rather than this.
+#
+# Renormalising the five shares to sum to one is not offered: 47 of the 70
+# `other_uses` offenders are the only observed destiny of their row, so there
+# is nothing to renormalise against.
+.apply_share_overflow <- function(df, method) {
+  over <- .destiny_shares_above_one(df)
+  .report_share_overflow(over, method)
+  if (nrow(over) == 0L || method == "report") {
+    return(df)
+  }
+  replacement <- if (method == "clamp") 1 else NA_real_
+  df |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(names(.destiny_share_map())),
+      \(x) dplyr::if_else(!is.na(x) & x > 1, replacement, x)
+    ))
+}
+
+.report_share_overflow <- function(over, method) {
+  if (nrow(over) == 0L) {
+    return(invisible(over))
+  }
+  per_destiny <- over |>
+    dplyr::count(destiny, name = "n") |>
+    dplyr::arrange(dplyr::desc(n))
+  worst <- over |> dplyr::slice_max(share, n = 3L, with_ties = FALSE)
+  n_structural <- as.integer(sum(over$structural))
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(over)} historical destiny share{?s} exceed{?s/} 1, so that ",
+      "destiny is larger than the {.field domestic_supply} it is ",
+      "apportioned from."
+    ),
+    "*" = paste0(
+      "By destiny: {.val {paste0(per_destiny$destiny, ' = ', ",
+      "per_destiny$n)}}."
+    ),
+    if (n_structural > 0L) {
+      c(
+        "*" = paste0(
+          "{n_structural} of them come from the {.field processing_primary} ",
+          "construction rather than from a reported value: for those items the ",
+          "destiny is a copy of {.field production}, so the share is a trade ",
+          "ratio that exceeds 1 in every net-exporting year, and no ",
+          "{.arg share_overflow} setting moves {cli::qty(n_structural)}",
+          "{?it/them}."
+        )
+      )
+    },
+    "*" = paste0(
+      "Largest: {.val {paste0(worst$destiny, ' ', worst$year, ' area ', ",
+      "worst$area_code, ' ', worst$item_cbs, ' = ', round(worst$share, 2), ",
+      "'x supply')}}."
+    ),
+    "i" = paste0(
+      "{.arg share_overflow} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_share_overflow_choices(), method)}} also select",
+      "able."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_destiny_share_overflow")
+  }
+  cli::cli_warn(bullets, class = "whep_destiny_share_overflow")
+  invisible(over)
+}
+
+# -- Negative computed domestic supply ----------------------------------------
+
+# What to do with a pre-1962 row whose domestic supply is not observed and
+# whose `production + import - export` reconstruction comes out below zero
+# (whep#1065), most conservative first.
+#
+# `"report"` is the default and is the behaviour every published build has
+# had: the value is kept exactly as computed and is now named out loud
+# instead of passing in silence. It is the default because it moves no
+# published number, not because it is right.
+#
+# `"floor"` clamps the reconstruction at zero, which is the treatment
+# `.select_best_source()` already applies to an OBSERVED negative
+# `domestic_supply` -- the asymmetry between the two is what whep#1065 is
+# about. It is at the same time the stock-draw treatment, and nothing has to
+# be wired through for that: `.reestimate_domestic_supply()` recomputes
+# `stock_variation` as `production + import - export - domestic_supply` and
+# `.pivot_cbs_wide()` splits a negative one into `stock_withdrawal`, so the
+# exported mass the reconstruction cannot source is booked as a draw on
+# stocks instead of as negative use. Measured over 1950-1965 it moves 3,981
+# published rows: `other_uses` +883.90 Mt (from 3,375.38 to 4,259.29 Mt, and
+# no negative destiny left anywhere), `production` +124.75, `feed` +76.92,
+# `processing` +64.61, `food` +15.24, and `stock_withdrawal` +880.18 Mt.
+# US tobacco 1951 goes from -119.41 Mt of other uses to zero and a 116.30 Mt
+# stock withdrawal -- which is why this is not the default: the mass is
+# rebooked, not resolved.
+#
+# `"abort"` refuses to build the affected years, i.e. every build that starts
+# before 1961.
+.cbs_negative_supply_choices <- function() {
+  c("report", "floor", "abort")
+}
+
+# Rows whose `domestic_supply` comes from the reconstruction and is negative.
+# Only the reconstructed value can be: `.select_best_source()` clamps every
+# observed `domestic_supply` at zero before this point.
+.negative_computed_supply <- function(df, computed) {
+  is_computed <- is.na(df$domestic_supply) & !is.na(computed)
+  keep <- which(is_computed & computed < 0)
+  tibble::as_tibble(df)[keep, ] |>
+    dplyr::transmute(
+      year,
+      area_code,
+      item_cbs,
+      item_cbs_code,
+      production,
+      import,
+      export,
+      computed_supply = computed[keep]
+    )
+}
+
+# A negative reconstructed supply says the row's exports exceed its
+# production plus its imports, and the whole of it flows into the destinies,
+# because `.apply_filled_shares()` multiplies this number by a share carried
+# in from another year. Every destiny of such a row comes out negative, and a
+# negative "other uses" is a physically impossible published quantity.
+#
+# Measured on a real 1950-1965 build of `main` (207,816 frame rows): 151 rows
+# reconstruct a negative supply, totalling -1,015.70 Mt, in 1950-1960 only.
+# They reach the published output as 121 negative `other_uses` rows worth
+# -883.91 Mt -- 29.2% of the 3,029.43 Mt of positive pre-1962 `other_uses`
+# mass they net against -- plus -123.22 Mt of `production`, -76.66 Mt of
+# `feed`, -64.62 Mt of `processing` and -15.61 Mt of `food`. There are no
+# negative destinies at all from 1962 on.
+#
+# **It is not a stock draw.** 83 of the 151 rows are area 231 (the United
+# States), and they carry 99.77% of the negative mass; the export/(production
+# + import) ratio has median 1.96 and maximum 107.98, sustained over eleven
+# consecutive years. Traced to the source, US tobacco 1951 has production
+# 728,949 t and an export of 117,504,000 t, of which 115,136,000 t is
+# `historical-trade-exports` item 831 "Tobacco products nes" recorded as
+# 115,136 "1000 MT" -- 46x the whole world's 1951 tobacco production and 473x
+# the same country's observed 1961 export of 248,219 t. The reconstruction is
+# faithful; its export input is not a tonnage. So flooring the supply and
+# booking the residual as a stock withdrawal is no more physical than passing
+# the negative through: it moves an impossible number from one column to
+# another. The trade defect is upstream of this function and is not fixed
+# here.
+#
+# Nothing detected it. `.select_best_source()` clamps a negative OBSERVED
+# `domestic_supply` at zero but never sees this one;
+# `.cbs_fix_final_balance()` clamps the final `domestic_supply` at zero but
+# leaves the destinies negative; and `check_supply_use_balance()` reconciles
+# these rows to a maximum of 44.1 t and a median of 0.002 t, indistinguishable
+# from the whole output's rounding noise, because `stock_variation` absorbs the
+# difference and the same negative sits on both sides. That is why this
+# reports on the SIGN rather than relying on a balance check.
+.resolve_historical_supply <- function(df, method) {
+  computed <- dplyr::if_else(
+    !is.na(df$production) & !is.na(df$import) & !is.na(df$export),
+    df$production + df$import - df$export,
+    NA_real_
+  )
+  negative <- .negative_computed_supply(df, computed)
+  .report_negative_supply(negative, method)
+  if (method == "floor") {
+    computed <- dplyr::if_else(!is.na(computed) & computed < 0, 0, computed)
+  }
+  df$domestic_supply <- dplyr::coalesce(df$domestic_supply, computed)
+  df
+}
+
+# Tonnes with a thousands separator. The real offenders are hundreds of
+# millions of tonnes and a test fixture is hundreds, so a fixed Mt scale
+# rounds one of the two to "0".
+.cbs_tonnes <- function(x) {
+  paste(format(round(x), big.mark = ",", scientific = FALSE, trim = TRUE), "t")
+}
+
+.report_negative_supply <- function(negative, method) {
+  if (nrow(negative) == 0L) {
+    return(invisible(negative))
+  }
+  worst <- negative |>
+    dplyr::slice_min(computed_supply, n = 3L, with_ties = FALSE)
+  # Interpolated outside the cli strings: a `{}` expression starting with a
+  # dot is read as a cli style, not as a call.
+  total_txt <- .cbs_tonnes(sum(negative$computed_supply))
+  worst_txt <- paste0(
+    worst$item_cbs,
+    " ",
+    worst$year,
+    " area ",
+    worst$area_code,
+    " = ",
+    .cbs_tonnes(worst$computed_supply)
+  )
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(negative)} pre-1962 row{?s} reconstruct{?s/} a negative ",
+      "domestic supply from {.field production + import - export}, ",
+      "totalling {total_txt}."
+    ),
+    "*" = "Largest: {.val {worst_txt}}.",
+    "i" = paste0(
+      "Every destiny of {cli::qty(nrow(negative))} th{?is/ese} row{?s} is ",
+      "apportioned from that negative supply, so every destiny comes out ",
+      "negative too (whep#1065)."
+    ),
+    "i" = paste0(
+      "{.arg negative_supply} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_negative_supply_choices(), method)}} also ",
+      "selectable."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_negative_supply")
+  }
+  cli::cli_warn(bullets, class = "whep_negative_supply")
+  invisible(negative)
 }
 
 .fill_share_columns <- function(df) {
@@ -2490,7 +3991,14 @@ build_processing_coefs <- function(
   df
 }
 
-.apply_filled_shares <- function(df) {
+.apply_filled_shares <- function(
+  df,
+  seed_backcast = .cbs_seed_backcast_choices()
+) {
+  seed_backcast <- rlang::arg_match(
+    seed_backcast,
+    .cbs_seed_backcast_choices()
+  )
   df |>
     dplyr::mutate(
       food = dplyr::coalesce(
@@ -2513,9 +4021,12 @@ build_processing_coefs <- function(
         processing_primary,
         domestic_supply * processing_primary_share
       ),
+      # `seed_rate` is per unit of its own basis, so it is spent on that same
+      # basis and nothing else. whep#699: this used to be
+      # `production * seed_rate` against a rate defined per hectare.
       seed = dplyr::coalesce(
         seed,
-        production * seed_rate
+        .seed_backcast_basis(df, seed_backcast) * seed_rate
       )
     )
 }
@@ -2879,7 +4390,8 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
-      value
+      value,
+      dplyr::any_of("fao_flag")
     )
 }
 
@@ -2923,10 +4435,26 @@ build_processing_coefs <- function(
   )
 }
 
+# Take the provenance columns off before a pivot cycle, so `src_lookup` can
+# put them back afterwards. Both have to go, not just `source`: a surviving
+# `fao_flag` becomes an id column of `tidyr::pivot_wider()` -- splitting one
+# key into a row per flag -- and collides with the re-joined copy on the way
+# out, arriving as `fao_flag.x` / `fao_flag.y`.
+.drop_cbs_provenance <- function(df) {
+  dplyr::select(df, -dplyr::any_of(c("source", "fao_flag")))
+}
+
+# The provenance the `.fix_cbs()` steps park here and re-join at their end,
+# because the pivot cycles in between cannot carry a non-numeric passenger.
+# `fao_flag` travels with `source` rather than beside it, so the row that
+# names the source is the row that names its flag -- `unique(by = by_cols)`
+# keeps one row per key, and taking the two from different rows would let a
+# key claim FBS_New's provenance for an FBS_Old number.
 .extract_source_lookup <- function(df) {
   dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
-  unique(dt[, c(by_cols, "source"), with = FALSE], by = by_cols)
+  cols <- c(by_cols, "source", intersect("fao_flag", names(dt)))
+  unique(dt[, cols, with = FALSE], by = by_cols)
 }
 
 # -- Redistribute non-processed ------------------------------------------------
@@ -2941,7 +4469,8 @@ build_processing_coefs <- function(
   }
 
   dt <- data.table::as.data.table(cbs_raw2)
-  dt[, source := NULL]
+  drop <- intersect(c("source", "fao_flag"), names(dt))
+  dt[, (drop) := NULL]
 
   # Items with processing but no matching processed products
   proc_keys <- data.table::as.data.table(processd_raw)[,
@@ -3271,9 +4800,41 @@ build_processing_coefs <- function(
     "Recovered {nrow(recovered)} trade-only CBS row{?s} \\
      ({items} item{?s}, {areas} area{?s})."
   )
+  absent <- setdiff(names(cbs), names(recovered))
+  if (length(absent) > 0L) {
+    cli::cli_alert_info(
+      "Recovered rows carry no {.field {absent}}: the trade record does not \\
+       supply {cli::qty(length(absent))}{?it/them}, so {?it is/they are} \\
+       left missing."
+    )
+  }
   data.table::rbindlist(
-    list(data.table::as.data.table(cbs), recovered),
+    list(
+      data.table::as.data.table(cbs),
+      .cbs_recovered_to_schema(recovered, cbs)
+    ),
     use.names = TRUE
+  )
+}
+
+# A created row can only carry what the trade record gives it, so every other
+# column of the frame it is bound onto has to be completed from that frame's
+# own prototype: `rbindlist()` aborts on a column one side lacks. `fao_flag`
+# is that column today -- it arrived on the CBS and on the source lookup in
+# whep#1037, after the recovery step of whep#864, and turned
+# `trade_recovery = "net_import"` from working into an abort on the real frame
+# while every fixture (all flagless) stayed green. NA is also the right value,
+# not merely the convenient one: a recovered row is not a number FAOSTAT
+# published under an observation status, which is the rule
+# `build_commodity_balances()` documents for that column.
+.cbs_recovered_to_schema <- function(recovered, frame) {
+  absent <- setdiff(names(frame), names(recovered))
+  if (length(absent) == 0L) {
+    return(recovered)
+  }
+  ensure_columns(
+    tibble::as_tibble(recovered),
+    tibble::as_tibble(frame)[0L, absent]
   )
 }
 
@@ -3286,13 +4847,15 @@ build_processing_coefs <- function(
     return(src_lookup)
   }
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  # The lookup carries `fao_flag` whenever the CBS does (whep#1037), so the
+  # recovered rows are completed to its schema for the same reason the bind
+  # above completes them to the CBS's.
+  rows <- .cbs_recovered_to_schema(recovered, src_lookup)
+  cols <- intersect(names(src_lookup), c(by_cols, "source", "fao_flag"))
   data.table::rbindlist(
     list(
       src_lookup,
-      data.table::as.data.table(recovered)[,
-        c(by_cols, "source"),
-        with = FALSE
-      ]
+      data.table::as.data.table(rows)[, cols, with = FALSE]
     ),
     use.names = TRUE
   ) |>
@@ -3457,7 +5020,7 @@ build_processing_coefs <- function(
   }
 
   wide <- cbs_raw3 |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value,
@@ -3905,7 +5468,8 @@ build_processing_coefs <- function(
 
 .cbs_second_processed_round <- function(
   cbs_raw5,
-  proc_result
+  proc_result,
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
   cb_proc_glo <- proc_result$cb_processing_glo
   cbs_glob <- proc_result$cbs_glob
@@ -3952,7 +5516,8 @@ build_processing_coefs <- function(
 
   processed_new_bal <- .build_new_processed_balance(
     processed_agg_raw2,
-    cbs_glob
+    cbs_glob,
+    export_share_overflow = export_share_overflow
   )
 
   join_keys <- c(
@@ -3983,10 +5548,157 @@ build_processing_coefs <- function(
   )
 }
 
+# -- Export share above one ---------------------------------------------------
+
+# What to do with a newly processed product whose GLOBAL export share exceeds
+# 1 (whep#1086), most conservative first.
+#
+# `export_share` is world `export / (production + import)` for the
+# `(year, item_cbs)` key, taken from `cbs_glob` -- the world aggregate of
+# `cbs_raw` as it stood BEFORE `.cbs_add_processed()` ran. It is then
+# multiplied by a country's newly created processed production, so a share
+# above 1 books more export than that country produced and `domestic_supply`
+# comes out negative.
+#
+# Measured on a real 1950-1965 build of `main` (2,012 keys): 77 shares exceed
+# 1, reaching 443 for Soyabean Cake 1956. Two mechanisms, and a cap repairs
+# neither:
+#
+# * 50 of the 77 have NO world production in the denominator at all. The oils
+#   and cakes (Cottonseed Oil, Soyabean Oil and Cake, Oilseed Cakes Other,
+#   Oilcrops Oil Other, Groundnut Cake and Oil, Sunflowerseed Oil, Rape and
+#   Mustard Oil, Wine, Sugar (Raw Equivalent)) carry pre-1961 trade but no
+#   production row, because the production of a processed product is exactly
+#   what this round is about to create. Soyabean Cake 1956 is 886 kt of
+#   world export over 2 kt of world import. The denominator excludes what
+#   the numerator is being compared with, so 1 is not a meaningful bound
+#   for these.
+# * The other 27 do have one, and are the `historical-trade-exports` defect
+#   of whep#1085: Tobacco (11 keys, 117 Mt of world export at 1951 against
+#   2.5 Mt of world production), Cotton lint (7), Hops (6), Soyabeans (2) and
+#   Fats, Animals, Raw (1). Those exports are not a tonnage and no conversion
+#   factor recovers the true value.
+#
+# On 1950-1965 no share above 1 is applied. Every one of the 77 is pre-1961,
+# and this function emits nothing before 1961: of the 44,675 rows
+# `.correct_processed()` returns at 1950-1965, all 29,427 pre-1961 ones
+# already carry a first-round value, so the `is.na(value_final_old)` filter
+# leaves 2,637 rows at 1961-1965 only. The largest share actually applied is
+# 0.319, and the round's output holds no negative value anywhere
+# (production 19.79 Mt, export 2.52 Mt, domestic_supply 17.27 Mt).
+#
+# After 2013 they ARE applied (whep#1177, measured on a real 2011-2023 build
+# of main at 18d6a20e, the first one the repaired faostat-cbs-new pin
+# allowed). 65 keys exceed 1 there; the 5 the round has no row for
+# (Miscellaneous 2020-2023, Abaca 2021) are not applied, and the other 60 --
+# oilseed cakes and molasses, every year 2014-2023, largest Sesameseed Cake
+# 2016 at 15.7 -- are. The round then books 51.06 Mt of export against
+# 32.73 Mt of production on those keys: 2,297 rows of negative
+# domestic_supply, -18.33 Mt. No negative domestic_supply survives into the
+# finished balance, but the export does: "report" against "drop" moves 6,880
+# final keys, 2.4-4.4 Mt of export a year and 33.6 Mt over 2014-2023, which
+# "drop" books mostly as feed. The 2005-2015 build gives the same 12 keys for
+# 2014-2015 with 7.01 Mt of export between the two policies. Why the share
+# exceeds 1 for these keys has not been traced.
+#
+# The -123.22 Mt of negative `production` whep#1086 cites is therefore not
+# from here: that figure is whep#1065's, and `.resolve_historical_supply()`
+# above attributes it to `.fill_historical_destinies()`.
+#
+# `method` is a policy, not an estimate. `"report"` is the default and is the
+# behaviour every published build has had: the share is kept exactly as
+# measured and is now named out loud. `"drop"` sets a violating share to
+# `NA`, which `tidyr::replace_na()` then books as 0, so the key gets no
+# export at all. `"abort"` refuses to build.
+#
+# There is deliberately no `"clamp"`, which is where this diverges from
+# whep#980's `share_overflow`. There a destiny genuinely cannot exceed the
+# supply it is apportioned from, so 1 is the true bound. Here 1 bounds a
+# ratio whose denominator is incomplete for 50 of the 77 keys, and capping it
+# would book a country's whole processed output as export -- an invented
+# number rather than a corrected one, which is the same reasoning
+# `.hist_trade_scale_choices()` gives for offering no clamp either.
+.cbs_export_overflow_choices <- function() {
+  c("report", "drop", "abort")
+}
+
+# Every `(year, item_cbs)` key whose world export exceeds the world
+# `production + import` it is divided by, flagged with whether this round has
+# a row for it -- an unapplied share cannot move a published number.
+.export_shares_above_one <- function(shares, processed_agg_raw2) {
+  applied <- processed_agg_raw2 |>
+    dplyr::distinct(year, item_cbs) |>
+    dplyr::mutate(applied = TRUE)
+
+  shares |>
+    dplyr::filter(!is.na(export_share), export_share > 1) |>
+    dplyr::left_join(applied, by = c("year", "item_cbs")) |>
+    dplyr::mutate(applied = tidyr::replace_na(applied, FALSE))
+}
+
+.report_export_overflow <- function(over, method) {
+  if (nrow(over) == 0L) {
+    return(invisible(over))
+  }
+  worst <- over |> dplyr::slice_max(export_share, n = 3L, with_ties = FALSE)
+  # Interpolated outside the cli strings, as `.report_negative_supply()` does.
+  worst_txt <- paste0(
+    worst$item_cbs,
+    " ",
+    worst$year,
+    " = ",
+    round(worst$export_share, 2),
+    "x world supply"
+  )
+  applied_txt <- paste0(sum(over$applied), " of ", nrow(over))
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(over)} global export share{?s} exceed{?s/} 1, so the world ",
+      "exports more of that item than its world ",
+      "{.field production + import}."
+    ),
+    "*" = "Largest: {.val {worst_txt}}.",
+    "*" = paste0(
+      "Applied to a newly processed product, whose ",
+      "{.field domestic_supply} then comes out negative: ",
+      "{.val {applied_txt}}."
+    ),
+    "i" = paste0(
+      "{.arg export_share_overflow} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_export_overflow_choices(), method)}} also ",
+      "selectable (whep#1086)."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_export_share_overflow")
+  }
+  cli::cli_warn(bullets, class = "whep_export_share_overflow")
+  invisible(over)
+}
+
+.apply_export_overflow <- function(shares, over, method) {
+  if (nrow(over) == 0L || method == "report") {
+    return(shares)
+  }
+  shares |>
+    dplyr::mutate(
+      export_share = dplyr::if_else(
+        !is.na(export_share) & export_share > 1,
+        NA_real_,
+        export_share
+      )
+    )
+}
+
 .build_new_processed_balance <- function(
   processed_agg_raw2,
-  cbs_glob
+  cbs_glob,
+  export_share_overflow = .cbs_export_overflow_choices()
 ) {
+  export_share_overflow <- rlang::arg_match(
+    export_share_overflow,
+    .cbs_export_overflow_choices()
+  )
   items <- whep::items_full
 
   export_share <- cbs_glob |>
@@ -4008,6 +5720,14 @@ build_processing_coefs <- function(
       export_share = .cbs_safe_ratio(export_val, gross_avail)
     ) |>
     dplyr::select(year, item_cbs, export_share)
+
+  over <- .export_shares_above_one(export_share, processed_agg_raw2)
+  .report_export_overflow(over, export_share_overflow)
+  export_share <- .apply_export_overflow(
+    export_share,
+    over,
+    export_share_overflow
+  )
 
   dest_shares <- cbs_glob |>
     dplyr::filter(
@@ -4038,6 +5758,12 @@ build_processing_coefs <- function(
         0
       ),
       export = production * export_share,
+      # The second place a domestic supply is computed without a floor
+      # (whep#1065). `export_share` is a GLOBAL export / (production +
+      # import) ratio and nothing bounds it at 1, so this supply can come out
+      # negative, and from 2014 on it does (whep#1177): see
+      # `.cbs_export_overflow_choices()` for the measurement and for what
+      # each policy would do instead.
       domestic_supply = production - export
     ) |>
     dplyr::select(
@@ -4059,12 +5785,26 @@ build_processing_coefs <- function(
     dplyr::filter(element == "domestic_supply") |>
     dplyr::select(-element)
 
+  # An `inner_join`, not a `left_join` (whep#1144). `dest_shares` covers only
+  # the `(year, item_cbs)` keys the world sheet books a `food`, `feed` or
+  # `other_uses` on, and a by-product this round is about to create has none.
+  # Measured on a real 1950-1965 build, a `left_join` emitted 294 of the 5,783
+  # destiny rows with `element = NA` and `value = NA` -- DDGS (161), Soy hulls
+  # (38), DDGS Barley (36), Brans (30) and Sugarbeet pulp (29), over 49 areas,
+  # all at 1961-1965. A row with no element is not a balance row.
+  #
+  # The supply side of those keys is unaffected: `base` keeps their
+  # `domestic_supply`, and `.fill_default_destiny()` books it on the item's
+  # `default_destiny` (`Feed` for all five) at the final balance. That is
+  # already where the published `feed` of these items comes from -- it equals
+  # their `domestic_supply` to the tonne over the whole build.
   destiny_rows <- ds_vals |>
-    dplyr::left_join(
+    dplyr::inner_join(
       dest_shares,
       by = c("year", "item_cbs")
     ) |>
-    dplyr::mutate(value = value * dest_share)
+    dplyr::mutate(value = value * dest_share) |>
+    dplyr::select(-dest_share)
 
   dplyr::bind_rows(base, destiny_rows) |>
     dplyr::left_join(
@@ -4161,7 +5901,7 @@ build_processing_coefs <- function(
 
   cbs_filtered <- cbs_raw6 |>
     dplyr::filter(!is.na(element)) |>
-    dplyr::select(-dplyr::any_of("source"))
+    .drop_cbs_provenance()
 
   # Ensure processing and other_uses rows exist for groups that need
 
@@ -4229,6 +5969,7 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
+      dplyr::any_of("fao_flag"),
       value = value2
     )
 }
@@ -4250,7 +5991,7 @@ build_processing_coefs <- function(
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     .test_cbs()
   cbs_raw8 <- merge(
     cbs_raw8,
@@ -4273,22 +6014,7 @@ build_processing_coefs <- function(
   )
   dp_mask <- cbs_out$check == FALSE &
     cbs_out$destiny_replacement == "default_prone"
-  cbs_out[
-    dp_mask & default_destiny == "Feed",
-    feed := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Food",
-    food := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Other_uses",
-    other_uses := domestic_supply
-  ]
-  cbs_out[
-    dp_mask & default_destiny == "Processing",
-    processing := domestic_supply
-  ]
+  cbs_out <- .fill_default_destiny(cbs_out, dp_mask)
   cbs_out[, default_destiny := NULL]
   cbs_out <- .untest_cbs(cbs_out)
 
@@ -4306,6 +6032,63 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# Book the unexplained destiny residual on the item's default destiny.
+#
+# A `default_prone` row is one whose supply side already agrees with
+# `domestic_supply` (`.test_cbs()` sets the flag from
+# `.supply_sides_agree()`), so the only thing left out of balance is the
+# destiny split.
+# Writing the whole `domestic_supply` onto the default column is right when the
+# row carries no other destiny -- the case this repair was written for, and
+# 6420 of the 7000 rows it fires on in a 2009-2024 build. On the other 580 it
+# left the existing split standing and booked domestic supply a second time, so
+# `sum(destinies)` came out at up to 2x `domestic_supply` (whep#996: 17.58 Mt
+# over 338 rows of a 2014-2019 wide CBS, every one of them a cake or molasses
+# item). Assigning the residual instead leaves the all-zero case bit-identical
+# and restores `sum(destinies) == domestic_supply` on the rest, keeping the
+# split the row already reported rather than discarding it -- which matters
+# because the alternative reading, clearing the other destinies, moves 2.1 Mt
+# of palm kernel cake from `feed` to human `food` on one row alone.
+#
+# The residual is floored at 0: on 269 rows of that build the other destinies
+# already exceed `domestic_supply` (by 86 kt in total), and a negative food or
+# feed is not a use. Those rows stay visible to
+# `check_supply_use_balance()` instead.
+.fill_default_destiny <- function(cbs_out, dp_mask) {
+  destinies <- c(
+    "food",
+    "feed",
+    "seed",
+    "other_uses",
+    "processing",
+    "processing_primary"
+  )
+  targets <- c(
+    Feed = "feed",
+    Food = "food",
+    Other_uses = "other_uses",
+    Processing = "processing"
+  )
+
+  for (label in names(targets)) {
+    target <- targets[[label]]
+    rows <- which(dp_mask & cbs_out$default_destiny == label)
+    if (length(rows) == 0L) {
+      next
+    }
+    others <- rowSums(as.matrix(
+      cbs_out[rows, setdiff(destinies, target), with = FALSE]
+    ))
+    data.table::set(
+      cbs_out,
+      i = rows,
+      j = target,
+      value = pmax(cbs_out[["domestic_supply"]][rows] - others, 0)
+    )
+  }
+  cbs_out
 }
 
 # -- Helpers -------------------------------------------------------------------

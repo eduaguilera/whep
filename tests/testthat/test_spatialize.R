@@ -948,48 +948,6 @@ testthat::test_that("a breached capacity ceiling is reported, not absorbed", {
   testthat::expect_no_warning(do.call(whep::build_gridded_landuse, roomy))
 })
 
-testthat::test_that("the breached-capacity worst is one cell's one regime", {
-  # `worst` is the largest SINGLE-REGIME excess of one polycell, which is
-  # what the ceiling is a property of. Re-deriving it as the largest per-cell
-  # SUM of the two regimes is a different statistic, and it silently moved
-  # the printed figure (12670 -> 12808 ha on the two-country fixture) when
-  # the breach became an item-attributed table. This fixture separates them:
-  # cell A is 240 ha over rainfed and 160 over irrigated (sum 400), cell B is
-  # 300 ha over rainfed and nothing irrigated. The total is 700 either way;
-  # the worst is 300, not 400.
-  fix <- list(
-    country_areas = tibble::tribble(
-      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      ~irrigated_area_ha,
-      2000L,         1L,             15L,                500, 200,
-      2000L,         2L,             15L,                400,   0
-    ),
-    crop_patterns = tibble::tribble(
-      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
-      0.25, 50.25,             15L,               1.0,
-      0.75, 50.25,             15L,               1.0
-    ),
-    gridded_cropland = tibble::tribble(
-      ~lon,  ~lat,  ~year, ~cropland_ha, ~irrigated_ha,
-      0.25, 50.25, 2000L,           100,            40,
-      0.75, 50.25, 2000L,           100,             0
-    ),
-    country_grid = tibble::tribble(
-      ~lon,  ~lat, ~area_code, ~cell_area_frac,
-      0.25, 50.25,         1L,               1,
-      0.75, 50.25,         2L,               1
-    )
-  )
-  testthat::expect_warning(
-    do.call(whep::build_gridded_landuse, fix),
-    "2 polycells hold more harvested area than their capacity"
-  )
-  testthat::expect_warning(
-    do.call(whep::build_gridded_landuse, fix),
-    "700 ha over, worst 300 ha"
-  )
-})
-
 testthat::test_that("splitting a polycell in two changes no cell's allocation", {
   # The one S-A6 property the border fixtures above cannot reach: two polycells
   # of the SAME `area_code` inside one cell. That is not hypothetical -- DA-23
@@ -1463,6 +1421,397 @@ testthat::test_that("a national table without the value column still warns", {
   )
 })
 
+# Float underflow treated as signal (issues 1070 and 985) ---------------------
+
+# A (country, crop) whose whole EarthStat pattern is arithmetic residue. The
+# weights below are the shape the real pin carries: `crop_patterns.parquet`
+# holds 315,741 values under 1e-20, in a mode near 1e-25, and for 1,991 of its
+# 14,322 (area_code, item_prod_code) pairs EVERY cell is in that mode.
+underflow_pattern_fixture <- function(residue = c(3e-25, 1e-25)) {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,               1000
+    ),
+    crop_patterns = tibble::tibble(
+      lon = c(0.25, 0.75),
+      lat = c(50.25, 50.25),
+      item_prod_code = c(15L, 15L),
+      harvest_fraction = residue
+    ),
+    # Ten times the national harvested area, so no cell can hit the capacity
+    # ceiling and the split under test is the placement itself.
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat, ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,         6000,
+      0.75, 50.25, 2000L,         4000
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    )
+  )
+}
+
+testthat::test_that("an all-underflow pattern falls back to uniform", {
+  fx <- underflow_pattern_fixture()
+
+  testthat::expect_message(
+    build_gridded_landuse(
+      fx$country_areas,
+      fx$crop_patterns,
+      fx$gridded_cropland,
+      fx$country_grid,
+      config = list(years = 2000L)
+    ),
+    "float underflow"
+  )
+  result <- suppressMessages(
+    build_gridded_landuse(
+      fx$country_areas,
+      fx$crop_patterns,
+      fx$gridded_cropland,
+      fx$country_grid,
+      config = list(years = 2000L)
+    )
+  )
+
+  # Uniform means proportional to cropland (6000:4000), NOT to the residue
+  # weighted by cropland (3e-25 * 6000 : 1e-25 * 4000 = 818.18:181.82).
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(600, 400)
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 1000)
+})
+
+testthat::test_that("pattern_signal_floor = 0 keeps normalising the noise", {
+  fx <- underflow_pattern_fixture()
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    fx$crop_patterns,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L, pattern_signal_floor = 0)
+  )
+
+  # The whep#1070 behaviour, kept selectable for sensitivity work: the split is
+  # decided by underflow, and the national total is conserved either way, which
+  # is why no total-based check could see the defect.
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(1000 * 1800 / 2200, 1000 * 400 / 2200)
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 1000)
+})
+
+testthat::test_that("a residue cell beside a signal cell gets nothing", {
+  fx <- underflow_pattern_fixture(residue = c(0.5, 1e-25))
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    fx$crop_patterns,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L)
+  )
+
+  # whep#985's half: without the floor the second cell is written with an
+  # allocation of about 1.3e-22 ha, which is what puts denormal float32 crop
+  # stands into the LPJmL landuse forcing file.
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$lon, 0.25)
+  testthat::expect_equal(result$rainfed_ha, 1000)
+})
+
+testthat::test_that("the floor survives the parquet round trip", {
+  # Written to disk and read back rather than passed in memory: the pin is a
+  # parquet file, and whep#1068 showed an in-memory fixture can be exact where
+  # the real I/O path is not. 1.401298e-45 is FLT_TRUE_MIN, the smallest
+  # positive float32 denormal, and the smallest value whep#985 measured in the
+  # landuse forcing file.
+  fx <- underflow_pattern_fixture(residue = c(1.401298464324817e-45, 1e-30))
+  path <- withr::local_tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(fx$crop_patterns, path)
+  round_tripped <- nanoparquet::read_parquet(path)
+
+  testthat::expect_true(min(round_tripped$harvest_fraction) > 0)
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    round_tripped,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L)
+  )
+
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(600, 400)
+  )
+})
+
+testthat::test_that(".zero_pattern_underflow refuses a bad floor", {
+  base <- data.table::data.table(
+    area_code = 1L,
+    item_prod_code = 15L,
+    harvest_fraction = 1e-25
+  )
+
+  testthat::expect_error(
+    whep:::.zero_pattern_underflow(base, NA_real_),
+    "pattern_signal_floor"
+  )
+  testthat::expect_error(
+    whep:::.zero_pattern_underflow(base, c(1e-12, 1e-20)),
+    "pattern_signal_floor"
+  )
+  testthat::expect_identical(
+    whep:::.zero_pattern_underflow(base, 0)$harvest_fraction,
+    1e-25
+  )
+})
+
+testthat::test_that("the signal floor is below EarthStat's float32 precision", {
+  signal_floor <- whep:::.crop_pattern_signal_floor()
+
+  # The smallest per-crop float32 significance floor across the 147 crops in
+  # the `spatialize-crop-patterns` pin is 7.16e-12 -- that crop's own raster
+  # maximum times FLT_EPSILON. The floor must sit below it, or it would discard
+  # signal for that crop.
+  testthat::expect_true(signal_floor > 0)
+  testthat::expect_true(signal_floor < 7.159938979837773e-12)
+})
+testthat::test_that("the duplicate-CFT abort names every code (#621)", {
+  # `item_prod_code` is numeric, so with two duplicated codes the message's
+  # plural marker had nothing numeric ahead of it and cli read the quantity
+  # off the code vector, aborting inside its own formatter with
+  # "length(object) == 1 is not TRUE". One duplicate hides the defect
+  # entirely, which is why the fixture carries two.
+  mapping <- tibble::tribble(
+    ~item_prod_code, ~cft,
+    15L,             "temperate_cereals",
+    15L,             "wheat",
+    27L,             "rice",
+    27L,             "rice_irrigated"
+  )
+  cnd <- testthat::expect_error(
+    whep:::.assert_unique_cft_mapping(mapping),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "15")
+  testthat::expect_match(conditionMessage(cnd), "27")
+  testthat::expect_match(conditionMessage(cnd), "Duplicated code")
+  # A unique mapping still passes through untouched.
+  unique_mapping <- tibble::tribble(
+    ~item_prod_code, ~cft,
+    15L,             "temperate_cereals",
+    27L,             "rice"
+  )
+  testthat::expect_identical(
+    whep:::.assert_unique_cft_mapping(unique_mapping),
+    unique_mapping
+  )
+})
+
+testthat::test_that("a cell with no crop pattern does not vote (#1091)", {
+  # One cell grows the crop on 1% of its area and yields 2 t/ha; the other
+  # grows none of it -- EarthStat still publishes 10 t/ha there, because its
+  # interpolated yield footprint is wider than its harvested-area footprint,
+  # so the pattern table has no row for the cell and the join leaves
+  # `harvest_fraction` missing.
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    0.25, 0.25,        20L,             56L,         2.0,              0.01,
+    0.75, 0.25,        20L,             56L,        10.0,          NA_real_
+  )
+  testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_cells"
+  )
+  out <- suppressWarnings(whep:::.country_mean_yield(cells))
+  # The absent cell is excluded, so the mean is the growing cell's own yield.
+  testthat::expect_equal(out$country_mean, 2.0)
+  # `dplyr::coalesce(harvest_fraction, 1.0)` gave the absent cell weight 1.0
+  # against the present cell's 0.01 -- a hundredfold say for a cell growing
+  # nothing -- and returned 9.92 t/ha, 4.96 times the right answer.
+  testthat::expect_false(
+    isTRUE(all.equal(out$country_mean, 9.920792079207921))
+  )
+})
+
+testthat::test_that(".country_mean_yield weights by harvested area (#1091)", {
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    56L,         2.0,              0.03,
+    20L,                    56L,         6.0,              0.01,
+    21L,                    56L,         5.0,              0.20
+  )
+  out <- whep:::.country_mean_yield(cells)
+  testthat::expect_equal(
+    out$country_mean[out$area_code == 20L],
+    (2 * 0.03 + 6 * 0.01) / 0.04
+  )
+  testthat::expect_equal(out$country_mean[out$area_code == 21L], 5.0)
+})
+
+testthat::test_that("a pair with no pattern at all falls back (#1070)", {
+  # Every cell of the pair is absent or zero-weighted, so there is no pattern
+  # to weight with. `weight_total` is a sum of non-negative terms, exactly
+  # zero only if every term is zero, so the guard is sound on this shape.
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    56L,         2.0,          NA_real_,
+    20L,                    56L,         6.0,               0.0
+  )
+  testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_cells"
+  )
+  out <- suppressWarnings(whep:::.country_mean_yield(cells))
+  testthat::expect_equal(out$country_mean, 4.0)
+})
+
+testthat::test_that(".country_mean_yield names a crop with no pattern", {
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~yield_t_ha, ~harvest_fraction,
+    20L,                    44L,         2.0,          NA_real_,
+    21L,                    44L,         3.0,          NA_real_,
+    20L,                    56L,         2.0,              0.01
+  )
+  cnd <- testthat::expect_warning(
+    whep:::.country_mean_yield(cells),
+    class = "whep_patternless_crop"
+  )
+  # Barley 44 has no pattern row anywhere -- exactly how it went missing for a
+  # whole pin vintage (whep#877) -- and is named.
+  testthat::expect_match(conditionMessage(cnd), "44")
+})
+
+testthat::test_that(".country_mean_yield checks its columns", {
+  testthat::expect_error(
+    whep:::.country_mean_yield(tibble::tibble(area_code = 20L)),
+    class = "rlang_error"
+  )
+})
+
+# expansion_threshold (whep#1001) ----------------------------------------------
+
+# Crop 15 has 900 ha and a pattern only in cell A (capacity 500); cell B has
+# 500 ha of spare cropland and no crop-15 pattern. The LandInG-style expansion
+# that `expansion_threshold` used to promise would seed crop 15 into B. WHEP
+# never implemented it: B stays empty and the ceiling in A gives way instead.
+.pattern_full_fixture <- function() {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                900
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          500,
+      0.75, 50.25, 2000L,          500
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    )
+  )
+}
+
+.run_pattern_full <- function(config = list()) {
+  fix <- .pattern_full_fixture()
+  whep::build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = config
+  )
+}
+
+testthat::test_that("a crop never expands outside its pattern cells", {
+  out <- NULL
+  testthat::expect_warning(out <- .run_pattern_full(), "capacity")
+  cell_b <- dplyr::filter(out, lon == 0.75, item_prod_code == 15L)
+  testthat::expect_equal(sum(cell_b$rainfed_ha), 0)
+  testthat::expect_equal(sum(out$rainfed_ha), 900, tolerance = 1e-9)
+})
+
+testthat::test_that("expansion_threshold is not a live config key", {
+  defaults <- whep:::.landuse_config_defaults()
+  testthat::expect_false("expansion_threshold" %in% names(defaults))
+  testthat::expect_false(
+    "expansion_threshold" %in% names(formals(whep:::.redistribute_country_dt))
+  )
+})
+
+testthat::test_that("a supplied expansion_threshold warns, changes nothing", {
+  baseline <- suppressWarnings(.run_pattern_full())
+  warned <- NULL
+  out <- withCallingHandlers(
+    .run_pattern_full(list(expansion_threshold = 1L)),
+    whep_defunct_config_key = function(w) {
+      warned <<- w
+      invokeRestart("muffleWarning")
+    },
+    warning = function(w) invokeRestart("muffleWarning")
+  )
+  testthat::expect_s3_class(warned, "whep_defunct_config_key")
+  testthat::expect_equal(out, baseline)
+})
+
+
+testthat::test_that("the breached-capacity worst is one cell's one regime", {
+  # `worst` is the largest SINGLE-REGIME excess of one polycell, which is
+  # what the ceiling is a property of. Re-deriving it as the largest per-cell
+  # SUM of the two regimes is a different statistic, and it silently moved
+  # the printed figure (12670 -> 12808 ha on the two-country fixture) when
+  # the breach became an item-attributed table. This fixture separates them:
+  # cell A is 240 ha over rainfed and 160 over irrigated (sum 400), cell B is
+  # 300 ha over rainfed and nothing irrigated. The total is 700 either way;
+  # the worst is 300, not 400.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      ~irrigated_area_ha,
+      2000L,         1L,             15L,                500, 200,
+      2000L,         2L,             15L,                400,   0
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      0.75, 50.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,           100,            40,
+      0.75, 50.25, 2000L,           100,             0
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         2L,               1
+    )
+  )
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, fix),
+    "2 polycells hold more harvested area than their capacity"
+  )
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, fix),
+    "700 ha over, worst 300 ha"
+  )
+})
+
+
 # --- T13: the engine at a granted depth --------------------------------------
 
 # Two crops, both irrigated, in a country whose first cell cannot hold what
@@ -1502,6 +1851,7 @@ testthat::test_that("a national table without the value column still warns", {
   )
 }
 
+
 .t13_level0_golden <- function() {
   tibble::tribble(
     ~year,  ~lon,  ~lat, ~item_prod_code,          ~rainfed_ha,
@@ -1525,6 +1875,7 @@ testthat::test_that("a national table without the value column still warns", {
   ) |>
     dplyr::mutate(area_code = 1L)
 }
+
 
 testthat::test_that("the T13 grouping moves no level-0 value", {
   # The two-level allocation reaches level 0 through the SAME code: the
@@ -1571,6 +1922,7 @@ testthat::test_that("the T13 grouping moves no level-0 value", {
   )
 })
 
+
 testthat::test_that("unit targets on a grid with no unit are refused", {
   fix <- two_country_fixture()
   fix$country_areas$level_polity_code <- "A-A1-1900-2100"
@@ -1579,6 +1931,7 @@ testthat::test_that("unit targets on a grid with no unit are refused", {
     "no unit to place them in"
   )
 })
+
 
 testthat::test_that("more irrigated than harvested is refused at depth only", {
   # The gate is on the CONSTRAINED path: a national table stating unit
@@ -1638,6 +1991,7 @@ testthat::test_that("more irrigated than harvested is refused at depth only", {
     class = "whep_spatialize_irrigation_over_area"
   )
 })
+
 
 testthat::test_that("the unit multi-cropping factor moves only granted rows", {
   # T31(g). The `multicropping` layer's factor is a national figure
@@ -1700,6 +2054,7 @@ testthat::test_that("the unit multi-cropping factor moves only granted rows", {
   testthat::expect_equal(parts_unit$breach$rf_over, 50)
 })
 
+
 testthat::test_that("a cell's breach is attributed to its items pro rata", {
   fix <- list(
     country_areas = tibble::tribble(
@@ -1729,6 +2084,7 @@ testthat::test_that("a cell's breach is attributed to its items pro rata", {
   testthat::expect_equal(breach$rf_over, c(225, 75), tolerance = 1e-9)
   testthat::expect_setequal(breach$item_prod_code, c(15L, 44L))
 })
+
 
 testthat::test_that("the pattern extension reaches granted units only", {
   # A layer holding one granted unit and one level-0 country in the SAME
