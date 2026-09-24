@@ -50,6 +50,11 @@
 #' - `loss`: The amount that is not used for feed. This is `supply - intake`.
 #' - `loss_share`: The percent that is lost. This is `loss / supply`.
 #'
+#' This is not the input [estimate_n_excretion()] reads: that function takes
+#' the per-livestock-category rows of [redistribute_feed()] (`territory`,
+#' `livestock_category`, `feed_quality`, `intake_dm_t`), and refuses this
+#' table.
+#'
 #' @export
 #'
 #' @examples

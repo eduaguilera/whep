@@ -22,8 +22,10 @@
 #' @param cbs Tibble from [get_wide_cbs()]. By default, this
 #'   function calls [get_wide_cbs()] internally. Must have
 #'   columns: `year`, `area_code`, `item_cbs_code`, `production`,
-#'   `import`, `export`, `stock_withdrawal`, `stock_addition`,
-#'   plus final demand columns (`food`, `other_uses`). `year`, `area_code`
+#'   `export`, `stock_withdrawal`, `stock_addition`,
+#'   plus final demand columns (`food`, `other_uses`). `import` is read
+#'   only when `bilateral_trade` is `NULL`, by [get_bilateral_trade()],
+#'   which balances the trade matrices against it. `year`, `area_code`
 #'   and `item_cbs_code` must hold no `NA`, here and in `supply_use`: a row
 #'   with a missing code cannot be placed in the model.
 #' @param years Numeric vector of years to compute, or NULL.

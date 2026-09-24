@@ -484,3 +484,38 @@ test_that("redistribute_feed attaches a grass_deficit_diagnosis with maintenance
   expect_false(is.null(diag))
   expect_s3_class(diag, "tbl_df")
 })
+
+# whep#181: `.check_required_cols()` is the column gate of redistribute_feed()
+# and of ~20 land-extension call sites. It aborts with the seam-schema class,
+# so a caller can catch a contract violation by class, not by message text.
+test_that(".check_required_cols aborts with the seam-schema class", {
+  data <- tibble::tibble(lon = 0, lat = 0)
+  expect_error(
+    whep:::.check_required_cols(data, c("lon", "year"), "gridded_crops"),
+    class = "whep_error_schema_violation"
+  )
+  expect_error(
+    whep:::.check_required_cols(data, c("lon", "year"), "gridded_crops"),
+    "gridded_crops"
+  )
+  expect_invisible(whep:::.check_required_cols(data, "lon", "gridded_crops"))
+})
+
+test_that("a land-extension caller of the gate carries the class too", {
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 1000
+  )
+  expect_error(
+    whep::build_crop_land_extension(
+      tibble::tibble(lon = 0, lat = 0),
+      gridded_cropland
+    ),
+    class = "whep_error_schema_violation"
+  )
+  bad <- whep:::.example_feed_avail() |> dplyr::select(-feed_scale)
+  expect_error(
+    whep::redistribute_feed(whep:::.example_feed_demand(), bad),
+    class = "whep_error_schema_violation"
+  )
+})
