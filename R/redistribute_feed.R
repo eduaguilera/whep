@@ -127,13 +127,12 @@ redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   invisible(NULL)
 }
 
+# Column-presence gate shared with `R/crop_land_extension.R` and
+# `R/arable_permanent_land.R`. It goes through the seam schema so every
+# caller aborts with `whep_error_schema_violation`, the class the other
+# pipeline seams raise, rather than a classless error (whep#181).
 .check_required_cols <- function(data, required, name) {
-  missing <- required[!purrr::map_lgl(required, ~ rlang::has_name(data, .x))]
-  if (length(missing) > 0) {
-    cli::cli_abort(
-      "{.arg {name}} is missing column{?s}: {.val {missing}}."
-    )
-  }
+  assert_table_schema(data, .seam_schema(data, required), arg = name)
   invisible(NULL)
 }
 
