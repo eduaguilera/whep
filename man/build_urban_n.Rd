@@ -6,6 +6,7 @@
 \usage{
 build_urban_n(
   years = NULL,
+  population_basis = c("urban", "total"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
@@ -13,7 +14,13 @@ build_urban_n(
 }
 \arguments{
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
-keeps every year \code{data$urban_population} covers.}
+keeps every year the supplied population covers; it is required when the
+population is read rather than supplied.}
+
+\item{population_basis}{Which population, and the per-capita rate on the
+same basis, generates the load: \code{"urban"} (default) or \code{"total"}. See
+Description. Recorded in the \code{method_urban_population} and
+\code{method_urban_kgn_cap} output columns.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -27,8 +34,12 @@ See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports t
 already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs: \code{urban_population}
-(\code{lon}, \code{lat}, \code{year}, \code{urban_pop}, falling back to
-\code{\link[=read_hyde_population]{read_hyde_population()}} when absent), \code{cell_polity} (\code{lon}, \code{lat},
+(\code{lon}, \code{lat}, \code{year}, \code{urban_pop}; read under \code{population_basis = "urban"}, falling back to \code{\link[=read_hyde_population]{read_hyde_population()}} when absent),
+\code{total_population} (\code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{population}, one
+row per polycell as \code{\link[=build_total_population_grid]{build_total_population_grid()}} returns it; read
+under \code{population_basis = "total"}, falling back to that builder when
+absent; taken per polycell, not re-split by \code{polity_frac}, and every
+polycell must exist in \code{cell_polity}), \code{cell_polity} (\code{lon}, \code{lat},
 \code{area_code}, plus optional \code{polity_frac}; a missing \code{polity_frac} is
 treated as 1 for backwards compatibility) and \code{cropland_ha} (\code{lon},
 \code{lat}, \code{area_code}, \code{year}, \code{cropland_ha}, required: the gridded cropland
@@ -47,23 +58,44 @@ is not every territory's own code (\code{"SSD"} would become 206, Sudan
 \link{regions_full}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
-Defaults to \code{FALSE}.}
+Defaults to \code{FALSE}.
+Supplying only the other basis's population aborts with class
+\code{whep_urban_population_basis_mismatch} rather than silently reading a
+default.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{urban_n_t} and
-\code{method_urban}, plus the polity columns below, plus
-\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
+A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{urban_n_t},
+\code{method_urban}, \code{method_urban_population} (\code{"urban_population"} or
+\code{"total_population"}) and \code{method_urban_kgn_cap}
+(\code{"kg_n_per_urban_inhabitant"} or \code{"kg_n_per_total_inhabitant"}), plus
+the polity columns below, plus \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Estimates the nitrogen from urban human excreta and municipal waste
-applied to agricultural land, per WHEP 0.5-degree grid cell. Each cell's
-urban population (from \code{\link[=read_hyde_population]{read_hyde_population()}}) is converted to a
-nitrogen load via a per-capita rate interpolated from Spain's own
-historical benchmark series (\code{urban_n_reference} /
-\code{urban_kgn_cap_reference}; see Details), then spilled from cells with no
-local cropland room to same-polity neighbouring cells with spare
-capacity via \code{\link[=allocate_manure_transport]{allocate_manure_transport()}}, the same buffering used by
-the manure engine.
+applied to agricultural land, per WHEP 0.5-degree grid cell. Each
+polycell's population is converted to a nitrogen load via a per-capita
+rate interpolated from Spain's own historical benchmark series
+(\link{urban_n_reference}; see Details), then spilled from cells with no local
+cropland room to same-polity neighbouring cells with spare capacity via
+\code{\link[=allocate_manure_transport]{allocate_manure_transport()}}, the same buffering used by the manure
+engine.
+
+The population and the rate are chosen together by \code{population_basis}, so
+a per-urban-inhabitant rate is never applied to a total population:
+\itemize{
+\item \code{"urban"} (default): HYDE's urban population count
+(\code{\link[=read_hyde_population]{read_hyde_population()}}) times \link{urban_kgn_cap_reference}, kg N per
+urban inhabitant.
+\item \code{"total"}: UN WPP total population downscaled by HYDE's total-population
+pattern (\code{\link[=build_total_population_grid]{build_total_population_grid()}}) times
+\link{urban_kgn_cap_total_reference}, kg N per total inhabitant.
+}
+
+Both rates are Spain's urban N divided by Spain's population on the same
+basis, so Spain regenerates its own urban N under either. Elsewhere they
+differ by how far a country's urban share departs from Spain's: in 2010
+the global WPP total population is 2.0 times HYDE's global urban count.
 }
 \details{
 The current per-capita rate is a documented placeholder (Spain's own

@@ -355,19 +355,24 @@ testthat::test_that("C0: the urban generation step partitions population", {
   # The test above pins the whole pipeline, in which
   # allocate_manure_transport() also conserves mass; this one isolates the
   # generation step at R/n_urban.R:92-106 so a compensating change in the
-  # two halves cannot pass unnoticed. `.urban_n_generated` is a private
-  # helper, so `:::` is the only access -- the same route
+  # two halves cannot pass unnoticed. The step is two private helpers since
+  # the population basis became selectable: `.urban_polycell_population()`
+  # splits each cell's urban count by polity_frac, `.urban_n_generated()`
+  # applies the rate. `:::` is the only access -- the same route
   # test_feed_lpjml.R uses for `.lpjml_grass_to_dm`.
-  generated <- whep:::.urban_n_generated(
-    .urban_c0_population(),
-    .urban_c0_cell_polity()
-  )
+  generated <- whep:::.urban_polycell_population(
+    "urban",
+    list(urban_population = .urban_c0_population()),
+    .urban_c0_cell_polity(),
+    NULL
+  ) |>
+    whep:::.urban_n_generated("urban")
   rate <- .urban_c0_rate_2000()
 
-  # Population is partitioned, not duplicated and not shed: the joined
-  # rows' population-weighted polity_frac recovers the input head count.
+  # Population is partitioned, not duplicated and not shed: the polycells'
+  # polity_frac-weighted population recovers the input head count.
   testthat::expect_equal(
-    sum(generated$urban_pop * generated$polity_frac),
+    sum(generated$population),
     sum(.urban_c0_population()$urban_pop),
     tolerance = 1e-9
   )
@@ -672,4 +677,279 @@ testthat::test_that("the urban area_code check is the identity on the numeric vo
     "cell_polity"
   )
   testthat::expect_identical(with_na$area_code, c(203L, NA_integer_))
+})
+
+# ---- population_basis: "urban" vs "total" -----------------------------------
+
+# Two Spanish cells and plenty of cropland room on each, so transport moves
+# nothing and the output is exactly the generated load.
+.urban_basis_polity <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~area_code,
+    -3.75, 40.25, 203L,
+    -0.75, 39.25, 203L
+  )
+}
+
+.urban_basis_cropland <- function(year) {
+  tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~cropland_ha,
+    -3.75, 40.25, 203L,       1e9,
+    -0.75, 39.25, 203L,       1e9
+  ) |>
+    dplyr::mutate(year = year)
+}
+
+.urban_basis_run <- function(basis, year, population) {
+  slot <- if (basis == "urban") "urban_population" else "total_population"
+  data <- list(
+    cell_polity = .urban_basis_polity(),
+    cropland_ha = .urban_basis_cropland(year)
+  )
+  data[[slot]] <- population
+  whep::build_urban_n(population_basis = basis, data = data)
+}
+
+testthat::test_that("Spain regenerates its own urban N under both bases", {
+  # The coefficient rebasing, end to end: in a benchmark year, Spain's
+  # population on each basis times the rate on the same basis returns
+  # urban_n_reference exactly. The urban denominator is recovered from the
+  # shipped rate; the total one is the WPP total the shipped table records.
+  year <- 2016L
+  reference <- whep::urban_n_reference
+  target_t <- reference$urban_n_gg[reference$year == year] * 1000
+  urban_ref <- whep::urban_kgn_cap_reference
+  total_ref <- whep::urban_kgn_cap_total_reference
+  spain_urban <- target_t *
+    1000 /
+    urban_ref$urban_kgn_cap[urban_ref$year == year]
+  spain_total <- total_ref$spain_population[total_ref$year == year]
+  urban <- .urban_basis_run(
+    "urban",
+    year,
+    tibble::tibble(
+      lon = c(-3.75, -0.75),
+      lat = c(40.25, 39.25),
+      year = year,
+      urban_pop = spain_urban * c(0.7, 0.3)
+    )
+  )
+  total <- .urban_basis_run(
+    "total",
+    year,
+    tibble::tibble(
+      lon = c(-3.75, -0.75),
+      lat = c(40.25, 39.25),
+      area_code = 203L,
+      year = year,
+      population = spain_total * c(0.7, 0.3)
+    )
+  )
+  testthat::expect_equal(sum(urban$urban_n_t), target_t, tolerance = 1e-12)
+  testthat::expect_equal(sum(total$urban_n_t), target_t, tolerance = 1e-12)
+  # Not the same population: the total basis carries more people at a lower
+  # rate, which is the whole point of rebasing.
+  testthat::expect_gt(spain_total, spain_urban)
+})
+
+testthat::test_that("the total basis applies the per-total-inhabitant rate", {
+  # 2012 lies between the 2008 and 2016 benchmarks, so the rate is
+  # interpolated; it must be the TOTAL table's interpolation, never the
+  # urban one.
+  total_ref <- whep::urban_kgn_cap_total_reference
+  urban_ref <- whep::urban_kgn_cap_reference
+  rate <- stats::approx(total_ref$year, total_ref$urban_kgn_cap, 2012)$y
+  urban_rate <- stats::approx(urban_ref$year, urban_ref$urban_kgn_cap, 2012)$y
+  out <- .urban_basis_run(
+    "total",
+    2012L,
+    tibble::tibble(
+      lon = -3.75,
+      lat = 40.25,
+      area_code = 203L,
+      year = 2012L,
+      population = 1e6
+    )
+  )
+  testthat::expect_equal(sum(out$urban_n_t), 1e6 * rate / 1000)
+  testthat::expect_false(isTRUE(all.equal(rate, urban_rate)))
+})
+
+testthat::test_that("the basis is stamped on every row, both halves together", {
+  urban_pop <- tibble::tibble(
+    lon = -3.75,
+    lat = 40.25,
+    year = 2016L,
+    urban_pop = 1e6
+  )
+  urban <- .urban_basis_run("urban", 2016L, urban_pop)
+  total <- .urban_basis_run(
+    "total",
+    2016L,
+    tibble::tibble(
+      lon = -3.75,
+      lat = 40.25,
+      area_code = 203L,
+      year = 2016L,
+      population = 1e6
+    )
+  )
+  pointblank::expect_col_vals_in_set(
+    urban,
+    "method_urban_population",
+    "urban_population"
+  )
+  pointblank::expect_col_vals_in_set(
+    urban,
+    "method_urban_kgn_cap",
+    "kg_n_per_urban_inhabitant"
+  )
+  pointblank::expect_col_vals_in_set(
+    total,
+    "method_urban_population",
+    "total_population"
+  )
+  pointblank::expect_col_vals_in_set(
+    total,
+    "method_urban_kgn_cap",
+    "kg_n_per_total_inhabitant"
+  )
+  # The default is the historical basis, so an unset argument moves nothing.
+  default <- whep::build_urban_n(
+    data = list(
+      urban_population = urban_pop,
+      cell_polity = .urban_basis_polity(),
+      cropland_ha = .urban_basis_cropland(2016L)
+    )
+  )
+  testthat::expect_equal(default$urban_n_t, urban$urban_n_t)
+  testthat::expect_equal(
+    unique(default$method_urban_population),
+    "urban_population"
+  )
+})
+
+testthat::test_that("a population on the other basis is refused, not re-read", {
+  urban_population <- tibble::tibble(
+    lon = -3.75,
+    lat = 40.25,
+    year = 2016L,
+    urban_pop = 1e6
+  )
+  total_population <- tibble::tibble(
+    lon = -3.75,
+    lat = 40.25,
+    area_code = 203L,
+    year = 2016L,
+    population = 1e6
+  )
+  common <- list(
+    cell_polity = .urban_basis_polity(),
+    cropland_ha = .urban_basis_cropland(2016L)
+  )
+  testthat::expect_error(
+    whep::build_urban_n(
+      years = 2016L,
+      population_basis = "total",
+      data = c(common, list(urban_population = urban_population))
+    ),
+    class = "whep_urban_population_basis_mismatch"
+  )
+  testthat::expect_error(
+    whep::build_urban_n(
+      years = 2016L,
+      population_basis = "urban",
+      data = c(common, list(total_population = total_population))
+    ),
+    class = "whep_urban_population_basis_mismatch"
+  )
+})
+
+testthat::test_that("the total basis takes polycells as they are", {
+  # A border cell's two polycells were each levelled to their own country's
+  # WPP total by build_total_population_grid(); re-splitting their sum by
+  # polity_frac would hand France some of Spain's level and vice versa.
+  cell_polity <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~polity_frac,
+    -0.25, 42.75, 203L,       0.5,
+    -0.25, 42.75, 68L,        0.5
+  )
+  cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~year, ~cropland_ha,
+    -0.25, 42.75, 203L,       2016L, 1e9,
+    -0.25, 42.75, 68L,        2016L, 1e9
+  )
+  population <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~year, ~population,
+    -0.25, 42.75, 203L,       2016L, 9e5,
+    -0.25, 42.75, 68L,        2016L, 1e5
+  )
+  out <- whep::build_urban_n(
+    population_basis = "total",
+    data = list(
+      total_population = population,
+      cell_polity = cell_polity,
+      cropland_ha = cropland
+    )
+  )
+  total_ref <- whep::urban_kgn_cap_total_reference
+  rate <- total_ref$urban_kgn_cap[total_ref$year == 2016L]
+  testthat::expect_equal(
+    out$urban_n_t[match(c(203L, 68L), out$area_code)],
+    c(9e5, 1e5) * rate / 1000
+  )
+})
+
+testthat::test_that("a total population keyed off the crosswalk is refused", {
+  population <- tibble::tibble(
+    lon = -3.75,
+    lat = 40.25,
+    area_code = 999L,
+    year = 2016L,
+    population = 1e6
+  )
+  testthat::expect_error(
+    .urban_basis_run("total", 2016L, population),
+    class = "whep_urban_area_code_unresolved"
+  )
+})
+
+testthat::test_that("the total basis builds its population when none is given", {
+  # With no data$total_population, the population comes from
+  # build_total_population_grid() on the SAME crosswalk, so the two cannot be
+  # keyed apart.
+  called <- FALSE
+  testthat::local_mocked_bindings(
+    build_total_population_grid = function(years, data, ...) {
+      called <<- TRUE
+      testthat::expect_identical(years, 2016L)
+      testthat::expect_true(rlang::has_name(data$cell_polity, "area_code"))
+      tibble::tibble(
+        lon = -3.75,
+        lat = 40.25,
+        area_code = 203L,
+        year = 2016L,
+        population = 1e6
+      )
+    }
+  )
+  out <- whep::build_urban_n(
+    years = 2016L,
+    population_basis = "total",
+    data = list(
+      cell_polity = .urban_basis_polity(),
+      cropland_ha = .urban_basis_cropland(2016L)
+    )
+  )
+  testthat::expect_true(called)
+  testthat::expect_gt(sum(out$urban_n_t), 0)
+})
+
+testthat::test_that("the example fixture carries the basis it was asked for", {
+  total <- whep::build_urban_n(population_basis = "total", example = TRUE)
+  testthat::expect_equal(total$method_urban_population, "total_population")
+  testthat::expect_equal(
+    total$method_urban_kgn_cap,
+    "kg_n_per_total_inhabitant"
+  )
 })

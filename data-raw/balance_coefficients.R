@@ -157,6 +157,13 @@ urban_n_reference <- .read_balance_csv("urban_n_reference.csv") |>
   dplyr::mutate(area_code = .iso3_to_area_code(.data$area_code)) |>
   dplyr::relocate("polity_code", .after = "area_code")
 urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
+# The same rate per TOTAL inhabitant (Spain urban N over Spain's UN WPP total
+# population), for build_urban_n(population_basis = "total"); also derived,
+# also not recomputed here -- see the last section of the one-off
+# regeneration script build_urban_kgn_cap.R in this directory.
+urban_kgn_cap_total_reference <- .read_balance_csv(
+  "urban_kgn_cap_total_reference.csv"
+)
 
 # Module C (Task C4) MANNER process-based ammonia-volatilisation coefficient
 # datasets, complementing manner_params (see R/datasets_balances.R @source
@@ -209,6 +216,7 @@ usethis::use_data(
   n_attenuation_constants,
   urban_n_reference,
   urban_kgn_cap_reference,
+  urban_kgn_cap_total_reference,
   manner_rate_factor,
   manner_rain_factor,
   manner_incorporation_factor,

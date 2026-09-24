@@ -132,7 +132,8 @@
 #'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 #'   columns below. When the supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_unsupported` and
+#'   `method_deposition_scope`, `method_urban_population`,
+#'   `method_urban_kgn_cap`, `method_unsupported` and
 #'   `method_unattributed` stamps from
 #'   [build_n_inputs()] are carried through as well, so a balance names the
 #'   input conventions that produced it. Gains
@@ -913,6 +914,11 @@ build_nitrogen_balance <- function(
 # bias grows backwards in time (whep#1097/#1121), so a balance built on a
 # corrected field and one built on raw HaNi have to be tellable apart.
 #
+# `method_urban_population` and `method_urban_kgn_cap` are here because the
+# urban term's population basis is a choice: per urban inhabitant on HYDE's
+# urban count, or per total inhabitant on the WPP total, which differ by the
+# ratio of each country's urban share to Spain's.
+#
 # `method_unattributed` is here for the same reason (whep#532): the nitrogen
 # that reached agricultural land but no single crop is a real mass, and whether
 # a balance spread it over cropland, over all agricultural land, or dropped it
@@ -926,6 +932,8 @@ build_nitrogen_balance <- function(
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
+    "method_urban_population",
+    "method_urban_kgn_cap",
     "method_unsupported",
     "method_unattributed"
   )

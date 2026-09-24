@@ -517,3 +517,43 @@ testthat::test_that("soc_turnover_params reads identically through two readers",
   # And the shipped .rda must match both, not just one of them.
   testthat::expect_equal(nrow(whep::soc_turnover_params), nrow(base_r))
 })
+
+testthat::test_that("urban_kgn_cap_total_reference is rebased on Spain's total", {
+  # The per-TOTAL-inhabitant rate divides the same Spain urban N as
+  # urban_kgn_cap_reference, by Spain's WPP total population, which the table
+  # carries so the rebasing is checkable here without the WPP file.
+  total <- whep::urban_kgn_cap_total_reference
+  pointblank::expect_col_exists(
+    total,
+    c("year", "urban_kgn_cap", "spain_population")
+  )
+  joined <- dplyr::inner_join(
+    total,
+    whep::urban_n_reference,
+    by = "year"
+  )
+  # Every urban_n_reference benchmark WPP covers (1950 on) has a row, and no
+  # row lacks its numerator.
+  testthat::expect_equal(nrow(joined), nrow(total))
+  testthat::expect_setequal(
+    total$year,
+    whep::urban_n_reference$year[whep::urban_n_reference$year >= 1950]
+  )
+  testthat::expect_equal(
+    joined$urban_kgn_cap * joined$spain_population,
+    joined$urban_n_gg * 1e6,
+    tolerance = 1e-12
+  )
+  # A total population is larger than its urban part, so per total inhabitant
+  # is the smaller rate in every year both series cover.
+  both <- dplyr::inner_join(
+    total,
+    whep::urban_kgn_cap_reference,
+    by = "year",
+    suffix = c("_total", "_urban")
+  )
+  testthat::expect_equal(nrow(both), nrow(total))
+  testthat::expect_true(all(
+    both$urban_kgn_cap_total < both$urban_kgn_cap_urban
+  ))
+})

@@ -626,6 +626,45 @@
 #' urban_kgn_cap_reference
 "urban_kgn_cap_reference"
 
+#' Spain historical urban nitrogen rate per total inhabitant.
+#'
+#' @description
+#' The urban-nitrogen-to-agriculture rate per TOTAL inhabitant,
+#' \code{urban_n_reference$urban_n_gg * 1e6 / spain_population}, where
+#' \code{spain_population} is Spain's UN WPP 2024 total population. It is the
+#' counterpart of [urban_kgn_cap_reference] (kg N per URBAN inhabitant) for
+#' `build_urban_n(population_basis = "total")`, whose population level is the
+#' UN WPP total ([build_total_population_grid()]). Pairing each population
+#' with the rate on its own basis is what keeps Spain regenerating its own
+#' urban N under either basis; applying the per-urban-inhabitant rate to a
+#' total population would scale the term by the inverse urban fraction
+#' (global WPP total over HYDE urban population: 3.02 in 1960, 2.01 in 2010,
+#' 1.91 in 2017).
+#'
+#' The series starts at 1950, the first year UN WPP covers, so the 1860 and
+#' 1900 benchmarks of [urban_n_reference] have no row here. The same Spain
+#' series is applied as a global default under either basis; see
+#' [build_urban_n()].
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{year}{Benchmark calendar year.}
+#'   \item{urban_kgn_cap}{Urban nitrogen applied to agriculture per total
+#'     inhabitant (kg N per person per year).}
+#'   \item{spain_population}{Spain's total population that year (persons),
+#'     the denominator, from [read_wpp_population()] with `by = "total"`.}
+#' }
+#'
+#' @source Derived from [urban_n_reference] and United Nations, Department of
+#'   Economic and Social Affairs, Population Division (2024), World
+#'   Population Prospects 2024, medium variant
+#'   (\code{WPP2024_PopulationByAge5GroupSex_Medium.csv.gz}); see
+#'   \code{data-raw/build_urban_kgn_cap.R}.
+#'
+#' @examples
+#' urban_kgn_cap_total_reference
+"urban_kgn_cap_total_reference"
+
 #' MANNER synthetic-fertiliser application-rate factor.
 #'
 #' @description

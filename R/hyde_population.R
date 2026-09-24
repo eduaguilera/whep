@@ -8,8 +8,11 @@
 # - Each ZIP holds 5 ESRI ASCII grid (.asc) files with the same year suffix:
 #   popc (total population count), popd (population density), urbc (URBAN
 #   population count), rurc (rural population count), uopp (urban
-#   built-up-area occupancy). This reader uses urbc: it is the correct
-#   variable for an urban/human-excreta-to-agriculture nitrogen stream.
+#   built-up-area occupancy). read_hyde_population() reads urbc, the
+#   population basis build_urban_n() uses by default; the private
+#   .read_hyde_year() takes the variable as an argument so
+#   build_total_population_grid() (R/total_population_grid.R) can read popc
+#   through exactly the same parse and block sum.
 # - ASC header, 6 lines in this exact order, then the data matrix:
 #     ncols 4320
 #     nrows 2160
@@ -75,7 +78,8 @@ read_hyde_population <- function(
   .check_hyde_years(years)
   dir <- .resolve_hyde_dir(hyde_dir)
   data.table::rbindlist(lapply(years, .read_hyde_year, hyde_dir = dir)) |>
-    tibble::as_tibble()
+    tibble::as_tibble() |>
+    dplyr::rename(urban_pop = "pop")
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -104,14 +108,24 @@ read_hyde_population <- function(
   invisible(NULL)
 }
 
-# Read one year's urban population ZIP and block-sum it to the 0.5-degree
-# grid.
-.read_hyde_year <- function(year, hyde_dir) {
+# Read one HYDE population count (`urbc` by default, `popc` for the total
+# population) for one year and block-sum it to the 0.5-degree grid, as a
+# neutral `pop` column the callers name. A member missing from the archive is
+# refused by name rather than left to unz() to fail on: substituting another
+# variable would change what the count IS.
+.read_hyde_year <- function(year, hyde_dir, variable = "urbc") {
   zip_path <- file.path(hyde_dir, paste0(year, "AD_pop.zip"))
   if (!file.exists(zip_path)) {
     cli::cli_abort("HYDE population archive not found: {.file {zip_path}}.")
   }
-  arcname <- paste0("urbc_", year, "AD.asc")
+  arcname <- paste0(variable, "_", year, "AD.asc")
+  members <- utils::unzip(zip_path, list = TRUE)$Name
+  if (!arcname %in% members) {
+    cli::cli_abort(c(
+      "HYDE archive {.file {zip_path}} holds no {.file {arcname}}.",
+      i = "It holds: {.file {members}}."
+    ))
+  }
   grid <- .read_hyde_asc(zip_path, arcname)
   .hyde_block_sum(grid, year)
 }
@@ -141,8 +155,8 @@ read_hyde_population <- function(
   )
 }
 
-# Block-sum a native 5-arcmin population matrix to WHEP's 0.5-degree grid.
-# Row 1 is the northernmost row (standard ESRI convention); NODATA cells are
+# Block-sum a native 5-arcmin population matrix to WHEP's 0.5-degree grid, as
+# a neutral `pop` count. Row 1 is the northernmost row (standard ESRI convention); NODATA cells are
 # dropped before summing.
 .hyde_block_sum <- function(grid, year) {
   meta <- grid$meta
@@ -155,19 +169,19 @@ read_hyde_population <- function(
   dt <- data.table::data.table(
     lon_block = .hani_block_center(lon)[rep(seq_len(n_col), times = n_row)],
     lat_block = .hani_block_center(lat)[rep(seq_len(n_row), each = n_col)],
-    urban_pop = as.vector(t(mat))
+    pop = as.vector(t(mat))
   )
-  dt <- dt[!is.na(urban_pop)]
+  dt <- dt[!is.na(pop)]
   if (nrow(dt) == 0L) {
     return(data.table::data.table(
       lon = double(),
       lat = double(),
       year = integer(),
-      urban_pop = double()
+      pop = double()
     ))
   }
   dt[,
-    .(year = year, urban_pop = sum(urban_pop)),
+    .(year = year, pop = sum(pop)),
     by = .(lon = lon_block, lat = lat_block)
   ]
 }

@@ -154,9 +154,15 @@
 #'     `grassland_source` selects its `grassland` argument
 #'     (`"gridded_pasture"` default, `"luh2"`, or `"none"` for cropland-only
 #'     support).
-#'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
-#'     inputs. The `"urban"` term's `n_input_t` is the `urban_n_t` column of
-#'     [build_urban_n()]'s output.
+#'   * `urban_population`, `total_population`, `cropland_ha`, `cell_polity`:
+#'     [build_urban_n()]'s inputs. Which population is read is set by
+#'     `urban_population_basis`. The `"urban"` term's `n_input_t` is the
+#'     `urban_n_t` column of [build_urban_n()]'s output.
+#'   * `urban_population_basis`: [build_urban_n()]'s `population_basis`,
+#'     `"urban"` (default: `urban_population` with the per-urban-inhabitant
+#'     rate) or `"total"` (`total_population`, from
+#'     [build_total_population_grid()], with the per-total-inhabitant rate).
+#'     Recorded in `method_urban_population` and `method_urban_kgn_cap`.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -209,11 +215,13 @@
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_unsupported`,
+#'   `method_deposition_scope`, `method_urban_population`,
+#'   `method_urban_kgn_cap`, `method_unsupported`,
 #'   `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
-#'   `method_deposition`, `method_deposition_scope`, `method_unsupported`,
+#'   `method_deposition`, `method_deposition_scope`,
+#'   `method_urban_population`, `method_urban_kgn_cap`, `method_unsupported`,
 #'   `method_unattributed`, `n_input_t` (summed over cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
@@ -229,6 +237,9 @@
 #'   `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`). Both are `NA` for every other
+#'   `fert_type`. `method_urban_population` and `method_urban_kgn_cap` record
+#'   the `"urban"` term's population basis and the denominator of its
+#'   per-capita rate (see [build_urban_n()]); both are `NA` for every other
 #'   `fert_type`.
 #'   `method_unsupported` records the rule applied to non-item nitrogen with no
 #'   cropland support in its own cell, and is the same on every row.
@@ -340,6 +351,11 @@ build_n_inputs <- function(
   # build_nitrogen_balance() hands the NPP result in as `.npp_cache` rather
   # than as `npp_n_input`; either one asks for the recycling term.
   data$npp_n_input <- data$npp_n_input %||% data$.npp_cache
+  # Either population asks for the urban term; build_urban_n() then refuses
+  # the one that does not match `urban_population_basis`. Read by exact name:
+  # `data$urban_population` would partially match `urban_population_basis`.
+  data[["urban_population"]] <- data[["urban_population"]] %||%
+    data[["total_population"]]
   supplied <- purrr::map_lgl(
     .ni_stream_inputs(),
     \(needed) all(!purrr::map_lgl(needed, \(nm) is.null(data[[nm]])))
@@ -407,7 +423,9 @@ build_n_inputs <- function(
 # and `method_deposition_scope` are the deposition term's two provenance axes
 # and are likewise NA elsewhere: the first names the PRODUCT the field came
 # from, the second which of the polycell's territory it was credited with.
-# Both are per-source, so they live here rather than on the assembled schema.
+# `method_urban_population` and `method_urban_kgn_cap` are the urban term's:
+# the population basis and the denominator of its per-capita rate.
+# All are per-source, so they live here rather than on the assembled schema.
 .ni_source_schema <- function() {
   c(
     "lon",
@@ -421,6 +439,8 @@ build_n_inputs <- function(
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
+    "method_urban_population",
+    "method_urban_kgn_cap",
     "method_unsupported"
   )
 }
@@ -551,6 +571,8 @@ build_n_inputs <- function(
         "method_synthetic",
         "method_deposition",
         "method_deposition_scope",
+        "method_urban_population",
+        "method_urban_kgn_cap",
         "method_unsupported",
         "method_unattributed"
       )
@@ -1043,13 +1065,20 @@ build_n_inputs <- function(
 # ---- 5. Urban N (cell-level, not crop-specific) ---------------------------
 
 .n_inputs_urban <- function(data) {
-  if (is.null(data$urban_population) || is.null(data$cropland_ha)) {
+  # Exact-name reads throughout: `$` would partially match
+  # `urban_population` to `urban_population_basis` when only the total
+  # population is supplied, and hand the basis string on as a population.
+  no_population <- is.null(data[["urban_population"]]) &&
+    is.null(data[["total_population"]])
+  if (no_population || is.null(data$cropland_ha)) {
     return(.ni_empty())
   }
   build_urban_n(
+    population_basis = .ni_urban_population_basis(data),
     polity_validity = .ni_polity_validity(data),
     data = list(
-      urban_population = data$urban_population,
+      urban_population = data[["urban_population"]],
+      total_population = data[["total_population"]],
       cell_polity = data$cell_polity,
       cropland_ha = data$cropland_ha
     )
@@ -1066,8 +1095,26 @@ build_n_inputs <- function(
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",
-      n_input_t = .data$urban_n_t
+      n_input_t = .data$urban_n_t,
+      method_urban_population = .data$method_urban_population,
+      method_urban_kgn_cap = .data$method_urban_kgn_cap
     )
+}
+
+# The urban term's population basis, read off `data` like `deposition_scope`
+# so build_nitrogen_balance(), which forwards its whole `data` list, selects
+# it without an argument of its own. "urban" is the historical basis, so an
+# unset value moves no published number.
+.ni_urban_population_basis <- function(data) {
+  basis <- data[["urban_population_basis"]] %||% "urban"
+  if (!rlang::is_string(basis) || !basis %in% c("urban", "total")) {
+    cli::cli_abort(c(
+      "{.field data$urban_population_basis} must be {.val urban} or
+       {.val total}.",
+      x = "Got {.val {basis}}."
+    ))
+  }
+  basis
 }
 
 # ---- 6. SOM mineralization (positive son_change_kgn_ha only) -------------
@@ -1359,7 +1406,9 @@ build_n_inputs <- function(
     "fert_type",
     "method_recycling_n",
     "method_synthetic",
-    "method_deposition_scope"
+    "method_deposition_scope",
+    "method_urban_population",
+    "method_urban_kgn_cap"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
@@ -1576,6 +1625,8 @@ build_n_inputs <- function(
     method_synthetic = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
+    method_urban_population = character(),
+    method_urban_kgn_cap = character(),
     method_unsupported = character()
   )
 }
@@ -1673,6 +1724,16 @@ build_n_inputs <- function(
       method_deposition_scope = dplyr::if_else(
         .data$fert_type == "deposition",
         "territory",
+        NA_character_
+      ),
+      method_urban_population = dplyr::if_else(
+        .data$fert_type == "urban",
+        "urban_population",
+        NA_character_
+      ),
+      method_urban_kgn_cap = dplyr::if_else(
+        .data$fert_type == "urban",
+        "kg_n_per_urban_inhabitant",
         NA_character_
       ),
       method_unsupported = "abort",

@@ -179,3 +179,13 @@ testthat::test_that("read_hyde_population example fixture is schema-complete", {
   pointblank::expect_col_exists(out, c("lon", "lat", "year", "urban_pop"))
   pointblank::expect_col_vals_gte(out, "urban_pop", 0)
 })
+
+testthat::test_that("a HYDE variable missing from the archive is refused by name", {
+  # The fixture archive holds only urbc; asking it for popc must name the
+  # member rather than fail inside unz() or read another variable.
+  fixture <- .hyde_fixture_zip(year = 1900L)
+  testthat::expect_error(
+    whep:::.read_hyde_year(1900L, fixture$dir, variable = "popc"),
+    "popc_1900AD.asc"
+  )
+})

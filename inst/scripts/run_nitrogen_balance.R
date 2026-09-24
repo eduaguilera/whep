@@ -35,6 +35,14 @@
 #                           what to do with synthetic N of polities that have
 #                           no cropland cell (default `drop`; see
 #                           .nbd_drop_unsupported_fertilizer() below).
+#   WHEP_NBD_URBAN_BASIS=urban|total
+#                           the urban-N term's population basis
+#                           (build_urban_n()'s `population_basis`). "urban"
+#                           (default) is HYDE's urban count with the rate per
+#                           urban inhabitant; "total" is the UN WPP total on
+#                           HYDE's popc pattern (build_total_population_grid())
+#                           with the rate per total inhabitant, and also needs
+#                           the WPP file read_wpp_population() caches.
 #
 # Requires the local surfaces (CLAUDE.md, "New data sources"):
 #   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
@@ -54,6 +62,11 @@ unsupported_fertilizer <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_UNSUPPORTED_FERTILIZER", "drop"),
   c("drop", "abort"),
   arg_nm = "WHEP_NBD_UNSUPPORTED_FERTILIZER"
+)
+urban_basis <- rlang::arg_match0(
+  Sys.getenv("WHEP_NBD_URBAN_BASIS", "urban"),
+  c("urban", "total"),
+  arg_nm = "WHEP_NBD_URBAN_BASIS"
 )
 
 # ---- staging ----------------------------------------------------------------
@@ -432,10 +445,43 @@ if (!is.null(npp) && !is.null(npp_national)) {
 
 cli::cli_h2("4. Upstream models")
 
-urban_population <- nbd_stage(
-  "urban_population",
-  read_hyde_population(years = year)
-)
+# The population the urban-N term is generated from, on the selected basis.
+# The per-capita rate is chosen with it inside build_urban_n(), so the two
+# cannot be mixed here. The total basis is levelled per polycell on the same
+# crosswalk the balance uses, and its coverage (held or interpolated HYDE
+# pattern, unplaced people) is kept for the saved result.
+urban_population <- NULL
+total_population <- NULL
+if (urban_basis == "urban") {
+  urban_population <- nbd_stage(
+    "urban_population",
+    read_hyde_population(years = year)
+  )
+} else {
+  total_population <- nbd_stage(
+    "total_population",
+    build_total_population_grid(
+      years = year,
+      data = list(cell_polity = cell_polity)
+    )
+  )
+}
+urban_population_coverage <- attr(total_population, "coverage")
+# nbd_stage() suppresses warnings, so say here what the total basis could not
+# place and whether the pattern was held, rather than lose it.
+if (!is.null(urban_population_coverage)) {
+  pattern <- if (length(urban_population_coverage$held) > 0L) {
+    paste("held at", urban_population_coverage$held_at)
+  } else {
+    "exact or interpolated"
+  }
+  unplaced <- urban_population_coverage$unplaced
+  cli::cli_inform(c(
+    i = "total population: HYDE pattern {pattern};
+         {signif(sum(unplaced$wpp_population), 4)} persons in
+         {nrow(unplaced)} countr{?y/ies} not placed."
+  ))
+}
 nhx <- nbd_stage("nhx", read_n_deposition("nhx", years = year))
 noy <- nbd_stage("noy", read_n_deposition("noy", years = year))
 # Marched, not single-year. A one-year balance initialises every cell at
@@ -615,7 +661,9 @@ if (nrow(blockers) > 0L) {
     # the guard exists to prevent, so the rule is named and the cost printed.
     # Recorded in method_unsupported.
     method_unsupported = "reallocate_drop",
+    urban_population_basis = urban_basis,
     urban_population = urban_population,
+    total_population = total_population,
     nhx = nhx,
     noy = noy
   )
@@ -753,6 +801,8 @@ if (nrow(blockers) > 0L) {
   result <- list(
     year = year,
     resolution = resolution,
+    urban_population_basis = urban_basis,
+    urban_population_coverage = urban_population_coverage,
     report = dplyr::bind_rows(.nbd_log$rows),
     unsupported_fertilizer = unsupported_fertilizer_n,
     balance = balance,

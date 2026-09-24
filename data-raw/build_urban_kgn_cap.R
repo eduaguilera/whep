@@ -1,7 +1,11 @@
 # Regenerate inst/extdata/balances/urban_kgn_cap_reference.csv (Module C,
 # Task C3): the per-capita urban-nitrogen-to-agriculture rate at each
 # urban_n_reference benchmark year, i.e. that year's urban_n_gg converted to
-# kg and divided by that year's Spain urban population.
+# kg and divided by that year's Spain urban population. The last section
+# regenerates its per-TOTAL-inhabitant counterpart,
+# urban_kgn_cap_total_reference.csv, used by
+# build_urban_n(population_basis = "total"); it additionally needs the UN WPP
+# file read_wpp_population() caches (or WHEP_WPP_DIR).
 #
 # This is a ONE-OFF, real-data-dependent script. It is NOT sourced by any
 # build pipeline (data-raw/balance_coefficients.R reads the already-committed
@@ -93,4 +97,52 @@ urban_kgn_cap_reference <- dplyr::bind_rows(hyde_rows, world_bank_rows) |>
 readr::write_csv(
   urban_kgn_cap_reference,
   here::here("inst", "extdata", "balances", "urban_kgn_cap_reference.csv")
+)
+
+# ---- The per-TOTAL-inhabitant rate (population_basis = "total") -----------
+#
+# Regenerates inst/extdata/balances/urban_kgn_cap_total_reference.csv: the
+# same Spain urban-N numerator (urban_n_reference$urban_n_gg) divided by
+# Spain's TOTAL population from UN WPP 2024 (whep::read_wpp_population(),
+# by = "total", area_code 203), at every benchmark year WPP covers.
+#
+# Why a second rate. build_urban_n(population_basis = "total") multiplies this
+# rate by WPP total population downscaled by HYDE's popc pattern
+# (build_total_population_grid()). The rate above is kg N per URBAN
+# inhabitant; applying it to a total population scales the term by the
+# inverse urban fraction (global WPP total / HYDE urban = 3.02 in 1960, 2.01
+# in 2010, 1.91 in 2017). Dividing Spain's urban N by the population on the
+# SAME basis the level uses keeps basis and coefficient matched, and Spain
+# then regenerates its own urban N exactly under either basis.
+#
+# The denominator is WPP -- the level source of the total basis -- not HYDE's
+# popc, because under that basis Spain's population in the model IS its WPP
+# total. So the rate starts at 1950: 1860 and 1900 have no WPP total, and
+# build_total_population_grid() refuses pre-1950 years for the same reason.
+# The Spain denominator is written into the table so the rebasing identity
+# (urban_kgn_cap * spain_population = urban_n_gg * 1e6) is checkable offline.
+spain_total_pop <- whep::read_wpp_population(
+  years = benchmark_years,
+  by = "total"
+) |>
+  dplyr::filter(area_code == 203L) |>
+  dplyr::summarise(spain_population = sum(population), .by = "year")
+
+urban_kgn_cap_total_reference <- whep::urban_n_reference |>
+  dplyr::inner_join(spain_total_pop, by = "year") |>
+  dplyr::transmute(
+    year,
+    urban_kgn_cap = urban_n_gg * 1e6 / spain_population,
+    spain_population
+  ) |>
+  dplyr::arrange(year)
+
+readr::write_csv(
+  urban_kgn_cap_total_reference,
+  here::here(
+    "inst",
+    "extdata",
+    "balances",
+    "urban_kgn_cap_total_reference.csv"
+  )
 )

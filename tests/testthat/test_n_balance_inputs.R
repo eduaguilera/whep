@@ -2077,3 +2077,110 @@ testthat::test_that("gridded_pasture is never read as gridded (#1214)", {
   ))
   testthat::expect_null(seen)
 })
+
+testthat::test_that("the urban population basis is recorded, only on urban rows", {
+  # The urban term's population basis is a choice (build_urban_n()'s
+  # population_basis), and its two stamps have to travel with the rows, or a
+  # per-urban-inhabitant ledger and a per-total-inhabitant one are
+  # indistinguishable after the fact.
+  data <- .nbi_full_data()
+  out <- whep::build_n_inputs(data = data)
+  urban <- out$fert_type == "urban"
+  testthat::expect_true(any(urban))
+  testthat::expect_true(all(
+    out$method_urban_population[urban] == "urban_population"
+  ))
+  testthat::expect_true(all(
+    out$method_urban_kgn_cap[urban] == "kg_n_per_urban_inhabitant"
+  ))
+  testthat::expect_true(all(is.na(out$method_urban_population[!urban])))
+
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$urban_population_basis <- "total"
+  total <- whep::build_n_inputs(data = data)
+  urban_total <- total$fert_type == "urban"
+  testthat::expect_true(all(
+    total$method_urban_population[urban_total] == "total_population"
+  ))
+  testthat::expect_true(all(
+    total$method_urban_kgn_cap[urban_total] == "kg_n_per_total_inhabitant"
+  ))
+  # Same people, a smaller per-capita rate: the stamp is not decorative.
+  testthat::expect_lt(
+    sum(total$n_input_t[urban_total]),
+    sum(out$n_input_t[urban])
+  )
+  # It survives the polity aggregation as a grouping key.
+  polity <- whep::build_n_inputs(data = data, resolution = "polity")
+  testthat::expect_true(all(
+    polity$method_urban_population[polity$fert_type == "urban"] ==
+      "total_population"
+  ))
+})
+
+testthat::test_that("an unknown urban population basis is refused", {
+  data <- .nbi_full_data()
+  data$urban_population_basis <- "rural"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "urban_population_basis"
+  )
+})
+
+testthat::test_that("a basis whose population was not supplied is refused", {
+  data <- .nbi_full_data()
+  data$urban_population_basis <- "total"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_urban_population_basis_mismatch"
+  )
+})
+
+testthat::test_that("stranded urban rows keep their basis stamps when pooled", {
+  stranded <- tibble::tibble(
+    area_code = 10L,
+    year = 2010L,
+    fert_type = "urban",
+    method_recycling_n = NA_character_,
+    method_synthetic = NA_character_,
+    method_deposition_scope = NA_character_,
+    method_urban_population = "total_population",
+    method_urban_kgn_cap = "kg_n_per_total_inhabitant",
+    n_input_t = c(1, 2),
+    .source_row = 1:2
+  )
+  pooled <- whep:::.ni_pool_stranded(stranded)
+  testthat::expect_equal(nrow(pooled), 1L)
+  testthat::expect_equal(pooled$method_urban_population, "total_population")
+  testthat::expect_equal(
+    pooled$method_urban_kgn_cap,
+    "kg_n_per_total_inhabitant"
+  )
+})
+
+testthat::test_that("a total population under the urban basis is refused by name", {
+  # With `urban_population` absent, `data$urban_population` would partially
+  # match `urban_population_basis` and hand the string "urban" on as the
+  # population; the read is by exact name, so the mismatch is named instead.
+  data <- .nbi_full_data()
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$urban_population_basis <- "urban"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_urban_population_basis_mismatch"
+  )
+})

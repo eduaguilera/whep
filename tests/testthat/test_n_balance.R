@@ -1218,3 +1218,35 @@ testthat::test_that("residue destinies no N coefficient joins are refused", {
     )
   )
 })
+
+testthat::test_that("the balance names the urban population basis it used", {
+  out <- .nb_run()
+  testthat::expect_setequal(
+    stats::na.omit(out$method_urban_population),
+    "urban_population"
+  )
+  testthat::expect_setequal(
+    stats::na.omit(out$method_urban_kgn_cap),
+    "kg_n_per_urban_inhabitant"
+  )
+
+  data <- .nb_data_with_drivers()
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$urban_population_basis <- "total"
+  total <- .nb_run(data)
+  testthat::expect_setequal(
+    stats::na.omit(total$method_urban_population),
+    "total_population"
+  )
+  testthat::expect_setequal(
+    stats::na.omit(total$method_urban_kgn_cap),
+    "kg_n_per_total_inhabitant"
+  )
+})

@@ -229,7 +229,12 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  # 82: `.urban_check_polycells_known()` refuses a total-population polycell
+  # the crosswalk does not carry (build_urban_n(population_basis = "total")).
+  # The crosswalk has no year, and the join only decides whether to abort --
+  # the alternative was dropping that population silently, as the inner join
+  # on lon/lat does for the urban basis.
+  expect_lte(sum(baseline$n), 82L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

@@ -128,9 +128,15 @@ forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when 
 \code{grassland_source} selects its \code{grassland} argument
 (\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
 support).
-\item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
-inputs. The \code{"urban"} term's \code{n_input_t} is the \code{urban_n_t} column of
-\code{\link[=build_urban_n]{build_urban_n()}}'s output.
+\item \code{urban_population}, \code{total_population}, \code{cropland_ha}, \code{cell_polity}:
+\code{\link[=build_urban_n]{build_urban_n()}}'s inputs. Which population is read is set by
+\code{urban_population_basis}. The \code{"urban"} term's \code{n_input_t} is the
+\code{urban_n_t} column of \code{\link[=build_urban_n]{build_urban_n()}}'s output.
+\item \code{urban_population_basis}: \code{\link[=build_urban_n]{build_urban_n()}}'s \code{population_basis},
+\code{"urban"} (default: \code{urban_population} with the per-urban-inhabitant
+rate) or \code{"total"} (\code{total_population}, from
+\code{\link[=build_total_population_grid]{build_total_population_grid()}}, with the per-total-inhabitant rate).
+Recorded in \code{method_urban_population} and \code{method_urban_kgn_cap}.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it
@@ -171,11 +177,13 @@ real data. Defaults to \code{FALSE}.}
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}, \code{method_unsupported},
+\code{method_deposition_scope}, \code{method_urban_population},
+\code{method_urban_kgn_cap}, \code{method_unsupported},
 \code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
-\code{method_deposition}, \code{method_deposition_scope}, \code{method_unsupported},
+\code{method_deposition}, \code{method_deposition_scope},
+\code{method_urban_population}, \code{method_urban_kgn_cap}, \code{method_unsupported},
 \code{method_unattributed}, \code{n_input_t} (summed over cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
@@ -191,6 +199,9 @@ carrying no tag of its own), so a corrected field stays visible here.
 \code{method_deposition_scope} records
 which of the polycell's territory the \code{"deposition"} term was credited
 with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
+\code{fert_type}. \code{method_urban_population} and \code{method_urban_kgn_cap} record
+the \code{"urban"} term's population basis and the denominator of its
+per-capita rate (see \code{\link[=build_urban_n]{build_urban_n()}}); both are \code{NA} for every other
 \code{fert_type}.
 \code{method_unsupported} records the rule applied to non-item nitrogen with no
 cropland support in its own cell, and is the same on every row.
