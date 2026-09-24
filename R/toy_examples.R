@@ -1097,9 +1097,10 @@
 }
 
 # Four cells run through the real build_critical_n_binding(): one per single
-# binding threshold and one three-way tie. The supplied "mi" surface equals
-# the minimum everywhere except the last cell, where it is lower, as happens in
-# about 6% of the deposited cells.
+# binding threshold and one with all three surfaces equal (the source's
+# yield-potential cap). The supplied "mi" surface equals the minimum everywhere
+# except the last cell, where it is lower: the undetermined mismatch found in
+# 1,540 of the 28,881 deposited "all" cells.
 .example_critical_n_binding <- function() {
   cells <- tibble::tribble(
     ~lon, ~lat, ~de, ~gw, ~sw, ~mi,

@@ -44,23 +44,37 @@ is the one that binds. The archive's own threshold-exceedance map
 (\code{\link[=read_critical_n]{read_critical_n()}} with \code{var = "threshold_exceedance"}) is a different
 quantity: it records which thresholds the 2010 surplus exceeds.
 
-\code{binding_threshold} is \code{"deposition"}, \code{"groundwater"} or
-\code{"surface_water"}. A tie is recorded explicitly by joining every tied
-threshold with \code{+} in that fixed order, for example
-\code{"groundwater+surface_water"} or \code{"deposition+groundwater+surface_water"}.
-Ties are exact equalities of the deposited values: on the real archive no
-surface lies within 1e-6 kg N/ha of the cell minimum without equalling it,
-so a tolerance would change nothing. A cell missing from any of the three
+\code{binding_threshold} is \code{"deposition"}, \code{"groundwater"},
+\code{"surface_water"}, a two-way tie, or \code{"yield_potential_cap"}. A two-way tie
+is recorded explicitly by joining both tied thresholds with \code{+} in that
+fixed order, for example \code{"groundwater+surface_water"}. Ties are exact
+equalities of the deposited values: on the real archive no surface lies
+within 1e-6 kg N/ha of the cell minimum without equalling it, so a
+tolerance would change nothing. A cell missing from any of the three
 surfaces gets \code{NA}.
+
+A cell where all three critical surpluses are equal is labelled
+\code{"yield_potential_cap"}: no environmental threshold binds there. The source
+Methods (Step 4) state that "for areas with no threshold exceedance" the
+critical inputs and surplus are cut off "at a maximum value, set to the
+input level required to obtain crop yield potentials",
+\code{Nin(crit,max) = Nup(Yp) / NUE(act)}, where \code{Nup(Yp)} is crop nitrogen
+uptake at potential yield and \code{NUE(act)} the actual nitrogen use efficiency,
+capped at 0.8. That cap does not depend on the threshold, so it gives the
+same value on all three surfaces. On the real archive the three critical
+inputs are identical as well in every such cell (9,431 of 28,881 cells for
+\code{"all"}, 9,188 of 28,573 for \code{"ara"}, 1,727 of 11,740 for \code{"igl"}).
 
 When the deposited minimum-of-all-media surface (\code{"mi"}) is supplied,
 \code{binding_matches_mi} reports whether it equals the lowest of the three
-threshold-specific surpluses. It does not everywhere: on the real archive
-the two differ in 1,623 of 28,573 cells for \code{"ara"}, 1,540 of 28,881 for
-\code{"all"} and 1,480 of 11,740 for \code{"igl"}, by up to 160 kg N/ha (up to 479
-kg N/ha for \code{"igl"}), in both directions. In those cells no single
-threshold-specific surface reproduces the deposited \code{"mi"} value, and
-\code{binding_threshold} names the argmin of the three surfaces all the same.
+threshold-specific surpluses. Where it does not, the relation between
+\code{"mi"} and the three surfaces is undetermined: \code{"mi"} differs from
+\code{min(de, gw, sw)} there and the source text does not explain why. On the
+real archive this happens in 1,623 of 28,573 cells for \code{"ara"} (maximum
+gap 159.5 kg N/ha), 1,540 of 28,881 for \code{"all"} (159.5 kg N/ha) and 1,480
+of 11,740 for \code{"igl"} (479.1 kg N/ha), with \code{"mi"} above the minimum in
+some cells and below it in others. \code{binding_threshold} still names the
+argmin of the three surfaces in those cells.
 }
 \examples{
 build_critical_n_binding(example = TRUE)

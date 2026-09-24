@@ -556,7 +556,7 @@ testthat::test_that("the binding threshold is the argmin with explicit ties", {
       "surface_water",
       "deposition+groundwater",
       "deposition+surface_water",
-      "deposition+groundwater+surface_water",
+      "yield_potential_cap",
       NA
     )
   )
@@ -570,11 +570,33 @@ testthat::test_that("the binding threshold is the argmin with explicit ties", {
     c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, NA)
   )
   testthat::expect_true(all(out$critical_land_use == "ara"))
+  # A "+" label only ever names a genuine two-way tie.
+  ties <- stringr::str_split(
+    stringr::str_subset(out$binding_threshold, "\\+"),
+    "\\+"
+  )
+  testthat::expect_true(all(lengths(ties) == 2L))
   testthat::expect_true(all(
-    stringr::str_split(stats::na.omit(out$binding_threshold), "\\+") |>
-      unlist() %in%
-      c("deposition", "groundwater", "surface_water")
+    unlist(ties) %in% c("deposition", "groundwater", "surface_water")
   ))
+})
+
+testthat::test_that("all three surfaces equal is the yield-potential cap", {
+  values <- list(
+    de = c(40, -12, 25),
+    gw = c(40, -12, 25),
+    sw = c(40, -12, 26)
+  )
+  out <- whep::build_critical_n_binding(.binding_layers(values), "ara")
+  testthat::expect_equal(
+    out$binding_threshold,
+    c("yield_potential_cap", "yield_potential_cap", "deposition+groundwater")
+  )
+  testthat::expect_false(any(grepl(
+    "deposition+groundwater+surface_water",
+    out$binding_threshold,
+    fixed = TRUE
+  )))
 })
 
 testthat::test_that("binding_matches_mi is NA when mi is not supplied", {
@@ -641,7 +663,7 @@ testthat::test_that("the binding example is the real function on a fixture", {
       "deposition",
       "groundwater",
       "surface_water",
-      "deposition+groundwater+surface_water"
+      "yield_potential_cap"
     )
   )
   testthat::expect_equal(out$binding_matches_mi, c(TRUE, TRUE, TRUE, FALSE))
@@ -680,7 +702,9 @@ testthat::test_that("the real binding surface is complete and flags mi gaps", {
   testthat::expect_false(anyNA(binding$binding_threshold))
   testthat::expect_equal(sum(!binding$binding_matches_mi), 1540L)
   testthat::expect_equal(
-    sum(binding$binding_threshold == "deposition+groundwater+surface_water"),
+    sum(binding$binding_threshold == "yield_potential_cap"),
     9431L
   )
+  gap <- abs(binding$critical_mi_kgn_ha - binding$binding_critical_kgn_ha)
+  testthat::expect_equal(max(gap), 159.52, tolerance = 1e-6)
 })

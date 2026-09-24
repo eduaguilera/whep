@@ -145,23 +145,37 @@ read_critical_n <- function(
 #' ([read_critical_n()] with `var = "threshold_exceedance"`) is a different
 #' quantity: it records which thresholds the 2010 surplus exceeds.
 #'
-#' `binding_threshold` is `"deposition"`, `"groundwater"` or
-#' `"surface_water"`. A tie is recorded explicitly by joining every tied
-#' threshold with `+` in that fixed order, for example
-#' `"groundwater+surface_water"` or `"deposition+groundwater+surface_water"`.
-#' Ties are exact equalities of the deposited values: on the real archive no
-#' surface lies within 1e-6 kg N/ha of the cell minimum without equalling it,
-#' so a tolerance would change nothing. A cell missing from any of the three
+#' `binding_threshold` is `"deposition"`, `"groundwater"`,
+#' `"surface_water"`, a two-way tie, or `"yield_potential_cap"`. A two-way tie
+#' is recorded explicitly by joining both tied thresholds with `+` in that
+#' fixed order, for example `"groundwater+surface_water"`. Ties are exact
+#' equalities of the deposited values: on the real archive no surface lies
+#' within 1e-6 kg N/ha of the cell minimum without equalling it, so a
+#' tolerance would change nothing. A cell missing from any of the three
 #' surfaces gets `NA`.
+#'
+#' A cell where all three critical surpluses are equal is labelled
+#' `"yield_potential_cap"`: no environmental threshold binds there. The source
+#' Methods (Step 4) state that "for areas with no threshold exceedance" the
+#' critical inputs and surplus are cut off "at a maximum value, set to the
+#' input level required to obtain crop yield potentials",
+#' `Nin(crit,max) = Nup(Yp) / NUE(act)`, where `Nup(Yp)` is crop nitrogen
+#' uptake at potential yield and `NUE(act)` the actual nitrogen use efficiency,
+#' capped at 0.8. That cap does not depend on the threshold, so it gives the
+#' same value on all three surfaces. On the real archive the three critical
+#' inputs are identical as well in every such cell (9,431 of 28,881 cells for
+#' `"all"`, 9,188 of 28,573 for `"ara"`, 1,727 of 11,740 for `"igl"`).
 #'
 #' When the deposited minimum-of-all-media surface (`"mi"`) is supplied,
 #' `binding_matches_mi` reports whether it equals the lowest of the three
-#' threshold-specific surpluses. It does not everywhere: on the real archive
-#' the two differ in 1,623 of 28,573 cells for `"ara"`, 1,540 of 28,881 for
-#' `"all"` and 1,480 of 11,740 for `"igl"`, by up to 160 kg N/ha (up to 479
-#' kg N/ha for `"igl"`), in both directions. In those cells no single
-#' threshold-specific surface reproduces the deposited `"mi"` value, and
-#' `binding_threshold` names the argmin of the three surfaces all the same.
+#' threshold-specific surpluses. Where it does not, the relation between
+#' `"mi"` and the three surfaces is undetermined: `"mi"` differs from
+#' `min(de, gw, sw)` there and the source text does not explain why. On the
+#' real archive this happens in 1,623 of 28,573 cells for `"ara"` (maximum
+#' gap 159.5 kg N/ha), 1,540 of 28,881 for `"all"` (159.5 kg N/ha) and 1,480
+#' of 11,740 for `"igl"` (479.1 kg N/ha), with `"mi"` above the minimum in
+#' some cells and below it in others. `binding_threshold` still names the
+#' argmin of the three surfaces in those cells.
 #'
 #' @param critical Optional named list of [read_critical_n()] critical-surplus
 #'   layers (`var = "critical_n_surplus"`) with elements `de`, `gw` and `sw`,
@@ -313,8 +327,10 @@ build_critical_n_binding <- function(
     dplyr::arrange(.data$cell_id)
 }
 
-# Argmin of the three threshold-specific critical surpluses, with every tied
-# threshold named in the fixed deposition/groundwater/surface_water order.
+# Argmin of the three threshold-specific critical surpluses, with a two-way tie
+# named in the fixed deposition/groundwater/surface_water order. All three
+# equal is the source's Step 4 yield-potential cap, where no environmental
+# threshold binds (see the roxygen above), so it gets its own label.
 .critn_label_binding <- function(wide) {
   if (!rlang::has_name(wide, "critical_mi_kgn_ha")) {
     wide$critical_mi_kgn_ha <- NA_real_
@@ -332,10 +348,10 @@ build_critical_n_binding <- function(
   wide |>
     dplyr::mutate(
       binding_critical_kgn_ha = .env$low,
-      binding_threshold = dplyr::if_else(
-        is.na(.env$low),
-        NA_character_,
-        stringr::str_remove(.env$label, "\\+$")
+      binding_threshold = dplyr::case_when(
+        is.na(.env$low) ~ NA_character_,
+        .env$de == .env$gw & .env$gw == .env$sw ~ "yield_potential_cap",
+        .default = stringr::str_remove(.env$label, "\\+$")
       ),
       binding_matches_mi = .data$critical_mi_kgn_ha == .env$low
     ) |>
