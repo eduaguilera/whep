@@ -326,8 +326,10 @@
      published by; none of them varies in time.",
     ".sci_join_weights", "inner_join", "area_code, item_prod_code", 1L,
     "time_invariant",
-    "`crop_patterns` is a single-vintage gridded map, applied to every year on
-     purpose.",
+    "Under `method_crop_weights = \"static\"` the weights are the
+     single-vintage `crop_patterns` map, applied to every year on purpose;
+     under `\"spatialized\"` they are one year's engine output, joined onto
+     that year's chunk only, so the year is a constant (whep#1002).",
     ".sci_reallocate", "anti_join", "area_code, item_prod_code", 1L,
     "time_invariant",
     "Selects the polity-crops the row above could not place, against the same
@@ -338,8 +340,10 @@
      support is summed from the same single-vintage map, so it has no year to
      key on; the crop's own area DOES come from a year-keyed join, the one
      above it on `(area_code, item_prod_code, year)` (whep#599, whep#1002).",
-    ".sci_warn_unspatialized", "anti_join", "area_code, item_prod_code", 1L,
-    "diagnostic", "Reports the carbon the join above cannot spatialize.",
+    ".sci_classify_unspatialized", "anti_join", "area_code, item_prod_code",
+    1L, "diagnostic",
+    "Tags the carbon the join above cannot spatialize, one year's chunk at a
+     time, so the warning can report it.",
     ".select_best_source", "[", "area_code", 1L, "identity_lookup",
     "Re-attaches one label per code after selection, deliberately not keyed on
      the label the sources disagree about.",
@@ -727,10 +731,19 @@
     "time_invariant",
     "The same (area, crop) pairs, taken so the crops the map does not carry can
      be reallocated instead of dropped.",
-    ".sci_warn_unspatialized", "distinct", "area_code, item_prod_code", 1L,
-    "diagnostic",
-    "The (area, crop) pairs the crop-pattern weights cover, so the warning can
-     name the carbon they cannot spatialize.",
+    ".sci_classify_unspatialized", "distinct", "area_code, item_prod_code",
+    1L, "diagnostic",
+    "The (area, crop) pairs the crop weights cover, so the warning can name
+     the carbon they cannot spatialize.",
+    ".sci_spatialized_weights", "mutate", "area_code, item_prod_code", 1L,
+    "single_year",
+    "Renormalises one year's engine cell area within (area, crop). The layer
+     is filtered to that year in `.sci_year_weights()` before it gets here
+     (whep#1002).",
+    ".sci_spatialized_weights", "summarise",
+    "lon, lat, area_code, item_prod_code", 1L, "single_year",
+    "Sums the engine's rainfed and irrigated rows of one cell-crop within the
+     same single year.",
     ".spatialize_year", "[", "area_code, item_prod_code", 2L, "single_year",
     "Both are inside `.spatialize_year(yr, ...)`, which stamps `year = yr` at
      the end.",

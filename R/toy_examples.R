@@ -144,7 +144,8 @@
     dplyr::mutate(
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
-      method_unspatialized = "reallocate"
+      method_unspatialized = "reallocate",
+      method_crop_weights = "spatialized"
     ) |>
     .add_reporting_polity_columns()
 }

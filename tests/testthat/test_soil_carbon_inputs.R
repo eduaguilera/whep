@@ -1,5 +1,13 @@
 # Hand-built fixtures keep the arithmetic checkable by inspection.
 
+# Most tests below were written against the static crop-pattern weights and
+# exercise mechanics both weight methods share (renormalisation, reallocation,
+# mass closure), so they pin that method explicitly. The "spatialized" method
+# has its own tests at the end of the file (whep#1002).
+.sci_static <- function(...) {
+  whep::build_soil_carbon_inputs(..., method_crop_weights = "static")
+}
+
 .sci_npp_fixture <- function() {
   # Two crops in one polity, one year. Carbon masses in tonnes C. residue_c_t
   # is the GROSS residue carbon; residue_soil_c_t is the soil-returned fraction
@@ -55,7 +63,7 @@
 }
 
 test_that("polity output has the documented schema and keys", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "polity",
     data = .sci_fixture_data()
   )
@@ -80,7 +88,7 @@ test_that("polity output has the documented schema and keys", {
 })
 
 test_that("grid output is keyed by cell x crop x year", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "grid",
     data = .sci_fixture_data()
   )
@@ -90,7 +98,7 @@ test_that("grid output is keyed by cell x crop x year", {
 })
 
 test_that("total C input equals residue + root + weed + manure (mass closure)", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "grid",
     data = .sci_fixture_data()
   )
@@ -104,7 +112,7 @@ test_that("total C input equals residue + root + weed + manure (mass closure)", 
 })
 
 test_that("polity per-ha equals total C mass over total crop area", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "polity",
     data = .sci_fixture_data()
   )
@@ -119,7 +127,7 @@ test_that("polity per-ha equals total C mass over total crop area", {
 })
 
 test_that("humified_fraction is the C-weighted mean of components", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "polity",
     data = .sci_fixture_data()
   )
@@ -136,11 +144,11 @@ test_that("humified_fraction is the C-weighted mean of components", {
 })
 
 test_that("grid to polity aggregation conserves total C mass", {
-  grid <- whep::build_soil_carbon_inputs(
+  grid <- .sci_static(
     resolution = "grid",
     data = .sci_fixture_data()
   )
-  polity <- whep::build_soil_carbon_inputs(
+  polity <- .sci_static(
     resolution = "polity",
     data = .sci_fixture_data()
   )
@@ -207,7 +215,7 @@ test_that("residue C uses residue_soil_c_t, not gross residue_c_t", {
     crop_patterns = grid$crop_patterns,
     residue_humification = whep::residue_humification
   )
-  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  out <- .sci_static(resolution = "polity", data = data)
   crop15 <- out[out$item_prod_code == "15", ]
   testthat::expect_equal(crop15$residue_c_mgc_ha_yr, 50 / 40)
 })
@@ -244,7 +252,7 @@ test_that("manure territory as an iso3c resolves instead of dropping to NA", {
   # The iso3c form is a deprecated bridge (#463), so resolving it warns; this
   # test is about it still resolving rather than dropping to NA.
   testthat::expect_warning(
-    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    out <- .sci_static(resolution = "polity", data = data),
     "deprecated"
   )
   # 20 t manure C over 40 ha = 0.5, not 0 (which a silent as.integer NA drop
@@ -256,7 +264,7 @@ test_that("manure territory that is neither area_code nor iso3c aborts", {
   data <- .sci_fixture_data()
   data$manure$territory <- "not_a_place"
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    .sci_static(resolution = "polity", data = data),
     "Could not resolve"
   )
 })
@@ -288,7 +296,7 @@ test_that("npp missing residue_soil_c_t or weed_npp_c_t aborts", {
   data <- .sci_fixture_data()
   data$npp <- dplyr::select(data$npp, -"residue_soil_c_t")
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    .sci_static(resolution = "polity", data = data),
     "residue_soil_c_t"
   )
 })
@@ -303,7 +311,7 @@ test_that("a crop with no crop-pattern cells warns and is not silent", {
     .data$item_prod_code == "15"
   )
   testthat::expect_warning(
-    out <- whep::build_soil_carbon_inputs(
+    out <- .sci_static(
       resolution = "polity",
       data = data,
       method_unspatialized = "drop"
@@ -325,7 +333,7 @@ test_that("a crop with zero-only pattern area warns instead of producing NaN", {
     )
 
   testthat::expect_warning(
-    out <- whep::build_soil_carbon_inputs(
+    out <- .sci_static(
       resolution = "polity",
       data = data,
       method_unspatialized = "drop"
@@ -381,7 +389,7 @@ test_that("per-ha equals national density (mass / FAOSTAT area), not inflated", 
   # Crop 15 carbon mass = residue-soil 60 + root 40 + weed 10 + manure 20 = 130.
   # Old (inflated) per-ha = 130 / 40 spatialized ha = 3.25. National density is
   # 130 / 100 FAOSTAT ha = 1.3, which the renormalization must now produce.
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "polity",
     data = .sci_fixture_data_with_area()
   )
@@ -395,7 +403,7 @@ test_that("per-ha equals national density (mass / FAOSTAT area), not inflated", 
 })
 
 test_that("renormalized grid density is uniform across a polity's cells", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_static(
     resolution = "grid",
     data = .sci_fixture_data_with_area()
   )
@@ -412,7 +420,7 @@ test_that("renormalized grid density is uniform across a polity's cells", {
 })
 
 test_that("renormalization conserves the national carbon mass on the grid", {
-  grid <- whep::build_soil_carbon_inputs(
+  grid <- .sci_static(
     resolution = "grid",
     data = .sci_fixture_data_with_area()
   )
@@ -464,7 +472,7 @@ test_that("harvested_area is ignored for groups with no FAOSTAT area", {
     ~area_code, ~item_prod_code, ~year, ~faostat_area_ha,
     1L, "15", 2020L, 100
   )
-  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  out <- .sci_static(resolution = "polity", data = data)
   crop15 <- out[out$item_prod_code == "15", ]
   crop27 <- out[out$item_prod_code == "27", ]
   testthat::expect_equal(crop15$total_c_input_mgc_ha_yr, 130 / 100)
@@ -682,7 +690,10 @@ testthat::test_that("unspatialized carbon warns, and does not abort, for many cr
   )
 
   testthat::expect_warning(
-    lost <- .sci_warn_unspatialized(components, weights),
+    lost <- .sci_warn_unspatialized(
+      .sci_classify_unspatialized(components, list(weights = weights)),
+      "drop"
+    ),
     "had no crop-pattern cells"
   )
   testthat::expect_equal(nrow(lost), 3L)
@@ -699,7 +710,10 @@ testthat::test_that("unspatialized carbon warning reads singular for one crop", 
   )
 
   testthat::expect_warning(
-    .sci_warn_unspatialized(components, weights),
+    .sci_warn_unspatialized(
+      .sci_classify_unspatialized(components, list(weights = weights)),
+      "drop"
+    ),
     "1 polity-crop carbon component"
   )
 })
@@ -942,7 +956,7 @@ testthat::test_that("a residue-plus-manure mix gives a mixed input C:N", {
 .sci_run_reporting <- function(...) {
   seen <- character()
   value <- withCallingHandlers(
-    whep::build_soil_carbon_inputs(...),
+    .sci_static(...),
     warning = function(w) {
       seen <<- c(seen, conditionMessage(w))
       invokeRestart("muffleWarning")
@@ -998,7 +1012,7 @@ testthat::test_that("method_unspatialized = 'drop' keeps the old loss", {
 
 testthat::test_that("an unknown allocation rule is refused", {
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(
+    .sci_static(
       data = .sci_unspatialized_data(),
       method_unspatialized = "smear"
     ),
@@ -1074,7 +1088,8 @@ testthat::test_that("the reallocated carbon survives into build_carbon_inputs", 
     whep::build_carbon_inputs(
       resolution = "grid",
       data = data,
-      crop_groups = list(method = "none")
+      crop_groups = list(method = "none"),
+      method_crop_weights = "static"
     ),
     warning = function(w) invokeRestart("muffleWarning")
   )
