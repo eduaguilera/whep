@@ -75,10 +75,14 @@ A tibble with one row per `(term, area_code)`:
 ## Details
 
 [`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
-cannot find either break. A term does not fall to a small value at the
-boundary, it stops having rows, and its `min_value` guard skips any pair
-involving a zero, so a scan over the completed series would not flag it
-either. Coverage, not a ratio, is what has to be checked.
+does not find either break by default. A term does not fall to a small
+value at the boundary, it stops having rows, and its `min_value` guard
+skips any pair involving a zero. With `dropouts = TRUE` it completes
+each series with zero and flags the stop, so
+`check_series_jumps(extension, impact_u, .by = c("area_code", "item_cbs_code"), dropouts = TRUE)`
+reports each fodder series at its break year. This function answers the
+coverage question per term and area instead, and also covers the netting
+term, which is not an item series.
 
 ## Examples
 

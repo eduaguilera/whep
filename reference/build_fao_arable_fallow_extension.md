@@ -153,8 +153,15 @@ of that country-year's arable target, `0` where the netting term is
 structurally absent), `method_temp_grassland` (the
 `temp_grassland_basis` in force), `method_fodder` (the `fodder_gap` in
 force) and `method_unsupported_target` (the `unsupported_target` in
-force). Under `unsupported_target = "unallocated"` a row with
-`item_cbs_code` `NA` carries the FAO land no crop can be named for.
+force), and `fodder_coverage`, which says per country-year whether the
+fodder input was there before any `fodder_gap` treatment: `"reported"`
+(the base carries fodder area that year), `"lapsed"` (it carries none,
+but did in an earlier year of that country's panel – the 2020 break of
+whep#938, whose land the other arable crops absorb under
+`"as_reported"`, or which `"carry_forward"` fills) or `"not_reported"`
+(none that year or before). Under `unsupported_target = "unallocated"` a
+row with `item_cbs_code` `NA` carries the FAO land no crop can be named
+for.
 
 ## Temporary grassland (no double-count)
 
@@ -224,7 +231,11 @@ carried forward, 2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to
 does not see `source`, and fodder is present on both sides of 2013, so
 [`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md)
 does not flag that year. `fodder_gap` exposes the treatments;
-`"as_reported"` remains the default.
+`"as_reported"` remains the default. Whatever the treatment,
+`fodder_coverage` in the output marks every country-year after the
+fodder input stops as `"lapsed"`, and
+[`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
+with `dropouts = TRUE` flags each fodder series at the year it stops.
 
 ## Unsupported land targets
 
@@ -302,11 +313,11 @@ build_fao_arable_fallow_extension(
   temporary_grassland = temporary_grassland,
   items_prod_full = items
 )
-#> # A tibble: 2 × 9
+#> # A tibble: 2 × 10
 #>    year area_code item_cbs_code impact_u method_land       method_temp_grassland
 #>   <int>     <int>         <int>    <dbl> <chr>             <chr>                
 #> 1  2020         1          2511      400 fao_arable_fallow modelled             
 #> 2  2020         1          2560      100 fao_arable_fallow modelled             
-#> # ℹ 3 more variables: method_fodder <chr>, method_unsupported_target <chr>,
-#> #   temp_grassland_netted_ha <dbl>
+#> # ℹ 4 more variables: method_fodder <chr>, method_unsupported_target <chr>,
+#> #   temp_grassland_netted_ha <dbl>, fodder_coverage <chr>
 ```

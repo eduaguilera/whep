@@ -141,10 +141,13 @@ in a later one.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p><code><a href="check_series_jumps.html">check_series_jumps()</a></code> cannot find either break. A term does not fall to a
-small value at the boundary, it stops having rows, and its <code>min_value</code>
-guard skips any pair involving a zero, so a scan over the completed series
-would not flag it either. Coverage, not a ratio, is what has to be checked.</p>
+    <p><code><a href="check_series_jumps.html">check_series_jumps()</a></code> does not find either break by default. A term does
+not fall to a small value at the boundary, it stops having rows, and its
+<code>min_value</code> guard skips any pair involving a zero. With <code>dropouts = TRUE</code> it
+completes each series with zero and flags the stop, so
+<code>check_series_jumps(extension, impact_u, .by = c("area_code", "item_cbs_code"), dropouts = TRUE)</code> reports each fodder series at its break
+year. This function answers the coverage question per term and area
+instead, and also covers the netting term, which is not an item series.</p>
     </div>
 
     <div class="section level2">

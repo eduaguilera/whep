@@ -235,7 +235,14 @@ removes the whole affected country-year, and <code>"abort"</code> refuses to con
 that country-year's arable target, <code>0</code> where the netting term is
 structurally absent), <code>method_temp_grassland</code> (the <code>temp_grassland_basis</code>
 in force), <code>method_fodder</code> (the <code>fodder_gap</code> in force) and
-<code>method_unsupported_target</code> (the <code>unsupported_target</code> in force). Under
+<code>method_unsupported_target</code> (the <code>unsupported_target</code> in force), and
+<code>fodder_coverage</code>, which says per country-year whether the fodder input
+was there before any <code>fodder_gap</code> treatment: <code>"reported"</code> (the base
+carries fodder area that year), <code>"lapsed"</code> (it carries none, but did in an
+earlier year of that country's panel – the 2020 break of whep#938, whose
+land the other arable crops absorb under <code>"as_reported"</code>, or which
+<code>"carry_forward"</code> fills) or <code>"not_reported"</code> (none that year or before).
+Under
 <code>unsupported_target = "unallocated"</code> a row with <code>item_cbs_code</code> <code>NA</code> carries
 the FAO land no crop can be named for.</p>
     </div>
@@ -306,7 +313,11 @@ FAOSTAT-derived fodder area disappears and the 2012 area is carried forward,
 say so in <code>source</code> (<code>"DM_yield_estimate_carried_forward"</code>, whep#1027), but
 this extension does not see <code>source</code>, and fodder is present on both sides
 of 2013, so <code><a href="check_arable_composition.html">check_arable_composition()</a></code> does not flag that year.
-<code>fodder_gap</code> exposes the treatments; <code>"as_reported"</code> remains the default.</p>
+<code>fodder_gap</code> exposes the treatments; <code>"as_reported"</code> remains the default.
+Whatever the treatment, <code>fodder_coverage</code> in the output marks every
+country-year after the fodder input stops as <code>"lapsed"</code>, and
+<code><a href="check_series_jumps.html">check_series_jumps()</a></code> with <code>dropouts = TRUE</code> flags each fodder series at
+the year it stops.</p>
     </div>
     <div class="section level2">
     <h2 id="unsupported-land-targets">Unsupported land targets<a class="anchor" aria-label="anchor" href="#unsupported-land-targets"></a></h2>
@@ -374,13 +385,13 @@ the 23 Marshall Islands rows, 11,500 ha.</p>
 <span class="r-in"><span>  temporary_grassland <span class="op">=</span> <span class="va">temporary_grassland</span>,</span></span>
 <span class="r-in"><span>  items_prod_full <span class="op">=</span> <span class="va">items</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land       method_temp_grassland</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow modelled             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow modelled             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: method_fodder &lt;chr&gt;, method_unsupported_target &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   temp_grassland_netted_ha &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: method_fodder &lt;chr&gt;, method_unsupported_target &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   temp_grassland_netted_ha &lt;dbl&gt;, fodder_coverage &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

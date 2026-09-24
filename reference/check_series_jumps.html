@@ -69,7 +69,8 @@ as false positives.</p>
 <span>  min_value <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  consecutive_only <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  allowlist <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  dropouts <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -127,6 +128,21 @@ with <code>allowlisted = TRUE</code> rather than dropped.</p></dd>
 <dd><p>Logical. If <code>TRUE</code> (default), report flag counts with
 <code>cli</code>.</p></dd>
 
+
+<dt id="arg-dropouts">dropouts<a class="anchor" aria-label="anchor" href="#arg-dropouts"></a></dt>
+<dd><p>Whether to also flag a series that stops: one that falls
+from above <code>min_value</code> to exactly zero, or has no row at a time value its
+panel has after the series began. Each series is completed with zero over
+those time values, so the flag carries <code>value = 0</code> and <code>ratio = 0</code>, and
+the step back up from zero is an onset the <code>min_value</code> gate keeps quiet.
+<code>FALSE</code> (default) scans only the rows supplied and skips any pair
+involving a zero. <code>TRUE</code> takes the panel to be every time value in
+<code>data</code>. A character vector, a subset of <code>.by</code>, takes it to be the time
+values present within that coarser group instead: with
+<code>.by = c("area_code", "item_cbs_code")</code>, <code>dropouts = "area_code"</code> flags an
+item that stops while its country goes on, and not a country that leaves
+the panel.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -152,6 +168,12 @@ reported but not treated as defects. Undocumented jumps stay flagged.</p>
 <p>A robust variant (flagging via the median absolute deviation of log
 ratios, per the Hampel/MAD anchors in the framework) is a documented
 future extension, not implemented here.</p>
+<p>A term that switches off inside a panel is not a jump by default: its
+series stops having rows, or falls to zero, and the <code>min_value</code> gate skips
+any pair involving a zero. That is how the FAOSTAT fodder items leave the
+arable land extension at 2020 without a flag (whep#938). <code>dropouts</code> makes
+such a stop a flagged step, and the <code>allowlist</code> can then mark the
+documented ones.</p>
     </div>
 
     <div class="section level2">
