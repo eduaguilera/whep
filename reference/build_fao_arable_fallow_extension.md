@@ -217,9 +217,14 @@ over 2001-2023 on the real inputs, fodder is 9.2% of the reconciled
 arable land extension in 2001 and 7.6% in 2019, then **0%** from 2020,
 with ordinary arable crops absorbing the difference (whep#938). A
 second, earlier composition change sits inside the covered window: from
-2013 the FAOSTAT-derived fodder area disappears and the dry-matter-yield
-estimate jumps from 2.3 to 75.0 Mha, held flat to 2019. `fodder_gap`
-exposes the treatments; `"as_reported"` remains the default.
+2013 the FAOSTAT-derived fodder area disappears and the 2012 area is
+carried forward, 2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to
+2019. Production rows say so in `source`
+(`"DM_yield_estimate_carried_forward"`, whep#1027), but this extension
+does not see `source`, and fodder is present on both sides of 2013, so
+[`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md)
+does not flag that year. `fodder_gap` exposes the treatments;
+`"as_reported"` remains the default.
 
 ## Unsupported land targets
 

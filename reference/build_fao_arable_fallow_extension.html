@@ -301,8 +301,11 @@ reaching 2020 has <strong>no fodder at all</strong> from that year: measured ove
 extension in 2001 and 7.6% in 2019, then <strong>0%</strong> from 2020, with ordinary
 arable crops absorbing the difference (whep#938). A second, earlier
 composition change sits inside the covered window: from 2013 the
-FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
-jumps from 2.3 to 75.0 Mha, held flat to 2019.
+FAOSTAT-derived fodder area disappears and the 2012 area is carried forward,
+2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to 2019. Production rows
+say so in <code>source</code> (<code>"DM_yield_estimate_carried_forward"</code>, whep#1027), but
+this extension does not see <code>source</code>, and fodder is present on both sides
+of 2013, so <code><a href="check_arable_composition.html">check_arable_composition()</a></code> does not flag that year.
 <code>fodder_gap</code> exposes the treatments; <code>"as_reported"</code> remains the default.</p>
     </div>
     <div class="section level2">

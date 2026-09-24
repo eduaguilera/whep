@@ -153,6 +153,24 @@ which is most rows that are not `unit == "tonnes"` or `unit == "ha"`:
 Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
 `tonnes` rows and 88.2% of `ha` rows.
 
+Green fodder area is reconstructed, and `source` says how. FAOSTAT
+reports fodder tonnage only (`faostat-production-old`, to 2012); EU
+AgriDB reports area and yield (to 2019), and its rows read
+`"EuropeAgriDB"`. A fodder area held flat past its series' last
+observation reads `"DM_yield_estimate_carried_forward"`, one held flat
+before its first `"DM_yield_estimate_carried_backward"`, and one
+interpolated between two observations `"DM_yield_estimate"`. From 2013
+every non-EU fodder area is its 2012 value carried forward: measured on
+the real inputs, 75.0 of the 100.0 Mha of green fodder area in 2013,
+against 2.2 of 99.5 Mha in 2012. A fodder series therefore changes what
+it is made of at 2012/2013 with no change in level (whep#1027). That is
+why
+[`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
+finds nothing at 2013 in fodder area per country (no area of 100 is
+flagged), and why it finds the break at once in the yearly share of
+fodder area whose `source` is a carried one (0.022 to 0.750, a ratio of
+33.5).
+
 ## Examples
 
 ``` r

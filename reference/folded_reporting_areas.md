@@ -143,7 +143,7 @@ heads are conserved; item 1052 Chickens, layers splits exactly,
 9,439,000 head to Sudan and 4,679,716 to South Sudan.
 
 That tonnage is not reported data that stops being joined. It is
-`DM_yield_estimate`, WHEP's own extrapolation of the
+`DM_yield_estimate_carried_forward`, WHEP's own extrapolation of the
 `faostat-production-old` fodder series for area 206, a source that
 carries no row for 276 or 277 in any year; the fold is what keeps bucket
 206 a live key to extrapolate onto after FAOSTAT retired it in 2011.
