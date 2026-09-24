@@ -4044,6 +4044,65 @@ test_that(".get_fiber_tobacco aborts when the record has no unit column", {
   )
 })
 
+# whep#1250. FAOSTAT's CB reports rubber as a two-link chain: 836 hands its
+# `Processed` (dropped by `.extract_fao()`, whep#811) to 837, which reports the
+# same tonnage again as its own `production`. Both links map onto CBS Rubber,
+# so summing their production counts it twice (Thailand 2020: 8.26 Mt against
+# 4.86 Mt in FAOSTAT_prod), and a country that only processes imported rubber
+# (Uzbekistan) is booked as a rubber producer.
+test_that(".get_fiber_tobacco counts chain production once, at the first link", {
+  cbs_new <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~element,          ~value,
+    216L,       836L,           "production",      100,
+    216L,       836L,           "import",          1,
+    216L,       836L,           "export",          11,
+    216L,       837L,           "production",      90,
+    216L,       837L,           "export",          40,
+    216L,       837L,           "stock_variation", 5,
+    216L,       837L,           "other_uses",      45,
+    235L,       836L,           "import",          10,
+    235L,       837L,           "production",      10,
+    235L,       837L,           "other_uses",      10
+  ) |>
+    dplyr::mutate(
+      year = 2020L,
+      area = as.character(area_code),
+      item_cbs = "Natural rubber",
+      unit = "TRUE"
+    ) |>
+    data.table::as.data.table()
+
+  booked <- whep:::.get_fiber_tobacco(
+    cbs_new,
+    tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      836L,             "Rubber",
+      837L,             "Rubber"
+    ),
+    tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Rubber",  2672L
+    )
+  )
+  wide <- booked |>
+    tidyr::pivot_wider(
+      id_cols = area_code,
+      names_from = element,
+      values_from = value,
+      values_fill = 0
+    ) |>
+    dplyr::arrange(area_code)
+
+  expect_equal(wide$production, c(100, 0))
+  # The aggregated item balances once production is counted once: supply
+  # (production + import - export - stock build-up) equals the last link's
+  # use. Summing both links' production leaves it 90 and 10 t over.
+  expect_equal(
+    wide$production + wide$import - wide$export - wide$stock_variation,
+    wide$other_uses
+  )
+})
+
 test_that(".select_best_source aborts when one key carries two units", {
   # `key_cols` excludes `unit`, and everything after it reads `value` with the
   # unit already gone: `fun.aggregate` sums a duplicated (key, source) pair and
