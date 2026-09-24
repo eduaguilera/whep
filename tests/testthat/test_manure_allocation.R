@@ -502,3 +502,77 @@ test_that("an all-zero weight column falls back to the even split", {
   expect_false(any(crops$over_cap))
   expect_equal(sum(res$applied_n), 130, tolerance = 1e-8)
 })
+
+# ---- whep#1034: a crop or grassland layer that joins nothing ----------------
+
+# The applied manure is keyed on the stringified area_code that
+# estimate_n_excretion() writes; the toy layers say "ESP" for the same country,
+# so they join nothing.
+.recoded_applied <- function() {
+  dplyr::mutate(.toy_applied(), territory = "203")
+}
+
+test_that("a crop layer that joins no stream cannot leave cropland bare", {
+  # Unguarded, every tonne of collected N spills onto a roomy grassland: N is
+  # conserved exactly, nothing is over cap, and no crop receives any manure.
+  unguarded <- testthat::with_mocked_bindings(
+    whep::allocate_manure_to_land(
+      .recoded_applied(),
+      list(
+        crops = .toy_crops(),
+        grass = dplyr::mutate(.toy_grass(1000), territory = "203")
+      )
+    ),
+    check_inputs_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(sum(unguarded$applied_n), 130)) &&
+      !any(unguarded$over_cap) &&
+      !any(unguarded$land_use == "Cropland"),
+    guard = whep::allocate_manure_to_land(
+      .recoded_applied(),
+      list(crops = .toy_crops())
+    )
+  )
+})
+
+test_that("a grassland layer that joins no stream cannot read as no sink", {
+  # Unguarded, the grassland cap reads as zero and the spill that had room on
+  # grassland is over-applied on cropland instead; N is still conserved.
+  gridded <- list(
+    crops = dplyr::mutate(.toy_crops(), territory = "203"),
+    grass = .toy_grass(1000)
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    suppressWarnings(
+      whep::allocate_manure_to_land(.recoded_applied(), gridded)
+    ),
+    check_inputs_supplied = function(data, ...) invisible(data)
+  )
+  spilled <- unguarded$land_use == "Grassland" &
+    unguarded$source_stream == "collected"
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(sum(unguarded$applied_n), 130)) &&
+      !any(spilled),
+    guard = whep::allocate_manure_to_land(.recoded_applied(), gridded)
+  )
+})
+
+test_that("the join guards leave a keyed layer, no layer and zero caps alone", {
+  expect_no_error(
+    whep::allocate_manure_to_land(.toy_applied(), .toy_gridded())
+  )
+  expect_no_error(suppressWarnings(
+    whep::allocate_manure_to_land(.toy_applied(), list(crops = .toy_crops()))
+  ))
+  # A cap floored to zero did join its stream: a real answer, not an absence.
+  expect_no_error(suppressWarnings(
+    whep::allocate_manure_to_land(.toy_applied(), .toy_gridded(grass_cap = 0))
+  ))
+  # No collected manure at all: the crop layer has nothing to join and is
+  # not judged.
+  grazing_only <- dplyr::filter(.toy_applied(), .data$stream == "grazing")
+  expect_no_error(
+    whep::allocate_manure_to_land(grazing_only, list(crops = .toy_crops()))
+  )
+})
