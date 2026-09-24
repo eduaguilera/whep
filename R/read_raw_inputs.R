@@ -728,7 +728,14 @@
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  # Keyed on the code alone, and the label replaced by the `items_full` one.
+  # The new Food Balances write "Cereals, other", "Vegetables, other" and
+  # "Fruits, other" where `items_full` writes "Other"; a join that also matched
+  # the label dropped every row of those three items, so from 2010 on the CBS
+  # kept their production and lost all of their destinies (whep#961). No pin
+  # carries one code under two labels, so this cannot merge two items.
+  dt[, item_cbs := NULL]
+  out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in
