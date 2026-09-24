@@ -29,10 +29,15 @@
 #'    For code details see e.g. `add_area_name()`.
 #' - `item_cbs_code`: FAOSTAT internal code for each item. For
 #'   code details see e.g. `add_item_cbs_name()`.
+#' - `unit`: The denomination of every quantity in the row. `"tonnes"` for
+#'   the rows of the FAO-style balance sheet and `"heads"` (number of
+#'   animals) for the live-animal rows added by the livestock balance. Set by
+#'   the builder that produced the row, so a derived row carries the same
+#'   unit as a reported one. Never sum quantities across rows of different
+#'   units.
 #'
 #' The other columns are quantities where total supply and total
-#' use should be balanced. Units are tonnes for most items,
-#' and heads for live animals (see [items_cbs] `item_type`).
+#' use should be balanced, in the row's `unit`.
 #'
 #' For supply:
 #'    - `production`: Produced locally.
@@ -156,6 +161,11 @@ get_livestock_cbs <- function(
 
   live_prod |>
     dplyr::mutate(
+      # Every quantity here is a count of animals: `slaughtered` sums the
+      # `slaughtered_heads` rows and the trade totals keep `unit == "heads"`
+      # only. Labelled so the wide CBS, which binds these rows onto the
+      # tonnes CBS, says which rows are counts (whep#1055).
+      unit = "heads",
       food = 0,
       feed = 0,
       seed = 0,
@@ -169,6 +179,7 @@ get_livestock_cbs <- function(
       year,
       area_code,
       item_cbs_code,
+      unit,
       production,
       import,
       export,

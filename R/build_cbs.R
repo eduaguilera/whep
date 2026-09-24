@@ -228,7 +228,8 @@
 #'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
 #'   become one column each, `stock_variation` is split into the non-negative
 #'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
-#'   excluding `export`.
+#'   excluding `export`. A `unit` column says each row's denomination:
+#'   `"tonnes"`, or `"heads"` for the live-animal rows (see [get_wide_cbs()]).
 #'
 #'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
 #'   from the source that `source` names (`"A"` official, `"E"` estimated,
@@ -371,10 +372,15 @@ build_commodity_balances <- function(
     get_livestock_cbs() |>
     .filter_years(years)
 
+  # The long CBS is mass-only by construction (the whep#865 guards drop every
+  # non-mass row), while the livestock rows are head counts. The label says
+  # which is which, and each item must carry one of them (whep#1055).
   cbs_long |>
     .pivot_cbs_wide() |>
     .ensure_wide_cbs_destinies() |>
-    dplyr::bind_rows(livestock_cbs)
+    dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
+    dplyr::bind_rows(livestock_cbs) |>
+    .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
 }
 
 # `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element

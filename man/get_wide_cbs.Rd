@@ -38,11 +38,16 @@ It contains the following columns:
 For code details see e.g. \code{add_area_name()}.
 \item \code{item_cbs_code}: FAOSTAT internal code for each item. For
 code details see e.g. \code{add_item_cbs_name()}.
+\item \code{unit}: The denomination of every quantity in the row. \code{"tonnes"} for
+the rows of the FAO-style balance sheet and \code{"heads"} (number of
+animals) for the live-animal rows added by the livestock balance. Set by
+the builder that produced the row, so a derived row carries the same
+unit as a reported one. Never sum quantities across rows of different
+units.
 }
 
 The other columns are quantities where total supply and total
-use should be balanced. Units are tonnes for most items,
-and heads for live animals (see \link{items_cbs} \code{item_type}).
+use should be balanced, in the row's \code{unit}.
 
 For supply:
 \itemize{

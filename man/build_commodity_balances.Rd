@@ -257,7 +257,8 @@ For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{value}, \code{source}, and \code{fao_flag}. For \code{format = "wide"}, the elements
 become one column each, \code{stock_variation} is split into the non-negative
 \code{stock_addition} and \code{stock_withdrawal}, and \code{domestic_supply} is total use
-excluding \code{export}.
+excluding \code{export}. A \code{unit} column says each row's denomination:
+\code{"tonnes"}, or \code{"heads"} for the live-animal rows (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
 
 \code{fao_flag} is FAOSTAT's own observation-status code for the value, taken
 from the source that \code{source} names (\code{"A"} official, \code{"E"} estimated,
