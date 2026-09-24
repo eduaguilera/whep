@@ -66,6 +66,7 @@ sheet years and gap-filling country shares via linear interpolation.</p>
 <span>  extend_time <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  method_unbacked_quantity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"keep"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
 <span>  method_head_units <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"drop"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
+<span>  method_time_coverage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cbs_cells"</span>, <span class="st">"cbs_years"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -127,6 +128,15 @@ unhandled unit unnoticed.</p></li>
 <code>"abort"</code>. Monetary units are removed silently, on purpose.</p></dd>
 
 
+<dt id="arg-method-time-coverage">method_time_coverage<a class="anchor" aria-label="anchor" href="#arg-method-time-coverage"></a></dt>
+<dd><p>Which extended shares <code>extend_time</code> keeps.
+See the <em>Time extension and CBS coverage</em> section. One of:</p><ul><li><p><code>"cbs_cells"</code> (default): only in the year, area, item and element
+cells where <code>cbs</code> reports a non-zero flow.</p></li>
+<li><p><code>"cbs_years"</code>: in every CBS year, whether or not CBS reports the
+cell. The historical behaviour.</p></li>
+</ul><p>Ignored when <code>extend_time = FALSE</code>.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, return a small example tibble
 without downloading remote data. Default <code>FALSE</code>.</p></dd>
@@ -147,28 +157,49 @@ FAOSTAT does not back with a mass, recorded so a downstream
 consumer can tell which variant it is holding.</p></li>
 <li><p><code>method_head_units</code>: the treatment chosen for the <code>1000 Head</code>
 rows, recorded for the same reason.</p></li>
+<li><p><code>method_time_coverage</code>: the coverage rule of the time extension, or
+<code>NA</code> when <code>extend_time = FALSE</code>.</p></li>
 </ul></div>
     <div class="section level2">
-    <h2 id="time-extension-is-uniform-across-groups">Time extension is uniform across groups<a class="anchor" aria-label="anchor" href="#time-extension-is-uniform-across-groups"></a></h2>
+    <h2 id="time-extension-and-cbs-coverage">Time extension and CBS coverage<a class="anchor" aria-label="anchor" href="#time-extension-and-cbs-coverage"></a></h2>
 
 
-<p>With <code>extend_time = TRUE</code> the extension is driven by the <strong>year axis</strong> of
-CBS only. Every <code>(area, item, partner, element, unit)</code> group observed in
-any trade year is carried across the union of trade and CBS years, and
-<code><a href="fill_linear.html">fill_linear()</a></code> interpolates inside a group's observed span and holds the
-first and last observed share constant outside it. Whether CBS actually
-reports that area/item/element in that year is <strong>not</strong> consulted, so shares
-are also emitted for country-item-year cells CBS never reports.</p>
-<p>The year axis this rests on is wide. The <code>"faostat-trade-bilateral"</code> pin
-covers 1986-2021, while <code><a href="build_commodity_balances.html">build_commodity_balances()</a></code> defaults to 1850-2023,
-so 138 of the 174 extended years (79%) lie outside the trade record
-entirely and carry the 1986 (or 2021) partner mix held constant. On the
-full pin that is 1.17 million groups spread over up to 174 years each,
-against 9.97 million observed rows, and half of the emitted
-<code>(year, area, item, element)</code> cells are cells CBS never reports (measured:
-3.42 of 6.85 million). Scoping the extension to the CBS
-coverage a group actually has is a methodological choice, not a bug fix,
-and is tracked in issue #232.</p>
+<p>With <code>extend_time = TRUE</code> every <code>(area, item, partner, element, unit)</code>
+group observed in any trade year is carried across the union of trade and
+CBS years, and <code><a href="fill_linear.html">fill_linear()</a></code> interpolates inside a group's observed span
+and holds the first and last observed share constant outside it. That
+fills two kinds of row: years outside the trade record, and trade years
+in which the reporter reported nothing at all for that item and element
+(the group's share there is 0/0). <code>method_time_coverage</code> then decides
+which of those filled shares are kept:</p><ul><li><p><code>"cbs_cells"</code> (default) keeps an extended share only in a
+<code>(year, area_code, item_cbs_code, element)</code> cell where <code>cbs</code> reports a
+non-missing, non-zero flow for that element. A share partitions a CBS
+total among partners; where there is no total there is nothing to
+partition, so no share is invented there. Observed trade rows are
+always kept, whether or not CBS reports the cell.</p></li>
+<li><p><code>"cbs_years"</code> keeps every extended share in every CBS year. The
+historical behaviour: the CBS <em>year axis</em> alone drives the extension,
+so shares are also emitted for cells CBS never reports.</p></li>
+</ul><p>The two methods differ only in which rows survive: a share kept by both
+is identical, because it comes from the same interpolation of the group's
+own anchors, and every kept cell keeps all its partners, so its shares
+still sum to one. Because filled rows inside the trade record are scoped
+too, a <code>cbs</code> that omits some trade years drops the filled rows of those
+years under <code>"cbs_cells"</code>; pass a CBS spanning the trade record.</p>
+<p>Measured on the <code>"faostat-trade-bilateral"</code> pin against a 1850-2023 CBS,
+half of the <code>(year, area, item, element)</code> cells the uniform extension
+emits are cells CBS never reports (3.42 of 6.85 million; whep#232).
+Against single-year CBS builds, <code>"cbs_cells"</code> keeps 144,812 of the
+286,762 rows <code>"cbs_years"</code> emits for 1975 (50.5%) and 342,617 of 384,954
+for 2023 (89.0%), extending from trade years 1986-1987 and 2020-2021;
+and 231,530 of 249,833 for 2000 (92.7%) and 279,210 of 293,815 for 2010
+(95.0%), with trade years 1999-2001 and 2009-2011.</p>
+<p>Neither method bounds the <strong>year axis</strong>. The pin covers 1986-2021, while
+<code><a href="build_commodity_balances.html">build_commodity_balances()</a></code> defaults to 1850-2023, so 138 of the 174
+extended years (79%) lie outside the trade record entirely and carry the
+1986 (or 2021) partner mix held constant. CBS is itself extended back to
+1850, so scoping to its cells does not shorten that back-cast; pass a
+year-scoped <code>cbs</code> to limit it.</p>
     </div>
     <div class="section level2">
     <h2 id="quantities-faostat-does-not-back-with-a-mass">Quantities FAOSTAT does not back with a mass<a class="anchor" aria-label="anchor" href="#quantities-faostat-does-not-back-with-a-mass"></a></h2>
@@ -245,7 +276,7 @@ are dropped, with the warning every unrecognised label now raises.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_detailed_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 19</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
@@ -258,12 +289,13 @@ are dropped, with the warning every unrecognised label now raises.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>005         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_code_partner &lt;int&gt;, partner_polity_code &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_name &lt;chr&gt;, partner_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_area_code &lt;int&gt;, element &lt;chr&gt;, item_cbs_code &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;, method_head_units &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;, method_head_units &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_time_coverage &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

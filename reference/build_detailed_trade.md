@@ -18,6 +18,7 @@ build_detailed_trade(
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
   method_head_units = c("convert", "drop", "abort"),
+  method_time_coverage = c("cbs_cells", "cbs_years"),
   example = FALSE
 )
 ```
@@ -82,6 +83,19 @@ build_detailed_trade(
   `"whep_unhandled_trade_unit"` warning naming it, and aborts under
   `"abort"`. Monetary units are removed silently, on purpose.
 
+- method_time_coverage:
+
+  Which extended shares `extend_time` keeps. See the *Time extension and
+  CBS coverage* section. One of:
+
+  - `"cbs_cells"` (default): only in the year, area, item and element
+    cells where `cbs` reports a non-zero flow.
+
+  - `"cbs_years"`: in every CBS year, whether or not CBS reports the
+    cell. The historical behaviour.
+
+  Ignored when `extend_time = FALSE`.
+
 - example:
 
   Logical. If `TRUE`, return a small example tibble without downloading
@@ -114,29 +128,56 @@ A tibble with columns:
 - `method_head_units`: the treatment chosen for the `1000 Head` rows,
   recorded for the same reason.
 
-## Time extension is uniform across groups
+- `method_time_coverage`: the coverage rule of the time extension, or
+  `NA` when `extend_time = FALSE`.
 
-With `extend_time = TRUE` the extension is driven by the **year axis**
-of CBS only. Every `(area, item, partner, element, unit)` group observed
-in any trade year is carried across the union of trade and CBS years,
-and
+## Time extension and CBS coverage
+
+With `extend_time = TRUE` every `(area, item, partner, element, unit)`
+group observed in any trade year is carried across the union of trade
+and CBS years, and
 [`fill_linear()`](https://eduaguilera.github.io/whep/reference/fill_linear.md)
 interpolates inside a group's observed span and holds the first and last
-observed share constant outside it. Whether CBS actually reports that
-area/item/element in that year is **not** consulted, so shares are also
-emitted for country-item-year cells CBS never reports.
+observed share constant outside it. That fills two kinds of row: years
+outside the trade record, and trade years in which the reporter reported
+nothing at all for that item and element (the group's share there is
+0/0). `method_time_coverage` then decides which of those filled shares
+are kept:
 
-The year axis this rests on is wide. The `"faostat-trade-bilateral"` pin
-covers 1986-2021, while
+- `"cbs_cells"` (default) keeps an extended share only in a
+  `(year, area_code, item_cbs_code, element)` cell where `cbs` reports a
+  non-missing, non-zero flow for that element. A share partitions a CBS
+  total among partners; where there is no total there is nothing to
+  partition, so no share is invented there. Observed trade rows are
+  always kept, whether or not CBS reports the cell.
+
+- `"cbs_years"` keeps every extended share in every CBS year. The
+  historical behaviour: the CBS *year axis* alone drives the extension,
+  so shares are also emitted for cells CBS never reports.
+
+The two methods differ only in which rows survive: a share kept by both
+is identical, because it comes from the same interpolation of the
+group's own anchors, and every kept cell keeps all its partners, so its
+shares still sum to one. Because filled rows inside the trade record are
+scoped too, a `cbs` that omits some trade years drops the filled rows of
+those years under `"cbs_cells"`; pass a CBS spanning the trade record.
+
+Measured on the `"faostat-trade-bilateral"` pin against a 1850-2023 CBS,
+half of the `(year, area, item, element)` cells the uniform extension
+emits are cells CBS never reports (3.42 of 6.85 million; whep#232).
+Against single-year CBS builds, `"cbs_cells"` keeps 144,812 of the
+286,762 rows `"cbs_years"` emits for 1975 (50.5%) and 342,617 of 384,954
+for 2023 (89.0%), extending from trade years 1986-1987 and 2020-2021;
+and 231,530 of 249,833 for 2000 (92.7%) and 279,210 of 293,815 for 2010
+(95.0%), with trade years 1999-2001 and 2009-2011.
+
+Neither method bounds the **year axis**. The pin covers 1986-2021, while
 [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
 defaults to 1850-2023, so 138 of the 174 extended years (79%) lie
 outside the trade record entirely and carry the 1986 (or 2021) partner
-mix held constant. On the full pin that is 1.17 million groups spread
-over up to 174 years each, against 9.97 million observed rows, and half
-of the emitted `(year, area, item, element)` cells are cells CBS never
-reports (measured: 3.42 of 6.85 million). Scoping the extension to the
-CBS coverage a group actually has is a methodological choice, not a bug
-fix, and is tracked in issue \#232.
+mix held constant. CBS is itself extended back to 1850, so scoping to
+its cells does not shorten that back-cast; pass a year-scoped `cbs` to
+limit it.
 
 ## Quantities FAOSTAT does not back with a mass
 
@@ -218,7 +259,7 @@ raises.
 
 ``` r
 build_detailed_trade(example = TRUE)
-#> # A tibble: 10 × 18
+#> # A tibble: 10 × 19
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <int>     <int>            <int> <chr>                 <chr>                
 #>  1  2010         4                4 DZA-1962-2025         Algeria (1962-2025)  
@@ -231,10 +272,11 @@ build_detailed_trade(example = TRUE)
 #>  8  2005         4                4 DZA-1962-2025         Algeria (1962-2025)  
 #>  9  2012       100              100 IND-1949-2025         India                
 #> 10  2012       100              100 IND-1949-2025         India                
-#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 14 more variables: reporting_polity_has_geometry <lgl>,
 #> #   area_code_partner <int>, partner_polity_code <chr>,
 #> #   partner_polity_name <chr>, partner_polity_has_geometry <lgl>,
 #> #   partner_polity_area_code <int>, element <chr>, item_cbs_code <int>,
 #> #   unit <chr>, value <dbl>, country_share <dbl>,
-#> #   method_unbacked_quantity <chr>, method_head_units <chr>
+#> #   method_unbacked_quantity <chr>, method_head_units <chr>,
+#> #   method_time_coverage <chr>
 ```
