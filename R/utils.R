@@ -2318,6 +2318,10 @@ utils::globalVariables(
     # layer cull is folded onto, and the cull method column
     "meat_code",
     "method_cull",
+    # R/bilateral_trade.R (whep#1031): the CBS margin unit each trade matrix
+    # is seeded and labelled in, and the anchoring flag it is labelled by
+    "margin_unit",
+    "has_cbs_totals",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
