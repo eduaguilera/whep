@@ -815,6 +815,7 @@ build_carbon_balance <- function(
       dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
     ))
   }
+  .cb_check_climate_months(climate, keys)
   # One year at a time. Each cell-year's modifier is reduced from its own twelve
   # monthly rows, so nothing crosses years -- but attaching soil cover crosses
   # the MONTHLY table with every land-use class, which measures 0.452 GB per
@@ -835,6 +836,40 @@ build_carbon_balance <- function(
     )
   })
   dplyr::bind_rows(parts)
+}
+
+# Refuse raw monthly drivers that are short a calendar month (whep#1073). The
+# RothC/HSOC modifier is the MEAN over the months a cell-year carries, and the
+# topsoil moisture deficit is a recurrence through them in order, so an absent
+# month is neither an NA nor a zero: the modifier is simply computed over
+# eleven months, is finite, and moves. If every cell-year is short the same
+# month, the vectorised reducer even takes its fast path with `n_months = 11`,
+# because a uniform shape is not ragged.
+#
+# `get_soc_climate_drivers()` already refuses this on its own read
+# (`.socd_check_months()`), but `data$climate` bypasses that reader, so the
+# assertion is repeated where the modifier is consumed. Abort, not warn:
+# there is no partial-year modifier to fall back on, and a caller who injects
+# drivers controls the fix. A table with no `month` column is not monthly and
+# is not judged. Keys are narrowed to what the table carries, so a fixture
+# without `area_code` is checked per cell-year.
+.cb_check_climate_months <- function(climate, keys) {
+  if (!rlang::has_name(climate, "month") || nrow(climate) == 0L) {
+    return(invisible(climate))
+  }
+  by_cols <- keys[purrr::map_lgl(keys, \(k) rlang::has_name(climate, k))]
+  check_keys_complete(
+    climate[c(by_cols, "month")],
+    list(month = 1:12),
+    .by = by_cols,
+    details = c(
+      i = "The climate modifier is a mean over the months present, so a
+           short year is a different number, not a missing one.",
+      i = "Supply all twelve months in {.code data$climate}, or let
+           {.fn get_soc_climate_drivers} read them."
+    )
+  )
+  invisible(climate)
 }
 
 # Row indices of each year, as ONE pass over the year column. Filtering the
@@ -2125,6 +2160,7 @@ build_carbon_balance <- function(
 # O(cells^2) and dominated the global run time). A cell absent from `init` gets
 # an empty init slice, matching the previous per-cell zero-row filter.
 .cb_march <- function(classes, init) {
+  .cb_check_march_years(classes)
   dt <- data.table::as.data.table(classes)
   dt[, `:=`(
     cell_key = paste(lon, lat, area_code, sep = "\r"),
@@ -2162,6 +2198,48 @@ build_carbon_balance <- function(
   data.table::setorder(res, cell_key, year, land_use)
   res[, cell_key := NULL]
   tibble::as_tibble(as.data.frame(res))
+}
+
+# Refuse a march over an incomplete (cell, year) lattice (whep#1073). The march
+# takes ONE annual step per distinct year it is given and carries each cell's
+# stock in `state`, which is rebuilt from the cells present that year. So an
+# absent row is neither an NA nor a zero, and it does two different kinds of
+# damage, both finite and plausible:
+#
+# * a year missing from the whole table (`years = c(1901L, 1950L)`, or an
+#   input that lacks one) is marched as a single annual step, so 49 years of
+#   decay and input are booked as one;
+# * a cell missing from some year inside the span drops out of `state` that
+#   year (`.cb_keep_vanished()` refills vanished CLASSES, deliberately not
+#   vanished CELLS), so when it returns its stock restarts from zero and its
+#   whole carbon store is released as a one-year change. The same happens to a
+#   cell that first appears after the start year.
+#
+# The expected lattice is therefore every cell times every calendar year from
+# the table's first to its last. Abort, not warn: neither shape has a
+# continuation that is right, and the SON change the nitrogen balance reads
+# is derived from these same steps.
+.cb_check_march_years <- function(classes) {
+  if (nrow(classes) == 0L) {
+    return(invisible(classes))
+  }
+  span <- range(classes$year)
+  cell_cols <- c("lon", "lat", "area_code")
+  check_keys_complete(
+    classes[c(cell_cols, "year")],
+    list(year = seq.int(span[[1L]], span[[2L]])),
+    .by = cell_cols,
+    details = c(
+      i = "The soil-carbon march takes one annual step per year present and
+           carries each cell's stock from the previous year, so a missing year
+           is booked as one step and a cell missing from a year restarts from
+           zero carbon.",
+      i = "Pass a contiguous {.arg years} span, and supply every cell for
+           every year in {.code data$land_use}, {.code data$c_inputs} and
+           {.code data$climate}."
+    )
+  )
+  invisible(classes)
 }
 
 # Advance one year for ALL cells at once, apply the land-use-change transfer
