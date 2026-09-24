@@ -16,7 +16,7 @@ build_carbon_inputs(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("reallocate", "fodder_pattern", "drop"),
   example = FALSE
 )
 }
@@ -90,7 +90,21 @@ mass equals its national mass; this is the rule the sibling nitrogen
 spatialization already applies to the same gap
 (\code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}). \code{"drop"} discards it, which is what
 the package did before and what a caller who prefers a hole to a smear
-should ask for. Either way the mass and the affected crops are reported,
+should ask for. \code{"fodder_pattern"} first places the fodder crops (FAOSTAT
+items 636-649, 651 and 655) on the pooled 16 forage layers of Monfreda,
+Ramankutty and Foley (2008, \doi{10.1029/2007GB002947}), which the
+crop-pattern pin omits, gridded exactly as a crop-pattern crop is. The
+layers are pooled because the per-item ones follow the circa-2000
+reporting vocabulary, not where each item is grown later. Whatever the
+layer still cannot
+place is reallocated as under \code{"reallocate"}. It needs the Monfreda
+archive (\code{inst/scripts/download/download_monfreda.R}) with
+\code{WHEP_MONFREDA_DIR} pointing at its
+\code{HarvestedAreaYield175Crops_Geotiff} folder, or \code{data$fodder_patterns},
+and aborts rather than falling back when neither is available. The layer
+codes are matched on the layer names, as the archive's metadata gives no
+FAO name for them (assumed, unverified against a Monfreda table). Either
+way the mass and the affected crops are reported,
 and the choice is recorded in \code{method_unspatialized}. Reallocation needs a
 national area to put the carbon on, so a polity-crop with no
 \code{harvested_area} row -- and a polity with no cell at all in the support,
