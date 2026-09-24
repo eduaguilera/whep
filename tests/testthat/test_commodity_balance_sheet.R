@@ -688,6 +688,22 @@ testthat::test_that("the swine fold does not depend on method_cull (#1237)", {
   testthat::expect_equal(separate$production, 100)
 })
 
+testthat::test_that("the wide CBS records the cull method on head rows only (#1237)", {
+  local_mocked_bindings(.get_livestock_trade_totals = .empty_livestock_trade)
+
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+
+  heads <- dplyr::filter(wide, unit == "heads")
+  tonnes <- dplyr::filter(wide, unit == "tonnes")
+  testthat::expect_gt(nrow(heads), 0L)
+  pointblank::expect_col_vals_equal(heads, "method_cull", "fold")
+  testthat::expect_true(all(is.na(tonnes$method_cull)))
+})
+
 testthat::test_that("get_livestock_cbs rejects an unknown cull method (#1237)", {
   testthat::expect_error(
     get_livestock_cbs(.make_cull_fixture(), method_cull = "drop"),
