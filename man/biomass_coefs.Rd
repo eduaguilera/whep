@@ -158,8 +158,10 @@ entry, 58.5\% crude protein and better than 99\% purity, giving 0.0936
 (whep#931; \url{https://fundacionfedna.org/ingredientes-para-piensos}).
 The alternative is the other commercial methionine source,
 the hydroxy analogue FEDNA lists as HIDROXI-ANAL MET, which is C5H10O3S
-and holds no nitrogen at all; that is the product \code{codes_coefs_items_full}
-names for this item and the value the retired pin carried. \code{Lysine} at
+and holds no nitrogen at all; it is the value the retired pin carried.
+That \code{items_full$FEDNA} names HIDROXI-ANAL MET for this item is not
+evidence for the analogue: that column is a feed-table stand-in, not a
+product identity (see \link{items_full}, whep#1131). \code{Lysine} at
 0.2015 is the other hand-entered override and is still 5.2\% above the free
 base's own 0.1916; FEDNA's L-Lisina HCl would give 0.1512.
 \itemize{
