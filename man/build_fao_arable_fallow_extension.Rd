@@ -80,8 +80,11 @@ A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (fallow-inclusive physical land in hectares), \code{method_land}
 (\code{"fao_arable_fallow"}), \code{temp_grassland_netted_ha} (hectares netted out of
 that country-year's arable target, \code{0} where the netting term is
-structurally absent), \code{method_temp_grassland} (the \code{temp_grassland_basis}
-in force), \code{method_fodder} (the \code{fodder_gap} in force) and
+structurally absent), \code{temp_grassland_source} (the source that supplied
+that netted term: \code{"modelled_cbs_3002"}, \code{"fao_6633_official"},
+\code{"fao_6633_all"}, \code{"absent"} where the basis has no value for that
+country-year, or \code{"not_netted"} under \code{"none"}),
+\code{method_temp_grassland} (the \code{temp_grassland_basis} in force), \code{method_fodder} (the \code{fodder_gap} in force) and
 \code{method_unsupported_target} (the \code{unsupported_target} in force). Under
 \code{unsupported_target = "unallocated"} a row with \code{item_cbs_code} \code{NA} carries
 the FAO land no crop can be named for.
@@ -159,6 +162,17 @@ and whep#354; \code{"modelled"} remains the default so this argument changes no
 published number until a basis is chosen deliberately.
 \code{temp_grassland_netted_ha} in the output, and
 \code{\link[=check_arable_composition]{check_arable_composition()}}, make the switch-off visible either way.
+\code{temp_grassland_source} says, per country-year, which source supplied the
+netted term: \code{"modelled_cbs_3002"}, \code{"fao_6633_official"} or
+\code{"fao_6633_all"}, or \code{"absent"} where the chosen basis has no value there,
+so a country-year with no measurement never reads as one with no temporary
+meadows. On the real 2001-2023 inputs under \code{"modelled"}, 494 of the
+4,549 country-years in the output are \code{"modelled_cbs_3002"} (26 polities,
+2001-2019) and the other 4,055 are \code{"absent"}, including all 787 from 2020.
+Under the \code{"fao_*"} bases the column also separates a reported value that
+nets 0 ha from a missing report: 103 country-years under \code{"fao_official"}
+and 993 under \code{"fao_all"} have a value yet net nothing, and before this
+column they read exactly like the country-years with no value at all.
 
 FAO's own item 6633 "Temporary meadows and pastures" measures the same
 concept, runs 2001-2023, and is what the \code{"fao_*"} bases read. It is not a

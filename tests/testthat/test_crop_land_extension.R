@@ -1589,6 +1589,92 @@ test_that("no composition warning fires when the terms reach the panel end", {
   )
 })
 
+# --- Netting coverage: a missing term is not a zero term (whep#937) -----------
+
+test_that("temp_grassland_source says where the modelled term runs out", {
+  res <- .seam_extension()
+  by_year <- unique(res[, c("year", "temp_grassland_source")])
+  # 2019 has a modelled CBS 3002 row; 2020 has none, and says so instead of
+  # reading as a country with no temporary meadows.
+  expect_equal(by_year$temp_grassland_source, c("modelled_cbs_3002", "absent"))
+})
+
+test_that("temp_grassland_source keeps a measured zero apart from no data", {
+  temp <- tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u,
+    10L, 2019L, 3002L, 0 # a reported zero, not a missing row
+  )
+  res <- suppressWarnings(whep::build_fao_arable_fallow_extension(
+    base_extension = .seam_base(),
+    arable_permanent = .seam_arable(),
+    temporary_grassland = temp,
+    items_prod_full = .fao_fodder_items()
+  ))
+  by_year <- unique(
+    res[, c("year", "temp_grassland_netted_ha", "temp_grassland_source")]
+  )
+  expect_equal(by_year$temp_grassland_netted_ha, c(0, 0))
+  expect_equal(by_year$temp_grassland_source, c("modelled_cbs_3002", "absent"))
+  # The diagnostic reads the source, so the measured zero counts as covered and
+  # the switch-off is still found at 2020.
+  report <- whep::check_arable_composition(
+    res,
+    items_prod_full = .fao_fodder_items()
+  )
+  netting <- report[report$term == "temp_grassland_netting", ]
+  expect_equal(netting$term_last_year, 2019L)
+  expect_equal(netting$break_year, 2020L)
+})
+
+test_that("temp_grassland_source names the source of each filled year", {
+  fao_rl <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Unit, ~Year, ~Value, ~Flag,
+    2L, 6633L, "Area", "1000 ha", 2019L, 0.5, "A",
+    2L, 6633L, "Area", "1000 ha", 2020L, 0.5, "A",
+    2L, 6633L, "Area", "1000 ha", 2021L, 0.4, "I"
+  )
+  testthat::local_mocked_bindings(.fetch_fao_rl = function(...) fao_rl)
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2019L, 2L, 2511L, 900,
+    2020L, 2L, 2511L, 900,
+    2021L, 2L, 2511L, 900
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    2L, 2019L, 1200, 0,
+    2L, 2020L, 1200, 0,
+    2L, 2021L, 1200, 0
+  )
+  temp <- tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u,
+    2L, 2019L, 3002L, 200
+  )
+  source_of <- function(basis) {
+    res <- suppressWarnings(whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      temporary_grassland = temp,
+      items_prod_full = .fao_fodder_items(),
+      temp_grassland_basis = basis
+    ))
+    res$temp_grassland_source[order(res$year)]
+  }
+  expect_equal(
+    source_of("modelled_then_fao"),
+    c("modelled_cbs_3002", "fao_6633_official", "absent")
+  )
+  expect_equal(
+    source_of("fao_official"),
+    c("fao_6633_official", "fao_6633_official", "absent")
+  )
+  expect_equal(
+    source_of("fao_all"),
+    c("fao_6633_all", "fao_6633_all", "fao_6633_all")
+  )
+  expect_equal(source_of("none"), rep("not_netted", 3))
+})
+
 # ---- whep#1034: absent inputs must not become zeros ------------------------
 
 .hayr_harvested_fixture <- function() {

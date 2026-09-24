@@ -9,9 +9,12 @@ check_arable_composition(extension, items_prod_full = whep::items_prod_full)
 \arguments{
 \item{extension}{Tibble of the arable/permanent land extension as returned
 by \code{\link[=build_fao_arable_fallow_extension]{build_fao_arable_fallow_extension()}}: \code{year}, \code{area_code},
-\code{item_cbs_code}, \code{impact_u}, and optionally \code{temp_grassland_netted_ha}.
-The \code{temp_grassland_netting} term is reported only when that column is
-present.}
+\code{item_cbs_code}, \code{impact_u}, and optionally \code{temp_grassland_source} or
+\code{temp_grassland_netted_ha}. The \code{temp_grassland_netting} term is reported
+only when one of them is present. With \code{temp_grassland_source} a
+country-year counts as covered whenever a source supplied the term, zero
+included; with \code{temp_grassland_netted_ha} alone, only when it is
+positive.}
 
 \item{items_prod_full}{Crosswalk used to classify \code{item_cbs_code} as
 perennial via \code{Herb_Woody}. Defaults to \link{items_prod_full}.}
@@ -23,8 +26,8 @@ A tibble with one row per \verb{(term, area_code)}:
 \item \code{area_code}: the country.
 \item \code{panel_first_year}, \code{panel_last_year}: the years that country has arable
 rows for.
-\item \code{term_first_year}, \code{term_last_year}: the years the term is positive
-(\code{NA} when it never is).
+\item \code{term_first_year}, \code{term_last_year}: the years the term is present,
+as defined under \code{extension} (\code{NA} when it never is).
 \item \code{n_years_absent}: panel years in which the term is absent.
 \item \code{break_year}: the first panel year after \code{term_last_year} with no term
 (\code{NA} when the term runs to the end of the panel, or never appears).

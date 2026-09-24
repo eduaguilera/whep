@@ -2268,6 +2268,9 @@ utils::globalVariables(
     # production that the share cap leaves out, and the years it spans
     "excess_fm",
     "n_years",
+    # arable_permanent_land.R (#937) -- which source supplied the temporary
+    # grassland netted out of each country-year's arable target
+    "temp_grassland_source",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

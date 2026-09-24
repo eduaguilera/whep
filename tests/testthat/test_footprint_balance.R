@@ -263,3 +263,32 @@ testthat::test_that("build_land_balance_footprint validates year", {
     "single number"
   )
 })
+
+testthat::test_that("the land-balance crop side pins its netting basis", {
+  # Modelled CBS 3002 covers 26 EU polities over 2001-2019 only (whep#937), so
+  # the basis is a decision; it must not move with the crop extension default.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    build_grassland_land_extension = function(...) {
+      tibble::tibble(
+        area_code = 1L,
+        year = 2019L,
+        item_cbs_code = 3002L,
+        impact_u = 5
+      )
+    },
+    build_fao_arable_fallow_extension = function(...) {
+      seen <<- list(...)
+      tibble::tibble(
+        year = 2019L,
+        area_code = 1L,
+        item_cbs_code = 2511L,
+        impact_u = 10
+      )
+    }
+  )
+  ext <- whep:::.land_balance_extension(2019L)
+  testthat::expect_identical(seen$temp_grassland_basis, "modelled")
+  testthat::expect_identical(seen$unsupported_target, "unallocated")
+  testthat::expect_setequal(ext$item_cbs_code, c(2511L, 3002L))
+})
