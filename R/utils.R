@@ -2268,6 +2268,12 @@ utils::globalVariables(
     # production that the share cap leaves out, and the years it spans
     "excess_fm",
     "n_years",
+    # silk_mass_basis.R (issue 1251) -- per area-year terms of the silk chain
+    "processed",
+    "raw_use",
+    "raw_prod",
+    "has_raw_use",
+    "has_processed",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

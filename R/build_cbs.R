@@ -222,6 +222,36 @@
 #'   falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 #'   than 295. Under `"production_share"` pre-1962 `seed` is 5.22 Gt, total
 #'   tonnage moves -1.023%, and the seam holds 5 jumps.
+#' @param silk_basis One of `"cocoon"` (default), `"raw_silk"` or `"mixed"`,
+#'   selecting the mass basis of the Silk balance from 2014 on (whep#1251).
+#'   Silk is a FAOSTAT chain -- reelable cocoons (1185) reeled into raw silk
+#'   (1186), plus silk waste (1187) -- that the non-food Commodity Balances
+#'   report link by link, each in its own mass, and that WHEP maps onto one
+#'   item. Summed unconverted, with the cocoons sent to reeling dropped as a
+#'   chain transfer, the reeled cocoons were left as stock build-up: 267 kt of
+#'   `stock_variation` against 536 kt of production at 2020, 391 kt against
+#'   517 kt at 2021, measured on a real 2019-2021 build.
+#'
+#'   `"cocoon"` counts production once, as cocoons, books the cocoons reeled
+#'   at FAO's own cocoon mass, and converts only the raw silk that crossed a
+#'   border or a stock, dividing by a raw-silk extraction rate of 0.16 -- the
+#'   midpoint of the 12-20% of fresh cocoon weight in Lee (1999), *Silk
+#'   reeling and testing manual*, FAO Agricultural Services Bulletin 136; FAO's
+#'   Technical Conversion Factors carry no silk entry. `"raw_silk"` is the
+#'   same balance multiplied by that rate, so every Silk quantity depends on
+#'   it. `"mixed"` keeps each link's own mass and books the reeled cocoons as
+#'   `other_uses`, the convention of FAO's pre-2014 aggregate item 2747: the
+#'   balance closes but raw silk is counted twice, once as the cocoons it was
+#'   reeled from. Silk waste keeps its own mass under every setting.
+#'
+#'   Measured at 2020 on that build, production is 443 / 71 / 536 kt
+#'   (cocoon / raw_silk / mixed) and `stock_variation` -170 / -32 / -164 kt,
+#'   of which -157 kt is one FAOSTAT record under every setting: China
+#'   mainland's 2020 cocoons are booked both as `Processed` and as
+#'   `Other uses` (FAOSTAT's own `Residuals` is -156,943 t). No non-Silk row
+#'   moves. Years before 2014 come from the aggregated old Commodity Balances,
+#'   which carry no link breakdown, and are unchanged, so under `"cocoon"` the
+#'   2013-2014 seam steps by roughly the raw silk production.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -268,6 +298,7 @@ build_commodity_balances <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  silk_basis = .silk_basis_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -278,6 +309,7 @@ build_commodity_balances <- function(
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   export_share_overflow <- rlang::arg_match(export_share_overflow)
   seed_backcast <- rlang::arg_match(seed_backcast)
+  silk_basis <- rlang::arg_match(silk_basis)
   if (example) {
     return(
       if (format == "wide") {
@@ -302,7 +334,8 @@ build_commodity_balances <- function(
       share_overflow = share_overflow,
       negative_supply = negative_supply,
       hist_trade_scale = hist_trade_scale,
-      seed_backcast = seed_backcast
+      seed_backcast = seed_backcast,
+      silk_basis = silk_basis
     ) |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -352,6 +385,11 @@ build_commodity_balances <- function(
     if (seed_backcast != "area_rate") {
       cli::cli_warn(
         "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (silk_basis != "cocoon") {
+      cli::cli_warn(
+        "{.arg silk_basis} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -575,7 +613,8 @@ build_commodity_balances <- function(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
-  seed_backcast = .cbs_seed_backcast_choices()
+  seed_backcast = .cbs_seed_backcast_choices(),
+  silk_basis = .silk_basis_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -594,7 +633,8 @@ build_commodity_balances <- function(
   inputs <- .cbs_read_inputs(
     primary_all,
     years,
-    hist_trade_scale = hist_trade_scale
+    hist_trade_scale = hist_trade_scale,
+    silk_basis = silk_basis
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -996,12 +1036,14 @@ build_processing_coefs <- function(
 .cbs_read_inputs <- function(
   primary_all,
   years,
-  hist_trade_scale = .hist_trade_scale_choices()
+  hist_trade_scale = .hist_trade_scale_choices(),
+  silk_basis = .silk_basis_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
     .hist_trade_scale_choices()
   )
+  silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -1015,13 +1057,18 @@ build_processing_coefs <- function(
     cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
     cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
   }
+  # "Processed" is read only for the silk chain and removed again by
+  # `.cbs_silk_mass_basis()`, whatever the method (whep#1251).
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    years = years
-  )
+    years = years,
+    keep_elements = "Processed"
+  ) |>
+    .cbs_silk_mass_basis(silk_basis)
 
   # Trade
-  fao_trade <- .read_fao_trade(years = years)
+  fao_trade <- .read_fao_trade(years = years) |>
+    .trade_silk_mass_basis(silk_basis)
   fishstat_trade <- .read_fishstat_trade(years = years)
   # The screen bounds a pre-1961 reporter flow by the largest world flow
   # FAOSTAT records for the same item, so it reads its reference from the
