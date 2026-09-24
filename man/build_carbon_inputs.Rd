@@ -17,6 +17,7 @@ build_carbon_inputs(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("reallocate", "drop"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 )
 }
@@ -97,15 +98,32 @@ national area to put the carbon on, so a polity-crop with no
 which no rule here can reach (see whep#1002) -- is dropped under both
 methods, reported separately.}
 
+\item{method_crop_weights}{Where each crop's within-polity cell weights
+come from. \code{"spatialized"} (default) takes them from the spatialization
+engine's crop-level output, \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} run on the pinned
+spatialization inputs and the same cell support, year by year: the
+crop's placement follows that year's cropland, its irrigated share and
+the engine's per-cell capacity ceiling, so the carbon lands where the
+gridded land use puts the crop. \code{data$gridded_crops} supplies that output
+pre-built. \code{"static"} uses the time-invariant \code{crop_patterns} layer
+(\code{harvest_fraction} times each cell's cropland averaged over every year
+of the gridded-cropland pin), one map for every year, which is what the
+package did before (whep#1002). Measured on the pins, the L1 distance
+between the two cell-share vectors of a polity-crop (0 = same placement,
+2 = disjoint) has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and
+0.47 in 2020. Polity totals are the same under both; only where the
+carbon sits moves. Recorded in \code{method_crop_weights}.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
-\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input} and
-\code{method_unspatialized} (\code{NA} on the grassland and natural classes, which
-are not spatialized from polity-crop totals), for \code{land_use} in
+\code{c_input_mgc_ha_yr}, \code{humified_fraction}, \code{method_c_input},
+\code{method_unspatialized} and \code{method_crop_weights} (the last two \code{NA} on the
+grassland and natural classes, which are not spatialized from polity-crop
+totals), for \code{land_use} in
 \code{"cropland"}, \code{"grassland"} and \code{"natural"}, plus the polity columns
 below.
 }

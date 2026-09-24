@@ -329,12 +329,36 @@ build_soil_carbon_inputs <- function(
   support <- .normalize_carbon_support(country_grid) |>
     dplyr::select("lon", "lat", "area_code", "cell_area_frac")
   build_gridded_landuse(
-    country_areas = inputs$country_areas,
+    country_areas = .sci_areas_to_bucket(inputs$country_areas),
     crop_patterns = inputs$crop_patterns,
     gridded_cropland = inputs$gridded_cropland,
     country_grid = support,
     config = list(years = years)
   )
+}
+
+# The engine's national table is keyed on raw reporting codes, while the carbon
+# support is folded onto the matrix bucket (`.carbon_fold_to_bucket()`), so
+# Sudan's 276 and South Sudan's 277 meet a support that only carries 206. Left
+# unfolded, their whole harvested area finds no cell and Sudan gets no
+# spatialized crops at all -- measured at 2010, 16.6 Tg C of Sudan's cropland
+# carbon then had no cell to land on. Folding the national side with the same
+# lookup keeps the two vocabularies one, and summing within the bucket moves
+# no hectare.
+.sci_areas_to_bucket <- function(country_areas) {
+  lookup <- .cell_polity_bucket_lookup()
+  code <- as.integer(country_areas$area_code)
+  bucket <- lookup$polity_area_code[match(code, lookup$area_code)]
+  country_areas$area_code <- dplyr::coalesce(bucket, code)
+  value_cols <- intersect(
+    c("harvested_area_ha", "irrigated_area_ha"),
+    names(country_areas)
+  )
+  country_areas |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(value_cols), sum),
+      .by = c("year", "area_code", "item_prod_code")
+    )
 }
 
 # The engine's three pinned inputs, read once per build rather than per year.
