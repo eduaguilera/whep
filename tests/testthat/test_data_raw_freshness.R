@@ -18,7 +18,7 @@
 # Coverage is partial by construction, and the partition is asserted below so a
 # new dataset cannot arrive both unchecked and unexcluded:
 #
-#   * checked  -- the 49 datasets written by the seven builders in
+#   * checked  -- the 50 datasets written by the eight builders in
 #     `.offline_data_builders()`, which read only inst/extdata/, data-raw/ and
 #     committed data/*.rda.
 #   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
@@ -56,6 +56,7 @@
   c(
     "balance_coefficients.R",
     "cft_mapping.R",
+    "europe_fao_spain_trade.R",
     "feed_coefficients.R",
     "harmonization_tables.R",
     "nitrogen_refs.R",

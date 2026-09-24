@@ -573,6 +573,7 @@ reference:
   - validate_national_trade_raw
   - plot_national_trade_flows_raw
   - plot_national_trade_validation
+  - europe_fao_spain_trade
 
 - title: Multi-regional input-output model
   desc: >
