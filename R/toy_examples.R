@@ -760,6 +760,31 @@
   )
 }
 
+# LPJmL rainfed and irrigated crop yield fixture: six cells, one year, four
+# items. Yields are harvested carbon per m2 of each regime's own stand
+# (gC/m2/yr); NA where the regime has no stand in the cell. Mirrors
+# read_lpjml_regime_yield() output. Sampled from the real
+# global_1750-2023_spinup_300_our_inputs_lpjml611_preindustrial_v2 run at
+# 2010 (values rounded to two decimals).
+.example_lpjml_regime_yield <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~item_prod_code, ~item_cbs_code, ~lpjml_crop,
+    ~yield_rainfed, ~yield_irrigated, ~method_regime_yield,
+    80.75, 21.75, 2010L, 56L, 2514L, "maize",
+    85.47, 84.82, "lpjml_band_harvest",
+    -93.75, 33.25, 2010L, 15L, 2511L, "temperate cereals",
+    282.72, 400.58, "lpjml_band_harvest",
+    113.25, 35.25, 2010L, 236L, 2555L, "oil crops soybean",
+    11.20, 85.79, "lpjml_band_harvest",
+    106.75, 39.25, 2010L, 27L, 2807L, "rice",
+    70.82, 70.82, "lpjml_band_harvest",
+    -100.25, 36.25, 2010L, 15L, 2511L, "temperate cereals",
+    147.86, NA, "lpjml_band_harvest",
+    69.25, 23.75, 2010L, 15L, 2511L, "temperate cereals",
+    15.49, NA, "lpjml_band_harvest"
+  )
+}
+
 # Grassland + natural soil carbon input fixture: two cells, one year, the two
 # carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
 # (grassland also adds grazing excreta); humified_fraction is the weed value for

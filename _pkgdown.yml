@@ -95,6 +95,7 @@ reference:
   - read_lpjml_litterfall
   - read_lpjml_natural_cover
   - read_lpjml_npp
+  - read_lpjml_regime_yield
   - read_cru_climate
   - build_water_balance
   - build_crop_water_use

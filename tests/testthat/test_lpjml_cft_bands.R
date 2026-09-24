@@ -58,3 +58,18 @@ testthat::test_that("the natural-PFT vocabulary of fpc and pft_npp agree", {
   testthat::expect_identical(fpc$band_name[1], "natural stand fraction")
   testthat::expect_true(all(fpc$band_name[-1] %in% npp$band_name))
 })
+
+testthat::test_that("pft_harvestc carries the cftfrac bands, name for name", {
+  # Transcribed from pft_harvestc.nc.json of the 1750-2023 v2 run: the same
+  # 32 names in the same order as cftfrac. read_lpjml_regime_yield() joins the
+  # two files by band name, so a band present in one and not the other would
+  # leave a crop regime without a yield.
+  b <- .cft_bands()
+  h <- b[b$output == "pft_harvestc", ]
+  cf <- b[b$output == "cftfrac", ]
+  testthat::expect_identical(nrow(h), 32L)
+  testthat::expect_identical(h$band, 1:32)
+  testthat::expect_identical(h$band_name, cf$band_name)
+  testthat::expect_identical(h$regime, cf$regime)
+  testthat::expect_identical(h$crop, cf$crop)
+})
