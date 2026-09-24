@@ -640,3 +640,79 @@ test_that("a logical Note in the landuse pin does not move the meadow read", {
   expect_identical(as_logical, .plu_meadows_with_note(NA_character_))
   expect_equal(as_logical$meadow_ha, 2000)
 })
+
+# whep#1034: the meadow split reads its item and element by code. A pin whose
+# codes have moved matches no rows, and the split is then silently off -- every
+# meadow hectare rides the cropland pattern, while the classes still tile every
+# polycell exactly, because the partition holds whichever pattern the land is
+# put on.
+.plu_landuse_pin <- function(item_code = 6633, element_code = 5110) {
+  tibble::tibble(
+    `Area Code` = 10,
+    `Item Code` = item_code,
+    `Element Code` = element_code,
+    Year = 2000,
+    Value = 0.038
+  )
+}
+
+.plu_run_on_pin <- function(pin) {
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::as.data.table(pin)
+    }
+  )
+  .plu_run(temporary_meadows = NULL)
+}
+
+.plu_run_unguarded <- function(pin) {
+  testthat::with_mocked_bindings(
+    .plu_run_on_pin(pin),
+    .plu_check_landuse_labels = function(landuse, item_code) invisible(NULL)
+  )
+}
+
+.plu_polycell_totals <- function(out) {
+  out |>
+    dplyr::summarise(total = sum(.data$area_ha), .by = "polycell_id") |>
+    dplyr::arrange(.data$polycell_id) |>
+    dplyr::pull(.data$total)
+}
+
+test_that("the landuse pin's meadow codes are read as supplied", {
+  out <- .plu_run_on_pin(.plu_landuse_pin())
+  ax <- out$area_ha[out$land_use == "cropland" & out$polycell_id == "A-X"]
+  expect_equal(ax, 38 * (18 / 38) + 38 * (6 / 26))
+})
+
+test_that("a moved element code in the landuse pin is refused", {
+  pin <- .plu_landuse_pin(element_code = 5111)
+  unguarded <- .plu_run_unguarded(pin)
+  ax <- unguarded$area_ha[
+    unguarded$land_use == "cropland" & unguarded$polycell_id == "A-X"
+  ]
+  # The split is gone -- all 76 ha ride the cropland pattern -- and the
+  # partition cannot tell.
+  expect_equal(ax, 76 * 18 / 38)
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      .plu_polycell_totals(unguarded),
+      c(60, 40, 100)
+    )),
+    guard = .plu_run_on_pin(pin),
+    class = "whep_absent_label"
+  )
+})
+
+test_that("a moved item code in the landuse pin is refused", {
+  pin <- .plu_landuse_pin(item_code = 6632)
+  unguarded <- .plu_run_unguarded(pin)
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      .plu_polycell_totals(unguarded),
+      c(60, 40, 100)
+    )),
+    guard = .plu_run_on_pin(pin),
+    class = "whep_absent_label"
+  )
+})

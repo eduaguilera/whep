@@ -228,6 +228,56 @@ test_that("the example fixture has the seam's shape", {
   expect_equal(fixture$agriland, fixture$Cropland + fixture$Pasture)
 })
 
+# whep#1034: `.land_series_to_wide()` fills a class with no rows with 0, so a
+# series missing a whole class leaves `agriland == Cropland + Pasture` holding
+# exactly.
+.two_cell_land_on <- function(cell_areas) {
+  build_historical_land_areas(
+    years = 1:4,
+    boundary_step = "level_step",
+    data = list(
+      polity_areas = .two_cell_polity_areas(),
+      cover = .two_cell_cover(),
+      cell_areas = cell_areas
+    )
+  )
+}
+
+.two_cell_land_unguarded <- function(cell_areas) {
+  testthat::with_mocked_bindings(
+    .two_cell_land_on(cell_areas),
+    .check_land_classes = function(measured) measured
+  )
+}
+
+test_that("a series with no grassland class is refused", {
+  crop_only <- .two_cell_areas()[land_use == "cropland"]
+  unguarded <- .two_cell_land_unguarded(crop_only)
+  expect_equal(unguarded$Pasture, rep(0, 4))
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      unguarded$agriland,
+      unguarded$Cropland + unguarded$Pasture
+    )),
+    guard = .two_cell_land_on(crop_only),
+    class = "whep_absent_label"
+  )
+})
+
+test_that("a series with no cropland class is refused", {
+  grass_only <- .two_cell_areas()[land_use == "grassland"]
+  unguarded <- .two_cell_land_unguarded(grass_only)
+  expect_equal(unguarded$Cropland, rep(0, 4))
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      unguarded$agriland,
+      unguarded$Cropland + unguarded$Pasture
+    )),
+    guard = .two_cell_land_on(grass_only),
+    class = "whep_absent_label"
+  )
+})
+
 test_that("an unknown boundary rule aborts", {
   expect_error(
     build_historical_land_areas(years = 1:2, boundary_step = "nonsense"),

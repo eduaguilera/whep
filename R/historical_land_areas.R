@@ -131,8 +131,29 @@ build_historical_land_areas <- function(
     \(yr) .measure_land_year(yr, polity_areas, cover, data$cell_areas)
   ) |>
     data.table::rbindlist(use.names = TRUE) |>
+    .check_land_classes() |>
     .chain_link_land(boundary_step) |>
     .label_land_polities(polity_areas)
+}
+
+# Both classes must reach `.land_series_to_wide()`, because a class with no
+# rows at all is filled with 0 there by `ensure_columns()` (whep#1034): the
+# back-cast then reads a Cropland or Pasture series of zeros, and
+# `agriland == Cropland + Pasture` still holds exactly while one half of it is
+# missing. On the reader path both labels come from `.luh2_map_classes()`,
+# which keeps zero-fraction rows, so a real series always carries both; an
+# injected `cell_areas`, or a change to that lookup, is what can drop one.
+.check_land_classes <- function(measured) {
+  check_labels_supplied(
+    measured,
+    "land_use",
+    c("cropland", "grassland"),
+    details = c(
+      i = "{.fn build_historical_land_areas} measures the {.val cropland} and
+           {.val grassland} classes of {.fn read_luh2_landuse}; check the
+           labels of any injected {.code data$cell_areas}."
+    )
+  )
 }
 
 # Name the territory each row was measured on. Keyed on (year, area_code), so
