@@ -17,6 +17,12 @@ is unbounded on that side; both missing means the alias is not year-scoped.
 \item \code{confidence}: Curator's confidence in the alias.
 \item \code{observed_rows}: Source rows actually observed for the label, \code{NA} when the
 label is merely mappable.
+\item \code{disposition}: \code{NA} when the source observed the territory, \code{"back_cast"}
+when the years are a reconstruction onto a boundary that did not exist yet.
+A \code{"back_cast"} alias may begin before its target polity does, by design:
+the polity's own span still starts when the territory did.
+\code{\link[=resolve_polity_label]{resolve_polity_label()}} drops these rules when asked \code{back_cast = FALSE}.
+All \code{NA} in a snapshot taken before whep-polities introduced the column.
 }
 }
 \source{

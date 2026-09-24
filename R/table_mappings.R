@@ -306,5 +306,41 @@
 #' - `confidence`: Curator's confidence in the alias.
 #' - `observed_rows`: Source rows actually observed for the label, `NA` when the
 #'   label is merely mappable.
+#' - `disposition`: `NA` when the source observed the territory, `"back_cast"`
+#'   when the years are a reconstruction onto a boundary that did not exist yet.
+#'   A `"back_cast"` alias may begin before its target polity does, by design:
+#'   the polity's own span still starts when the territory did.
+#'   [resolve_polity_label()] drops these rules when asked `back_cast = FALSE`.
+#'   All `NA` in a snapshot taken before whep-polities introduced the column.
 #' @source `~/whep-polities/data/final/label_alias_map.csv`.
 "polity_label_aliases"
+
+#' Source label corrections scoped to one item
+#'
+#' Rows a source files under ANOTHER territory's label for one item, published
+#' by `whep-polities`. An alias maps a label to a polity with no item
+#' dimension, so it cannot say that Mitchell's pre-1910 `"south africa"` sugar
+#' cane is Natal's while the other items under that label are the Cape's. Each
+#' rule replaces the label before resolution; [resolve_polity_label()] applies
+#' them when it is given `item`.
+#'
+#' A row matches a rule when `source`, `source_label` (normalised as the alias
+#' map's labels are) and `item` all match and the row's year lies in
+#' `[year_start, year_end]`. Rows without a year are never corrected, and rules
+#' do not chain.
+#'
+#' @format
+#' A tibble with one row per rule. It has zero rows when the shipped snapshot
+#' was taken from a `whep-polities` revision that published no rules. Columns:
+#' - `source`: Source slug the rule applies to.
+#' - `source_label`: The label the source files the rows under.
+#' - `item`: The item, exactly as the source writes it.
+#' - `year_start`, `year_end`: Inclusive year range.
+#' - `correct_label`: The label to resolve instead.
+#' - `polity_code`: Where `correct_label` resolves in the same upstream
+#'   revision.
+#' - `observed_rows`: Source rows the rule relabels upstream.
+#' - `issue`: The `whep-polities` issue that decided the rule.
+#' - `evidence`: Why the rows belong to the other territory.
+#' @source `~/whep-polities/data/final/source_label_item_corrections.csv`.
+"polity_label_item_corrections"

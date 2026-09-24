@@ -142,9 +142,31 @@ polity_label_aliases <- readr::read_csv(
     # label is merely mappable. Declared explicitly because this col_types list
     # is exhaustive by intent -- an upstream column that is not named here is a
     # column this script cannot see.
-    observed_rows = readr::col_double()
+    observed_rows = readr::col_double(),
+    # whep-polities #667: '' when the source observed the territory,
+    # 'back_cast' when its years are a reconstruction onto a boundary that did
+    # not exist yet -- such an alias may begin before its target polity does, by
+    # design. A map published before that revision has no such column; readr
+    # then warns about the missing column and fills nothing, so it is added
+    # below as all-observed rather than left absent.
+    disposition = readr::col_character()
   )
 )
+if (!"disposition" %in% names(polity_label_aliases)) {
+  polity_label_aliases$disposition <- NA_character_
+}
+unknown_dispositions <- setdiff(
+  stats::na.omit(polity_label_aliases$disposition),
+  "back_cast"
+)
+if (length(unknown_dispositions) > 0L) {
+  cli::cli_abort(c(
+    "The published label alias map carries a disposition this package does not
+     know.",
+    x = "Unknown: {.val {unknown_dispositions}}.",
+    i = "Teach {.fn resolve_polity_label} what it means before shipping it."
+  ))
+}
 
 # Every published alias must name a polity the upstream database carries.
 # Upstream gates the same invariant, so a failure here means the alias map and
@@ -159,6 +181,62 @@ if (length(unknown_alias_targets) > 0L) {
   cli::cli_abort(c(
     "The published label alias map targets polities this package cannot carry.",
     x = "Unknown: {.val {utils::head(unknown_alias_targets, 5)}}.",
+    i = "Rebuild from the same whep-polities revision that produced the map."
+  ))
+}
+
+# Rows a source files under another territory's label for one item
+# (whep-polities #677, `label_item_corrections` in the manifest). Applied by
+# `resolve_polity_label()` before any route when the caller passes `item`.
+# Taken from the SAME upstream revision as the alias map, because a rule's
+# `correct_label` is resolved through that map and `polity_code` records where
+# it lands there. A revision older than #677 publishes no table; point
+# WHEP_POLITIES_LABEL_ITEM_CORRECTIONS at a header-only copy to build from one,
+# which says in the data that the revision had no rules, rather than letting a
+# missing file pass silently.
+whep_label_item_corrections <- Sys.getenv(
+  "WHEP_POLITIES_LABEL_ITEM_CORRECTIONS",
+  unset = path.expand(
+    "~/whep-polities/data/final/source_label_item_corrections.csv"
+  )
+)
+if (!file.exists(whep_label_item_corrections)) {
+  cli::cli_abort(c(
+    "The published label-item corrections table is missing.",
+    x = "Looked for {.path {whep_label_item_corrections}}.",
+    i = paste(
+      "It is published by whep-polities as",
+      "{.path data/final/source_label_item_corrections.csv}; point",
+      "{.envvar WHEP_POLITIES_LABEL_ITEM_CORRECTIONS} at it."
+    )
+  ))
+}
+polity_label_item_corrections <- readr::read_csv(
+  whep_label_item_corrections,
+  show_col_types = FALSE,
+  na = excel_na,
+  # Exhaustive by intent, like the alias map's list above.
+  col_types = readr::cols(
+    source = readr::col_character(),
+    source_label = readr::col_character(),
+    item = readr::col_character(),
+    year_start = readr::col_integer(),
+    year_end = readr::col_integer(),
+    correct_label = readr::col_character(),
+    polity_code = readr::col_character(),
+    observed_rows = readr::col_double(),
+    issue = readr::col_character(),
+    evidence = readr::col_character()
+  )
+)
+unknown_correction_targets <- setdiff(
+  polity_label_item_corrections$polity_code,
+  polities$polity_code
+)
+if (length(unknown_correction_targets) > 0L) {
+  cli::cli_abort(c(
+    "The label-item corrections target polities this package cannot carry.",
+    x = "Unknown: {.val {utils::head(unknown_correction_targets, 5)}}.",
     i = "Rebuild from the same whep-polities revision that produced the map."
   ))
 }
@@ -1055,3 +1133,4 @@ usethis::use_data(items_prod, overwrite = TRUE)
 usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)
 usethis::use_data(polity_label_aliases, overwrite = TRUE)
+usethis::use_data(polity_label_item_corrections, overwrite = TRUE)

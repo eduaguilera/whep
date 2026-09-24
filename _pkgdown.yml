@@ -399,6 +399,7 @@ reference:
   - polities
   - polity_area_crosswalk
   - polity_label_aliases
+  - polity_label_item_corrections
   - polities_cats
   - regions_full
   - add_polity_code

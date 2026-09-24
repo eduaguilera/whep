@@ -4,7 +4,14 @@
 \alias{resolve_polity_label}
 \title{Resolve a source's country label to a polity}
 \usage{
-resolve_polity_label(label, source = NULL, year = NULL)
+resolve_polity_label(
+  label,
+  source = NULL,
+  year = NULL,
+  item = NULL,
+  country = NULL,
+  back_cast = TRUE
+)
 }
 \arguments{
 \item{label}{Character vector of source labels.}
@@ -22,6 +29,17 @@ and ISO3 routes can still answer without a year, but only for an identifier
 exactly one polity has ever carried, so supplying a year remains much the
 stronger question: it is what lets a label resolve to the right \emph{period}
 rather than to nothing.}
+
+\item{item}{Optional item names as the source writes them. Length 1, or the
+same length as \code{label}. Only used to apply
+\link{polity_label_item_corrections}, which needs \code{source} and \code{year} too.}
+
+\item{country}{Optional ISO3 code of the country each label belongs to.
+Length 1, or the same length as \code{label}. Restricts the name and ISO3
+routes to that country's polities.}
+
+\item{back_cast}{Logical. \code{TRUE} (the default) keeps aliases upstream marks
+as reconstructions (\code{disposition == "back_cast"}); \code{FALSE} drops them.}
 }
 \value{
 A character vector of polity codes, \code{NA} where nothing matched.
@@ -94,6 +112,44 @@ and that is an invariant rather than a happy accident: \link{polity_label_aliase
 and \link{polities} are regenerated together from a single upstream revision, and
 \code{data-raw/table_mappings.R} aborts the build if any alias names a polity the
 shipped table does not carry. A dangling resolution therefore cannot ship.
+
+Three more inputs follow contracts \code{whep-polities} publishes beside the
+alias map:
+\itemize{
+\item \strong{\code{item}: rows a source files under another territory's label for one
+item.} An alias has no item dimension, so it cannot say that Mitchell's
+pre-1910 \code{"south africa"} sugar cane is Natal's while every other
+\code{"south africa"} item of those years is the Cape's.
+\link{polity_label_item_corrections} states those cases. When \code{source}, the
+label, \code{item} and a year inside the rule's inclusive range all match, the
+label is replaced by the rule's \code{correct_label} BEFORE any route below
+runs, so the usual alias and year rules then place it. Rules do not chain:
+each is tested against the label the caller passed. A row without a year
+is never corrected, as upstream specifies for period-average rows.
+\item \strong{\code{country}: the reporting country, as an ISO3 code.} The name route
+compares normalised names, and normalisation drops parenthesised
+qualifiers, so a bare subnational name meets another country's unit:
+\code{"Santa Cruz (department of Bolivia)"} normalises to \code{"santa cruz"}, and so
+does Argentina's province. Given \code{country}, the name and ISO3 routes only
+consider polities whose \code{iso3_code} (its code prefix where that is
+missing) is that country. Without it, a name that live polities of two or
+more countries carry at the same time -- counting a subnational
+polity's parenthesised qualifier as a name, so
+Mexico's \code{"Ciudad de México (Distrito Federal)"} shares
+\code{"distrito federal"} with Brazil's -- is refused with a warning of class
+\code{whep_warn_ambiguous_polity_name} rather than guessed. The refusal holds in
+every year, not only in years two such polities overlap, because a source
+can report a unit before its own polity begins: the subnational panel
+reports Argentina's Santa Cruz from 1900, and with no Argentine polity
+until 1955 the year alone sent it to Bolivia. The alias route is not
+restricted: an alias names its polity explicitly.
+\item \strong{\code{back_cast}: whether to accept reconstructions.} An alias whose
+\code{disposition} is \code{"back_cast"} routes years a source reconstructs onto a
+boundary that did not exist yet to the modern polity, which may begin
+after those years by design (\code{BRA-TOCANTINS-1988-2025} receives the
+panel's 1900-1987 Tocantins series). \code{back_cast = FALSE} drops those
+aliases, for a caller that wants observation only.
+}
 }
 \examples{
 resolve_polity_label("ZAR", source = "mueller-synthetic-n", year = 2000)

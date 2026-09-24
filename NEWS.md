@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`resolve_polity_label()` no longer resolves a bare subnational name to
+  another country's unit, and reads the contracts whep-polities added in its
+  #667 and #677.** The name route compares normalised names, and normalisation
+  drops parenthesised qualifiers, so "Santa Cruz" met "Santa Cruz (department
+  of Bolivia)" in years Argentina's province had no polity yet. whep-polities
+  #680 counted 8,928 panel rows sent to Bolivia that way, 5,526 Colombian
+  "Amazonas" rows sent to Brazil and 868 Mexican "Distrito Federal" rows sent
+  to Brazil. A new `country` argument (ISO3) now restricts the name and ISO3
+  routes to that country. Without it, a name that coexisting polities of two
+  countries carry is refused with a `whep_warn_ambiguous_polity_name` warning.
+  `item` applies the new `polity_label_item_corrections` table before any
+  route, and `back_cast = FALSE` drops the aliases whose new `disposition`
+  column marks them as reconstructions. The shipped snapshot is still
+  whep-polities e10c7421, which predates all three, so no shipped resolution
+  moves. `polity_label_item_corrections` ships with zero rows and
+  `disposition` is all `NA` until the next re-sync.
+
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it
   consumed (#1010, regression of #885).** `water` and `ice` are optional
