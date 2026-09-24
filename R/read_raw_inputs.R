@@ -629,7 +629,11 @@
   dt
 }
 
-.extract_fao <- function(pin_alias, years = NULL) {
+# `keep_elements` retains raw FAOSTAT elements the lookup leaves unmapped,
+# under their FAOSTAT label. Its only use is the silk chain's "Processed"
+# (whep#1251), which `.cbs_silk_mass_basis()` consumes and then removes; by
+# default nothing unmapped comes out (whep#811).
+.extract_fao <- function(pin_alias, years = NULL, keep_elements = character()) {
   cb_elements <- c(
     "production",
     "import",
@@ -640,7 +644,8 @@
     "feed",
     "seed",
     "processing",
-    "other_uses"
+    "other_uses",
+    keep_elements
   )
 
   # `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]

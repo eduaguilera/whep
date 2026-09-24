@@ -262,6 +262,7 @@ build_commodity_balances <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  silk_basis = .silk_basis_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -272,6 +273,7 @@ build_commodity_balances <- function(
   hist_trade_scale <- rlang::arg_match(hist_trade_scale)
   export_share_overflow <- rlang::arg_match(export_share_overflow)
   seed_backcast <- rlang::arg_match(seed_backcast)
+  silk_basis <- rlang::arg_match(silk_basis)
   if (example) {
     return(
       if (format == "wide") {
@@ -296,7 +298,8 @@ build_commodity_balances <- function(
       share_overflow = share_overflow,
       negative_supply = negative_supply,
       hist_trade_scale = hist_trade_scale,
-      seed_backcast = seed_backcast
+      seed_backcast = seed_backcast,
+      silk_basis = silk_basis
     ) |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -346,6 +349,11 @@ build_commodity_balances <- function(
     if (seed_backcast != "area_rate") {
       cli::cli_warn(
         "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (silk_basis != "cocoon") {
+      cli::cli_warn(
+        "{.arg silk_basis} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -569,7 +577,8 @@ build_commodity_balances <- function(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
-  seed_backcast = .cbs_seed_backcast_choices()
+  seed_backcast = .cbs_seed_backcast_choices(),
+  silk_basis = .silk_basis_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -588,7 +597,8 @@ build_commodity_balances <- function(
   inputs <- .cbs_read_inputs(
     primary_all,
     years,
-    hist_trade_scale = hist_trade_scale
+    hist_trade_scale = hist_trade_scale,
+    silk_basis = silk_basis
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -990,12 +1000,14 @@ build_processing_coefs <- function(
 .cbs_read_inputs <- function(
   primary_all,
   years,
-  hist_trade_scale = .hist_trade_scale_choices()
+  hist_trade_scale = .hist_trade_scale_choices(),
+  silk_basis = .silk_basis_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
     .hist_trade_scale_choices()
   )
+  silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -1009,13 +1021,18 @@ build_processing_coefs <- function(
     cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
     cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
   }
+  # "Processed" is read only for the silk chain and removed again by
+  # `.cbs_silk_mass_basis()`, whatever the method (whep#1251).
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
-    years = years
-  )
+    years = years,
+    keep_elements = "Processed"
+  ) |>
+    .cbs_silk_mass_basis(silk_basis)
 
   # Trade
-  fao_trade <- .read_fao_trade(years = years)
+  fao_trade <- .read_fao_trade(years = years) |>
+    .trade_silk_mass_basis(silk_basis)
   fishstat_trade <- .read_fishstat_trade(years = years)
   # The screen bounds a pre-1961 reporter flow by the largest world flow
   # FAOSTAT records for the same item, so it reads its reference from the
