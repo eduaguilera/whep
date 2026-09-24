@@ -785,6 +785,47 @@
   )
 }
 
+# SPAM2010 v2.0 harvested area, production and yield fixture: six pixels
+# (Russia, Afghanistan, USA, India, Mali, Gambia), one crop each, both
+# technologies (12 rows). Mirrors read_spam_yields() output. Sampled from
+# the real spam2010v2r0_global_{harv_area,prod,yield}.csv.zip download
+# (doi:10.7910/DVN/PRFF8V), values as published. Two pairs are legitimately
+# all-zero on one technology (USA on both; Russia and Afghanistan on
+# rainfed only) -- SPAM's overwhelmingly common case, not a parsing gap.
+.example_spam_yields <- function() {
+  tibble::tribble(
+    ~cell5m, ~lon, ~lat, ~iso3, ~name_cntr, ~name_adm1, ~name_adm2,
+    ~alloc_key, ~spam_crop, ~technology, ~harvested_area_ha, ~production_t,
+    ~yield_kg_ha, ~vintage, ~method_spam_source,
+    1652909L, 42.458333, 58.125000, "RUS", "Russian Federation",
+    "Kostromskaya Oblast", "Administrative unit not availa", 3832670L,
+    "ocer", "I", 10.3, 18.3, 1772.7, "2010", "cache",
+    1652909L, 42.458333, 58.125000, "RUS", "Russian Federation",
+    "Kostromskaya Oblast", "Administrative unit not availa", 3832670L,
+    "ocer", "R", 0, 0, 0, "2010", "cache",
+    2737530L, 67.541667, 37.208333, "AFG", "Afghanistan", "Balkh",
+    "Kaldar", 6342971L, "vege", "I", 35.4, 318.9, 9006.9, "2010", "cache",
+    2737530L, 67.541667, 37.208333, "AFG", "Afghanistan", "Balkh",
+    "Kaldar", 6342971L, "vege", "R", 0, 0, 0, "2010", "cache",
+    2968820L, -98.291667, 32.708333, "USA", "United States Of America",
+    "Texas", "Palo Pinto", 6880981L, "ocer", "I", 0, 0, 0, "2010", "cache",
+    2968820L, -98.291667, 32.708333, "USA", "United States Of America",
+    "Texas", "Palo Pinto", 6880981L, "ocer", "R", 0, 0, 0, "2010", "cache",
+    3342453L, 77.791667, 25.541667, "IND", "India", "Madhya Pradesh",
+    "Shivpuri", 7743094L, "opul", "I", 15.8, 9.3, 590.6, "2010", "cache",
+    3342453L, 77.791667, 25.541667, "IND", "India", "Madhya Pradesh",
+    "Shivpuri", 7743094L, "opul", "R", 15.0, 7.8, 520.0, "2010", "cache",
+    3851276L, -0.291667, 15.708333, "MLI", "Mali", "Gao", "Gao", 8922157L,
+    "rice", "I", 0, 0, 0, "2010", "cache",
+    3851276L, -0.291667, 15.708333, "MLI", "Mali", "Gao", "Gao", 8922157L,
+    "rice", "R", 25.5, 27.4, 1074.5, "2010", "cache",
+    3967747L, -14.375000, 13.458333, "GMB", "Gambia", "Upper River",
+    "Sandu", 9191988L, "sorg", "I", 0, 0, 0, "2010", "cache",
+    3967747L, -14.375000, 13.458333, "GMB", "Gambia", "Upper River",
+    "Sandu", 9191988L, "sorg", "R", 614.2, 604.1, 983.6, "2010", "cache"
+  )
+}
+
 # Grassland + natural soil carbon input fixture: two cells, one year, the two
 # carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
 # (grassland also adds grazing excreta); humified_fraction is the weed value for

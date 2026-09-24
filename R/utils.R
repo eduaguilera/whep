@@ -2264,6 +2264,11 @@ utils::globalVariables(
     # recovery rate the table gives as zero from a zero standing in for a
     # lookup that found nothing
     "residue_recovery_matched",
+    # spam_yields.R (issue #1233, T12d) -- the data.table `:=` targets when
+    # pivoting a SPAM member's wide crop columns to long (spam_crop) and
+    # stamping the technology it was read for
+    "spam_crop",
+    "technology",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
