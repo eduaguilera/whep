@@ -108,6 +108,65 @@ testthat::test_that("non-crop and catch-all bands never become a crop", {
   )
 })
 
+testthat::test_that("the others stand is kept only on request", {
+  data <- .lrg_inputs(
+    harvest = c(
+      "rainfed others" = 60,
+      "irrigated others" = 120,
+      "rainfed grassland" = 40
+    ),
+    frac = c(
+      "rainfed others" = 0.2,
+      "irrigated others" = 0.1,
+      "rainfed grassland" = 0.5
+    )
+  )
+  out <- whep:::.lrg_crop_yield(data = data, include_others = TRUE)
+  # Grassland stays out: only the catch-all crop stand is added.
+  testthat::expect_identical(out$lpjml_crop, "others")
+  testthat::expect_identical(out$yield_rainfed, 60)
+  testthat::expect_identical(out$yield_irrigated, 120)
+  testthat::expect_identical(out$stand_frac_rainfed, 0.2)
+  testthat::expect_identical(out$stand_frac_irrigated, 0.1)
+  testthat::expect_identical(
+    names(out),
+    names(whep:::.lrg_crop_prototype())
+  )
+})
+
+testthat::test_that("an absent stand has no stand fraction either", {
+  data <- .lrg_inputs(
+    harvest = c("rainfed maize" = 90),
+    frac = c("rainfed maize" = 0.4)
+  )
+  out <- whep:::.lrg_crop_yield(data = data)
+  testthat::expect_identical(out$stand_frac_rainfed, 0.4)
+  testthat::expect_true(is.na(out$stand_frac_irrigated))
+})
+
+testthat::test_that("include_others expands others to its cft_mapping items", {
+  data <- .lrg_inputs(
+    harvest = c("rainfed others" = 60, "rainfed maize" = 90),
+    frac = c("rainfed others" = 0.2, "rainfed maize" = 0.3)
+  )
+  with_others <- whep::read_lpjml_regime_yield(
+    data = data,
+    include_others = TRUE
+  )
+  without <- whep::read_lpjml_regime_yield(data = data)
+  others_items <- as.integer(
+    whep::cft_mapping$item_prod_code[whep::cft_mapping$cft_lpjml == "others"]
+  )
+  testthat::expect_setequal(
+    with_others$item_prod_code[with_others$lpjml_crop == "others"],
+    others_items
+  )
+  testthat::expect_false("others" %in% without$lpjml_crop)
+  # The default output keeps its documented columns.
+  testthat::expect_identical(names(with_others), names(without))
+  testthat::expect_false("stand_frac_rainfed" %in% names(without))
+})
+
 testthat::test_that("each LPJmL crop expands to its production items", {
   testthat::skip_if_not_installed("pointblank")
   data <- .lrg_inputs(

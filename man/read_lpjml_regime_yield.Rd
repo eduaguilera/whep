@@ -15,6 +15,7 @@ read_lpjml_regime_yield(
   years = NULL,
   run_dir = NULL,
   data = NULL,
+  include_others = FALSE,
   example = FALSE
 )
 }
@@ -32,6 +33,10 @@ neither the reader aborts rather than reading anything else.}
 \code{harvestc} (as \code{\link[=read_lpjml_npp]{read_lpjml_npp()}} returns it for \code{"harvestc"}) and
 \code{stand_frac} (as \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} returns it for
 \code{"stand_frac"}).}
+
+\item{include_others}{If \code{TRUE}, also return LPJmL's \code{"others"} catch-all
+stand, expanded to the items \link{cft_mapping} puts on it. Defaults to
+\code{FALSE}, the crop-specific stands only.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a
 run. Defaults to \code{FALSE}.}
@@ -75,9 +80,15 @@ sunflower and rapeseed oil crops) get rows: 40 items. The other 113 mapped
 items sit on LPJmL's \code{"others"} catch-all stand (fruits, vegetables, nuts,
 fibres, stimulants, oil palm, cotton...), whose yield is that of a
 composite rather than of the crop, and items absent from \link{cft_mapping}
-(fodder crops among them) have no band at all. Neither gets a row, so a
-join against this layer leaves them without a yield, and the caller has to
-decide what to use instead.
+(fodder crops among them) have no band at all. By default neither gets a
+row, so a join against this layer leaves them without a yield, and the
+caller has to decide what to use instead.
+
+\code{include_others = TRUE} adds the \code{"others"} stand as a crop of its own,
+expanded to the items \link{cft_mapping} puts on it. Its yield is the composite
+stand's, not the item's. Plan decision D15 uses it as the year-to-year
+anomaly source for crops without a crop-specific CFT, where only the ratio
+of the two regimes' yields matters; see \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}.
 
 The natural key is \code{item_prod_code}: each production item maps to one
 CFT, while four \code{item_cbs_code}s mix CFTs across their production items

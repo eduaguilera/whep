@@ -70,9 +70,15 @@
 #' items sit on LPJmL's `"others"` catch-all stand (fruits, vegetables, nuts,
 #' fibres, stimulants, oil palm, cotton...), whose yield is that of a
 #' composite rather than of the crop, and items absent from [cft_mapping]
-#' (fodder crops among them) have no band at all. Neither gets a row, so a
-#' join against this layer leaves them without a yield, and the caller has to
-#' decide what to use instead.
+#' (fodder crops among them) have no band at all. By default neither gets a
+#' row, so a join against this layer leaves them without a yield, and the
+#' caller has to decide what to use instead.
+#'
+#' `include_others = TRUE` adds the `"others"` stand as a crop of its own,
+#' expanded to the items [cft_mapping] puts on it. Its yield is the composite
+#' stand's, not the item's. Plan decision D15 uses it as the year-to-year
+#' anomaly source for crops without a crop-specific CFT, where only the ratio
+#' of the two regimes' yields matters; see [build_regime_yield_ratio()].
 #'
 #' The natural key is `item_prod_code`: each production item maps to one
 #' CFT, while four `item_cbs_code`s mix CFTs across their production items
@@ -110,6 +116,9 @@
 #'   `harvestc` (as [read_lpjml_npp()] returns it for `"harvestc"`) and
 #'   `stand_frac` (as [read_lpjml_hydrology()] returns it for
 #'   `"stand_frac"`).
+#' @param include_others If `TRUE`, also return LPJmL's `"others"` catch-all
+#'   stand, expanded to the items [cft_mapping] puts on it. Defaults to
+#'   `FALSE`, the crop-specific stands only.
 #' @param example If `TRUE`, return a small fixture instead of reading a
 #'   run. Defaults to `FALSE`.
 #' @return A tibble with one row per cell, production item and year:
@@ -135,24 +144,33 @@ read_lpjml_regime_yield <- function(
   years = NULL,
   run_dir = NULL,
   data = NULL,
+  include_others = FALSE,
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_lpjml_regime_yield())
   }
-  .lrg_crop_yield(years, run_dir, data) |>
-    .lrg_expand_items()
+  .lrg_crop_yield(years, run_dir, data, include_others) |>
+    .lrg_expand_items(include_others)
 }
 
 # -- Private helpers ----------------------------------------------------------
 
-# Per cell, LPJmL crop and year: the rainfed and irrigated per-stand yields.
-# This CFT grain is the compact form of the layer (twelve crops rather than
-# forty items); the item expansion is a pure join on package data, so a
-# pinned copy of this layer should hold this grain and expand on read.
-.lrg_crop_yield <- function(years = NULL, run_dir = NULL, data = NULL) {
+# Per cell, LPJmL crop and year: the rainfed and irrigated per-stand yields,
+# and the two stands' fractions of the cell (`stand_frac_*`, which weight the
+# yields when they are aggregated over cells; `NA` where a stand is absent).
+# This CFT grain is the compact form of the layer (twelve crops, or thirteen
+# with "others", rather than forty items); the item expansion is a pure join
+# on package data, so a pinned copy of this layer should hold this grain and
+# expand on read.
+.lrg_crop_yield <- function(
+  years = NULL,
+  run_dir = NULL,
+  data = NULL,
+  include_others = FALSE
+) {
   if (!is.null(data)) {
-    out <- .lrg_band_yield(data$harvestc, data$stand_frac)
+    out <- .lrg_band_yield(data$harvestc, data$stand_frac, include_others)
     return(.filter_years_if_present(out, years))
   }
   run_dir <- .lrg_resolve_run_dir(run_dir)
@@ -160,26 +178,26 @@ read_lpjml_regime_yield <- function(
   # One year at a time: a year of cftfrac is 6.4 million band-cells, and the
   # whole 274-year record at once would not fit in memory.
   purrr::map(as.integer(years), function(year) {
-    .lrg_read_year(run_dir, year)
+    .lrg_read_year(run_dir, year, include_others)
   }) |>
     dplyr::bind_rows()
 }
 
-.lrg_read_year <- function(run_dir, year) {
+.lrg_read_year <- function(run_dir, year, include_others = FALSE) {
   harvestc <- read_lpjml_npp("harvestc", years = year, run_dir = run_dir)
   stand_frac <- read_lpjml_hydrology(
     "stand_frac",
     run_dir = run_dir,
     years = year
   )
-  .lrg_band_yield(harvestc, stand_frac)
+  .lrg_band_yield(harvestc, stand_frac, include_others)
 }
 
 # Join the per-stand harvest onto the stand fractions by band NAME (never by
 # band position), keep the stands that have area, and spread the two regimes
 # of each crop side by side.
-.lrg_band_yield <- function(harvestc, stand_frac) {
-  bands <- .lrg_crop_bands()
+.lrg_band_yield <- function(harvestc, stand_frac, include_others = FALSE) {
+  bands <- .lrg_crop_bands(include_others)
   .lrg_check_bands(harvestc$name_pft, stand_frac$band_name, bands)
   harvest <- harvestc |>
     dplyr::filter(.data$name_pft %in% bands$band_name) |>
@@ -191,7 +209,7 @@ read_lpjml_regime_yield <- function(
       is.finite(.data$value),
       .data$value > 0
     ) |>
-    dplyr::select("lon", "lat", "year", "band_name") |>
+    dplyr::select("lon", "lat", "year", "band_name", stand_frac = "value") |>
     dplyr::left_join(harvest, by = c("lon", "lat", "year", "band_name"))
   .lrg_check_harvest_present(stands)
   stands |>
@@ -203,11 +221,19 @@ read_lpjml_regime_yield <- function(
 # A regime with no stand in the cell has no row going in and comes out NA.
 .lrg_spread_regimes <- function(stands) {
   stands |>
-    dplyr::select("lon", "lat", "year", "lpjml_crop", "regime", "harvest") |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      "lpjml_crop",
+      "regime",
+      yield = "harvest",
+      "stand_frac"
+    ) |>
     tidyr::pivot_wider(
       names_from = "regime",
-      values_from = "harvest",
-      names_prefix = "yield_"
+      values_from = c("yield", "stand_frac"),
+      names_glue = "{.value}_{regime}"
     ) |>
     dplyr::mutate(method_regime_yield = .lrg_method(.data$year)) |>
     ensure_columns(.lrg_crop_prototype(), extra = "drop")
@@ -221,15 +247,17 @@ read_lpjml_regime_yield <- function(
     lpjml_crop = character(),
     yield_rainfed = double(),
     yield_irrigated = double(),
+    stand_frac_rainfed = double(),
+    stand_frac_irrigated = double(),
     method_regime_yield = character()
   )
 }
 
 # Attach every production item that maps to each LPJmL crop.
-.lrg_expand_items <- function(crop_yield) {
+.lrg_expand_items <- function(crop_yield, include_others = FALSE) {
   crop_yield |>
     dplyr::inner_join(
-      .lrg_item_bands(),
+      .lrg_item_bands(include_others),
       by = "lpjml_crop",
       relationship = "many-to-many"
     ) |>
@@ -249,14 +277,19 @@ read_lpjml_regime_yield <- function(
 # The rainfed and irrigated band of each crop-specific LPJmL CFT, read from
 # the band vocabulary in inst/extdata/lpjml_cft_bands.csv. Grassland and the
 # two bioenergy stands are not crops, and "others" is LPJmL's catch-all stand,
-# whose yield is that of a composite rather than of any one item.
-.lrg_crop_bands <- function() {
+# whose yield is that of a composite rather than of any one item; it is kept
+# only on request (`include_others`), for the regime anomaly of D15.
+.lrg_crop_bands <- function(include_others = FALSE) {
   path <- system.file("extdata", "lpjml_cft_bands.csv", package = "whep")
+  excluded <- .lrg_non_crop_bands()
+  if (isTRUE(include_others)) {
+    excluded <- setdiff(excluded, "others")
+  }
   utils::read.csv(path, stringsAsFactors = FALSE) |>
     tibble::as_tibble() |>
     dplyr::filter(
       .data$output == "pft_harvestc",
-      !.data$crop %in% .lrg_non_crop_bands()
+      !.data$crop %in% excluded
     ) |>
     dplyr::transmute(
       band_name = .data$band_name,
@@ -272,8 +305,8 @@ read_lpjml_regime_yield <- function(
 # Production items -> LPJmL crop, via cft_mapping's `cft_lpjml` (underscored,
 # "temperate_cereals") against the band vocabulary's crop ("temperate
 # cereals"), plus each item's commodity balance code.
-.lrg_item_bands <- function() {
-  crops <- unique(.lrg_crop_bands()$lpjml_crop)
+.lrg_item_bands <- function(include_others = FALSE) {
+  crops <- unique(.lrg_crop_bands(include_others)$lpjml_crop)
   cbs <- whep::items_prod_full |>
     dplyr::transmute(
       item_prod_code = .as_integer_quiet(.data$item_prod_code),
