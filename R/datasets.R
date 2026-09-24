@@ -500,6 +500,56 @@
 #' head(cft_mapping)
 "cft_mapping"
 
+#' Crop sources for the irrigated:rainfed regime yield ratio
+#'
+#' @description
+#' Gives every primary crop production item the two sources of its
+#' irrigated:rainfed yield ratio: the SPAM2010 crop whose irrigated and
+#' all-rainfed yields set the ratio's level (read with [read_spam_yields()]),
+#' and the LPJmL crop functional type whose band yields supply its year-to-year
+#' anomaly (read with [read_lpjml_regime_yield()]). Items that neither source
+#' classifies get a stand-in, so every item has both sources; each `*_basis`
+#' column says how close the stand-in is, and `rationale` says why it was
+#' chosen.
+#'
+#' The items are every row of [cft_mapping] and every `"Primary crops"` item
+#' of [items_prod_full] except fallow, which together hold every item that
+#' carries harvested area in [build_primary_production()] or in the gridded
+#' land use.
+#'
+#' @format
+#' A tibble with one row per production item. Columns:
+#' - `item_prod_code`: Integer FAOSTAT item code, the join key.
+#' - `item_prod_name`: Human-readable item name, for reading only.
+#' - `spam_crop`: SPAM2010 v2.0 crop code (one of its 42, e.g. `"whea"`).
+#'   Millet and coffee read `"pmil+smil"` and `"acof+rcof"`: SPAM splits
+#'   each FAO item in two by national shares, so both codes are pooled
+#'   (area and production summed per regime) to recover the item.
+#' - `spam_basis`: How the SPAM crop relates to the item:
+#'   `"direct"` (it is the item), `"direct_aggregate"` (SPAM itself lists the
+#'   item in that multi-crop aggregate), `"group_proxy"` (SPAM does not list
+#'   the item; the aggregate of its crop group stands in) or `"proxy"` (a
+#'   different crop stands in, e.g. grain maize for forage maize).
+#' - `lpjml_cft`: LPJmL crop functional type, spelled as in
+#'   [cft_mapping]'s `cft_lpjml`: one of the twelve crop CFTs or `"others"`.
+#'   Equal to `cft_lpjml` for every item [cft_mapping] classifies.
+#' - `lpjml_basis`: As `spam_basis`, for the LPJmL CFT. Items on LPJmL's
+#'   generic `"others"` stand are `"group_proxy"`.
+#' - `rationale`: Why each non-direct source was chosen. The weakest
+#'   stand-ins, the fodder crops, are marked `WEAK`. Linum (772) and Hemp
+#'   (776) are marked `UNDECIDED`: each books the area of an oilseed and a
+#'   fibre that SPAM puts in different aggregates, and their SPAM crop is a
+#'   placeholder until that choice is made.
+#' @source SPAM crops from Table S3 of the supplement to Yu, Q. et al.
+#'   (2020). A cultivated planet in 2010 -- Part 2: The global gridded
+#'   agricultural-production maps. Earth System Science Data 12, 3545-3572.
+#'   \doi{10.5194/essd-12-3545-2020}. LPJmL crop functional types from
+#'   [cft_mapping]. Stand-ins for the remaining items chosen by WHEP.
+#'
+#' @examples
+#' head(regime_yield_crop_mapping)
+"regime_yield_crop_mapping"
+
 #' Commodity balance sheet processing fractions
 #'
 #' Specifies the product fractions obtained when CBS items are processed,
