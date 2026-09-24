@@ -204,7 +204,13 @@ country produced. Measured on a real 1950–1965 build, 77 of 2,012 keys
 exceed 1 and the largest is 443 (Soyabean Cake 1956) — but \strong{none of
 them is applied}: every one is pre-1961 and the round emits rows from
 1961 on only, so \code{"report"} and \code{"drop"} give identical output on that
-range and no published value moves either way. Of the 77, 50 have no
+range. \strong{That does not hold after 2013} (whep#1177). On a real
+2011–2023 build, 60 keys above 1 are applied, every one of them in
+2014–2023 (oilseed cakes and molasses, up to 15.7 for Sesameseed Cake
+2016): the round books 2,297 rows with a negative \code{domestic_supply},
+−18.33 Mt in total, and the finished balance under \code{"report"} carries
+2.4–4.4 Mt more \code{export} a year than under \code{"drop"}, 33.6 Mt over
+2014–2023, which \code{"drop"} books mostly as \code{feed}. Of the 77, 50 have no
 world production in the denominator at all (the oils and cakes, whose
 production is what this round is about to create) and the other 27 are
 the \code{historical-trade-exports} defect of whep#1085. \code{"report"} keeps every
