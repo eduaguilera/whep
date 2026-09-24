@@ -22,6 +22,48 @@
 #'   are not masses is refused; see the *Items with no CBS row* section.
 #'
 #'   `example = TRUE` always returns the `"drop"` fixture.
+#' @param method_seed_unit Which reported bilateral rows seed each trade
+#'   matrix before it is balanced. See the *Which unit seeds a matrix*
+#'   section. One of:
+#'   - `"target"` (default): seed each (year, item) matrix from the rows
+#'     reported in the unit of the CBS margins it is balanced onto, i.e.
+#'     head counts for the live-animal rows of the livestock balance and
+#'     tonnes for everything else.
+#'   - `"tonnes"`: seed every matrix from its tonnes rows only, the
+#'     behaviour before whep#1031. A live-animal matrix with no tonnes rows
+#'     keeps no observed partner structure at all.
+#'
+#'   `example = TRUE` always returns the `"target"` fixture.
+#'
+#' @section Which unit seeds a matrix:
+#' Each matrix is balanced onto the CBS `export`/`import` margins of its
+#' (year, item), so it is denominated in the `unit` of those margins: tonnes
+#' for the FAO-style balance and **head counts** for the live-animal rows
+#' that [get_livestock_cbs()] adds, whose margins are summed from exactly the
+#' `Head` rows of the same bilateral data. The seed only supplies the partner
+#' structure; iterative proportional fitting imposes the level. The choice is
+#' therefore which observed rows supply that structure (whep#1031).
+#'
+#' `"tonnes"` keeps the mass rows alone. On the `bilateral_trade` pin
+#' `20250714T123347Z-2c392`, FAOSTAT reports the live-animal items in `Head`
+#' only up to 2013, so 283 of the pin's 4,589 (year, item) groups, over 11
+#' items and 1986-2013, have no tonnes row and lose every observed partner
+#' flow: their matrices are filled from the marginals estimate at 10% trust
+#' alone. Over 2014-2021 a further 86 groups carry both units, and their
+#' structure comes from tonnes rows while their margins are head counts.
+#'
+#' `"target"` seeds each matrix in its margins' own unit, so seed and target
+#' agree and the observed head-count partner structure is kept. Measured on
+#' that pin with the 2010 and 2016 CBS, it changes the live-animal matrices
+#' only; every tonnes-denominated matrix is identical under both methods.
+#'
+#' Converting head counts to mass is deliberately not offered. Within one
+#' (year, item) a single per-species factor multiplies every seed cell by the
+#' same number, and IPF is invariant to that, so it would reproduce
+#' `"target"` exactly while making the seed disagree with its own head-count
+#' margins. It only differs if the margins themselves are converted, which
+#' needs a sourced live weight per species: the package's
+#' `gleam_animal_weights` is an unsourced placeholder (whep#881, whep#182).
 #'
 #' @section Items with no CBS row:
 #' The bilateral trade matrices are balanced against the total exports and
@@ -100,8 +142,9 @@
 #'   - Column name: FAOSTAT internal code for the country that is importing the
 #'     item. See row name explanation above.
 #'
-#'   If `m` is the matrix, the value at `m["A", "B"]` is the trade in tonnes
-#'   from country `"A"` to country `"B"`, for the corresponding year and item.
+#'   If `m` is the matrix, the value at `m["A", "B"]` is the trade from
+#'   country `"A"` to country `"B"`, for the corresponding year and item, in
+#'   the row's `unit` (tonnes, or head counts for live animals).
 #'   The matrix can be considered _balanced_. This means:
 #'   - The sum of all values from row `"A"`, where `"A"` is any country,
 #'     should match the total exports from country `"A"` reported in the
@@ -121,6 +164,13 @@
 #' - `method_items_not_in_cbs`: the treatment chosen for items with no
 #'   CBS row, recorded so a downstream consumer can tell which variant it
 #'   is holding.
+#' - `unit`: the denomination of the matrix values, taken from the CBS
+#'   margins it was balanced onto: `"tonnes"`, or `"heads"` for the live
+#'   animals. A matrix balanced onto its own reported flows
+#'   (`has_cbs_totals == FALSE`) is seeded from, and so denominated in,
+#'   tonnes.
+#' - `method_seed_unit`: the seed-unit method chosen, see
+#'   `method_seed_unit`.
 #'
 #'  The step by step approach to obtain this data tries to follow the FABIO
 #'  model and is explained below. All the steps are performed separately for
@@ -187,9 +237,11 @@
 get_bilateral_trade <- function(
   example = FALSE,
   cbs = NULL,
-  method_items_not_in_cbs = c("drop", "keep", "abort")
+  method_items_not_in_cbs = c("drop", "keep", "abort"),
+  method_seed_unit = c("target", "tonnes")
 ) {
   method <- rlang::arg_match(method_items_not_in_cbs)
+  seed_method <- rlang::arg_match(method_seed_unit)
 
   if (example) {
     return(.example_get_bilateral_trade())
@@ -198,8 +250,17 @@ get_bilateral_trade <- function(
   if (is.null(cbs)) {
     cbs <- get_wide_cbs()
   }
+  # `unit` is kept when present and checked in `.cbs_margin_units()`, which
+  # aborts naming the missing column rather than letting `select()` do it.
   cbs <- cbs |>
-    dplyr::select(year, item_cbs_code, area_code, export, import)
+    dplyr::select(
+      year,
+      item_cbs_code,
+      area_code,
+      dplyr::any_of("unit"),
+      export,
+      import
+    )
 
   cli::cli_progress_step("Reading raw bilateral trade data")
   # The `bilateral_trade` pin shares the predecessor pipeline's 2025-07-14
@@ -218,10 +279,11 @@ get_bilateral_trade <- function(
     "Balancing trade matrices ({nrow(btd)} year-item groups)"
   )
   btd |>
-    .nest_by_year_item_code(cbs, codes, method) |>
+    .nest_by_year_item_code(cbs, codes, method, seed_method) |>
     .process_bilateral_trade(codes) |>
     dplyr::select(-total_trade) |>
-    dplyr::mutate(method_items_not_in_cbs = method)
+    dplyr::mutate(method_items_not_in_cbs = method) |>
+    dplyr::relocate(unit, method_seed_unit, .after = dplyr::last_col())
 }
 
 .process_bilateral_trade <- function(btd, codes) {
@@ -544,8 +606,16 @@ get_bilateral_trade <- function(
   needed_estimates * scale
 }
 
-.nest_by_year_item_code <- function(btd, cbs, codes, method = "drop") {
+.nest_by_year_item_code <- function(
+  btd,
+  cbs,
+  codes,
+  method = "drop",
+  seed_method = "target"
+) {
+  margin_units <- .cbs_margin_units(cbs)
   cbs <- cbs |>
+    dplyr::select(-unit) |>
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
   # The CBS-item filter is a row filter on the item code alone, so it can run
@@ -557,21 +627,97 @@ get_bilateral_trade <- function(
   # `unit %in% c("tonnes", "heads")` filter so that a label outside that pair
   # cannot leave without a word, as FAOSTAT's `1000 Head` did everywhere else
   # in the trade chain (whep#1092). On the current `bilateral_trade` pin,
-  # which carries only `tonnes` and `Head`, it is a no-op. Which unit should
-  # *seed* a head-denominated matrix is a separate, open question (whep#1031),
-  # so no method argument is exposed here.
+  # which carries only `tonnes` and `Head`, it is a no-op. Which of those
+  # units *seeds* each matrix is `seed_method` (whep#1031).
   in_cbs <- btd |>
     .normalise_trade_units() |>
     .filter_only_items_in_cbs(cbs, method)
 
   in_cbs |>
-    .mass_only_bilateral_trade() |>
+    .seed_bilateral_trade(margin_units, seed_method) |>
     .warn_seedless_trade_groups(in_cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
     ) |>
-    .attach_total_trade(cbs, codes, method)
+    .attach_total_trade(cbs, codes, method) |>
+    .attach_matrix_unit(margin_units, seed_method)
+}
+
+# One unit per (year, item) of the CBS margins, the unit each matrix is
+# balanced onto and therefore denominated in. `get_wide_cbs()` labels every
+# row since whep#1055; a frame without the label, or with two units for one
+# (year, item), cannot say what its matrix would be counting.
+.cbs_margin_units <- function(cbs) {
+  cbs |>
+    .abort_if_units_mixed(
+      "CBS trade margins",
+      key_cols = c("year", "item_cbs_code")
+    ) |>
+    dplyr::distinct(year, item_cbs_code, margin_unit = unit)
+}
+
+# Reduce the bilateral rows to the ones that seed a matrix, and drop `unit`.
+#
+# - `"tonnes"`: the mass rows only, whatever the margins count.
+# - `"target"`: the rows in the unit of the margins the matrix is balanced
+#   onto. A (year, item) with no CBS row has no margins to take a unit from;
+#   it is either dropped by the inner join in `.attach_total_trade()` or,
+#   under `method_items_not_in_cbs = "keep"`, balanced onto its own seed, and
+#   there the documented denomination is tonnes, so tonnes seed it.
+.seed_bilateral_trade <- function(btd, margin_units, seed_method) {
+  if (seed_method == "tonnes") {
+    return(.mass_only_bilateral_trade(btd))
+  }
+
+  seeded <- btd |>
+    dplyr::left_join(margin_units, dplyr::join_by(year, item_cbs_code)) |>
+    dplyr::mutate(margin_unit = dplyr::coalesce(margin_unit, "tonnes"))
+  .warn_off_margin_unit_rows(dplyr::filter(seeded, unit != margin_unit))
+
+  seeded |>
+    dplyr::filter(unit == margin_unit) |>
+    dplyr::select(-unit, -margin_unit)
+}
+
+# Say what the `"target"` seed leaves out: rows reported in a unit other than
+# the one their matrix is balanced onto. On the 20250714 pin these are the
+# tonnes rows FAOSTAT adds for live animals from 2014, whose matrices are
+# balanced onto head counts.
+.warn_off_margin_unit_rows <- function(off) {
+  if (nrow(off) == 0) {
+    return(invisible(NULL))
+  }
+  by_unit <- off |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(unit, margin_unit)
+    ) |>
+    dplyr::mutate(
+      label = paste0(signif(value, 4), " ", unit, " vs ", margin_unit)
+    )
+  items <- length(unique(off$item_cbs_code))
+  cli::cli_warn(c(
+    "Dropped {nrow(off)} bilateral trade row{?s} not in the unit of the \\
+     CBS margins {?its/their} matrix is balanced onto.",
+    "i" = "Reported vs margin unit: {by_unit$label}.",
+    "i" = "{items} CBS item{cli::qty(items)}{?s} affected; each matrix is \\
+           seeded in its margins' own unit ({.arg method_seed_unit} = \\
+           {.val target})."
+  ))
+}
+
+# Record what each matrix counts. It is balanced onto its CBS margins, so it
+# takes their unit under either seed method; a matrix balanced onto its own
+# flows (`has_cbs_totals == FALSE`) was seeded from tonnes.
+.attach_matrix_unit <- function(nested, margin_units, seed_method) {
+  nested |>
+    dplyr::left_join(margin_units, dplyr::join_by(year, item_cbs_code)) |>
+    dplyr::mutate(
+      unit = dplyr::if_else(has_cbs_totals, margin_unit, "tonnes"),
+      method_seed_unit = seed_method
+    ) |>
+    dplyr::select(-margin_unit)
 }
 
 # Attach the CBS export/import margins each trade matrix is balanced against.
@@ -668,9 +814,10 @@ get_bilateral_trade <- function(
 # head-count row and column targets, which `get_livestock_cbs()` derives from
 # exactly the rows dropped here, so the seed and the target agreed. What goes
 # is observed partner structure, replaced by the marginals estimate at 10%
-# trust. Which unit should seed a head-denominated item is a modelling call
-# and is left open in whep#962; this only refuses to lose the groups in
-# silence, so nobody has to rediscover the gap from a row count.
+# trust. Which unit should seed a head-denominated item is a modelling call,
+# exposed as `method_seed_unit` (whep#1031): under `"target"` those groups
+# keep their head rows. This refuses to lose a group in silence under either
+# method, so nobody has to rediscover a gap from a row count.
 .warn_seedless_trade_groups <- function(mass, all_units) {
   lost <- all_units |>
     dplyr::distinct(year, item_cbs_code) |>
@@ -684,13 +831,13 @@ get_bilateral_trade <- function(
     years <- range(lost$year)
     cli::cli_warn(c(
       "{nrow(lost)} year-item trade matri{?x/ces} lost every seed cell to \\
-       the mass-only filter and {?is/are} absent from the result.",
+       the seed-unit filter and {?is/are} absent from the result.",
       "i" = "{length(items)} CBS item{?s}: {.val {items}}, \\
              {years[[1]]}-{years[[2]]}.",
-      "i" = "Their trade is denominated in head counts, and so are the \\
-             totals they would have been balanced onto, so the observed \\
-             partner structure is replaced by the marginals estimate \\
-             (whep#962)."
+      "i" = "No reported flow is in the unit this seed keeps, so their \\
+             observed partner structure is lost with them. \\
+             {.arg method_seed_unit} = {.val target} seeds a \\
+             head-count matrix from its head rows (whep#1031)."
     ))
   }
 
