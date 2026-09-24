@@ -19,6 +19,8 @@ build_n_boundary_exceedance(
   indicator = NULL,
   land_class = NULL,
   impact_scope = NULL,
+  negative_critical = c("keep", "clamp"),
+  binding = NULL,
   example = FALSE
 )
 }
@@ -65,14 +67,35 @@ hard-errors). When supplied, it overrides \code{metric}.}
 \item{impact_scope}{Deposited impact surface: \code{"mi"}, \code{"sw"}, \code{"gw"}, or
 \code{"de"}. When supplied, it is validated against the critical layer.}
 
+\item{negative_critical}{Treatment of a cell whose critical value is below
+zero. \code{"keep"} (default) compares the actual pressure with the deposited
+value as it is, as the source does. \code{"clamp"} sets it to zero (a zero
+allowance) before the cell comparison. The choice is stamped in every
+output row as \code{negative_critical}; see the Negative critical surplus
+section.}
+
+\item{binding}{Optional \code{\link[=build_critical_n_binding]{build_critical_n_binding()}} output for the same
+land-use scope. When supplied, its per-cell \code{binding_threshold} and
+\code{binding_matches_mi} are carried into the cell and grid results; when
+\code{NULL} (default) both columns are \code{NA}.}
+
 \item{example}{If \code{TRUE}, return the package fixture.}
 }
 \value{
 A tibble at the requested grain. Cell results retain actual and
 critical masses, signed margin, positive overshoot, coverage state,
 integer source-grid key, IMAGE context, explicit years, selectors, and
-provenance. Crop results additionally retain the signed pressure share and
-crop-attributed quantities, which reconcile algebraically to the cell.
+provenance. \code{critical_kgn_ha} is the value compared (after the
+\code{negative_critical} treatment) and \code{source_critical_kgn_ha} the deposited
+one; the two differ only in clamped cells. Crop results additionally
+retain the signed pressure share and crop-attributed quantities, which
+reconcile algebraically to the cell. \code{exceedance_n_t} is the crop's share
+of the cell overshoot \code{pmax(actual - critical, 0)} and
+\code{within_boundary_n_t} is \code{actual_n_t - exceedance_n_t}, so the two always
+sum to the actual pressure. Summed over a cell, \code{within_boundary_n_t} is
+\code{min(actual, critical)}: under \code{negative_critical = "keep"} it is negative
+wherever the critical value is negative, and under \code{"clamp"} it is
+negative only where the actual pressure itself is.
 }
 \description{
 Compares WHEP crop nitrogen pressure with the deposited Schulte-Uebbing et
@@ -98,6 +121,21 @@ silent: a message names the rows and the pressure they carried when that
 pressure is zero (the only case a gridded \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}
 produces), and a warning when it is not.
 }
+\section{Negative critical surplus}{
+
+Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and manure
+inputs to zero where non-agricultural losses alone exceed a threshold, but
+keep biological fixation and deposition in the critical input, so their
+deposited critical surplus stays negative in those cells (on the \code{"mi"}
+surface: 1,796 of 28,881 cells for \code{"all"}, minimum -396 kg N/ha; 2,075 of
+28,573 cells for \code{"ara"}, minimum -317 kg N/ha). \code{negative_critical = "keep"} follows the source, and it is the setting under which the published
+2010 decomposition (43 Mt N allowable plus 76 Mt N exceedance, 119 Mt N
+current surplus) is reproduced. \code{"clamp"} is a declared departure from the
+source: it gives such cells a zero allowance instead of a negative one,
+which lowers their overshoot to the actual pressure and keeps the cell
+within-boundary mass at or above zero wherever the actual pressure is.
+}
+
 \examples{
 build_n_boundary_exceedance(example = TRUE)
 }

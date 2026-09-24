@@ -6,8 +6,12 @@
 # - Every layer is an ESRI ASCII grid (.asc): 6 header lines
 #   (ncols nrows xllcorner yllcorner cellsize NODATA_value) then the value
 #   matrix, row 1 = north (ymax). Global 0.5-degree grid, 720 x 360, EPSG:4326.
-# - Units kg N ha-1 yr-1 (year-2010 snapshot), except binding_threshold which
-#   is a categorical 1-8 code of the medium(s) that bind per cell.
+# - Units kg N ha-1 yr-1 (year-2010 snapshot), except the "Threshold
+#   exceedance by impact" layer (threshold_exc_<land_use>.asc, read as
+#   var = "threshold_exceedance"), a categorical 1-8 code of which thresholds
+#   are EXCEEDED in the cell. It does not say which threshold binds; that is
+#   the argmin of the three threshold-specific critical surpluses, derived by
+#   build_critical_n_binding().
 # - Read via a small base-R parser (no terra dependency): the tested paths
 #   (example, data=) never touch the filesystem, and the real read is pure
 #   base R + tibble, so there is no data.table Git-Bash segfault surface.
@@ -20,12 +24,22 @@
 #' WHEP's grid: the critical nitrogen surplus, the critical nitrogen input,
 #' the exceedance of the critical surplus, the three medium-specific critical
 #' losses (ammonia emission, groundwater leaching, surface-water load), or the
-#' pre-computed binding-threshold map. Values are in kg N per hectare per year
-#' (a categorical 1-8 impact code for `binding_threshold`). The critical
+#' threshold-exceedance map. Values are in kg N per hectare per year (a
+#' categorical 1-8 impact code for `threshold_exceedance`). The critical
 #' surplus, input and exceedance are selectable by `threshold` (minimum of all
 #' media, surface water, groundwater or deposition) and `land_use` (all
 #' agricultural land, arable only, or intensively managed grassland); the three
-#' critical losses and the binding threshold ignore `threshold`. The archive
+#' critical losses and the threshold-exceedance map ignore `threshold`.
+#'
+#' The threshold-exceedance map (the archive's "Threshold exceedance by
+#' impact" folder, `threshold_exc_<land_use>.asc`) records which thresholds are
+#' exceeded in a cell, not which one binds. The threshold that binds, the one
+#' with the lowest critical surplus, is derived by
+#' [build_critical_n_binding()]. The layer was formerly requested as
+#' `var = "binding_threshold"`; that name still reads it, with a deprecation
+#' warning, and the result is stamped `critical_var = "threshold_exceedance"`.
+#'
+#' The archive
 #' directory comes from `dir`, else the `WHEP_CRITICAL_N_DIR` environment
 #' variable, else a local cache that is populated by downloading the archive
 #' from Zenodo on first use (see `dir`).
@@ -33,18 +47,19 @@
 #' @param var Which critical-nitrogen layer to read: one of
 #'   `"critical_n_surplus"`, `"critical_n_input"`, `"exceedance"`,
 #'   `"crit_nh3_emission"`, `"crit_leaching_gw"`, `"crit_load_sw"` or
-#'   `"binding_threshold"`.
+#'   `"threshold_exceedance"`. `"binding_threshold"` is a deprecated alias of
+#'   `"threshold_exceedance"`.
 #' @param threshold Impact threshold selecting the critical value: `"mi"`
 #'   (minimum across media, the collapsed boundary), `"sw"` (surface-water
 #'   eutrophication), `"gw"` (groundwater nitrate) or `"de"` (atmospheric or
 #'   terrestrial deposition). Ignored by the critical-loss and
-#'   binding-threshold layers.
+#'   threshold-exceedance layers.
 #' @param land_use Land-use scope: `"all"` (arable plus intensively managed
 #'   grassland), `"ara"` (arable only) or `"igl"` (intensively managed
 #'   grassland). Ignored by the critical-loss layers (`crit_nh3_emission`,
 #'   `crit_leaching_gw`, `crit_load_sw`), which have a single land-use-agnostic
-#'   file; used by the binding threshold and the surplus/input/exceedance
-#'   layers.
+#'   file; used by the threshold-exceedance map and the
+#'   surplus/input/exceedance layers.
 #' @param dir Optional path to the archive directory, overriding
 #'   `WHEP_CRITICAL_N_DIR`. Defaults to `NULL`, in which case the archive is
 #'   resolved as: `dir`, then `WHEP_CRITICAL_N_DIR`, then a local cache under
@@ -65,7 +80,7 @@
 #'   `data` and `example` injection.
 #' @return A tibble with `lon`, `lat` (0.5-degree cell centres), `value`
 #'   (kg N per hectare per year; a categorical impact code for
-#'   `binding_threshold`) and retained layer provenance: `critical_var`,
+#'   `threshold_exceedance`) and retained layer provenance: `critical_var`,
 #'   `critical_threshold`, `critical_land_use`, `critical_year` and
 #'   `critical_source`, canonical integer `cell_id`/row/column keys, deposited
 #'   `source_area_ha`, IMAGE-region membership, DOI/version and archive checksum.
@@ -81,6 +96,7 @@ read_critical_n <- function(
     "crit_nh3_emission",
     "crit_leaching_gw",
     "crit_load_sw",
+    "threshold_exceedance",
     "binding_threshold"
   ),
   threshold = c("mi", "sw", "gw", "de"),
@@ -90,7 +106,7 @@ read_critical_n <- function(
   example = FALSE,
   verify_source = TRUE
 ) {
-  var <- rlang::arg_match(var)
+  var <- .critn_resolve_var(rlang::arg_match(var))
   threshold <- rlang::arg_match(threshold)
   land_use <- rlang::arg_match(land_use)
   resolved_dir <- NULL
@@ -118,7 +134,224 @@ read_critical_n <- function(
   .critical_n_finalize(grid, var, threshold, land_use)
 }
 
+#' Derive the binding critical-nitrogen threshold per cell.
+#'
+#' @description
+#' Identifies, for every 0.5-degree cell, the impact threshold whose critical
+#' nitrogen surplus is lowest among the three threshold-specific surfaces of
+#' Schulte-Uebbing et al. (2022): atmospheric deposition (`"de"`), groundwater
+#' nitrate (`"gw"`) and surface-water eutrophication (`"sw"`). That threshold
+#' is the one that binds. The archive's own threshold-exceedance map
+#' ([read_critical_n()] with `var = "threshold_exceedance"`) is a different
+#' quantity: it records which thresholds the 2010 surplus exceeds.
+#'
+#' `binding_threshold` is `"deposition"`, `"groundwater"` or
+#' `"surface_water"`. A tie is recorded explicitly by joining every tied
+#' threshold with `+` in that fixed order, for example
+#' `"groundwater+surface_water"` or `"deposition+groundwater+surface_water"`.
+#' Ties are exact equalities of the deposited values: on the real archive no
+#' surface lies within 1e-6 kg N/ha of the cell minimum without equalling it,
+#' so a tolerance would change nothing. A cell missing from any of the three
+#' surfaces gets `NA`.
+#'
+#' When the deposited minimum-of-all-media surface (`"mi"`) is supplied,
+#' `binding_matches_mi` reports whether it equals the lowest of the three
+#' threshold-specific surpluses. It does not everywhere: on the real archive
+#' the two differ in 1,623 of 28,573 cells for `"ara"`, 1,540 of 28,881 for
+#' `"all"` and 1,480 of 11,740 for `"igl"`, by up to 160 kg N/ha (up to 479
+#' kg N/ha for `"igl"`), in both directions. In those cells no single
+#' threshold-specific surface reproduces the deposited `"mi"` value, and
+#' `binding_threshold` names the argmin of the three surfaces all the same.
+#'
+#' @param critical Optional named list of [read_critical_n()] critical-surplus
+#'   layers (`var = "critical_n_surplus"`) with elements `de`, `gw` and `sw`,
+#'   and optionally `mi`, each stamped with its own threshold and with
+#'   `land_use`. When `NULL` (default) the four layers are read from the
+#'   archive with [read_critical_n()].
+#' @param land_use Land-use scope: `"all"`, `"ara"` or `"igl"`, as in
+#'   [read_critical_n()]. Supplied layers must carry this scope.
+#' @param dir Optional archive directory passed to [read_critical_n()] when
+#'   `critical` is `NULL`.
+#' @param example If `TRUE`, return a small fixture instead of reading data.
+#'   Defaults to `FALSE`.
+#' @return A tibble with one row per cell: `cell_id`, `lon`, `lat`,
+#'   `critical_land_use`, the three threshold-specific critical surpluses
+#'   `critical_de_kgn_ha`, `critical_gw_kgn_ha`, `critical_sw_kgn_ha` (kg N per
+#'   hectare per year), their minimum `binding_critical_kgn_ha`, the
+#'   `binding_threshold` label, the deposited `critical_mi_kgn_ha` and the
+#'   logical `binding_matches_mi` (both `NA` when `mi` is not supplied).
+#' @export
+#' @examples
+#' build_critical_n_binding(example = TRUE)
+build_critical_n_binding <- function(
+  critical = NULL,
+  land_use = c("all", "ara", "igl"),
+  dir = NULL,
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_critical_n_binding())
+  }
+  land_use <- rlang::arg_match(land_use)
+  critical <- critical %||% .critn_read_thresholds(land_use, dir)
+  .critn_validate_thresholds(critical, land_use)
+  critical |>
+    .critn_threshold_wide() |>
+    .critn_label_binding() |>
+    dplyr::mutate(critical_land_use = .env$land_use, .after = "lat")
+}
+
 # ---- Private helpers --------------------------------------------------
+
+# "binding_threshold" named the threshold-exceedance map, which records the
+# thresholds a cell EXCEEDS, not the one that binds. The old name keeps working
+# so existing calls do not break, but it warns and is stamped with the new one.
+.critn_resolve_var <- function(var) {
+  if (var != "binding_threshold") {
+    return(var)
+  }
+  cli::cli_warn(
+    c(
+      "{.code var = \"binding_threshold\"} is deprecated.",
+      i = "The layer records which thresholds are exceeded, not which binds;
+           request it as {.code var = \"threshold_exceedance\"}.",
+      i = "The binding threshold itself comes from
+           {.fn build_critical_n_binding}."
+    ),
+    class = "whep_critn_var_deprecated"
+  )
+  "threshold_exceedance"
+}
+
+.critn_threshold_names <- function() {
+  c(de = "deposition", gw = "groundwater", sw = "surface_water")
+}
+
+.critn_read_thresholds <- function(land_use, dir) {
+  thresholds <- c("de", "gw", "sw", "mi")
+  purrr::map(
+    rlang::set_names(thresholds),
+    \(threshold) {
+      read_critical_n(
+        "critical_n_surplus",
+        threshold = threshold,
+        land_use = land_use,
+        dir = dir
+      )
+    }
+  )
+}
+
+.critn_validate_thresholds <- function(critical, land_use) {
+  if (!is.list(critical) || !all(c("de", "gw", "sw") %in% names(critical))) {
+    cli::cli_abort(
+      "{.arg critical} must be a named list with elements {.val de},
+       {.val gw} and {.val sw}, and optionally {.val mi}."
+    )
+  }
+  purrr::iwalk(
+    critical[intersect(c("de", "gw", "sw", "mi"), names(critical))],
+    \(layer, threshold) .critn_validate_layer(layer, threshold, land_use)
+  )
+  invisible(TRUE)
+}
+
+# Each element must be the critical SURPLUS of its own threshold and of the
+# requested land use: a critical-input or wrong-scope grid would otherwise be
+# compared silently.
+.critn_validate_layer <- function(layer, threshold, land_use) {
+  .check_columns(
+    layer,
+    c(
+      "lon",
+      "lat",
+      "value",
+      "critical_var",
+      "critical_threshold",
+      "critical_land_use"
+    ),
+    paste0("critical$", threshold)
+  )
+  stamps <- list(
+    critical_var = "critical_n_surplus",
+    critical_threshold = threshold,
+    critical_land_use = land_use
+  )
+  purrr::iwalk(stamps, \(expected, col) {
+    found <- unique(layer[[col]])
+    if (!identical(found, expected)) {
+      cli::cli_abort(c(
+        "{.field critical${threshold}} is not the expected layer.",
+        i = "Expected {.field {col}} {.val {expected}}; found {.val {found}}."
+      ))
+    }
+  })
+  invisible(TRUE)
+}
+
+.critn_threshold_wide <- function(critical) {
+  critical[intersect(c("de", "gw", "sw", "mi"), names(critical))] |>
+    purrr::imap(\(layer, threshold) {
+      layer |>
+        .nbx_add_cell_key(paste0("critical$", threshold)) |>
+        dplyr::select("cell_id", "lon", "lat", value = "value") |>
+        dplyr::rename_with(
+          \(x) paste0("critical_", threshold, "_kgn_ha"),
+          "value"
+        )
+    }) |>
+    purrr::reduce(
+      \(x, y) {
+        dplyr::full_join(
+          x,
+          y,
+          by = c("cell_id", "lon", "lat"),
+          relationship = "one-to-one"
+        )
+      }
+    ) |>
+    dplyr::arrange(.data$cell_id)
+}
+
+# Argmin of the three threshold-specific critical surpluses, with every tied
+# threshold named in the fixed deposition/groundwater/surface_water order.
+.critn_label_binding <- function(wide) {
+  if (!rlang::has_name(wide, "critical_mi_kgn_ha")) {
+    wide$critical_mi_kgn_ha <- NA_real_
+  }
+  de <- wide$critical_de_kgn_ha
+  gw <- wide$critical_gw_kgn_ha
+  sw <- wide$critical_sw_kgn_ha
+  low <- pmin(de, gw, sw)
+  tags <- paste0(.critn_threshold_names(), "+")
+  label <- paste0(
+    dplyr::if_else(de == low, tags[[1L]], ""),
+    dplyr::if_else(gw == low, tags[[2L]], ""),
+    dplyr::if_else(sw == low, tags[[3L]], "")
+  )
+  wide |>
+    dplyr::mutate(
+      binding_critical_kgn_ha = .env$low,
+      binding_threshold = dplyr::if_else(
+        is.na(.env$low),
+        NA_character_,
+        stringr::str_remove(.env$label, "\\+$")
+      ),
+      binding_matches_mi = .data$critical_mi_kgn_ha == .env$low
+    ) |>
+    dplyr::select(
+      "cell_id",
+      "lon",
+      "lat",
+      "critical_de_kgn_ha",
+      "critical_gw_kgn_ha",
+      "critical_sw_kgn_ha",
+      "binding_critical_kgn_ha",
+      "binding_threshold",
+      "critical_mi_kgn_ha",
+      "binding_matches_mi"
+    )
+}
 
 # Resolve the critical-nitrogen archive directory: an explicit argument, else
 # the env var, else the local cache (populated by fetching the Zenodo archive
@@ -468,7 +701,7 @@ read_critical_n <- function(
       subdir = "Critical losses",
       file = "nload_crit_ph.asc"
     ),
-    binding_threshold = list(
+    threshold_exceedance = list(
       subdir = "Threshold exceedance by impact",
       file = paste0("threshold_exc_", land_use, ".asc")
     )
@@ -551,7 +784,7 @@ read_critical_n <- function(
             "critical_n_surplus",
             "critical_n_input",
             "exceedance",
-            "binding_threshold"
+            "threshold_exceedance"
           ),
         land_use,
         NA_character_

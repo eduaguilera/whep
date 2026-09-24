@@ -515,3 +515,172 @@ testthat::test_that("an empty cache downloads, unpacks and then reads", {
   )
   testthat::expect_true(all(out$image_region %in% 1:8))
 })
+
+# ---- build_critical_n_binding(): argmin of the threshold surfaces ----------
+
+# One layer per threshold, stamped as read_critical_n() stamps it.
+.binding_layers <- function(values, land_use = "ara") {
+  purrr::imap(values, \(value, threshold) {
+    tibble::tibble(
+      lon = c(0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25)[seq_along(value)],
+      lat = 0.25,
+      value = value,
+      critical_var = "critical_n_surplus",
+      critical_threshold = threshold,
+      critical_land_use = land_use
+    ) |>
+      # read_critical_n() drops NODATA cells rather than returning NA.
+      dplyr::filter(!is.na(value))
+  })
+}
+
+.binding_values <- function() {
+  list(
+    de = c(5, 40, 30, 10, 20, 7, NA),
+    gw = c(9, 12, 30, 10, 25, 7, 3),
+    sw = c(9, 50, -4, 15, 20, 7, 3),
+    mi = c(5, 12, -4, 10, 18, 7, 3)
+  )
+}
+
+testthat::test_that("the binding threshold is the argmin with explicit ties", {
+  out <- whep::build_critical_n_binding(
+    .binding_layers(.binding_values()),
+    land_use = "ara"
+  )
+  testthat::expect_equal(
+    out$binding_threshold,
+    c(
+      "deposition",
+      "groundwater",
+      "surface_water",
+      "deposition+groundwater",
+      "deposition+surface_water",
+      "deposition+groundwater+surface_water",
+      NA
+    )
+  )
+  testthat::expect_equal(
+    out$binding_critical_kgn_ha,
+    c(5, 12, -4, 10, 20, 7, NA)
+  )
+  # Cell 5: the deposited mi (18) lies below every threshold surface (20).
+  testthat::expect_equal(
+    out$binding_matches_mi,
+    c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, NA)
+  )
+  testthat::expect_true(all(out$critical_land_use == "ara"))
+  testthat::expect_true(all(
+    stringr::str_split(stats::na.omit(out$binding_threshold), "\\+") |>
+      unlist() %in%
+      c("deposition", "groundwater", "surface_water")
+  ))
+})
+
+testthat::test_that("binding_matches_mi is NA when mi is not supplied", {
+  values <- .binding_values()
+  values$mi <- NULL
+  out <- whep::build_critical_n_binding(.binding_layers(values), "ara")
+  testthat::expect_true(all(is.na(out$critical_mi_kgn_ha)))
+  testthat::expect_true(all(is.na(out$binding_matches_mi)))
+  testthat::expect_equal(out$binding_threshold[[2]], "groundwater")
+})
+
+testthat::test_that("binding layers of the wrong kind or scope abort", {
+  layers <- .binding_layers(.binding_values())
+  testthat::expect_error(
+    whep::build_critical_n_binding(layers, land_use = "all"),
+    "critical_land_use"
+  )
+  wrong_var <- layers
+  wrong_var$gw$critical_var <- "critical_n_input"
+  testthat::expect_error(
+    whep::build_critical_n_binding(wrong_var, "ara"),
+    "critical_var"
+  )
+  swapped <- layers
+  swapped$sw$critical_threshold <- "gw"
+  testthat::expect_error(
+    whep::build_critical_n_binding(swapped, "ara"),
+    "critical_threshold"
+  )
+  testthat::expect_error(
+    whep::build_critical_n_binding(layers[c("de", "gw")], "ara"),
+    "named list"
+  )
+})
+
+testthat::test_that("build_critical_n_binding reads four layers when absent", {
+  calls <- list()
+  values <- .binding_values()
+  testthat::local_mocked_bindings(
+    read_critical_n = function(var, threshold, land_use, dir) {
+      calls[[length(calls) + 1L]] <<- c(var, threshold, land_use, dir)
+      .binding_layers(values[threshold], land_use)[[1L]]
+    }
+  )
+  out <- whep::build_critical_n_binding(land_use = "ara", dir = "archive")
+  testthat::expect_setequal(
+    purrr::map_chr(calls, \(x) x[[2]]),
+    c("de", "gw", "sw", "mi")
+  )
+  testthat::expect_true(all(
+    purrr::map_chr(calls, \(x) x[[1]]) == "critical_n_surplus"
+  ))
+  testthat::expect_true(all(purrr::map_chr(calls, \(x) x[[4]]) == "archive"))
+  testthat::expect_equal(nrow(out), 7L)
+})
+
+testthat::test_that("the binding example is the real function on a fixture", {
+  # Rows come back in cell-key order (north first); put them in the fixture's.
+  out <- whep::build_critical_n_binding(example = TRUE) |>
+    dplyr::arrange(lat, lon)
+  testthat::expect_equal(
+    out$binding_threshold,
+    c(
+      "deposition",
+      "groundwater",
+      "surface_water",
+      "deposition+groundwater+surface_water"
+    )
+  )
+  testthat::expect_equal(out$binding_matches_mi, c(TRUE, TRUE, TRUE, FALSE))
+})
+
+testthat::test_that("binding_threshold is a deprecated alias of the exc map", {
+  grid <- tibble::tibble(lon = 0.25, lat = 0.25, value = 5)
+  testthat::expect_warning(
+    old <- whep::read_critical_n(
+      "binding_threshold",
+      land_use = "ara",
+      data = grid
+    ),
+    class = "whep_critn_var_deprecated"
+  )
+  new <- whep::read_critical_n(
+    "threshold_exceedance",
+    land_use = "ara",
+    data = grid
+  )
+  testthat::expect_identical(old, new)
+  testthat::expect_equal(new$critical_var, "threshold_exceedance")
+  testthat::expect_equal(new$critical_land_use, "ara")
+  testthat::expect_true(is.na(new$critical_threshold))
+  spec <- whep:::.critical_n_var_spec("threshold_exceedance", "mi", "all")
+  testthat::expect_equal(spec$subdir, "Threshold exceedance by impact")
+  testthat::expect_equal(spec$file, "threshold_exc_all.asc")
+})
+
+# ---- real archive: the binding surface --------------------------------------
+
+testthat::test_that("the real binding surface is complete and flags mi gaps", {
+  dir <- .real_critn_dir()
+  binding <- whep::build_critical_n_binding(land_use = "all", dir = dir)
+  testthat::expect_equal(nrow(binding), 28881L)
+  testthat::expect_false(anyNA(binding$binding_threshold))
+  testthat::expect_equal(sum(!binding$binding_matches_mi), 1540L)
+  testthat::expect_equal(
+    sum(binding$binding_threshold == "deposition+groundwater+surface_water"),
+    9431L
+  )
+})

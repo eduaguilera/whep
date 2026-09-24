@@ -53,7 +53,10 @@
 #'   `n_inputs` when absent; inject a table to use any other source),
 #'   `biomass_coefs` / `items_full` for the food supply,
 #'   `manure_mgmt_nh3_n_t` for the pathway boundary when
-#'   `nh3_source = "total_agricultural"`, and either an `io` model or
+#'   `nh3_source = "total_agricultural"`, `critical_binding` (a
+#'   [build_critical_n_binding()] table for the `boundary_land_use` scope, whose
+#'   `binding_threshold` is then carried into the grid boundary; absent, the
+#'   column is `NA`), and either an `io` model or
 #'   `fp_flows` for the footprint. A real call without either source aborts
 #'   rather than fabricating a domestic-only footprint.
 #'   Defaults to `list()`.
@@ -85,6 +88,12 @@
 #'   a mistyped knob cannot silently run the default and be reported as a
 #'   sensitivity. Defaults to `list()`, which leaves every builder on its own
 #'   default.
+#' @param negative_critical Treatment of cells whose critical surplus is below
+#'   zero, passed to [build_n_boundary_exceedance()]: `"keep"` (default, as the
+#'   source) or `"clamp"` (zero allowance, a declared departure from
+#'   Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
+#'   through them the classification and the footprint, and is stamped as
+#'   `negative_critical` in both boundary tables.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -107,9 +116,11 @@ build_sjos_nitrogen <- function(
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
+  negative_critical = c("keep", "clamp"),
   example = FALSE
 ) {
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
+  negative_critical <- rlang::arg_match(negative_critical)
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   # `[[` not `$`: `data$population` partially matches `data$population_age`
   # when the caller left `population` out, and would divide by the age table.
@@ -122,6 +133,7 @@ build_sjos_nitrogen <- function(
   opts <- list(
     surplus_method = surplus_method,
     boundary_land_use = boundary_land_use,
+    negative_critical = negative_critical,
     nh3_source = nh3_source,
     footprint_category = footprint_category,
     nourishment_thresholds = nourishment_thresholds,
@@ -172,23 +184,15 @@ build_sjos_nitrogen <- function(
 # diverge.
 .sjos_boundary_surplus <- function(surplus, data, opts) {
   list(
-    grid = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "grid"
-    ),
-    country = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "country"
-    )
+    grid = .sjos_exceedance(surplus, data, opts, "grid"),
+    country = .sjos_exceedance(surplus, data, opts, "country")
   )
 }
 
-# One surplus-mode exceedance call, parameterised by resolution.
-.sjos_exceedance <- function(surplus, critical, land_use, resolution) {
+# One surplus-mode exceedance call, parameterised by resolution. The clamp
+# choice and the optional binding table come from the same opts/data for both
+# resolutions, so the grid and country boundaries cannot diverge on them.
+.sjos_exceedance <- function(surplus, data, opts, resolution) {
   years <- unique(surplus$year[!is.na(surplus$year)])
   if (length(years) != 1L) {
     cli::cli_abort(
@@ -197,12 +201,14 @@ build_sjos_nitrogen <- function(
   }
   build_n_boundary_exceedance(
     surplus = surplus,
-    critical = critical,
-    land_use = land_use,
+    critical = data[["critical"]],
+    land_use = opts$boundary_land_use,
     resolution = resolution,
     metric = "surplus",
     actual_year = as.integer(years),
-    critical_reference_year = 2010L
+    critical_reference_year = 2010L,
+    negative_critical = opts$negative_critical,
+    binding = data[["critical_binding"]]
   )
 }
 

@@ -1096,6 +1096,35 @@
   )
 }
 
+# Four cells run through the real build_critical_n_binding(): one per single
+# binding threshold and one three-way tie. The supplied "mi" surface equals
+# the minimum everywhere except the last cell, where it is lower, as happens in
+# about 6% of the deposited cells.
+.example_critical_n_binding <- function() {
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~de, ~gw, ~sw, ~mi,
+    0.25, 0.25,  12,  40,  35,  12,
+    0.75, 0.25,  60,  18,  25,  18,
+    0.25, 0.75,  50,  45, -20, -20,
+    0.75, 0.75,  30,  30,  30,  24
+  )
+  layers <- purrr::map(
+    rlang::set_names(c("de", "gw", "sw", "mi")),
+    \(threshold) {
+      cells |>
+        dplyr::transmute(
+          lon = .data$lon,
+          lat = .data$lat,
+          value = .data[[threshold]],
+          critical_var = "critical_n_surplus",
+          critical_threshold = .env$threshold,
+          critical_land_use = "ara"
+        )
+    }
+  )
+  build_critical_n_binding(layers, land_use = "ara")
+}
+
 # A small build_nitrogen_balance()-shaped fixture (8 crop-cell-year rows, two
 # cells, a nitrogen deficit and a zero-surplus row included) constructed so the
 # harvest-removal surplus is exactly checkable. burnt_residue_n_t varies but
