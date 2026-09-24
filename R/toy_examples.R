@@ -1729,6 +1729,12 @@
       enteric_ch4_national_kt = enteric_ch4_kt / divergence_enteric_ch4,
       manure_ch4_national_kt = manure_ch4_kt / divergence_manure_ch4,
       manure_n2o_national_kt = manure_n2o_kt / divergence_manure_n2o,
+      species_group = dplyr::if_else(
+        species == "Cattle, dairy",
+        "cattle_dairy",
+        "cattle_non_dairy"
+      ),
+      method_species = "one_to_one",
       method_climate_zone = "cru_ts_annual",
       method_diet = "uniform_medium",
       method_enteric = "IPCC_2019_Tier2",
