@@ -85,7 +85,23 @@ commodity whose coefficient row does not exist yet, so its CBS feed and
 food mass carries no dry matter, protein or energy (whep#970).</p></li>
 <li><p><code>dbMFA_items</code>: Item identifier used in the material flow analysis
 database.</p></li>
-<li><p><code>FEDNA</code>: Item name used in FEDNA feed composition tables.</p></li>
+<li><p><code>FEDNA</code>: Name of the FEDNA feed-composition table entry
+(<a href="https://fundacionfedna.org/ingredientes-para-piensos" class="external-link">https://fundacionfedna.org/ingredientes-para-piensos</a>) paired with
+the item. It is a <strong>stand-in, not a product identity</strong>: it says which
+feed-table row the item was given, not which substance the item is, and
+must not be read as evidence of what a row represents (whep#1131). Why
+each entry was chosen is not recorded upstream. On the 28 <code>Additives</code>
+rows, 4008 Enzimes and 4016 Phytase share PROTEINA DE PATATA (potato
+protein), 4005 Calcium carbonate and 4013 Minerals share CARBONATO
+CALCICO, and several name a different substance outright: 4018
+Potassium carbonate is CARBONATO SODIO, 4027 Vitamins AC. CITRICO,
+4015 Pesticides AC. FORMICO, 4017 Pigment AC. COLZA, 4009 Flavours
+PROPIONATO SODICO, 4003 Anionic salts MET HIDROXI SAL CALCICA and 4011
+Methionine HIDROXI-ANAL MET, a nitrogen-free analogue. Nor does the
+named entry fix the <code>biomass_coefs</code> nitrogen: Methionine and Lysine
+carry more than their entries imply and Ammonium chloride and Choline
+chloride carry zero although their entries hold nitrogen. No WHEP
+function reads this column.</p></li>
 <li><p><code>default_destiny</code>: Default CBS use category for this item. One of
 <code>"Feed"</code>, <code>"Food"</code>, <code>"Other_uses"</code>, <code>"Processing"</code>, or <code>NA</code>.</p></li>
 </ul></div>

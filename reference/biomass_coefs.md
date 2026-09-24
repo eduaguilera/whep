@@ -210,10 +210,13 @@ giving 0.0936 (whep#931;
 <https://fundacionfedna.org/ingredientes-para-piensos>). The alternative
 is the other commercial methionine source, the hydroxy analogue FEDNA
 lists as HIDROXI-ANAL MET, which is C5H10O3S and holds no nitrogen at
-all; that is the product `codes_coefs_items_full` names for this item
-and the value the retired pin carried. `Lysine` at 0.2015 is the other
-hand-entered override and is still 5.2% above the free base's own
-0.1916; FEDNA's L-Lisina HCl would give 0.1512.
+all; it is the value the retired pin carried. That `items_full$FEDNA`
+names HIDROXI-ANAL MET for this item is not evidence for the analogue:
+that column is a feed-table stand-in, not a product identity (see
+[items_full](https://eduaguilera.github.io/whep/reference/items_full.md),
+whep#1131). `Lysine` at 0.2015 is the other hand-entered override and is
+still 5.2% above the free base's own 0.1916; FEDNA's L-Lisina HCl would
+give 0.1512.
 
 - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry
   matter.

@@ -141,23 +141,40 @@ build_n_inputs(
     required input tibble (`lon`, `lat`, `area_code`, `year`,
     `item_prod_code`, `crop_npp_n_t`, `product_n_t`, `weed_npp_n_t`,
     `land_use`, `legumes_seeded`, `seeded_cover_crop_share`, `area_ha`).
+    The `"bnf"` term's `n_input_t` is the `bnf_t` column of
+    [`calculate_bnf()`](https://eduaguilera.github.io/whep/reference/calculate_bnf.md)'s
+    output.
 
   - `npp_n_input`:
     [`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)'s
     required input tibble (`lon`, `lat`, `area_code`, `year`,
     `item_prod_code`, `item_cbs_code`, `product_dm_t`, `residue_dm_t`,
-    `root_dm_t`, optionally `residue_soil_dm_t`).
+    `root_dm_t`, optionally `residue_soil_dm_t`). The `"recycling"`
+    term's `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
+    [`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)'s
+    output, or plus `residue_n_t` when `residue_soil_n_t` is absent (see
+    `method_recycling_n`).
 
   - `livestock_intake`:
     [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)'s
     `intake` argument (the
     [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
     realised-intake contract), plus `gridded` (its land-surface layer)
-    and `resolution`/`methods` (forwarded as-is).
+    and `resolution`/`methods` (forwarded as-is). The manure terms sum
+    `applied_n` from the `$applied` table of
+    [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)'s
+    output, keyed by its `territory`, `sub_territory`, `crop`,
+    `land_use`, `manure_type` and `year`; `manure_type` selects the
+    `"excreta"`, `"manure_solid"` or `"manure_liquid"` term.
 
   - `nhx`, `noy`, `cell_polity`:
     [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)'s
-    inputs.
+    inputs. From its output the `"deposition"` term reads
+    `deposition_kgn_ha` (the whole-cell rate), `deposition_n_t` and
+    `area_category` (only to form the in-scope share of each polycell's
+    mass, see `deposition_scope`) and `method_deposition`; `n_input_t`
+    is `deposition_kgn_ha` times that share times the support's
+    `area_ha`, divided by 1000.
 
   - `deposition_scope`: which of a polycell's territory the
     `"deposition"` term is credited with. `"territory"` (default) is
@@ -189,19 +206,32 @@ build_n_inputs(
 
   - `urban_population`, `cropland_ha`, `cell_polity`:
     [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)'s
-    inputs.
+    inputs. The `"urban"` term's `n_input_t` is the `urban_n_t` column
+    of
+    [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)'s
+    output.
 
   - `carbon_balance`:
     [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)'s
     `"grid"`-resolution output (`lon`, `lat`, `area_code`, `land_use`,
     `year`, `area_ha`, `son_change_kgn_ha`); this driver requires it
-    supplied directly, it is never computed here.
+    supplied directly, it is never computed here. The
+    `"som_mineralization"` term keeps the cropland rows with
+    `son_change_kgn_ha > 0` and takes `son_change_kgn_ha` times
+    `area_ha`, divided by 1000, as `n_input_t`.
 
   - `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
     `cell_polity`: the synthetic-fertiliser assembly (country total from
     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
     by the chosen crop-share method, then to cells by
-    `crop_patterns`/`type_cropland`).
+    `crop_patterns`/`type_cropland`). From `fertilizer` it reads the raw
+    FAOSTAT columns `Element` (`"Agricultural Use"`), `Item`
+    (`"Nutrient nitrogen N (total)"`), `Year`, `Area Code` and `Value`;
+    `Value` becomes the country total `synthetic_n_t`, passed on as the
+    `n_t` column of
+    [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)'s
+    `country_totals`, whose output `n_t` is the `"synthetic"` term's
+    `n_input_t`.
 
   - `synthetic_method`: how the synthetic-N country total is split
     across crops, `"coello"` (default; Coello 2025 rate-weighted,

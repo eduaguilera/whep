@@ -370,20 +370,15 @@ per-crop net irrigation requirement) into tidy long form, close the
 gridded soil water balance exposing the footprint-relevant terms
 (precipitation, applied irrigation, blue and green consumptive water,
 net irrigation requirement), and assemble the monthly climate drivers
-for the soil-organic-carbon dynamics.
+(with the HWSD soil hydraulic properties) for the soil-organic-carbon
+dynamics.
 
-- [`read_lpjml_crop_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_crop_cover.md)
-  : Read monthly cropland soil cover from an LPJmL run's crop calendar.
 - [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
   : Read an LPJmL hydrology variable into a tidy tibble.
-- [`read_lpjml_litterfall()`](https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.md)
-  : Read litterfall by land-use class from an LPJmL run.
-- [`read_lpjml_natural_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.md)
-  : Read natural-land soil cover from an LPJmL run.
-- [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
-  : Read a per-PFT annual LPJmL carbon variable into a tidy tibble.
 - [`read_cru_climate()`](https://eduaguilera.github.io/whep/reference/read_cru_climate.md)
   : Read a CRU TS 4.09 monthly climate variable into a tidy tibble.
+- [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
+  : Read gridded soil hydraulic properties from HWSD onto WHEP's grid.
 - [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
   : Build a gridded soil water balance from LPJmL hydrology.
 - [`build_crop_water_use()`](https://eduaguilera.github.io/whep/reference/build_crop_water_use.md)
@@ -527,8 +522,13 @@ residue, root and applied-manure carbon per cell, crop and year in
 megagrams of carbon per hectare, plus the carbon-weighted humification
 fraction from `residue_humification`. The grassland and natural-land
 carbon inputs come from the LPJmL net primary production minus harvested
-carbon (grassland additionally carrying grazing-excreta carbon).
+carbon (grassland additionally carrying grazing-excreta carbon), read
+per plant functional type and as litterfall by land-use class.
 
+- [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
+  : Read a per-PFT annual LPJmL carbon variable into a tidy tibble.
+- [`read_lpjml_litterfall()`](https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.md)
+  : Read litterfall by land-use class from an LPJmL run.
 - [`soc_crop_group()`](https://eduaguilera.github.io/whep/reference/soc_crop_group.md)
   : Assign each crop to its soil-carbon crop group.
 - [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
@@ -555,7 +555,9 @@ polity-to-crop-to-grid spatialization of a country-level nitrogen total
 (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
 every source (BNF, residue/root recycling, manure, deposition, urban,
 soil organic-matter mineralization, synthetic fertiliser) into one
-long-format table (Task C6 final phase).
+long-format table (Task C6 final phase). The gridded soil-surface
+nitrogen surplus (net inputs minus harvested-nitrogen exports) is a
+balance term computed from that balance.
 
 - [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
   : Read a HaNi atmospheric nitrogen deposition species onto WHEP's
@@ -572,9 +574,6 @@ long-format table (Task C6 final phase).
   : Read FAOSTAT Food Balance Sheet population on WHEP area codes.
 - [`population_source_reach()`](https://eduaguilera.github.io/whep/reference/population_source_reach.md)
   : Report which areas a present-day-ISO3 population source can reach.
-- [`read_habitual_cv()`](https://eduaguilera.github.io/whep/reference/read_habitual_cv.md)
-  : Read FAOSTAT's coefficient of variation of habitual caloric
-  consumption.
 - [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
   : Build gridded urban/human-excreta nitrogen inputs to agriculture.
 - [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
@@ -595,10 +594,6 @@ long-format table (Task C6 final phase).
   : Read gridded LPJmL-forcing windspeed onto WHEP's grid.
 - [`read_soil_ph()`](https://eduaguilera.github.io/whep/reference/read_soil_ph.md)
   : Read gridded soil pH onto WHEP's grid.
-- [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
-  : Read gridded soil hydraulic properties from HWSD onto WHEP's grid.
-- [`read_hwsd_topsoil_soc()`](https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.md)
-  : Read observed topsoil organic carbon from HWSD onto WHEP's grid.
 - [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
   : Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 - [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
@@ -609,6 +604,8 @@ long-format table (Task C6 final phase).
   : Assemble gridded nitrogen inputs from every WHEP N-input source.
 - [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
   : Build the full nitrogen balance: inputs, outputs, losses and NUE.
+- [`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
+  : Calculate the gridded soil-surface nitrogen surplus.
 
 ## SJOS - nitrogen
 
@@ -617,26 +614,25 @@ Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers (critical
 surplus, critical input, exceedance, the medium-specific critical losses
 and the binding-threshold map) that the boundary-exceedance modules
 compare the WHEP nitrogen surplus and process-based losses against. The
-gridded soil-surface nitrogen surplus (net inputs minus
-harvested-nitrogen exports) and its surplus-mode critical-boundary
-exceedance, decomposed per crop into the parts within and above the
-boundary. The pathway-mode boundary instead routes each process-based
-nitrogen loss to its medium-specific critical load (ammonia to air,
-nitrate to the tighter of groundwater and surface water), decomposing
-each medium and naming the binding boundary per crop. The nourishment
-(“just”) axis supplies per-capita protein and dietary energy, from the
-commodity-balance food element times the biomass nutrition coefficients
-divided by population, or from FAOSTAT Food Balance Sheet per-capita
-supply, and normalizes that supply onto a piecewise adequacy score
-classified Under, Adequate or Over. The boundary and nourishment sides
-are then crossed per crop into the 2-way safe-and-just classification,
-and each crop’s exceedance, within-boundary or total surplus nitrogen
-becomes the intensity of an embodied-nitrogen trade footprint extension.
+surplus-mode critical-boundary exceedance of the nitrogen surplus (see
+[`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
+under the nitrogen balance), decomposed per crop into the parts within
+and above the boundary. The pathway-mode boundary instead routes each
+process-based nitrogen loss to its medium-specific critical load
+(ammonia to air, nitrate to the tighter of groundwater and surface
+water), decomposing each medium and naming the binding boundary per
+crop. The nourishment (“just”) axis supplies per-capita protein and
+dietary energy, from the commodity-balance food element times the
+biomass nutrition coefficients divided by population, or from FAOSTAT
+Food Balance Sheet per-capita supply, and normalizes that supply onto a
+piecewise adequacy score classified Under, Adequate or Over. The
+boundary and nourishment sides are then crossed per crop into the 2-way
+safe-and-just classification, and each crop’s exceedance,
+within-boundary or total surplus nitrogen becomes the intensity of an
+embodied-nitrogen trade footprint extension.
 
 - [`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
   : Read a Schulte-Uebbing gridded critical-nitrogen layer.
-- [`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
-  : Calculate the gridded soil-surface nitrogen surplus.
 - [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
   : Build source-exact gridded critical-nitrogen exceedance.
 - [`build_n_pathway_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.md)
@@ -645,6 +641,9 @@ becomes the intensity of an embodied-nitrogen trade footprint extension.
   : Build per-capita food supply for the nourishment axis.
 - [`build_protein_requirement()`](https://eduaguilera.github.io/whep/reference/build_protein_requirement.md)
   : Build the population protein requirement.
+- [`read_habitual_cv()`](https://eduaguilera.github.io/whep/reference/read_habitual_cv.md)
+  : Read FAOSTAT's coefficient of variation of habitual caloric
+  consumption.
 - [`build_intake_dispersion()`](https://eduaguilera.github.io/whep/reference/build_intake_dispersion.md)
   : Build the within-country intake dispersion.
 - [`build_loss_wedge()`](https://eduaguilera.github.io/whep/reference/build_loss_wedge.md)
@@ -698,12 +697,20 @@ initialisation under the earliest land-use carbon inputs, a forward
 march on yearly per-cell per-class land-use areas with a
 carbon-conserving land-use-change transfer, and the derived
 soil-organic-nitrogen change via the asymmetric soil carbon-to-nitrogen
-ratios.
+ratios. The LPJmL soil-cover readers supply its optional cropland and
+natural-land cover inputs, and the HWSD topsoil organic-carbon reader is
+its observational benchmark.
 
 - [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
   : Build the historical gridded soil-organic-carbon balance.
 - [`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md)
   : Read gridded yearly LUH2 land-use-class fractions and areas.
+- [`read_lpjml_crop_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_crop_cover.md)
+  : Read monthly cropland soil cover from an LPJmL run's crop calendar.
+- [`read_lpjml_natural_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.md)
+  : Read natural-land soil cover from an LPJmL run.
+- [`read_hwsd_topsoil_soc()`](https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.md)
+  : Read observed topsoil organic carbon from HWSD onto WHEP's grid.
 
 ## Crop NPP, BNF and coefficient tables
 
@@ -1381,7 +1388,7 @@ Data from MacLeod et al. (2018) GLEAM 3.0 Supplement S1.
 - [`gleam_dressing_percentages`](https://eduaguilera.github.io/whep/reference/gleam_dressing_percentages.md)
   : GLEAM dressing percentages.
 - [`gleam_enteric_params`](https://eduaguilera.github.io/whep/reference/gleam_enteric_params.md)
-  : GLEAM enteric fermentation parameters.
+  : Enteric methane conversion factors (IPCC defaults, not GLEAM).
 - [`gleam_feed_categories`](https://eduaguilera.github.io/whep/reference/gleam_feed_categories.md)
   : GLEAM feed categories.
 - [`gleam_feed_composition`](https://eduaguilera.github.io/whep/reference/gleam_feed_composition.md)

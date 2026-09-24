@@ -310,7 +310,9 @@ For `format = "long"`, a tibble with columns: `year`, legacy numeric
 `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
 become one column each, `stock_variation` is split into the non-negative
 `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total
-use excluding `export`.
+use excluding `export`. A `unit` column says each row's denomination:
+`"tonnes"`, or `"heads"` for the live-animal rows (see
+[`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)).
 
 `fao_flag` is FAOSTAT's own observation-status code for the value, taken
 from the source that `source` names (`"A"` official, `"E"` estimated,

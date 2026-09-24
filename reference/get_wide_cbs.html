@@ -93,9 +93,14 @@ It contains the following columns:</p><ul><li><p><code>year</code>: The year in 
 For code details see e.g. <code><a href="add_area_name.html">add_area_name()</a></code>.</p></li>
 <li><p><code>item_cbs_code</code>: FAOSTAT internal code for each item. For
 code details see e.g. <code><a href="add_item_cbs_name.html">add_item_cbs_name()</a></code>.</p></li>
+<li><p><code>unit</code>: The denomination of every quantity in the row. <code>"tonnes"</code> for
+the rows of the FAO-style balance sheet and <code>"heads"</code> (number of
+animals) for the live-animal rows added by the livestock balance. Set by
+the builder that produced the row, so a derived row carries the same
+unit as a reported one. Never sum quantities across rows of different
+units.</p></li>
 </ul><p>The other columns are quantities where total supply and total
-use should be balanced. Units are tonnes for most items,
-and heads for live animals (see <a href="items_cbs.html">items_cbs</a> <code>item_type</code>).</p>
+use should be balanced, in the row's <code>unit</code>.</p>
 <p>For supply:</p><ul><li><p><code>production</code>: Produced locally.</p></li>
 <li><p><code>import</code>: Obtained from importing from other countries.</p></li>
 <li><p><code>stock_withdrawal</code>: Biomass taken out of storage
@@ -119,7 +124,7 @@ computed as total use excluding <code>export</code>.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">get_wide_cbs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 19</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>987       250              250 COD-1960-2025         Democratic Republic o…</span>
@@ -132,10 +137,11 @@ computed as total use excluding <code>export</code>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>961       156              156 NZL-1840-2025         New Zealand           </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>961       236              236 VEN-1821-2025         Venezuela             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>995        49               49 CUB-1800-2025         Cuba                  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;dbl&gt;, domestic_supply &lt;dbl&gt;, food &lt;dbl&gt;, production &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   feed &lt;dbl&gt;, seed &lt;dbl&gt;, import &lt;dbl&gt;, export &lt;dbl&gt;, other_uses &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   processing &lt;dbl&gt;, stock_withdrawal &lt;dbl&gt;, stock_addition &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;dbl&gt;, unit &lt;chr&gt;, domestic_supply &lt;dbl&gt;, food &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   production &lt;dbl&gt;, feed &lt;dbl&gt;, seed &lt;dbl&gt;, import &lt;dbl&gt;, export &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   other_uses &lt;dbl&gt;, processing &lt;dbl&gt;, stock_withdrawal &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   stock_addition &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

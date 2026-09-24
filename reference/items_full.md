@@ -58,7 +58,23 @@ following columns:
 - `dbMFA_items`: Item identifier used in the material flow analysis
   database.
 
-- `FEDNA`: Item name used in FEDNA feed composition tables.
+- `FEDNA`: Name of the FEDNA feed-composition table entry
+  (<https://fundacionfedna.org/ingredientes-para-piensos>) paired with
+  the item. It is a **stand-in, not a product identity**: it says which
+  feed-table row the item was given, not which substance the item is,
+  and must not be read as evidence of what a row represents (whep#1131).
+  Why each entry was chosen is not recorded upstream. On the 28
+  `Additives` rows, 4008 Enzimes and 4016 Phytase share PROTEINA DE
+  PATATA (potato protein), 4005 Calcium carbonate and 4013 Minerals
+  share CARBONATO CALCICO, and several name a different substance
+  outright: 4018 Potassium carbonate is CARBONATO SODIO, 4027 Vitamins
+  AC. CITRICO, 4015 Pesticides AC. FORMICO, 4017 Pigment AC. COLZA, 4009
+  Flavours PROPIONATO SODICO, 4003 Anionic salts MET HIDROXI SAL CALCICA
+  and 4011 Methionine HIDROXI-ANAL MET, a nitrogen-free analogue. Nor
+  does the named entry fix the `biomass_coefs` nitrogen: Methionine and
+  Lysine carry more than their entries imply and Ammonium chloride and
+  Choline chloride carry zero although their entries hold nitrogen. No
+  WHEP function reads this column.
 
 - `default_destiny`: Default CBS use category for this item. One of
   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`.

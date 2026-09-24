@@ -55,11 +55,15 @@ contains the following columns:
   see e.g.
   [`add_item_cbs_name()`](https://eduaguilera.github.io/whep/reference/add_item_cbs_name.md).
 
+- `unit`: The denomination of every quantity in the row. `"tonnes"` for
+  the rows of the FAO-style balance sheet and `"heads"` (number of
+  animals) for the live-animal rows added by the livestock balance. Set
+  by the builder that produced the row, so a derived row carries the
+  same unit as a reported one. Never sum quantities across rows of
+  different units.
+
 The other columns are quantities where total supply and total use should
-be balanced. Units are tonnes for most items, and heads for live animals
-(see
-[items_cbs](https://eduaguilera.github.io/whep/reference/items_cbs.md)
-`item_type`).
+be balanced, in the row's `unit`.
 
 For supply:
 
@@ -99,7 +103,7 @@ total use excluding `export`.
 
 ``` r
 get_wide_cbs(example = TRUE)
-#> # A tibble: 10 × 18
+#> # A tibble: 10 × 19
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
 #>    <int>     <int>            <int> <chr>                 <chr>                 
 #>  1  1987       250              250 COD-1960-2025         Democratic Republic o…
@@ -112,8 +116,9 @@ get_wide_cbs(example = TRUE)
 #>  8  1961       156              156 NZL-1840-2025         New Zealand           
 #>  9  1961       236              236 VEN-1821-2025         Venezuela             
 #> 10  1995        49               49 CUB-1800-2025         Cuba                  
-#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>,
-#> #   item_cbs_code <dbl>, domestic_supply <dbl>, food <dbl>, production <dbl>,
-#> #   feed <dbl>, seed <dbl>, import <dbl>, export <dbl>, other_uses <dbl>,
-#> #   processing <dbl>, stock_withdrawal <dbl>, stock_addition <dbl>
+#> # ℹ 14 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code <dbl>, unit <chr>, domestic_supply <dbl>, food <dbl>,
+#> #   production <dbl>, feed <dbl>, seed <dbl>, import <dbl>, export <dbl>,
+#> #   other_uses <dbl>, processing <dbl>, stock_withdrawal <dbl>,
+#> #   stock_addition <dbl>
 ```

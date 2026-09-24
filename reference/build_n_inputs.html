@@ -207,16 +207,29 @@ stream keeps only <code>son_change_kgn_ha &gt; 0</code>, so contributing nothing
 observation there as well as a symptom.</p><ul><li><p><code>bnf_input</code>: <code><a href="calculate_bnf.html">calculate_bnf()</a></code>'s required input tibble (<code>lon</code>, <code>lat</code>,
 <code>area_code</code>, <code>year</code>, <code>item_prod_code</code>, <code>crop_npp_n_t</code>, <code>product_n_t</code>,
 <code>weed_npp_n_t</code>, <code>land_use</code>, <code>legumes_seeded</code>,
-<code>seeded_cover_crop_share</code>, <code>area_ha</code>).</p></li>
+<code>seeded_cover_crop_share</code>, <code>area_ha</code>). The <code>"bnf"</code> term's
+<code>n_input_t</code> is the <code>bnf_t</code> column of <code><a href="calculate_bnf.html">calculate_bnf()</a></code>'s output.</p></li>
 <li><p><code>npp_n_input</code>: <code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code>'s required input
 tibble (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>item_prod_code</code>,
 <code>item_cbs_code</code>, <code>product_dm_t</code>, <code>residue_dm_t</code>, <code>root_dm_t</code>,
-optionally <code>residue_soil_dm_t</code>).</p></li>
+optionally <code>residue_soil_dm_t</code>). The <code>"recycling"</code> term's
+<code>n_input_t</code> is <code>root_n_t</code> plus <code>residue_soil_n_t</code> from
+<code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code>'s output, or plus <code>residue_n_t</code> when
+<code>residue_soil_n_t</code> is absent (see <code>method_recycling_n</code>).</p></li>
 <li><p><code>livestock_intake</code>: <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>'s <code>intake</code>
 argument (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> realised-intake contract), plus
 <code>gridded</code> (its land-surface layer) and <code>resolution</code>/<code>methods</code>
-(forwarded as-is).</p></li>
-<li><p><code>nhx</code>, <code>noy</code>, <code>cell_polity</code>: <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s inputs.</p></li>
+(forwarded as-is). The manure terms sum <code>applied_n</code> from the
+<code>$applied</code> table of <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>'s output,
+keyed by its <code>territory</code>, <code>sub_territory</code>, <code>crop</code>, <code>land_use</code>,
+<code>manure_type</code> and <code>year</code>; <code>manure_type</code> selects the <code>"excreta"</code>,
+<code>"manure_solid"</code> or <code>"manure_liquid"</code> term.</p></li>
+<li><p><code>nhx</code>, <code>noy</code>, <code>cell_polity</code>: <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s inputs. From
+its output the <code>"deposition"</code> term reads <code>deposition_kgn_ha</code> (the
+whole-cell rate), <code>deposition_n_t</code> and <code>area_category</code> (only to form
+the in-scope share of each polycell's mass, see <code>deposition_scope</code>)
+and <code>method_deposition</code>; <code>n_input_t</code> is <code>deposition_kgn_ha</code> times that
+share times the support's <code>area_ha</code>, divided by 1000.</p></li>
 <li><p><code>deposition_scope</code>: which of a polycell's territory the <code>"deposition"</code>
 term is credited with. <code>"territory"</code> (default) is land plus inland
 water plus ice: nitrogen deposited on a lake or a glacier still drives
@@ -240,16 +253,24 @@ forwarded to <code><a href="build_ag_land_support.html">build_ag_land_support()<
 (<code>"gridded_pasture"</code> default, <code>"luh2"</code>, or <code>"none"</code> for cropland-only
 support).</p></li>
 <li><p><code>urban_population</code>, <code>cropland_ha</code>, <code>cell_polity</code>: <code><a href="build_urban_n.html">build_urban_n()</a></code>'s
-inputs.</p></li>
+inputs. The <code>"urban"</code> term's <code>n_input_t</code> is the <code>urban_n_t</code> column of
+<code><a href="build_urban_n.html">build_urban_n()</a></code>'s output.</p></li>
 <li><p><code>carbon_balance</code>: <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>'s <code>"grid"</code>-resolution
 output (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>land_use</code>, <code>year</code>, <code>area_ha</code>,
 <code>son_change_kgn_ha</code>); this driver requires it supplied directly, it
-is never computed here.</p></li>
+is never computed here. The <code>"som_mineralization"</code> term keeps the
+cropland rows with <code>son_change_kgn_ha &gt; 0</code> and takes
+<code>son_change_kgn_ha</code> times <code>area_ha</code>, divided by 1000, as <code>n_input_t</code>.</p></li>
 <li><p><code>primary_prod</code>, <code>fertilizer</code>, <code>crop_patterns</code>, <code>type_cropland</code>,
 <code>cell_polity</code>: the synthetic-fertiliser assembly (country total from
 <code>fertilizer</code>, the <code>faostat-fertilizer-nutrients</code> pin, split to crops
 by the chosen crop-share method, then to cells by
-<code>crop_patterns</code>/<code>type_cropland</code>).</p></li>
+<code>crop_patterns</code>/<code>type_cropland</code>). From <code>fertilizer</code> it reads the
+raw FAOSTAT columns <code>Element</code> (<code>"Agricultural Use"</code>), <code>Item</code>
+(<code>"Nutrient nitrogen N (total)"</code>), <code>Year</code>, <code>Area Code</code> and <code>Value</code>;
+<code>Value</code> becomes the country total <code>synthetic_n_t</code>, passed on as the
+<code>n_t</code> column of <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code>'s <code>country_totals</code>,
+whose output <code>n_t</code> is the <code>"synthetic"</code> term's <code>n_input_t</code>.</p></li>
 <li><p><code>synthetic_method</code>: how the synthetic-N country total is split across
 crops, <code>"coello"</code> (default; Coello 2025 rate-weighted, FAOSTAT-
 conserving) or <code>"area_share"</code> (harvested-area shares only).</p></li>

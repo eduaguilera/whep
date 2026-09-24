@@ -344,7 +344,8 @@ to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 <code>value</code>, <code>source</code>, and <code>fao_flag</code>. For <code>format = "wide"</code>, the elements
 become one column each, <code>stock_variation</code> is split into the non-negative
 <code>stock_addition</code> and <code>stock_withdrawal</code>, and <code>domestic_supply</code> is total use
-excluding <code>export</code>.</p>
+excluding <code>export</code>. A <code>unit</code> column says each row's denomination:
+<code>"tonnes"</code>, or <code>"heads"</code> for the live-animal rows (see <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>).</p>
 <p><code>fao_flag</code> is FAOSTAT's own observation-status code for the value, taken
 from the source that <code>source</code> names (<code>"A"</code> official, <code>"E"</code> estimated,
 <code>"I"</code> imputed, <code>"S"</code> standardized, <code>"SD"</code>, <code>"X"</code>). It is <code>NA</code> wherever
