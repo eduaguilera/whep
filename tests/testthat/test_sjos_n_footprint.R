@@ -452,3 +452,151 @@ testthat::test_that("target_classes without nourish aborts", {
     "nourish"
   )
 })
+
+# Pre-traced flows over two years into four consumer areas (2, 3, 4 and area
+# 1's own), with 2001 carrying no food flows, for the reporting tests below.
+.sjos_fp_two_year_flows <- function() {
+  tibble::tribble(
+    ~year, ~origin_area, ~origin_item, ~target_area, ~target_item,
+    ~target_fd, ~value,
+    2000L, 1L, 10L, 1L, 10L, "food", 10,
+    2000L, 1L, 10L, 2L, 10L, "food", 5,
+    2000L, 1L, 10L, 3L, 10L, "food", 6,
+    2000L, 1L, 10L, 4L, 10L, "food", 7,
+    2001L, 1L, 10L, 3L, 10L, "other_uses", 8,
+    2001L, 1L, 10L, 4L, 10L, "other_uses", 9
+  )
+}
+
+testthat::test_that("several unclassified consumer areas warn, not abort", {
+  classes <- tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate",
+    2000L, 2L, "Under"
+  )
+  testthat::expect_warning(
+    out <- whep::build_sjos_n_footprint(
+      data = list(
+        fp_flows = .sjos_fp_two_year_flows(),
+        target_classes = classes
+      )
+    ),
+    class = "whep_sjos_fp_unclassified_target"
+  )
+  # Every flow is kept; areas 3 and 4 are unclassified in both years.
+  testthat::expect_equal(nrow(out$fp_all), 6L)
+  testthat::expect_equal(sum(out$fp_all$impact_u), 45)
+  unclassified <- dplyr::filter(out$fp_all, is.na(.data$target_nourish))
+  testthat::expect_setequal(unclassified$target_area, c(3L, 4L))
+  testthat::expect_equal(nrow(unclassified), 4L)
+  diag <- dplyr::filter(out$target_class_diag, .data$table == "fp_all")
+  testthat::expect_equal(diag$year, c(2000L, 2001L))
+  testthat::expect_equal(diag$n_flows_unclassified, c(2L, 2L))
+  testthat::expect_equal(diag$n_target_areas_unclassified, c(2L, 2L))
+  testthat::expect_equal(diag$impact_u_unclassified, c(13, 17))
+  # The message counts the missing flows, not all flows, and lists both areas.
+  msg <- testthat::capture_warning(
+    whep::build_sjos_n_footprint(
+      data = list(
+        fp_flows = .sjos_fp_two_year_flows(),
+        target_classes = classes
+      )
+    )
+  )
+  text <- cli::ansi_strip(conditionMessage(msg))
+  testthat::expect_match(text, "4 footprint flows (of 6) go", fixed = TRUE)
+  testthat::expect_match(text, "Consumer areas:", fixed = TRUE)
+})
+
+testthat::test_that("a single unclassified flow is reported in the singular", {
+  classes <- tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate"
+  )
+  flows <- dplyr::filter(
+    .sjos_fp_two_year_flows(),
+    .data$target_area %in% c(1L, 2L)
+  )
+  msg <- testthat::capture_warning(
+    whep::build_sjos_n_footprint(
+      data = list(fp_flows = flows, target_classes = classes)
+    )
+  )
+  testthat::expect_s3_class(msg, "whep_sjos_fp_unclassified_target")
+  text <- cli::ansi_strip(conditionMessage(msg))
+  testthat::expect_match(text, "1 footprint flow (of 2) goes", fixed = TRUE)
+  testthat::expect_match(text, "Consumer area:", fixed = TRUE)
+})
+
+testthat::test_that("the diagnostic zero-fills a year with no food flows", {
+  classes <- tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate",
+    2000L, 2L, "Under",
+    2000L, 3L, "Under",
+    2000L, 4L, "Over",
+    2001L, 3L, "Under",
+    2001L, 4L, "Over"
+  )
+  out <- whep::build_sjos_n_footprint(
+    data = list(fp_flows = .sjos_fp_two_year_flows(), target_classes = classes)
+  )
+  testthat::expect_equal(nrow(out$target_class_diag), 4L)
+  food_2001 <- dplyr::filter(
+    out$target_class_diag,
+    .data$table == "fp_food",
+    .data$year == 2001L
+  )
+  testthat::expect_equal(food_2001$n_flows, 0L)
+  testthat::expect_equal(food_2001$n_flows_unclassified, 0L)
+  testthat::expect_equal(food_2001$impact_u, 0)
+})
+
+testthat::test_that("consumer classes are year-specific on the traced IO path", {
+  io <- dplyr::bind_rows(
+    .sjos_fp_io(),
+    dplyr::mutate(.sjos_fp_io(), year = 2001L)
+  )
+  exceedance <- dplyr::bind_rows(
+    .sjos_fp_exceedance(),
+    dplyr::mutate(.sjos_fp_exceedance(), year = 2001L)
+  )
+  # Area 2 changes class between years; area 1 has a class in 2000 only.
+  classes <- tibble::tribble(
+    ~year, ~area_code, ~nourish,
+    2000L, 1L, "Adequate",
+    2000L, 2L, "Under",
+    2001L, 2L, "Over"
+  )
+  testthat::expect_warning(
+    out <- suppressMessages(
+      whep::build_sjos_n_footprint(
+        exceedance,
+        io = io,
+        data = list(target_classes = classes)
+      )
+    ),
+    class = "whep_sjos_fp_unclassified_target"
+  )
+  label <- function(yr, area) {
+    unique(out$fp_all$target_nourish[
+      out$fp_all$year == yr & out$fp_all$target_area == area
+    ])
+  }
+  testthat::expect_equal(label(2000L, 2L), "Under")
+  testthat::expect_equal(label(2001L, 2L), "Over")
+  testthat::expect_equal(label(2000L, 1L), "Adequate")
+  testthat::expect_true(is.na(label(2001L, 1L)))
+  # The traded flow (area 1 to area 2) carries the importer's class that year.
+  traded <- dplyr::filter(out$fp_all, .data$origin == "Traded") |>
+    dplyr::arrange(.data$year)
+  testthat::expect_equal(traded$target_nourish, c("Under", "Over"))
+  # Nothing is dropped: each year conserves the 175 t N extension total.
+  testthat::expect_equal(
+    dplyr::summarise(out$fp_all, s = sum(.data$impact_u), .by = "year")$s,
+    c(175, 175)
+  )
+  diag <- dplyr::filter(out$target_class_diag, .data$table == "fp_all")
+  testthat::expect_equal(diag$n_flows_unclassified, c(0L, 2L))
+  testthat::expect_equal(diag$impact_u_unclassified, c(0, 80))
+})

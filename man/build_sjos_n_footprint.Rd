@@ -38,11 +38,17 @@ bypassing the model build, for testing the split logic in isolation.
 country-year keyed by \code{year} and \code{area_code}, carrying \code{nourish} (for
 example \code{\link[=normalize_nourishment]{normalize_nourishment()}} output) and optionally a country-year
 \code{boundary_side} and \code{sjos_class}. They join on \code{target_area} and \code{year} as
-\code{target_nourish}, \code{target_boundary_side} and \code{target_sjos_class}. This
-function classifies nothing: a country-year boundary class is the caller's
-to classify after aggregation, and a table with more than one class per
-country-year (a crop-level \code{\link[=classify_sjos_n]{classify_sjos_n()}} output, for instance)
-aborts rather than duplicating flows.}
+\code{target_nourish}, \code{target_boundary_side} and \code{target_sjos_class}. Its
+\code{area_code} must be in the same code space as \code{target_area}, which is the
+IO model's \code{fd_labels$area_code}: the commodity balances'
+\code{polity_area_code} bucket (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}), not the source FAOSTAT
+area. A consumer bucket with no row in the table is reported as
+unclassified; a table keyed in another code space can match the wrong
+country wherever the two numberings share a code, so key it on the
+bucket. This function classifies nothing: a country-year boundary class is
+the caller's to classify after aggregation, and a table with more than one
+class per country-year (a crop-level \code{\link[=classify_sjos_n]{classify_sjos_n()}} output, for
+instance) aborts rather than duplicating flows.}
 
 \item{example}{If \code{TRUE}, return a small hardcoded fixture instead of running
 the pipeline. Defaults to \code{FALSE}.}
@@ -58,7 +64,8 @@ traced \code{category}, optional producer classes and, when
 \code{data$target_classes} is supplied, the \verb{target_*} consumer classes.
 \item \code{fp_food}: \code{fp_all} restricted to food consumption (\code{target_fd == "food"}).
 \item \code{target_class_diag}: only when \code{data$target_classes} is supplied. One row
-per output table (\code{table}, \code{"fp_all"} or \code{"fp_food"}) and \code{year}: the
+per output table (\code{table}, \code{"fp_all"} or \code{"fp_food"}) and every \code{year}
+in \code{fp_all}, zero-filled where \code{fp_food} has no flows that year: the
 flow and consumer-area counts, \code{impact_u} (tonnes N), and how many flows,
 consumer areas and tonnes N went to a country-year with no \code{nourish}
 class (\code{n_flows_unclassified}, \code{n_target_areas_unclassified},

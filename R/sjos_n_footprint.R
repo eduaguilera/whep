@@ -54,11 +54,17 @@
 #'   country-year keyed by `year` and `area_code`, carrying `nourish` (for
 #'   example [normalize_nourishment()] output) and optionally a country-year
 #'   `boundary_side` and `sjos_class`. They join on `target_area` and `year` as
-#'   `target_nourish`, `target_boundary_side` and `target_sjos_class`. This
-#'   function classifies nothing: a country-year boundary class is the caller's
-#'   to classify after aggregation, and a table with more than one class per
-#'   country-year (a crop-level [classify_sjos_n()] output, for instance)
-#'   aborts rather than duplicating flows.
+#'   `target_nourish`, `target_boundary_side` and `target_sjos_class`. Its
+#'   `area_code` must be in the same code space as `target_area`, which is the
+#'   IO model's `fd_labels$area_code`: the commodity balances'
+#'   `polity_area_code` bucket (see [get_wide_cbs()]), not the source FAOSTAT
+#'   area. A consumer bucket with no row in the table is reported as
+#'   unclassified; a table keyed in another code space can match the wrong
+#'   country wherever the two numberings share a code, so key it on the
+#'   bucket. This function classifies nothing: a country-year boundary class is
+#'   the caller's to classify after aggregation, and a table with more than one
+#'   class per country-year (a crop-level [classify_sjos_n()] output, for
+#'   instance) aborts rather than duplicating flows.
 #' @param example If `TRUE`, return a small hardcoded fixture instead of running
 #'   the pipeline. Defaults to `FALSE`.
 #'
@@ -72,7 +78,8 @@
 #'   - `fp_food`: `fp_all` restricted to food consumption (`target_fd ==
 #'     "food"`).
 #'   - `target_class_diag`: only when `data$target_classes` is supplied. One row
-#'     per output table (`table`, `"fp_all"` or `"fp_food"`) and `year`: the
+#'     per output table (`table`, `"fp_all"` or `"fp_food"`) and every `year`
+#'     in `fp_all`, zero-filled where `fp_food` has no flows that year: the
 #'     flow and consumer-area counts, `impact_u` (tonnes N), and how many flows,
 #'     consumer areas and tonnes N went to a country-year with no `nourish`
 #'     class (`n_flows_unclassified`, `n_target_areas_unclassified`,
@@ -318,8 +325,11 @@ build_sjos_n_footprint <- function(
 
 # Coverage of the consumer join per output table and year. A flow is
 # unclassified when its consumer country-year has no nourish class, whether the
-# country-year is absent from the table or present with NA.
+# country-year is absent from the table or present with NA. Every table gets a
+# row for every year fp_all covers: fp_food can have no flows in a year, and a
+# missing row would read as a gap in the diagnostic rather than as zero flows.
 .sjos_fp_target_class_diag <- function(out) {
+  years <- sort(unique(out$fp_all$year))
   purrr::imap(out[c("fp_all", "fp_food")], \(fp, nm) {
     fp |>
       dplyr::mutate(.unclassified = is.na(.data$target_nourish)) |>
@@ -336,9 +346,28 @@ build_sjos_n_footprint <- function(
         .by = "year"
       ) |>
       dplyr::relocate("impact_u", .before = "impact_u_unclassified") |>
+      .sjos_fp_diag_complete(years) |>
       dplyr::mutate(table = nm, .before = 1L)
   }) |>
     dplyr::bind_rows()
+}
+
+# Structural zeros: the ledger here is the footprint table itself, so a year
+# with no rows in it has zero flows and zero tonnes, not an unknown amount.
+.sjos_fp_diag_complete <- function(diag, years) {
+  tidyr::complete(
+    diag,
+    year = years,
+    fill = list(
+      n_flows = 0L,
+      n_flows_unclassified = 0L,
+      n_target_areas = 0L,
+      n_target_areas_unclassified = 0L,
+      impact_u = 0,
+      impact_u_unclassified = 0
+    )
+  ) |>
+    dplyr::arrange(.data$year)
 }
 
 # fp_food is a subset of fp_all, so warning on fp_all covers both tables.
@@ -347,15 +376,21 @@ build_sjos_n_footprint <- function(
   if (nrow(missing) == 0L) {
     return(invisible())
   }
-  areas <- sort(unique(missing$target_area))
+  # cli takes the quantity for {?} from the last value before it, and a numeric
+  # vector longer than one is not a valid quantity (it aborts). Every plural
+  # below is therefore pinned with cli::qty() to a scalar count.
+  n_missing <- nrow(missing)
+  n_flows <- nrow(fp_all)
+  areas <- as.character(sort(unique(missing$target_area)))
   cli::cli_warn(
     c(
-      "!" = "{nrow(missing)} of {nrow(fp_all)} footprint flow{?s} go to a
-             consumer country-year with no {.field nourish} class;
-             {.field target_nourish} is NA on them.",
+      "!" = "{cli::qty(n_missing)}{n_missing} footprint flow{?s} (of {n_flows})
+             {cli::qty(n_missing)}{?goes/go} to a consumer country-year with no
+             {.field nourish} class; {.field target_nourish} is NA on
+             {cli::qty(n_missing)}{?it/them}.",
       "i" = "They carry {signif(sum(missing$impact_u), 4)} of
              {signif(sum(fp_all$impact_u), 4)} t N and stay in the output.",
-      "i" = "Consumer area{?s}: {.val {areas}}."
+      "i" = "{cli::qty(length(areas))}Consumer area{?s}: {.val {areas}}."
     ),
     class = "whep_sjos_fp_unclassified_target"
   )
