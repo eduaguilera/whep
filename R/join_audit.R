@@ -234,6 +234,12 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
+    ".n_manure_crop_layer", "inner_join", "crop, area_code, item_prod_code",
+    1L, "time_invariant",
+    "Spreads a polity-crop's harvested area onto cells by the crop-pattern
+     weights (whep#1300). The weights are the SAME single-vintage map the
+     `.sci_join_weights` row rests on, so there is no year to key them on; the
+     harvested area itself carries `year` into and out of the join.",
     ".pop_overlap_pairs", "inner_join", "reporting_polity_code", 1L,
     "identity_lookup",
     "Attaches a polity's transitive successors so `read_population()` can see
@@ -465,12 +471,13 @@
     ".carbon_warn_unkeyed", "summarise", "polity_code", 1L, "diagnostic",
     "Ranks the polities named in the DA-23 unkeyed-land warning. It reaches no
      value.",
-    ".cb_climate_gap_worst", "summarise", "area_code", 1L, "diagnostic",
-    "Ranks the polities losing the most land to the carbon balance's
-     climate-coverage gap, and the share of each one's own land that goes, for
-     the warning that reports it (whep#1146). A year in the key would report
-     one line per polity-year instead of one per polity, and the quantity it
-     names is already per year. It reaches no value.",
+    ".cb_gap_by_area", "summarise", "area_code", 1L, "diagnostic",
+    "Sums, per polity, the land lost to the carbon balance's climate-coverage
+     gap and the polity's whole land, which the warning ranks and reports as a
+     share (whep#1146); the same call re-sums the blocks' sums when the span
+     is built in blocks (whep#1287). A year in the key would report one line
+     per polity-year instead of one per polity, and the quantity it names is
+     already per year. It reaches no value.",
     ".cb_init_density", "mutate", "lon, lat, area_code", 1L, "single_year",
     "`first` is the earliest year of each cell, selected one step earlier; the
      equilibrium density sums the land-use classes WITHIN that one year.",

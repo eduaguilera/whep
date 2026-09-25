@@ -61,7 +61,7 @@ unsupported_fertilizer <- rlang::arg_match0(
   c("drop", "abort"),
   arg_nm = "WHEP_NBD_UNSUPPORTED_FERTILIZER"
 )
-cell_support <- rlang::arg_match0(
+cell_support_mode <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_CELL_SUPPORT", "year_aware"),
   c("year_aware", "constant"),
   arg_nm = "WHEP_NBD_CELL_SUPPORT"
@@ -73,7 +73,11 @@ cell_support <- rlang::arg_match0(
 .nbd_log$rows <- list()
 
 # Build one input, recording the outcome instead of aborting: a missing input is
-# a fact to report, not a reason to lose the other twelve.
+# a fact to report, not a reason to lose the other twelve. Each stage's
+# warnings and messages are captured rather than suppressed
+# (.nbd_capture_conditions(), R/nbd_stage.R) so a noisy input cannot drown the
+# coverage table below without also losing what it said -- see
+# .nbd_print_conditions() (whep#1288).
 nbd_stage <- function(label, expr, heavy = FALSE) {
   if (heavy && skip_heavy) {
     .nbd_record(label, "skip", 0, NA_integer_, "WHEP_NBD_SKIP_HEAVY set")
@@ -81,33 +85,80 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     return(NULL)
   }
   started <- proc.time()
-  value <- tryCatch(
-    suppressMessages(suppressWarnings(force(expr))),
-    error = function(e) e
-  )
+  captured <- whep:::.nbd_capture_conditions(expr)
   elapsed <- round((proc.time() - started)[["elapsed"]], 1)
-  if (inherits(value, "error")) {
-    .nbd_record(label, "FAIL", elapsed, NA_integer_, conditionMessage(value))
+  if (inherits(captured$value, "error")) {
+    .nbd_record(
+      label,
+      "FAIL",
+      elapsed,
+      NA_integer_,
+      conditionMessage(captured$value),
+      captured$conditions
+    )
     cli::cli_inform("{cli::col_red('FAIL')} {label} ({elapsed}s)")
     return(NULL)
   }
-  .nbd_record(label, "ok", elapsed, .nbd_size(value), NA_character_)
+  .nbd_record(
+    label,
+    "ok",
+    elapsed,
+    .nbd_size(captured$value),
+    NA_character_,
+    captured$conditions
+  )
   cli::cli_inform("{cli::col_green('ok')}   {label} ({elapsed}s)")
-  value
+  captured$value
 }
 
-.nbd_record <- function(label, status, seconds, rows, detail) {
-  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- tibble::tibble(
-    input = label,
-    status = status,
-    seconds = seconds,
-    rows = rows,
-    detail = if (is.na(detail)) {
-      NA_character_
-    } else {
-      substr(gsub("\\s+", " ", detail), 1, 1200)
-    }
+.nbd_record <- function(
+  label,
+  status,
+  seconds,
+  rows,
+  detail,
+  conditions = NULL
+) {
+  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- whep:::.nbd_stage_row(
+    label,
+    status,
+    seconds,
+    rows,
+    detail,
+    conditions
   )
+}
+
+# Printed after the coverage table (never before or inside a stage), so a
+# stage's report stays visible without drowning that table -- the same
+# trade-off the old suppression comment named, kept true instead of discarded.
+# Warnings are rare enough per run (a handful, not one per row: see
+# .ni_report_reallocated(), .ni_warn_stranded_dropped(),
+# .warn_unclassified_feed()) to print in full; messages are listed the same
+# way rather than only counted, because the number IS the report --
+# ".ni_report_reallocated()" exists to say how much nitrogen moved.
+.nbd_print_conditions <- function(report) {
+  by_condition <- report |>
+    dplyr::select("input", "conditions") |>
+    tidyr::unnest("conditions")
+  if (nrow(by_condition) == 0L) {
+    return(invisible(NULL))
+  }
+  warned <- dplyr::filter(by_condition, .data$class == "warning")
+  messaged <- dplyr::filter(by_condition, .data$class == "message")
+  if (nrow(warned) > 0L) {
+    cli::cli_h3("Warnings")
+    for (i in seq_len(nrow(warned))) {
+      cli::cli_alert_warning("{warned$input[i]}: {warned$message[i]}")
+    }
+  }
+  if (nrow(messaged) > 0L) {
+    cli::cli_h3("Messages")
+    for (i in seq_len(nrow(messaged))) {
+      cli::cli_alert_info("{messaged$input[i]}: {messaged$message[i]}")
+    }
+  }
+  invisible(by_condition)
 }
 
 .nbd_size <- function(x) {
@@ -451,15 +502,26 @@ fertilizer <- nbd_stage(
 
 # ---- 2. spatial and land surfaces -------------------------------------------
 
-cli::cli_h2("2. Spatial and land surfaces ({cell_support} cell support)")
+cli::cli_h2("2. Spatial and land surfaces ({cell_support_mode} cell support)")
 
 # Built after the country statistics because the year-aware support needs the
 # codes that carry national data this year (.nbd_cell_polity()).
 cell_polity <- nbd_stage(
   "cell_polity",
-  .nbd_cell_polity(cell_support, year, primary_prod, fertilizer)
+  .nbd_cell_polity(cell_support_mode, year, primary_prod, fertilizer)
 )
-cell_support_report <- .nbd_cell_support_report(cell_polity, cell_support)
+cell_support_report <- .nbd_cell_support_report(cell_polity, cell_support_mode)
+# The cell support the livestock chain is placed on: the heads, the grass
+# ceiling, and the crop layer the manure is spread over (whep#1300). One table
+# for all three, so a border cell's animals and the hectares their manure lands
+# on cannot be split between polities differently. It is the carbon path's
+# polycell support, which is also what the local feed grain reads by default.
+# It is NOT yet the year-aware support above: under `year_aware` the crop NPP
+# follows cell_polity while livestock stays on this fixed-year support, so a
+# polity with no cell on it (the USSR in 1961) has no cells for its animals.
+# Moving the livestock chain onto cell_polity is a follow-up, not a merge
+# resolution: the two tables carry their cell share in different columns.
+cell_support <- nbd_stage("cell_support", whep:::.sci_read_country_grid())
 ag_land_support <- nbd_stage(
   "ag_land_support",
   build_ag_land_support(years = year, data = list(cell_polity = cell_polity))
@@ -497,15 +559,13 @@ npp <- nbd_stage(
   "npp_n_input",
   .nbd_grid_npp(
     npp_national,
-    if (cell_support == "constant") {
-      whep:::.sci_read_country_grid()
-    } else {
-      cell_polity
-    }
+    if (cell_support_mode == "constant") cell_support else cell_polity
   )
 )
-# Reported here, not inside the stage: nbd_stage() suppresses messages so a
-# noisy input cannot drown the coverage table, which would also hide this.
+# Reported here, not inside the stage: this compares npp_national and npp
+# AFTER both stages finish, so it can never be a condition either stage raises
+# for nbd_stage() to capture (whep#1288) -- there is nothing to catch until
+# both values already exist.
 if (!is.null(npp) && !is.null(npp_national)) {
   .nbd_report_unspatialized(npp_national, npp)
 }
@@ -567,21 +627,34 @@ carbon_balance <- nbd_stage(
     dplyr::filter(.data$year == !!year),
   heavy = TRUE
 )
-# redistribute_feed() takes two already-assembled tables (feed demand and feed
-# availability); .run_redistribute_national() is the wrapper that builds both
-# from production and the commodity balances, and is what the manure path in
-# build_soil_carbon_inputs() already uses. Calling redistribute_feed() bare, as
-# this driver did, can only fail on a missing argument.
+# The realised feed intake behind the manure and grazed-forage terms, at the
+# grain the resolution needs (.n_livestock_intake(), R/n_balance_grid_manure.R).
+# At "grid" it is the local grain: national demand spread to cells by the
+# gridded heads on `cell_support`, so the manure lands on cells. National intake
+# carries no cell, and build_n_inputs(resolution = "grid") aborts on it with
+# "missing spatial keys" (whep#1300). At "polity" it is the national grain.
 livestock_intake <- nbd_stage(
   "livestock_intake",
-  whep:::.run_redistribute_national(
+  whep:::.n_livestock_intake(
+    resolution,
     production = primary_prod,
     cbs = get_wide_cbs(years = year),
-    demand_tier = "ipcc",
-    options = list(distribute_surplus = FALSE)
+    country_grid = cell_support
   ),
   heavy = TRUE
 )
+# The crop layer that manure is spread over, on the same grain and support.
+manure_crops <- nbd_stage(
+  "manure_crops",
+  whep:::.n_manure_crop_layer(resolution, primary_prod, cell_support)
+)
+# Outside the stage, which suppresses messages (see the NPP report above).
+if (!is.null(manure_crops) && resolution == "grid") {
+  whep:::.n_report_unplaced_crop_area(
+    whep:::.sci_manure_crop_layer(primary_prod),
+    manure_crops
+  )
+}
 
 # ---- 5. coverage and blockers -------------------------------------------------
 
@@ -651,6 +724,7 @@ if (nrow(blockers) > 0L) {
   cli::cli_alert_info(
     "{nrow(blockers)} blocker{?s}; the balance is not attempted. See #446."
   )
+  .nbd_print_conditions(report)
   invisible(report)
 } else {
   cli::cli_h2("6. Nitrogen balance")
@@ -671,11 +745,10 @@ if (nrow(blockers) > 0L) {
     carbon_balance = carbon_balance,
     livestock_intake = livestock_intake,
     # build_livestock_nutrient_flows() needs the land surface its manure is
-    # spread over as well as the intake; .sci_manure_crop_layer() is the
-    # same crops layer build_soil_carbon_inputs() gives it, so the manure
-    # reaching the nitrogen balance sits on the same hectares as the manure
-    # reaching the carbon balance.
-    gridded = list(crops = whep:::.sci_manure_crop_layer(primary_prod)),
+    # spread over as well as the intake. manure_crops is the harvested-area
+    # layer build_soil_carbon_inputs() gives it (.sci_manure_crop_layer()),
+    # spread onto cell_support at "grid" so it meets the cell intake.
+    gridded = list(crops = manure_crops),
     # The default allocation cap, "potential_uptake", needs a precomputed
     # crop_n_cap that this crops layer does not carry. build_soil_carbon_
     # inputs() hits the same wall and answers it with "fixed_ceiling", so
@@ -832,10 +905,12 @@ if (nrow(blockers) > 0L) {
      balances (nourishment axis, IO model); get_wide_cbs() aborts on the
      faostat-cbs-new pin's logical unit column (#1025)."
   )
+  final_report <- dplyr::bind_rows(.nbd_log$rows)
+  .nbd_print_conditions(final_report)
   result <- list(
     year = year,
     resolution = resolution,
-    report = dplyr::bind_rows(.nbd_log$rows),
+    report = final_report,
     unsupported_fertilizer = unsupported_fertilizer_n,
     cell_support = cell_support_report,
     balance = balance,
