@@ -130,27 +130,29 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
 
 testthat::test_that("the proximate sum against dry matter can only improve", {
   # The tighter chemical bound: the constituents must fit inside the dry
-  # matter. 75 rows fail it, but only 32 fail once fibre is left out, so about
+  # matter. 74 rows fail it, but only 31 fail once fibre is left out, so about
   # forty of them are fibre being counted inside carbohydrate as well as beside
   # it rather than a coefficient error. Both counts are ratchets: lower them
-  # when a row is fixed, never raise them to admit a new one.
+  # when a row is fixed, never raise them to admit a new one. Honey left both
+  # in #1096: its composition row sums to exactly its 785 g/kg dry matter.
   prox <- .bch_proximate()
   with_fibre <- sum(prox$proximate_g_kgfm > prox$dry_matter_g_kgfm)
   without_fibre <- sum(
     prox$proximate_g_kgfm - dplyr::coalesce(prox$Fiber_g_kgFM, 0) >
       prox$dry_matter_g_kgfm
   )
-  testthat::expect_lte(with_fibre, 75L)
-  testthat::expect_lte(without_fibre, 32L)
+  testthat::expect_lte(with_fibre, 74L)
+  testthat::expect_lte(without_fibre, 31L)
 })
 
 testthat::test_that("no single constituent outweighs its own dry matter", {
   # The strictest reading of the bound, and the one no definitional argument
   # rescues: whatever basis the composition block is on, a single constituent
-  # cannot outweigh the dry matter it is part of. Six rows carry a
+  # cannot outweigh the dry matter it is part of. Five rows carry a
   # carbohydrate value above their own Product_kgDM_kgFM (#752), so at least
   # one of those two cells is wrong in each. Pinned by name: repairing one
-  # means editing this list, and a new offender fails loudly.
+  # means editing this list, and a new offender fails loudly. Honey left it
+  # in #1096, when its placeholder 1000 g/kg became its `Miel` row's 780.
   #
   # White sugar is arithmetic rather than a typo -- Equiv copies a parent's
   # composition rescaled per kg of dry matter (exact to 1e-13), so Brown
@@ -166,7 +168,6 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
   testthat::expect_setequal(
     offenders,
     c(
-      "Honey",
       "White sugar",
       "Brown sugar",
       "Figs",

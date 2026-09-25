@@ -64,9 +64,11 @@ the edible basis is derived from \code{Edible_portion} instead of stored
 redundantly. \code{N_kgN_kgFM} must be a \strong{food-composition} density for this to
 mean anything, because \code{food_t} for a processed FBS item is the primary
 equivalent of the products actually eaten: a whole-grain nitrogen density on
-that mass counts milling offal as food. Five cereal rows carry the
-agronomic value instead, and others a bare literal; both sets are named in
-\link{biomass_coefs}. \code{Wheat} was the largest, at 1.27x FAOSTAT FBS world
+that mass counts milling offal as food. Five cereal rows carried the
+agronomic value instead, and others a bare literal; \link{biomass_coefs} names
+both sets and what became of each (#1096: \code{Olive}, \code{Rye} and \code{Honey} now
+follow their food-composition rows, \code{Oats}, \code{Maize} and \code{Rice} do not).
+\code{Wheat} was the largest, at 1.27x FAOSTAT FBS world
 protein until #796, and now ships on the \strong{flour basis}, 93 g of protein
 per kg, sourced and measured in \link{biomass_coefs}. Energy per kilogram
 fresh matter follows \code{GE_product_edible_portion_MJ_kgFM}, then
