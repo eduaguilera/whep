@@ -2385,7 +2385,7 @@ resolve_polity_label <- function(
       ((!is.na(rule_unit[r]) & is.na(unit)) |
         (!is.na(rule_indicator[r]) & is.na(indicator)))
     if (any(unscoped)) {
-      .abort_unscoped_label_item_correction(
+      .abort_unscoped_correction(
         rules[r, ],
         which(unscoped),
         c(unit = rule_unit[r], indicator = rule_indicator[r])
@@ -2418,7 +2418,7 @@ resolve_polity_label <- function(
   list(label = label, relabelled = relabelled, unrouted = unrouted)
 }
 
-.abort_unscoped_label_item_correction <- function(rule, rows, scope) {
+.abort_unscoped_correction <- function(rule, rows, scope) {
   scope <- scope[!is.na(scope)]
   cli::cli_abort(
     c(
