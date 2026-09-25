@@ -367,6 +367,9 @@ reference:
   - plot_input_output
   - plot_input_output_livestock
   - plot_input_output_system
+  - plot_input_output_land_panel
+  - plot_input_output_total_panel
+  - plot_input_output_four_panel
 
 - title: Download large input datasets
   desc: >

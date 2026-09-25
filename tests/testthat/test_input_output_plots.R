@@ -534,3 +534,133 @@ test_that(".livestock_feed_by_origin buckets feed by N origin", {
   # the Livestock-origin distractor is not a feed origin bucket
   expect_setequal(out$Type, c("Crops_local", "Grass_local", "Imports"))
 })
+
+
+# ported feature: land / total-area two-panel figures ---------------------
+
+.stub_check_installed_io <- function(record) {
+  testthat::local_mocked_bindings(
+    check_installed = function(pkg, ...) {
+      record$pkg <- pkg
+      cli::cli_abort("Stub guard.", class = "whep_test_stub_guard")
+    },
+    .package = "rlang",
+    .env = parent.frame()
+  )
+}
+
+test_that(".label_input_output_panels relabels only when both panels are per-ha", {
+  skip_if_not_installed("ggplot2")
+
+  p_ha <- ggplot2::ggplot() + ggplot2::labs(y = "kg N/ha")
+
+  out <- .label_input_output_panels(p_ha, p_ha, c("cropland", "semi-natural"))
+
+  expect_true(out$applied)
+  expect_equal(out$p1$labels$y, "kg N / ha cropland")
+  expect_equal(out$p2$labels$y, "kg N / ha semi-natural")
+})
+
+test_that(".label_input_output_panels leaves labels alone when per-ha did not apply", {
+  skip_if_not_installed("ggplot2")
+
+  p_gg <- ggplot2::ggplot() + ggplot2::labs(y = "Gg N")
+
+  out <- .label_input_output_panels(p_gg, p_gg, c("cropland", "semi-natural"))
+
+  expect_false(out$applied)
+  expect_equal(out$p1$labels$y, "Gg N")
+  expect_equal(out$p2$labels$y, "Gg N")
+})
+
+test_that(".label_input_output_panels treats a mixed pair as not applied", {
+  skip_if_not_installed("ggplot2")
+
+  p_ha <- ggplot2::ggplot() + ggplot2::labs(y = "kg N/ha")
+  p_gg <- ggplot2::ggplot() + ggplot2::labs(y = "Gg N")
+
+  out <- .label_input_output_panels(p_ha, p_gg, c("cropland", "semi-natural"))
+
+  expect_false(out$applied)
+  # Unrelabeled, so the mismatched pair still carries its original,
+  # inconsistent units rather than a silently wrong shared caption.
+  expect_equal(out$p1$labels$y, "kg N/ha")
+  expect_equal(out$p2$labels$y, "Gg N")
+})
+
+test_that("plot_input_output_land_panel composes cropland and semi-natural", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  skip_if("package:patchwork" %in% search(), "patchwork is attached")
+
+  panel <- whep::plot_input_output_land_panel(example = TRUE)
+
+  expect_s3_class(panel, "patchwork")
+})
+
+test_that("plot_input_output_total_panel composes livestock and agro-food system", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  skip_if("package:patchwork" %in% search(), "patchwork is attached")
+
+  panel <- whep::plot_input_output_total_panel(example = TRUE)
+
+  expect_s3_class(panel, "patchwork")
+})
+
+test_that("land panel checks its plotting packages up front", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+
+  record <- new.env(parent = emptyenv())
+  .stub_check_installed_io(record)
+
+  expect_error(
+    whep::plot_input_output_land_panel(example = TRUE),
+    class = "whep_test_stub_guard"
+  )
+  expect_equal(record$pkg, c("ggplot2", "patchwork"))
+})
+
+test_that("total panel checks its plotting packages up front", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+
+  record <- new.env(parent = emptyenv())
+  .stub_check_installed_io(record)
+
+  expect_error(
+    whep::plot_input_output_total_panel(example = TRUE),
+    class = "whep_test_stub_guard"
+  )
+  expect_equal(record$pkg, c("ggplot2", "patchwork"))
+})
+
+test_that("plot_input_output_four_panel composes all four systems", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  skip_if("package:patchwork" %in% search(), "patchwork is attached")
+
+  panel <- whep::plot_input_output_four_panel(example = TRUE)
+
+  expect_s3_class(panel, "patchwork")
+  # 4 data panels + 3 thin grey divider strips (the cross), per
+  # .input_output_four_panel_cross()'s design layout.
+  expect_length(panel$patches$plots, 6)
+  expect_equal(panel$patches$layout$widths, c(1, 1, 1, 0.015, 1, 1, 1))
+  expect_equal(panel$patches$layout$heights, c(1, 1, 1, 0.015, 1, 1, 1))
+})
+
+test_that("four panel checks its plotting packages up front", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+
+  record <- new.env(parent = emptyenv())
+  .stub_check_installed_io(record)
+
+  expect_error(
+    whep::plot_input_output_four_panel(example = TRUE),
+    class = "whep_test_stub_guard"
+  )
+  expect_equal(record$pkg, c("ggplot2", "patchwork"))
+})

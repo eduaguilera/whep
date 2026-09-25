@@ -233,6 +233,143 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   )
 }
 
+#' Plot cropland and semi-natural input-output panels side by side
+#'
+#' @description
+#' Combines [plot_input_output()] for `"Cropland"` and
+#' `"semi_natural_agroecosystems"` into a single two-panel figure. When
+#' `per_ha = TRUE`, each panel is normalized by its own land-use area
+#' (cropland area for the left panel, semi-natural agroecosystem area for
+#' the right) -- unlike [plot_input_output_total_panel()], whose two panels
+#' share the same total agricultural area. The y-axis label and caption
+#' only mention per-hectare units when normalization actually took effect
+#' (it silently falls back to national totals if the area data could not
+#' be loaded), so the figure never claims a unit it did not use.
+#'
+#' @param per_ha Logical. If `TRUE`, express nitrogen flows per hectare of
+#'   each panel's own land-use area (kg N/ha) instead of national totals
+#'   (Gg N). Requires remote data, so it is ignored in example mode.
+#'   Default is `FALSE`.
+#' @param example If `TRUE`, build both panels from a small example dataset
+#'   without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_land_panel(example = TRUE)
+#' }
+plot_input_output_land_panel <- function(per_ha = FALSE, example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output land panel."
+  )
+  p_cropland <- plot_input_output("Cropland", per_ha, example)
+  p_seminat <- plot_input_output(
+    "semi_natural_agroecosystems",
+    per_ha,
+    example
+  )
+  .input_output_two_panel(
+    p_cropland,
+    p_seminat,
+    area_labels = c("cropland", "semi-natural"),
+    caption = "Each panel per hectare of its own land-use area."
+  )
+}
+
+#' Plot livestock and agro-food system input-output panels side by side
+#'
+#' @description
+#' Combines [plot_input_output_livestock()] and [plot_input_output_system()]
+#' into a single two-panel figure. When `per_ha = TRUE`, both panels are
+#' normalized by the same total national agricultural area -- unlike
+#' [plot_input_output_land_panel()], whose two panels each use a different,
+#' smaller land-use area. The y-axis label and caption only mention
+#' per-hectare units when normalization actually took effect (it silently
+#' falls back to national totals if the area data could not be loaded), so
+#' the figure never claims a unit it did not use.
+#'
+#' @param per_ha Logical. If `TRUE`, express nitrogen flows per hectare of
+#'   total national agricultural land (kg N/ha) instead of national totals
+#'   (Gg N). Requires remote data, so it is ignored in example mode.
+#'   Default is `FALSE`.
+#' @param example If `TRUE`, build both panels from a small example dataset
+#'   without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_total_panel(example = TRUE)
+#' }
+plot_input_output_total_panel <- function(per_ha = FALSE, example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output total-area panel."
+  )
+  p_livestock <- plot_input_output_livestock(per_ha, example)
+  p_system <- plot_input_output_system(per_ha, example)
+  .input_output_two_panel(
+    p_livestock,
+    p_system,
+    area_labels = c("total agri. land", "total agri. land"),
+    caption = "Both panels per hectare of total national agricultural land."
+  )
+}
+
+#' Plot all four input-output panels together
+#'
+#' @description
+#' Combines [plot_input_output()] for `"Cropland"` and
+#' `"semi_natural_agroecosystems"`, [plot_input_output_livestock()], and
+#' [plot_input_output_system()] into a single four-panel (2x2) figure of
+#' national nitrogen totals (Gg N). There is no `per_ha` argument: per
+#' hectare, the four systems do not share one area basis (Cropland and
+#' semi-natural agroecosystems each use their own land-use area; Livestock
+#' and the agro-food system use total agricultural area -- see
+#' [plot_input_output_land_panel()] and [plot_input_output_total_panel()]),
+#' so folding all four normalized panels into one grid would silently mix
+#' two different denominators. Use those two functions for the per-hectare
+#' view instead, kept as two separate figures for that reason.
+#'
+#' @param example If `TRUE`, build all four panels from a small example
+#'   dataset without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_four_panel(example = TRUE)
+#' }
+plot_input_output_four_panel <- function(example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output four panel."
+  )
+  p_cropland <- plot_input_output("Cropland", example = example)
+  p_seminat <- plot_input_output(
+    "semi_natural_agroecosystems",
+    example = example
+  )
+  p_livestock <- plot_input_output_livestock(example = example)
+  p_system <- plot_input_output_system(example = example)
+
+  .input_output_four_panel_cross(p_cropland, p_seminat, p_livestock, p_system)
+}
+
 # Private helpers --------------------------------------------------------------
 
 .load_nat_destiny <- function(example) {
@@ -645,7 +782,8 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     ggplot2::theme(
       legend.text = ggplot2::element_text(size = 15),
       legend.key.size = ggplot2::unit(1.2, "cm"),
-      axis.text = ggplot2::element_text(size = 13)
+      axis.text = ggplot2::element_text(size = 13),
+      axis.title = ggplot2::element_text(size = 16)
     )
 
   if (!is.null(annotate_label)) {
@@ -663,6 +801,75 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   }
 
   plot
+}
+
+# Detects whether per-hectare normalization actually took effect by
+# reading each panel's own y-axis label -- set to the literal "kg N/ha" by
+# .stacked_area_plot() -- rather than trusting the caller's `per_ha`
+# request, since plot_input_output()/plot_input_output_livestock()/
+# plot_input_output_system() silently fall back to national totals when
+# the area data could not be loaded. Only then does it substitute the
+# area-specific label; otherwise both panels are returned unchanged, still
+# in Gg N.
+.label_input_output_panels <- function(p1, p2, area_labels) {
+  applied <- identical(p1$labels$y, "kg N/ha") &&
+    identical(p2$labels$y, "kg N/ha")
+  if (applied) {
+    p1 <- p1 + ggplot2::labs(y = paste("kg N / ha", area_labels[1]))
+    p2 <- p2 + ggplot2::labs(y = paste("kg N / ha", area_labels[2]))
+  }
+  list(p1 = p1, p2 = p2, applied = applied)
+}
+
+# Combines two already-built input-output panels (from plot_input_output(),
+# plot_input_output_livestock() or plot_input_output_system()) side by
+# side, adding the caption only when .label_input_output_panels() found
+# that per-hectare normalization actually applied to both -- so the
+# caption never claims a unit the panels do not use.
+.input_output_two_panel <- function(p1, p2, area_labels, caption) {
+  labeled <- .label_input_output_panels(p1, p2, area_labels)
+  patchwork::wrap_plots(labeled$p1, labeled$p2, nrow = 1) +
+    patchwork::plot_annotation(
+      caption = if (labeled$applied) caption else NULL
+    )
+}
+
+# A thin grey rectangle used as the cross-shaped divider between the four
+# panels in .input_output_four_panel_cross().
+.input_output_divider <- function() {
+  ggplot2::ggplot() +
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      plot.background = ggplot2::element_rect(fill = "grey40", color = NA)
+    )
+}
+
+# Composes the four input-output panels (top-left, top-right, bottom-left,
+# bottom-right) into a 2x2 grid divided by a thin grey cross, matching
+# plot_typology_periods_panel()'s .panel_periods_cross() layout.
+.input_output_four_panel_cross <- function(p_tl, p_tr, p_bl, p_br) {
+  divider <- .input_output_divider()
+  design <- "
+    AAAVBBB
+    AAAVBBB
+    AAAVBBB
+    LLLVRRR
+    CCCVDDD
+    CCCVDDD
+    CCCVDDD
+  "
+  patchwork::wrap_plots(
+    A = p_tl,
+    B = p_tr,
+    C = p_bl,
+    D = p_br,
+    V = divider,
+    L = divider,
+    R = divider,
+    design = design,
+    widths = c(1, 1, 1, 0.015, 1, 1, 1),
+    heights = c(1, 1, 1, 0.015, 1, 1, 1)
+  )
 }
 
 .load_n_balance <- function(example, needed) {
