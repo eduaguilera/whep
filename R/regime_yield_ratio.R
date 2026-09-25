@@ -45,8 +45,13 @@
 #' `R_lt = 1 + min(9, (R_level - 1) * spatial)`: it is capped at 10, i.e. its
 #' excess over 1 at 9. The ratio of the year is
 #' `R = 1 + (R_lt - 1) * temporal`; the temporal part is not capped, so only a
-#' bad year takes `R` past 10. [split_regime_yield()] applies it to a cell's
-#' production and areas.
+#' bad year takes `R` past 10.
+#'
+#' This `R` is returned as `ratio_unbounded`, for diagnosis only: a
+#' single-year near-zero LPJmL rainfed yield can make it absurdly large. Only
+#' the `ratio` of [split_regime_yield()], which applies it to a cell's
+#' production and areas under an irrigated-yield ceiling and a rainfed-yield
+#' floor, is fit to weight anything.
 #'
 #' @section Anchor:
 #' How `spam_crop` is read is fixed by `spam_basis` in
@@ -128,6 +133,12 @@
 #' - The yield bounds of [split_regime_yield()] pool every production row of
 #'   1961-2023 with positive tonnes and area, whatever its `source`.
 #'
+#' The USSR's and Czechoslovakia's cropland before 1961 is their successors'
+#' combined LUH2 cropland (annual plus perennial crop types), rescaled to the
+#' predecessor's own FAOSTAT cropland in 1961 -- the same splicing rule
+#' [get_arable_permanent_land()] applies to a single country, which cannot be
+#' applied to these two because their codes have no LUH2 country.
+#'
 #' @param cells A tibble of the cell-crop-years to build, with `lon`, `lat`
 #'   (0.5-degree cell centres), `area_code` (a WHEP area code; it is resolved
 #'   to its polity bucket for the national inputs), `item_prod_code` and
@@ -168,8 +179,9 @@
 #'   - `ratio_temporal`: the cell-year LPJmL ratio over the cell's 1994-2023
 #'     ratio.
 #'   - `ratio_anomaly`: `ratio_spatial * ratio_temporal`, for reference.
-#'   - `ratio`: `1 + (ratio_long_term - 1) * ratio_temporal`; `NA` where the
-#'     level is.
+#'   - `ratio_unbounded`: `1 + (ratio_long_term - 1) * ratio_temporal`; `NA`
+#'     where the level is. Not fit to weight anything: pass it to
+#'     [split_regime_yield()], whose `ratio` is the bounded one.
 #'   - `spam_crop_used`: the SPAM crop code(s) the anchor came from (for Linum
 #'     and Hemp, the product chosen for the country).
 #'   - `method_ratio_anchor`: `"spam_country"`, `"spam_global"`,
@@ -262,7 +274,9 @@ build_regime_yield_ratio <- function(
 #' `Y_r = P / (A_r + R * A_i)` and `Y_i = R * Y_r`, so
 #' `A_r * Y_r + A_i * Y_i = P`.
 #'
-#' Two plausibility bounds can lower `R`, never below 1:
+#' `R` starts from `ratio_unbounded` and two plausibility bounds can lower it,
+#' never below 1. The result is the output's `ratio`, the only ratio fit to
+#' weight anything:
 #' - **Irrigated-yield ceiling.** Where `Y_i` would exceed the item's `Y_max`,
 #'   `R` is lowered until `Y_i = Y_max`, `R = Y_max * A_r / (P - Y_max * A_i)`.
 #'   `Y_max` is the 99th percentile of the item's national yields (production
@@ -270,48 +284,56 @@ build_regime_yield_ratio <- function(
 #'   countries and the years 1961-2023.
 #' - **Rainfed-yield floor.** Where `Y_r` would fall below the item's
 #'   `Y_min`, the 1st percentile of the same pool, `R` is lowered until
-#'   `Y_r = Y_min`, `R = (P - Y_min * A_r) / (Y_min * A_i)`. It applies only
-#'   where both regimes have area.
+#'   `Y_r = Y_min`, `R = (P - Y_min * A_r) / (Y_min * A_i)`.
 #'
 #' Lowering `R` raises `Y_r` and lowers `Y_i`, so the floor, applied after the
-#' ceiling, cannot break it.
+#' ceiling, cannot break it. An item with no FAOSTAT yields of its own takes
+#' the pooled yields of the items that directly carry one of its SPAM crops
+#' in [regime_yield_crop_mapping] (`spam_basis` `"direct"` or
+#' `"direct_aggregate"`), stamped `"bound_via_spam_crop"`.
 #'
-#' A regime with no area still gets the yield the ratio implies, which
-#' multiplies zero area; only a cell-crop with no area at all, or no ratio,
-#' gets `NA` yields.
+#' A cell-crop with area in one regime only is a trivial split: all its
+#' production is on that regime, no ratio applies (`ratio` is 1, whatever
+#' `ratio_unbounded` is) and the bounds are not tested. Only a cell-crop with
+#' no area at all, or with both regimes and no `ratio_unbounded`, gets `NA`.
 #'
 #' @param cells A tibble with `area_code`, `item_prod_code`, `production_t`
 #'   (production in the units of [get_primary_production()]'s `"tonnes"`
-#'   rows), `rainfed_ha`, `irrigated_ha` and `ratio` (as
+#'   rows), `rainfed_ha`, `irrigated_ha` and `ratio_unbounded` (as
 #'   [build_regime_yield_ratio()] returns it). Other columns are kept.
 #' @param bound Which pool of national yields sets `Y_max` and `Y_min`:
 #'   `"global"` (default, all countries) or `"region"` (the countries of the
-#'   cell's WHEP region, the `region` column of [regions_full]).
+#'   cell's WHEP region, the `region` column of [regions_full]; where the
+#'   region has no yields for the item, the world's pool, stamped `_global`).
 #' @param production Optional [get_primary_production()] output (`year`,
 #'   `area_code`, `item_prod_code`, `unit`, `value`) used instead of building
 #'   it.
 #' @return `cells` with:
-#'   - `ratio_split`: the ratio used, after the bounds.
+#'   - `ratio`: the irrigated:rainfed yield ratio used, after the bounds (1 on
+#'     a trivial split).
 #'   - `yield_rainfed`, `yield_irrigated`: production per hectare of each
 #'     regime.
 #'   - `yield_max`, `yield_min`: the bounds applied; `NA` where the item has
 #'     no yields to set them.
-#'   - `method_regime_split`: `"yield_ratio"`, `"rainfed_only"`,
-#'     `"irrigated_only"`, `"no_area"` or `"no_ratio"`.
+#'   - `method_regime_split`: `"yield_ratio"`, `"trivial_rainfed_only"`,
+#'     `"trivial_irrigated_only"`, `"no_area"` or `"no_ratio"`.
 #'   - `method_regime_bound`: the ceiling: `"not_binding"`, `"clipped"`,
 #'     `"clipped_at_one"` (lowered to 1 and still above `Y_max`: the mean
-#'     yield itself exceeds it), `"no_bound"` or `"not_applicable"` (no
-#'     irrigated area, no area or no ratio).
+#'     yield itself exceeds it), `"no_bound"`, `"not_applicable_trivial"` or
+#'     `"not_applicable"` (no area, or no ratio).
 #'   - `method_rainfed_floor`: the floor: `"not_binding"`, `"rainfed_floor"`,
 #'     `"rainfed_floor_at_one"` (lowered to 1 and still below `Y_min`: the
-#'     mean yield itself is below it), `"no_bound"` or `"not_applicable"`
-#'     (not both regimes, or no ratio).
+#'     mean yield itself is below it), `"no_bound"`,
+#'     `"not_applicable_trivial"` or `"not_applicable"`.
+#'   - `method_bound_source`: which yields set the bounds: `"own_yields"`,
+#'     `"bound_via_spam_crop"`, either suffixed `"_global"` where a regional
+#'     pool fell back to the world's, or `"none"`.
 #'   - `method_yield_bound`: the `bound` chosen.
 #' @export
 #' @examples
 #' cells <- tibble::tribble(
 #'   ~area_code, ~item_prod_code, ~production_t, ~rainfed_ha, ~irrigated_ha,
-#'   ~ratio,
+#'   ~ratio_unbounded,
 #'   203L, 15L, 500, 100, 50, 1.8
 #' )
 #' production <- tibble::tribble(
@@ -334,7 +356,7 @@ split_regime_yield <- function(
       "production_t",
       "rainfed_ha",
       "irrigated_ha",
-      "ratio"
+      "ratio_unbounded"
     ),
     "cells"
   )
@@ -343,8 +365,13 @@ split_regime_yield <- function(
     get_primary_production(
       years = .ryr_bound_years()
     )
+  bounds <- .ryr_yield_bounds(
+    production,
+    bound,
+    unique(as.integer(cells$item_prod_code))
+  )
   cells |>
-    .ryr_attach_bounds(.ryr_yield_bounds(production, bound), bound) |>
+    .ryr_attach_bounds(bounds, bound) |>
     .ryr_split()
 }
 
@@ -1654,7 +1681,8 @@ split_regime_yield <- function(
       excess_raw = (.data$ratio_level - 1) * .data$ratio_spatial,
       ratio_long_term = 1 + pmin(.data$excess_raw, cap),
       ratio_anomaly = .data$ratio_spatial * .data$ratio_temporal,
-      ratio = 1 + (.data$ratio_long_term - 1) * .data$ratio_temporal,
+      ratio_unbounded = 1 +
+        (.data$ratio_long_term - 1) * .data$ratio_temporal,
       method_regime_yield = .ryr_stamp(
         anchor_floor = .data$ratio_spam < 1,
         level_cap = .data$excess_raw > cap
@@ -1673,7 +1701,7 @@ split_regime_yield <- function(
       "ratio_long_term",
       "ratio_temporal",
       "ratio_anomaly",
-      "ratio",
+      "ratio_unbounded",
       "spam_crop_used",
       "method_ratio_anchor",
       "method_ratio_trend",
@@ -1704,10 +1732,10 @@ split_regime_yield <- function(
 
 # -- Split and bound ----------------------------------------------------------
 
-# The 99th and 1st percentiles of each item's national yields
-# over 1961-2023, for the world or per WHEP region. A duplicated national
-# value would weigh twice, so it is refused.
-.ryr_yield_bounds <- function(production, bound) {
+# Each item's national yields (production over harvested area) over
+# 1961-2023, one row per area, item and year, with the area's WHEP region. A
+# duplicated national value would weigh twice, so it is refused.
+.ryr_national_yields <- function(production) {
   .ryr_require_cols(
     production,
     c("year", "area_code", "item_prod_code", "unit", "value"),
@@ -1732,21 +1760,20 @@ split_regime_yield <- function(
       class = "whep_regime_yield_production"
     )
   }
-  yields <- long |>
+  long |>
     tidyr::pivot_wider(names_from = "unit", values_from = "value") |>
     ensure_columns(tibble::tibble(tonnes = double(), ha = double())) |>
     dplyr::filter(.data$tonnes > 0, .data$ha > 0) |>
-    dplyr::mutate(yield = .data$tonnes / .data$ha)
-  by <- "item_prod_code"
-  if (identical(bound, "region")) {
-    yields <- dplyr::left_join(
-      yields,
-      .ryr_region_map(),
-      by = "area_code"
+    dplyr::transmute(
+      .data$area_code,
+      .data$item_prod_code,
+      yield = .data$tonnes / .data$ha
     ) |>
-      dplyr::filter(!is.na(.data$region))
-    by <- c(by, "region")
-  }
+    dplyr::left_join(.ryr_region_map(), by = "area_code")
+}
+
+# The 99th and 1st percentiles of a pool of yields, per `by`.
+.ryr_pool_bounds <- function(yields, by) {
   yields |>
     dplyr::summarise(
       yield_max = stats::quantile(
@@ -1763,6 +1790,80 @@ split_regime_yield <- function(
     )
 }
 
+# The items that stand in for an item without FAOSTAT yields of its own: the
+# items that directly carry one of its SPAM crops in
+# [regime_yield_crop_mapping] (`spam_basis` `"direct"` or
+# `"direct_aggregate"`, a single SPAM crop). An item's crops are the codes of
+# its `spam_crop`, split on `+` and `|`.
+.ryr_bound_donors <- function(items) {
+  mapping <- .ryr_mapping()
+  carriers <- mapping |>
+    dplyr::filter(
+      .data$spam_basis %in% c("direct", "direct_aggregate"),
+      !stringr::str_detect(.data$spam_crop, "[+|]")
+    ) |>
+    dplyr::select(donor = "item_prod_code", member = "spam_crop")
+  mapping |>
+    dplyr::filter(.data$item_prod_code %in% items) |>
+    dplyr::mutate(member = stringr::str_split(.data$spam_crop, "[+|]")) |>
+    tidyr::unnest_longer("member", ptype = character()) |>
+    dplyr::inner_join(carriers, by = "member", relationship = "many-to-many") |>
+    dplyr::filter(.data$donor != .data$item_prod_code) |>
+    dplyr::distinct(.data$item_prod_code, .data$donor)
+}
+
+# The yield bounds of each item, in the order they are tried: its own yields,
+# then the pooled yields of the items directly carrying its SPAM crop. Under
+# `bound = "region"` each is tried in the cell's region first and then in the
+# world, so every item with any stand-in gets both bounds; the stamp says
+# which pool answered.
+.ryr_yield_bounds <- function(production, bound, items) {
+  yields <- .ryr_national_yields(production)
+  donors <- .ryr_bound_donors(items)
+  donor_yields <- donors |>
+    dplyr::inner_join(
+      dplyr::rename(yields, donor = "item_prod_code"),
+      by = "donor",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select(-"donor")
+  scopes <- if (identical(bound, "region")) c("region", "global") else "global"
+  purrr::map(scopes, \(scope) {
+    .ryr_scope_bounds(yields, donor_yields, scope, bound)
+  }) |>
+    rlang::set_names(scopes)
+}
+
+# One pool's bounds: per item (and region, for the regional pool), from the
+# item's own yields, else from its stand-ins'. Under `bound = "region"` the
+# world's pool is the second resort and is stamped `_global`.
+.ryr_scope_bounds <- function(yields, donor_yields, scope, bound) {
+  by <- if (scope == "region") {
+    c("item_prod_code", "region")
+  } else {
+    "item_prod_code"
+  }
+  suffix <- if (identical(bound, "region") && scope == "global") {
+    "_global"
+  } else {
+    ""
+  }
+  if (scope == "region") {
+    yields <- dplyr::filter(yields, !is.na(.data$region))
+    donor_yields <- dplyr::filter(donor_yields, !is.na(.data$region))
+  }
+  own <- .ryr_pool_bounds(yields, by)
+  via <- .ryr_pool_bounds(donor_yields, by) |>
+    dplyr::anti_join(own, by = by)
+  dplyr::bind_rows(
+    dplyr::mutate(own, method_bound_source = paste0("own_yields", suffix)),
+    dplyr::mutate(
+      via,
+      method_bound_source = paste0("bound_via_spam_crop", suffix)
+    )
+  )
+}
+
 # WHEP region of each area code (`regions_full`, `code` -> `region`).
 .ryr_region_map <- function() {
   whep::regions_full |>
@@ -1774,27 +1875,73 @@ split_regime_yield <- function(
     dplyr::distinct()
 }
 
+# Join the bounds onto the cells: the regional pool first where `bound =
+# "region"`, the global pool for what it leaves.
 .ryr_attach_bounds <- function(cells, bounds, bound) {
   cells <- dplyr::mutate(cells, .ryr_item = as.integer(.data$item_prod_code))
-  keys <- c(.ryr_item = "item_prod_code")
+  global <- dplyr::rename(bounds$global, .ryr_item = "item_prod_code")
   if (identical(bound, "region")) {
+    cells <- cells |>
+      dplyr::left_join(
+        dplyr::rename(.ryr_region_map(), .ryr_region = "region"),
+        by = "area_code",
+        relationship = "many-to-one"
+      ) |>
+      dplyr::left_join(
+        dplyr::rename(
+          bounds$region,
+          .ryr_item = "item_prod_code",
+          .ryr_region = "region"
+        ),
+        by = c(".ryr_item", ".ryr_region"),
+        relationship = "many-to-one"
+      ) |>
+      dplyr::left_join(
+        global,
+        by = ".ryr_item",
+        suffix = c("", ".ryr_g"),
+        relationship = "many-to-one"
+      ) |>
+      dplyr::mutate(
+        .ryr_use_g = is.na(.data$yield_max),
+        yield_max = dplyr::if_else(
+          .data$.ryr_use_g,
+          .data$yield_max.ryr_g,
+          .data$yield_max
+        ),
+        yield_min = dplyr::if_else(
+          .data$.ryr_use_g,
+          .data$yield_min.ryr_g,
+          .data$yield_min
+        ),
+        method_bound_source = dplyr::if_else(
+          .data$.ryr_use_g,
+          .data$method_bound_source.ryr_g,
+          .data$method_bound_source
+        )
+      ) |>
+      dplyr::select(-dplyr::ends_with(".ryr_g"))
+  } else {
     cells <- dplyr::left_join(
       cells,
-      dplyr::rename(.ryr_region_map(), .ryr_region = "region"),
-      by = "area_code",
+      global,
+      by = ".ryr_item",
       relationship = "many-to-one"
     )
-    keys <- c(keys, .ryr_region = "region")
   }
-  cells |>
-    dplyr::left_join(bounds, by = keys, relationship = "many-to-one") |>
-    dplyr::mutate(method_yield_bound = bound)
+  dplyr::mutate(
+    cells,
+    method_bound_source = dplyr::coalesce(.data$method_bound_source, "none"),
+    method_yield_bound = bound
+  )
 }
 
 # The conservation split, with the two plausibility bounds lowering R where
 # they bind: first the irrigated-yield ceiling, then the rainfed-yield
 # floor. Both only ever lower R, and lowering R raises Y_r and lowers
-# Y_i, so the floor cannot break the ceiling.
+# Y_i, so the floor cannot break the ceiling. A cell-crop with area in one
+# regime only is a trivial split: all its production is on that regime and
+# no ratio applies, so `ratio` is set to 1 and the bounds do not apply.
 .ryr_split <- function(cells) {
   cells |>
     dplyr::mutate(
@@ -1802,28 +1949,28 @@ split_regime_yield <- function(
       .ryr_ar = .data$rainfed_ha,
       .ryr_ai = .data$irrigated_ha,
       method_regime_split = dplyr::case_when(
-        is.na(.data$ratio) ~ "no_ratio",
         .data$.ryr_ar + .data$.ryr_ai <= 0 ~ "no_area",
-        .data$.ryr_ai <= 0 ~ "rainfed_only",
-        .data$.ryr_ar <= 0 ~ "irrigated_only",
+        .data$.ryr_ai <= 0 ~ "trivial_rainfed_only",
+        .data$.ryr_ar <= 0 ~ "trivial_irrigated_only",
+        is.na(.data$ratio_unbounded) ~ "no_ratio",
         .default = "yield_ratio"
+      ),
+      ratio = dplyr::case_when(
+        .data$method_regime_split == "yield_ratio" ~ .data$ratio_unbounded,
+        startsWith(.data$method_regime_split, "trivial") ~ 1,
+        .default = NA_real_
       )
     ) |>
     .ryr_apply_ceiling() |>
     .ryr_apply_floor() |>
     dplyr::mutate(
-      .ryr_has = .data$method_regime_split %in%
-        c("yield_ratio", "rainfed_only", "irrigated_only"),
-      yield_rainfed = dplyr::if_else(
-        .data$.ryr_has,
-        .data$.ryr_p / (.data$.ryr_ar + .data$ratio_split * .data$.ryr_ai),
-        NA_real_
-      ),
-      yield_irrigated = .data$ratio_split * .data$yield_rainfed
+      yield_rainfed = .data$.ryr_p /
+        (.data$.ryr_ar + .data$ratio * .data$.ryr_ai),
+      yield_irrigated = .data$ratio * .data$yield_rainfed
     ) |>
     dplyr::select(-dplyr::starts_with(".ryr_")) |>
     dplyr::relocate(
-      "ratio_split",
+      "ratio",
       "yield_rainfed",
       "yield_irrigated",
       "yield_max",
@@ -1831,6 +1978,7 @@ split_regime_yield <- function(
       "method_regime_split",
       "method_regime_bound",
       "method_rainfed_floor",
+      "method_bound_source",
       "method_yield_bound",
       .after = dplyr::last_col()
     )
@@ -1842,8 +1990,7 @@ split_regime_yield <- function(
 .ryr_apply_ceiling <- function(x) {
   x |>
     dplyr::mutate(
-      .ryr_bounded = .data$method_regime_split %in%
-        c("yield_ratio", "irrigated_only"),
+      .ryr_bounded = .data$method_regime_split == "yield_ratio",
       .ryr_yi = .data$ratio *
         .data$.ryr_p /
         (.data$.ryr_ar + .data$ratio * .data$.ryr_ai),
@@ -1853,46 +2000,58 @@ split_regime_yield <- function(
       .ryr_r_star = .data$yield_max *
         .data$.ryr_ar /
         (.data$.ryr_p - .data$yield_max * .data$.ryr_ai),
-      ratio_split = dplyr::if_else(
+      ratio = dplyr::if_else(
         dplyr::coalesce(.data$.ryr_clip, FALSE),
         pmax(1, .data$.ryr_r_star),
         .data$ratio
       ),
-      method_regime_bound = dplyr::case_when(
-        !.data$.ryr_bounded ~ "not_applicable",
-        is.na(.data$yield_max) ~ "no_bound",
-        !.data$.ryr_clip ~ "not_binding",
-        .data$.ryr_r_star < 1 ~ "clipped_at_one",
-        .default = "clipped"
+      method_regime_bound = .ryr_bound_stamp(
+        .data$method_regime_split,
+        .data$yield_max,
+        .data$.ryr_clip,
+        .data$.ryr_r_star < 1,
+        c("clipped", "clipped_at_one")
       )
     )
 }
 
 # Where Y_r = P / (A_r + R A_i) would fall below Y_min, R is solved from
-# Y_r = Y_min, R = (P - Y_min A_r) / (Y_min A_i), never below 1. Only a
-# cell-crop with both regimes has a rainfed yield to hold up.
+# Y_r = Y_min, R = (P - Y_min A_r) / (Y_min A_i), never below 1.
 .ryr_apply_floor <- function(x) {
   x |>
     dplyr::mutate(
       .ryr_floored = .data$method_regime_split == "yield_ratio",
       .ryr_yr = .data$.ryr_p /
-        (.data$.ryr_ar + .data$ratio_split * .data$.ryr_ai),
+        (.data$.ryr_ar + .data$ratio * .data$.ryr_ai),
       .ryr_low = .data$.ryr_floored &
         !is.na(.data$yield_min) &
         .data$.ryr_yr < .data$yield_min,
       .ryr_r_floor = (.data$.ryr_p - .data$yield_min * .data$.ryr_ar) /
         (.data$yield_min * .data$.ryr_ai),
-      ratio_split = dplyr::if_else(
+      ratio = dplyr::if_else(
         dplyr::coalesce(.data$.ryr_low, FALSE),
         pmax(1, .data$.ryr_r_floor),
-        .data$ratio_split
+        .data$ratio
       ),
-      method_rainfed_floor = dplyr::case_when(
-        !.data$.ryr_floored ~ "not_applicable",
-        is.na(.data$yield_min) ~ "no_bound",
-        !.data$.ryr_low ~ "not_binding",
-        .data$.ryr_r_floor < 1 ~ "rainfed_floor_at_one",
-        .default = "rainfed_floor"
+      method_rainfed_floor = .ryr_bound_stamp(
+        .data$method_regime_split,
+        .data$yield_min,
+        .data$.ryr_low,
+        .data$.ryr_r_floor < 1,
+        c("rainfed_floor", "rainfed_floor_at_one")
       )
     )
+}
+
+# The stamp of one bound: `names[1]` where it bound, `names[2]` where it was
+# lowered to 1 and still does not hold; trivial and ratio-less rows say so.
+.ryr_bound_stamp <- function(split, limit, fired, below_one, names) {
+  dplyr::case_when(
+    startsWith(split, "trivial") ~ "not_applicable_trivial",
+    split != "yield_ratio" ~ "not_applicable",
+    is.na(limit) ~ "no_bound",
+    !fired ~ "not_binding",
+    below_one ~ names[2],
+    .default = names[1]
+  )
 }

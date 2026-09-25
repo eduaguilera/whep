@@ -63,8 +63,9 @@ A tibble with one row per cell-crop-year of \code{cells}:
 \item \code{ratio_temporal}: the cell-year LPJmL ratio over the cell's 1994-2023
 ratio.
 \item \code{ratio_anomaly}: \code{ratio_spatial * ratio_temporal}, for reference.
-\item \code{ratio}: \code{1 + (ratio_long_term - 1) * ratio_temporal}; \code{NA} where the
-level is.
+\item \code{ratio_unbounded}: \code{1 + (ratio_long_term - 1) * ratio_temporal}; \code{NA}
+where the level is. Not fit to weight anything: pass it to
+\code{\link[=split_regime_yield]{split_regime_yield()}}, whose \code{ratio} is the bounded one.
 \item \code{spam_crop_used}: the SPAM crop code(s) the anchor came from (for Linum
 and Hemp, the product chosen for the country).
 \item \code{method_ratio_anchor}: \code{"spam_country"}, \code{"spam_global"},
@@ -123,8 +124,13 @@ wherever the level does, whatever the anomaly. The long-term ratio is
 \code{R_lt = 1 + min(9, (R_level - 1) * spatial)}: it is capped at 10, i.e. its
 excess over 1 at 9. The ratio of the year is
 \code{R = 1 + (R_lt - 1) * temporal}; the temporal part is not capped, so only a
-bad year takes \code{R} past 10. \code{\link[=split_regime_yield]{split_regime_yield()}} applies it to a cell's
-production and areas.
+bad year takes \code{R} past 10.
+
+This \code{R} is returned as \code{ratio_unbounded}, for diagnosis only: a
+single-year near-zero LPJmL rainfed yield can make it absurdly large. Only
+the \code{ratio} of \code{\link[=split_regime_yield]{split_regime_yield()}}, which applies it to a cell's
+production and areas under an irrigated-yield ceiling and a rainfed-yield
+floor, is fit to weight anything.
 }
 \details{
 Four implementation choices:
@@ -138,6 +144,12 @@ tie goes to the fibre.
 \item The yield bounds of \code{\link[=split_regime_yield]{split_regime_yield()}} pool every production row of
 1961-2023 with positive tonnes and area, whatever its \code{source}.
 }
+
+The USSR's and Czechoslovakia's cropland before 1961 is their successors'
+combined LUH2 cropland (annual plus perennial crop types), rescaled to the
+predecessor's own FAOSTAT cropland in 1961 -- the same splicing rule
+\code{\link[=get_arable_permanent_land]{get_arable_permanent_land()}} applies to a single country, which cannot be
+applied to these two because their codes have no LUH2 country.
 }
 \section{Anchor}{
 

@@ -9,12 +9,13 @@ split_regime_yield(cells, bound = c("global", "region"), production = NULL)
 \arguments{
 \item{cells}{A tibble with \code{area_code}, \code{item_prod_code}, \code{production_t}
 (production in the units of \code{\link[=get_primary_production]{get_primary_production()}}'s \code{"tonnes"}
-rows), \code{rainfed_ha}, \code{irrigated_ha} and \code{ratio} (as
+rows), \code{rainfed_ha}, \code{irrigated_ha} and \code{ratio_unbounded} (as
 \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}} returns it). Other columns are kept.}
 
 \item{bound}{Which pool of national yields sets \code{Y_max} and \code{Y_min}:
 \code{"global"} (default, all countries) or \code{"region"} (the countries of the
-cell's WHEP region, the \code{region} column of \link{regions_full}).}
+cell's WHEP region, the \code{region} column of \link{regions_full}; where the
+region has no yields for the item, the world's pool, stamped \verb{_global}).}
 
 \item{production}{Optional \code{\link[=get_primary_production]{get_primary_production()}} output (\code{year},
 \code{area_code}, \code{item_prod_code}, \code{unit}, \code{value}) used instead of building
@@ -23,21 +24,25 @@ it.}
 \value{
 \code{cells} with:
 \itemize{
-\item \code{ratio_split}: the ratio used, after the bounds.
+\item \code{ratio}: the irrigated:rainfed yield ratio used, after the bounds (1 on
+a trivial split).
 \item \code{yield_rainfed}, \code{yield_irrigated}: production per hectare of each
 regime.
 \item \code{yield_max}, \code{yield_min}: the bounds applied; \code{NA} where the item has
 no yields to set them.
-\item \code{method_regime_split}: \code{"yield_ratio"}, \code{"rainfed_only"},
-\code{"irrigated_only"}, \code{"no_area"} or \code{"no_ratio"}.
+\item \code{method_regime_split}: \code{"yield_ratio"}, \code{"trivial_rainfed_only"},
+\code{"trivial_irrigated_only"}, \code{"no_area"} or \code{"no_ratio"}.
 \item \code{method_regime_bound}: the ceiling: \code{"not_binding"}, \code{"clipped"},
 \code{"clipped_at_one"} (lowered to 1 and still above \code{Y_max}: the mean
-yield itself exceeds it), \code{"no_bound"} or \code{"not_applicable"} (no
-irrigated area, no area or no ratio).
+yield itself exceeds it), \code{"no_bound"}, \code{"not_applicable_trivial"} or
+\code{"not_applicable"} (no area, or no ratio).
 \item \code{method_rainfed_floor}: the floor: \code{"not_binding"}, \code{"rainfed_floor"},
 \code{"rainfed_floor_at_one"} (lowered to 1 and still below \code{Y_min}: the
-mean yield itself is below it), \code{"no_bound"} or \code{"not_applicable"}
-(not both regimes, or no ratio).
+mean yield itself is below it), \code{"no_bound"},
+\code{"not_applicable_trivial"} or \code{"not_applicable"}.
+\item \code{method_bound_source}: which yields set the bounds: \code{"own_yields"},
+\code{"bound_via_spam_crop"}, either suffixed \code{"_global"} where a regional
+pool fell back to the world's, or \code{"none"}.
 \item \code{method_yield_bound}: the \code{bound} chosen.
 }
 }
@@ -48,7 +53,9 @@ rainfed and irrigated harvested areas \code{A_r}, \code{A_i}, keeping the produc
 \code{Y_r = P / (A_r + R * A_i)} and \code{Y_i = R * Y_r}, so
 \code{A_r * Y_r + A_i * Y_i = P}.
 
-Two plausibility bounds can lower \code{R}, never below 1:
+\code{R} starts from \code{ratio_unbounded} and two plausibility bounds can lower it,
+never below 1. The result is the output's \code{ratio}, the only ratio fit to
+weight anything:
 \itemize{
 \item \strong{Irrigated-yield ceiling.} Where \code{Y_i} would exceed the item's \code{Y_max},
 \code{R} is lowered until \code{Y_i = Y_max}, \code{R = Y_max * A_r / (P - Y_max * A_i)}.
@@ -57,21 +64,24 @@ over harvested area) in \code{\link[=get_primary_production]{get_primary_product
 countries and the years 1961-2023.
 \item \strong{Rainfed-yield floor.} Where \code{Y_r} would fall below the item's
 \code{Y_min}, the 1st percentile of the same pool, \code{R} is lowered until
-\code{Y_r = Y_min}, \code{R = (P - Y_min * A_r) / (Y_min * A_i)}. It applies only
-where both regimes have area.
+\code{Y_r = Y_min}, \code{R = (P - Y_min * A_r) / (Y_min * A_i)}.
 }
 
 Lowering \code{R} raises \code{Y_r} and lowers \code{Y_i}, so the floor, applied after the
-ceiling, cannot break it.
+ceiling, cannot break it. An item with no FAOSTAT yields of its own takes
+the pooled yields of the items that directly carry one of its SPAM crops
+in \link{regime_yield_crop_mapping} (\code{spam_basis} \code{"direct"} or
+\code{"direct_aggregate"}), stamped \code{"bound_via_spam_crop"}.
 
-A regime with no area still gets the yield the ratio implies, which
-multiplies zero area; only a cell-crop with no area at all, or no ratio,
-gets \code{NA} yields.
+A cell-crop with area in one regime only is a trivial split: all its
+production is on that regime, no ratio applies (\code{ratio} is 1, whatever
+\code{ratio_unbounded} is) and the bounds are not tested. Only a cell-crop with
+no area at all, or with both regimes and no \code{ratio_unbounded}, gets \code{NA}.
 }
 \examples{
 cells <- tibble::tribble(
   ~area_code, ~item_prod_code, ~production_t, ~rainfed_ha, ~irrigated_ha,
-  ~ratio,
+  ~ratio_unbounded,
   203L, 15L, 500, 100, 50, 1.8
 )
 production <- tibble::tribble(

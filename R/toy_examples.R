@@ -798,7 +798,7 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~ratio_spam, ~ratio_anchor,
     ~ratio_level, ~ratio_spatial, ~ratio_long_term, ~ratio_temporal,
-    ~ratio_anomaly, ~ratio, ~spam_crop_used, ~method_ratio_anchor,
+    ~ratio_anomaly, ~ratio_unbounded, ~spam_crop_used, ~method_ratio_anchor,
     ~method_ratio_trend, ~method_ratio_n_2010, ~method_ratio_cropland,
     ~method_dominance, ~method_ratio_spatial, ~method_ratio_temporal,
     ~method_regime_yield,

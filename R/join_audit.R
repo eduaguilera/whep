@@ -340,7 +340,7 @@
     "Keeps the polities whose back-cast cropland is built from their
      successors only where they have a FAOSTAT cropland in 1961, the anchor
      year: the right side is filtered to 1961 before the join.",
-    ".ryr_yield_bounds", "left_join", "area_code", 1L, "time_invariant",
+    ".ryr_national_yields", "left_join", "area_code", 1L, "time_invariant",
     "The same region membership, attached to the national yields the bound
      percentiles pool; every yield row keeps its own year.",
     "build_regime_yield_ratio", "left_join", "area_code", 1L,

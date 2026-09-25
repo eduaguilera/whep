@@ -305,7 +305,7 @@ testthat::test_that("a dominant product SPAM lacks in the country is global", {
 testthat::test_that("a crop SPAM has nowhere gets no ratio", {
   out <- .ryr_one(203, 249, 2010)
   testthat::expect_identical(out$method_ratio_anchor, "spam_none")
-  testthat::expect_true(is.na(out$ratio))
+  testthat::expect_true(is.na(out$ratio_unbounded))
 })
 
 testthat::test_that("an anchor below 1 is floored and stamped", {
@@ -351,7 +351,7 @@ testthat::test_that("the anomalies scale the excess, capped at 9 long-term", {
   testthat::expect_equal(out$ratio_spatial, 1.6)
   testthat::expect_identical(out$ratio_long_term, 10)
   testthat::expect_equal(out$ratio_temporal, 0.5)
-  testthat::expect_equal(out$ratio, 5.5)
+  testthat::expect_equal(out$ratio_unbounded, 5.5)
   testthat::expect_match(out$method_regime_yield, "level_cap")
   # The second cell: 10 x spatial 0.4 = 4, under the cap: long-term 5.
   dry <- .ryr_spain_maize(2000)[2, ]
@@ -367,8 +367,8 @@ testthat::test_that("only the temporal part takes R past 10", {
   out <- .ryr_spain_maize(2010)[1, ]
   testthat::expect_equal(out$ratio_long_term, 9)
   testthat::expect_equal(out$ratio_temporal, 4)
-  testthat::expect_equal(out$ratio, 33)
-  testthat::expect_gt(out$ratio, 10)
+  testthat::expect_equal(out$ratio_unbounded, 33)
+  testthat::expect_gt(out$ratio_unbounded, 10)
   testthat::expect_identical(out$method_regime_yield, "none")
 })
 
@@ -394,7 +394,7 @@ testthat::test_that("R is 1 wherever the level is 1, whatever the anomaly", {
   )
   out <- whep:::.ryr_combine(x)
   testthat::expect_identical(out$ratio_level, c(1, 1, 1))
-  testthat::expect_identical(out$ratio, c(1, 1, 1))
+  testthat::expect_identical(out$ratio_unbounded, c(1, 1, 1))
 })
 
 testthat::test_that("no synthetic N in 2010 keeps the level at 1", {
@@ -421,10 +421,10 @@ testthat::test_that("1913-1960 uses the Smil back-cast", {
 testthat::test_that("a missing N value gives no ratio rather than a guess", {
   no_t <- .ryr_one(203, 15, 1990)
   testthat::expect_identical(no_t$method_ratio_trend, "no_n_t")
-  testthat::expect_true(is.na(no_t$ratio))
+  testthat::expect_true(is.na(no_t$ratio_unbounded))
   no_2010 <- .ryr_one(106, 15, 2010)
   testthat::expect_identical(no_2010$method_ratio_trend, "no_n_2010")
-  testthat::expect_true(is.na(no_2010$ratio))
+  testthat::expect_true(is.na(no_2010$ratio_unbounded))
 })
 
 # -- Anomaly ------------------------------------------------------------------
@@ -438,7 +438,10 @@ testthat::test_that("spatial x temporal is the cell-year over country ratio", {
   testthat::expect_equal(out$ratio_anomaly, 1.5)
   testthat::expect_identical(out$method_ratio_spatial, "lpjml")
   testthat::expect_identical(out$method_ratio_temporal, "lpjml")
-  testthat::expect_equal(out$ratio, 1 + (out$ratio_long_term - 1) * 1.5)
+  testthat::expect_equal(
+    out$ratio_unbounded,
+    1 + (out$ratio_long_term - 1) * 1.5
+  )
   # Maize: 16 in the cell in 2010 over Spain's 2.5 = 6.4 = 1.6 x 4.
   maize <- .ryr_spain_maize(2010)[1, ]
   testthat::expect_equal(maize$ratio_anomaly, 16 / 2.5)
@@ -480,8 +483,11 @@ testthat::test_that("a good year shrinks the excess towards 1, never below", {
   # Spain 2000: level 1 + (2/3) * 2, temporal 0.5 / 2 = 0.25.
   out <- .ryr_one(203, 15, 2000)
   testthat::expect_equal(out$ratio_temporal, 0.25)
-  testthat::expect_equal(out$ratio, 1 + (out$ratio_long_term - 1) * 0.25)
-  testthat::expect_gt(out$ratio, 1)
+  testthat::expect_equal(
+    out$ratio_unbounded,
+    1 + (out$ratio_long_term - 1) * 0.25
+  )
+  testthat::expect_gt(out$ratio_unbounded, 1)
 })
 
 testthat::test_that("a cell the LPJmL run does not cover keeps anomaly 1", {
@@ -532,9 +538,9 @@ testthat::test_that("before 1961 a territory with no N reported has level 1", {
   out <- .ryr_one(68, 15, 1950)
   testthat::expect_identical(out$method_ratio_trend, "no_n_reported_pre1961")
   testthat::expect_identical(out$ratio_level, 1)
-  testthat::expect_identical(out$ratio, 1)
+  testthat::expect_identical(out$ratio_unbounded, 1)
   # From 1961 a missing value is a gap, not a zero.
-  testthat::expect_true(is.na(.ryr_one(203, 15, 1990)$ratio))
+  testthat::expect_true(is.na(.ryr_one(203, 15, 1990)$ratio_unbounded))
 })
 
 testthat::test_that("a historical polity takes its successors' 2010 N", {
@@ -582,16 +588,18 @@ testthat::test_that("the normaliser is a ratio of area-weighted sums", {
 
 testthat::test_that("R >= 1 and the long-term part <= 10 wherever R exists", {
   out <- .ryr_build(.ryr_all_cells())
-  built <- out[!is.na(out$ratio), ]
+  built <- out[!is.na(out$ratio_unbounded), ]
   testthat::expect_gt(nrow(built), 0L)
-  testthat::expect_true(all(built$ratio >= 1))
+  testthat::expect_true(all(built$ratio_unbounded >= 1))
   testthat::expect_true(all(built$ratio_anchor >= 1))
   testthat::expect_true(all(built$ratio_level >= 1))
   testthat::expect_true(all(built$ratio_long_term <= 10))
   # Past 10 only through a bad year.
-  testthat::expect_true(all(built$ratio_temporal[built$ratio > 10] > 1))
+  testthat::expect_true(all(
+    built$ratio_temporal[built$ratio_unbounded > 10] > 1
+  ))
   # The anomalies scale the excess: no excess, no gap.
-  testthat::expect_true(all(built$ratio[built$ratio_level == 1] == 1))
+  testthat::expect_true(all(built$ratio_unbounded[built$ratio_level == 1] == 1))
   testthat::expect_equal(
     built$ratio_anomaly,
     built$ratio_spatial * built$ratio_temporal
@@ -736,7 +744,7 @@ testthat::test_that("bad inputs abort with a condition class", {
 .ryr_split_cells <- function() {
   tibble::tribble(
     ~area_code, ~item_prod_code, ~production_t, ~rainfed_ha, ~irrigated_ha,
-    ~ratio,
+    ~ratio_unbounded,
     203L, 15L, 500, 100, 50, 1.8,
     203L, 15L, 0, 100, 50, 2,
     203L, 15L, 900, 0, 10, 3,
@@ -751,7 +759,11 @@ testthat::test_that("bad inputs abort with a condition class", {
     # Rainfed yield 0.8 is under the floor (1); R = 2 brings it to 1.
     203L, 15L, 200, 100, 50, 3,
     # Mean yield 0.67 is under the floor whatever R is.
-    203L, 15L, 100, 100, 50, 2
+    203L, 15L, 100, 100, 50, 2,
+    # A forage grass has no FAOSTAT yields: it takes wheat's, the item that
+    # directly carries one of its SPAM crops. Its absurd R of 1000 puts Y_r
+    # at 0.01, under the floor; R = (500 - 100) / 50 = 8 brings it to 1.
+    203L, 638L, 500, 100, 50, 1000
   )
 }
 
@@ -768,10 +780,10 @@ testthat::test_that("the split keeps production to 1e-9", {
     kept$irrigated_ha * kept$yield_irrigated
   rel <- abs(back - kept$production_t) / pmax(kept$production_t, 1e-12)
   testthat::expect_true(all(rel < 1e-9))
-  testthat::expect_true(all(kept$ratio_split >= 1))
+  testthat::expect_true(all(kept$ratio >= 1))
   testthat::expect_equal(
     kept$yield_irrigated,
-    kept$ratio_split * kept$yield_rainfed
+    kept$ratio * kept$yield_rainfed
   )
 })
 
@@ -786,12 +798,12 @@ testthat::test_that("the bound lowers R to meet Y_max, never below 1", {
   clipped <- out[out$method_regime_bound == "clipped", ]
   testthat::expect_identical(nrow(clipped), 1L)
   testthat::expect_equal(clipped$yield_irrigated, ymax, tolerance = 1e-9)
-  testthat::expect_gte(clipped$ratio_split, 1)
-  testthat::expect_lt(clipped$ratio_split, clipped$ratio)
+  testthat::expect_gte(clipped$ratio, 1)
+  testthat::expect_lt(clipped$ratio, clipped$ratio_unbounded)
   at_one <- out[out$method_regime_bound == "clipped_at_one", ]
-  testthat::expect_identical(at_one$ratio_split, rep(1, nrow(at_one)))
+  testthat::expect_identical(at_one$ratio, rep(1, nrow(at_one)))
   testthat::expect_true(all(at_one$yield_irrigated > ymax))
-  testthat::expect_true(all(out$ratio_split >= 1, na.rm = TRUE))
+  testthat::expect_true(all(out$ratio >= 1, na.rm = TRUE))
 })
 
 testthat::test_that("the floor lowers R to meet Y_min, never below 1", {
@@ -802,24 +814,75 @@ testthat::test_that("the floor lowers R to meet Y_min, never below 1", {
     unique(out$yield_min[out$item_prod_code == 15L]),
     ymin
   )
-  floored <- out[out$method_rainfed_floor == "rainfed_floor", ]
+  floored <- out[
+    out$method_rainfed_floor == "rainfed_floor" & out$item_prod_code == 15L,
+  ]
   testthat::expect_identical(nrow(floored), 1L)
   testthat::expect_equal(floored$yield_rainfed, ymin, tolerance = 1e-9)
-  testthat::expect_equal(floored$ratio_split, 2)
+  testthat::expect_equal(floored$ratio, 2)
   at_one <- out[out$method_rainfed_floor == "rainfed_floor_at_one", ]
   testthat::expect_true(nrow(at_one) > 0L)
-  testthat::expect_true(all(at_one$ratio_split == 1))
+  testthat::expect_true(all(at_one$ratio == 1))
   testthat::expect_true(all(at_one$yield_rainfed < ymin))
   # Wherever the floor applies and does not end at 1, Y_r meets it.
   held <- out[out$method_rainfed_floor %in% c("not_binding", "rainfed_floor"), ]
   testthat::expect_true(all(held$yield_rainfed >= ymin - 1e-9))
 })
 
+testthat::test_that("a trivial split has ratio 1 whatever R, and no bounds", {
+  prod <- .ryr_bound_production()
+  out <- whep::split_regime_yield(.ryr_split_cells(), production = prod)
+  irr <- out[out$method_regime_split == "trivial_irrigated_only", ]
+  rain <- out[out$method_regime_split == "trivial_rainfed_only", ]
+  testthat::expect_identical(irr$ratio, 1)
+  testthat::expect_identical(rain$ratio, 1)
+  testthat::expect_equal(irr$yield_irrigated, 900 / 10)
+  testthat::expect_equal(rain$yield_rainfed, 700 / 70)
+  testthat::expect_identical(
+    c(irr$method_regime_bound, rain$method_rainfed_floor),
+    rep("not_applicable_trivial", 2)
+  )
+})
+
+testthat::test_that("an item without yields is bounded via its SPAM crop", {
+  prod <- .ryr_bound_production()
+  out <- whep::split_regime_yield(.ryr_split_cells(), production = prod)
+  forage <- out[out$item_prod_code == 638L, ]
+  testthat::expect_identical(forage$method_bound_source, "bound_via_spam_crop")
+  testthat::expect_equal(forage$yield_min, .ryr_global_min())
+  testthat::expect_equal(forage$yield_max, .ryr_global_max())
+  testthat::expect_equal(forage$ratio, 8)
+  testthat::expect_equal(forage$yield_rainfed, 1)
+  testthat::expect_identical(forage$method_rainfed_floor, "rainfed_floor")
+  # Maize has neither its own yields nor an item directly carrying `maiz`.
+  maize <- out[out$item_prod_code == 56L, ]
+  testthat::expect_identical(maize$method_bound_source, "none")
+  testthat::expect_identical(maize$method_regime_bound, "no_bound")
+  # Wheat's own yields.
+  testthat::expect_true(all(
+    out$method_bound_source[out$item_prod_code == 15L] == "own_yields"
+  ))
+})
+
+testthat::test_that("the regional pool falls back to the world's, stamped", {
+  prod <- .ryr_bound_production()
+  # The fixture has wheat yields in OECD Europe (Spain) and the USA only; a
+  # Mexican cell (Central America) finds none in its region.
+  cells <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~production_t, ~rainfed_ha, ~irrigated_ha,
+    ~ratio_unbounded,
+    138L, 15L, 400, 30, 20, 3
+  )
+  out <- whep::split_regime_yield(cells, "region", production = prod)
+  testthat::expect_identical(out$method_bound_source, "own_yields_global")
+  testthat::expect_equal(out$yield_max, .ryr_global_max())
+})
+
 testthat::test_that("bound = 'region' pools the cell's WHEP region only", {
   prod <- .ryr_bound_production()
   cells <- tibble::tribble(
     ~area_code, ~item_prod_code, ~production_t, ~rainfed_ha, ~irrigated_ha,
-    ~ratio,
+    ~ratio_unbounded,
     231L, 15L, 400, 30, 20, 3
   )
   global <- whep::split_regime_yield(cells, production = prod)
@@ -838,7 +901,13 @@ testthat::test_that("every stamp of split_regime_yield() is reachable", {
   out <- whep::split_regime_yield(.ryr_split_cells(), production = prod)
   testthat::expect_setequal(
     unique(out$method_regime_split),
-    c("yield_ratio", "rainfed_only", "irrigated_only", "no_area", "no_ratio")
+    c(
+      "yield_ratio",
+      "trivial_rainfed_only",
+      "trivial_irrigated_only",
+      "no_area",
+      "no_ratio"
+    )
   )
   testthat::expect_setequal(
     unique(out$method_regime_bound),
@@ -847,6 +916,7 @@ testthat::test_that("every stamp of split_regime_yield() is reachable", {
       "clipped",
       "clipped_at_one",
       "no_bound",
+      "not_applicable_trivial",
       "not_applicable"
     )
   )
@@ -857,8 +927,13 @@ testthat::test_that("every stamp of split_regime_yield() is reachable", {
       "rainfed_floor",
       "rainfed_floor_at_one",
       "no_bound",
+      "not_applicable_trivial",
       "not_applicable"
     )
+  )
+  testthat::expect_setequal(
+    unique(out$method_bound_source),
+    c("own_yields", "bound_via_spam_crop", "none")
   )
   none <- out[out$method_regime_split %in% c("no_area", "no_ratio"), ]
   testthat::expect_true(all(is.na(none$yield_rainfed)))
@@ -868,7 +943,10 @@ testthat::test_that("split inputs are checked", {
   prod <- .ryr_bound_production()
   cells <- .ryr_split_cells()
   testthat::expect_error(
-    whep::split_regime_yield(dplyr::select(cells, -"ratio"), production = prod),
+    whep::split_regime_yield(
+      dplyr::select(cells, -"ratio_unbounded"),
+      production = prod
+    ),
     class = "whep_regime_yield_columns"
   )
   negative <- dplyr::mutate(cells, rainfed_ha = -1)
@@ -921,7 +999,7 @@ testthat::test_that("the example returns the documented schema", {
     names(out),
     names(.ryr_build(.ryr_cell(203, 15, 2010)))
   )
-  pointblank::expect_col_vals_gte(out, "ratio", 1, na_pass = TRUE)
+  pointblank::expect_col_vals_gte(out, "ratio_unbounded", 1, na_pass = TRUE)
   pointblank::expect_col_vals_lte(out, "ratio_long_term", 10, na_pass = TRUE)
   testthat::expect_type(out$item_prod_code, "integer")
   testthat::expect_type(out$area_code, "integer")
