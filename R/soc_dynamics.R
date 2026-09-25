@@ -117,6 +117,7 @@ calculate_soc_dynamics <- function(
   drivers <- .soc_climate_drivers(model)
   if (!all(purrr::map_lgl(drivers, \(d) rlang::has_name(data, d)))) {
     .soc_refuse_neutral(model, drivers, data)
+    .soc_refuse_partial_drivers(model, drivers, data)
     return(data$climate_modifier %||% 1)
   }
   fn <- switch(
@@ -162,6 +163,50 @@ calculate_soc_dynamics <- function(
          caller is never made to open a raster -- or supply
          {.code data$climate_modifier} to say you meant neutral."
   ))
+}
+
+# Refuse a climate that arrived in part.
+#
+# Running at a neutral 1 when NO climate was supplied is the documented
+# behaviour of the five non-LPJmL models, and stays so. Running at a neutral 1
+# when SOME of it was supplied is not a choice anyone made: a driver renamed
+# or dropped upstream (a `mprec.nc` that says `pr` where it said `prec`) takes
+# the whole modifier with it, and every SOC stock then decomposes at its
+# unmodified base rate. Nothing downstream can see it: a modifier of 1 is a
+# legitimate value, the trajectory is finite and non-negative, and its carbon
+# still balances, because mass balance holds at any rate (whep#1034). A
+# time-varying driver being present is what tells the two cases apart; the
+# soil covariates do not, because `clay_pct` is also a texture argument of
+# every model, and a caller passing it for texture has supplied no climate.
+# An explicit `data$climate_modifier` is honoured as before.
+.soc_refuse_partial_drivers <- function(model, drivers, data) {
+  if (!is.null(data$climate_modifier)) {
+    return(invisible(NULL))
+  }
+  climate <- setdiff(drivers, .soc_soil_covariates())
+  if (!any(purrr::map_lgl(climate, \(d) rlang::has_name(data, d)))) {
+    return(invisible(NULL))
+  }
+  missing <- drivers[!purrr::map_lgl(drivers, \(d) rlang::has_name(data, d))]
+  got <- intersect(drivers, names(data))
+  .signal_absent_inputs(
+    missing,
+    "abort",
+    c(
+      i = cli::format_inline(
+        "{.val {model}} got part of its climate drivers ({.field {got}}) and
+         would otherwise run at a neutral climate modifier of 1."
+      ),
+      i = "Supply every driver, or pass {.code data$climate_modifier} to say
+           which modifier you meant."
+    )
+  )
+}
+
+# Per-cell soil constants, not climate: their presence says nothing about
+# whether a climate was supplied.
+.soc_soil_covariates <- function() {
+  c("clay_pct", "soil_cover", "t_field", "t_wilt", "porosity")
 }
 
 .soc_climate_drivers <- function(model) {
