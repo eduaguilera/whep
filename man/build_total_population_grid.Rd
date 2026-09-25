@@ -57,10 +57,10 @@ baseline release) and held at the last snapshot for later years, and WPP
 sets the level. So every country's cells sum to exactly its WPP total in
 every year.
 
-This is the population \code{\link[=build_urban_n]{build_urban_n()}} reads under
+This is the population \code{\link[=build_human_n]{build_human_n()}} reads under its default
 \code{population_basis = "total"}, where it is paired with the per-capita rate
-\link{urban_kgn_cap_total_reference}, whose denominator is Spain's WPP total
-population, so the level and the rate share one basis.
+\link{human_kgn_cap_total_reference}, whose denominator is its calibration WPP
+total population, so the level and the rate share one basis.
 }
 \details{
 WPP is keyed on the \code{polity_area_code} bucket, so shares are taken within

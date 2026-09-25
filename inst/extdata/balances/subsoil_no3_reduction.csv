@@ -27,10 +27,10 @@ Liquid,MED,Rainfed,0.40
 Liquid,MED,Irrigated,0.65
 Liquid,ATL,Rainfed,0.70
 Liquid,ATL,Irrigated,0.75
-Urban,MED,Rainfed,0.40
-Urban,MED,Irrigated,0.65
-Urban,ATL,Rainfed,0.70
-Urban,ATL,Irrigated,0.75
+Human,MED,Rainfed,0.40
+Human,MED,Irrigated,0.65
+Human,ATL,Rainfed,0.70
+Human,ATL,Irrigated,0.75
 BNF,MED,Rainfed,0.40
 BNF,MED,Irrigated,0.65
 BNF,ATL,Rainfed,0.70

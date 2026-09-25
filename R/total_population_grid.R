@@ -1,9 +1,8 @@
 # Gridded TOTAL population: UN WPP country totals downscaled to WHEP's
 # 0.5-degree polycells by HYDE's total-population (`popc`) pattern.
 #
-# This is the population basis build_urban_n() uses under
-# `population_basis = "total"`. It ports the afse-viewer's D14 level
-# (afse-viewer scripts/grid/nb_inputs.R, build_urban_population()) into WHEP.
+# This is the population basis build_human_n() uses under
+# `population_basis = "total"`, its default.
 #
 # THE METHOD. For a requested year y and a polycell (c, a) -- cell c, grid area
 # code a, whose polity_area_code bucket is p:
@@ -29,13 +28,13 @@
 # each bucket's polycells sum back to exactly its WPP total. That identity is
 # what the tests assert.
 #
-# WHY THE OUTPUT STAYS POLYCELL-RESOLVED. The viewer summed its result to cells
-# before handing it to build_urban_n(), which re-split each cell by
-# `polity_frac`. That keeps the global total but blends two countries'
-# WPP/HYDE ratios on every border cell, so no country's cells summed to its own
-# WPP total any more. Keeping `area_code` on the rows, and having
-# build_urban_n() take them as they are, keeps the per-polity identity through
-# to the nitrogen. Global totals are identical either way.
+# WHY THE OUTPUT STAYS POLYCELL-RESOLVED. Summing the result to cells and
+# letting build_human_n() re-split each cell by `polity_frac` would keep the
+# global total but blend two countries' WPP/HYDE ratios on every border cell,
+# so no country's cells would sum to its own WPP total any more. Keeping
+# `area_code` on the rows, and having build_human_n() take them as they are,
+# keeps the per-polity identity through to the nitrogen. Global totals are
+# identical either way.
 #
 # WHAT IS REFUSED, NOT GUESSED (fail closed):
 #   * a year before the first HYDE snapshot -- no bracket to interpolate from;
@@ -66,10 +65,10 @@
 #' sets the level. So every country's cells sum to exactly its WPP total in
 #' every year.
 #'
-#' This is the population [build_urban_n()] reads under
+#' This is the population [build_human_n()] reads under its default
 #' `population_basis = "total"`, where it is paired with the per-capita rate
-#' [urban_kgn_cap_total_reference], whose denominator is Spain's WPP total
-#' population, so the level and the rate share one basis.
+#' [human_kgn_cap_total_reference], whose denominator is its calibration WPP
+#' total population, so the level and the rate share one basis.
 #'
 #' @details
 #' WPP is keyed on the `polity_area_code` bucket, so shares are taken within
@@ -123,7 +122,7 @@ build_total_population_grid <- function(
   }
   years <- .tp_check_years(years)
   polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code") |>
-    .urban_resolve_area_code("cell_polity") |>
+    .human_resolve_area_code("cell_polity") |>
     .tp_prepare_polity()
   snapshots <- .tp_snapshot_years(data$hyde, hyde_dir)
   plan <- .tp_share_plan(years, snapshots)
@@ -160,7 +159,7 @@ build_total_population_grid <- function(
 }
 
 # The caller's crosswalk, with `polity_frac` defaulting to 1 as
-# build_urban_n() defaults it, and each grid code's bucket attached -- the key
+# build_human_n() defaults it, and each grid code's bucket attached -- the key
 # WPP totals are published on -- by the same rule .cell_polity_to_bucket()
 # applies. A missing area code would join no WPP total and leave its people
 # unplaced without saying so.
@@ -321,7 +320,7 @@ build_total_population_grid <- function(
 
 # Each polycell's share of its bucket's HYDE population at one snapshot. A
 # cell's count is split across the areas holding it by `polity_frac`, the same
-# split build_urban_n() applies. A bucket whose whole count is zero has no
+# split build_human_n() applies. A bucket whose whole count is zero has no
 # pattern (0/0) and is left for the level step to report as unplaced. The
 # grid is one snapshot, and the groups carry its `year` so each share is
 # visibly that snapshot's; the year is dropped on the way out because the
@@ -475,8 +474,8 @@ build_total_population_grid <- function(
   invisible(coverage)
 }
 
-# Toy fixture for a runnable example (one Spanish polycell, one year; the
-# cell the other urban fixtures use).
+# Toy fixture for a runnable example (one polycell, one year; the cell the
+# human-N fixtures use).
 .example_total_population_grid <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~population,

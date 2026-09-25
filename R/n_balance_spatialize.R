@@ -38,7 +38,7 @@
 #' same 0.5-degree cell-area formula used across the package (see
 #' [build_grass_availability_lpjml()]). This assembles the
 #' `data$cell_polity` contract that every Module C function (e.g.
-#' [build_n_deposition()], [build_urban_n()], [get_soc_climate_drivers()])
+#' [build_n_deposition()], [build_human_n()], [get_soc_climate_drivers()])
 #' expects as a required input.
 #'
 #' @section Which area code the grid is keyed on:

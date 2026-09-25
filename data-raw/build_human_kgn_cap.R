@@ -1,11 +1,11 @@
-# Regenerate inst/extdata/balances/urban_kgn_cap_reference.csv (Module C,
-# Task C3): the per-capita urban-nitrogen-to-agriculture rate at each
-# urban_n_reference benchmark year, i.e. that year's urban_n_gg converted to
-# kg and divided by that year's Spain urban population. The last section
-# regenerates its per-TOTAL-inhabitant counterpart,
-# urban_kgn_cap_total_reference.csv, used by
-# build_urban_n(population_basis = "total"); it additionally needs the UN WPP
-# file read_wpp_population() caches (or WHEP_WPP_DIR).
+# Regenerate inst/extdata/balances/human_kgn_cap_reference.csv (Module C,
+# Task C3): the per-urban-inhabitant human-population nitrogen rate at each
+# human_n_reference benchmark year, i.e. that year's human_n_gg converted to
+# kg and divided by that year's calibration urban population. The last
+# section regenerates its per-TOTAL-inhabitant counterpart,
+# human_kgn_cap_total_reference.csv, used by build_human_n()'s default
+# population_basis = "total"; it additionally needs the UN WPP file
+# read_wpp_population() caches (or WHEP_WPP_DIR).
 #
 # This is a ONE-OFF, real-data-dependent script. It is NOT sourced by any
 # build pipeline (data-raw/balance_coefficients.R reads the already-committed
@@ -17,7 +17,7 @@
 # inputs are available.
 #
 # PROVENANCE OF THE COMMITTED CSV: Spain's urban population denominator is,
-# for each urban_n_reference benchmark year covered by a local HYDE archive,
+# for each human_n_reference benchmark year covered by a local HYDE archive,
 # whep::build_cell_polity() (Task C6's real global cell_polity crosswalk,
 # lon/lat/area_code/polity_frac/cell_area_ha from
 # WHEP_POLITY_FRACTION_PATH), filtered to area_code == 203L (Spain's FAOSTAT
@@ -54,14 +54,15 @@ if (!nzchar(hyde_dir)) {
 spain_cell_polity <- whep::build_cell_polity() |>
   dplyr::filter(area_code == 203L)
 
-benchmark_years <- whep::urban_n_reference$year
+benchmark_years <- whep::human_n_reference$year
 hyde_years <- benchmark_years[
   file.exists(file.path(hyde_dir, paste0(benchmark_years, "AD_pop.zip")))
 ]
 
 spain_urban_pop <- whep::read_hyde_population(
   hyde_dir = hyde_dir,
-  years = hyde_years
+  years = hyde_years,
+  variable = "urban"
 ) |>
   dplyr::inner_join(spain_cell_polity, by = c("lon", "lat")) |>
   dplyr::filter(area_code == 203L) |>
@@ -70,11 +71,11 @@ spain_urban_pop <- whep::read_hyde_population(
     .by = "year"
   )
 
-hyde_rows <- whep::urban_n_reference |>
+hyde_rows <- whep::human_n_reference |>
   dplyr::inner_join(spain_urban_pop, by = "year") |>
   dplyr::transmute(
     year,
-    urban_kgn_cap = urban_n_gg * 1e6 / urban_pop
+    human_kgn_cap = human_n_gg * 1e6 / urban_pop
   )
 
 # Years with no local HYDE archive (currently 2018, 2020, 2022) keep the
@@ -85,64 +86,66 @@ existing_csv <- here::here(
   "inst",
   "extdata",
   "balances",
-  "urban_kgn_cap_reference.csv"
+  "human_kgn_cap_reference.csv"
 ) |>
   readr::read_csv(show_col_types = FALSE)
 world_bank_rows <- existing_csv |>
   dplyr::filter(year %in% world_bank_fallback_years)
 
-urban_kgn_cap_reference <- dplyr::bind_rows(hyde_rows, world_bank_rows) |>
+human_kgn_cap_reference <- dplyr::bind_rows(hyde_rows, world_bank_rows) |>
   dplyr::arrange(year)
 
 readr::write_csv(
-  urban_kgn_cap_reference,
-  here::here("inst", "extdata", "balances", "urban_kgn_cap_reference.csv")
+  human_kgn_cap_reference,
+  here::here("inst", "extdata", "balances", "human_kgn_cap_reference.csv")
 )
 
 # ---- The per-TOTAL-inhabitant rate (population_basis = "total") -----------
 #
-# Regenerates inst/extdata/balances/urban_kgn_cap_total_reference.csv: the
-# same Spain urban-N numerator (urban_n_reference$urban_n_gg) divided by
-# Spain's TOTAL population from UN WPP 2024 (whep::read_wpp_population(),
-# by = "total", area_code 203), at every benchmark year WPP covers.
+# Regenerates inst/extdata/balances/human_kgn_cap_total_reference.csv: the
+# same calibration nitrogen (human_n_reference$human_n_gg) divided by the
+# calibration country's TOTAL population from UN WPP 2024
+# (whep::read_wpp_population(), by = "total", the same area code as above),
+# at every benchmark year WPP covers.
 #
-# Why a second rate. build_urban_n(population_basis = "total") multiplies this
-# rate by WPP total population downscaled by HYDE's popc pattern
-# (build_total_population_grid()). The rate above is kg N per URBAN
+# Why a second rate. build_human_n(population_basis = "total"), the default,
+# multiplies this rate by WPP total population downscaled by HYDE's popc
+# pattern (build_total_population_grid()). The rate above is kg N per URBAN
 # inhabitant; applying it to a total population scales the term by the
 # inverse urban fraction (global WPP total / HYDE urban = 3.02 in 1960, 2.01
-# in 2010, 1.91 in 2017). Dividing Spain's urban N by the population on the
-# SAME basis the level uses keeps basis and coefficient matched, and Spain
-# then regenerates its own urban N exactly under either basis.
+# in 2010, 1.91 in 2017). Dividing the calibration nitrogen by the population
+# on the SAME basis the level uses keeps basis and coefficient matched, and
+# the rate then regenerates its calibration total exactly under either basis.
 #
 # The denominator is WPP -- the level source of the total basis -- not HYDE's
-# popc, because under that basis Spain's population in the model IS its WPP
-# total. So the rate starts at 1950: 1860 and 1900 have no WPP total, and
-# build_total_population_grid() refuses pre-1950 years for the same reason.
-# The Spain denominator is written into the table so the rebasing identity
-# (urban_kgn_cap * spain_population = urban_n_gg * 1e6) is checkable offline.
-spain_total_pop <- whep::read_wpp_population(
+# popc, because under that basis the calibration population in the model IS
+# its WPP total. So the rate starts at 1950: 1860 and 1900 have no WPP total,
+# and build_total_population_grid() refuses pre-1950 years for the same
+# reason. The denominator is written into the table so the rebasing identity
+# (human_kgn_cap * calibration_population = human_n_gg * 1e6) is checkable
+# offline.
+calibration_total_pop <- whep::read_wpp_population(
   years = benchmark_years,
   by = "total"
 ) |>
   dplyr::filter(area_code == 203L) |>
-  dplyr::summarise(spain_population = sum(population), .by = "year")
+  dplyr::summarise(calibration_population = sum(population), .by = "year")
 
-urban_kgn_cap_total_reference <- whep::urban_n_reference |>
-  dplyr::inner_join(spain_total_pop, by = "year") |>
+human_kgn_cap_total_reference <- whep::human_n_reference |>
+  dplyr::inner_join(calibration_total_pop, by = "year") |>
   dplyr::transmute(
     year,
-    urban_kgn_cap = urban_n_gg * 1e6 / spain_population,
-    spain_population
+    human_kgn_cap = human_n_gg * 1e6 / calibration_population,
+    calibration_population
   ) |>
   dplyr::arrange(year)
 
 readr::write_csv(
-  urban_kgn_cap_total_reference,
+  human_kgn_cap_total_reference,
   here::here(
     "inst",
     "extdata",
     "balances",
-    "urban_kgn_cap_total_reference.csv"
+    "human_kgn_cap_total_reference.csv"
   )
 )

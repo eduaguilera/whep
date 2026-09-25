@@ -3,7 +3,7 @@
 # Combines every N-input source already built elsewhere in the package into
 # one long-format tibble keyed by (lon, lat, area_code, item_cbs_code, year,
 # fert_type). Each fert_type's heavy upstream computation (BNF, crop NPP,
-# livestock nutrient flows, atmospheric deposition, urban N, the SOC/SON
+# livestock nutrient flows, atmospheric deposition, human N, the SOC/SON
 # balance) is run by its own dedicated function elsewhere in the package;
 # this file only assembles their outputs into the common schema, plus the
 # ONE genuinely new assembly for synthetic fertiliser (country total ->
@@ -16,7 +16,7 @@
 # the gridded pipeline already carries. Deposition is multiplied by agricultural
 # hectares rather than whole-cell area, so forest/natural deposition never
 # enters the agricultural balance.
-# Urban N, SOM mineralization, and manure already assigned upstream to Cropland
+# Human N, SOM mineralization, and manure already assigned upstream to Cropland
 # but lacking a crop are apportioned only across local cropland items. Cropland
 # support carries crop CBS items; all pasture/rangeland support uses CBS 3000
 # without claiming a hard intensive/extensive historical split.
@@ -39,14 +39,14 @@
 #' Combines biological nitrogen fixation ([calculate_bnf()]), residue/root N
 #' recycling ([calculate_npp_carbon_nitrogen()]), livestock manure
 #' ([build_livestock_nutrient_flows()]), atmospheric deposition
-#' ([build_n_deposition()]), urban/human-excreta N ([build_urban_n()]), soil
+#' ([build_n_deposition()]), human-population N ([build_human_n()]), soil
 #' organic-matter mineralization ([build_carbon_balance()]'s
 #' `son_change_kgn_ha`) and synthetic fertiliser (a country total
 #' spatialized to crops and cells via [spatialize_country_n_to_crops()])
 #' into one long-format tibble of nitrogen inputs to agricultural land.
 #'
 #' `fert_type` values: `"bnf"`, `"recycling"`, `"manure_solid"`,
-#' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"urban"`,
+#' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"human"`,
 #' `"som_mineralization"`, `"synthetic"` and `"accum_loss"`. The last is a
 #' documented gap (perennial-crop standing-biomass N accumulation from
 #' Spain_Hist's N_balance.R): its source computation was not available for
@@ -56,7 +56,7 @@
 #' are allocated over the agricultural land support, either supplied as
 #' `data$ag_land_support` or derived by [build_ag_land_support()] from the
 #' gridded inputs already present. Deposition uses both cropland and
-#' grassland support. `"urban"`, `"som_mineralization"`, and manure already
+#' grassland support. `"human"`, `"som_mineralization"`, and manure already
 #' assigned upstream to Cropland but lacking a crop use only local cropland
 #' support, so manure is not reassigned to grassland after the manure engine's
 #' capacity allocation. Forest and natural land are outside that support and
@@ -66,10 +66,10 @@
 #' @details
 #' `polity_validity` is forwarded to every builder this function calls that
 #' offers it -- [build_ag_land_support()], [build_n_deposition()],
-#' [build_urban_n()] and [spatialize_country_n_to_crops()] -- and then applied
+#' [build_human_n()] and [spatialize_country_n_to_crops()] -- and then applied
 #' to the assembled output, so one choice governs the whole assembly instead of
 #' each builder deciding on its own key space (whep#727). Under `"drop"` the
-#' support table loses those rows too, so a non-item input (deposition, urban,
+#' support table loses those rows too, so a non-item input (deposition, human,
 #' SOM mineralization) whose own rows were supplied directly and therefore not
 #' dropped can find no cropland support left to allocate over; that aborts in
 #' the mass check rather than silently losing nitrogen.
@@ -81,7 +81,7 @@
 #'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param unattributed_method Where nitrogen that reached agricultural land but
 #'   no single crop goes -- manure the engine placed on Cropland or landed by
-#'   transport without a crop, plus deposition, urban N and SOM mineralization,
+#'   transport without a crop, plus deposition, human N and SOM mineralization,
 #'   all of which carry `item_cbs_code = NA`. `"cropland_area"` (default)
 #'   spreads it over the cell-year's cropland support in proportion to each
 #'   crop's hectares; `"agricultural_area"` spreads it over cropland *and*
@@ -154,15 +154,17 @@
 #'     `grassland_source` selects its `grassland` argument
 #'     (`"gridded_pasture"` default, `"luh2"`, or `"none"` for cropland-only
 #'     support).
-#'   * `urban_population`, `total_population`, `cropland_ha`, `cell_polity`:
-#'     [build_urban_n()]'s inputs. Which population is read is set by
-#'     `urban_population_basis`. The `"urban"` term's `n_input_t` is the
-#'     `urban_n_t` column of [build_urban_n()]'s output.
-#'   * `urban_population_basis`: [build_urban_n()]'s `population_basis`,
-#'     `"urban"` (default: `urban_population` with the per-urban-inhabitant
-#'     rate) or `"total"` (`total_population`, from
-#'     [build_total_population_grid()], with the per-total-inhabitant rate).
-#'     Recorded in `method_urban_population` and `method_urban_kgn_cap`.
+#'   * `total_population`, `urban_population`, `cropland_ha`, `cell_polity`:
+#'     [build_human_n()]'s inputs. Which population is read is set by
+#'     `human_n_population_basis`. The `"human"` term's `n_input_t` is the
+#'     `human_n_t` column of [build_human_n()]'s output. The term was called
+#'     `"urban"` before it was renamed.
+#'   * `human_n_population_basis`: [build_human_n()]'s `population_basis`,
+#'     `"total"` (default: `total_population`, from
+#'     [build_total_population_grid()], with the per-inhabitant rate) or
+#'     `"urban"` (`urban_population` with the per-urban-inhabitant rate).
+#'     Supplying only the other basis's population aborts. Recorded in
+#'     `method_human_population` and `method_human_kgn_cap`.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -195,7 +197,7 @@
 #'     `resolution = "grid"` (cell-level nitrogen needs cell-level manure) and
 #'     to `"national"` otherwise. A value supplied here is always honoured.
 #' @param method_unsupported What happens to non-item nitrogen (deposition,
-#'   urban, soil-organic-matter mineralization, unattributed manure) whose own
+#'   human, soil-organic-matter mineralization, unattributed manure) whose own
 #'   cell-year carries no cropland support at all. `"abort"` (the default, and
 #'   the behaviour before this argument existed) refuses to continue and names
 #'   the streams and the mass, so a coverage gap cannot be lost silently.
@@ -215,13 +217,13 @@
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_urban_population`,
-#'   `method_urban_kgn_cap`, `method_unsupported`,
+#'   `method_deposition_scope`, `method_human_population`,
+#'   `method_human_kgn_cap`, `method_unsupported`,
 #'   `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
 #'   `method_deposition`, `method_deposition_scope`,
-#'   `method_urban_population`, `method_urban_kgn_cap`, `method_unsupported`,
+#'   `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
 #'   `method_unattributed`, `n_input_t` (summed over cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
@@ -237,9 +239,9 @@
 #'   `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`). Both are `NA` for every other
-#'   `fert_type`. `method_urban_population` and `method_urban_kgn_cap` record
-#'   the `"urban"` term's population basis and the denominator of its
-#'   per-capita rate (see [build_urban_n()]); both are `NA` for every other
+#'   `fert_type`. `method_human_population` and `method_human_kgn_cap` record
+#'   the `"human"` term's population basis and the denominator of its
+#'   per-capita rate (see [build_human_n()]); both are `NA` for every other
 #'   `fert_type`.
 #'   `method_unsupported` records the rule applied to non-item nitrogen with no
 #'   cropland support in its own cell, and is the same on every row.
@@ -295,7 +297,7 @@ build_n_inputs <- function(
     .n_inputs_recycling(data),
     .n_inputs_manure(data),
     .n_inputs_deposition(data),
-    .n_inputs_urban(data),
+    .n_inputs_human(data),
     .n_inputs_som(data),
     .n_inputs_synthetic(data)
   )
@@ -326,7 +328,7 @@ build_n_inputs <- function(
     recycling = "npp_n_input",
     manure = "livestock_intake",
     deposition = "cell_polity",
-    urban = c("urban_population", "cropland_ha"),
+    human = c("total_population", "cropland_ha"),
     som_mineralization = "carbon_balance",
     synthetic = c("primary_prod", "fertilizer")
   )
@@ -341,7 +343,7 @@ build_n_inputs <- function(
     recycling = "recycling",
     manure = c("excreta", "manure_solid", "manure_liquid"),
     deposition = "deposition",
-    urban = "urban",
+    human = "human",
     som_mineralization = "som_mineralization",
     synthetic = "synthetic"
   )
@@ -351,11 +353,11 @@ build_n_inputs <- function(
   # build_nitrogen_balance() hands the NPP result in as `.npp_cache` rather
   # than as `npp_n_input`; either one asks for the recycling term.
   data$npp_n_input <- data$npp_n_input %||% data$.npp_cache
-  # Either population asks for the urban term; build_urban_n() then refuses
-  # the one that does not match `urban_population_basis`. Read by exact name:
-  # `data$urban_population` would partially match `urban_population_basis`.
-  data[["urban_population"]] <- data[["urban_population"]] %||%
-    data[["total_population"]]
+  # Either population asks for the human term; build_human_n() then refuses
+  # the one that does not match `human_n_population_basis`. Read by exact
+  # name, as every population read in this file is.
+  data[["total_population"]] <- data[["total_population"]] %||%
+    data[["urban_population"]]
   supplied <- purrr::map_lgl(
     .ni_stream_inputs(),
     \(needed) all(!purrr::map_lgl(needed, \(nm) is.null(data[[nm]])))
@@ -423,7 +425,7 @@ build_n_inputs <- function(
 # and `method_deposition_scope` are the deposition term's two provenance axes
 # and are likewise NA elsewhere: the first names the PRODUCT the field came
 # from, the second which of the polycell's territory it was credited with.
-# `method_urban_population` and `method_urban_kgn_cap` are the urban term's:
+# `method_human_population` and `method_human_kgn_cap` are the human term's:
 # the population basis and the denominator of its per-capita rate.
 # All are per-source, so they live here rather than on the assembled schema.
 .ni_source_schema <- function() {
@@ -439,8 +441,8 @@ build_n_inputs <- function(
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
-    "method_urban_population",
-    "method_urban_kgn_cap",
+    "method_human_population",
+    "method_human_kgn_cap",
     "method_unsupported"
   )
 }
@@ -571,8 +573,8 @@ build_n_inputs <- function(
         "method_synthetic",
         "method_deposition",
         "method_deposition_scope",
-        "method_urban_population",
-        "method_urban_kgn_cap",
+        "method_human_population",
+        "method_human_kgn_cap",
         "method_unsupported",
         "method_unattributed"
       )
@@ -824,7 +826,7 @@ build_n_inputs <- function(
 #
 # A non-NA crop that matches neither is a genuine mapping gap, so abort naming
 # it rather than emit an NA item_cbs_code indistinguishable from the
-# deliberately non-crop-specific deposition/urban/SOM rows, mirroring
+# deliberately non-crop-specific deposition/human/SOM rows, mirroring
 # .manure_territory_to_area_code()'s treatment of unresolvable territories. An
 # NA crop never reaches this abort: .ni_manure_item_cbs() assigns either the
 # grass code or the no-specific-item sentinel from land_use.
@@ -1062,19 +1064,18 @@ build_n_inputs <- function(
   ))
 }
 
-# ---- 5. Urban N (cell-level, not crop-specific) ---------------------------
+# ---- 5. Human N (cell-level, not crop-specific) ---------------------------
 
-.n_inputs_urban <- function(data) {
-  # Exact-name reads throughout: `$` would partially match
-  # `urban_population` to `urban_population_basis` when only the total
-  # population is supplied, and hand the basis string on as a population.
+.n_inputs_human <- function(data) {
+  # Exact-name reads throughout, so no population slot can partially match
+  # another `data` entry and hand a string on as a population.
   no_population <- is.null(data[["urban_population"]]) &&
     is.null(data[["total_population"]])
   if (no_population || is.null(data$cropland_ha)) {
     return(.ni_empty())
   }
-  build_urban_n(
-    population_basis = .ni_urban_population_basis(data),
+  build_human_n(
+    population_basis = .ni_human_population_basis(data),
     polity_validity = .ni_polity_validity(data),
     data = list(
       urban_population = data[["urban_population"]],
@@ -1086,7 +1087,7 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() requires the numeric WHEP area_code on both of the
+      # build_human_n() requires the numeric WHEP area_code on both of the
       # frames it is handed and checks that at its own input boundary (#597),
       # so this column is already the code and nothing is left to resolve
       # here. Unlike the manure path there is no ISO3 bridge to go wrong: an
@@ -1094,23 +1095,23 @@ build_n_inputs <- function(
       area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
-      fert_type = "urban",
-      n_input_t = .data$urban_n_t,
-      method_urban_population = .data$method_urban_population,
-      method_urban_kgn_cap = .data$method_urban_kgn_cap
+      fert_type = "human",
+      n_input_t = .data$human_n_t,
+      method_human_population = .data$method_human_population,
+      method_human_kgn_cap = .data$method_human_kgn_cap
     )
 }
 
-# The urban term's population basis, read off `data` like `deposition_scope`
+# The human term's population basis, read off `data` like `deposition_scope`
 # so build_nitrogen_balance(), which forwards its whole `data` list, selects
-# it without an argument of its own. "urban" is the historical basis, so an
-# unset value moves no published number.
-.ni_urban_population_basis <- function(data) {
-  basis <- data[["urban_population_basis"]] %||% "urban"
-  if (!rlang::is_string(basis) || !basis %in% c("urban", "total")) {
+# it without an argument of its own. "total" is the default, as it is for
+# build_human_n() itself.
+.ni_human_population_basis <- function(data) {
+  basis <- data[["human_n_population_basis"]] %||% "total"
+  if (!rlang::is_string(basis) || !basis %in% c("total", "urban")) {
     cli::cli_abort(c(
-      "{.field data$urban_population_basis} must be {.val urban} or
-       {.val total}.",
+      "{.field data$human_n_population_basis} must be {.val total} or
+       {.val urban}.",
       x = "Got {.val {basis}}."
     ))
   }
@@ -1122,7 +1123,7 @@ build_n_inputs <- function(
 # Simple sentinel approach (not crop-weighted): SOM mineralization is a
 # per-land-use flux, not per-crop, in build_carbon_balance() itself, so it
 # is assigned the same NA_integer_ "not crop-specific" code as deposition
-# and urban rather than area-weight-split across the cell's actual crops.
+# and human N rather than area-weight-split across the cell's actual crops.
 # A crop-level split via spatialize_country_n_to_crops()'s crop-pattern
 # weights is a defensible future refinement, not required by this task.
 .n_inputs_som <- function(data) {
@@ -1343,10 +1344,10 @@ build_n_inputs <- function(
 # they account for -- the pooling below renumbers, so the residual check cannot
 # recover that from the rows themselves.
 #
-# The condition is real, not hypothetical: build_urban_n() hands back the urban
+# The condition is real, not hypothetical: build_human_n() hands back the
 # nitrogen its transport step could not deliver, at the SOURCE cell, and on a
-# 2010 global run 1985 of those cells hold no cropland -- 38,425 t of 4.02 Mt
-# urban N, which took the whole balance down (whep#446).
+# 2010 global run (urban basis) 1985 of those cells hold no cropland --
+# 38,425 t of 4.02 Mt, which took the whole balance down (whep#446).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.
@@ -1407,8 +1408,8 @@ build_n_inputs <- function(
     "method_recycling_n",
     "method_synthetic",
     "method_deposition_scope",
-    "method_urban_population",
-    "method_urban_kgn_cap"
+    "method_human_population",
+    "method_human_kgn_cap"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
@@ -1463,7 +1464,7 @@ build_n_inputs <- function(
 #
 # Two very different conditions reach this abort and a single pair of totals
 # cannot tell them apart. One is the expected territorial-coverage gap of #423:
-# deposition, urban nitrogen and soil-organic-matter mineralization all have a
+# deposition, human nitrogen and soil-organic-matter mineralization all have a
 # whole-territory extent, cropland support does not, so a cell with no cropland
 # has nowhere to put its share. The other is one stream arriving at an
 # implausible magnitude -- whep#792 reached this abort with 1,409 Tg N of source
@@ -1625,8 +1626,8 @@ build_n_inputs <- function(
     method_synthetic = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
-    method_urban_population = character(),
-    method_urban_kgn_cap = character(),
+    method_human_population = character(),
+    method_human_kgn_cap = character(),
     method_unsupported = character()
   )
 }
@@ -1674,7 +1675,7 @@ build_n_inputs <- function(
     1L,
     NA_integer_,
     2020L,
-    "urban",
+    "human",
     4.5,
     -0.25,
     -0.25,
@@ -1726,14 +1727,14 @@ build_n_inputs <- function(
         "territory",
         NA_character_
       ),
-      method_urban_population = dplyr::if_else(
-        .data$fert_type == "urban",
-        "urban_population",
+      method_human_population = dplyr::if_else(
+        .data$fert_type == "human",
+        "total_population",
         NA_character_
       ),
-      method_urban_kgn_cap = dplyr::if_else(
-        .data$fert_type == "urban",
-        "kg_n_per_urban_inhabitant",
+      method_human_kgn_cap = dplyr::if_else(
+        .data$fert_type == "human",
+        "kg_n_per_total_inhabitant",
         NA_character_
       ),
       method_unsupported = "abort",

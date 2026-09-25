@@ -2287,6 +2287,13 @@ utils::globalVariables(
     # build_trade.R (issue 232) -- fill_linear()'s provenance column, read to
     # keep observed trade rows when the time extension is scoped to CBS cells
     "source_country_share",
+    # n_human.R (whep#1301) -- the human-population N term's renamed columns
+    "human_n_gg",
+    "human_kgn_cap",
+    "human_n_generated_t",
+    "human_n_t",
+    "method_human",
+    "human",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

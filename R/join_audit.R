@@ -347,7 +347,7 @@
     "area_code -> polity_area_code, keeping the raw code alongside.",
     ".spatialize_year", "[", "area_code, item_prod_code", 1L, "single_year",
     "One year of the spatialization.",
-    ".urban_check_polycells_known", "anti_join", "lon, lat, area_code", 1L,
+    ".human_check_polycells_known", "anti_join", "lon, lat, area_code", 1L,
     "diagnostic",
     "Refuses a total-population polycell the cell-polity crosswalk does not
      carry. The crosswalk has no year dimension, and the join only decides

@@ -302,7 +302,7 @@
 # Resolve an (ISO3 area label, data year) pair to the polity code active in that
 # year, against the polity's own span in `polity_area_crosswalk`.
 #
-# This is what `data-raw/balance_coefficients.R` stamps `urban_n_reference` with.
+# This is what `data-raw/balance_coefficients.R` stamps `human_n_reference` with.
 # It lives here rather than in the builder because the year predicate IS the
 # package-wide `polity_end_year` convention, and that convention had four
 # independent re-implementations, three of which read the bound inclusively

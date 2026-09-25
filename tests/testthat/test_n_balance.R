@@ -297,6 +297,9 @@
     nhx = .nb_nhx(),
     noy = .nb_noy(),
     urban_population = .nb_urban_population(),
+    # Named, because the default basis is the total population: the pinned
+    # balances below were measured on the urban basis.
+    human_n_population_basis = "urban",
     cropland_ha = .nb_cropland_ha(),
     cell_polity = .nb_cell_polity(),
     ag_land_support = .nb_ag_land_support(),
@@ -323,7 +326,7 @@
     "Solid",
     "SOM",
     "Synthetic",
-    "Urban",
+    "Human",
     "Recycling"
   )
   data$n_balance_drivers <- tidyr::expand_grid(
@@ -827,7 +830,7 @@ testthat::test_that("total_gwp_co2e_kg matches the 44/28 x GWP x 1000 formula", 
 
 testthat::test_that("SOM sequestration is kept when no NA-item input row exists", {
   # A cell in net carbon GAIN (son_change_kgn_ha < 0) emits no
-  # som_mineralization input row; if it also lacks deposition/urban N, x has
+  # som_mineralization input row; if it also lacks deposition/human N, x has
   # no NA-item row. A left join would drop the sequestration output entirely;
   # the full-join merge must keep it (as its own NA-item row).
   key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
@@ -1219,14 +1222,14 @@ testthat::test_that("residue destinies no N coefficient joins are refused", {
   )
 })
 
-testthat::test_that("the balance names the urban population basis it used", {
+testthat::test_that("the balance names the human-N population basis it used", {
   out <- .nb_run()
   testthat::expect_setequal(
-    stats::na.omit(out$method_urban_population),
+    stats::na.omit(out$method_human_population),
     "urban_population"
   )
   testthat::expect_setequal(
-    stats::na.omit(out$method_urban_kgn_cap),
+    stats::na.omit(out$method_human_kgn_cap),
     "kg_n_per_urban_inhabitant"
   )
 
@@ -1239,14 +1242,54 @@ testthat::test_that("the balance names the urban population basis it used", {
     year = 2010L,
     population = 30898536
   )
-  data$urban_population_basis <- "total"
+  data$human_n_population_basis <- "total"
   total <- .nb_run(data)
   testthat::expect_setequal(
-    stats::na.omit(total$method_urban_population),
+    stats::na.omit(total$method_human_population),
     "total_population"
   )
   testthat::expect_setequal(
-    stats::na.omit(total$method_urban_kgn_cap),
+    stats::na.omit(total$method_human_kgn_cap),
     "kg_n_per_total_inhabitant"
   )
+  # The default basis is the total population.
+  data$human_n_population_basis <- NULL
+  testthat::expect_identical(.nb_run(data), total)
+})
+
+testthat::test_that("inputs and drivers keyed by the former urban names balance the same", {
+  # A table built before the rename says "urban" / "Urban" / method_urban_*.
+  # Unrecognised, "urban" would get a pivot column outside every sum and be
+  # skipped by the loss filter, so its nitrogen would leave the balance
+  # silently; it is translated instead, with a deprecation warning.
+  data <- .nb_data_with_drivers()
+  current <- .nb_run(data)
+  inputs <- whep::build_n_inputs(data = data)
+  legacy <- data
+  legacy$n_inputs <- inputs |>
+    dplyr::mutate(
+      fert_type = dplyr::if_else(
+        .data$fert_type == "human",
+        "urban",
+        .data$fert_type
+      )
+    ) |>
+    dplyr::rename(
+      method_urban_population = "method_human_population",
+      method_urban_kgn_cap = "method_human_kgn_cap"
+    )
+  legacy$n_balance_drivers <- legacy$n_balance_drivers |>
+    dplyr::mutate(
+      fert_type = dplyr::if_else(
+        .data$fert_type == "Human",
+        "Urban",
+        .data$fert_type
+      )
+    )
+  testthat::expect_gt(sum(inputs$fert_type == "human"), 0L)
+  suppressWarnings(testthat::expect_warning(
+    out <- .nb_run(legacy),
+    class = "whep_urban_fert_type_deprecated"
+  ))
+  testthat::expect_equal(out, current)
 })
