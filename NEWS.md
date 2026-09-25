@@ -20,6 +20,15 @@
   `"UNROUTED"` leaves its rows unassigned (`NA`) instead of resolving its
   `correct_label`, and a corrected row drops the caller's `country` and is not
   read as an ISO3 code, since both came with the label it was misfiled under.
+  New `unit` and `indicator` arguments carry the optional scope whep-polities
+  #700 added to that table: a scoped rule relabels only the rows whose own
+  unit / indicator equals it (Mitchell's 1955-1960 Vietnam rice output in
+  tonnes is North plus South, its area in hectares South only), and a row it
+  would otherwise match that gives no unit / indicator is an error of class
+  `whep_error_unscoped_label_item_correction` rather than a silent miss.
+  `polity_label_item_corrections` gains the two columns, all `NA` in the
+  shipped snapshot, and `data-raw/table_mappings.R` aborts on any header it
+  was not taught, so a new key column cannot be dropped unnoticed.
 
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it

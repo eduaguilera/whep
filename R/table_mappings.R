@@ -327,7 +327,8 @@
 #' A row matches a rule when `source`, `source_label` (normalised as the alias
 #' map's labels are) and `item` all match and the row's year lies in
 #' `[year_start, year_end]`. Rows without a year are never corrected, and rules
-#' do not chain.
+#' do not chain. A rule with `unit` or `indicator` set also needs the row's own
+#' unit / indicator to equal it.
 #'
 #' @format
 #' A tibble with one row per rule. It has zero rows when the shipped snapshot
@@ -336,6 +337,9 @@
 #' - `source_label`: The label the source files the rows under.
 #' - `item`: The item, exactly as the source writes it.
 #' - `year_start`, `year_end`: Inclusive year range.
+#' - `unit`, `indicator`: Scope of the rule. `NA` (blank upstream) means any;
+#'   when set, the row's own unit / indicator must equal it. All `NA` in a
+#'   snapshot taken before whep-polities introduced the columns.
 #' - `correct_label`: The label to resolve instead.
 #' - `polity_code`: Where `correct_label` resolves in the same upstream
 #'   revision, or `"UNROUTED"` when the rows belong to no polity and

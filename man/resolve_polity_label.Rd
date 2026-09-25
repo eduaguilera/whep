@@ -10,7 +10,9 @@ resolve_polity_label(
   year = NULL,
   item = NULL,
   country = NULL,
-  back_cast = TRUE
+  back_cast = TRUE,
+  unit = NULL,
+  indicator = NULL
 )
 }
 \arguments{
@@ -40,6 +42,11 @@ routes to that country's polities.}
 
 \item{back_cast}{Logical. \code{TRUE} (the default) keeps aliases upstream marks
 as reconstructions (\code{disposition == "back_cast"}); \code{FALSE} drops them.}
+
+\item{unit, indicator}{Optional unit and indicator of each row, as the source
+writes them (e.g. \code{"tonnes"}, \code{"ha"}). Length 1, or the same length as
+\code{label}. Only used to match \link{polity_label_item_corrections} rules scoped
+on them; required for the rows such a rule would otherwise match.}
 }
 \value{
 A character vector of polity codes, \code{NA} where nothing matched.
@@ -129,7 +136,13 @@ is never corrected. A corrected row ignores \code{country}, which named the
 territory it was misfiled under, and its new label is not read as an ISO3
 code, so only the corrected label decides. A rule whose \code{polity_code} is
 \code{"UNROUTED"} marks rows that belong to no polity (a wrong territory with
-no right one to land on), and those resolve to \code{NA}.
+no right one to land on), and those resolve to \code{NA}. A rule may also be
+scoped on \code{unit} or \code{indicator}, where only that separates the rows:
+Mitchell's 1955-1960 \code{"viet nam"} rice output in tonnes is North plus
+South Vietnam, its area in hectares South only. A scoped rule applies only
+when the caller's \code{unit} / \code{indicator} equals it; a row it would
+otherwise match but whose scoped value is missing is an error of class
+\code{whep_error_unscoped_label_item_correction}, not a silent miss.
 \item \strong{\code{country}: the reporting country, as an ISO3 code.} The name route
 compares normalised names, and normalisation drops parenthesised
 qualifiers, so a bare subnational name meets another country's unit:

@@ -211,23 +211,71 @@ if (!file.exists(whep_label_item_corrections)) {
     )
   ))
 }
-polity_label_item_corrections <- readr::read_csv(
-  whep_label_item_corrections,
-  show_col_types = FALSE,
-  na = excel_na,
-  # Exhaustive by intent, like the alias map's list above.
-  col_types = readr::cols(
-    source = readr::col_character(),
-    source_label = readr::col_character(),
-    item = readr::col_character(),
-    year_start = readr::col_integer(),
-    year_end = readr::col_integer(),
-    correct_label = readr::col_character(),
-    polity_code = readr::col_character(),
-    observed_rows = readr::col_double(),
-    issue = readr::col_character(),
-    evidence = readr::col_character()
+# Exhaustive by intent, like the alias map's list above, and in upstream's
+# column order: the header check below compares against these names.
+# `unit` and `indicator` (whep-polities #700) are key columns: blank means any
+# unit / indicator, a value limits the rule to rows carrying exactly it.
+label_item_correction_types <- readr::cols(
+  source = readr::col_character(),
+  source_label = readr::col_character(),
+  item = readr::col_character(),
+  year_start = readr::col_integer(),
+  year_end = readr::col_integer(),
+  unit = readr::col_character(),
+  indicator = readr::col_character(),
+  correct_label = readr::col_character(),
+  polity_code = readr::col_character(),
+  observed_rows = readr::col_double(),
+  issue = readr::col_character(),
+  evidence = readr::col_character()
+)
+label_item_scope_columns <- c("unit", "indicator")
+
+# Reads the table and returns it with exactly the declared columns. A revision
+# older than #700 has no scope columns and therefore no scoped rule, so both
+# are added as `NA` (the same handling `disposition` gets), which is exact. Any
+# other header aborts: readr would read an undeclared column with a guessed
+# type and nothing downstream would use it, so a new key column -- as `unit`
+# was -- would be ignored and its rules applied to every row.
+read_label_item_corrections <- function(path) {
+  expected <- names(label_item_correction_types$cols)
+  legacy <- setdiff(expected, label_item_scope_columns)
+  header <- names(readr::read_csv(
+    path,
+    n_max = 0L,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = readr::col_character())
+  ))
+  types <- label_item_correction_types
+  if (identical(header, legacy)) {
+    types$cols <- types$cols[legacy]
+  }
+  corrections <- readr::read_csv(
+    path,
+    show_col_types = FALSE,
+    na = excel_na,
+    col_types = types
   )
+  if (identical(header, legacy)) {
+    corrections$unit <- NA_character_
+    corrections$indicator <- NA_character_
+    corrections <- dplyr::relocate(
+      corrections,
+      dplyr::all_of(label_item_scope_columns),
+      .after = "year_end"
+    )
+  }
+  if (!identical(names(corrections), expected)) {
+    cli::cli_abort(c(
+      "The label-item corrections table has an unexpected header.",
+      x = "Got {.val {header}}.",
+      i = "Teach {.fn resolve_polity_label} every key column before shipping it."
+    ))
+  }
+  corrections
+}
+polity_label_item_corrections <- read_label_item_corrections(
+  whep_label_item_corrections
 )
 # `UNROUTED` (whep-polities #692) is a sentinel, not a polity: its rows belong
 # to none, and `resolve_polity_label()` leaves them unassigned.

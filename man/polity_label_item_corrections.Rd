@@ -12,6 +12,9 @@ was taken from a \code{whep-polities} revision that published no rules. Columns:
 \item \code{source_label}: The label the source files the rows under.
 \item \code{item}: The item, exactly as the source writes it.
 \item \code{year_start}, \code{year_end}: Inclusive year range.
+\item \code{unit}, \code{indicator}: Scope of the rule. \code{NA} (blank upstream) means any;
+when set, the row's own unit / indicator must equal it. All \code{NA} in a
+snapshot taken before whep-polities introduced the columns.
 \item \code{correct_label}: The label to resolve instead.
 \item \code{polity_code}: Where \code{correct_label} resolves in the same upstream
 revision, or \code{"UNROUTED"} when the rows belong to no polity and
@@ -39,6 +42,7 @@ them when it is given \code{item}.
 A row matches a rule when \code{source}, \code{source_label} (normalised as the alias
 map's labels are) and \code{item} all match and the row's year lies in
 \verb{[year_start, year_end]}. Rows without a year are never corrected, and rules
-do not chain.
+do not chain. A rule with \code{unit} or \code{indicator} set also needs the row's own
+unit / indicator to equal it.
 }
 \keyword{datasets}

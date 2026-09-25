@@ -369,3 +369,85 @@ testthat::test_that("the non-unique-key guard names the values (#621)", {
     ok
   )
 })
+
+# Evaluates several top-level assignments out of a builder into one
+# environment, for a builder function that reads the builder's own constants.
+.builder_bindings <- function(builder, names, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  env <- new.env(parent = globalenv())
+  purrr::walk(names, function(name) {
+    wanted <- purrr::keep(exprs, function(expr) {
+      rlang::is_call(expr, c("<-", "=")) &&
+        identical(rlang::expr_text(expr[[2]]), name)
+    })
+    testthat::expect_length(wanted, 1L)
+    eval(wanted[[1]], envir = env)
+  })
+  env
+}
+
+testthat::test_that("the label-item corrections header is exact (#700)", {
+  # whep-polities #700 added `unit` and `indicator` as key columns. readr reads
+  # an undeclared column with a guessed type and nothing downstream uses it,
+  # so the builder must refuse any header it was not taught -- or the next key
+  # column's rules would apply to every row, as `unit`'s would have.
+  root <- .skip_without_data_raw()
+  env <- .builder_bindings(
+    "table_mappings.R",
+    c(
+      "excel_na",
+      "label_item_correction_types",
+      "label_item_scope_columns",
+      "read_label_item_corrections"
+    ),
+    root
+  )
+  read <- env$read_label_item_corrections
+  current <- c(
+    "source",
+    "source_label",
+    "item",
+    "year_start",
+    "year_end",
+    "unit",
+    "indicator",
+    "correct_label",
+    "polity_code",
+    "observed_rows",
+    "issue",
+    "evidence"
+  )
+  write_header <- function(columns, rows = character()) {
+    path <- withr::local_tempfile(
+      fileext = ".csv",
+      .local_envir = parent.frame()
+    )
+    writeLines(c(paste(columns, collapse = ","), rows), path)
+    path
+  }
+
+  rule <- paste(
+    "mitchell,viet nam,\"rice, paddy\",1955,1960,tonnes,,",
+    "Vietnam (combined reporting: DRV and RVN),F237-1954-1975,6,688,x",
+    sep = ""
+  )
+  shipped <- read(write_header(current, rule))
+  testthat::expect_identical(names(shipped), current)
+  testthat::expect_identical(shipped$unit, "tonnes")
+  testthat::expect_identical(shipped$indicator, NA_character_)
+
+  # A snapshot before #700: no scope columns, so no scoped rule.
+  legacy <- read(write_header(setdiff(current, c("unit", "indicator"))))
+  testthat::expect_identical(names(legacy), current)
+  testthat::expect_type(legacy$unit, "character")
+
+  # A column the builder was not taught, and one it lost.
+  testthat::expect_error(
+    suppressWarnings(read(write_header(c(current, "period")))),
+    "unexpected header"
+  )
+  testthat::expect_error(
+    suppressWarnings(read(write_header(setdiff(current, "indicator")))),
+    "unexpected header"
+  )
+})

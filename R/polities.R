@@ -1953,7 +1953,13 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   territory it was misfiled under, and its new label is not read as an ISO3
 #'   code, so only the corrected label decides. A rule whose `polity_code` is
 #'   `"UNROUTED"` marks rows that belong to no polity (a wrong territory with
-#'   no right one to land on), and those resolve to `NA`.
+#'   no right one to land on), and those resolve to `NA`. A rule may also be
+#'   scoped on `unit` or `indicator`, where only that separates the rows:
+#'   Mitchell's 1955-1960 `"viet nam"` rice output in tonnes is North plus
+#'   South Vietnam, its area in hectares South only. A scoped rule applies only
+#'   when the caller's `unit` / `indicator` equals it; a row it would
+#'   otherwise match but whose scoped value is missing is an error of class
+#'   `whep_error_unscoped_label_item_correction`, not a silent miss.
 #' - **`country`: the reporting country, as an ISO3 code.** The name route
 #'   compares normalised names, and normalisation drops parenthesised
 #'   qualifiers, so a bare subnational name meets another country's unit:
@@ -1999,6 +2005,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   routes to that country's polities.
 #' @param back_cast Logical. `TRUE` (the default) keeps aliases upstream marks
 #'   as reconstructions (`disposition == "back_cast"`); `FALSE` drops them.
+#' @param unit,indicator Optional unit and indicator of each row, as the source
+#'   writes them (e.g. `"tonnes"`, `"ha"`). Length 1, or the same length as
+#'   `label`. Only used to match [polity_label_item_corrections] rules scoped
+#'   on them; required for the rows such a rule would otherwise match.
 #'
 #' @returns A character vector of polity codes, `NA` where nothing matched.
 #'
@@ -2018,11 +2028,20 @@ resolve_polity_label <- function(
   year = NULL,
   item = NULL,
   country = NULL,
-  back_cast = TRUE
+  back_cast = TRUE,
+  unit = NULL,
+  indicator = NULL
 ) {
   .resolve_polity_label(
     label,
-    query = list(source = source, year = year, item = item, country = country),
+    query = list(
+      source = source,
+      year = year,
+      item = item,
+      country = country,
+      unit = unit,
+      indicator = indicator
+    ),
     back_cast = back_cast,
     tables = list(
       aliases = polity_label_aliases,
@@ -2055,6 +2074,8 @@ resolve_polity_label <- function(
   source <- recycle(query$source, "source")
   year <- recycle(query$year, "year")
   item <- recycle(query$item, "item")
+  unit <- recycle(query$unit, "unit")
+  indicator <- recycle(query$indicator, "indicator")
   country <- toupper(trimws(as.character(recycle(query$country, "country"))))
 
   corrected <- .apply_label_item_corrections(
@@ -2062,7 +2083,9 @@ resolve_polity_label <- function(
     source,
     item,
     year,
-    tables$corrections
+    tables$corrections,
+    unit = unit,
+    indicator = indicator
   )
   label <- corrected$label
   # The caller's `country` came WITH the misfiled label -- the reporter the
@@ -2303,12 +2326,29 @@ resolve_polity_label <- function(
 # corrected, and every rule is tested against the ORIGINAL label, so one
 # correction cannot feed another.
 #
+# `unit` and `indicator` (whep-polities #700) scope a rule: `NA` on the rule
+# means any, a value must equal the row's own exactly. A row that matches a
+# scoped rule on everything else but carries no value for the scoped column
+# aborts, as upstream's `matchlib.label_item_correction()` raises: without the
+# value the rule can be neither applied nor ruled out, and skipping it would
+# silently return the routing the rule exists to fix. A rules table without
+# the columns (a snapshot before #700) has no scoped rule.
+#
 # Returns a list: `label`, the corrected labels; `relabelled`, which rows a
 # rule hit; and `unrouted`, which of those a rule whose `polity_code` is the
 # `UNROUTED` sentinel hit (whep-polities #692). Those rows are relabelled too,
 # as upstream does, but the resolver must leave them unassigned.
-.apply_label_item_corrections <- function(label, source, item, year, rules) {
-  none <- rep(FALSE, length(label))
+.apply_label_item_corrections <- function(
+  label,
+  source,
+  item,
+  year,
+  rules,
+  unit = NULL,
+  indicator = NULL
+) {
+  n <- length(label)
+  none <- rep(FALSE, n)
   unchanged <- list(label = label, relabelled = none, unrouted = none)
   if (is.null(rules) || nrow(rules) == 0L || all(is.na(item))) {
     return(unchanged)
@@ -2316,16 +2356,46 @@ resolve_polity_label <- function(
   original <- .norm_polity_label(label)
   rule_key <- .norm_polity_label(rules$source_label)
   year <- suppressWarnings(as.integer(year))
-  hits <- purrr::map(seq_len(nrow(rules)), function(r) {
+  scope <- function(x) {
+    if (is.null(x)) rep(NA_character_, n) else rep_len(as.character(x), n)
+  }
+  rule_scope <- function(column) {
+    if (column %in% names(rules)) {
+      as.character(rules[[column]])
+    } else {
+      rep(NA_character_, nrow(rules))
+    }
+  }
+  unit <- scope(unit)
+  indicator <- scope(indicator)
+  rule_unit <- rule_scope("unit")
+  rule_indicator <- rule_scope("indicator")
+  # `lapply()`, not `purrr::map()`: map would wrap the classed abort below in
+  # its own indexed error class.
+  hits <- lapply(seq_len(nrow(rules)), function(r) {
+    keyed <- !is.na(source) &
+      source == rules$source[r] &
+      original == rule_key[r] &
+      !is.na(item) &
+      item == rules$item[r] &
+      !is.na(year) &
+      year >= rules$year_start[r] &
+      year <= rules$year_end[r]
+    unscoped <- keyed &
+      ((!is.na(rule_unit[r]) & is.na(unit)) |
+        (!is.na(rule_indicator[r]) & is.na(indicator)))
+    if (any(unscoped)) {
+      .abort_unscoped_label_item_correction(
+        rules[r, ],
+        which(unscoped),
+        c(unit = rule_unit[r], indicator = rule_indicator[r])
+      )
+    }
     which(
-      !is.na(source) &
-        source == rules$source[r] &
-        original == rule_key[r] &
-        !is.na(item) &
-        item == rules$item[r] &
-        !is.na(year) &
-        year >= rules$year_start[r] &
-        year <= rules$year_end[r]
+      keyed &
+        (is.na(rule_unit[r]) | (!is.na(unit) & unit == rule_unit[r])) &
+        (is.na(rule_indicator[r]) |
+          (!is.na(indicator) & indicator == rule_indicator[r]))
     )
   })
   rows <- unlist(hits)
@@ -2346,6 +2416,23 @@ resolve_polity_label <- function(
     lengths(hits)
   )
   list(label = label, relabelled = relabelled, unrouted = unrouted)
+}
+
+.abort_unscoped_label_item_correction <- function(rule, rows, scope) {
+  scope <- scope[!is.na(scope)]
+  cli::cli_abort(
+    c(
+      "A label-item correction is scoped on {.field {names(scope)}}, which
+      the caller did not give.",
+      x = "Rule {.val {rule$source}} / {.val {rule$source_label}} /
+      {.val {rule$item}} {rule$year_start}-{rule$year_end} applies only
+      where {.field {names(scope)}} is {.val {scope}}, and
+      {length(rows)} row{?s} it would otherwise match give{?s/} no value.",
+      i = "Pass {.arg {names(scope)}} to {.fn resolve_polity_label} for these
+      rows."
+    ),
+    class = "whep_error_unscoped_label_item_correction"
+  )
 }
 
 # The `polity_code` whep-polities writes on a label-item rule whose rows belong

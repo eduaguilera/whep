@@ -54,7 +54,20 @@
     "BWI-1833-1962", "British West Indies (colonial aggregate)",
     1833L, 1962L, "BWI", "draft", NA, NA,
     "SPM-1816-2025", "Saint Pierre and Miquelon",
-    1816L, 2025L, "SPM", "draft", NA, NA
+    1816L, 2025L, "SPM", "draft", NA, NA,
+    # whep-polities 9368611d (#700): the targets of its unit-scoped rules and
+    # the polities those rows leave.
+    "RVN-1954-1975", "Republic of Vietnam (South Vietnam)",
+    1954L, 1975L, NA, "draft", "FID-1887-1954; VNM-1887-1954", NA,
+    "F237-1954-1975", "Vietnam (combined reporting: DRV and RVN)",
+    1954L, 1975L, "VNM", "draft", "VNM-1887-1954", NA,
+    "SYR-1920-1922", "Syria (French Mandate)",
+    1920L, 1922L, "SYR", "draft", NA, "SYR-1922-1946",
+    "SYR-1922-1946", "Syria (1922-1946)",
+    1922L, 1946L, "SYR", "draft", "SYR-1920-1922", NA,
+    "SYL-1920-1944",
+    "Syria and Lebanon (French Mandate, combined reporting unit)",
+    1920L, 1944L, NA, "draft", NA, NA
   ) |>
     # Upstream types every unit whose code carries a unit segment
     # (`BOL-SZ-...`) as subnational, and these fixture rows follow it.
@@ -78,7 +91,19 @@
     "south africa", NA, 1852L, 1894L, "CAP-1800-1895", NA,
     "south africa", NA, 1895L, 1909L, "CAP-1895-1910", NA,
     "south africa", NA, 1910L, 2025L, "ZAF-1910-2025", NA,
-    "south africa", "iia", 1910L, 2025L, "ZAF-1910-2025", NA
+    "south africa", "iia", 1910L, 2025L, "ZAF-1910-2025", NA,
+    # whep-polities 9368611d's aliases for #700's rules, verbatim.
+    "viet nam", NA, 1955L, 1974L, "RVN-1954-1975", NA,
+    "viet nam", "mitchell", 1954L, 1954L, "RVN-1954-1975", NA,
+    "Vietnam (combined reporting: DRV and RVN)", "mitchell", 1955L, 1960L,
+    "F237-1954-1975", NA,
+    "Syria and Lebanon (French Mandate, combined reporting unit)",
+    "mitchell", 1920L, 1940L, "SYL-1920-1944", NA,
+    # Upstream routes Mitchell's "syrian arab republic" to the two mandate
+    # polities through its matcher, not the alias map; these two rows stand
+    # in for that routing so the fixture has somewhere to leave the rows.
+    "syrian arab republic", "mitchell", 1920L, 1921L, "SYR-1920-1922", NA,
+    "syrian arab republic", "mitchell", 1922L, 1945L, "SYR-1922-1946", NA
   )
 }
 
@@ -113,6 +138,28 @@
     "british west indies federation", "UNROUTED",
     "iia", "france", "eggs, hen, in shell", 1939L, 1945L,
     "saint pierre and miquelon", "SPM-1816-2025"
+  )
+}
+
+# whep-polities #700's four unit-scoped rules, verbatim apart from `evidence`
+# and `observed_rows`: Mitchell's Vietnam rice and maize OUTPUT for 1955-1960
+# is North plus South, while its AREA for the same years is South only; its
+# Syria wheat and barley OUTPUT for 1920-1940 includes Lebanon, its area does
+# not. Only the unit separates the rows, so only a unit scope can move them.
+.contract_corrections_700 <- function() {
+  tibble::tribble(
+    ~source, ~source_label, ~item, ~year_start, ~year_end, ~unit,
+    ~indicator, ~correct_label, ~polity_code,
+    "mitchell", "viet nam", "rice, paddy", 1955L, 1960L, "tonnes", NA,
+    "Vietnam (combined reporting: DRV and RVN)", "F237-1954-1975",
+    "mitchell", "viet nam", "maize", 1955L, 1960L, "tonnes", NA,
+    "Vietnam (combined reporting: DRV and RVN)", "F237-1954-1975",
+    "mitchell", "syrian arab republic", "wheat", 1920L, 1940L, "tonnes", NA,
+    "Syria and Lebanon (French Mandate, combined reporting unit)",
+    "SYL-1920-1944",
+    "mitchell", "syrian arab republic", "barley", 1920L, 1940L, "tonnes", NA,
+    "Syria and Lebanon (French Mandate, combined reporting unit)",
+    "SYL-1920-1944"
   )
 }
 
@@ -476,6 +523,169 @@ test_that("a relabelled row is not read as an ISO3 code", {
   )
 })
 
+test_that("a unit-scoped rule relabels only the unit it names", {
+  # whep-polities #700: the same label, item and year, split by unit.
+  resolved <- .resolve_on_contract(
+    rep("viet nam", 5),
+    source = "mitchell",
+    item = c("rice, paddy", "rice, paddy", "maize", "maize", "cassava"),
+    year = c(1959L, 1959L, 1960L, 1960L, 1958L),
+    unit = c("tonnes", "ha", "tonnes", "ha", "tonnes"),
+    corrections = .contract_corrections_700()
+  )
+  expect_equal(
+    resolved,
+    c(
+      "F237-1954-1975",
+      "RVN-1954-1975",
+      "F237-1954-1975",
+      "RVN-1954-1975",
+      # South-only cassava output has no rule and stays on RVN.
+      "RVN-1954-1975"
+    )
+  )
+  syria <- .resolve_on_contract(
+    rep("syrian arab republic", 5),
+    source = "mitchell",
+    item = c("wheat", "wheat", "barley", "barley", "wheat"),
+    year = c(1920L, 1921L, 1940L, 1930L, 1941L),
+    unit = c("tonnes", "ha", "tonnes", "ha", "tonnes"),
+    corrections = .contract_corrections_700()
+  )
+  expect_equal(
+    syria,
+    c(
+      "SYL-1920-1944",
+      "SYR-1920-1922",
+      "SYL-1920-1944",
+      "SYR-1922-1946",
+      # 1941 lies outside the rule: Mitchell's note stops in 1940.
+      "SYR-1922-1946"
+    )
+  )
+  # Each rule lands where upstream records.
+  rules <- .contract_corrections_700()
+  expect_equal(
+    .resolve_on_contract(
+      rules$source_label,
+      source = rules$source,
+      item = rules$item,
+      year = rules$year_end,
+      unit = rules$unit,
+      corrections = rules
+    ),
+    rules$polity_code
+  )
+})
+
+test_that("a scoped rule refuses a row that gives no unit", {
+  rules <- .contract_corrections_700()
+  # No `unit` at all, and a missing unit on one row of several.
+  expect_error(
+    .resolve_on_contract(
+      "viet nam",
+      source = "mitchell",
+      item = "rice, paddy",
+      year = 1959L,
+      corrections = rules
+    ),
+    class = "whep_error_unscoped_label_item_correction"
+  )
+  expect_error(
+    .resolve_on_contract(
+      rep("viet nam", 2),
+      source = "mitchell",
+      item = "rice, paddy",
+      year = 1959L,
+      unit = c("tonnes", NA),
+      corrections = rules
+    ),
+    class = "whep_error_unscoped_label_item_correction"
+  )
+  # A row the rule does not otherwise match needs no unit: another year,
+  # another item, another source.
+  expect_equal(
+    .resolve_on_contract(
+      rep("viet nam", 3),
+      source = c("mitchell", "mitchell", "fao1952"),
+      item = c("rice, paddy", "cassava", "rice, paddy"),
+      year = c(1961L, 1959L, 1959L),
+      corrections = rules
+    ),
+    rep("RVN-1954-1975", 3)
+  )
+})
+
+test_that("a blank scope still matches every unit and indicator", {
+  rules <- .contract_corrections_700()[1, ]
+  rules$unit <- NA_character_
+  expect_equal(
+    .resolve_on_contract(
+      rep("viet nam", 3),
+      source = "mitchell",
+      item = "rice, paddy",
+      year = 1959L,
+      unit = c("tonnes", "ha", NA),
+      corrections = rules
+    ),
+    rep("F237-1954-1975", 3)
+  )
+  # A table from before #700 has no scope columns and no scoped rule.
+  expect_equal(
+    .resolve_on_contract(
+      "south africa",
+      source = "mitchell",
+      item = "sugar cane",
+      year = 1860L,
+      unit = "tonnes"
+    ),
+    "NAT-1843-1895"
+  )
+})
+
+test_that("an indicator scope works like a unit scope", {
+  # No published rule sets `indicator` yet; this one is #700's rice rule
+  # moved onto that column.
+  rules <- .contract_corrections_700()[1, ]
+  rules$unit <- NA_character_
+  rules$indicator <- "production"
+  expect_equal(
+    .resolve_on_contract(
+      rep("viet nam", 2),
+      source = "mitchell",
+      item = "rice, paddy",
+      year = 1959L,
+      indicator = c("production", "area"),
+      corrections = rules
+    ),
+    c("F237-1954-1975", "RVN-1954-1975")
+  )
+  expect_error(
+    .resolve_on_contract(
+      "viet nam",
+      source = "mitchell",
+      item = "rice, paddy",
+      year = 1959L,
+      unit = "tonnes",
+      corrections = rules
+    ),
+    class = "whep_error_unscoped_label_item_correction"
+  )
+})
+
+test_that("resolve_polity_label() passes unit and indicator on", {
+  seen <- NULL
+  local_mocked_bindings(
+    .resolve_polity_label = function(label, query, back_cast, tables) {
+      seen <<- query
+      NA_character_
+    }
+  )
+  resolve_polity_label("viet nam", unit = "tonnes", indicator = "production")
+  expect_equal(seen$unit, "tonnes")
+  expect_equal(seen$indicator, "production")
+})
+
 test_that("overlapping item corrections are an error, not a choice", {
   rules <- .contract_corrections()[c(1, 1), ]
   rules$correct_label[2] <- "cape colony"
@@ -500,6 +710,8 @@ test_that("the shipped corrections table keeps the published contract", {
       "item",
       "year_start",
       "year_end",
+      "unit",
+      "indicator",
       "correct_label",
       "polity_code",
       "observed_rows",
