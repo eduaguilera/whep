@@ -274,6 +274,7 @@ reference:
     footprint extension.
   contents:
   - read_critical_n
+  - build_grassland_intensity_classes
   - build_critical_n_binding
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance

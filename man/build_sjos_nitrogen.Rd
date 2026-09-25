@@ -8,6 +8,7 @@ build_sjos_nitrogen(
   data = list(),
   surplus_method = "harvest_removal",
   boundary_land_use = "ara",
+  grassland_split = c("image_density", "none"),
   nh3_source = "soil",
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
@@ -31,7 +32,12 @@ at its own default composition over the years of \code{cbs_food} and
 \code{binding_threshold} is then carried into the grid boundary; absent, the
 column is \code{NA}), and either an \code{io} model or
 \code{fp_flows} for the footprint. A real call without either source aborts
-rather than fabricating a domestic-only footprint.
+rather than fabricating a domestic-only footprint. \code{grassland} is the
+\code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}} grassland-split input, only used and
+only optional when \code{boundary_land_use = "all"} and
+\code{grassland_split = "image_density"} (see \code{grassland_split}); a real call
+without it and without \code{critical} to build it from aborts rather than
+guessing a var/threshold to match.
 Defaults to \code{list()}.}
 
 \item{surplus_method}{Surplus definition passed to \code{\link[=calculate_n_surplus]{calculate_n_surplus()}},
@@ -39,8 +45,21 @@ Defaults to \code{list()}.}
 
 \item{boundary_land_use}{Land-use scope stamp passed to
 \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}, \code{"ara"} (default, the robust historical
-comparison) or \code{"all"} (all WHEP grassland, a sensitivity rather than a
-reconstructed intensive-grassland class).}
+comparison) or \code{"all"} (cropland and intensive grassland compared like
+for like against the critical allowance, extensive grassland against
+IMAGE's 2010 budget; see \code{grassland_split}) (issue #1285).}
+
+\item{grassland_split}{Grassland treatment passed to
+\code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}, used only when
+\code{boundary_land_use = "all"}: \code{"image_density"} (default) splits each
+cell into a managed and an extensive component, \code{"none"} compares one
+cell pressure with the deposited \code{"all"}-scope allowance. Under
+\code{"image_density"}, \code{data$grassland} is used when supplied (its four
+elements, see \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}); otherwise it is built
+from \code{\link[=build_grassland_intensity_classes]{build_grassland_intensity_classes()}}, the IMAGE 2010 extensive
+budget, and the \code{"ara"}/\code{"igl"} critical layers matched to
+\code{data$critical}'s own var and threshold. Ignored (no extra reads) when
+\code{boundary_land_use} is not \code{"all"}.}
 
 \item{nh3_source}{Air-pressure scope passed to \code{\link[=build_n_pathway_exceedance]{build_n_pathway_exceedance()}},
 \code{"soil"} (default) or \code{"total_agricultural"}.}
