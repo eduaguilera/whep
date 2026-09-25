@@ -24,7 +24,15 @@ into the boundary-versus-nourishment scatter
 ([`build_n_boundary_percapita()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_percapita.md)).
 The country exceedance finally becomes an embodied-nitrogen trade
 footprint
-([`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)).
+([`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)),
+which carries the producer's classes (`origin_classes`, the per-crop
+classification) and the consuming country's nourishment class
+(`target_nourish`, joined on `target_area` and `year` from the same
+nourishment table). The driver joins no consumer boundary class: that is
+a country-year class decided after aggregation, which a caller supplies
+to
+[`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)
+directly.
 
 The same nitrogen balance feeds the surplus and the pathway boundaries,
 the same nourishment feeds the classification and the scatter, and the
@@ -138,7 +146,9 @@ supply with the normalized adequacy score and class), `scatter` (the
 per-capita boundary versus nourishment points; it and `nourishment`
 carry `method_population`, `"read_population"` or `"supplied"`),
 `sjos_class` (the 2-way classification) and `footprint` (a list with the
-`fp_all` and `fp_food` embodied-nitrogen footprints).
+`fp_all` and `fp_food` embodied-nitrogen footprints, both carrying
+`target_nourish`, and `target_class_diag`, the per-year count of flows
+whose consumer country-year has no nourishment class).
 
 ## Examples
 
@@ -252,7 +262,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 
 #> $footprint
 #> $footprint$fp_all
-#> # A tibble: 6 × 13
+#> # A tibble: 6 × 14
 #>    year origin_area origin_item target_area target_item target_fd origin        
 #>   <int>       <int>       <int>       <int>       <int> <chr>     <chr>         
 #> 1  2010           1        2511           1        2511 food      Domestic cons…
@@ -261,11 +271,11 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010           2        2511           2        2511 food      Domestic cons…
 #> 5  2010           2        2513           2        2513 food      Domestic cons…
 #> 6  2010           2        2555           2        2555 food      Domestic cons…
-#> # ℹ 6 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
-#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>
+#> # ℹ 7 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
+#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>
 #> 
 #> $footprint$fp_food
-#> # A tibble: 6 × 13
+#> # A tibble: 6 × 14
 #>    year origin_area origin_item target_area target_item target_fd origin        
 #>   <int>       <int>       <int>       <int>       <int> <chr>     <chr>         
 #> 1  2010           1        2511           1        2511 food      Domestic cons…
@@ -274,8 +284,17 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010           2        2511           2        2511 food      Domestic cons…
 #> 5  2010           2        2513           2        2513 food      Domestic cons…
 #> 6  2010           2        2555           2        2555 food      Domestic cons…
-#> # ℹ 6 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
-#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>
+#> # ℹ 7 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
+#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>
+#> 
+#> $footprint$target_class_diag
+#> # A tibble: 2 × 8
+#>   table  year n_flows n_flows_unclassified n_target_areas n_target_areas_uncla…¹
+#>   <chr> <int>   <int>                <int>          <int>                  <int>
+#> 1 fp_a…  2010       6                    0              2                      0
+#> 2 fp_f…  2010       6                    0              2                      0
+#> # ℹ abbreviated name: ¹​n_target_areas_unclassified
+#> # ℹ 2 more variables: impact_u <dbl>, impact_u_unclassified <dbl>
 #> 
 #> 
 ```

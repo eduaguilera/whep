@@ -78,7 +78,26 @@ build_sjos_n_footprint(
   isolation. `data$origin_classes` may supply producer classifications
   keyed by `year`, `area_code`, `item_cbs_code` (for example
   [`classify_sjos_n()`](https://eduaguilera.github.io/whep/reference/classify_sjos_n.md)
-  output).
+  output). `data$target_classes` may supply consumer classifications,
+  one row per country-year keyed by `year` and `area_code`, carrying
+  `nourish` (for example
+  [`normalize_nourishment()`](https://eduaguilera.github.io/whep/reference/normalize_nourishment.md)
+  output) and optionally a country-year `boundary_side` and
+  `sjos_class`. They join on `target_area` and `year` as
+  `target_nourish`, `target_boundary_side` and `target_sjos_class`. Its
+  `area_code` must be in the same code space as `target_area`, which is
+  the IO model's `fd_labels$area_code`: the commodity balances'
+  `polity_area_code` bucket (see
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)),
+  not the source FAOSTAT area. A consumer bucket with no row in the
+  table is reported as unclassified; a table keyed in another code space
+  can match the wrong country wherever the two numberings share a code,
+  so key it on the bucket. This function classifies nothing: a
+  country-year boundary class is the caller's to classify after
+  aggregation, and a table with more than one class per country-year (a
+  crop-level
+  [`classify_sjos_n()`](https://eduaguilera.github.io/whep/reference/classify_sjos_n.md)
+  output, for instance) aborts rather than duplicating flows.
 
 - example:
 
@@ -93,10 +112,21 @@ A named list with two tibbles:
   `origin_item`, consumer `target_area` / `target_item`, `target_fd`,
   `origin` (`"Domestic consumption"` or `"Traded"`), `item_cbs_code` (an
   alias of `target_item`) and `impact_u` (tonnes N), stamped with the
-  traced `category` and optional producer classes.
+  traced `category`, optional producer classes and, when
+  `data$target_classes` is supplied, the `target_*` consumer classes.
 
 - `fp_food`: `fp_all` restricted to food consumption
   (`target_fd == "food"`).
+
+- `target_class_diag`: only when `data$target_classes` is supplied. One
+  row per output table (`table`, `"fp_all"` or `"fp_food"`) and every
+  `year` in `fp_all`, zero-filled where `fp_food` has no flows that
+  year: the flow and consumer-area counts, `impact_u` (tonnes N), and
+  how many flows, consumer areas and tonnes N went to a country-year
+  with no `nourish` class (`n_flows_unclassified`,
+  `n_target_areas_unclassified`, `impact_u_unclassified`). Those flows
+  keep `NA` in `target_nourish` and stay in the tables; a warning of
+  class `whep_sjos_fp_unclassified_target` names the consumer areas.
 
 ## Examples
 

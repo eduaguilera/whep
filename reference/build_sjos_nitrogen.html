@@ -11,7 +11,12 @@ crossed with the country-aggregated exceedance into the 2-way classification
 (classify_sjos_n()) and, via the per-capita anthropogenic reactive nitrogen
 (build_n_percapita()), into the boundary-versus-nourishment scatter
 (build_n_boundary_percapita()). The country exceedance finally becomes an
-embodied-nitrogen trade footprint (build_sjos_n_footprint()).
+embodied-nitrogen trade footprint (build_sjos_n_footprint()), which carries
+the producer's classes (origin_classes, the per-crop classification) and
+the consuming country's nourishment class (target_nourish, joined on
+target_area and year from the same nourishment table). The driver joins
+no consumer boundary class: that is a country-year class decided after
+aggregation, which a caller supplies to build_sjos_n_footprint() directly.
 The same nitrogen balance feeds the surplus and the pathway boundaries, the
 same nourishment feeds the classification and the scatter, and the one
 country exceedance feeds the classification, the footprint extension and the
@@ -28,7 +33,12 @@ crossed with the country-aggregated exceedance into the 2-way classification
 (classify_sjos_n()) and, via the per-capita anthropogenic reactive nitrogen
 (build_n_percapita()), into the boundary-versus-nourishment scatter
 (build_n_boundary_percapita()). The country exceedance finally becomes an
-embodied-nitrogen trade footprint (build_sjos_n_footprint()).
+embodied-nitrogen trade footprint (build_sjos_n_footprint()), which carries
+the producer's classes (origin_classes, the per-crop classification) and
+the consuming country's nourishment class (target_nourish, joined on
+target_area and year from the same nourishment table). The driver joins
+no consumer boundary class: that is a country-year class decided after
+aggregation, which a caller supplies to build_sjos_n_footprint() directly.
 The same nitrogen balance feeds the surplus and the pathway boundaries, the
 same nourishment feeds the classification and the scatter, and the one
 country exceedance feeds the classification, the footprint extension and the
@@ -85,7 +95,12 @@ crossed with the country-aggregated exceedance into the 2-way classification
 (<code><a href="classify_sjos_n.html">classify_sjos_n()</a></code>) and, via the per-capita anthropogenic reactive nitrogen
 (<code><a href="build_n_percapita.html">build_n_percapita()</a></code>), into the boundary-versus-nourishment scatter
 (<code><a href="build_n_boundary_percapita.html">build_n_boundary_percapita()</a></code>). The country exceedance finally becomes an
-embodied-nitrogen trade footprint (<code><a href="build_sjos_n_footprint.html">build_sjos_n_footprint()</a></code>).</p>
+embodied-nitrogen trade footprint (<code><a href="build_sjos_n_footprint.html">build_sjos_n_footprint()</a></code>), which carries
+the producer's classes (<code>origin_classes</code>, the per-crop classification) and
+the consuming country's nourishment class (<code>target_nourish</code>, joined on
+<code>target_area</code> and <code>year</code> from the same nourishment table). The driver joins
+no consumer boundary class: that is a country-year class decided after
+aggregation, which a caller supplies to <code><a href="build_sjos_n_footprint.html">build_sjos_n_footprint()</a></code> directly.</p>
 <p>The same nitrogen balance feeds the surplus and the pathway boundaries, the
 same nourishment feeds the classification and the scatter, and the one
 country exceedance feeds the classification, the footprint extension and the
@@ -188,7 +203,9 @@ normalized adequacy score and class), <code>scatter</code> (the per-capita bound
 versus nourishment points; it and <code>nourishment</code> carry
 <code>method_population</code>, <code>"read_population"</code> or <code>"supplied"</code>), <code>sjos_class</code>
 (the 2-way classification) and <code>footprint</code> (a list with the <code>fp_all</code> and
-<code>fp_food</code> embodied-nitrogen footprints).</p>
+<code>fp_food</code> embodied-nitrogen footprints, both carrying <code>target_nourish</code>,
+and <code>target_class_diag</code>, the per-year count of flows whose consumer
+country-year has no nourishment class).</p>
     </div>
 
     <div class="section level2">
@@ -302,7 +319,7 @@ versus nourishment points; it and <code>nourishment</code> carry
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$fp_all</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 14</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year origin_area origin_item target_area target_item target_fd origin        </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010           1        <span style="text-decoration: underline;">2</span>511           1        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
@@ -311,11 +328,11 @@ versus nourishment points; it and <code>nourishment</code> carry
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>511           2        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>513           2        <span style="text-decoration: underline;">2</span>513 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>555           2        <span style="text-decoration: underline;">2</span>555 food      Domestic cons…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$fp_food</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 14</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year origin_area origin_item target_area target_item target_fd origin        </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010           1        <span style="text-decoration: underline;">2</span>511           1        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
@@ -324,8 +341,17 @@ versus nourishment points; it and <code>nourishment</code> carry
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>511           2        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>513           2        <span style="text-decoration: underline;">2</span>513 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>555           2        <span style="text-decoration: underline;">2</span>555 food      Domestic cons…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$target_class_diag</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   table  year n_flows n_flows_unclassified n_target_areas n_target_areas_uncla…¹</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> fp_a…  <span style="text-decoration: underline;">2</span>010       6                    0              2                      0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> fp_f…  <span style="text-decoration: underline;">2</span>010       6                    0              2                      0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ abbreviated name: ¹​n_target_areas_unclassified</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: impact_u &lt;dbl&gt;, impact_u_unclassified &lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 </code></pre></div>

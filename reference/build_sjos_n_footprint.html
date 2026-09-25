@@ -134,7 +134,22 @@ ignored when <code>io</code> is supplied.</p></dd>
 pre-traced tidy footprint flows (as from <code><a href="build_footprint.html">build_footprint()</a></code>) directly,
 bypassing the model build, for testing the split logic in isolation.
 <code>data$origin_classes</code> may supply producer classifications keyed by <code>year</code>,
-<code>area_code</code>, <code>item_cbs_code</code> (for example <code><a href="classify_sjos_n.html">classify_sjos_n()</a></code> output).</p></dd>
+<code>area_code</code>, <code>item_cbs_code</code> (for example <code><a href="classify_sjos_n.html">classify_sjos_n()</a></code> output).
+<code>data$target_classes</code> may supply consumer classifications, one row per
+country-year keyed by <code>year</code> and <code>area_code</code>, carrying <code>nourish</code> (for
+example <code><a href="normalize_nourishment.html">normalize_nourishment()</a></code> output) and optionally a country-year
+<code>boundary_side</code> and <code>sjos_class</code>. They join on <code>target_area</code> and <code>year</code> as
+<code>target_nourish</code>, <code>target_boundary_side</code> and <code>target_sjos_class</code>. Its
+<code>area_code</code> must be in the same code space as <code>target_area</code>, which is the
+IO model's <code>fd_labels$area_code</code>: the commodity balances'
+<code>polity_area_code</code> bucket (see <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>), not the source FAOSTAT
+area. A consumer bucket with no row in the table is reported as
+unclassified; a table keyed in another code space can match the wrong
+country wherever the two numberings share a code, so key it on the
+bucket. This function classifies nothing: a country-year boundary class is
+the caller's to classify after aggregation, and a table with more than one
+class per country-year (a crop-level <code><a href="classify_sjos_n.html">classify_sjos_n()</a></code> output, for
+instance) aborts rather than duplicating flows.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -148,8 +163,18 @@ the pipeline. Defaults to <code>FALSE</code>.</p></dd>
 <code>origin_item</code>, consumer <code>target_area</code> / <code>target_item</code>, <code>target_fd</code>,
 <code>origin</code> (<code>"Domestic consumption"</code> or <code>"Traded"</code>), <code>item_cbs_code</code>
 (an alias of <code>target_item</code>) and <code>impact_u</code> (tonnes N), stamped with the
-traced <code>category</code> and optional producer classes.</p></li>
+traced <code>category</code>, optional producer classes and, when
+<code>data$target_classes</code> is supplied, the <code>target_*</code> consumer classes.</p></li>
 <li><p><code>fp_food</code>: <code>fp_all</code> restricted to food consumption (<code>target_fd == "food"</code>).</p></li>
+<li><p><code>target_class_diag</code>: only when <code>data$target_classes</code> is supplied. One row
+per output table (<code>table</code>, <code>"fp_all"</code> or <code>"fp_food"</code>) and every <code>year</code>
+in <code>fp_all</code>, zero-filled where <code>fp_food</code> has no flows that year: the
+flow and consumer-area counts, <code>impact_u</code> (tonnes N), and how many flows,
+consumer areas and tonnes N went to a country-year with no <code>nourish</code>
+class (<code>n_flows_unclassified</code>, <code>n_target_areas_unclassified</code>,
+<code>impact_u_unclassified</code>). Those flows keep <code>NA</code> in <code>target_nourish</code> and
+stay in the tables; a warning of class
+<code>whep_sjos_fp_unclassified_target</code> names the consumer areas.</p></li>
 </ul></div>
 
     <div class="section level2">
