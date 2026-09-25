@@ -254,17 +254,19 @@ testthat::test_that("grid_vintage is validated against a closed vocabulary", {
     whep:::read_level_country_grid(grid_vintage = "2015"),
     class = "rlang_error"
   )
-  # The default is the 2015 snapshot, held there against T31(j)'s stated
-  # preference on the T39 measurement: a year-aware grid has no cell for the
-  # Soviet successor states in 1961, and dropping them loses 17.2% of the
-  # world's harvested area. Pinned so a flip is a deliberate edit here.
+  # The default is the year-aware read, which is what whep#1000 T31(j) asked
+  # for. It was held at the 2015 snapshot only while a year-aware grid had no
+  # cell for the Soviet successor states in 1961 and dropping them cost 17.2%
+  # of the world's harvested area; the lineage step in
+  # `build_gridded_landuse()` cuts that to 0.947%. Pinned so a flip either way
+  # is a deliberate edit here.
   testthat::expect_identical(
     whep:::.check_grid_vintage(NULL),
-    "snapshot_2015"
+    "year_aware"
   )
   testthat::expect_identical(
     whep:::.grid_vintages(),
-    c("snapshot_2015", "year_aware")
+    c("year_aware", "snapshot_2015")
   )
 })
 
@@ -4591,5 +4593,209 @@ testthat::test_that("an unknown double_claim rule is refused", {
   testthat::expect_error(
     whep:::read_level_country_grid(level = 1L, double_claim = "loose"),
     class = "rlang_error"
+  )
+})
+
+# --- the national-side lineage step, wired to the year-aware read ------------
+
+testthat::test_that("a year-aware grid keeps a row whose polity is a successor", {
+  # The case whep#1004 measured: `country_areas` is on a constant-territory
+  # basis and reports the Russian Federation in 1961, while a year-aware
+  # support holds the USSR that year and no Russian polity at all. Without the
+  # lineage step the row matches no cell and its whole national total is
+  # dropped; with it, the row is keyed onto the polity the support carries.
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year, ~area_code,
+    "F228-1945-1991", 1945L, 1992L, 228L
+  )
+  national <- tibble::tribble(
+    ~area_code, ~year, ~harvested_area_ha,
+    185L, 1961L, 1000
+  )
+
+  out <- whep:::.level0_lineage_rekey(national, support)
+
+  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$harvested_area_ha, 1000)
+  # The row now keys on the polity the support actually holds.
+  testthat::expect_equal(out$area_code, 228L)
+  testthat::expect_equal(out$method_polity_lineage, "predecessor")
+})
+
+testthat::test_that("a snapshot grid is passed through untouched", {
+  # The rekey applies only where the grid carries validity intervals. A
+  # snapshot grid has none, so the national table must come back identical --
+  # this is what keeps the default path bit-for-bit unchanged.
+  national <- tibble::tribble(
+    ~area_code, ~year, ~harvested_area_ha,
+    185L, 1961L, 1000
+  )
+
+  testthat::expect_identical(
+    whep:::.level0_lineage_rekey(national, support = NULL),
+    national
+  )
+})
+
+testthat::test_that("an unresolved row keeps its own code rather than NA", {
+  # `resolve_polity_lineage()` leaves an unresolvable row at NA so the gap
+  # stays visible. Keying the grid on NA would drop it silently, which is the
+  # failure the lineage step exists to remove, so the row keeps its own code
+  # and is reported by `.warn_grid_missing_reporters()` as before.
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year, ~area_code,
+    "F228-1945-1991", 1945L, 1992L, 228L
+  )
+  national <- tibble::tribble(
+    ~area_code, ~year, ~harvested_area_ha,
+    9999L, 1961L, 500
+  )
+
+  out <- suppressWarnings(whep:::.level0_lineage_rekey(national, support))
+
+  testthat::expect_equal(out$area_code, 9999L)
+  testthat::expect_equal(out$method_polity_lineage, "unresolved")
+})
+# --- the vintage reconciler --------------------------------------------------
+
+# The folded grid the builders are actually handed. Its schema is the point of
+# these tests: `.level0_fold_epochs()` summarises `polity_code` away, so a
+# reconciler given only this cannot walk a single edge, which is why the
+# unfolded support is threaded in beside it.
+.reconcile_grid <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+    ~start_year, ~end_year,
+    10.25, 50.25, 228L, 100, 100, 1, 1945L, 1991L,
+    10.25, 50.25, 185L, 100, 100, 1, 1991L, 2014L
+  )
+}
+
+.reconcile_support <- function() {
+  tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "F228-1945-1991", 1945L, 1991L,
+    "RUS-1991-2014", 1991L, 2014L
+  )
+}
+
+testthat::test_that("a dissolving polity keeps its cells for its final year", {
+  # whep#1004's opposite direction. WHEP's polity intervals are half-open, so
+  # `F228-1945-1991` holds cells through 1990, while FAOSTAT books the whole of
+  # calendar 1991 to the USSR -- 1.572 billion head, 9.7% of that year's world
+  # livestock. The grid has already moved to the successors and the row matches
+  # nothing.
+  national <- tibble::tribble(
+    ~area_code, ~year, ~heads,
+    228L, 1991L, 1.5e9,
+    185L, 1992L, 0.78e9
+  )
+
+  out <- suppressWarnings(suppressMessages(whep:::.level0_reconcile_vintage(
+    national,
+    .reconcile_grid(),
+    .reconcile_support()
+  )))
+  at <- function(g, y) {
+    sort(unique(g$area_code[g$start_year <= y & g$end_year > y]))
+  }
+
+  # The predecessor gets 1991 back...
+  testthat::expect_identical(at(out$grid, 1991L), 228L)
+  # ...and the successor keeps every other year, which is what makes this a
+  # relabelling of one year rather than a revival of the polity.
+  testthat::expect_identical(at(out$grid, 1992L), 185L)
+  testthat::expect_identical(at(out$grid, 1990L), 228L)
+})
+
+testthat::test_that("reassigning a year moves land rather than creating it", {
+  # The subject is the epoch cut. An epoch row spans many years, so the naive
+  # edit -- widening the predecessor's interval -- leaves both polities holding
+  # the same cell in the overlap year and doubles its land. The totals must be
+  # untouched in EVERY year, not only the one that moved.
+  national <- tibble::tibble(area_code = 228L, year = 1991L, heads = 1.5e9)
+  grid <- .reconcile_grid()
+
+  out <- suppressWarnings(suppressMessages(whep:::.level0_reconcile_vintage(
+    national,
+    grid,
+    .reconcile_support()
+  )))
+  land <- function(g, y) sum(g$land_area_ha[g$start_year <= y & g$end_year > y])
+
+  for (y in c(1990L, 1991L, 1992L, 2000L)) {
+    testthat::expect_equal(land(out$grid, y), land(grid, y))
+  }
+})
+
+testthat::test_that("a successor that reports its own row keeps its cells", {
+  # The guard that stops this taking land from a country that is present. Where
+  # the national table reports the successor in the same year, there is no gap
+  # to fill and the grid must not be touched.
+  national <- tibble::tribble(
+    ~area_code, ~year, ~heads,
+    228L, 1991L, 1.5e9,
+    185L, 1991L, 0.78e9
+  )
+  grid <- .reconcile_grid()
+
+  out <- suppressWarnings(suppressMessages(whep:::.level0_reconcile_vintage(
+    national,
+    grid,
+    .reconcile_support()
+  )))
+
+  testthat::expect_identical(out$grid, grid)
+})
+
+testthat::test_that("a grid with no intervals is passed through untouched", {
+  # The snapshot default. It carries no validity interval, so the reconciler
+  # must return both inputs identically -- this is what keeps the non-year-aware
+  # path bit-for-bit unchanged.
+  national <- tibble::tibble(area_code = 185L, year = 1961L, heads = 1)
+  snap <- dplyr::select(.reconcile_grid(), -"start_year", -"end_year")
+
+  out <- whep:::.level0_reconcile_vintage(national, snap, .reconcile_support())
+
+  testthat::expect_identical(out$grid, snap)
+  testthat::expect_identical(out$national, national)
+})
+
+testthat::test_that("a support without polity_code cannot reconcile", {
+  # The defect this whole thread exists for. The builder used to be handed the
+  # FOLDED grid as its support: it carries `start_year`/`end_year` but no
+  # `polity_code`, so not one edge can be walked and the step silently did
+  # nothing. Keying on the interval alone is what made that look like it worked.
+  national <- tibble::tibble(area_code = 228L, year = 1991L, heads = 1.5e9)
+  grid <- .reconcile_grid()
+
+  out <- whep:::.level0_reconcile_vintage(national, grid, grid)
+
+  testthat::expect_identical(out$grid, grid)
+  testthat::expect_identical(out$national, national)
+})
+
+testthat::test_that("the support's first year is not probed out of range", {
+  # `.level0_terminal_year_cases()` probes the PREVIOUS year to decide whether a
+  # polity has just dissolved. `resolve_polity_lineage()` aborts on a year its
+  # support does not cover, so an unmatched row in the support's earliest year
+  # probed an uncovered year and took the whole build down with it -- a crash on
+  # ordinary input, reached through no fault of the caller's.
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "F228-1945-1991", 1945L, 1991L
+  )
+  grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+    ~start_year, ~end_year,
+    10.25, 50.25, 228L, 100, 100, 1, 1945L, 1991L
+  )
+  # 1945 is the support's first year, so the probe would ask about 1944.
+  national <- tibble::tibble(area_code = 9999L, year = 1945L, heads = 1)
+
+  testthat::expect_no_error(
+    suppressWarnings(suppressMessages(
+      whep:::.level0_reconcile_vintage(national, grid, support)
+    ))
   )
 })

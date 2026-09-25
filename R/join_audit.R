@@ -713,6 +713,13 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".level0_support_end_years", "summarise", "polity_code", 1L, "year_axis",
+    "The last year each polity's support interval covers, which is the
+     quantity `.level0_terminal_year_cells()` compares a national row's year
+     against. The reduction over the year axis IS the answer: a polity split
+     into several epoch rows (`F228-1945-1991` arrives as 1945-1959 and
+     1959-1991) has one dissolution year, and `max(end_year)` is it. A year in
+     the key would return one row per epoch and answer nothing.",
     ".level0_fold_epochs", "summarise",
     "lon, lat, area_code, start_year, end_year", 1L, "single_year",
     "`.carbon_fold_area_code()`'s DA-23 fold with the epoch in the key

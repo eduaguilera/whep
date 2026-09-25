@@ -496,15 +496,26 @@ testthat::test_that("the default crosswalk is the polycell support", {
   # centroid parquet sitting in `tmp`. Asserted by standing a marker in front
   # of the support reader: an assertion that merely expected an error when the
   # pin was unpublished stopped testing anything the moment it was published.
+  # Both support readers are marked, because the default vintage selects which
+  # one runs: `year_aware` reads `read_polycell_support()` and never touches
+  # `.carbon_cell_support()`. Marking only the snapshot reader let the default
+  # fall through to the live pin, which is a network read the suite forbids.
+  marker <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 999L,
+    cell_area_ha = 1,
+    land_area_ha = 1,
+    cell_area_frac = 1
+  )
   testthat::local_mocked_bindings(
-    .carbon_cell_support = function(...) {
-      tibble::tibble(
-        lon = 0.25,
-        lat = 50.25,
-        area_code = 999L,
-        cell_area_ha = 1,
-        land_area_ha = 1,
-        cell_area_frac = 1
+    .carbon_cell_support = function(...) marker,
+    read_polycell_support = function(...) {
+      dplyr::mutate(
+        marker,
+        polity_code = "XXX-1800-2025",
+        start_year = 1800L,
+        end_year = 2025L
       )
     },
     .package = "whep"
@@ -688,10 +699,10 @@ testthat::test_that("the loader forwards grid_vintage to the reader", {
   fn <- getFromNamespace(".load_country_grid", "whep")
 
   fn(NULL, "polycell")
-  testthat::expect_identical(seen$grid_vintage, "snapshot_2015")
-
-  fn(NULL, "polycell", 0L, "year_aware")
   testthat::expect_identical(seen$grid_vintage, "year_aware")
+
+  fn(NULL, "polycell", 0L, "snapshot_2015")
+  testthat::expect_identical(seen$grid_vintage, "snapshot_2015")
 })
 
 

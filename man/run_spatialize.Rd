@@ -53,13 +53,15 @@ forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded
 allocate into, \code{"polycell"} (default), \code{"centroid"} or
 \code{"fraction"}. See \emph{Which cell-to-polity crosswalk}.
 \item \code{grid_vintage}: which vintage of the polycell support the level-0
-grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
+grid is read at, \code{"year_aware"} (default) or \code{"snapshot_2015"}. See
 \code{\link[=read_level_country_grid]{read_level_country_grid()}}'s \emph{Which vintage of the support level 0 is
 read at}. The two are different geographies, not two precisions of one:
 \code{"snapshot_2015"} allocates every year of a run into the present-day
 cell-to-country map, \code{"year_aware"} into the map valid that year. The
-snapshot remains the default because the national tables are on a
-constant-territory basis the historical support cannot receive: see
+year-aware read is the default because a cell belongs to the polity
+that actually held it; the national table is reconciled onto that
+polity by \code{.level0_reconcile_vintage()}, which both gridded builders
+call before the match is judged: see
 \code{.grid_vintages()} and \code{validation/spatialize_grid_vintage.R}.
 Recorded in \code{run_metadata.yaml} and per row in \code{method_grid_vintage}.
 Not read under \code{country_grid = "centroid"} or \code{"fraction"}, which carry

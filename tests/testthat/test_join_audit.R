@@ -494,7 +494,14 @@ test_that("every year-free territorial grouping is classified", {
   # main's `.spatialize_year` pair at `area_code, item_prod_code` (n = 2)
   # is superseded here, because T13 split that grain into a container row
   # and a unit row keyed on `level_polity_code`, each occurring once.
-  expect_lte(sum(full$n), 121L)
+  # 122 since the vintage reconciler: `.level0_support_end_years()` reduces
+  # each polity's support rows to the last year it is carried, which is the
+  # dissolution year `.level0_terminal_year_cells()` tests a national row
+  # against. A polity arrives as several epoch rows -- `F228-1945-1991` as
+  # 1945-1959 and 1959-1991 -- and has one dissolution year, so `year` in the
+  # key would return one row per epoch and answer nothing. Re-derived by
+  # RUNNING the audit, not by adding one to the previous cap.
+  expect_lte(sum(full$n), 122L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

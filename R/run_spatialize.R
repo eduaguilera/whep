@@ -49,13 +49,15 @@
 #'     allocate into, `"polycell"` (default), `"centroid"` or
 #'     `"fraction"`. See *Which cell-to-polity crosswalk*.
 #'   - `grid_vintage`: which vintage of the polycell support the level-0
-#'     grid is read at, `"snapshot_2015"` (default) or `"year_aware"`. See
+#'     grid is read at, `"year_aware"` (default) or `"snapshot_2015"`. See
 #'     [read_level_country_grid()]'s *Which vintage of the support level 0 is
 #'     read at*. The two are different geographies, not two precisions of one:
 #'     `"snapshot_2015"` allocates every year of a run into the present-day
 #'     cell-to-country map, `"year_aware"` into the map valid that year. The
-#'     snapshot remains the default because the national tables are on a
-#'     constant-territory basis the historical support cannot receive: see
+#'     year-aware read is the default because a cell belongs to the polity
+#'     that actually held it; the national table is reconciled onto that
+#'     polity by `.level0_reconcile_vintage()`, which both gridded builders
+#'     call before the match is judged: see
 #'     `.grid_vintages()` and `validation/spatialize_grid_vintage.R`.
 #'     Recorded in `run_metadata.yaml` and per row in `method_grid_vintage`.
 #'     Not read under `country_grid = "centroid"` or `"fraction"`, which carry
@@ -412,7 +414,8 @@ run_spatialize <- function(
       years = resolved_years,
       max_iterations = config$max_iterations,
       area_key = config$area_key,
-      pattern_signal_floor = config$pattern_signal_floor
+      pattern_signal_floor = config$pattern_signal_floor,
+      polity_support = lu_inputs$polity_support
     )
   )
   # Decision 10's output grain is applied HERE, after the engine and outside
@@ -464,7 +467,8 @@ run_spatialize <- function(
     glw_density = ls_inputs$glw_density,
     years = resolved_years,
     proxy_method = config$livestock_proxy,
-    area_key = config$area_key
+    area_key = config$area_key,
+    polity_support = ls_inputs$polity_support
   )
   list(
     years = resolved_years,
@@ -480,7 +484,7 @@ run_spatialize <- function(
       max_iterations = 1000L,
       area_key = "grid",
       country_grid = "polycell",
-      grid_vintage = "snapshot_2015",
+      grid_vintage = "year_aware",
       level = 0L,
       output_level = 0L,
       granted_containers = NULL,
@@ -496,7 +500,7 @@ run_spatialize <- function(
       max_iterations = 1000L,
       area_key = "grid",
       country_grid = "polycell",
-      grid_vintage = "snapshot_2015",
+      grid_vintage = "year_aware",
       level = 0L,
       output_level = 0L,
       granted_containers = NULL,
@@ -861,6 +865,7 @@ run_spatialize <- function(
     config$granted_containers,
     config$double_claim
   )
+  polity_support <- .load_polity_support(config)
 
   type_cropland <- NULL
   type_mapping <- NULL
@@ -890,6 +895,7 @@ run_spatialize <- function(
     crop_patterns = crop_patterns,
     gridded_cropland = gridded_cropland,
     country_grid = country_grid,
+    polity_support = polity_support,
     type_cropland = type_cropland,
     type_mapping = type_mapping,
     multicropping = multicropping,
@@ -927,6 +933,7 @@ run_spatialize <- function(
     config$granted_containers,
     config$double_claim
   )
+  polity_support <- .load_polity_support(config)
 
   species_proxy <- .read_livestock_mapping()
 
@@ -954,6 +961,7 @@ run_spatialize <- function(
     gridded_pasture = gridded_pasture,
     gridded_cropland = gridded_cropland,
     country_grid = country_grid,
+    polity_support = polity_support,
     species_proxy = species_proxy,
     manure_pattern = manure_pattern,
     glw_density = glw_density
@@ -989,11 +997,30 @@ run_spatialize <- function(
 #
 # The three are alternatives, never a fallback: a run asked for one crosswalk
 # must fail rather than quietly allocate into another.
+# The unfolded support the vintage reconciler needs, or NULL where it cannot be
+# used.
+#
+# Read here rather than inside the builders: a builder reaching for a pin of its
+# own would be a network read in the test suite, and could pick up a different
+# vintage from the grid it was handed. Read only on the one path that can use
+# it -- the polycell crosswalk, at level 0, year-aware -- so no other run pays
+# for it. `.level0_fold_epochs()` is what makes this necessary: it summarises
+# `polity_code` away, so the grid alone cannot answer which polity a cell is.
+.load_polity_support <- function(config) {
+  wanted <- identical(config$country_grid %||% "polycell", "polycell") &&
+    identical(as.integer(config$level %||% 0L), 0L) &&
+    identical(.check_grid_vintage(config$grid_vintage), "year_aware")
+  if (!wanted) {
+    return(NULL)
+  }
+  read_polycell_support()
+}
+
 .load_country_grid <- function(
   input_dir,
   source = NULL,
   level = 0L,
-  grid_vintage = "snapshot_2015",
+  grid_vintage = "year_aware",
   granted_containers = NULL,
   double_claim = "co_presence"
 ) {

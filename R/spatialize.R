@@ -101,6 +101,10 @@
 #'     physical cropland).
 #'   - `max_iterations`: Maximum iterations for the redistribution
 #'     loop. Default: `1000L`.
+#'   - `polity_support`: the unfolded polity support, used to reconcile
+#'     `country_areas`' polity vintage with a year-aware `country_grid`'s.
+#'     Absent, the reconciliation is skipped, which is correct for a snapshot
+#'     grid. See [read_polycell_support()].
 #'   - `pattern_signal_floor`: The `harvest_fraction` below which a
 #'     `crop_patterns` cell is treated as float underflow rather than an
 #'     allocated area, and zeroed before the placement weights are formed.
@@ -330,6 +334,24 @@ build_gridded_landuse <- function(
     gridded_cropland <- filtered$gridded_cropland
     type_cropland <- filtered$type_cropland
   }
+
+  # Reconcile the national table's polity vintage with the grid's before the
+  # match is judged. Where the grid is year-aware the two disagree by
+  # construction -- `country_areas` reports successors the support does not yet
+  # hold, and names the predecessor in the year it dissolved -- and the rows
+  # would be dropped whole (whep#1004).
+  #
+  # `config$polity_support` is the UNFOLDED support. It cannot be recovered
+  # from `country_grid`: `.level0_fold_epochs()` summarises `polity_code` away,
+  # so a reconciler handed the grid alone silently does nothing. Absent, this
+  # is a no-op and the snapshot default is unchanged.
+  reconciled <- .level0_reconcile_vintage(
+    country_areas,
+    country_grid,
+    config$polity_support
+  )
+  country_areas <- reconciled$national
+  country_grid <- reconciled$grid
 
   .warn_grid_missing_reporters(
     country_areas,
@@ -858,6 +880,7 @@ build_gridded_landuse <- function(
     max_iterations = 1000L,
     n_workers = 1L,
     area_key = "grid",
+    polity_support = NULL,
     pattern_signal_floor = .crop_pattern_signal_floor(),
     mc_factor = "unit",
     pattern_extension = "none"

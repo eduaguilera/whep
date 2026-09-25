@@ -145,6 +145,13 @@
 #'   keyed on) or `"polity_area"` (the [polity_area_crosswalk] bucket
 #'   national tables are aggregated on). See
 #'   [build_gridded_landuse()]'s *Which area code the output is keyed on*.
+#' @param polity_support The UNFOLDED polity support, used to reconcile
+#'   `livestock_data`'s polity vintage with a year-aware `country_grid`'s
+#'   before the match is judged. `NULL` (default) skips the reconciliation,
+#'   which is correct for a snapshot grid. It cannot be recovered from
+#'   `country_grid`: the level-0 fold summarises `polity_code` away, so a grid
+#'   alone cannot say which polity holds a cell. [read_polycell_support()]
+#'   returns it, and [run_spatialize()] passes it automatically.
 #'
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
@@ -252,7 +259,8 @@ build_gridded_livestock <- function(
   grass_productivity = NULL,
   years = NULL,
   proxy_method = c("luh2", "glw3"),
-  area_key = c("grid", "polity_area")
+  area_key = c("grid", "polity_area"),
+  polity_support = NULL
 ) {
   proxy_method <- rlang::arg_match(proxy_method)
   area_key <- rlang::arg_match(area_key)
@@ -276,6 +284,18 @@ build_gridded_livestock <- function(
     gridded_pasture <- filtered$gridded_pasture
     gridded_cropland <- filtered$gridded_cropland
   }
+
+  # The livestock table is on a HISTORICAL-POLITY basis where the crop table is
+  # on a constant-territory one: it reports the USSR through 1991 and Russia
+  # only from 1992. So it needs the reconciliation in the opposite direction --
+  # see `.level0_terminal_year_cells()`. Absent a support this is a no-op.
+  reconciled <- .level0_reconcile_vintage(
+    livestock_data,
+    country_grid,
+    polity_support
+  )
+  livestock_data <- reconciled$national
+  country_grid <- reconciled$grid
 
   .warn_grid_missing_reporters(
     livestock_data,

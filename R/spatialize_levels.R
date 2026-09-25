@@ -154,9 +154,9 @@
 #'   `level = 0L` with `grid_vintage = "snapshot_2015"`, whose reference year
 #'   is fixed at `.carbon_support_year()`.
 #' @param grid_vintage Which vintage of the cell-to-polity support a level-0
-#'   grid is read at, `"snapshot_2015"` (default) or `"year_aware"`. See
-#'   *Which vintage of the support level 0 is read at*, which states why the
-#'   snapshot is still the default. Not read at `level >= 1L`, which is
+#'   grid is read at, `"year_aware"` (default) or `"snapshot_2015"`. See
+#'   *Which vintage of the support level 0 is read at*, which states what each
+#'   one allocates into. Not read at `level >= 1L`, which is
 #'   year-aware by construction; snapshot a depth with `reference_year`.
 #' @param containers Optional integer vector of container reporting
 #'   `area_code`s the depth read is scoped to -- the containers a run grants a
@@ -269,9 +269,9 @@
 #'   containers = 110L
 #' )
 #'
-#' # The same support read at level 0. The default vintage is the 2015
-#' # snapshot, which resolves the support itself and refuses one; the
-#' # year-aware read takes this one and keeps its validity intervals.
+#' # The same support read at level 0. The default vintage is year-aware,
+#' # which takes this support and keeps its validity intervals; the 2015
+#' # snapshot resolves the support itself and refuses one.
 #' read_level_country_grid(
 #'   level = 0L,
 #'   support = support,
@@ -282,7 +282,7 @@ read_level_country_grid <- function(
   support = NULL,
   containment = NULL,
   reference_year = NULL,
-  grid_vintage = c("snapshot_2015", "year_aware"),
+  grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
   double_claim = c("co_presence", "measured")
 ) {
@@ -591,7 +591,7 @@ admin_coverage_prototype <- function() {
 # default is one word here and in `.spatialize_presets()`, and belongs with
 # that lineage step rather than before it.
 .grid_vintages <- function() {
-  c("snapshot_2015", "year_aware")
+  c("year_aware", "snapshot_2015")
 }
 
 .check_grid_vintage <- function(grid_vintage, arg = "grid_vintage") {
@@ -4049,4 +4049,286 @@ build_level_crop_targets <- function(
       .by = c("area_code", "item_prod_code", "treatment")
     ) |>
     dplyr::arrange(area_code, item_prod_code, treatment)
+}
+
+# The national-side lineage step, applied where the grid is read year-aware.
+#
+# whep#1004: `country_areas` is on a CONSTANT-TERRITORY basis and reports the
+# Russian Federation, Kazakhstan, Ukraine and Belarus in 1961, while a
+# year-aware support is on a HISTORICAL-POLITY basis and offers only the USSR
+# that year. The row then matches no cell and `.warn_grid_missing_reporters()`
+# drops its whole national total.
+#
+# `resolve_polity_lineage()` (whep#1114) walks the `predecessor` edges from the
+# row's reporting polity to the polity the support actually carries that year.
+# It is exported for exactly this consumer -- nothing else in the package reads
+# a support year-aware -- and returns `lineage_polity_code`, which this rekeys
+# into the `area_code` space the grid is joined on.
+#
+# Applies ONLY where the grid carries validity intervals, so the snapshot
+# default is passed through untouched and its output is unchanged.
+.level0_lineage_rekey <- function(country_areas, support) {
+  if (!.support_is_year_aware(support)) {
+    return(country_areas)
+  }
+  resolved <- resolve_polity_lineage(country_areas, support)
+  # Look the code up only where there IS one. `.polity_reporting_area_code()`
+  # does not propagate a missing value -- handed NA it returns a real area code
+  # (351), so mapping the whole column would silently rekey every unresolved
+  # row onto one arbitrary country.
+  mapped <- rep(NA_integer_, nrow(resolved))
+  known <- !is.na(resolved$lineage_polity_code)
+  if (any(known)) {
+    mapped[known] <- as.integer(
+      .polity_reporting_area_code(resolved$lineage_polity_code[known])
+    )
+  }
+  # An unresolved row keeps its own code rather than taking NA: keying on NA
+  # would drop it silently, which is the failure this step exists to remove.
+  # It stays visible through `.warn_grid_missing_reporters()`, as before.
+  resolved$area_code <- dplyr::coalesce(
+    as.integer(mapped),
+    as.integer(resolved$area_code)
+  )
+  resolved
+}
+
+# Reconcile a national table's polity vintage with a year-aware grid's.
+#
+# Two distinct mismatches, and they run in opposite directions:
+#
+#   * The national table names a SUCCESSOR the support does not yet carry --
+#     `country_areas` reports the Russian Federation in 1961 where the support
+#     holds only the USSR. `.level0_lineage_rekey()` walks back to the polity
+#     the support does carry.
+#   * The national table names a PREDECESSOR in the year it dissolved, where
+#     the support has already moved on. `F228-1945-1991` is [1945, 1991), so it
+#     holds cells through 1990, while FAOSTAT reports the USSR for the whole of
+#     calendar 1991 -- 1.572 billion head, 9.7% of that year's world livestock.
+#     `.level0_terminal_year_cells()` hands that year's cells back to it.
+#
+# `support` is the UNFOLDED support, because the fold is what destroys the
+# `polity_code` the edges are walked on. It is threaded from the caller rather
+# than re-read here: a builder that reached for a pin of its own would be a
+# network read inside the test suite, and would silently pick up a different
+# vintage from the grid it was handed.
+.level0_reconcile_vintage <- function(national, grid, support) {
+  if (!.support_is_year_aware(support) || !.grid_has_intervals(grid)) {
+    return(list(national = national, grid = grid))
+  }
+  national <- .level0_lineage_rekey(national, support)
+  list(
+    national = national,
+    grid = .level0_terminal_year_cells(national, grid, support)
+  )
+}
+
+# Does this grid carry validity intervals at all? A snapshot grid does not, and
+# must be passed through untouched so the non-year-aware path is unchanged.
+.grid_has_intervals <- function(grid) {
+  !is.null(grid) && all(c("start_year", "end_year") %in% names(grid))
+}
+
+# Give a dissolving polity its cells back for the one year the national source
+# still reports it under.
+#
+# The source and the polity table disagree by one year at a dissolution: WHEP's
+# intervals are half-open, so a polity ending in 1991 holds cells through 1990,
+# while FAOSTAT books the whole of 1991 to it. The grid that year already
+# belongs to the successors, and the national row matches nothing.
+#
+# This relabels the successors' cells for that ONE year onto the predecessor's
+# reporting code, rather than splitting the value across them. Splitting would
+# invent an allocation the source never made; relabelling asserts only what the
+# source asserts -- that the entity reported for that year is the predecessor.
+# The successors keep every other year.
+#
+# Deliberately narrow: it fires only for a successor area the national table
+# does NOT itself report that year, so it can never take cells from a country
+# that has its own row, and a table reporting both is left alone.
+.level0_terminal_year_cells <- function(national, grid, support) {
+  cases <- .level0_terminal_year_cases(national, grid, support)
+  if (!nrow(cases)) {
+    return(grid)
+  }
+  for (i in seq_len(nrow(cases))) {
+    grid <- .grid_reassign_year(
+      grid,
+      year = cases$year[[i]],
+      from_areas = cases$from_areas[[i]],
+      to_area = cases$to_area[[i]]
+    )
+  }
+  # One pluralisation per message: cli's make_quantity() errors on a second
+  # quantity in the same string, and both `to_area` and `year` are vectors.
+  n_cases <- nrow(cases)
+  moved <- paste0(cases$to_area, "@", cases$year)
+  cli::cli_inform(c(
+    "i" = "{n_cases} dissolving reporting area{?s} kept their cells for the
+           year the national table still reports them in.",
+    "i" = "{.val {moved}}; the successors keep every other year."
+  ))
+  grid
+}
+
+# Does the support hold any polity interval covering these years? Vectorised,
+# because it filters a column.
+.level0_support_covers <- function(support, years) {
+  vapply(
+    as.integer(years),
+    function(yr) any(support$start_year <= yr & support$end_year > yr),
+    logical(1)
+  )
+}
+
+# Which (area, year) pairs are terminal-year cases: the row matches no cell this
+# year, resolved to a polity LAST year, and that polity's support interval ends
+# exactly here.
+.level0_terminal_year_cases <- function(national, grid, support) {
+  empty <- tibble::tibble(
+    year = integer(),
+    to_area = integer(),
+    from_areas = list()
+  )
+  pairs <- .level0_unmatched_pairs(national, grid)
+  # Probe the PREVIOUS year, and only where the support covers it.
+  # `resolve_polity_lineage()` aborts on a year its support does not reach, so
+  # probing `year - 1` unfiltered would abort the whole build at the support's
+  # earliest year. Dropping those years costs nothing: a terminal-year case is
+  # one where the polity WAS carried the year before, so an uncovered previous
+  # year cannot be one.
+  pairs <- dplyr::filter(
+    pairs,
+    .level0_support_covers(support, .data$year - 1L)
+  )
+  if (!nrow(pairs)) {
+    return(empty)
+  }
+  prev <- suppressWarnings(resolve_polity_lineage(
+    tibble::tibble(area_code = pairs$area_code, year = pairs$year - 1L),
+    support
+  ))
+  ends <- .level0_support_end_years(support)
+  keep <- !is.na(prev$lineage_polity_code) &
+    ends[prev$lineage_polity_code] == pairs$year
+  keep[is.na(keep)] <- FALSE
+  if (!any(keep)) {
+    return(empty)
+  }
+  rows <- purrr::map(which(keep), function(i) {
+    from <- .level0_successor_areas(
+      prev$lineage_polity_code[[i]],
+      grid,
+      national,
+      pairs$year[[i]]
+    )
+    if (!length(from)) {
+      return(NULL)
+    }
+    tibble::tibble(
+      year = pairs$year[[i]],
+      to_area = pairs$area_code[[i]],
+      from_areas = list(from)
+    )
+  })
+  rows <- purrr::compact(rows)
+  if (!length(rows)) {
+    return(empty)
+  }
+  dplyr::bind_rows(rows)
+}
+
+# National (area, year) pairs with no cell in the grid THAT YEAR.
+#
+# The year matters: `.warn_grid_missing_reporters()` compares the two code sets
+# with no year filter, so on a year-aware grid it cannot see this at all -- area
+# 228 exists at some year, so it never warns, while the per-year join still
+# drops the row.
+.level0_unmatched_pairs <- function(national, grid) {
+  pairs <- national |>
+    dplyr::distinct(area_code, year) |>
+    dplyr::mutate(
+      area_code = as.integer(.data$area_code),
+      year = as.integer(.data$year)
+    )
+  purrr::map(sort(unique(pairs$year)), function(y) {
+    have <- unique(as.integer(
+      grid$area_code[grid$start_year <= y & grid$end_year > y]
+    ))
+    dplyr::filter(pairs, .data$year == y, !.data$area_code %in% have)
+  }) |>
+    dplyr::bind_rows()
+}
+
+# The last year each polity's support interval covers, as a named lookup. The
+# convention is half-open, so `end_year` IS the first year not covered.
+.level0_support_end_years <- function(support) {
+  ends <- support |>
+    dplyr::summarise(
+      end_year = max(as.integer(.data$end_year)),
+      .by = "polity_code"
+    )
+  out <- ends$end_year
+  names(out) <- ends$polity_code
+  out
+}
+
+# Reporting areas of a polity's successors that the grid holds this year and the
+# national table does NOT report -- the cells it is safe to hand back.
+.level0_successor_areas <- function(code, grid, national, year) {
+  kids <- whep::polities$polity_code[
+    !is.na(whep::polities$predecessor) & whep::polities$predecessor == code
+  ]
+  if (!length(kids)) {
+    return(integer())
+  }
+  areas <- suppressWarnings(as.integer(.polity_reporting_area_code(kids)))
+  areas <- unique(areas[!is.na(areas)])
+  in_grid <- unique(as.integer(
+    grid$area_code[grid$start_year <= year & grid$end_year > year]
+  ))
+  claimed <- unique(as.integer(
+    national$area_code[as.integer(national$year) == year]
+  ))
+  setdiff(intersect(areas, in_grid), claimed)
+}
+
+# Move one year of cells from one set of reporting areas onto another.
+#
+# An epoch row spans many years, so it is cut into the slice before, the year
+# itself, and the slice after, and only the middle slice is relabelled. Cutting
+# rather than editing in place is what keeps every other year of those
+# successors exactly as it was.
+.grid_reassign_year <- function(grid, year, from_areas, to_area) {
+  hit <- grid$area_code %in%
+    from_areas &
+    grid$start_year <= year &
+    grid$end_year > year
+  if (!any(hit)) {
+    return(grid)
+  }
+  rows <- grid[hit, , drop = FALSE]
+  before <- rows[rows$start_year < year, , drop = FALSE]
+  before$end_year <- year
+  after <- rows[rows$end_year > year + 1L, , drop = FALSE]
+  after$start_year <- year + 1L
+  moved <- rows
+  moved$area_code <- as.integer(to_area)
+  moved$start_year <- year
+  moved$end_year <- year + 1L
+  dplyr::bind_rows(grid[!hit, , drop = FALSE], before, moved, after)
+}
+
+# A support the lineage step can read carries a polity AND the interval that
+# polity is valid over -- exactly what `resolve_polity_lineage()` needs to walk
+# the `predecessor` edges.
+#
+# Requiring `polity_code` is not belt and braces. A DEPTH grid carries
+# `start_year`/`end_year` too, for its compartments, while having no polity
+# column at all; keying on the interval alone therefore fired the rekey on
+# every granted-depth run and aborted it. The snapshot support carries neither,
+# so the default path stays a no-op either way.
+.support_is_year_aware <- function(support) {
+  !is.null(support) &&
+    all(c("polity_code", "start_year", "end_year") %in% names(support))
 }

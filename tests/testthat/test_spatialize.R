@@ -2123,3 +2123,17 @@ testthat::test_that("the pattern extension reaches granted units only", {
   testthat::expect_equal(extended$area_code, 1L)
   testthat::expect_equal(extended$rainfed_ha, 100, tolerance = 1e-9)
 })
+
+testthat::test_that("polity_support is a live config key", {
+  # `.resolve_landuse_config()` ABORTS on a key it does not know, so adding the
+  # argument to the call without adding it to the defaults would have aborted
+  # every year-aware run on its first line -- and only there, because
+  # `run_spatialize()` is the only caller that passes it.
+  defaults <- whep:::.landuse_config_defaults()
+
+  testthat::expect_true("polity_support" %in% names(defaults))
+  testthat::expect_null(defaults$polity_support)
+  testthat::expect_no_error(
+    whep:::.resolve_landuse_config(list(polity_support = NULL))
+  )
+})

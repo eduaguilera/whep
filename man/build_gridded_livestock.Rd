@@ -15,7 +15,8 @@ build_gridded_livestock(
   grass_productivity = NULL,
   years = NULL,
   proxy_method = c("luh2", "glw3"),
-  area_key = c("grid", "polity_area")
+  area_key = c("grid", "polity_area"),
+  polity_support = NULL
 )
 }
 \arguments{
@@ -139,6 +140,14 @@ from}.}
 keyed on) or \code{"polity_area"} (the \link{polity_area_crosswalk} bucket
 national tables are aggregated on). See
 \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s \emph{Which area code the output is keyed on}.}
+
+\item{polity_support}{The UNFOLDED polity support, used to reconcile
+\code{livestock_data}'s polity vintage with a year-aware \code{country_grid}'s
+before the match is judged. \code{NULL} (default) skips the reconciliation,
+which is correct for a snapshot grid. It cannot be recovered from
+\code{country_grid}: the level-0 fold summarises \code{polity_code} away, so a grid
+alone cannot say which polity holds a cell. \code{\link[=read_polycell_support]{read_polycell_support()}}
+returns it, and \code{\link[=run_spatialize]{run_spatialize()}} passes it automatically.}
 }
 \value{
 A tibble with gridded livestock data. Columns:

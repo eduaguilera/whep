@@ -9,7 +9,7 @@ read_level_country_grid(
   support = NULL,
   containment = NULL,
   reference_year = NULL,
-  grid_vintage = c("snapshot_2015", "year_aware"),
+  grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
   double_claim = c("co_presence", "measured")
 )
@@ -32,9 +32,9 @@ grain, which is what the engines' per-year filter expects. Not read at
 is fixed at \code{.carbon_support_year()}.}
 
 \item{grid_vintage}{Which vintage of the cell-to-polity support a level-0
-grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
-\emph{Which vintage of the support level 0 is read at}, which states why the
-snapshot is still the default. Not read at \code{level >= 1L}, which is
+grid is read at, \code{"year_aware"} (default) or \code{"snapshot_2015"}. See
+\emph{Which vintage of the support level 0 is read at}, which states what each
+one allocates into. Not read at \code{level >= 1L}, which is
 year-aware by construction; snapshot a depth with \code{reference_year}.}
 
 \item{containers}{Optional integer vector of container reporting
@@ -255,9 +255,9 @@ read_level_country_grid(
   containers = 110L
 )
 
-# The same support read at level 0. The default vintage is the 2015
-# snapshot, which resolves the support itself and refuses one; the
-# year-aware read takes this one and keeps its validity intervals.
+# The same support read at level 0. The default vintage is year-aware,
+# which takes this support and keeps its validity intervals; the 2015
+# snapshot resolves the support itself and refuses one.
 read_level_country_grid(
   level = 0L,
   support = support,
