@@ -62,7 +62,11 @@ unsupported_fertilizer <- rlang::arg_match0(
 .nbd_log$rows <- list()
 
 # Build one input, recording the outcome instead of aborting: a missing input is
-# a fact to report, not a reason to lose the other twelve.
+# a fact to report, not a reason to lose the other twelve. Each stage's
+# warnings and messages are captured rather than suppressed
+# (.nbd_capture_conditions(), R/nbd_stage.R) so a noisy input cannot drown the
+# coverage table below without also losing what it said -- see
+# .nbd_print_conditions() (whep#1288).
 nbd_stage <- function(label, expr, heavy = FALSE) {
   if (heavy && skip_heavy) {
     .nbd_record(label, "skip", 0, NA_integer_, "WHEP_NBD_SKIP_HEAVY set")
@@ -70,33 +74,80 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     return(NULL)
   }
   started <- proc.time()
-  value <- tryCatch(
-    suppressMessages(suppressWarnings(force(expr))),
-    error = function(e) e
-  )
+  captured <- whep:::.nbd_capture_conditions(expr)
   elapsed <- round((proc.time() - started)[["elapsed"]], 1)
-  if (inherits(value, "error")) {
-    .nbd_record(label, "FAIL", elapsed, NA_integer_, conditionMessage(value))
+  if (inherits(captured$value, "error")) {
+    .nbd_record(
+      label,
+      "FAIL",
+      elapsed,
+      NA_integer_,
+      conditionMessage(captured$value),
+      captured$conditions
+    )
     cli::cli_inform("{cli::col_red('FAIL')} {label} ({elapsed}s)")
     return(NULL)
   }
-  .nbd_record(label, "ok", elapsed, .nbd_size(value), NA_character_)
+  .nbd_record(
+    label,
+    "ok",
+    elapsed,
+    .nbd_size(captured$value),
+    NA_character_,
+    captured$conditions
+  )
   cli::cli_inform("{cli::col_green('ok')}   {label} ({elapsed}s)")
-  value
+  captured$value
 }
 
-.nbd_record <- function(label, status, seconds, rows, detail) {
-  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- tibble::tibble(
-    input = label,
-    status = status,
-    seconds = seconds,
-    rows = rows,
-    detail = if (is.na(detail)) {
-      NA_character_
-    } else {
-      substr(gsub("\\s+", " ", detail), 1, 1200)
-    }
+.nbd_record <- function(
+  label,
+  status,
+  seconds,
+  rows,
+  detail,
+  conditions = NULL
+) {
+  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- whep:::.nbd_stage_row(
+    label,
+    status,
+    seconds,
+    rows,
+    detail,
+    conditions
   )
+}
+
+# Printed after the coverage table (never before or inside a stage), so a
+# stage's report stays visible without drowning that table -- the same
+# trade-off the old suppression comment named, kept true instead of discarded.
+# Warnings are rare enough per run (a handful, not one per row: see
+# .ni_report_reallocated(), .ni_warn_stranded_dropped(),
+# .warn_unclassified_feed()) to print in full; messages are listed the same
+# way rather than only counted, because the number IS the report --
+# ".ni_report_reallocated()" exists to say how much nitrogen moved.
+.nbd_print_conditions <- function(report) {
+  by_condition <- report |>
+    dplyr::select("input", "conditions") |>
+    tidyr::unnest("conditions")
+  if (nrow(by_condition) == 0L) {
+    return(invisible(NULL))
+  }
+  warned <- dplyr::filter(by_condition, .data$class == "warning")
+  messaged <- dplyr::filter(by_condition, .data$class == "message")
+  if (nrow(warned) > 0L) {
+    cli::cli_h3("Warnings")
+    for (i in seq_len(nrow(warned))) {
+      cli::cli_alert_warning("{warned$input[i]}: {warned$message[i]}")
+    }
+  }
+  if (nrow(messaged) > 0L) {
+    cli::cli_h3("Messages")
+    for (i in seq_len(nrow(messaged))) {
+      cli::cli_alert_info("{messaged$input[i]}: {messaged$message[i]}")
+    }
+  }
+  invisible(by_condition)
 }
 
 .nbd_size <- function(x) {
@@ -422,8 +473,10 @@ npp_national <- nbd_stage(
   crops |> calculate_crop_npp() |> calculate_npp_carbon_nitrogen()
 )
 npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national))
-# Reported here, not inside the stage: nbd_stage() suppresses messages so a
-# noisy input cannot drown the coverage table, which would also hide this.
+# Reported here, not inside the stage: this compares npp_national and npp
+# AFTER both stages finish, so it can never be a condition either stage raises
+# for nbd_stage() to capture (whep#1288) -- there is nothing to catch until
+# both values already exist.
 if (!is.null(npp) && !is.null(npp_national)) {
   .nbd_report_unspatialized(npp_national, npp)
 }
@@ -569,6 +622,7 @@ if (nrow(blockers) > 0L) {
   cli::cli_alert_info(
     "{nrow(blockers)} blocker{?s}; the balance is not attempted. See #446."
   )
+  .nbd_print_conditions(report)
   invisible(report)
 } else {
   cli::cli_h2("6. Nitrogen balance")
@@ -750,10 +804,12 @@ if (nrow(blockers) > 0L) {
      balances (nourishment axis, IO model); get_wide_cbs() aborts on the
      faostat-cbs-new pin's logical unit column (#1025)."
   )
+  final_report <- dplyr::bind_rows(.nbd_log$rows)
+  .nbd_print_conditions(final_report)
   result <- list(
     year = year,
     resolution = resolution,
-    report = dplyr::bind_rows(.nbd_log$rows),
+    report = final_report,
     unsupported_fertilizer = unsupported_fertilizer_n,
     balance = balance,
     surplus = surplus,
