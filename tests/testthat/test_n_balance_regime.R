@@ -170,3 +170,32 @@ testthat::test_that(".nb_split_regime aborts on a missing share column", {
     )
   )
 })
+
+testthat::test_that(".nb_check_split_rules aborts on a flow with no rule", {
+  x <- dplyr::mutate(.regime_rows(), mystery_n_t = 1)
+  testthat::expect_error(
+    whep:::.nb_check_split_rules(x, .regime_key, c("synthetic", "bnf")),
+    class = "whep_regime_split_rule"
+  )
+})
+
+testthat::test_that(".nb_driver_key keeps water_regime only when drivers carry it", {
+  key <- c(.regime_key, "water_regime")
+  testthat::expect_equal(
+    whep:::.nb_driver_key(key, tibble::tibble(lon = 1)),
+    .regime_key
+  )
+  testthat::expect_equal(
+    whep:::.nb_driver_key(key, tibble::tibble(water_regime = "rainfed")),
+    key
+  )
+})
+
+testthat::test_that(".nb_fresh_production converts dry matter to fresh weight", {
+  npp <- tibble::tibble(item_prod_code = 15L, product_dm_t = 87, area_ha = 1)
+  dm <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::filter(as.integer(.data$item_prod_code) == 15L) |>
+    dplyr::pull("product_dm_kgfm")
+  out <- whep:::.nb_fresh_production(npp)
+  testthat::expect_equal(out$production_t, 87 / as.numeric(dm[[1]]))
+})
