@@ -208,7 +208,7 @@ testthat::test_that("create_n_nat_destiny example returns valid tibble", {
   result <- create_n_nat_destiny(example = TRUE)
 
   testthat::expect_s3_class(result, "tbl_df")
-  testthat::expect_equal(nrow(result), 10)
+  testthat::expect_equal(nrow(result), 12)
   pointblank::expect_col_exists(
     result,
     columns = c(
