@@ -145,7 +145,53 @@ testthat::test_that("build_sjos_nitrogen(example = TRUE) returns every table", {
     )
   )
   testthat::expect_named(out$boundary_surplus, c("grid", "country"))
-  testthat::expect_named(out$footprint, c("fp_all", "fp_food"))
+  testthat::expect_named(
+    out$footprint,
+    c("fp_all", "fp_food", "target_class_diag")
+  )
+})
+
+testthat::test_that("the footprint carries the consumer's nourishment class", {
+  out <- whep::build_sjos_nitrogen(example = TRUE)
+  expected <- out$nourishment |>
+    dplyr::select("year", target_area = "area_code", expected = "nourish")
+  for (tbl in c("fp_all", "fp_food")) {
+    fp <- out$footprint[[tbl]]
+    checked <- dplyr::left_join(fp, expected, by = c("year", "target_area"))
+    testthat::expect_equal(nrow(checked), nrow(fp))
+    testthat::expect_identical(checked$target_nourish, checked$expected)
+    testthat::expect_false(anyNA(fp$target_nourish))
+  }
+  testthat::expect_equal(
+    sum(out$footprint$target_class_diag$n_flows_unclassified),
+    0L
+  )
+  # The driver joins no consumer boundary class: that is decided per
+  # country-year after aggregation, by the caller.
+  testthat::expect_false(
+    rlang::has_name(out$footprint$fp_all, "target_boundary_side")
+  )
+})
+
+testthat::test_that("the consumer join leaves the producer columns unchanged", {
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  data <- .sjos_nitrogen_test_data()
+  producer_only <- whep::build_sjos_n_footprint(
+    exceedance = out$boundary_surplus$country,
+    category = "exceedance",
+    data = list(fp_flows = data$fp_flows, origin_classes = out$sjos_class)
+  )
+  # negative_critical is the driver's stamp of how negative critical surpluses
+  # were treated, not a producer column, so it is dropped with target_nourish.
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_identical(
+      dplyr::select(
+        out$footprint[[tbl]],
+        -c("target_nourish", "negative_critical")
+      ),
+      producer_only[[tbl]]
+    )
+  }
 })
 
 testthat::test_that("every SJOS-N output table is non-empty", {
@@ -522,4 +568,71 @@ testthat::test_that("'all' + grassland_split = 'none' skips the split (T09)", {
   testthat::expect_true(all(
     out$boundary_surplus$grid$method_grassland_split == "none"
   ))
+})
+
+testthat::test_that("negative_critical and the binding table thread through", {
+  data <- .sjos_nitrogen_test_data()
+  # The second cell's critical surplus becomes -40 kg/ha on 50 ha (-2 t)
+  # against a 1 t harvest-removal surplus.
+  data$critical$value[[2]] <- -40
+  values <- list(
+    de = c(60, 10),
+    gw = c(50, 5),
+    sw = c(55, -40),
+    mi = c(50, -40)
+  )
+  layer <- function(value, threshold, var = "critical_n_surplus") {
+    tibble::tibble(
+      lon = c(0.25, 0.75),
+      lat = 0.25,
+      value = value,
+      critical_var = var,
+      critical_threshold = threshold,
+      critical_land_use = "ara"
+    )
+  }
+  data$critical_binding <- whep::build_critical_n_binding(
+    purrr::imap(values, layer),
+    purrr::map(
+      c(de = "de", gw = "gw", sw = "sw"),
+      \(threshold) layer(c(-5, 3), threshold, "exceedance")
+    ),
+    land_use = "ara"
+  )
+  keep <- whep::build_sjos_nitrogen(data = data)
+  clamp <- whep::build_sjos_nitrogen(data = data, negative_critical = "clamp")
+  second <- \(out) {
+    dplyr::filter(out$boundary_surplus$country, item_cbs_code == 2513L)
+  }
+  testthat::expect_equal(second(keep)$exceedance_n_t, 3)
+  testthat::expect_equal(second(keep)$within_boundary_n_t, -2)
+  testthat::expect_equal(second(clamp)$exceedance_n_t, 1)
+  testthat::expect_equal(second(clamp)$within_boundary_n_t, 0)
+  for (out in list(keep, clamp)) {
+    stamped <- list(
+      out$boundary_surplus$grid,
+      out$boundary_surplus$country,
+      out$sjos_class,
+      out$footprint$fp_all,
+      out$footprint$fp_food
+    )
+    for (table in stamped) {
+      testthat::expect_true(rlang::has_name(table, "negative_critical"))
+    }
+    stamp <- unique(unlist(purrr::map(stamped, "negative_critical")))
+    testthat::expect_length(stamp, 1L)
+    grid <- dplyr::arrange(out$boundary_surplus$grid, lon)
+    testthat::expect_equal(
+      grid$binding_threshold,
+      c("groundwater", "surface_water")
+    )
+  }
+  testthat::expect_equal(
+    unique(clamp$boundary_surplus$grid$negative_critical),
+    "clamp"
+  )
+  testthat::expect_equal(
+    unique(keep$boundary_surplus$grid$negative_critical),
+    "keep"
+  )
 })

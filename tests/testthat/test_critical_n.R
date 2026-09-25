@@ -897,3 +897,270 @@ testthat::test_that("an all-zero extensive uptake layer is refused", {
     guard = whep:::.critical_n_extensive_budget(layers)
   )
 })
+
+# ---- build_critical_n_binding(): argmin of the threshold surfaces ----------
+
+# One layer per threshold, stamped as read_critical_n() stamps it.
+.binding_layers <- function(
+  values,
+  land_use = "ara",
+  var = "critical_n_surplus"
+) {
+  purrr::imap(values, \(value, threshold) {
+    tibble::tibble(
+      lon = c(0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25)[seq_along(value)],
+      lat = 0.25,
+      value = value,
+      critical_var = var,
+      critical_threshold = threshold,
+      critical_land_use = land_use
+    ) |>
+      # read_critical_n() drops NODATA cells rather than returning NA.
+      dplyr::filter(!is.na(value))
+  })
+}
+
+# The same exceedance on all three thresholds, one value per cell.
+.binding_exceedance <- function(exc, land_use = "ara") {
+  .binding_layers(
+    list(de = exc, gw = exc, sw = exc),
+    land_use = land_use,
+    var = "exceedance"
+  )
+}
+
+.binding_values <- function() {
+  list(
+    de = c(5, 40, 30, 10, 20, 7, NA),
+    gw = c(9, 12, 30, 10, 25, 7, 3),
+    sw = c(9, 50, -4, 15, 20, 7, 3),
+    mi = c(5, 12, -4, 10, 18, 7, 3)
+  )
+}
+
+.binding_call <- function(values, exc = rep(-1, 7), land_use = "ara") {
+  whep::build_critical_n_binding(
+    .binding_layers(values),
+    .binding_exceedance(exc),
+    land_use = land_use
+  )
+}
+
+testthat::test_that("the binding threshold is the argmin with explicit ties", {
+  out <- .binding_call(.binding_values())
+  testthat::expect_equal(
+    out$binding_threshold,
+    c(
+      "deposition",
+      "groundwater",
+      "surface_water",
+      "deposition+groundwater",
+      "deposition+surface_water",
+      "yield_potential_cap",
+      NA
+    )
+  )
+  testthat::expect_equal(
+    out$binding_critical_kgn_ha,
+    c(5, 12, -4, 10, 20, 7, NA)
+  )
+  # Cell 5: the deposited mi (18) lies below every threshold surface (20).
+  testthat::expect_equal(
+    out$binding_matches_mi,
+    c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, NA)
+  )
+  testthat::expect_true(all(out$critical_land_use == "ara"))
+  # A "+" label only ever names a genuine two-way tie.
+  ties <- stringr::str_split(
+    stringr::str_subset(out$binding_threshold, "\\+"),
+    "\\+"
+  )
+  testthat::expect_true(all(lengths(ties) == 2L))
+  testthat::expect_true(all(
+    unlist(ties) %in% c("deposition", "groundwater", "surface_water")
+  ))
+})
+
+testthat::test_that("ties are exact: a 0.001 kg N/ha lead still binds", {
+  # Each surface in turn sits 0.001 above the minimum, so a tolerance on any
+  # one of the de/gw/sw comparisons turns a row into a tie and fails. The last
+  # row is a three-way near-tie that must stay a two-way tie.
+  values <- list(
+    de = c(10, 10.001, 20, 8),
+    gw = c(10.001, 10, 10, 8),
+    sw = c(20, 20, 10.001, 8.001)
+  )
+  out <- .binding_call(values, exc = rep(-1, 4))
+  testthat::expect_equal(
+    out$binding_threshold,
+    c("deposition", "groundwater", "groundwater", "deposition+groundwater")
+  )
+})
+
+testthat::test_that("three-way ties split into the two source rules", {
+  # Cell 1: no threshold exceeded -> yield-potential cap. Cell 2: all three
+  # exceeded -> non-agricultural floor. Cell 3: negative tied surplus -> floor
+  # whatever the exceedance says. Cell 4: a two-way tie is left alone. Cell 5:
+  # a non-negative tie with no exceedance data cannot be assigned -> NA.
+  values <- list(
+    de = c(40, 8, -12, 25, 12),
+    gw = c(40, 8, -12, 25, 12),
+    sw = c(40, 8, -12, 26, 12)
+  )
+  out <- .binding_call(values, exc = c(-5, 4, -1, 3, NA))
+  testthat::expect_equal(
+    out$binding_threshold,
+    c(
+      "yield_potential_cap",
+      "non_agricultural_floor",
+      "non_agricultural_floor",
+      "deposition+groundwater",
+      NA
+    )
+  )
+  testthat::expect_false(any(grepl(
+    "deposition+groundwater+surface_water",
+    out$binding_threshold,
+    fixed = TRUE
+  )))
+})
+
+testthat::test_that("the floor needs every threshold exceeded", {
+  values <- list(de = c(8, 8), gw = c(8, 8), sw = c(8, 8))
+  exceedance <- .binding_exceedance(c(4, 4))
+  exceedance$sw$value <- c(4, 0)
+  out <- whep::build_critical_n_binding(
+    .binding_layers(values),
+    exceedance,
+    land_use = "ara"
+  )
+  testthat::expect_equal(
+    out$binding_threshold,
+    c("non_agricultural_floor", "yield_potential_cap")
+  )
+})
+
+testthat::test_that("binding_matches_mi is NA when mi is not supplied", {
+  values <- .binding_values()
+  values$mi <- NULL
+  out <- .binding_call(values)
+  testthat::expect_true(all(is.na(out$critical_mi_kgn_ha)))
+  testthat::expect_true(all(is.na(out$binding_matches_mi)))
+  testthat::expect_equal(out$binding_threshold[[2]], "groundwater")
+})
+
+testthat::test_that("binding layers of the wrong kind or scope abort", {
+  layers <- .binding_layers(.binding_values())
+  exceedance <- .binding_exceedance(rep(-1, 7))
+  call <- function(critical, exc = exceedance, land_use = "ara") {
+    whep::build_critical_n_binding(critical, exc, land_use = land_use)
+  }
+  testthat::expect_error(call(layers, land_use = "all"), "critical_land_use")
+  wrong_var <- layers
+  wrong_var$gw$critical_var <- "critical_n_input"
+  testthat::expect_error(call(wrong_var), "critical_var")
+  swapped <- layers
+  swapped$sw$critical_threshold <- "gw"
+  testthat::expect_error(call(swapped), "critical_threshold")
+  testthat::expect_error(call(layers[c("de", "gw")]), "named list")
+  # The exceedance layers are required and validated the same way.
+  testthat::expect_error(
+    whep::build_critical_n_binding(layers, land_use = "ara"),
+    "exceedance"
+  )
+  testthat::expect_error(call(layers, exceedance[c("de", "gw")]), "exceedance")
+  surplus_as_exc <- exceedance
+  surplus_as_exc$de$critical_var <- "critical_n_surplus"
+  testthat::expect_error(call(layers, surplus_as_exc), "critical_var")
+})
+
+testthat::test_that("build_critical_n_binding reads seven layers when absent", {
+  calls <- list()
+  values <- .binding_values()
+  testthat::local_mocked_bindings(
+    read_critical_n = function(var, threshold, land_use, dir) {
+      calls[[length(calls) + 1L]] <<- c(var, threshold, land_use, dir)
+      if (var == "exceedance") {
+        return(.binding_exceedance(rep(-1, 7), land_use)[[threshold]])
+      }
+      .binding_layers(values[threshold], land_use)[[1L]]
+    }
+  )
+  out <- whep::build_critical_n_binding(land_use = "ara", dir = "archive")
+  read <- purrr::map_chr(calls, \(x) paste(x[[1]], x[[2]]))
+  testthat::expect_setequal(
+    read,
+    c(
+      paste("critical_n_surplus", c("de", "gw", "sw", "mi")),
+      paste("exceedance", c("de", "gw", "sw"))
+    )
+  )
+  testthat::expect_true(all(purrr::map_chr(calls, \(x) x[[4]]) == "archive"))
+  testthat::expect_equal(nrow(out), 7L)
+})
+
+testthat::test_that("the binding example is the real function on a fixture", {
+  # Rows come back in cell-key order (north first); put them in the fixture's.
+  out <- whep::build_critical_n_binding(example = TRUE) |>
+    dplyr::arrange(lat, lon)
+  testthat::expect_equal(
+    out$binding_threshold,
+    c(
+      "deposition",
+      "groundwater",
+      "surface_water",
+      "yield_potential_cap",
+      "non_agricultural_floor"
+    )
+  )
+  testthat::expect_equal(
+    out$binding_matches_mi,
+    c(TRUE, FALSE, TRUE, TRUE, TRUE)
+  )
+})
+
+testthat::test_that("binding_threshold is a deprecated alias of the exc map", {
+  grid <- tibble::tibble(lon = 0.25, lat = 0.25, value = 5)
+  testthat::expect_warning(
+    old <- whep::read_critical_n(
+      "binding_threshold",
+      land_use = "ara",
+      data = grid
+    ),
+    class = "whep_critn_var_deprecated"
+  )
+  new <- whep::read_critical_n(
+    "threshold_exceedance",
+    land_use = "ara",
+    data = grid
+  )
+  testthat::expect_identical(old, new)
+  testthat::expect_equal(new$critical_var, "threshold_exceedance")
+  testthat::expect_equal(new$critical_land_use, "ara")
+  testthat::expect_true(is.na(new$critical_threshold))
+  spec <- whep:::.critical_n_var_spec("threshold_exceedance", "mi", "all")
+  testthat::expect_equal(spec$subdir, "Threshold exceedance by impact")
+  testthat::expect_equal(spec$file, "threshold_exc_all.asc")
+})
+
+# ---- real archive: the binding surface --------------------------------------
+
+testthat::test_that("the real binding surface is complete and flags mi gaps", {
+  dir <- .real_critn_dir()
+  binding <- whep::build_critical_n_binding(land_use = "all", dir = dir)
+  testthat::expect_equal(nrow(binding), 28881L)
+  testthat::expect_false(anyNA(binding$binding_threshold))
+  testthat::expect_equal(sum(!binding$binding_matches_mi), 1540L)
+  # 9,431 three-way ties: 9,138 yield-potential cap, 293 non-agricultural
+  # floor (every one of them code 8 in the archive's exceedance map).
+  testthat::expect_equal(
+    sum(binding$binding_threshold == "yield_potential_cap"),
+    9138L
+  )
+  testthat::expect_equal(
+    sum(binding$binding_threshold == "non_agricultural_floor"),
+    293L
+  )
+  gap <- abs(binding$critical_mi_kgn_ha - binding$binding_critical_kgn_ha)
+  testthat::expect_equal(max(gap), 159.52, tolerance = 1e-6)
+})

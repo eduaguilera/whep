@@ -1096,6 +1096,48 @@
   )
 }
 
+# Five cells run through the real build_critical_n_binding(): one per single
+# binding threshold and two with all three surfaces equal, one of each source
+# rule. The yield-potential-cap cell exceeds no threshold (negative
+# exceedances); the non-agricultural-floor cell exceeds all three. The
+# supplied "mi" surface equals the minimum everywhere except the groundwater
+# cell, where it is lower: the undetermined mismatch found in 1,540 of the
+# 28,881 deposited "all" cells.
+.example_critical_n_binding <- function() {
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~de, ~gw, ~sw, ~mi, ~exc,
+    0.25, 0.25,  12,  40,  35,  12,    6,
+    0.75, 0.25,  60,  18,  25,  15,   -4,
+    0.25, 0.75,  50,  45, -20, -20,   30,
+    0.75, 0.75,  90,  90,  90,  90,  -35,
+    1.25, 0.75,   4,   4,   4,   4,   22
+  )
+  thresholds <- c("de", "gw", "sw", "mi")
+  critical <- purrr::map(
+    rlang::set_names(thresholds),
+    \(threshold) {
+      .example_binding_layer(cells, threshold, "critical_n_surplus", threshold)
+    }
+  )
+  exceedance <- purrr::map(
+    rlang::set_names(thresholds[1:3]),
+    \(threshold) .example_binding_layer(cells, threshold, "exceedance", "exc")
+  )
+  build_critical_n_binding(critical, exceedance, land_use = "ara")
+}
+
+.example_binding_layer <- function(cells, threshold, var, column) {
+  dplyr::transmute(
+    cells,
+    lon = .data$lon,
+    lat = .data$lat,
+    value = .data[[column]],
+    critical_var = .env$var,
+    critical_threshold = .env$threshold,
+    critical_land_use = "ara"
+  )
+}
+
 # A small build_nitrogen_balance()-shaped fixture (8 crop-cell-year rows, two
 # cells, a nitrogen deficit and a zero-surplus row included) constructed so the
 # harvest-removal surplus is exactly checkable. burnt_residue_n_t varies but

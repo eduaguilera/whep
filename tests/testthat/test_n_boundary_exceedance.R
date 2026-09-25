@@ -484,7 +484,11 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
 }
 
 # `out` must equal the golden on every golden column, and carry only the
-# split's columns besides, empty and stamped "none".
+# split's columns besides, empty and stamped "none". The goldens predate the
+# negative-critical clamp and binding threshold (#1290) too, so their columns
+# are also extra: at the default "keep" and with no binding table,
+# `source_critical_kgn_ha` equals `critical_kgn_ha` and both binding columns
+# are empty.
 .gs_expect_golden <- function(out, golden, grain = c("cell", "grid", "agg")) {
   grain <- match.arg(grain)
   # The goldens were captured on x86-64 Windows; arm64 macOS differs in the
@@ -495,14 +499,21 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
     golden,
     tolerance = 1e-12
   )
-  stamps <- c("method_grassland_split", "grassland_split")
+  stamps <- c("method_grassland_split", "grassland_split", "negative_critical")
+  critical_cols <- c(
+    "binding_threshold",
+    "binding_matches_mi",
+    "source_critical_kgn_ha",
+    "negative_critical"
+  )
   expected_extra <- switch(
     grain,
-    cell = c(whep:::.nbx_split_output_cols(), "grassland_split"),
+    cell = c(whep:::.nbx_split_output_cols(), "grassland_split", critical_cols),
     grid = c(
       whep:::.nbx_split_output_cols(),
       "grassland_split",
-      "boundary_component"
+      "boundary_component",
+      critical_cols
     ),
     agg = stamps
   )
@@ -510,7 +521,11 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
   testthat::expect_setequal(extra, expected_extra)
   testthat::expect_true(all(out$method_grassland_split == "none"))
   testthat::expect_true(all(out$grassland_split == "none"))
-  empty <- setdiff(extra, stamps)
+  testthat::expect_true(all(out$negative_critical == "keep"))
+  if (grain != "agg") {
+    testthat::expect_identical(out$source_critical_kgn_ha, out$critical_kgn_ha)
+  }
+  empty <- setdiff(extra, c(stamps, "source_critical_kgn_ha"))
   testthat::expect_true(all(is.na(as.matrix(out[empty]))))
 }
 
@@ -1226,5 +1241,190 @@ testthat::test_that("ara and igl must combine into the all surface", {
   grassland$critical_igl$value[[1L]] <- 81
   testthat::expect_no_error(
     suppressMessages(.gs_run("cell", grassland = grassland))
+  )
+})
+
+# ---- negative_critical x grassland_split (#1290 x #1316) -------------------
+
+# Cell A: ara -60 on 100 ha of cropland, igl +30 on 50 ha of intensive
+#   grassland, so the managed allowance is (-6000 + 1500) / 1000 = -4.5 t and
+#   the all-scope rate is -4500 / 150 = -30 kg/ha.
+# Cell D: ara -20 on 50 ha, igl +40 on 100 ha, so all = 3000 / 150 = 20
+#   kg/ha, positive. In 2015 D's grassland is demoted to extensive, so its
+#   managed allowance is its cropland alone: -20 * 50 / 1000 = -1 t.
+.gs_negative_grassland <- function() {
+  grassland <- .gs_grassland()
+  a_d <- c(.gs_lon()[["A"]], .gs_lon()[["D"]])
+  grassland$critical_ara <- dplyr::mutate(
+    grassland$critical_ara,
+    value = dplyr::case_when(
+      .data$lon == a_d[[1]] ~ -60,
+      .data$lon == a_d[[2]] ~ -20,
+      .default = .data$value
+    )
+  )
+  grassland$critical_igl <- dplyr::mutate(
+    grassland$critical_igl,
+    value = dplyr::if_else(.data$lon == a_d[[1]], 30, 40)
+  )
+  grassland
+}
+
+.gs_negative_critical <- function() {
+  a_d <- c(.gs_lon()[["A"]], .gs_lon()[["D"]])
+  dplyr::mutate(
+    .gs_critical(),
+    critical_kgn_ha = dplyr::case_when(
+      .data$lon == a_d[[1]] ~ -30,
+      .data$lon == a_d[[2]] ~ 20,
+      .default = .data$critical_kgn_ha
+    )
+  )
+}
+
+.gs_negative_run <- function(
+  negative_critical,
+  resolution = "cell",
+  year = 2015L,
+  ...
+) {
+  whep::build_n_boundary_exceedance(
+    surplus = .gs_surplus(year),
+    critical = .gs_negative_critical(),
+    land_use = "all",
+    resolution = resolution,
+    actual_year = year,
+    critical_reference_year = 2010L,
+    negative_critical = negative_critical,
+    ...
+  )
+}
+
+testthat::test_that("the clamp acts on each split component's allowance", {
+  grassland <- .gs_negative_grassland()
+  keep <- suppressMessages(.gs_negative_run("keep", grassland = grassland))
+  clamp <- suppressMessages(.gs_negative_run("clamp", grassland = grassland))
+  pick <- \(out, cell) dplyr::filter(out, .data$cell_id == .gs_cell_id(cell))
+
+  # A: managed pressure 8 + 1 crops + 3 intensive grass = 12 t.
+  testthat::expect_equal(pick(keep, "A")$managed_critical_n_t, -4.5)
+  testthat::expect_equal(pick(keep, "A")$managed_positive_overshoot_n_t, 16.5)
+  testthat::expect_equal(pick(clamp, "A")$managed_critical_n_t, 0)
+  testthat::expect_equal(pick(clamp, "A")$managed_positive_overshoot_n_t, 12)
+  # The component total is clamped, not the ara and igl rates one by one
+  # (that would leave 30 * 50 / 1000 = 1.5 t).
+  testthat::expect_equal(pick(clamp, "A")$managed_critical_kgn_ha, 0)
+  testthat::expect_equal(pick(clamp, "A")$source_managed_critical_kgn_ha, -30)
+  testthat::expect_equal(pick(keep, "A")$managed_critical_kgn_ha, -30)
+  testthat::expect_equal(pick(clamp, "A")$source_critical_kgn_ha, -30)
+  testthat::expect_equal(pick(clamp, "A")$critical_kgn_ha, 0)
+
+  # D: the all-scope rate (20) is positive, but the managed component that is
+  # compared (cropland only after demotion) is -1 t; the clamp reaches it.
+  testthat::expect_equal(pick(clamp, "D")$critical_kgn_ha, 20)
+  testthat::expect_equal(pick(keep, "D")$managed_critical_n_t, -1)
+  testthat::expect_equal(pick(keep, "D")$managed_positive_overshoot_n_t, 4)
+  testthat::expect_equal(pick(clamp, "D")$managed_critical_n_t, 0)
+  testthat::expect_equal(pick(clamp, "D")$managed_positive_overshoot_n_t, 3)
+  # Its extensive component (C's borrowed 12 kg/ha on 100 ha) is untouched.
+  testthat::expect_equal(
+    pick(clamp, "D")$extensive_critical_n_t,
+    pick(keep, "D")$extensive_critical_n_t
+  )
+  testthat::expect_equal(pick(clamp, "D")$extensive_critical_n_t, 1.2)
+  testthat::expect_equal(
+    clamp$extensive_critical_kgn_ha,
+    clamp$source_extensive_critical_kgn_ha
+  )
+  # The cell overshoot is still the unnetted sum of the component overshoots.
+  testthat::expect_equal(
+    pick(clamp, "D")$cell_positive_overshoot_n_t,
+    3 + pick(clamp, "D")$extensive_positive_overshoot_n_t
+  )
+
+  # Cells with no negative allowance are identical under both settings.
+  others <- \(out) {
+    out |>
+      dplyr::filter(!.data$cell_id %in% .gs_cell_id(c("A", "D"))) |>
+      dplyr::select(-"negative_critical")
+  }
+  testthat::expect_equal(others(clamp), others(keep))
+  testthat::expect_true(all(clamp$negative_critical == "clamp"))
+  testthat::expect_true(all(keep$grassland_split == "image_density"))
+})
+
+testthat::test_that("the clamped split matches the unsplit clamp in 2010", {
+  # With the 2010 classes every managed component is the all-scope land, so
+  # clamping the component equals clamping the all-scope rate.
+  grassland <- .gs_negative_grassland()
+  split <- suppressMessages(.gs_negative_run(
+    "clamp",
+    year = 2010L,
+    grassland = grassland
+  ))
+  none <- suppressMessages(.gs_negative_run(
+    "clamp",
+    year = 2010L,
+    grassland_split = "none"
+  ))
+  both <- dplyr::inner_join(
+    dplyr::select(split, "cell_id", "managed_critical_n_t"),
+    dplyr::select(none, "cell_id", "cell_critical_n_t"),
+    by = "cell_id"
+  ) |>
+    dplyr::filter(!is.na(.data$cell_critical_n_t))
+  testthat::expect_equal(both$managed_critical_n_t, both$cell_critical_n_t)
+  testthat::expect_equal(
+    both$managed_critical_n_t[both$cell_id == .gs_cell_id("A")],
+    0
+  )
+})
+
+testthat::test_that("the clamped split keeps within-boundary mass per unit", {
+  grassland <- .gs_negative_grassland()
+  grid <- suppressMessages(.gs_negative_run(
+    "clamp",
+    resolution = "grid",
+    grassland = grassland
+  ))
+  a_managed <- dplyr::filter(
+    grid,
+    .data$cell_id == .gs_cell_id("A"),
+    .data$boundary_component == "managed"
+  )
+  # min(actual 12, clamped allowance 0) = 0; under "keep" it would be -4.5.
+  testthat::expect_equal(sum(a_managed$within_boundary_n_t), 0)
+  testthat::expect_equal(sum(a_managed$exceedance_n_t), 12)
+})
+
+testthat::test_that("binding labels only the managed rows under the split", {
+  critical <- .gs_critical()
+  binding <- tibble::tibble(
+    cell_id = .gs_cell_id(c("A", "B", "D", "E", "G")),
+    binding_threshold = "groundwater",
+    binding_matches_mi = TRUE,
+    critical_mi_kgn_ha = critical$critical_kgn_ha,
+    critical_land_use = "all"
+  )
+  grid <- suppressMessages(.gs_run(
+    "grid",
+    grassland = .gs_grassland(),
+    binding = binding
+  ))
+  managed <- dplyr::filter(grid, .data$boundary_component == "managed")
+  extensive <- dplyr::filter(grid, .data$boundary_component == "extensive")
+  testthat::expect_gt(nrow(extensive), 0)
+  testthat::expect_true(all(is.na(extensive$binding_threshold)))
+  testthat::expect_true(all(is.na(extensive$binding_matches_mi)))
+  labelled <- dplyr::filter(managed, .data$cell_id %in% binding$cell_id)
+  testthat::expect_true(all(labelled$binding_threshold == "groundwater"))
+  cells <- suppressMessages(.gs_run(
+    "cell",
+    grassland = .gs_grassland(),
+    binding = binding
+  ))
+  testthat::expect_equal(
+    cells$binding_threshold[cells$cell_id %in% binding$cell_id],
+    rep("groundwater", 5L)
   )
 })

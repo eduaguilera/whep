@@ -22,6 +22,8 @@ build_n_boundary_exceedance(
   grassland_split = c("image_density", "none"),
   grassland = list(classes = NULL, extensive_budget = NULL, critical_ara = NULL,
     critical_igl = NULL),
+  negative_critical = c("keep", "clamp"),
+  binding = NULL,
   example = FALSE
 )
 }
@@ -91,31 +93,60 @@ still defines the cell domain and is checked against the class table's
 areas. A cell absent from \code{classes} must carry no grassland pressure; it
 is compared as cropland only.}
 
+\item{negative_critical}{Treatment of a cell whose critical value is below
+zero. \code{"keep"} (default) compares the actual pressure with the deposited
+value as it is, as the source does. \code{"clamp"} sets it to zero (a zero
+allowance) before the cell comparison. The choice is stamped in every
+output row as \code{negative_critical}; see the Negative critical surplus
+section.}
+
+\item{binding}{Optional \code{\link[=build_critical_n_binding]{build_critical_n_binding()}} output for the same
+land-use scope. When supplied, its per-cell \code{binding_threshold} and
+\code{binding_matches_mi} are carried into the cell and grid results; when
+\code{NULL} (default) both columns are \code{NA}.}
+
 \item{example}{If \code{TRUE}, return the package fixture.}
 }
 \value{
 A tibble at the requested grain. Cell results retain actual and
 critical masses, signed margin, positive overshoot, coverage state,
 integer source-grid key, IMAGE context, explicit years, selectors, and
-provenance. Crop results additionally retain the signed pressure share and
-crop-attributed quantities, which reconcile algebraically to the cell.
+provenance. \code{critical_kgn_ha} is the value compared (after the
+\code{negative_critical} treatment) and \code{source_critical_kgn_ha} the deposited
+one; the two differ only in clamped cells. Crop results additionally
+retain the signed pressure share and crop-attributed quantities, which
+reconcile algebraically to the cell. \code{exceedance_n_t} is the crop's share
+of the cell overshoot \code{pmax(actual - critical, 0)} and
+\code{within_boundary_n_t} is \code{actual_n_t - exceedance_n_t}, so the two always
+sum to the actual pressure. Summed over a cell, \code{within_boundary_n_t} is
+\code{min(actual, critical)}: under \code{negative_critical = "keep"} it is negative
+wherever the critical value is negative, and under \code{"clamp"} it is
+negative only where the actual pressure itself is. Under the grassland
+split these hold per component (managed, extensive) rather than per cell.
 Cell and grid results also carry the split components:
 \code{managed_actual_n_t}, \code{managed_critical_n_t},
 \code{managed_positive_overshoot_n_t}, \code{extensive_actual_n_t},
 \code{extensive_critical_n_t}, \code{extensive_positive_overshoot_n_t}, their areas
-(\code{managed_area_ha}, \code{extensive_area_ha}), rates
-(\code{managed_critical_kgn_ha}, \code{extensive_critical_kgn_ha}) and coverage
-states, \code{excluded_actual_n_t} (of which \code{excluded_igl_actual_n_t} is
-intensive grassland without an \code{"igl"} rate), \code{grassland_class},
-\code{method_allowance_managed}, \code{method_allowance_extensive} and
-\code{method_grassland_split} (the per-cell class method, \code{"no_grassland"} for
-a cell outside the class table, \code{"none"} without the split). These are
-\code{NA} when the split is not applied, so the schema does not depend on it.
-Grid rows add \code{boundary_component} (\code{"managed"}/\code{"extensive"}, \code{NA}
-without the split); within the split, \code{pressure_share} is the row's share
-of its component. Every row carries the call-level \code{grassland_split};
-aggregated rows list the per-cell methods they span in
-\code{method_grassland_split}, separated by \verb{;}.
+(\code{managed_area_ha}, \code{extensive_area_ha}), compared rates
+(\code{managed_critical_kgn_ha}, \code{extensive_critical_kgn_ha}, after the
+\code{negative_critical} treatment) and the rates before it
+(\code{source_managed_critical_kgn_ha}, \code{source_extensive_critical_kgn_ha}),
+coverage states, \code{excluded_actual_n_t} (of which
+\code{excluded_igl_actual_n_t} is intensive grassland without an \code{"igl"}
+rate), \code{grassland_class}, \code{method_allowance_managed},
+\code{method_allowance_extensive} and \code{method_grassland_split} (the per-cell
+class method, \code{"no_grassland"} for a cell outside the class table,
+\code{"none"} without the split). These are \code{NA} when the split is not
+applied, so the schema does not depend on it. Under the split,
+\code{critical_kgn_ha} and \code{source_critical_kgn_ha} remain the \code{"all"}-scope
+surface (it defines the domain and checks the \code{"ara"}/\code{"igl"} layers);
+the cell allowance is the sum of the component allowances. Grid rows add
+\code{boundary_component} (\code{"managed"}/\code{"extensive"}, \code{NA} without the
+split); within the split, \code{pressure_share} is the row's share of its
+component, and \code{binding_threshold}/\code{binding_matches_mi} are \code{NA} on
+extensive rows (see the Negative critical surplus section). Every row
+carries the call-level \code{grassland_split}; aggregated rows list the
+per-cell methods they span in \code{method_grassland_split}, separated by \verb{;}.
 }
 \description{
 Compares WHEP crop nitrogen pressure with the deposited Schulte-Uebbing et
@@ -201,6 +232,36 @@ areas, fixed, except WHEP grassland in a cell with no IMAGE grassland,
 whose extensive allowance uses WHEP's own grassland area of the year
 (method suffix \code{"_whep_area"}, maintainer decision 2026-09-24).
 \code{grassland_split = "none"} reproduces the unsplit comparison exactly.
+}
+
+\section{Negative critical surplus}{
+
+Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and manure
+inputs to zero where non-agricultural losses alone exceed a threshold, but
+keep biological fixation and deposition in the critical input, so their
+deposited critical surplus stays negative in those cells (on the \code{"mi"}
+surface: 1,796 of 28,881 cells for \code{"all"}, minimum -396 kg N/ha; 2,075 of
+28,573 cells for \code{"ara"}, minimum -317 kg N/ha). \code{negative_critical = "keep"} follows the source, and it is the setting under which the published
+2010 decomposition (43 Mt N allowable plus 76 Mt N exceedance, 119 Mt N
+current surplus) is reproduced. \code{"clamp"} is a declared departure from the
+source: it gives such cells a zero allowance instead of a negative one,
+which lowers their overshoot to the actual pressure and keeps the cell
+within-boundary mass at or above zero wherever the actual pressure is.
+
+Under \code{grassland_split = "image_density"} the treatment applies to each
+component's allowance, the unit a component is compared against: a
+negative managed allowance (the cell's \code{"ara"} rate on its cropland plus
+its \code{"igl"} rate on its intensive grassland, which can net against each
+other as they do inside the \code{"all"} rate) becomes zero, and so would a
+negative extensive one (IMAGE's 2010 extensive budget, which is never
+negative on the deposited archive). The component rates are not clamped
+one by one, so with the 2010 classes the managed comparison under
+\code{"clamp"} matches the unsplit \code{"all"}-scope comparison under \code{"clamp"}
+(to the 1 \% within which the \code{"ara"} and \code{"igl"} layers combine into
+\code{"all"}).
+A binding threshold names the impact that sets a critical surplus, so it
+describes the managed allowance only; the extensive allowance is a 2010
+level, not a threshold, and its grid rows carry no binding label.
 }
 
 \examples{

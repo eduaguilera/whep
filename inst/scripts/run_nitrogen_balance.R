@@ -62,7 +62,11 @@ unsupported_fertilizer <- rlang::arg_match0(
 .nbd_log$rows <- list()
 
 # Build one input, recording the outcome instead of aborting: a missing input is
-# a fact to report, not a reason to lose the other twelve.
+# a fact to report, not a reason to lose the other twelve. Each stage's
+# warnings and messages are captured rather than suppressed
+# (.nbd_capture_conditions(), R/nbd_stage.R) so a noisy input cannot drown the
+# coverage table below without also losing what it said -- see
+# .nbd_print_conditions() (whep#1288).
 nbd_stage <- function(label, expr, heavy = FALSE) {
   if (heavy && skip_heavy) {
     .nbd_record(label, "skip", 0, NA_integer_, "WHEP_NBD_SKIP_HEAVY set")
@@ -70,33 +74,80 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     return(NULL)
   }
   started <- proc.time()
-  value <- tryCatch(
-    suppressMessages(suppressWarnings(force(expr))),
-    error = function(e) e
-  )
+  captured <- whep:::.nbd_capture_conditions(expr)
   elapsed <- round((proc.time() - started)[["elapsed"]], 1)
-  if (inherits(value, "error")) {
-    .nbd_record(label, "FAIL", elapsed, NA_integer_, conditionMessage(value))
+  if (inherits(captured$value, "error")) {
+    .nbd_record(
+      label,
+      "FAIL",
+      elapsed,
+      NA_integer_,
+      conditionMessage(captured$value),
+      captured$conditions
+    )
     cli::cli_inform("{cli::col_red('FAIL')} {label} ({elapsed}s)")
     return(NULL)
   }
-  .nbd_record(label, "ok", elapsed, .nbd_size(value), NA_character_)
+  .nbd_record(
+    label,
+    "ok",
+    elapsed,
+    .nbd_size(captured$value),
+    NA_character_,
+    captured$conditions
+  )
   cli::cli_inform("{cli::col_green('ok')}   {label} ({elapsed}s)")
-  value
+  captured$value
 }
 
-.nbd_record <- function(label, status, seconds, rows, detail) {
-  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- tibble::tibble(
-    input = label,
-    status = status,
-    seconds = seconds,
-    rows = rows,
-    detail = if (is.na(detail)) {
-      NA_character_
-    } else {
-      substr(gsub("\\s+", " ", detail), 1, 1200)
-    }
+.nbd_record <- function(
+  label,
+  status,
+  seconds,
+  rows,
+  detail,
+  conditions = NULL
+) {
+  .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- whep:::.nbd_stage_row(
+    label,
+    status,
+    seconds,
+    rows,
+    detail,
+    conditions
   )
+}
+
+# Printed after the coverage table (never before or inside a stage), so a
+# stage's report stays visible without drowning that table -- the same
+# trade-off the old suppression comment named, kept true instead of discarded.
+# Warnings are rare enough per run (a handful, not one per row: see
+# .ni_report_reallocated(), .ni_warn_stranded_dropped(),
+# .warn_unclassified_feed()) to print in full; messages are listed the same
+# way rather than only counted, because the number IS the report --
+# ".ni_report_reallocated()" exists to say how much nitrogen moved.
+.nbd_print_conditions <- function(report) {
+  by_condition <- report |>
+    dplyr::select("input", "conditions") |>
+    tidyr::unnest("conditions")
+  if (nrow(by_condition) == 0L) {
+    return(invisible(NULL))
+  }
+  warned <- dplyr::filter(by_condition, .data$class == "warning")
+  messaged <- dplyr::filter(by_condition, .data$class == "message")
+  if (nrow(warned) > 0L) {
+    cli::cli_h3("Warnings")
+    for (i in seq_len(nrow(warned))) {
+      cli::cli_alert_warning("{warned$input[i]}: {warned$message[i]}")
+    }
+  }
+  if (nrow(messaged) > 0L) {
+    cli::cli_h3("Messages")
+    for (i in seq_len(nrow(messaged))) {
+      cli::cli_alert_info("{messaged$input[i]}: {messaged$message[i]}")
+    }
+  }
+  invisible(by_condition)
 }
 
 .nbd_size <- function(x) {
@@ -137,9 +188,9 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # The residual is polity-crops that have production but no positive cropland
 # cell, so nothing to spread onto; they drop out here exactly as they do in the
 # carbon inputs (cf. #599). It is reported rather than silently absorbed.
-.nbd_grid_npp <- function(npp) {
+.nbd_grid_npp <- function(npp, country_grid) {
   weights <- whep:::.sci_grid_weights(
-    whep:::.sci_read_country_grid(),
+    country_grid,
     whep:::.sci_read_crop_patterns()
   )
   keys <- c("year", "area_code", "item_prod_code")
@@ -372,6 +423,13 @@ cli::cli_h1("Nitrogen balance driver: {year}, resolution = {resolution}")
 cli::cli_h2("1. Spatial and land surfaces")
 
 cell_polity <- nbd_stage("cell_polity", build_cell_polity())
+# The ONE cell support every country total this run puts on cells is placed on:
+# the crop NPP, the livestock heads and grass ceiling, and the crop layer the
+# manure is spread over (whep#1300). One table, so a border cell's animals and
+# the hectares their manure lands on cannot be split between polities
+# differently. It is the carbon path's polycell support, which is also what the
+# local feed grain reads by default.
+cell_support <- nbd_stage("cell_support", whep:::.sci_read_country_grid())
 ag_land_support <- nbd_stage(
   "ag_land_support",
   build_ag_land_support(years = year, data = list(cell_polity = cell_polity))
@@ -421,9 +479,11 @@ npp_national <- nbd_stage(
   "npp_n_input (national)",
   crops |> calculate_crop_npp() |> calculate_npp_carbon_nitrogen()
 )
-npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national))
-# Reported here, not inside the stage: nbd_stage() suppresses messages so a
-# noisy input cannot drown the coverage table, which would also hide this.
+npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national, cell_support))
+# Reported here, not inside the stage: this compares npp_national and npp
+# AFTER both stages finish, so it can never be a condition either stage raises
+# for nbd_stage() to capture (whep#1288) -- there is nothing to catch until
+# both values already exist.
 if (!is.null(npp) && !is.null(npp_national)) {
   .nbd_report_unspatialized(npp_national, npp)
 }
@@ -467,14 +527,18 @@ NBD_SPINUP_YEARS <- 30L
 # spin-up removes: the source mass reaching the guard would be the whole span's
 # nitrogen, not the driven year's.
 #
-# method_grazing: "whep" is build_carbon_balance()'s default and needs BOTH
-# data$livestock_intake and data$excreta, which it refuses to run without
-# (whep#1120). Neither is reachable while the commodity balances are: the
-# livestock chain starts at get_wide_cbs(), and that aborts on the
-# faostat-cbs-new pin's logical unit column (whep#1025). "lpjml" is the
-# package's own selectable alternative -- LPJmL's livestock module supplies the
-# grassland offtake instead -- and needs neither input. It is recorded in the
-# output's method_grazing column, so a balance built this way says so.
+# method_grazing: "whep" needs BOTH data$livestock_intake and data$excreta
+# for EVERY year the march covers, and refuses to run without them
+# (whep#1120, .gn_check_grazing_years()). This driver cannot supply that
+# today: the "livestock_intake" stage below builds it for the single driven
+# year only, AFTER this stage runs, not for the whole
+# (year - NBD_SPINUP_YEARS):year span the carbon march needs. Even a driver
+# that built it for every marched year would still be bounded: FAOSTAT's
+# commodity balances, which livestock_intake descends from, begin at 1961
+# (get_wide_cbs()), so "whep" could never serve a spin-up that reaches before
+# it. "lpjml" needs neither input -- LPJmL's own livestock module supplies
+# the grassland offtake instead -- and is recorded in the output's
+# method_grazing column, so a balance built this way says so.
 carbon_balance <- nbd_stage(
   "carbon_balance",
   build_carbon_balance(
@@ -485,21 +549,34 @@ carbon_balance <- nbd_stage(
     dplyr::filter(.data$year == !!year),
   heavy = TRUE
 )
-# redistribute_feed() takes two already-assembled tables (feed demand and feed
-# availability); .run_redistribute_national() is the wrapper that builds both
-# from production and the commodity balances, and is what the manure path in
-# build_soil_carbon_inputs() already uses. Calling redistribute_feed() bare, as
-# this driver did, can only fail on a missing argument.
+# The realised feed intake behind the manure and grazed-forage terms, at the
+# grain the resolution needs (.n_livestock_intake(), R/n_balance_grid_manure.R).
+# At "grid" it is the local grain: national demand spread to cells by the
+# gridded heads on `cell_support`, so the manure lands on cells. National intake
+# carries no cell, and build_n_inputs(resolution = "grid") aborts on it with
+# "missing spatial keys" (whep#1300). At "polity" it is the national grain.
 livestock_intake <- nbd_stage(
   "livestock_intake",
-  whep:::.run_redistribute_national(
+  whep:::.n_livestock_intake(
+    resolution,
     production = primary_prod,
     cbs = get_wide_cbs(years = year),
-    demand_tier = "ipcc",
-    options = list(distribute_surplus = FALSE)
+    country_grid = cell_support
   ),
   heavy = TRUE
 )
+# The crop layer that manure is spread over, on the same grain and support.
+manure_crops <- nbd_stage(
+  "manure_crops",
+  whep:::.n_manure_crop_layer(resolution, primary_prod, cell_support)
+)
+# Outside the stage, which suppresses messages (see the NPP report above).
+if (!is.null(manure_crops) && resolution == "grid") {
+  whep:::.n_report_unplaced_crop_area(
+    whep:::.sci_manure_crop_layer(primary_prod),
+    manure_crops
+  )
+}
 
 # ---- 5. coverage and blockers -------------------------------------------------
 
@@ -529,19 +606,23 @@ if (!is.null(npp) && !gridded_npp) {
 }
 
 report <- dplyr::bind_rows(.nbd_log$rows)
-# build_n_inputs() answers a NULL carbon balance or livestock intake with an
-# EMPTY term, not an error, so a run without them is a partial balance rather
-# than a failed one -- and both are currently unreachable: the livestock chain
-# starts at get_wide_cbs(), which aborts on the faostat-cbs-new pin's logical
-# unit column (#1025), and the carbon balance's own default grazing method
-# needs that same chain (#1120). Report them as gaps and keep going, so the
-# terms that ARE available still get measured; a genuine blocker still stops.
-NBD_TOLERATED <- c("carbon_balance", "livestock_intake")
-gaps <- dplyr::filter(
-  report,
-  .data$status != "ok",
-  .data$input %in% NBD_TOLERATED
-)
+# build_n_inputs() answers a NULL carbon_balance with an EMPTY
+# som_mineralization term, not an error (.n_inputs_som()), so a run without
+# it is a partial balance rather than a failed one. carbon_balance stays
+# tolerated for two reasons that hold today, independent of #1025: it is the
+# driver's heaviest stage -- minutes of runtime, a 537 MB LPJmL pin, and
+# every gridded LUH2/HWSD/climate reader build_carbon_balance() touches --
+# and its own stream already treats "nothing to report" as a real
+# observation rather than only a symptom: .n_inputs_som() keeps
+# son_change_kgn_ha > 0 rows only (R/n_balance_inputs.R), so a cell-year with
+# no net mineralization contributes zero whether carbon_balance ran or not.
+# livestock_intake is different and is NO LONGER tolerated: #1025, which made
+# get_wide_cbs() unreachable, was fixed by fdcdf7e2, and the chain has since
+# run to completion (whep#1289), so a failure now is a real defect, not an
+# expected gap, and must block the balance rather than silently zero-filling
+# the manure and intake terms.
+NBD_TOLERATED <- whep:::.nbd_tolerated_stages()
+gaps <- whep:::.nbd_carried_gaps(report, NBD_TOLERATED)
 if (nrow(gaps) > 0L) {
   cli::cli_h2("5b. Terms this run does NOT carry")
   for (i in seq_len(nrow(gaps))) {
@@ -550,16 +631,13 @@ if (nrow(gaps) > 0L) {
       cli::cli_bullets(c(" " = gaps$detail[i]))
     }
   }
+  gap_terms <- whep:::.nbd_gap_terms(gaps$input)
   cli::cli_alert_info(
-    "The balance runs without them; its som_mineralization, manure and
-     grazed-weeds terms are then zero, and every total below excludes them."
+    "The balance runs without them; its {gap_terms} term{?s} {?is/are} then
+     zero, and every total below excludes {?it/them}."
   )
 }
-blockers <- dplyr::filter(
-  report,
-  .data$status == "FAIL",
-  !.data$input %in% NBD_TOLERATED
-)
+blockers <- whep:::.nbd_blocking_failures(report, NBD_TOLERATED)
 if (nrow(blockers) > 0L) {
   cli::cli_h2("Blockers")
   for (i in seq_len(nrow(blockers))) {
@@ -569,6 +647,7 @@ if (nrow(blockers) > 0L) {
   cli::cli_alert_info(
     "{nrow(blockers)} blocker{?s}; the balance is not attempted. See #446."
   )
+  .nbd_print_conditions(report)
   invisible(report)
 } else {
   cli::cli_h2("6. Nitrogen balance")
@@ -589,11 +668,10 @@ if (nrow(blockers) > 0L) {
     carbon_balance = carbon_balance,
     livestock_intake = livestock_intake,
     # build_livestock_nutrient_flows() needs the land surface its manure is
-    # spread over as well as the intake; .sci_manure_crop_layer() is the
-    # same crops layer build_soil_carbon_inputs() gives it, so the manure
-    # reaching the nitrogen balance sits on the same hectares as the manure
-    # reaching the carbon balance.
-    gridded = list(crops = whep:::.sci_manure_crop_layer(primary_prod)),
+    # spread over as well as the intake. manure_crops is the harvested-area
+    # layer build_soil_carbon_inputs() gives it (.sci_manure_crop_layer()),
+    # spread onto cell_support at "grid" so it meets the cell intake.
+    gridded = list(crops = manure_crops),
     # The default allocation cap, "potential_uptake", needs a precomputed
     # crop_n_cap that this crops layer does not carry. build_soil_carbon_
     # inputs() hits the same wall and answers it with "fixed_ceiling", so
@@ -740,20 +818,35 @@ if (nrow(blockers) > 0L) {
     cli::cli_inform("Tg N/yr, summed over cells:")
     print(as.data.frame(totals))
   }
-  # classify_sjos_n() needs a nourishment axis and build_sjos_n_footprint()
-  # needs an IO model; both descend from the commodity balances, so both are
-  # unreachable while get_wide_cbs() aborts (#1025). Say so rather than
-  # leaving the last two steps of #446 silently unattempted.
+  # classify_sjos_n() takes a country-resolution exceedance (this driver only
+  # builds "cell", one step finer) and a nourishment axis --
+  # normalize_nourishment() over build_food_supply()'s output, which needs
+  # data$cbs_food, the commodity balances reshaped to food, and this driver
+  # does not build. build_sjos_n_footprint() takes the same
+  # country-resolution exceedance plus either a build_io_model() result or
+  # pre-traced data$fp_flows, and this driver builds neither: an IO model
+  # needs bilateral trade and supply-use tables over every traced year, a
+  # separate, heavier build than the single-year balance above. Neither
+  # function is blocked by #1025 any more -- that was fixed by fdcdf7e2 --
+  # the gap is that this driver's scope (build_nitrogen_balance()'s inputs
+  # for one year) stops short of theirs; the full composition is
+  # build_sjos_nitrogen(), which this script does not call. Say so rather
+  # than leaving the last two steps of #446 silently unattempted.
   cli::cli_h2("9. Not attempted")
   cli::cli_alert_warning(
-    "classify_sjos_n() and build_sjos_n_footprint() need the commodity
-     balances (nourishment axis, IO model); get_wide_cbs() aborts on the
-     faostat-cbs-new pin's logical unit column (#1025)."
+    "classify_sjos_n() and build_sjos_n_footprint() are no longer blocked by
+     #1025 (fixed by fdcdf7e2), but need inputs this driver does not build:
+     a country-resolution exceedance, a nourishment axis from
+     build_food_supply() (data$cbs_food), and either an IO model
+     (build_io_model()) or pre-traced footprint flows. See
+     build_sjos_nitrogen() for the full composition (#446)."
   )
+  final_report <- dplyr::bind_rows(.nbd_log$rows)
+  .nbd_print_conditions(final_report)
   result <- list(
     year = year,
     resolution = resolution,
-    report = dplyr::bind_rows(.nbd_log$rows),
+    report = final_report,
     unsupported_fertilizer = unsupported_fertilizer_n,
     balance = balance,
     surplus = surplus,

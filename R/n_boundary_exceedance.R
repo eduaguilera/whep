@@ -135,29 +135,85 @@
 #'   still defines the cell domain and is checked against the class table's
 #'   areas. A cell absent from `classes` must carry no grassland pressure; it
 #'   is compared as cropland only.
+#' @param negative_critical Treatment of a cell whose critical value is below
+#'   zero. `"keep"` (default) compares the actual pressure with the deposited
+#'   value as it is, as the source does. `"clamp"` sets it to zero (a zero
+#'   allowance) before the cell comparison. The choice is stamped in every
+#'   output row as `negative_critical`; see the Negative critical surplus
+#'   section.
+#' @param binding Optional [build_critical_n_binding()] output for the same
+#'   land-use scope. When supplied, its per-cell `binding_threshold` and
+#'   `binding_matches_mi` are carried into the cell and grid results; when
+#'   `NULL` (default) both columns are `NA`.
 #' @param example If `TRUE`, return the package fixture.
 #' @return A tibble at the requested grain. Cell results retain actual and
 #'   critical masses, signed margin, positive overshoot, coverage state,
 #'   integer source-grid key, IMAGE context, explicit years, selectors, and
-#'   provenance. Crop results additionally retain the signed pressure share and
-#'   crop-attributed quantities, which reconcile algebraically to the cell.
+#'   provenance. `critical_kgn_ha` is the value compared (after the
+#'   `negative_critical` treatment) and `source_critical_kgn_ha` the deposited
+#'   one; the two differ only in clamped cells. Crop results additionally
+#'   retain the signed pressure share and crop-attributed quantities, which
+#'   reconcile algebraically to the cell. `exceedance_n_t` is the crop's share
+#'   of the cell overshoot `pmax(actual - critical, 0)` and
+#'   `within_boundary_n_t` is `actual_n_t - exceedance_n_t`, so the two always
+#'   sum to the actual pressure. Summed over a cell, `within_boundary_n_t` is
+#'   `min(actual, critical)`: under `negative_critical = "keep"` it is negative
+#'   wherever the critical value is negative, and under `"clamp"` it is
+#'   negative only where the actual pressure itself is. Under the grassland
+#'   split these hold per component (managed, extensive) rather than per cell.
 #'   Cell and grid results also carry the split components:
 #'   `managed_actual_n_t`, `managed_critical_n_t`,
 #'   `managed_positive_overshoot_n_t`, `extensive_actual_n_t`,
 #'   `extensive_critical_n_t`, `extensive_positive_overshoot_n_t`, their areas
-#'   (`managed_area_ha`, `extensive_area_ha`), rates
-#'   (`managed_critical_kgn_ha`, `extensive_critical_kgn_ha`) and coverage
-#'   states, `excluded_actual_n_t` (of which `excluded_igl_actual_n_t` is
-#'   intensive grassland without an `"igl"` rate), `grassland_class`,
-#'   `method_allowance_managed`, `method_allowance_extensive` and
-#'   `method_grassland_split` (the per-cell class method, `"no_grassland"` for
-#'   a cell outside the class table, `"none"` without the split). These are
-#'   `NA` when the split is not applied, so the schema does not depend on it.
-#'   Grid rows add `boundary_component` (`"managed"`/`"extensive"`, `NA`
-#'   without the split); within the split, `pressure_share` is the row's share
-#'   of its component. Every row carries the call-level `grassland_split`;
-#'   aggregated rows list the per-cell methods they span in
-#'   `method_grassland_split`, separated by `;`.
+#'   (`managed_area_ha`, `extensive_area_ha`), compared rates
+#'   (`managed_critical_kgn_ha`, `extensive_critical_kgn_ha`, after the
+#'   `negative_critical` treatment) and the rates before it
+#'   (`source_managed_critical_kgn_ha`, `source_extensive_critical_kgn_ha`),
+#'   coverage states, `excluded_actual_n_t` (of which
+#'   `excluded_igl_actual_n_t` is intensive grassland without an `"igl"`
+#'   rate), `grassland_class`, `method_allowance_managed`,
+#'   `method_allowance_extensive` and `method_grassland_split` (the per-cell
+#'   class method, `"no_grassland"` for a cell outside the class table,
+#'   `"none"` without the split). These are `NA` when the split is not
+#'   applied, so the schema does not depend on it. Under the split,
+#'   `critical_kgn_ha` and `source_critical_kgn_ha` remain the `"all"`-scope
+#'   surface (it defines the domain and checks the `"ara"`/`"igl"` layers);
+#'   the cell allowance is the sum of the component allowances. Grid rows add
+#'   `boundary_component` (`"managed"`/`"extensive"`, `NA` without the
+#'   split); within the split, `pressure_share` is the row's share of its
+#'   component, and `binding_threshold`/`binding_matches_mi` are `NA` on
+#'   extensive rows (see the Negative critical surplus section). Every row
+#'   carries the call-level `grassland_split`; aggregated rows list the
+#'   per-cell methods they span in `method_grassland_split`, separated by `;`.
+#'
+#' @section Negative critical surplus:
+#' Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and manure
+#' inputs to zero where non-agricultural losses alone exceed a threshold, but
+#' keep biological fixation and deposition in the critical input, so their
+#' deposited critical surplus stays negative in those cells (on the `"mi"`
+#' surface: 1,796 of 28,881 cells for `"all"`, minimum -396 kg N/ha; 2,075 of
+#' 28,573 cells for `"ara"`, minimum -317 kg N/ha). `negative_critical =
+#' "keep"` follows the source, and it is the setting under which the published
+#' 2010 decomposition (43 Mt N allowable plus 76 Mt N exceedance, 119 Mt N
+#' current surplus) is reproduced. `"clamp"` is a declared departure from the
+#' source: it gives such cells a zero allowance instead of a negative one,
+#' which lowers their overshoot to the actual pressure and keeps the cell
+#' within-boundary mass at or above zero wherever the actual pressure is.
+#'
+#' Under `grassland_split = "image_density"` the treatment applies to each
+#' component's allowance, the unit a component is compared against: a
+#' negative managed allowance (the cell's `"ara"` rate on its cropland plus
+#' its `"igl"` rate on its intensive grassland, which can net against each
+#' other as they do inside the `"all"` rate) becomes zero, and so would a
+#' negative extensive one (IMAGE's 2010 extensive budget, which is never
+#' negative on the deposited archive). The component rates are not clamped
+#' one by one, so with the 2010 classes the managed comparison under
+#' `"clamp"` matches the unsplit `"all"`-scope comparison under `"clamp"`
+#' (to the 1 % within which the `"ara"` and `"igl"` layers combine into
+#' `"all"`).
+#' A binding threshold names the impact that sets a critical surplus, so it
+#' describes the managed allowance only; the extensive allowance is a 2010
+#' level, not a threshold, and its grid rows carry no binding label.
 #' @export
 #' @examples
 #' build_n_boundary_exceedance(example = TRUE)
@@ -183,6 +239,8 @@ build_n_boundary_exceedance <- function(
     critical_ara = NULL,
     critical_igl = NULL
   ),
+  negative_critical = c("keep", "clamp"),
+  binding = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -205,6 +263,7 @@ build_n_boundary_exceedance <- function(
   land_use <- rlang::arg_match(land_use)
   resolution <- rlang::arg_match(resolution)
   grassland_split <- rlang::arg_match(grassland_split)
+  negative_critical <- rlang::arg_match(negative_critical)
   metric <- .nbx_match_metric(metric)
   allocation_scenario <- .nbx_match_scenario(allocation_scenario)
   # The split only has meaning where grassland shares the allowance with
@@ -243,9 +302,18 @@ build_n_boundary_exceedance <- function(
     dplyr::filter(.data$year == .env$actual_year) |>
     .nbx_filter_land_use(land_use, metric) |>
     .nbx_prepare_actual(metric)
-  support <- .nbx_prepare_critical(critical)
+  support <- .nbx_prepare_critical(critical) |>
+    .nbx_treat_negative(negative_critical) |>
+    .nbx_join_binding(binding, land_use)
   if (split) {
-    parts <- .nbx_split_cells(actual, support, grassland, actual_year, metric)
+    parts <- .nbx_split_cells(
+      actual,
+      support,
+      grassland,
+      actual_year,
+      metric,
+      negative_critical
+    )
     actual <- parts$actual
     cells <- parts$cells
   } else {
@@ -260,7 +328,8 @@ build_n_boundary_exceedance <- function(
     actual_year,
     critical_reference_year,
     split
-  )
+  ) |>
+    dplyr::mutate(negative_critical = .env$negative_critical)
   if (resolution == "cell") {
     return(.nbx_cell_cols(cells))
   }
@@ -621,6 +690,101 @@ build_n_boundary_exceedance <- function(
   x
 }
 
+# The deposited critical value is kept as `source_critical_kgn_ha`;
+# `critical_kgn_ha` becomes the value the cell comparison actually uses. Under
+# "keep" the two are identical. Under "clamp" a negative allowance becomes zero:
+# a declared departure from Schulte-Uebbing et al. (2022), who keep negative
+# critical surpluses (see the "Negative critical surplus" roxygen section).
+# pmax() leaves a missing critical value missing, so coverage is unaffected.
+.nbx_treat_negative <- function(support, negative_critical) {
+  dplyr::mutate(
+    support,
+    source_critical_kgn_ha = .data$critical_kgn_ha,
+    critical_kgn_ha = if (.env$negative_critical == "clamp") {
+      pmax(.data$critical_kgn_ha, 0)
+    } else {
+      .data$critical_kgn_ha
+    }
+  )
+}
+
+# Carry the per-cell binding threshold onto the critical support. Absent a
+# binding table both columns are NA -- never a guessed label.
+.nbx_join_binding <- function(support, binding, land_use) {
+  if (is.null(binding)) {
+    return(dplyr::mutate(
+      support,
+      binding_threshold = NA_character_,
+      binding_matches_mi = NA
+    ))
+  }
+  binding <- .nbx_validate_binding(binding, support, land_use)
+  dplyr::left_join(
+    support,
+    dplyr::select(
+      binding,
+      "cell_id",
+      "binding_threshold",
+      "binding_matches_mi"
+    ),
+    by = "cell_id",
+    relationship = "one-to-one"
+  )
+}
+
+.nbx_validate_binding <- function(binding, support, land_use) {
+  .check_columns(
+    binding,
+    c(
+      "cell_id",
+      "binding_threshold",
+      "binding_matches_mi",
+      "critical_mi_kgn_ha",
+      "critical_land_use"
+    ),
+    "binding"
+  )
+  scopes <- unique(binding$critical_land_use[
+    !is.na(binding$critical_land_use)
+  ])
+  if (!identical(scopes, land_use)) {
+    cli::cli_abort(c(
+      "The binding-threshold table does not match {.arg land_use}.",
+      i = "Expected {.val {land_use}}; found {.val {scopes}}."
+    ))
+  }
+  if (anyDuplicated(binding$cell_id) > 0L) {
+    cli::cli_abort("The binding-threshold table has duplicate cell keys.")
+  }
+  .nbx_check_binding_mi(binding, support)
+  binding
+}
+
+# Where the compared surface is the deposited "mi" layer and the binding table
+# carries that same layer, the two must agree cell by cell. Both come from one
+# file, so a difference means the tables are from different land-use scopes or
+# archives.
+.nbx_check_binding_mi <- function(binding, support) {
+  joined <- dplyr::inner_join(
+    dplyr::filter(support, .data$critical_threshold == "mi"),
+    dplyr::select(binding, "cell_id", "critical_mi_kgn_ha"),
+    by = "cell_id"
+  )
+  both <- !is.na(joined$source_critical_kgn_ha) &
+    !is.na(joined$critical_mi_kgn_ha)
+  deposited <- joined$critical_mi_kgn_ha[both]
+  gap <- abs(joined$source_critical_kgn_ha[both] - deposited)
+  bad <- gap > 1e-9 * pmax(1, abs(deposited))
+  if (any(bad)) {
+    cli::cli_abort(c(
+      "The binding-threshold table is not built from this critical layer.",
+      i = "Its {.field critical_mi_kgn_ha} differs from the compared {.val mi}
+           surface in {sum(bad)} cell{?s}."
+    ))
+  }
+  invisible(TRUE)
+}
+
 .nbx_build_cells <- function(actual, support, actual_year, metric, land_use) {
   actual_cell <- dplyr::summarise(
     actual,
@@ -753,6 +917,8 @@ build_n_boundary_exceedance <- function(
     "extensive_area_ha",
     "managed_critical_kgn_ha",
     "extensive_critical_kgn_ha",
+    "source_managed_critical_kgn_ha",
+    "source_extensive_critical_kgn_ha",
     "managed_coverage_state",
     "extensive_coverage_state",
     "excluded_actual_n_t",
@@ -779,6 +945,8 @@ build_n_boundary_exceedance <- function(
     extensive_area_ha = NA_real_,
     managed_critical_kgn_ha = NA_real_,
     extensive_critical_kgn_ha = NA_real_,
+    source_managed_critical_kgn_ha = NA_real_,
+    source_extensive_critical_kgn_ha = NA_real_,
     managed_coverage_state = NA_character_,
     extensive_coverage_state = NA_character_,
     excluded_actual_n_t = NA_real_,
@@ -802,7 +970,14 @@ build_n_boundary_exceedance <- function(
   c(3000L, 3002L, 3003L)
 }
 
-.nbx_split_cells <- function(actual, support, grassland, actual_year, metric) {
+.nbx_split_cells <- function(
+  actual,
+  support,
+  grassland,
+  actual_year,
+  metric,
+  negative_critical = "keep"
+) {
   classes <- .nbx_split_classes(grassland$classes, actual_year)
   budget <- .nbx_split_budget(grassland$extensive_budget, metric)
   layers <- .nbx_split_layers(grassland, support, metric)
@@ -817,7 +992,7 @@ build_n_boundary_exceedance <- function(
       by = "cell_id",
       relationship = "one-to-one"
     ) |>
-    .nbx_split_components() |>
+    .nbx_split_components(negative_critical) |>
     .nbx_split_cell_totals()
   .nbx_report_excluded(cells, actual_year)
   list(actual = actual, cells = cells)
@@ -861,7 +1036,7 @@ build_n_boundary_exceedance <- function(
     ) |>
     dplyr::inner_join(layers, by = "cell_id", relationship = "one-to-one") |>
     dplyr::inner_join(
-      dplyr::select(support, "cell_id", all_rate = "critical_kgn_ha"),
+      dplyr::select(support, "cell_id", all_rate = "source_critical_kgn_ha"),
       by = "cell_id",
       relationship = "one-to-one"
     ) |>
@@ -1311,7 +1486,7 @@ build_n_boundary_exceedance <- function(
 # and no rate makes the component "missing_critical". The rate reported is
 # the area-weighted rate of the two parts; the method is the `igl` transfer's
 # wherever intensive grassland is part of the allowance.
-.nbx_split_managed <- function(x) {
+.nbx_split_managed <- function(x, negative_critical = "keep") {
   x |>
     dplyr::mutate(
       crop_area_ha = dplyr::if_else(
@@ -1347,10 +1522,20 @@ build_n_boundary_exceedance <- function(
           .kg_per_tonne()
       ),
       # A rate is reported only where it multiplies an area.
-      managed_critical_kgn_ha = dplyr::if_else(
+      source_managed_critical_kgn_ha = dplyr::if_else(
         .data$managed_area_ha > 0,
         .data$managed_allowance_n_t * .kg_per_tonne() / .data$managed_area_ha,
         NA_real_
+      ),
+      # The clamp acts on the component allowance, the unit compared, not on
+      # the `ara` and `igl` rates one by one (see .nbx_clamp_allowance()).
+      managed_allowance_n_t = .nbx_clamp_allowance(
+        .data$managed_allowance_n_t,
+        .env$negative_critical
+      ),
+      managed_critical_kgn_ha = .nbx_clamp_allowance(
+        .data$source_managed_critical_kgn_ha,
+        .env$negative_critical
       ),
       method_allowance_managed = dplyr::case_when(
         .data$igl_unrated ~ "none",
@@ -1366,9 +1551,9 @@ build_n_boundary_exceedance <- function(
 # no grassland in either map (the table carries every IMAGE grassland cell and
 # every cell with WHEP grassland), so its managed area is the deposited source
 # area -- cropland only -- and it has no extensive component.
-.nbx_split_components <- function(x) {
+.nbx_split_components <- function(x, negative_critical = "keep") {
   x |>
-    .nbx_split_managed() |>
+    .nbx_split_managed(negative_critical) |>
     dplyr::mutate(
       whep_area = .data$in_classes &
         .data$method_grassland_split == "no_image_grassland",
@@ -1378,10 +1563,14 @@ build_n_boundary_exceedance <- function(
         .default = .data$grass_ha_image *
           (.data$grassland_class == "extensive")
       ),
-      extensive_critical_kgn_ha = dplyr::if_else(
+      source_extensive_critical_kgn_ha = dplyr::if_else(
         .data$in_classes & .data$extensive_area_ha > 0,
         .data$extensive_rate,
         NA_real_
+      ),
+      extensive_critical_kgn_ha = .nbx_clamp_allowance(
+        .data$source_extensive_critical_kgn_ha,
+        .env$negative_critical
       ),
       extensive_method = dplyr::coalesce(.data$extensive_method, "none"),
       method_allowance_extensive = dplyr::case_when(
@@ -1458,6 +1647,19 @@ build_n_boundary_exceedance <- function(
     is.na(actual) ~ "missing_actual",
     .default = "valid"
   )
+}
+
+# `negative_critical = "clamp"` under the grassland split: a component whose
+# allowance is negative is given a zero allowance, as an unsplit cell is by
+# .nbx_treat_negative(). The unit is the component because that is what is
+# compared. Within the managed component the `ara` rate on cropland and the
+# `igl` rate on intensive grassland still net against each other, exactly as
+# they do inside the deposited `all` rate, so with the 2010 classes the
+# managed comparison reproduces the unsplit clamped one. pmax() keeps NA.
+# The extensive allowance (IMAGE's 2010 budget) is clamped the same way; it is
+# not negative on the deposited archive, so there it is a guard, not a change.
+.nbx_clamp_allowance <- function(x, negative_critical) {
+  if (negative_critical == "clamp") pmax(x, 0) else x
 }
 
 .nbx_component_critical <- function(state, rate, area) {
@@ -1823,8 +2025,11 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
     "cell_actual_n_t",
     "absolute_pressure_n_t",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_critical_n_t",
     "cell_actual_kgn_ha",
@@ -1838,6 +2043,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -2021,6 +2227,9 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_actual_kgn_ha",
     "cell_actual_n_t",
@@ -2033,6 +2242,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -2057,7 +2267,13 @@ build_n_boundary_exceedance <- function(
   .nbx_aggregate(crop, key)
 }
 
+# A binding threshold names the impact that sets a critical surplus, so under
+# the grassland split it describes the managed allowance only. The extensive
+# allowance is IMAGE's 2010 level, not a threshold: its rows carry no label.
 .nbx_grid_cols <- function(x) {
+  extensive <- dplyr::coalesce(x$boundary_component == "extensive", FALSE)
+  x$binding_threshold[extensive] <- NA_character_
+  x$binding_matches_mi[extensive] <- NA
   dplyr::select(
     x,
     "cell_id",
@@ -2074,6 +2290,8 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
     "actual_n_t",
     "pressure_share",
     "pressure_condition_ratio",
@@ -2090,6 +2308,7 @@ build_n_boundary_exceedance <- function(
     dplyr::any_of("production_n_t"),
     "cell_actual_kgn_ha",
     "cell_actual_n_t",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_critical_n_t",
     "cell_signed_margin_n_t",
@@ -2103,6 +2322,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -2141,6 +2361,7 @@ build_n_boundary_exceedance <- function(
       "indicator",
       "land_use",
       "allocation_scenario",
+      "negative_critical",
       "method_boundary",
       "critical_source_doi",
       "critical_source_version",
