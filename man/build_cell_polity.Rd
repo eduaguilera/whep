@@ -8,26 +8,37 @@ build_cell_polity(
   polity_fraction_path = NULL,
   area_key = c("grid", "polity_area"),
   version = NULL,
-  example = FALSE
+  example = FALSE,
+  year = NULL,
+  reporting_areas = NULL
 )
 }
 \arguments{
 \item{polity_fraction_path}{Optional path to a local parquet, overriding
-\code{Sys.getenv("WHEP_POLITY_FRACTION_PATH")} and the pin.}
+\code{Sys.getenv("WHEP_POLITY_FRACTION_PATH")} and the pin. Not used with
+\code{year}.}
 
 \item{area_key}{Which area code the output is keyed on: \code{"grid"} (default,
 the table's own reporting-area codes) or \code{"polity_area"} (the
 \link{polity_area_crosswalk} bucket national tables are aggregated on).}
 
 \item{version}{Pin version, passed to \code{\link[=whep_read_file]{whep_read_file()}}. \code{NULL} takes the
-version frozen in \link{whep_inputs}.}
+version frozen in \link{whep_inputs}. With \code{year}, the version of the
+\code{polycell_support} pin, passed to \code{\link[=read_polycell_support]{read_polycell_support()}}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading the pin,
 so the example runs offline.}
+
+\item{year}{\code{NULL} (default) returns the year-invariant crosswalk. One year
+returns the year-aware support described in \emph{Year-aware support}.}
+
+\item{reporting_areas}{Required with \code{year}: the area codes carrying national
+data in \code{year}, in the code space \code{area_key} selects.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{polity_frac} and
-\code{cell_area_ha}.
+\code{cell_area_ha}. With \code{year} it also carries \code{cell_area_frac},
+\code{polity_rule} and \code{method_cell_polity} (\code{"year_aware"}).
 }
 \description{
 Reads the cell-polity fraction table (\code{lon}, \code{lat}, \code{area_code},
@@ -99,6 +110,49 @@ read, and the message names the producer re-run that rebuilds it. The check
 guards the override, which is the only route that can now go stale, but it
 runs on the pin too so that pinning an older \code{version} cannot reintroduce
 the deletion either.
+}
+
+\section{Year-aware support}{
+
+With \code{year} set, the support is not this crosswalk at all: it is the
+polycell support (\code{\link[=read_polycell_support]{read_polycell_support()}}) read at the validity interval
+covering \code{year}, so each cell carries the polity the grid holds that year.
+In 1961 the former-USSR cells carry the USSR (\code{228}), Czechoslovakia's carry
+\code{51} and Yugoslavia's \code{248}; FAOSTAT reports their national totals under
+those codes, which the year-invariant crosswalk has no cell for (whep#1196).
+Each code is resolved from \code{polity_code} through \link{polity_area_crosswalk},
+and, under \code{area_key = "polity_area"}, folded onto its bucket.
+
+Where the polity grid and FAOSTAT's reporting units disagree, a recorded
+mapping (\code{inst/extdata/polity_cell_support_map.csv}) keys the cells, and
+every mapped row is labelled in \code{polity_rule}:
+\itemize{
+\item \code{"aggregate_member"}: an aggregate reported by FAOSTAT whose members the
+grid carries separately takes the union of its members' cells in its
+reporting years (Belgium-Luxembourg \code{15} to 1999, Viet Nam \code{237} to 1974,
+Yemen \code{249} in 1961).
+\item \code{"contained_fold"}: a polity with no FAOSTAT row in the year folds into
+the reporting unit containing it (the Baltic and Azerbaijan SSRs into the
+USSR to 1990, the fifteen USSR successors into it in 1991, North
+Macedonia into \code{248} in 1991).
+\item \code{"constant_territory"}: Yemen \code{249} in 1962-1989, for which the grid
+carries no complete predecessor, is placed on modern Yemen's cells.
+}
+
+Some cells carry an aggregate over its members, or two claimants, so their
+polities' territory adds up to more than the cell. In such an overlapping
+cell, a polity with no area code, none of \code{reporting_areas}, or duplicating
+the container it folds into, is removed from the share denominator. The
+removed polycells are returned in the \code{"deduplicated"} attribute, and the
+overlapping cells where two reporting polities still share are returned in
+the \code{"overlap_kept"} attribute.
+
+\code{polity_frac} is then the polity's share of the cell's measured \strong{land},
+the same basis as the carbon path's \code{cell_area_frac} (which is carried too,
+with the same value), rather than the crosswalk's subcell count. The land of
+a polity with no area code stays in the denominator, so it is never handed
+to a neighbour. \code{cell_area_ha} keeps the latitude formula of the
+year-invariant path.
 }
 
 \examples{
