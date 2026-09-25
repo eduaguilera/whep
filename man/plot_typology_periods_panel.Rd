@@ -33,7 +33,7 @@ A patchwork ggplot object.
 Creates a four-panel figure comparing external N dependency,
 Finn Cycling Index, pollution (soil + livestock surplus per ha), and
 intensification (synthetic + feed imports per ha) across four reference
-periods (1860-1870, 1920-1930, 1960-1970, 2010-2020), analogous to the
+periods (1860-1870, 1925-1935, 1960-1970, 2013-2023), analogous to the
 periods panel from \code{\link[=plot_finn_circularity]{plot_finn_circularity()}}. Each panel facets by
 typology and adds a "Spain (national)" facet computed from the national
 GRAFS dataset (\code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}}), shown as a single black point
@@ -44,8 +44,8 @@ if (
   requireNamespace("ggplot2", quietly = TRUE) &&
     requireNamespace("patchwork", quietly = TRUE)
 ) {
-  # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-  # 2010-2020, so an example needs at least one year inside two of them.
+  # The four reference periods are 1860-1870, 1925-1935, 1960-1970 and
+  # 2013-2023, so an example needs at least one year inside two of them.
   flows <- tibble::tribble(
     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
     1865, "A", "Cropland", "Synthetic", "Cropland", 900,

@@ -41,8 +41,8 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
 #'
 #' @param periods Integer vector of years to mark as dashed reference lines
 #'   on the `evolution` panel. The `periods` and `change` panels always
-#'   compare the four fixed historical eras (1860-1870, 1920-1930,
-#'   1960-1970, 2010-2020) regardless of this argument.
+#'   compare the four fixed historical eras (1860-1870, 1925-1935,
+#'   1960-1970, 2013-2023) regardless of this argument.
 #' @param finn_data Pre-computed tibble from [create_finn_indicator()].
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Passed to [create_finn_indicator()] when
@@ -76,7 +76,7 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
 #'   typologies = typologies
 #' )
 plot_finn_circularity <- function(
-  periods = c(1860, 1920, 1960, 2010),
+  periods = c(1860, 1925, 1960, 2013),
   finn_data = NULL,
   n_prov_destiny = NULL,
   typologies = NULL
@@ -245,6 +245,12 @@ plot_finn_circularity <- function(
   )
 }
 
+# Same reminder as .typology_facet_caption() (typology_panel_plot.R), for
+# plots that encode Typology_base as a color/fill instead of a facet.
+.typology_color_caption <- function() {
+  "Colors show each province-year's dominant typology."
+}
+
 .finn_fci_summary <- function(fci_df) {
   fci_df |>
     dplyr::group_by(year, Typology_base) |>
@@ -291,7 +297,12 @@ plot_finn_circularity <- function(
     ggplot2::scale_color_manual(values = colors) +
     ggplot2::scale_fill_manual(values = colors) +
     ggplot2::scale_x_continuous(breaks = seq(1860, 2020, by = 10)) +
-    ggplot2::labs(x = "Year", color = "Typology", fill = "Typology") +
+    ggplot2::labs(
+      x = "Year",
+      color = "Typology",
+      fill = "Typology",
+      caption = .typology_color_caption()
+    ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
       legend.position = "bottom",
@@ -303,9 +314,9 @@ plot_finn_circularity <- function(
   tibble::tribble(
     ~period_label, ~year_start, ~year_end,
     "1860-1870",   1860L,       1870L,
-    "1920-1930",   1920L,       1930L,
+    "1925-1935",   1925L,       1935L,
     "1960-1970",   1960L,       1970L,
-    "2010-2020",   2010L,       2020L
+    "2013-2023",   2013L,       2023L
   )
 }
 
@@ -327,9 +338,9 @@ plot_finn_circularity <- function(
     dplyr::mutate(
       period_label = dplyr::case_when(
         year >= 1860 & year <= 1870 ~ "1860-1870",
-        year >= 1920 & year <= 1930 ~ "1920-1930",
+        year >= 1925 & year <= 1935 ~ "1925-1935",
         year >= 1960 & year <= 1970 ~ "1960-1970",
-        year >= 2010 & year <= 2020 ~ "2010-2020"
+        year >= 2013 & year <= 2023 ~ "2013-2023"
       )
     ) |>
     dplyr::filter(!is.na(period_label))
@@ -369,7 +380,11 @@ plot_finn_circularity <- function(
       labeller = ggplot2::label_wrap_gen(width = 18)
     ) +
     ggplot2::scale_color_manual(values = colors) +
-    ggplot2::labs(x = NULL, y = "Finn Cycling Index (FCI)") +
+    ggplot2::labs(
+      x = NULL,
+      y = "Finn Cycling Index (FCI)",
+      caption = .typology_facet_caption()
+    ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(
       legend.position = "none",
@@ -406,7 +421,7 @@ plot_finn_circularity <- function(
     )
 
   sort_order <- with_prev |>
-    dplyr::filter(period_label == "2010-2020") |>
+    dplyr::filter(period_label == "2013-2023") |>
     dplyr::arrange(change_pct) |>
     dplyr::pull(Typology_base)
 
@@ -441,7 +456,8 @@ plot_finn_circularity <- function(
     ggplot2::coord_cartesian(clip = "off") +
     ggplot2::labs(
       x = "Change in mean FCI vs. previous period (%)",
-      y = NULL
+      y = NULL,
+      caption = .typology_color_caption()
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(legend.position = "none")

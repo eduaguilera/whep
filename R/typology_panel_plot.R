@@ -87,7 +87,7 @@ plot_typology_indicators_panel <- function(
   area_df <- area_df %||% .panel_area_df()
   typo_df <- typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
-  periods <- c(1860, 1920, 1960, 2010)
+  periods <- c(1860, 1925, 1960, 2013)
 
   p_ext <- .panel_ext_dep(flows, area_df, typo_df, colors, periods)
   p_fci <- .panel_fci(finn_data, typo_df, colors, periods)
@@ -103,7 +103,7 @@ plot_typology_indicators_panel <- function(
 #' @description Creates a four-panel figure comparing external N dependency,
 #'   Finn Cycling Index, pollution (soil + livestock surplus per ha), and
 #'   intensification (synthetic + feed imports per ha) across four reference
-#'   periods (1860-1870, 1920-1930, 1960-1970, 2010-2020), analogous to the
+#'   periods (1860-1870, 1925-1935, 1960-1970, 2013-2023), analogous to the
 #'   periods panel from [plot_finn_circularity()]. Each panel facets by
 #'   typology and adds a "Spain (national)" facet computed from the national
 #'   GRAFS dataset ([create_n_nat_destiny()]), shown as a single black point
@@ -128,8 +128,8 @@ plot_typology_indicators_panel <- function(
 #'   requireNamespace("ggplot2", quietly = TRUE) &&
 #'     requireNamespace("patchwork", quietly = TRUE)
 #' ) {
-#'   # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-#'   # 2010-2020, so an example needs at least one year inside two of them.
+#'   # The four reference periods are 1860-1870, 1925-1935, 1960-1970 and
+#'   # 2013-2023, so an example needs at least one year inside two of them.
 #'   flows <- tibble::tribble(
 #'     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
 #'     1865, "A", "Cropland", "Synthetic", "Cropland", 900,
@@ -468,7 +468,8 @@ plot_typology_periods_panel <- function(
 .wrap_two_by_two <- function(panels) {
   panels |>
     purrr::map(~ .x + ggplot2::theme(legend.position = "bottom")) |>
-    patchwork::wrap_plots(nrow = 2, guides = "collect")
+    patchwork::wrap_plots(nrow = 2, guides = "collect") +
+    patchwork::plot_annotation(caption = .typology_facet_caption())
 }
 
 .panel_periods_cross <- function(p_tl, p_tr, p_bl, p_br) {
@@ -493,7 +494,14 @@ plot_typology_periods_panel <- function(
     design = design,
     widths = c(1, 1, 1, 0.015, 1, 1, 1),
     heights = c(1, 1, 1, 0.015, 1, 1, 1)
-  )
+  ) +
+    patchwork::plot_annotation(caption = .typology_facet_caption())
+}
+
+# Each facet is the province-year's dominant typology, from the
+# .classify_typology_base() decision tree in typologies_spain.R.
+.typology_facet_caption <- function() {
+  "Facets show each province-year's dominant typology."
 }
 
 
