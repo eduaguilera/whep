@@ -487,9 +487,13 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
 # split's columns besides, empty and stamped "none".
 .gs_expect_golden <- function(out, golden, grain = c("cell", "grid", "agg")) {
   grain <- match.arg(grain)
-  testthat::expect_identical(
+  # The goldens were captured on x86-64 Windows; arm64 macOS differs in the
+  # last bit (e.g. 10.5882352941176467 vs ...485), so compare to 1e-12
+  # relative rather than bit for bit. Any real change is orders larger.
+  testthat::expect_equal(
     tibble::as_tibble(out[names(golden)]),
-    golden
+    golden,
+    tolerance = 1e-12
   )
   stamps <- c("method_grassland_split", "grassland_split")
   expected_extra <- switch(
