@@ -235,11 +235,11 @@ test_that("the enumerated baseline can only shrink", {
   # It is what lets the gridded nitrogen balance place the USSR's 1961 total.
   #
   # 83 with both, re-derived by running the audit on the merged tree. The
-  # whep#1300 row is the manure crop layer, `.n_manure_crop_layer()`, which
-  # spreads harvested area onto cells for the gridded nitrogen balance's
-  # manure allocation. It reads the
-  # SAME single-vintage crop-pattern weights as the `.sci_join_weights` row;
-  # the area it spreads is year-keyed and carries `year` through.
+  # row added by whep#1300 is the manure crop layer, `.n_manure_crop_layer()`,
+  # which spreads harvested area onto cells for the gridded nitrogen balance's
+  # manure allocation. It reads the SAME single-vintage crop-pattern weights as
+  # the `.sci_join_weights` row; the area it spreads is year-keyed and carries
+  # `year` through.
   expect_lte(sum(baseline$n), 83L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
