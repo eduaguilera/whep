@@ -68,7 +68,10 @@ is not every territory's own code (\code{"SSD"} would become 206, Sudan
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 
-\item{...}{For \code{build_urban_n()}, arguments passed on to \code{build_human_n()}.}
+\item{...}{For \code{build_urban_n()}, arguments passed on to \code{build_human_n()}.
+\code{population_basis} defaults to \code{"urban"} here if omitted, matching this
+function's historical behaviour, unlike \code{build_human_n()}'s own
+\code{"total"} default.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{human_n_t},

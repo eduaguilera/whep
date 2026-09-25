@@ -169,6 +169,9 @@ build_human_n <- function(
 
 #' @rdname build_human_n
 #' @param ... For `build_urban_n()`, arguments passed on to `build_human_n()`.
+#'   `population_basis` defaults to `"urban"` here if omitted, matching this
+#'   function's historical behaviour, unlike `build_human_n()`'s own
+#'   `"total"` default.
 #' @export
 build_urban_n <- function(...) {
   cli::cli_warn(
@@ -178,11 +181,17 @@ build_urban_n <- function(...) {
            output columns are renamed: {.field urban_n_t} is now
            {.field human_n_t}, and {.field method_urban*} is now
            {.field method_human*}.",
-      i = "The default {.arg population_basis} is now {.val total}."
+      i = "{.fn build_human_n}'s own default {.arg population_basis} is
+           {.val total}; this alias keeps {.val urban}, its historical
+           behaviour, unless you pass {.arg population_basis} explicitly."
     ),
     class = c("whep_build_urban_n_deprecated", "lifecycle_warning_deprecated")
   )
-  build_human_n(...)
+  args <- list(...)
+  if (!"population_basis" %in% names(args)) {
+    args$population_basis <- "urban"
+  }
+  rlang::exec(build_human_n, !!!args)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -322,6 +331,13 @@ build_urban_n <- function(...) {
   if (!rlang::has_name(polity, "polity_frac")) {
     polity <- dplyr::mutate(polity, polity_frac = 1)
   }
+  # `population` is still the split (mass-conserving) headcount consumers of
+  # this table rely on. `urban_pop` and `polity_frac` also travel unmultiplied
+  # alongside it, so .human_n_generated() can apply the rate in main's
+  # original grouping -- urban_pop * rate * polity_frac, not
+  # (urban_pop * polity_frac) * rate -- and reproduce main's floating-point
+  # result bit for bit rather than a mathematically equal but
+  # differently-rounded one.
   (data[["urban_population"]] %||%
     read_hyde_population(years = years, variable = "urban")) |>
     .human_filter_years(years) |>
@@ -331,7 +347,9 @@ build_urban_n <- function(...) {
       .data$lat,
       .data$area_code,
       .data$year,
-      population = .data$urban_pop * .data$polity_frac
+      population = .data$urban_pop * .data$polity_frac,
+      urban_pop = .data$urban_pop,
+      polity_frac = .data$polity_frac
     )
 }
 
@@ -388,14 +406,31 @@ build_urban_n <- function(...) {
 }
 
 # Human N generated per polycell-year: population x the per-capita rate on
-# the same basis.
+# the same basis. The urban basis reproduces main's exact multiplication
+# grouping, urban_pop * rate * polity_frac / 1000 -- the unsplit count times
+# the rate times this row's own polity_frac -- not (population * rate), which
+# would multiply the ALREADY-SPLIT `population` (urban_pop * polity_frac) by
+# the rate: mathematically the same product, but grouped differently, so it
+# rounds to a different last bit. The total basis has no main equivalent to
+# match and never involves polity_frac at all (.human_total_population()
+# takes the polycell total as it is, see its comment), so it keeps the
+# simpler population * rate / 1000.
 .human_n_generated <- function(population, basis) {
   rate <- .human_kgn_cap_series(unique(population$year), basis)
-  population |>
-    dplyr::inner_join(rate, by = "year") |>
-    dplyr::mutate(
-      human_n_generated_t = .data$population * .data$human_kgn_cap / 1000
-    )
+  joined <- dplyr::inner_join(population, rate, by = "year")
+  if (basis == "urban") {
+    return(dplyr::mutate(
+      joined,
+      human_n_generated_t = .data$urban_pop *
+        .data$human_kgn_cap *
+        .data$polity_frac /
+        1000
+    ))
+  }
+  dplyr::mutate(
+    joined,
+    human_n_generated_t = .data$population * .data$human_kgn_cap / 1000
+  )
 }
 
 # The benchmark table on each basis: kg N per URBAN inhabitant (HYDE's urban
@@ -555,7 +590,43 @@ build_urban_n <- function(...) {
   if (rlang::has_name(n_inputs, "fert_type")) {
     n_inputs$fert_type <- .human_legacy_fert_type(n_inputs$fert_type)
   }
-  dplyr::rename(n_inputs, dplyr::any_of(old))
+  n_inputs |>
+    dplyr::rename(dplyr::any_of(old)) |>
+    .human_fill_legacy_stamps()
+}
+
+# main never recorded a population-basis stamp at all -- it had only one
+# basis, so `method_human_population` / `method_human_kgn_cap` (and their
+# former `method_urban_*` spelling) do not exist in a table it built. Add the
+# two columns when the table lacks them entirely, and fill them on every
+# "human" (formerly "urban") row that is still unstamped -- missing column or
+# NA -- with `urban_population` / `kg_n_per_urban_inhabitant`, the only basis
+# main ever produced. A row that already carries a stamp (a table built after
+# this branch) is left untouched.
+.human_fill_legacy_stamps <- function(n_inputs) {
+  if (!rlang::has_name(n_inputs, "fert_type")) {
+    return(n_inputs)
+  }
+  if (!rlang::has_name(n_inputs, "method_human_population")) {
+    n_inputs$method_human_population <- NA_character_
+  }
+  if (!rlang::has_name(n_inputs, "method_human_kgn_cap")) {
+    n_inputs$method_human_kgn_cap <- NA_character_
+  }
+  human <- !is.na(n_inputs$fert_type) & n_inputs$fert_type == "human"
+  dplyr::mutate(
+    n_inputs,
+    method_human_population = dplyr::if_else(
+      human & is.na(.data$method_human_population),
+      "urban_population",
+      .data$method_human_population
+    ),
+    method_human_kgn_cap = dplyr::if_else(
+      human & is.na(.data$method_human_kgn_cap),
+      "kg_n_per_urban_inhabitant",
+      .data$method_human_kgn_cap
+    )
+  )
 }
 
 # The driver tables build_nitrogen_balance() joins on the Title-case

@@ -124,6 +124,44 @@ testthat::test_that("build_human_n splits a border cell by polity_frac", {
   )
 })
 
+testthat::test_that("the urban basis is bit-identical to main (5421973b)", {
+  # Main computed urban_n_generated_t as
+  # urban_pop * urban_kgn_cap * polity_frac / 1000, in that exact grouping
+  # (R/n_urban.R:197-200 at 5421973b). Floating-point multiplication is not
+  # associative, so (urban_pop * polity_frac) * kgn_cap / 1000 -- an
+  # intermediate shape this rename briefly took -- differs from main by
+  # about 5e-16 relative on this fixture even though it is mathematically
+  # the same product. These two values were captured by running
+  # build_urban_n() on this exact fixture at 5421973b.
+  urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    -0.25, -0.25, 2000L, 1000
+  )
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    -0.25, -0.25, 203L, 0.7,
+    -0.25, -0.25, 68L, 0.3
+  )
+  cropland_ha <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
+    -0.25, -0.25, 203L, 2000L, 1000,
+    -0.25, -0.25, 68L, 2000L, 1000
+  )
+  out <- whep::build_human_n(
+    population_basis = "urban",
+    data = list(
+      urban_population = urban_population,
+      cell_polity = cell_polity,
+      cropland_ha = cropland_ha
+    )
+  )
+  main_n_t <- c(`68` = 0.28232707054173733496, `203` = 0.6587631645973870409)
+  testthat::expect_identical(
+    out$human_n_t[match(c(68L, 203L), out$area_code)],
+    unname(main_n_t)
+  )
+})
+
 testthat::test_that("build_human_n filters preloaded inputs by years", {
   urban_population <- tibble::tribble(
     ~lon, ~lat, ~year, ~urban_pop,
@@ -1011,13 +1049,15 @@ testthat::test_that("the example fixture carries the basis it was asked for", {
 # ---- the former "urban" names, kept for one release --------------------------
 
 testthat::test_that("build_urban_n() forwards to build_human_n() and warns", {
+  # With no population_basis, build_urban_n() defaults to "urban" (its
+  # historical basis), not build_human_n()'s own "total" default -- so old
+  # calls keep old behaviour. A data list carrying only total_population
+  # would abort under that default (whep_human_n_population_basis_mismatch),
+  # which is itself evidence the default really changed.
   data <- list(
-    total_population = tibble::tibble(
-      lon = -3.75,
-      lat = 40.25,
-      area_code = 203L,
-      year = 2016L,
-      population = 1e6
+    urban_population = tibble::tribble(
+      ~lon, ~lat, ~year, ~urban_pop,
+      -3.75, 40.25, 2016L, 1e6
     ),
     cell_polity = .human_basis_polity(),
     cropland_ha = .human_basis_cropland(2016L)
@@ -1027,7 +1067,10 @@ testthat::test_that("build_urban_n() forwards to build_human_n() and warns", {
     class = "whep_build_urban_n_deprecated"
   )
   testthat::expect_s3_class(cnd, "lifecycle_warning_deprecated")
-  testthat::expect_identical(old, whep::build_human_n(data = data))
+  testthat::expect_identical(
+    old,
+    whep::build_human_n(population_basis = "urban", data = data)
+  )
 })
 
 testthat::test_that("an area_code refusal still carries its former class", {
@@ -1081,5 +1124,43 @@ testthat::test_that("an n_inputs table from before the rename is upgraded", {
       dplyr::mutate(new, method_urban_population = "urban_population")
     ),
     "former name"
+  )
+})
+
+testthat::test_that("a main-built n_inputs table gets the stamp columns it never had", {
+  # main (5421973b) never recorded a population-basis stamp at all -- it had
+  # only one basis -- so its n_inputs table carries no method_urban_* /
+  # method_human_* columns whatsoever, unlike the fixture above (which
+  # already has method_urban_population/method_urban_kgn_cap columns, just
+  # under the old name). Both must end up stamped urban_population /
+  # kg_n_per_urban_inhabitant, the only basis main ever produced.
+  old <- tibble::tibble(
+    fert_type = c("urban", "bnf"),
+    n_input_t = c(1, 2)
+  )
+  testthat::expect_warning(
+    new <- whep:::.human_upgrade_legacy_inputs(old),
+    class = "whep_urban_fert_type_deprecated"
+  )
+  testthat::expect_identical(new$fert_type, c("human", "bnf"))
+  testthat::expect_identical(
+    new$method_human_population,
+    c("urban_population", NA_character_)
+  )
+  testthat::expect_identical(
+    new$method_human_kgn_cap,
+    c("kg_n_per_urban_inhabitant", NA_character_)
+  )
+  # A table that already carries a stamp (built after this branch) is left
+  # untouched, whatever basis it names.
+  stamped <- tibble::tibble(
+    fert_type = "human",
+    n_input_t = 1,
+    method_human_population = "total_population",
+    method_human_kgn_cap = "kg_n_per_total_inhabitant"
+  )
+  testthat::expect_identical(
+    whep:::.human_upgrade_legacy_inputs(stamped),
+    stamped
   )
 })
