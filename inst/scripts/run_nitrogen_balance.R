@@ -35,6 +35,12 @@
 #                           what to do with synthetic N of polities that have
 #                           no cropland cell (default `drop`; see
 #                           .nbd_drop_unsupported_fertilizer() below).
+#   WHEP_NBD_MANURE_METHOD=livestock_intake|faostat
+#                           source of the three manure terms (default
+#                           `livestock_intake`, the manure engine). `faostat`
+#                           is the opt-in cross-check of build_n_inputs()'s
+#                           `manure_method`; only then are the `manure` and
+#                           `livestock_spatial` stages built (whep#1197).
 #
 # Requires the local surfaces (CLAUDE.md, "New data sources"):
 #   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
@@ -54,6 +60,11 @@ unsupported_fertilizer <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_UNSUPPORTED_FERTILIZER", "drop"),
   c("drop", "abort"),
   arg_nm = "WHEP_NBD_UNSUPPORTED_FERTILIZER"
+)
+manure_method <- rlang::arg_match0(
+  Sys.getenv("WHEP_NBD_MANURE_METHOD", "livestock_intake"),
+  whep:::.ni_manure_methods(),
+  arg_nm = "WHEP_NBD_MANURE_METHOD"
 )
 
 # ---- staging ----------------------------------------------------------------
@@ -295,6 +306,49 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
   out
 }
 
+# The same rule for the FAOSTAT applied manure of the opt-in manure source
+# (WHEP_NBD_MANURE_METHOD=faostat): polities with no crop share or no cropland
+# cell cannot take it, spatialize_country_n_to_crops() would abort, and the
+# removal is recorded as an `unsupported_manure` row of `report` under the
+# same WHEP_NBD_UNSUPPORTED_FERTILIZER action. See .n_drop_uncelled_manure()
+# for the measured shares (2010: 0.52%; 1990: 25.2%, mostly the USSR).
+.nbd_drop_unsupported_manure <- function(
+  manure,
+  primary_prod,
+  cropland_ha,
+  action = "drop"
+) {
+  if (is.null(manure) || is.null(primary_prod) || is.null(cropland_ha)) {
+    return(manure)
+  }
+  supported <- whep:::.n_crop_area_shares(primary_prod) |>
+    dplyr::distinct(.data$year, .data$area_code) |>
+    dplyr::semi_join(
+      dplyr::distinct(cropland_ha, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    )
+  out <- whep:::.n_drop_uncelled_manure(manure, supported, action)
+  removed <- out$removed
+  .nbd_record(
+    "unsupported_manure",
+    if (nrow(removed) > 0L) "drop" else "ok",
+    0,
+    nrow(removed),
+    if (nrow(removed) > 0L) {
+      paste0(
+        signif(sum(removed$manure_applied_n_t), 4),
+        " t applied manure N removed (",
+        signif(100 * sum(removed$share_of_global), 3),
+        "% of global); area codes ",
+        paste(removed$area_code, collapse = ", ")
+      )
+    } else {
+      NA_character_
+    }
+  )
+  out$manure
+}
+
 # The loss cascade's method set, and the one driver column it still needs.
 #
 # build_nitrogen_balance()'s defaults are MANNER ammonia and the Meisinger
@@ -501,6 +555,30 @@ livestock_intake <- nbd_stage(
   heavy = TRUE
 )
 
+# The FAOSTAT manure source's own inputs, built only when it is selected: under
+# the default they are neither built nor able to block the balance, and when it
+# is selected a failure in either is a blocker like any other used input.
+manure_stages <- whep:::.ni_manure_stages(manure_method)
+manure_inputs <- list()
+if ("manure" %in% manure_stages) {
+  manure_inputs$manure <- nbd_stage(
+    "manure",
+    whep_read_file("faostat-emissions-livestock") |>
+      dplyr::filter(as.integer(.data$Year) == year)
+  ) |>
+    .nbd_drop_unsupported_manure(
+      primary_prod,
+      cropland_ha,
+      action = unsupported_fertilizer
+    )
+}
+if ("livestock_spatial" %in% manure_stages) {
+  manure_inputs$livestock_spatial <- nbd_stage(
+    "livestock_spatial",
+    whep:::.ni_read_livestock_spatial(year)
+  )
+}
+
 # ---- 5. coverage and blockers -------------------------------------------------
 
 cli::cli_h2("5. Coverage")
@@ -537,6 +615,11 @@ report <- dplyr::bind_rows(.nbd_log$rows)
 # needs that same chain (#1120). Report them as gaps and keep going, so the
 # terms that ARE available still get measured; a genuine blocker still stops.
 NBD_TOLERATED <- c("carbon_balance", "livestock_intake")
+# Under the FAOSTAT manure source the intake is what splits applied manure into
+# solid and liquid, so there it is a used input, and its failure blocks.
+if (manure_method == "faostat") {
+  NBD_TOLERATED <- setdiff(NBD_TOLERATED, "livestock_intake")
+}
 gaps <- dplyr::filter(
   report,
   .data$status != "ok",
@@ -578,11 +661,12 @@ if (nrow(blockers) > 0L) {
     cropland_ha = cropland_ha,
     primary_prod = primary_prod,
     fertilizer = fertilizer,
-    # No `manure` or `primary_residues` here: those names belong to
-    # build_crop_soil_n2o_extension()'s `data` contract, not this one. The
-    # balance's manure term comes from `livestock_intake` and its residue
-    # recycling from `npp_n_input` (.ni_stream_inputs()), so building them
-    # changed no number and only let their failure block the run (#1197).
+    # No `primary_residues` here: the residue recycling comes from
+    # `npp_n_input` (.ni_stream_inputs()). `manure` enters only through
+    # `manure_inputs` below, when WHEP_NBD_MANURE_METHOD selects the FAOSTAT
+    # source; by default the manure terms come from `livestock_intake`
+    # (#1197).
+    manure_method = manure_method,
     npp_n_input = npp,
     bnf_input = .nbd_bnf_input(npp),
     residue_destiny_input = npp,
@@ -618,7 +702,8 @@ if (nrow(blockers) > 0L) {
     urban_population = urban_population,
     nhx = nhx,
     noy = noy
-  )
+  ) |>
+    c(manure_inputs)
 
   # Built here rather than inside build_nitrogen_balance() because the climate
   # driver table has to be keyed on the rows the inputs actually produced.
