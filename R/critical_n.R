@@ -389,7 +389,18 @@ read_critical_n <- function(
 .critical_n_attach_support <- function(grid, dir, land_use) {
   root <- .critn_root_path(dir)
   area <- .critical_n_source_area(root, land_use)
-  image <- .read_esri_asc(file.path(
+  image <- .critn_image_region(root)
+  keyed <- .nbx_add_cell_key(grid, "deposited critical-N raster")
+  keyed |>
+    dplyr::left_join(area, by = "cell_id", relationship = "many-to-one") |>
+    dplyr::left_join(image, by = "cell_id", relationship = "many-to-one") |>
+    dplyr::mutate(image_region = as.integer(.data$image_region))
+}
+
+# The IMAGE region of each archive cell (`Input_files/image_region28.asc`),
+# keyed on the canonical cell id: `cell_id`, `image_region` (double, as read).
+.critn_image_region <- function(root) {
+  .read_esri_asc(file.path(
     root,
     "Input_files",
     "image_region28.asc"
@@ -397,11 +408,6 @@ read_critical_n <- function(
     dplyr::rename(image_region = value) |>
     .nbx_add_cell_key("deposited IMAGE-region raster") |>
     dplyr::select("cell_id", "image_region")
-  keyed <- .nbx_add_cell_key(grid, "deposited critical-N raster")
-  keyed |>
-    dplyr::left_join(area, by = "cell_id", relationship = "many-to-one") |>
-    dplyr::left_join(image, by = "cell_id", relationship = "many-to-one") |>
-    dplyr::mutate(image_region = as.integer(.data$image_region))
 }
 
 .critical_n_source_area <- function(root, land_use) {
@@ -568,4 +574,314 @@ read_critical_n <- function(
       archive_md5 = .critn_archive_md5()
     ) |>
     tibble::as_tibble()
+}
+
+# ---- IMAGE 2010 extensive-grassland N budget ---------------------------
+
+# Total agricultural NH3 emission per cell, Schulte-Uebbing, L. F., Beusen,
+# A. H. W., Bouwman, A. F. & de Vries, W. (2022), Nature,
+# doi:10.1038/s41586-022-05158-2, Supplementary Information, Supplementary
+# Table 4 row 5:
+#   NH3,tot = NH3,fer_ara + NH3,fer_igl + NH3,spr_ara + NH3,spr_igl +
+#             NH3,spr_egl + NH3,graz_igl + NH3,graz_egl + NH3,stor
+# The archive (Zenodo doi:10.5281/zenodo.6395016 v1.0, `Input_files/`) ships
+# whole-cell NH3 layers and their per-land-use parts. Measured over all 66,222
+# cells with data (2026-09-24), kg N per cell per year:
+# - nh3_graz == nh3_graz_int + nh3_graz_ext: max cell difference 0 kg,
+#   6.8801 Tg both ways;
+# - nh3_spread_fe == _crops + _grass_int + _grass_ext: max cell difference
+#   1.2e-10 kg, 13.6298 Tg both ways; nh3_spread_fe_grass_ext is zero in
+#   every cell, consistent with row 5 having no NH3,fer_egl term;
+# - nh3_spread_man == _crops + _grass_int + _grass_ext: max cell difference
+#   2.9e-11 kg, 6.7914 Tg both ways.
+# The whole-cell sum below therefore equals the row-5 sum of parts to within
+# 3.7e-9 kg per cell (37.7443 Tg globally, of which nh3_stor 10.4430 Tg), and
+# the whole-cell layers are used. A missing layer value stays NA.
+.critical_n_nh3_tot <- function(graz, spread_fe, spread_man, stor) {
+  graz + spread_fe + spread_man + stor
+}
+
+# Read one grassland-intensity archive raster and key it to the canonical
+# WHEP grid, keeping only cell_id and the renamed value column.
+.critn_grassland_layer <- function(root, file, value_col) {
+  .read_esri_asc(file.path(root, "Input_files", paste0(file, ".asc"))) |>
+    .nbx_add_cell_key(paste0("deposited ", file, " raster")) |>
+    dplyr::transmute(cell_id = .data$cell_id, !!value_col := .data$value)
+}
+
+# The grassland-layers base: total cell area, keyed, with lon/lat retained
+# for the final output.
+.critn_grassland_base <- function(root) {
+  .read_esri_asc(file.path(root, "Input_files", "a_tot.asc")) |>
+    .nbx_add_cell_key("deposited a_tot raster") |>
+    dplyr::transmute(
+      cell_id = .data$cell_id,
+      lon = .data$lon,
+      lat = .data$lat,
+      a_tot_ha = .data$value
+    )
+}
+
+# The 12 non-base archive rasters this reader joins onto the base layer,
+# and the output column each maps to.
+.critn_grassland_specs <- function() {
+  list(
+    list(file = "a_crop", col = "a_crop_ha"),
+    list(file = "a_gr_int", col = "a_gr_int_ha"),
+    list(file = "a_gr_ext", col = "a_gr_ext_ha"),
+    list(file = "n_man_eff_grass_int", col = "manure_int_n_kg"),
+    list(file = "n_man_eff_grass_ext", col = "manure_ext_n_kg"),
+    list(file = "nfix_grass_ext", col = "fix_ext_n_kg"),
+    list(file = "n_up_grass_ext", col = "uptake_ext_n_kg"),
+    list(file = "ndep", col = "ndep_n_kg"),
+    list(file = "nh3_graz", col = "nh3_graz_n_kg"),
+    list(file = "nh3_spread_fe", col = "nh3_spread_fe_n_kg"),
+    list(file = "nh3_spread_man", col = "nh3_spread_man_n_kg"),
+    list(file = "nh3_stor", col = "nh3_stor_n_kg")
+  )
+}
+
+# Abort if any cell carries both intensive and extensive IMAGE 2010
+# grassland: the two are mutually exclusive land-use classes.
+.critn_grassland_check_mixed <- function(layers) {
+  mixed <- layers$a_gr_int_ha > 0 & layers$a_gr_ext_ha > 0
+  n_mixed <- sum(mixed)
+  if (n_mixed > 0) {
+    cli::cli_abort(
+      "{n_mixed} cell{?s} ha{?s/ve} both intensive and extensive
+       IMAGE 2010 grassland.",
+      class = "whep_critn_mixed_grassland"
+    )
+  }
+  invisible(layers)
+}
+
+# Assemble the 13 archive input layers needed to classify and budget
+# grassland by intensity: cell areas, manure/fixation/uptake/deposition/NH3
+# flows, and the derived IMAGE 2010 intensive/extensive class. One row per
+# cell present in the a_tot layer (.read_esri_asc() already drops NODATA
+# cells, so no extra filtering is needed for "a_tot non-missing").
+.critical_n_grassland_layers <- function(root) {
+  layers <- purrr::reduce(
+    .critn_grassland_specs(),
+    \(acc, spec) {
+      dplyr::left_join(
+        acc,
+        .critn_grassland_layer(root, spec$file, spec$col),
+        by = "cell_id",
+        relationship = "one-to-one"
+      )
+    },
+    .init = .critn_grassland_base(root)
+  ) |>
+    dplyr::mutate(
+      # Areas: an unreached class in a cell means none of that class is
+      # present -- a structural zero, not an absent measurement. Flow
+      # columns are left untouched and stay NA when the source had none.
+      a_crop_ha = dplyr::coalesce(.data$a_crop_ha, 0),
+      a_gr_int_ha = dplyr::coalesce(.data$a_gr_int_ha, 0),
+      a_gr_ext_ha = dplyr::coalesce(.data$a_gr_ext_ha, 0),
+      nh3_tot_n_kg = .critical_n_nh3_tot(
+        .data$nh3_graz_n_kg,
+        .data$nh3_spread_fe_n_kg,
+        .data$nh3_spread_man_n_kg,
+        .data$nh3_stor_n_kg
+      )
+    )
+  .critn_grassland_check_mixed(layers)
+  layers |>
+    dplyr::mutate(
+      image_class_2010 = dplyr::case_when(
+        .data$a_gr_int_ha > 0 ~ "intensive",
+        .data$a_gr_ext_ha > 0 ~ "extensive",
+        .default = NA_character_
+      )
+    ) |>
+    dplyr::select(
+      "cell_id",
+      "lon",
+      "lat",
+      "a_tot_ha",
+      "a_crop_ha",
+      "a_gr_int_ha",
+      "a_gr_ext_ha",
+      "manure_int_n_kg",
+      "manure_ext_n_kg",
+      "fix_ext_n_kg",
+      "uptake_ext_n_kg",
+      "ndep_n_kg",
+      "nh3_tot_n_kg",
+      "image_class_2010"
+    ) |>
+    tibble::as_tibble()
+}
+
+# IMAGE 2010 N input and surplus on extensively managed grassland per cell:
+# the budget Schulte-Uebbing et al. (2022) hold constant inside each cell's
+# critical load. Nature, Supplementary Information, Supplementary Table 4:
+#   row 6   Ndep,corr = MAX(Ndep, NH3,tot)            (NH3,tot: row 5 above)
+#   row 3   f_egl     = a_egl / a_tot
+#   row 17  Ndep_egl  = Ndep,corr * f_egl
+#   row 21  Nin_egl   = Nman_egl + Nfix_egl + Ndep_egl
+# (no synthetic fertiliser on extensive grassland: Supplementary Table 3 lists
+# Nfer for ara and igl only), and SI Eq. 6, surplus = input - uptake. Archive:
+# Zenodo doi:10.5281/zenodo.6395016 v1.0 (`.critn_source_doi()`).
+#
+# `layers` holds one row per cell: `cell_id`, areas `a_tot_ha`, `a_gr_ext_ha`
+# (ha per cell) and flows `manure_ext_n_kg`, `fix_ext_n_kg`,
+# `uptake_ext_n_kg`, `ndep_n_kg`, `nh3_tot_n_kg` (kg N per cell per year).
+# Rates are per ha of extensive grassland and NA where there is none. A
+# missing flow on a cell with extensive grassland aborts: it is a reader
+# defect, never a zero.
+#
+# Measured on the archive (whole-cell NH3,tot): the max() takes the NH3,tot
+# branch in 1,431 of the 27,360 cells with extensive grassland (Ndep 1.0011 Tg
+# -> 1.7552 Tg there; whole-cell deposition on those 27,360 cells 38.8827 Tg
+# -> 39.6367 Tg) and in 5,513 of all 66,222 cells (81.8754 Tg -> 89.7992 Tg).
+# Resulting global extensive budget: input 47.28 Tg (manure 24.39, fixation
+# 11.71, deposition 11.19), uptake 32.95 Tg, surplus 14.33 Tg on 2,342 Mha.
+.critical_n_extensive_budget <- function(layers) {
+  .check_columns(layers, .critn_budget_columns(), "layers")
+  .critn_budget_validate(layers)
+  layers |>
+    dplyr::mutate(
+      has_ext = !is.na(.data$a_gr_ext_ha) & .data$a_gr_ext_ha > 0,
+      dep_corr = pmax(.data$ndep_n_kg, .data$nh3_tot_n_kg),
+      dep_ext = dplyr::if_else(
+        .data$a_gr_ext_ha == 0,
+        0,
+        .data$dep_corr * .data$a_gr_ext_ha / .data$a_tot_ha
+      ),
+      ext_input_n_kg = .data$manure_ext_n_kg +
+        .data$fix_ext_n_kg +
+        .data$dep_ext,
+      ext_surplus_n_kg = .data$ext_input_n_kg - .data$uptake_ext_n_kg,
+      ext_input_kgn_ha = dplyr::if_else(
+        .data$has_ext,
+        .data$ext_input_n_kg / .data$a_gr_ext_ha,
+        NA_real_
+      ),
+      ext_surplus_kgn_ha = dplyr::if_else(
+        .data$has_ext,
+        .data$ext_surplus_n_kg / .data$a_gr_ext_ha,
+        NA_real_
+      )
+    ) |>
+    dplyr::select(
+      "cell_id",
+      "ext_input_n_kg",
+      "ext_surplus_n_kg",
+      "ext_input_kgn_ha",
+      "ext_surplus_kgn_ha"
+    ) |>
+    tibble::as_tibble()
+}
+
+.critn_budget_columns <- function() {
+  c(
+    "cell_id",
+    "a_tot_ha",
+    "a_gr_ext_ha",
+    .critn_budget_flows()
+  )
+}
+
+.critn_budget_flows <- function() {
+  c(
+    "manure_ext_n_kg",
+    "fix_ext_n_kg",
+    "uptake_ext_n_kg",
+    "ndep_n_kg",
+    "nh3_tot_n_kg"
+  )
+}
+
+.critn_budget_validate <- function(layers) {
+  has_ext <- !is.na(layers$a_gr_ext_ha) & layers$a_gr_ext_ha > 0
+  .critn_budget_check_area(layers, has_ext)
+  .critn_budget_check_flows(layers, has_ext)
+  .critn_budget_check_orphans(layers)
+  # An all-zero uptake layer passes the NA checks above yet makes every
+  # extensive surplus equal its input: guard that the layer was supplied.
+  check_inputs_supplied(
+    layers[has_ext, , drop = FALSE],
+    c(uptake = "uptake_ext_n_kg", manure = "manure_ext_n_kg")
+  )
+  invisible(layers)
+}
+
+# f_egl must be a share of the cell: a missing or smaller total area would
+# turn the deposition share into NA, Inf or more than the cell receives.
+.critn_budget_check_area <- function(layers, has_ext) {
+  bad <- has_ext &
+    (is.na(layers$a_tot_ha) | layers$a_tot_ha < layers$a_gr_ext_ha)
+  n_bad <- sum(bad)
+  if (n_bad > 0) {
+    cli::cli_abort(
+      c(
+        "Extensive grassland exceeds the cell area in {n_bad} cell{?s}.",
+        x = "{.field a_tot_ha} is missing or below {.field a_gr_ext_ha}.",
+        i = "Cell{?s}: {.val {utils::head(layers$cell_id[bad], 5)}}."
+      ),
+      class = "whep_critn_budget_bad_area"
+    )
+  }
+  invisible(TRUE)
+}
+
+.critn_budget_check_flows <- function(layers, has_ext) {
+  core <- c("manure_ext_n_kg", "fix_ext_n_kg", "uptake_ext_n_kg")
+  empty <- has_ext & rowSums(!is.na(as.matrix(layers[core]))) == 0
+  n_empty <- sum(empty)
+  if (n_empty > 0) {
+    cli::cli_abort(
+      c(
+        "{n_empty} cell{?s} with extensive grassland ha{?s/ve} no manure,
+         fixation or uptake value.",
+        i = "An absent IMAGE layer is a reader defect, not a zero."
+      ),
+      class = "whep_critn_budget_missing_flow"
+    )
+  }
+  flows <- .critn_budget_flows()
+  n_na <- vapply(
+    flows,
+    \(col) sum(has_ext & is.na(layers[[col]])),
+    integer(1)
+  )
+  if (any(n_na > 0)) {
+    detail <- paste0(flows[n_na > 0], ": ", n_na[n_na > 0], " cell(s)")
+    cli::cli_abort(
+      c(
+        "Missing N flow on cells with extensive grassland.",
+        rlang::set_names(detail, rep("x", length(detail))),
+        i = "An absent flow is a reader defect, not a zero."
+      ),
+      class = "whep_critn_budget_missing_flow"
+    )
+  }
+  invisible(TRUE)
+}
+
+# A flow booked on a cell with no extensive grassland has no area to carry
+# its rate, so it would vanish from any rate-times-area product downstream.
+# The archive has none (0 cells for manure, fixation and uptake).
+.critn_budget_check_orphans <- function(layers) {
+  no_ext <- !is.na(layers$a_gr_ext_ha) & layers$a_gr_ext_ha == 0
+  core <- as.matrix(
+    layers[c("manure_ext_n_kg", "fix_ext_n_kg", "uptake_ext_n_kg")]
+  )
+  orphan <- no_ext & rowSums(!is.na(core) & core != 0) > 0
+  n_orphan <- sum(orphan)
+  if (n_orphan > 0) {
+    cli::cli_abort(
+      c(
+        "{n_orphan} cell{?s} without extensive grassland carr{?ies/y}
+         extensive manure, fixation or uptake N.",
+        i = "Cell{?s}: {.val {utils::head(layers$cell_id[orphan], 5)}}."
+      ),
+      class = "whep_critn_budget_flow_without_area"
+    )
+  }
+  invisible(TRUE)
 }
