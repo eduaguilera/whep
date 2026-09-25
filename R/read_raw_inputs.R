@@ -629,7 +629,13 @@
   dt
 }
 
-.extract_fao <- function(pin_alias, years = NULL) {
+# `elements` narrows the result to those balance elements, filtered before
+# the per-row fixes and the polity aggregation. Every step after the filter is
+# row-wise or keyed by element, so the rows kept are the rows a full
+# extraction returns for those elements -- at a fraction of the cost. Used by
+# the yield chain, which only needs `production` over the whole span
+# (whep#834).
+.extract_fao <- function(pin_alias, years = NULL, elements = NULL) {
   cb_elements <- c(
     "production",
     "import",
@@ -680,6 +686,9 @@
   # Before anything normalises the label into an ordinary-looking string.
   .assert_unit_labels(dt$unit, pin_alias)
   dt <- .harmonize_element_names(dt)
+  if (!is.null(elements)) {
+    dt <- dt[element %in% elements]
+  }
   dt <- .normalise_units(dt)
   # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and
   # products" row is the new Food Balances item and is on a paddy basis.
@@ -725,8 +734,8 @@
   out
 }
 
-.extract_cb <- function(pin_alias, years = NULL) {
-  dt <- .extract_fao(pin_alias, years = years)
+.extract_cb <- function(pin_alias, years = NULL, elements = NULL) {
+  dt <- .extract_fao(pin_alias, years = years, elements = elements)
   items <- .items_cbs_bridge()
   # Keyed on the code alone, and the label replaced by the `items_full` one.
   # The new Food Balances write "Cereals, other", "Vegetables, other" and
