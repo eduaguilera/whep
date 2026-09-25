@@ -121,7 +121,8 @@ therefore outside the agricultural balance. Grassland is represented by CBS
 <span>  unattributed_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  manure_method <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -223,7 +224,17 @@ argument (the <code><a href="redistribute_feed.html">redistribute_feed()</a></co
 <code>$applied</code> table of <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>'s output,
 keyed by its <code>territory</code>, <code>sub_territory</code>, <code>crop</code>, <code>land_use</code>,
 <code>manure_type</code> and <code>year</code>; <code>manure_type</code> selects the <code>"excreta"</code>,
-<code>"manure_solid"</code> or <code>"manure_liquid"</code> term.</p></li>
+<code>"manure_solid"</code> or <code>"manure_liquid"</code> term. Under
+<code>manure_method = "faostat"</code> it supplies only the solid:liquid split.</p></li>
+<li><p><code>manure</code>, <code>livestock_spatial</code>: the <code>manure_method = "faostat"</code>
+inputs, read only under that method. <code>manure</code> is the
+<code>faostat-emissions-livestock</code> pin, scoped by the caller to the years
+wanted, as <code>fertilizer</code> is. <code>livestock_spatial</code> is a list of the
+surfaces <code><a href="build_gridded_livestock.html">build_gridded_livestock()</a></code> spreads pasture manure over:
+<code>gridded_pasture</code>, <code>gridded_cropland</code> and <code>manure_pattern</code> (the
+<code>spatialize-*</code> pins its production callers read), plus an optional
+<code>species_proxy</code> overriding the mapping's proxies; needed only when
+<code>cell_polity</code> is supplied.</p></li>
 <li><p><code>nhx</code>, <code>noy</code>, <code>cell_polity</code>: <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s inputs. From
 its output the <code>"deposition"</code> term reads <code>deposition_kgn_ha</code> (the
 whole-cell rate), <code>deposition_n_t</code> and <code>area_category</code> (only to form
@@ -293,18 +304,42 @@ to <code>"national"</code> otherwise. A value supplied here is always honoured.<
 <dd><p>If <code>TRUE</code>, return a small fixture instead of assembling
 real data. Defaults to <code>FALSE</code>.</p></dd>
 
+
+<dt id="arg-manure-method">manure_method<a class="anchor" aria-label="anchor" href="#arg-manure-method"></a></dt>
+<dd><p>Where the three manure terms come from.
+<code>"livestock_intake"</code> (default) is WHEP's manure engine,
+<code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code> over the realised feed intake.
+<code>"faostat"</code> reads them instead from the FAOSTAT livestock-emissions
+domain (<code>data$manure</code>, the <code>faostat-emissions-livestock</code> pin, source
+<code>"FAO TIER 1"</code>, kg N): <code>"manure_solid"</code> and <code>"manure_liquid"</code> from
+"Manure applied to soils (N content)" for "All Animals", split with the
+engine's own solid share per country-year and spread to crops by
+harvested-area share and to cells by <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code>;
+<code>"excreta"</code> from the per-species "Manure left on pasture (N content)",
+mapped to species groups by <code>inst/extdata/livestock_mapping.csv</code> and
+spread to cells by <code><a href="build_gridded_livestock.html">build_gridded_livestock()</a></code> with that mapping's
+spatial proxies. These are national statistics spread onto cells, a
+cross-check on the engine rather than the default. A country-year the
+engine gives no solid:liquid split for is booked wholly as solid,
+with a warning. Recorded in <code>method_manure</code>. When <code>NULL</code> (default),
+uses <code>data$manure_method %||% "livestock_intake"</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. At <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>n_input_t</code>,
 <code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition</code>,
-<code>method_deposition_scope</code>, <code>method_unsupported</code>,
+<code>method_deposition_scope</code>, <code>method_unsupported</code>, <code>method_manure</code>,
 <code>method_unattributed</code>. At
 <code>resolution = "polity"</code>: <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
 <code>fert_type</code>, <code>method_recycling_n</code>, <code>method_synthetic</code>,
 <code>method_deposition</code>, <code>method_deposition_scope</code>, <code>method_unsupported</code>,
-<code>method_unattributed</code>, <code>n_input_t</code> (summed over cells).
+<code>method_manure</code>, <code>method_unattributed</code>, <code>n_input_t</code> (summed over cells).
+<code>method_manure</code> records the source of the three manure terms
+(<code>"livestock_intake"</code>, <code>"faostat"</code>, or <code>"faostat_all_solid"</code> on applied
+manure booked as solid for want of an engine split) and is <code>NA</code> for every
+other <code>fert_type</code>.
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
 used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
 <code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
@@ -383,7 +418,7 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 17</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 18</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
@@ -395,11 +430,11 @@ column.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 12 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_cbs_code &lt;int&gt;, fert_type &lt;chr&gt;, n_input_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;, method_deposition &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;, method_unsupported &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unattributed &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_manure &lt;chr&gt;, method_unattributed &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -163,7 +163,7 @@ the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
 `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 columns below. When the supplied `n_inputs` carry them, the
 `method_recycling_n`, `method_synthetic`, `method_deposition`,
-`method_deposition_scope`, `method_unsupported` and
+`method_deposition_scope`, `method_unsupported`, `method_manure` and
 `method_unattributed` stamps from
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
 are carried through as well, so a balance names the input conventions

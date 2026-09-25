@@ -47,7 +47,8 @@ build_n_inputs(
   unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  manure_method = NULL
 )
 ```
 
@@ -165,7 +166,19 @@ build_n_inputs(
     [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)'s
     output, keyed by its `territory`, `sub_territory`, `crop`,
     `land_use`, `manure_type` and `year`; `manure_type` selects the
-    `"excreta"`, `"manure_solid"` or `"manure_liquid"` term.
+    `"excreta"`, `"manure_solid"` or `"manure_liquid"` term. Under
+    `manure_method = "faostat"` it supplies only the solid:liquid split.
+
+  - `manure`, `livestock_spatial`: the `manure_method = "faostat"`
+    inputs, read only under that method. `manure` is the
+    `faostat-emissions-livestock` pin, scoped by the caller to the years
+    wanted, as `fertilizer` is. `livestock_spatial` is a list of the
+    surfaces
+    [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
+    spreads pasture manure over: `gridded_pasture`, `gridded_cropland`
+    and `manure_pattern` (the `spatialize-*` pins its production callers
+    read), plus an optional `species_proxy` overriding the mapping's
+    proxies; needed only when `cell_polity` is supplied.
 
   - `nhx`, `noy`, `cell_polity`:
     [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)'s
@@ -260,24 +273,53 @@ build_n_inputs(
   If `TRUE`, return a small fixture instead of assembling real data.
   Defaults to `FALSE`.
 
+- manure_method:
+
+  Where the three manure terms come from. `"livestock_intake"` (default)
+  is WHEP's manure engine,
+  [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)
+  over the realised feed intake. `"faostat"` reads them instead from the
+  FAOSTAT livestock-emissions domain (`data$manure`, the
+  `faostat-emissions-livestock` pin, source `"FAO TIER 1"`, kg N):
+  `"manure_solid"` and `"manure_liquid"` from "Manure applied to soils
+  (N content)" for "All Animals", split with the engine's own solid
+  share per country-year and spread to crops by harvested-area share and
+  to cells by
+  [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md);
+  `"excreta"` from the per-species "Manure left on pasture (N content)",
+  mapped to species groups by `inst/extdata/livestock_mapping.csv` and
+  spread to cells by
+  [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
+  with that mapping's spatial proxies. These are national statistics
+  spread onto cells, a cross-check on the engine rather than the
+  default. A country-year the engine gives no solid:liquid split for is
+  booked wholly as solid, with a warning. Recorded in `method_manure`.
+  When `NULL` (default), uses
+  `data$manure_method %||% "livestock_intake"`.
+
 ## Value
 
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_unsupported`, `method_unattributed`. At `resolution = "polity"`:
-`area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
-`method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_unsupported`, `method_unattributed`, `n_input_t` (summed over
-cells). `method_recycling_n` records which residue basis the
-`"recycling"` term used: `"residue_soil_returned"` when the upstream NPP
-input supplied `residue_soil_dm_t` (residue N net of removal for
-feed/fuel/burning) or `"total_residue"` when only gross residue N was
-available; it is `NA` for every other `fert_type`. `method_synthetic`
-records the synthetic crop-split basis (`"coello"` or `"area_share"`) on
-`"synthetic"` rows and is `NA` for every other `fert_type`.
-`method_deposition` records which deposition product the `"deposition"`
-term's field came from, read off the supplied `nhx`/`noy` by
+`method_unsupported`, `method_manure`, `method_unattributed`. At
+`resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
+`fert_type`, `method_recycling_n`, `method_synthetic`,
+`method_deposition`, `method_deposition_scope`, `method_unsupported`,
+`method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+`method_manure` records the source of the three manure terms
+(`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
+manure booked as solid for want of an engine split) and is `NA` for
+every other `fert_type`. `method_recycling_n` records which residue
+basis the `"recycling"` term used: `"residue_soil_returned"` when the
+upstream NPP input supplied `residue_soil_dm_t` (residue N net of
+removal for feed/fuel/burning) or `"total_residue"` when only gross
+residue N was available; it is `NA` for every other `fert_type`.
+`method_synthetic` records the synthetic crop-split basis (`"coello"` or
+`"area_share"`) on `"synthetic"` rows and is `NA` for every other
+`fert_type`. `method_deposition` records which deposition product the
+`"deposition"` term's field came from, read off the supplied `nhx`/`noy`
+by
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 (`"hani"` for
 [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s
@@ -366,7 +408,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 17
+#> # A tibble: 9 × 18
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -378,9 +420,9 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 12 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
 #> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
 #> #   method_deposition_scope <chr>, method_unsupported <chr>,
-#> #   method_unattributed <chr>
+#> #   method_manure <chr>, method_unattributed <chr>
 ```
