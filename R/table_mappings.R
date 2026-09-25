@@ -312,6 +312,14 @@
 #'   the polity's own span still starts when the territory did.
 #'   [resolve_polity_label()] drops these rules when asked `back_cast = FALSE`.
 #'   All `NA` in a snapshot taken before whep-polities introduced the column.
+#' - `indicator`: `NA` when the alias applies to every indicator, otherwise the
+#'   one indicator it routes (`"area"`, `"production"`, `"yield"`,
+#'   `"livestock_stock"` or `"landuse"`, the subnational panel's own values).
+#'   whep-polities #703 added it so that a panel unit whose id names different
+#'   territories for different indicators can be split; it allows the scope only
+#'   on the panel's slugs. [resolve_polity_label()] applies a scoped rule only to
+#'   rows passing that `indicator`. Absent from a snapshot taken before #703,
+#'   which is read as all `NA`.
 #' @source `~/whep-polities/data/final/label_alias_map.csv`.
 "polity_label_aliases"
 

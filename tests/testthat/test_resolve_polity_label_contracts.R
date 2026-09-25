@@ -745,3 +745,168 @@ test_that("the country guard moves nothing on the shipped snapshot", {
     "NLD-1830-2025"
   )
 })
+
+# whep-polities #703's indicator scope on the alias map. No published rule sets
+# it yet, so this is the split #703 staged for `CHL-LL`, made synthetic: the
+# panel's crops (area, production) go to a pre-split polity that does not
+# exist upstream, landuse and livestock stay on the post-split region. `yield`
+# is deliberately left out of the split, which upstream allows, to pin what an
+# indicator a split does not route resolves to.
+.split_polities <- function() {
+  tibble::tribble(
+    ~polity_code, ~polity_name, ~start_year, ~end_year, ~iso3_code,
+    ~wiki_status, ~predecessor, ~successor, ~polity_type,
+    "CHL-LL-1976-2025", "Los Lagos", 1976L, 2025L, "CHL", "draft", NA, NA,
+    "subnational",
+    "CHL-LLLR-1976-2025", "Los Lagos and Los Rios (synthetic)",
+    1976L, 2025L, "CHL", "draft", NA, NA, "subnational"
+  )
+}
+
+.split_aliases <- function() {
+  split <- tibble::tribble(
+    ~source_label, ~source, ~year_start, ~year_end, ~polity_code, ~indicator,
+    "Los Lagos", "juan-subnational", 1976L, 2023L, "CHL-LLLR-1976-2025", "area",
+    "Los Lagos", "juan-subnational", 1976L, 2023L, "CHL-LLLR-1976-2025",
+    "production",
+    "Los Lagos", "juan-subnational", 1976L, 2023L, "CHL-LL-1976-2025",
+    "landuse",
+    "Los Lagos", "juan-subnational", 1976L, 2023L, "CHL-LL-1976-2025",
+    "livestock_stock"
+  )
+  dplyr::bind_rows(.contract_aliases(), split)
+}
+
+.resolve_on_split <- function(label, ..., aliases = .split_aliases()) {
+  whep:::.resolve_polity_label(
+    label,
+    query = list(...),
+    back_cast = TRUE,
+    tables = list(
+      aliases = aliases,
+      polities = .split_polities(),
+      corrections = NULL
+    )
+  )
+}
+
+test_that("a split label resolves each indicator to its own polity", {
+  expect_equal(
+    .resolve_on_split(
+      rep("Los Lagos", 4),
+      source = "juan-subnational",
+      year = 2000L,
+      indicator = c("area", "production", "landuse", "livestock_stock")
+    ),
+    c(
+      "CHL-LLLR-1976-2025",
+      "CHL-LLLR-1976-2025",
+      "CHL-LL-1976-2025",
+      "CHL-LL-1976-2025"
+    )
+  )
+  # File order does not decide: reversing the map changes nothing.
+  expect_equal(
+    .resolve_on_split(
+      c("Los Lagos", "Los Lagos"),
+      source = "juan-subnational",
+      year = 2000L,
+      indicator = c("area", "landuse"),
+      aliases = .split_aliases()[rev(seq_len(nrow(.split_aliases()))), ]
+    ),
+    c("CHL-LLLR-1976-2025", "CHL-LL-1976-2025")
+  )
+})
+
+test_that("a split label refuses a row that gives no indicator", {
+  expect_error(
+    .resolve_on_split("Los Lagos", source = "juan-subnational", year = 2000L),
+    class = "whep_error_unscoped_indicator_alias"
+  )
+  # Outside the split's years the rules are silent, so no indicator is needed
+  # and the name route answers.
+  expect_equal(
+    .resolve_on_split("Los Lagos", source = "juan-subnational", year = 2024L),
+    "CHL-LL-1976-2025"
+  )
+})
+
+test_that("an indicator the split leaves out is NA, not the name route", {
+  # The name route alone answers CHL-LL-1976-2025 for this label ...
+  expect_equal(
+    .resolve_on_split("Los Lagos", year = 2000L, indicator = "yield"),
+    "CHL-LL-1976-2025"
+  )
+  # ... which is the post-split polygon the split exists to keep crops off.
+  expect_equal(
+    .resolve_on_split(
+      "Los Lagos",
+      source = "juan-subnational",
+      year = 2000L,
+      indicator = "yield"
+    ),
+    NA_character_
+  )
+})
+
+test_that("a blank indicator scope matches every indicator", {
+  aliases <- .split_aliases()
+  expect_true(all(is.na(aliases$indicator[
+    aliases$source_label != "Los Lagos"
+  ])))
+  expect_equal(
+    .resolve_on_split(
+      c("BRA-TOCANTINS", "BRA-TOCANTINS"),
+      source = "whep-lab-latam",
+      year = 2000L,
+      indicator = c(NA, "area"),
+      aliases = aliases
+    ),
+    rep("BRA-TOCANTINS-1988-2025", 2)
+  )
+  # Upstream writes a blank scope as an empty field; read as "" rather than
+  # `NA`, it still means any indicator.
+  aliases$indicator[is.na(aliases$indicator)] <- ""
+  expect_equal(
+    .resolve_on_split(
+      "BRA-TOCANTINS",
+      source = "whep-lab-latam",
+      year = 2000L,
+      aliases = aliases
+    ),
+    "BRA-TOCANTINS-1988-2025"
+  )
+})
+
+test_that("a map with no indicator column reads as all-blank", {
+  aliases <- .split_aliases()
+  aliases <- aliases[aliases$source_label != "Los Lagos", ]
+  without <- aliases[, setdiff(names(aliases), "indicator")]
+  for (ind in list(NULL, "area", "landuse")) {
+    expect_equal(
+      .resolve_on_split(
+        "BRA-TOCANTINS",
+        source = "whep-lab-latam",
+        year = 1950L,
+        indicator = ind,
+        aliases = without
+      ),
+      .resolve_on_split(
+        "BRA-TOCANTINS",
+        source = "whep-lab-latam",
+        year = 1950L,
+        indicator = ind,
+        aliases = aliases
+      )
+    )
+  }
+  expect_equal(
+    .resolve_on_split(
+      "BRA-TOCANTINS",
+      source = "whep-lab-latam",
+      year = 1950L,
+      aliases = without
+    ),
+    "BRA-TOCANTINS-1988-2025"
+  )
+})

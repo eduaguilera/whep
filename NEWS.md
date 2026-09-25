@@ -29,6 +29,21 @@
   `polity_label_item_corrections` gains the two columns, all `NA` in the
   shipped snapshot, and `data-raw/table_mappings.R` aborts on any header it
   was not taught, so a new key column cannot be dropped unnoticed.
+  `polity_label_aliases` reads the optional last `indicator` column
+  whep-polities #703 added (blank = any indicator; allowed only on the
+  subnational panel's slugs), so one panel unit id can be split per indicator:
+  #703 found `CHL-LL`'s crops reported for Los Lagos plus Los Ríos while its
+  landuse and livestock are Los Lagos alone. `resolve_polity_label()` keeps
+  only the alias rules whose scope matches the row's `indicator`, answers `NA`
+  (not the name route) for an indicator a split leaves out, and raises
+  `whep_error_unscoped_indicator_alias` for a split label given no
+  `indicator`. Upstream publishes no scoped rule yet and the shipped snapshot
+  has no such column, so no resolution moves. `data-raw/table_mappings.R` now
+  aborts on an alias-map header it was not taught, on a scope value or slug the
+  resolver was not written for, and when the map's scoped-rule count differs
+  from the manifest's `label_alias_map.indicator_scoped_aliases`. No package
+  function resolves the subnational panel yet; a caller that does must pass
+  `indicator = panel$indicator`.
 
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it

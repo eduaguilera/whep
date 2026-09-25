@@ -1983,6 +1983,18 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   after those years by design (`BRA-TOCANTINS-1988-2025` receives the
 #'   panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops those
 #'   aliases, for a caller that wants observation only.
+#' - **`indicator`: aliases split per indicator.** One panel unit id can name
+#'   two territories: whep-polities #703 found `CHL-LL`'s crops reported for
+#'   Los Lagos plus Los Ríos in every year, while its landuse and livestock are
+#'   Los Lagos alone. The alias map's optional `indicator` column scopes a rule
+#'   to rows carrying that indicator (`NA` means any). Where a label, source
+#'   and year carry scoped rules, only the rule for the row's `indicator`
+#'   applies; an indicator the split leaves out resolves to `NA`, never to the
+#'   name route, which would put the rows back on the post-split polity; and a
+#'   row that gives no `indicator` is an error of class
+#'   `whep_error_unscoped_indicator_alias`. Upstream allows the scope only on
+#'   the subnational panel's slugs (`"juan-subnational"`, `"whep-lab-*"`), so
+#'   callers resolving that panel must pass its `indicator` column verbatim.
 #'
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
@@ -2007,8 +2019,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   as reconstructions (`disposition == "back_cast"`); `FALSE` drops them.
 #' @param unit,indicator Optional unit and indicator of each row, as the source
 #'   writes them (e.g. `"tonnes"`, `"ha"`). Length 1, or the same length as
-#'   `label`. Only used to match [polity_label_item_corrections] rules scoped
-#'   on them; required for the rows such a rule would otherwise match.
+#'   `label`. Used to match [polity_label_item_corrections] rules scoped
+#'   on them, and `indicator` also to choose between [polity_label_aliases]
+#'   rules scoped on it; required for the rows such a rule would otherwise
+#'   match.
 #'
 #' @returns A character vector of polity codes, `NA` where nothing matched.
 #'
@@ -2289,6 +2303,20 @@ resolve_polity_label <- function(
       if (nrow(cand) == 0L) {
         return(by_name(i))
       }
+      # An indicator-scoped alias applies only to rows carrying that indicator
+      # (whep-polities #703). Upstream never lets a blank and a scoped rule, or
+      # two rules with one scope, claim the same label, source and year, so at
+      # most one candidate survives. A split that leaves this row's indicator
+      # out answers `NA` and does NOT fall through to the name route: the
+      # unit's name would send crop rows back onto the post-split polygon.
+      cand <- .alias_rules_for_indicator(
+        cand,
+        indicator[i],
+        c(label = label[i], source = source[i], year = year[i])
+      )
+      if (nrow(cand) == 0L) {
+        return(NA_character_)
+      }
 
       # Most specific first: year-scoped, then source-scoped, then narrower
       # span. A half-open range counts as scoped and gets an infinite span, so
@@ -2452,6 +2480,46 @@ resolve_polity_label <- function(
     return(aliases)
   }
   aliases[is.na(aliases$disposition) | aliases$disposition != "back_cast", ]
+}
+
+# The alias rules of `cand` that apply to a row carrying `indicator`.
+# `indicator` (whep-polities #703) is the alias map's optional last column:
+# blank or `NA` means any indicator, a value (one of the panel's own
+# `indicator` strings, e.g. `"area"`, `"landuse"`) limits the rule to rows
+# carrying exactly it. A map without the column -- every snapshot before #703 --
+# has no scoped rule, so `cand` is returned unchanged.
+#
+# Where any candidate is scoped, the label is split per indicator for this
+# source and year, and a row with no indicator can be neither placed nor ruled
+# out: that aborts with class `whep_error_unscoped_indicator_alias` rather than
+# letting file order pick one side of the split. The result may be empty, which
+# the caller reads as "the split routes this indicator nowhere".
+.alias_rules_for_indicator <- function(cand, indicator, where) {
+  if (!"indicator" %in% names(cand)) {
+    return(cand)
+  }
+  scope <- as.character(cand$indicator)
+  scoped <- !is.na(scope) & scope != ""
+  if (!any(scoped)) {
+    return(cand)
+  }
+  if (is.na(indicator)) {
+    .abort_unscoped_alias(where, unique(scope[scoped]))
+  }
+  cand[!scoped | scope == as.character(indicator), , drop = FALSE]
+}
+
+.abort_unscoped_alias <- function(where, scopes) {
+  cli::cli_abort(
+    c(
+      "{.val {where[['label']]}} ({where[['source']]}, {where[['year']]}) is
+      routed per indicator.",
+      x = "Its alias rules are scoped on indicator {.val {scopes}}, and the
+      caller gave none.",
+      i = "Pass {.arg indicator} to {.fn resolve_polity_label} for these rows."
+    ),
+    class = "whep_error_unscoped_indicator_alias"
+  )
 }
 
 # The country a polity belongs to, for restricting the name route: its ISO3

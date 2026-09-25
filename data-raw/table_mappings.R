@@ -126,35 +126,142 @@ if (!file.exists(whep_label_alias_map)) {
   ))
 }
 
-polity_label_aliases <- readr::read_csv(
-  whep_label_alias_map,
-  show_col_types = FALSE,
-  na = excel_na,
-  col_types = readr::cols(
-    source_label = readr::col_character(),
-    source = readr::col_character(),
-    year_start = readr::col_integer(),
-    year_end = readr::col_integer(),
-    polity_code = readr::col_character(),
-    common_name = readr::col_character(),
-    confidence = readr::col_character(),
-    # How many source rows were actually observed for this label, 0 when the
-    # label is merely mappable. Declared explicitly because this col_types list
-    # is exhaustive by intent -- an upstream column that is not named here is a
-    # column this script cannot see.
-    observed_rows = readr::col_double(),
-    # whep-polities #667: '' when the source observed the territory,
-    # 'back_cast' when its years are a reconstruction onto a boundary that did
-    # not exist yet -- such an alias may begin before its target polity does, by
-    # design. A map published before that revision has no such column; readr
-    # then warns about the missing column and fills nothing, so it is added
-    # below as all-observed rather than left absent.
-    disposition = readr::col_character()
-  )
+# Exhaustive by intent, and in upstream's column order: the header check below
+# compares against these names.
+alias_map_types <- readr::cols(
+  source_label = readr::col_character(),
+  source = readr::col_character(),
+  year_start = readr::col_integer(),
+  year_end = readr::col_integer(),
+  polity_code = readr::col_character(),
+  common_name = readr::col_character(),
+  confidence = readr::col_character(),
+  # How many source rows were actually observed for this label, 0 when the
+  # label is merely mappable.
+  observed_rows = readr::col_double(),
+  # whep-polities #667: '' when the source observed the territory,
+  # 'back_cast' when its years are a reconstruction onto a boundary that did
+  # not exist yet -- such an alias may begin before its target polity does, by
+  # design.
+  disposition = readr::col_character(),
+  # whep-polities #703: '' when the alias applies to every indicator, else the
+  # one panel indicator it routes. A key column: `resolve_polity_label()`
+  # filters candidate rules on it.
+  indicator = readr::col_character()
 )
-if (!"disposition" %in% names(polity_label_aliases)) {
-  polity_label_aliases$disposition <- NA_character_
+
+# Reads the map and returns it with exactly the declared columns. A revision
+# older than #667 / #703 lacks the trailing `disposition` / `indicator`, and
+# every one of its rules is an observation for any indicator, so the missing
+# columns are added as `NA`, which is exact. Any other header aborts: readr
+# would read an undeclared column with a guessed type and nothing downstream
+# would use it, so a new key column -- as `indicator` is -- would be ignored
+# and its rules applied to every row.
+read_label_alias_map <- function(path) {
+  expected <- names(alias_map_types$cols)
+  header <- names(readr::read_csv(
+    path,
+    n_max = 0L,
+    show_col_types = FALSE,
+    col_types = readr::cols(.default = readr::col_character())
+  ))
+  legacy <- list(
+    utils::head(expected, -1L),
+    utils::head(expected, -2L)
+  )
+  known <- identical(header, expected) ||
+    any(vapply(legacy, identical, logical(1), header))
+  if (!known) {
+    cli::cli_abort(c(
+      "The published label alias map has an unexpected header.",
+      x = "Got {.val {header}}.",
+      i = "Teach {.fn resolve_polity_label} every key column before shipping it."
+    ))
+  }
+  types <- alias_map_types
+  types$cols <- types$cols[header]
+  aliases <- readr::read_csv(
+    path,
+    show_col_types = FALSE,
+    na = excel_na,
+    col_types = types
+  )
+  for (column in setdiff(expected, header)) {
+    aliases[[column]] <- NA_character_
+  }
+  aliases
 }
+polity_label_aliases <- read_label_alias_map(whep_label_alias_map)
+
+# BUILD GUARD FOR INDICATOR-SCOPED ALIASES (whep-polities #703). A scoped rule
+# is only honoured by a resolver that filters on it; an older one would rank
+# the rules of a split as ties and send every indicator wherever file order
+# points. So the build stops unless (a) every scope is a value this package's
+# resolver was written for, on a slug upstream allows it on, (b) the resolver
+# carries the filter, and (c) the count matches what the manifest of the same
+# revision publishes, so a map and manifest from different revisions cannot
+# ship a split unnoticed.
+alias_indicator_scopes <- c(
+  "area",
+  "production",
+  "yield",
+  "livestock_stock",
+  "landuse"
+)
+alias_scoped <- !is.na(polity_label_aliases$indicator)
+bad_scope <- alias_scoped &
+  (!polity_label_aliases$indicator %in% alias_indicator_scopes |
+    !grepl("^(juan-subnational|whep-lab-.+)$", polity_label_aliases$source))
+if (any(bad_scope)) {
+  cli::cli_abort(c(
+    "The published label alias map carries an indicator scope this package
+     does not know.",
+    x = "{sum(bad_scope)} rule{?s}, e.g.
+     {.val {utils::head(polity_label_aliases$source_label[bad_scope], 5)}}.",
+    i = "Teach {.fn resolve_polity_label} what it means before shipping it."
+  ))
+}
+resolver_filters_indicator <- any(grepl(
+  "whep_error_unscoped_indicator_alias",
+  readLines(here::here("R", "polities.R")),
+  fixed = TRUE
+))
+if (any(alias_scoped) && !resolver_filters_indicator) {
+  cli::cli_abort(c(
+    "The label alias map is split per indicator, but
+     {.fn resolve_polity_label} does not filter aliases on it.",
+    x = "Its {sum(alias_scoped)} scoped rule{?s} would be ranked as ties.",
+    i = "Restore the indicator filter in {.path R/polities.R} before shipping."
+  ))
+}
+whep_polities_manifest <- Sys.getenv(
+  "WHEP_POLITIES_MANIFEST",
+  unset = file.path(dirname(whep_label_alias_map), "polities_manifest.json")
+)
+manifest_scoped <- NULL
+if (file.exists(whep_polities_manifest)) {
+  alias_manifest <- jsonlite::read_json(whep_polities_manifest)$label_alias_map
+  # A manifest older than #703 publishes no count, and its map no scoped rule.
+  manifest_scoped <- alias_manifest$indicator_scoped_aliases %||% 0L
+}
+if (is.null(manifest_scoped) && any(alias_scoped)) {
+  cli::cli_abort(c(
+    "The label alias map is split per indicator, but no manifest says how
+     many rules are.",
+    x = "Looked for {.path {whep_polities_manifest}}.",
+    i = "Point {.envvar WHEP_POLITIES_MANIFEST} at the same revision's
+     {.path data/final/polities_manifest.json}."
+  ))
+}
+if (!is.null(manifest_scoped) && sum(alias_scoped) != manifest_scoped) {
+  cli::cli_abort(c(
+    "The label alias map and the manifest disagree on indicator-scoped rules.",
+    x = "The map has {sum(alias_scoped)}; the manifest publishes
+     {manifest_scoped}.",
+    i = "Rebuild from the same whep-polities revision that produced the map."
+  ))
+}
+
 unknown_dispositions <- setdiff(
   stats::na.omit(polity_label_aliases$disposition),
   "back_cast"

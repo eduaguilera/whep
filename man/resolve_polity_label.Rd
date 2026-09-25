@@ -45,8 +45,10 @@ as reconstructions (\code{disposition == "back_cast"}); \code{FALSE} drops them.
 
 \item{unit, indicator}{Optional unit and indicator of each row, as the source
 writes them (e.g. \code{"tonnes"}, \code{"ha"}). Length 1, or the same length as
-\code{label}. Only used to match \link{polity_label_item_corrections} rules scoped
-on them; required for the rows such a rule would otherwise match.}
+\code{label}. Used to match \link{polity_label_item_corrections} rules scoped
+on them, and \code{indicator} also to choose between \link{polity_label_aliases}
+rules scoped on it; required for the rows such a rule would otherwise
+match.}
 }
 \value{
 A character vector of polity codes, \code{NA} where nothing matched.
@@ -166,6 +168,18 @@ boundary that did not exist yet to the modern polity, which may begin
 after those years by design (\code{BRA-TOCANTINS-1988-2025} receives the
 panel's 1900-1987 Tocantins series). \code{back_cast = FALSE} drops those
 aliases, for a caller that wants observation only.
+\item \strong{\code{indicator}: aliases split per indicator.} One panel unit id can name
+two territories: whep-polities #703 found \code{CHL-LL}'s crops reported for
+Los Lagos plus Los Ríos in every year, while its landuse and livestock are
+Los Lagos alone. The alias map's optional \code{indicator} column scopes a rule
+to rows carrying that indicator (\code{NA} means any). Where a label, source
+and year carry scoped rules, only the rule for the row's \code{indicator}
+applies; an indicator the split leaves out resolves to \code{NA}, never to the
+name route, which would put the rows back on the post-split polity; and a
+row that gives no \code{indicator} is an error of class
+\code{whep_error_unscoped_indicator_alias}. Upstream allows the scope only on
+the subnational panel's slugs (\code{"juan-subnational"}, \code{"whep-lab-*"}), so
+callers resolving that panel must pass its \code{indicator} column verbatim.
 }
 }
 \examples{

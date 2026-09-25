@@ -23,6 +23,14 @@ A \code{"back_cast"} alias may begin before its target polity does, by design:
 the polity's own span still starts when the territory did.
 \code{\link[=resolve_polity_label]{resolve_polity_label()}} drops these rules when asked \code{back_cast = FALSE}.
 All \code{NA} in a snapshot taken before whep-polities introduced the column.
+\item \code{indicator}: \code{NA} when the alias applies to every indicator, otherwise the
+one indicator it routes (\code{"area"}, \code{"production"}, \code{"yield"},
+\code{"livestock_stock"} or \code{"landuse"}, the subnational panel's own values).
+whep-polities #703 added it so that a panel unit whose id names different
+territories for different indicators can be split; it allows the scope only
+on the panel's slugs. \code{\link[=resolve_polity_label]{resolve_polity_label()}} applies a scoped rule only to
+rows passing that \code{indicator}. Absent from a snapshot taken before #703,
+which is read as all \code{NA}.
 }
 }
 \source{
