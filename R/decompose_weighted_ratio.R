@@ -482,16 +482,14 @@ decompose_weighted_ratio <- function(
 }
 
 .ratio_log_mean <- function(value_end, value_start) {
-  difference <- value_end - value_start
-  changed <- difference != 0
-  near <- changed &
-    abs(difference) <= sqrt(.Machine$double.eps) * pmax(value_end, value_start)
-  far <- changed & !near
+  # Inputs are strictly positive (`.validate_ratio_*()`); the log1p() form
+  # and its accuracy argument live in `.log_mean_positive()` (#1089).
+  changed <- value_end != value_start
   result <- value_start
-  result[near] <- difference[near] /
-    log1p(difference[near] / value_start[near])
-  result[far] <- difference[far] /
-    (log(value_end[far]) - log(value_start[far]))
+  result[changed] <- .log_mean_positive(
+    value_end[changed],
+    value_start[changed]
+  )
   result
 }
 
