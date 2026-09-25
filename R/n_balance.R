@@ -60,8 +60,20 @@
 #' @param methods A named list of method choices: `nh3` (forwarded to
 #'   [calculate_nh3()], default `"manner"`), `n2o` (forwarded to
 #'   [calculate_soil_n2o()], default `"ipcc2019"`, the globally applicable
-#'   IPCC 2019 Tier 1 method) and `leaching` (forwarded to
-#'   [calculate_n_leaching()], default `"meisinger_drainage"`).
+#'   IPCC 2019 Tier 1 method), `leaching` (forwarded to
+#'   [calculate_n_leaching()], default `"meisinger_drainage"`) and
+#'   `water_regime`, whether crop rows are split into rainfed and irrigated
+#'   parts (whep#1233). `"none"` (default) keeps one row per crop and cell, as
+#'   before. `"area_share"` splits each crop row by the crop's irrigated share
+#'   of its harvested area from `data$crop_regime_area`, scaling every
+#'   tonnage and hectare term by that share -- equal per-hectare N rates under
+#'   both regimes, an allocation assumption, since no N input is
+#'   regime-resolved upstream. The split happens before the losses, so
+#'   `n_balance_drivers` and `n_balance_leaching_drivers` can be keyed on
+#'   `water_regime` too; a driver table without that column applies to both
+#'   parts. Rows with no regime basis (grassland, the `item_cbs_code = NA`
+#'   SOM-sequestration rows, crops the layer does not cover) stay
+#'   whole with `water_regime = NA`; see *Rainfed and irrigated rows*.
 #' @param resolution `"grid"` (default) or `"polity"`, as in
 #'   [build_n_inputs()]; `"polity"` sums every term (and re-derives every
 #'   indicator) over cells.
@@ -108,6 +120,12 @@
 #'     fanning the rows out and misaligning `drainage_mm`). Missing required
 #'     drivers abort inside the called `calculate_*()` function, naming the
 #'     exact column.
+#'   * `crop_regime_area`: required when `methods$water_regime =
+#'     "area_share"`; [build_gridded_landuse()]'s crop areas (`lon`, `lat`,
+#'     `area_code`, `item_prod_code`, `year`, `rainfed_ha`, `irrigated_ha`),
+#'     keyed on the same `area_code` vocabulary as the nitrogen inputs. The
+#'     share is formed from hectares summed over the `item_prod_code`s of
+#'     each `item_cbs_code`.
 #'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()], as
 #'     a numeric vector aligned to the balance-key rows, or already present
 #'     as a `drainage_mm` column via `n_balance_leaching_drivers`.
@@ -137,7 +155,20 @@
 #'   `method_unattributed` stamps from
 #'   [build_n_inputs()] are carried through as well, so a balance names the
 #'   input conventions that produced it. Gains
-#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`, and
+#'   `water_regime` (in the key) plus `method_water_regime` when
+#'   `methods$water_regime = "area_share"`.
+#'
+#' @section Rainfed and irrigated rows:
+#' Under `methods$water_regime = "area_share"` a crop row becomes a
+#' `"rainfed"` and an `"irrigated"` row (one only when the share is 0 or 1),
+#' stamped `method_water_regime = "area_share"`, and the two sum back to the
+#' unsplit row exactly. The only regime-resolved input is the crop's harvested
+#' area; every nitrogen term is split in proportion to it, so the split adds
+#' no information to the inputs themselves and matters through the
+#' regime-keyed loss drivers. Rows the layer gives no basis for are kept
+#' whole, `water_regime = NA`, `method_water_regime = "unsplit_no_basis"`,
+#' rather than booked as rainfed.
 #'
 #' @details
 #' `polity_validity` is forwarded to [build_n_inputs()] -- which forwards it in
@@ -196,8 +227,18 @@ build_nitrogen_balance <- function(
   data <- .human_upgrade_legacy_drivers(data)
   .nb_validate_input_grain(n_inputs, resolution)
 
-  .nb_inputs(n_inputs, key) |>
+  # Rainfed/irrigated split (whep#1233, R/n_balance_water_regime.R): applied
+  # after the outputs are merged and before the losses, so regime-keyed loss
+  # drivers can attach. A no-op under the default water_regime = "none".
+  shares <- .nb_regime_shares(m$water_regime, data, key)
+  x <- .nb_inputs(n_inputs, key) |>
     .nb_outputs(data, key) |>
+    .nb_split_regime(shares, key) |>
+    .nb_report_regime_cover()
+  n_inputs <- .nb_split_regime(n_inputs, shares, key)
+  key <- .nb_regime_key(key, shares)
+
+  x |>
     .nb_losses(n_inputs, key, m, data) |>
     .nb_indicators_pass1() |>
     .nb_cap_som() |>
@@ -209,7 +250,7 @@ build_nitrogen_balance <- function(
 # ---- Private helpers: method validation ----------------------------------
 
 .nb_methods <- function(methods) {
-  valid_names <- c("nh3", "n2o", "leaching")
+  valid_names <- c("nh3", "n2o", "leaching", "water_regime")
   unknown <- setdiff(names(methods), valid_names)
   if (length(unknown) > 0L) {
     # qty() pinned: the marker sat ahead of both interpolations, so cli had to
@@ -224,13 +265,15 @@ build_nitrogen_balance <- function(
   nh3 <- methods$nh3 %||% "manner"
   n2o <- methods$n2o %||% "ipcc2019"
   leaching <- methods$leaching %||% "meisinger_drainage"
+  water_regime <- methods$water_regime %||% "none"
   list(
     nh3 = rlang::arg_match(nh3, c("manner", "ipcc", "manner_default")),
     n2o = rlang::arg_match(n2o, c("ipcc2019", "aguilera", "ipcc2006")),
     leaching = rlang::arg_match(
       leaching,
       c("meisinger_drainage", "ipcc_fracleach")
-    )
+    ),
+    water_regime = rlang::arg_match(water_regime, c("none", "area_share"))
   )
 }
 
@@ -713,7 +756,7 @@ build_nitrogen_balance <- function(
   dplyr::left_join(
     rows,
     data$n_balance_drivers,
-    by = c(key, "fert_type"),
+    by = c(.nb_driver_key(key, data$n_balance_drivers), "fert_type"),
     relationship = "many-to-one"
   )
 }
@@ -815,7 +858,12 @@ build_nitrogen_balance <- function(
 # leaching/denitrification partition. dplyr aborts here at the join instead,
 # naming the offending row.
 .nb_leaching_join <- function(x, drivers, key) {
-  dplyr::left_join(x, drivers, by = key, relationship = "many-to-one")
+  dplyr::left_join(
+    x,
+    drivers,
+    by = .nb_driver_key(key, drivers),
+    relationship = "many-to-one"
+  )
 }
 
 # Five NUE ratios (Balance_parameters n_fun.r:375-402 + NUE_calc N_Figs.R:
@@ -901,7 +949,7 @@ build_nitrogen_balance <- function(
     "method_nh3",
     "method_soil_n2o",
     "method_leaching",
-    intersect(.nb_input_method_cols(), names(x))
+    intersect(c(.nb_input_method_cols(), "method_water_regime"), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
 }
@@ -943,7 +991,10 @@ build_nitrogen_balance <- function(
 }
 
 .nb_present_key <- function(x) {
-  intersect(c("lon", "lat", "area_code", "item_cbs_code", "year"), names(x))
+  intersect(
+    c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime"),
+    names(x)
+  )
 }
 
 # ---- fert_type vocabulary bridge (documented mapping, see file header) ----
