@@ -67,6 +67,11 @@ dry matter, so it should be less than \code{intake}.
 \item \code{loss}: The amount that is not used for feed. This is \code{supply - intake}.
 \item \code{loss_share}: The percent that is lost. This is \code{loss / supply}.
 }
+
+This is not the input \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} reads: that function takes
+the per-livestock-category rows of \code{\link[=redistribute_feed]{redistribute_feed()}} (\code{territory},
+\code{livestock_category}, \code{feed_quality}, \code{intake_dm_t}), and refuses this
+table.
 }
 \description{
 Get amount of items used for feeding livestock.

@@ -32,6 +32,9 @@
 #' @param intake A tibble of realised feed intake with at least `year`,
 #'   `territory`, `sub_territory`, `livestock_category`, `item_cbs_code`,
 #'   `feed_quality` and `intake_dm_t` (the [redistribute_feed()] result).
+#'   The output of [get_feed_intake()] does not fit: it is keyed by
+#'   `area_code` and `live_anim_code` and carries no `intake_dm_t`, and it is
+#'   refused with a pointer to [redistribute_feed()].
 #'   `territory` is a stringified `area_code` (`as.character(area_code)`, what
 #'   [redistribute_feed()] emits and what the whole manure chain carries
 #'   through to the nitrogen inputs); an `iso3c` literal is still resolved
@@ -181,10 +184,28 @@ estimate_n_excretion <- function(intake, options = list()) {
     "feed_quality",
     "intake_dm_t"
   )
-  miss <- req[!purrr::map_lgl(req, ~ rlang::has_name(intake, .x))]
-  if (length(miss) > 0) {
-    cli::cli_abort("{.arg intake} is missing column{?s}: {.val {miss}}.")
+  # `get_feed_intake()` is the documented feed-intake accessor, but it returns
+  # the CBS-shaped allocation (`area_code`, `live_anim_code`, `supply`,
+  # `intake_dry_matter`), not the `redistribute_feed()` rows read here. The two
+  # vocabularies share only `year` and `item_cbs_code`, and no mapping between
+  # them is lossless (whep#181), so name the right source instead of only
+  # listing columns.
+  cbs_shaped <- c("live_anim_code", "intake_dry_matter")
+  if (
+    !all(rlang::has_name(intake, req)) &&
+      all(rlang::has_name(intake, cbs_shaped))
+  ) {
+    cli::cli_abort(
+      c(
+        "{.arg intake} looks like {.fn get_feed_intake} output, which
+         {.fn estimate_n_excretion} cannot read.",
+        i = "Pass the realised intake from {.fn redistribute_feed}, with
+             columns {.field {req}}."
+      ),
+      class = c("whep_error_schema_violation", "whep_error_table_schema")
+    )
   }
+  assert_table_schema(intake, .seam_schema(intake, req), "intake")
   invisible(NULL)
 }
 

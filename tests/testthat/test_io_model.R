@@ -620,3 +620,17 @@ testthat::test_that("build_io_model passes trade_recovery to the chain", {
   )
   testthat::expect_equal(seen, "net_import")
 })
+
+# whep#181: `import` is not part of the cbs contract of the IO step itself; it
+# is read only by get_bilateral_trade() when bilateral_trade is built
+# internally. With bilateral_trade supplied, a cbs without it builds the same
+# model.
+testthat::test_that("build_io_model does not read import when trade is given", {
+  f <- io_two_country_fixture()
+  testthat::expect_true(rlang::has_name(f$cbs, "import"))
+  with_import <- build_io_model(f$su, f$btd, f$cbs)
+  without_import <- build_io_model(f$su, f$btd, dplyr::select(f$cbs, -import))
+  testthat::expect_equal(without_import$Z, with_import$Z)
+  testthat::expect_equal(without_import$X, with_import$X)
+  testthat::expect_equal(without_import$Y, with_import$Y)
+})
