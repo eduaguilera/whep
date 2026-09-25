@@ -267,7 +267,8 @@ testthat::test_that("a data/*.rda built from its inputs passes", {
   c(
     WHEP_POLITIES_GPKG = "polities_database.gpkg",
     WHEP_POLITIES_FAOSTAT_MAP = "faostat_area_polity_map.csv",
-    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv"
+    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv",
+    WHEP_POLITY_CONTAINMENT_CSV = "polity_containment.csv"
   )
 }
 

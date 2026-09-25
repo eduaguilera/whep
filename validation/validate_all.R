@@ -14,6 +14,28 @@ suppressPackageStartupMessages({
 source("validation/validate.R")
 source("validation/variables.R")
 
+# Scorecard arithmetic for the seam-gate row (#1000/T34-6). `n_gate_failures`
+# is the tier A/B/C pass-rate; `n_moved` is `admin_seam_gate.R`'s OWN baseline
+# tripwire (validation/admin_seam_gate.R, ~line 527: it `cli_abort()`s the
+# whole script when a recorded row moved, whatever the tier gates say). A run
+# whose baseline moved has therefore already failed the script that produced
+# these numbers, so folding only `n_gate_failures` into the scorecard's `flag`
+# column let it read green while `admin_seam_gate.R` exited non-zero -- the
+# moved baseline was demoted to free text nobody scans. `flag` is the union of
+# both signals so a moved baseline always shows up as a flag, not a footnote.
+.asg_scorecard_flag <- function(n_gate_failures, n_moved) {
+  n_gate_failures + n_moved
+}
+# Runs on every `source()` of this file, cache or no cache: a moved baseline
+# must inflate the flag even when every tier gate itself passed (the shape the
+# bug missed), so the invariant is pinned here rather than only downstream of
+# the WHEP_SPATIALIZE_OUT_DIR-gated block that would otherwise be the only
+# place exercising it.
+stopifnot(
+  "a moved seam-gate baseline must inflate the scorecard flag, not just the
+   free-text note" = .asg_scorecard_flag(n_gate_failures = 0, n_moved = 3) > 0
+)
+
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)

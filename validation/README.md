@@ -508,6 +508,7 @@ arable surplus layer over the archive's own deposited source areas, from the
 Zenodo record `read_critical_n()` already downloads. It is derived here, not
 quoted, so it cannot drift away from a figure nobody can re-derive.
 
+been run once by hand.
 ## N deposition vs EMEP MSC-W (`n_deposition_emep.R`)
 
 WHEP's deposition input is HaNi (Tian et al. 2022), a **global reconstruction**.
