@@ -1215,16 +1215,24 @@ build_feed_demand <- function(
 
 # Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
-# area_code). Pass `country_grid` (majority assignment, one polity per cell) to
-# match how gridded livestock heads are assigned; a `cell_polity` carrying
-# `polity_frac` instead splits a border cell's grass across its polities. The
-# result is the per-cell forage ceiling redistribute_feed binds the pasture sink
-# to.
+# area_code), and a border cell's grass is split across its polities by the
+# SAME share build_gridded_livestock() splits the heads by. The result is the
+# per-cell forage ceiling redistribute_feed binds the pasture sink to.
+#
+# The share is read through .normalize_country_grid(), so every name the heads
+# accept (`cell_area_frac`, `polity_frac`, ...) is accepted here too, and a
+# support with none is refused (S-A5). This used to read `polity_frac` only and
+# default to 1 without it; the polycell support the local grain reads by
+# default names its share `cell_area_frac`, so each polity of a border cell was
+# given the whole cell's grass (whep#1300).
 .grass_to_cells <- function(grass, cell_polity) {
-  cp <- dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2))
-  if (!rlang::has_name(cp, "polity_frac")) {
-    cp$polity_frac <- 1
-  }
+  cp <- .normalize_country_grid(cell_polity, "cell_polity") |>
+    dplyr::mutate(
+      lon = round(lon, 2),
+      lat = round(lat, 2),
+      polity_frac = cell_area_frac
+    ) |>
+    dplyr::select("lon", "lat", "area_code", "polity_frac")
   grass |>
     dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
     dplyr::inner_join(
