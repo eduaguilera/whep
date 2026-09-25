@@ -817,11 +817,12 @@ read_critical_n <- function(
     (is.na(layers$a_tot_ha) | layers$a_tot_ha < layers$a_gr_ext_ha)
   n_bad <- sum(bad)
   if (n_bad > 0) {
+    ids <- utils::head(layers$cell_id[bad], 5)
     cli::cli_abort(
       c(
         "Extensive grassland exceeds the cell area in {n_bad} cell{?s}.",
         x = "{.field a_tot_ha} is missing or below {.field a_gr_ext_ha}.",
-        i = "Cell{?s}: {.val {utils::head(layers$cell_id[bad], 5)}}."
+        i = "{cli::qty(length(ids))}Cell{?s}: {.val {ids}}."
       ),
       class = "whep_critn_budget_bad_area"
     )
@@ -874,11 +875,12 @@ read_critical_n <- function(
   orphan <- no_ext & rowSums(!is.na(core) & core != 0) > 0
   n_orphan <- sum(orphan)
   if (n_orphan > 0) {
+    ids <- utils::head(layers$cell_id[orphan], 5)
     cli::cli_abort(
       c(
         "{n_orphan} cell{?s} without extensive grassland carr{?ies/y}
          extensive manure, fixation or uptake N.",
-        i = "Cell{?s}: {.val {utils::head(layers$cell_id[orphan], 5)}}."
+        i = "{cli::qty(length(ids))}Cell{?s}: {.val {ids}}."
       ),
       class = "whep_critn_budget_flow_without_area"
     )

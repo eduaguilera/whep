@@ -655,6 +655,45 @@ testthat::test_that("an extensive area outside its cell aborts", {
   )
 })
 
+testthat::test_that("several extensive areas outside their cells abort", {
+  # Two bad cells: the cell-id list is a vector, which once crashed cli's
+  # pluraliser before the intended condition class was raised.
+  two_bad <- .critn_budget_fixture() |>
+    dplyr::mutate(a_tot_ha = c(300, NA, 1500, 500))
+  testthat::expect_error(
+    whep:::.critical_n_extensive_budget(two_bad),
+    "Cells: 1 and 2",
+    class = "whep_critn_budget_bad_area"
+  )
+  one_bad <- .critn_budget_fixture() |>
+    dplyr::mutate(a_tot_ha = c(300, 2000, 1500, 500))
+  testthat::expect_error(
+    whep:::.critical_n_extensive_budget(one_bad),
+    "Cell: 1\\.",
+    class = "whep_critn_budget_bad_area"
+  )
+})
+
+testthat::test_that("flows on several cells without extensive land abort", {
+  layers <- .critn_budget_fixture() |>
+    dplyr::mutate(
+      a_gr_ext_ha = c(400, 0, 0, 500),
+      manure_ext_n_kg = c(2000, 1000, 75, 100)
+    )
+  testthat::expect_error(
+    whep:::.critical_n_extensive_budget(layers),
+    "Cells: 2 and 3",
+    class = "whep_critn_budget_flow_without_area"
+  )
+  one <- .critn_budget_fixture() |>
+    dplyr::mutate(manure_ext_n_kg = c(2000, 1000, 75, 100))
+  testthat::expect_error(
+    whep:::.critical_n_extensive_budget(one),
+    "Cell: 3\\.",
+    class = "whep_critn_budget_flow_without_area"
+  )
+})
+
 testthat::test_that("extensive budget requires its input columns", {
   layers <- dplyr::select(.critn_budget_fixture(), -"uptake_ext_n_kg")
   testthat::expect_error(
