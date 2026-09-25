@@ -2077,3 +2077,44 @@ testthat::test_that("gridded_pasture is never read as gridded (#1214)", {
   ))
   testthat::expect_null(seen)
 })
+
+# Manure source option (whep#1197) --------------------------------------------
+
+# The golden outputs were written by the code BEFORE the manure-source option
+# existed (whep main at 5421973b), from these same fixtures. The default source
+# must reproduce them exactly; the only change is the added method_manure
+# column, which names the engine on the manure rows.
+testthat::test_that("the default manure source reproduces the pre-option output", {
+  golden <- readRDS(testthat::test_path(
+    "fixtures",
+    "n_inputs_default_golden.rds"
+  ))
+  manure <- c("excreta", "manure_solid", "manure_liquid")
+  for (resolution in c("grid", "polity")) {
+    out <- suppressMessages(
+      whep::build_n_inputs(data = .nbi_full_data(), resolution = resolution)
+    )
+    testthat::expect_identical(
+      dplyr::select(out, -"method_manure"),
+      golden[[paste0("inputs_", resolution)]]
+    )
+    testthat::expect_true(all(
+      out$method_manure[out$fert_type %in% manure] == "livestock_intake"
+    ))
+    testthat::expect_true(all(
+      is.na(out$method_manure[!out$fert_type %in% manure])
+    ))
+  }
+})
+
+testthat::test_that("naming the default manure source changes nothing", {
+  testthat::expect_identical(
+    suppressMessages(
+      whep::build_n_inputs(
+        data = .nbi_full_data(),
+        manure_method = "livestock_intake"
+      )
+    ),
+    suppressMessages(whep::build_n_inputs(data = .nbi_full_data()))
+  )
+})
