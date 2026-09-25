@@ -12,7 +12,8 @@ build_n_inputs(
   unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  manure_method = NULL
 )
 }
 \arguments{
@@ -27,7 +28,7 @@ keeps every year the assembled inputs cover.}
 \code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
 
 \item{method_unsupported}{What happens to non-item nitrogen (deposition,
-urban, soil-organic-matter mineralization, unattributed manure) whose own
+human, soil-organic-matter mineralization, unattributed manure) whose own
 cell-year carries no cropland support at all. \code{"abort"} (the default, and
 the behaviour before this argument existed) refuses to continue and names
 the streams and the mass, so a coverage gap cannot be lost silently.
@@ -45,7 +46,7 @@ which is how \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} for
 
 \item{unattributed_method}{Where nitrogen that reached agricultural land but
 no single crop goes -- manure the engine placed on Cropland or landed by
-transport without a crop, plus deposition, urban N and SOM mineralization,
+transport without a crop, plus deposition, human N and SOM mineralization,
 all of which carry \code{item_cbs_code = NA}. \code{"cropland_area"} (default)
 spreads it over the cell-year's cropland support in proportion to each
 crop's hectares; \code{"agricultural_area"} spreads it over cropland \emph{and}
@@ -99,7 +100,17 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \verb{$applied} table of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s output,
 keyed by its \code{territory}, \code{sub_territory}, \code{crop}, \code{land_use},
 \code{manure_type} and \code{year}; \code{manure_type} selects the \code{"excreta"},
-\code{"manure_solid"} or \code{"manure_liquid"} term.
+\code{"manure_solid"} or \code{"manure_liquid"} term. Under
+\code{manure_method = "faostat"} it supplies only the solid:liquid split.
+\item \code{manure}, \code{livestock_spatial}: the \code{manure_method = "faostat"}
+inputs, read only under that method. \code{manure} is the
+\code{faostat-emissions-livestock} pin, scoped by the caller to the years
+wanted, as \code{fertilizer} is. \code{livestock_spatial} is a list of the
+surfaces \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} spreads pasture manure over:
+\code{gridded_pasture}, \code{gridded_cropland} and \code{manure_pattern} (the
+\verb{spatialize-*} pins its production callers read), plus an optional
+\code{species_proxy} overriding the mapping's proxies; needed only when
+\code{cell_polity} is supplied.
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs. From
 its output the \code{"deposition"} term reads \code{deposition_kgn_ha} (the
 whole-cell rate), \code{deposition_n_t} and \code{area_category} (only to form
@@ -128,9 +139,17 @@ forwarded to \code{\link[=build_ag_land_support]{build_ag_land_support()}} when 
 \code{grassland_source} selects its \code{grassland} argument
 (\code{"gridded_pasture"} default, \code{"luh2"}, or \code{"none"} for cropland-only
 support).
-\item \code{urban_population}, \code{cropland_ha}, \code{cell_polity}: \code{\link[=build_urban_n]{build_urban_n()}}'s
-inputs. The \code{"urban"} term's \code{n_input_t} is the \code{urban_n_t} column of
-\code{\link[=build_urban_n]{build_urban_n()}}'s output.
+\item \code{total_population}, \code{urban_population}, \code{cropland_ha}, \code{cell_polity}:
+\code{\link[=build_human_n]{build_human_n()}}'s inputs. Which population is read is set by
+\code{human_n_population_basis}. The \code{"human"} term's \code{n_input_t} is the
+\code{human_n_t} column of \code{\link[=build_human_n]{build_human_n()}}'s output. The term was called
+\code{"urban"} before it was renamed.
+\item \code{human_n_population_basis}: \code{\link[=build_human_n]{build_human_n()}}'s \code{population_basis},
+\code{"total"} (default: \code{total_population}, from
+\code{\link[=build_total_population_grid]{build_total_population_grid()}}, with the per-inhabitant rate) or
+\code{"urban"} (\code{urban_population} with the per-urban-inhabitant rate).
+Supplying only the other basis's population aborts. Recorded in
+\code{method_human_population} and \code{method_human_kgn_cap}.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it
@@ -166,17 +185,41 @@ to \code{"national"} otherwise. A value supplied here is always honoured.
 
 \item{example}{If \code{TRUE}, return a small fixture instead of assembling
 real data. Defaults to \code{FALSE}.}
+
+\item{manure_method}{Where the three manure terms come from.
+\code{"livestock_intake"} (default) is WHEP's manure engine,
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}} over the realised feed intake.
+\code{"faostat"} reads them instead from the FAOSTAT livestock-emissions
+domain (\code{data$manure}, the \code{faostat-emissions-livestock} pin, source
+\code{"FAO TIER 1"}, kg N): \code{"manure_solid"} and \code{"manure_liquid"} from
+"Manure applied to soils (N content)" for "All Animals", split with the
+engine's own solid share per country-year and spread to crops by
+harvested-area share and to cells by \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}};
+\code{"excreta"} from the per-species "Manure left on pasture (N content)",
+mapped to species groups by \code{inst/extdata/livestock_mapping.csv} and
+spread to cells by \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} with that mapping's
+spatial proxies. These are national statistics spread onto cells, a
+cross-check on the engine rather than the default. A country-year the
+engine gives no solid:liquid split for is booked wholly as solid,
+with a warning. Recorded in \code{method_manure}. When \code{NULL} (default),
+uses \code{data$manure_method \%||\% "livestock_intake"}.}
 }
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}, \code{method_unsupported},
+\code{method_deposition_scope}, \code{method_human_population},
+\code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure},
 \code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
-\code{method_deposition}, \code{method_deposition_scope}, \code{method_unsupported},
-\code{method_unattributed}, \code{n_input_t} (summed over cells).
+\code{method_deposition}, \code{method_deposition_scope},
+\code{method_human_population}, \code{method_human_kgn_cap}, \code{method_unsupported},
+\code{method_manure}, \code{method_unattributed}, \code{n_input_t} (summed over cells).
+\code{method_manure} records the source of the three manure terms
+(\code{"livestock_intake"}, \code{"faostat"}, or \code{"faostat_all_solid"} on applied
+manure booked as solid for want of an engine split) and is \code{NA} for every
+other \code{fert_type}.
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
@@ -191,6 +234,9 @@ carrying no tag of its own), so a corrected field stays visible here.
 \code{method_deposition_scope} records
 which of the polycell's territory the \code{"deposition"} term was credited
 with (\code{"territory"} or \code{"land"}). Both are \code{NA} for every other
+\code{fert_type}. \code{method_human_population} and \code{method_human_kgn_cap} record
+the \code{"human"} term's population basis and the denominator of its
+per-capita rate (see \code{\link[=build_human_n]{build_human_n()}}); both are \code{NA} for every other
 \code{fert_type}.
 \code{method_unsupported} records the rule applied to non-item nitrogen with no
 cropland support in its own cell, and is the same on every row.
@@ -205,14 +251,14 @@ Both grains also carry the polity columns below, plus
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N
 recycling (\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}), livestock manure
 (\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}), atmospheric deposition
-(\code{\link[=build_n_deposition]{build_n_deposition()}}), urban/human-excreta N (\code{\link[=build_urban_n]{build_urban_n()}}), soil
+(\code{\link[=build_n_deposition]{build_n_deposition()}}), human-population N (\code{\link[=build_human_n]{build_human_n()}}), soil
 organic-matter mineralization (\code{\link[=build_carbon_balance]{build_carbon_balance()}}'s
 \code{son_change_kgn_ha}) and synthetic fertiliser (a country total
 spatialized to crops and cells via \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}})
 into one long-format tibble of nitrogen inputs to agricultural land.
 
 \code{fert_type} values: \code{"bnf"}, \code{"recycling"}, \code{"manure_solid"},
-\code{"manure_liquid"}, \code{"excreta"}, \code{"deposition"}, \code{"urban"},
+\code{"manure_liquid"}, \code{"excreta"}, \code{"deposition"}, \code{"human"},
 \code{"som_mineralization"}, \code{"synthetic"} and \code{"accum_loss"}. The last is a
 documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
@@ -222,7 +268,7 @@ Terms that are fundamentally per-cell or per-land-use rather than per-crop
 are allocated over the agricultural land support, either supplied as
 \code{data$ag_land_support} or derived by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from the
 gridded inputs already present. Deposition uses both cropland and
-grassland support. \code{"urban"}, \code{"som_mineralization"}, and manure already
+grassland support. \code{"human"}, \code{"som_mineralization"}, and manure already
 assigned upstream to Cropland but lacking a crop use only local cropland
 support, so manure is not reassigned to grassland after the manure engine's
 capacity allocation. Forest and natural land are outside that support and
@@ -232,10 +278,10 @@ therefore outside the agricultural balance. Grassland is represented by CBS
 \details{
 \code{polity_validity} is forwarded to every builder this function calls that
 offers it -- \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}},
-\code{\link[=build_urban_n]{build_urban_n()}} and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied
+\code{\link[=build_human_n]{build_human_n()}} and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied
 to the assembled output, so one choice governs the whole assembly instead of
 each builder deciding on its own key space (whep#727). Under \code{"drop"} the
-support table loses those rows too, so a non-item input (deposition, urban,
+support table loses those rows too, so a non-item input (deposition, human,
 SOM mineralization) whose own rows were supplied directly and therefore not
 dropped can find no cropland support left to allocate over; that aborts in
 the mass check rather than silently losing nitrogen.

@@ -237,16 +237,16 @@ test_that("resolve_polity_label recovers the coverage whep#389 measured", {
     "ROW-1850-2025"
   )
 
-  # urban_n_reference is FIXED ON MAIN and no longer needs this route at all.
+  # human_n_reference is FIXED ON MAIN and no longer needs this route at all.
   # This asserted that resolving its `area_code` rescued all 10 rows, because that
   # column held the string "ESP" in a slot that means the numeric FAOSTAT area
   # everywhere else in the package, so a consumer joining on it got zero rows. The
   # dataset now ships `area_code = 203` and carries `polity_code` directly, so the
   # defect is gone at source and a label lookup on a numeric code correctly
   # resolves nothing. Pinned in its fixed shape so the regression would be caught.
-  expect_type(whep::urban_n_reference$area_code, "integer")
-  expect_equal(unique(whep::urban_n_reference$area_code), 203L)
-  expect_equal(unique(whep::urban_n_reference$polity_code), "ESP-1800-2025")
+  expect_type(whep::human_n_reference$area_code, "integer")
+  expect_equal(unique(whep::human_n_reference$area_code), 203L)
+  expect_equal(unique(whep::human_n_reference$polity_code), "ESP-1800-2025")
 })
 
 test_that("source and year must be scalar or the same length as label", {

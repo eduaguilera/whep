@@ -10,11 +10,11 @@
 # Framing. "synthetic_bnf" (default, the Campbell / Global framing) scales
 # synthetic fertiliser to total agricultural reactive N with the packaged
 # `syn_tot_agri_ratio`, then adds biological nitrogen fixation. Recycled or
-# internal terms (manure, atmospheric
-# deposition, urban/human N, soil-organic-matter mineralization) are excluded
-# because they are not new fixation of reactive nitrogen. Other framings (e.g.
-# adding atmospheric deposition or manure) can be added as further `framing`
-# choices; each maps to its own set of fert_type terms.
+# internal terms (manure, atmospheric deposition, human-population N,
+# soil-organic-matter mineralization) are excluded because they are not new
+# fixation of reactive nitrogen. Other framings (e.g. adding atmospheric
+# deposition or manure) can be added as further `framing` choices; each maps
+# to its own set of fert_type terms.
 #
 # Units. n_input_t is tonnes N; multiplying by 1000 converts to kg N, and
 # dividing by population (absolute persons) gives kg N/cap/yr.
@@ -30,7 +30,7 @@
 #' Global framing) sums the synthetic-fertiliser and biological-nitrogen-
 #' fixation input terms using `synthetic * syn_tot_agri_ratio + BNF`, the
 #' locked Campbell / Global framing; recycled or internal terms (manure,
-#' deposition, urban, soil-organic-matter mineralization) are excluded. Any
+#' deposition, human, soil-organic-matter mineralization) are excluded. Any
 #' finer grid key (`lon`, `lat`, `item_cbs_code`) is aggregated away to the
 #' country total, and country-years without a matching population row are
 #' dropped -- in a warning naming those areas and the share of anthropogenic

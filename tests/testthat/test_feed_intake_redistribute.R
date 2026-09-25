@@ -1458,6 +1458,38 @@ test_that(".grass_to_cells maps grass to per-cell local grass_availability", {
   expect_equal(sum(out$grass_avail_dm_t), 1500, tolerance = 1e-9)
 })
 
+test_that(".grass_to_cells splits a border cell on the polycell share", {
+  # The polycell support (.carbon_cell_support(), the default country_grid of
+  # the local grain) names its share `cell_area_frac`, not `polity_frac`. The
+  # heads are split by it, so the grass ceiling must be too: read as a missing
+  # share, each polity of a border cell got the WHOLE cell's grass.
+  grass <- tibble::tribble(
+    ~lon  , ~lat  , ~year , ~grass_avail_dm_t ,
+    10.25 , 50.25 , 2000L ,              1000 ,
+    10.75 , 50.25 , 2000L ,               500
+  )
+  support <- tibble::tribble(
+    ~lon  , ~lat  , ~area_code , ~cell_area_frac ,
+    10.25 , 50.25 ,         1L ,             0.6 ,
+    10.25 , 50.25 ,         2L ,             0.4 ,
+    10.75 , 50.25 ,         1L ,             1.0
+  )
+  out <- whep:::.grass_to_cells(grass, support)
+  expect_equal(
+    out$grass_avail_dm_t[out$territory == "2"],
+    400,
+    tolerance = 1e-9
+  )
+  expect_equal(sum(out$grass_avail_dm_t), sum(grass$grass_avail_dm_t))
+})
+
+test_that(".grass_to_cells refuses a support with no polity share", {
+  grass <- tibble::tibble(lon = 10.25, lat = 50.25, year = 2000L)
+  grass$grass_avail_dm_t <- 1000
+  support <- tibble::tibble(lon = 10.25, lat = 50.25, area_code = 1L)
+  expect_error(whep:::.grass_to_cells(grass, support), "polity share")
+})
+
 test_that(".heads_to_cell_shares maps species groups and shares per category", {
   gridded_heads <- tibble::tribble(
     ~year,
