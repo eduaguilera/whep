@@ -8,8 +8,8 @@ livestock manure
 ([`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)),
 atmospheric deposition
 ([`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)),
-urban/human-excreta N
-([`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)),
+human-population N
+([`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)),
 soil organic-matter mineralization
 ([`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)'s
 `son_change_kgn_ha`) and synthetic fertiliser (a country total
@@ -18,7 +18,7 @@ spatialized to crops and cells via
 into one long-format tibble of nitrogen inputs to agricultural land.
 
 `fert_type` values: `"bnf"`, `"recycling"`, `"manure_solid"`,
-`"manure_liquid"`, `"excreta"`, `"deposition"`, `"urban"`,
+`"manure_liquid"`, `"excreta"`, `"deposition"`, `"human"`,
 `"som_mineralization"`, `"synthetic"` and `"accum_loss"`. The last is a
 documented gap (perennial-crop standing-biomass N accumulation from
 Spain_Hist's N_balance.R): its source computation was not available for
@@ -29,7 +29,7 @@ per-crop are allocated over the agricultural land support, either
 supplied as `data$ag_land_support` or derived by
 [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
 from the gridded inputs already present. Deposition uses both cropland
-and grassland support. `"urban"`, `"som_mineralization"`, and manure
+and grassland support. `"human"`, `"som_mineralization"`, and manure
 already assigned upstream to Cropland but lacking a crop use only local
 cropland support, so manure is not reassigned to grassland after the
 manure engine's capacity allocation. Forest and natural land are outside
@@ -72,7 +72,7 @@ build_n_inputs(
 
 - method_unsupported:
 
-  What happens to non-item nitrogen (deposition, urban,
+  What happens to non-item nitrogen (deposition, human,
   soil-organic-matter mineralization, unattributed manure) whose own
   cell-year carries no cropland support at all. `"abort"` (the default,
   and the behaviour before this argument existed) refuses to continue
@@ -97,7 +97,7 @@ build_n_inputs(
 
   Where nitrogen that reached agricultural land but no single crop goes
   – manure the engine placed on Cropland or landed by transport without
-  a crop, plus deposition, urban N and SOM mineralization, all of which
+  a crop, plus deposition, human N and SOM mineralization, all of which
   carry `item_cbs_code = NA`. `"cropland_area"` (default) spreads it
   over the cell-year's cropland support in proportion to each crop's
   hectares; `"agricultural_area"` spreads it over cropland *and*
@@ -217,12 +217,23 @@ build_n_inputs(
     `grassland` argument (`"gridded_pasture"` default, `"luh2"`, or
     `"none"` for cropland-only support).
 
-  - `urban_population`, `cropland_ha`, `cell_polity`:
-    [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)'s
-    inputs. The `"urban"` term's `n_input_t` is the `urban_n_t` column
-    of
-    [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)'s
-    output.
+  - `total_population`, `urban_population`, `cropland_ha`,
+    `cell_polity`:
+    [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)'s
+    inputs. Which population is read is set by
+    `human_n_population_basis`. The `"human"` term's `n_input_t` is the
+    `human_n_t` column of
+    [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)'s
+    output. The term was called `"urban"` before it was renamed.
+
+  - `human_n_population_basis`:
+    [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)'s
+    `population_basis`, `"total"` (default: `total_population`, from
+    [`build_total_population_grid()`](https://eduaguilera.github.io/whep/reference/build_total_population_grid.md),
+    with the per-inhabitant rate) or `"urban"` (`urban_population` with
+    the per-urban-inhabitant rate). Supplying only the other basis's
+    population aborts. Recorded in `method_human_population` and
+    `method_human_kgn_cap`.
 
   - `carbon_balance`:
     [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)'s
@@ -302,10 +313,11 @@ build_n_inputs(
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_unsupported`, `method_manure`, `method_unattributed`. At
-`resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
-`fert_type`, `method_recycling_n`, `method_synthetic`,
-`method_deposition`, `method_deposition_scope`, `method_unsupported`,
+`method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
+`method_manure`, `method_unattributed`. At `resolution = "polity"`:
+`area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+`method_synthetic`, `method_deposition`, `method_deposition_scope`,
+`method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
 `method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
 `method_manure` records the source of the three manure terms
 (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
@@ -327,14 +339,19 @@ own rows, `"supplied"` for an injected field carrying no tag of its
 own), so a corrected field stays visible here. `method_deposition_scope`
 records which of the polycell's territory the `"deposition"` term was
 credited with (`"territory"` or `"land"`). Both are `NA` for every other
-`fert_type`. `method_unsupported` records the rule applied to non-item
-nitrogen with no cropland support in its own cell, and is the same on
-every row. `method_unattributed` records the `unattributed_method` the
-whole assembly ran under and is stamped on **every** row, not only on
-the reallocated ones: under `"exclude"` no reallocated row survives to
-carry it, and a choice that removes nitrogen has to stay readable from
-the table. Both grains also carry the polity columns below, plus
-`reporting_polity_out_of_span` when `polity_validity = "flag"`.
+`fert_type`. `method_human_population` and `method_human_kgn_cap` record
+the `"human"` term's population basis and the denominator of its
+per-capita rate (see
+[`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md));
+both are `NA` for every other `fert_type`. `method_unsupported` records
+the rule applied to non-item nitrogen with no cropland support in its
+own cell, and is the same on every row. `method_unattributed` records
+the `unattributed_method` the whole assembly ran under and is stamped on
+**every** row, not only on the reallocated ones: under `"exclude"` no
+reallocated row survives to carry it, and a choice that removes nitrogen
+has to stay readable from the table. Both grains also carry the polity
+columns below, plus `reporting_polity_out_of_span` when
+`polity_validity = "flag"`.
 
 ## Details
 
@@ -342,13 +359,13 @@ the table. Both grains also carry the polity columns below, plus
 offers it –
 [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
-[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+[`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
 and
 [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
 – and then applied to the assembled output, so one choice governs the
 whole assembly instead of each builder deciding on its own key space
 (whep#727). Under `"drop"` the support table loses those rows too, so a
-non-item input (deposition, urban, SOM mineralization) whose own rows
+non-item input (deposition, human, SOM mineralization) whose own rows
 were supplied directly and therefore not dropped can find no cropland
 support left to allocate over; that aborts in the mass check rather than
 silently losing nitrogen.
@@ -408,7 +425,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 18
+#> # A tibble: 9 × 20
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -420,9 +437,10 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 15 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
 #> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
-#> #   method_deposition_scope <chr>, method_unsupported <chr>,
-#> #   method_manure <chr>, method_unattributed <chr>
+#> #   method_deposition_scope <chr>, method_human_population <chr>,
+#> #   method_human_kgn_cap <chr>, method_unsupported <chr>, method_manure <chr>,
+#> #   method_unattributed <chr>
 ```

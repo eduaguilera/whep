@@ -19,7 +19,8 @@ A tibble with columns:
 
   Nitrogen source: one of `"Synthetic"`, `"SOM"`, `"Deposition"`,
   `"Solid"`, `"Excreta_cattle_monog"`, `"Excreta_other"`, `"Liquid"`,
-  `"Urban"`, `"BNF"`.
+  `"Human"`, `"BNF"`. `"Human"` was keyed `"Urban"` before it was
+  renamed; the former key is still read, with a deprecation warning.
 
 - climate:
 

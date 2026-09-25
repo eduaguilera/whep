@@ -7,7 +7,7 @@ same 0.5-degree cell-area formula used across the package (see
 This assembles the `data$cell_polity` contract that every Module C
 function (e.g.
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
-[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md),
+[`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md),
 [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md))
 expects as a required input.
 

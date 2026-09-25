@@ -917,7 +917,7 @@ than closed by accident.
   are the selectable loss methods;
   [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
   /
-  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
   read gridded deposition and urban/human N.
 - **Footprints**:
   [`build_footprint()`](https://eduaguilera.github.io/whep/reference/build_footprint.md)

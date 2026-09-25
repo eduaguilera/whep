@@ -71,6 +71,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_historical_land_areas.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_human_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_intake_dispersion.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_io_model.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.html</loc></url>
@@ -100,8 +101,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_nitrogen.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_supply_use.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_total_population_grid.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_trade_prices.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/build_urban_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_water_balance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_bnf.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_cohorts_systems.html</loc></url>
@@ -245,6 +246,9 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/gridded_fallow_weights.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/harmonize_interpolate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/harmonize_simple.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/human_kgn_cap_reference.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/human_kgn_cap_total_reference.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/human_n_reference.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/hwsd_texture_usda.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.html</loc></url>
@@ -390,8 +394,6 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/summarize_bnf.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/temperature_adjustment.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/uncertainty_ranges.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/urban_kgn_cap_reference.html</loc></url>
-<url><loc>https://eduaguilera.github.io/whep/reference/urban_n_reference.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/validate_national_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/validate_national_trade_raw.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep-package.html</loc></url>

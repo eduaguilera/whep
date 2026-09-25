@@ -494,9 +494,9 @@
         </dt>
         <dd>Nitrogen leaching-attenuation and indirect-N2O constants.</dd>
       </dl></div><div class="section level2">
-      <h2 id="urban-nitrogen-coefficient-tables">Urban nitrogen coefficient tables<a class="anchor" aria-label="anchor" href="#urban-nitrogen-coefficient-tables"></a></h2>
+      <h2 id="human-population-nitrogen-coefficient-tables">Human-population nitrogen coefficient tables<a class="anchor" aria-label="anchor" href="#human-population-nitrogen-coefficient-tables"></a></h2>
 
-      <div class="section-desc"><p>Spain historical benchmark series (Module C, Task C3) behind <code><a href="../reference/build_urban_n.html">build_urban_n()</a></code>’s global default per-capita urban-N-to-agriculture rate: the raw national-total urban nitrogen series and its derived per-capita rate.</p></div>
+      <div class="section-desc"><p>Historical calibration series (Module C, Task C3) behind <code><a href="../reference/build_human_n.html">build_human_n()</a></code>’s global default per-capita rate for the nitrogen a population returns to farmland (municipal solid waste, sewage sludge, human excreta): the raw national-total series and its derived per-capita rates, per inhabitant and per urban inhabitant.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -505,17 +505,24 @@
 
       <dl><dt>
 
-          <code><a href="urban_n_reference.html">urban_n_reference</a></code>
+          <code><a href="human_n_reference.html">human_n_reference</a></code> <code><a href="human_n_reference.html">urban_n_reference</a></code>
 
         </dt>
-        <dd>Spain historical urban nitrogen applied to agriculture.</dd>
+        <dd>Historical human-population nitrogen applied to agriculture.</dd>
 
         <dt>
 
-          <code><a href="urban_kgn_cap_reference.html">urban_kgn_cap_reference</a></code>
+          <code><a href="human_kgn_cap_total_reference.html">human_kgn_cap_total_reference</a></code>
 
         </dt>
-        <dd>Spain historical per-capita urban nitrogen rate.</dd>
+        <dd>Human-population nitrogen rate per inhabitant.</dd>
+
+        <dt>
+
+          <code><a href="human_kgn_cap_reference.html">human_kgn_cap_reference</a></code> <code><a href="human_kgn_cap_reference.html">urban_kgn_cap_reference</a></code>
+
+        </dt>
+        <dd>Human-population nitrogen rate per urban inhabitant.</dd>
       </dl></div><div class="section level2">
       <h2 id="soil-balances-carbon-soc-climate-">Soil balances - carbon (SOC climate)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-soc-climate-"></a></h2>
 
@@ -698,7 +705,14 @@
           <code><a href="read_hyde_population.html">read_hyde_population()</a></code>
 
         </dt>
-        <dd>Read gridded HYDE urban population onto WHEP's grid.</dd>
+        <dd>Read gridded HYDE population onto WHEP's grid.</dd>
+
+        <dt>
+
+          <code><a href="build_total_population_grid.html">build_total_population_grid()</a></code>
+
+        </dt>
+        <dd>Build gridded total population from UN WPP and HYDE.</dd>
 
         <dt>
 
@@ -730,10 +744,10 @@
 
         <dt>
 
-          <code><a href="build_urban_n.html">build_urban_n()</a></code>
+          <code><a href="build_human_n.html">build_human_n()</a></code> <code><a href="build_human_n.html">build_urban_n()</a></code>
 
         </dt>
-        <dd>Build gridded urban/human-excreta nitrogen inputs to agriculture.</dd>
+        <dd>Build gridded human-population nitrogen inputs to agriculture.</dd>
 
         <dt>
 

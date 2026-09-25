@@ -7,7 +7,7 @@ nitrogen source. Mediterranean factors follow the Cayuela et al.
 IPCC (2019) dry-area values for excreta; Atlantic factors follow the
 IPCC (2019) wet-area values. Missing factors mark sources whose N2O
 is not modelled through this pathway in the Mediterranean (recycled
-organic fertilisers, soil organic matter, urban N)."><meta property="og:description" content="Multiplicative modifying factors applied to the disaggregated direct
+organic fertilisers, soil organic matter, human-population N)."><meta property="og:description" content="Multiplicative modifying factors applied to the disaggregated direct
 N2O emission factor by fertiliser type and climate zone. They scale
 the climate-by-irrigation emission factor up or down according to the
 nitrogen source. Mediterranean factors follow the Cayuela et al.
@@ -15,7 +15,7 @@ nitrogen source. Mediterranean factors follow the Cayuela et al.
 IPCC (2019) dry-area values for excreta; Atlantic factors follow the
 IPCC (2019) wet-area values. Missing factors mark sources whose N2O
 is not modelled through this pathway in the Mediterranean (recycled
-organic fertilisers, soil organic matter, urban N)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+organic fertilisers, soil organic matter, human-population N)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -63,7 +63,7 @@ nitrogen source. Mediterranean factors follow the Cayuela et al.
 IPCC (2019) dry-area values for excreta; Atlantic factors follow the
 IPCC (2019) wet-area values. Missing factors mark sources whose N2O
 is not modelled through this pathway in the Mediterranean (recycled
-organic fertilisers, soil organic matter, urban N).</p>
+organic fertilisers, soil organic matter, human-population N).</p>
     </div>
 
     <div class="section level2">
@@ -77,7 +77,9 @@ organic fertilisers, soil organic matter, urban N).</p>
 <dd><p>Nitrogen source: one of <code>"Synthetic"</code>,
 <code>"Solid"</code>, <code>"Liquid"</code>, <code>"Recycling"</code>,
 <code>"Excreta_cattle_monog"</code>, <code>"Excreta_other"</code>,
-<code>"SOM"</code>, <code>"Urban"</code>.</p></dd>
+<code>"SOM"</code>, <code>"Human"</code> (the human-population N term,
+keyed <code>"Urban"</code> before it was renamed; the former key is still
+read, with a deprecation warning).</p></dd>
 
 <dt>climate</dt>
 <dd><p>Climate zone: <code>"MED"</code> or <code>"ATL"</code>.</p></dd>
@@ -116,7 +118,7 @@ Greenhouse Gas Inventories, Vol. 4, Chapter 11.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> Excreta_cattle_monog MED      0.2  IPCC, 2019, dry areas                     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> Excreta_other        MED      0.3  IPCC, 2019, dry areas                     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> SOM                  MED      0    Cayuela et al., 2017, solid organic ferti…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> Urban                MED      0    Cayuela et al., 2017, solid organic ferti…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> Human                MED      0    Cayuela et al., 2017, solid organic ferti…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> Synthetic            ATL      1.6  IPCC, 2019, wet areas, synthetic          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> Solid                ATL      0.6  IPCC, 2019, wet areas, other N inputs     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span> Liquid               ATL      0.6  IPCC, 2019, wet areas, other N inputs     </span>
@@ -124,7 +126,7 @@ Greenhouse Gas Inventories, Vol. 4, Chapter 11.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">13</span> Excreta_cattle_monog ATL      0.6  IPCC, 2019, wet areas                     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">14</span> Excreta_other        ATL      0.3  IPCC, 2019, wet areas                     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">15</span> SOM                  ATL      0.6  IPCC, 2019, wet areas, other N inputs     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">16</span> Urban                ATL      0.6  IPCC, 2019, wet areas, other N inputs     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">16</span> Human                ATL      0.6  IPCC, 2019, wet areas, other N inputs     </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -192,17 +192,23 @@ bins, and the C:N leaching-attenuation and indirect-N2O constants.
 - [`n_attenuation_constants`](https://eduaguilera.github.io/whep/reference/n_attenuation_constants.md)
   : Nitrogen leaching-attenuation and indirect-N2O constants.
 
-## Urban nitrogen coefficient tables
+## Human-population nitrogen coefficient tables
 
-Spain historical benchmark series (Module C, Task C3) behind
-[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)’s
-global default per-capita urban-N-to-agriculture rate: the raw
-national-total urban nitrogen series and its derived per-capita rate.
+Historical calibration series (Module C, Task C3) behind
+[`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)’s
+global default per-capita rate for the nitrogen a population returns to
+farmland (municipal solid waste, sewage sludge, human excreta): the raw
+national-total series and its derived per-capita rates, per inhabitant
+and per urban inhabitant.
 
-- [`urban_n_reference`](https://eduaguilera.github.io/whep/reference/urban_n_reference.md)
-  : Spain historical urban nitrogen applied to agriculture.
-- [`urban_kgn_cap_reference`](https://eduaguilera.github.io/whep/reference/urban_kgn_cap_reference.md)
-  : Spain historical per-capita urban nitrogen rate.
+- [`human_n_reference`](https://eduaguilera.github.io/whep/reference/human_n_reference.md)
+  [`urban_n_reference`](https://eduaguilera.github.io/whep/reference/human_n_reference.md)
+  : Historical human-population nitrogen applied to agriculture.
+- [`human_kgn_cap_total_reference`](https://eduaguilera.github.io/whep/reference/human_kgn_cap_total_reference.md)
+  : Human-population nitrogen rate per inhabitant.
+- [`human_kgn_cap_reference`](https://eduaguilera.github.io/whep/reference/human_kgn_cap_reference.md)
+  [`urban_kgn_cap_reference`](https://eduaguilera.github.io/whep/reference/human_kgn_cap_reference.md)
+  : Human-population nitrogen rate per urban inhabitant.
 
 ## Soil balances - carbon (SOC climate)
 
@@ -301,7 +307,9 @@ balance term computed from that balance.
 - [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
   : Build gridded atmospheric nitrogen deposition inputs.
 - [`read_hyde_population()`](https://eduaguilera.github.io/whep/reference/read_hyde_population.md)
-  : Read gridded HYDE urban population onto WHEP's grid.
+  : Read gridded HYDE population onto WHEP's grid.
+- [`build_total_population_grid()`](https://eduaguilera.github.io/whep/reference/build_total_population_grid.md)
+  : Build gridded total population from UN WPP and HYDE.
 - [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
   : Read national population on WHEP area codes.
 - [`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md)
@@ -310,8 +318,9 @@ balance term computed from that balance.
   : Read FAOSTAT Food Balance Sheet population on WHEP area codes.
 - [`population_source_reach()`](https://eduaguilera.github.io/whep/reference/population_source_reach.md)
   : Report which areas a present-day-ISO3 population source can reach.
-- [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
-  : Build gridded urban/human-excreta nitrogen inputs to agriculture.
+- [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
+  : Build gridded human-population nitrogen inputs to agriculture.
 - [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
   : Estimate ammonia-N volatilisation with the MANNER process-based
   model.

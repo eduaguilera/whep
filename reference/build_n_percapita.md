@@ -10,7 +10,7 @@ consumes as its `n_percapita` input. The default `"synthetic_bnf"`
 framing (the Campbell / Global framing) sums the synthetic-fertiliser
 and biological-nitrogen- fixation input terms using
 `synthetic * syn_tot_agri_ratio + BNF`, the locked Campbell / Global
-framing; recycled or internal terms (manure, deposition, urban,
+framing; recycled or internal terms (manure, deposition, human,
 soil-organic-matter mineralization) are excluded. Any finer grid key
 (`lon`, `lat`, `item_cbs_code`) is aggregated away to the country total,
 and country-years without a matching population row are dropped – in a

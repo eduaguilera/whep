@@ -728,7 +728,7 @@
   Which of the three a dissolved federation should be given is a science
   decision the maintainer has not made.
 
-- **[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+- **[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
   now requires the numeric WHEP `area_code` on the frames it is handed,
   and checks it at the input boundary instead of after transport
   ([\#597](https://github.com/eduaguilera/whep/issues/597)).** The
@@ -1892,7 +1892,7 @@
   of them:
   [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
   [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
-  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
   and
   [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md).
   The choice is then applied to the assembled inputs and to the balance
@@ -3492,7 +3492,7 @@
   every other consumer of the same year-less `data$cell_polity` grid had
   the same defect silently.
   [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
-  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md),
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md),
   [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
   [`aggregate_grass_to_polity()`](https://eduaguilera.github.io/whep/reference/aggregate_grass_to_polity.md),
   [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
@@ -4913,7 +4913,7 @@
   pre-resolution reader), and
   [`build_grazing_feed_footprint()`](https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.md)/[`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
   are aggregated over time and have no year to resolve a polity against.
-  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
   now returns the numeric WHEP `area_code` rather than the character
   territory key its manure-transport reuse works in; an ISO3 input still
   resolves through the same checked resolver as the manure path.
@@ -4934,7 +4934,7 @@
   [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
   assembles inputs
   ([`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md),
-  incl. [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)/[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md))
+  incl. [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)/[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md))
   minus the selectable losses
   ([`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)/[`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md)/
   [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),

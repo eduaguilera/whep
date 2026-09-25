@@ -163,7 +163,8 @@ the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
 `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 columns below. When the supplied `n_inputs` carry them, the
 `method_recycling_n`, `method_synthetic`, `method_deposition`,
-`method_deposition_scope`, `method_unsupported`, `method_manure` and
+`method_deposition_scope`, `method_human_population`,
+`method_human_kgn_cap`, `method_unsupported`, `method_manure` and
 `method_unattributed` stamps from
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
 are carried through as well, so a balance names the input conventions
@@ -177,7 +178,7 @@ that produced it. Gains `reporting_polity_out_of_span` when
 – which forwards it in turn to
 [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
-[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+[`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)
 and
 [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
 – and then applied to the balance rows themselves, so one choice governs
