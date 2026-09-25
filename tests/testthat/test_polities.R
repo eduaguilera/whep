@@ -334,8 +334,9 @@ test_that(".iso3_year_to_polity_code gives a boundary year to the successor", {
   # coefficient was booked to a polity that no longer existed.
   #
   # Synthetic spans, because the real defect cannot be witnessed on the one
-  # dataset the builder stamps: `urban_n_reference` is Spain over 1860-2022 and
-  # `ESP-1800-2025` covers every benchmark year on either reading.
+  # dataset the builder stamps: `human_n_reference` is one country over
+  # 1860-2022 and `ESP-1800-2025` covers every benchmark year on either
+  # reading.
   crosswalk <- tibble::tribble(
     ~area_iso3c, ~polity_code,    ~polity_start_year, ~polity_end_year,
     "XAA",       "XAA-1900-1950", 1900L,              1950L,
@@ -384,7 +385,7 @@ test_that(".iso3_year_to_polity_code aborts rather than pick a candidate", {
   )
 })
 
-test_that("urban_n_reference is stamped with the polity live in that year", {
+test_that("human_n_reference is stamped with the polity live in that year", {
   # The shipped end of the same fix: every benchmark row of the one dataset the
   # builder stamps must name a polity whose span really covers its year, under
   # the exclusive-at-a-succession / inclusive-at-an-open-end reading.
@@ -394,7 +395,7 @@ test_that("urban_n_reference is stamped with the polity live in that year", {
   covered_to <- spans$polity_end_year +
     (spans$polity_code %in% whep:::.open_polity_codes())
 
-  urban <- whep::urban_n_reference
+  urban <- whep::human_n_reference
   idx <- match(urban$polity_code, spans$polity_code)
   expect_false(anyNA(idx))
   expect_true(all(spans$polity_start_year[idx] <= urban$year))

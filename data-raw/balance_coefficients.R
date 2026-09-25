@@ -114,7 +114,7 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 # that no longer existed (#565). The resolver now lives in R/polities.R, reads
 # its bound through `.polity_join_end_year()` like every other call site, and is
 # tested there against a synthetic succession, which is the only place the
-# defect can be made to fail: `urban_n_reference` is Spain-only over 1860-2022
+# defect can be made to fail: `human_n_reference` is one country over 1860-2022
 # and one continuous polity covers all ten benchmark years, so its OUTPUT cannot
 # witness the bug.
 #
@@ -125,16 +125,18 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
   whep:::.iso3_year_to_polity_code(iso3, year)
 }
 
-# Module C (Task C3) urban nitrogen coefficient datasets. urban_n_reference is
-# the raw Spain_Hist benchmark series (see R/datasets_balances.R @source for
-# provenance). urban_kgn_cap_reference is the DERIVED per-capita rate; it is
-# NOT recomputed here (see data-raw/build_urban_kgn_cap.R for how it was
-# built and how to regenerate it against real HYDE data).
+# Module C (Task C3) human-population nitrogen coefficient datasets.
+# human_n_reference is the raw calibration benchmark series (see
+# R/datasets_balances.R @source for provenance), read from the vendored
+# urban_n_reference.csv under its own file name. human_kgn_cap_reference is
+# the DERIVED per-capita rate; it is NOT recomputed here (see
+# data-raw/build_human_kgn_cap.R for how it was built and how to regenerate
+# it against real HYDE data).
 #
-# The vendored urban_n_reference.csv labels its area with the ISO3 string
-# "ESP", while every other area_code in this package is the numeric FAOSTAT
+# The vendored urban_n_reference.csv labels its area with an ISO3 string,
+# while every other area_code in this package is the numeric FAOSTAT
 # code -- the other half of this same derivation,
-# data-raw/build_urban_kgn_cap.R, keeps Spain by filtering on area code 203L.
+# data-raw/build_human_kgn_cap.R, filters on the numeric area code.
 # One concept keyed two ways, so the series could not be joined to any
 # area-keyed table without a hand conversion and the column name gave no hint
 # that one was needed (whep#401). The label is resolved here rather than
@@ -150,13 +152,30 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 # breaks. It is resolved per row against the polity active in that benchmark
 # year, so a series whose span crosses a succession picks up both polities
 # without this build needing to change.
-urban_n_reference <- .read_balance_csv("urban_n_reference.csv") |>
+human_n_reference <- .read_balance_csv("urban_n_reference.csv") |>
+  dplyr::rename(human_n_gg = "urban_n_gg") |>
   dplyr::mutate(
     polity_code = .iso3_year_to_polity_code(.data$area_code, .data$year)
   ) |>
   dplyr::mutate(area_code = .iso3_to_area_code(.data$area_code)) |>
   dplyr::relocate("polity_code", .after = "area_code")
-urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
+human_kgn_cap_reference <- .read_balance_csv("human_kgn_cap_reference.csv")
+# The same rate per TOTAL inhabitant (calibration nitrogen over the
+# calibration UN WPP total population), for build_human_n()'s default
+# population_basis = "total"; also derived, also not recomputed here -- see
+# the last section of the one-off regeneration script build_human_kgn_cap.R
+# in this directory.
+human_kgn_cap_total_reference <- .read_balance_csv(
+  "human_kgn_cap_total_reference.csv"
+)
+# The deprecated former names of the first two tables, kept loading for one
+# release with their former column names, so `whep::urban_n_reference` and
+# `whep::urban_kgn_cap_reference` still return exactly what they did.
+urban_n_reference <- dplyr::rename(human_n_reference, urban_n_gg = "human_n_gg")
+urban_kgn_cap_reference <- dplyr::rename(
+  human_kgn_cap_reference,
+  urban_kgn_cap = "human_kgn_cap"
+)
 
 # Module C (Task C4) MANNER process-based ammonia-volatilisation coefficient
 # datasets, complementing manner_params (see R/datasets_balances.R @source
@@ -207,6 +226,9 @@ usethis::use_data(
   subsoil_no3_reduction,
   manner_params,
   n_attenuation_constants,
+  human_n_reference,
+  human_kgn_cap_reference,
+  human_kgn_cap_total_reference,
   urban_n_reference,
   urban_kgn_cap_reference,
   manner_rate_factor,

@@ -10,7 +10,9 @@ A tibble with columns:
 \item{fert_type}{Nitrogen source: one of \code{"Synthetic"},
 \code{"Solid"}, \code{"Liquid"}, \code{"Recycling"},
 \code{"Excreta_cattle_monog"}, \code{"Excreta_other"},
-\code{"SOM"}, \code{"Urban"}.}
+\code{"SOM"}, \code{"Human"} (the human-population N term,
+keyed \code{"Urban"} before it was renamed; the former key is still
+read, with a deprecation warning).}
 \item{climate}{Climate zone: \code{"MED"} or \code{"ATL"}.}
 \item{mf}{Multiplicative modifying factor on the N2O emission
 factor; \code{NA} where the source is not modelled through this
@@ -38,7 +40,7 @@ nitrogen source. Mediterranean factors follow the Cayuela et al.
 IPCC (2019) dry-area values for excreta; Atlantic factors follow the
 IPCC (2019) wet-area values. Missing factors mark sources whose N2O
 is not modelled through this pathway in the Mediterranean (recycled
-organic fertilisers, soil organic matter, urban N).
+organic fertilisers, soil organic matter, human-population N).
 }
 \examples{
 fertiliser_n2o_modifiers

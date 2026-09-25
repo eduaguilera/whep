@@ -232,7 +232,7 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on a missi
   testthat::expect_error(whep::calculate_soil_n2o(x, method = "aguilera"))
 })
 
-testthat::test_that("calculate_soil_n2o(method = \"aguilera\") never returns a silent NA modifier for MED SOM/Urban/Recycling", {
+testthat::test_that("calculate_soil_n2o(method = \"aguilera\") never returns a silent NA modifier for MED SOM/Human/Recycling", {
   # Invariant across the fertiliser_n2o_modifiers CSV state: these MED rows
   # are NA before the CSV fix and 0.00 after it, so the result must be EITHER
   # a clean abort (NA modifier) OR a finite value (0.00 -> 0), never a silent
@@ -240,7 +240,7 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") never returns a s
   x <- tibble::tribble(
     ~n_input_t, ~fert_type, ~climate, ~irrig_type,
     10, "SOM", "MED", "Drip",
-    10, "Urban", "MED", "Drip",
+    10, "Human", "MED", "Drip",
     10, "Recycling", "MED", "Drip"
   )
   out <- tryCatch(
@@ -640,4 +640,27 @@ testthat::test_that("calculate_indirect_n2o_nh3 example fixture is schema-comple
     out,
     c("nh3_n_t", "climate", "n2o_indirect_nh3_n_t")
   )
+})
+
+testthat::test_that("the former Urban key gets the Human coefficients, with a warning", {
+  # "Urban" was renamed "Human". A table built before the rename must neither
+  # lose its modifier (NA, then an abort) nor get a different one.
+  human <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~irrig_cat,
+    10, "Human", "MED", "Drip", "Irrigated",
+    10, "Human", "ATL", "Tier_1", "Rainfed"
+  )
+  legacy <- dplyr::mutate(human, fert_type = "Urban")
+  testthat::expect_warning(
+    old_mf <- whep:::.soil_n2o_ef_mf_aguilera(legacy),
+    class = "whep_urban_fert_type_deprecated"
+  )
+  testthat::expect_identical(old_mf, whep:::.soil_n2o_ef_mf_aguilera(human))
+  testthat::expect_false(anyNA(old_mf))
+  testthat::expect_warning(
+    old_red <- whep:::.leaching_no3_red(legacy),
+    class = "whep_urban_fert_type_deprecated"
+  )
+  testthat::expect_identical(old_red, whep:::.leaching_no3_red(human))
+  testthat::expect_equal(old_red, c(0.65, 0.70))
 })

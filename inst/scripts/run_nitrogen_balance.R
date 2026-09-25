@@ -35,6 +35,14 @@
 #                           what to do with synthetic N of polities that have
 #                           no cropland cell (default `drop`; see
 #                           .nbd_drop_unsupported_fertilizer() below).
+#   WHEP_NBD_HUMAN_N_BASIS=total|urban
+#                           the human-population N term's population basis
+#                           (build_human_n()'s `population_basis`). "total"
+#                           (default) is the UN WPP total on HYDE's popc
+#                           pattern (build_total_population_grid()) with the
+#                           rate per inhabitant, and needs the WPP file
+#                           read_wpp_population() caches; "urban" is HYDE's
+#                           urban count with the rate per urban inhabitant.
 #   WHEP_NBD_MANURE_METHOD=livestock_intake|faostat
 #                           source of the three manure terms (default
 #                           `livestock_intake`, the manure engine). `faostat`
@@ -66,6 +74,11 @@ unsupported_fertilizer <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_UNSUPPORTED_FERTILIZER", "drop"),
   c("drop", "abort"),
   arg_nm = "WHEP_NBD_UNSUPPORTED_FERTILIZER"
+)
+human_n_basis <- rlang::arg_match0(
+  Sys.getenv("WHEP_NBD_HUMAN_N_BASIS", "total"),
+  c("total", "urban"),
+  arg_nm = "WHEP_NBD_HUMAN_N_BASIS"
 )
 manure_method <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_MANURE_METHOD", "livestock_intake"),
@@ -508,7 +521,7 @@ NBD_PLACEHOLDER_CLIMATE <- "ATL"
     "manure_solid",
     "som_mineralization",
     "synthetic",
-    "urban",
+    "human",
     "recycling"
   )
   n_inputs |>
@@ -630,10 +643,43 @@ if (!is.null(npp) && !is.null(npp_national)) {
 
 cli::cli_h2("4. Upstream models")
 
-urban_population <- nbd_stage(
-  "urban_population",
-  read_hyde_population(years = year)
-)
+# The population the human-N term is generated from, on the selected basis.
+# The per-capita rate is chosen with it inside build_human_n(), so the two
+# cannot be mixed here. The total basis is levelled per polycell on the same
+# crosswalk the balance uses, and its coverage (held or interpolated HYDE
+# pattern, unplaced people) is kept for the saved result.
+urban_population <- NULL
+total_population <- NULL
+if (human_n_basis == "urban") {
+  urban_population <- nbd_stage(
+    "urban_population",
+    read_hyde_population(years = year, variable = "urban")
+  )
+} else {
+  total_population <- nbd_stage(
+    "total_population",
+    build_total_population_grid(
+      years = year,
+      data = list(cell_polity = cell_polity)
+    )
+  )
+}
+total_population_coverage <- attr(total_population, "coverage")
+# nbd_stage() suppresses warnings, so say here what the total basis could not
+# place and whether the pattern was held, rather than lose it.
+if (!is.null(total_population_coverage)) {
+  pattern <- if (length(total_population_coverage$held) > 0L) {
+    paste("held at", total_population_coverage$held_at)
+  } else {
+    "exact or interpolated"
+  }
+  unplaced <- total_population_coverage$unplaced
+  cli::cli_inform(c(
+    i = "total population: HYDE pattern {pattern};
+         {signif(sum(unplaced$wpp_population), 4)} persons in
+         {nrow(unplaced)} countr{?y/ies} not placed."
+  ))
+}
 nhx <- nbd_stage("nhx", read_n_deposition("nhx", years = year))
 noy <- nbd_stage("noy", read_n_deposition("noy", years = year))
 # Marched, not single-year. A one-year balance initialises every cell at
@@ -843,20 +889,22 @@ if (nrow(blockers) > 0L) {
     # than the two disagreeing about the same animals. A method choice, and
     # one for #446's sign-off to confirm.
     methods = list(allocation = list(cap_method = "fixed_ceiling")),
-    # Non-item nitrogen whose own cell carries no cropland. build_urban_n()
-    # returns the urban nitrogen its transport step could not deliver AT THE
-    # SOURCE CELL, and on the 2010 global grid 1985 of those cells hold no
-    # cropland: 38,425 t of 4.02 Mt urban N, enough to abort the whole
+    # Non-item nitrogen whose own cell carries no cropland. build_human_n()
+    # returns the nitrogen its transport step could not deliver AT THE
+    # SOURCE CELL, and on the 2010 global grid (urban basis) 1985 of those
+    # cells hold no cropland: 38,425 t of 4.02 Mt, enough to abort the whole
     # assembly under the default "abort" rule. "reallocate_drop" keeps the mass
     # on the polity's other cropland cells -- the same rule the synthetic path
     # already applies to a crop with no pattern cell -- and discards only what
-    # no polity can carry at all: 51 rows, 834 t N, 0.021% of urban N, in
+    # no polity can carry at all: 51 rows, 834 t N, 0.021% of human N, in
     # polities with population and no cropland anywhere in the year. Refusing a
     # global build over that is disproportionate; losing it unremarked is what
     # the guard exists to prevent, so the rule is named and the cost printed.
     # Recorded in method_unsupported.
     method_unsupported = "reallocate_drop",
+    human_n_population_basis = human_n_basis,
     urban_population = urban_population,
+    total_population = total_population,
     nhx = nhx,
     noy = noy
   ) |>
@@ -1010,6 +1058,8 @@ if (nrow(blockers) > 0L) {
   result <- list(
     year = year,
     resolution = resolution,
+    human_n_population_basis = human_n_basis,
+    total_population_coverage = total_population_coverage,
     report = final_report,
     unsupported_fertilizer = unsupported_fertilizer_n,
     cell_support = cell_support_report,

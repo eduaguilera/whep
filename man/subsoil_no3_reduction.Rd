@@ -10,7 +10,9 @@ A tibble with columns:
 \item{fert_type}{Nitrogen source: one of \code{"Synthetic"},
 \code{"SOM"}, \code{"Deposition"}, \code{"Solid"},
 \code{"Excreta_cattle_monog"}, \code{"Excreta_other"},
-\code{"Liquid"}, \code{"Urban"}, \code{"BNF"}.}
+\code{"Liquid"}, \code{"Human"}, \code{"BNF"}. \code{"Human"} was
+keyed \code{"Urban"} before it was renamed; the former key is still
+read, with a deprecation warning.}
 \item{climate}{Climate zone: \code{"MED"} or \code{"ATL"}.}
 \item{irrig_cat}{Irrigation category: \code{"Rainfed"} or
 \code{"Irrigated"}.}

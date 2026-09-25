@@ -105,7 +105,8 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
 columns below. When the supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}, \code{method_unsupported}, \code{method_manure} and
+\code{method_deposition_scope}, \code{method_human_population},
+\code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure} and
 \code{method_unattributed} stamps from
 \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
 input conventions that produced it. Gains
@@ -124,7 +125,7 @@ Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
 }
 \details{
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
-turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}
+turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}
 and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied to the balance rows
 themselves, so one choice governs the whole build (whep#727). A
 \code{data$n_inputs} table supplied directly is left alone: it was built by its

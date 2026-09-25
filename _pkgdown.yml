@@ -144,15 +144,17 @@ reference:
   - som_ranges
   - n_attenuation_constants
 
-- title: Urban nitrogen coefficient tables
+- title: Human-population nitrogen coefficient tables
   desc: >
-    Spain historical benchmark series (Module C, Task C3) behind
-    `build_urban_n()`'s global default per-capita urban-N-to-agriculture
-    rate: the raw national-total urban nitrogen series and its derived
-    per-capita rate.
+    Historical calibration series (Module C, Task C3) behind
+    `build_human_n()`'s global default per-capita rate for the nitrogen a
+    population returns to farmland (municipal solid waste, sewage sludge,
+    human excreta): the raw national-total series and its derived per-capita
+    rates, per inhabitant and per urban inhabitant.
   contents:
-  - urban_n_reference
-  - urban_kgn_cap_reference
+  - human_n_reference
+  - human_kgn_cap_total_reference
+  - human_kgn_cap_reference
 
 - title: Soil balances - carbon (SOC climate)
   desc: >
@@ -229,11 +231,12 @@ reference:
   - read_n_deposition
   - build_n_deposition
   - read_hyde_population
+  - build_total_population_grid
   - read_population
   - read_wpp_population
   - read_fbs_population
   - population_source_reach
-  - build_urban_n
+  - build_human_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
   - calculate_nh3

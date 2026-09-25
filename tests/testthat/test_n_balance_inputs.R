@@ -321,6 +321,9 @@
     nhx = .nbi_nhx(),
     noy = .nbi_noy(),
     urban_population = .nbi_urban_population(),
+    # Named, because the default basis is the total population: the pinned
+    # inputs below were measured on the urban basis.
+    human_n_population_basis = "urban",
     cropland_ha = .nbi_cropland_ha(),
     cell_polity = .nbi_cell_polity(),
     carbon_balance = .nbi_carbon_balance(),
@@ -344,7 +347,7 @@ testthat::test_that("all seven implemented fert_type values are present", {
     "manure_liquid",
     "excreta",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization",
     "synthetic"
   )
@@ -394,10 +397,10 @@ testthat::test_that("SOM mineralization is allocated across cropland crops", {
   testthat::expect_equal(sum(som$n_input_t), 0.6)
 })
 
-testthat::test_that("deposition and urban use agricultural item support", {
+testthat::test_that("deposition and human N use agricultural item support", {
   out <- whep::build_n_inputs(data = .nbi_full_data())
   dep <- out[out$fert_type == "deposition", ]
-  urb <- out[out$fert_type == "urban", ]
+  urb <- out[out$fert_type == "human", ]
   testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
   testthat::expect_setequal(urb$item_cbs_code, c(2511L, 2807L))
   testthat::expect_false(anyNA(dep$item_cbs_code))
@@ -464,11 +467,11 @@ testthat::test_that("the manure engine resolution is never overwritten", {
   )
 })
 
-testthat::test_that("the urban area_code is never a silent NA", {
+testthat::test_that("the human-N area_code is never a silent NA", {
   # The property this has always been about: no urban row leaves here with an
   # NA area_code. It used to be enforced by bridging an ISO3 through
   # .manure_territory_to_area_code() (#463), which resolved "ESP" to 203 with
-  # a deprecation warning. build_urban_n() now refuses a non-numeric
+  # a deprecation warning. build_human_n() now refuses a non-numeric
   # area_code outright (#597): unlike the manure path it manufactures its own
   # territory key from a column its docs call `area_code`, and an ISO3 would
   # resolve to a polity_area_code aggregation bucket that is not every
@@ -477,13 +480,13 @@ testthat::test_that("the urban area_code is never a silent NA", {
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
   testthat::expect_error(
-    whep:::.n_inputs_urban(data),
-    class = "whep_urban_area_code_unresolved"
+    whep:::.n_inputs_human(data),
+    class = "whep_human_n_area_code_unresolved"
   )
 
   # The numeric vocabulary the driver actually supplies passes through with no
   # NA, and no warning.
-  out <- testthat::expect_no_warning(whep:::.n_inputs_urban(.nbi_full_data()))
+  out <- testthat::expect_no_warning(whep:::.n_inputs_human(.nbi_full_data()))
   testthat::expect_false(anyNA(out$area_code))
   testthat::expect_true(is.integer(out$area_code))
 })
@@ -594,7 +597,7 @@ testthat::test_that("example fixture is schema-complete", {
     "bnf",
     "synthetic",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization"
   )
   testthat::expect_true(all(expected_present %in% out$fert_type))
@@ -954,7 +957,7 @@ testthat::test_that("unallocatable non-item nitrogen names its streams", {
 
 # Non-item nitrogen stranded on a cell with no cropland support, in a polity
 # that HAS cropland support elsewhere. That is the shape a real 2010 run takes:
-# build_urban_n() carries the urban nitrogen its transport step could not
+# build_human_n() carries the urban nitrogen its transport step could not
 # deliver back to the source cell, and 1985 of those cells hold no cropland, so
 # the allocation join drops 38,425 t of 4.02 Mt (whep#446).
 .nbi_stranded_inputs <- function() {
@@ -962,8 +965,8 @@ testthat::test_that("unallocatable non-item nitrogen names its streams", {
     whep:::.ni_empty(),
     tibble::tribble(
       ~lon, ~lat, ~area_code, ~year, ~fert_type, ~n_input_t,
-      0.25, 50.25, 10L, 2010L, "urban", 10,
-      0.75, 50.25, 10L, 2010L, "urban", 4
+      0.25, 50.25, 10L, 2010L, "human", 10,
+      0.75, 50.25, 10L, 2010L, "human", 4
     ) |>
       dplyr::mutate(
         item_cbs_code = NA_integer_,
@@ -1024,7 +1027,7 @@ testthat::test_that("reallocate still aborts when the polity has no cropland", {
       area_code = 99L,
       item_cbs_code = NA_integer_,
       year = 2010L,
-      fert_type = "urban",
+      fert_type = "human",
       n_input_t = 4,
       method_recycling_n = NA_character_,
       method_synthetic = NA_character_
@@ -1054,7 +1057,7 @@ testthat::test_that("reallocate_drop places what it can and drops the rest", {
       area_code = 99L,
       item_cbs_code = NA_integer_,
       year = 2010L,
-      fert_type = "urban",
+      fert_type = "human",
       n_input_t = 2,
       method_recycling_n = NA_character_,
       method_synthetic = NA_character_
@@ -1851,10 +1854,10 @@ testthat::test_that("polity_validity reaches all four gridded builders", {
       "deposition",
       whep::build_n_deposition
     ),
-    build_urban_n = .nbi_validity_recorder(
+    build_human_n = .nbi_validity_recorder(
       seen,
-      "urban",
-      whep::build_urban_n
+      "human",
+      whep::build_human_n
     ),
     spatialize_country_n_to_crops = .nbi_validity_recorder(
       seen,
@@ -1870,7 +1873,7 @@ testthat::test_that("polity_validity reaches all four gridded builders", {
 
   testthat::expect_equal(seen$ag_land_support, "flag")
   testthat::expect_equal(seen$deposition, "flag")
-  testthat::expect_equal(seen$urban, "flag")
+  testthat::expect_equal(seen$human, "flag")
   testthat::expect_equal(seen$spatialize, "flag")
   testthat::expect_true(nrow(out) > 0L)
 })
@@ -1961,7 +1964,7 @@ testthat::test_that("the manure_type bridge maps its whole vocabulary", {
     whep:::.n_inputs_recycling(data),
     whep:::.n_inputs_manure(data),
     whep:::.n_inputs_deposition(data),
-    whep:::.n_inputs_urban(data),
+    whep:::.n_inputs_human(data),
     whep:::.n_inputs_som(data),
     whep:::.n_inputs_synthetic(data)
   )
@@ -2078,12 +2081,127 @@ testthat::test_that("gridded_pasture is never read as gridded (#1214)", {
   testthat::expect_null(seen)
 })
 
+testthat::test_that("the human-N population basis is recorded, only on its rows", {
+  # The human term's population basis is a choice (build_human_n()'s
+  # population_basis), and its two stamps have to travel with the rows, or a
+  # per-urban-inhabitant ledger and a per-total-inhabitant one are
+  # indistinguishable after the fact.
+  data <- .nbi_full_data()
+  out <- whep::build_n_inputs(data = data)
+  urban <- out$fert_type == "human"
+  testthat::expect_true(any(urban))
+  testthat::expect_true(all(
+    out$method_human_population[urban] == "urban_population"
+  ))
+  testthat::expect_true(all(
+    out$method_human_kgn_cap[urban] == "kg_n_per_urban_inhabitant"
+  ))
+  testthat::expect_true(all(is.na(out$method_human_population[!urban])))
+
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$human_n_population_basis <- "total"
+  total <- whep::build_n_inputs(data = data)
+  urban_total <- total$fert_type == "human"
+  testthat::expect_true(all(
+    total$method_human_population[urban_total] == "total_population"
+  ))
+  testthat::expect_true(all(
+    total$method_human_kgn_cap[urban_total] == "kg_n_per_total_inhabitant"
+  ))
+  # Same people, a smaller per-capita rate: the stamp is not decorative.
+  testthat::expect_lt(
+    sum(total$n_input_t[urban_total]),
+    sum(out$n_input_t[urban])
+  )
+  # The total population is the default basis.
+  data$human_n_population_basis <- NULL
+  testthat::expect_identical(whep::build_n_inputs(data = data), total)
+  # It survives the polity aggregation as a grouping key.
+  polity <- whep::build_n_inputs(data = data, resolution = "polity")
+  testthat::expect_true(all(
+    polity$method_human_population[polity$fert_type == "human"] ==
+      "total_population"
+  ))
+})
+
+testthat::test_that("an unknown human-N population basis is refused", {
+  data <- .nbi_full_data()
+  data$human_n_population_basis <- "rural"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "human_n_population_basis"
+  )
+})
+
+testthat::test_that("a basis whose population was not supplied is refused", {
+  data <- .nbi_full_data()
+  data$human_n_population_basis <- "total"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_human_n_population_basis_mismatch"
+  )
+})
+
+testthat::test_that("stranded human-N rows keep their basis stamps when pooled", {
+  stranded <- tibble::tibble(
+    area_code = 10L,
+    year = 2010L,
+    fert_type = "human",
+    method_recycling_n = NA_character_,
+    method_synthetic = NA_character_,
+    method_deposition_scope = NA_character_,
+    method_human_population = "total_population",
+    method_human_kgn_cap = "kg_n_per_total_inhabitant",
+    n_input_t = c(1, 2),
+    .source_row = 1:2
+  )
+  pooled <- whep:::.ni_pool_stranded(stranded)
+  testthat::expect_equal(nrow(pooled), 1L)
+  testthat::expect_equal(pooled$method_human_population, "total_population")
+  testthat::expect_equal(
+    pooled$method_human_kgn_cap,
+    "kg_n_per_total_inhabitant"
+  )
+})
+
+testthat::test_that("a total population under the urban basis is refused by name", {
+  # Every population slot is read by exact name, so no slot can partially
+  # match another `data` entry and hand a string on as the population; the
+  # mismatch is named instead.
+  data <- .nbi_full_data()
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$human_n_population_basis <- "urban"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_human_n_population_basis_mismatch"
+  )
+})
+
 # Manure source option (whep#1197) --------------------------------------------
 
 # The golden outputs were written by the code BEFORE the manure-source option
 # existed (whep main at 5421973b), from these same fixtures. The default source
 # must reproduce them exactly; the only change is the added method_manure
 # column, which names the engine on the manure rows.
+#
+# Regenerated once when the human-N rename (whep#1301) was merged in: the
+# former "urban" rows are labelled "human" and gain the method_human_population
+# and method_human_kgn_cap stamps. The fixtures pin the urban basis, so every
+# value, and every non-human row, is bit-identical to the 5421973b output.
 testthat::test_that("the default manure source reproduces the pre-option output", {
   golden <- readRDS(testthat::test_path(
     "fixtures",

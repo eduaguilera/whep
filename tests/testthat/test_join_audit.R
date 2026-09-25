@@ -240,7 +240,15 @@ test_that("the enumerated baseline can only shrink", {
   # manure allocation. It reads the SAME single-vintage crop-pattern weights as
   # the `.sci_join_weights` row; the area it spreads is year-keyed and carries
   # `year` through.
-  expect_lte(sum(baseline$n), 83L)
+  #
+  # 84 with the human-N population basis (whep#1301), again re-derived by
+  # running the audit on the merged tree: `.human_check_polycells_known()`
+  # refuses a total-population polycell the crosswalk does not carry
+  # (build_human_n(population_basis = "total")). The crosswalk has no year,
+  # and the join only decides whether to abort -- the alternative was dropping
+  # that population silently, as the inner join on lon/lat does for the urban
+  # basis.
+  expect_lte(sum(baseline$n), 84L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

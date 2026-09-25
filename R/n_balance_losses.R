@@ -418,8 +418,9 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(ef)
-  mf <- x |>
-    dplyr::select("fert_type", "climate") |>
+  keys <- dplyr::select(x, "fert_type", "climate")
+  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
+  mf <- keys |>
     dplyr::left_join(
       whep::fertiliser_n2o_modifiers,
       by = c("fert_type", "climate")
@@ -688,8 +689,9 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 }
 
 .leaching_no3_red <- function(x) {
-  x |>
-    dplyr::select("fert_type", "climate", "irrig_cat") |>
+  keys <- dplyr::select(x, "fert_type", "climate", "irrig_cat")
+  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
+  keys |>
     dplyr::left_join(
       whep::subsoil_no3_reduction,
       by = c("fert_type", "climate", "irrig_cat")

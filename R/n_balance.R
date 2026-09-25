@@ -25,11 +25,11 @@
 #
 # fert_type vocabulary bridge: build_n_inputs() emits lowercase snake_case
 # fert_type values ("bnf", "recycling", "manure_solid", "manure_liquid",
-# "excreta", "deposition", "urban", "som_mineralization", "synthetic"), but
+# "excreta", "deposition", "human", "som_mineralization", "synthetic"), but
 # n_balance_losses.R's coefficient tables (fertiliser_n2o_modifiers,
 # subsoil_no3_reduction) are keyed on a DIFFERENT Title-case vocabulary
 # ("Synthetic", "Solid", "Liquid", "Recycling", "Excreta_cattle_monog",
-# "Excreta_other", "SOM", "Urban", "Deposition", "BNF") that additionally
+# "Excreta_other", "SOM", "Human", "Deposition", "BNF") that additionally
 # splits excreta by species. build_n_inputs()'s manure term aggregates
 # species away entirely (see .manure_to_n_inputs()), so a faithful
 # cattle/monogastric split is not recoverable at this stage without
@@ -38,7 +38,7 @@
 # rather than silently picked. .nb_loss_fert_type() maps "excreta" to the
 # generic "Excreta_other" (the conservative choice that does not assume a
 # cattle-heavy herd); every other term is a direct 1:1 rename.
-# N_input_for_N2O_MgN's rows (Excreta, Liquid, Solid, SOM, Synthetic, Urban,
+# N_input_for_N2O_MgN's rows (Excreta, Liquid, Solid, SOM, Synthetic, Human,
 # Recycling) are exactly the fert_types that resolve to a real
 # fertiliser_n2o_modifiers row; "bnf" and "deposition" are excluded from
 # that sum and therefore never reach calculate_soil_n2o()/calculate_nh3()
@@ -132,7 +132,8 @@
 #'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
 #'   columns below. When the supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_unsupported`, `method_manure` and
+#'   `method_deposition_scope`, `method_human_population`,
+#'   `method_human_kgn_cap`, `method_unsupported`, `method_manure` and
 #'   `method_unattributed` stamps from
 #'   [build_n_inputs()] are carried through as well, so a balance names the
 #'   input conventions that produced it. Gains
@@ -140,7 +141,7 @@
 #'
 #' @details
 #' `polity_validity` is forwarded to [build_n_inputs()] -- which forwards it in
-#' turn to [build_ag_land_support()], [build_n_deposition()], [build_urban_n()]
+#' turn to [build_ag_land_support()], [build_n_deposition()], [build_human_n()]
 #' and [spatialize_country_n_to_crops()] -- and then applied to the balance rows
 #' themselves, so one choice governs the whole build (whep#727). A
 #' `data$n_inputs` table supplied directly is left alone: it was built by its
@@ -185,12 +186,14 @@ build_nitrogen_balance <- function(
   # back to harvested area even though physical support was available.
   data$.polity_validity <- polity_validity
   data$ag_land_support <- .ni_resolve_land_support(data, years = NULL)
-  n_inputs <- data$n_inputs %||%
+  n_inputs <- (data$n_inputs %||%
     build_n_inputs(
       resolution = resolution,
       polity_validity = polity_validity,
       data = data
-    )
+    )) |>
+    .human_upgrade_legacy_inputs()
+  data <- .human_upgrade_legacy_drivers(data)
   .nb_validate_input_grain(n_inputs, resolution)
 
   .nb_inputs(n_inputs, key) |>
@@ -265,7 +268,7 @@ build_nitrogen_balance <- function(
         .data$manure_liquid +
         .data$manure_solid +
         .data$synthetic +
-        .data$urban +
+        .data$human +
         .data$deposition +
         .data$som_mineralization,
       n_input_full_nosom_t = .data$bnf +
@@ -273,7 +276,7 @@ build_nitrogen_balance <- function(
         .data$manure_liquid +
         .data$manure_solid +
         .data$synthetic +
-        .data$urban +
+        .data$human +
         .data$deposition,
       n_input_std_t = .data$n_input_full_nosom_t,
       n_input_som_t = .data$bnf +
@@ -281,14 +284,14 @@ build_nitrogen_balance <- function(
         .data$manure_liquid +
         .data$manure_solid +
         .data$synthetic +
-        .data$urban +
+        .data$human +
         .data$som_mineralization,
       n_input_for_n2o_t = .data$excreta +
         .data$manure_liquid +
         .data$manure_solid +
         .data$som_mineralization +
         .data$synthetic +
-        .data$urban +
+        .data$human +
         .data$recycling
     )
   if (is.null(provenance)) {
@@ -346,7 +349,7 @@ build_nitrogen_balance <- function(
     "manure_liquid",
     "excreta",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization",
     "synthetic"
   )
@@ -586,11 +589,11 @@ build_nitrogen_balance <- function(
 # (which keeps son_change_kgn_ha > 0), using build_carbon_balance()'s own
 # area_ha directly (the same way .n_inputs_som() does). carbon_balance is
 # per-land-use, not per-crop, so it carries no item_cbs_code (like
-# .n_inputs_som()'s deposition/urban/SOM rows); the NA_integer_
+# .n_inputs_som()'s deposition/human/SOM rows); the NA_integer_
 # "not crop-specific" sentinel is used. A cell in net carbon GAIN
 # (son_change_kgn_ha < 0) emits no som_mineralization input row, so .nb_merge_
 # output_term()'s full join is what keeps the sequestration output when no
-# NA-item input row (deposition/urban/SOM) exists at that cell to attach to.
+# NA-item input row (deposition/human/SOM) exists at that cell to attach to.
 .nb_add_som_sequestration <- function(x, data, key) {
   if (is.null(data$carbon_balance)) {
     return(dplyr::mutate(x, som_sequestration_n_t = 0))
@@ -683,7 +686,7 @@ build_nitrogen_balance <- function(
 }
 
 # N_input_for_N2O_MgN's own fert_types (Excreta, Liquid, Solid, SOM,
-# Synthetic, Urban, Recycling), mapped to the loss cascade's Title-case
+# Synthetic, Human, Recycling), mapped to the loss cascade's Title-case
 # vocabulary (see file header) and joined against data$n_balance_drivers on
 # (key, fert_type) for the climate/irrig_type/MANNER driver columns; never
 # invents driver values, missing columns abort inside calculate_*().
@@ -694,7 +697,7 @@ build_nitrogen_balance <- function(
     "manure_solid",
     "som_mineralization",
     "synthetic",
-    "urban",
+    "human",
     "recycling"
   )
   rows <- n_inputs |>
@@ -913,6 +916,11 @@ build_nitrogen_balance <- function(
 # bias grows backwards in time (whep#1097/#1121), so a balance built on a
 # corrected field and one built on raw HaNi have to be tellable apart.
 #
+# `method_human_population` and `method_human_kgn_cap` are here because the
+# human term's population basis is a choice: per inhabitant on the WPP total,
+# or per urban inhabitant on HYDE's urban count, which differ by the ratio of
+# each country's urban share to the calibration one.
+#
 # `method_unattributed` is here for the same reason (whep#532): the nitrogen
 # that reached agricultural land but no single crop is a real mass, and whether
 # a balance spread it over cropland, over all agricultural land, or dropped it
@@ -926,6 +934,8 @@ build_nitrogen_balance <- function(
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
+    "method_human_population",
+    "method_human_kgn_cap",
     "method_unsupported",
     "method_manure",
     "method_unattributed"
@@ -946,7 +956,7 @@ build_nitrogen_balance <- function(
     fert_type == "manure_liquid" ~ "Liquid",
     fert_type == "excreta" ~ "Excreta_other",
     fert_type == "deposition" ~ "Deposition",
-    fert_type == "urban" ~ "Urban",
+    fert_type == "human" ~ "Human",
     fert_type == "som_mineralization" ~ "SOM",
     fert_type == "synthetic" ~ "Synthetic"
   )

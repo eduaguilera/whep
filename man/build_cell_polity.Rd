@@ -46,7 +46,7 @@ Reads the cell-polity fraction table (\code{lon}, \code{lat}, \code{area_code},
 same 0.5-degree cell-area formula used across the package (see
 \code{\link[=build_grass_availability_lpjml]{build_grass_availability_lpjml()}}). This assembles the
 \code{data$cell_polity} contract that every Module C function (e.g.
-\code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}, \code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}})
+\code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}, \code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}})
 expects as a required input.
 }
 \section{Which area code the grid is keyed on}{
