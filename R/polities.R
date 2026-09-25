@@ -240,11 +240,13 @@
 # decided by row order (#683). Reading `predecessor` as well is not a second
 # authority on succession, which is what the paragraph above argues against: it
 # is the same upstream record, read symmetrically.
-.open_polity_codes <- function() {
-  p <- polities
-  succ <- p$successor
+.open_polity_codes <- function(periods = polities) {
+  succ <- periods$successor
   open <- is.na(succ) | !nzchar(trimws(succ))
-  setdiff(unique(p$polity_code[open]), .handed_over_polity_codes())
+  setdiff(
+    unique(periods$polity_code[open]),
+    .handed_over_polity_codes(periods)
+  )
 }
 
 # Periods some other period is recorded as taking over from, AT THEIR END YEAR.
@@ -1935,6 +1937,65 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' `data-raw/table_mappings.R` aborts the build if any alias names a polity the
 #' shipped table does not carry. A dangling resolution therefore cannot ship.
 #'
+#' Three more inputs follow contracts `whep-polities` publishes beside the
+#' alias map:
+#'
+#' - **`item`: rows a source files under another territory's label for one
+#'   item.** An alias has no item dimension, so it cannot say that Mitchell's
+#'   pre-1910 `"south africa"` sugar cane is Natal's while every other
+#'   `"south africa"` item of those years is the Cape's.
+#'   [polity_label_item_corrections] states those cases. When `source`, the
+#'   label, `item` and a year inside the rule's inclusive range all match, the
+#'   label is replaced by the rule's `correct_label` BEFORE any route below
+#'   runs, so the usual alias and year rules then place it. Rules do not chain:
+#'   each is tested against the label the caller passed. A row without a year
+#'   is never corrected. A corrected row ignores `country`, which named the
+#'   territory it was misfiled under, and its new label is not read as an ISO3
+#'   code, so only the corrected label decides. A rule whose `polity_code` is
+#'   `"UNROUTED"` marks rows that belong to no polity (a wrong territory with
+#'   no right one to land on), and those resolve to `NA`. A rule may also be
+#'   scoped on `unit` or `indicator`, where only that separates the rows:
+#'   Mitchell's 1955-1960 `"viet nam"` rice output in tonnes is North plus
+#'   South Vietnam, its area in hectares South only. A scoped rule applies only
+#'   when the caller's `unit` / `indicator` equals it; a row it would
+#'   otherwise match but whose scoped value is missing is an error of class
+#'   `whep_error_unscoped_label_item_correction`, not a silent miss.
+#' - **`country`: the reporting country, as an ISO3 code.** The name route
+#'   compares normalised names, and normalisation drops parenthesised
+#'   qualifiers, so a bare subnational name meets another country's unit:
+#'   `"Santa Cruz (department of Bolivia)"` normalises to `"santa cruz"`, and so
+#'   does Argentina's province. Given `country`, the name and ISO3 routes only
+#'   consider polities whose `iso3_code` (its code prefix where that is
+#'   missing) is that country. Without it, a name that live polities of two or
+#'   more countries carry at the same time -- counting a subnational
+#'   polity's parenthesised qualifier as a name, so
+#'   Mexico's `"Ciudad de México (Distrito Federal)"` shares
+#'   `"distrito federal"` with Brazil's -- is refused with a warning of class
+#'   `whep_warn_ambiguous_polity_name` rather than guessed. The refusal holds in
+#'   every year, not only in years two such polities overlap, because a source
+#'   can report a unit before its own polity begins: the subnational panel
+#'   reports Argentina's Santa Cruz from 1900, and with no Argentine polity
+#'   until 1955 the year alone sent it to Bolivia. The alias route is not
+#'   restricted: an alias names its polity explicitly.
+#' - **`back_cast`: whether to accept reconstructions.** An alias whose
+#'   `disposition` is `"back_cast"` routes years a source reconstructs onto a
+#'   boundary that did not exist yet to the modern polity, which may begin
+#'   after those years by design (`BRA-TOCANTINS-1988-2025` receives the
+#'   panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops those
+#'   aliases, for a caller that wants observation only.
+#' - **`indicator`: aliases split per indicator.** One panel unit id can name
+#'   two territories: whep-polities #703 found `CHL-LL`'s crops reported for
+#'   Los Lagos plus Los Ríos in every year, while its landuse and livestock are
+#'   Los Lagos alone. The alias map's optional `indicator` column scopes a rule
+#'   to rows carrying that indicator (`NA` means any). Where a label, source
+#'   and year carry scoped rules, only the rule for the row's `indicator`
+#'   applies; an indicator the split leaves out resolves to `NA`, never to the
+#'   name route, which would put the rows back on the post-split polity; and a
+#'   row that gives no `indicator` is an error of class
+#'   `whep_error_unscoped_indicator_alias`. Upstream allows the scope only on
+#'   the subnational panel's slugs (`"juan-subnational"`, `"whep-lab-*"`), so
+#'   callers resolving that panel must pass its `indicator` column verbatim.
+#'
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. On the alias route `NULL` matches
@@ -1948,6 +2009,20 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   exactly one polity has ever carried, so supplying a year remains much the
 #'   stronger question: it is what lets a label resolve to the right *period*
 #'   rather than to nothing.
+#' @param item Optional item names as the source writes them. Length 1, or the
+#'   same length as `label`. Only used to apply
+#'   [polity_label_item_corrections], which needs `source` and `year` too.
+#' @param country Optional ISO3 code of the country each label belongs to.
+#'   Length 1, or the same length as `label`. Restricts the name and ISO3
+#'   routes to that country's polities.
+#' @param back_cast Logical. `TRUE` (the default) keeps aliases upstream marks
+#'   as reconstructions (`disposition == "back_cast"`); `FALSE` drops them.
+#' @param unit,indicator Optional unit and indicator of each row, as the source
+#'   writes them (e.g. `"tonnes"`, `"ha"`). Length 1, or the same length as
+#'   `label`. Used to match [polity_label_item_corrections] rules scoped
+#'   on them, and `indicator` also to choose between [polity_label_aliases]
+#'   rules scoped on it; required for the rows such a rule would otherwise
+#'   match.
 #'
 #' @returns A character vector of polity codes, `NA` where nothing matched.
 #'
@@ -1961,8 +2036,39 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'
 #' @seealso [add_polity_code()] for numeric area codes.
 #' @export
-resolve_polity_label <- function(label, source = NULL, year = NULL) {
-  aliases <- polity_label_aliases
+resolve_polity_label <- function(
+  label,
+  source = NULL,
+  year = NULL,
+  item = NULL,
+  country = NULL,
+  back_cast = TRUE,
+  unit = NULL,
+  indicator = NULL
+) {
+  .resolve_polity_label(
+    label,
+    query = list(
+      source = source,
+      year = year,
+      item = item,
+      country = country,
+      unit = unit,
+      indicator = indicator
+    ),
+    back_cast = back_cast,
+    tables = list(
+      aliases = polity_label_aliases,
+      polities = polities,
+      corrections = polity_label_item_corrections
+    )
+  )
+}
+
+# The resolver over explicit tables, so the rules can be exercised on fixtures
+# shaped like a later upstream revision than the shipped snapshot (#680's
+# cross-country names need subnational polities the snapshot does not carry).
+.resolve_polity_label <- function(label, query, back_cast, tables) {
   n <- length(label)
 
   recycle <- function(x, nm) {
@@ -1979,8 +2085,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     }
     x
   }
-  source <- recycle(source, "source")
-  year <- recycle(year, "year")
+  source <- recycle(query$source, "source")
+  year <- recycle(query$year, "year")
+  item <- recycle(query$item, "item")
+  unit <- recycle(query$unit, "unit")
+  indicator <- recycle(query$indicator, "indicator")
+  country <- toupper(trimws(as.character(recycle(query$country, "country"))))
+
+  corrected <- .apply_label_item_corrections(
+    label,
+    source,
+    item,
+    year,
+    tables$corrections,
+    unit = unit,
+    indicator = indicator
+  )
+  label <- corrected$label
+  # The caller's `country` came WITH the misfiled label -- the reporter the
+  # source filed the row under -- so keeping it would restrict the name and
+  # ISO3 routes to the territory the row was just taken away from. Upstream
+  # clears the row's iso code for the same reason (whep-polities #692): the
+  # corrected label alone decides.
+  country[corrected$relabelled] <- NA_character_
+  aliases <- .alias_rules_by_disposition(tables$aliases, back_cast)
+  periods <- tables$polities
 
   # Normalise both sides once: each route below needs the same key for a label.
   alias_key <- .norm_polity_label(aliases$source_label)
@@ -2008,11 +2137,15 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
   # `.polity_is_live()` is the package's one reading of which rows are dead.
-  alive <- .polity_is_live(polities$wiki_status)
+  alive <- .polity_is_live(periods$wiki_status)
   pol <- data.frame(
-    polity_code = polities$polity_code[alive],
-    start_year = polities$start_year[alive],
-    end_year = polities$end_year[alive],
+    polity_code = periods$polity_code[alive],
+    start_year = periods$start_year[alive],
+    end_year = periods$end_year[alive],
+    country = .polity_country(
+      periods$polity_code[alive],
+      periods$iso3_code[alive]
+    ),
     stringsAsFactors = FALSE
   )
   # The exclusive upper bound the year test below compares against: EXCLUSIVE AT
@@ -2031,9 +2164,9 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   pol$join_end_year <- .polity_join_end_year(
     pol$end_year,
     NA_integer_,
-    pol$polity_code %in% .open_polity_codes()
+    pol$polity_code %in% .open_polity_codes(periods)
   )
-  name_key <- .norm_polity_label(polities$polity_name[alive])
+  name_key <- .norm_polity_label(periods$polity_name[alive])
   # The ISO3 index is what makes this usable for the datasets that motivated it.
   # The alias map is keyed on the labels curators had to decide about, so a label
   # that is simply a current ISO3 code is not in it: without this route,
@@ -2041,8 +2174,15 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   # 11 FAO-style legacy codes the map does carry -- and `crops_manure_n`'s `ISO`
   # 860 of 31,648. Upstream's matcher resolves "by alias, then ISO/name family +
   # year containment", so this is the second half of that rule, not a new one.
-  iso_key <- toupper(trimws(polities$iso3_code[alive]))
+  iso_key <- toupper(trimws(periods$iso3_code[alive]))
   refuse_names <- .refused_polity_label_names()
+  # Names coexisting polities of more than one country carry (#680). Refused
+  # below when the caller gives no country to choose between them.
+  shared_names <- .cross_country_polity_names(
+    pol,
+    periods$polity_name[alive],
+    periods$polity_type[alive]
+  )
 
   family <- function(code) sub("-.*", "", code)
 
@@ -2050,11 +2190,24 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     if (label_key[i] %in% refuse_names) {
       return(NA_character_)
     }
+    if (is.na(country[i]) && label_key[i] %in% shared_names) {
+      return(NA_character_)
+    }
     hit <- which(name_key == label_key[i])
     # An ISO3 code is only ever three letters, so trying the ISO3 index for
     # anything longer cannot match and would only widen the failure surface.
-    if (length(hit) == 0L && grepl("^[a-z]{3}$", label_key[i])) {
+    # Not for a relabelled row: its corrected label is a territory's NAME, and
+    # reading it as an ISO3 code would reopen the code route the correction
+    # exists to bypass.
+    if (
+      length(hit) == 0L &&
+        !corrected$relabelled[i] &&
+        grepl("^[a-z]{3}$", label_key[i])
+    ) {
       hit <- which(!is.na(iso_key) & iso_key == toupper(label_key[i]))
+    }
+    if (!is.na(country[i])) {
+      hit <- hit[pol$country[hit] %in% country[i]]
     }
     if (length(hit) == 0L) {
       return(NA_character_)
@@ -2098,9 +2251,15 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     cand$polity_code[1]
   }
 
-  vapply(
+  resolved <- vapply(
     seq_len(n),
     function(i) {
+      # An UNROUTED rule's rows belong to no polity: a wrong territory with no
+      # right one to land on. Upstream says to drop them rather than resolve
+      # `correct_label`, so no route gets a turn.
+      if (corrected$unrouted[i]) {
+        return(NA_character_)
+      }
       hit <- which(alias_key == label_key[i])
       if (length(hit) == 0L) {
         return(by_name(i))
@@ -2144,6 +2303,20 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
       if (nrow(cand) == 0L) {
         return(by_name(i))
       }
+      # An indicator-scoped alias applies only to rows carrying that indicator
+      # (whep-polities #703). Upstream never lets a blank and a scoped rule, or
+      # two rules with one scope, claim the same label, source and year, so at
+      # most one candidate survives. A split that leaves this row's indicator
+      # out answers `NA` and does NOT fall through to the name route: the
+      # unit's name would send crop rows back onto the post-split polygon.
+      cand <- .alias_rules_for_indicator(
+        cand,
+        indicator[i],
+        c(label = label[i], source = source[i], year = year[i])
+      )
+      if (nrow(cand) == 0L) {
+        return(NA_character_)
+      }
 
       # Most specific first: year-scoped, then source-scoped, then narrower
       # span. A half-open range counts as scoped and gets an infinite span, so
@@ -2162,6 +2335,253 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
       cand$polity_code[ord[1]]
     },
     character(1)
+  )
+  .warn_ambiguous_polity_names(
+    label[
+      is.na(resolved) &
+        !corrected$unrouted &
+        is.na(country) &
+        label_key %in% shared_names
+    ]
+  )
+  resolved
+}
+
+# Relabel the rows a source files under another territory's label for one item
+# (whep-polities #677), before any route runs. The manifest's reading of the
+# table, followed exactly: source, normalised label and item must all match,
+# the year must lie inside the INCLUSIVE range, a row with no year is never
+# corrected, and every rule is tested against the ORIGINAL label, so one
+# correction cannot feed another.
+#
+# `unit` and `indicator` (whep-polities #700) scope a rule: `NA` on the rule
+# means any, a value must equal the row's own exactly. A row that matches a
+# scoped rule on everything else but carries no value for the scoped column
+# aborts, as upstream's `matchlib.label_item_correction()` raises: without the
+# value the rule can be neither applied nor ruled out, and skipping it would
+# silently return the routing the rule exists to fix. A rules table without
+# the columns (a snapshot before #700) has no scoped rule.
+#
+# Returns a list: `label`, the corrected labels; `relabelled`, which rows a
+# rule hit; and `unrouted`, which of those a rule whose `polity_code` is the
+# `UNROUTED` sentinel hit (whep-polities #692). Those rows are relabelled too,
+# as upstream does, but the resolver must leave them unassigned.
+.apply_label_item_corrections <- function(
+  label,
+  source,
+  item,
+  year,
+  rules,
+  unit = NULL,
+  indicator = NULL
+) {
+  n <- length(label)
+  none <- rep(FALSE, n)
+  unchanged <- list(label = label, relabelled = none, unrouted = none)
+  if (is.null(rules) || nrow(rules) == 0L || all(is.na(item))) {
+    return(unchanged)
+  }
+  original <- .norm_polity_label(label)
+  rule_key <- .norm_polity_label(rules$source_label)
+  year <- suppressWarnings(as.integer(year))
+  scope <- function(x) {
+    if (is.null(x)) rep(NA_character_, n) else rep_len(as.character(x), n)
+  }
+  rule_scope <- function(column) {
+    if (column %in% names(rules)) {
+      as.character(rules[[column]])
+    } else {
+      rep(NA_character_, nrow(rules))
+    }
+  }
+  unit <- scope(unit)
+  indicator <- scope(indicator)
+  rule_unit <- rule_scope("unit")
+  rule_indicator <- rule_scope("indicator")
+  # `lapply()`, not `purrr::map()`: map would wrap the classed abort below in
+  # its own indexed error class.
+  hits <- lapply(seq_len(nrow(rules)), function(r) {
+    keyed <- !is.na(source) &
+      source == rules$source[r] &
+      original == rule_key[r] &
+      !is.na(item) &
+      item == rules$item[r] &
+      !is.na(year) &
+      year >= rules$year_start[r] &
+      year <= rules$year_end[r]
+    unscoped <- keyed &
+      ((!is.na(rule_unit[r]) & is.na(unit)) |
+        (!is.na(rule_indicator[r]) & is.na(indicator)))
+    if (any(unscoped)) {
+      .abort_unscoped_correction(
+        rules[r, ],
+        which(unscoped),
+        c(unit = rule_unit[r], indicator = rule_indicator[r])
+      )
+    }
+    which(
+      keyed &
+        (is.na(rule_unit[r]) | (!is.na(unit) & unit == rule_unit[r])) &
+        (is.na(rule_indicator[r]) |
+          (!is.na(indicator) & indicator == rule_indicator[r]))
+    )
+  })
+  rows <- unlist(hits)
+  # Upstream's gate forbids overlapping rules, so a row matching two would
+  # mean the table and its gate disagree; say so rather than pick one.
+  if (anyDuplicated(rows) > 0L) {
+    cli::cli_abort(
+      "Two label-item correction rules match the same row.",
+      class = "whep_error_overlapping_label_item_corrections"
+    )
+  }
+  label[rows] <- rep(rules$correct_label, lengths(hits))
+  relabelled <- none
+  relabelled[rows] <- TRUE
+  unrouted <- none
+  unrouted[rows] <- rep(
+    rules$polity_code %in% .label_item_unrouted,
+    lengths(hits)
+  )
+  list(label = label, relabelled = relabelled, unrouted = unrouted)
+}
+
+.abort_unscoped_correction <- function(rule, rows, scope) {
+  scope <- scope[!is.na(scope)]
+  cli::cli_abort(
+    c(
+      "A label-item correction is scoped on {.field {names(scope)}}, which
+      the caller did not give.",
+      x = "Rule {.val {rule$source}} / {.val {rule$source_label}} /
+      {.val {rule$item}} {rule$year_start}-{rule$year_end} applies only
+      where {.field {names(scope)}} is {.val {scope}}, and
+      {length(rows)} row{?s} it would otherwise match give{?s/} no value.",
+      i = "Pass {.arg {names(scope)}} to {.fn resolve_polity_label} for these
+      rows."
+    ),
+    class = "whep_error_unscoped_label_item_correction"
+  )
+}
+
+# The `polity_code` whep-polities writes on a label-item rule whose rows belong
+# to no polity (#692, `matchlib.LABEL_ITEM_UNROUTED`).
+.label_item_unrouted <- "UNROUTED"
+
+# The alias rules a caller asked for. `disposition` arrived with whep-polities
+# #667: empty for an observed territory, `"back_cast"` where the source
+# reconstructs years onto a boundary that did not exist yet. A snapshot taken
+# before that revision has no such column, and every one of its rules is an
+# observation.
+.alias_rules_by_disposition <- function(aliases, back_cast) {
+  if (!isTRUE(back_cast) && !isFALSE(back_cast)) {
+    cli::cli_abort("{.arg back_cast} must be {.code TRUE} or {.code FALSE}.")
+  }
+  if (back_cast || !"disposition" %in% names(aliases)) {
+    return(aliases)
+  }
+  aliases[is.na(aliases$disposition) | aliases$disposition != "back_cast", ]
+}
+
+# The alias rules of `cand` that apply to a row carrying `indicator`.
+# `indicator` (whep-polities #703) is the alias map's optional last column:
+# blank or `NA` means any indicator, a value (one of the panel's own
+# `indicator` strings, e.g. `"area"`, `"landuse"`) limits the rule to rows
+# carrying exactly it. A map without the column -- every snapshot before #703 --
+# has no scoped rule, so `cand` is returned unchanged.
+#
+# Where any candidate is scoped, the label is split per indicator for this
+# source and year, and a row with no indicator can be neither placed nor ruled
+# out: that aborts with class `whep_error_unscoped_indicator_alias` rather than
+# letting file order pick one side of the split. The result may be empty, which
+# the caller reads as "the split routes this indicator nowhere".
+.alias_rules_for_indicator <- function(cand, indicator, where) {
+  if (!"indicator" %in% names(cand)) {
+    return(cand)
+  }
+  scope <- as.character(cand$indicator)
+  scoped <- !is.na(scope) & scope != ""
+  if (!any(scoped)) {
+    return(cand)
+  }
+  if (is.na(indicator)) {
+    .abort_unscoped_alias(where, unique(scope[scoped]))
+  }
+  cand[!scoped | scope == as.character(indicator), , drop = FALSE]
+}
+
+.abort_unscoped_alias <- function(where, scopes) {
+  cli::cli_abort(
+    c(
+      "{.val {where[['label']]}} ({where[['source']]}, {where[['year']]}) is
+      routed per indicator.",
+      x = "Its alias rules are scoped on indicator {.val {scopes}}, and the
+      caller gave none.",
+      i = "Pass {.arg indicator} to {.fn resolve_polity_label} for these rows."
+    ),
+    class = "whep_error_unscoped_indicator_alias"
+  )
+}
+
+# The country a polity belongs to, for restricting the name route: its ISO3
+# code, and its code prefix where upstream records none.
+.polity_country <- function(polity_code, iso3_code) {
+  iso <- toupper(trimws(iso3_code))
+  dplyr::if_else(is.na(iso) | iso == "", sub("-.*", "", polity_code), iso)
+}
+
+# Normalised names that live polities of two different countries carry AT THE
+# SAME TIME. A subnational polity's parenthesised qualifier counts as a name
+# here, because it is often the other name a source uses: Mexico City's polity
+# is "Ciudad de México (Distrito Federal)", and the subnational panel reports it
+# as "Distrito Federal", which is also Brazil's. Only refusal reads the
+# qualifiers; matching does not. Other polities' qualifiers describe the
+# container instead -- `VNM-1887-1954` is "Vietnam (French Indochina)" -- and
+# counting them refused "French Indochina" itself for its 67 years.
+#
+# COEXISTENCE IS WHAT MAKES TWO COUNTRIES' NAMES DIFFERENT TERRITORIES. Without
+# it, one territory's own lineage counts as a collision whenever its ISO3 code
+# changes: `NSW-1800-1901` then `AUS-NSW-1901-2025`, `MOR-1904-1911` then
+# `MAR-1911-1958`, `PAL-1920-1948` then `PSE-1948-2025`. Refusing those undid
+# 5,165 of the resolutions the name route makes on whep-polities 4bce63d4's
+# tables, every one of them the right period of the right territory. Spans
+# are compared on the exclusive bound the year test uses, so a succession year
+# is not an overlap.
+.cross_country_polity_names <- function(pol, polity_name, polity_type) {
+  qualifier <- stringr::str_match(polity_name, "\\(([^)]*)\\)")[, 2]
+  qualifier[is.na(polity_type) | polity_type != "subnational"] <- NA
+  named <- tibble::tibble(
+    key = .norm_polity_label(c(polity_name, qualifier)),
+    country = rep(pol$country, 2L),
+    start = rep(pol$start_year, 2L),
+    end = rep(pol$join_end_year, 2L)
+  ) |>
+    dplyr::filter(!is.na(.data$key), .data$key != "", !is.na(.data$country)) |>
+    dplyr::filter(dplyr::n_distinct(.data$country) > 1L, .by = "key")
+  shared <- purrr::map_lgl(
+    split(named, named$key),
+    function(g) {
+      any(
+        outer(g$country, g$country, `!=`) &
+          outer(g$start, g$end, `<`) &
+          outer(g$end, g$start, `>`)
+      )
+    }
+  )
+  names(shared)[shared]
+}
+
+.warn_ambiguous_polity_names <- function(labels) {
+  labels <- sort(unique(as.character(labels)))
+  if (length(labels) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(
+    c(
+      "{length(labels)} label{?s} name{?s/} polities in several countries and
+       {cli::qty(length(labels))}{?was/were} left unresolved: {.val {labels}}.",
+      i = "Pass {.arg country} (ISO3) to choose between them."
+    ),
+    class = "whep_warn_ambiguous_polity_name"
   )
 }
 

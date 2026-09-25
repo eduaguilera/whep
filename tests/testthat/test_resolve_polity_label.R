@@ -327,9 +327,14 @@ test_that("the published alias map keeps the contract this package reads", {
       "polity_code",
       "common_name",
       "confidence",
-      "observed_rows"
+      "observed_rows",
+      "disposition"
     )
   )
+  # whep-polities #667's vocabulary: observed (empty) or a reconstruction.
+  expect_true(all(
+    is.na(aliases$disposition) | aliases$disposition == "back_cast"
+  ))
   expect_false(any(is.na(aliases$source_label)))
   expect_false(any(is.na(aliases$polity_code)))
   # Every alias must name a real WHEP polity code, prefix included.

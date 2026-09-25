@@ -306,5 +306,54 @@
 #' - `confidence`: Curator's confidence in the alias.
 #' - `observed_rows`: Source rows actually observed for the label, `NA` when the
 #'   label is merely mappable.
+#' - `disposition`: `NA` when the source observed the territory, `"back_cast"`
+#'   when the years are a reconstruction onto a boundary that did not exist yet.
+#'   A `"back_cast"` alias may begin before its target polity does, by design:
+#'   the polity's own span still starts when the territory did.
+#'   [resolve_polity_label()] drops these rules when asked `back_cast = FALSE`.
+#'   All `NA` in a snapshot taken before whep-polities introduced the column.
+#' - `indicator`: `NA` when the alias applies to every indicator, otherwise the
+#'   one indicator it routes (`"area"`, `"production"`, `"yield"`,
+#'   `"livestock_stock"` or `"landuse"`, the subnational panel's own values).
+#'   whep-polities #703 added it so that a panel unit whose id names different
+#'   territories for different indicators can be split; it allows the scope only
+#'   on the panel's slugs. [resolve_polity_label()] applies a scoped rule only to
+#'   rows passing that `indicator`. Absent from a snapshot taken before #703,
+#'   which is read as all `NA`.
 #' @source `~/whep-polities/data/final/label_alias_map.csv`.
 "polity_label_aliases"
+
+#' Source label corrections scoped to one item
+#'
+#' Rows a source files under ANOTHER territory's label for one item, published
+#' by `whep-polities`. An alias maps a label to a polity with no item
+#' dimension, so it cannot say that Mitchell's pre-1910 `"south africa"` sugar
+#' cane is Natal's while the other items under that label are the Cape's. Each
+#' rule replaces the label before resolution; [resolve_polity_label()] applies
+#' them when it is given `item`.
+#'
+#' A row matches a rule when `source`, `source_label` (normalised as the alias
+#' map's labels are) and `item` all match and the row's year lies in
+#' `[year_start, year_end]`. Rows without a year are never corrected, and rules
+#' do not chain. A rule with `unit` or `indicator` set also needs the row's own
+#' unit / indicator to equal it.
+#'
+#' @format
+#' A tibble with one row per rule. It has zero rows when the shipped snapshot
+#' was taken from a `whep-polities` revision that published no rules. Columns:
+#' - `source`: Source slug the rule applies to.
+#' - `source_label`: The label the source files the rows under.
+#' - `item`: The item, exactly as the source writes it.
+#' - `year_start`, `year_end`: Inclusive year range.
+#' - `unit`, `indicator`: Scope of the rule. `NA` (blank upstream) means any;
+#'   when set, the row's own unit / indicator must equal it. All `NA` in a
+#'   snapshot taken before whep-polities introduced the columns.
+#' - `correct_label`: The label to resolve instead.
+#' - `polity_code`: Where `correct_label` resolves in the same upstream
+#'   revision, or `"UNROUTED"` when the rows belong to no polity and
+#'   [resolve_polity_label()] leaves them unassigned.
+#' - `observed_rows`: Source rows the rule relabels upstream.
+#' - `issue`: The `whep-polities` issue that decided the rule.
+#' - `evidence`: Why the rows belong to the other territory.
+#' @source `~/whep-polities/data/final/source_label_item_corrections.csv`.
+"polity_label_item_corrections"
