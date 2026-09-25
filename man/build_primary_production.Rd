@@ -13,6 +13,7 @@ build_primary_production(
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
+  fodder_split = c("fao_mix", "equal"),
   .raw_data = NULL
 )
 }
@@ -69,6 +70,18 @@ gridded LUH2 summed inside the polygon of the polity \code{area_code}
 resolved to in that year. It moves published pre-1962 values, needs
 \code{sf} and \code{terra}, and reads gridded LUH2 for every back-cast year, so it
 is minutes of extra work.
+}}
+
+\item{fodder_split}{Character. How an EU AgriDB fodder area is divided
+among the FAOSTAT items that share its Eurostat label (seven items share
+"Other plants harvested green from arable land", four "Other root crops
+n.e.c."). Either way the items together get exactly the reported area;
+until whep#654 each item could get all of it.
+\itemize{
+\item \code{"fao_mix"} (default) splits it in proportion to FAOSTAT's own item
+areas in that year, or in the nearest years that report them. A label
+FAOSTAT never gives an item area for in that country is split evenly.
+\item \code{"equal"} gives every item sharing the label the same share.
 }}
 
 \item{.raw_data}{Optional tibble with the same structure as the output
