@@ -6,7 +6,7 @@
 \usage{
 read_critical_n(
   var = c("critical_n_surplus", "critical_n_input", "exceedance", "crit_nh3_emission",
-    "crit_leaching_gw", "crit_load_sw", "binding_threshold"),
+    "crit_leaching_gw", "crit_load_sw", "threshold_exceedance", "binding_threshold"),
   threshold = c("mi", "sw", "gw", "de"),
   land_use = c("all", "ara", "igl"),
   dir = NULL,
@@ -19,20 +19,21 @@ read_critical_n(
 \item{var}{Which critical-nitrogen layer to read: one of
 \code{"critical_n_surplus"}, \code{"critical_n_input"}, \code{"exceedance"},
 \code{"crit_nh3_emission"}, \code{"crit_leaching_gw"}, \code{"crit_load_sw"} or
-\code{"binding_threshold"}.}
+\code{"threshold_exceedance"}. \code{"binding_threshold"} is a deprecated alias of
+\code{"threshold_exceedance"}.}
 
 \item{threshold}{Impact threshold selecting the critical value: \code{"mi"}
 (minimum across media, the collapsed boundary), \code{"sw"} (surface-water
 eutrophication), \code{"gw"} (groundwater nitrate) or \code{"de"} (atmospheric or
 terrestrial deposition). Ignored by the critical-loss and
-binding-threshold layers.}
+threshold-exceedance layers.}
 
 \item{land_use}{Land-use scope: \code{"all"} (arable plus intensively managed
 grassland), \code{"ara"} (arable only) or \code{"igl"} (intensively managed
 grassland). Ignored by the critical-loss layers (\code{crit_nh3_emission},
 \code{crit_leaching_gw}, \code{crit_load_sw}), which have a single land-use-agnostic
-file; used by the binding threshold and the surplus/input/exceedance
-layers.}
+file; used by the threshold-exceedance map and the
+surplus/input/exceedance layers.}
 
 \item{dir}{Optional path to the archive directory, overriding
 \code{WHEP_CRITICAL_N_DIR}. Defaults to \code{NULL}, in which case the archive is
@@ -59,7 +60,7 @@ the package's versioned content manifest before parsing. Ignored for
 \value{
 A tibble with \code{lon}, \code{lat} (0.5-degree cell centres), \code{value}
 (kg N per hectare per year; a categorical impact code for
-\code{binding_threshold}) and retained layer provenance: \code{critical_var},
+\code{threshold_exceedance}) and retained layer provenance: \code{critical_var},
 \code{critical_threshold}, \code{critical_land_use}, \code{critical_year} and
 \code{critical_source}, canonical integer \code{cell_id}/row/column keys, deposited
 \code{source_area_ha}, IMAGE-region membership, DOI/version and archive checksum.
@@ -71,12 +72,22 @@ Schulte-Uebbing et al. (2022) archive (doi:10.5281/zenodo.6395016) onto
 WHEP's grid: the critical nitrogen surplus, the critical nitrogen input,
 the exceedance of the critical surplus, the three medium-specific critical
 losses (ammonia emission, groundwater leaching, surface-water load), or the
-pre-computed binding-threshold map. Values are in kg N per hectare per year
-(a categorical 1-8 impact code for \code{binding_threshold}). The critical
+threshold-exceedance map. Values are in kg N per hectare per year (a
+categorical 1-8 impact code for \code{threshold_exceedance}). The critical
 surplus, input and exceedance are selectable by \code{threshold} (minimum of all
 media, surface water, groundwater or deposition) and \code{land_use} (all
 agricultural land, arable only, or intensively managed grassland); the three
-critical losses and the binding threshold ignore \code{threshold}. The archive
+critical losses and the threshold-exceedance map ignore \code{threshold}.
+
+The threshold-exceedance map (the archive's "Threshold exceedance by
+impact" folder, \verb{threshold_exc_<land_use>.asc}) records which thresholds are
+exceeded in a cell, not which one binds. The threshold that binds, the one
+with the lowest critical surplus, is derived by
+\code{\link[=build_critical_n_binding]{build_critical_n_binding()}}. The layer was formerly requested as
+\code{var = "binding_threshold"}; that name still reads it, with a deprecation
+warning, and the result is stamped \code{critical_var = "threshold_exceedance"}.
+
+The archive
 directory comes from \code{dir}, else the \code{WHEP_CRITICAL_N_DIR} environment
 variable, else a local cache that is populated by downloading the archive
 from Zenodo on first use (see \code{dir}).

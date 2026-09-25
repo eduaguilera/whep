@@ -36,7 +36,12 @@
 #' ([classify_sjos_n()]) and, via the per-capita anthropogenic reactive nitrogen
 #' ([build_n_percapita()]), into the boundary-versus-nourishment scatter
 #' ([build_n_boundary_percapita()]). The country exceedance finally becomes an
-#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]).
+#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]), which carries
+#' the producer's classes (`origin_classes`, the per-crop classification) and
+#' the consuming country's nourishment class (`target_nourish`, joined on
+#' `target_area` and `year` from the same nourishment table). The driver joins
+#' no consumer boundary class: that is a country-year class decided after
+#' aggregation, which a caller supplies to [build_sjos_n_footprint()] directly.
 #'
 #' The same nitrogen balance feeds the surplus and the pathway boundaries, the
 #' same nourishment feeds the classification and the scatter, and the one
@@ -53,7 +58,10 @@
 #'   `n_inputs` when absent; inject a table to use any other source),
 #'   `biomass_coefs` / `items_full` for the food supply,
 #'   `manure_mgmt_nh3_n_t` for the pathway boundary when
-#'   `nh3_source = "total_agricultural"`, and either an `io` model or
+#'   `nh3_source = "total_agricultural"`, `critical_binding` (a
+#'   [build_critical_n_binding()] table for the `boundary_land_use` scope, whose
+#'   `binding_threshold` is then carried into the grid boundary; absent, the
+#'   column is `NA`), and either an `io` model or
 #'   `fp_flows` for the footprint. A real call without either source aborts
 #'   rather than fabricating a domestic-only footprint.
 #'   Defaults to `list()`.
@@ -85,6 +93,13 @@
 #'   a mistyped knob cannot silently run the default and be reported as a
 #'   sensitivity. Defaults to `list()`, which leaves every builder on its own
 #'   default.
+#' @param negative_critical Treatment of cells whose critical surplus is below
+#'   zero, passed to [build_n_boundary_exceedance()]: `"keep"` (default, as the
+#'   source) or `"clamp"` (zero allowance, a declared departure from
+#'   Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
+#'   through them the classification and the footprint, and is stamped as
+#'   `negative_critical` in both boundary tables, in `sjos_class` and in both
+#'   footprint tables.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -95,7 +110,10 @@
 #'   versus nourishment points; it and `nourishment` carry
 #'   `method_population`, `"read_population"` or `"supplied"`), `sjos_class`
 #'   (the 2-way classification) and `footprint` (a list with the `fp_all` and
-#'   `fp_food` embodied-nitrogen footprints).
+#'   `fp_food` embodied-nitrogen footprints, both carrying `target_nourish`,
+#'   and `target_class_diag`, the per-year count of flows whose consumer
+#'   country-year has no nourishment class). The boundary tables,
+#'   `sjos_class` and both footprint tables carry `negative_critical`.
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -107,9 +125,11 @@ build_sjos_nitrogen <- function(
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
+  negative_critical = c("keep", "clamp"),
   example = FALSE
 ) {
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
+  negative_critical <- rlang::arg_match(negative_critical)
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   # `[[` not `$`: `data$population` partially matches `data$population_age`
   # when the caller left `population` out, and would divide by the age table.
@@ -122,6 +142,7 @@ build_sjos_nitrogen <- function(
   opts <- list(
     surplus_method = surplus_method,
     boundary_land_use = boundary_land_use,
+    negative_critical = negative_critical,
     nh3_source = nh3_source,
     footprint_category = footprint_category,
     nourishment_thresholds = nourishment_thresholds,
@@ -142,17 +163,30 @@ build_sjos_nitrogen <- function(
     ),
     scatter = .sjos_scatter(data, nourishment) |>
       dplyr::mutate(method_population = .env$method_population),
-    sjos_class = sjos_class,
+    sjos_class = .sjos_stamp_critical(sjos_class, opts),
     footprint = .sjos_footprint(
       boundary$country,
       data,
       opts,
-      sjos_class
-    )
+      sjos_class,
+      nourishment
+    ) |>
+      purrr::modify_at(
+        c("fp_all", "fp_food"),
+        \(x) .sjos_stamp_critical(x, opts)
+      )
   )
 }
 
 # ---- Private helpers -------------------------------------------------------
+
+# Every table downstream of the surplus boundary records how negative critical
+# surpluses were treated, so a classification or footprint cannot be read
+# without it. Stamped on the returned tables only: the classification passed
+# to the footprint keeps the column set classify_sjos_n() produces.
+.sjos_stamp_critical <- function(x, opts) {
+  dplyr::mutate(x, negative_critical = .env$opts$negative_critical)
+}
 
 # The one denominator both per-capita axes divide by (#484): the nourishment
 # supply and the anthropogenic-N scatter, read once over every year either
@@ -172,23 +206,15 @@ build_sjos_nitrogen <- function(
 # diverge.
 .sjos_boundary_surplus <- function(surplus, data, opts) {
   list(
-    grid = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "grid"
-    ),
-    country = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "country"
-    )
+    grid = .sjos_exceedance(surplus, data, opts, "grid"),
+    country = .sjos_exceedance(surplus, data, opts, "country")
   )
 }
 
-# One surplus-mode exceedance call, parameterised by resolution.
-.sjos_exceedance <- function(surplus, critical, land_use, resolution) {
+# One surplus-mode exceedance call, parameterised by resolution. The clamp
+# choice and the optional binding table come from the same opts/data for both
+# resolutions, so the grid and country boundaries cannot diverge on them.
+.sjos_exceedance <- function(surplus, data, opts, resolution) {
   years <- unique(surplus$year[!is.na(surplus$year)])
   if (length(years) != 1L) {
     cli::cli_abort(
@@ -197,12 +223,14 @@ build_sjos_nitrogen <- function(
   }
   build_n_boundary_exceedance(
     surplus = surplus,
-    critical = critical,
-    land_use = land_use,
+    critical = data[["critical"]],
+    land_use = opts$boundary_land_use,
     resolution = resolution,
     metric = "surplus",
     actual_year = as.integer(years),
-    critical_reference_year = 2010L
+    critical_reference_year = 2010L,
+    negative_critical = opts$negative_critical,
+    binding = data[["critical_binding"]]
   )
 }
 
@@ -387,13 +415,29 @@ build_sjos_nitrogen <- function(
     )
 }
 
-# The embodied-nitrogen trade footprint from the country exceedance.
-.sjos_footprint <- function(country_exc, data, opts, origin_classes) {
+# The embodied-nitrogen trade footprint from the country exceedance. The
+# producer side carries the per-crop classification; the consumer side carries
+# the consuming country's nourishment class from the same nourishment table the
+# classification used, so the two sides cannot be classified against different
+# bands.
+.sjos_footprint <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  nourishment
+) {
   build_sjos_n_footprint(
     exceedance = country_exc,
     io = data$io,
     category = opts$footprint_category,
-    data = .sjos_fp_data(country_exc, data, opts, origin_classes)
+    data = .sjos_fp_data(
+      country_exc,
+      data,
+      opts,
+      origin_classes,
+      dplyr::select(nourishment, "year", "area_code", "nourish")
+    )
   )
 }
 
@@ -401,23 +445,32 @@ build_sjos_nitrogen <- function(
 # injected pre-traced flows. Domestic closure is a fixture concern only and is
 # supplied by .sjos_n_example_data(); silently creating it here would turn a
 # real no-IO analysis into a false 100% domestic footprint.
-.sjos_fp_data <- function(country_exc, data, opts, origin_classes) {
+.sjos_fp_data <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  target_classes
+) {
+  classes <- list(
+    origin_classes = origin_classes,
+    target_classes = target_classes
+  )
   if (!is.null(data$io)) {
-    return(list(origin_classes = origin_classes))
+    return(classes)
   }
   if (rlang::has_name(data, "fp_flows")) {
-    return(list(
-      fp_flows = data$fp_flows,
-      origin_classes = origin_classes
-    ))
+    return(c(list(fp_flows = data$fp_flows), classes))
   }
   if (isTRUE(opts$example)) {
-    return(list(
-      fp_flows = .sjos_fp_flows_fixture(
-        country_exc,
-        opts$footprint_category
+    return(c(
+      list(
+        fp_flows = .sjos_fp_flows_fixture(
+          country_exc,
+          opts$footprint_category
+        )
       ),
-      origin_classes = origin_classes
+      classes
     ))
   }
   cli::cli_abort(c(
