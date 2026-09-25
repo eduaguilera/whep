@@ -14,7 +14,8 @@ calculate_lmdi(
   .by = NULL,
   rolling_mean = 1,
   output_format = "clean",
-  verbose = TRUE
+  verbose = TRUE,
+  zero_method = c("limit", "small_value")
 )
 }
 \arguments{
@@ -54,6 +55,26 @@ applied before decomposition. Default: 1 (no smoothing).}
 
 \item{verbose}{Logical. If TRUE (default), prints progress messages during
 decomposition.}
+
+\item{zero_method}{Character. How zero values are handled, since the
+logarithmic mean weight is undefined at zero. Missing values (including
+rows added when balancing the panel) are treated as zeros by both
+methods. One of:
+\itemize{
+\item \code{"limit"} (default): the analytical limit of the small-value strategy
+as the replacement value tends to zero (Ang and Liu, 2007). Zeros are
+kept as zeros and each affected sub-category's change is attributed
+exactly, so the additive decomposition is perfect and does not depend
+on an arbitrary constant. See the \emph{Zero values} section.
+\item \code{"small_value"}: the previous behaviour. Every zero is replaced by
+\code{1e-12} before decomposing (the small-value strategy of Ang, Zhang and
+Choi, 1998; the constant itself is the package's historical choice,
+assumed, unverified against a source), and for identities whose factors are all plain columns
+the target is re-derived as the product of the factors. Kept for
+comparison and sensitivity analysis.
+}
+
+The chosen method is recorded in the \code{method_zero_handling} column.}
 }
 \value{
 A tibble with LMDI decomposition results containing:
@@ -62,6 +83,7 @@ A tibble with LMDI decomposition results containing:
 \item \code{additive}: Additive contributions (sum equals total change in target).
 \item \code{multiplicative}: Multiplicative indices (product equals target ratio).
 \item \code{multiplicative_log}: Log of multiplicative indices.
+\item \code{method_zero_handling}: the \code{zero_method} used.
 \item Period identifiers and metadata.
 }
 }
@@ -135,6 +157,43 @@ The input data frame must contain:
 \item Grouping variables if using \code{.by}.
 \item No missing values in key variables for decomposition periods.
 }
+}
+
+\section{Zero values}{
+
+With \code{zero_method = "limit"}, a zero is treated as a quantity
+\eqn{\delta \to 0}{delta -> 0}. Every aggregate a factor is built from
+is then of the form \eqn{c \delta^p}{c * delta^p} (a sum is of order
+\eqn{\delta}{delta} only when all its terms are zero; a ratio subtracts
+the orders). For a sub-category with target change \eqn{\Delta V}{dV}
+and factor \eqn{k} of order \eqn{q_{k0}}{qk0} at the start and
+\eqn{q_{kT}}{qkT} at the end, the additive contribution tends to:
+\itemize{
+\item the usual LMDI-I term when neither target value is zero;
+\item \eqn{\Delta V \Delta q_k / \sum_j \Delta q_j}{dV * dqk / sum(dqj)},
+with \eqn{\Delta q_k = q_{kT} - q_{k0}}{dqk = qkT - qk0}, when exactly
+one of them is zero: the whole change of that sub-category goes to the
+factor(s) that reach or leave zero, split by their order when several
+do;
+\item zero when the target is zero at both ends.
+}
+
+These sum exactly to the change in the target, which is what
+\code{"small_value"} approaches only slowly (its error decays like
+\eqn{1 / \log(1 / \epsilon)}{1 / log(1 / epsilon)}): with
+\code{1e-12} a factor that is zero at the start still leaves a few percent of
+the change on the other factors. Ang and Liu (2007) show that the
+small-value results converge as the replacement value tends to zero;
+the limits above are derived here from that convergence with one common
+replacement value for every zero (their tables were not accessible when
+this was written, so the term-by-term match with them is assumed,
+unverified).
+A sub-category whose target stays positive while one of its factors goes
+to zero and another to infinity (for example emissions with no activity),
+or whose target reaches or leaves zero while none of its factors does
+(data breaking the identity), has no finite decomposition: its
+contributions are returned as \code{NA} with a warning. The multiplicative form is undefined when the aggregate target
+is zero at either end, so its factor indices are then \code{NA}.
 }
 
 \examples{
@@ -332,4 +391,17 @@ calculate_lmdi(
     additive,
     multiplicative
   )
+}
+\references{
+Ang, B. W., Zhang, F. and Choi, K. (1998). Factorizing changes in
+energy and environmental indicators through decomposition. \emph{Energy},
+23(6), 489-495. \doi{10.1016/S0360-5442(98)00016-4}
+
+Ang, B. W. and Liu, N. (2007). Handling zero values in the logarithmic
+mean Divisia index decomposition approach. \emph{Energy Policy}, 35(1),
+238-246. \doi{10.1016/j.enpol.2005.11.001}
+
+Ang, B. W. (2015). LMDI decomposition approach: A guide for
+implementation. \emph{Energy Policy}, 86, 233-238.
+\doi{10.1016/j.enpol.2015.07.007}
 }

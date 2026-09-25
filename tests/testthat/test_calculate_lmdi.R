@@ -619,7 +619,8 @@ test_that("calculate_lmdi recalculates target after epsilon replacement", {
     data,
     identity = "emissions:activity*intensity",
     time_var = year,
-    verbose = FALSE
+    verbose = FALSE,
+    zero_method = "small_value"
   )
 
   # Get the decomposition for this period
@@ -829,7 +830,8 @@ lmdi_internal_args <- function(data) {
     "emissions",
     year,
     1,
-    FALSE
+    FALSE,
+    "limit"
   )
   list(
     data = prepared,
@@ -839,7 +841,8 @@ lmdi_internal_args <- function(data) {
       target_var = "emissions",
       factors = c("activity", "intensity"),
       factor_labels = c("activity", "intensity"),
-      target_label_final = "emissions"
+      target_label_final = "emissions",
+      zero_method = "limit"
     )
   )
 }
@@ -982,5 +985,301 @@ test_that("calculate_lmdi does not amplify accumulation residue", {
   expect_equal(
     additive$additive[additive$factor_label == "yield"],
     -pair$high * log(2)
+  )
+})
+
+
+# Zero values: analytical limit (#69) ------------------------------------------
+
+lmdi_zero_run <- function(data, identity, ...) {
+  calculate_lmdi(data, identity = identity, verbose = FALSE, ...)
+}
+
+# Largest |target change - sum of factor contributions| over every period.
+lmdi_closure_gap <- function(result) {
+  result |>
+    dplyr::summarise(
+      gap = abs(
+        sum(additive[component_type == "target"]) -
+          sum(additive[component_type == "factor"])
+      ),
+      .by = dplyr::any_of(c("period", "country"))
+    ) |>
+    dplyr::pull(gap) |>
+    max()
+}
+
+lmdi_factor_add <- function(result, label) {
+  result |>
+    dplyr::filter(component_type == "factor", factor_label == label) |>
+    dplyr::pull(additive)
+}
+
+# A sector that is absent at the start, present in the middle and absent again
+# at the end, next to one that is always present and one that is zero in every
+# year.
+lmdi_zero_sector_fixture <- function() {
+  tibble::tribble(
+    ~year, ~sector, ~activity, ~emissions,
+    2010,  "a",     100,       10,
+    2010,  "b",     0,         0,
+    2010,  "c",     0,         0,
+    2011,  "a",     120,       12,
+    2011,  "b",     30,        6,
+    2011,  "c",     0,         0,
+    2012,  "a",     150,       12,
+    2012,  "b",     0,         0,
+    2012,  "c",     0,         0
+  ) |>
+    dplyr::mutate(total_activity = sum(activity), .by = year)
+}
+
+lmdi_structural_identity <- paste0(
+  "emissions:total_activity*(activity[sector]/total_activity)*",
+  "(emissions[sector]/activity[sector])"
+)
+
+test_that("limit decomposition is perfect with zeros at start, end, both", {
+  simple <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100,
+    2012,  250,       0,          0,
+    2013,  300,       0,          0,
+    2014,  300,       0.2,        60
+  )
+  expect_no_warning(
+    simple_result <- lmdi_zero_run(simple, "emissions:activity*intensity")
+  )
+  expect_lt(lmdi_closure_gap(simple_result), 1e-10)
+  expect_equal(
+    simple_result |>
+      dplyr::filter(component_type == "target") |>
+      dplyr::pull(additive),
+    c(100, -100, 0, 60)
+  )
+
+  expect_no_warning(
+    sector_result <- lmdi_zero_run(
+      lmdi_zero_sector_fixture(),
+      lmdi_structural_identity
+    )
+  )
+  expect_lt(lmdi_closure_gap(sector_result), 1e-10)
+  expect_equal(
+    sector_result |>
+      dplyr::filter(component_type == "target") |>
+      dplyr::pull(additive),
+    c(8, -6)
+  )
+})
+
+test_that("limit gives the whole change to the factor leaving zero", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100,
+    2012,  250,       0,          0
+  )
+  result <- lmdi_zero_run(data, "emissions:activity*intensity")
+
+  expect_equal(lmdi_factor_add(result, "activity"), c(0, 0))
+  expect_equal(lmdi_factor_add(result, "intensity"), c(100, -100))
+  pointblank::expect_col_vals_in_set(
+    result,
+    method_zero_handling,
+    set = "limit"
+  )
+})
+
+test_that("limit gives a new sector's emissions to the structure effect", {
+  result <- lmdi_zero_run(lmdi_zero_sector_fixture(), lmdi_structural_identity)
+  first <- result |> dplyr::filter(period == "2010-2011")
+  # Sector a alone (standard LMDI-I), plus sector b's 6 t on the share factor.
+  weight_a <- whep:::.log_mean(12, 10)
+  expect_equal(
+    lmdi_factor_add(first, "activity[sector]/total_activity"),
+    weight_a * log((120 / 150) / (100 / 100)) + 6
+  )
+  expect_equal(lmdi_factor_add(first, "emissions[sector]/activity[sector]"), 0)
+})
+
+test_that("limit splits a change among simultaneously zero factors", {
+  data <- tibble::tribble(
+    ~year, ~a, ~b, ~c, ~v,
+    2010,  0,  0,  2,  0,
+    2011,  3,  4,  5,  60
+  )
+  result <- lmdi_zero_run(data, "v:a*b*c")
+
+  expect_equal(lmdi_factor_add(result, "a"), 30)
+  expect_equal(lmdi_factor_add(result, "b"), 30)
+  expect_equal(lmdi_factor_add(result, "c"), 0)
+})
+
+test_that("limit is the small-value result as the constant tends to zero", {
+  # Hand-computed small-value LMDI with delta = 1e-300 (far below the
+  # package's 1e-12): its error against the limit decays like
+  # 1 / log(1 / delta), so it must land within about one percent.
+  delta <- 1e-300
+  f0 <- c(activity = 100, intensity = delta)
+  f_final <- c(activity = 200, intensity = 0.5)
+  weight <- whep:::.log_mean(prod(f_final), prod(f0))
+  small_value <- unname(weight * log(f_final / f0))
+
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  result <- lmdi_zero_run(data, "emissions:activity*intensity")
+
+  expect_equal(
+    lmdi_factor_add(result, "intensity"),
+    small_value[2],
+    tolerance = 0.01
+  )
+  expect_lt(abs(lmdi_factor_add(result, "activity") - small_value[1]), 0.2)
+  expect_gt(small_value[1], 0)
+})
+
+test_that("limit and small value move attribution by a measurable amount", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  identity <- "emissions:activity*intensity"
+  limit <- lmdi_zero_run(data, identity)
+  small <- lmdi_zero_run(data, identity, zero_method = "small_value")
+
+  # With 1e-12 the weight is 100 / log(1e14), so activity keeps
+  # 100 * log(2) / log(1e14), about 2.5 of the 100.
+  expect_equal(
+    lmdi_factor_add(small, "activity"),
+    (100 - 1e-10) / log(100 / 1e-10) * log(2)
+  )
+  expect_equal(lmdi_factor_add(limit, "activity"), 0)
+  pointblank::expect_col_vals_in_set(
+    small,
+    method_zero_handling,
+    set = "small_value"
+  )
+})
+
+test_that("limit closes a ratio identity that small value breaks (#69)", {
+  # A non-simple identity is never re-derived after epsilon replacement, so
+  # `pop * (gdp / pop) * intensity` no longer equals `emissions` there.
+  data <- tibble::tribble(
+    ~year, ~pop, ~gdp, ~intensity, ~emissions,
+    2010,  10,   1000, 0,          0,
+    2011,  11,   1200, 0.1,        120
+  )
+  identity <- "emissions:pop*(gdp/pop)*intensity"
+
+  expect_no_warning(limit <- lmdi_zero_run(data, identity))
+  expect_lt(lmdi_closure_gap(limit), 1e-10)
+  expect_equal(lmdi_factor_add(limit, "intensity"), 120)
+
+  small_value_warnings <- testthat::capture_warnings(
+    lmdi_zero_run(data, identity, zero_method = "small_value")
+  )
+  expect_match(
+    small_value_warnings,
+    "Additive contributions differ",
+    all = FALSE
+  )
+})
+
+test_that("limit leaves zero-free decompositions unchanged", {
+  identity <- "emissions:activity*intensity"
+  data <- lmdi_varying_fixture()
+  limit <- lmdi_zero_run(data, identity)
+  small <- lmdi_zero_run(data, identity, zero_method = "small_value")
+
+  expect_equal(limit$additive, small$additive, tolerance = 1e-12)
+  expect_equal(limit$multiplicative, small$multiplicative, tolerance = 1e-12)
+
+  sectors <- lmdi_sector_fixture() |>
+    dplyr::mutate(total_activity = sum(activity), .by = year)
+  sector_limit <- lmdi_zero_run(sectors, lmdi_structural_identity)
+  sector_small <- lmdi_zero_run(
+    sectors,
+    lmdi_structural_identity,
+    zero_method = "small_value"
+  )
+  expect_equal(sector_limit$additive, sector_small$additive, tolerance = 1e-12)
+  expect_equal(
+    sector_limit$multiplicative,
+    sector_small$multiplicative,
+    tolerance = 1e-12
+  )
+})
+
+test_that("limit is perfect per group with .by and after rolling mean", {
+  data <- tibble::tribble(
+    ~country, ~year, ~activity, ~intensity, ~emissions,
+    "ESP",    2010,  100,       0,          0,
+    "ESP",    2011,  110,       0.2,        22,
+    "FRA",    2010,  200,       0.1,        20,
+    "FRA",    2011,  220,       0,          0
+  )
+  result <- lmdi_zero_run(
+    data,
+    "emissions:activity*intensity",
+    .by = "country"
+  )
+  expect_lt(lmdi_closure_gap(result), 1e-10)
+
+  smoothed <- tibble::tibble(
+    year = 2010:2015,
+    activity = c(100, 110, 120, 130, 140, 150),
+    intensity = c(0, 0, 0.1, 0.2, 0.1, 0)
+  ) |>
+    dplyr::mutate(emissions = activity * intensity)
+  rolled <- lmdi_zero_run(
+    smoothed,
+    "emissions:activity*intensity",
+    rolling_mean = 3
+  )
+  expect_lt(lmdi_closure_gap(rolled), 1e-10)
+})
+
+test_that("limit reports multiplicative indices as NA at a zero aggregate", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  expect_no_warning(
+    result <- lmdi_zero_run(data, "emissions:activity*intensity")
+  )
+  factors <- result |> dplyr::filter(component_type == "factor")
+  expect_true(all(is.na(factors$multiplicative)))
+})
+
+test_that("limit warns and returns NA when a factor diverges", {
+  # Positive emissions over zero activity: activity -> 0 and intensity -> Inf
+  # while the target stays finite, which has no finite decomposition.
+  data <- tibble::tribble(
+    ~year, ~activity, ~emissions,
+    2010,  0,         5,
+    2011,  10,        8
+  )
+  expect_warning(
+    result <- lmdi_zero_run(data, "emissions:activity*(emissions/activity)"),
+    "no finite value"
+  )
+  expect_true(is.na(lmdi_factor_add(result, "activity")))
+})
+
+test_that("calculate_lmdi rejects an unknown zero_method", {
+  expect_error(
+    lmdi_zero_run(
+      lmdi_basic_fixture(),
+      "emissions:activity*intensity",
+      zero_method = "epsilon"
+    ),
+    class = "rlang_error"
   )
 })
