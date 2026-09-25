@@ -37,3 +37,26 @@
     !.data$input %in% tolerated
   )
 }
+
+# The report rows the balance runs WITHOUT: a tolerated stage that did not
+# succeed, or any stage skipped on request (WHEP_NBD_SKIP_HEAVY). A skip is not
+# a failure, so it does not block, but it is not an absence to hide either:
+# a skipped livestock_intake empties the manure and intake terms exactly as a
+# failed one would, and the "5b" section must say so.
+.nbd_carried_gaps <- function(report, tolerated = .nbd_tolerated_stages()) {
+  dplyr::filter(
+    report,
+    .data$status != "ok",
+    .data$input %in% tolerated | .data$status == "skip"
+  )
+}
+
+# The balance terms that are zero when a given stage is missing, for the
+# "5b" message. Stages not listed contribute no term of their own.
+.nbd_gap_terms <- function(inputs) {
+  terms <- c(
+    carbon_balance = "som_mineralization",
+    livestock_intake = "manure and livestock intake"
+  )
+  unname(terms[intersect(inputs, names(terms))])
+}

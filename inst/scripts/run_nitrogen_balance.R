@@ -549,11 +549,7 @@ report <- dplyr::bind_rows(.nbd_log$rows)
 # expected gap, and must block the balance rather than silently zero-filling
 # the manure and intake terms.
 NBD_TOLERATED <- whep:::.nbd_tolerated_stages()
-gaps <- dplyr::filter(
-  report,
-  .data$status != "ok",
-  .data$input %in% NBD_TOLERATED
-)
+gaps <- whep:::.nbd_carried_gaps(report, NBD_TOLERATED)
 if (nrow(gaps) > 0L) {
   cli::cli_h2("5b. Terms this run does NOT carry")
   for (i in seq_len(nrow(gaps))) {
@@ -562,9 +558,10 @@ if (nrow(gaps) > 0L) {
       cli::cli_bullets(c(" " = gaps$detail[i]))
     }
   }
+  gap_terms <- whep:::.nbd_gap_terms(gaps$input)
   cli::cli_alert_info(
-    "The balance runs without them; its som_mineralization term is then
-     zero, and every total below excludes it."
+    "The balance runs without them; its {gap_terms} term{?s} {?is/are} then
+     zero, and every total below excludes {?it/them}."
   )
 }
 blockers <- whep:::.nbd_blocking_failures(report, NBD_TOLERATED)
