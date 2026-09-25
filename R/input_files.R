@@ -12,6 +12,119 @@
 #' [`pins`](https://pins.rstudio.com/index.html) package. It supports multiple
 #' file formats and file versioning.
 #'
+#' @section Frozen predecessor-pipeline references:
+#' Four aliases in [`whep_inputs`] are not outputs of this package:
+#' `primary_prod`, `commodity_balance_sheet`, `processing_coefs` and
+#' `feed_intake`. They are the 2025-07-14 snapshot of the predecessor
+#' R-script pipeline this package replaced, kept frozen so
+#' `inst/scripts/compare_global_whep.R` can benchmark `whep` against it. No
+#' package function reads them, their schema is the old one (CamelCase,
+#' name-keyed, no polity columns) and they stop in 2021, so reading one warns.
+#'
+#' Their numbers are not what current code produces, so they are references,
+#' not substitutes. `primary_prod` (2,443,516 rows, 1961--2021) against a
+#' fresh [build_primary_production()] over the same 2015--2021 window:
+#'
+#' - The pin has no `slaughtered_heads` row in any of its years; the build
+#'   emits 12,195 over 2015--2021. Three `item_prod` codes are pin-only (378,
+#'   773, 1163; 1,332 rows) and three appear in no pin year at all (1051, and
+#'   the modelled grassland items 3001 and 3002).
+#' - 317,587 rows against the build's 328,242 for the window, a 3.2%
+#'   shortfall.
+#' - Its 2020--2021 fodder harvested area is carried forward from 2019 ---
+#'   85.93 Mha in each year, 468 country-item series over 96 areas, equal to
+#'   2019 to the last digit --- where the build emits no fodder row at all
+#'   after 2019, because `eu-agridb-fodder` stops in 2019,
+#'   `faostat-production-old` in 2013, and `faostat-production` carries none
+#'   of the 16 fodder items.
+#' - Even in a year both cover they disagree: 2019 fodder harvested area is
+#'   85.93 Mha in the pin against 90.42 Mha from the build.
+#'
+#' Build the current series with the matching `build_*()` or `get_*()`
+#' function instead.
+#'
+#' @section The two batch pins on the build path:
+#' Two further aliases were published in that same 2025-07-14 batch ---
+#' `crop_residues` and `bilateral_trade`, alongside the four above, between
+#' 12:33:43Z and 12:33:50Z. Unlike the four, these two are read on the default
+#' build path, which is why no warning is attached to them: every commodity
+#' balance build reads them, so a warning at the read is noise rather than
+#' information.
+#'
+#' They do **not** share a provenance despite sharing a timestamp. Each was
+#' established separately (#1054), because the timestamp alone establishes
+#' nothing.
+#'
+#' ## `crop_residues` is predecessor output
+#'
+#' Read by [get_primary_residues()], and from there by
+#' [build_commodity_balances()]. All 475,688 of its `Product` rows equal the
+#' `primary_prod` pin's `tonnes` values exactly --- no key unmatched on either
+#' side, no value differing at a relative tolerance of 1e-6 --- so it is a
+#' downstream artifact of the same predecessor run, carrying that run's
+#' production series into the commodity balance.
+#'
+#' Its residue quantities are those production numbers times a
+#' residue-to-product ratio that varies by year and does not exist in this
+#' repository: 100 of its 116 `Name_biomass` items carry between 77 and 252
+#' distinct ratios across 1961--2021 (the 16 that carry one flat ratio are all
+#' fodder items), 33,411 area-item-year keys carry a residue of exactly 0, and
+#' `biomass_coefs$kg_residue_kg_product_FM` reproduces only 3,189 of the
+#' 472,790 keys where the comparison can be made.
+#' The ratios are therefore not recoverable here, and the artifact is not
+#' reproducible from this package.
+#'
+#' It is not a small input. [get_primary_residues()] supplies 7.63 Gt to the
+#' 2010 commodity balance (Straw 3.60 Gt, Other crop residues 2.49 Gt,
+#' Firewood 1.54 Gt) and 327.7 Gt over 1961--2021, and 3,998 of its 249,095
+#' output rows carry `NA` polity columns because the pin is name-keyed.
+#'
+#' Driving the same residue model off a fresh [get_primary_production()] would
+#' move those numbers. Measured for 2010 at (`area_code`, `item_prod`): 1.958
+#' Gt of current production sits on 6,425 keys the pin never sees (809 Mt of
+#' it primary crops, including the modelled temporary-grassland item), 64.8 Mt
+#' on 296 keys is pin-only, and of the 8,010 shared keys 538 disagree, putting
+#' 1.102 Gt --- 11.01% of the pin's shared-key mass --- more than 1% apart.
+#' The largest class is rice, 673.9 Mt in the pin against 463.3 Mt fresh, a
+#' ratio of 0.6876: current code puts rice on a milled-equivalent basis while
+#' the pin's is paddy, which is a basis difference rather than an error, since
+#' straw scales with the field crop. The second is fodder, where the current
+#' build is close to twice the pin on every forage and silage item, the pin
+#' predating that work. Replacing the pin therefore means choosing a residue
+#' model, which is a science decision and not a refresh.
+#'
+#' ## `bilateral_trade` is a curated FAOSTAT input
+#'
+#' Read by [get_bilateral_trade()] and by the live-animal branch of
+#' [build_commodity_balances()]. Its values are the FAOSTAT Detailed Trade
+#' Matrix, not model output: against the `faostat-trade-bilateral` pin over
+#' 2010, all 296,642 shared `tonnes` keys and all 5,102 shared `Head` keys
+#' agree exactly, with not one key differing. Over the full 1986--2021 span it
+#' carries 83,147,095,412 tonnes against FAOSTAT's 83,159,972,741 on
+#' CBS-mapped quantity rows, and 11,707,083,640 head against 11,708,244,416.
+#'
+#' The only transformations are an aggregation of FAOSTAT trade items onto CBS
+#' item names, a fold of 18 FAOSTAT areas into area code 999 (Bhutan, Comoros,
+#' Cook Islands, Equatorial Guinea, Faroe Islands, Marshall Islands,
+#' Micronesia, Nauru, New Caledonia, North Macedonia, Niue, Seychelles,
+#' Eswatini, Syrian Arab Republic, China Taiwan Province of, Tonga, Tuvalu and
+#' Palestine --- 3.18% of its rows, 1.892% of its tonnage, 0.492% of its head
+#' counts), and a `Country_share` column the reader discards. So the shared
+#' timestamp implies nothing about it: what it holds is what FAOSTAT
+#' published, through the filters its producer applied.
+#'
+#' Two things it does not hold. FAOSTAT's `1000 Head` rows are absent
+#' entirely --- 89,073 rows and 76,141,882 thousand head over 1986--2021,
+#' against the 11,707,083,640 head the pin does carry, all of it live broiler
+#' chicken, turkey, duck, rabbit and goose trade --- and so are its 5,011 `No`
+#' rows. [build_detailed_trade()] recovers the first of those since PR #1113:
+#' run on the raw `faostat-trade-bilateral` pin today it emits 87,840,869,640
+#' head, 7.50x what this pin carries, against 64,450,133,319 tonnes, 22.5%
+#' below it. That gain is latent until this pin is regenerated from the
+#' producer (#1122), which is a schema migration rather than a refresh: the
+#' two shapes share exactly one column name, `area_code`.
+#' `.clean_bilateral_trade()` reads either.
+#'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the `alias` column of the [`whep_inputs`] dataset.
 #' @param type The extension of the file that must be read. Possible values:
@@ -43,6 +156,17 @@
 #'   - Other: A specific version can also be used. For more details read the
 #'     `version` column information from [`whep_inputs`].
 #'
+#' @param years Optional integer vector of years to keep. For `parquet` the
+#'   filter is pushed into the file, so only the row groups whose statistics
+#'   overlap the requested range are read from disk and the exact set is
+#'   applied afterwards. This is what makes a single-year read of a large
+#'   monthly pin affordable: `lpjml-soc-hydrology` holds 193,317,960 rows over
+#'   1901-2022, and one year of it is 1.3 seconds and 34 MB instead of ~12 GB
+#'   materialised. For `csv` the filter is applied after reading. The formats
+#'   returned as a path (`nc`, `nc4`, `raw`, archives) cannot honour it and
+#'   abort rather than ignore it. `NULL`, the default, reads the whole file.
+#' @param year_col Name of the year column `years` filters on.
+#'
 #' @returns A tibble with the dataset. Some information about each dataset can
 #'   be found in the code where it's used as input for further processing.
 #'
@@ -56,10 +180,17 @@
 #'   type = "csv",
 #'   version = "20250721T152646Z-ce61b"
 #' )
-whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
+whep_read_file <- function(
+  file_alias,
+  type = "parquet",
+  version = NULL,
+  years = NULL,
+  year_col = "year"
+) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
   file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
+  .warn_legacy_reference(file_alias)
   version <- .choose_version(file_info$version, version)
 
   paths <- tryCatch(
@@ -78,7 +209,7 @@ whep_read_file <- function(file_alias, type = "parquet", version = NULL) {
   )
 
   paths |>
-    .read_file(type)
+    .read_file(type, years, year_col)
 }
 
 #' Input file versions
@@ -109,7 +240,88 @@ whep_list_file_versions <- function(file_alias) {
     pins::pin_versions(file_alias)
 }
 
-.read_file <- function(paths, extension) {
+# The 2025-07-14 pin batch carries output of the predecessor R-script pipeline,
+# not of this package. These four aliases are the ones no package function
+# reads: three are read only by `inst/scripts/compare_global_whep.R`, which
+# benchmarks whep against them, and `feed_intake` by nothing at all. They are
+# frozen on purpose, so they are not stale artifacts to refresh -- but reading
+# one must say whose numbers it hands back (#1030). The two aliases from the
+# same batch that current code does consume, `crop_residues` and
+# `bilateral_trade`, are deliberately absent: warning on a default build path
+# is a separate call.
+.legacy_reference_aliases <- function() {
+  c(
+    "primary_prod",
+    "commodity_balance_sheet",
+    "processing_coefs",
+    "feed_intake"
+  )
+}
+
+# `primary_prod` is the alias whose divergence from current code was measured,
+# so it is the one that carries the figures. See the roxygen section on
+# `whep_read_file()` for how they were obtained.
+.legacy_reference_note <- function(file_alias) {
+  if (file_alias != "primary_prod") {
+    return(NULL)
+  }
+  "Its 2020-2021 fodder area is carried forward from 2019 (85.93 Mha a year,
+   468 country-item series), where a fresh build emits none, so it is not
+   interchangeable with one."
+}
+
+.warn_legacy_reference <- function(file_alias) {
+  if (!file_alias %in% .legacy_reference_aliases()) {
+    return(invisible(file_alias))
+  }
+
+  cli::cli_warn(c(
+    "{.val {file_alias}} is frozen 1961-2021 output of the predecessor
+     pipeline, not of this package.",
+    i = "It is kept only so {.file inst/scripts/compare_global_whep.R} can
+         benchmark against it. Build the current series with the matching
+         {.code build_*()} or {.code get_*()} function instead.",
+    i = .legacy_reference_note(file_alias)
+  ))
+
+  invisible(file_alias)
+}
+
+# The six aliases published together on 2025-07-14 between 12:33:43Z and
+# 12:33:50Z: the snapshot batch of the predecessor R-script pipeline this
+# package replaced, named as such in `inst/scripts/comparison_report.md`.
+#
+# The census lives in code so it can be checked mechanically. The roxygen
+# section on `whep_read_file()` states, per alias, what produced it and what
+# reads it; if a seventh artifact from the batch is ever registered, or one of
+# these six is refreshed to a different version, that section is out of date
+# and the guard in `test_input_files.R` fires (#1054).
+.predecessor_batch_aliases <- function() {
+  c(
+    "commodity_balance_sheet",
+    "bilateral_trade",
+    "processing_coefs",
+    "feed_intake",
+    "primary_prod",
+    "crop_residues"
+  )
+}
+
+# The two of that batch which package code reads on the default build path,
+# rather than only `inst/scripts/compare_global_whep.R`. They do not share a
+# provenance: `crop_residues` is predecessor output whose `Product` rows equal
+# the `primary_prod` pin to the last digit, while `bilateral_trade` is a
+# harmonisation of the FAOSTAT Detailed Trade Matrix whose values match the
+# raw pin exactly. The roxygen section carries the evidence for both.
+#
+# No warning is attached to these two. Every commodity balance build reads
+# them, so a warning at the read is noise rather than information; the four
+# benchmark-only aliases are a separate call (#1030).
+.predecessor_batch_build_path <- function() {
+  c("bilateral_trade", "crop_residues")
+}
+
+.read_file <- function(paths, extension, years = NULL, year_col = "year") {
   # `extension` (e.g. "tar.gz") is a literal suffix, not a pattern: its "."
   # would otherwise match any character as a regex, so a path ending in
   # "tarXgz" (any X) would wrongly count as a "tar.gz" match (whep#172).
@@ -139,12 +351,24 @@ whep_list_file_versions <- function(file_alias) {
     ))
   }
 
+  # `nc`, `raw` and the archives hand back a PATH, so a year filter cannot be
+  # applied to them. Ignoring it silently would hand the caller every year it
+  # asked to exclude, which is the failure this argument exists to prevent.
+  if (!is.null(years) && !extension %in% c("csv", "parquet")) {
+    cli::cli_abort(c(
+      "{.arg years} cannot be applied to a {.val {extension}} file.",
+      i = "That format is returned as a path for the caller to read lazily."
+    ))
+  }
+
   if (extension == "csv") {
-    readr::read_csv(path, show_col_types = FALSE)
+    .filter_years_if_present(
+      readr::read_csv(path, show_col_types = FALSE),
+      years,
+      year_col
+    )
   } else if (extension == "parquet") {
-    path |>
-      nanoparquet::read_parquet() |>
-      tibble::as_tibble()
+    .read_parquet_years(path, years, year_col)
   } else if (extension %in% c("tar.gz", "tgz")) {
     # Decompress archive and return paths to extracted files
     tmpdir <- file.path(tempdir(), basename(tempfile()))
@@ -165,6 +389,77 @@ whep_list_file_versions <- function(file_alias) {
       "Unknown file type {extension}. Available for this file: {extensions}"
     )
   }
+}
+
+# Read one parquet, pushing a `years` filter INTO the file so only the row
+# groups whose statistics overlap the requested range are read from disk. The
+# pushdown can only express a RANGE, so the exact set is applied afterwards;
+# without that, a request for c(2001, 2003) would silently also return 2002.
+# Falls back to the whole-file read when the file has no such column.
+#
+# This is the predicate-pushdown pattern `.read_input()` already uses for the
+# FAOSTAT pins. It matters far more for the LPJmL pins:
+# `lpjml-soc-hydrology` holds 193,317,960 monthly rows over 1901-2022, 1.9 GB
+# on disk and ~12 GB once materialised, of which a single-year build needs one
+# year. Reading it whole and filtering afterwards is what made a one-year
+# gridded carbon balance unrunnable: two hours of CPU without ever leaving the
+# input stage. With the pushdown the same read is 1.3 seconds and 34 MB.
+.read_parquet_years <- function(path, years = NULL, year_col = "year") {
+  whole <- function() {
+    tibble::as_tibble(nanoparquet::read_parquet(path))
+  }
+  if (is.null(years)) {
+    return(whole())
+  }
+  wanted <- as.integer(years)
+  dataset <- arrow::open_dataset(path, format = "parquet")
+  # Asking for years from a file with no year column is a wiring mistake, and
+  # the two ways of absorbing it are both worse than stopping: returning the
+  # whole file hands back every year when one was asked for, and silently
+  # dropping the filter reinstates the very read this exists to avoid.
+  if (!year_col %in% names(dataset)) {
+    cli::cli_abort(
+      c(
+        "Cannot filter by {.arg years}: no {.val {year_col}} column.",
+        i = "Column{?s} present: {.val {names(dataset)}}."
+      ),
+      class = "whep_year_filter_error"
+    )
+  }
+  # An empty or all-NA request asks for NO rows. Falling through to the
+  # whole-file read below would materialise the entire pin -- about 12 GB for
+  # `lpjml-soc-hydrology` -- only to discard every row of it, which is exactly
+  # the read this function exists to avoid.
+  if (!any(is.finite(wanted))) {
+    return(tibble::as_tibble(dplyr::collect(utils::head(dataset, 0L))))
+  }
+  # Only push down a NUMERIC year. Arrow does not refuse a text column: asked
+  # for `year >= 2003` against character years it silently coerces and returns
+  # rows, so a column whose text order does not match its numeric order would
+  # quietly drop years that were asked for. `.filter_years_if_present()` below
+  # cannot repair that -- it can only remove surplus rows, never restore
+  # missing ones -- so the whole-file read, which coerces in R, is the correct
+  # path there rather than the fast one.
+  numeric_year <- is.numeric(
+    dplyr::collect(utils::head(dataset, 1L))[[year_col]]
+  )
+  if (!numeric_year) {
+    return(.filter_years_if_present(whole(), years, year_col))
+  }
+  # Both bounds are computed HERE, not inside the filter: arrow translates the
+  # expression rather than evaluating it, so an inline `min()` becomes an
+  # Arrow aggregate and the read aborts with "Expression not supported in
+  # Arrow".
+  y_min <- min(wanted, na.rm = TRUE)
+  y_max <- max(wanted, na.rm = TRUE)
+  dataset |>
+    dplyr::filter(
+      .data[[year_col]] >= y_min,
+      .data[[year_col]] <= y_max
+    ) |>
+    dplyr::collect() |>
+    tibble::as_tibble() |>
+    .filter_years_if_present(years, year_col)
 }
 
 .get_remote_board <- function(file_info) {

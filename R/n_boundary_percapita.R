@@ -121,8 +121,8 @@ build_n_boundary_percapita <- function(
   population |>
     dplyr::summarise(world_pop = .sum_if_any(.data$population), .by = year) |>
     dplyr::mutate(
-      low_pc = low_tg * 1e9 / .data$world_pop,
-      high_pc = pmin(high_tg * 1e9 / .data$world_pop, cap)
+      low_pc = low_tg * .kg_per_teragram() / .data$world_pop,
+      high_pc = pmin(high_tg * .kg_per_teragram() / .data$world_pop, cap)
     ) |>
     dplyr::select("year", "low_pc", "high_pc")
 }

@@ -415,6 +415,49 @@ test_that(".extract_cb row order does not depend on the read order", {
   expect_identical(forward, reversed)
 })
 
+# -- .extract_cb keys items on the code ----------------------------------------
+
+# The new Food Balances spell three items with a lower-case "other" --
+# "Cereals, other" (2520), "Vegetables, other" (2605), "Fruits, other" (2625)
+# -- where `items_full` and the old Food Balances write "Other". Keyed on the
+# name as well as the code, every row of those three items fell out of the
+# extract, so from 2010 on the CBS had their production but none of their food,
+# feed, seed or processing (whep#961). Aggregates such as 2905 are not CBS
+# items and must still be dropped.
+test_that(".extract_cb keeps an item whose label differs only in case", {
+  fixture <- tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                      ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2520,         "Cereals, other",           "Production", "tonnes", 2015L, 100,
+    203L,         "Testland", 2520,         "Cereals, other",           "Feed",       "tonnes", 2015L, 60,
+    203L,         "Testland", 2605,         "Vegetables, other",        "Food",       "tonnes", 2015L, 30,
+    203L,         "Testland", 2625,         "Fruits, other",            "Food",       "tonnes", 2015L, 20,
+    203L,         "Testland", 2511,         "Wheat and products",       "Food",       "tonnes", 2015L, 40,
+    203L,         "Testland", 2905,         "Cereals - Excluding Beer", "Food",       "tonnes", 2015L, 999
+  ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_cb("faostat-fbs-new") |>
+    tibble::as_tibble()
+
+  expect_setequal(out$item_cbs_code, c(2511, 2520, 2605, 2625))
+  labels <- dplyr::distinct(out, item_cbs_code, item_cbs)
+  expected <- whep::items_full$item_cbs[
+    match(labels$item_cbs_code, whep::items_full$item_cbs_code)
+  ]
+  expect_identical(labels$item_cbs, expected)
+  expect_true("Cereals, Other" %in% labels$item_cbs)
+  out |>
+    dplyr::filter(item_cbs_code == 2520, element == "feed") |>
+    dplyr::pull(value) |>
+    expect_equal(60)
+})
+
 # -- .extract_fao row order ----------------------------------------------------
 
 # The same defect one stage earlier, and the stage the CBS build consumes
@@ -498,6 +541,57 @@ test_that(".extract_fao returns exactly the requested years", {
   expect_equal(nrow(out), 2L)
 })
 
+# whep#811. CB's `Processed` element (5023) is the quantity handed to the next
+# link of a chain (natural rubber 836 -> 837), which reports it again as its
+# own `production`, and both links map onto CBS `Rubber`. The chain's use is
+# the last link's `other_uses`; booking `Processed` too -- as `processing` or
+# `other_uses` -- doubles it. This guard fails under that one-line mapping.
+test_that("CB Processed is not booked as a use of the aggregated item", {
+  fixture <- tibble::tribble(
+    ~`Item Code`, ~Item,                             ~Element,               ~Value,
+    836L,         "Natural rubber in primary forms", "Production",           100,
+    836L,         "Natural rubber in primary forms", "Processed",            90,
+    836L,         "Natural rubber in primary forms", "Export quantity",      10,
+    837L,         "Natural rubber in other forms",   "Production",           90,
+    837L,         "Natural rubber in other forms",   "Other uses (non-food)", 90,
+    837L,         "Natural rubber in other forms",   "Residuals",            0
+  ) |>
+    dplyr::mutate(
+      `Area Code` = 203L,
+      Area = "Testland",
+      Unit = "t",
+      Year = 2020L
+    ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  extracted <- whep:::.extract_fao("faostat-cbs-new")
+  expect_false(any(c("Processed", "processed") %in% extracted$element))
+
+  booked <- whep:::.get_fiber_tobacco(
+    extracted,
+    tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      836L,             "Rubber",
+      837L,             "Rubber"
+    ),
+    tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Rubber",  2672L
+    )
+  )
+  uses <- booked |>
+    dplyr::filter(element %in% c("processing", "other_uses", "food", "feed"))
+
+  expect_equal(uses$element, "other_uses")
+  expect_equal(uses$value, 90)
+})
+
 # Issue whep#833. `.correct_processed()` calibrates a processing output by
 # dividing the observed production of that output by the production its parent's
 # `processing` implies, and then carries the one ratio it finds across the
@@ -541,4 +635,195 @@ test_that(".correct_processed deletes the output off-anchor (whep#833)", {
   # one that does not. Fixing #833 makes these two agree, and this expectation
   # must then be replaced by an equality against the full-axis answer.
   expect_equal(.processed_axis_value(2005:2010), 0)
+})
+
+
+# -- grouped fao_flag fold (whep#1044) -----------------------------------------
+
+test_that(".fold_fao_flag_by is .fold_fao_flag applied per group", {
+  # The grouped fold is written vectorised because the production build folds
+  # flags over millions of groups on the way from the pin to the CBS, and a
+  # per-group call to the scalar helper is most of what carrying the flag would
+  # cost. It has to be the same rule, so pin the equivalence rather than assert
+  # it in a comment.
+  flags <- tibble::tribble(
+    ~key,       ~fao_flag,
+    "agree",    "A",
+    "agree",    "A",
+    "disagree", "A",
+    "disagree", "E",
+    "single",   "S",
+    "with_na",  "I",
+    "with_na",  NA_character_,
+    "all_na",   NA_character_
+  )
+
+  folded <- whep:::.fold_fao_flag_by(flags, "key")
+  by_helper <- flags |>
+    dplyr::summarise(
+      expected = whep:::.fold_fao_flag(fao_flag),
+      .by = key
+    )
+  got <- by_helper |>
+    dplyr::left_join(
+      tibble::as_tibble(folded),
+      by = "key"
+    )
+
+  expect_equal(got$fao_flag_folded, got$expected)
+  # A group that disagrees, or has no flag at all, is simply absent -- which is
+  # what makes the re-join produce NA.
+  expect_setequal(folded$key, c("agree", "single", "with_na"))
+})
+
+test_that(".fold_fao_flag_by lets an unflagged part block the flag", {
+  # whep#1044: summed over production items or sources, an NA part is WHEP's
+  # own estimate, so the sum is not the flagged part's measurement.
+  flags <- tibble::tribble(
+    ~key,      ~fao_flag,
+    "agree",   "A",
+    "agree",   "A",
+    "with_na", "I",
+    "with_na", NA_character_,
+    "all_na",  NA_character_
+  )
+
+  folded <- whep:::.fold_fao_flag_by(flags, "key", unflagged = "blocks")
+
+  expect_equal(folded$key, "agree")
+  expect_equal(folded$fao_flag_folded, "A")
+  expect_error(
+    whep:::.fold_fao_flag_by(flags, "key", unflagged = "worst"),
+    class = "rlang_error"
+  )
+})
+
+test_that(".add_folded_fao_flags never moves a row", {
+  # The production build's row order is part of its output, so attaching a
+  # provenance column is an update-join rather than a `merge()`, which is free
+  # to hand the rows back in another order.
+  src <- tibble::tribble(
+    ~key, ~fao_flag,
+    "c",  "A",
+    "b",  "E",
+    "a",  "A"
+  )
+  out <- tibble::tibble(key = c("c", "b", "a"))
+
+  result <- whep:::.add_folded_fao_flags(out, src, "key")
+
+  expect_equal(result$key, c("c", "b", "a"))
+  expect_equal(result$fao_flag, c("A", "E", "A"))
+})
+
+test_that(".add_folded_fao_flags emits an all-NA column with no flags", {
+  out <- tibble::tibble(key = c("a", "b"))
+  result <- whep:::.add_folded_fao_flags(
+    out,
+    tibble::tibble(key = c("a", "b")),
+    "key"
+  )
+
+  expect_true("fao_flag" %in% names(result))
+  expect_true(all(is.na(result$fao_flag)))
+})
+
+test_that(".ensure_fao_flag adds the column without touching its input", {
+  df <- tibble::tibble(value = 1)
+  expect_true("fao_flag" %in% names(whep:::.ensure_fao_flag(df)))
+  expect_false("fao_flag" %in% names(df))
+
+  dt <- data.table::data.table(value = 1)
+  expect_true("fao_flag" %in% names(whep:::.ensure_fao_flag(dt)))
+  expect_false("fao_flag" %in% names(dt))
+
+  # A present column is left exactly as it is, whatever it holds.
+  kept <- whep:::.ensure_fao_flag(tibble::tibble(fao_flag = "A"))
+  expect_equal(kept$fao_flag, "A")
+})
+
+# -- unit-label coercion (whep#1025) -------------------------------------------
+
+# The `faostat-cbs-new` pin was published with the boolean TRUE in the `Unit`
+# column of every one of its 127,558 rows, because its producer read the
+# FAOSTAT bulk CSV with readr's type guesser and readr parses "t" -- FAO's
+# tonnes label -- as a logical. `.normalise_units()` then handed it on as the
+# string "TRUE" without noticing, so the unit label of that whole source was
+# gone and every unit-keyed guard downstream was inert while looking satisfied.
+# `.extract_fao()` now refuses the coerced column instead of normalising it.
+.unit_label_fixture <- function(unit) {
+  data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = 2511L,
+    Item = "Wheat and products",
+    Element = "Production",
+    Unit = unit,
+    Year = c(2010L, 2011L),
+    Value = c(100, 200)
+  )
+}
+
+.extract_with_unit <- function(unit, alias = "faostat-cbs-new") {
+  fixture <- .unit_label_fixture(unit)
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+  whep:::.extract_fao(alias)
+}
+
+test_that(".extract_fao aborts on a logical unit column (whep#1025)", {
+  expect_error(
+    .extract_with_unit(c(TRUE, TRUE)),
+    class = "whep_unit_label_coerced"
+  )
+})
+
+test_that(".extract_fao aborts on a blank or missing unit label", {
+  expect_error(
+    .extract_with_unit(c("t", NA_character_)),
+    class = "whep_unit_label_missing"
+  )
+  expect_error(
+    .extract_with_unit(c("t", "  ")),
+    class = "whep_unit_label_missing"
+  )
+})
+
+test_that(".extract_fao keeps a character unit label", {
+  expect_equal(unique(.extract_with_unit(c("t", "t"))$unit), "t")
+})
+
+test_that(".assert_unit_labels names the pin it refused", {
+  expect_error(
+    whep:::.assert_unit_labels(c(TRUE, FALSE), "faostat-cbs-new"),
+    "faostat-cbs-new"
+  )
+})
+
+# -- Note column type (whep#1178) ----------------------------------------------
+
+# The registered `faostat-fbs-new` pin carries `Note` as an all-NA logical --
+# readr's type guess on a column FAO ships empty, the same mechanism as the
+# `Unit` coercion above. Unlike `Unit` it is annotation, and `.extract_fao()`
+# drops it; this pins that down, so the logical type cannot reach a consumer.
+.extract_with_note <- function(note) {
+  fixture <- .unit_label_fixture(c("t", "t"))
+  fixture[, Note := note]
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+  whep:::.extract_fao("faostat-fbs-new")
+}
+
+test_that(".extract_fao drops a logical Note and is unaffected by its type", {
+  as_logical <- .extract_with_note(NA)
+  expect_false("Note" %in% names(as_logical))
+  expect_identical(as_logical, .extract_with_note(NA_character_))
 })

@@ -19,12 +19,15 @@ build_sjos_nitrogen(
 \item{data}{Named list of injected module inputs. When \code{example = FALSE} it
 must carry a \code{balance} (\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} output), a \code{critical}
 (\code{\link[=read_critical_n]{read_critical_n()}} critical surplus), a \code{critical_loads} list (the three
-medium critical loads for the pathway boundary), \code{cbs_food}, \code{population},
-\code{n_inputs}, and optionally \code{biomass_coefs} / \code{items_full} for the food
-supply, \code{manure_mgmt_nh3_n_t} for the pathway boundary when
-\code{nh3_source = "total_agricultural"}, and either an \code{io} model or \code{fp_flows}
-for the footprint. A real call without either source aborts rather than
-fabricating a domestic-only footprint.
+medium critical loads for the pathway boundary), \code{cbs_food} and
+\code{n_inputs}, and optionally \code{population} (read with \code{\link[=read_population]{read_population()}}
+at its own default composition over the years of \code{cbs_food} and
+\code{n_inputs} when absent; inject a table to use any other source),
+\code{biomass_coefs} / \code{items_full} for the food supply,
+\code{manure_mgmt_nh3_n_t} for the pathway boundary when
+\code{nh3_source = "total_agricultural"}, and either an \code{io} model or
+\code{fp_flows} for the footprint. A real call without either source aborts
+rather than fabricating a domestic-only footprint.
 Defaults to \code{list()}.}
 
 \item{surplus_method}{Surplus definition passed to \code{\link[=calculate_n_surplus]{calculate_n_surplus()}},
@@ -70,9 +73,12 @@ surplus), \code{boundary_surplus} (a list with the \code{grid} and \code{country
 surplus-mode exceedance), \code{boundary_pathway} (the pathway-mode exceedance
 with \code{binding_boundary}), \code{nourishment} (per-capita food supply with the
 normalized adequacy score and class), \code{scatter} (the per-capita boundary
-versus nourishment points), \code{sjos_class} (the 2-way classification) and
-\code{footprint} (a list with the \code{fp_all} and \code{fp_food} embodied-nitrogen
-footprints).
+versus nourishment points; it and \code{nourishment} carry
+\code{method_population}, \code{"read_population"} or \code{"supplied"}), \code{sjos_class}
+(the 2-way classification) and \code{footprint} (a list with the \code{fp_all} and
+\code{fp_food} embodied-nitrogen footprints, both carrying \code{target_nourish},
+and \code{target_class_diag}, the per-year count of flows whose consumer
+country-year has no nourishment class).
 }
 \description{
 Composes the Safe and Just Operating Space for nitrogen (SJOS-N) modules into
@@ -87,7 +93,12 @@ crossed with the country-aggregated exceedance into the 2-way classification
 (\code{\link[=classify_sjos_n]{classify_sjos_n()}}) and, via the per-capita anthropogenic reactive nitrogen
 (\code{\link[=build_n_percapita]{build_n_percapita()}}), into the boundary-versus-nourishment scatter
 (\code{\link[=build_n_boundary_percapita]{build_n_boundary_percapita()}}). The country exceedance finally becomes an
-embodied-nitrogen trade footprint (\code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}}).
+embodied-nitrogen trade footprint (\code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}}), which carries
+the producer's classes (\code{origin_classes}, the per-crop classification) and
+the consuming country's nourishment class (\code{target_nourish}, joined on
+\code{target_area} and \code{year} from the same nourishment table). The driver joins
+no consumer boundary class: that is a country-year class decided after
+aggregation, which a caller supplies to \code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}} directly.
 
 The same nitrogen balance feeds the surplus and the pathway boundaries, the
 same nourishment feeds the classification and the scatter, and the one

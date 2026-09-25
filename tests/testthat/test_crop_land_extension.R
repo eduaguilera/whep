@@ -349,15 +349,17 @@ test_that("build_hayr_land_extension occupation counts every harvest", {
     2807L, 5,
     2511L, 8
   )
+  # Wheat carries some fallow: the default base is fallow-inclusive, and a
+  # fallow table that is zero everywhere is refused under that label.
   fallow <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
     2000L, 1L, 2807L, 0,
-    2000L, 1L, 2511L, 0
+    2000L, 1L, 2511L, 10
   )
   res <- whep::build_hayr_land_extension(harvested, fallow, season)
   # occupation is harvested area times cycle fraction of the year
   expect_equal(res$impact_u[res$item_cbs_code == 2807L], 200 * 5 / 12)
-  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100 * 8 / 12)
+  expect_equal(res$impact_u[res$item_cbs_code == 2511L], 100 * 8 / 12 + 10)
   expect_true(all(res$method_land == "cropgrids_fallow_hayr"))
 })
 
@@ -968,42 +970,181 @@ test_that("invalid custom weights cannot create negative crop areas", {
   expect_true(all(res$impact_u >= 0))
 })
 
-test_that("positive land targets require crop support", {
-  perennial_only <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2020L, 1L, 2560L, 100
+# A country-year whose positive FAO arable land has no arable crop row at all:
+# the Marshall Islands (area_code 127) shape, 500 ha of FAO Arable land against
+# a crop panel that is perennial only, in every year 1991-2023 (whep#1026).
+.unsupported_arable_case <- function() {
+  list(
+    base = tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~impact_u,
+      2020L, 127L, 2560L, 900
+    ),
+    ap = tibble::tribble(
+      ~area_code, ~year, ~arable_ha, ~permanent_ha,
+      127L, 2020L, 500, 900
+    )
   )
-  arable_target <- tibble::tribble(
-    ~area_code, ~year, ~arable_ha, ~permanent_ha,
-    1L, 2020L, 50, 100
+}
+
+# The mirror case: positive FAO permanent crops with no perennial base area,
+# the Poland / Burkina Faso shape (whep#1026).
+.unsupported_perennial_case <- function() {
+  list(
+    base = tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~impact_u,
+      2020L, 233L, 2511L, 100
+    ),
+    ap = tibble::tribble(
+      ~area_code, ~year, ~arable_ha, ~permanent_ha,
+      233L, 2020L, 100, 50
+    )
   )
+}
+
+.build_unsupported <- function(case, ...) {
+  whep::build_fao_arable_fallow_extension(
+    base_extension = case$base,
+    arable_permanent = case$ap,
+    temporary_grassland = .no_temp_grassland(),
+    items_prod_full = .fao_fallow_items(),
+    ...
+  )
+}
+
+test_that("positive land targets require crop support under abort", {
   expect_error(
-    whep::build_fao_arable_fallow_extension(
-      base_extension = perennial_only,
-      arable_permanent = arable_target,
-      temporary_grassland = .no_temp_grassland(),
-      items_prod_full = .fao_fallow_items()
+    .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "abort"
     ),
     "without arable crop rows"
   )
-
-  arable_only <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u,
-    2020L, 1L, 2511L, 100
-  )
-  permanent_target <- tibble::tribble(
-    ~area_code, ~year, ~arable_ha, ~permanent_ha,
-    1L, 2020L, 100, 50
-  )
   expect_error(
-    whep::build_fao_arable_fallow_extension(
-      base_extension = arable_only,
-      arable_permanent = permanent_target,
-      temporary_grassland = .no_temp_grassland(),
-      items_prod_full = .fao_fallow_items()
+    .build_unsupported(
+      .unsupported_perennial_case(),
+      unsupported_target = "abort"
     ),
     "without positive perennial base area"
   )
+})
+
+test_that("the abort names the argument that would let the build continue", {
+  expect_error(
+    .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "abort"
+    ),
+    "unsupported_target"
+  )
+})
+
+test_that("unsupported_target rejects an unknown treatment", {
+  expect_error(
+    .build_unsupported(.unsupported_arable_case(), unsupported_target = "keep"),
+    class = "rlang_error"
+  )
+})
+
+test_that("area 127's 500 ha of arable land with no crop rows is carried", {
+  case <- .unsupported_arable_case()
+  expect_warning(
+    out <- .build_unsupported(case),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_equal(out$method_unsupported_target, rep("unallocated", 2L))
+  unallocated <- out[is.na(out$item_cbs_code), ]
+  expect_equal(nrow(unallocated), 1L)
+  expect_equal(unallocated$impact_u, 500)
+  expect_equal(unallocated$area_code, 127L)
+  # The perennial half of the same country-year still reconciles to FAO.
+  peren <- out[!is.na(out$item_cbs_code), ]
+  expect_equal(sum(peren$impact_u), 900)
+  # Nothing is invented and nothing is lost: FAO arable + permanent is exact.
+  expect_equal(sum(out$impact_u), 1400)
+})
+
+test_that("unallocated carries an unsupported permanent-crop target too", {
+  expect_warning(
+    out <- .build_unsupported(.unsupported_perennial_case()),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  unallocated <- out[is.na(out$item_cbs_code), ]
+  expect_equal(unallocated$impact_u, 50)
+  expect_equal(sum(out$impact_u), 150)
+})
+
+test_that("unsupported_target zero drops the target but keeps the rest", {
+  expect_warning(
+    out <- .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "zero"
+    ),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_false(any(is.na(out$item_cbs_code)))
+  expect_equal(out$item_cbs_code, 2560L)
+  expect_equal(out$impact_u, 900)
+  expect_equal(out$method_unsupported_target, "zero")
+})
+
+test_that("unsupported_target drop removes the whole country-year", {
+  expect_warning(
+    out <- .build_unsupported(
+      .unsupported_arable_case(),
+      unsupported_target = "drop"
+    ),
+    "No crop row can carry the positive FAO land target"
+  )
+
+  expect_equal(nrow(out), 0L)
+  expect_true("method_unsupported_target" %in% names(out))
+})
+
+test_that("a supported country-year is untouched by any treatment", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 1L, 2511L, 300,
+    2020L, 1L, 2560L, 100
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    1L, 2020L, 600, 200
+  )
+  treatments <- c("unallocated", "zero", "drop", "abort")
+  land <- vapply(
+    treatments,
+    \(m) {
+      out <- whep::build_fao_arable_fallow_extension(
+        base_extension = base,
+        arable_permanent = ap,
+        temporary_grassland = .no_temp_grassland(),
+        items_prod_full = .fao_fallow_items(),
+        unsupported_target = m
+      )
+      sum(out$impact_u)
+    },
+    numeric(1)
+  )
+  expect_equal(unname(land), rep(800, 4L))
+})
+
+test_that("unallocated land is not counted as a crop by the diagnostics", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~temp_grassland_netted_ha,
+    2020L, 127L, NA_integer_, 500, 0,
+    2020L, 1L, 2003L, 100, 0,
+    2020L, 1L, 2511L, 900, 0
+  )
+
+  share <- whep::check_fodder_land_share(extension)
+  expect_false(127L %in% share$area_code)
+  expect_equal(share$arable_ha, 1000)
+
+  composition <- whep::check_arable_composition(extension)
+  expect_false(127L %in% composition$area_code)
 })
 
 test_that("build_fao_arable_fallow_extension nets temporary grassland (CBS 3002) so crop + CBS 3002 = FAO arable", {
@@ -1202,5 +1343,335 @@ test_that("build_fao_arable_fallow_extension is quiet when fodder is minor", {
       temporary_grassland = .no_temp_grassland(),
       items_prod_full = .fao_fodder_items()
     )
+  )
+})
+
+# --- The 2019/2020 seam: netting basis and fodder gap (whep#937, whep#938) ----
+
+# Two panel years for one country, fodder and the netting term present in the
+# first and absent in the second: the shape of the real 2019/2020 boundary,
+# where EU AgriDB, the only source of both, runs out.
+.seam_base <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2019L, 10L, 2003L, 100, # fodder mix
+    2019L, 10L, 2511L, 900, # wheat
+    2020L, 10L, 2511L, 900 # fodder gone
+  )
+}
+
+.seam_arable <- function() {
+  tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    10L, 2019L, 1200, 0,
+    10L, 2020L, 1200, 0
+  )
+}
+
+# Modelled CBS 3002 for 2019 only, so the netting term switches off at 2020.
+.seam_temp_grassland <- function() {
+  tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u,
+    10L, 2019L, 3002L, 200
+  )
+}
+
+.seam_extension <- function(...) {
+  suppressWarnings(whep::build_fao_arable_fallow_extension(
+    base_extension = .seam_base(),
+    arable_permanent = .seam_arable(),
+    temporary_grassland = .seam_temp_grassland(),
+    items_prod_full = .fao_fodder_items(),
+    ...
+  ))
+}
+
+test_that("the default basis and fodder gap reproduce published behaviour", {
+  res <- .seam_extension()
+  expect_true(all(res$method_temp_grassland == "modelled"))
+  expect_true(all(res$method_fodder == "as_reported"))
+  # 2019: the netting term fires, so ordinary crops reconcile to 1200 less 200.
+  expect_equal(sum(res$impact_u[res$year == 2019L]), 1000)
+  # 2020: nothing is netted, so the same crops carry the whole 1200 -- the
+  # unflagged method change at the boundary that whep#937 reports.
+  expect_equal(sum(res$impact_u[res$year == 2020L]), 1200)
+  expect_equal(res$temp_grassland_netted_ha[res$year == 2020L], 0)
+})
+
+test_that("temp_grassland_basis rejects an unknown basis", {
+  expect_error(
+    .seam_extension(temp_grassland_basis = "faostat"),
+    class = "rlang_error"
+  )
+})
+
+test_that("temp_grassland_basis none nets nothing at all", {
+  res <- .seam_extension(temp_grassland_basis = "none")
+  expect_true(all(res$temp_grassland_netted_ha == 0))
+  expect_true(all(res$method_temp_grassland == "none"))
+  # Both years now reconcile to the full FAO arable land, so 2019 rises by the
+  # 200 ha that whep#349's netting removes.
+  expect_equal(sum(res$impact_u[res$year == 2019L]), 1200)
+  expect_equal(sum(res$impact_u[res$year == 2020L]), 1200)
+})
+
+test_that("temp_grassland_basis fao_official nets official FAO 6633 rows", {
+  # Area 2 has a crosswalk row in the shipped polity crosswalk; the value is in
+  # 1000 ha, so 0.2 becomes 200 ha, and the imputed row must not be netted.
+  fao_rl <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Unit, ~Year, ~Value, ~Flag,
+    2L, 6633L, "Area", "1000 ha", 2019L, 0.2, "A",
+    2L, 6633L, "Area", "1000 ha", 2020L, 0.3, "A",
+    2L, 6633L, "Area", "1000 ha", 2020L, 9.9, "I"
+  )
+  testthat::local_mocked_bindings(.fetch_fao_rl = function(...) fao_rl)
+  official <- whep:::.fao_temp_meadows_ha(official_only = TRUE)
+  expect_equal(official$temp_grassland_ha, c(200, 300))
+  every_flag <- whep:::.fao_temp_meadows_ha(official_only = FALSE)
+  expect_equal(every_flag$temp_grassland_ha, c(200, 10200))
+
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2019L, 2L, 2511L, 900,
+    2020L, 2L, 2511L, 900
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    2L, 2019L, 1200, 0,
+    2L, 2020L, 1200, 0
+  )
+  res <- whep::build_fao_arable_fallow_extension(
+    base_extension = base,
+    arable_permanent = ap,
+    items_prod_full = .fao_fodder_items(),
+    temp_grassland_basis = "fao_official"
+  )
+  # Unlike the modelled basis, FAO 6633 covers 2020 too, so the netting term
+  # does not switch off at the boundary.
+  expect_equal(sum(res$impact_u[res$year == 2019L]), 1000)
+  expect_equal(sum(res$impact_u[res$year == 2020L]), 900)
+  expect_true(all(res$method_temp_grassland == "fao_official"))
+})
+
+test_that("temp_grassland_basis modelled_then_fao keeps the modelled value", {
+  fao_rl <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Unit, ~Year, ~Value, ~Flag,
+    2L, 6633L, "Area", "1000 ha", 2019L, 0.5, "A",
+    2L, 6633L, "Area", "1000 ha", 2020L, 0.5, "A"
+  )
+  testthat::local_mocked_bindings(.fetch_fao_rl = function(...) fao_rl)
+  temp <- tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u,
+    2L, 2019L, 3002L, 200
+  )
+  merged <- whep:::.temporary_grassland_ha(
+    temp,
+    basis = "modelled_then_fao",
+    years = 2019:2020
+  )
+  merged <- merged[order(merged$year), ]
+  # 2019 keeps the modelled 200 rather than FAO's 500; 2020, which the modelled
+  # series does not reach, is filled from official FAO 6633.
+  expect_equal(merged$temp_grassland_ha, c(200, 500))
+})
+
+test_that("fodder_gap drop removes fodder from the whole panel", {
+  res <- .seam_extension(fodder_gap = "drop")
+  expect_false(any(res$item_cbs_code == 2003L))
+  expect_true(all(res$method_fodder == "drop"))
+  # The land is not lost: it moves to the ordinary crops, which still reconcile
+  # to the netted FAO arable target.
+  expect_equal(sum(res$impact_u[res$year == 2019L]), 1000)
+  expect_equal(res$impact_u[res$year == 2019L], 1000)
+})
+
+test_that("fodder_gap carry_forward extends the last observed fodder area", {
+  res <- .seam_extension(fodder_gap = "carry_forward")
+  expect_true(all(res$method_fodder == "carry_forward"))
+  fodder_2020 <- res$impact_u[res$year == 2020L & res$item_cbs_code == 2003L]
+  expect_length(fodder_2020, 1L)
+  # 100 of 1000 base hectares carried forward, then rescaled proportionally to
+  # the 1200 ha target, i.e. 1200 times 100 over 1000.
+  expect_equal(fodder_2020, 120)
+  expect_equal(sum(res$impact_u[res$year == 2020L]), 1200)
+})
+
+test_that("carry_forward invents no fodder where none was ever reported", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2019L, 10L, 2511L, 900,
+    2020L, 10L, 2511L, 900
+  )
+  res <- suppressWarnings(whep::build_fao_arable_fallow_extension(
+    base_extension = base,
+    arable_permanent = .seam_arable(),
+    temporary_grassland = .no_temp_grassland(),
+    items_prod_full = .fao_fodder_items(),
+    fodder_gap = "carry_forward"
+  ))
+  expect_false(any(res$item_cbs_code == 2003L))
+})
+
+test_that("check_arable_composition names both mid-panel breaks", {
+  report <- whep::check_arable_composition(
+    .seam_extension(),
+    items_prod_full = .fao_fodder_items()
+  )
+  expect_setequal(report$term, c("fodder", "temp_grassland_netting"))
+  expect_true(all(report$broken))
+  expect_equal(unique(report$break_year), 2020L)
+  expect_equal(unique(report$term_last_year), 2019L)
+  expect_equal(unique(report$panel_last_year), 2020L)
+  expect_false(any(report$never_present))
+})
+
+test_that("check_arable_composition reports a term that never appears", {
+  report <- whep::check_arable_composition(
+    .seam_extension(temp_grassland_basis = "none"),
+    items_prod_full = .fao_fodder_items()
+  )
+  netting <- report[report$term == "temp_grassland_netting", ]
+  expect_true(netting$never_present)
+  # Never present is not a mid-panel break, so it is reported without firing.
+  expect_false(netting$broken)
+  expect_true(is.na(netting$break_year))
+})
+
+test_that("check_arable_composition survives an extension with no arable rows", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2560L, 100 # perennial only
+  )
+  expect_no_warning(
+    report <- whep::check_arable_composition(
+      extension,
+      items_prod_full = .fao_fodder_items()
+    )
+  )
+  expect_equal(nrow(report), 0L)
+})
+
+test_that("the build warns once per term that stops inside the panel", {
+  expect_warning(
+    expect_warning(
+      whep::build_fao_arable_fallow_extension(
+        base_extension = .seam_base(),
+        arable_permanent = .seam_arable(),
+        temporary_grassland = .seam_temp_grassland(),
+        items_prod_full = .fao_fodder_items()
+      ),
+      "fodder"
+    ),
+    "temp_grassland_netting"
+  )
+})
+
+test_that("no composition warning fires when the terms reach the panel end", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2019L, 10L, 2003L, 100,
+    2019L, 10L, 2511L, 900,
+    2020L, 10L, 2003L, 100,
+    2020L, 10L, 2511L, 900
+  )
+  temp <- tibble::tribble(
+    ~area_code, ~year, ~item_cbs_code, ~impact_u,
+    10L, 2019L, 3002L, 200,
+    10L, 2020L, 3002L, 200
+  )
+  expect_no_warning(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = .seam_arable(),
+      temporary_grassland = temp,
+      items_prod_full = .fao_fodder_items()
+    )
+  )
+})
+
+# ---- whep#1034: absent inputs must not become zeros ------------------------
+
+.hayr_harvested_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2000L, 1L, 2807L, 200,
+    2000L, 1L, 2511L, 100
+  )
+}
+
+.hayr_season_fixture <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~season_months,
+    2807L, 5,
+    2511L, 8
+  )
+}
+
+test_that("fallow that lands nowhere cannot ship under the fallow label", {
+  # The fallow table is real, but keyed on a code space the harvested rows do
+  # not share. Unguarded, every row is cropped-only land stamped
+  # `cropgrids_fallow_hayr`, and it is still non-negative and still sums.
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 901L, 2807L, 40,
+    2000L, 901L, 2511L, 30
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    ),
+    check_inputs_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = all(unguarded$impact_u >= 0) &&
+      isTRUE(all.equal(sum(unguarded$impact_u), 200 * 5 / 12 + 100 * 8 / 12)) &&
+      all(unguarded$method_land == "cropgrids_fallow_hayr"),
+    guard = whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    )
+  )
+})
+
+test_that("zero fallow everywhere is refused only under the fallow label", {
+  fallow <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~fallow_ha,
+    2000L, 1L, 2807L, 0,
+    2000L, 1L, 2511L, 0
+  )
+  expect_error(
+    whep::build_hayr_land_extension(
+      .hayr_harvested_fixture(),
+      fallow,
+      .hayr_season_fixture()
+    ),
+    class = "whep_absent_input"
+  )
+  res <- whep::build_hayr_land_extension(
+    .hayr_harvested_fixture(),
+    fallow,
+    .hayr_season_fixture(),
+    base = "cropgrids"
+  )
+  expect_equal(sum(res$impact_u), 200 * 5 / 12 + 100 * 8 / 12)
+})
+
+test_that("a moved harvested-area unit cannot read as no cropland", {
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 1L, 2511L, "hectares", 100,
+    2000L, 1L, 2511L, "tonnes", 300
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep:::.harvested_area_by_cbs(prod),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 0L && sum(unguarded$harvested_ha) == 0,
+    guard = whep:::.harvested_area_by_cbs(prod),
+    class = "whep_absent_label"
   )
 })

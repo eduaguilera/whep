@@ -18,8 +18,15 @@
 #' @param resolution One of `"global"`, `"national"` (default) or
 #'   `"subnational"`. Transport between cells runs only at `"subnational"`.
 #' @param methods A named list of per-stage option lists, any of `excretion`,
-#'   `split`, `losses`, `allocation` and `transport`, each forwarded to the
-#'   matching pipeline function's `options`.
+#'   `split`, `bedding`, `losses`, `allocation` and `transport`, each forwarded
+#'   to the matching pipeline function's `options`.
+#' @param bedding An optional bedding supply from
+#'   [build_residue_bedding_supply()]. When given, [add_manure_bedding()] places
+#'   it on the litter-using housed streams before the management losses, so the
+#'   manure reaching the field is bedded farmyard manure rather than excreta
+#'   alone. `NULL` (default) leaves every number excreta-only; the share of crop
+#'   residue used as bedding is unset in this package pending a source
+#'   (whep#1005), so a caller has to build the supply deliberately.
 #' @param gridded The land-surface layer (`crops` and optional `grass` tibbles)
 #'   passed to [allocate_manure_to_land()]; required for the default
 #'   `"potential_uptake"` cap. `NULL` is treated as an empty list. The `crop`
@@ -54,7 +61,8 @@ build_livestock_nutrient_flows <- function(
   intake,
   resolution = "national",
   methods = list(),
-  gridded = NULL
+  gridded = NULL,
+  bedding = NULL
 ) {
   .check_resolution(resolution)
   m <- .manure_methods(methods)
@@ -63,6 +71,9 @@ build_livestock_nutrient_flows <- function(
 
   excretion <- estimate_n_excretion(intake, m$excretion)
   split <- split_manure_management(excretion, m$split)
+  if (!is.null(bedding)) {
+    split <- add_manure_bedding(split, bedding, m$bedding)
+  }
   losses <- apply_management_losses(split, m$losses)
 
   applied <- if (resolution == "subnational") {
@@ -96,7 +107,14 @@ build_livestock_nutrient_flows <- function(
 }
 
 .manure_methods <- function(methods) {
-  stages <- c("excretion", "split", "losses", "allocation", "transport")
+  stages <- c(
+    "excretion",
+    "split",
+    "bedding",
+    "losses",
+    "allocation",
+    "transport"
+  )
   bad <- setdiff(names(methods), stages)
   if (length(bad) > 0) {
     cli::cli_abort(
@@ -155,8 +173,12 @@ build_livestock_nutrient_flows <- function(
       resolution = resolution,
       method_n_excretion = excretion$method_n_excretion[1],
       method_vs = excretion$method_vs[1],
+      method_c_excretion = excretion$method_c_excretion[1],
+      method_forage_n = excretion$method_forage_n[1],
       method_mms = split$method_mms[1],
       method_losses = losses$method_losses[1],
+      method_bedding_c = losses$method_bedding_c[1],
+      method_bedding_mms = split$method_bedding_mms[1] %||% NA_character_,
       method_allocation = alloc_opt$method,
       method_cap = alloc_opt$cap_method,
       disposal_method = alloc_opt$disposal_method,

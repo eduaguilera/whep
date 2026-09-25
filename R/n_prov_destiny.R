@@ -107,6 +107,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     spain_coefs_observed,
     national_production
   ) |>
+    .warn_processing_excess() |>
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
 
@@ -935,6 +936,11 @@ build_food_protein_destiny <- function(
       Item = dplyr::case_when(
         prod_type == "Grass" & Name_biomass == "Fallow" ~ "Fallow",
         prod_type == "Grass" ~ "Grassland",
+        # Forest and shrubland residue outside cropland becomes `Firewood`,
+        # which `codes_coefs_items_full` resolves to `Average wood` -- the
+        # same row the harvested `Wood` item reads. Physically this side is
+        # branches and bark and the other is stemwood; one coefficient cannot
+        # be right for both (whep#932).
         prod_type == "Residue" &
           Box != "Cropland" &
           Name_biomass %in%
@@ -1080,13 +1086,15 @@ build_food_protein_destiny <- function(
 #' the excess instead of counting it as a raw-material import. This computes
 #' that dropped amount instead of discarding it, so
 #' `.calculate_processed_amounts()` can add it back as processing volume fed
-#' by imports rather than domestic supply.
+#' by imports rather than domestic supply. `.warn_processing_excess()` also
+#' surfaces it (#1014), so a caller who has read the warning can muffle it.
 #'
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param national_production Output of `.national_item_production()`.
 #'
-#' @return A dataframe with Year, Item, excess_fm (processing volume with no
-#' domestic production to draw from).
+#' @return A dataframe with Year, Item, value_to_process,
+#' national_production_fm and excess_fm (tonnes FM of processing volume above
+#' domestic production, 0 where there is none).
 #' @keywords internal
 #' @noRd
 .calculate_processing_excess <- function(spain_coefs, national_production) {
@@ -1099,8 +1107,94 @@ build_food_protein_destiny <- function(
     dplyr::mutate(
       national_production_fm = dplyr::coalesce(national_production_fm, 0),
       excess_fm = pmax(value_to_process - national_production_fm, 0)
+    )
+}
+
+#' @title Warn about processing volume the share cap leaves out ---------------
+#' @description Surfaces `.calculate_processing_excess()` so the capped
+#' volume is never dropped silently. The warning carries class
+#' `whep_processing_excess`, so a caller who has read it can muffle it.
+#'
+#' @param excess Output of `.calculate_processing_excess()`.
+#'
+#' @return `excess`, unchanged.
+#' @keywords internal
+#' @noRd
+.warn_processing_excess <- function(excess) {
+  dropped <- excess |> dplyr::filter(excess_fm > 0)
+  if (nrow(dropped) == 0) {
+    return(excess)
+  }
+
+  # Two different gaps: the share cap binding on an item Spain does grow
+  # (soybeans), and processing of an item this pipeline never produces at
+  # all (second-stage inputs such as Wine or Molasses, or unproduced oils),
+  # whose share is 0 rather than capped.
+  capped <- dropped |> dplyr::filter(national_production_fm > 0)
+  unproduced <- dropped |> dplyr::filter(national_production_fm <= 0)
+  total <- .format_tonnes(sum(dropped$excess_fm))
+
+  cli::cli_warn(
+    c(
+      "Processing volume above domestic production is left out:
+       {total} t FM (#1014).",
+      i = "Its outputs are booked as imports of the processed items, not of
+           the primary item they were made from.",
+      .excess_bullets(capped, "Above domestic production (share capped at 1)"),
+      .excess_bullets(unproduced, "No domestic production of the input")
+    ),
+    class = "whep_processing_excess"
+  )
+
+  excess
+}
+
+#' @title Bullet lines for one group of the processing excess -----------------
+#' @description Formats the five largest items of `rows` as cli bullets under
+#' a heading, for `.warn_processing_excess()`.
+#'
+#' @param rows Rows of `.calculate_processing_excess()` with `excess_fm > 0`.
+#' @param heading Heading line for the group.
+#'
+#' @return A named character vector of cli bullets, empty when `rows` is.
+#' @keywords internal
+#' @noRd
+.excess_bullets <- function(rows, heading) {
+  if (nrow(rows) == 0) {
+    return(character(0))
+  }
+  by_item <- rows |>
+    dplyr::summarise(
+      excess_fm = sum(excess_fm),
+      n_years = dplyr::n_distinct(Year),
+      .by = Item
     ) |>
-    dplyr::select(Year, Item, excess_fm)
+    dplyr::arrange(dplyr::desc(excess_fm))
+  top <- utils::head(by_item, 5)
+  lines <- sprintf(
+    "  %s: %s t over %d year%s",
+    top$Item,
+    .format_tonnes(top$excess_fm),
+    top$n_years,
+    ifelse(top$n_years == 1, "", "s")
+  )
+  header <- sprintf(
+    "%s: %d item%s, %s t.",
+    heading,
+    nrow(by_item),
+    ifelse(nrow(by_item) == 1, "", "s"),
+    .format_tonnes(sum(by_item$excess_fm))
+  )
+  c("*" = header, rlang::set_names(lines, rep(" ", length(lines))))
+}
+
+#' @title Round tonnes and add thousands separators ---------------------------
+#' @param x Numeric vector of tonnes.
+#' @return A character vector.
+#' @keywords internal
+#' @noRd
+.format_tonnes <- function(x) {
+  format(round(x), big.mark = ",", trim = TRUE, scientific = FALSE)
 }
 
 #' @title Backfill early-year processing shares -------------------------------
@@ -2316,6 +2410,14 @@ build_food_protein_destiny <- function(
     dplyr::mutate(
       prod_type = dplyr::case_when(
         Name_biomass %in% c("Grass", "Fallow") ~ "Grass",
+        # Both wood items -- harvested `Wood` and the forest/shrubland residue
+        # that `.add_grass_wood()` relabels `Firewood` -- map to
+        # `Average wood`, so this line prices stemwood and branch-and-bark
+        # residue with the same cell. Its 0.0030 kg N/kg DM is a branch
+        # concentration (Thurner et al. 2025 branch median 0.0035, stem
+        # sapwood median 0.0010), so harvested wood is carried about 3x too
+        # high here. The coefficient is assumed, unverified upstream; see
+        # `Residue_kgN_kgDM` in [biomass_coefs] and whep#932.
         Name_biomass == "Average wood" ~ "Residue",
         TRUE ~ "Product"
       )

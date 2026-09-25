@@ -100,15 +100,26 @@ compute_leontief_inverse <- function(
   l_inv
 }
 
+# `min_output` is the traceability threshold (issue whep#1110). `NULL` divides
+# by every non-zero output, which is what `compute_leontief_inverse()` and
+# `a_denominator = "nonzero"` do. A number gives every column with
+# `x_vec <= min_output` a zero A column, the same rule the extension
+# intensities and the conservation check apply to that output.
 .technical_coefficients <- function(
   z_mat,
   x_vec,
   value_added_floor = 1e-3,
-  max_column_sum = 1 - value_added_floor
+  max_column_sum = 1 - value_added_floor,
+  min_output = NULL
 ) {
   .validate_value_added_floor(value_added_floor)
   .validate_max_column_sum(max_column_sum)
-  x_inv <- ifelse(x_vec == 0, 0, 1 / x_vec)
+  untraceable <- if (is.null(min_output)) {
+    x_vec == 0
+  } else {
+    x_vec <= min_output
+  }
+  x_inv <- ifelse(untraceable, 0, 1 / x_vec)
   a_mat <- z_mat %*% Matrix::Diagonal(x = x_inv)
   # Zero negative entries in A (FABIO convention): these arise
   # from data inconsistencies and would distort the inverse.
@@ -193,4 +204,54 @@ compute_leontief_inverse <- function(
       "{.arg max_column_sum} must be one finite positive number."
     )
   }
+}
+
+# Issue whep#1110. Resolve the footprint engine's A denominator rule to the
+# `min_output` of `.technical_coefficients()`, and say loudly when the rule
+# matters: a column whose output is residue (`0 != x_vec <= output_tol`) but
+# which still receives intermediate inputs. "traceable" zeroes that column,
+# so the upstream pressure in those inputs is not traced (an under-trace that
+# `check_footprint_conservation()` reports). "nonzero" divides the inputs by
+# the residue, inflating the column up to `max_column_sum` (an over-trace
+# that `conserve_extensions` then scales down without a word). Neither
+# outcome is silent.
+.footprint_a_min_output <- function(z_mat, x_vec, output_tol, a_denominator) {
+  .warn_residue_output_inputs(z_mat, x_vec, output_tol, a_denominator)
+  if (a_denominator == "traceable") output_tol else NULL
+}
+
+.warn_residue_output_inputs <- function(
+  z_mat,
+  x_vec,
+  output_tol,
+  a_denominator
+) {
+  residue <- x_vec != 0 & x_vec <= output_tol
+  if (!any(residue)) {
+    return(invisible(0L))
+  }
+  inputs <- Matrix::colSums(abs(z_mat))
+  n_hit <- sum(residue & inputs > 0)
+  if (n_hit == 0L) {
+    return(invisible(0L))
+  }
+  input_total <- signif(sum(inputs[residue]), 4)
+  consequence <- if (a_denominator == "traceable") {
+    "Their A columns are zeroed, so the upstream pressure in those inputs is
+      not traced to final demand (an under-trace)."
+  } else {
+    "Their A columns divide those inputs by the residue output, inflated up
+      to {.arg max_column_sum} (an over-trace)."
+  }
+  cli::cli_warn(
+    c(
+      "!" = "{n_hit} sector{?s} with output <= {.arg output_tol} still
+        receive{?s/} intermediate inputs (total {input_total}).",
+      "i" = consequence,
+      "i" = "Rule: {.code a_denominator = \"{a_denominator}\"}. Quantify
+        the effect with {.fn check_footprint_conservation}."
+    ),
+    class = "whep_residue_output_inputs"
+  )
+  invisible(n_hit)
 }

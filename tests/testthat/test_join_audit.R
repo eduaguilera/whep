@@ -164,7 +164,72 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 71 since whep#599: `.sci_reallocate()` places the cropland carbon whose crop
+  # the crop-pattern map does not carry, instead of dropping it -- 291 Mt C at
+  # 2010, 607 Mt C at 1980, 92% of it fodder. Its two year-free keys read the
+  # SAME single-vintage map the `.sci_join_weights` row above already rests on:
+  # a crop absent from a map with no time dimension is absent in every year, and
+  # the cell support summed from that map has no year either. The crop's own
+  # area, the quantity that does vary, comes from a third join keyed on
+  # `(area_code, item_prod_code, year)`. Both rows leave the ledger when the
+  # three chains stop weighting cells by the static pin (whep#1002).
+  # 73 since whep#1004: `resolve_polity_lineage()` adds the predecessor-edge
+  # join and the display-name lookup that close it. Both key on `polity_code`,
+  # which already names its own period, and this is the third time that buys
+  # year-AWARENESS rather than costing it -- the whole function exists to stop
+  # a 1961 national row being keyed on a polity that starts in 1991. The year
+  # is the walk's stop condition, tested in `.lineage_carried()` against the
+  # support's interval, and every candidate the edge join produces goes through
+  # it.
+  # 70 is the crop-residue destiny split (whep#1003). It is one year-free join
+  # and it is the loss wedge's shape, not a new year-blind read: the Krausmann
+  # recovery rates and the regional feed-use fractions are published without a
+  # time dimension, so the region a residue's coefficients come from cannot be
+  # year-keyed. Every residue row through it carries `year`; only the region
+  # membership does not.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  #
+  # 75 since whep#939: `.pop_overlap_pairs()` attaches a polity's transitive
+  # successors, so `read_population()` can see that a 1961 row for the USSR and
+  # a 1961 row for Russia are the same ground under two area codes. It is the
+  # `.land_in_polygons` shape again -- the key is the polity PERIOD, the
+  # year-scoped identity itself -- and the year enters at the very next join,
+  # which keys on (year, successor polity). One year-free identity row buys a
+  # world population sum that stops counting a dissolved federation and its
+  # successors twice: on `pin_wpp_fbs_fallback` the sum was 30.2% too high at
+  # 1961, 21.5% at 2000 and 18.4% at 2021, and the default `pin` source was
+  # 0.19%-0.58% too high over 1850-1992.
+  #
+  # 77 since whep#1117, and both rows are the price of SEEING a defect rather
+  # than of ignoring one. The historical trade screen gained a second bound --
+  # the largest flow FAOSTAT records for the same reporter, item and element --
+  # which is what makes the ten-fold USA block visible at all: 37 USA raw sugar
+  # import rows at 35-43 Mt, none of them above the existing world bound. One
+  # row is the ISO3 <-> FAOSTAT area bridge read in the other direction, the
+  # same `identity_lookup` `.resolve_hist_trade_polities` already carries; the
+  # other attaches the bound itself and is `diagnostic`, because that class is
+  # reported under every setting and never dropped, so no published value
+  # passes through it. Re-derived by RUNNING the audit on this tree.
+  #
+  # 80 since whep#680 added the predecessor-bucket un-fold:
+  # two reads of the area reporting windows in `.predecessor_bucket_codes()`
+  # and one in `.iso3c_keep_live_area()`, all three joining the years a code
+  # reports rather than a value for a year. The whep#1117 rows above and these
+  # are independent, so the cap is RE-DERIVED by running the audit on the
+  # merged tree, never by adding the two deltas.
+  # 76 since whep#1175: `.residue_area_from_polity()` reads the area that
+  # reports a polity, for the 14 residue labels the canonical NAME join cannot
+  # match. It is the `.land_in_polygons` and `.pop_overlap_pairs` shape a third
+  # time -- the key is the polity PERIOD, which is the year-scoped identity
+  # itself -- and here the year is applied BEFORE the join rather than after,
+  # by `resolve_polity_label(label, year)`. One year-free identity row buys
+  # 16.65 Gt of residue dry matter, 5.08% of the pin, that was reaching no area
+  # at all and was therefore booked entirely to soil at a recovery rate of zero.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(baseline$n), 81L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -242,13 +307,6 @@ test_that("every year-free territorial grouping is classified", {
   # FABIO region into one row per period and defeat the `many-to-one` join and
   # the one-bucket-per-area guard that follow. The four are the price of not
   # comparing two different Rest-of-World residuals against each other.
-  #
-  # 78 since whep#541: `.fao_area_iso3_lookup()` now dedups
-  # `polity_area_crosswalk` to one row per FAOSTAT area name instead of reading
-  # FAOSTAT's vendored country profile. It was already a year-free group before
-  # the swap (`summarise(.by = fao_area_name)`); it only enters the registry now
-  # because the key gained the crosswalk's `area_name` and `area_iso3c` and so
-  # became visibly territorial.
   full <- whep:::.territorial_grouping_baseline()
   #
   # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
@@ -257,7 +315,71 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 81L)
+  #
+  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # `get_faostat_data()`, the only thing that called it. A cap left above the
+  # real count is slack a new unregistered group could hide in, so it comes
+  # down with the row.
+  #
+  # 81 since whep#1070: `.zero_pattern_underflow()` takes each crop's pattern
+  # maximum per country to count the pairs whose whole pattern was float
+  # underflow. `crop_patterns` has no year axis, and the count only feeds the
+  # message.
+  #
+  # 84 since whep#599: the carbon reallocation's three groups, all on the same
+  # year-free `crop_patterns` map as the joins recorded with them --
+  # `.sci_cropland_weights()` sums each cell's per-crop areas into its cropland
+  # area and normalises that within the polity, and `.sci_reallocate()` takes
+  # the (area, crop) pairs the map does carry so it can act on the ones it does
+  # not. See the join cap above for why none of the three can be year-keyed.
+  # 87 since whep#1004: the three dedups `resolve_polity_lineage()` runs before
+  # it walks -- the support's own intervals, the succession edge list and the
+  # display names. All three are `identity_lookup` on `polity_code`, which
+  # carries its own period; the support one keys on `start_year`/`end_year`
+  # BECAUSE they are the time dimension the caller's year is then tested
+  # against.
+  # 81 on the merge of whep#1006 into main: whep#999 took
+  # `.fao_area_iso3_lookup()` and its one row out (82 -> 81 there), and
+  # `.residue_destiny_regions` (whep#1003) puts one back. Re-derived by
+  # RUNNING the audit on the merged tree, not by adding the two deltas: a cap
+  # left above the real count is slack a new unregistered group could hide in.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  #
+  # 89 since whep#1117: `.hist_trade_reporter_reference()` reduces FAOSTAT's
+  # years to the largest flow each (reporter, item, element) has ever carried,
+  # the bound the historical trade screen measures the pre-1961 pins against.
+  # `year_axis` for the same reason `.area_reporting_windows` is -- the year is
+  # what is being reduced over, so putting it in the key would hand every row
+  # itself as its own bound.
+  # 89 since whep#1146: `.cb_climate_gap_worst()` ranks the polities losing the
+  # most land to the carbon balance's climate-coverage gap. It is `diagnostic`
+  # -- the rank and the share go into a warning and nowhere else -- and it
+  # replaced a draft that would have cost a year-free JOIN as well, by taking
+  # the dropped and the whole area in one pass over the class table instead of
+  # joining one onto the other. Measured by RUNNING the audit, not by adding
+  # one to the previous cap.
+  # 90 on the merge of whep#1117 and whep#1146: each registered one grouping
+  # above the 88 that preceded them, and the two are independent. Re-derived
+  # by RUNNING the audit on the merged tree, not by adding the two deltas.
+  # 94 since whep#680: `.area_last_reporting_year()` and
+  # `.predecessor_bucket_codes()` reduce the year axis to each area's last
+  # reported year, and `.iso3c_keep_live_area()` groups by ISO3 to pick the
+  # live one of two codes. Re-derived by running the audit on the merged tree,
+  # not by adding whep#680's delta to the whep#1117/whep#1146 cap.
+  # 89 since whep#1091: `.country_mean_yield()` collapses a crop's cells to a
+  # national mean weighted by `harvest_fraction`, which comes from
+  # `crop_patterns` -- a single-vintage gridded map with no year axis, so the
+  # grouping cannot carry one. Re-derived by running the audit, not by adding
+  # one to the previous cap.
+  # 90 since whep#1175: `.unique_polity_area()`'s two groups, the polity -> area
+  # map the residue label route reads and the guard that keeps a polity several
+  # areas share -- the Rest-of-World bucket, held by 15 codes -- from resolving
+  # to whichever row came first. Both are `identity_lookup` on `polity_code`,
+  # which carries its own period, so neither has a year to collapse.
+  # Re-derived by RUNNING the audit on the merged tree, never by adding
+  # the two sides' deltas.
+  expect_lte(sum(full$n), 97L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

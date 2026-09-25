@@ -100,6 +100,8 @@ test_that("applied output carries provenance for every stage", {
     "resolution",
     "method_n_excretion",
     "method_vs",
+    "method_c_excretion",
+    "method_forage_n",
     "method_mms",
     "method_losses",
     "method_allocation",
@@ -317,6 +319,37 @@ test_that("transport room includes grass-only as well as crop-only cells", {
   expect_setequal(out$sub_territory, c("1_40", "1.5_40"))
   expect_equal(out$room_n[out$sub_territory == "1_40"], 120)
   expect_equal(out$room_n[out$sub_territory == "1.5_40"], 60)
+})
+
+test_that("bedding reaches the field and widens the N balance (whep#1005)", {
+  bedding <- tibble::tibble(
+    year = 2020L,
+    territory = "ESP",
+    bedding_dm_t = 150,
+    bedding_c_t = 68.7,
+    bedding_n_t = 0.888
+  )
+  bare <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    gridded = .toy_gridded_nat()
+  )
+  bedded <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    gridded = .toy_gridded_nat(),
+    bedding = bedding
+  )
+
+  # Bedding N is added outside (1 - FracLossMS), so it lands whole on the
+  # field: the balance is now excreted + bedded = applied + losses.
+  bal <- .balance_n(bedded)
+  expect_equal(
+    bal[["out"]],
+    bal[["excreted"]] + sum(bedding$bedding_n_t),
+    tolerance = 1e-6
+  )
+  expect_gt(sum(bedded$applied$applied_c), sum(bare$applied$applied_c))
+  expect_true(all(bedded$applied$method_bedding_mms == "ipcc_2019"))
+  expect_true(all(is.na(bare$applied$method_bedding_mms)))
 })
 
 test_that("build_livestock_nutrient_flows guards bad resolution and methods stage", {

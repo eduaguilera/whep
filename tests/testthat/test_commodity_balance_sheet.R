@@ -1,68 +1,108 @@
-# Small crafted wide CBS fixture with consistent accounting.
-# Supply is production plus import plus stock withdrawal.
-# Use is export plus food, feed, seed, processing, other uses,
-# and stock addition.
-# Domestic supply is food, feed, seed, processing, and other uses.
-.make_cbs_fixture <- function() {
+# Small crafted long CBS fixture, the shape the build pipeline actually
+# produces. Supply is production plus import plus stock withdrawal; use is
+# export plus food, feed, seed, processing, other uses and stock addition.
+# Spain adds stock (positive `stock_variation`) and France withdraws from it
+# (negative), so the split `.pivot_cbs_wide()` performs is on both sides of
+# the identity rather than on the zero that satisfies it either way.
+.make_cbs_long_fixture <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code,
-    ~production, ~import, ~export,
-    ~food, ~feed, ~seed, ~processing, ~other_uses,
-    ~stock_withdrawal, ~stock_addition, ~domestic_supply,
-    2000L, 203L, 2511L,
-    5000, 1000, 500,
-    3000, 1500, 200, 500, 300,
-    0, 0, 5500,
-    2000L, 68L, 2514L,
-    3000, 500, 200,
-    2000, 800, 100, 200, 200,
-    0, 0, 3300
+    ~year, ~area_code, ~item_cbs_code, ~element,         ~value,
+    2000L,       203L,          2511L, "production",       6000,
+    2000L,       203L,          2511L, "import",           1000,
+    2000L,       203L,          2511L, "export",            500,
+    2000L,       203L,          2511L, "food",             3000,
+    2000L,       203L,          2511L, "feed",             1500,
+    2000L,       203L,          2511L, "seed",              200,
+    2000L,       203L,          2511L, "processing",        500,
+    2000L,       203L,          2511L, "other_uses",        300,
+    2000L,       203L,          2511L, "stock_variation",  1000,
+    2000L,       203L,          2511L, "domestic_supply",  5500,
+    2000L,        68L,          2513L, "production",       3000,
+    2000L,        68L,          2513L, "import",            500,
+    2000L,        68L,          2513L, "export",            200,
+    2000L,        68L,          2513L, "food",             3000,
+    2000L,        68L,          2513L, "feed",              800,
+    2000L,        68L,          2513L, "seed",              100,
+    2000L,        68L,          2513L, "processing",        200,
+    2000L,        68L,          2513L, "other_uses",        200,
+    2000L,        68L,          2513L, "stock_variation", -1000,
+    2000L,        68L,          2513L, "domestic_supply",  4300
   )
 }
 
-# Small crafted processing coefficients fixture.
-.make_coefs_fixture <- function() {
+# Primary production rows for the live-animal items the FAO sheet omits, so
+# `.cbs_wide_core()` has livestock rows to append.
+.make_livestock_fixture <- function() {
   tibble::tribble(
-    ~year, ~area_code,
-    ~item_cbs_code_to_process, ~value_to_process,
-    ~item_cbs_code_processed, ~initial_conversion_factor,
-    ~initial_value_processed, ~conversion_factor_scaling,
-    ~final_conversion_factor, ~final_value_processed,
-    2000L, 203L,
-    2511L, 5000,
-    2542L, 0.2,
-    1000, 0.5,
-    0.1, 500
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,
+    ~unit,               ~value,
+    2000L,       203L,          1096L,              NA,
+    "heads",                100,
+    2000L,       203L,          1096L,              NA,
+    "slaughtered_heads",     10,
+    2000L,       203L,          2735L,           1096L,
+    "tonnes",                  2
+  )
+}
+
+# A long CBS carrying a processing flow (wheat) and the production of the
+# item it is processed into (non-food alcohol), which is what
+# `build_processing_coefs()` calibrates its conversion factors against.
+.make_proc_cbs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element,      ~value,
+    2000L,       203L,          2511L, "processing",    1000,
+    2000L,       203L,          2659L, "production",     200,
+    2000L,        68L,          2511L, "processing",     400,
+    2000L,        68L,          2659L, "production",      50
+  )
+}
+
+.empty_livestock_trade <- function(livestock_items, ...) {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code = integer(),
+    import = numeric(),
+    export = numeric()
   )
 }
 
 k_tolerance <- 1e-6
 
-testthat::test_that("wide CBS has consistent supply-use balance", {
-  cbs <- .make_cbs_fixture() |>
-    dplyr::mutate(
-      value_in = production + import + stock_withdrawal,
-      value_out = export +
-        food +
-        feed +
-        seed +
-        processing +
-        other_uses +
-        stock_addition,
-      my_domestic_supply = food + feed + seed + processing + other_uses
-    )
-
-  pointblank::expect_col_vals_expr(
-    cbs,
-    rlang::expr(
-      dplyr::near(value_in, value_out, tol = !!k_tolerance)
-    )
+# Replaces "wide CBS has consistent supply-use balance", which recomputed
+# both sides of the identity from an already-balanced hand-entered tibble and
+# called no package function at all (whep#177). `.cbs_wide_core()` is the
+# assembly `build_io_model()` consumes and had no test of its own: deleting
+# its `bind_rows(livestock_cbs)` left the whole suite green.
+testthat::test_that(".cbs_wide_core balances and keeps its livestock rows", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
   )
 
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+
+  # A row-wise balance check cannot see a row that is simply absent, so
+  # assert the live-animal rows arrived before asserting they reconcile.
+  testthat::expect_true(1096L %in% wide$item_cbs_code)
+  testthat::expect_setequal(wide$item_cbs_code, c(2511L, 2513L, 1096L))
+
+  balance <- whep::check_supply_use_balance(wide, tol = k_tolerance)
+  testthat::expect_equal(nrow(balance), nrow(wide))
+  testthat::expect_true(all(balance$balanced))
+
   pointblank::expect_col_vals_expr(
-    cbs,
+    wide,
     rlang::expr(
-      dplyr::near(domestic_supply, my_domestic_supply, tol = !!k_tolerance)
+      dplyr::near(
+        domestic_supply,
+        food + feed + seed + processing + other_uses,
+        tol = !!k_tolerance
+      )
     )
   )
 })
@@ -107,8 +147,24 @@ testthat::test_that(".pivot_cbs_wide aborts on a duplicate element key (#219)", 
   testthat::expect_error(.pivot_cbs_wide(cbs_long))
 })
 
-testthat::test_that("processing coefficients are internally consistent", {
-  coefs <- .make_coefs_fixture()
+# Replaces "processing coefficients are internally consistent", which
+# asserted the three conversion-factor identities against a hand-entered
+# tibble that already satisfied them (whep#177). Swapping
+# `initial_conversion_factor` and `final_conversion_factor` in
+# `.format_proc_output()` left the whole suite green, because nothing called
+# the real builder: `build_processing_coefs()` appeared in the suite only as
+# `example = TRUE`, which returns a hardcoded tribble.
+testthat::test_that("build_processing_coefs returns consistent coefficients", {
+  coefs <- build_processing_coefs(
+    .make_proc_cbs_fixture(),
+    start_year = 2000,
+    end_year = 2000
+  )
+
+  # Both areas must survive the calibration joins; an absent row balances
+  # vacuously.
+  testthat::expect_setequal(coefs$area_code, c(203L, 68L))
+  testthat::expect_equal(nrow(coefs), 2L)
 
   pointblank::expect_col_vals_expr(
     coefs,
@@ -142,11 +198,38 @@ testthat::test_that("processing coefficients are internally consistent", {
       )
     )
   )
+
+  # What the per-area scaling is for: the calibrated processed output has to
+  # reproduce the observed production of the processed item, area by area.
+  # The globally calibrated factor alone does not -- it is one number for
+  # both areas (0.1786 here, from a raw table fraction of 0.28), and the
+  # per-area scaling that closes the gap differs between them (1.12 and
+  # 0.70).
+  observed <- .make_proc_cbs_fixture() |>
+    dplyr::filter(element == "production") |>
+    dplyr::select(year, area_code, item_cbs_code, observed = value)
+
+  testthat::expect_equal(
+    coefs |>
+      dplyr::select(
+        year,
+        area_code,
+        item_cbs_code = item_cbs_code_processed,
+        final_value_processed
+      ) |>
+      dplyr::inner_join(
+        observed,
+        by = c("year", "area_code", "item_cbs_code")
+      ) |>
+      dplyr::arrange(area_code) |>
+      dplyr::pull(final_value_processed),
+    dplyr::arrange(observed, area_code)$observed
+  )
 })
 
 testthat::test_that("livestock CBS routes slaughter animals to processing", {
   local_mocked_bindings(
-    .get_livestock_trade_totals = function(livestock_items) {
+    .get_livestock_trade_totals = function(livestock_items, ...) {
       tibble::tibble(
         year = integer(),
         area_code = integer(),
@@ -259,7 +342,7 @@ testthat::test_that("livestock trade survives when the importer has no slaughter
   # volume must still enter the CBS instead of vanishing because it has no
   # matching `slaughtered` row to left_join onto.
   local_mocked_bindings(
-    .get_livestock_trade_totals = function(livestock_items) {
+    .get_livestock_trade_totals = function(livestock_items, ...) {
       tibble::tribble(
           ~year, ~area_code, ~item_cbs_code, ~import, ~export,
           2000L, 1L, 1096L, 0, 30,
@@ -288,4 +371,237 @@ testthat::test_that("livestock trade survives when the importer has no slaughter
   # supply instead of vanishing.
   testthat::expect_equal(importer$production, 0)
   testthat::expect_equal(importer$domestic_supply, 30)
+})
+
+# whep#762 -- trade recovery must be reachable from the cached build chain,
+# which is the only path the IO model, the extensions and the nourishment axis
+# take. Before this, build_commodity_balances() was the sole entry point that
+# could select it, so the recovered CBS could not be carried into a build.
+testthat::test_that("get_wide_cbs takes and validates trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_wide_cbs))
+  )
+  # Validated before any build is started, so a typo aborts offline rather
+  # than after a several-minute read.
+  testthat::expect_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net-import")
+  )
+  testthat::expect_no_error(
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "net_import")
+  )
+})
+
+testthat::test_that("get_wide_cbs threads trade_recovery into the chain", {
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_wide_cbs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})
+
+testthat::test_that("get_processing_coefs takes trade_recovery", {
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::get_processing_coefs))
+  )
+  testthat::expect_error(
+    whep::get_processing_coefs(example = TRUE, trade_recovery = "net-import")
+  )
+
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_processing_coefs(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
+})
+
+# whep#1092: the live-animal trade the livestock balance rests on was
+# filtered to `unit == "heads"`, which is only half of FAOSTAT's live-animal
+# vocabulary. The small species -- broiler chickens, turkeys, ducks, geese,
+# rabbits, rodents -- are reported in `1000 Head` and were dropped whole, so
+# `production = slaughtered + export - import` collapsed to `slaughtered`.
+.fake_livestock_btd <- function() {
+  tibble::tribble(
+    ~area_code, ~area_code_p, ~year, ~Element, ~unit,       ~value,
+    231L,       9L,           2010L, "Export", "Head",      40,
+    231L,       9L,           2010L, "Export", "1000 Head", 5,
+    231L,       9L,           2010L, "Export", "No",        7
+  ) |>
+    dplyr::mutate(
+      item = c("Cattle, non-dairy", "Chickens, broilers", "Bees")
+    )
+}
+
+testthat::test_that("livestock trade keeps FAOSTAT's '1000 Head' rows", {
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_warning(
+    totals <- .get_livestock_trade_totals(c(961L, 1053L)),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  chickens <- dplyr::filter(totals, item_cbs_code == 1053L)
+  cattle <- dplyr::filter(totals, item_cbs_code == 961L)
+
+  # 5 thousand head of live broilers become 5,000 head; the `Head` row is
+  # carried at face value, as it always was.
+  testthat::expect_equal(sum(chickens$export, na.rm = TRUE), 5000)
+  testthat::expect_equal(sum(cattle$export, na.rm = TRUE), 40)
+})
+
+testthat::test_that("'drop' reproduces the pre-#1092 livestock trade", {
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_warning(
+    totals <- .get_livestock_trade_totals(c(961L, 1053L), "drop"),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_false(1053L %in% totals$item_cbs_code)
+  testthat::expect_equal(sum(totals$export, na.rm = TRUE), 40)
+})
+
+testthat::test_that("'abort' is not swallowed by the read's tryCatch", {
+  # The unit refusal is a deliberate stop, not a failed read, so it must
+  # not degrade into "Could not read bilateral trade for livestock".
+  local_mocked_bindings(
+    whep_read_file = function(...) .fake_livestock_btd()
+  )
+
+  testthat::expect_error(
+    .get_livestock_trade_totals(c(961L, 1053L), "abort"),
+    class = "whep_unhandled_trade_unit"
+  )
+})
+
+testthat::test_that("get_livestock_cbs rejects an unknown head method", {
+  testthat::expect_error(
+    get_livestock_cbs(
+      tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code = integer(),
+        live_anim_code = integer(),
+        unit = character(),
+        value = numeric()
+      ),
+      method_head_units = "rescale"
+    ),
+    class = "rlang_error"
+  )
+})
+
+# The wide CBS binds head-counted live-animal rows onto the tonnes CBS, so a
+# row's denomination has to travel with it (whep#1055). Each row's `unit` is
+# set by the builder that produced it: the mass-only long CBS, or
+# `get_livestock_cbs()`.
+testthat::test_that("the wide CBS says which rows are head counts (#1055)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+
+  pointblank::expect_col_vals_not_null(wide, "unit")
+  pointblank::expect_col_vals_in_set(wide, "unit", c("tonnes", "heads"))
+  units <- wide |>
+    dplyr::distinct(item_cbs_code, unit) |>
+    dplyr::arrange(item_cbs_code)
+  testthat::expect_equal(units$item_cbs_code, c(1096L, 2511L, 2513L))
+  testthat::expect_equal(units$unit, c("heads", "tonnes", "tonnes"))
+})
+
+testthat::test_that("get_livestock_cbs labels its rows as heads (#1055)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+
+  result <- get_livestock_cbs(.make_livestock_fixture())
+
+  testthat::expect_gt(nrow(result), 0L)
+  pointblank::expect_col_vals_equal(result, "unit", "heads")
+})
+
+testthat::test_that("the wide CBS aborts on one item in two units (#1055)", {
+  # A live-animal code reaching the tonnes CBS as well as the livestock
+  # builder would carry one item in both denominations.
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+  long <- .make_cbs_long_fixture() |>
+    dplyr::mutate(
+      item_cbs_code = dplyr::if_else(item_cbs_code == 2513L, 1096L, 2511L)
+    )
+
+  testthat::expect_error(
+    .cbs_wide_core(long, .make_livestock_fixture(), 2000L),
+    "mixes 2 units"
+  )
+})
+
+# whep#1149 -- FAOSTAT splits pig slaughter between 1049 "Swine, market" and
+# 1051 "Swine, breeding" by stock share, and every pig product keys its live
+# animal on 1049, as does live-pig trade (1034 -> 1049). The breeding share
+# of slaughter must land on the live-pig balance, not vanish from it.
+testthat::test_that("breeding-swine slaughter counts toward live pigs (#1149)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = function(livestock_items, ...) {
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+        2000L,         1L,          1049L,      5,      15
+      )
+    }
+  )
+
+  primary <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code,               ~unit, ~value,
+    2000L,         1L,          1049L,              NA, "slaughtered_heads",     90,
+    2000L,         1L,          1051L,              NA, "slaughtered_heads",     10,
+    2000L,         1L,          1049L,              NA,             "heads",     60,
+    2000L,         1L,          1051L,              NA,             "heads",      6,
+    2000L,         1L,          2733L,           1049L,            "tonnes",      8
+  )
+
+  result <- get_livestock_cbs(primary)
+  pigs <- dplyr::filter(result, item_cbs_code == 1049L)
+
+  # 90 + 10 slaughtered, plus 15 exported, less 5 imported.
+  testthat::expect_equal(pigs$production, 110)
+  testthat::expect_equal(pigs$domestic_supply, 100)
+  # The fold does not open a live-animal balance of its own for 1051.
+  testthat::expect_false(1051L %in% result$item_cbs_code)
+  # No slaughtered head is lost between production and the balance.
+  slaughtered <- primary |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    dplyr::pull(value) |>
+    sum()
+  testthat::expect_equal(
+    sum(result$production + result$import - result$export),
+    slaughtered
+  )
 })

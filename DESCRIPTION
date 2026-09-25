@@ -48,6 +48,7 @@ RoxygenNote: 7.3.3
 Suggests:
     archive,
     callr,
+    codetools,
     DBI,
     DiagrammeR,
     ggpattern,

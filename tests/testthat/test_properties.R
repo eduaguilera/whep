@@ -11,7 +11,7 @@ test_that("residue destinies conserve mass and stay non-negative (both methods)"
     region_un_sub = "Western Europe",
     year = 1980
   )
-  for (m in c("krausmann_regional", "shares")) {
+  for (m in c("recovery_regional", "shares")) {
     out <- suppressWarnings(whep::calculate_residue_destinies(x, method = m))
     testthat::expect_equal(
       out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,

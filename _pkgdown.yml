@@ -87,13 +87,15 @@ reference:
     per-crop net irrigation requirement) into tidy long form, close the gridded
     soil water balance exposing the footprint-relevant terms (precipitation,
     applied irrigation, blue and green consumptive water, net irrigation
-    requirement), and assemble the monthly climate drivers for the
-    soil-organic-carbon dynamics.
+    requirement), and assemble the monthly climate drivers (with the HWSD
+    soil hydraulic properties) for the soil-organic-carbon dynamics.
   contents:
   - read_lpjml_hydrology
-  - read_lpjml_npp
   - read_cru_climate
+  - read_soil_hydraulic
   - build_water_balance
+  - build_crop_water_consumption
+  - build_crop_water_use
   - get_soc_climate_drivers
 
 - title: Soil-balance coefficient tables
@@ -161,6 +163,7 @@ reference:
   contents:
   - soc_rate_modifier_rothc
   - soc_rate_modifier_icbm
+  - soc_rate_modifier_lpjml
   - soc_rate_modifier_amg
   - soc_rate_modifier_century
 
@@ -181,6 +184,7 @@ reference:
   - calculate_soc_hsoc
   - calculate_soc_rothc
   - calculate_soc_icbm
+  - calculate_soc_lpjml
   - calculate_soc_amg
   - calculate_soc_century
 
@@ -191,8 +195,12 @@ reference:
     megagrams of carbon per hectare, plus the carbon-weighted humification
     fraction from `residue_humification`. The grassland and natural-land
     carbon inputs come from the LPJmL net primary production minus harvested
-    carbon (grassland additionally carrying grazing-excreta carbon).
+    carbon (grassland additionally carrying grazing-excreta carbon), read
+    per plant functional type and as litterfall by land-use class.
   contents:
+  - read_lpjml_npp
+  - read_lpjml_litterfall
+  - soc_crop_group
   - build_soil_carbon_inputs
   - build_grass_natural_carbon_inputs
   - build_carbon_inputs
@@ -214,7 +222,9 @@ reference:
     (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
     every source (BNF, residue/root recycling, manure, deposition, urban,
     soil organic-matter mineralization, synthetic fertiliser) into one
-    long-format table (Task C6 final phase).
+    long-format table (Task C6 final phase). The gridded soil-surface
+    nitrogen surplus (net inputs minus harvested-nitrogen exports) is a
+    balance term computed from that balance.
   contents:
   - read_n_deposition
   - build_n_deposition
@@ -223,7 +233,6 @@ reference:
   - read_wpp_population
   - read_fbs_population
   - population_source_reach
-  - read_habitual_cv
   - build_urban_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
@@ -233,12 +242,12 @@ reference:
   - calculate_indirect_n2o_nh3
   - read_lpjml_wind
   - read_soil_ph
-  - read_soil_hydraulic
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_ag_land_support
   - build_n_inputs
   - build_nitrogen_balance
+  - calculate_n_surplus
 
 - title: SJOS - nitrogen
   desc: >
@@ -247,10 +256,10 @@ reference:
     (critical surplus, critical input, exceedance, the medium-specific
     critical losses and the binding-threshold map) that the
     boundary-exceedance modules compare the WHEP nitrogen surplus and
-    process-based losses against. The gridded soil-surface nitrogen surplus
-    (net inputs minus harvested-nitrogen exports) and its surplus-mode
-    critical-boundary exceedance, decomposed per crop into the parts within
-    and above the boundary. The pathway-mode boundary instead routes each
+    process-based losses against. The surplus-mode critical-boundary
+    exceedance of the nitrogen surplus (see `calculate_n_surplus()` under
+    the nitrogen balance), decomposed per crop into the parts within and
+    above the boundary. The pathway-mode boundary instead routes each
     process-based nitrogen loss to its medium-specific critical load (ammonia
     to air, nitrate to the tighter of groundwater and surface water),
     decomposing each medium and naming the binding boundary per crop. The
@@ -265,11 +274,11 @@ reference:
     footprint extension.
   contents:
   - read_critical_n
-  - calculate_n_surplus
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance
   - build_food_supply
   - build_protein_requirement
+  - read_habitual_cv
   - build_intake_dispersion
   - build_loss_wedge
   - build_protein_quality
@@ -304,10 +313,15 @@ reference:
     initialisation under the earliest land-use carbon inputs, a forward march on
     yearly per-cell per-class land-use areas with a carbon-conserving
     land-use-change transfer, and the derived soil-organic-nitrogen change via
-    the asymmetric soil carbon-to-nitrogen ratios.
+    the asymmetric soil carbon-to-nitrogen ratios. The LPJmL soil-cover
+    readers supply its optional cropland and natural-land cover inputs, and
+    the HWSD topsoil organic-carbon reader is its observational benchmark.
   contents:
   - build_carbon_balance
   - read_luh2_landuse
+  - read_lpjml_crop_cover
+  - read_lpjml_natural_cover
+  - read_hwsd_topsoil_soc
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >
@@ -329,6 +343,7 @@ reference:
   - summarize_bnf
   - calculate_residue_destinies
   - build_residue_feed_avail
+  - build_residue_bedding_supply
 
 - title: Tidy datasets
   desc: >
@@ -391,6 +406,7 @@ reference:
   - polities_cats
   - regions_full
   - add_polity_code
+  - polity_anchor_drift
   - polity_bucket_coverage
   - polity_coverage_gaps
   - polity_mapping_provenance
@@ -401,6 +417,7 @@ reference:
   - row_promotion_status
   - whep_polity_columns
   - resolve_polity_label
+  - resolve_polity_lineage
   - polity_identity_conventions
 - subtitle: Commodity balance sheet items
   contents:
@@ -433,12 +450,6 @@ reference:
   - mueller_synthetic_n
   - primary_double
   - smil_2001_synthetic_n_global
-
-- title: FAOSTAT raw data
-  desc: >
-    Download FAOSTAT data as is.
-  contents:
-  - get_faostat_data
 
 - title: Data sources
   desc: >
@@ -481,6 +492,22 @@ reference:
   - ensure_columns
   - check_table_schema
   - assert_table_schema
+
+- title: Absent-input guards
+  desc: >
+    Assert that an input *arrived*, never that the totals it feeds reconcile.
+    Zero satisfies a sum, so a consistency identity, a conservation check and
+    a row count are all passed by an absence.
+    `check_inputs_supplied()` refuses a column that is missing, or present and
+    identically zero or missing; `check_labels_supplied()` refuses a value
+    vocabulary that no longer carries the labels a filter selects on, and
+    names what it carries instead; `stamp_inputs_supplied()` writes the
+    provenance label the first one reads, which no arithmetic downstream can
+    forge.
+  contents:
+  - check_inputs_supplied
+  - check_labels_supplied
+  - stamp_inputs_supplied
 
 - title: Gap filling functions
   desc: >
@@ -590,15 +617,19 @@ reference:
   desc: >
     Checks that make footprint, balance and time-series results trustworthy:
     conservation invariants, accounting identities, within-series jump
-    detection (the level-2 detector of the AFE data-validation framework), and
-    other data-quality diagnostics.
+    detection (the level-2 detector of the AFE data-validation framework),
+    completeness against an expected key lattice, and other data-quality
+    diagnostics.
   contents:
   - check_footprint_conservation
   - summarise_conservation
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_keys_complete
+  - key_lattice_gaps
   - check_fodder_land_share
+  - check_arable_composition
   - check_parquet_integrity
   - assert_parquet_integrity
   - write_parquet_checked
@@ -650,10 +681,15 @@ reference:
   contents:
   - prepare_livestock_emissions
   - calculate_livestock_emissions
+  - build_gridded_livestock_emissions
+  - build_cell_climate_zone
+  - livestock_emissions_to_kt
   - calculate_enteric_ch4
   - calculate_manure_emissions
+  - manure_engine_options
   - estimate_n_excretion
   - split_manure_management
+  - add_manure_bedding
   - apply_management_losses
   - build_livestock_nutrient_flows
   - allocate_manure_to_land
@@ -739,6 +775,7 @@ reference:
     Climate, manure management, and uncertainty tables.
   contents:
   - climate_mcf
+  - climate_mcf_ipcc
   - regional_mms_distribution
   - temperature_adjustment
   - grazing_energy_coefs

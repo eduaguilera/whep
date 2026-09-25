@@ -451,6 +451,55 @@ testthat::test_that("output-only residue-destiny keys are preserved", {
   ))
 })
 
+testthat::test_that("bedding residue N leaves the field without leaking", {
+  # whep#1005: bedding is carved out of the burn share, so the nitrogen it
+  # carries stops being counted as burnt. It still LEAVES the field, so it has
+  # to arrive as its own output term -- otherwise the removed nitrogen simply
+  # vanishes from n_output_full_t and the surplus is overstated by it.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  inputs <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  bare <- whep:::.nb_add_residue_destiny(
+    inputs,
+    list(residue_destiny_input = .nb_residue_destiny_input()),
+    key
+  )
+  bedded <- whep:::.nb_add_residue_destiny(
+    inputs,
+    list(
+      residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding_fraction = 0.4
+    ),
+    key
+  )
+  removed <- function(x) {
+    x$used_residue_n_t + x$bedding_residue_n_t + x$burnt_residue_n_t
+  }
+  testthat::expect_equal(bare$bedding_residue_n_t, 0)
+  testthat::expect_gt(bedded$bedding_residue_n_t, 0)
+  testthat::expect_lt(bedded$burnt_residue_n_t, bare$burnt_residue_n_t)
+  testthat::expect_equal(removed(bedded), removed(bare))
+})
+
+testthat::test_that("bedding residue N is an output of the full balance", {
+  aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
+    prod_n_t = 10,
+    used_residue_n_t = 2,
+    bedding_residue_n_t = 3,
+    burnt_residue_n_t = 1,
+    grazed_weeds_n_t = 0,
+    som_sequestration_n_t = 0,
+    nh3_n_t = 0
+  ))
+  testthat::expect_equal(aggregated$n_output_full_t, 16)
+})
+
 testthat::test_that("duplicate loss-driver keys abort instead of duplicating emissions", {
   key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
   n_inputs <- tibble::tibble(
@@ -505,6 +554,30 @@ testthat::test_that("loss methods are validated even when no loss rows exist", {
   testthat::expect_error(whep:::.nb_methods(list(n2o = "not_a_method")))
   testthat::expect_error(whep:::.nb_methods(list(leaching = "not_a_method")))
   testthat::expect_error(whep:::.nb_methods(list(nh_3 = "ipcc")))
+})
+
+testthat::test_that("an unknown methods name aborts with its own name (#621)", {
+  # The bare `expect_error()` above is why this survived: cli's own formatter
+  # error is still an error. The plural marker sat ahead of both
+  # interpolations, so cli deferred it and then refused the message for
+  # carrying more than one candidate quantity -- "Multiple quantities for
+  # pluralization", a simpleError, on every unknown name. Assert the class and
+  # the content, not just that something was thrown. Two unknown names, so the
+  # plural branch is the one exercised.
+  cnd <- testthat::expect_error(
+    whep:::.nb_methods(list(nh_3 = "ipcc", n20 = "ipcc2019")),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "nh_3")
+  testthat::expect_match(conditionMessage(cnd), "n20")
+  testthat::expect_match(conditionMessage(cnd), "names")
+  # One unknown name takes the singular branch and must still name it.
+  cnd1 <- testthat::expect_error(
+    whep:::.nb_methods(list(nh_3 = "ipcc")),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd1), "name:")
+  testthat::expect_match(conditionMessage(cnd1), "nh_3")
 })
 
 testthat::test_that("example fixture is schema-complete", {
@@ -580,6 +653,7 @@ testthat::test_that("the N-limitation SOM cap engages and recomputes every downs
     n_input_for_n2o_t = 40,
     prod_n_t = 20,
     used_residue_n_t = 5,
+    bedding_residue_n_t = 0,
     burnt_residue_n_t = 2,
     grazed_weeds_n_t = 3,
     som_sequestration_n_t = 10, # would push n_output_full_t above 50+
@@ -853,6 +927,20 @@ testthat::test_that("duplicate n_balance_leaching_drivers keys abort the join", 
 
 # ---- C3b: the deposition scope reaches the published balance ------------
 
+# whep#532: nitrogen that reached agricultural land but no single crop is a
+# real mass, and a balance that spread it over cropland, over all agricultural
+# land, or dropped it, is three different numbers with no way to tell them
+# apart unless the choice travels with the rows.
+testthat::test_that("the balance names the unattributed policy it used", {
+  out <- .nb_run()
+
+  testthat::expect_true(rlang::has_name(out, "method_unattributed"))
+  testthat::expect_setequal(
+    stats::na.omit(out$method_unattributed),
+    "cropland_area"
+  )
+})
+
 testthat::test_that("C3b: the balance names the deposition scope it used", {
   # DA-14 makes deposition scope a choice, and the two choices differ by
   # about 1.4% of the deposition term on real input. A balance that does not
@@ -896,6 +984,35 @@ testthat::test_that("C3b: the land scope reaches the balance and moves it", {
   testthat::expect_equal(
     sum(territory$n_input_full_t),
     sum(.nb_run()$n_input_full_t)
+  )
+})
+
+testthat::test_that("the balance names the deposition product it used", {
+  # whep#1105, the other half of the deposition provenance. The scope stamp
+  # says which territory the term was credited with; this one says which
+  # FIELD it came from. HaNi reproduces only a fraction of Europe's observed
+  # decline (whep#1097/#1121), so a corrected field is exactly what a caller
+  # is expected to inject -- and a balance built on one has to be tellable
+  # apart from a balance built on raw HaNi.
+  out <- .nb_run()
+  testthat::expect_true(rlang::has_name(out, "method_deposition"))
+  # The fixture's nhx/noy carry no tag, so build_n_deposition() records
+  # "supplied" rather than relabelling them "hani".
+  testthat::expect_setequal(stats::na.omit(out$method_deposition), "supplied")
+
+  data <- .nb_data_with_drivers()
+  data$nhx <- dplyr::mutate(.nb_nhx(), method_deposition = "hani_emep")
+  data$noy <- dplyr::mutate(.nb_noy(), method_deposition = "hani_emep")
+  corrected <- .nb_run(data)
+
+  testthat::expect_setequal(
+    stats::na.omit(corrected$method_deposition),
+    "hani_emep"
+  )
+  # Renaming the field moves no number: this is provenance, not a method.
+  testthat::expect_equal(
+    sum(corrected$n_input_full_t),
+    sum(out$n_input_full_t)
   )
 })
 
@@ -963,4 +1080,141 @@ testthat::test_that("the fert_type bridge covers the whole input vocabulary", {
   testthat::expect_true(is.na(whep:::.nb_loss_fert_type("bogus")))
   testthat::expect_true(is.na(whep:::.nb_loss_fert_type(NA_character_)))
   testthat::expect_equal(whep:::.nb_loss_fert_type(character()), character())
+})
+
+testthat::test_that("a manufactured crop-less row carries no pressure", {
+  # .nb_merge_output_term()'s full join CREATES a balance row when an output
+  # term has no input row to attach to, and .nb_add_som_sequestration() books
+  # its term at item_cbs_code = NA. Those rows are real, and one hop
+  # downstream build_n_boundary_exceedance() filters them out -- a join that
+  # manufactures rows a later filter removes. This pins the reason that round
+  # trip costs nothing: every numeric column on such a row is the join's zero
+  # fill except the sequestration itself, and .nb_cap_som() caps that to
+  # pmax(0, inputs - other outputs) = 0. If any of those three mechanisms
+  # changes, the exceedance filter starts deleting real nitrogen (#1173).
+  carbon <- .nb_carbon_balance()
+  booked <- sum(pmax(0, -carbon$son_change_kgn_ha) * carbon$area_ha / 1000)
+  # Not vacuous: the fixture really does book sequestration at the NA item.
+  testthat::expect_gt(booked, 0)
+
+  out <- .nb_run()
+  crop_less <- dplyr::filter(out, is.na(.data$item_cbs_code))
+  testthat::expect_gt(nrow(crop_less), 0)
+  testthat::expect_equal(sum(crop_less$som_sequestration_n_t), 0)
+  testthat::expect_equal(sum(crop_less$n_input_full_t), 0)
+  testthat::expect_equal(sum(crop_less$n_balance_t), 0)
+
+  surplus <- whep::calculate_n_surplus(out)
+  crop_less_surplus <- dplyr::filter(surplus, is.na(.data$item_cbs_code))
+  testthat::expect_equal(sum(crop_less_surplus$surplus_n_t), 0)
+  testthat::expect_equal(sum(crop_less_surplus$n_input_std_t), 0)
+})
+
+testthat::test_that("a grid balance refuses an incomplete input key", {
+  # The other half of the same guarantee: crop-less rows cannot arrive from
+  # the INPUT side of a gridded balance, so the manufactured rows above are
+  # the only ones there are.
+  data <- .nb_data_with_drivers()
+  inputs <- whep::build_n_inputs(data = data)
+  data$n_inputs <- dplyr::bind_rows(
+    inputs,
+    dplyr::mutate(
+      inputs[1, ],
+      item_cbs_code = NA_integer_,
+      n_input_t = 1000
+    )
+  )
+  testthat::expect_error(.nb_run(data = data), "complete grid and item keys")
+})
+
+# ---- whep#1034: removals that go absent must not become zero ---------------
+#
+# Each output term below is merged onto the balance by a full join and
+# zero-filled, and the balance is then input minus output. So a term that
+# silently lands as zero leaves n_balance_t == n_input_full_t -
+# n_output_full_t holding exactly: the identity cannot see it, and the surplus
+# absorbs the whole lost removal. These tests assert the identity HOLDS on the
+# zero-filled row and that the guard fires anyway.
+
+.nb_zero_removal_row <- function() {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 3000L,
+    year = 2010L,
+    n_input_full_t = 20,
+    prod_n_t = 0,
+    used_residue_n_t = 0,
+    bedding_residue_n_t = 0,
+    burnt_residue_n_t = 0,
+    grazed_weeds_n_t = 0,
+    nh3_n_t = 0,
+    som_sequestration_n_t = 0
+  )
+}
+
+# The balance key alone, before any output term is merged onto it.
+.nb_bare_key_row <- function(item_cbs_code = 3000L) {
+  dplyr::mutate(
+    dplyr::select(.nb_zero_removal_row(), lon:n_input_full_t),
+    item_cbs_code = item_cbs_code
+  )
+}
+
+.nb_balance_closes <- function(row) {
+  out <- whep:::.nb_indicators_pass1(row)
+  isTRUE(all.equal(out$n_balance_t, out$n_input_full_t - out$n_output_full_t))
+}
+
+.nb_grass_intake <- function(feed_quality = "grass", intake_dm_t = 600) {
+  tibble::tibble(
+    year = 2010L,
+    territory = "10",
+    sub_territory = "0.25_50.25",
+    feed_quality = feed_quality,
+    intake_dm_t = intake_dm_t
+  )
+}
+
+testthat::test_that("a moved feed_quality label cannot pass as no grazing", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()),
+    guard = whep:::.nb_add_grazed_weeds(
+      .nb_bare_key_row(),
+      list(livestock_intake = .nb_grass_intake(feed_quality = "Grass")),
+      key
+    ),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("grass rows that carry no dry matter are refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()),
+    guard = whep:::.nb_add_grazed_weeds(
+      .nb_bare_key_row(),
+      list(livestock_intake = .nb_grass_intake(intake_dm_t = NA_real_)),
+      key
+    )
+  )
+})
+
+testthat::test_that("residue destinies no N coefficient joins are refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  destiny <- dplyr::mutate(
+    .nb_residue_destiny_input(),
+    item_prod_code = "0015"
+  )
+  expect_supplied_guard(
+    identity = .nb_balance_closes(.nb_zero_removal_row()) &&
+      sum(destiny$residue_dm_t) > 0,
+    guard = whep:::.nb_add_residue_destiny(
+      .nb_bare_key_row(2511L),
+      list(residue_destiny_input = destiny),
+      key
+    )
+  )
 })

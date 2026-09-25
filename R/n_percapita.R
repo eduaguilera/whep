@@ -43,7 +43,10 @@
 #'   `n_input_t` and the `year`, `area_code` keys (finer grid keys such as
 #'   `lon`/`lat`/`item_cbs_code` are summed away).
 #' @param population A tibble keyed by `year`, `area_code` with `population`
-#'   (absolute persons).
+#'   (absolute persons). Defaults to `NULL`, which reads
+#'   [read_population()] at its own default composition over the years of
+#'   `n_inputs`; supply a table to use any other source (for instance
+#'   `read_population(population_source = "pin_wpp_fbs_fallback")`).
 #' @param framing How the total anthropogenic reactive nitrogen is defined.
 #'   `"synthetic_bnf"` (default) scales the `"synthetic"` term by
 #'   `syn_tot_agri_ratio` and adds the `"bnf"` term; other framings can be added.
@@ -53,15 +56,17 @@
 #'   `n_inputs`/`population`. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the
 #'   country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
-#'   and `framing`, the anthropogenic definition it was computed under, plus the
-#'   polity columns below.
+#'   `framing`, the anthropogenic definition it was computed under, and
+#'   `method_population`, `"read_population"` when the denominator was read by
+#'   default or `"supplied"` when the caller passed it, plus the polity columns
+#'   below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_percapita(example = TRUE)
 build_n_percapita <- function(
   n_inputs,
-  population,
+  population = NULL,
   framing = c("synthetic_bnf"),
   params = NULL,
   example = FALSE
@@ -76,11 +81,21 @@ build_n_percapita <- function(
     c("year", "area_code", "fert_type", "n_input_t"),
     "n_inputs"
   )
+  method_population <- if (is.null(population)) {
+    "read_population"
+  } else {
+    "supplied"
+  }
+  population <- population %||%
+    read_population(years = sort(unique(n_inputs$year)))
   .check_columns(population, c("year", "area_code", "population"), "population")
   n_inputs |>
     .n_percapita_anthropogenic(framing, params) |>
     .n_percapita_per_capita(population) |>
-    dplyr::mutate(framing = .env$framing) |>
+    dplyr::mutate(
+      framing = .env$framing,
+      method_population = .env$method_population
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -146,7 +161,7 @@ build_n_percapita <- function(
     "anthropogenic_n_t",
     "anthropogenic nitrogen"
   )
-  anthropogenic |>
+  out <- anthropogenic |>
     dplyr::inner_join(
       dplyr::select(population, "year", "area_code", "population"),
       by = c("year", "area_code")
@@ -154,8 +169,15 @@ build_n_percapita <- function(
     dplyr::transmute(
       year = .data$year,
       area_code = .data$area_code,
-      n_percapita_kg = .data$anthropogenic_n_t * 1000 / .data$population
+      n_percapita_kg = .data$anthropogenic_n_t *
+        .kg_per_tonne() /
+        .data$population
     )
+  # Synthetic fertiliser and BNF are both non-negative masses, so a negative
+  # per-capita total can only come from a defective input. Reported, not
+  # clipped (#378).
+  .warn_out_of_bounds(out$n_percapita_kg, "n_percapita_kg", lower = 0)
+  out
 }
 
 # Toy fixture for a runnable example: two countries' per-capita reactive N,
@@ -166,14 +188,17 @@ build_n_percapita <- function(
     ~area_code,
     ~n_percapita_kg,
     ~framing,
+    ~method_population,
     2000L,
     10L,
     8.5,
     "synthetic_bnf",
+    "supplied",
     2000L,
     20L,
     22,
-    "synthetic_bnf"
+    "synthetic_bnf",
+    "supplied"
   ) |>
     .add_reporting_polity_columns()
 }

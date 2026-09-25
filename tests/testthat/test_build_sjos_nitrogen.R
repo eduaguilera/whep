@@ -145,7 +145,48 @@ testthat::test_that("build_sjos_nitrogen(example = TRUE) returns every table", {
     )
   )
   testthat::expect_named(out$boundary_surplus, c("grid", "country"))
-  testthat::expect_named(out$footprint, c("fp_all", "fp_food"))
+  testthat::expect_named(
+    out$footprint,
+    c("fp_all", "fp_food", "target_class_diag")
+  )
+})
+
+testthat::test_that("the footprint carries the consumer's nourishment class", {
+  out <- whep::build_sjos_nitrogen(example = TRUE)
+  expected <- out$nourishment |>
+    dplyr::select("year", target_area = "area_code", expected = "nourish")
+  for (tbl in c("fp_all", "fp_food")) {
+    fp <- out$footprint[[tbl]]
+    checked <- dplyr::left_join(fp, expected, by = c("year", "target_area"))
+    testthat::expect_equal(nrow(checked), nrow(fp))
+    testthat::expect_identical(checked$target_nourish, checked$expected)
+    testthat::expect_false(anyNA(fp$target_nourish))
+  }
+  testthat::expect_equal(
+    sum(out$footprint$target_class_diag$n_flows_unclassified),
+    0L
+  )
+  # The driver joins no consumer boundary class: that is decided per
+  # country-year after aggregation, by the caller.
+  testthat::expect_false(
+    rlang::has_name(out$footprint$fp_all, "target_boundary_side")
+  )
+})
+
+testthat::test_that("the consumer join leaves the producer columns unchanged", {
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  data <- .sjos_nitrogen_test_data()
+  producer_only <- whep::build_sjos_n_footprint(
+    exceedance = out$boundary_surplus$country,
+    category = "exceedance",
+    data = list(fp_flows = data$fp_flows, origin_classes = out$sjos_class)
+  )
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_identical(
+      dplyr::select(out$footprint[[tbl]], -"target_nourish"),
+      producer_only[[tbl]]
+    )
+  }
 })
 
 testthat::test_that("every SJOS-N output table is non-empty", {
@@ -351,5 +392,67 @@ testthat::test_that("band options passed with the flat pair are reported", {
       nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
     ),
     "does nothing"
+  )
+})
+
+testthat::test_that("population defaults to read_population() (#484)", {
+  # The nourishment axis and the per-capita scatter both divide by population.
+  # Leaving it out of `data` must read it, over every year either axis covers,
+  # and give exactly what injecting the same table gives.
+  data <- .sjos_nitrogen_test_data()
+  injected_pop <- data$population
+  data$population <- NULL
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    read_population = function(years = NULL, ...) {
+      seen <<- years
+      injected_pop
+    },
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the injected path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the injected path")
+    }
+  )
+  defaulted <- whep::build_sjos_nitrogen(data = data)
+  injected <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  testthat::expect_equal(seen, 2010L)
+  for (tbl in c("nourishment", "scatter")) {
+    testthat::expect_equal(
+      dplyr::select(defaulted[[tbl]], -"method_population"),
+      dplyr::select(injected[[tbl]], -"method_population")
+    )
+    testthat::expect_true(all(
+      defaulted[[tbl]]$method_population == "read_population"
+    ))
+    testthat::expect_true(all(injected[[tbl]]$method_population == "supplied"))
+  }
+})
+
+testthat::test_that("an injected population never reaches read_population()", {
+  testthat::local_mocked_bindings(
+    read_population = function(...) {
+      testthat::fail("read_population() reached with population injected")
+    },
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the injected path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the injected path")
+    }
+  )
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  testthat::expect_gt(nrow(out$scatter), 0)
+})
+
+testthat::test_that("critical_loads is never read as critical (#1214)", {
+  # R's `$` partially matches list names: without a `critical` entry,
+  # `data$critical` returned the pathway-mode `critical_loads` table.
+  data <- whep:::.sjos_n_example_data()
+  data$critical <- NULL
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data),
+    "boundary surface are required"
   )
 })

@@ -119,7 +119,7 @@ build_protein_quality <- function(
     c("year", "area_code", "item_cbs_code", "protein_t"),
     "data$protein_supply"
   )
-  classes <- data$protein_digestibility %||%
+  classes <- data[["protein_digestibility"]] %||%
     whep::whep_coef_table("protein_digestibility")
   .check_columns(
     classes,

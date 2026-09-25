@@ -63,6 +63,15 @@ build_footprint <- function(
 ) {
   method <- rlang::arg_match(method)
   .check_extension_table(extension, value_col)
+  check_inputs_supplied(
+    extension,
+    stats::setNames(value_col, "extension magnitude"),
+    details = c(
+      i = "Every sector would be charged zero, and
+           {.fn assert_footprint_invariants} would report the result as
+           conserved, because zero satisfies a conservation identity."
+    )
+  )
   if (is.null(io)) {
     if (is.null(years)) {
       years <- sort(unique(extension$year))
@@ -71,14 +80,21 @@ build_footprint <- function(
   }
   .check_io_model(io)
 
+  aligned <- purrr::map2(
+    io$labels,
+    io$year,
+    \(labels, yr) align_extension(extension, labels, yr, value_col)
+  )
+  .check_extension_reach(aligned, io$year)
+
   purrr::pmap(
-    list(io$year, io$Z, io$X, io$Y, io$labels, io$fd_labels),
-    function(yr, z_mat, x_vec, y_mat, labels, fd_labels) {
+    list(io$year, io$Z, io$X, io$Y, io$labels, io$fd_labels, aligned),
+    function(yr, z_mat, x_vec, y_mat, labels, fd_labels, ext_vec) {
       compute_footprint(
         z_mat = z_mat,
         x_vec = x_vec,
         y_mat = y_mat,
-        extensions = align_extension(extension, labels, yr, value_col),
+        extensions = ext_vec,
         labels = labels,
         fd_labels = fd_labels,
         ...
@@ -87,6 +103,58 @@ build_footprint <- function(
     }
   ) |>
     dplyr::bind_rows()
+}
+
+# Issue whep#1034: `align_extension()` zero-fills every sector that an
+# extension does not reach, which is right, since a land extension does not
+# charge a livestock sector.
+# What it cannot distinguish is an extension that reaches NOTHING, because its
+# keys were built on a vocabulary the IO model does not share, or because its
+# own upstream label vanished. That state is invisible downstream by
+# construction: the footprint is a zero vector, and
+# `assert_footprint_invariants()` reports every origin "ok" and `rel_loss = 0`,
+# because zero is conserved exactly.
+#
+# Reaching nothing in EVERY year is not an answer and aborts. Reaching nothing
+# in some years is ordinary -- an extension's span is routinely shorter than the
+# model's -- so that warns and names the years, rather than stopping a
+# multi-decade run over its first decade.
+.check_extension_reach <- function(aligned, years) {
+  empty <- years[purrr::map_lgl(aligned, \(v) !any(v != 0, na.rm = TRUE))]
+  if (length(empty) == 0L) {
+    return(invisible(aligned))
+  }
+  reach <- c(
+    x = "An extension that matches no sector is a zero footprint, and a zero
+         footprint passes every conservation check there is."
+  )
+  if (length(empty) == length(years)) {
+    cli::cli_abort(
+      c(
+        "The extension reaches no sector of the input-output model in any of
+         its {length(years)} year{?s}.",
+        reach,
+        i = "Check that {.field area_code} and {.field item_cbs_code} are on
+             the same vocabulary as {.fn build_io_model}'s labels, and that the
+             extension's own inputs arrived."
+      ),
+      class = "whep_absent_input",
+      absent = "extension reach"
+    )
+  }
+  shown <- utils::head(sort(empty), 6L)
+  cli::cli_warn(
+    c(
+      "The extension reaches no sector in {length(empty)} of
+       {length(years)} {cli::qty(length(empty))}year{?s}, including
+       {.val {shown}}.",
+      reach,
+      i = "Expected where the extension's span is shorter than the model's."
+    ),
+    class = "whep_absent_input",
+    absent = as.character(empty)
+  )
+  invisible(aligned)
 }
 
 #' Align an extension table to input-output sector labels.

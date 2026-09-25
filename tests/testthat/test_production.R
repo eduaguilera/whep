@@ -39,18 +39,15 @@ testthat::test_that(".warn_residues_no_area names rows that resolved to no area"
   # `get_primary_residues()` is the only builder that resolves its areas by NAME,
   # through `add_area_code()`, and it left `area_code` as NA wherever no name
   # matched. Those rows travelled to the output with NA polity columns and on into
-  # `build_supply_use()` in complete silence. Measured on the current pin: 44,985
-  # of 475,688 rows (9.5%) over 14 labels and years 1961-2021, which is 3,937 rows
-  # of the builder's own aggregated output.
+  # `build_supply_use()` in complete silence (whep#684).
   #
-  # Every one of the 14 is a short form of an area the crosswalk holds under a
-  # FAOSTAT long form -- "Tanzania" against "United Republic of Tanzania" -- so the
-  # codes are reachable and the spellings are not. Repairing that join is a
-  # separate change; this is the diagnostic that says the gap is there.
+  # `.residue_area_from_polity()` now recovers the 14 short-form labels that were
+  # nearly all of that gap; this diagnostic stays for whatever neither route
+  # resolves, so the label used here is one no route holds.
   dt <- tibble::tribble(
     ~year, ~area, ~area_code,
-    1961L, "Tanzania", NA_integer_,
-    1962L, "Tanzania", NA_integer_,
+    1961L, "Nowhereland", NA_integer_,
+    1962L, "Nowhereland", NA_integer_,
     1961L, "Spain", 203L
   )
 
@@ -88,16 +85,19 @@ testthat::test_that("get_primary_production(example = TRUE) needs no remote", {
 })
 
 # The `crop_residues` pin, in the mixed-case schema the builder lowercases.
-# "Tanzania" is deliberately a label the polity crosswalk does not hold, which
-# is how the unresolved-area branch is reached.
+# "Nowhereland" is deliberately a label NEITHER route holds -- no canonical area
+# name and no polity alias -- which is how the unresolved-area branch is reached.
+# "Tanzania" is the opposite case and the one the pin really carries: no
+# canonical area name, but a polity alias, so it exercises the recovery route.
 residues_pin_fixture <- function() {
   tibble::tribble(
-    ~Area,      ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
-    "Spain",    "Residue",        "Straw",               100,
-    "Spain",    "Residue",        "Straw",               50,
-    "Spain",    "Product",        "Straw",               999,
-    "Spain",    "Residue",        "Other crop residues", 0,
-    "Tanzania", "Residue",        "Straw",               7
+    ~Area,         ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
+    "Spain",       "Residue",        "Straw",               100,
+    "Spain",       "Residue",        "Straw",               50,
+    "Spain",       "Product",        "Straw",               999,
+    "Spain",       "Residue",        "Other crop residues", 0,
+    "Tanzania",    "Residue",        "Straw",               11,
+    "Nowhereland", "Residue",        "Straw",               7
   ) |>
     dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
 }
@@ -108,8 +108,8 @@ testthat::test_that("get_primary_residues aggregates residues on codes", {
   })
 
   testthat::expect_warning(
-    out <- whep::get_primary_residues(),
-    "crop-residue"
+    out <- suppressMessages(whep::get_primary_residues()),
+    "resolved to no area"
   )
 
   spain <- out |> dplyr::filter(area_code == 203L)
@@ -151,14 +151,75 @@ testthat::test_that("get_primary_residues keeps unresolved areas visible", {
     residues_pin_fixture()
   })
 
-  out <- suppressWarnings(whep::get_primary_residues())
+  out <- suppressMessages(suppressWarnings(whep::get_primary_residues()))
 
   # The row whose area label did not resolve is reported, not dropped, so the
   # gap stays visible downstream instead of silently shrinking the totals.
   unresolved <- out |> dplyr::filter(is.na(area_code))
   testthat::expect_equal(unresolved$value, 7)
   testthat::expect_true(is.na(unresolved$reporting_polity_code))
-  testthat::expect_equal(sum(out$value), 157)
+  testthat::expect_equal(sum(out$value), 168)
+})
+
+testthat::test_that("get_primary_residues resolves a short-form area label", {
+  # whep#1175, whep#684. The pin spells 14 of its 185 labels short, "Tanzania"
+  # where the crosswalk holds "United Republic of Tanzania", and `add_area_code`
+  # matches the canonical name exactly, so those 44,985 rows carried no area code
+  # at all: 16.65 Gt, 5.08 percent of the pin's residue dry matter. Downstream
+  # that is not a gap but a wrong answer, because the row reaches no polity and
+  # no region label, its recovery rate is read as zero, and the whole residue is
+  # booked to soil.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residues_pin_fixture()
+  })
+
+  out <- suppressMessages(suppressWarnings(whep::get_primary_residues()))
+
+  tanzania <- out |> dplyr::filter(area_code == 215L)
+  testthat::expect_equal(nrow(tanzania), 1)
+  testthat::expect_equal(tanzania$value, 11)
+  testthat::expect_equal(tanzania$reporting_polity_code, "TZA-1964-2025")
+})
+
+testthat::test_that(".residue_area_from_polity keeps the label's own year", {
+  # A label's referent moves, so the polity route is asked per (label, year).
+  # "Tanzania" is TZA-1964-2025 from 1964 on and the pre-union TZA-1961-1964
+  # before it, which no FAOSTAT area reports: booking 1961 to the United
+  # Republic would be a wrong answer dressed as a fix, so it stays NA.
+  dt <- tibble::tribble(
+    ~year, ~area, ~area_code,
+    1961L, "Tanzania", NA_integer_,
+    2000L, "Tanzania", NA_integer_,
+    2000L, "Nowhereland", NA_integer_,
+    2000L, "Spain", 203L
+  )
+
+  out <- suppressMessages(.residue_area_from_polity(dt))
+
+  testthat::expect_equal(out$area_code, c(NA_integer_, 215L, NA_integer_, 203L))
+  testthat::expect_identical(names(out), names(dt))
+})
+
+testthat::test_that(".residue_area_from_polity leaves a resolved table alone", {
+  dt <- tibble::tribble(
+    ~year, ~area, ~area_code,
+    2000L, "Spain", 203L
+  )
+
+  testthat::expect_identical(.residue_area_from_polity(dt), dt)
+})
+
+testthat::test_that(".unique_polity_area refuses a polity many areas share", {
+  # The Rest-of-World bucket ROW-1850-2025 is carried by 15 area codes, so it
+  # names no single area and must not resolve to whichever one came first.
+  map <- .unique_polity_area()
+
+  testthat::expect_false("ROW-1850-2025" %in% map$polity_code)
+  testthat::expect_equal(
+    map$area_code_from_polity[map$polity_code == "TZA-1964-2025"],
+    215L
+  )
+  testthat::expect_equal(anyDuplicated(map$polity_code), 0L)
 })
 
 testthat::test_that("get_primary_residues(example = TRUE) needs no remote", {

@@ -13,6 +13,7 @@
 #'   `diet_quality`, and production columns.
 #' @param tier Integer 1 or 2. If `NULL` (default), auto-selects
 #'   based on data completeness.
+#' @inheritParams manure_engine_options
 #'
 #' @return Dataframe with all emission columns, method tracking,
 #'   and original data columns preserved.
@@ -31,13 +32,14 @@
 #'   dplyr::select(species, cohort, heads,
 #'     enteric_ch4_tier2, manure_ch4_tier2,
 #'     manure_n2o_total)
-calculate_livestock_emissions <- function(data, tier = NULL) {
+calculate_livestock_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
 
   if (tier == 2) {
-    .run_tier2(data)
+    .run_tier2(data, options)
   } else {
-    .run_tier1(data)
+    .run_tier1(data, options)
   }
 }
 
@@ -71,6 +73,7 @@ calculate_livestock_emissions <- function(data, tier = NULL) {
 #'   calculate_enteric_ch4(tier = 1)
 calculate_enteric_ch4 <- function(data, tier = NULL) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data |>
       estimate_energy_demand() |>
@@ -92,9 +95,13 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'   select regional emission factors.
 #' @param tier Integer 1 or 2. If `NULL` (default),
 #'   auto-selects based on data completeness.
+#' @inheritParams manure_engine_options
 #'
 #' @return Dataframe with all input columns preserved, plus:
 #'   - `method_manure_ch4`: tracking label.
+#'   - `method_mms`: which half of [regional_mms_distribution] was read and
+#'     how it was keyed, `"<shares>/<keying>"` (e.g.
+#'     `"gleam_2_0/region_specific"`).
 #'   - Tier 1: `manure_ef_kgch4`, `manure_ch4_tier1`.
 #'   - Tier 2: `volatile_solids`, `methane_potential`,
 #'     `weighted_mcf`, `manure_ch4_per_head`,
@@ -110,17 +117,18 @@ calculate_enteric_ch4 <- function(data, tier = NULL) {
 #'   species = "Cattle", heads = 1000, iso3 = "DEU"
 #' ) |>
 #'   calculate_manure_emissions(tier = 1)
-calculate_manure_emissions <- function(data, tier = NULL) {
+calculate_manure_emissions <- function(data, tier = NULL, options = list()) {
   tier <- .resolve_tier(data, tier)
+  data <- .as_livestock_tibble(data)
   if (tier == 2) {
     data <- data |>
       estimate_energy_demand() |>
-      .calc_manure_ch4_tier2() |>
-      .calc_manure_n2o()
+      .calc_manure_ch4_tier2(options) |>
+      .calc_manure_n2o(options)
   } else {
     data <- data |>
       .calc_manure_ch4_tier1() |>
-      .calc_manure_n2o_tier1()
+      .calc_manure_n2o_tier1(options)
   }
   data
 }
@@ -146,19 +154,19 @@ calculate_manure_emissions <- function(data, tier = NULL) {
 
 #' Run full Tier 2 pipeline.
 #' @noRd
-.run_tier2 <- function(data) {
+.run_tier2 <- function(data, options = list()) {
   data |>
     estimate_energy_demand() |>
     .calc_enteric_ch4_tier2() |>
-    .calc_manure_ch4_tier2() |>
-    .calc_manure_n2o()
+    .calc_manure_ch4_tier2(options) |>
+    .calc_manure_n2o(options)
 }
 
 #' Run full Tier 1 pipeline.
 #' @noRd
-.run_tier1 <- function(data) {
+.run_tier1 <- function(data, options = list()) {
   data |>
     .calc_enteric_ch4_tier1() |>
     .calc_manure_ch4_tier1() |>
-    .calc_manure_n2o_tier1()
+    .calc_manure_n2o_tier1(options)
 }

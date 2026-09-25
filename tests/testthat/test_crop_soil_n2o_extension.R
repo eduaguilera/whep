@@ -219,6 +219,44 @@ testthat::test_that("country N totals are re-keyed onto the polity vocabulary", 
   testthat::expect_equal(applied$manure_applied_n_t, 10) # kg N -> tonnes N
 })
 
+# whep#1034. Both pins have already moved a label in a shipped revision, and
+# nothing in this chain could see it: an unmatched filter drops the stream
+# through a bind_rows() and a sum(na.rm = TRUE) in .soil_n2o_co2e().
+
+testthat::test_that("a renamed emissions Element is refused, not dropped", {
+  manure <- tibble::tribble(
+    ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+    "All Animals", "Manure applied to soils", 2015L, 276L, 9000
+  )
+  condition <- tryCatch(
+    whep:::.manure_applied_n_country(manure),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(
+    condition$absent,
+    "Manure applied to soils (N content)"
+  )
+  testthat::expect_identical(condition$observed, "Manure applied to soils")
+})
+
+testthat::test_that("a recased fertiliser Element is refused, not dropped", {
+  fertilizer <- tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural use", "Nutrient nitrogen N (total)", 2015L, 276L, 900
+  )
+  condition <- tryCatch(
+    whep:::.synthetic_n_country(fertilizer),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(condition$absent, "Agricultural Use")
+})
+
+testthat::test_that("a deliberately empty stream carries no vocabulary", {
+  f <- .soil_n2o_fixture()
+  testthat::expect_equal(nrow(f$manure), 0L)
+  testthat::expect_no_error(whep::build_crop_soil_n2o_extension(data = f))
+})
+
 testthat::test_that("post-split Sudan fertiliser reaches its polity's crops", {
   # End-to-end regression for the join the vocabulary mismatch broke. The crop
   # shares are keyed on 206, the FABIO bucket, while FAOSTAT reports 276 and
@@ -290,4 +328,52 @@ testthat::test_that(".n_country_to_polity still folds when the fold is asked for
 
   testthat::expect_setequal(bridged$area_code, 999L)
   testthat::expect_equal(bridged$synthetic_n_t, 7)
+})
+
+# FAOSTAT reporting sources (#1098) --------------------------------------------
+
+.manure_two_source_fixture <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Year, ~Item,         ~Element,                                 ~Source,      ~Value,
+    10L,          2020L, "All Animals", "Manure applied to soils (N content)",    "FAO TIER 1", 1000000,
+    10L,          2020L, "All Animals", "Manure applied to soils (N content)",    "UNFCCC",      900000,
+    20L,          2020L, "All Animals", "Manure applied to soils (N content)",    "FAO TIER 1", 2000000
+  )
+}
+
+testthat::test_that("only FAO TIER 1 manure N is kept when both sources ship", {
+  # The restored pin (#1098) carries a `Source` column the previous one lacked,
+  # and FAOSTAT reports the same country-year under both systems wherever a
+  # country submits an inventory. Summing them counts the same manure twice.
+  result <- whep:::.manure_applied_n_country(.manure_two_source_fixture())
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(
+    sort(result$manure_applied_n_t),
+    c(1000, 2000)
+  )
+})
+
+testthat::test_that("a pin with no Source column is read unchanged", {
+  # Backwards compatibility with the pre-#1098 pin, which had one row per
+  # area-year and no column to filter on.
+  no_source <- .manure_two_source_fixture() |>
+    dplyr::filter(.data$Source == "FAO TIER 1") |>
+    dplyr::select(-"Source")
+
+  result <- whep:::.manure_applied_n_country(no_source)
+
+  testthat::expect_equal(nrow(result), 2L)
+})
+
+testthat::test_that("a duplicated area-year aborts rather than summing", {
+  # The assertion that does not depend on today's source vocabulary: a third
+  # source, or a renamed one, must not silently re-open the double count.
+  third_source <- .manure_two_source_fixture() |>
+    dplyr::mutate(Source = "FAO TIER 1")
+
+  testthat::expect_error(
+    whep:::.manure_applied_n_country(third_source),
+    "more than once"
+  )
 })

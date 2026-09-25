@@ -370,3 +370,72 @@ testthat::test_that(".join_ym gives sheep a single Ym regardless of weight or di
 
   testthat::expect_equal(result$ym_factor, rep(6.7, 4))
 })
+
+# .join_ym: no silent diet, no bare Ym ----------------------------------------
+
+testthat::test_that(".join_ym declares the diet it assumed", {
+  # Refusing the row excluded an animal whose methane exists. The Medium diet
+  # is the declared assumption -- the same one `estimate_energy_demand()`
+  # already makes for DE% one step upstream -- and it is stamped so a consumer
+  # can filter the assumed rows out.
+  data <- tibble::tibble(
+    species_gen = "Cattle",
+    weight = 600,
+    gross_energy = 250,
+    method_enteric = "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_warning(result <- whep:::.join_ym(data), "diet_quality")
+
+  medium_ym <- ipcc_tier2_ym_values |>
+    dplyr::filter(category == "Cattle", feed_situation == "Medium") |>
+    dplyr::pull(ym_percent)
+  testthat::expect_equal(result$ym_factor, medium_ym)
+  testthat::expect_match(result$method_enteric, "diet_assumed_medium")
+})
+
+testthat::test_that(".join_ym stamps only the rows whose diet was missing", {
+  data <- tibble::tibble(
+    species_gen = c("Cattle", "Cattle"),
+    diet_quality = c("High", NA_character_),
+    gross_energy = c(250, 250),
+    method_enteric = "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_warning(result <- whep:::.join_ym(data), "diet")
+
+  testthat::expect_false(anyNA(result$ym_factor))
+  testthat::expect_equal(
+    grepl("diet_assumed_medium", result$method_enteric),
+    c(FALSE, TRUE)
+  )
+})
+
+testthat::test_that("a species with no Tier 2 Ym gets NA, not the cattle 6.5", {
+  data <- tibble::tibble(
+    species_gen = c("Cattle", "Horses"),
+    diet_quality = "Medium",
+    gross_energy = c(250, 120)
+  )
+
+  testthat::expect_warning(whep:::.join_ym(data), "Ym")
+  result <- suppressWarnings(whep:::.join_ym(data))
+
+  testthat::expect_equal(result$ym_factor[result$species_gen == "Cattle"], 6.5)
+  testthat::expect_true(is.na(result$ym_factor[result$species_gen == "Horses"]))
+})
+
+testthat::test_that("Tier 2 enteric CH4 is NA where Ym is undefined", {
+  result <- tibble::tibble(
+    species = "Horses",
+    cohort = "Adult",
+    heads = 100,
+    weight = 400,
+    diet_quality = "Medium",
+    gross_energy = 120,
+    species_gen = "Horses"
+  ) |>
+    (\(x) suppressWarnings(whep:::.calc_enteric_ch4_tier2(x)))()
+
+  testthat::expect_true(is.na(result$enteric_ch4_tier2))
+})

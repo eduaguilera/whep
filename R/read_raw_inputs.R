@@ -232,18 +232,63 @@
     "Processing" = "processing",
     "Production" = "production"
   )
-  # The 2026-06-15 Commodity Balances (non-food) release added a "Processed"
-  # element (5023) for rubber, wool and silk. It is absent here, so those rows
-  # are filtered out by .extract_fao() before .get_fiber_tobacco() ever sees
-  # them -- even though cbs_trade_codes maps all three onto CBS items. Adding
-  # it would introduce a processing flow those items do not currently carry,
-  # which moves published values; that is #811, not this change.
+  # "Processed" (element 5023, Commodity Balances (non-food) from the
+  # 2026-06-15 release) is deliberately left unmapped, so .extract_fao()
+  # drops it. It is not a final use: it is the quantity passed to the next
+  # link of a CB chain, and it reappears there as `production` -- rubber
+  # 836 -> 837 (ratio ~1.0), silk cocoons 1185 -> raw silk 1186 (~0.14-0.25),
+  # greasy wool 987 -> 988 (~0.6). cbs_trade_codes maps every link of each
+  # chain onto the same CBS item, so the chain's use is already booked by
+  # the last link's `other_uses`. Booking "Processed" as well counts it twice:
+  # on a real 2020 build it adds 12.9 Mt to Rubber `other_uses` (13.5 -> 26.3
+  # Mt) and balances it with a 12.2 Mt stock withdrawal (whep#811).
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
   mapped <- unname(lookup[dt$element])
   dt[, element := data.table::fifelse(is.na(mapped), element, mapped)]
   dt
+}
+
+# FAOSTAT's bulk CSVs label tonnes `t`, and readr's type guesser parses `t`
+# as the logical TRUE (so do `T`, `true` and `True`). A domain whose every row
+# is in tonnes therefore comes out of a plain `readr::read_csv()` with a
+# boolean unit column, and the label is gone: TRUE keeps no trace of the
+# string it was parsed from, so there is nothing to repair at read time, only
+# something to refuse. That is what happened to `faostat-cbs-new`, whose
+# pinned 2026-06-15 release carries TRUE in the `Unit` column of all 127,558
+# rows -- and `.normalise_units()` passed it straight on as the string "TRUE"
+# (whep#1025). Letting one plausible-looking value stand in for a whole
+# source's unit is exactly what makes every unit-keyed guard downstream inert,
+# so abort instead of continuing.
+.assert_unit_labels <- function(unit, pin_alias) {
+  if (is.logical(unit)) {
+    cli::cli_abort(
+      c(
+        "{.val {pin_alias}} has a logical {.field unit} column.",
+        "i" = "A unit read as {.code TRUE}/{.code FALSE} is a type-guess
+               coercion in the pin's producer: readr parses FAOSTAT's tonnes
+               label {.val t} as a logical.",
+        "x" = "The label cannot be recovered from the pin. Re-upload it with
+               explicit character typing; see
+               {.file inst/scripts/prepare_faostat_bulk.R}."
+      ),
+      class = "whep_unit_label_coerced"
+    )
+  }
+  blank <- is.na(unit) | !nzchar(stringr::str_squish(as.character(unit)))
+  n_blank <- sum(blank)
+  if (n_blank > 0L) {
+    cli::cli_abort(
+      c(
+        "{.val {pin_alias}} has {cli::qty(n_blank)}{n_blank} row{?s} with no
+         {.field unit} label.",
+        "i" = "Every row must say what its {.field value} is measured in."
+      ),
+      class = "whep_unit_label_missing"
+    )
+  }
+  invisible(unit)
 }
 
 .normalise_units <- function(dt) {
@@ -415,6 +460,27 @@
   dt
 }
 
+# THE GRAIN THIS FOLD PRODUCES IS A POLITY-PERIOD, NOT A REPORTING AREA ACROSS
+# ALL TIME (whep#1192, decided 2026-09-22). One output row answers for the
+# entity that existed that year, so a territorial handover is a real
+# discontinuity and the series steps at it. The comparable-across-time view is
+# derived by `build_constant_territory_series()`, which reallocates onto a
+# reference year's boundaries and reports `imputed_share`; it is not what this
+# fold emits and not the default any build publishes.
+#
+# The rule binds every reduction downstream, because a `by =` answers it
+# implicitly: 50 area codes carry more than one polity in or after 1961, so
+# grouping on the polity splits those series where grouping on `area_code`
+# does not. `reporting_polity_code` is the identity; `polity_area_code` is an
+# aggregation bucket and is never a statement about who a row is.
+#
+# Verify any change here by row counts and distinct-key counts, never by
+# totals: mass is conserved whichever grain is used, it merely spreads over
+# more rows, so a totals diff reads as success. That is how whep#561/#563
+# shipped a bucket that stopped summing without one value moving. The identity
+# emitted here is dropped again by the output reductions (whep#707) --
+# `carried: 0 rows` in a real build -- which is why downstream code still keys
+# on the bucket.
 .aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
@@ -474,6 +540,95 @@
   if (length(distinct_flags) == 1L) distinct_flags else NA_character_
 }
 
+# `.fold_fao_flag()`'s rule applied per group, without calling it once per
+# group. A group that still has two rows after the distinct-flag dedup is a
+# group whose parts disagree, so dropping those leaves exactly the agreeing
+# groups; a group absent from the result joins back as `NA`, which is the same
+# answer. The equivalence is asserted against the scalar helper in
+# `test_read_raw_inputs.R` rather than only claimed here.
+#
+# It is vectorised because the production build folds flags over millions of
+# groups on the way from the pin to the CBS (whep#1044), and a per-group call
+# to the scalar helper is most of what carrying the flag would cost.
+#
+# `unflagged` says what an `NA` member means. `"ignore"` (the default) skips
+# it, which is right where `NA` only means the source published no flag for
+# that row. `"blocks"` counts it as a flag of its own, so a group mixing a
+# flagged part with an unflagged one folds to `NA`. That is the rule wherever
+# the unflagged part is a number FAOSTAT never published -- a sum over
+# production items or sources, where an `NA` row is WHEP's own estimate and
+# the sum is not an official measurement because one part of it was
+# (whep#1044).
+.fold_fao_flag_by <- function(
+  df,
+  by_cols,
+  flag_col = "fao_flag",
+  unflagged = c("ignore", "blocks")
+) {
+  unflagged <- rlang::arg_match(unflagged)
+  dt <- data.table::as.data.table(df)
+  keep <- c(by_cols, flag_col)
+  rows <- if (unflagged == "ignore") !is.na(dt[[flag_col]]) else TRUE
+  agreed <- unique(dt[rows, keep, with = FALSE], by = keep)
+  agreed[, .n_group_flags := .N, by = by_cols]
+  agreed <- agreed[
+    agreed$.n_group_flags == 1L & !is.na(agreed[[flag_col]]),
+    keep,
+    with = FALSE
+  ]
+  data.table::setnames(agreed, flag_col, "fao_flag_folded")
+  agreed
+}
+
+# `fao_flag` is present at every step of the production chain once
+# `.read_fao_crop_liv()` has renamed FAOSTAT's `Flag`, but
+# `build_primary_production(.raw_data = )` and the unit-test fixtures hand in
+# frames that never saw the pin. One stable shape lets each step assume the
+# column and lets the final select demand it with `all_of()` rather than
+# quietly selecting nothing, which is what hid whep#1044 for as long as it did.
+.ensure_fao_flag <- function(df, flag_col = "fao_flag") {
+  if (flag_col %in% names(df)) {
+    return(df)
+  }
+  if (data.table::is.data.table(df)) {
+    return(data.table::copy(df)[, (flag_col) := NA_character_])
+  }
+  dplyr::mutate(df, "{flag_col}" := NA_character_)
+}
+
+# Attach folded flags from `src` (the rows before an aggregation) onto `out`
+# (the rows after it).
+#
+# An update-join rather than a `merge()`, for the same reason whep#420 pinned
+# the read order: a `merge()` is free to return `out`'s rows in another order,
+# and the production build's row order is its own output -- `.dedup_production()`
+# restores it from `.I`. Adding a provenance column must not move a row, so the
+# flag is written into `out` in place.
+#
+# Always emits the column, all-`NA` when `src` carries no flag at all, so every
+# step of the production chain has one stable shape and the final select can
+# demand the column with `all_of()` instead of quietly selecting nothing
+# (whep#1044).
+.add_folded_fao_flags <- function(
+  out,
+  src,
+  by_cols,
+  flag_cols = "fao_flag",
+  unflagged = "ignore"
+) {
+  dt <- data.table::as.data.table(out)
+  for (col in flag_cols) {
+    dt[, (col) := NA_character_]
+    if (col %in% names(src)) {
+      folded <- .fold_fao_flag_by(src, by_cols, col, unflagged)
+      if (nrow(folded) > 0L) {
+        dt[folded, (col) := i.fao_flag_folded, on = by_cols]
+      }
+    }
+  }
+  dt
+}
+
 .extract_fao <- function(pin_alias, years = NULL) {
   cb_elements <- c(
     "production",
@@ -522,6 +677,8 @@
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
   }
+  # Before anything normalises the label into an ordinary-looking string.
+  .assert_unit_labels(dt$unit, pin_alias)
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
   # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and
@@ -571,7 +728,14 @@
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  # Keyed on the code alone, and the label replaced by the `items_full` one.
+  # The new Food Balances write "Cereals, other", "Vegetables, other" and
+  # "Fruits, other" where `items_full` writes "Other"; a join that also matched
+  # the label dropped every row of those three items, so from 2010 on the CBS
+  # kept their production and lost all of their destinies (whep#961). No pin
+  # carries one code under two labels, so this cannot merge two items.
+  dt[, item_cbs := NULL]
+  out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in
@@ -719,6 +883,62 @@
 
 # -- CBS testing helpers -------------------------------------------------------
 
+# Relative tolerance for "the supply side agrees with `domestic_supply`".
+#
+# `.reestimate_domestic_supply()` sets `stock_variation` to
+# `production + import - export - domestic_supply`, so the residue
+# `production + import - export - stock_variation - domestic_supply` is zero
+# in exact arithmetic on every row it touched. In binary floating point it is
+# not, and the residue is pure rounding noise proportional to the magnitude of
+# the terms, bounded by `n * eps * sum(|terms|)` with `n = 5` and
+# `eps = 2^-53`, i.e. `5.6e-16` relative.
+#
+# Measured on real `build_commodity_balances()` runs at 2010-2019 and
+# 1990-2009 (1,115,458 wide-row passes through this function): the residue is
+# exactly 0 on 99.0% of rows and never exceeds `2.1e-16` of the row's own
+# supply magnitude on the rest -- inside the bound above, and one part per
+# billion is 2e6 times that ceiling. The nearest residue that is NOT rounding
+# noise, across both runs, is `4.8e-3` relative (Mauritania Molasses 2017, a
+# 0.47 g row), so the two populations are six orders of magnitude apart and
+# the threshold sits in the middle of the gap rather than on either edge.
+#
+# An absolute tolerance was the alternative -- `5e-5 t`, the effective
+# tolerance of the neighbouring `round(balance, 4) == 0` test. It classifies
+# those runs identically, but it does not scale: at the largest supply term
+# measured (1.79e9 t) the noise bound is already `1e-6 t`, only 50x below it,
+# so an absolute threshold degrades as the data grow while a relative one does
+# not.
+.cbs_supply_agreement_tol <- function() {
+  1e-9
+}
+
+# Whether a row's supply side reconstructs `domestic_supply` to within
+# rounding noise. Compare the residue directly against the scale of its own
+# terms: taking it as `ds_destinies - balance` instead subtracts two
+# independently accumulated sums, and `round(., 4)` on each does not tolerate
+# the difference -- it relocates the knife edge onto a 1e-4 grid, where two
+# values a few ulps apart still land on different multiples whenever they
+# straddle a midpoint (whep#1111).
+.supply_sides_agree <- function(
+  production,
+  import,
+  export,
+  stock_variation,
+  domestic_supply
+) {
+  residue <- production +
+    import -
+    export -
+    stock_variation -
+    domestic_supply
+  scale <- abs(production) +
+    abs(import) +
+    abs(export) +
+    abs(stock_variation) +
+    abs(domestic_supply)
+  abs(residue) <= .cbs_supply_agreement_tol() * scale
+}
+
 .test_cbs <- function(df) {
   items_prod <- data.table::as.data.table(whep::items_prod_full)
   prim_double <- data.table::as.data.table(whep::primary_double)
@@ -781,6 +1001,15 @@
       4
     )
   )]
+  dt[,
+    supply_agrees := .supply_sides_agree(
+      production,
+      import,
+      export,
+      stock_variation,
+      domestic_supply
+    )
+  ]
 
   # Join with prim_double to get Multi_type
   pd_sub <- prim_double[is.na(Item_area)]
@@ -806,7 +1035,7 @@
       multi_type != "Single",
       "none",
       data.table::fifelse(
-        ds_destinies == balance,
+        supply_agrees,
         "default_prone",
         "none"
       )
@@ -815,10 +1044,11 @@
   dt[,
     check := data.table::fifelse(
       multi_type != "Single",
-      ds_destinies == balance,
+      supply_agrees,
       balance == 0
     )
   ]
+  dt[, supply_agrees := NULL]
   dt[, Multi_type := NULL]
   dt
 }

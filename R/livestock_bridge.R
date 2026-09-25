@@ -39,6 +39,7 @@ prepare_livestock_emissions <- function(
   system_shares = NULL
 ) {
   .validate_production_input(data)
+  data <- .as_livestock_tibble(data)
 
   animals <- animals_codes
   excluded <- .excluded_livestock_codes()
@@ -95,6 +96,33 @@ prepare_livestock_emissions <- function(
 }
 
 # Private helpers ----
+
+#' Take an exported livestock entry point's input onto the package's tibble
+#' contract.
+#'
+#' `get_primary_production(years = ...)` returns a `data.table` --
+#' `.filter_years()` converts -- and dplyr carries that class through every
+#' verb, so the emission engines used to receive one. Two of them abort on it,
+#' and on the class alone rather than on the data:
+#' `.ensure_production_cols()` adds its optional columns with
+#' `data[missing] <- NA_real_`, which `[<-.data.table` refuses, and
+#' `ensure_columns()` requires a tibble by contract. Converting once, at each
+#' exported boundary, is what CLAUDE.md asks for -- `data.table` stays an
+#' internal detail of private helpers (whep#1136).
+#'
+#' `as.data.frame()` first, and the attribute dropped afterwards, because
+#' `as_tibble()` on a `data.table` carries its `.internal.selfref` pointer out
+#' as an attribute; a frame that still has one compares unequal to a plain
+#' tibble and can trigger data.table's shallow-copy warning downstream.
+#' @noRd
+.as_livestock_tibble <- function(data) {
+  if (tibble::is_tibble(data) && is.null(attr(data, ".internal.selfref"))) {
+    return(data)
+  }
+  out <- tibble::as_tibble(as.data.frame(data))
+  attr(out, ".internal.selfref") <- NULL
+  out
+}
 
 #' @noRd
 .validate_production_input <- function(data) {

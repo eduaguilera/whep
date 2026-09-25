@@ -324,6 +324,34 @@ read_luh2_terrestrial <- function(vintage = c("GCB2022", "v2h"), dir = NULL) {
 #' parquet named by `Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH")` so a development
 #' build can be used before it is published.
 #'
+#' @section Refusing a zero-filled support:
+#' `water` and `ice` are optional arguments of [build_polycell_support()] and
+#' zero-fill when absent, so a support can be published with every lake, river
+#' and glacier inside a polity booked as land. Nothing in the table's own
+#' arithmetic can see that: the identity
+#' `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` holds to
+#' `max |residual| = 0 ha` either way, because zero satisfies it. It has
+#' happened twice -- `20260818T105426Z-a0330` (whep#885) and
+#' `20260827T190201Z-f82a2` (whep#1010) -- and on the second, 2015 land was
+#' 534.9 Mha (+4.1%) too high across 94.3% of the `(cell, area_code)` groups
+#' the gridded carbon path reads.
+#'
+#' So this reader checks, and **aborts** rather than warning. Both times the
+#' defect reached a pin there was a warning to see: whep#885 added
+#' `cli_warn()` to the producer's zero-fill branch, and
+#' `verify_polycell_support.R` prints one when the layer's environment variable
+#' is unset. A warning inside a build that runs for hours is not a gate. Every
+#' consumer of this table divides a nutrient or carbon mass by land area, so a
+#' 4% error in the denominator is not a caveat to carry forward.
+#'
+#' What is checked is whether the layers were **supplied**, never whether the
+#' totals reconcile. A table built since whep#1010 carries `layers_supplied`,
+#' and the check is an equality on that label. On one published before it, the
+#' fallback is that neither `inland_water_ha` nor `ice_area_ha` is identically
+#' zero -- scale-free, so it holds on a single-country development build as
+#' well as on the global pin, and a global zero is not a plausible measurement
+#' of either quantity.
+#'
 #' A support table may carry a second, **non-partitioning** layer: the
 #' aggregate polities of [build_polycell_support()]`(aggregates =
 #' "overlap_layer")`, whose polygons cover their members' and therefore claim
@@ -335,6 +363,11 @@ read_luh2_terrestrial <- function(vintage = c("GCB2022", "v2h"), dir = NULL) {
 #'   variable and the pin.
 #' @param version Pin version, passed to [whep_read_file()]. `NULL` takes the
 #'   version frozen in [whep_inputs].
+#' @param require_layers Whether to refuse a support built without its inland
+#'   water and ice layers. `TRUE` (default) aborts with class
+#'   `whep_polycell_absent_layers`; see *Refusing a zero-filled support*.
+#'   `FALSE` returns the table anyway, for a caller that needs the territory
+#'   and not the land/water/ice split and says so.
 #' @param role Which layer to return. `"partition"` (default) is the rows that
 #'   partition each cell -- every row of a table built with the default
 #'   `aggregates = "exclude"`, and every row of any table published before
@@ -356,6 +389,7 @@ read_luh2_terrestrial <- function(vintage = c("GCB2022", "v2h"), dir = NULL) {
 read_polycell_support <- function(
   path = NULL,
   version = NULL,
+  require_layers = TRUE,
   role = c("partition", "overlap", "all")
 ) {
   role <- rlang::arg_match(role)
@@ -365,6 +399,7 @@ read_polycell_support <- function(
       cli::cli_abort("Polycell support table not found at {.file {path}}.")
     }
     support <- tibble::as_tibble(nanoparquet::read_parquet(path))
+    .check_polycell_layers(support, require_layers, path)
     return(.polycell_support_role(support, role))
   }
   support <- tryCatch(
@@ -383,7 +418,104 @@ read_polycell_support <- function(
     }
   )
   .warn_polycell_vintage(support)
+  .check_polycell_layers(support, require_layers, .polycell_pin_source(version))
   .polycell_support_role(support, role)
+}
+
+# The guard whep#885 asked for and whep#1010 had to ask for again. It ABORTS,
+# and it asserts the layers were SUPPLIED rather than that the totals
+# reconcile -- the two properties that distinguish it from everything that
+# already failed to catch this.
+#
+# Why not reconciliation: `polity_area_ha == land_area_ha + inland_water_ha +
+# ice_area_ha` holds to max |residual| = 0.000000 ha on BOTH the sound pin
+# `20260825T102349Z-1a0eb` and the zero-filled `20260827T190201Z-f82a2`,
+# because zero satisfies it. Any further cross-column check would pass just as
+# happily. Reconciliation cannot see a missing input, by construction.
+#
+# Why not a warning: there were two already. whep#885 put `cli_warn()` on the
+# producer's zero-fill branch (`.pcs_warn_layer_absent()`), and
+# `verify_polycell_support.R` alerts when a layer's environment variable is
+# unset. The pin published two days later had neither layer. A warning in a
+# build that runs for hours does not gate anything.
+#
+# Why not a magnitude floor here: this reader also serves
+# `WHEP_POLYCELL_SUPPORT_PATH`, which is how a development or single-country
+# build is used before it is published, and a global floor of 1,000 Mha of
+# water would refuse every one of those. What actually distinguishes the defect
+# is that the columns are IDENTICALLY zero, and that is scale-free. The
+# whole-table floors belong to the publication gate, where the run really is
+# global, and `verify_polycell_support.R` carries them.
+.check_polycell_layers <- function(support, require_layers, origin) {
+  if (!isTRUE(require_layers)) {
+    return(invisible(support))
+  }
+  absent <- .polycell_missing_layers(support)
+  if (length(absent) == 0L) {
+    return(invisible(support))
+  }
+  cli::cli_abort(
+    c(
+      "This polycell support was built without the {.field {absent}}
+       layer{?s}.",
+      x = "Every lake, river and glacier inside a polity is booked as
+           {.field land_area_ha}, so the land this table reports is too high
+           and every density divided by it is too low -- on the pin whep#1010
+           found, by 534.9 Mha (+4.1%) at 2015.",
+      i = "Source: {.val {origin}}.",
+      i = "Regenerate with {.code build_polycell_support(water =
+           read_glwd_water(), ice = read_glaciated_areas())}, publish it, and
+           freeze the version in {.file inst/extdata/whep_inputs.csv}; or pass
+           {.code require_layers = FALSE} if this caller needs the territory
+           and not the land/water/ice split."
+    ),
+    class = "whep_polycell_absent_layers"
+  )
+}
+
+# The stamp when the table carries one, the columns when it does not.
+#
+# `layers_supplied` is a LABEL and cannot be satisfied by arithmetic, so it is
+# preferred wherever it exists. A table published before whep#1010 has no such
+# column, and the fallback for those is the one property a zero-fill has and a
+# real layer does not: the column is zero in EVERY row. A support with no
+# `inland_water_ha` column at all is not a support this check can speak about
+# and is left to the consumers that name the column.
+.polycell_missing_layers <- function(support) {
+  stamp <- support[["layers_supplied"]]
+  if (!is.null(stamp)) {
+    named <- unlist(stringr::str_split(unique(stats::na.omit(stamp)), ","))
+    return(setdiff(c("inland water", "ice"), .polycell_layer_labels(named)))
+  }
+  c(
+    if (.polycell_all_zero(support, "inland_water_ha")) "inland water",
+    if (.polycell_all_zero(support, "ice_area_ha")) "ice"
+  )
+}
+
+.polycell_layer_labels <- function(named) {
+  c("water" = "inland water", "ice" = "ice")[
+    intersect(named, c("water", "ice"))
+  ]
+}
+
+# Zero rows is not a zero-filled layer: it is a filter that matched nothing,
+# and the caller that wrote the filter is the one to answer for it.
+.polycell_all_zero <- function(support, column) {
+  values <- support[[column]]
+  !is.null(values) && length(values) > 0L && !any(values > 0, na.rm = TRUE)
+}
+
+# What the abort names as the thing to replace. The pinned version is the
+# actionable identifier -- it is what `whep_inputs.csv` holds and what a bug
+# report has to quote -- so it is resolved rather than described.
+.polycell_pin_source <- function(version) {
+  frozen <- tryCatch(
+    whep::whep_inputs$version[whep::whep_inputs$alias == "polycell_support"],
+    error = function(e) character()
+  )
+  named <- c(version, frozen)
+  if (length(named) == 0L) "the polycell_support pin" else named[[1]]
 }
 
 # The pin is a BUILD ARTEFACT of `whep::polities`, and merge order cannot keep

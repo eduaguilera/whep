@@ -29,8 +29,13 @@
 #'     type-aware allocation.
 #'   - `aggregate_to_cft` (logical, default `TRUE`): write a
 #'     CFT-aggregated parquet alongside the crop-level output.
-#'   - `max_iterations`, `expansion_threshold`: forwarded to the
-#'     landuse engine.
+#'   - `max_iterations`: forwarded to the landuse engine.
+#'   - `expansion_threshold`: defunct, dropped with a warning; it never
+#'     changed the allocation (whep#1001). See [build_gridded_landuse()].
+#'   - `pattern_signal_floor`: forwarded to the landuse engine as
+#'     `config$pattern_signal_floor`; the `harvest_fraction` below which a
+#'     `crop_patterns` cell is float underflow rather than an allocated
+#'     area. `0` restores the untoleranced behaviour of whep#1070.
 #'   - `cft_target`: one of `"whep"` (default for
 #'     `preset = "whep"`) or `"lpjml"` (default for
 #'     `preset = "lpjml"`). Selects which column of
@@ -167,6 +172,7 @@ run_spatialize <- function(
 ) {
   preset <- match.arg(preset)
   components <- .validate_components(components)
+  overrides <- .drop_defunct_config_keys(overrides, "overrides")
   .validate_overrides(overrides)
   .validate_paths(paths)
   cft_target <- .resolve_cft_target(overrides$cft_target, preset)
@@ -270,8 +276,8 @@ run_spatialize <- function(
       multicropping = lu_inputs$multicropping,
       years = resolved_years,
       max_iterations = config$max_iterations,
-      expansion_threshold = config$expansion_threshold,
-      area_key = config$area_key
+      area_key = config$area_key,
+      pattern_signal_floor = config$pattern_signal_floor
     )
   )
   list(
@@ -329,17 +335,17 @@ run_spatialize <- function(
       use_type_constraint = FALSE,
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
-      expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     ),
     whep = list(
       use_type_constraint = TRUE,
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
-      expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     )
   )
 }
@@ -349,10 +355,10 @@ run_spatialize <- function(
     "use_type_constraint",
     "aggregate_to_cft",
     "max_iterations",
-    "expansion_threshold",
     "cft_target",
     "area_key",
-    "country_grid"
+    "country_grid",
+    "pattern_signal_floor"
   )
 }
 

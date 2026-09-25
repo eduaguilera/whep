@@ -24,7 +24,17 @@ left out take their default. \code{"cft_native"} warns when the per-CFT cubes
 report consumptive blue water on a \emph{rainfed} band, which no irrigation can
 supply: that is the signature of an LPJmL 6.x run without the green/blue
 fix, whose split is unusable (the numbers are still returned, so the
-warning changes nothing; \code{"irrig_share"} does not read those cubes).}
+warning changes nothing; \code{"irrig_share"} does not read those cubes).
+
+\code{partial_year} is the one member that is a policy rather than a method:
+what to do when a cell-year does not carry all twelve months, so that
+summing it to an annual flux would return a total over eleven. \code{"abort"}
+(default) refuses, naming the absent cell-months; \code{"warn"} returns the
+short sums; \code{"drop"} excludes the incomplete cell-years, so the year is
+absent rather than wrong. It is stamped into \code{method_water} as
+\verb{partial:<choice>} only when it is not the default, because \code{"abort"} and
+\code{"warn"} return byte-identical numbers and only \code{"drop"} removes rows a
+reader could not otherwise account for.}
 
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}
@@ -54,7 +64,17 @@ and a \code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \c
 except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.
 Read the latter with
 \code{read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)}, which
-names their CFT bands so \code{bands} can select among them.}
+names their CFT bands so \code{bands} can select among them.
+
+Supplying any per-CFT cube also requires \code{stand_frac} (\code{lon}, \code{lat},
+\code{year}, \code{band_name} or \code{band}, \code{value}), the per-CFT stand area
+fractions, read by default with
+\code{read_lpjml_hydrology("stand_frac", monthly = FALSE)}. Every per-CFT cube
+is a density per square metre of ITS OWN STAND, so its bands must be
+weighted by these fractions before they are summed to a cell. Without
+them the aggregation aborts rather than returning an unweighted sum,
+which is not a whole-cell total at all: it overstates by
+1 / (managed fraction of the cell).}
 
 \item{bands}{Optional character vector of LPJmL crop-functional-type band
 names restricting which bands the per-CFT consumptive-water and net

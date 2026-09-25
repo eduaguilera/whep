@@ -28,7 +28,7 @@ repair_mojibake <- function(x) {
     return(x)
   }
   # Every corrupt byte pair starts with the Latin-1 reading of a UTF-8 lead
-  # byte, U+00C3 -- escaped rather than literal, as R/scrape_faostat.R does.
+  # byte, U+00C3 -- escaped rather than literal, so this file stays ASCII.
   needs <- !is.na(x) & grepl("\u00c3", x)
   if (!any(needs)) {
     return(x)

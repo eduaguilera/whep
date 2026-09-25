@@ -22,9 +22,27 @@
 #'   national inventory (e.g. a housed dairy herd calibrated to a
 #'   Zootecnicas/NIR Cfi), without changing the global default.
 #' @param method Method for calculation (default `"ipcc2019"`).
+#' @param lactation_method How net energy for lactation (NEl) is derived
+#'   from milk yield. One of:
+#'   - `"milk_composition"` (default): the NRC (2001) milk-energy equation,
+#'     `NEl = Milk * (0.389 * Fat + 0.229 * Protein + 0.165 * Lactose)`
+#'     (MJ/kg: the published Mcal/kg coefficients 0.0929, 0.0547 and 0.0395
+#'     times 4.184), for rows with a positive protein and lactose content.
+#'     Rows without that composition use the `"ipcc2019"` equations.
+#'   - `"ipcc2019"`: IPCC 2019 Refinement Vol 4 Ch 10. Eq 10.8,
+#'     `NEl = Milk * (1.47 + 0.40 * Fat)`, for cattle, buffalo and other
+#'     species; Eq 10.9, `NEl = Milk * EVmilk`, for sheep and goats with the
+#'     default `EVmilk` of 4.6 MJ/kg for sheep (7% fat; AFRC 1993, 1995) and
+#'     3 MJ/kg for goats (3.8% fat; AFRC 1998). The defaults ignore
+#'     `fat_percent`.
+#'
+#'   The equation used for each row is recorded in `method_lactation`
+#'   (`"nrc2001_milk_composition"`, `"ipcc2019_eq10_8"`,
+#'   `"ipcc2019_eq10_9_default_ev"`, or `"none"` when there is no milk).
 #'
 #' @return Dataframe with added `gross_energy` (MJ/day), intermediate
-#'   net energy components, and `method_energy` tracking column.
+#'   net energy components, and `method_energy` and `method_lactation`
+#'   tracking columns.
 #' @export
 #'
 #' @examples
@@ -36,8 +54,14 @@
 #'   estimate_energy_demand() |>
 #'   dplyr::select(species, cohort, heads, ne_maintenance,
 #'     ne_activity, ne_lactation, ne_growth, gross_energy)
-estimate_energy_demand <- function(data, method = "ipcc2019") {
+estimate_energy_demand <- function(
+  data,
+  method = "ipcc2019",
+  lactation_method = c("milk_composition", "ipcc2019")
+) {
+  lactation_method <- rlang::arg_match(lactation_method)
   data <- data |>
+    .as_livestock_tibble() |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
       subcategory = .get_subcategory(species),
@@ -56,7 +80,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- data |>
     .calc_energy_maintenance() |>
     .calc_energy_activity() |>
-    .calc_energy_lactation() |>
+    .calc_energy_lactation(lactation_method) |>
     .calc_energy_wool() |>
     .calc_energy_work() |>
     .calc_energy_pregnancy() |>
@@ -117,28 +141,54 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     )
 }
 
-#' NEl: IPCC Eq 10.8/10.9.
+#' NEl: NRC (2001) milk composition, or IPCC 2019 Eq 10.8/10.9.
+#'
+#' IPCC 2019 Refinement Vol 4 Ch 10: Eq 10.8 (cattle and buffalo) uses the
+#' milk fat content; Eq 10.9 (sheep and goats) multiplies milk by `EVmilk`,
+#' with defaults of 4.6 MJ/kg for sheep (7% fat) and 3 MJ/kg for goats (3.8%
+#' fat). The 2006 Guidelines gave only the sheep value, which goats used to
+#' share here (whep#217). The NRC (2001) composition equation is
+#' `0.0929 Fat + 0.0547 CP + 0.0395 Lactose` in Mcal/kg (Linn, "Energy in the
+#' 2001 Dairy NRC: Understanding the System"), converted to MJ/kg at
+#' 4.184 MJ/Mcal and rounded to three decimals.
 #' @noRd
-.calc_energy_lactation <- function(data) {
+.calc_energy_lactation <- function(data, lactation_method) {
   data |>
     dplyr::mutate(
+      method_lactation = .lactation_equation(
+        milk_yield_kg_day,
+        protein_percent,
+        lactose_percent,
+        species_gen,
+        lactation_method
+      ),
       ne_lactation = dplyr::case_when(
-        is.na(milk_yield_kg_day) |
-          milk_yield_kg_day == 0 ~
-          0,
-        !is.na(protein_percent) &
-          protein_percent > 0 &
-          !is.na(lactose_percent) &
-          lactose_percent > 0 ~
+        method_lactation == "none" ~ 0,
+        method_lactation == "nrc2001_milk_composition" ~
           milk_yield_kg_day *
           (0.389 *
             fat_percent +
             0.229 * protein_percent +
             0.165 * lactose_percent),
-        species_gen %in% c("Sheep", "Goats") ~ milk_yield_kg_day * 4.6,
+        method_lactation == "ipcc2019_eq10_9_default_ev" ~
+          milk_yield_kg_day *
+          dplyr::if_else(species_gen == "Sheep", 4.6, 3.0),
         TRUE ~ milk_yield_kg_day * (1.47 + 0.40 * fat_percent)
       )
     )
+}
+
+#' Pick the NEl equation for each row.
+#' @noRd
+.lactation_equation <- function(milk, protein, lactose, species_gen, method) {
+  has_composition <- dplyr::coalesce(protein > 0 & lactose > 0, FALSE)
+  dplyr::case_when(
+    is.na(milk) | milk == 0 ~ "none",
+    method == "milk_composition" & has_composition ~
+      "nrc2001_milk_composition",
+    species_gen %in% c("Sheep", "Goats") ~ "ipcc2019_eq10_9_default_ev",
+    TRUE ~ "ipcc2019_eq10_8"
+  )
 }
 
 #' NEwool: IPCC Eq 10.12.
@@ -261,6 +311,23 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     !stringr::str_detect(species, "(?i)non[- ]?dairy")
 }
 
+#' Detect the breeding half of the swine herd from its species label.
+#'
+#' FAOSTAT publishes swine as two disjoint stock items -- 1049 `"Swine,
+#' market"` and 1051 `"Swine, breeding"` -- whose sum is item 1048 `"Swine"`
+#' exactly (measured on the `faostat-emissions-livestock` pin at every
+#' area-year: `1048 - (1049 + 1051)` never exceeds one head). `animals_codes`
+#' carries 1051 under the `item_cbs` name `"Hogs"`, which is what
+#' [prepare_livestock_emissions()] puts in `species`, so a breeding sow arrives
+#' spelled `"Hogs"` and never `"breeding"`. Both spellings are matched so the
+#' distinction survives whichever label a caller supplies; without it the
+#' breeding herd silently takes the market-swine parameters, which is the
+#' error separating the two items exists to avoid (whep#1107).
+#' @noRd
+.is_breeding_swine <- function(species) {
+  stringr::str_detect(species, "(?i)hog|breeding")
+}
+
 #' Map species string to general category.
 #' @noRd
 .get_general_species <- function(s) {
@@ -360,6 +427,10 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' Ensure all optional production columns exist as NA.
+#'
+#' The single-bracket assignment below is what `[<-.data.table` refuses, for any
+#' `missing` including none at all, so this helper is only ever handed the
+#' tibble `estimate_energy_demand()` converts its input to (whep#1136).
 #' @noRd
 .ensure_production_cols <- function(data) {
   optional <- c(
@@ -508,29 +579,68 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' Join temperature adjustment factors.
+#'
+#' This used to be a `cross_join()` plus a `filter()` on the bin bounds, which
+#' silently DROPPED any row whose temperature was `NA`: the bins span
+#' `-Inf..Inf`, so only `NA` could fail every one of them, and the row left with
+#' it -- taking its animals out of the energy balance without a warning. The bin
+#' lookup is now a `findInterval()` that cannot drop a row at all, and a row
+#' with no temperature keeps its animals under a declared assumption rather than
+#' being refused: see [.assume_missing_temperature()].
 #' @noRd
 .join_temperature_adjustment <- function(data) {
-  if (!rlang::has_name(data, "temperature_c")) {
-    data <- data |>
-      dplyr::mutate(
-        temperature_c = 15,
-        method_energy = paste0(
-          method_energy,
-          "; temp_assumed_15C"
-        )
-      )
-  }
-
-  temp_adj <- temperature_adjustment |>
-    dplyr::select(temp_min, temp_max, adjustment_factor)
-
   data |>
-    dplyr::cross_join(temp_adj) |>
-    dplyr::filter(
-      temperature_c >= temp_min & temperature_c < temp_max
-    ) |>
-    dplyr::rename(temp_adjustment = adjustment_factor) |>
-    dplyr::select(-temp_min, -temp_max)
+    .assume_missing_temperature() |>
+    dplyr::mutate(temp_adjustment = .temp_adjustment_of(temperature_c))
+}
+
+#' Declare the temperature assumed for a row that carries none.
+#'
+#' An absent column has always assumed 15 degrees and stamped it; a hole inside
+#' a supplied column is the same absence and takes the same assumption, rather
+#' than refusing a row while a wholly absent column is accepted. The assumed
+#' value sits inside the thermoneutral bin of `temperature_adjustment`
+#' (5-25 degrees), so it adds no cold- or heat-stress term to maintenance
+#' energy: it is the least-committal choice, not a measurement.
+#' @noRd
+.assume_missing_temperature <- function(data) {
+  if (!rlang::has_name(data, "temperature_c")) {
+    return(
+      data |>
+        dplyr::mutate(temperature_c = .assumed_temperature_c()) |>
+        .stamp_assumption("method_energy", "temp_assumed_15C", TRUE)
+    )
+  }
+  gap <- is.na(data$temperature_c)
+  if (!any(gap)) {
+    return(data)
+  }
+  assumed <- .assumed_temperature_c()
+  cli::cli_warn(c(
+    "!" = "{sum(gap)} row{?s} {?has/have} no {.field temperature_c}.",
+    i = "Assumed {assumed} degrees, which is thermoneutral, and stamped it in
+         {.field method_energy}.",
+    i = "Resolve it upstream, e.g. from {.fun build_cell_climate_zone}."
+  ))
+  data$temperature_c[gap] <- assumed
+  .stamp_assumption(data, "method_energy", "temp_assumed_15C", gap)
+}
+
+#' The air temperature assumed when a row carries none.
+#' @noRd
+.assumed_temperature_c <- function() {
+  15
+}
+
+#' Cold/thermoneutral/heat adjustment factor for each temperature.
+#'
+#' `temperature_adjustment` bins are half-open (`temp_min <= t < temp_max`) and
+#' contiguous, so the lower bounds alone define them.
+#' @noRd
+.temp_adjustment_of <- function(temperature_c) {
+  bins <- temperature_adjustment |>
+    dplyr::arrange(temp_min)
+  bins$adjustment_factor[findInterval(temperature_c, bins$temp_min)]
 }
 
 #' REM: ratio NE-maintenance to DE consumed.

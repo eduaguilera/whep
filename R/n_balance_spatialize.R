@@ -1031,3 +1031,105 @@ spatialize_country_n_to_crops <- function(
     dplyr::mutate(cropland_share = .data$weighted_ha / .data$group_ha) |>
     dplyr::select(lon, lat, area_code, year, cropland_share)
 }
+
+# Synthetic fertiliser of polities with no cropland cell (whep#1196).
+#
+# `supported` holds the (year, area_code) polities the grid step can spread
+# nitrogen onto. Every other polity with positive synthetic N would make
+# .n_grid_unmatched() abort, so the gridded nitrogen driver
+# (inst/scripts/run_nitrogen_balance.R) resolves them first, by `action`:
+#
+# - "drop" removes their raw FAOSTAT rows and RETURNS what it removed, per year
+#   and area_code, so the loss travels with the result instead of only being
+#   printed. It is the driver's behaviour from before whep#1196.
+# - "abort" refuses, naming the codes and the worst year's share.
+#
+# The removal is not small in every year. Before 1992 FAOSTAT reports the
+# fertiliser of the USSR (228), Czechoslovakia (51), Yugoslav SFR (248) and
+# Belgium-Luxembourg (15) -- and to 2005 Serbia and Montenegro (186) -- under
+# their own codes, and the year-invariant cell-polity map has no cell for any
+# of them. In every year the Sudan bucket 206 is also removed, because the
+# national total is keyed on 206 while the cell map carries 276/277. The
+# driver's comment carries the measured shares. Spreading a union's or a
+# bucket's total over its successors' cells is polity work (whep#458) and is
+# not attempted here.
+.n_drop_uncelled_fertilizer <- function(
+  fertilizer,
+  supported,
+  action = c("drop", "abort")
+) {
+  action <- rlang::arg_match(action)
+  removed <- .n_uncelled_fertilizer(fertilizer, supported)
+  if (nrow(removed) == 0L) {
+    return(list(fertilizer = fertilizer, removed = removed))
+  }
+  if (action == "abort") {
+    .abort_uncelled_fertilizer(removed)
+  }
+  removed$method_unsupported_fertilizer <- action
+  drop_raw <- .polity_raw_area_codes(unique(removed$area_code))
+  list(
+    fertilizer = dplyr::filter(
+      fertilizer,
+      !as.integer(.data[["Area Code"]]) %in% drop_raw
+    ),
+    removed = removed
+  )
+}
+
+# Per year and polity: the synthetic N (t) with no supporting cell, and its
+# share of that year's global synthetic N (the sum over all polities of
+# .synthetic_n_country(), so FAOSTAT's regional aggregates are not in it).
+.n_uncelled_fertilizer <- function(fertilizer, supported) {
+  .synthetic_n_country(fertilizer) |>
+    dplyr::mutate(
+      global_synthetic_n_t = sum(.data$synthetic_n_t),
+      .by = "year"
+    ) |>
+    dplyr::filter(.data$synthetic_n_t > 0) |>
+    dplyr::anti_join(
+      dplyr::distinct(supported, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::mutate(
+      share_of_global = .data$synthetic_n_t / .data$global_synthetic_n_t,
+      method_unsupported_fertilizer = NA_character_
+    ) |>
+    dplyr::arrange(.data$year, dplyr::desc(.data$synthetic_n_t))
+}
+
+# The raw FAOSTAT `Area Code`s that re-key onto the given polity codes, through
+# the SAME crosswalk .synthetic_n_country() re-keys with: .polity_crosswalk(),
+# not the static whep::polity_area_crosswalk. The static table lacks the
+# Rest-of-World unfold (whep#628), so at 2010 it left the raw rows of six codes
+# (22, 69, 85, 135, 180, 182) behind and the balance still aborted on them.
+.polity_raw_area_codes <- function(polity_codes) {
+  bridge <- .polity_crosswalk() |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      raw = as.integer(.data$area_code),
+      polity = as.integer(.data$polity_area_code)
+    )
+  bridge$raw[bridge$polity %in% polity_codes]
+}
+
+.abort_uncelled_fertilizer <- function(removed) {
+  by_year <- dplyr::summarise(
+    removed,
+    share = sum(.data$share_of_global),
+    .by = "year"
+  )
+  worst <- by_year[which.max(by_year$share), ]
+  codes <- unique(removed$area_code)
+  cli::cli_abort(
+    c(
+      "{cli::qty(length(codes))}{length(codes)} polit{?y/ies} report{?s/}
+       synthetic N but ha{?s/ve} no cropland cell to spread it on.",
+      i = "Worst year {worst$year}: {signif(100 * worst$share, 3)}% of that
+           year's global synthetic N.",
+      i = "Area codes: {codes}.",
+      i = "Choose {.val drop} to remove it and record the removal."
+    ),
+    class = "whep_uncelled_fertilizer"
+  )
+}

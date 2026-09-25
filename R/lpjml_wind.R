@@ -1,18 +1,27 @@
 # Gridded monthly windspeed from the GSWP3-W5E5 forcing used to drive LPJmL.
 #
 # CONFIRMED FACTS (local file inspected; do not re-guess):
-# - Single consolidated file "wind_gswp3-w5e5_1901_2016_monthly.nc" holding
+# - A single consolidated "wind_gswp3-w5e5_<span>_monthly.nc" holding
 #   one variable wind[longitude,latitude,time], float,
 #   _FillValue = -1.17549402418441e+38.
+# - THE SPAN IN THAT NAME IS NOT STABLE, so it is resolved against the
+#   directory rather than hardcoded (see .wind_file()). This reader used to
+#   hardcode "wind_gswp3-w5e5_1901_2016_monthly.nc"; the registered
+#   `lpjml-wind-isimip-1901-2019` pin ships "..._1901_2019_monthly.nc", and
+#   fetch_isimip_wind.sh writes that name, so the hardcoded reader aborted with
+#   a file-not-found on the only artefact it was meant to read (issue #1069).
 # - longitude size 720 (degrees_east), latitude size 360 (degrees_north):
 #   already WHEP's native 0.5-degree grid (geotransform
 #   "-180 0.5 0 90 0 -0.5"), no fine-to-coarse aggregation needed.
 # - The geotransform's row step is -0.5, i.e. the latitude coordinate
 #   variable itself is north-to-south; read it directly with
 #   ncdf4::ncvar_get() rather than assuming the order.
-# - time size 1392, units "days since 1970-1-1", standard Gregorian
-#   calendar, 1901-2016 monthly (116*12 = 1392); convert with
-#   as.Date(time_vals, origin = "1970-01-01") then extract year/month.
+# - time units "days since 1970-1-1", standard Gregorian calendar, one step
+#   per calendar month; convert with as.Date(time_vals, origin = "1970-01-01")
+#   then extract year/month. The pinned base has 1428 steps, decoding to
+#   exactly 1901-01 .. 2019-12 with no gap or duplicate (measured 2026-09-10).
+#   The stamps are NOT all first-of-month -- the ISIMIP3a tail is mid-month --
+#   so read year/month off the date, never off a step index.
 # - The wind variable carries no "units" attribute in this file, because the
 #   monthly means were written by terra, which dropped it. The unit is m/s,
 #   and that is now VERIFIED rather than assumed: the ISIMIP2a source the
@@ -36,14 +45,23 @@
 #' is derived from, which declares `units = "m s-1"` and `standard_name =
 #' "wind_speed"`. That is why the output column is named `windspeed_ms`.
 #'
+#' The `windspeed_ms` column is named to match the MANNER driver column of
+#' the same name, so the output feeds [calculate_nh3()] (`method = "manner"`
+#' or `"manner_default"`, whose organic path requires `windspeed_ms`) after a
+#' join onto the gridded N-input records; this reader is the package's only
+#' source of that driver.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
-#'   reads every year present in the file (1901-2016).
-#' @param wind_dir Path to the directory holding
-#'   `wind_gswp3-w5e5_1901_2016_monthly.nc`. Defaults to
-#'   `Sys.getenv("WHEP_WIND_DIR")`.
+#'   reads every year present in the file (1901-2019 in the currently pinned
+#'   base; the span is whatever the resolved file holds, not a fixed range).
+#' @param wind_dir Path to the directory holding a
+#'   `wind_gswp3-w5e5_<span>_monthly.nc`. The span in that filename is
+#'   resolved against the directory rather than assumed, so an extended base
+#'   reads without a code change. Defaults to `Sys.getenv("WHEP_WIND_DIR")`.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `year`, `month`, `windspeed_ms`.
+#' @seealso [calculate_nh3()], which consumes `windspeed_ms`.
 #' @export
 #' @examples
 #' read_lpjml_wind(example = TRUE)
@@ -52,11 +70,7 @@ read_lpjml_wind <- function(years = NULL, wind_dir = NULL, example = FALSE) {
     return(.example_lpjml_wind())
   }
   rlang::check_installed("ncdf4")
-  path <- file.path(
-    .resolve_wind_dir(wind_dir),
-    "wind_gswp3-w5e5_1901_2016_monthly.nc"
-  )
-  .read_wind_nc(path, years)
+  .read_wind_nc(.wind_file(.resolve_wind_dir(wind_dir)), years)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -72,6 +86,46 @@ read_lpjml_wind <- function(years = NULL, wind_dir = NULL, example = FALSE) {
     ))
   }
   resolved
+}
+
+# On-disk path of the consolidated monthly wind base, resolved from what the
+# directory holds rather than from a hardcoded span. Same shape as .cru_file()
+# for CRU releases: the artefact name carries a mutable year span, so match the
+# stable part and abort naming the directory's actual contents when nothing
+# matches, rather than reporting a file-not-found on a name that never existed.
+#
+# The pattern is the one download_climate.R's .download_wind_pins() and
+# prepare_spatialize_all.R's .prepare_wind_input() already use for this same
+# artefact. It deliberately excludes the ERA5 companion pin
+# ("era5_wind_*.nc": a 0.25-degree grid, different variable) that download step
+# places in the same directory, and the raw ISIMIP daily chunks
+# ("wind_gswp3-w5e5_<start>_<end>.nc4": ".nc4", not ".nc").
+.wind_file <- function(wind_dir) {
+  hits <- list.files(
+    wind_dir,
+    pattern = "^wind_gswp3.*\\.nc$",
+    full.names = TRUE
+  )
+  if (length(hits) == 0L) {
+    present <- list.files(wind_dir)
+    cli::cli_abort(c(
+      "No LPJmL wind forcing file in {.path {wind_dir}}.",
+      i = "Expected a file like {.file wind_gswp3-w5e5_<span>_monthly.nc}.",
+      i = if (length(present) > 0L) {
+        "The directory contains: {.file {present}}."
+      } else {
+        "The directory is empty."
+      }
+    ))
+  }
+  # Several releases can sit side by side (the 1901-2016 base, the 1901-2019
+  # one, the ERA5-spliced 1901-2023). Take the newest: version and year span
+  # sort lexicographically, so the last sorted path is the longest series. For
+  # a year that two of them share this cannot move a value -- the splice is a
+  # `cdo mergetime` of the base plus an ERA5 tail, and the base years were
+  # measured bit-identical between base and splice at 1901-01, 1960-07 and
+  # 2019-12 (max |diff| = 0).
+  utils::tail(sort(hits), 1L)
 }
 
 # Read the consolidated windspeed NetCDF, slicing the time dimension to the

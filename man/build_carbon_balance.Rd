@@ -4,23 +4,50 @@
 \alias{build_carbon_balance}
 \title{Build the historical gridded soil-organic-carbon balance.}
 \source{
-Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
-\doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
-ported from the Spain historical pipeline.
+Aguilera, E., Guzman, G. I., Alvaro-Fuentes, J., Infante-Amate, J.,
+Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
+(2018). A historical perspective on soil organic carbon in Mediterranean
+cropland (Spain, 1900-2008). \emph{Science of the Total Environment}, 621,
+634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
+transfer ported from the Spain historical pipeline.
 }
 \usage{
 build_carbon_balance(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
+  init = c("own_equilibrium", "cell_average"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
+  class_water = c("cell", "regime"),
+  density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
+  method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  block_years = 10L,
   example = FALSE
 )
 }
 \arguments{
 \item{model}{Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
-\code{"icbm"}, \code{"amg"} or \code{"century"}.}
+\code{"icbm"}, \code{"amg"}, \code{"century"} or \code{"lpjml"}. The
+choice sets the equilibrium target, and through the time constant
+\code{soc_eq / c_input} the speed the stock relaxes toward it; the
+transient itself is a single exponential for every model.}
+
+\item{init}{How each land-use class's opening stock is set. Neither option
+is the physical one and the default is \strong{not} settled evidence; the
+measurements behind both sit on \code{.cb_init_density()} in the source.
+\code{"own_equilibrium"} (default) starts every class at the stock its own
+carbon input and climate support: it removes the opening transient the
+balance would otherwise report as soil nitrogen mineralization, at the
+cost of opening cropland at roughly a third of the carbon measured in
+those soils. \code{"cell_average"} starts every class in a cell at the
+fraction-weighted mean of the classes sharing it, the Spain historical
+behaviour: it opens cropland near its observed stock, as a proxy for the
+legacy carbon of the vegetation it replaced, at the cost of then draining
+that stock toward an equilibrium whep#799 puts several-fold too low.
+Recorded in \code{method_soc_init}.}
 
 \item{resolution}{\code{"grid"} (default, per cell and land-use class) or
 \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).}
@@ -36,8 +63,11 @@ codes involved. \code{"flag"} keeps them and adds the per-row logical
 See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
 already-built table.}
 
-\item{data}{Named list of pre-loaded inputs, each falling back to its reader
-when absent: \code{c_inputs} (per cell, land-use class and year, with
+\item{data}{Named list of pre-loaded inputs. Every entry named below falls
+back to its reader when absent EXCEPT the two grazing entries at the end,
+which have no reader at all and must be supplied under the default
+\code{method_grazing = "whep"}; the entries that do fall back are
+\code{c_inputs} (per cell, land-use class and year, with
 \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
 (yearly per-cell per-class \code{lon}, \code{lat}, \code{area_code},
 \code{year}, \code{land_use}, \code{area_ha}); \code{climate} (either a
@@ -51,10 +81,34 @@ from the generic land-use curve \code{\link{soc_soil_cover_curve}} (a crop
 growth-stage canopy for cropland, sustained perennial cover for
 grassland/natural), so any \code{soil_cover} column supplied on the raw
 drivers is ignored); \code{clay} (per cell \code{clay_pct}); and an
+\code{natural_cover} (per cell and year, with \code{natural_cover}, the
+vegetated fraction of the natural stand, from
+\code{\link{read_lpjml_natural_cover}}); when supplied it replaces
+\code{\link{soc_soil_cover_curve}}'s constant for the NATURAL class only
+-- managed grassland has no measured cover to use and stays on the curve
+-- and when absent every class stays on the curve, which is the previous
+behaviour; \code{cropland_cover} (per cell, year and MONTH, from
+\code{\link{read_lpjml_crop_cover}}), which replaces the curve for the
+CROPLAND class with the cover its own crop calendar implies. The curve
+already gives cropland a season, but anchors it to the cell-year's
+warmest month: measured at 2010 the real crop mid-season falls there in
+only 5.2\% of cropland cells and three or more months away in 51.0\%, so
+the correction is one of timing rather than of annual mean (0.254 on the
+curve against 0.343 on the calendar); and an
 optional \code{equilibrium_climate} (the pre-industrial climatological
 normal, one representative monthly cycle per cell, used only for the
 equilibrium spin-up modifier while the forward march uses the year-specific
-drivers).}
+drivers). Two further entries are forwarded to
+\code{\link{build_carbon_inputs}} for the grassland grazing terms, and
+read only when \code{c_inputs} is not supplied:
+\code{livestock_intake} (the \code{\link{redistribute_feed}} result) and
+\code{excreta} (the \code{applied} stream of
+\code{\link{build_livestock_nutrient_flows}}). These are the two with no
+reader behind them -- \code{excreta} is a livestock-pipeline output, not a
+readable input -- so under the default \code{method_grazing = "whep"} a
+call that omits either is refused straight away, before any input is read.
+Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
+own grazing and need neither.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover, but reading the full LUH2 range
@@ -64,6 +118,76 @@ the default readers are used. Threaded into every default reader
 \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
 \code{data}.}
 
+\item{crop_groups}{How cropland is resolved into land-use classes; see
+\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list()} (default) marches crop GROUPS --
+herbaceous crops pooled per irrigation regime, woody crops per species,
+rainfed and irrigated separate. Each cell-year's LUH2 cropland area is
+split over the groups in proportion to their crop-pattern area, so
+LUH2's total is kept (verified on a 2009-2010 run: 1442.8 Mha either
+way, with the global stock moving 0.01\%). Herbaceous groups follow the
+annual crop cover (and the crop calendar); woody groups take a perennial
+cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
+Soil cover is computed once per cover profile and joined to the classes,
+so the class count does not multiply the monthly climate table.
+\code{list(method = "none")} keeps the single \code{cropland} class the package
+used before.}
+
+\item{class_water}{How a cell's applied irrigation is shared among its
+land-use classes in the moisture term. \code{"cell"} (default) gives every
+class except natural land the cell-level water surplus, irrigation
+included, as before. \code{"regime"} concentrates the irrigation on the
+irrigated crop groups in proportion to their share of the cell and runs
+every other class on rain alone; the area-weighted mean over classes is
+the cell value either way. Needs \code{crop_groups}, because only groups
+carry a regime. Recorded in \code{method_class_water}.}
+
+\item{density_basis}{Which crop area weights the per-crop carbon densities
+when they collapse to a class; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}.
+\code{"renormalised"} (default) uses the yearly FAOSTAT-renormalised cell area
+the densities were computed on; \code{"static"} keeps the crop-pattern
+weights the package used before. Only read when the carbon inputs are
+built here rather than supplied.}
+
+\item{method_grazing}{Whose grazing removes carbon from grassland and
+returns it as excreta; see \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}.
+\code{"whep"} (default) charges the class WHEP's own grass intake and applied
+excreta, so it needs \code{data$livestock_intake} and \code{data$excreta} and
+aborts without them; \code{"lpjml"} uses the model's own livestock module and
+needs neither. Only read when the carbon inputs are built here rather
+than supplied through \code{data$c_inputs}.}
+
+\item{method_som_cn}{Which published parameterisation sets the C:N at which
+soil organic matter forms from the carbon input that formed it,
+\code{CN_new = a - b / CN_input}, floored and then bounded by the IPCC 2019
+land-use range. \code{"justes_2009"} (default, a = 15.4, b = 76) is the refit
+on the larger combined dataset; \code{"nicolardot_2001"} (16.1, 123) is the
+original fit, and the citation HSOCN's own nitrogen submodel follows, so
+it is the parameterisation that puts WHEP and HSOCN on one basis;
+\code{"century"} (16, 120) is CENTURY/DayCent's shipped parameterisation.
+All three, each with its source, sample and floor, are in
+\code{inst/extdata/balances/som_marginal_cn.csv}. The choice sets the nitrogen
+of a carbon change and never the carbon: at an input C:N of 40 the three
+give a marginal C:N of 13.50, 13.03 and 13.00, so \code{son_change_kgn_ha}
+spans 3.8\%; at a narrow (manure-like) input C:N of 12 they give 9.07,
+8.00 and 10.00, a 25\% spread, and the widest anywhere is 29\% at an input
+C:N of 15; above an input C:N of 70 they never differ by more than 1.9\%.
+Recorded per row in \code{method_som_cn}, which instead reads
+\code{"land_use_default"} on a row whose input C:N is unknown and
+\code{"directional_ipcc_range"} when no input C:N is carried at all.}
+
+\item{block_years}{How many consecutive years are built at a time. The
+climate drivers and the land-use areas are read, the class table and its
+equilibria built, the stocks marched and the output tail run one block of
+years at a time, and each cell's soil state is carried across a block
+boundary exactly as the march carries it from one year to the next. The
+result is therefore identical, bit for bit, to building the whole span in
+one pass, whatever the value: only memory and run time move. Memory then
+grows with the block rather than with the span; see the section below.
+\code{Inf} builds the whole span as one block, which is the fastest and the
+largest. A block is cut from \code{years} when the land use is read, and from
+the years of \code{data$land_use} when it is supplied; with neither, the span
+is unknown before reading and the build runs as one block.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
 }
@@ -71,19 +195,29 @@ remote data. Defaults to \code{FALSE}.}
 A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
-\code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-\code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+\code{luc_transfer_mgc_ha}, \code{luc_transfer_mgc}, \code{rate_mgc_ha},
+\code{son_change_kgn_ha},
+\code{area_ha}, and one column per method choice that moves a number:
+\code{method_soc}, \code{method_soc_init}, \code{method_class_water},
+\code{method_area_basis}, \code{method_grazing},
+\code{method_som_cn} and
+\code{method_crop_groups}. All of them survive the \code{"polity"}
+roll-up, which additionally carries \code{input_land_ha} (the land the
+land-use input gave that polity-year) and \code{modelled_land_frac}
+(\code{area_ha / input_land_ha}, the share of it the densities in the
+same row are a mean over); see the coverage section below. Plus the
+polity columns below, plus
 \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}.
 }
 \description{
 Reconstruct per-cell soil-organic-carbon stock trajectories: run the selected
 turnover model to equilibrium under the earliest per-land-use carbon inputs,
-initialise each cell by weighting those equilibria with the earliest
-land-use fractions, march forward on yearly per-cell per-land-use areas
-applying the model annual update plus a carbon-conserving land-use-change
-transfer, and derive the soil-organic-nitrogen change from the carbon rate
-via asymmetric soil carbon-to-nitrogen ratios.
+open each land-use class at the stock \code{init} selects, march forward on
+yearly per-cell per-land-use areas applying the model annual update plus a
+carbon-conserving land-use-change transfer, and derive the
+soil-organic-nitrogen change from the carbon rate via asymmetric soil
+carbon-to-nitrogen ratios.
 }
 \details{
 \code{polity_validity} governs this function's own output. The internal
@@ -94,6 +228,82 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{Memory, and why the span is built in blocks}{
+
+Built in one pass, every stage holds the whole span at once, and two of them
+hold many times the table they return: the monthly climate read peaks at
+about 15 times its output and the output tail at 5 to 6 times its own
+(whep#1287). \code{block_years} bounds both by the block instead. Measured on the
+real grid as the process's peak committed memory, with the carbon inputs
+supplied, and the output identical in every case:\tabular{lllll}{
+   span \tab one pass \tab 10-year blocks \tab 3-year blocks \tab 2-year blocks \cr
+   1961-1966 \tab 13.8 GB \tab (one block) \tab 12.4 GB \tab 11.6 GB \cr
+   1961-1972 \tab 18.5 GB \tab 17.1 GB \tab 13.6 GB \tab  \cr
+}
+
+
+The single pass grows by about 0.8 GB per year of span. A blocked build
+grows only by what it must keep: the output (about 0.12 GB per year at
+\code{"grid"}) and the carbon inputs (about 0.08 GB per year), which are read
+once over the whole span because a year-scoped production and commodity
+build returns different rows for the same years (whep#833, whep#834). From
+1961-1966 to 1961-1972 the 3-year build rose 1.20 GB, against 1.17 GB for
+those two terms. Each year added to the block costs about 0.5 GB.
+
+Extrapolated linearly from these points to 1931-2023 (not measured there),
+one pass would need about 80 GB, 10-year blocks about 33 GB and 3-year
+blocks about 29 GB, while the span-wide carbon-input read that precedes
+the blocks is extrapolated in whep#1287 to 45-55 GB. The default of 10
+years keeps the blocks below that read, which is then the build's peak;
+every block re-reads the static cell support, clay and climate series, at
+3 to 4 minutes a block, so 3-year blocks would cost about an hour more over
+1931-2023 to save about 4 GB that the carbon-input read has already spent.
+
+Nothing about the carbon itself is decided per block. The balance opens
+from the first year it marches, and the year-less equilibrium-climate
+normal is read only then; the check that every cell carries every year runs
+across block boundaries; and each warning and message the class table and
+the output tail raise is gathered over the blocks and raised once for the
+whole span, as a single pass raises it. Messages the land-use and climate
+readers raise about their own read are raised by each block's read.
+}
+
+\section{The land-use-change ledger closes on mass, not on density}{
+
+\code{luc_transfer_mgc_ha} is the carbon a class received (positive) or
+gave up (negative) through land-use change, per hectare of the class's
+CURRENT area. A class whose area falls to zero still gives up its whole
+stock -- the balance carries the row at zero area and moves the carbon
+into the growing classes -- but at zero hectares that outflow has no
+per-hectare expression, so it is reported as 0 and
+\code{sum(luc_transfer_mgc_ha * area_ha)} over a cell-year is then positive
+by exactly the vanished stock. \code{luc_transfer_mgc} is the same
+transfer as a signed mass in Mg C, on every row including the vanished
+one, and sums to zero within every cell-year (and, at \code{"polity"}
+resolution, is the summed mass). Check conservation on the mass column.
+}
+
+\section{Soil depth}{
+
+Every carbon and nitrogen density this function reports -- \code{stock_mgc_ha},
+\code{mineralization_mgc_ha}, \code{c_input_mgc_ha}, \code{luc_transfer_mgc_ha},
+\code{rate_mgc_ha} and \code{son_change_kgn_ha} -- is a \strong{0-30 cm topsoil} quantity,
+not a whole-profile one. The depth is a property of the model family, not a
+free choice: HSOC comes from Aguilera et al. (2018), which states that "the
+model was applied to the 0-30 cm layer of the soil"; the humification
+fractions in \link{residue_humification} are that paper's Table 2; and the
+RothC/HSOC climate modifier rescales RothC's own 0-23 cm maximum
+topsoil-moisture-deficit expression to 30 cm
+(\code{soc_rate_modifier_rothc(soil_depth_m = 0.3)}).
+
+Comparing this output against a whole-profile soil-carbon product is
+therefore a category error. LPJmL's \code{soilc}, in particular, reports carbon
+over its top 3 m and is roughly three times a topsoil stock; global
+0-30 cm references such as GSOCmap are the valid comparators. Stating this
+is not pedantry -- an unstated depth convention is what made a chain of
+contradictory diagnoses possible (whep#799).
+}
+
 \section{Spatial support}{
 
 Every default reader on the carbon path -- the land-use areas, the carbon
@@ -105,6 +315,77 @@ crosswalk: half the path on one footprint and half on another would surface
 as an ordinary climate-coverage warning from the modifier join, not as an
 error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
 and dropped, never folded into another polity's.
+}
+
+\section{A polity total covers the modelled land, not the polity}{
+
+The climate drivers are on the LPJmL run's grid, a coarser land mask than
+LUH2's, so land outside it has no climate modifier and leaves the balance.
+A \code{"polity"} row is therefore an area-weighted mean over the hectares that
+survived, and \code{modelled_land_frac} is the share of the polity-year's land
+that did: read it before quoting a national stock or trend. It is \strong{not} a
+quality flag on the hectares that are there -- they are modelled exactly as
+before -- and no value in this output changes because of it.
+
+Measured at 2010 against the pinned \code{lpjml-soc-hydrology} grid, which drops
+296.5 Mha of LUH2 land over 7,070 cell-polity compartments: global coverage
+is \strong{0.977}, 149 of 193 polities are below 1, 51 are below 0.9, and \strong{12
+carry no row at all} -- Antigua and Barbuda, Bahrain, Barbados, Dominica,
+Grenada, Macao, Malta, Mauritius, Saint Kitts and Nevis, Saint Lucia,
+Singapore and Tonga, whose land is entirely outside the grid. Worst of
+those that survive: Cabo Verde 0.22, Rest of World 0.31, Vanuatu 0.32,
+Bahamas 0.32, Cyprus 0.35, Somalia 0.72 (18.0 Mha), the Philippines 0.73
+(7.7 Mha), Greece 0.76 (3.1 Mha). A warning names the polities that vanish,
+because no column on the output can: they have no row to carry one.
+
+The land is reported rather than gap-filled, and that is a decision with
+evidence behind it (whep#1166). The run grid holds 58,795 cells against CRU
+TS's 67,420 land cells, and what it excludes is fractional-land coastal and
+island cells: median land fraction 0.14, against 0.998 inside the grid.
+CRU still carries temperature, PET and precipitation for 5,981 of the 6,847
+cells that go -- 291.5 of the 296.5 Mha -- so a climate \emph{could} be assembled
+there without LPJmL. The carbon input could not: 261.4 of those 296.5 Mha
+are natural (214.8) and grassland (46.6), whose input is the LPJmL net
+carbon flux, and this package holds no second source for it. Filling the
+climate alone would march 261.4 Mha on a zero-filled carbon input, draining
+its whole opening stock -- the failure whep#1146 named, which today reaches
+0.212 ha globally. Filling the input as well means asserting a productivity
+for land the model was never run on. Only a rerun on a land mask matching
+LUH2's puts real carbon on those hectares.
+}
+
+\section{What this balance does not cover}{
+
+The balance runs on the LPJmL grid, because the climate drivers do. That
+grid is a coarser land mask than LUH2's, so \strong{not every LUH2 hectare is in
+the output}. On the default readers at 2010, 7,079 cell-polity
+compartments carrying 296.8 Mha of LUH2 land -- 30.4 Mha cropland, 46.6 Mha
+grassland, 214.9 Mha natural, 4.8 Mha urban -- have no climate driver and
+are dropped, with a warning naming the hectares and the worst-hit polities.
+The loss is essentially a coastline, so it is negligible globally (1.4\% of
+grassland, 2.6\% of natural land) and large for maritime polities: 31.6\% of
+Greece's grassland, 25.3\% of the Philippines', 22.7\% of Somalia's, 17.8\% of
+Indonesia's, 12.8\% of the United Kingdom's, 12.5\% of Italy's. A national
+SOC total from this function is a total over the modelled hectares, not
+over the polity.
+
+Dropped is not the same as marched at zero. A class with LUH2 area but no
+carbon-input row IS kept, at zero input (that is what makes \code{urban} dilute
+rather than deflate the cell), and whep#1146 read the coverage gap as that
+case. It is not: measured against the \code{lpjml-grass-natural-net-c} pin and
+the real climate table, every one of those 46.6 Mha of grassland is dropped
+for want of a climate driver, and the grassland actually marching on a
+zero-filled input is 0.212 ha globally at 2010. Both quantities are
+reported at run time rather than left to be re-derived.
+
+The support is keyed on the \link{polity_area_crosswalk} \code{polity_area_code}
+bucket, because that is what every national table the path joins to carries:
+\code{.aggregate_to_polities()} groups on that column and renames it \code{area_code}.
+Sudan and South Sudan therefore report together under \code{206}, as they do in
+the production and CBS series. The fold is read through the live crosswalk,
+so \code{options(whep.unfold_rest_of_world)} and any future un-fold of \code{206}
+(whep#680) move the grid and the national tables together rather than
+separating them (whep#1168).
 }
 
 \section{Polity columns}{
