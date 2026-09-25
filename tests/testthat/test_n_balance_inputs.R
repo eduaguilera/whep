@@ -2190,3 +2190,49 @@ testthat::test_that("a total population under the urban basis is refused by name
     class = "whep_human_n_population_basis_mismatch"
   )
 })
+
+# Manure source option (whep#1197) --------------------------------------------
+
+# The golden outputs were written by the code BEFORE the manure-source option
+# existed (whep main at 5421973b), from these same fixtures. The default source
+# must reproduce them exactly; the only change is the added method_manure
+# column, which names the engine on the manure rows.
+#
+# Regenerated once when the human-N rename (whep#1301) was merged in: the
+# former "urban" rows are labelled "human" and gain the method_human_population
+# and method_human_kgn_cap stamps. The fixtures pin the urban basis, so every
+# value, and every non-human row, is bit-identical to the 5421973b output.
+testthat::test_that("the default manure source reproduces the pre-option output", {
+  golden <- readRDS(testthat::test_path(
+    "fixtures",
+    "n_inputs_default_golden.rds"
+  ))
+  manure <- c("excreta", "manure_solid", "manure_liquid")
+  for (resolution in c("grid", "polity")) {
+    out <- suppressMessages(
+      whep::build_n_inputs(data = .nbi_full_data(), resolution = resolution)
+    )
+    testthat::expect_identical(
+      dplyr::select(out, -"method_manure"),
+      golden[[paste0("inputs_", resolution)]]
+    )
+    testthat::expect_true(all(
+      out$method_manure[out$fert_type %in% manure] == "livestock_intake"
+    ))
+    testthat::expect_true(all(
+      is.na(out$method_manure[!out$fert_type %in% manure])
+    ))
+  }
+})
+
+testthat::test_that("naming the default manure source changes nothing", {
+  testthat::expect_identical(
+    suppressMessages(
+      whep::build_n_inputs(
+        data = .nbi_full_data(),
+        manure_method = "livestock_intake"
+      )
+    ),
+    suppressMessages(whep::build_n_inputs(data = .nbi_full_data()))
+  )
+})

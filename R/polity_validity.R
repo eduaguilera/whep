@@ -104,20 +104,55 @@
   if (nrow(gaps) == 0L) {
     return(invisible(NULL))
   }
-  n_rows <- nrow(dplyr::semi_join(table, gaps, by = c("area_code", "year")))
+  .emit_polity_validity(list(
+    gaps = gaps,
+    n_rows = nrow(dplyr::semi_join(table, gaps, by = c("area_code", "year"))),
+    polity_validity = polity_validity
+  ))
+}
+
+# The warning itself, from its summary. It is raised with class `whep_report`
+# and the summary attached, so a builder that runs one table in several blocks
+# of years (`build_carbon_balance()`) can gather the blocks' warnings and raise
+# one for the whole table; see `.combine_polity_validity()`.
+.emit_polity_validity <- function(summary) {
+  gaps <- summary$gaps
+  if (nrow(gaps) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- summary$n_rows
   codes <- sort(unique(gaps$area_code))
   fate <- c(
     keep = "kept as-is",
     flag = "kept and flagged in reporting_polity_out_of_span",
     drop = "dropped"
-  )[[polity_validity]]
-  cli::cli_warn(c(
-    "!" = "{n_rows} row{?s} over {length(codes)} area code{?s} resolve to a
-      polity that did not exist in that row's year (years
-      {min(gaps$year)}-{max(gaps$year)}); they are {fate}.",
-    i = "The cell-polity crosswalk has no year dimension, so an early cell
-      carries its present-day territory. Area codes: {codes}.",
-    i = "{.fn polity_coverage_gaps} names the polity each one landed on;
-      {.code polity_validity = \"drop\"} removes them."
-  ))
+  )[[summary$polity_validity]]
+  cli::cli_warn(
+    c(
+      "!" = "{n_rows} row{?s} over {length(codes)} area code{?s} resolve to a
+        polity that did not exist in that row's year (years
+        {min(gaps$year)}-{max(gaps$year)}); they are {fate}.",
+      i = "The cell-polity crosswalk has no year dimension, so an early cell
+        carries its present-day territory. Area codes: {codes}.",
+      i = "{.fn polity_coverage_gaps} names the polity each one landed on;
+        {.code polity_validity = \"drop\"} removes them."
+    ),
+    class = "whep_report",
+    report_kind = "polity_validity",
+    report_summary = summary
+  )
+  invisible(NULL)
+}
+
+# The warnings of several blocks of one table as the one warning the whole
+# table raises. A gap is an (area_code, year) pair and the blocks split the
+# years, so the gaps unite and the row counts add.
+.combine_polity_validity <- function(summaries) {
+  list(
+    gaps = dplyr::distinct(
+      dplyr::bind_rows(purrr::map(summaries, "gaps"))
+    ),
+    n_rows = sum(purrr::map_int(summaries, "n_rows")),
+    polity_validity = summaries[[1L]]$polity_validity
+  )
 }

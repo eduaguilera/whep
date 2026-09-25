@@ -1293,3 +1293,22 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
   ))
   testthat::expect_equal(out, current)
 })
+
+testthat::test_that("the default manure source reproduces the pre-option balance", {
+  # Written by the code before the manure-source option existed (whep main at
+  # 5421973b), relabelled for the human-N rename; see test_n_balance_inputs.R.
+  golden <- readRDS(testthat::test_path(
+    "fixtures",
+    "n_inputs_default_golden.rds"
+  ))
+  out <- suppressMessages(.nb_run())
+  testthat::expect_identical(
+    dplyr::select(out, -"method_manure"),
+    golden$balance_grid
+  )
+  # Keys with no manure row carry no manure stamp.
+  testthat::expect_identical(
+    unique(stats::na.omit(out$method_manure)),
+    "livestock_intake"
+  )
+})

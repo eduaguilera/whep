@@ -12,7 +12,8 @@ build_n_inputs(
   unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  manure_method = NULL
 )
 }
 \arguments{
@@ -99,7 +100,17 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \verb{$applied} table of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s output,
 keyed by its \code{territory}, \code{sub_territory}, \code{crop}, \code{land_use},
 \code{manure_type} and \code{year}; \code{manure_type} selects the \code{"excreta"},
-\code{"manure_solid"} or \code{"manure_liquid"} term.
+\code{"manure_solid"} or \code{"manure_liquid"} term. Under
+\code{manure_method = "faostat"} it supplies only the solid:liquid split.
+\item \code{manure}, \code{livestock_spatial}: the \code{manure_method = "faostat"}
+inputs, read only under that method. \code{manure} is the
+\code{faostat-emissions-livestock} pin, scoped by the caller to the years
+wanted, as \code{fertilizer} is. \code{livestock_spatial} is a list of the
+surfaces \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} spreads pasture manure over:
+\code{gridded_pasture}, \code{gridded_cropland} and \code{manure_pattern} (the
+\verb{spatialize-*} pins its production callers read), plus an optional
+\code{species_proxy} overriding the mapping's proxies; needed only when
+\code{cell_polity} is supplied.
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs. From
 its output the \code{"deposition"} term reads \code{deposition_kgn_ha} (the
 whole-cell rate), \code{deposition_n_t} and \code{area_category} (only to form
@@ -174,19 +185,41 @@ to \code{"national"} otherwise. A value supplied here is always honoured.
 
 \item{example}{If \code{TRUE}, return a small fixture instead of assembling
 real data. Defaults to \code{FALSE}.}
+
+\item{manure_method}{Where the three manure terms come from.
+\code{"livestock_intake"} (default) is WHEP's manure engine,
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}} over the realised feed intake.
+\code{"faostat"} reads them instead from the FAOSTAT livestock-emissions
+domain (\code{data$manure}, the \code{faostat-emissions-livestock} pin, source
+\code{"FAO TIER 1"}, kg N): \code{"manure_solid"} and \code{"manure_liquid"} from
+"Manure applied to soils (N content)" for "All Animals", split with the
+engine's own solid share per country-year and spread to crops by
+harvested-area share and to cells by \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}};
+\code{"excreta"} from the per-species "Manure left on pasture (N content)",
+mapped to species groups by \code{inst/extdata/livestock_mapping.csv} and
+spread to cells by \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} with that mapping's
+spatial proxies. These are national statistics spread onto cells, a
+cross-check on the engine rather than the default. A country-year the
+engine gives no solid:liquid split for is booked wholly as solid,
+with a warning. Recorded in \code{method_manure}. When \code{NULL} (default),
+uses \code{data$manure_method \%||\% "livestock_intake"}.}
 }
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
 \code{method_deposition_scope}, \code{method_human_population},
-\code{method_human_kgn_cap}, \code{method_unsupported},
+\code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure},
 \code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
 \code{method_deposition}, \code{method_deposition_scope},
 \code{method_human_population}, \code{method_human_kgn_cap}, \code{method_unsupported},
-\code{method_unattributed}, \code{n_input_t} (summed over cells).
+\code{method_manure}, \code{method_unattributed}, \code{n_input_t} (summed over cells).
+\code{method_manure} records the source of the three manure terms
+(\code{"livestock_intake"}, \code{"faostat"}, or \code{"faostat_all_solid"} on applied
+manure booked as solid for want of an engine split) and is \code{NA} for every
+other \code{fert_type}.
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or

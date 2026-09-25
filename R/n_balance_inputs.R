@@ -92,6 +92,23 @@
 #'   allocating methods conserve mass or abort; `"exclude"` does not conserve
 #'   it. When `NULL` (default), uses
 #'   `data$unattributed_method %||% "cropland_area"`.
+#' @param manure_method Where the three manure terms come from.
+#'   `"livestock_intake"` (default) is WHEP's manure engine,
+#'   [build_livestock_nutrient_flows()] over the realised feed intake.
+#'   `"faostat"` reads them instead from the FAOSTAT livestock-emissions
+#'   domain (`data$manure`, the `faostat-emissions-livestock` pin, source
+#'   `"FAO TIER 1"`, kg N): `"manure_solid"` and `"manure_liquid"` from
+#'   "Manure applied to soils (N content)" for "All Animals", split with the
+#'   engine's own solid share per country-year and spread to crops by
+#'   harvested-area share and to cells by [spatialize_country_n_to_crops()];
+#'   `"excreta"` from the per-species "Manure left on pasture (N content)",
+#'   mapped to species groups by `inst/extdata/livestock_mapping.csv` and
+#'   spread to cells by [build_gridded_livestock()] with that mapping's
+#'   spatial proxies. These are national statistics spread onto cells, a
+#'   cross-check on the engine rather than the default. A country-year the
+#'   engine gives no solid:liquid split for is booked wholly as solid,
+#'   with a warning. Recorded in `method_manure`. When `NULL` (default),
+#'   uses `data$manure_method %||% "livestock_intake"`.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
 #' @inheritParams build_water_balance
@@ -125,7 +142,17 @@
 #'     `$applied` table of [build_livestock_nutrient_flows()]'s output,
 #'     keyed by its `territory`, `sub_territory`, `crop`, `land_use`,
 #'     `manure_type` and `year`; `manure_type` selects the `"excreta"`,
-#'     `"manure_solid"` or `"manure_liquid"` term.
+#'     `"manure_solid"` or `"manure_liquid"` term. Under
+#'     `manure_method = "faostat"` it supplies only the solid:liquid split.
+#'   * `manure`, `livestock_spatial`: the `manure_method = "faostat"`
+#'     inputs, read only under that method. `manure` is the
+#'     `faostat-emissions-livestock` pin, scoped by the caller to the years
+#'     wanted, as `fertilizer` is. `livestock_spatial` is a list of the
+#'     surfaces [build_gridded_livestock()] spreads pasture manure over:
+#'     `gridded_pasture`, `gridded_cropland` and `manure_pattern` (the
+#'     `spatialize-*` pins its production callers read), plus an optional
+#'     `species_proxy` overriding the mapping's proxies; needed only when
+#'     `cell_polity` is supplied.
 #'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs. From
 #'     its output the `"deposition"` term reads `deposition_kgn_ha` (the
 #'     whole-cell rate), `deposition_n_t` and `area_category` (only to form
@@ -218,13 +245,17 @@
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
-#'   `method_human_kgn_cap`, `method_unsupported`,
+#'   `method_human_kgn_cap`, `method_unsupported`, `method_manure`,
 #'   `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
 #'   `method_deposition`, `method_deposition_scope`,
 #'   `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-#'   `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_manure` records the source of the three manure terms
+#'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
+#'   manure booked as solid for want of an engine split) and is `NA` for every
+#'   other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
@@ -263,7 +294,8 @@ build_n_inputs <- function(
   unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  manure_method = NULL
 ) {
   resolution <- rlang::arg_match(resolution)
   polity_validity <- rlang::arg_match(polity_validity)
@@ -286,6 +318,12 @@ build_n_inputs <- function(
     data$unattributed_method <- rlang::arg_match(
       unattributed_method,
       .ni_unattributed_methods()
+    )
+  }
+  if (!is.null(manure_method)) {
+    data$manure_method <- rlang::arg_match(
+      manure_method,
+      .ni_manure_methods()
     )
   }
   data$.n_input_resolution <- resolution
@@ -358,8 +396,10 @@ build_n_inputs <- function(
   # name, as every population read in this file is.
   data[["total_population"]] <- data[["total_population"]] %||%
     data[["urban_population"]]
+  inputs <- .ni_stream_inputs()
+  inputs$manure <- .ni_manure_stream_inputs(.ni_manure_method(data))
   supplied <- purrr::map_lgl(
-    .ni_stream_inputs(),
+    inputs,
     \(needed) all(!purrr::map_lgl(needed, \(nm) is.null(data[[nm]])))
   )
   names(supplied)[supplied]
@@ -443,7 +483,8 @@ build_n_inputs <- function(
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
-    "method_unsupported"
+    "method_unsupported",
+    "method_manure"
   )
 }
 
@@ -576,6 +617,7 @@ build_n_inputs <- function(
         "method_human_population",
         "method_human_kgn_cap",
         "method_unsupported",
+        "method_manure",
         "method_unattributed"
       )
     )
@@ -677,16 +719,25 @@ build_n_inputs <- function(
 # ---- 3. Manure (solid / liquid / excreta) ---------------------------------
 
 .n_inputs_manure <- function(data) {
+  if (.ni_manure_method(data) == "faostat") {
+    return(.n_inputs_manure_faostat(data))
+  }
   if (is.null(data$livestock_intake)) {
     return(.ni_empty())
   }
-  flows <- build_livestock_nutrient_flows(
+  flows <- .ni_manure_flows(data)
+  .manure_to_n_inputs(flows$applied)
+}
+
+# One engine run, shared by the default manure terms and by the solid:liquid
+# split of the "faostat" source (R/n_balance_manure_faostat.R).
+.ni_manure_flows <- function(data) {
+  build_livestock_nutrient_flows(
     data$livestock_intake,
     resolution = data$resolution %||% "national",
     methods = data$methods %||% list(),
     gridded = data[["gridded"]]
   )
-  .manure_to_n_inputs(flows$applied)
 }
 
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,
@@ -718,7 +769,8 @@ build_n_inputs <- function(
         "year",
         "fert_type"
       )
-    )
+    ) |>
+    dplyr::mutate(method_manure = "livestock_intake")
 }
 
 # build_livestock_nutrient_flows()'s $applied$territory carries a stringified
@@ -1409,7 +1461,8 @@ build_n_inputs <- function(
     "method_synthetic",
     "method_deposition_scope",
     "method_human_population",
-    "method_human_kgn_cap"
+    "method_human_kgn_cap",
+    "method_manure"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
@@ -1628,7 +1681,8 @@ build_n_inputs <- function(
     method_deposition_scope = character(),
     method_human_population = character(),
     method_human_kgn_cap = character(),
-    method_unsupported = character()
+    method_unsupported = character(),
+    method_manure = character()
   )
 }
 
@@ -1738,6 +1792,11 @@ build_n_inputs <- function(
         NA_character_
       ),
       method_unsupported = "abort",
+      method_manure = dplyr::if_else(
+        .data$fert_type %in% c("excreta", "manure_solid", "manure_liquid"),
+        "livestock_intake",
+        NA_character_
+      ),
       method_unattributed = "cropland_area"
     ) |>
     .add_reporting_polity_columns()

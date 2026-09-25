@@ -133,7 +133,7 @@
 #'   columns below. When the supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
-#'   `method_human_kgn_cap`, `method_unsupported` and
+#'   `method_human_kgn_cap`, `method_unsupported`, `method_manure` and
 #'   `method_unattributed` stamps from
 #'   [build_n_inputs()] are carried through as well, so a balance names the
 #'   input conventions that produced it. Gains
@@ -937,6 +937,7 @@ build_nitrogen_balance <- function(
     "method_human_population",
     "method_human_kgn_cap",
     "method_unsupported",
+    "method_manure",
     "method_unattributed"
   )
 }

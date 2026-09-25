@@ -98,17 +98,64 @@
 #' runs on the pin too so that pinning an older `version` cannot reintroduce
 #' the deletion either.
 #'
+#' @section Year-aware support:
+#' With `year` set, the support is not this crosswalk at all: it is the
+#' polycell support ([read_polycell_support()]) read at the validity interval
+#' covering `year`, so each cell carries the polity the grid holds that year.
+#' In 1961 the former-USSR cells carry the USSR (`228`), Czechoslovakia's carry
+#' `51` and Yugoslavia's `248`; FAOSTAT reports their national totals under
+#' those codes, which the year-invariant crosswalk has no cell for (whep#1196).
+#' Each code is resolved from `polity_code` through [polity_area_crosswalk],
+#' and, under `area_key = "polity_area"`, folded onto its bucket.
+#'
+#' Where the polity grid and FAOSTAT's reporting units disagree, a recorded
+#' mapping (`inst/extdata/polity_cell_support_map.csv`) keys the cells, and
+#' every mapped row is labelled in `polity_rule`:
+#'
+#' * `"aggregate_member"`: an aggregate reported by FAOSTAT whose members the
+#'   grid carries separately takes the union of its members' cells in its
+#'   reporting years (Belgium-Luxembourg `15` to 1999, Viet Nam `237` to 1974,
+#'   Yemen `249` in 1961).
+#' * `"contained_fold"`: a polity with no FAOSTAT row in the year folds into
+#'   the reporting unit containing it (the Baltic and Azerbaijan SSRs into the
+#'   USSR to 1990, the fifteen USSR successors into it in 1991, North
+#'   Macedonia into `248` in 1991).
+#' * `"constant_territory"`: Yemen `249` in 1962-1989, for which the grid
+#'   carries no complete predecessor, is placed on modern Yemen's cells.
+#'
+#' Some cells carry an aggregate over its members, or two claimants, so their
+#' polities' territory adds up to more than the cell. In such an overlapping
+#' cell, a polity with no area code, none of `reporting_areas`, or duplicating
+#' the container it folds into, is removed from the share denominator. The
+#' removed polycells are returned in the `"deduplicated"` attribute, and the
+#' overlapping cells where two reporting polities still share are returned in
+#' the `"overlap_kept"` attribute.
+#'
+#' `polity_frac` is then the polity's share of the cell's measured **land**,
+#' the same basis as the carbon path's `cell_area_frac` (which is carried too,
+#' with the same value), rather than the crosswalk's subcell count. The land of
+#' a polity with no area code stays in the denominator, so it is never handed
+#' to a neighbour. `cell_area_ha` keeps the latitude formula of the
+#' year-invariant path.
+#'
 #' @param polity_fraction_path Optional path to a local parquet, overriding
-#'   `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin.
+#'   `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin. Not used with
+#'   `year`.
 #' @param area_key Which area code the output is keyed on: `"grid"` (default,
 #'   the table's own reporting-area codes) or `"polity_area"` (the
 #'   [polity_area_crosswalk] bucket national tables are aggregated on).
 #' @param version Pin version, passed to [whep_read_file()]. `NULL` takes the
-#'   version frozen in [whep_inputs].
+#'   version frozen in [whep_inputs]. With `year`, the version of the
+#'   `polycell_support` pin, passed to [read_polycell_support()].
 #' @param example If `TRUE`, return a small fixture instead of reading the pin,
 #'   so the example runs offline.
+#' @param year `NULL` (default) returns the year-invariant crosswalk. One year
+#'   returns the year-aware support described in *Year-aware support*.
+#' @param reporting_areas Required with `year`: the area codes carrying national
+#'   data in `year`, in the code space `area_key` selects.
 #' @return A tibble with `lon`, `lat`, `area_code`, `polity_frac` and
-#'   `cell_area_ha`.
+#'   `cell_area_ha`. With `year` it also carries `cell_area_frac`,
+#'   `polity_rule` and `method_cell_polity` (`"year_aware"`).
 #' @export
 #' @examples
 #' build_cell_polity(example = TRUE)
@@ -116,11 +163,22 @@ build_cell_polity <- function(
   polity_fraction_path = NULL,
   area_key = c("grid", "polity_area"),
   version = NULL,
-  example = FALSE
+  example = FALSE,
+  year = NULL,
+  reporting_areas = NULL
 ) {
   area_key <- rlang::arg_match(area_key)
   if (isTRUE(example)) {
     return(.example_cell_polity())
+  }
+  if (!is.null(year)) {
+    if (!is.null(polity_fraction_path)) {
+      cli::cli_abort(
+        "{.arg polity_fraction_path} is a year-invariant crosswalk; the
+         year-aware support is read from {.fn read_polycell_support}."
+      )
+    }
+    return(.cell_polity_at_year(year, reporting_areas, area_key, version))
   }
   raw <- .read_cell_polity_fraction(polity_fraction_path, version)
   .check_columns(
@@ -1044,15 +1102,14 @@ spatialize_country_n_to_crops <- function(
 #   printed. It is the driver's behaviour from before whep#1196.
 # - "abort" refuses, naming the codes and the worst year's share.
 #
-# The removal is not small in every year. Before 1992 FAOSTAT reports the
-# fertiliser of the USSR (228), Czechoslovakia (51), Yugoslav SFR (248) and
-# Belgium-Luxembourg (15) -- and to 2005 Serbia and Montenegro (186) -- under
-# their own codes, and the year-invariant cell-polity map has no cell for any
-# of them. In every year the Sudan bucket 206 is also removed, because the
-# national total is keyed on 206 while the cell map carries 276/277. The
-# driver's comment carries the measured shares. Spreading a union's or a
-# bucket's total over its successors' cells is polity work (whep#458) and is
-# not attempted here.
+# On the year-invariant cell-polity map the removal is large before 1992:
+# FAOSTAT reports the fertiliser of the USSR (228), Czechoslovakia (51), the
+# Yugoslav SFR (248), Belgium-Luxembourg (15) and, to 2005, Serbia and
+# Montenegro (186) under their own codes, which that map has no cell for, and
+# the Sudan bucket 206 is missed in every year. The year-aware support
+# (`build_cell_polity(year = )`, whep#1196) gives all of them cells, so what
+# the driver removes on it is only territory with no cropland cell at all. The
+# driver's comment carries the measured masses on both supports.
 .n_drop_uncelled_fertilizer <- function(
   fertilizer,
   supported,
