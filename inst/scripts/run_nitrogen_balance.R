@@ -188,9 +188,9 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # The residual is polity-crops that have production but no positive cropland
 # cell, so nothing to spread onto; they drop out here exactly as they do in the
 # carbon inputs (cf. #599). It is reported rather than silently absorbed.
-.nbd_grid_npp <- function(npp) {
+.nbd_grid_npp <- function(npp, country_grid) {
   weights <- whep:::.sci_grid_weights(
-    whep:::.sci_read_country_grid(),
+    country_grid,
     whep:::.sci_read_crop_patterns()
   )
   keys <- c("year", "area_code", "item_prod_code")
@@ -423,6 +423,13 @@ cli::cli_h1("Nitrogen balance driver: {year}, resolution = {resolution}")
 cli::cli_h2("1. Spatial and land surfaces")
 
 cell_polity <- nbd_stage("cell_polity", build_cell_polity())
+# The ONE cell support every country total this run puts on cells is placed on:
+# the crop NPP, the livestock heads and grass ceiling, and the crop layer the
+# manure is spread over (whep#1300). One table, so a border cell's animals and
+# the hectares their manure lands on cannot be split between polities
+# differently. It is the carbon path's polycell support, which is also what the
+# local feed grain reads by default.
+cell_support <- nbd_stage("cell_support", whep:::.sci_read_country_grid())
 ag_land_support <- nbd_stage(
   "ag_land_support",
   build_ag_land_support(years = year, data = list(cell_polity = cell_polity))
@@ -472,7 +479,7 @@ npp_national <- nbd_stage(
   "npp_n_input (national)",
   crops |> calculate_crop_npp() |> calculate_npp_carbon_nitrogen()
 )
-npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national))
+npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national, cell_support))
 # Reported here, not inside the stage: this compares npp_national and npp
 # AFTER both stages finish, so it can never be a condition either stage raises
 # for nbd_stage() to capture (whep#1288) -- there is nothing to catch until
@@ -538,21 +545,34 @@ carbon_balance <- nbd_stage(
     dplyr::filter(.data$year == !!year),
   heavy = TRUE
 )
-# redistribute_feed() takes two already-assembled tables (feed demand and feed
-# availability); .run_redistribute_national() is the wrapper that builds both
-# from production and the commodity balances, and is what the manure path in
-# build_soil_carbon_inputs() already uses. Calling redistribute_feed() bare, as
-# this driver did, can only fail on a missing argument.
+# The realised feed intake behind the manure and grazed-forage terms, at the
+# grain the resolution needs (.n_livestock_intake(), R/n_balance_grid_manure.R).
+# At "grid" it is the local grain: national demand spread to cells by the
+# gridded heads on `cell_support`, so the manure lands on cells. National intake
+# carries no cell, and build_n_inputs(resolution = "grid") aborts on it with
+# "missing spatial keys" (whep#1300). At "polity" it is the national grain.
 livestock_intake <- nbd_stage(
   "livestock_intake",
-  whep:::.run_redistribute_national(
+  whep:::.n_livestock_intake(
+    resolution,
     production = primary_prod,
     cbs = get_wide_cbs(years = year),
-    demand_tier = "ipcc",
-    options = list(distribute_surplus = FALSE)
+    country_grid = cell_support
   ),
   heavy = TRUE
 )
+# The crop layer that manure is spread over, on the same grain and support.
+manure_crops <- nbd_stage(
+  "manure_crops",
+  whep:::.n_manure_crop_layer(resolution, primary_prod, cell_support)
+)
+# Outside the stage, which suppresses messages (see the NPP report above).
+if (!is.null(manure_crops) && resolution == "grid") {
+  whep:::.n_report_unplaced_crop_area(
+    whep:::.sci_manure_crop_layer(primary_prod),
+    manure_crops
+  )
+}
 
 # ---- 5. coverage and blockers -------------------------------------------------
 
@@ -643,11 +663,10 @@ if (nrow(blockers) > 0L) {
     carbon_balance = carbon_balance,
     livestock_intake = livestock_intake,
     # build_livestock_nutrient_flows() needs the land surface its manure is
-    # spread over as well as the intake; .sci_manure_crop_layer() is the
-    # same crops layer build_soil_carbon_inputs() gives it, so the manure
-    # reaching the nitrogen balance sits on the same hectares as the manure
-    # reaching the carbon balance.
-    gridded = list(crops = whep:::.sci_manure_crop_layer(primary_prod)),
+    # spread over as well as the intake. manure_crops is the harvested-area
+    # layer build_soil_carbon_inputs() gives it (.sci_manure_crop_layer()),
+    # spread onto cell_support at "grid" so it meets the cell intake.
+    gridded = list(crops = manure_crops),
     # The default allocation cap, "potential_uptake", needs a precomputed
     # crop_n_cap that this crops layer does not carry. build_soil_carbon_
     # inputs() hits the same wall and answers it with "fixed_ceiling", so
