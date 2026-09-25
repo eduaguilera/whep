@@ -12,6 +12,7 @@ build_sjos_nitrogen(
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
+  negative_critical = c("keep", "clamp"),
   example = FALSE
 )
 }
@@ -25,7 +26,10 @@ at its own default composition over the years of \code{cbs_food} and
 \code{n_inputs} when absent; inject a table to use any other source),
 \code{biomass_coefs} / \code{items_full} for the food supply,
 \code{manure_mgmt_nh3_n_t} for the pathway boundary when
-\code{nh3_source = "total_agricultural"}, and either an \code{io} model or
+\code{nh3_source = "total_agricultural"}, \code{critical_binding} (a
+\code{\link[=build_critical_n_binding]{build_critical_n_binding()}} table for the \code{boundary_land_use} scope, whose
+\code{binding_threshold} is then carried into the grid boundary; absent, the
+column is \code{NA}), and either an \code{io} model or
 \code{fp_flows} for the footprint. A real call without either source aborts
 rather than fabricating a domestic-only footprint.
 Defaults to \code{list()}.}
@@ -64,6 +68,14 @@ a mistyped knob cannot silently run the default and be reported as a
 sensitivity. Defaults to \code{list()}, which leaves every builder on its own
 default.}
 
+\item{negative_critical}{Treatment of cells whose critical surplus is below
+zero, passed to \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}: \code{"keep"} (default, as the
+source) or \code{"clamp"} (zero allowance, a declared departure from
+Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
+through them the classification and the footprint, and is stamped as
+\code{negative_critical} in both boundary tables, in \code{sjos_class} and in both
+footprint tables.}
+
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}
 }
@@ -78,7 +90,8 @@ versus nourishment points; it and \code{nourishment} carry
 (the 2-way classification) and \code{footprint} (a list with the \code{fp_all} and
 \code{fp_food} embodied-nitrogen footprints, both carrying \code{target_nourish},
 and \code{target_class_diag}, the per-year count of flows whose consumer
-country-year has no nourishment class).
+country-year has no nourishment class). The boundary tables,
+\code{sjos_class} and both footprint tables carry \code{negative_critical}.
 }
 \description{
 Composes the Safe and Just Operating Space for nitrogen (SJOS-N) modules into

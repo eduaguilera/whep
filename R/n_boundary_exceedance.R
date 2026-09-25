@@ -56,12 +56,45 @@
 #' @param land_class Alias of `land_use`.
 #' @param impact_scope Deposited impact surface: `"mi"`, `"sw"`, `"gw"`, or
 #'   `"de"`. When supplied, it is validated against the critical layer.
+#' @param negative_critical Treatment of a cell whose critical value is below
+#'   zero. `"keep"` (default) compares the actual pressure with the deposited
+#'   value as it is, as the source does. `"clamp"` sets it to zero (a zero
+#'   allowance) before the cell comparison. The choice is stamped in every
+#'   output row as `negative_critical`; see the Negative critical surplus
+#'   section.
+#' @param binding Optional [build_critical_n_binding()] output for the same
+#'   land-use scope. When supplied, its per-cell `binding_threshold` and
+#'   `binding_matches_mi` are carried into the cell and grid results; when
+#'   `NULL` (default) both columns are `NA`.
 #' @param example If `TRUE`, return the package fixture.
 #' @return A tibble at the requested grain. Cell results retain actual and
 #'   critical masses, signed margin, positive overshoot, coverage state,
 #'   integer source-grid key, IMAGE context, explicit years, selectors, and
-#'   provenance. Crop results additionally retain the signed pressure share and
-#'   crop-attributed quantities, which reconcile algebraically to the cell.
+#'   provenance. `critical_kgn_ha` is the value compared (after the
+#'   `negative_critical` treatment) and `source_critical_kgn_ha` the deposited
+#'   one; the two differ only in clamped cells. Crop results additionally
+#'   retain the signed pressure share and crop-attributed quantities, which
+#'   reconcile algebraically to the cell. `exceedance_n_t` is the crop's share
+#'   of the cell overshoot `pmax(actual - critical, 0)` and
+#'   `within_boundary_n_t` is `actual_n_t - exceedance_n_t`, so the two always
+#'   sum to the actual pressure. Summed over a cell, `within_boundary_n_t` is
+#'   `min(actual, critical)`: under `negative_critical = "keep"` it is negative
+#'   wherever the critical value is negative, and under `"clamp"` it is
+#'   negative only where the actual pressure itself is.
+#'
+#' @section Negative critical surplus:
+#' Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and manure
+#' inputs to zero where non-agricultural losses alone exceed a threshold, but
+#' keep biological fixation and deposition in the critical input, so their
+#' deposited critical surplus stays negative in those cells (on the `"mi"`
+#' surface: 1,796 of 28,881 cells for `"all"`, minimum -396 kg N/ha; 2,075 of
+#' 28,573 cells for `"ara"`, minimum -317 kg N/ha). `negative_critical =
+#' "keep"` follows the source, and it is the setting under which the published
+#' 2010 decomposition (43 Mt N allowable plus 76 Mt N exceedance, 119 Mt N
+#' current surplus) is reproduced. `"clamp"` is a declared departure from the
+#' source: it gives such cells a zero allowance instead of a negative one,
+#' which lowers their overshoot to the actual pressure and keeps the cell
+#' within-boundary mass at or above zero wherever the actual pressure is.
 #' @export
 #' @examples
 #' build_n_boundary_exceedance(example = TRUE)
@@ -80,6 +113,8 @@ build_n_boundary_exceedance <- function(
   indicator = NULL,
   land_class = NULL,
   impact_scope = NULL,
+  negative_critical = c("keep", "clamp"),
+  binding = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -101,6 +136,7 @@ build_n_boundary_exceedance <- function(
   }
   land_use <- rlang::arg_match(land_use)
   resolution <- rlang::arg_match(resolution)
+  negative_critical <- rlang::arg_match(negative_critical)
   metric <- .nbx_match_metric(metric)
   allocation_scenario <- .nbx_match_scenario(allocation_scenario)
   .nbx_validate_supported(metric, allocation_scenario)
@@ -133,7 +169,9 @@ build_n_boundary_exceedance <- function(
     dplyr::filter(.data$year == .env$actual_year) |>
     .nbx_filter_land_use(land_use, metric) |>
     .nbx_prepare_actual(metric)
-  support <- .nbx_prepare_critical(critical)
+  support <- .nbx_prepare_critical(critical) |>
+    .nbx_treat_negative(negative_critical) |>
+    .nbx_join_binding(binding, land_use)
   cells <- .nbx_build_cells(actual, support, actual_year, metric, land_use)
   cells <- .nbx_stamp(
     cells,
@@ -142,7 +180,8 @@ build_n_boundary_exceedance <- function(
     allocation_scenario,
     actual_year,
     critical_reference_year
-  )
+  ) |>
+    dplyr::mutate(negative_critical = .env$negative_critical)
   if (resolution == "cell") {
     return(.nbx_cell_cols(cells))
   }
@@ -503,6 +542,101 @@ build_n_boundary_exceedance <- function(
   x
 }
 
+# The deposited critical value is kept as `source_critical_kgn_ha`;
+# `critical_kgn_ha` becomes the value the cell comparison actually uses. Under
+# "keep" the two are identical. Under "clamp" a negative allowance becomes zero:
+# a declared departure from Schulte-Uebbing et al. (2022), who keep negative
+# critical surpluses (see the "Negative critical surplus" roxygen section).
+# pmax() leaves a missing critical value missing, so coverage is unaffected.
+.nbx_treat_negative <- function(support, negative_critical) {
+  dplyr::mutate(
+    support,
+    source_critical_kgn_ha = .data$critical_kgn_ha,
+    critical_kgn_ha = if (.env$negative_critical == "clamp") {
+      pmax(.data$critical_kgn_ha, 0)
+    } else {
+      .data$critical_kgn_ha
+    }
+  )
+}
+
+# Carry the per-cell binding threshold onto the critical support. Absent a
+# binding table both columns are NA -- never a guessed label.
+.nbx_join_binding <- function(support, binding, land_use) {
+  if (is.null(binding)) {
+    return(dplyr::mutate(
+      support,
+      binding_threshold = NA_character_,
+      binding_matches_mi = NA
+    ))
+  }
+  binding <- .nbx_validate_binding(binding, support, land_use)
+  dplyr::left_join(
+    support,
+    dplyr::select(
+      binding,
+      "cell_id",
+      "binding_threshold",
+      "binding_matches_mi"
+    ),
+    by = "cell_id",
+    relationship = "one-to-one"
+  )
+}
+
+.nbx_validate_binding <- function(binding, support, land_use) {
+  .check_columns(
+    binding,
+    c(
+      "cell_id",
+      "binding_threshold",
+      "binding_matches_mi",
+      "critical_mi_kgn_ha",
+      "critical_land_use"
+    ),
+    "binding"
+  )
+  scopes <- unique(binding$critical_land_use[
+    !is.na(binding$critical_land_use)
+  ])
+  if (!identical(scopes, land_use)) {
+    cli::cli_abort(c(
+      "The binding-threshold table does not match {.arg land_use}.",
+      i = "Expected {.val {land_use}}; found {.val {scopes}}."
+    ))
+  }
+  if (anyDuplicated(binding$cell_id) > 0L) {
+    cli::cli_abort("The binding-threshold table has duplicate cell keys.")
+  }
+  .nbx_check_binding_mi(binding, support)
+  binding
+}
+
+# Where the compared surface is the deposited "mi" layer and the binding table
+# carries that same layer, the two must agree cell by cell. Both come from one
+# file, so a difference means the tables are from different land-use scopes or
+# archives.
+.nbx_check_binding_mi <- function(binding, support) {
+  joined <- dplyr::inner_join(
+    dplyr::filter(support, .data$critical_threshold == "mi"),
+    dplyr::select(binding, "cell_id", "critical_mi_kgn_ha"),
+    by = "cell_id"
+  )
+  both <- !is.na(joined$source_critical_kgn_ha) &
+    !is.na(joined$critical_mi_kgn_ha)
+  deposited <- joined$critical_mi_kgn_ha[both]
+  gap <- abs(joined$source_critical_kgn_ha[both] - deposited)
+  bad <- gap > 1e-9 * pmax(1, abs(deposited))
+  if (any(bad)) {
+    cli::cli_abort(c(
+      "The binding-threshold table is not built from this critical layer.",
+      i = "Its {.field critical_mi_kgn_ha} differs from the compared {.val mi}
+           surface in {sum(bad)} cell{?s}."
+    ))
+  }
+  invisible(TRUE)
+}
+
 .nbx_build_cells <- function(actual, support, actual_year, metric, land_use) {
   actual_cell <- dplyr::summarise(
     actual,
@@ -608,8 +742,11 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
     "cell_actual_n_t",
     "absolute_pressure_n_t",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_critical_n_t",
     "cell_actual_kgn_ha",
@@ -623,6 +760,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -788,6 +926,9 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_actual_kgn_ha",
     "cell_actual_n_t",
@@ -800,6 +941,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -839,6 +981,8 @@ build_n_boundary_exceedance <- function(
     "source_area_ha",
     "image_region",
     "critical_threshold",
+    "binding_threshold",
+    "binding_matches_mi",
     "actual_n_t",
     "pressure_share",
     "pressure_condition_ratio",
@@ -855,6 +999,7 @@ build_n_boundary_exceedance <- function(
     dplyr::any_of("production_n_t"),
     "cell_actual_kgn_ha",
     "cell_actual_n_t",
+    "source_critical_kgn_ha",
     "critical_kgn_ha",
     "cell_critical_n_t",
     "cell_signed_margin_n_t",
@@ -868,6 +1013,7 @@ build_n_boundary_exceedance <- function(
     "indicator",
     "land_use",
     "allocation_scenario",
+    "negative_critical",
     "method_boundary",
     "critical_source_doi",
     "critical_source_version",
@@ -903,6 +1049,7 @@ build_n_boundary_exceedance <- function(
       "indicator",
       "land_use",
       "allocation_scenario",
+      "negative_critical",
       "method_boundary",
       "critical_source_doi",
       "critical_source_version",
