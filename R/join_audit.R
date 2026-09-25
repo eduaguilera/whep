@@ -324,10 +324,10 @@
     ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
     "time_invariant",
     "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
-     which is ONE number per (area, crop) by construction: plan decision D15
-     divides each cell-year's ratio by the crop x country ratio pooled over the
-     fixed 1994-2023 window. The cell-year ratio it divides is joined on
-     (cell, year, crop) the line before.",
+     which is ONE number per (area, crop) by construction: plan decisions
+     D15/D22 divide the cell's 1994-2023 ratio by the crop x country ratio
+     pooled over the same fixed window. The cell-year ratio is joined on
+     (cell, year, crop) two lines before.",
     ".ryr_attach_yield_max", "left_join", "area_code", 1L, "time_invariant",
     "WHEP region membership (`regions_full`, no year) for the D20 plausibility
      bound under its `region` pool. The bound itself is a pooled 1961-2023
@@ -450,9 +450,6 @@
     "Plan decision D17 picks Linum's and Hemp's SPAM aggregate by which product
      dominates the country's FAOSTAT production, one choice per country: the
      sum over 1961-2023 IS the reduction over the year axis.",
-    ".ryr_lpjml_normal", "summarise", "area_code, lpjml_crop", 1L, "year_axis",
-    "D15's normaliser: LPJmL's crop x country ratio pooled over the 1994-2023
-     window, so the window's years are what is being reduced over.",
     ".ryr_smil_backcast", "summarise", "area_code", 1L, "year_axis",
     "Each country's mean 1961-1965 share of synthetic N, the constant the Smil
      (2001) back-cast scales by (as prepare_nitrogen_inputs() does); the five

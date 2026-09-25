@@ -55,7 +55,16 @@
     203L, 2010L, 1000,
     68L, 2000L, 500,
     68L, 2010L, 0,
-    231L, 2010L, 5000
+    231L, 2010L, 5000,
+    # The USSR (228) reports 1961-1965; its successors Russia (185) and
+    # Ukraine (230) report in 2010 (D23).
+    228L, 1961L, 1000,
+    228L, 1962L, 1000,
+    228L, 1963L, 1000,
+    228L, 1964L, 1000,
+    228L, 1965L, 1000,
+    185L, 2010L, 300,
+    230L, 2010L, 100
   ) |>
     dplyr::mutate(
       Element = "Agricultural Use",
@@ -73,7 +82,11 @@
     68L, 2000L, 1000,
     68L, 2010L, 1000,
     106L, 2010L, 1000,
-    231L, 2010L, 1000
+    231L, 2010L, 1000,
+    228L, 1950L, 1000,
+    228L, 1961L, 1000,
+    185L, 2010L, 1000,
+    230L, 2010L, 1000
   )
 }
 
@@ -110,7 +123,8 @@
   )
 }
 
-# Spain's cell is (-3.25, 40.25); France (2.25, 46.25); Italy (12.25, 42.25).
+# Spain's cells are (-3.25, 40.25) and (-3.75, 40.25); France (2.25, 46.25);
+# Italy (12.25, 42.25).
 .ryr_lpjml_fixture <- function() {
   dplyr::bind_rows(
     .ryr_lpjml_row(-3.25, 40.25, 2010, "temperate cereals", 100, 300, .1, .1),
@@ -118,17 +132,25 @@
     .ryr_lpjml_row(-3.25, 40.25, 1950, "temperate cereals", 100, 200, .1, .1),
     .ryr_lpjml_row(-3.25, 40.25, 1900, "temperate cereals", 100, 200, .1, .1),
     .ryr_lpjml_row(-3.25, 40.25, 2000, "maize", 100, 200, .1, .1),
+    # A bad maize year: 16 against the cell's own 4 (temporal 4).
+    .ryr_lpjml_row(-3.25, 40.25, 2010, "maize", 100, 1600, .1, .1),
+    # Pulses have a cell-year ratio but no 1994-2023 rows at all.
+    .ryr_lpjml_row(-3.25, 40.25, 2010, "pulses", 100, 130, .1, .1),
     .ryr_lpjml_row(-3.25, 40.25, 2010, "others", 100, 150, .1, .1),
     .ryr_lpjml_row(2.25, 46.25, 2010, "temperate cereals", 100, 100, .1, .1)
   )
 }
 
 # The normaliser years: Spain's temperate cereals 2 over the window, others
-# 1.5; maize has no window rows, so no normaliser.
+# 1.5. Maize is 4 in the first Spanish cell and 1 in the second, so Spain's
+# maize is (400 + 100) / 2 / 100 = 2.5 and the first cell's spatial part is
+# 4 / 2.5 = 1.6 (both cells lie on one latitude, so their areas are equal).
 .ryr_window_fixture <- function() {
   dplyr::bind_rows(
     .ryr_lpjml_row(-3.25, 40.25, 2000, "temperate cereals", 100, 200, .1, .1),
     .ryr_lpjml_row(-3.25, 40.25, 2001, "others", 100, 150, .1, .1),
+    .ryr_lpjml_row(-3.25, 40.25, 2000, "maize", 100, 400, .1, .1),
+    .ryr_lpjml_row(-3.75, 40.25, 2001, "maize", 100, 100, .1, .1),
     .ryr_lpjml_row(2.25, 46.25, 2000, "temperate cereals", 100, 100, .1, .1),
     # Outside 1994-2023: never enters the normaliser.
     .ryr_lpjml_row(-3.25, 40.25, 1980, "temperate cereals", 100, 900, .1, .1)
@@ -150,7 +172,9 @@
   coords <- list(
     `203` = c(-3.25, 40.25),
     `68` = c(2.25, 46.25),
-    `106` = c(12.25, 42.25)
+    `106` = c(12.25, 42.25),
+    `185` = c(37.25, 55.75),
+    `228` = c(37.25, 55.75)
   )[[as.character(area_code)]]
   tibble::tibble(
     lon = coords[[1]],
@@ -269,32 +293,49 @@ testthat::test_that("the level scales the excess gap with N per hectare", {
   testthat::expect_equal(at_2010$ratio_level, at_2010$ratio_anchor)
 })
 
-testthat::test_that("the normal-year level is capped at 10, the anomaly not", {
-  # Maize: anchor 6, scale 2 -> 11, capped to 10; its anomaly has no
-  # normaliser, so the final ratio is the capped level.
-  out <- .ryr_one(203, 56, 2000)
-  testthat::expect_identical(out$ratio_level, 10)
-  testthat::expect_match(out$method_regime_yield, "level_cap")
-  testthat::expect_lte(out$ratio_level, 10)
-  # An anomaly above 1 lifts the final ratio past the cap.
-  lifted <- whep:::.ryr_combine(
+# Both Spanish cells, so Spain's maize normal pools them (D22).
+.ryr_spain_maize <- function(year) {
+  dplyr::bind_rows(
+    .ryr_cell(203, 56, year),
     tibble::tibble(
-      lon = 0,
-      lat = 0,
-      area_code = 1L,
-      item_prod_code = 1L,
-      year = 2000L,
-      ratio_spam = 6,
-      n_scale = 2,
-      ratio_anomaly = 1.5,
-      spam_crop_used = "maiz",
-      method_ratio_anchor = "spam_country",
-      method_ratio_trend = "faostat",
-      method_ratio_anomaly = "lpjml"
+      lon = -3.75,
+      lat = 40.25,
+      area_code = 203L,
+      item_prod_code = 56L,
+      year = as.integer(year)
     )
-  )
-  testthat::expect_identical(lifted$ratio_level, 10)
-  testthat::expect_identical(lifted$ratio, 15)
+  ) |>
+    .ryr_build() |>
+    dplyr::arrange(dplyr::desc(.data$lon))
+}
+
+testthat::test_that("the cap binds the long-term component, not the level", {
+  # Maize in 2000: anchor 6, scale 2 -> level 11 (uncapped); spatial 1.6 ->
+  # 17.6, capped to 10; a good year (temporal 0.5) leaves R = 5.
+  out <- .ryr_spain_maize(2000)[1, ]
+  testthat::expect_equal(out$ratio_level, 11)
+  testthat::expect_equal(out$ratio_spatial, 1.6)
+  testthat::expect_identical(out$ratio_long_term, 10)
+  testthat::expect_equal(out$ratio_temporal, 0.5)
+  testthat::expect_equal(out$ratio, 5)
+  testthat::expect_match(out$method_regime_yield, "level_cap")
+  # The second cell: spatial 0.4 brings 11 under the cap (4.4), no stamp.
+  dry <- .ryr_spain_maize(2000)[2, ]
+  testthat::expect_equal(dry$ratio_spatial, 0.4)
+  testthat::expect_equal(dry$ratio_long_term, 4.4)
+  testthat::expect_identical(dry$method_ratio_temporal, "no_cell_ratio")
+  testthat::expect_identical(dry$method_regime_yield, "none")
+})
+
+testthat::test_that("only the temporal part takes R past 10", {
+  # Maize in 2010: level 6 x spatial 1.6 = 9.6 (under the cap); the bad year
+  # (temporal 16 / 4 = 4) lifts R to 38.4.
+  out <- .ryr_spain_maize(2010)[1, ]
+  testthat::expect_equal(out$ratio_long_term, 9.6)
+  testthat::expect_equal(out$ratio_temporal, 4)
+  testthat::expect_equal(out$ratio, 38.4)
+  testthat::expect_gt(out$ratio, 10)
+  testthat::expect_identical(out$method_regime_yield, "none")
 })
 
 testthat::test_that("no synthetic N in 2010 keeps the level at 1", {
@@ -329,48 +370,85 @@ testthat::test_that("a missing N value gives no ratio rather than a guess", {
 
 # -- Anomaly ------------------------------------------------------------------
 
-testthat::test_that("the anomaly is the cell ratio over the country normal", {
-  # Spain's cereal cell: 3 in 2010, window normal 2 (the 1980 row is outside
-  # the window and does not count).
+testthat::test_that("spatial x temporal is the cell-year over country ratio", {
+  # Spain's cereal cell: 3 in 2010, its window ratio 2 and Spain's 2 (the 1980
+  # row is outside the window and does not count): spatial 1, temporal 1.5.
   out <- .ryr_one(203, 15, 2010)
+  testthat::expect_equal(out$ratio_spatial, 1)
+  testthat::expect_equal(out$ratio_temporal, 1.5)
   testthat::expect_equal(out$ratio_anomaly, 1.5)
-  testthat::expect_identical(out$method_ratio_anomaly, "lpjml")
-  testthat::expect_equal(out$ratio, out$ratio_level * 1.5)
+  testthat::expect_identical(out$method_ratio_spatial, "lpjml")
+  testthat::expect_identical(out$method_ratio_temporal, "lpjml")
+  testthat::expect_equal(out$ratio, out$ratio_long_term * 1.5)
+  # Maize: 16 in the cell in 2010 over Spain's 2.5 = 6.4 = 1.6 x 4.
+  maize <- .ryr_spain_maize(2010)[1, ]
+  testthat::expect_equal(maize$ratio_anomaly, 16 / 2.5)
+  testthat::expect_equal(
+    maize$ratio_spatial * maize$ratio_temporal,
+    maize$ratio_anomaly
+  )
 })
 
 testthat::test_that("items on the others stand use its anomaly", {
   out <- .ryr_one(203, 772, 2010)
   testthat::expect_equal(out$ratio_anomaly, 1)
-  testthat::expect_identical(out$method_ratio_anomaly, "lpjml")
+  testthat::expect_identical(out$method_ratio_temporal, "lpjml")
 })
 
-testthat::test_that("an undefined LPJmL ratio leaves the anomaly at 1", {
+testthat::test_that("an undefined LPJmL ratio leaves its part at 1", {
   no_cell <- .ryr_one(203, 27, 2010)
-  testthat::expect_identical(no_cell$method_ratio_anomaly, "no_cell_ratio")
+  testthat::expect_identical(no_cell$method_ratio_temporal, "no_cell_ratio")
+  testthat::expect_identical(no_cell$method_ratio_spatial, "no_cell_normal")
   testthat::expect_identical(no_cell$ratio_anomaly, 1)
-  no_normal <- .ryr_one(203, 56, 2000)
-  testthat::expect_identical(
-    no_normal$method_ratio_anomaly,
-    "no_country_normal"
-  )
-  testthat::expect_identical(no_normal$ratio_anomaly, 1)
+  # Beans (pulses): a 2010 ratio but no 1994-2023 one, so both parts are 1.
+  no_normal <- .ryr_one(203, 176, 2010)
+  testthat::expect_identical(no_normal$method_ratio_temporal, "no_cell_normal")
+  testthat::expect_identical(no_normal$method_ratio_spatial, "no_cell_normal")
+  testthat::expect_identical(no_normal$ratio_temporal, 1)
+  testthat::expect_identical(no_normal$ratio_spatial, 1)
 })
 
 testthat::test_that("years before 1901 are stamped as recycled climate", {
   out <- .ryr_one(203, 15, 1900)
   testthat::expect_identical(
-    out$method_ratio_anomaly,
+    out$method_ratio_temporal,
     "lpjml_recycled_climate"
   )
   testthat::expect_equal(out$ratio_anomaly, 1)
 })
 
 testthat::test_that("a product below 1 is floored to 1 and stamped", {
-  # Spain 2000: level 1 + (2/3) * 2, anomaly 0.5 / 2.
+  # Spain 2000: level 1 + (2/3) * 2, temporal 0.5 / 2.
   out <- .ryr_one(203, 15, 2000)
-  testthat::expect_lt(out$ratio_level * out$ratio_anomaly, 1)
+  testthat::expect_lt(out$ratio_long_term * out$ratio_temporal, 1)
   testthat::expect_identical(out$ratio, 1)
   testthat::expect_match(out$method_regime_yield, "ratio_floor")
+})
+
+# -- D23: synthetic N through the polity lineage -------------------------------
+
+testthat::test_that("a successor takes its predecessor's N before it existed", {
+  # Russia (185) reports no N in 1961; the USSR's 1,000 t on 1,000 ha is
+  # 1 t/ha, against Russia's own 0.3 t/ha in 2010.
+  # Maize has no SPAM ratio in Russia; the global one is Spain's 6.
+  out <- .ryr_one(185, 56, 1961)
+  testthat::expect_identical(out$method_ratio_trend, "faostat_predecessor")
+  testthat::expect_identical(out$method_ratio_n_2010, "own")
+  testthat::expect_equal(out$ratio_level, 1 + (6 - 1) * (1 / 0.3))
+  smil <- .ryr_one(185, 56, 1950)
+  testthat::expect_identical(
+    smil$method_ratio_trend,
+    "smil_backcast_predecessor"
+  )
+})
+
+testthat::test_that("a historical polity takes its successors' 2010 N", {
+  # The USSR has no 2010 value; Russia and Ukraine together have 400 t on
+  # 2,000 ha, 0.2 t/ha, against the USSR's own 1 t/ha in 1961.
+  out <- .ryr_one(228, 56, 1961)
+  testthat::expect_identical(out$method_ratio_trend, "faostat")
+  testthat::expect_identical(out$method_ratio_n_2010, "successors")
+  testthat::expect_equal(out$ratio_level, 1 + (6 - 1) * 5)
 })
 
 testthat::test_that("the normaliser is a ratio of area-weighted sums", {
@@ -383,7 +461,7 @@ testthat::test_that("the normaliser is a ratio of area-weighted sums", {
     lat = 45.25,
     area_code = 106L
   )
-  out <- whep:::.ryr_lpjml_normal(cell_map, window)
+  out <- whep:::.ryr_lpjml_normal(cell_map, whep:::.ryr_window_sums(window))
   # Irrigated (0.1 * 200 + 0.3 * 600) / 0.4 = 500 over rainfed 100: 5, not
   # the mean of the cell ratios (2 and 6).
   testthat::expect_equal(out$lpjml_normal, 5)
@@ -394,7 +472,7 @@ testthat::test_that("the normaliser is a ratio of area-weighted sums", {
 .ryr_all_cells <- function() {
   tidyr::expand_grid(
     area_code = c(203L, 68L, 106L),
-    item_prod_code = c(15L, 27L, 56L, 79L, 249L, 638L, 772L, 776L),
+    item_prod_code = c(15L, 27L, 56L, 79L, 176L, 249L, 638L, 772L, 776L),
     year = c(1900L, 1950L, 1990L, 2000L, 2010L)
   ) |>
     dplyr::mutate(
@@ -407,14 +485,20 @@ testthat::test_that("the normaliser is a ratio of area-weighted sums", {
     )
 }
 
-testthat::test_that("R >= 1 and the level <= 10 wherever a ratio exists", {
+testthat::test_that("R >= 1 and the long-term part <= 10 wherever R exists", {
   out <- .ryr_build(.ryr_all_cells())
   built <- out[!is.na(out$ratio), ]
   testthat::expect_gt(nrow(built), 0L)
   testthat::expect_true(all(built$ratio >= 1))
   testthat::expect_true(all(built$ratio_anchor >= 1))
   testthat::expect_true(all(built$ratio_level >= 1))
-  testthat::expect_true(all(built$ratio_level <= 10))
+  testthat::expect_true(all(built$ratio_long_term <= 10))
+  # Past 10 only through a bad year.
+  testthat::expect_true(all(built$ratio_temporal[built$ratio > 10] > 1))
+  testthat::expect_equal(
+    built$ratio_anomaly,
+    built$ratio_spatial * built$ratio_temporal
+  )
   testthat::expect_identical(nrow(out), nrow(.ryr_all_cells()))
 })
 
@@ -445,8 +529,16 @@ testthat::test_that("every stamp of build_regime_yield_ratio() is reachable", {
     )
   )
   testthat::expect_setequal(
-    unique(out$method_ratio_anomaly),
-    c("lpjml", "lpjml_recycled_climate", "no_cell_ratio", "no_country_normal")
+    unique(out$method_ratio_n_2010),
+    c("own", "none", "not_needed")
+  )
+  testthat::expect_setequal(
+    unique(out$method_ratio_spatial),
+    c("lpjml", "no_cell_normal")
+  )
+  testthat::expect_setequal(
+    unique(out$method_ratio_temporal),
+    c("lpjml", "lpjml_recycled_climate", "no_cell_ratio", "no_cell_normal")
   )
   tokens <- unique(unlist(strsplit(out$method_regime_yield, ";")))
   testthat::expect_setequal(
@@ -682,7 +774,7 @@ testthat::test_that("the example returns the documented schema", {
     names(.ryr_build(.ryr_cell(203, 15, 2010)))
   )
   pointblank::expect_col_vals_gte(out, "ratio", 1, na_pass = TRUE)
-  pointblank::expect_col_vals_lte(out, "ratio_level", 10, na_pass = TRUE)
+  pointblank::expect_col_vals_lte(out, "ratio_long_term", 10, na_pass = TRUE)
   testthat::expect_type(out$item_prod_code, "integer")
   testthat::expect_type(out$area_code, "integer")
 })

@@ -390,14 +390,15 @@ test_that("every year-free territorial grouping is classified", {
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
   #
-  # 104 since #1233 (plan task T12e): the regime yield ratio's seven. Three
-  # are `year_axis` -- plan decisions pool a country's years on purpose: the
-  # D15 LPJmL normaliser over 1994-2023, the D17 product dominance over
-  # 1961-2023, and the Smil back-cast's 1961-1965 share. Two are
-  # `single_year`, the one SPAM2010 vintage D16 anchors on, summed by ISO3 and
-  # then by bucket. One is the area -> bucket identity fold, and one the
-  # cell -> area map the normaliser pools over. Measured by running the audit.
-  expect_lte(sum(full$n), 104L)
+  # 103 since #1233 (plan task T12e): the regime yield ratio's six. Two are
+  # `year_axis` -- plan decisions pool a country's years on purpose: the D17
+  # product dominance over 1961-2023 and the Smil back-cast's 1961-1965
+  # share. Two are `single_year`, the one SPAM2010 vintage D16 anchors on,
+  # summed by ISO3 and then by bucket. One is the area -> bucket identity
+  # fold, and one the cell -> area map the D15/D22 normalisers pool over.
+  # (The normalisers' own pooling runs through `.ryr_pooled_ratio()`, whose
+  # key the audit reads as dynamic.) Measured by running the audit.
+  expect_lte(sum(full$n), 103L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
