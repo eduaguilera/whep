@@ -70,6 +70,27 @@
 #'   applied, and this argument exists so the sensitivity to the assumption can
 #'   be measured (whep#949).
 #'
+#'   `tier2_uncovered` says what the Tier 2 path does with a species WHEP has
+#'   no Tier 2 method for. The energy balance needs the maintenance and
+#'   activity coefficients of Tables 10.4 and 10.5, which
+#'   [ipcc_tier2_energy_coefs] ships for cattle, buffalo, sheep and goats
+#'   only; the 2019 Refinement itself suggests Tier 1 for camels, horses,
+#'   mules and asses and swine and has no enteric method for poultry (Vol. 4
+#'   Ch. 10, Table 10.9 (Updated)), and its Tier 2 manure equations for swine
+#'   and poultry need a country-specific dry-matter intake (Equation 10.32A)
+#'   that WHEP does not hold. Although it sits among the manure-engine
+#'   options, it governs the enteric path too.
+#'   * `"tier1"` (default): those species take the Tier 1 enteric CH4, manure
+#'     CH4 and manure N2O, written into the Tier 2 output columns and stamped
+#'     `"IPCC_2019_Tier1"` in `method_enteric`, `method_manure_ch4` and
+#'     `method_manure_n2o`, with a message naming them. This is the IPCC's
+#'     own suggested method for them, so a Tier 2 inventory keeps the whole
+#'     herd rather than silently covering fewer animals than Tier 1.
+#'   * `"leave_na"`: they keep `NA` emissions, the behaviour before
+#'     whep#1028, with a warning naming them. Kept so a ruminant-only Tier 2
+#'     figure stays reproducible.
+#'   * `"abort"`: any such species aborts, naming it.
+#'
 #' @name manure_engine_options
 #' @keywords internal
 NULL
@@ -1130,7 +1151,8 @@ NULL
     mms_region = "as_available",
     mcf_source = "ipcc_2019",
     climate_source = "assumed",
-    assumed_climate_zone = "Temperate"
+    assumed_climate_zone = "Temperate",
+    tier2_uncovered = "tier1"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1147,6 +1169,7 @@ NULL
   mcf_source <- opt$mcf_source
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
+  tier2_uncovered <- opt$tier2_uncovered
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1164,6 +1187,10 @@ NULL
     assumed_climate_zone = rlang::arg_match(
       assumed_climate_zone,
       c("Cool", "Temperate", "Warm")
+    ),
+    tier2_uncovered = rlang::arg_match(
+      tier2_uncovered,
+      c("tier1", "leave_na", "abort")
     )
   )
 }

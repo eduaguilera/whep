@@ -84,7 +84,30 @@ supplied column or a wholly absent column.
 \code{"Temperate"} (default) or \code{"Warm"}. It is an assumption, not a
 measurement; \code{method_manure_ch4} records per row which of the sources
 applied, and this argument exists so the sensitivity to the assumption can
-be measured (whep#949).}
+be measured (whep#949).
+
+\code{tier2_uncovered} says what the Tier 2 path does with a species WHEP has
+no Tier 2 method for. The energy balance needs the maintenance and
+activity coefficients of Tables 10.4 and 10.5, which
+\link{ipcc_tier2_energy_coefs} ships for cattle, buffalo, sheep and goats
+only; the 2019 Refinement itself suggests Tier 1 for camels, horses,
+mules and asses and swine and has no enteric method for poultry (Vol. 4
+Ch. 10, Table 10.9 (Updated)), and its Tier 2 manure equations for swine
+and poultry need a country-specific dry-matter intake (Equation 10.32A)
+that WHEP does not hold. Although it sits among the manure-engine
+options, it governs the enteric path too.
+\itemize{
+\item \code{"tier1"} (default): those species take the Tier 1 enteric CH4, manure
+CH4 and manure N2O, written into the Tier 2 output columns and stamped
+\code{"IPCC_2019_Tier1"} in \code{method_enteric}, \code{method_manure_ch4} and
+\code{method_manure_n2o}, with a message naming them. This is the IPCC's
+own suggested method for them, so a Tier 2 inventory keeps the whole
+herd rather than silently covering fewer animals than Tier 1.
+\item \code{"leave_na"}: they keep \code{NA} emissions, the behaviour before
+whep#1028, with a warning naming them. Kept so a ruminant-only Tier 2
+figure stays reproducible.
+\item \code{"abort"}: any such species aborts, naming it.
+}}
 }
 \value{
 Dataframe with all emission columns, method tracking,
@@ -97,6 +120,15 @@ manure CH4, and manure N2O.
 
 Selects tier automatically: Tier 2 when cohort-level data
 (weight, diet) are available; Tier 1 otherwise.
+
+WHEP's Tier 2 energy balance covers cattle, buffalo, sheep and goats, the
+species \link{ipcc_tier2_energy_coefs} ships coefficients for. The IPCC 2019
+Refinement (Vol. 4 Ch. 10, Table 10.9 (Updated)) suggests Tier 1 for
+camels, horses, mules and asses and swine, and develops no enteric method
+for poultry. At Tier 2 those species take Tier 1 by default, with a
+message and \code{"IPCC_2019_Tier1"} in each row's \verb{method_*} columns, so a
+Tier 2 run covers the same animals as a Tier 1 run.
+\code{options$tier2_uncovered} selects \code{"leave_na"} or \code{"abort"} instead.
 }
 \examples{
 tibble::tibble(
