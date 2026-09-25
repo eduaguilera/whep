@@ -111,7 +111,7 @@ build_io_model <- function(
   # (see ?whep_clear_cache).
   if (is.null(cbs) || is.null(supply_use)) {
     cbs_built <- .cached_cbs_built(build_years, trade_recovery)
-    primary_prod <- .cached_primary_prod(.context_years(build_years))
+    primary_prod <- .cached_cbs_primary_prod()
     primary_prod_build <- primary_prod |>
       .filter_years(build_years)
 

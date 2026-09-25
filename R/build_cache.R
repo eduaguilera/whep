@@ -89,56 +89,44 @@ whep_clear_cache <- function() {
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
 }
 
-# Widen a year window to the context the CBS build needs, for two reasons.
-#
-# The trade and stock imputation looks at neighbouring years, so a bare window
-# leaves `stock_addition` and `import` visibly off. Measured at 2010 against the
-# full-range build, the largest relative error across the wide-CBS quantity
-# columns falls from 9.2e-03 with no margin to 5.2e-04 at +/-3, 3.8e-04 at +/-5
-# and 2.1e-04 at +/-10. `import` bottoms out at 2.1e-04 (identical at +/-5 and
-# +/-10), so that is the achievable floor and more margin only buys build time.
-# +/-5 sits past the knee and keeps a scoped build several times cheaper than
-# the full one.
-#
-# On top of that, FBS_New is the reference series and the 2010-2013 overlap is
-# what splices the old series onto it (see .reestimate_domestic_supply), so a
-# request reaching 2013 must build 2011 too or the splice silently changes.
-#
-# The pre-1961 back-cast needs no guard here: .read_production() already widens
-# its own reads (see R/build_production.R) and trims afterwards.
-#
-# The margin is NOT a general remedy for the year axis, and whep#833 is where
-# that stops being a detail. Two fills inside `.fix_cbs()` decide whether a
-# processing output exists at all -- `.correct_processed()`'s `scaling_raw` and
-# `.interpolate_destiny_shares()`'s `dest_share` -- and both carry a single
-# anchor across the whole series. Measured at 2010, the anchors the full-range
-# build uses for the 44 keys the two builds disagree on sit 7 to 49 years away:
-# a margin of 10 still leaves 16 of them broken, 20 leaves 6, and only ~50
-# closes them all. So the choice is between building the CBS over the full span
-# (exact, and it costs the scoped build its saving: 254 s against 35 s for the
-# `.fix_cbs()` chain measured at 2010) and bounding how far those fills may
-# carry (cheap, but it moves full-range published values too). Both remedies
-# are open in whep#833, and the recorded budget in
-# validation/gt_year_scoping.json holds the measured divergence until one of
-# them is taken.
-.context_margin <- 5L
-
 # The first year the series covers, matching the `start_year` default of
-# build_primary_production() and build_commodity_balances(). The margin is
-# clamped to it so widening never asks a build for years that precede the data.
+# build_primary_production() and build_commodity_balances().
 .whep_first_year <- 1850L
 
-.context_years <- function(years, margin = .context_margin) {
-  if (is.null(years)) {
-    return(years)
-  }
-  start_year <- max(min(years, na.rm = TRUE) - margin, .whep_first_year)
-  end_year <- max(years, na.rm = TRUE) + margin
-  if (end_year >= 2013L) {
-    start_year <- min(start_year, 2011L)
-  }
-  seq.int(start_year, end_year)
-}
+# --- Why a scoped CBS is cut from the full-range one (whep#833) --------------
+#
+# A year window asks for a subset, so the contract is an identity: a scoped
+# get_wide_cbs() must equal the full-range one restricted to the same years.
+#
+# The CBS chain cannot be built over a window and keep it. Two fills inside
+# `.fix_cbs()` carry a single observation across the whole year axis, however
+# far away it is, and both decide whether a processing output EXISTS:
+#
+# * `.correct_processed()`'s `scaling_raw`: with no anchor in the frame the
+#   scaling collapses to 0 and the output row is deleted. Italy's Ricebran Oil
+#   at 2010 rests on its only observation, 1961.
+# * `.interpolate_destiny_shares()`'s `dest_share`: with no anchor in the frame
+#   the key falls back to the world-average split, takes a `processing` share
+#   it never reported, and `.cbs_second_processed_round()` manufactures the
+#   oil and cake that crush implies (Malta coconuts, anchored in 1990-1994).
+#
+# Measured at 2010 on the old wiring (a +/-5-year margin around the window),
+# that was 14 keys lost and 30 invented, with anchors 7 to 49 years away; a
+# margin of 20 still left 6 broken and only ~50 closed them all. The trade and
+# stock imputation reads neighbouring years too, which is what the margin was
+# for (9.2e-03 relative error with none, 3.8e-04 at +/-5).
+#
+# No finite margin is safe, because how far a fill reaches is set by the data.
+# So a scoped request builds the full-range CBS once, caches it under the
+# full-range slot, and filters it: exact by construction, the same answer
+# whep#834 reached for the production yield chain. The price is that a scoped
+# CBS costs what a full one does (the `.fix_cbs()` chain was measured at 35 s
+# scoped against 254 s full-range at 2010), paid once per session, after which
+# every window is a filter of the cached build.
+#
+# The alternative is to bound how far those two fills may carry. It keeps
+# scoped builds cheap but moves full-range published values, so it is a
+# science decision left open in whep#833.
 
 # --- The shared build chain -------------------------------------------------
 
@@ -153,27 +141,6 @@ whep_clear_cache <- function() {
     start_year = min(years, na.rm = TRUE),
     end_year = max(years, na.rm = TRUE)
   )
-}
-
-.build_cbs_years <- function(
-  primary_prod,
-  years,
-  context_years = years,
-  trade_recovery = "none"
-) {
-  if (is.null(years)) {
-    return(build_commodity_balances(
-      primary_prod,
-      trade_recovery = trade_recovery
-    ))
-  }
-  build_commodity_balances(
-    primary_prod,
-    start_year = min(context_years, na.rm = TRUE),
-    end_year = max(context_years, na.rm = TRUE),
-    trade_recovery = trade_recovery
-  ) |>
-    .filter_years(years)
 }
 
 .build_proc_coefs_years <- function(cbs_built, years) {
@@ -196,21 +163,30 @@ whep_clear_cache <- function() {
   )
 }
 
-# The long CBS built from primary production, cached under the requested
-# window and the trade-recovery method. This is the single copy of the wiring
-# that get_wide_cbs(), get_processing_coefs() and build_io_model() all share,
-# so the method has to travel with it: a build under one method served to a
-# caller that asked for the other would be invisible downstream.
+# The long CBS built from primary production, cached under the trade-recovery
+# method. This is the single copy of the wiring that get_wide_cbs(),
+# get_processing_coefs() and build_io_model() all share, so the method has to
+# travel with it: a build under one method served to a caller that asked for
+# the other would be invisible downstream.
+#
+# A scoped request is cut from the full-range build, never built on its own
+# window: see "Why a scoped CBS is cut from the full-range one" above.
 .cached_cbs_built <- function(years, trade_recovery = "none") {
-  primary_prod <- .cached_primary_prod(.context_years(years))
-  key <- .cache_key("cbs_built", years, .cbs_cache_method(trade_recovery))
-  .cache_get(key, {
+  key <- .cache_key("cbs_built", NULL, .cbs_cache_method(trade_recovery))
+  full <- .cache_get(key, {
+    primary_prod <- .cached_cbs_primary_prod()
     cli::cli_h1("Building commodity balance sheets")
-    .build_cbs_years(
-      primary_prod,
-      years,
-      .context_years(years),
-      trade_recovery = trade_recovery
-    )
+    build_commodity_balances(primary_prod, trade_recovery = trade_recovery)
   })
+  if (is.null(years)) {
+    return(full)
+  }
+  dplyr::filter(full, .data$year %in% years)
+}
+
+# The primary production the CBS chain is built on: the full range, for the
+# same reason the CBS is (whep#833). Callers that pair a scoped CBS with its
+# production take it from here too, so a session builds production once.
+.cached_cbs_primary_prod <- function() {
+  .cached_primary_prod(NULL)
 }

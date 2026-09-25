@@ -5,12 +5,14 @@
 #' (CBS) item. Stock variations are split into two non-negative
 #' columns following the FABIO methodology.
 #'
-#' @param years Optional integer vector of years to build. When `NULL`
-#'   (default) the whole series is built. Supplying a window builds only that
-#'   range rather than building 1850-2023 and discarding the rest, and caches it
-#'   under a window-specific key. The window is widened internally to 2011 when
-#'   it reaches 2013, because that overlap is what splices the old FBS series
-#'   onto `FAOSTAT_FBS_New`.
+#' @param years Optional integer vector of years to return. When `NULL`
+#'   (default) the whole series is returned. A window returns exactly those
+#'   years of the full-range result. The balances themselves are always built
+#'   over the whole series, once per session and then cached, because several
+#'   of their gap fills carry an observation across the whole year axis: a
+#'   balance built over the window alone would differ from the same years of
+#'   the full build (whep#833). A window therefore costs as much as the full
+#'   series the first time, and nothing after that.
 #' @param trade_recovery One of `"none"` (default) or `"net_import"`, passed
 #'   to [build_commodity_balances()], which documents what each does and what
 #'   `"net_import"` moves. Each method is built and cached under its own slot,
@@ -77,7 +79,7 @@ get_wide_cbs <- function(
   }
   build_years <- .build_years(years)
   cbs_built <- .cached_cbs_built(build_years, trade_recovery)
-  primary_prod <- .cached_primary_prod(.context_years(build_years))
+  primary_prod <- .cached_cbs_primary_prod()
 
   .cache_get(
     .cache_key("cbs_wide", build_years, .cbs_cache_method(trade_recovery)),
@@ -385,9 +387,10 @@ get_livestock_cbs <- function(
 #' and quantities of their corresponding processed output items.
 #'
 #' @param years Optional integer vector of years to build. When `NULL`
-#'   (default) the whole series is built. Supplying a window builds only that
-#'   range rather than building 1850-2023 and discarding the rest, and caches it
-#'   under a window-specific key.
+#'   (default) the whole series is built. Supplying a window calibrates the
+#'   coefficients on that range of the full-range commodity balances (see
+#'   [get_wide_cbs()] for why those are always built over the whole series)
+#'   and caches them under a window-specific key.
 #' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
 #'   the CBS the coefficients are calibrated on. See
 #'   [build_commodity_balances()] and [get_wide_cbs()]. Pass the same value
