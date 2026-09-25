@@ -51,20 +51,11 @@ create_typologies_spain <- function(
     "Bees",            "Bees"
   )
 
-  lu_df <- livestock_prod_ygps |>
-    dplyr::select(Year, Province_name, Livestock_cat, Stock_Number) |>
-    dplyr::left_join(livestockcat_to_class, by = "Livestock_cat") |>
-    dplyr::left_join(lu_mapping, by = "Animal_class") |>
-    dplyr::mutate(
-      LU_head = tidyr::replace_na(LU_head, 0),
-      Stock_Number = tidyr::replace_na(Stock_Number, 0),
-      LU_total_row = Stock_Number * LU_head
-    ) |>
-    dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(
-      LU_total = sum(LU_total_row, na.rm = TRUE),
-      .groups = "drop"
-    )
+  lu_df <- .calculate_lu_total(
+    livestock_prod_ygps,
+    livestockcat_to_class,
+    lu_mapping
+  )
 
   area_df <- npp_ygpit |>
     dplyr::group_by(Year, Province_name) |>
@@ -129,9 +120,14 @@ create_typologies_spain <- function(
       # pop_consumption is deliberately edible-basis only (unlike
       # production_total above): it represents what the population actually
       # eats, matching {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot,
-      # not total field/system throughput.
+      # not total field/system throughput. Fish is included: it has no
+      # domestic production box, so it always arrives with origin ==
+      # "Outside" like any other imported food (create_n_prov_destiny()'s
+      # roxygen note) -- there is no separate "Fish" origin value to filter
+      # on, so an earlier `& origin != "Fish"` clause here was a no-op and
+      # has been dropped.
       pop_consumption = sum(
-        mg_n[destiny == "population_food" & origin != "Fish"],
+        mg_n[destiny == "population_food"],
         na.rm = TRUE
       ),
 
@@ -363,6 +359,45 @@ create_typologies_spain <- function(
   indicators
 }
 
+#' @title Aggregate livestock units per province-year -------------------------
+#' @description `stock_prod_ygps` carries one row per derived product (e.g.
+#' four rows for Pigs: offal, fat, meat, lard), each repeating the same
+#' province-level `Stock_Number`. Deduplicating to one Stock_Number per
+#' Year/Province_name/Livestock_cat before multiplying by the LU coefficient
+#' avoids inflating every category's head count by however many products it
+#' has (observed 2-6x depending on species). `grafs_plot_df.R` and
+#' `Typologies_Julia.R`'s `.calculate_lu_totals()` already do this; this
+#' helper applies the same fix here.
+#'
+#' @param livestock_prod_ygps Output of `whep_read_file("stock_prod_ygps")`.
+#' @param livestockcat_to_class Lookup from Livestock_cat to Animal_class.
+#' @param lu_mapping Lookup from Animal_class to LU_head.
+#'
+#' @return A tibble with Year, Province_name, LU_total.
+#' @keywords internal
+#' @noRd
+.calculate_lu_total <- function(
+  livestock_prod_ygps,
+  livestockcat_to_class,
+  lu_mapping
+) {
+  livestock_prod_ygps |>
+    dplyr::select(Year, Province_name, Livestock_cat, Stock_Number) |>
+    dplyr::distinct() |>
+    dplyr::left_join(livestockcat_to_class, by = "Livestock_cat") |>
+    dplyr::left_join(lu_mapping, by = "Animal_class") |>
+    dplyr::mutate(
+      LU_head = tidyr::replace_na(LU_head, 0),
+      Stock_Number = tidyr::replace_na(Stock_Number, 0),
+      LU_total_row = Stock_Number * LU_head
+    ) |>
+    dplyr::group_by(Year, Province_name) |>
+    dplyr::summarise(
+      LU_total = sum(LU_total_row, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
 # --- Typology classification ------------------------------------------------
 
 #' @title Default typology classification thresholds -------------------------
@@ -381,11 +416,11 @@ create_typologies_spain <- function(
     crop_productivity_int = 10,
     synthetic_crop_ext = 0.4,
     crop_productivity_ext = 10,
-    livestock_density_int = 1.3,
+    livestock_density_int = 0.3,
     imported_feed_int = 0.6,
     feed_seminatural_int = 0.4,
-    livestock_density_ext_lo = 1.0,
-    livestock_density_ext_hi = 1.3,
+    livestock_density_ext_lo = 0.25,
+    livestock_density_ext_hi = 0.3,
     imported_feed_ext = 0.6,
     feed_seminatural_ext = 0.4,
     local_feed_connected = 0.3,
