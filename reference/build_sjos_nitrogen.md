@@ -48,6 +48,7 @@ build_sjos_nitrogen(
   data = list(),
   surplus_method = "harvest_removal",
   boundary_land_use = "ara",
+  grassland_split = c("image_density", "none"),
   nh3_source = "soil",
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
@@ -80,7 +81,13 @@ build_sjos_nitrogen(
   then carried into the grid boundary; absent, the column is `NA`), and
   either an `io` model or `fp_flows` for the footprint. A real call
   without either source aborts rather than fabricating a domestic-only
-  footprint. Defaults to [`list()`](https://rdrr.io/r/base/list.html).
+  footprint. `grassland` is the
+  [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
+  grassland-split input, only used and only optional when
+  `boundary_land_use = "all"` and `grassland_split = "image_density"`
+  (see `grassland_split`); a real call without it and without `critical`
+  to build it from aborts rather than guessing a var/threshold to match.
+  Defaults to [`list()`](https://rdrr.io/r/base/list.html).
 
 - surplus_method:
 
@@ -92,9 +99,26 @@ build_sjos_nitrogen(
 
   Land-use scope stamp passed to
   [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md),
-  `"ara"` (default, the robust historical comparison) or `"all"` (all
-  WHEP grassland, a sensitivity rather than a reconstructed
-  intensive-grassland class).
+  `"ara"` (default, the robust historical comparison) or `"all"`
+  (cropland and intensive grassland compared like for like against the
+  critical allowance, extensive grassland against IMAGE's 2010 budget;
+  see `grassland_split`) (issue \#1285).
+
+- grassland_split:
+
+  Grassland treatment passed to
+  [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md),
+  used only when `boundary_land_use = "all"`: `"image_density"`
+  (default) splits each cell into a managed and an extensive component,
+  `"none"` compares one cell pressure with the deposited `"all"`-scope
+  allowance. Under `"image_density"`, `data$grassland` is used when
+  supplied (its four elements, see
+  [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md));
+  otherwise it is built from
+  [`build_grassland_intensity_classes()`](https://eduaguilera.github.io/whep/reference/build_grassland_intensity_classes.md),
+  the IMAGE 2010 extensive budget, and the `"ara"`/`"igl"` critical
+  layers matched to `data$critical`'s own var and threshold. Ignored (no
+  extra reads) when `boundary_land_use` is not `"all"`.
 
 - nh3_source:
 
@@ -190,7 +214,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 
 #> $boundary_surplus
 #> $boundary_surplus$grid
-#> # A tibble: 7 × 57
+#> # A tibble: 7 × 79
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -200,7 +224,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 7  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 52 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> # ℹ 74 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
 #> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
 #> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
 #> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
@@ -209,7 +233,7 @@ build_sjos_nitrogen(example = TRUE)
 #> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>, …
 #> 
 #> $boundary_surplus$country
-#> # A tibble: 6 × 35
+#> # A tibble: 6 × 37
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -218,7 +242,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 30 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 32 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, actual_n_t <dbl>, critical_n_t <dbl>,
 #> #   signed_margin_n_t <dbl>, crop_critical_n_t <dbl>,
 #> #   positive_overshoot_n_t <dbl>, exceedance_n_t <dbl>,

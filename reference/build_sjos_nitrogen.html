@@ -114,6 +114,7 @@ single coherent fixture set drives the whole chain without any real data.</p>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  surplus_method <span class="op">=</span> <span class="st">"harvest_removal"</span>,</span>
 <span>  boundary_land_use <span class="op">=</span> <span class="st">"ara"</span>,</span>
+<span>  grassland_split <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"image_density"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  nh3_source <span class="op">=</span> <span class="st">"soil"</span>,</span>
 <span>  footprint_category <span class="op">=</span> <span class="st">"exceedance"</span>,</span>
 <span>  nourishment_thresholds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"composed"</span>, <span class="st">"flat"</span><span class="op">)</span>,</span>
@@ -142,7 +143,12 @@ at its own default composition over the years of <code>cbs_food</code> and
 <code>binding_threshold</code> is then carried into the grid boundary; absent, the
 column is <code>NA</code>), and either an <code>io</code> model or
 <code>fp_flows</code> for the footprint. A real call without either source aborts
-rather than fabricating a domestic-only footprint.
+rather than fabricating a domestic-only footprint. <code>grassland</code> is the
+<code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code> grassland-split input, only used and
+only optional when <code>boundary_land_use = "all"</code> and
+<code>grassland_split = "image_density"</code> (see <code>grassland_split</code>); a real call
+without it and without <code>critical</code> to build it from aborts rather than
+guessing a var/threshold to match.
 Defaults to <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code>.</p></dd>
 
 
@@ -154,8 +160,23 @@ Defaults to <code><a href="https://rdrr.io/r/base/list.html" class="external-lin
 <dt id="arg-boundary-land-use">boundary_land_use<a class="anchor" aria-label="anchor" href="#arg-boundary-land-use"></a></dt>
 <dd><p>Land-use scope stamp passed to
 <code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code>, <code>"ara"</code> (default, the robust historical
-comparison) or <code>"all"</code> (all WHEP grassland, a sensitivity rather than a
-reconstructed intensive-grassland class).</p></dd>
+comparison) or <code>"all"</code> (cropland and intensive grassland compared like
+for like against the critical allowance, extensive grassland against
+IMAGE's 2010 budget; see <code>grassland_split</code>) (issue #1285).</p></dd>
+
+
+<dt id="arg-grassland-split">grassland_split<a class="anchor" aria-label="anchor" href="#arg-grassland-split"></a></dt>
+<dd><p>Grassland treatment passed to
+<code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code>, used only when
+<code>boundary_land_use = "all"</code>: <code>"image_density"</code> (default) splits each
+cell into a managed and an extensive component, <code>"none"</code> compares one
+cell pressure with the deposited <code>"all"</code>-scope allowance. Under
+<code>"image_density"</code>, <code>data$grassland</code> is used when supplied (its four
+elements, see <code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code>); otherwise it is built
+from <code><a href="build_grassland_intensity_classes.html">build_grassland_intensity_classes()</a></code>, the IMAGE 2010 extensive
+budget, and the <code>"ara"</code>/<code>"igl"</code> critical layers matched to
+<code>data$critical</code>'s own var and threshold. Ignored (no extra reads) when
+<code>boundary_land_use</code> is not <code>"all"</code>.</p></dd>
 
 
 <dt id="arg-nh-source">nh3_source<a class="anchor" aria-label="anchor" href="#arg-nh-source"></a></dt>
@@ -246,7 +267,7 @@ country-year has no nourishment class). The boundary tables,
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus$grid</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 57</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 79</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -256,7 +277,7 @@ country-year has no nourishment class). The boundary tables,
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 52 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 74 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   source_row &lt;int&gt;, source_col &lt;int&gt;, lon &lt;dbl&gt;, lat &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_year &lt;int&gt;, critical_reference_year &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;, image_region &lt;int&gt;,</span></span>
@@ -265,7 +286,7 @@ country-year has no nourishment class). The boundary tables,
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;, …</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus$country</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 35</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 37</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -274,7 +295,7 @@ country-year has no nourishment class). The boundary tables,
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 30 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 32 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_n_t &lt;dbl&gt;, critical_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   signed_margin_n_t &lt;dbl&gt;, crop_critical_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   positive_overshoot_n_t &lt;dbl&gt;, exceedance_n_t &lt;dbl&gt;,</span></span>

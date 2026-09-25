@@ -116,6 +116,9 @@ produces), and a warning when it is not.</p>
 <span>  indicator <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  land_class <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  impact_scope <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  grassland_split <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"image_density"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  grassland <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>classes <span class="op">=</span> <span class="cn">NULL</span>, extensive_budget <span class="op">=</span> <span class="cn">NULL</span>, critical_ara <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    critical_igl <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>,</span>
 <span>  negative_critical <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"clamp"</span><span class="op">)</span>,</span>
 <span>  binding <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -196,6 +199,33 @@ hard-errors). When supplied, it overrides <code>metric</code>.</p></dd>
 <code>"de"</code>. When supplied, it is validated against the critical layer.</p></dd>
 
 
+<dt id="arg-grassland-split">grassland_split<a class="anchor" aria-label="anchor" href="#arg-grassland-split"></a></dt>
+<dd><p>Grassland treatment under <code>land_use = "all"</code>:
+<code>"image_density"</code> (default) splits each cell into a managed and an
+extensive component (see the section below); <code>"none"</code> compares one cell
+pressure with the deposited allowance, as before the split existed.
+Ignored for <code>"ara"</code> and <code>"igl"</code>. Under <code>"image_density"</code>,
+<code>metric = "new_fixation"</code> aborts: the archive has no extensive budget for
+it.</p></dd>
+
+
+<dt id="arg-grassland">grassland<a class="anchor" aria-label="anchor" href="#arg-grassland"></a></dt>
+<dd><p>Named list of the inputs the split needs, all required
+under <code>grassland_split = "image_density"</code> (their absence aborts; there is
+no fallback): <code>classes</code>, the <code><a href="build_grassland_intensity_classes.html">build_grassland_intensity_classes()</a></code> table
+(one row per cell and year: <code>cell_id</code>, <code>lon</code>, <code>lat</code>, <code>year</code>,
+<code>country_2010</code>, <code>image_region</code>, <code>a_crop_ha</code>, <code>grass_ha_image</code>,
+<code>whep_grass_ha</code>, <code>image_class_2010</code>, <code>grassland_class</code>,
+<code>method_grassland_split</code>), and <code>extensive_budget</code>, IMAGE's 2010
+extensive-grassland budget per cell (<code>cell_id</code>, <code>ext_input_kgn_ha</code>,
+<code>ext_surplus_kgn_ha</code>); and <code>critical_ara</code> and <code>critical_igl</code>, the
+<code><a href="read_critical_n.html">read_critical_n()</a></code> layers with <code>land_use = "ara"</code> and <code>"igl"</code> for the
+same threshold and metric as <code>critical</code> (validated). <code>critical</code> itself
+still defines the cell domain and is checked against the class table's
+areas. A cell absent from <code>classes</code> must carry no grassland pressure; it
+is compared as cropland only.</p></dd>
+
+
 <dt id="arg-negative-critical">negative_critical<a class="anchor" aria-label="anchor" href="#arg-negative-critical"></a></dt>
 <dd><p>Treatment of a cell whose critical value is below
 zero. <code>"keep"</code> (default) compares the actual pressure with the deposited
@@ -231,7 +261,90 @@ of the cell overshoot <code>pmax(actual - critical, 0)</code> and
 sum to the actual pressure. Summed over a cell, <code>within_boundary_n_t</code> is
 <code>min(actual, critical)</code>: under <code>negative_critical = "keep"</code> it is negative
 wherever the critical value is negative, and under <code>"clamp"</code> it is
-negative only where the actual pressure itself is.</p>
+negative only where the actual pressure itself is. Under the grassland
+split these hold per component (managed, extensive) rather than per cell.
+Cell and grid results also carry the split components:
+<code>managed_actual_n_t</code>, <code>managed_critical_n_t</code>,
+<code>managed_positive_overshoot_n_t</code>, <code>extensive_actual_n_t</code>,
+<code>extensive_critical_n_t</code>, <code>extensive_positive_overshoot_n_t</code>, their areas
+(<code>managed_area_ha</code>, <code>extensive_area_ha</code>), compared rates
+(<code>managed_critical_kgn_ha</code>, <code>extensive_critical_kgn_ha</code>, after the
+<code>negative_critical</code> treatment) and the rates before it
+(<code>source_managed_critical_kgn_ha</code>, <code>source_extensive_critical_kgn_ha</code>),
+coverage states, <code>excluded_actual_n_t</code> (of which
+<code>excluded_igl_actual_n_t</code> is intensive grassland without an <code>"igl"</code>
+rate), <code>grassland_class</code>, <code>method_allowance_managed</code>,
+<code>method_allowance_extensive</code> and <code>method_grassland_split</code> (the per-cell
+class method, <code>"no_grassland"</code> for a cell outside the class table,
+<code>"none"</code> without the split). These are <code>NA</code> when the split is not
+applied, so the schema does not depend on it. Under the split,
+<code>critical_kgn_ha</code> and <code>source_critical_kgn_ha</code> remain the <code>"all"</code>-scope
+surface (it defines the domain and checks the <code>"ara"</code>/<code>"igl"</code> layers);
+the cell allowance is the sum of the component allowances. Grid rows add
+<code>boundary_component</code> (<code>"managed"</code>/<code>"extensive"</code>, <code>NA</code> without the
+split); within the split, <code>pressure_share</code> is the row's share of its
+component, and <code>binding_threshold</code>/<code>binding_matches_mi</code> are <code>NA</code> on
+extensive rows (see the Negative critical surplus section). Every row
+carries the call-level <code>grassland_split</code>; aggregated rows list the
+per-cell methods they span in <code>method_grassland_split</code>, separated by <code>;</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="grassland-intensity-split-land-use-all-">Grassland intensity split (<code>land_use = "all"</code>)<a class="anchor" aria-label="anchor" href="#grassland-intensity-split-land-use-all-"></a></h2>
+
+
+<p>The deposited <code>all</code>-scope critical rate is per hectare of cropland plus
+IMAGE-intensive grassland, while WHEP's pressure covers all grassland. With
+<code>grassland_split = "image_density"</code> (the default) each cell is compared as
+two independent components:</p><ul><li><p><strong>managed</strong> – crop rows plus grassland rows (CBS 3000, 3002, 3003) of a
+cell classed intensive, against the cell's own <code>"ara"</code> critical rate
+times its IMAGE 2010 cropland plus, when the cell is classed intensive,
+an <code>"igl"</code> critical rate times its IMAGE 2010 grassland. The deposited
+per-hectare <code>"ara"</code> and <code>"igl"</code> layers combine exactly into the <code>"all"</code>
+layer (area-weighted, measured on the archive for every threshold and
+both metrics), so with the IMAGE 2010 classes this reproduces the
+<code>"all"</code>-scope allowance;</p></li>
+<li><p><strong>extensive</strong> – grassland rows of a cell classed extensive, against
+IMAGE's 2010 extensive-grassland input or surplus per hectare
+(Schulte-Uebbing et al. 2022, SI Supplementary Table 4) times the cell's
+IMAGE 2010 grassland.</p></li>
+</ul><p>Cell overshoot is the <strong>sum</strong> of the two component overshoots: headroom on
+one never nets against excess on the other. Cell actual, critical and
+margin are the sums over the compared components. A component with no
+allowance area but non-zero pressure (in practice crop pressure where IMAGE
+has no cropland and the cell is extensive) is excluded from its comparison
+(<code>managed_coverage_state</code>/<code>extensive_coverage_state</code> <code>"zero_land"</code>); a
+component with area but no rate even after transfer is
+<code>"missing_critical"</code>. Excluded pressure is reported per cell in
+<code>excluded_actual_n_t</code> and in a message (classes
+<code>whep_nbx_zero_land_component</code>, <code>whep_nbx_missing_critical_component</code>),
+and never counts as overshoot. Crop attribution shares each component's
+allowance, margin and overshoot among that component's rows only, and
+reconciles to the component and to the cell. A compared component with
+allowance area but no pressure row keeps its allowance in a
+<code>cell_residual</code> record naming the component.</p>
+<p>Declared assumptions (constructed methods without published precedent):
+the classes are IMAGE's 2010 production-system map moved through time by a
+national grazing-density proxy (see <code>grassland$classes</code>); the extensive
+allowance is IMAGE's 2010 budget held constant – "no more than in 2010",
+not an environmental limit, so 2010 extensive exceedance is zero wherever
+WHEP's 2010 extensive pressure equals IMAGE's; a rate a cell lacks for its
+class is borrowed from the nearest cell (great-circle distance) with one in
+the same 2010 country, else the same IMAGE region – an <code>"igl"</code> rate for
+grassland promoted from extensive to intensive, an extensive budget rate
+for grassland classed extensive; cropland keeps its own <code>"ara"</code> rate and
+is never lent one – stamped in
+<code>method_allowance_managed</code>/<code>method_allowance_extensive</code>
+(<code>"archive"</code>, <code>"nearest_country"</code>, <code>"nearest_region"</code>, <code>"none"</code>, or
+<code>"no_area"</code> for a component without area; <code>NA</code> outside the critical
+domain). IMAGE 2010 intensive grassland with no published <code>"igl"</code> value
+is not lent one (maintainer decision 2026-09-24): its pressure is left out
+of the comparison and reported in <code>excluded_igl_actual_n_t</code>, the cell's
+cropland is still compared at its own <code>"ara"</code> rate, and the managed method
+is <code>"none"</code>. Allowance areas are IMAGE 2010
+areas, fixed, except WHEP grassland in a cell with no IMAGE grassland,
+whose extensive allowance uses WHEP's own grassland area of the year
+(method suffix <code>"_whep_area"</code>, maintainer decision 2026-09-24).
+<code>grassland_split = "none"</code> reproduces the unsplit comparison exactly.</p>
     </div>
     <div class="section level2">
     <h2 id="negative-critical-surplus">Negative critical surplus<a class="anchor" aria-label="anchor" href="#negative-critical-surplus"></a></h2>
@@ -248,12 +361,26 @@ current surplus) is reproduced. <code>"clamp"</code> is a declared departure fro
 source: it gives such cells a zero allowance instead of a negative one,
 which lowers their overshoot to the actual pressure and keeps the cell
 within-boundary mass at or above zero wherever the actual pressure is.</p>
+<p>Under <code>grassland_split = "image_density"</code> the treatment applies to each
+component's allowance, the unit a component is compared against: a
+negative managed allowance (the cell's <code>"ara"</code> rate on its cropland plus
+its <code>"igl"</code> rate on its intensive grassland, which can net against each
+other as they do inside the <code>"all"</code> rate) becomes zero, and so would a
+negative extensive one (IMAGE's 2010 extensive budget, which is never
+negative on the deposited archive). The component rates are not clamped
+one by one, so with the 2010 classes the managed comparison under
+<code>"clamp"</code> matches the unsplit <code>"all"</code>-scope comparison under <code>"clamp"</code>
+(to the 1 % within which the <code>"ara"</code> and <code>"igl"</code> layers combine into
+<code>"all"</code>).
+A binding threshold names the impact that sets a critical surplus, so it
+describes the managed allowance only; the extensive allowance is a 2010
+level, not a threshold, and its grid rows carry no binding label.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_boundary_exceedance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 57</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 79</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -261,7 +388,7 @@ within-boundary mass at or above zero wherever the actual pressure is.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 52 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 74 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   source_row &lt;int&gt;, source_col &lt;int&gt;, lon &lt;dbl&gt;, lat &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_year &lt;int&gt;, critical_reference_year &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;, image_region &lt;int&gt;,</span></span>

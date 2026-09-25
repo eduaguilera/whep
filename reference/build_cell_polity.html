@@ -66,7 +66,9 @@ expects as a required input.</p>
 <span>  polity_fraction_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  area_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity_area"</span><span class="op">)</span>,</span>
 <span>  version <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  year <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  reporting_areas <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -76,7 +78,8 @@ expects as a required input.</p>
 
 <dl><dt id="arg-polity-fraction-path">polity_fraction_path<a class="anchor" aria-label="anchor" href="#arg-polity-fraction-path"></a></dt>
 <dd><p>Optional path to a local parquet, overriding
-<code>Sys.getenv("WHEP_POLITY_FRACTION_PATH")</code> and the pin.</p></dd>
+<code>Sys.getenv("WHEP_POLITY_FRACTION_PATH")</code> and the pin. Not used with
+<code>year</code>.</p></dd>
 
 
 <dt id="arg-area-key">area_key<a class="anchor" aria-label="anchor" href="#arg-area-key"></a></dt>
@@ -87,18 +90,30 @@ the table's own reporting-area codes) or <code>"polity_area"</code> (the
 
 <dt id="arg-version">version<a class="anchor" aria-label="anchor" href="#arg-version"></a></dt>
 <dd><p>Pin version, passed to <code><a href="whep_read_file.html">whep_read_file()</a></code>. <code>NULL</code> takes the
-version frozen in <a href="whep_inputs.html">whep_inputs</a>.</p></dd>
+version frozen in <a href="whep_inputs.html">whep_inputs</a>. With <code>year</code>, the version of the
+<code>polycell_support</code> pin, passed to <code><a href="read_polycell_support.html">read_polycell_support()</a></code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small fixture instead of reading the pin,
 so the example runs offline.</p></dd>
 
+
+<dt id="arg-year">year<a class="anchor" aria-label="anchor" href="#arg-year"></a></dt>
+<dd><p><code>NULL</code> (default) returns the year-invariant crosswalk. One year
+returns the year-aware support described in <em>Year-aware support</em>.</p></dd>
+
+
+<dt id="arg-reporting-areas">reporting_areas<a class="anchor" aria-label="anchor" href="#arg-reporting-areas"></a></dt>
+<dd><p>Required with <code>year</code>: the area codes carrying national
+data in <code>year</code>, in the code space <code>area_key</code> selects.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>polity_frac</code> and
-<code>cell_area_ha</code>.</p>
+<code>cell_area_ha</code>. With <code>year</code> it also carries <code>cell_area_frac</code>,
+<code>polity_rule</code> and <code>method_cell_polity</code> (<code>"year_aware"</code>).</p>
     </div>
     <div class="section level2">
     <h2 id="which-area-code-the-grid-is-keyed-on">Which area code the grid is keyed on<a class="anchor" aria-label="anchor" href="#which-area-code-the-grid-is-keyed-on"></a></h2>
@@ -162,6 +177,44 @@ read, and the message names the producer re-run that rebuilds it. The check
 guards the override, which is the only route that can now go stale, but it
 runs on the pin too so that pinning an older <code>version</code> cannot reintroduce
 the deletion either.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="year-aware-support">Year-aware support<a class="anchor" aria-label="anchor" href="#year-aware-support"></a></h2>
+
+
+<p>With <code>year</code> set, the support is not this crosswalk at all: it is the
+polycell support (<code><a href="read_polycell_support.html">read_polycell_support()</a></code>) read at the validity interval
+covering <code>year</code>, so each cell carries the polity the grid holds that year.
+In 1961 the former-USSR cells carry the USSR (<code>228</code>), Czechoslovakia's carry
+<code>51</code> and Yugoslavia's <code>248</code>; FAOSTAT reports their national totals under
+those codes, which the year-invariant crosswalk has no cell for (whep#1196).
+Each code is resolved from <code>polity_code</code> through <a href="polity_area_crosswalk.html">polity_area_crosswalk</a>,
+and, under <code>area_key = "polity_area"</code>, folded onto its bucket.</p>
+<p>Where the polity grid and FAOSTAT's reporting units disagree, a recorded
+mapping (<code>inst/extdata/polity_cell_support_map.csv</code>) keys the cells, and
+every mapped row is labelled in <code>polity_rule</code>:</p><ul><li><p><code>"aggregate_member"</code>: an aggregate reported by FAOSTAT whose members the
+grid carries separately takes the union of its members' cells in its
+reporting years (Belgium-Luxembourg <code>15</code> to 1999, Viet Nam <code>237</code> to 1974,
+Yemen <code>249</code> in 1961).</p></li>
+<li><p><code>"contained_fold"</code>: a polity with no FAOSTAT row in the year folds into
+the reporting unit containing it (the Baltic and Azerbaijan SSRs into the
+USSR to 1990, the fifteen USSR successors into it in 1991, North
+Macedonia into <code>248</code> in 1991).</p></li>
+<li><p><code>"constant_territory"</code>: Yemen <code>249</code> in 1962-1989, for which the grid
+carries no complete predecessor, is placed on modern Yemen's cells.</p></li>
+</ul><p>Some cells carry an aggregate over its members, or two claimants, so their
+polities' territory adds up to more than the cell. In such an overlapping
+cell, a polity with no area code, none of <code>reporting_areas</code>, or duplicating
+the container it folds into, is removed from the share denominator. The
+removed polycells are returned in the <code>"deduplicated"</code> attribute, and the
+overlapping cells where two reporting polities still share are returned in
+the <code>"overlap_kept"</code> attribute.</p>
+<p><code>polity_frac</code> is then the polity's share of the cell's measured <strong>land</strong>,
+the same basis as the carbon path's <code>cell_area_frac</code> (which is carried too,
+with the same value), rather than the crosswalk's subcell count. The land of
+a polity with no area code stays in the denominator, so it is never handed
+to a neighbour. <code>cell_area_ha</code> keeps the latitude formula of the
+year-invariant path.</p>
     </div>
 
     <div class="section level2">
