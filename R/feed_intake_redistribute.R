@@ -210,13 +210,19 @@ build_feed_demand <- function(
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
+#
+# `production` and `cbs` default to the full pins; a caller that has already
+# read them for its own years (the gridded nitrogen balance) passes them in
+# rather than paying for a second, all-years read.
 .local_run_context <- function(
   demand_tier,
   feed_mode,
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  production = NULL,
+  cbs = NULL
 ) {
   list(
     paths = .local_paths(
@@ -225,15 +231,25 @@ build_feed_demand <- function(
       grass_availability = grass_availability,
       grass_availability_path = grass_availability_path
     ),
-    production = .normalise_feed_primary(get_primary_production()),
-    cbs = .normalise_feed_cbs(get_wide_cbs()),
+    production = .normalise_feed_primary(
+      production %||% get_primary_production()
+    ),
+    cbs = .normalise_feed_cbs(cbs %||% get_wide_cbs()),
     data = .feed_demand_data(),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
-    # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
-    # of a deficit cell's animals that can graze across the cell edge.
-    grass_border_allowance = 0.1
+    grass_border_allowance = .local_intake_defaults()$grass_border_allowance
   )
+}
+
+# The local grain's engine settings that no argument exposes, owned here once
+# so every caller of the local engine runs it the same way.
+#
+# grass_border_allowance: border-strip ratio (grazing range / cell width,
+# ~ 5 km / 55 km), the share of a deficit cell's animals that can graze
+# across the cell edge (.apply_grass_border_grazing()).
+.local_intake_defaults <- function() {
+  list(grass_border_allowance = 0.1)
 }
 
 # Years to build: every production year, or the requested subset intersected
@@ -251,11 +267,25 @@ build_feed_demand <- function(
 
 # One year's local intake: per-cell spatial inputs -> engine -> contract.
 .local_year_intake <- function(yr, ctx) {
-  spatial <- .local_spatial_inputs(yr, ctx$paths)
+  engine <- .local_year_engine(yr, ctx)
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    local = TRUE
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+# One year of the local engine: the raw redistribute_feed() result and the
+# per-animal reverse-split weights. `country_grid`, when given, is the cell
+# support the heads and the grass ceiling are placed on (see
+# .local_spatial_inputs()).
+.local_year_engine <- function(yr, ctx, country_grid = NULL) {
+  spatial <- .local_spatial_inputs(yr, ctx$paths, country_grid)
   spatial$grass_border_allowance <- ctx$grass_border_allowance
   prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
   cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
-  engine <- .run_redistribute_local(
+  .run_redistribute_local(
     prod_y,
     cbs_y,
     ctx$demand_tier,
@@ -263,12 +293,6 @@ build_feed_demand <- function(
     ctx$data,
     distribute_surplus = ctx$feed_mode == "scenario"
   )
-  .reshape_redistribute_intake(
-    engine$result,
-    engine$code_shares,
-    local = TRUE
-  ) |>
-    .add_reporting_polity_columns()
 }
 
 # Write per-year output to disk, skipping years already written (restartable)
@@ -325,10 +349,18 @@ build_feed_demand <- function(
 # grass availability). A heavy global computation: gridded livestock plus
 # LPJmL-derived grass for every model year. Years outside a local LPJmL run's
 # coverage get unbounded grass; pinned grass is already clipped to its coverage.
-.local_spatial_inputs <- function(years, paths) {
+#
+# `country_grid` replaces the livestock inputs' own cell support
+# (.load_country_grid(), the polycell support by default). The heads and the
+# grass ceiling are both placed on whichever one is used, so a caller that
+# places other inputs on its own support can put the animals on the same one.
+.local_spatial_inputs <- function(years, paths, country_grid = NULL) {
   input_dir <- if (.has_path(paths$input_dir)) paths$input_dir else NULL
   run_dir <- if (.has_path(paths$run_dir)) paths$run_dir else NULL
   ls_inputs <- .load_livestock_inputs(input_dir)
+  if (!is.null(country_grid)) {
+    ls_inputs$country_grid <- country_grid
+  }
   gridded_heads <- build_gridded_livestock(
     livestock_data = ls_inputs$livestock_data,
     gridded_pasture = ls_inputs$gridded_pasture,
