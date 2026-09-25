@@ -36,15 +36,11 @@ create_typo_ts_plot <- function(
     "Bees", "Bees"
   )
 
-  lu_df <- livestock_prod_ygps |>
-    dplyr::left_join(livestockcat_to_class, by = "Livestock_cat") |>
-    dplyr::left_join(lu_mapping, by = "Animal_class") |>
-    dplyr::mutate(
-      LU_head = tidyr::replace_na(LU_head, 0),
-      LU_total_row = Stock_Number * LU_head
-    ) |>
-    dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(LU_total = sum(LU_total_row), .groups = "drop")
+  lu_df <- .calculate_lu_total(
+    livestock_prod_ygps,
+    livestockcat_to_class,
+    lu_mapping
+  )
 
   area_df <- npp_ygpit |>
     dplyr::group_by(Year, Province_name) |>
@@ -160,35 +156,8 @@ create_typo_ts_plot <- function(
     ))
 
   indicators <- indicators |>
+    .classify_typology_base(.typology_thresholds()) |>
     dplyr::mutate(
-      Typology_base = dplyr::case_when(
-        production_seminatural > production_crops ~
-          "Semi-natural agroecosystems",
-        production_crops > animal_ingestion &
-          synthetic_share > 0.4 &
-          crop_productivity >= 10 ~
-          "Specialized cropping systems (intensive)",
-        production_crops > animal_ingestion &
-          synthetic_share <= 0.4 &
-          crop_productivity < 10 ~
-          "Specialized cropping systems (extensive)",
-        Livestock_density > 1.3 &
-          imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.4 ~
-          "Specialized livestock systems (intensive)",
-        Livestock_density > 1 &
-          Livestock_density <= 1.3 &
-          imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.4 ~
-          "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity >= 30 ~
-          "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity < 30 ~
-          "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.6 & Manure_share < 0.6 ~
-          "Disconnected crop-livestock systems (intensive)",
-        TRUE ~ "Disconnected crop-livestock systems (extensive)"
-      ),
       Typology = dplyr::case_when(
         pop_consumption > production_total ~ "Urban systems",
         TRUE ~ Typology_base
@@ -438,8 +407,8 @@ create_typology_decision_tree <- function() {
     q_semi     [label="Semi-natural production > Crop production"]
     q_crop     [label="Crop production > Animal ingestion"]
     q_crop_int [label="Synthetic share > 40% & Crop productivity >= 10 kg N/ha"]
-    q_ls_cond  [label="Livestock density > 1 LU/ha & Imported feed share > 60%\n& Feed from semi-natural share < 40%"]
-    q_ls_dens  [label="Livestock density > 1.3 LU/ha"]
+    q_ls_cond  [label="Livestock density > 0.25 LU/ha & Imported feed share > 60%\n& Feed from semi-natural share < 40%"]
+    q_ls_dens  [label="Livestock density > 0.3 LU/ha"]
     q_conn     [label="Local feed share > 30% & Manure share > 25%"]
     q_conn_pr  [label="Crop productivity >= 30 kg N/ha"]
     q_disc     [label="Local feed share < 60% & Manure share < 60%"]
