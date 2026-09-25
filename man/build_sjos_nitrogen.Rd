@@ -88,7 +88,9 @@ normalized adequacy score and class), \code{scatter} (the per-capita boundary
 versus nourishment points; it and \code{nourishment} carry
 \code{method_population}, \code{"read_population"} or \code{"supplied"}), \code{sjos_class}
 (the 2-way classification) and \code{footprint} (a list with the \code{fp_all} and
-\code{fp_food} embodied-nitrogen footprints). The boundary tables,
+\code{fp_food} embodied-nitrogen footprints, both carrying \code{target_nourish},
+and \code{target_class_diag}, the per-year count of flows whose consumer
+country-year has no nourishment class). The boundary tables,
 \code{sjos_class} and both footprint tables carry \code{negative_critical}.
 }
 \description{
@@ -104,7 +106,12 @@ crossed with the country-aggregated exceedance into the 2-way classification
 (\code{\link[=classify_sjos_n]{classify_sjos_n()}}) and, via the per-capita anthropogenic reactive nitrogen
 (\code{\link[=build_n_percapita]{build_n_percapita()}}), into the boundary-versus-nourishment scatter
 (\code{\link[=build_n_boundary_percapita]{build_n_boundary_percapita()}}). The country exceedance finally becomes an
-embodied-nitrogen trade footprint (\code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}}).
+embodied-nitrogen trade footprint (\code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}}), which carries
+the producer's classes (\code{origin_classes}, the per-crop classification) and
+the consuming country's nourishment class (\code{target_nourish}, joined on
+\code{target_area} and \code{year} from the same nourishment table). The driver joins
+no consumer boundary class: that is a country-year class decided after
+aggregation, which a caller supplies to \code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}} directly.
 
 The same nitrogen balance feeds the surplus and the pathway boundaries, the
 same nourishment feeds the classification and the scatter, and the one

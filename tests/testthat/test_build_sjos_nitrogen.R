@@ -145,7 +145,53 @@ testthat::test_that("build_sjos_nitrogen(example = TRUE) returns every table", {
     )
   )
   testthat::expect_named(out$boundary_surplus, c("grid", "country"))
-  testthat::expect_named(out$footprint, c("fp_all", "fp_food"))
+  testthat::expect_named(
+    out$footprint,
+    c("fp_all", "fp_food", "target_class_diag")
+  )
+})
+
+testthat::test_that("the footprint carries the consumer's nourishment class", {
+  out <- whep::build_sjos_nitrogen(example = TRUE)
+  expected <- out$nourishment |>
+    dplyr::select("year", target_area = "area_code", expected = "nourish")
+  for (tbl in c("fp_all", "fp_food")) {
+    fp <- out$footprint[[tbl]]
+    checked <- dplyr::left_join(fp, expected, by = c("year", "target_area"))
+    testthat::expect_equal(nrow(checked), nrow(fp))
+    testthat::expect_identical(checked$target_nourish, checked$expected)
+    testthat::expect_false(anyNA(fp$target_nourish))
+  }
+  testthat::expect_equal(
+    sum(out$footprint$target_class_diag$n_flows_unclassified),
+    0L
+  )
+  # The driver joins no consumer boundary class: that is decided per
+  # country-year after aggregation, by the caller.
+  testthat::expect_false(
+    rlang::has_name(out$footprint$fp_all, "target_boundary_side")
+  )
+})
+
+testthat::test_that("the consumer join leaves the producer columns unchanged", {
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  data <- .sjos_nitrogen_test_data()
+  producer_only <- whep::build_sjos_n_footprint(
+    exceedance = out$boundary_surplus$country,
+    category = "exceedance",
+    data = list(fp_flows = data$fp_flows, origin_classes = out$sjos_class)
+  )
+  # negative_critical is the driver's stamp of how negative critical surpluses
+  # were treated, not a producer column, so it is dropped with target_nourish.
+  for (tbl in c("fp_all", "fp_food")) {
+    testthat::expect_identical(
+      dplyr::select(
+        out$footprint[[tbl]],
+        -c("target_nourish", "negative_critical")
+      ),
+      producer_only[[tbl]]
+    )
+  }
 })
 
 testthat::test_that("every SJOS-N output table is non-empty", {

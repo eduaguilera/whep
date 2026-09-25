@@ -36,7 +36,12 @@
 #' ([classify_sjos_n()]) and, via the per-capita anthropogenic reactive nitrogen
 #' ([build_n_percapita()]), into the boundary-versus-nourishment scatter
 #' ([build_n_boundary_percapita()]). The country exceedance finally becomes an
-#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]).
+#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]), which carries
+#' the producer's classes (`origin_classes`, the per-crop classification) and
+#' the consuming country's nourishment class (`target_nourish`, joined on
+#' `target_area` and `year` from the same nourishment table). The driver joins
+#' no consumer boundary class: that is a country-year class decided after
+#' aggregation, which a caller supplies to [build_sjos_n_footprint()] directly.
 #'
 #' The same nitrogen balance feeds the surplus and the pathway boundaries, the
 #' same nourishment feeds the classification and the scatter, and the one
@@ -105,7 +110,9 @@
 #'   versus nourishment points; it and `nourishment` carry
 #'   `method_population`, `"read_population"` or `"supplied"`), `sjos_class`
 #'   (the 2-way classification) and `footprint` (a list with the `fp_all` and
-#'   `fp_food` embodied-nitrogen footprints). The boundary tables,
+#'   `fp_food` embodied-nitrogen footprints, both carrying `target_nourish`,
+#'   and `target_class_diag`, the per-year count of flows whose consumer
+#'   country-year has no nourishment class). The boundary tables,
 #'   `sjos_class` and both footprint tables carry `negative_critical`.
 #' @export
 #' @examples
@@ -161,9 +168,13 @@ build_sjos_nitrogen <- function(
       boundary$country,
       data,
       opts,
-      sjos_class
+      sjos_class,
+      nourishment
     ) |>
-      purrr::map(\(x) .sjos_stamp_critical(x, opts))
+      purrr::modify_at(
+        c("fp_all", "fp_food"),
+        \(x) .sjos_stamp_critical(x, opts)
+      )
   )
 }
 
@@ -404,13 +415,29 @@ build_sjos_nitrogen <- function(
     )
 }
 
-# The embodied-nitrogen trade footprint from the country exceedance.
-.sjos_footprint <- function(country_exc, data, opts, origin_classes) {
+# The embodied-nitrogen trade footprint from the country exceedance. The
+# producer side carries the per-crop classification; the consumer side carries
+# the consuming country's nourishment class from the same nourishment table the
+# classification used, so the two sides cannot be classified against different
+# bands.
+.sjos_footprint <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  nourishment
+) {
   build_sjos_n_footprint(
     exceedance = country_exc,
     io = data$io,
     category = opts$footprint_category,
-    data = .sjos_fp_data(country_exc, data, opts, origin_classes)
+    data = .sjos_fp_data(
+      country_exc,
+      data,
+      opts,
+      origin_classes,
+      dplyr::select(nourishment, "year", "area_code", "nourish")
+    )
   )
 }
 
@@ -418,23 +445,32 @@ build_sjos_nitrogen <- function(
 # injected pre-traced flows. Domestic closure is a fixture concern only and is
 # supplied by .sjos_n_example_data(); silently creating it here would turn a
 # real no-IO analysis into a false 100% domestic footprint.
-.sjos_fp_data <- function(country_exc, data, opts, origin_classes) {
+.sjos_fp_data <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  target_classes
+) {
+  classes <- list(
+    origin_classes = origin_classes,
+    target_classes = target_classes
+  )
   if (!is.null(data$io)) {
-    return(list(origin_classes = origin_classes))
+    return(classes)
   }
   if (rlang::has_name(data, "fp_flows")) {
-    return(list(
-      fp_flows = data$fp_flows,
-      origin_classes = origin_classes
-    ))
+    return(c(list(fp_flows = data$fp_flows), classes))
   }
   if (isTRUE(opts$example)) {
-    return(list(
-      fp_flows = .sjos_fp_flows_fixture(
-        country_exc,
-        opts$footprint_category
+    return(c(
+      list(
+        fp_flows = .sjos_fp_flows_fixture(
+          country_exc,
+          opts$footprint_category
+        )
       ),
-      origin_classes = origin_classes
+      classes
     ))
   }
   cli::cli_abort(c(
