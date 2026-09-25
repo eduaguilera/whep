@@ -306,6 +306,7 @@ build_grazing_feed_footprint <- function(
 .grazing_forage_intake <- function(year, basis = "grazer_forage") {
   feed_types <- if (basis == "grass") "grass" else .forage_feed_types()
   intake <- get_feed_intake(years = as.integer(year)) |>
+    .check_forage_feed_types(feed_types) |>
     dplyr::filter(.data$feed_type %in% feed_types)
   if (basis == "grazer_forage") {
     intake <- dplyr::filter(
@@ -325,10 +326,44 @@ build_grazing_feed_footprint <- function(
     )
 }
 
+# The forage feed types are get_feed_intake()'s `feed_type` vocabulary. A
+# label that moved matches no intake row, so no animal fed anywhere and the
+# grazing footprint comes back empty while still stamped
+# `"grazing_feed_allocation"`; the unattributed-land warning then blames every
+# country for having no grazers rather than naming the label (whep#1034).
+.check_forage_feed_types <- function(intake, feed_types) {
+  check_labels_supplied(
+    intake,
+    "feed_type",
+    feed_types,
+    # Interpolated here: the helper evaluates `details` in its own frame.
+    details = c(
+      i = paste(
+        "Grazing land is split across animals by the",
+        paste(feed_types, collapse = " and "),
+        "intake of {.fn get_feed_intake}."
+      )
+    )
+  )
+}
+
 # Livestock output production (tonnes) per country, animal and item.
+#
+# Selected by `unit == "tonnes"`: a production table in another unit vocabulary
+# matches no row, every animal then has land and no product, and the whole
+# grazing area is set aside as "produced no eligible output item" -- a
+# diagnosis that sends the reader to the animals, not to the unit (whep#1034).
 .grazing_production <- function(year) {
   out_items <- .livestock_output_items()
   get_primary_production() |>
+    check_labels_supplied(
+      "unit",
+      "tonnes",
+      details = c(
+        i = "Livestock output is read from the {.val tonnes} rows of
+             {.fn get_primary_production}."
+      )
+    ) |>
     dplyr::filter(
       .data$unit == "tonnes",
       year == .env$year,

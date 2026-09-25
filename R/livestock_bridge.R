@@ -39,6 +39,7 @@ prepare_livestock_emissions <- function(
   system_shares = NULL
 ) {
   .validate_production_input(data)
+  .check_head_unit(data)
   data <- .as_livestock_tibble(data)
 
   animals <- animals_codes
@@ -135,6 +136,24 @@ prepare_livestock_emissions <- function(
   }
 }
 
+# Herds are selected by `unit == "heads"`. A production table in another unit
+# vocabulary matches no row, and every emission engine downstream then receives
+# no animals: enteric and manure CH4 and manure N2O come back as an empty frame,
+# which a GHG extension distributes to nothing while every conservation check
+# passes (whep#1034). So the label is asserted before the filter.
+#' @noRd
+.check_head_unit <- function(data) {
+  check_labels_supplied(
+    data,
+    "unit",
+    "heads",
+    details = c(
+      i = "Livestock numbers are read from the {.val heads} rows of
+           {.fn get_primary_production}."
+    )
+  )
+}
+
 #' @noRd
 .excluded_livestock_codes <- function() {
   # Rabbits, Rodents, Animals live nes, Bees, Game
@@ -192,6 +211,7 @@ prepare_livestock_emissions <- function(
   }
 
   tagged <- .tag_yields_to_animal_product(yield_rows, product_map)
+  .check_yields_tagged(tagged)
 
   if (is.null(tagged) || nrow(tagged) == 0) {
     return(NULL)
@@ -242,6 +262,27 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
   yields
+}
+
+# Yield rows were supplied (the caller only gets here with `t_head` rows that
+# carry a `live_anim_code`), so a tagging that matches none of them is a key
+# that moved -- a product code in another vocabulary or type -- not an absent
+# yield. Unguarded, `.extract_production_yields()` returns NULL, no milk yield
+# or weight gain is joined, and `estimate_energy_demand()` silently gives every
+# country its species' global `livestock_production_defaults` yield instead of
+# the realised one (whep#1034). Measured on the 2010 primary production: 1,342
+# of 4,584 `t_head` rows tag, the rest being non-designated co-products, so a
+# partial match is the normal state and only a match of none is refused.
+.check_yields_tagged <- function(tagged) {
+  check_inputs_supplied(
+    tibble::tibble(tagged_yield_rows = nrow(tagged)),
+    c(designated_product_yield = "tagged_yield_rows"),
+    details = c(
+      i = "No {.val t_head} row matches an animal's designated product
+           ({.field Item_Code_product} in {.code animals_codes}) on
+           {.field live_anim_code} and {.field item_prod_code}."
+    )
+  )
 }
 
 # Convert `meat_yield_t_head` (FAOSTAT carcass weight per head, tonnes) to
