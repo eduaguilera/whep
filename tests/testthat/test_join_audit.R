@@ -229,7 +229,11 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  # 82 since whep#1196: `.cpy_key` attaches the recorded cell-support mapping
+  # to one year's polycells; the support and the mapping are both filtered to
+  # the year before the join, so the key has no second year to disagree about.
+  # It is what lets the gridded nitrogen balance place the USSR's 1961 total.
+  expect_lte(sum(baseline$n), 82L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -379,7 +383,14 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 97L)
+  # 100 since whep#1196: the year-aware cell support's fold of one year's
+  # polycells into their area codes (`single_year`, the grouping
+  # `.carbon_fold_area_code` makes at the carbon snapshot), and its two
+  # `diagnostic` reports of what it removed and what still shares a cell, and
+  # `.cpy_rows_at_year` reading a constant-territory polity at its first
+  # interval (`year_axis`). Measured by running the audit, not by adding four
+  # to the previous cap.
+  expect_lte(sum(full$n), 101L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
