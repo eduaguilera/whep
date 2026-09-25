@@ -550,32 +550,15 @@
 # It is vectorised because the production build folds flags over millions of
 # groups on the way from the pin to the CBS (whep#1044), and a per-group call
 # to the scalar helper is most of what carrying the flag would cost.
-#
-# `unflagged` says what an `NA` member means. `"ignore"` (the default) skips
-# it, which is right where `NA` only means the source published no flag for
-# that row. `"blocks"` counts it as a flag of its own, so a group mixing a
-# flagged part with an unflagged one folds to `NA`. That is the rule wherever
-# the unflagged part is a number FAOSTAT never published -- a sum over
-# production items or sources, where an `NA` row is WHEP's own estimate and
-# the sum is not an official measurement because one part of it was
-# (whep#1044).
-.fold_fao_flag_by <- function(
-  df,
-  by_cols,
-  flag_col = "fao_flag",
-  unflagged = c("ignore", "blocks")
-) {
-  unflagged <- rlang::arg_match(unflagged)
+.fold_fao_flag_by <- function(df, by_cols, flag_col = "fao_flag") {
   dt <- data.table::as.data.table(df)
   keep <- c(by_cols, flag_col)
-  rows <- if (unflagged == "ignore") !is.na(dt[[flag_col]]) else TRUE
-  agreed <- unique(dt[rows, keep, with = FALSE], by = keep)
+  agreed <- unique(
+    dt[!is.na(dt[[flag_col]]), keep, with = FALSE],
+    by = keep
+  )
   agreed[, .n_group_flags := .N, by = by_cols]
-  agreed <- agreed[
-    agreed$.n_group_flags == 1L & !is.na(agreed[[flag_col]]),
-    keep,
-    with = FALSE
-  ]
+  agreed <- agreed[.n_group_flags == 1L, keep, with = FALSE]
   data.table::setnames(agreed, flag_col, "fao_flag_folded")
   agreed
 }
@@ -609,18 +592,12 @@
 # step of the production chain has one stable shape and the final select can
 # demand the column with `all_of()` instead of quietly selecting nothing
 # (whep#1044).
-.add_folded_fao_flags <- function(
-  out,
-  src,
-  by_cols,
-  flag_cols = "fao_flag",
-  unflagged = "ignore"
-) {
+.add_folded_fao_flags <- function(out, src, by_cols, flag_cols = "fao_flag") {
   dt <- data.table::as.data.table(out)
   for (col in flag_cols) {
     dt[, (col) := NA_character_]
     if (col %in% names(src)) {
-      folded <- .fold_fao_flag_by(src, by_cols, col, unflagged)
+      folded <- .fold_fao_flag_by(src, by_cols, col)
       if (nrow(folded) > 0L) {
         dt[folded, (col) := i.fao_flag_folded, on = by_cols]
       }

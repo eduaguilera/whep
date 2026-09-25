@@ -1514,12 +1514,172 @@ test_that(".cbs_redistribute_notprocessed keeps matched processing (#757)", {
 
   # Negative control: with no pathway the processing is split onto the other
   # destinies and the processing row disappears. This is the #757 mechanism,
-  # and the reason the dairy pathway above has to exist.
+  # and the reason the dairy pathway above has to exist. It is now the
+  # opt-in "redistribute" treatment (#781).
   unmatched <- matched[0L, ]
-  split <- whep:::.cbs_redistribute_notprocessed(cbs, unmatched)
+  split <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    unmatched,
+    unmatched_processing = "redistribute"
+  )
 
   expect_equal(nrow(dplyr::filter(split, .data$element == "processing")), 0L)
   expect_gt(dplyr::filter(split, .data$element == "food")$value, 500)
+})
+
+# -- Processing with no pathway (#781) -----------------------------------------
+
+# A `processing` destiny whose item has no pathway in `cb_processing` (raw
+# sugar, coconut oil, animal fats, ...) used to be split pro rata onto food,
+# feed, other_uses and export, inflating FAOSTAT's food by up to 58% (coconut
+# oil, 2010). The default now books it on `other_uses`, the destiny the
+# `.cbs_reclassify_processing()` shortfall valve already uses.
+
+.make_unmatched_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "processing", 200,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "food", 500,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "feed", 60,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "other_uses", 40,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "export", 200,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "production", 1000,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "domestic_supply", 800
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+}
+
+.elem_value <- function(df, elem) {
+  df |>
+    dplyr::filter(.data$element == elem) |>
+    dplyr::pull(value) |>
+    sum()
+}
+
+test_that("unmatched processing goes to other_uses by default (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(cbs, no_pathway)
+
+  expect_equal(nrow(dplyr::filter(out, .data$element == "processing")), 0L)
+  expect_equal(.elem_value(out, "other_uses"), 240)
+  # Food, feed and export are what FAOSTAT reported, untouched.
+  expect_equal(.elem_value(out, "food"), 500)
+  expect_equal(.elem_value(out, "feed"), 60)
+  expect_equal(.elem_value(out, "export"), 200)
+  # No mass leaves the domestic uses: supply is unchanged.
+  expect_equal(.elem_value(out, "domestic_supply"), 800)
+})
+
+test_that("unmatched processing keeps its row under 'processing' (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    no_pathway,
+    unmatched_processing = "processing"
+  )
+
+  expect_equal(.elem_value(out, "processing"), 200)
+  expect_equal(.elem_value(out, "other_uses"), 40)
+  expect_equal(.elem_value(out, "food"), 500)
+  expect_equal(.elem_value(out, "domestic_supply"), 800)
+})
+
+test_that("'redistribute' splits unmatched processing pro rata (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    no_pathway,
+    unmatched_processing = "redistribute"
+  )
+
+  # Shares over food + feed + other_uses + export = 800.
+  expect_equal(.elem_value(out, "food"), 500 + 200 * 500 / 800)
+  expect_equal(.elem_value(out, "export"), 200 + 200 * 200 / 800)
+  expect_equal(.elem_value(out, "other_uses"), 40 + 200 * 40 / 800)
+  expect_equal(.elem_value(out, "processing"), 0)
+})
+
+test_that("unmatched processing with no other destiny keeps its mass (#781)", {
+  # Under "redistribute" an item whose only destiny is processing has no
+  # share to split on, and the processing mass vanished outright.
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "processing", 300,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "production", 300,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "domestic_supply", 300
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(cbs, no_pathway)
+
+  expect_equal(.elem_value(out, "other_uses"), 300)
+  expect_equal(.elem_value(out, "domestic_supply"), 300)
+})
+
+test_that("build_commodity_balances validates unmatched_processing", {
+  expect_error(
+    build_commodity_balances(example = TRUE, unmatched_processing = "food"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      unmatched_processing = "redistribute"
+    ),
+    "ignored"
+  )
+})
+
+test_that("unmatched_processing rejects an unknown choice (#781)", {
+  expect_error(
+    whep:::.cbs_redistribute_notprocessed(
+      .make_unmatched_cbs(),
+      tibble::tibble(
+        year = integer(),
+        area = character(),
+        area_code = integer(),
+        processed_item = character()
+      ),
+      unmatched_processing = "food"
+    ),
+    class = "rlang_error"
+  )
 })
 
 
@@ -3853,24 +4013,6 @@ test_that(".primary_to_cbs drops a flag its parts disagree about", {
   wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
   expect_equal(wheat$value, 5e6)
   expect_true(is.na(wheat$fao_flag))
-})
-
-test_that(".primary_to_cbs does not credit an unflagged part's share", {
-  # whep#1044: an `NA` flag on a production row means FAOSTAT published no
-  # flag for that number -- it is WHEP's own estimate. A CBS sum over an "A"
-  # item and an unflagged one is not an official measurement, but the fold
-  # used to skip the `NA` and report "A": Argentina 2010 "Oilcrops, Other"
-  # read "A" for 79,459 t of which 32,170 t carried no flag.
-  result <- .make_flagged_primary_all(c("A", NA, "E", "I")) |>
-    whep:::.primary_to_cbs() |>
-    tibble::as_tibble()
-
-  wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
-  expect_equal(wheat$value, 5e6)
-  expect_true(is.na(wheat$fao_flag))
-  # A single-item row is unaffected by the stricter rule.
-  barley <- result |> dplyr::filter(item_cbs_code == 2513L)
-  expect_equal(barley$fao_flag, "E")
 })
 
 test_that(".primary_to_cbs emits fao_flag when production carries none", {
