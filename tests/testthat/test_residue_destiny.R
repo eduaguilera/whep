@@ -269,3 +269,56 @@ test_that("an out-of-range bedding fraction is refused", {
     )
   }
 })
+
+test_that("recovery = selects the rate column and is recorded (whep#1163)", {
+  # Item 157 is sugar beet: Wirsenius Table 3.17 gives 0.90 in every region,
+  # the legacy table 0 in West Europe.
+  beet <- tibble::tibble(
+    item_prod_code = "157",
+    residue_dm_t = 100,
+    region_krausmann = "West Europe",
+    region_un_sub = "Western Europe"
+  )
+  default <- whep::calculate_residue_destinies(beet)
+  legacy <- whep::calculate_residue_destinies(beet, recovery = "legacy")
+  testthat::expect_equal(default$method_residue_recovery, "wirsenius")
+  testthat::expect_equal(legacy$method_residue_recovery, "legacy")
+  testthat::expect_equal(default$residue_soil_dm_t, 10)
+  testthat::expect_equal(legacy$residue_soil_dm_t, 100)
+  for (out in list(default, legacy)) {
+    testthat::expect_equal(
+      out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+      100
+    )
+  }
+  testthat::expect_error(
+    whep::calculate_residue_destinies(beet, recovery = "krausmann"),
+    class = "rlang_error"
+  )
+})
+
+test_that("a category the source is silent on is the same in both variants", {
+  # Item 176 is dry beans: Wirsenius models no residue for pulses, so the
+  # Wirsenius variant keeps the legacy rate rather than inventing one.
+  beans <- tibble::tibble(
+    item_prod_code = "176",
+    residue_dm_t = 100,
+    region_krausmann = "East Asia",
+    region_un_sub = "Eastern Asia"
+  )
+  testthat::expect_equal(
+    whep::calculate_residue_destinies(beans)$residue_soil_dm_t,
+    whep::calculate_residue_destinies(
+      beans,
+      recovery = "legacy"
+    )$residue_soil_dm_t
+  )
+})
+
+test_that("the shares method records no recovery variant", {
+  x <- tibble::tibble(item_prod_code = "15", residue_dm_t = 100, year = 1950)
+  out <- suppressWarnings(
+    whep::calculate_residue_destinies(x, method = "shares")
+  )
+  testthat::expect_true(is.na(out$method_residue_recovery))
+})
