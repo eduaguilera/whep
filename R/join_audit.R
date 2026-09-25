@@ -125,6 +125,11 @@
     "area_code -> polity_area_code, as above.",
     ".compute_su_used", "full_join", "area_code, item_cbs_code", 1L,
     "single_year", "Both sides are one year's supply-use.",
+    ".cpy_key", "left_join", "polity_code", 1L, "single_year",
+    "Attaches the recorded cell-support mapping (whep#1196) to the polycells of
+     ONE year: `.cell_polity_year_support()` filters the support to the
+     interval covering `year` and the mapping to its rows active in `year`
+     before the join, and `polity_code` carries its own period.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",
     "Keyed on the polity, which is the year-scoped identity itself.",
     ".dependency_sovereign_iso3", "merge", "legacy_polity_prefix", 1L,
@@ -516,6 +521,24 @@
     "single_year",
     "`su` is one year's supply-use; the IO model is built per year, as the
      matching join row says.",
+    ".cpy_overlap_kept", "summarise", "polity_code, area_code", 1L,
+    "diagnostic",
+    "Lists the reporting polities that still share an overlapping cell in the
+     year-aware cell support of ONE year (whep#1196), for the driver's saved
+     report. It reaches no value.",
+    ".cpy_removed", "summarise", "polity_code, area_code, removed_reason", 1L,
+    "diagnostic",
+    "Lists the polycells the year-aware cell support of ONE year removed from
+     overlapping cells' denominators (whep#1196), for the driver's saved
+     report. It reaches no value.",
+    ".cpy_rows_at_year", "filter", "polity_code", 1L, "year_axis",
+    "`min(start_year)` IS the reduction over one polity's intervals: a
+     constant-territory polity (whep#1196) is read at its own first year, so a
+     polycell the support splits at a neighbour's breakpoint is taken once.",
+    ".cpy_shares", "summarise", "lon, lat, area_code", 1L, "single_year",
+    "Folds the polities of one cell into their area code on a polycell support
+     already filtered to the interval covering one `year`, the frame
+     `.carbon_fold_area_code` folds at the carbon path's snapshot year.",
     ".cropgrids_to_polity_area", "summarise", "area_code, item_cbs_code", 1L,
     "identity_lookup",
     "The bucket fold of the CROPGRIDS map. `add_polity_code(year_column =

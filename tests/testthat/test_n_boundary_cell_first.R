@@ -470,6 +470,9 @@ testthat::test_that("a binding table from another scope or layer aborts", {
     resolution = "cell",
     actual_year = 2010L,
     critical_reference_year = 2010L,
+    # The published decomposition compares all land with the all-scope
+    # surface as deposited; the grassland split (#1316) is WHEP's refinement.
+    grassland_split = "none",
     negative_critical = negative_critical
   ) |>
     dplyr::summarise(

@@ -462,6 +462,114 @@ testthat::test_that("critical_loads is never read as critical (#1214)", {
   )
 })
 
+# ---- grassland_split forwarding (T09, issue #1285) -------------------------
+
+testthat::test_that("'ara' output is unchanged by grassland_split (T09)", {
+  # "ara" ignores grassland_split/grassland entirely
+  # (build_n_boundary_exceedance()'s own `split` flag requires
+  # land_use == "all"), so the driver's new default forwarding must produce
+  # exactly what calling build_n_boundary_exceedance() the pre-T09 way (no
+  # grassland_split/grassland argument at all) produced.
+  data <- .sjos_nitrogen_test_data()
+  surplus <- whep::calculate_n_surplus(data$balance)
+  pre_t09 <- list(
+    grid = whep::build_n_boundary_exceedance(
+      surplus = surplus,
+      critical = data$critical,
+      land_use = "ara",
+      resolution = "grid",
+      metric = "surplus",
+      actual_year = 2010L,
+      critical_reference_year = 2010L
+    ),
+    country = whep::build_n_boundary_exceedance(
+      surplus = surplus,
+      critical = data$critical,
+      land_use = "ara",
+      resolution = "country",
+      metric = "surplus",
+      actual_year = 2010L,
+      critical_reference_year = 2010L
+    )
+  )
+  out <- whep::build_sjos_nitrogen(data = data)
+  testthat::expect_equal(out$boundary_surplus$grid, pre_t09$grid)
+  testthat::expect_equal(out$boundary_surplus$country, pre_t09$country)
+})
+
+testthat::test_that("'all' forwards grassland_split and grassland (T09)", {
+  # Exercises .sjos_boundary_surplus() directly (the private composer),
+  # mocking build_n_boundary_exceedance() to capture exactly what it
+  # receives -- the full driver's downstream tables (classification,
+  # footprint) are not exercised here, only the forwarding contract.
+  data <- .sjos_nitrogen_test_data()
+  data$critical$critical_land_use <- "all"
+  grassland_stub <- list(
+    classes = tibble::tibble(cell_id = 1L),
+    extensive_budget = tibble::tibble(cell_id = 1L),
+    critical_ara = tibble::tibble(cell_id = 1L),
+    critical_igl = tibble::tibble(cell_id = 1L)
+  )
+  data$grassland <- grassland_stub
+  surplus <- whep::calculate_n_surplus(data$balance)
+  seen <- list()
+  testthat::local_mocked_bindings(
+    build_n_boundary_exceedance = function(
+      ...,
+      land_use,
+      resolution,
+      grassland_split,
+      grassland
+    ) {
+      seen[[resolution]] <<- list(
+        land_use = land_use,
+        grassland_split = grassland_split,
+        grassland = grassland
+      )
+      tibble::tibble()
+    }
+  )
+  opts <- list(boundary_land_use = "all", grassland_split = "image_density")
+  whep:::.sjos_boundary_surplus(surplus, data, opts)
+  testthat::expect_named(seen, c("grid", "country"))
+  for (res in c("grid", "country")) {
+    testthat::expect_equal(seen[[res]]$land_use, "all")
+    testthat::expect_equal(seen[[res]]$grassland_split, "image_density")
+    testthat::expect_identical(seen[[res]]$grassland, grassland_stub)
+  }
+})
+
+testthat::test_that("'all' + 'image_density' with no inputs aborts (T09)", {
+  # Neither data$grassland (the split inputs directly) nor data$critical
+  # (needed to match the ara/igl var and threshold) is supplied, so the
+  # assembly cannot run and must abort rather than silently falling back --
+  # entirely offline, since the abort fires before any real read.
+  data <- .sjos_nitrogen_test_data()
+  data$grassland <- NULL
+  data$critical <- NULL
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data, boundary_land_use = "all"),
+    class = "whep_sjos_grassland_missing"
+  )
+})
+
+testthat::test_that("'all' + grassland_split = 'none' skips the split (T09)", {
+  data <- .sjos_nitrogen_test_data()
+  data$critical$critical_land_use <- "all"
+  out <- whep::build_sjos_nitrogen(
+    data = data,
+    boundary_land_use = "all",
+    grassland_split = "none"
+  )
+  testthat::expect_gt(nrow(out$boundary_surplus$grid), 0)
+  testthat::expect_true(all(
+    out$boundary_surplus$grid$grassland_split == "none"
+  ))
+  testthat::expect_true(all(
+    out$boundary_surplus$grid$method_grassland_split == "none"
+  ))
+})
+
 testthat::test_that("negative_critical and the binding table thread through", {
   data <- .sjos_nitrogen_test_data()
   # The second cell's critical surplus becomes -40 kg/ha on 50 ha (-2 t)
