@@ -93,7 +93,7 @@
 #' no row in `whep::items_full`, so the item-code bridge leaves it without
 #' an `item_cbs_code` and it is dropped a step later. That was silent
 #' until now and is warned about separately; four CBS names and 14 of the
-#' 710 trade item codes in `whep::cbs_trade_codes` are affected. The
+#' 700 trade item codes in `whep::cbs_trade_codes` are affected. The
 #' screen is therefore explicit where the mapping gap was accidental, and
 #' it keeps working if the gap is ever filled.
 #'
