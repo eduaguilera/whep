@@ -18,10 +18,10 @@ A named list with ggplot objects \code{by_compartment} and
 \description{
 Plots two stacked bar charts from
 \code{\link[=decompose_terr_losses_periods]{decompose_terr_losses_periods()}}: one bar per reference
-period comparison, labeled by mean year (1865-1925, 1925-1965,
-1965-2015), each compared against the immediately preceding reference
+period comparison, labeled by mean year (1865-1930, 1930-1965,
+1965-2018), each compared against the immediately preceding reference
 period (chained), plus one extra bar for the full analysis window
-(Total (1865-2015)), broken down by compartment in one chart and by
+(Total (1865-2018)), broken down by compartment in one chart and by
 mechanism in the other. Contributions are normalized to Gg N/yr (see
 \code{\link[=decompose_terr_losses_periods]{decompose_terr_losses_periods()}}), since the chained
 transitions and the Total span very different numbers of years.
@@ -30,17 +30,17 @@ transitions and the Total span very different numbers of years.
 decomp <- list(
   by_compartment = tibble::tribble(
     ~period, ~compartment, ~contribution_per_yr_mgn,
-    "1865-1925", "cropland", 120,
-    "1865-1925", "manure", 40,
-    "1925-1965", "cropland", 260,
-    "1925-1965", "manure", 90
+    "1865-1930", "cropland", 120,
+    "1865-1930", "manure", 40,
+    "1930-1965", "cropland", 260,
+    "1930-1965", "manure", 90
   ),
   by_mechanism = tibble::tribble(
     ~period, ~mechanism, ~contribution_per_yr_mgn,
-    "1865-1925", "Size", 90,
-    "1865-1925", "Inefficiency", 70,
-    "1925-1965", "Size", 150,
-    "1925-1965", "Inefficiency", 200
+    "1865-1930", "Size", 90,
+    "1865-1930", "Inefficiency", 70,
+    "1930-1965", "Size", 150,
+    "1930-1965", "Inefficiency", 200
   )
 )
 plots <- plot_loss_decomp_periods(decomp)

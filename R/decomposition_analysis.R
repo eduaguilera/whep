@@ -27,9 +27,9 @@
 #'   `whep_read_file("codes_coefs")`. If `NULL`, loaded automatically.
 #' @param by_period If `TRUE`, compares each reference period (each
 #'   averaged across its ten years) against the immediately preceding
-#'   one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+#'   one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 #'   extra transition spanning the full analysis window, 1860-1870
-#'   straight to 2010-2020 (the total change) — instead of chaining year
+#'   straight to 2013-2023 (the total change) — instead of chaining year
 #'   on year.
 #' @param example If `TRUE`, return a small hardcoded output without
 #'   downloading remote data. Default is `FALSE`.
@@ -122,9 +122,9 @@ decompose_cropland_surplus <- function(
 #'   `whep_read_file("npp_ygpit")`. If `NULL`, loaded automatically.
 #' @param by_period If `TRUE`, compares each reference period (each
 #'   averaged across its ten years) against the immediately preceding
-#'   one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+#'   one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 #'   extra transition spanning the full analysis window, 1860-1870
-#'   straight to 2010-2020 (the total change) — instead of chaining year
+#'   straight to 2013-2023 (the total change) — instead of chaining year
 #'   on year.
 #' @param example If `TRUE`, return a small hardcoded output without
 #'   downloading remote data. Default is `FALSE`.
@@ -208,9 +208,9 @@ decompose_semi_natural_surplus <- function(
 #'   `whep_read_file("livestock_units")`. If `NULL`, loaded automatically.
 #' @param by_period If `TRUE`, compares each reference period (each
 #'   averaged across its ten years) against the immediately preceding
-#'   one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+#'   one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 #'   extra transition spanning the full analysis window, 1860-1870
-#'   straight to 2010-2020 (the total change) — instead of chaining year
+#'   straight to 2013-2023 (the total change) — instead of chaining year
 #'   on year.
 #' @param example If `TRUE`, return a small hardcoded output without
 #'   downloading remote data. Default is `FALSE`.
@@ -314,9 +314,9 @@ decompose_manure_losses <- function(
 #'   `whep_read_file("population_yg")`. If `NULL`, loaded automatically.
 #' @param by_period If `TRUE`, compares each reference period (each
 #'   averaged across its ten years) against the immediately preceding
-#'   one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+#'   one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 #'   extra transition spanning the full analysis window, 1860-1870
-#'   straight to 2010-2020 (the total change) — instead of chaining year
+#'   straight to 2013-2023 (the total change) — instead of chaining year
 #'   on year.
 #' @param example If `TRUE`, return a small hardcoded output without
 #'   downloading remote data. Default is `FALSE`.
@@ -462,8 +462,8 @@ decompose_terr_losses <- function(
 #' Runs the same four compartments as [decompose_terr_losses()],
 #' but comparing each reference period (each averaged across its ten
 #' years) against the immediately preceding one — 1860-1870 ->
-#' 1920-1930 -> 1960-1970 -> 2010-2020 — plus one extra transition
-#' spanning the full analysis window, 1860-1870 straight to 2010-2020
+#' 1925-1935 -> 1960-1970 -> 2013-2023 — plus one extra transition
+#' spanning the full analysis window, 1860-1870 straight to 2013-2023
 #' (the total change), instead of chaining year on year. This is the
 #' periodised table recommended alongside the main chained figure in the
 #' decomposition proposal (section 12), summarizing the four historical
@@ -482,7 +482,7 @@ decompose_terr_losses <- function(
 #' @return A named list with tibbles `detail` (per-compartment LMDI
 #'   output, with `compartment` and `mechanism` columns added),
 #'   `by_compartment`, and `by_mechanism` (each with `period` — one of
-#'   "1865-1925", "1925-1965", "1965-2015", "Total (1865-2015)", the mean
+#'   "1865-1930", "1930-1965", "1965-2018", "Total (1865-2018)", the mean
 #'   year of each reference window (1865 = mean of 1860-1870, and so on)
 #'   — plus `contribution_mgn`, `period_years`, and
 #'   `contribution_per_yr_mgn`, the per-year-normalized value used for
@@ -1045,10 +1045,10 @@ plot_loss_decomp_rolling_panel <- function(
 #' @description
 #' Plots two stacked bar charts from
 #' [decompose_terr_losses_periods()]: one bar per reference
-#' period comparison, labeled by mean year (1865-1925, 1925-1965,
-#' 1965-2015), each compared against the immediately preceding reference
+#' period comparison, labeled by mean year (1865-1930, 1930-1965,
+#' 1965-2018), each compared against the immediately preceding reference
 #' period (chained), plus one extra bar for the full analysis window
-#' (Total (1865-2015)), broken down by compartment in one chart and by
+#' (Total (1865-2018)), broken down by compartment in one chart and by
 #' mechanism in the other. Contributions are normalized to Gg N/yr (see
 #' [decompose_terr_losses_periods()]), since the chained
 #' transitions and the Total span very different numbers of years.
@@ -1065,17 +1065,17 @@ plot_loss_decomp_rolling_panel <- function(
 #' decomp <- list(
 #'   by_compartment = tibble::tribble(
 #'     ~period, ~compartment, ~contribution_per_yr_mgn,
-#'     "1865-1925", "cropland", 120,
-#'     "1865-1925", "manure", 40,
-#'     "1925-1965", "cropland", 260,
-#'     "1925-1965", "manure", 90
+#'     "1865-1930", "cropland", 120,
+#'     "1865-1930", "manure", 40,
+#'     "1930-1965", "cropland", 260,
+#'     "1930-1965", "manure", 90
 #'   ),
 #'   by_mechanism = tibble::tribble(
 #'     ~period, ~mechanism, ~contribution_per_yr_mgn,
-#'     "1865-1925", "Size", 90,
-#'     "1865-1925", "Inefficiency", 70,
-#'     "1925-1965", "Size", 150,
-#'     "1925-1965", "Inefficiency", 200
+#'     "1865-1930", "Size", 90,
+#'     "1865-1930", "Inefficiency", 70,
+#'     "1930-1965", "Size", 150,
+#'     "1930-1965", "Inefficiency", 200
 #'   )
 #' )
 #' plots <- plot_loss_decomp_periods(decomp)
@@ -1129,17 +1129,17 @@ plot_loss_decomp_periods <- function(decomp = NULL) {
 #'   decomp <- list(
 #'     by_compartment = tibble::tribble(
 #'       ~period, ~compartment, ~contribution_per_yr_mgn,
-#'       "1865-1925", "cropland", 120,
-#'       "1925-1965", "cropland", 260,
-#'       "1865-1925", "urban", 15,
-#'       "1925-1965", "urban", 35
+#'       "1865-1930", "cropland", 120,
+#'       "1930-1965", "cropland", 260,
+#'       "1865-1930", "urban", 15,
+#'       "1930-1965", "urban", 35
 #'     ),
 #'     by_mechanism = tibble::tribble(
 #'       ~period, ~mechanism, ~contribution_per_yr_mgn,
-#'       "1865-1925", "Size", 90,
-#'       "1925-1965", "Size", 150,
-#'       "1865-1925", "Intensification", 45,
-#'       "1925-1965", "Intensification", 145
+#'       "1865-1930", "Size", 90,
+#'       "1930-1965", "Size", 150,
+#'       "1865-1930", "Intensification", 45,
+#'       "1930-1965", "Intensification", 145
 #'     )
 #'   )
 #'   panel <- plot_loss_decomp_periods_panel(decomp)
@@ -1710,12 +1710,12 @@ plot_compart_factor_roll_panel <- function(
 #'   # decompose_cropland_surplus(by_period = TRUE).
 #'   lmdi <- tibble::tribble(
 #'     ~period, ~period_years, ~factor_label, ~component_type, ~additive,
-#'     "1865-1925", 60, "Size", "factor", 5400,
-#'     "1865-1925", 60, "Intensity", "factor", 3600,
-#'     "1865-1925", 60, "Inefficiency", "factor", -1200,
-#'     "1925-1965", 40, "Size", "factor", 4000,
-#'     "1925-1965", 40, "Intensity", "factor", 9200,
-#'     "1925-1965", 40, "Inefficiency", "factor", 2800
+#'     "1865-1930", 65, "Size", "factor", 5400,
+#'     "1865-1930", 65, "Intensity", "factor", 3600,
+#'     "1865-1930", 65, "Inefficiency", "factor", -1200,
+#'     "1930-1965", 35, "Size", "factor", 4000,
+#'     "1930-1965", 35, "Intensity", "factor", 9200,
+#'     "1930-1965", 35, "Inefficiency", "factor", 2800
 #'   )
 #'   panel <- plot_compart_factor_periods(lmdi, lmdi, lmdi, lmdi)
 #' }
@@ -2348,7 +2348,7 @@ plot_compart_factor_periods <- function(
 }
 
 # Reuses .assign_period_label() (circularity_index.R) for the same four
-# reference periods (1860-1870, 1920-1930, 1960-1970, 2010-2020), then
+# reference periods (1860-1870, 1925-1935, 1960-1970, 2013-2023), then
 # averages every numeric column within each period (plus any extra
 # grouping columns), replacing `year` with the period's start year.
 .period_average_panel <- function(panel, group_cols) {
@@ -2365,13 +2365,13 @@ plot_compart_factor_periods <- function(
 
 # Each reference period vs. the immediately preceding one (chained, not
 # vs. a fixed 1860-1870 baseline), plus one extra transition spanning the
-# full analysis window (1860-1870 straight to 2010-2020), for
-# calculate_lmdi()'s `periods` argument: 1860-1870 -> 1920-1930 ->
-# 1960-1970 -> 2010-2020, and 1860-1870 -> 2010-2020 (total change).
+# full analysis window (1860-1870 straight to 2013-2023), for
+# calculate_lmdi()'s `periods` argument: 1860-1870 -> 1925-1935 ->
+# 1960-1970 -> 2013-2023, and 1860-1870 -> 2013-2023 (total change).
 .reference_period_pairs <- function() {
   tibble::tibble(
-    t0 = c(1860, 1920, 1960, 1860),
-    t_t = c(1920, 1960, 2010, 2010)
+    t0 = c(1860, 1925, 1960, 1860),
+    t_t = c(1925, 1960, 2013, 2013)
   )
 }
 
@@ -2506,36 +2506,36 @@ plot_compart_factor_periods <- function(
     .relabel_period_transitions()
 }
 
-# calculate_lmdi() labels a transition "1860-1920" (t0-t_final); relabel
+# calculate_lmdi() labels a transition "1860-1925" (t0-t_final); relabel
 # it with the short mean-year-vs-mean-year label shown under each bar
-# (e.g. "1865-1925"), and the 1860-2010 transition as the full-period
+# (e.g. "1865-1930"), and the 1860-2013 transition as the full-period
 # total. Levels are set explicitly (not left to alphabetical sort) so
 # the total bar always plots last. See .period_caption() for the label
 # key (which mean year stands for which reference window).
 .relabel_period_transitions <- function(df) {
   window_labels <- c(
-    `1860-1920` = "1865-1925",
-    `1920-1960` = "1925-1965",
-    `1960-2010` = "1965-2015",
-    `1860-2010` = "Total (1865-2015)"
+    `1860-1925` = "1865-1930",
+    `1925-1960` = "1930-1965",
+    `1960-2013` = "1965-2018",
+    `1860-2013` = "Total (1865-2018)"
   )
   period_levels <- c(
-    "1865-1925",
-    "1925-1965",
-    "1965-2015",
-    "Total (1865-2015)"
+    "1865-1930",
+    "1930-1965",
+    "1965-2018",
+    "Total (1865-2018)"
   )
   relabeled <- unname(window_labels[df$period])
   dplyr::mutate(df, period = factor(relabeled, levels = period_levels))
 }
 
-# Explains the shorthand mean-year period labels (e.g. "1865-1925") used
+# Explains the shorthand mean-year period labels (e.g. "1865-1930") used
 # throughout the period plots and panels.
 .period_caption <- function() {
   paste0(
     "Period labels show the mean year of each reference window: ",
-    "1865 = mean of 1860-1870, 1925 = mean of 1920-1930, ",
-    "1965 = mean of 1960-1970, 2015 = mean of 2010-2020."
+    "1865 = mean of 1860-1870, 1930 = mean of 1925-1935, ",
+    "1965 = mean of 1960-1970, 2018 = mean of 2013-2023."
   )
 }
 
@@ -2545,12 +2545,46 @@ plot_compart_factor_periods <- function(
   paste0(
     "Contributions smoothed with a ",
     window,
-    "-year centered rolling mean (edges dropped where undefined)."
+    "-year centered rolling mean (edges dropped where undefined). ",
+    "The black line marks the net (summed) change."
   )
+}
+
+# Sums the per-group rolling_mgn back into a single net-per-year series,
+# for overlaying a net-total line on a stacked rolling-mean plot: with
+# mixed-sign components, geom_col(position = "stack") plots positive and
+# negative segments on opposite sides of zero, so the net change is not
+# otherwise visible from the stack alone. Rows where any group is still
+# NA (the rolling-mean edges) are dropped rather than partially summed.
+.net_rolling_series <- function(df) {
+  df |>
+    dplyr::summarise(net_mgn = sum(rolling_mgn), .by = t0) |>
+    dplyr::filter(!is.na(net_mgn))
 }
 
 
 # --- Private helpers: plots ---------------------------------------------------
+
+# One dot per year on the net (summed-across-group) rolling-mean series,
+# connected by a line, in black so it reads as a single net-change trend
+# distinct from the stacked, colored components underneath it.
+.geom_net_line <- function(net) {
+  list(
+    ggplot2::geom_line(
+      data = net,
+      mapping = ggplot2::aes(x = t0, y = net_mgn / 1000),
+      inherit.aes = FALSE,
+      color = "black"
+    ),
+    ggplot2::geom_point(
+      data = net,
+      mapping = ggplot2::aes(x = t0, y = net_mgn / 1000),
+      inherit.aes = FALSE,
+      color = "black",
+      size = 1.5
+    )
+  )
+}
 
 .plot_cumulative_stack <- function(
   df,
@@ -2631,6 +2665,7 @@ plot_compart_factor_periods <- function(
   ) +
     ggplot2::geom_col(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linewidth = 0.4, color = "grey40") +
+    .geom_net_line(.net_rolling_series(df)) +
     ggplot2::labs(
       x = NULL,
       y = y_label,
@@ -2732,6 +2767,7 @@ plot_compart_factor_periods <- function(
   ) +
     ggplot2::geom_col(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linewidth = 0.4, color = "grey40") +
+    .geom_net_line(.net_rolling_series(plot_data)) +
     ggplot2::scale_fill_manual(values = .factor_label_colors()) +
     ggplot2::coord_cartesian(ylim = ylim) +
     ggplot2::labs(

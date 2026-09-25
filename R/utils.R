@@ -1741,6 +1741,7 @@ utils::globalVariables(
     "period_years",
     "contribution_per_yr_mgn",
     "rolling_mgn",
+    "net_mgn",
     # input_output_plots.R (per-ha normalization + accumulation term)
     "Input_Total",
     "Use_Total",
