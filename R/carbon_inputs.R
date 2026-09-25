@@ -427,20 +427,7 @@ build_carbon_inputs <- function(
 # crosswalk here would key the regime split on different polycells than the
 # carbon it splits.
 .ci_spatialized_regime_share <- function(years, country_grid) {
-  aliases <- .spatial_input_aliases()
-  read <- function(key, file) {
-    .read_spatial_input(NULL, file, aliases[[key]])
-  }
-  support <- .normalize_carbon_support(country_grid) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
-  gridded <- build_gridded_landuse(
-    country_areas = read("country_areas", "country_areas.parquet"),
-    crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
-    gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
-    country_grid = support,
-    config = list(years = years)
-  )
-  gridded |>
+  .spatialized_regime_areas(years, country_grid) |>
     dplyr::mutate(
       total = .data$rainfed_ha + .data$irrigated_ha,
       irrigated_share = dplyr::if_else(
@@ -457,6 +444,25 @@ build_carbon_inputs <- function(
       "year",
       "irrigated_share"
     )
+}
+
+# Rainfed and irrigated harvested hectares per cell, crop and year from the
+# spatialization chain, shared by the carbon and the nitrogen regime splits so
+# both chains read one regime layer (#1233).
+.spatialized_regime_areas <- function(years, country_grid) {
+  aliases <- .spatial_input_aliases()
+  read <- function(key, file) {
+    .read_spatial_input(NULL, file, aliases[[key]])
+  }
+  support <- .normalize_carbon_support(country_grid) |>
+    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
+  build_gridded_landuse(
+    country_areas = read("country_areas", "country_areas.parquet"),
+    crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
+    gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
+    country_grid = support,
+    config = list(years = years)
+  )
 }
 
 # The static per-cell crop area that weights each crop's density in its class.

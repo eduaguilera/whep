@@ -102,6 +102,63 @@ testthat::test_that(".nb_split_regime aborts on a share outside [0, 1]", {
   )
 })
 
+.regime_share_data <- function() {
+  npp <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~item_prod_code, ~item_cbs_code, ~year,
+    ~production_t, ~area_ha,
+    0.25, 40.25,        203,              15,           2511,  2010, 100, 40,
+    0.75, 40.25,        203,              15,           2511,  2010,   0, 10
+  )
+  areas <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~item_prod_code, ~year, ~rainfed_ha, ~irrigated_ha,
+    0.25, 40.25,        203,              15,  2010,          60,           20,
+    0.75, 40.25,        203,              15,  2010,           5,            5
+  )
+  ratio <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~item_prod_code, ~year, ~ratio_unbounded,
+    0.25, 40.25,        203,              15,  2010,                2,
+    0.75, 40.25,        203,              15,  2010,                2
+  )
+  # National yields spanning 1 to 11 t/ha, so neither bound binds at 2 or 4.
+  production <- tidyr::expand_grid(
+    year = 2000:2010,
+    unit = c("tonnes", "ha")
+  ) |>
+    dplyr::mutate(
+      area_code = 203L,
+      item_prod_code = 15L,
+      value = dplyr::if_else(.data$unit == "ha", 1, .data$year - 1999)
+    )
+  list(
+    .npp_cache = npp,
+    regime_areas = areas,
+    regime_ratio = ratio,
+    regime_production = production
+  )
+}
+
+testthat::test_that(".nb_regime_shares turns the yield split into shares", {
+  shares <- whep:::.nb_regime_shares(.regime_share_data(), .regime_key)
+  first <- dplyr::filter(shares, .data$lon == 0.25)
+  # 40 ha, 25% irrigated, R = 2: Y_r = 100 / (30 + 2 * 10) = 2, Y_i = 4, so
+  # irrigated production is 10 * 4 = 40 of 100.
+  testthat::expect_equal(first$irrigated_area_share, 0.25)
+  testthat::expect_equal(first$irrigated_yield_share, 0.4)
+  testthat::expect_equal(first$method_regime_share, "yield_ratio")
+})
+
+testthat::test_that(".nb_regime_shares falls back to area without production", {
+  shares <- whep:::.nb_regime_shares(.regime_share_data(), .regime_key)
+  second <- dplyr::filter(shares, .data$lon == 0.75)
+  testthat::expect_equal(second$irrigated_area_share, 0.5)
+  testthat::expect_equal(second$irrigated_yield_share, 0.5)
+  testthat::expect_equal(second$method_regime_share, "area_no_production")
+})
+
+testthat::test_that(".nb_regime_shares returns NULL without an NPP table", {
+  testthat::expect_null(whep:::.nb_regime_shares(list(), .regime_key))
+})
+
 testthat::test_that(".nb_split_regime aborts on a missing share column", {
   shares <- dplyr::select(.regime_shares(), -"irrigated_yield_share")
   testthat::expect_error(
