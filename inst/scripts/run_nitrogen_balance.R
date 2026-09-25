@@ -527,14 +527,18 @@ NBD_SPINUP_YEARS <- 30L
 # spin-up removes: the source mass reaching the guard would be the whole span's
 # nitrogen, not the driven year's.
 #
-# method_grazing: "whep" is build_carbon_balance()'s default and needs BOTH
-# data$livestock_intake and data$excreta, which it refuses to run without
-# (whep#1120). Neither is reachable while the commodity balances are: the
-# livestock chain starts at get_wide_cbs(), and that aborts on the
-# faostat-cbs-new pin's logical unit column (whep#1025). "lpjml" is the
-# package's own selectable alternative -- LPJmL's livestock module supplies the
-# grassland offtake instead -- and needs neither input. It is recorded in the
-# output's method_grazing column, so a balance built this way says so.
+# method_grazing: "whep" needs BOTH data$livestock_intake and data$excreta
+# for EVERY year the march covers, and refuses to run without them
+# (whep#1120, .gn_check_grazing_years()). This driver cannot supply that
+# today: the "livestock_intake" stage below builds it for the single driven
+# year only, AFTER this stage runs, not for the whole
+# (year - NBD_SPINUP_YEARS):year span the carbon march needs. Even a driver
+# that built it for every marched year would still be bounded: FAOSTAT's
+# commodity balances, which livestock_intake descends from, begin at 1961
+# (get_wide_cbs()), so "whep" could never serve a spin-up that reaches before
+# it. "lpjml" needs neither input -- LPJmL's own livestock module supplies
+# the grassland offtake instead -- and is recorded in the output's
+# method_grazing column, so a balance built this way says so.
 carbon_balance <- nbd_stage(
   "carbon_balance",
   build_carbon_balance(
@@ -602,19 +606,23 @@ if (!is.null(npp) && !gridded_npp) {
 }
 
 report <- dplyr::bind_rows(.nbd_log$rows)
-# build_n_inputs() answers a NULL carbon balance or livestock intake with an
-# EMPTY term, not an error, so a run without them is a partial balance rather
-# than a failed one -- and both are currently unreachable: the livestock chain
-# starts at get_wide_cbs(), which aborts on the faostat-cbs-new pin's logical
-# unit column (#1025), and the carbon balance's own default grazing method
-# needs that same chain (#1120). Report them as gaps and keep going, so the
-# terms that ARE available still get measured; a genuine blocker still stops.
-NBD_TOLERATED <- c("carbon_balance", "livestock_intake")
-gaps <- dplyr::filter(
-  report,
-  .data$status != "ok",
-  .data$input %in% NBD_TOLERATED
-)
+# build_n_inputs() answers a NULL carbon_balance with an EMPTY
+# som_mineralization term, not an error (.n_inputs_som()), so a run without
+# it is a partial balance rather than a failed one. carbon_balance stays
+# tolerated for two reasons that hold today, independent of #1025: it is the
+# driver's heaviest stage -- minutes of runtime, a 537 MB LPJmL pin, and
+# every gridded LUH2/HWSD/climate reader build_carbon_balance() touches --
+# and its own stream already treats "nothing to report" as a real
+# observation rather than only a symptom: .n_inputs_som() keeps
+# son_change_kgn_ha > 0 rows only (R/n_balance_inputs.R), so a cell-year with
+# no net mineralization contributes zero whether carbon_balance ran or not.
+# livestock_intake is different and is NO LONGER tolerated: #1025, which made
+# get_wide_cbs() unreachable, was fixed by fdcdf7e2, and the chain has since
+# run to completion (whep#1289), so a failure now is a real defect, not an
+# expected gap, and must block the balance rather than silently zero-filling
+# the manure and intake terms.
+NBD_TOLERATED <- whep:::.nbd_tolerated_stages()
+gaps <- whep:::.nbd_carried_gaps(report, NBD_TOLERATED)
 if (nrow(gaps) > 0L) {
   cli::cli_h2("5b. Terms this run does NOT carry")
   for (i in seq_len(nrow(gaps))) {
@@ -623,16 +631,13 @@ if (nrow(gaps) > 0L) {
       cli::cli_bullets(c(" " = gaps$detail[i]))
     }
   }
+  gap_terms <- whep:::.nbd_gap_terms(gaps$input)
   cli::cli_alert_info(
-    "The balance runs without them; its som_mineralization, manure and
-     grazed-weeds terms are then zero, and every total below excludes them."
+    "The balance runs without them; its {gap_terms} term{?s} {?is/are} then
+     zero, and every total below excludes {?it/them}."
   )
 }
-blockers <- dplyr::filter(
-  report,
-  .data$status == "FAIL",
-  !.data$input %in% NBD_TOLERATED
-)
+blockers <- whep:::.nbd_blocking_failures(report, NBD_TOLERATED)
 if (nrow(blockers) > 0L) {
   cli::cli_h2("Blockers")
   for (i in seq_len(nrow(blockers))) {
@@ -813,15 +818,28 @@ if (nrow(blockers) > 0L) {
     cli::cli_inform("Tg N/yr, summed over cells:")
     print(as.data.frame(totals))
   }
-  # classify_sjos_n() needs a nourishment axis and build_sjos_n_footprint()
-  # needs an IO model; both descend from the commodity balances, so both are
-  # unreachable while get_wide_cbs() aborts (#1025). Say so rather than
-  # leaving the last two steps of #446 silently unattempted.
+  # classify_sjos_n() takes a country-resolution exceedance (this driver only
+  # builds "cell", one step finer) and a nourishment axis --
+  # normalize_nourishment() over build_food_supply()'s output, which needs
+  # data$cbs_food, the commodity balances reshaped to food, and this driver
+  # does not build. build_sjos_n_footprint() takes the same
+  # country-resolution exceedance plus either a build_io_model() result or
+  # pre-traced data$fp_flows, and this driver builds neither: an IO model
+  # needs bilateral trade and supply-use tables over every traced year, a
+  # separate, heavier build than the single-year balance above. Neither
+  # function is blocked by #1025 any more -- that was fixed by fdcdf7e2 --
+  # the gap is that this driver's scope (build_nitrogen_balance()'s inputs
+  # for one year) stops short of theirs; the full composition is
+  # build_sjos_nitrogen(), which this script does not call. Say so rather
+  # than leaving the last two steps of #446 silently unattempted.
   cli::cli_h2("9. Not attempted")
   cli::cli_alert_warning(
-    "classify_sjos_n() and build_sjos_n_footprint() need the commodity
-     balances (nourishment axis, IO model); get_wide_cbs() aborts on the
-     faostat-cbs-new pin's logical unit column (#1025)."
+    "classify_sjos_n() and build_sjos_n_footprint() are no longer blocked by
+     #1025 (fixed by fdcdf7e2), but need inputs this driver does not build:
+     a country-resolution exceedance, a nourishment axis from
+     build_food_supply() (data$cbs_food), and either an IO model
+     (build_io_model()) or pre-traced footprint flows. See
+     build_sjos_nitrogen() for the full composition (#446)."
   )
   final_report <- dplyr::bind_rows(.nbd_log$rows)
   .nbd_print_conditions(final_report)
