@@ -940,6 +940,7 @@ build_food_protein_destiny <- function(
           Name_biomass %in%
             c(
               "Holm oak forest",
+              "Holm oak",
               "Conifers",
               "Mediterranean shrubland"
             ) ~

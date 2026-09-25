@@ -208,6 +208,24 @@ test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
   expect_true(all(out$Name_biomass == "Firewood"))
 })
 
+test_that(".add_grass_wood reclassifies Dehesa oak residue as firewood too", {
+  # Dehesa's biomass is named "Holm oak" (without "forest"), a different
+  # string from Forest_low's "Holm oak forest". This residue used to fall
+  # through to `TRUE ~ Item` and inherit the "Acorns" item name from the
+  # earlier merge, silently inflating Dehesa's acorn production with its own
+  # woody residue instead of being labelled Firewood like the other forest
+  # types.
+  input <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Holm oak", "Acorns", "semi_natural_agroecosystems", "Dehesa", NA, "Residue", 40
+  )
+
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
+
+  expect_equal(out$Item, "Firewood")
+  expect_equal(out$Name_biomass, "Firewood")
+})
+
 test_that(".add_grass_wood filters out NA production", {
   input <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
