@@ -61,10 +61,10 @@
 
 # ---- The FAOSTAT manure stream -----------------------------------------------
 
+# Choosing the source is itself the request for these terms, so a missing input
+# aborts rather than returning no manure. `data` is read with `[[` throughout:
+# `data$manure` partial-matches `data$manure_method`.
 .n_inputs_manure_faostat <- function(data) {
-  if (is.null(data$manure)) {
-    return(.ni_empty())
-  }
   .ni_check_faostat_inputs(data)
   dplyr::bind_rows(
     .ni_faostat_applied(data),
@@ -73,8 +73,8 @@
 }
 
 .ni_check_faostat_inputs <- function(data) {
-  needed <- c("livestock_intake", "primary_prod")
-  if (!is.null(data$cell_polity)) {
+  needed <- c("manure", "livestock_intake", "primary_prod")
+  if (!is.null(data[["cell_polity"]])) {
     needed <- c(needed, "livestock_spatial")
   }
   missing <- needed[purrr::map_lgl(needed, \(nm) is.null(data[[nm]]))]
@@ -84,7 +84,8 @@
   cli::cli_abort(
     c(
       "{.code manure_method = \"faostat\"} needs {.field data${missing}}.",
-      i = "{.field livestock_intake} supplies the manure engine's solid:liquid
+      i = "{.field manure} is the {.val faostat-emissions-livestock} pin,
+           {.field livestock_intake} supplies the manure engine's solid:liquid
            split, {.field primary_prod} the crop area shares and
            {.field livestock_spatial} the surfaces
            {.fn build_gridded_livestock} spreads pasture manure over."
@@ -96,10 +97,10 @@
 # ---- Applied manure (cropland, solid + liquid) -------------------------------
 
 .ni_faostat_applied <- function(data) {
-  .ni_faostat_one_source(data$manure) |>
+  .ni_faostat_one_source(data[["manure"]]) |>
     dplyr::filter(.data$Element == "Manure applied to soils (N content)") |>
     .ni_check_faostat_unit("kg")
-  split <- .manure_applied_n_country(data$manure) |>
+  split <- .manure_applied_n_country(data[["manure"]]) |>
     .ni_split_applied(.ni_engine_solid_share(data))
   shares <- .n_crop_area_shares(data$primary_prod)
   split |>
@@ -238,7 +239,7 @@
 # ---- Pasture manure (grassland, excreta) -------------------------------------
 
 .ni_faostat_pasture <- function(data) {
-  species <- .ni_pasture_by_species(data$manure) |>
+  species <- .ni_pasture_by_species(data[["manure"]]) |>
     .ni_pasture_species_groups(.ni_livestock_mapping(data))
   rows <- if (is.null(data$cell_polity)) {
     .ni_pasture_polity(species)

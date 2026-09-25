@@ -387,6 +387,44 @@ testthat::test_that("faostat on a grid needs the livestock surfaces", {
   )
 })
 
+# `data$manure` partial-matches `data$manure_method`, so without `[[` a missing
+# pin read as the string "faostat" and crashed inside dplyr::filter().
+testthat::test_that("faostat without the manure pin names it, on a polity", {
+  data <- .nmf_polity_data()
+  data$manure <- NULL
+  testthat::expect_error(
+    whep::build_n_inputs(resolution = "polity", data = data),
+    regexp = "data$manure",
+    fixed = TRUE,
+    class = "whep_manure_faostat_input"
+  )
+})
+
+testthat::test_that("faostat without the manure pin names it, on a grid", {
+  data <- .nmf_grid_data()
+  data$manure <- NULL
+  testthat::expect_error(
+    whep::build_n_inputs(resolution = "grid", data = data),
+    regexp = "data$manure",
+    fixed = TRUE,
+    class = "whep_manure_faostat_input"
+  )
+})
+
+testthat::test_that("faostat chosen by argument without the pin aborts", {
+  data <- .nmf_polity_data()
+  data$manure <- NULL
+  data$manure_method <- NULL
+  testthat::expect_error(
+    whep::build_n_inputs(
+      resolution = "polity",
+      data = data,
+      manure_method = "faostat"
+    ),
+    class = "whep_manure_faostat_input"
+  )
+})
+
 testthat::test_that("a renamed pasture element aborts rather than vanishing", {
   data <- .nmf_polity_data()
   data$manure$Element[
