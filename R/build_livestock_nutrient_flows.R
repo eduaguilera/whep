@@ -19,7 +19,15 @@
 #'   `"subnational"`. Transport between cells runs only at `"subnational"`.
 #' @param methods A named list of per-stage option lists, any of `excretion`,
 #'   `split`, `bedding`, `losses`, `allocation` and `transport`, each forwarded
-#'   to the matching pipeline function's `options`.
+#'   to the matching pipeline function's `options`. `transport` also takes
+#'   `land_split`, which decides where manure trucked into a cell lands inside
+#'   that cell's remaining room: `"cropland_first"` (default) fills the
+#'   remaining cropland room and puts the rest on grassland, the same priority
+#'   [allocate_manure_to_land()] gives a cell's own collected manure;
+#'   `"room_share"` splits it in proportion to the remaining cropland and
+#'   grassland room; `"cropland_only"` books all of it as cropland, the
+#'   behaviour before whep#341, which counts grassland room as cropland. The
+#'   total delivered to each cell is the same under all three.
 #' @param bedding An optional bedding supply from
 #'   [build_residue_bedding_supply()]. When given, [add_manure_bedding()] places
 #'   it on the litter-using housed streams before the management losses, so the
@@ -38,7 +46,9 @@
 #'
 #' @return A named list with `applied` (manure applied per
 #'   `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
-#'   `"Liquid"`) and all `method_*` provenance columns), `losses`
+#'   `"Liquid"`) and all `method_*` provenance columns, including
+#'   `method_transport_land_use`, the `land_split` used, `NA` unless the
+#'   resolution is `"subnational"`), `losses`
 #'   (management-loss side-streams per polity) and `excretion` (the
 #'   per-category excretion totals).
 #' @export
@@ -68,6 +78,7 @@ build_livestock_nutrient_flows <- function(
   m <- .manure_methods(methods)
   grid <- gridded %||% list()
   alloc_opt <- .allocate_options(m$allocation)
+  land_split <- .land_split_provenance(resolution, m$transport)
 
   excretion <- estimate_n_excretion(intake, m$excretion)
   split <- split_manure_management(excretion, m$split)
@@ -90,7 +101,8 @@ build_livestock_nutrient_flows <- function(
       losses,
       resolution,
       alloc_opt
-    ),
+    ) |>
+      dplyr::mutate(method_transport_land_use = land_split),
     losses = .summarise_losses(losses),
     excretion = excretion
   )
@@ -186,6 +198,15 @@ build_livestock_nutrient_flows <- function(
     )
 }
 
+# The transport land split is only meaningful where transport runs; a
+# national/global run records NA, like method_transport.
+.land_split_provenance <- function(resolution, transport_m) {
+  if (!identical(resolution, "subnational")) {
+    return(NA_character_)
+  }
+  .transport_land_split(transport_m)
+}
+
 # Subnational: allocate per cell while RETAINING the un-placeable surplus, spill
 # that surplus to neighbouring cells' remaining room, then dispose what is still
 # left per the caller's disposal method. Mass is conserved at each step.
@@ -203,7 +224,33 @@ build_livestock_nutrient_flows <- function(
   room <- .cell_room(local, gridded, m$allocation)
   flows <- allocate_manure_transport(surplus, room, m$transport)
   by_type <- .transport_manure_type_split(local, surplus, room, m$transport)
-  .fold_transport(local, flows, by_type, m$allocation)
+  landing <- list(
+    room = room,
+    land_split = .transport_land_split(m$transport)
+  )
+  .fold_transport(local, flows, by_type, m$allocation, landing)
+}
+
+# Which land use transported manure lands on, inside each sink cell's
+# remaining room (whep#341). A modelling choice, so it is selectable through
+# `methods$transport$land_split` and recorded in `method_transport_land_use`:
+# * "cropland_first" (default): fill the sink's remaining cropland room first,
+#   then its grassland room -- the priority allocate_manure_to_land() already
+#   applies to a cell's own collected manure (cropland to its cap, the surplus
+#   spilled onto grassland), so trucked and local manure follow one rule.
+# * "room_share": split in proportion to the sink's remaining cropland and
+#   grassland room, the rule proposed in whep#341.
+# * "cropland_only": book it all as cropland, the behaviour before whep#341,
+#   which labels grassland room as cropland.
+# The mass delivered to each sink is identical under all three; only its
+# cropland/grassland split moves.
+.transport_land_splits <- function() {
+  c("cropland_first", "room_share", "cropland_only")
+}
+
+.transport_land_split <- function(transport_m) {
+  land_split <- transport_m$land_split %||% "cropland_first"
+  rlang::arg_match(land_split, .transport_land_splits())
 }
 
 # allocate_manure_transport()'s public contract is pooled across manure_type
@@ -352,9 +399,11 @@ build_livestock_nutrient_flows <- function(
     )
 }
 
-# Remaining room per cell = resolved cropland + grassland cap minus the collected
-# manure already placed locally (grazing deposition is in situ, not charged to
-# the cap, matching allocate_manure_to_land).
+# Remaining room per cell, per land use: the resolved cropland cap minus the
+# collected manure already placed locally on cropland, and likewise for
+# grassland (grazing deposition is in situ, not charged to the cap, matching
+# allocate_manure_to_land). `room_n` is their sum, the pooled room the
+# transport step fills; the two parts decide where it lands (whep#341).
 .cell_room <- function(local, gridded, alloc_methods) {
   opt <- .allocate_options(alloc_methods)
   crop_cap <- .prepare_crop_layer(gridded[["crops"]], opt) |>
@@ -364,24 +413,31 @@ build_livestock_nutrient_flows <- function(
     )
   grass_cap <- .prepare_grass_cap(gridded[["grass"]], opt)
   placed <- local |>
-    dplyr::filter(
-      .data$source_stream == "collected" &
-        .data$land_use %in% c("Cropland", "Grassland")
-    ) |>
+    dplyr::filter(.data$source_stream == "collected") |>
     dplyr::summarise(
-      placed = sum(.data$applied_n),
+      placed_crop = sum(.data$applied_n[.data$land_use == "Cropland"]),
+      placed_grass = sum(.data$applied_n[.data$land_use == "Grassland"]),
       .by = c("year", "territory", "sub_territory")
     )
   crop_cap |>
     .join_cell_grass_cap(grass_cap) |>
     dplyr::left_join(placed, by = c("year", "territory", "sub_territory")) |>
     dplyr::mutate(
-      room_n = pmax(
+      crop_room_n = pmax(0, .data$cap - dplyr::coalesce(.data$placed_crop, 0)),
+      grass_room_n = pmax(
         0,
-        .data$cap + .data$grass_cap_n - dplyr::coalesce(.data$placed, 0)
-      )
+        .data$grass_cap_n - dplyr::coalesce(.data$placed_grass, 0)
+      ),
+      room_n = .data$crop_room_n + .data$grass_room_n
     ) |>
-    dplyr::select("year", "territory", "sub_territory", "room_n")
+    dplyr::select(
+      "year",
+      "territory",
+      "sub_territory",
+      "room_n",
+      "crop_room_n",
+      "grass_room_n"
+    )
 }
 
 .join_cell_grass_cap <- function(crop_cap, grass_cap) {
@@ -402,12 +458,18 @@ build_livestock_nutrient_flows <- function(
 # Replace each source cell's retained surplus with the transport outcome:
 # manure delivered to neighbours, plus the un-transportable remainder disposed
 # locally per the caller's disposal method.
-.fold_transport <- function(local, flows, by_type, alloc_methods) {
+.fold_transport <- function(local, flows, by_type, alloc_methods, landing) {
   opt <- .allocate_options(alloc_methods)
   kept <- dplyr::filter(local, .data$land_use != "Unallocated")
-  transported <- flows |>
+  shares <- flows |>
     dplyr::filter(.data$kind == "transported") |>
-    .transport_landing("Cropland", FALSE, by_type$transported)
+    .transport_crop_share(landing$room, landing$land_split)
+  transported <- dplyr::bind_rows(
+    .scale_landing(shares, .data$crop_share) |>
+      .transport_landing("Cropland", FALSE, by_type$transported),
+    .scale_landing(shares, 1 - .data$crop_share) |>
+      .transport_landing("Grassland", FALSE, by_type$transported)
+  )
   residual <- flows |>
     dplyr::filter(.data$kind == "residual") |>
     .transport_landing(
@@ -416,6 +478,48 @@ build_livestock_nutrient_flows <- function(
       by_type$residual
     )
   dplyr::bind_rows(kept, transported, residual)
+}
+
+# Share of each sink's delivered N that lands on cropland under `land_split`
+# (see .transport_land_split()). A sink never receives more than its room_n,
+# so under "cropland_first" the grassland part stays within its grassland room.
+.transport_crop_share <- function(transported, room, land_split) {
+  room <- dplyr::select(
+    room,
+    "year",
+    "territory",
+    "sub_territory",
+    "crop_room_n",
+    "grass_room_n"
+  )
+  transported |>
+    dplyr::left_join(room, by = c("year", "territory", "sub_territory")) |>
+    dplyr::mutate(
+      crop_room_n = dplyr::coalesce(.data$crop_room_n, 0),
+      sink_room_n = .data$crop_room_n + dplyr::coalesce(.data$grass_room_n, 0),
+      crop_share = dplyr::case_when(
+        land_split == "room_share" & .data$sink_room_n > 0 ~
+          .data$crop_room_n / .data$sink_room_n,
+        land_split == "cropland_first" & .data$applied_n > 0 ~
+          pmin(.data$applied_n, .data$crop_room_n) / .data$applied_n,
+        .default = 1
+      )
+    ) |>
+    dplyr::select(-"crop_room_n", -"grass_room_n", -"sink_room_n")
+}
+
+# Scale a landed tibble's N/C/VS by a per-row share (the bundle C:N and VS:N
+# are unchanged) and drop the rows the share empties.
+.scale_landing <- function(shares, share) {
+  shares |>
+    dplyr::mutate(.share = {{ share }}) |>
+    dplyr::filter(.data$.share > 0) |>
+    dplyr::mutate(
+      applied_n = .data$applied_n * .data$.share,
+      applied_c = .data$applied_c * .data$.share,
+      applied_vs = .data$applied_vs * .data$.share
+    ) |>
+    dplyr::select(-".share", -"crop_share")
 }
 
 .transport_landing <- function(flows, land_use, over_cap, by_type) {
