@@ -1,0 +1,11 @@
+REGION,CROP_NAME,YEAR,VARIABLE,VALUE,UoM,SOURCE,CALCULATED_R,CALCULATED_C,CALCULATED_V,ZERO_AS_NULL,COHERENCE_APY,COHERENCE_CROP
+AT11,Total wheat,1975,Area,32797,ha,NSI,,Yes,,,Yes,
+BG31,Total wheat,2015,Area,244691,ha,NSI,,,,,No,
+BG41,Total wheat,2003,Area,143194,ha,NSI,,,,,Yes,No
+BE10,Soft wheat,2002,Area,,ha,NSI,,,,Yes,,
+CY,Total wheat,1987,Area,5600,ha,Eurostat,,,,,Yes,
+CZ010,Total wheat,1998,Area,5502,ha,NSI,,,,,Yes,
+CZ010,Total wheat,1998,Production,22615,t,NSI,,,,,Yes,
+5-Dec,Soft wheat,2021,Yield,5.6,t/ha,NSI,,,,,,
+EL531,Soft wheat,2009,Yield,2.879,t/ha,NSI,Yes,,Yes,,Yes,Yes
+DE1,Grain maize,2010,Area,71590,ha,Eurostat,,,,,Yes,

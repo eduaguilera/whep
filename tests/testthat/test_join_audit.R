@@ -165,6 +165,51 @@ test_that("the enumerated baseline can only shrink", {
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
   #
+  # 72 since whep#1000 T12, and it is a rise in the count against a fall in
+  # what matters. The level-aware grid this adds is MORE year-aware than the
+  # level-0 path it sits beside -- level 0 is a fixed 2015 snapshot, while a
+  # granted-depth compartment carries `start_year`/`end_year` and is filtered
+  # per simulation year -- and the three joins that arrive without a year are
+  # the kinds already admitted: the containment-edge lookup whose interval
+  # intersection immediately follows it, the per-country depth grant, and the
+  # cross-depth comparison that writes the ragged-coverage report.
+  # T25 (whep#1000) landed `.match_admin_overrides`'s two override lookups,
+  # both `time_invariant`: a per-container policy stated once, with no year
+  # to key on. 72 -> 74.
+  #
+  # 79 since whep#1000 T29, and none of the five is a year-blind read. Four of
+  # them key on `seam_year`, `y1` or `y2`, which ARE years -- the audit sees a
+  # year-free key only because it looks for a column spelled `year` -- and the
+  # fifth pair (`.sg_scan_one_pair`) joins two cuts of one frame already
+  # filtered to the two years of the window being scanned. Both sides of every
+  # one of the five descend from the same `seam_gate()` call's own `gates`
+  # frame or from `plan` itself, so none can cross a succession, and the gate
+  # is `diagnostic` in the strongest sense the class has: it aborts nothing,
+  # repairs nothing and returns evidence for a release decision.
+  #
+  # 83 since whep#1000 T13: +4, every one of them a real join that is
+  # classified rather than a key that stopped being visible. The engine's core
+  # allocation join KEEPS its `(area_code, item_prod_code)` row and gains the
+  # `(area_code, level_polity_code, item_prod_code)` twin, because the two
+  # grains are written out literally at the call site: had the computed
+  # `on = alloc_cols` been left in place the audit would have seen
+  # `<dynamic>`, and the most important territorial join in the spatialization
+  # would have left this ledger by going invisible, which is exactly the
+  # failure the ratchet exists to make impossible. `.extend_base_grid_pattern`
+  # is `single_year`, and the two-level allocation's straddling report adds
+  # two `diagnostic` joins: it names the cells a unit shares with a sibling or
+  # with another country and moves no allocated hectare.
+  #
+  # 85 since whep#1000 T14: the reconciliation diagnostics' bridge summary
+  # joins per-series run summaries to each other, both reductions of the one
+  # `years` frame of a single call; the joined quantity is a run LENGTH, so
+  # the row is `year_axis`, exactly as `.alloc_bridge_report`'s are.
+  #
+  # 84 since the pre-PR review: the ratchet moves DOWN. Assertion (b) stopped
+  # being a full_join of two independently reduced sides and became an
+  # interval sweep of both sides together, so the join that could not say
+  # WHEN it was comparing no longer exists. That is the direction this
+  # number is supposed to move.
   # 71 since whep#599: `.sci_reallocate()` places the cropland carbon whose crop
   # the crop-pattern map does not carry, instead of dropping it -- 291 Mt C at
   # 2010, 607 Mt C at 1980, 92% of it fodder. Its two year-free keys read the
@@ -229,7 +274,11 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  # 96 on the merged tree. Re-derived by RUNNING the audit, as this file's
+  # own rule requires -- never by adding the two sides' deltas. main
+  # asserted 84 and this branch 81; the merged ledger registers 96 over 90
+  # signatures, and the audit finds exactly those 96.
+  expect_lte(sum(baseline$n), 96L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -309,16 +358,77 @@ test_that("every year-free territorial grouping is classified", {
   # comparing two different Rest-of-World residuals against each other.
   full <- whep:::.territorial_grouping_baseline()
   #
-  # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
+  # 81 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
   # periods to one window per area and `.off_window_area_years()` reduces an
   # area's off-window rows to the span they cover. Both are `year_axis` -- the
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
   #
-  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # (This anchor read 79 and the chain below therefore did not reach its own
+  # final number. `main` immediately before whep#999 asserts 81, and with 81
+  # the chain closes exactly: 81 +5 +4 +8 +1 +5 +1 -1 = 104. Corrected here
+  # rather than in a separate main-side change, because this branch rewrites
+  # the tail of the same chain and a reviewer reads it in one pass.)
+  #
+  # 86 since whep#1000 T12: five groupings across four keys, all of them one of
+  # the admitted five. `.level_container_land()` is `single_year` (it sums a
+  # support already filtered to one year), `.level_polity_types()` is the
+  # polity -> type identity dedup, and the three behind decision 10's
+  # assertions are `diagnostic` -- they allocate nothing, and
+  # `.level_compartment_shares()` REFUSES a share that differs between two of a
+  # compartment's own intervals rather than summing across them, so the missing
+  # year is an assertion rather than an oversight.
+  #
+  # 90 since whep#1000 T29: the seam gate's four, in three signatures. Two key
+  # on `seam_year`, which is the year the gated pair straddles, so they group
+  # across no time at all -- `.sg_tier_c()`'s `distinct()` collapses the seam
+  # list's ITEM dimension, which is tier C's documented contract, and
+  # `.sg_regime_mismatch()`'s `count()` runs on rows already reduced to that
+  # seam's own two years. The other two are `single_year`: both counts inside
+  # `.sg_scan_one_pair()` sit on a frame the caller has already cut to one
+  # (y1, y2) window. All four are gate machinery, and the gate moves no
+  # published value.
+  #
+  # 98 since whep#1000 T13: +8, and nothing left. The three groupings that
+  # were here keep their `(area_code, item_prod_code)` keys and each gains its
+  # unit-grain twin, because both grains are written out literally where the
+  # key is formed rather than passed as a computed vector; one of the three
+  # changed OWNER, from `.spatialize_year` to `.spatialize_type_cropland`,
+  # when the LUH2 type split moved into its own helper. That is +3. Two more
+  # are the straddling report's, `diagnostic` for the reason its join rows
+  # give. Three are `.alloc_bridge_report`'s, and all three are `year_axis`:
+  # the report's quantity IS the length of a contiguous run of bridged years,
+  # so a year in the key would return one year per year.
+  #
+  # 99 since whep#1000 T39: `.level0_fold_epochs()`, the year-aware level-0
+  # grid's fold, keys on `(lon, lat, area_code, start_year, end_year)`. The
+  # epoch IS in the key -- that is the whole point of the fold, so a successor
+  # is never summed with its own predecessor -- but it is carried as the
+  # interval bounds rather than as a column named `year`, which is what the
+  # audit tests for, so it arrives here looking year-free. `single_year`.
+  #
+  # 104 since whep#1000 T14: five groupings of the reconciliation
+  # diagnostics. Four are `year_axis` -- the run numbering, the per-run
+  # length, the first/last observed year and the per-series totals are all
+  # reductions over the year axis whose RESULT is a count of years, so a
+  # year in the key would return one year per year. One is `single_year`:
+  # the unit cropland extent is built one year at a time inside a `map()`
+  # over years, with both sides cut to that year before they meet.
+  #
+  # 105 since the pre-PR review: `.alloc_straddle` gained a per-container
+  # unit count, `diagnostic`, because keyed on the cell alone a unit sharing
+  # a cell with another COUNTRY scored as a sibling straddle with no sibling
+  # in the layer. `.level_compartment_shares` moved from
+  # `(cell, compartment)` to `(cell, compartment, interval)` and from
+  # `diagnostic` to `single_year`: the interval belongs in the key, so a
+  # successor's share is never added to its predecessor's.
+  #
+  # 104 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
+  # down with the row, 105 to 104. Re-derived by running the audit rather
+  # than by subtracting: the registry sums to 104 over 100 signatures.
   # down with the row.
   #
   # 81 since whep#1070: `.zero_pattern_underflow()` takes each crop's pattern
@@ -379,7 +489,19 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(full$n), 97L)
+  # 121 on the merged tree, measured the same way. main asserted 104 and
+  # this branch 97. Concatenating the two ledgers first registered 123:
+  # main's `.spatialize_year` pair at `area_code, item_prod_code` (n = 2)
+  # is superseded here, because T13 split that grain into a container row
+  # and a unit row keyed on `level_polity_code`, each occurring once.
+  # 122 since the vintage reconciler: `.level0_support_end_years()` reduces
+  # each polity's support rows to the last year it is carried, which is the
+  # dissolution year `.level0_terminal_year_cells()` tests a national row
+  # against. A polity arrives as several epoch rows -- `F228-1945-1991` as
+  # 1945-1959 and 1959-1991 -- and has one dissolution year, so `year` in the
+  # key would return one row per epoch and answer nothing. Re-derived by
+  # RUNNING the audit, not by adding one to the previous cap.
+  expect_lte(sum(full$n), 122L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
@@ -529,4 +651,50 @@ test_that("a renaming key is audited on both vocabularies", {
 
   expect_equal(audit$owner, "renaming")
   expect_equal(audit$key, "iso3, area_iso3c")
+})
+
+test_that("the allocation key is audited in both the grains it can take", {
+  # whep#1000 T13 made the spatialization engine's key depend on the grain
+  # its national table is keyed at. Passing the computed vector
+  # (`on = alloc_cols`) resolved to `<dynamic>` and took the engine's core
+  # allocation join -- the most important territorial join in the
+  # spatialization -- out of this audit altogether. Both grains are therefore
+  # written out at each call site, and this is what keeps those spellings
+  # equal to what `.alloc_target_cols()` actually returns.
+  container <- whep:::.alloc_target_cols(
+    tibble::tibble(area_code = 1L, item_prod_code = 15L),
+    tibble::tibble(area_code = 1L)
+  )
+  unit <- whep:::.alloc_target_cols(
+    tibble::tibble(
+      area_code = 1L,
+      level_polity_code = "U1",
+      item_prod_code = 15L
+    ),
+    tibble::tibble(area_code = 1L, level_polity_code = "U1")
+  )
+  want <- sort(c(
+    paste(container, collapse = ", "),
+    paste(unit, collapse = ", ")
+  ))
+
+  joins <- whep:::.territorial_joins()
+  expect_equal(
+    sort(unique(joins$key[joins$owner == ".spatialize_year"])),
+    want
+  )
+  groupings <- whep:::.territorial_groupings()
+  purrr::walk(
+    c(
+      ".spatialize_year",
+      ".spatialize_type_cropland",
+      ".warn_unallocated_crops"
+    ),
+    \(owner) {
+      expect_equal(
+        sort(unique(groupings$key[groupings$owner == owner])),
+        want
+      )
+    }
+  )
 })

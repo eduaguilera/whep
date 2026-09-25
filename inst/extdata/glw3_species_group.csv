@@ -1,0 +1,11 @@
+glw_species,glw_code,species_group,note
+buffaloes,Bf,buffalo,one GLW3 species to one WHEP group
+cattle,Ct,cattle_dairy,GLW3 has no dairy split; both groups take the cattle layer
+cattle,Ct,cattle_non_dairy,GLW3 has no dairy split; both groups take the cattle layer
+chickens,Ch,chickens_broilers,GLW3 has no layer/broiler split
+chickens,Ch,chickens_layers,GLW3 has no layer/broiler split
+ducks,Dk,poultry,"WHEP poultry is ducks + geese/guinea fowls + turkeys; GLW3 publishes only the duck layer, and chickens are a different WHEP group"
+goats,Gt,sheep_goats,sheep and goats are summed into one WHEP group
+horses,Ho,equines,GLW3 has no asses or mules; horses carry the whole group
+pigs,Pg,pigs,one GLW3 species to one WHEP group
+sheep,Sh,sheep_goats,sheep and goats are summed into one WHEP group

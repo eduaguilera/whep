@@ -184,5 +184,77 @@
     "confidence": "high",
     "discovered": "2026-06-22",
     "notes": "out-of-band acquisition; sums match NBS national"
+  },
+  {
+    "iso3": "MEX",
+    "source": "SIAP / DGSIAP (Mexico) - SIACON and Datos Abiertos agricola/pecuario",
+    "url": "https://nube.agricultura.gob.mx/datosAbiertos/Agricola.php",
+    "local_file": null,
+    "covers_crops": "all nationally monitored crops (cierre de la produccion agricola); livestock: bovino, porcino, ovino, caprino, ave, guajolote, abeja",
+    "covers_years": "1980-2025",
+    "basis_notes": "T26 route check, all URLs fetched 2026-09-02. Admin-1 = estado (32). ROUTE A, SIAP Datos Abiertos, no login: annual 'Cierre' CSV files - agricola MUNICIPAL 2003-2025 but NACIONAL-only 1980-2002 (https://nube.agricultura.gob.mx/datosAbiertos/Agricola.php); pecuario MUNICIPAL 2006-2025 but NACIONAL-only 1980-2005 (https://nube.agricultura.gob.mx/datosAbiertos/Pecuario.php); an XLSX data dictionary covers 1980-2025. ROUTE B, SIACON (https://www.gob.mx/agricultura/dgsiap/prensa/sistema-de-informacion-agroalimentaria-de-consulta-siacon): that page states an annual 1980-2025 series for both the agricola and pecuario modules with state-level AND municipal-level query options, offered as a single downloadable 'SIACON' file; the page states no file format and mentions no registration.",
+    "confidence": "medium",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: TIER-1 PUBLIC ROUTE VERIFIED for admin-1 (estado) crop area/production and livestock inventories, no login, bulk CSV. LICENCE NOT VERIFIED AS OPEN: neither SIAP portal page carries a licence, only a 'Terminos y Condiciones' footer link; the general gob.mx terms (https://www.gob.mx/terminos, fetched) authorise download 'solamente para su uso personal y no para un uso comercial', forbid reproduction/public display, and state 'El Usuario no debera transferir los materiales a ningun tercero'. https://datos.gob.mx/libreusomx (the 'Libre Uso MX' licence) returned HTTP 403 and could NOT be fetched, so whether Libre Uso MX overrides those terms for SIAP open data is UNRESOLVED - treat redistribution or pinning of raw SIAP files as unclear pending that check. COVERAGE CAVEAT: through the open-data portal the pre-2003 (crops) / pre-2006 (livestock) files are national only, so the 1980+ state series depends on SIACON, whose file format and licence were not verified. The 'confidence' field here rates the route classification, not a data value."
+  },
+  {
+    "iso3": "ARG",
+    "source": "MAGyP Argentina - Estimaciones Agricolas (CKAN datos.magyp.gob.ar) + SENASA existencias bovinas",
+    "url": "https://datos.magyp.gob.ar/api/3/action/package_show?id=estimaciones-agricolas",
+    "local_file": null,
+    "covers_crops": "all field crops in Estimaciones Agricolas (superficie sembrada y cosechada, produccion, rendimiento); cattle inventories by category",
+    "covers_years": "crops 1969-2026; cattle 2008-2019",
+    "basis_notes": "T26 route check, fetched 2026-09-02. Admin-1 = provincia (23 + CABA); the crop file also carries departamento/partido (admin-2). CKAN package_show gives license_id CC-BY-4.0 ('Creative Commons Attribution 4.0'), notes 'Serie completa de cultivos por campana, provincia y departamento de Argentina. Contiene datos de: superficie sembrada, cosechada, produccion y rendimiento', a series beginning 1969, last modified 2026-03-05, and the direct CSV https://datos.magyp.gob.ar/dataset/9e1e77ba-267e-4eaa-a59f-3296e86b5f36/resource/95d066e6-8a0f-4a80-b59d-6f28f88eacd5/download/estimaciones-agricolas-2026-03.csv . LIVESTOCK: package senasa-existencias-bovinas (https://datos.magyp.gob.ar/api/3/action/package_show?id=senasa-existencias-bovinas), also CC-BY-4.0, 'Existencias de bovinos por provincia y partido / departamento, clasificadas en categorias', CSV https://datos.magyp.gob.ar/dataset/c19a5875-fb39-48b6-b0b2-234382722afb/resource/52e72aec-4ab6-4d60-8c95-47de21e46eec/download/existencias-bovinas-2008-2019.csv covering 2008-2019.",
+    "confidence": "high",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: TIER-1 PUBLIC ROUTE VERIFIED - bulk CSV, no login, CC-BY-4.0, admin-1 (provincia) and admin-2 (departamento) grain, crops from 1969 with sown AND harvested area. Best of the five LatAm routes checked. The crop resource is a single rolling file whose name carries its vintage (estimaciones-agricolas-2026-03.csv), so source_version must record the CKAN resource id plus the file name, not just the dataset slug. UNVERIFIED: sibling packages senasa-existencias-ovinas and senasa-existencias-caprinas appear in the portal listing but were NOT fetched, so sheep/goat coverage and licence are unconfirmed; siia.gob.ar (SIIA) was not reached separately - datos.magyp.gob.ar is the ministry's CKAN portal and is the machine-readable route. The MAGyP 'Estimaciones Agricolas' area page (https://www.magyp.gob.ar/sitio/areas/estimaciones/, fetched) publishes only periodic reports and dashboards, no bulk series."
+  },
+  {
+    "iso3": "CHL",
+    "source": "ODEPA Chile (estadisticas productivas) + INE Chile",
+    "url": "https://www.odepa.gob.cl/cultivos-anuales-superficie",
+    "local_file": null,
+    "covers_crops": "cultivos anuales (superficie sembrada, produccion, rendimientos); livestock existencias de bovinos, ovinos y equinos",
+    "covers_years": "crops 1980-2014/15 regional xls plus a 2022 regional file; livestock existencias 1991-2007 with no regional split; ENA 2025/26",
+    "basis_notes": "T26 route check, all URLs fetched 2026-09-02. Admin-1 = region. CROPS: https://www.odepa.gob.cl/cultivos-anuales-superficie offers three .xls, of which 'cultivosregional-1.xls' (/wp-content/uploads/2014/08/cultivosregional-1.xls) IS the REGIONAL series of superficie sembrada, produccion y rendimientos, 1980-2014/15, open download, no login; the ODEPA digital library record https://bibliotecadigital.odepa.gob.cl/handle/20.500.12650/71653 'Informacion regional de superficie sembrada, produccion y rendimientos anuales' holds a later file 'cultivosRegional18.03.22 (1).xls' (677 KB, posted 2022-06-22), open, with NO rights statement on the record. Both pages attribute the data as 'elaborado por Odepa con informacion del INE'. LIVESTOCK: https://www.odepa.gob.cl/existencias-de-bovinos-ovinos-y-equinos-3 serves 'Existencias-de-bovinos-ovinos-y-equinos.xls' covering 1991-2007 with NO regional breakdown shown. ENA 2025/26 (https://www.odepa.gob.cl/estadisticas-del-sector/estadisticas-productivas/encuesta-nacional-agropecuaria-2025-26) publishes a spreadsheet of regional surface and bovino/ovino/caprino inventories, executed by INE under ODEPA mandate, no login, but only for the survey season and only for the regions Arica y Parinacota and Atacama to Los Lagos continental.",
+    "confidence": "medium",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: MIXED. CROPS = TIER-1 PUBLIC ROUTE VERIFIED at admin-1 (region), .xls bulk, no login, continuous 1980-2014/15. LIVESTOCK = STATED NEGATIVE: no open REGIONAL inventory TIME SERIES was found - the ODEPA existencias file is national and stops at 2007, and ENA gives regional inventories only per survey season and with incomplete regional coverage. LICENCE: no licence statement appears on any ODEPA page or library record fetched (an absence verified, not a claim of permissiveness); INE Chile's own open-data licence IS CC BY-SA 4.0 (https://www.ine.gob.cl/terminos-de-uso-y-licencia-de-datos-abiertos, fetched: attribution, share-alike, no additional restrictions), and because ODEPA states the crop tables are built 'con informacion del INE' the licence that governs the ODEPA redistribution is UNRESOLVED. Format is legacy .xls, so any reader needs an xls path."
+  },
+  {
+    "iso3": "COL",
+    "source": "Agronet / UPRA - Evaluaciones Agropecuarias Municipales (EVA); Datos Abiertos Colombia (Socrata)",
+    "url": "https://www.datos.gov.co/api/views/uejq-wxrr.json",
+    "local_file": null,
+    "covers_crops": "about 200 transitory and permanent crops (area sembrada, area cosechada, produccion, rendimiento); livestock only a single 2015 base",
+    "covers_years": "crops 2006-2025 (2pnw-mmge 2006-2018 plus uejq-wxrr 2019-2025); livestock 2015 only",
+    "basis_notes": "T26 route check, all URLs fetched 2026-09-02. Admin-1 = departamento, admin-2 = municipio (about 1103). Socrata metadata for uejq-wxrr 'Evaluaciones Agropecuarias Municipales - EVA. 2019 - 2025. Base Agricola': licence 'Creative Commons Attribution | Share Alike 4.0 International' (http://creativecommons.org/licenses/by-sa/4.0/legalcode), attribution 'Unidad de Planificacion de Tierras Rurales, Adecuacion de Tierras y Usos Agropecuarios - UPRA', 166732 rows, columns c_digo_dane_departamento / departamento / c_digo_dane_municipio / municipio / grupo_cultivo / subgrupo / cultivo / a_o / periodo / rea_sembrada / rea_cosechada / producci_n / rendimiento, rowsUpdatedAt 2026-01-25. Socrata metadata for 2pnw-mmge 'Evaluaciones Agropecuarias Municipales EVA' (https://www.datos.gov.co/api/views/2pnw-mmge.json): same CC BY-SA 4.0 licence, 206068 rows, 2006-2018, crop columns only, no livestock. Bulk mirrors on Agronet (https://agronet.gov.co/documentacion-estadisticas/agricola/reporte-evaluaciones-agropecuarias-eva-y-anuario-estadistico): 'Base EVA 2019-2024.xlsx', 'Base Agricola EVA 2007-2018_MADR.xlsx', 'Base_agricola_EVA_2007_2012.xlsb', 'Base_agricola_EVA_2007_2013.xlsb', and one livestock file only, 'Base Pecuaria EVA 2015.xlsb'.",
+    "confidence": "high",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: CROPS = TIER-1 PUBLIC ROUTE VERIFIED - municipal (admin-2) and departmental (admin-1) area sembrada/cosechada, produccion and rendimiento, 2006-2025, CC BY-SA 4.0, no login, available both as a Socrata SODA API and as bulk xlsx/xlsb. The 'periodo' column is SEMIANNUAL, so an annual figure requires summing periods - a real trap for a naive reader. LIVESTOCK = STATED NEGATIVE: the only pecuaria base found on Agronet is a single year ('Base Pecuaria EVA 2015.xlsb') and neither Socrata dataset carries livestock columns; no continuous departmental inventory series was located. LICENCE CAUTION: CC BY-SA is SHARE-ALIKE, so a WHEP pin carrying these rows verbatim inherits a copyleft obligation; whether a derived shares table does is a T23-class question and is NOT settled here."
+  },
+  {
+    "iso3": "BOL",
+    "source": "INE Bolivia - Estadisticas agropecuarias (cuadros estadisticos)",
+    "url": "https://www.ine.gob.bo/index.php/estadisticas-economicas/agropecuaria/agricultura-cuadros-estadisticos/",
+    "local_file": null,
+    "covers_crops": "crops by ano agricola (superficie cultivada, produccion, rendimiento); herds of bovino, caprino, ovino, porcino, alpacas, llamas",
+    "covers_years": "1984-2025 (campana de invierno 2012-2025, campana de verano 2013-2025)",
+    "basis_notes": "T26 route check, both URLs fetched 2026-09-02. Admin-1 = departamento (9). CROPS (https://www.ine.gob.bo/index.php/estadisticas-economicas/agropecuaria/agricultura-cuadros-estadisticos/): 'Produccion por ano agricola y departamento' 1984-2025, 'Rendimiento por ano agricola y departamento' 1984-2025, 'Superficie cultivada por ano agricola y departamento' 1984-2025, plus campana de invierno (2012-2025) and campana de verano (2013-2025) tables of production, yield and cultivated area by crop and department. LIVESTOCK (https://www.ine.gob.bo/index.php/estadisticas-economicas/ganaderia-y-avicultura/ganaderia-cuadros-estadisticos/): 'Hato Ganado Bovino / Caprino / Ovino / Porcino por Departamento Edad y Sexo' and 'Poblacion de Alpacas / Llamas por Departamento Edad y Sexo', 1984-2025. Downloads are Nextcloud share links on nube.ine.gob.bo, e.g. crops https://nube.ine.gob.bo/index.php/s/sDryAo3LRxEvQcr/download and livestock https://nube.ine.gob.bo/index.php/s/atQAJrU99CFq4dM/download ; no login.",
+    "confidence": "medium",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: TIER-1 PUBLIC ROUTE VERIFIED - departmental (admin-1) cultivated area, production and yield 1984-2025 AND departmental herd inventories for six species 1984-2025, open download, no login. This is the longest continuous admin-1 LIVESTOCK series of the five countries checked. UNVERIFIED, and both must be settled before any pin: (i) FILE FORMAT - the listing page exposes only opaque nube.ine.gob.bo '/download' share links with no stated extension, so a reader's parser cannot be specified from this evidence; (ii) LICENCE - the footer links 'Aviso Legal y Terminos de Uso' whose text was not fetched. FRAGILITY: there is no API and each table is a separate Nextcloud share token, so a download_*.R would have to hardcode share tokens, which are not stable identifiers."
+  },
+  {
+    "iso3": "IND",
+    "source": "ICRISAT District Level Database (DLD) - T26 access and licence record",
+    "url": "https://dataverse.icrisat.org/dataset.xhtml?persistentId=doi:10.21421/D2/XFB1BZ",
+    "local_file": null,
+    "covers_crops": "district-level agriculture (area, production, yield), livestock, census, infrastructure, environmental and biophysical variables",
+    "covers_years": "1966-2017",
+    "basis_notes": "T26 access record, fetched 2026-09-02. Grain = district (admin-2 in India; state = admin-1). The Dataverse record (DOI 10.21421/D2/XFB1BZ, 'District Level Data (DLD) and Dashboard for Agriculture and Allied-sectors in India') describes 592 districts across 20 states, 1966-2017, in two variants: unapportioned (current district boundaries) and apportioned (adjusted to historical boundaries, 1991/1996/2001). The Dataverse deposit itself holds ONLY three documentation files - 'DLD Apportioned Data Documentation.pdf', 'DLD Unapportioned Data Documentation.pdf', 'Overview of District Level Database.docx' - each restricted=false; the DATA is not on Dataverse but on the DLD portal at http://data.icrisat.org/dld/ .",
+    "confidence": "medium",
+    "discovered": "2026-09-02",
+    "notes": "T26 VERDICT: ACCESS AND REDISTRIBUTION NOT ESTABLISHED - treat as not permitted until the agreement text is read. The Dataverse JSON export (https://dataverse.icrisat.org/api/datasets/export?exporter=dataverse_json&persistentId=doi:10.21421/D2/XFB1BZ, fetched) shows NO license block ('license: NONE'), termsOfUse = 'Data and documents published in this dataset are licensed under ICRISAT Data Sharing Agreement' pointing at http://data.icrisat.org/document/ICRISAT-Data-Sharing-Agreement.html, and fileAccessRequest = true. The agreement text COULD NOT BE FETCHED: data.icrisat.org refused the TLS connection from here (ECONNREFUSED 111.93.13.169:443, 2026-09-02) for both /document/ICRISAT-Data-Sharing-Agreement.html and /dld/, and the fetch tool upgrades http:// to https://, so neither the agreement nor the download route was reachable today. A no-licence deposit plus fileAccessRequest=true plus an unreadable bespoke agreement is the opposite of an open route; this is consistent with the plan keeping ICRISAT out of v1 scope. NOTE: an earlier entry in this file records an unauthenticated JSON endpoint http://data.icrisat.org/dldAPI/apportioned/area-production-yield used on 2026-06-22 (311 districts, 20 states); its reachability was NOT re-confirmed today, and its existence does not by itself grant redistribution or pinning rights."
   }
 ]

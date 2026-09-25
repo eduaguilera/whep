@@ -1,0 +1,10 @@
+source,source_table,class_key,source_class_code,source_class_name,item_prod_code,mapping_kind,mapping_reason
+JRC_subnational_crops,EU27_CROP_STATS_2025,Total wheat,,Total wheat,15,aggregate,Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1). The publisher's own COHERENCE_CROP flag checks it against Soft plus Durum wheat to 1%.
+JRC_subnational_crops,EU27_CROP_STATS_2025,Soft wheat,,Soft wheat,15,member,"Member of the published aggregate Total wheat, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+JRC_subnational_crops,EU27_CROP_STATS_2025,Durum wheat,,Durum wheat,15,member,"Member of the published aggregate Total wheat, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+JRC_subnational_crops,EU27_CROP_STATS_2025,Total barley,,Total barley,44,aggregate,Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1). The publisher's own COHERENCE_CROP flag checks it against Winter plus Spring barley to 1%.
+JRC_subnational_crops,EU27_CROP_STATS_2025,Winter barley,,Winter barley,44,member,"Member of the published aggregate Total barley, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+JRC_subnational_crops,EU27_CROP_STATS_2025,Spring barley,,Spring barley,44,member,"Member of the published aggregate Total barley, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+JRC_subnational_crops,EU27_CROP_STATS_2025,Grain maize,,Grain maize,56,exact,Grain maize only (T10 crop rule 2).
+JRC_subnational_crops,EU27_CROP_STATS_2025,Sunflower,,Sunflower,267,exact,
+JRC_subnational_crops,EU27_CROP_STATS_2025,Sugar beet,,Sugar beet,157,exact,

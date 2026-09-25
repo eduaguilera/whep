@@ -303,22 +303,25 @@ test_that("custom species_proxy is respected", {
   expect_equal(shares[1], 800 / 1300, tolerance = 1e-4)
 })
 
-test_that("missing species_group falls back to pasture", {
-  # Data with a group not in default proxy mapping
+test_that("an unmapped species_group aborts naming the group", {
+  # Was "missing species_group falls back to pasture" (whep#1000, T15a-i):
+  # the silent `"pasture"` fallback gave any unmapped group -- a typo, a new
+  # FAOSTAT item, a poultry class -- a grazing distribution, with nothing in
+  # the output to say so.
   ld <- tibble::tribble(
     ~year, ~area_code, ~species_group, ~heads,
     2000L, 1L, "unknown_species", 1000
   )
 
-  result <- build_gridded_livestock(
-    ld,
-    gridded_pasture,
-    gridded_cropland,
-    country_grid
+  expect_error(
+    build_gridded_livestock(
+      ld,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid
+    ),
+    "unknown_species"
   )
-  # Should still produce output (falls back to pasture proxy)
-  expect_gt(nrow(result), 0L)
-  expect_equal(sum(result$heads), 1000)
 })
 
 test_that("validation rejects missing columns", {
@@ -769,4 +772,398 @@ test_that("a grid holding every country raises no missing-reporter warning", {
   fn <- whep:::.warn_grid_missing_reporters
 
   expect_no_warning(fn(livestock_data, country_grid, "heads", "head"))
+})
+
+# -- proxy_method (whep#1000, T15a-i) -----------------------------------
+#
+# `glw_density` used to be tried first and silently abandoned per species
+# per year whenever it produced no cell, so one output could mix GLW3 and
+# LUH2 evidence with nothing recording which group ran on what. The proxy
+# is now selected, refused when its inputs are missing, and stamped on
+# every row.
+
+test_that("the default proxy_method reproduces the LUH2 allocation", {
+  # Captured from the engine as it stood before `proxy_method` existed
+  # (commit 44721cd4, printed at 17 significant digits). The claim under
+  # test is that the default path is the same arithmetic, not merely a
+  # conserving one: every one of these nine values is a share of a national
+  # total that ships in `gridded_livestock.parquet`.
+  expected <- tibble::tibble(
+    year = c(rep(2000L, 6L), rep(2001L, 3L)),
+    species_group = c(
+      "cattle",
+      "cattle",
+      "cattle",
+      "pigs",
+      "pigs",
+      "sheep_goats",
+      "cattle",
+      "cattle",
+      "cattle"
+    ),
+    area_code = c(1L, 1L, 2L, 1L, 1L, 2L, 1L, 1L, 2L),
+    lon = c(0.25, 0.75, 1.25, 0.25, 0.75, 1.25, 0.25, 0.75, 1.25),
+    lat = 50.25,
+    heads = c(
+      6153.8461538461543,
+      3846.1538461538462,
+      8000,
+      3076.9230769230771,
+      1923.0769230769231,
+      3000,
+      6461.5384615384619,
+      4038.4615384615386,
+      8200
+    ),
+    enteric_ch4_kt = c(
+      0.61538461538461542,
+      0.38461538461538464,
+      0.80000000000000004,
+      0,
+      0,
+      0.10000000000000001,
+      0.67692307692307696,
+      0.42307692307692313,
+      0.81999999999999995
+    ),
+    manure_n_mg = c(
+      30.769230769230770,
+      19.230769230769234,
+      40,
+      12.307692307692308,
+      7.6923076923076925,
+      5,
+      32.307692307692307,
+      20.192307692307693,
+      41
+    )
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid
+  )
+
+  expect_equal(
+    dplyr::select(result, dplyr::all_of(names(expected))),
+    expected,
+    tolerance = 1e-12
+  )
+  # The only schema change is one appended column: a consumer selecting by
+  # position or binding to an older parquet keeps working.
+  expect_identical(
+    names(result),
+    c(
+      "year",
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "species_group",
+      "lon",
+      "lat",
+      "heads",
+      "enteric_ch4_kt",
+      "manure_n_mg",
+      "method_livestock_proxy"
+    )
+  )
+  expect_setequal(result$method_livestock_proxy, "luh2_area")
+})
+
+test_that("grass weighting is recorded per group, not per call", {
+  # `.build_proxy_grid()` multiplies by grass NPP for the pasture and
+  # rangeland proxies only, so pigs on the cropland proxy stay on area
+  # weights in the very same call and must say so.
+  grass_npp <- tibble::tribble(
+    ~lon, ~lat, ~grass_npp,
+    0.25, 50.25, 300,
+    0.75, 50.25, 500,
+    1.25, 50.25, 200
+  )
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    grass_productivity = grass_npp
+  )
+
+  methods <- result |>
+    dplyr::distinct(species_group, method_livestock_proxy) |>
+    dplyr::arrange(species_group)
+  expect_identical(
+    methods$species_group,
+    c("cattle", "pigs", "sheep_goats")
+  )
+  expect_identical(
+    methods$method_livestock_proxy,
+    c("luh2_grass", "luh2_area", "luh2_grass")
+  )
+})
+
+test_that("method_livestock_proxy survives the polity_area re-key", {
+  # The column is a key, not a value, so it must not stop two reporting
+  # areas of one bucket folding into a single cell row.
+  fix <- off_bucket_livestock()
+
+  keyed <- whep::build_gridded_livestock(
+    fix$livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    fix$country_grid,
+    years = 2000L,
+    area_key = "polity_area"
+  )
+
+  expect_setequal(keyed$method_livestock_proxy, "luh2_area")
+  expect_equal(nrow(keyed), 3L)
+  expect_equal(sum(keyed$heads), 16000, tolerance = 1e-9)
+})
+
+# GLW3 density and the LUH2 extent disagree on purpose here: cell 1.25 holds
+# almost all the density and no land use at all, so an implementation that
+# forgets the extent mask puts 96% of the herd in a cell LUH2 says is empty,
+# and one that quietly reverts to the LUH2 proxy reproduces the 800/1300
+# pasture split instead of the 1/3 density split.
+.glw_livestock_fixture <- function() {
+  list(
+    livestock_data = tibble::tribble(
+      ~year, ~area_code, ~species_group, ~heads,
+      2000L,         1L,       "cattle",  10000
+    ),
+    gridded_pasture = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
+      0.25, 50.25, 2000L,         600,           200,
+      0.75, 50.25, 2000L,         400,           100,
+      1.25, 50.25, 2000L,           0,             0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          800,
+      0.75, 50.25, 2000L,          500,
+      1.25, 50.25, 2000L,            0
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1,
+      1.25, 50.25,         1L,               1
+    ),
+    glw_density = tibble::tribble(
+      ~lon,  ~lat, ~species_group, ~density,
+      0.25, 50.25,       "cattle",        1,
+      0.75, 50.25,       "cattle",        3,
+      1.25, 50.25,       "cattle",       96
+    )
+  )
+}
+
+test_that("proxy_method glw3 allocates by density, masked by LUH2 extent", {
+  fix <- .glw_livestock_fixture()
+
+  result <- whep::build_gridded_livestock(
+    fix$livestock_data,
+    fix$gridded_pasture,
+    fix$gridded_cropland,
+    fix$country_grid,
+    glw_density = fix$glw_density,
+    proxy_method = "glw3"
+  )
+
+  by_lon <- stats::setNames(result$heads, result$lon)
+  expect_setequal(names(by_lon), c("0.25", "0.75"))
+  expect_equal(unname(by_lon[["0.25"]]), 2500, tolerance = 1e-9)
+  expect_equal(unname(by_lon[["0.75"]]), 7500, tolerance = 1e-9)
+  expect_equal(sum(result$heads), 10000, tolerance = 1e-9)
+  expect_setequal(result$method_livestock_proxy, "glw3")
+
+  # The discriminator against a silent revert to the LUH2 pasture proxy.
+  expect_false(isTRUE(all.equal(
+    unname(by_lon[["0.25"]]),
+    10000 * 800 / 1300
+  )))
+})
+
+test_that("proxy_method glw3 aborts when glw_density is NULL", {
+  fix <- .glw_livestock_fixture()
+
+  expect_error(
+    whep::build_gridded_livestock(
+      fix$livestock_data,
+      fix$gridded_pasture,
+      fix$gridded_cropland,
+      fix$country_grid,
+      proxy_method = "glw3"
+    ),
+    "glw_density"
+  )
+})
+
+test_that("proxy_method glw3 aborts for a group the density table misses", {
+  fix <- .glw_livestock_fixture()
+  fix$livestock_data <- dplyr::bind_rows(
+    fix$livestock_data,
+    tibble::tibble(
+      year = 2000L,
+      area_code = 1L,
+      species_group = "pigs",
+      heads = 500
+    )
+  )
+
+  expect_error(
+    whep::build_gridded_livestock(
+      fix$livestock_data,
+      fix$gridded_pasture,
+      fix$gridded_cropland,
+      fix$country_grid,
+      glw_density = fix$glw_density,
+      proxy_method = "glw3"
+    ),
+    "pigs"
+  )
+})
+
+test_that("proxy_method glw3 aborts on a group with no positive density", {
+  # Present in the table but zero everywhere: the same silent revert as an
+  # absent group, so it is refused the same way.
+  fix <- .glw_livestock_fixture()
+  fix$glw_density$density <- c(0, 0, NA)
+
+  expect_error(
+    whep::build_gridded_livestock(
+      fix$livestock_data,
+      fix$gridded_pasture,
+      fix$gridded_cropland,
+      fix$country_grid,
+      glw_density = fix$glw_density,
+      proxy_method = "glw3"
+    ),
+    "cattle"
+  )
+})
+
+test_that("glw_density under the luh2 method is warned about, not used", {
+  fix <- .glw_livestock_fixture()
+
+  expect_warning(
+    result <- whep::build_gridded_livestock(
+      fix$livestock_data,
+      fix$gridded_pasture,
+      fix$gridded_cropland,
+      fix$country_grid,
+      glw_density = fix$glw_density
+    ),
+    "ignored"
+  )
+
+  by_lon <- stats::setNames(result$heads, result$lon)
+  expect_equal(
+    unname(by_lon[["0.25"]]),
+    10000 * 800 / 1300,
+    tolerance = 1e-9
+  )
+  expect_setequal(result$method_livestock_proxy, "luh2_area")
+})
+
+test_that("build_gridded_livestock rejects an unknown proxy_method", {
+  expect_error(
+    build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid,
+      proxy_method = "glw4"
+    ),
+    class = "rlang_error"
+  )
+})
+
+test_that("a group whose proxy has no weighted cell is reported", {
+  # Camels take the rangeland proxy; with no rangeland the group's national
+  # total is dropped for the year before `.warn_unallocated_livestock()`
+  # can see it, so the drop is reported here or nowhere.
+  ld <- tibble::tribble(
+    ~year, ~area_code, ~species_group, ~heads,
+    2000L,         1L,       "camels",    500,
+    2000L,         1L,       "cattle",   1000
+  )
+  pasture <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
+    0.25, 50.25, 2000L,         600,             0
+  )
+  cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 2000L,          800
+  )
+  cg <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25,         1L,               1
+  )
+
+  expect_warning(
+    result <- build_gridded_livestock(ld, pasture, cropland, cg),
+    "camels"
+  )
+  expect_setequal(result$species_group, "cattle")
+  expect_equal(sum(result$heads), 1000, tolerance = 1e-9)
+})
+
+test_that(".livestock_proxy_types keeps the first proxy of a repeated group", {
+  # `.read_livestock_mapping()` hands "other" over twice: cropland from
+  # items 1140/1150 and mixed from 1171 in
+  # inst/extdata/livestock_mapping.csv. Taking the first is what the
+  # replaced `proxy_row$spatial_proxy[1]` lookup did.
+  species_proxy <- tibble::tribble(
+    ~species_group, ~spatial_proxy,
+    "other",        "cropland",
+    "other",        "mixed"
+  )
+  expect_identical(
+    whep:::.livestock_proxy_types(species_proxy, "other"),
+    c(other = "cropland")
+  )
+})
+
+test_that(".livestock_proxy_types refuses an unknown proxy class", {
+  # `.build_glw_proxy_grid()`'s switch has no default, so an unchecked class
+  # returns NULL land use and fails somewhere unrelated.
+  species_proxy <- tibble::tribble(
+    ~species_group, ~spatial_proxy,
+    "cattle",       "savanna"
+  )
+  expect_error(
+    whep:::.livestock_proxy_types(species_proxy, "cattle"),
+    "savanna"
+  )
+})
+
+test_that(".livestock_proxy_types treats an NA proxy as unmapped", {
+  species_proxy <- tibble::tibble(
+    species_group = "cattle",
+    spatial_proxy = NA_character_
+  )
+  expect_error(
+    whep:::.livestock_proxy_types(species_proxy, "cattle"),
+    "cattle"
+  )
+})
+
+test_that(".livestock_proxy_method labels the regime, not the cell", {
+  fn <- whep:::.livestock_proxy_method
+  grass <- tibble::tibble(lon = 0.25, lat = 50.25, grass_npp = 1)
+
+  expect_identical(fn("glw3", "pasture", NULL), "glw3")
+  expect_identical(fn("glw3", "cropland", grass), "glw3")
+  expect_identical(fn("luh2", "pasture", NULL), "luh2_area")
+  expect_identical(fn("luh2", "pasture", grass), "luh2_grass")
+  expect_identical(fn("luh2", "rangeland", grass), "luh2_grass")
+  # Grass NPP never reaches the cropland or mixed weights.
+  expect_identical(fn("luh2", "cropland", grass), "luh2_area")
+  expect_identical(fn("luh2", "mixed", grass), "luh2_area")
 })

@@ -25,6 +25,9 @@ rather than to nothing.}
 }
 \value{
 A character vector of polity codes, \code{NA} where nothing matched.
+On the identity routes a subnational polity contained in another
+candidate (per \link{polity_containment}) never competes with its container,
+so an ISO3 shared by a state and its provinces resolves to the state.
 }
 \description{
 Maps a country or area \strong{label}, as a source writes it, to a WHEP polity

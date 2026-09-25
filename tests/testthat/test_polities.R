@@ -1376,6 +1376,10 @@ testthat::test_that(".successor_code_reuse censuses the lossy partitions", {
       "F248-1920-1991",
       "F248-1947-1991",
       "KOR-1945-1948",
+      # `MAN-1945-1950` "Manchuria (region, 1945-1950)": a subnational polity
+      # keyed `MAN` whose container is China, so the walk from `CHN` never
+      # reaches it (whep-polities#648, synced by the #1000 re-sync).
+      "MAN-1945-1950",
       "NLD-1800-1830",
       "PAK-1949-1971",
       "SGP-1946-1963",
