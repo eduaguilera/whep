@@ -482,7 +482,7 @@ build_urban_n <- function(...) {
       .by = c("lon", "lat", "area_code", "year")
     ) |>
     dplyr::mutate(
-      method_human = "spain_hist_rate|room_weighted",
+      method_human = "calibration_rate|room_weighted",
       !!!.human_basis_stamps(basis)
     )
 }
@@ -581,7 +581,7 @@ build_urban_n <- function(...) {
 .example_human_n <- function(basis = "total") {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~human_n_t, ~method_human,
-    -0.25, -0.25, 203L, 2020L, 4.5, "spain_hist_rate|room_weighted"
+    -0.25, -0.25, 203L, 2020L, 4.5, "calibration_rate|room_weighted"
   ) |>
     dplyr::mutate(!!!.human_basis_stamps(basis)) |>
     .add_reporting_polity_columns()

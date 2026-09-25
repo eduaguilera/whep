@@ -44,7 +44,7 @@ testthat::test_that("build_human_n converts population to a nitrogen load", {
   # polity_frac (see data-raw/build_human_kgn_cap.R).
   expected_n_t <- 30898536 * 0.9410902351391244 / 1000
   testthat::expect_equal(out$human_n_t, expected_n_t, tolerance = 1e-6)
-  testthat::expect_equal(out$method_human, "spain_hist_rate|room_weighted")
+  testthat::expect_equal(out$method_human, "calibration_rate|room_weighted")
 })
 
 testthat::test_that("build_human_n spills surplus to a neighbouring cell with cropland room", {
