@@ -8,7 +8,8 @@ Yu, Q. et al. (2020). A cultivated planet in 2010 -- Part 2: The
 global gridded agricultural-production maps. Earth System Science Data
 12, 3545-3572. \doi{10.5194/essd-12-3545-2020}. LPJmL 6.1.1 band
 harvests as in \code{\link[=read_lpjml_regime_yield]{read_lpjml_regime_yield()}}. FAOSTAT Fertilizers by
-Nutrient and Land Use. Smil, V. (2001) \emph{Enriching the Earth}, MIT Press.
+Nutrient, Land Use and Crops and livestock products. Smil, V. (2001)
+\emph{Enriching the Earth}, MIT Press.
 }
 \usage{
 build_regime_yield_ratio(cells, run_dir = NULL, data = NULL, example = FALSE)
@@ -33,14 +34,18 @@ chiefly for testing and for reusing work across calls:
 \item \code{fertilizer}: the \code{faostat-fertilizer-nutrients} table.
 \item \code{cropland}: \code{\link[=get_arable_permanent_land]{get_arable_permanent_land()}} output (\code{area_code}, \code{year},
 \code{cropland_ha}).
-\item \code{production}: \code{\link[=get_primary_production]{get_primary_production()}} output, for the Linum and
-Hemp dominance.
+\item \code{luh2}: the \code{luh2-areas} table (\code{ISO3}, \code{Year}, \code{Land_Use},
+\code{Area_Mha}), for the successors' back-cast cropland.
+\item \code{faostat_production}: the raw \code{faostat-production} table
+(\verb{Area Code}, \verb{Item Code}, \code{Element}, \code{Year}, \code{Value}), for the Linum
+and Hemp dominance.
 \item \code{lpjml}: LPJmL crop yields for the years of \code{cells}, at the crop grain
 (\code{lon}, \code{lat}, \code{year}, \code{lpjml_crop}, \code{yield_rainfed}, \code{yield_irrigated},
 \code{method_regime_yield}).
 \item \code{lpjml_window}: the same for the normaliser years, with the stand
 fractions \code{stand_frac_rainfed}, \code{stand_frac_irrigated}. Only rows in
 1994-2023 are used.
+\item \code{lpjml_grid}: the cells (\code{lon}, \code{lat}) the LPJmL run's output covers.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of building the
@@ -54,12 +59,11 @@ A tibble with one row per cell-crop-year of \code{cells}:
 \item \code{ratio_anchor}: \code{max(1, ratio_spam)}.
 \item \code{ratio_level}: the anchor carried to \code{year} by synthetic N.
 \item \code{ratio_spatial}: the cell's 1994-2023 LPJmL ratio over the country's.
-\item \code{ratio_long_term}: \code{min(10, ratio_level * ratio_spatial)}.
+\item \code{ratio_long_term}: \code{1 + min(9, (ratio_level - 1) * ratio_spatial)}.
 \item \code{ratio_temporal}: the cell-year LPJmL ratio over the cell's 1994-2023
 ratio.
-\item \code{ratio_anomaly}: \code{ratio_spatial * ratio_temporal}, kept for comparison
-with the single anomaly of D15.
-\item \code{ratio}: \code{max(1, ratio_long_term * ratio_temporal)}; \code{NA} where the
+\item \code{ratio_anomaly}: \code{ratio_spatial * ratio_temporal}, for reference.
+\item \code{ratio}: \code{1 + (ratio_long_term - 1) * ratio_temporal}; \code{NA} where the
 level is.
 \item \code{spam_crop_used}: the SPAM crop code(s) the anchor came from (for Linum
 and Hemp, the product chosen for the country).
@@ -71,16 +75,23 @@ and Hemp, the product chosen for the country).
 \code{"smil_backcast"} (the country's own), either suffixed
 \code{"_predecessor"}, \code{"_sibling_interval"} or \code{"_shared_polity"} (from
 the polity reporting for it, by the lineage step that found it); or
-\code{"pre_synthetic_n"}, \code{"n_2010_zero"}, \code{"no_n_t"}, \code{"no_n_2010"}.
+\code{"pre_synthetic_n"}, \code{"no_n_reported_pre1961"}, \code{"n_2010_zero"},
+\code{"no_n_t"}, \code{"no_cropland"} (a reporting polity was found but its
+cropland is missing) or \code{"no_n_2010"}.
 \item \code{method_ratio_n_2010}: \code{"own"}, \code{"successors"}, \code{"none"} or
 \code{"not_needed"} (before 1913).
-\item \code{method_ratio_spatial}: \code{"lpjml"} or \code{"no_cell_normal"}.
+\item \code{method_ratio_cropland}: the cropland \code{n_t} is divided by: \code{"own"},
+\code{"successors_luh2_backcast"}, \code{"none"} or \code{"not_needed"}.
+\item \code{method_dominance}: \code{"dominance_raw_faostat"} for Linum and Hemp,
+\code{"not_applicable"} otherwise.
+\item \code{method_ratio_spatial}: \code{"lpjml"}, \code{"no_lpjml_cell"} or
+\code{"no_cell_normal"}.
 \item \code{method_ratio_temporal}: \code{"lpjml"}, \code{"lpjml_recycled_climate"} (years
-before 1901), \code{"no_cell_ratio"} or \code{"no_cell_normal"}.
+before 1901), \code{"no_lpjml_cell"}, \code{"no_cell_ratio"} or
+\code{"no_cell_normal"}.
 \item \code{method_regime_yield}: the adjustments applied, joined by \code{";"}:
-\code{"anchor_floor"} (SPAM ratio below 1), \code{"level_cap"} (long-term
-component above 10), \code{"ratio_floor"} (long-term times temporal below
-1), or \code{"none"}.
+\code{"anchor_floor"} (SPAM ratio below 1), \code{"level_cap"} (long-term ratio
+above 10 before the cap), or \code{"none"}.
 }
 
 Plus the polity columns below.
@@ -89,7 +100,7 @@ Plus the polity columns below.
 Gives each cell-crop-year the ratio \code{R} of its irrigated yield to its
 rainfed yield, the weight that splits a crop's production, synthetic
 nitrogen and harvest removals between its two regimes (issue #1233). \code{R}
-combines three sources, following plan decisions D15-D24:
+combines three sources:
 \enumerate{
 \item \strong{Anchor.} The SPAM2010 v2.0 ratio of irrigated to all-rainfed yield
 for the item's SPAM crop in the country (see \code{\link[=read_spam_yields]{read_spam_yields()}} and
@@ -100,20 +111,23 @@ not weigh more than large ones. The anchor is floored at 1.
 nitrogen per hectare of cropland relative to 2010,
 \code{R_level = 1 + (R_anchor - 1) * n_t / n_2010}, so the gap closes towards
 1 before synthetic fertiliser and widens with it.
-\item \strong{Anomaly}, in two parts (D22). The \strong{spatial} part is the cell's
-LPJmL irrigated:rainfed ratio over 1994-2023 divided by the country's,
-so drier places get a larger gap. The \strong{temporal} part is the cell's
-ratio in year \code{t} divided by its own 1994-2023 ratio, so worse years
-get a larger gap.
+\item \strong{Anomaly}, in two parts. The \strong{spatial} part is the cell's LPJmL
+irrigated:rainfed ratio over 1994-2023 divided by the country's, so
+drier places get a larger gap. The \strong{temporal} part is the cell's ratio
+in year \code{t} divided by its own 1994-2023 ratio, so worse years get a
+larger gap.
 }
 
-The long-term component \code{R_level * spatial} is capped at 10 (D15, D22);
-the temporal part is not, so only a bad year takes \code{R} past 10. The ratio
-is \code{R = max(1, min(10, R_level * spatial) * temporal)}.
-\code{\link[=split_regime_yield]{split_regime_yield()}} applies it to a cell's production and areas.
+The anomalies scale only the excess of the ratio over 1, so \code{R} goes to 1
+wherever the level does, whatever the anomaly. The long-term ratio is
+\code{R_lt = 1 + min(9, (R_level - 1) * spatial)}: it is capped at 10, i.e. its
+excess over 1 at 9. The ratio of the year is
+\code{R = 1 + (R_lt - 1) * temporal}; the temporal part is not capped, so only a
+bad year takes \code{R} past 10. \code{\link[=split_regime_yield]{split_regime_yield()}} applies it to a cell's
+production and areas.
 }
 \details{
-Four implementation choices the decisions left open, accepted as D24:
+Four implementation choices:
 \itemize{
 \item The 1994-2023 normalisers pool every stand, weighted by stand area
 (stand fraction times the cell's geometric area; the land fraction is not
@@ -121,7 +135,7 @@ applied), rather than averaging cell ratios.
 \item Linum and Hemp dominance pools each country's 1961-2023 production; a
 tie goes to the fibre.
 \item The floor at 1 applies to the finished composite, not to its members.
-\item The yield bound of \code{\link[=split_regime_yield]{split_regime_yield()}} pools every production row of
+\item The yield bounds of \code{\link[=split_regime_yield]{split_regime_yield()}} pool every production row of
 1961-2023 with positive tonnes and area, whatever its \code{source}.
 }
 }
@@ -133,16 +147,19 @@ How \code{spam_crop} is read is fixed by \code{spam_basis} in
 \item A single crop, or crops joined by \code{+} with basis \code{"direct"} (millet,
 coffee): harvested area and production are summed over the crops and the
 ratio is taken of the sums.
-\item \code{"composite_weighted"} (the forage crops, D18, D19): the mean of the
-member crops' ratios weighted by each member's SPAM harvested area
-(irrigated plus rainfed) in the country. A member with no irrigated or no
-rainfed yield there is dropped and the weights of the others renormalised
-(D21); with no member left, the global composite is used.
-\item \code{"product_dominance"} (Linum 772, Hemp 776, D17): \code{ooil} where the
-country's FAOSTAT seed production (linseed 333, hempseed 336) exceeds its
-fibre production (flax 773, true hemp 777), otherwise \code{ofib}, both summed
-over 1961-2023. A country with neither product takes the world's
-dominant product and its global ratio.
+\item \code{"composite_weighted"} (the forage crops): the mean of the member crops'
+ratios weighted by each member's SPAM harvested area (irrigated plus
+rainfed) in the country. A member with no irrigated or no rainfed yield
+there is dropped and the weights of the others renormalised; with no
+member left, the global composite is used.
+\item \code{"product_dominance"} (Linum 772, Hemp 776): \code{ooil} where the country's
+seed production (linseed 333, hempseed 336) exceeds its fibre production
+(flax 771 "Flax, raw or retted", true hemp 777), otherwise \code{ofib}, both
+summed over 1961-2023. A country with neither product takes the world's
+dominant product and its global ratio. The four products are read from
+the raw \code{faostat-production} pin (\code{method_dominance}
+\code{"dominance_raw_faostat"}), because WHEP's primary production has no flax
+fibre (#1302).
 }
 
 A country with no irrigated or no rainfed yield for the crop in SPAM takes
@@ -155,17 +172,26 @@ matched by ISO3 code onto WHEP's polity buckets, never by name.
 \code{n_t} is the country's synthetic N over its cropland in year \code{t}:
 FAOSTAT's agricultural use of nitrogen (the \code{faostat-fertilizer-nutrients}
 pin) from 1961, back-cast to 1913 with the Smil (2001) global series scaled
-by the country's 1961-1965 share (\link{smil_2001_synthetic_n_global}, the
-back-cast of the spatialization scripts' \code{prepare_nitrogen_inputs()}), and
-zero before 1913, when there was no synthetic nitrogen. The cropland is
-\code{\link[=get_arable_permanent_land]{get_arable_permanent_land()}} (FAOSTAT from 1961, LUH2 back-cast before).
+by the country's 1961-1965 share (\link{smil_2001_synthetic_n_global}), and zero
+before 1913, when there was no synthetic nitrogen. The share's divisor is
+the Smil series interpolated over 1961-1965 (15.6 Mt), the fix proposed in
+issue #1303 for the spatialization scripts' \code{prepare_nitrogen_inputs()},
+whose back-cast differs from this one until that issue is fixed. The
+cropland is \code{\link[=get_arable_permanent_land]{get_arable_permanent_land()}} (FAOSTAT from 1961, LUH2
+back-cast before).
 
 A country that reports no N in year \code{t} takes the N per hectare of the
-polity that reported fertiliser for its territory that year (D23), found by
+polity that reported fertiliser for its territory that year, found by
 walking the \code{predecessor} edges of \link{polities} with
 \code{\link[=resolve_polity_lineage]{resolve_polity_lineage()}}: Russia before 1992 takes the USSR's N over the
 USSR's cropland. A historical polity with no 2010 value of its own (the
 USSR) takes its successors' combined 2010 N over their combined cropland.
+Before 1961, a polity with a back-cast N but no back-cast cropland (the
+USSR and Czechoslovakia, whose codes have no LUH2 country) takes its
+successors' combined LUH2 cropland, rescaled to its own FAOSTAT cropland
+of 1961 (\code{method_ratio_cropland} \code{"successors_luh2_backcast"}); and a
+territory for which nothing reported N in 1961-1965 had no synthetic N
+before 1961, so its level is 1 (\code{"no_n_reported_pre1961"}).
 \code{method_ratio_trend} names the path (\code{"faostat"}, \code{"faostat_predecessor"},
 ...) and \code{method_ratio_n_2010} the 2010 basis. A country with no synthetic
 nitrogen in 2010 keeps \code{R_level = 1}. What no path reaches gets no ratio
@@ -181,11 +207,13 @@ The cell ratio is the irrigated over the rainfed per-stand yield of
 ratios are each a ratio of pooled yields: each regime's yield is the sum of
 yield times stand area over the sum of stand area, over the cell's (or the
 country's cells') stands and the window years, the LPJmL counterpart of the
-SPAM anchor. The spatial part is 1 where the cell or the country has no
-1994-2023 ratio; the temporal part is 1 where the cell has no ratio that
-year (a regime without a stand, or no rainfed harvest) or no 1994-2023
-ratio. \code{ratio_anomaly} is their product: the cell-year ratio over the
-country's wherever all three ratios exist, i.e. the single anomaly of D15.
+SPAM anchor. Both parts are 1 in a cell the LPJmL run does not cover at
+all (its land mask misses some coastal and island cells), stamped
+\code{"no_lpjml_cell"}. The spatial part is 1 where the cell has no 1994-2023
+ratio; the temporal part is 1 where the cell has no ratio that year (a
+regime without a stand, or no rainfed harvest) or no 1994-2023 ratio.
+\code{ratio_anomaly} is their product, the cell-year ratio over the country's
+wherever all three ratios exist.
 }
 
 \section{Polity columns}{

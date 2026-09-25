@@ -1,5 +1,5 @@
 # `regime_yield_crop_mapping` gives every primary crop item the two sources
-# the irrigated:rainfed regime yield ratio needs (plan decision D15): a
+# the irrigated:rainfed regime yield ratio needs (issue #1233): a
 # SPAM2010 crop for the level and an LPJmL CFT for the anomaly. An item with
 # no row, or with a code neither source knows, would leave that crop without
 # a ratio -- silently, as a join miss -- so these tests pin coverage and
@@ -111,7 +111,7 @@ testthat::test_that("SPAM crops are SPAM2010 codes", {
   tokens <- unlist(stringr::str_split(map$spam_crop, "[+|]"))
 
   testthat::expect_true(all(tokens %in% .spam2010_crops()))
-  # Anything else would be a separator T12e cannot read.
+  # Anything else would be a separator the ratio engine cannot read.
   testthat::expect_true(all(stringr::str_detect(
     map$spam_crop,
     "^[a-z]{4}([+|][a-z]{4})*$"
@@ -135,7 +135,7 @@ testthat::test_that("each joined SPAM crop carries the basis that reads it", {
   # `+` on a direct row: SPAM's own split of one FAO item, summed.
   testthat::expect_setequal(pooled$item_prod_code, c(79L, 656L))
   testthat::expect_setequal(pooled$spam_crop, c("pmil+smil", "acof+rcof"))
-  # `+` on a composite row: area-weighted mean of per-crop ratios (D18, D19).
+  # `+` on a composite row: area-weighted mean of per-crop ratios.
   testthat::expect_setequal(composite$item_prod_code, c(grasses, legumes))
   testthat::expect_equal(
     composite$spam_crop[composite$item_prod_code %in% grasses],
@@ -145,7 +145,7 @@ testthat::test_that("each joined SPAM crop carries the basis that reads it", {
     composite$spam_crop[composite$item_prod_code %in% legumes],
     rep("bean+chic+cowp+pige+lent+opul+rest", length(legumes))
   )
-  # `|`: one of two per country, by product dominance (D17).
+  # `|`: one of two per country, by product dominance.
   testthat::expect_setequal(dominance$item_prod_code, c(772L, 776L))
   testthat::expect_equal(dominance$spam_crop, c("ooil|ofib", "ooil|ofib"))
   # No other row joins codes.
@@ -207,7 +207,7 @@ testthat::test_that("every non-direct assignment carries a rationale", {
   testthat::expect_true(all(
     !is.na(non_direct$rationale) & nzchar(non_direct$rationale)
   ))
-  # Every open choice has been decided (plan D17-D19).
+  # Every open choice has been decided.
   testthat::expect_false(any(
     stringr::str_detect(map$rationale, "UNDECIDED|PLACEHOLDER"),
     na.rm = TRUE

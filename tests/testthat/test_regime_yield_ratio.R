@@ -1,5 +1,5 @@
 # build_regime_yield_ratio() and split_regime_yield(): the irrigated:rainfed
-# yield ratio of plan decisions D15-D21 and the conservation split. Fully
+# yield ratio of issue #1233 and the conservation split. Fully
 # offline: every input is a hand-built fixture passed through `data` or
 # `production`. Nothing here reaches a pin, a WHEP_* path or the network.
 #
@@ -18,7 +18,7 @@
     # Barley: Spain 2 vs 1 t/ha.
     "ESP", "barl", "I", 50, 100,
     "ESP", "barl", "R", 150, 150,
-    # Other cereals: Spain rainfed only, so undefined there (D21).
+    # Other cereals: Spain rainfed only, so undefined there.
     "ESP", "ocer", "R", 20, 20,
     # A pixel whose ISO3 maps to no WHEP polity still counts globally.
     "ZZZ", "ocer", "I", 10, 40,
@@ -34,7 +34,7 @@
     # Maize 6 vs 1: large enough for the level cap.
     "ESP", "maiz", "I", 10, 60,
     "ESP", "maiz", "R", 10, 10,
-    # Oil crops and fibres for Linum and Hemp (D17).
+    # Oil crops and fibres for Linum and Hemp.
     "ESP", "ooil", "I", 10, 30,
     "ESP", "ooil", "R", 10, 10,
     "FRA", "ofib", "I", 20, 40,
@@ -57,7 +57,7 @@
     68L, 2010L, 0,
     231L, 2010L, 5000,
     # The USSR (228) reports 1961-1965; its successors Russia (185) and
-    # Ukraine (230) report in 2010 (D23).
+    # Ukraine (230) report in 2010.
     228L, 1961L, 1000,
     228L, 1962L, 1000,
     228L, 1963L, 1000,
@@ -83,25 +83,50 @@
     68L, 2010L, 1000,
     106L, 2010L, 1000,
     231L, 2010L, 1000,
-    228L, 1950L, 1000,
+    # The USSR has FAOSTAT cropland from 1961 only; before, it takes its
+    # successors' LUH2 back-cast (see .ryr_luh2_fixture()).
     228L, 1961L, 1000,
     185L, 2010L, 1000,
     230L, 2010L, 1000
   )
 }
 
+# The raw `faostat-production` pin shape, read for the Linum and Hemp
+# dominance: flax fibre is 771 "Flax, raw or retted" there.
 .ryr_production_fixture <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
     # Linum: Spain seed-dominant, France fibre-dominant, Italy neither.
-    2010L, 203L, 333L, "tonnes", 100,
-    2010L, 203L, 773L, "tonnes", 10,
-    2010L, 68L, 333L, "tonnes", 5,
-    2010L, 68L, 773L, "tonnes", 50,
+    203L, 333L, "Production", 2010L, 100,
+    203L, 771L, "Production", 2010L, 10,
+    68L, 333L, "Production", 2010L, 5,
+    68L, 771L, "Production", 2010L, 50,
+    # Another element never counts.
+    68L, 333L, "Area harvested", 2010L, 1e6,
     # Hemp: Spain fibre only, and Spain has no SPAM `ofib`.
-    2010L, 203L, 777L, "tonnes", 3,
+    203L, 777L, "Production", 2010L, 3,
     # Outside 1961-2023: ignored.
-    1950L, 106L, 773L, "tonnes", 1e6
+    106L, 771L, "Production", 1950L, 1e6
+  )
+}
+
+# LUH2 national cropland (Mha) of the USSR's successors: 15 in 1950 and 25 in
+# 1961, so the USSR's 1950 cropland is 1,000 ha x 15 / 25 = 600 ha.
+.ryr_luh2_fixture <- function() {
+  tibble::tribble(
+    ~ISO3, ~Year, ~Land_Use, ~Area_Mha,
+    "RUS", 1950L, "c3ann", 10,
+    "RUS", 1961L, "c3ann", 20,
+    "UKR", 1950L, "c3ann", 5,
+    "UKR", 1961L, "c3ann", 5
+  )
+}
+
+# The cells the LPJmL run covers: Italy's cell is off its land mask.
+.ryr_grid_fixture <- function() {
+  tibble::tibble(
+    lon = c(-3.25, -3.75, 2.25, 37.25),
+    lat = c(40.25, 40.25, 46.25, 55.75)
   )
 }
 
@@ -162,9 +187,11 @@
     spam = .ryr_spam_fixture(),
     fertilizer = .ryr_fert_fixture(),
     cropland = .ryr_cropland_fixture(),
-    production = .ryr_production_fixture(),
+    luh2 = .ryr_luh2_fixture(),
+    faostat_production = .ryr_production_fixture(),
     lpjml = .ryr_lpjml_fixture(),
-    lpjml_window = .ryr_window_fixture()
+    lpjml_window = .ryr_window_fixture(),
+    lpjml_grid = .ryr_grid_fixture()
   )
 }
 
@@ -218,7 +245,7 @@ testthat::test_that("`+` on a direct row pools the crops before the ratio", {
 })
 
 testthat::test_that("a composite drops undefined members and renormalises", {
-  # D21: Spain's other cereals are rainfed only, so only wheat (area 500)
+  # Spain's other cereals are rainfed only, so only wheat (area 500)
   # and barley (area 200) weigh.
   out <- .ryr_one(203, 638, 2010)
   expected <- (500 * (5 / 3) + 200 * 2) / 700
@@ -259,6 +286,12 @@ testthat::test_that("Linum takes the dominant product's SPAM aggregate", {
       "spam_dominance_country"
     )
   )
+  testthat::expect_identical(
+    out$method_dominance,
+    rep("dominance_raw_faostat", 3)
+  )
+  wheat <- .ryr_one(203, 15, 2010)
+  testthat::expect_identical(wheat$method_dominance, "not_applicable")
 })
 
 testthat::test_that("a dominant product SPAM lacks in the country is global", {
@@ -293,7 +326,7 @@ testthat::test_that("the level scales the excess gap with N per hectare", {
   testthat::expect_equal(at_2010$ratio_level, at_2010$ratio_anchor)
 })
 
-# Both Spanish cells, so Spain's maize normal pools them (D22).
+# Both Spanish cells, so Spain's maize normal pools them.
 .ryr_spain_maize <- function(year) {
   dplyr::bind_rows(
     .ryr_cell(203, 56, year),
@@ -309,33 +342,59 @@ testthat::test_that("the level scales the excess gap with N per hectare", {
     dplyr::arrange(dplyr::desc(.data$lon))
 }
 
-testthat::test_that("the cap binds the long-term component, not the level", {
-  # Maize in 2000: anchor 6, scale 2 -> level 11 (uncapped); spatial 1.6 ->
-  # 17.6, capped to 10; a good year (temporal 0.5) leaves R = 5.
+testthat::test_that("the anomalies scale the excess, capped at 9 long-term", {
+  # Maize in 2000: anchor 6, scale 2 -> level 11 (uncapped); its excess 10 x
+  # spatial 1.6 = 16, capped to 9 -> long-term 10; a good year (temporal 0.5)
+  # halves the excess: R = 1 + 9 x 0.5 = 5.5.
   out <- .ryr_spain_maize(2000)[1, ]
   testthat::expect_equal(out$ratio_level, 11)
   testthat::expect_equal(out$ratio_spatial, 1.6)
   testthat::expect_identical(out$ratio_long_term, 10)
   testthat::expect_equal(out$ratio_temporal, 0.5)
-  testthat::expect_equal(out$ratio, 5)
+  testthat::expect_equal(out$ratio, 5.5)
   testthat::expect_match(out$method_regime_yield, "level_cap")
-  # The second cell: spatial 0.4 brings 11 under the cap (4.4), no stamp.
+  # The second cell: 10 x spatial 0.4 = 4, under the cap: long-term 5.
   dry <- .ryr_spain_maize(2000)[2, ]
   testthat::expect_equal(dry$ratio_spatial, 0.4)
-  testthat::expect_equal(dry$ratio_long_term, 4.4)
+  testthat::expect_equal(dry$ratio_long_term, 5)
   testthat::expect_identical(dry$method_ratio_temporal, "no_cell_ratio")
   testthat::expect_identical(dry$method_regime_yield, "none")
 })
 
 testthat::test_that("only the temporal part takes R past 10", {
-  # Maize in 2010: level 6 x spatial 1.6 = 9.6 (under the cap); the bad year
-  # (temporal 16 / 4 = 4) lifts R to 38.4.
+  # Maize in 2010: level 6, excess 5 x spatial 1.6 = 8 (under the cap), so
+  # long-term 9; the bad year (temporal 16 / 4 = 4) lifts R to 1 + 8 x 4.
   out <- .ryr_spain_maize(2010)[1, ]
-  testthat::expect_equal(out$ratio_long_term, 9.6)
+  testthat::expect_equal(out$ratio_long_term, 9)
   testthat::expect_equal(out$ratio_temporal, 4)
-  testthat::expect_equal(out$ratio, 38.4)
+  testthat::expect_equal(out$ratio, 33)
   testthat::expect_gt(out$ratio, 10)
   testthat::expect_identical(out$method_regime_yield, "none")
+})
+
+testthat::test_that("R is 1 wherever the level is 1, whatever the anomaly", {
+  x <- tibble::tibble(
+    lon = 0,
+    lat = 0,
+    area_code = 1L,
+    item_prod_code = 1L,
+    year = 2000L,
+    ratio_spam = c(3, 3, 0.5),
+    n_scale = c(0, 0, 1),
+    ratio_spatial = c(2, 0.3, 5),
+    ratio_temporal = c(5, 0.1, 7),
+    spam_crop_used = "whea",
+    method_ratio_anchor = "spam_country",
+    method_ratio_trend = "faostat",
+    method_ratio_n_2010 = "own",
+    method_ratio_cropland = "own",
+    method_dominance = "not_applicable",
+    method_ratio_spatial = "lpjml",
+    method_ratio_temporal = "lpjml"
+  )
+  out <- whep:::.ryr_combine(x)
+  testthat::expect_identical(out$ratio_level, c(1, 1, 1))
+  testthat::expect_identical(out$ratio, c(1, 1, 1))
 })
 
 testthat::test_that("no synthetic N in 2010 keeps the level at 1", {
@@ -379,7 +438,7 @@ testthat::test_that("spatial x temporal is the cell-year over country ratio", {
   testthat::expect_equal(out$ratio_anomaly, 1.5)
   testthat::expect_identical(out$method_ratio_spatial, "lpjml")
   testthat::expect_identical(out$method_ratio_temporal, "lpjml")
-  testthat::expect_equal(out$ratio, out$ratio_long_term * 1.5)
+  testthat::expect_equal(out$ratio, 1 + (out$ratio_long_term - 1) * 1.5)
   # Maize: 16 in the cell in 2010 over Spain's 2.5 = 6.4 = 1.6 x 4.
   maize <- .ryr_spain_maize(2010)[1, ]
   testthat::expect_equal(maize$ratio_anomaly, 16 / 2.5)
@@ -417,15 +476,22 @@ testthat::test_that("years before 1901 are stamped as recycled climate", {
   testthat::expect_equal(out$ratio_anomaly, 1)
 })
 
-testthat::test_that("a product below 1 is floored to 1 and stamped", {
-  # Spain 2000: level 1 + (2/3) * 2, temporal 0.5 / 2.
+testthat::test_that("a good year shrinks the excess towards 1, never below", {
+  # Spain 2000: level 1 + (2/3) * 2, temporal 0.5 / 2 = 0.25.
   out <- .ryr_one(203, 15, 2000)
-  testthat::expect_lt(out$ratio_long_term * out$ratio_temporal, 1)
-  testthat::expect_identical(out$ratio, 1)
-  testthat::expect_match(out$method_regime_yield, "ratio_floor")
+  testthat::expect_equal(out$ratio_temporal, 0.25)
+  testthat::expect_equal(out$ratio, 1 + (out$ratio_long_term - 1) * 0.25)
+  testthat::expect_gt(out$ratio, 1)
 })
 
-# -- D23: synthetic N through the polity lineage -------------------------------
+testthat::test_that("a cell the LPJmL run does not cover keeps anomaly 1", {
+  out <- .ryr_one(106, 15, 2010)
+  testthat::expect_identical(out$method_ratio_spatial, "no_lpjml_cell")
+  testthat::expect_identical(out$method_ratio_temporal, "no_lpjml_cell")
+  testthat::expect_identical(out$ratio_anomaly, 1)
+})
+
+# -- Synthetic N through the polity lineage -----------------------------------
 
 testthat::test_that("a successor takes its predecessor's N before it existed", {
   # Russia (185) reports no N in 1961; the USSR's 1,000 t on 1,000 ha is
@@ -440,6 +506,35 @@ testthat::test_that("a successor takes its predecessor's N before it existed", {
     smil$method_ratio_trend,
     "smil_backcast_predecessor"
   )
+  testthat::expect_identical(
+    smil$method_ratio_cropland,
+    "successors_luh2_backcast"
+  )
+})
+
+testthat::test_that("before 1961 the USSR divides by its successors' land", {
+  # The USSR's 1950 N: Smil 1950 (3,700 kt) x its 1961-1965 share (1,000 t
+  # over Smil's 15,600 kt); its cropland: 1,000 ha x 15 / 25 = 600 ha; its
+  # 2010 N: its successors' 0.2 t/ha.
+  out <- .ryr_one(228, 56, 1950)
+  n_1950 <- 3700 * 1000 / 15600
+  testthat::expect_identical(out$method_ratio_trend, "smil_backcast")
+  testthat::expect_identical(
+    out$method_ratio_cropland,
+    "successors_luh2_backcast"
+  )
+  testthat::expect_identical(out$method_ratio_n_2010, "successors")
+  testthat::expect_equal(out$ratio_level, 1 + (6 - 1) * (n_1950 / 600) / 0.2)
+})
+
+testthat::test_that("before 1961 a territory with no N reported has level 1", {
+  # France reported no N in 1961-1965 and nothing reported for it.
+  out <- .ryr_one(68, 15, 1950)
+  testthat::expect_identical(out$method_ratio_trend, "no_n_reported_pre1961")
+  testthat::expect_identical(out$ratio_level, 1)
+  testthat::expect_identical(out$ratio, 1)
+  # From 1961 a missing value is a gap, not a zero.
+  testthat::expect_true(is.na(.ryr_one(203, 15, 1990)$ratio))
 })
 
 testthat::test_that("a historical polity takes its successors' 2010 N", {
@@ -495,6 +590,8 @@ testthat::test_that("R >= 1 and the long-term part <= 10 wherever R exists", {
   testthat::expect_true(all(built$ratio_long_term <= 10))
   # Past 10 only through a bad year.
   testthat::expect_true(all(built$ratio_temporal[built$ratio > 10] > 1))
+  # The anomalies scale the excess: no excess, no gap.
+  testthat::expect_true(all(built$ratio[built$ratio_level == 1] == 1))
   testthat::expect_equal(
     built$ratio_anomaly,
     built$ratio_spatial * built$ratio_temporal
@@ -523,10 +620,15 @@ testthat::test_that("every stamp of build_regime_yield_ratio() is reachable", {
       "faostat",
       "smil_backcast",
       "pre_synthetic_n",
+      "no_n_reported_pre1961",
       "n_2010_zero",
       "no_n_t",
       "no_n_2010"
     )
+  )
+  testthat::expect_setequal(
+    unique(out$method_ratio_cropland),
+    c("own", "none", "not_needed")
   )
   testthat::expect_setequal(
     unique(out$method_ratio_n_2010),
@@ -534,17 +636,24 @@ testthat::test_that("every stamp of build_regime_yield_ratio() is reachable", {
   )
   testthat::expect_setequal(
     unique(out$method_ratio_spatial),
-    c("lpjml", "no_cell_normal")
+    c("lpjml", "no_cell_normal", "no_lpjml_cell")
   )
   testthat::expect_setequal(
     unique(out$method_ratio_temporal),
-    c("lpjml", "lpjml_recycled_climate", "no_cell_ratio", "no_cell_normal")
+    c(
+      "lpjml",
+      "lpjml_recycled_climate",
+      "no_cell_ratio",
+      "no_cell_normal",
+      "no_lpjml_cell"
+    )
+  )
+  testthat::expect_setequal(
+    unique(out$method_dominance),
+    c("dominance_raw_faostat", "not_applicable")
   )
   tokens <- unique(unlist(strsplit(out$method_regime_yield, ";")))
-  testthat::expect_setequal(
-    tokens,
-    c("none", "anchor_floor", "level_cap", "ratio_floor")
-  )
+  testthat::expect_setequal(tokens, c("none", "anchor_floor", "level_cap"))
 })
 
 # -- Input checks -------------------------------------------------------------
@@ -638,8 +747,16 @@ testthat::test_that("bad inputs abort with a condition class", {
     # Mean yield 30 is under the bound, the irrigated yield 107 is over it.
     203L, 15L, 1500, 40, 10, 10,
     # Mean yield 100 is over the bound whatever R is.
-    203L, 15L, 3000, 10, 20, 40
+    203L, 15L, 3000, 10, 20, 40,
+    # Rainfed yield 0.8 is under the floor (1); R = 2 brings it to 1.
+    203L, 15L, 200, 100, 50, 3,
+    # Mean yield 0.67 is under the floor whatever R is.
+    203L, 15L, 100, 100, 50, 2
   )
+}
+
+.ryr_global_min <- function() {
+  stats::quantile(c(1:60, 1:10), 0.01, names = FALSE)
 }
 
 testthat::test_that("the split keeps production to 1e-9", {
@@ -677,6 +794,27 @@ testthat::test_that("the bound lowers R to meet Y_max, never below 1", {
   testthat::expect_true(all(out$ratio_split >= 1, na.rm = TRUE))
 })
 
+testthat::test_that("the floor lowers R to meet Y_min, never below 1", {
+  prod <- .ryr_bound_production()
+  ymin <- .ryr_global_min()
+  out <- whep::split_regime_yield(.ryr_split_cells(), production = prod)
+  testthat::expect_equal(
+    unique(out$yield_min[out$item_prod_code == 15L]),
+    ymin
+  )
+  floored <- out[out$method_rainfed_floor == "rainfed_floor", ]
+  testthat::expect_identical(nrow(floored), 1L)
+  testthat::expect_equal(floored$yield_rainfed, ymin, tolerance = 1e-9)
+  testthat::expect_equal(floored$ratio_split, 2)
+  at_one <- out[out$method_rainfed_floor == "rainfed_floor_at_one", ]
+  testthat::expect_true(nrow(at_one) > 0L)
+  testthat::expect_true(all(at_one$ratio_split == 1))
+  testthat::expect_true(all(at_one$yield_rainfed < ymin))
+  # Wherever the floor applies and does not end at 1, Y_r meets it.
+  held <- out[out$method_rainfed_floor %in% c("not_binding", "rainfed_floor"), ]
+  testthat::expect_true(all(held$yield_rainfed >= ymin - 1e-9))
+})
+
 testthat::test_that("bound = 'region' pools the cell's WHEP region only", {
   prod <- .ryr_bound_production()
   cells <- tibble::tribble(
@@ -708,6 +846,16 @@ testthat::test_that("every stamp of split_regime_yield() is reachable", {
       "not_binding",
       "clipped",
       "clipped_at_one",
+      "no_bound",
+      "not_applicable"
+    )
+  )
+  testthat::expect_setequal(
+    unique(out$method_rainfed_floor),
+    c(
+      "not_binding",
+      "rainfed_floor",
+      "rainfed_floor_at_one",
       "no_bound",
       "not_applicable"
     )
@@ -750,10 +898,10 @@ testthat::test_that("the Linum and Hemp products match primary_double.csv", {
   products <- whep:::.ryr_dominance_products()
   linum <- double$item_prod_code[double$Item_area == "Linum"]
   hemp <- double$item_prod_code[double$Item_area == "Hemp"]
-  testthat::expect_setequal(
-    linum,
-    unlist(products[1, c("seed_code", "fibre_code")])
-  )
+  # Flax fibre is 773 in primary_double.csv but 771 in the raw FAOSTAT pin
+  # the dominance reads (#1302); the other three codes agree.
+  testthat::expect_setequal(linum, c(products$seed_code[1], 773L))
+  testthat::expect_identical(products$fibre_code[1], 771L)
   testthat::expect_setequal(
     hemp,
     unlist(products[2, c("seed_code", "fibre_code")])

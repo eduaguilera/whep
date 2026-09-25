@@ -91,8 +91,8 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       # SPAM2010) rather than a single reporting year -- resolving a polity
       # needs choosing which year backs that average, the same "choosing a
       # year is a modelling decision" shape as the two exceptions above.
-      # Mapping SPAM's countries (and crops) onto WHEP's own codes is T12e/
-      # T12f's job (issue #1233), not this reader's.
+      # Mapping SPAM's countries (and crops) onto WHEP's own codes is
+      # build_regime_yield_ratio()'s job (issue #1233), not this reader's.
       "read_spam_yields"
     )
   )

@@ -1,20 +1,21 @@
 # The irrigated:rainfed yield ratio R per cell, crop and year, and the split of
 # a cell-crop's production between its rainfed and irrigated hectares that
-# keeps that production (issue #1233; plan decisions D15-D24, user,
-# 2026-09-24).
+# keeps that production (issue #1233).
 #
 #   R_anchor  SPAM2010 v2.0 irrigated yield over all-rainfed yield, per crop
 #             and country, each yield the ratio of the country's sums
-#             (production / harvested area) (D15, D16). Floored at 1.
+#             (production / harvested area). Floored at 1.
 #   R_level   1 + (R_anchor - 1) * n_t / n_2010, n = national synthetic N per
-#             hectare of cropland (D16), n_t through the polity lineage (D23).
-#   spatial   LPJmL cell ratio over the country ratio, both 1994-2023 (D22).
-#   long_term min(10, R_level * spatial) (D15 cap, D22).
-#   temporal  LPJmL cell-year ratio over the cell's 1994-2023 ratio (D22).
-#   R         max(1, long_term * temporal); only a bad year passes 10.
+#             hectare of cropland, n_t through the polity lineage.
+#   spatial   LPJmL cell ratio over the country ratio, both 1994-2023.
+#   temporal  LPJmL cell-year ratio over the cell's 1994-2023 ratio.
+#   R_lt      1 + min(9, (R_level - 1) * spatial): the long-term ratio, the
+#             anomaly scaling only the excess gap over 1, capped at 10.
+#   R         1 + (R_lt - 1) * temporal; only a bad year passes 10.
 #
 # split_regime_yield() then gives Y_r = P / (A_r + R A_i), Y_i = R Y_r, so
-# A_r Y_r + A_i Y_i = P, and lowers R where Y_i would pass the D20 bound.
+# A_r Y_r + A_i Y_i = P, and lowers R where Y_i would pass the irrigated-yield
+# ceiling or Y_r fall below the rainfed-yield floor.
 
 #' Build the irrigated:rainfed yield ratio per cell, crop and year.
 #'
@@ -22,7 +23,7 @@
 #' Gives each cell-crop-year the ratio `R` of its irrigated yield to its
 #' rainfed yield, the weight that splits a crop's production, synthetic
 #' nitrogen and harvest removals between its two regimes (issue #1233). `R`
-#' combines three sources, following plan decisions D15-D24:
+#' combines three sources:
 #'
 #' 1. **Anchor.** The SPAM2010 v2.0 ratio of irrigated to all-rainfed yield
 #'    for the item's SPAM crop in the country (see [read_spam_yields()] and
@@ -33,16 +34,19 @@
 #'    nitrogen per hectare of cropland relative to 2010,
 #'    `R_level = 1 + (R_anchor - 1) * n_t / n_2010`, so the gap closes towards
 #'    1 before synthetic fertiliser and widens with it.
-#' 3. **Anomaly**, in two parts (D22). The **spatial** part is the cell's
-#'    LPJmL irrigated:rainfed ratio over 1994-2023 divided by the country's,
-#'    so drier places get a larger gap. The **temporal** part is the cell's
-#'    ratio in year `t` divided by its own 1994-2023 ratio, so worse years
-#'    get a larger gap.
+#' 3. **Anomaly**, in two parts. The **spatial** part is the cell's LPJmL
+#'    irrigated:rainfed ratio over 1994-2023 divided by the country's, so
+#'    drier places get a larger gap. The **temporal** part is the cell's ratio
+#'    in year `t` divided by its own 1994-2023 ratio, so worse years get a
+#'    larger gap.
 #'
-#' The long-term component `R_level * spatial` is capped at 10 (D15, D22);
-#' the temporal part is not, so only a bad year takes `R` past 10. The ratio
-#' is `R = max(1, min(10, R_level * spatial) * temporal)`.
-#' [split_regime_yield()] applies it to a cell's production and areas.
+#' The anomalies scale only the excess of the ratio over 1, so `R` goes to 1
+#' wherever the level does, whatever the anomaly. The long-term ratio is
+#' `R_lt = 1 + min(9, (R_level - 1) * spatial)`: it is capped at 10, i.e. its
+#' excess over 1 at 9. The ratio of the year is
+#' `R = 1 + (R_lt - 1) * temporal`; the temporal part is not capped, so only a
+#' bad year takes `R` past 10. [split_regime_yield()] applies it to a cell's
+#' production and areas.
 #'
 #' @section Anchor:
 #' How `spam_crop` is read is fixed by `spam_basis` in
@@ -50,16 +54,19 @@
 #' - A single crop, or crops joined by `+` with basis `"direct"` (millet,
 #'   coffee): harvested area and production are summed over the crops and the
 #'   ratio is taken of the sums.
-#' - `"composite_weighted"` (the forage crops, D18, D19): the mean of the
-#'   member crops' ratios weighted by each member's SPAM harvested area
-#'   (irrigated plus rainfed) in the country. A member with no irrigated or no
-#'   rainfed yield there is dropped and the weights of the others renormalised
-#'   (D21); with no member left, the global composite is used.
-#' - `"product_dominance"` (Linum 772, Hemp 776, D17): `ooil` where the
-#'   country's FAOSTAT seed production (linseed 333, hempseed 336) exceeds its
-#'   fibre production (flax 773, true hemp 777), otherwise `ofib`, both summed
-#'   over 1961-2023. A country with neither product takes the world's
-#'   dominant product and its global ratio.
+#' - `"composite_weighted"` (the forage crops): the mean of the member crops'
+#'   ratios weighted by each member's SPAM harvested area (irrigated plus
+#'   rainfed) in the country. A member with no irrigated or no rainfed yield
+#'   there is dropped and the weights of the others renormalised; with no
+#'   member left, the global composite is used.
+#' - `"product_dominance"` (Linum 772, Hemp 776): `ooil` where the country's
+#'   seed production (linseed 333, hempseed 336) exceeds its fibre production
+#'   (flax 771 "Flax, raw or retted", true hemp 777), otherwise `ofib`, both
+#'   summed over 1961-2023. A country with neither product takes the world's
+#'   dominant product and its global ratio. The four products are read from
+#'   the raw `faostat-production` pin (`method_dominance`
+#'   `"dominance_raw_faostat"`), because WHEP's primary production has no flax
+#'   fibre (#1302).
 #'
 #' A country with no irrigated or no rainfed yield for the crop in SPAM takes
 #' the crop's global ratio (the ratio of the world's sums). Countries are
@@ -69,17 +76,26 @@
 #' `n_t` is the country's synthetic N over its cropland in year `t`:
 #' FAOSTAT's agricultural use of nitrogen (the `faostat-fertilizer-nutrients`
 #' pin) from 1961, back-cast to 1913 with the Smil (2001) global series scaled
-#' by the country's 1961-1965 share ([smil_2001_synthetic_n_global], the
-#' back-cast of the spatialization scripts' `prepare_nitrogen_inputs()`), and
-#' zero before 1913, when there was no synthetic nitrogen. The cropland is
-#' [get_arable_permanent_land()] (FAOSTAT from 1961, LUH2 back-cast before).
+#' by the country's 1961-1965 share ([smil_2001_synthetic_n_global]), and zero
+#' before 1913, when there was no synthetic nitrogen. The share's divisor is
+#' the Smil series interpolated over 1961-1965 (15.6 Mt), the fix proposed in
+#' issue #1303 for the spatialization scripts' `prepare_nitrogen_inputs()`,
+#' whose back-cast differs from this one until that issue is fixed. The
+#' cropland is [get_arable_permanent_land()] (FAOSTAT from 1961, LUH2
+#' back-cast before).
 #'
 #' A country that reports no N in year `t` takes the N per hectare of the
-#' polity that reported fertiliser for its territory that year (D23), found by
+#' polity that reported fertiliser for its territory that year, found by
 #' walking the `predecessor` edges of [polities] with
 #' [resolve_polity_lineage()]: Russia before 1992 takes the USSR's N over the
 #' USSR's cropland. A historical polity with no 2010 value of its own (the
 #' USSR) takes its successors' combined 2010 N over their combined cropland.
+#' Before 1961, a polity with a back-cast N but no back-cast cropland (the
+#' USSR and Czechoslovakia, whose codes have no LUH2 country) takes its
+#' successors' combined LUH2 cropland, rescaled to its own FAOSTAT cropland
+#' of 1961 (`method_ratio_cropland` `"successors_luh2_backcast"`); and a
+#' territory for which nothing reported N in 1961-1965 had no synthetic N
+#' before 1961, so its level is 1 (`"no_n_reported_pre1961"`).
 #' `method_ratio_trend` names the path (`"faostat"`, `"faostat_predecessor"`,
 #' ...) and `method_ratio_n_2010` the 2010 basis. A country with no synthetic
 #' nitrogen in 2010 keeps `R_level = 1`. What no path reaches gets no ratio
@@ -93,21 +109,23 @@
 #' ratios are each a ratio of pooled yields: each regime's yield is the sum of
 #' yield times stand area over the sum of stand area, over the cell's (or the
 #' country's cells') stands and the window years, the LPJmL counterpart of the
-#' SPAM anchor. The spatial part is 1 where the cell or the country has no
-#' 1994-2023 ratio; the temporal part is 1 where the cell has no ratio that
-#' year (a regime without a stand, or no rainfed harvest) or no 1994-2023
-#' ratio. `ratio_anomaly` is their product: the cell-year ratio over the
-#' country's wherever all three ratios exist, i.e. the single anomaly of D15.
+#' SPAM anchor. Both parts are 1 in a cell the LPJmL run does not cover at
+#' all (its land mask misses some coastal and island cells), stamped
+#' `"no_lpjml_cell"`. The spatial part is 1 where the cell has no 1994-2023
+#' ratio; the temporal part is 1 where the cell has no ratio that year (a
+#' regime without a stand, or no rainfed harvest) or no 1994-2023 ratio.
+#' `ratio_anomaly` is their product, the cell-year ratio over the country's
+#' wherever all three ratios exist.
 #'
 #' @details
-#' Four implementation choices the decisions left open, accepted as D24:
+#' Four implementation choices:
 #' - The 1994-2023 normalisers pool every stand, weighted by stand area
 #'   (stand fraction times the cell's geometric area; the land fraction is not
 #'   applied), rather than averaging cell ratios.
 #' - Linum and Hemp dominance pools each country's 1961-2023 production; a
 #'   tie goes to the fibre.
 #' - The floor at 1 applies to the finished composite, not to its members.
-#' - The yield bound of [split_regime_yield()] pools every production row of
+#' - The yield bounds of [split_regime_yield()] pool every production row of
 #'   1961-2023 with positive tonnes and area, whatever its `source`.
 #'
 #' @param cells A tibble of the cell-crop-years to build, with `lon`, `lat`
@@ -126,14 +144,18 @@
 #'   - `fertilizer`: the `faostat-fertilizer-nutrients` table.
 #'   - `cropland`: [get_arable_permanent_land()] output (`area_code`, `year`,
 #'     `cropland_ha`).
-#'   - `production`: [get_primary_production()] output, for the Linum and
-#'     Hemp dominance.
+#'   - `luh2`: the `luh2-areas` table (`ISO3`, `Year`, `Land_Use`,
+#'     `Area_Mha`), for the successors' back-cast cropland.
+#'   - `faostat_production`: the raw `faostat-production` table
+#'     (`Area Code`, `Item Code`, `Element`, `Year`, `Value`), for the Linum
+#'     and Hemp dominance.
 #'   - `lpjml`: LPJmL crop yields for the years of `cells`, at the crop grain
 #'     (`lon`, `lat`, `year`, `lpjml_crop`, `yield_rainfed`, `yield_irrigated`,
 #'     `method_regime_yield`).
 #'   - `lpjml_window`: the same for the normaliser years, with the stand
 #'     fractions `stand_frac_rainfed`, `stand_frac_irrigated`. Only rows in
 #'     1994-2023 are used.
+#'   - `lpjml_grid`: the cells (`lon`, `lat`) the LPJmL run's output covers.
 #' @param example If `TRUE`, return a small fixture instead of building the
 #'   ratio. Defaults to `FALSE`.
 #' @return A tibble with one row per cell-crop-year of `cells`:
@@ -142,12 +164,11 @@
 #'   - `ratio_anchor`: `max(1, ratio_spam)`.
 #'   - `ratio_level`: the anchor carried to `year` by synthetic N.
 #'   - `ratio_spatial`: the cell's 1994-2023 LPJmL ratio over the country's.
-#'   - `ratio_long_term`: `min(10, ratio_level * ratio_spatial)`.
+#'   - `ratio_long_term`: `1 + min(9, (ratio_level - 1) * ratio_spatial)`.
 #'   - `ratio_temporal`: the cell-year LPJmL ratio over the cell's 1994-2023
 #'     ratio.
-#'   - `ratio_anomaly`: `ratio_spatial * ratio_temporal`, kept for comparison
-#'     with the single anomaly of D15.
-#'   - `ratio`: `max(1, ratio_long_term * ratio_temporal)`; `NA` where the
+#'   - `ratio_anomaly`: `ratio_spatial * ratio_temporal`, for reference.
+#'   - `ratio`: `1 + (ratio_long_term - 1) * ratio_temporal`; `NA` where the
 #'     level is.
 #'   - `spam_crop_used`: the SPAM crop code(s) the anchor came from (for Linum
 #'     and Hemp, the product chosen for the country).
@@ -159,16 +180,23 @@
 #'     `"smil_backcast"` (the country's own), either suffixed
 #'     `"_predecessor"`, `"_sibling_interval"` or `"_shared_polity"` (from
 #'     the polity reporting for it, by the lineage step that found it); or
-#'     `"pre_synthetic_n"`, `"n_2010_zero"`, `"no_n_t"`, `"no_n_2010"`.
+#'     `"pre_synthetic_n"`, `"no_n_reported_pre1961"`, `"n_2010_zero"`,
+#'     `"no_n_t"`, `"no_cropland"` (a reporting polity was found but its
+#'     cropland is missing) or `"no_n_2010"`.
 #'   - `method_ratio_n_2010`: `"own"`, `"successors"`, `"none"` or
 #'     `"not_needed"` (before 1913).
-#'   - `method_ratio_spatial`: `"lpjml"` or `"no_cell_normal"`.
+#'   - `method_ratio_cropland`: the cropland `n_t` is divided by: `"own"`,
+#'     `"successors_luh2_backcast"`, `"none"` or `"not_needed"`.
+#'   - `method_dominance`: `"dominance_raw_faostat"` for Linum and Hemp,
+#'     `"not_applicable"` otherwise.
+#'   - `method_ratio_spatial`: `"lpjml"`, `"no_lpjml_cell"` or
+#'     `"no_cell_normal"`.
 #'   - `method_ratio_temporal`: `"lpjml"`, `"lpjml_recycled_climate"` (years
-#'     before 1901), `"no_cell_ratio"` or `"no_cell_normal"`.
+#'     before 1901), `"no_lpjml_cell"`, `"no_cell_ratio"` or
+#'     `"no_cell_normal"`.
 #'   - `method_regime_yield`: the adjustments applied, joined by `";"`:
-#'     `"anchor_floor"` (SPAM ratio below 1), `"level_cap"` (long-term
-#'     component above 10), `"ratio_floor"` (long-term times temporal below
-#'     1), or `"none"`.
+#'     `"anchor_floor"` (SPAM ratio below 1), `"level_cap"` (long-term ratio
+#'     above 10 before the cap), or `"none"`.
 #'
 #'   Plus the polity columns below.
 #'
@@ -177,7 +205,8 @@
 #'   global gridded agricultural-production maps. Earth System Science Data
 #'   12, 3545-3572. \doi{10.5194/essd-12-3545-2020}. LPJmL 6.1.1 band
 #'   harvests as in [read_lpjml_regime_yield()]. FAOSTAT Fertilizers by
-#'   Nutrient and Land Use. Smil, V. (2001) *Enriching the Earth*, MIT Press.
+#'   Nutrient, Land Use and Crops and livestock products. Smil, V. (2001)
+#'   *Enriching the Earth*, MIT Press.
 #' @export
 #' @examples
 #' build_regime_yield_ratio(example = TRUE)
@@ -231,14 +260,21 @@ build_regime_yield_ratio <- function(
 #' [build_regime_yield_ratio()] to a cell-crop's production `P` and its
 #' rainfed and irrigated harvested areas `A_r`, `A_i`, keeping the production:
 #' `Y_r = P / (A_r + R * A_i)` and `Y_i = R * Y_r`, so
-#' `A_r * Y_r + A_i * Y_i = P` (plan decision D15).
+#' `A_r * Y_r + A_i * Y_i = P`.
 #'
-#' Where the irrigated yield would exceed the item's plausible maximum
-#' `Y_max`, `R` is lowered until `Y_i = Y_max`,
-#' `R = Y_max * A_r / (P - Y_max * A_i)`, but never below 1 (D20). `Y_max` is
-#' the 99th percentile of the item's national yields (production over
-#' harvested area) in [get_primary_production()], pooled over countries and
-#' the years 1961-2023.
+#' Two plausibility bounds can lower `R`, never below 1:
+#' - **Irrigated-yield ceiling.** Where `Y_i` would exceed the item's `Y_max`,
+#'   `R` is lowered until `Y_i = Y_max`, `R = Y_max * A_r / (P - Y_max * A_i)`.
+#'   `Y_max` is the 99th percentile of the item's national yields (production
+#'   over harvested area) in [get_primary_production()], pooled over
+#'   countries and the years 1961-2023.
+#' - **Rainfed-yield floor.** Where `Y_r` would fall below the item's
+#'   `Y_min`, the 1st percentile of the same pool, `R` is lowered until
+#'   `Y_r = Y_min`, `R = (P - Y_min * A_r) / (Y_min * A_i)`. It applies only
+#'   where both regimes have area.
+#'
+#' Lowering `R` raises `Y_r` and lowers `Y_i`, so the floor, applied after the
+#' ceiling, cannot break it.
 #'
 #' A regime with no area still gets the yield the ratio implies, which
 #' multiplies zero area; only a cell-crop with no area at all, or no ratio,
@@ -248,24 +284,28 @@ build_regime_yield_ratio <- function(
 #'   (production in the units of [get_primary_production()]'s `"tonnes"`
 #'   rows), `rainfed_ha`, `irrigated_ha` and `ratio` (as
 #'   [build_regime_yield_ratio()] returns it). Other columns are kept.
-#' @param bound Which pool of national yields sets `Y_max`: `"global"`
-#'   (default, all countries, D20) or `"region"` (the countries of the cell's
-#'   WHEP region, the `region` column of [regions_full]).
+#' @param bound Which pool of national yields sets `Y_max` and `Y_min`:
+#'   `"global"` (default, all countries) or `"region"` (the countries of the
+#'   cell's WHEP region, the `region` column of [regions_full]).
 #' @param production Optional [get_primary_production()] output (`year`,
 #'   `area_code`, `item_prod_code`, `unit`, `value`) used instead of building
 #'   it.
 #' @return `cells` with:
-#'   - `ratio_split`: the ratio used, after the bound.
+#'   - `ratio_split`: the ratio used, after the bounds.
 #'   - `yield_rainfed`, `yield_irrigated`: production per hectare of each
 #'     regime.
-#'   - `yield_max`: the bound applied; `NA` where the item has no yields to
-#'     set one.
+#'   - `yield_max`, `yield_min`: the bounds applied; `NA` where the item has
+#'     no yields to set them.
 #'   - `method_regime_split`: `"yield_ratio"`, `"rainfed_only"`,
 #'     `"irrigated_only"`, `"no_area"` or `"no_ratio"`.
-#'   - `method_regime_bound`: `"not_binding"`, `"clipped"`,
+#'   - `method_regime_bound`: the ceiling: `"not_binding"`, `"clipped"`,
 #'     `"clipped_at_one"` (lowered to 1 and still above `Y_max`: the mean
 #'     yield itself exceeds it), `"no_bound"` or `"not_applicable"` (no
 #'     irrigated area, no area or no ratio).
+#'   - `method_rainfed_floor`: the floor: `"not_binding"`, `"rainfed_floor"`,
+#'     `"rainfed_floor_at_one"` (lowered to 1 and still below `Y_min`: the
+#'     mean yield itself is below it), `"no_bound"` or `"not_applicable"`
+#'     (not both regimes, or no ratio).
 #'   - `method_yield_bound`: the `bound` chosen.
 #' @export
 #' @examples
@@ -304,27 +344,27 @@ split_regime_yield <- function(
       years = .ryr_bound_years()
     )
   cells |>
-    .ryr_attach_yield_max(.ryr_yield_max(production, bound), bound) |>
+    .ryr_attach_bounds(.ryr_yield_bounds(production, bound), bound) |>
     .ryr_split()
 }
 
 # -- Constants ---------------------------------------------------------------
 
-# D15 (user, 2026-09-24): the normal-year component is capped at 10; D22
-# applies the cap to `ratio_level x ratio_spatial`. The user's assumption, not
-# a sourced value.
+# The long-term ratio is capped at 10, i.e. 9 on its excess
+# `(ratio_level - 1) x ratio_spatial`. An assumption of the method, not a
+# sourced value.
 .ryr_level_cap <- function() {
   10
 }
 
-# D16: SPAM2010 v2.0 is the single anchor year.
+# SPAM2010 v2.0 is the single anchor year.
 .ryr_anchor_year <- function() {
   2010L
 }
 
-# D15 asks for LPJmL's "own crop x country 30-year mean". Implemented as the
-# 30 most recent years of the run (it ends in 2023), fixed for every target
-# year so the normaliser is one number per crop and country.
+# The LPJmL normalisers are 30-year means, taken as the 30 most recent years of
+# the run (it ends in 2023) and fixed for every target year, so the country
+# normaliser is one number per crop and country.
 .ryr_normal_window <- function() {
   1994:2023
 }
@@ -343,7 +383,8 @@ split_regime_yield <- function(
   1961:1965
 }
 
-# D20: national yields pooled over 1961-2023, 99th percentile.
+# The yield bounds pool national yields over 1961-2023; the ceiling is their
+# 99th percentile.
 .ryr_bound_years <- function() {
   1961:2023
 }
@@ -352,20 +393,25 @@ split_regime_yield <- function(
   0.99
 }
 
-# D17: the two products whose harvested area WHEP books jointly on one item
+# The rainfed-yield floor, the 1st percentile of the same pool.
+.ryr_floor_prob <- function() {
+  0.01
+}
+
+# The two products whose harvested area WHEP books jointly on one item
 # (inst/extdata/harmonization/primary_double.csv, `Multi_area`), and the SPAM
 # aggregate each product belongs to (Yu et al. 2020, Table S3: linseed and
 # hempseed in `ooil`, flax and true hemp in `ofib`).
 #
-# Measured 2026-09-24: get_primary_production(years = 1961:2023) has no row
-# for flax 773 at all (FAOSTAT's current QCL books flax as 771 "Flax, raw or
-# retted", e.g. France 2010: 372,100 t), and its Linum 772 tonnes equal
-# linseed 333's. So on today's data every country's Linum resolves to `ooil`.
-# Hemp is unaffected (hempseed 336 and true hemp 777 both have rows).
+# The codes are FAOSTAT QCL item codes, read from the raw
+# `faostat-production` pin. WHEP's primary production has no row for flax
+# fibre (#1302): FAOSTAT's current QCL books it as 771 "Flax, raw or retted"
+# (France 2010: 372,100 t), where primary_double.csv still names 773. Remove
+# this raw read, and go back to WHEP's production, when #1302 is fixed.
 .ryr_dominance_products <- function() {
   tibble::tribble(
     ~item_prod_code, ~seed_code, ~fibre_code,
-    772L,            333L,       773L,
+    772L,            333L,       771L,
     776L,            336L,       777L
   )
 }
@@ -375,9 +421,11 @@ split_regime_yield <- function(
     "spam",
     "fertilizer",
     "cropland",
-    "production",
+    "luh2",
+    "faostat_production",
     "lpjml",
-    "lpjml_window"
+    "lpjml_window",
+    "lpjml_grid"
   )
 }
 
@@ -538,8 +586,9 @@ split_regime_yield <- function(
     parts$composite <- .ryr_anchor_composite(pairs[kind == "composite", ], spam)
   }
   if (any(kind == "dominance")) {
-    production <- data$production %||%
-      get_primary_production(years = .ryr_bound_years())
+    # Remove when #1302 is fixed (read WHEP's production instead).
+    production <- data$faostat_production %||%
+      whep_read_file("faostat-production")
     parts$dominance <- .ryr_anchor_dominance(
       pairs[kind == "dominance", ],
       spam,
@@ -547,12 +596,20 @@ split_regime_yield <- function(
     )
   }
   dplyr::bind_rows(parts) |>
+    dplyr::mutate(
+      method_dominance = dplyr::if_else(
+        .data$item_prod_code %in% .ryr_dominance_products()$item_prod_code,
+        "dominance_raw_faostat",
+        "not_applicable"
+      )
+    ) |>
     dplyr::select(
       "bucket",
       "item_prod_code",
       "ratio_spam",
       "spam_crop_used",
-      "method_ratio_anchor"
+      "method_ratio_anchor",
+      "method_dominance"
     )
 }
 
@@ -705,7 +762,7 @@ split_regime_yield <- function(
     )
 }
 
-# D18, D19, D21: the member crops' ratios weighted by their harvested area;
+# Composites: the member crops' ratios weighted by their harvested area;
 # undefined members dropped, the rest renormalised; none left, the global
 # composite (global ratios, global weights).
 .ryr_anchor_composite <- function(pairs, spam) {
@@ -714,7 +771,7 @@ split_regime_yield <- function(
     dplyr::mutate(spam_crop_used = .data$spam_crop)
 }
 
-# D17: the SPAM aggregate of the dominant product, per country. Where the
+# Linum and Hemp: the SPAM aggregate of the dominant product, per country.
 # country produced neither product the world's dominant product is used with
 # its global ratio.
 .ryr_anchor_dominance <- function(pairs, spam, production) {
@@ -779,33 +836,48 @@ split_regime_yield <- function(
     )
 }
 
-# FAOSTAT tonnes of the seed and fibre products per area, 1961-2023.
+# FAOSTAT tonnes of the seed and fibre products per polity bucket, 1961-2023,
+# read from the raw `faostat-production` pin (remove when #1302 is
+# fixed). Reporting areas are summed onto their bucket; aggregates with no
+# bucket (World, regions, the China 351 aggregate) are dropped.
 .ryr_dominance_tonnes <- function(production) {
   .ryr_require_cols(
     production,
-    c("year", "area_code", "item_prod_code", "unit", "value"),
-    "production"
+    c("Area Code", "Item Code", "Element", "Year", "Value"),
+    "faostat_production"
+  )
+  check_labels_supplied(
+    production,
+    "Element",
+    "Production",
+    details = c(i = "Source: the {.val faostat-production} pin.")
   )
   products <- .ryr_dominance_products()
   codes <- c(products$seed_code, products$fibre_code)
   production |>
     dplyr::transmute(
-      area_code = as.integer(.data$area_code),
-      item_prod_code = as.integer(.data$item_prod_code),
-      year = as.integer(.data$year),
-      .data$unit,
-      .data$value
+      area_code = as.integer(.data[["Area Code"]]),
+      item_prod_code = as.integer(.data[["Item Code"]]),
+      year = as.integer(.data$Year),
+      element = .data$Element,
+      value = as.numeric(.data$Value)
     ) |>
     dplyr::filter(
-      .data$unit == "tonnes",
+      .data$element == "Production",
       .data$item_prod_code %in% codes,
       .data$year %in% .ryr_bound_years(),
       !is.na(.data$value)
     ) |>
+    dplyr::inner_join(
+      .ryr_bucket_table(),
+      by = "area_code",
+      relationship = "many-to-one"
+    ) |>
     dplyr::summarise(
       value = sum(.data$value),
-      .by = c("area_code", "item_prod_code")
-    )
+      .by = c("bucket", "item_prod_code")
+    ) |>
+    dplyr::rename(area_code = "bucket")
 }
 
 # Join one product's tonnes on by its code column (and the bucket, when
@@ -822,36 +894,41 @@ split_regime_yield <- function(
     dplyr::mutate(!!value_col := dplyr::coalesce(.data[[value_col]], 0))
 }
 
-# -- Level: the fertiliser-N scaling of D16 -----------------------------------
+# -- Level: the fertiliser-N scaling ------------------------------------------
 
 .ryr_trend <- function(bucket_years, data) {
   needs_n <- any(bucket_years$year >= .ryr_first_synthetic_year())
-  intensity <- if (needs_n) {
+  national <- if (needs_n) {
     .ryr_n_intensity(bucket_years, data)
   } else {
-    .ryr_n_intensity_proto()
+    list(n = .ryr_n_proto(), intensity = .ryr_n_intensity_proto())
   }
-  n_t <- .ryr_n_t(bucket_years, intensity)
-  n_2010 <- .ryr_n_2010(bucket_years, intensity)
+  n_t <- .ryr_n_t(bucket_years, national)
+  n_2010 <- .ryr_n_2010(bucket_years, national$intensity)
   bucket_years |>
     dplyr::left_join(n_t, by = c("bucket", "year")) |>
     dplyr::left_join(n_2010, by = c("bucket", "year")) |>
     dplyr::mutate(
-      method_ratio_trend = dplyr::case_when(
-        .data$year < .ryr_first_synthetic_year() ~ "pre_synthetic_n",
-        is.na(.data$n_ha_2010) ~ "no_n_2010",
-        .data$n_ha_2010 == 0 ~ "n_2010_zero",
-        is.na(.data$n_ha) ~ "no_n_t",
-        .default = .data$n_path
+      method_ratio_trend = .ryr_trend_stamp(
+        .data$year,
+        .data$n_ha,
+        .data$n_ha_2010,
+        .data$n_path
       ),
       method_ratio_n_2010 = dplyr::if_else(
         .data$year < .ryr_first_synthetic_year(),
         "not_needed",
         dplyr::coalesce(.data$n_2010_path, "none")
       ),
+      method_ratio_cropland = dplyr::case_when(
+        .data$method_ratio_trend %in% c("pre_synthetic_n", .ryr_no_n_pre()) ~
+          "not_needed",
+        .default = dplyr::coalesce(.data$cropland_path, "none")
+      ),
       n_scale = dplyr::case_when(
-        .data$method_ratio_trend %in% c("pre_synthetic_n", "n_2010_zero") ~ 0,
-        .data$method_ratio_trend %in% c("no_n_2010", "no_n_t") ~ NA_real_,
+        .data$method_ratio_trend %in%
+          c("pre_synthetic_n", .ryr_no_n_pre(), "n_2010_zero") ~ 0,
+        is.na(.data$n_ha) | is.na(.data$n_ha_2010) ~ NA_real_,
         .default = .data$n_ha / .data$n_ha_2010
       )
     ) |>
@@ -860,8 +937,41 @@ split_regime_yield <- function(
       "year",
       "n_scale",
       "method_ratio_trend",
-      "method_ratio_n_2010"
+      "method_ratio_n_2010",
+      "method_ratio_cropland"
     )
+}
+
+# Before 1961 a territory for which nothing reported N in 1961-1965 (no
+# Smil back-cast of its own or of the polity it belonged to) had no synthetic
+# N, so its level is 1.
+.ryr_no_n_pre <- function() {
+  "no_n_reported_pre1961"
+}
+
+# The trend stamp. A missing n_t before 1961 with no reporting polity found
+# is that zero; a lineage that found a reporter whose cropland is missing
+# is `no_cropland` (NA), so a gap in the land series is never read as "no N".
+.ryr_trend_stamp <- function(year, n_ha, n_ha_2010, n_path) {
+  first_faostat <- min(.ryr_smil_share_window())
+  dplyr::case_when(
+    year < .ryr_first_synthetic_year() ~ "pre_synthetic_n",
+    is.na(n_ha) & is.na(n_path) & year < first_faostat ~ .ryr_no_n_pre(),
+    is.na(n_ha_2010) ~ "no_n_2010",
+    n_ha_2010 == 0 ~ "n_2010_zero",
+    is.na(n_ha) & !is.na(n_path) ~ "no_cropland",
+    is.na(n_ha) ~ "no_n_t",
+    .default = n_path
+  )
+}
+
+.ryr_n_proto <- function() {
+  tibble::tibble(
+    area_code = integer(),
+    year = integer(),
+    synthetic_n_t = double(),
+    n_source = character()
+  )
 }
 
 .ryr_n_intensity_proto <- function() {
@@ -871,23 +981,29 @@ split_regime_yield <- function(
     synthetic_n_t = double(),
     cropland_ha = double(),
     n_ha = double(),
-    n_source = character()
+    n_source = character(),
+    cropland_source = character()
   )
 }
 
-# D23: n_t of a bucket in year t. Its own FAOSTAT (or Smil back-cast) value
+# n_t of a bucket in year t. Its own FAOSTAT (or Smil back-cast) value
 # where it reports one; otherwise the value of the polity that reported
 # fertiliser for its territory that year, found by walking the `predecessor`
 # edges of [polities] with resolve_polity_lineage() (the USSR's N per hectare
 # of USSR cropland for Russia before 1992). Where several reporting buckets
-# resolve to that one polity in a year their N and cropland are pooled.
-.ryr_n_t <- function(bucket_years, intensity) {
+# resolve to that one polity in a year their N and cropland are pooled. The
+# walk runs towards every polity that reported N, whether or not its cropland
+# is known, so a missing cropland shows as `no_cropland` (`n_path` set, `n_ha`
+# NA) rather than as a territory with no N.
+.ryr_n_t <- function(bucket_years, national) {
+  intensity <- national$intensity
   own <- intensity |>
     dplyr::transmute(
       bucket = .data$area_code,
       .data$year,
       n_ha = .data$n_ha,
-      n_path = .data$n_source
+      n_path = .data$n_source,
+      cropland_path = .data$cropland_source
     )
   rest <- bucket_years |>
     dplyr::filter(
@@ -895,11 +1011,11 @@ split_regime_yield <- function(
       !is.na(.data$bucket)
     ) |>
     dplyr::anti_join(own, by = c("bucket", "year"))
-  reporters <- .ryr_reporter_polities(intensity)
+  reporters <- .ryr_reporter_polities(national$n)
   support <- .ryr_as_support(reporters$polity_code, reporters$year)
   inherited <- .ryr_lineage(rest, support) |>
     dplyr::inner_join(
-      .ryr_polity_intensity(intensity, reporters),
+      .ryr_polity_intensity(national$n, intensity, reporters),
       by = c(lineage_polity_code = "polity_code", "year"),
       relationship = "many-to-one"
     ) |>
@@ -911,12 +1027,13 @@ split_regime_yield <- function(
         .data$n_source,
         "_",
         .ryr_lineage_label(.data$method_polity_lineage)
-      )
+      ),
+      .data$cropland_path
     )
   dplyr::bind_rows(own, inherited)
 }
 
-# D23: n_2010 of a bucket. Its own 2010 value; for a polity with none (the
+# n_2010 of a bucket. Its own 2010 value; for a polity with none (the
 # USSR, which did not exist in 2010), its successors' combined 2010 N over
 # their combined 2010 cropland. A successor is a bucket reporting in 2010
 # whose lineage in year t walks back to the bucket's own polity of year t.
@@ -948,34 +1065,15 @@ split_regime_yield <- function(
   if (nrow(historical) == 0L || nrow(base) == 0L) {
     return(proto)
   }
-  polity <- historical |>
-    dplyr::rename(area_code = "bucket") |>
-    .add_reporting_polity_columns() |>
-    dplyr::transmute(
-      bucket = .data$area_code,
-      .data$year,
-      polity_code = .data$reporting_polity_code
-    ) |>
-    dplyr::filter(!is.na(.data$polity_code))
-  if (nrow(polity) == 0L) {
+  successors <- .ryr_successors(historical, unique(base$area_code))
+  if (nrow(successors) == 0L) {
     return(proto)
   }
-  candidates <- tidyr::expand_grid(
-    bucket = unique(base$area_code),
-    year = unique(polity$year)
-  )
-  support <- .ryr_as_support(polity$polity_code, polity$year)
-  .ryr_lineage(candidates, support) |>
+  successors |>
     dplyr::inner_join(
       dplyr::select(base, bucket = "area_code", "synthetic_n_t", "cropland_ha"),
       by = "bucket"
     ) |>
-    dplyr::inner_join(
-      dplyr::rename(polity, historical = "bucket"),
-      by = c(lineage_polity_code = "polity_code", "year"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::filter(.data$historical != .data$bucket) |>
     dplyr::summarise(
       n_ha_2010 = sum(.data$synthetic_n_t) / sum(.data$cropland_ha),
       .by = c("historical", "year")
@@ -988,9 +1086,46 @@ split_regime_yield <- function(
     )
 }
 
-# The polity each reporting bucket stands for in each year it reports N.
-.ryr_reporter_polities <- function(intensity) {
-  intensity |>
+# The successors of each historical (bucket, year): the `candidates` buckets
+# whose lineage in that year walks back to the historical bucket's own polity
+# of that year. Returns `historical`, `year`, `bucket` (the successor).
+.ryr_successors <- function(historical, candidates) {
+  proto <- tibble::tibble(
+    historical = integer(),
+    year = integer(),
+    bucket = integer()
+  )
+  polity <- historical |>
+    dplyr::distinct(.data$bucket, .data$year) |>
+    dplyr::rename(area_code = "bucket") |>
+    .add_reporting_polity_columns() |>
+    dplyr::transmute(
+      historical = .data$area_code,
+      .data$year,
+      polity_code = .data$reporting_polity_code
+    ) |>
+    dplyr::filter(!is.na(.data$polity_code))
+  if (nrow(polity) == 0L) {
+    return(proto)
+  }
+  pairs <- tidyr::expand_grid(
+    bucket = as.integer(candidates),
+    year = unique(polity$year)
+  )
+  support <- .ryr_as_support(polity$polity_code, polity$year)
+  .ryr_lineage(pairs, support) |>
+    dplyr::inner_join(
+      polity,
+      by = c(lineage_polity_code = "polity_code", "year"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(.data$historical != .data$bucket) |>
+    dplyr::select("historical", "year", "bucket")
+}
+
+# The polity each bucket reporting N stands for, in each year it reports.
+.ryr_reporter_polities <- function(n_rows) {
+  n_rows |>
     dplyr::distinct(.data$area_code, .data$year) |>
     .add_reporting_polity_columns() |>
     dplyr::transmute(
@@ -1002,17 +1137,30 @@ split_regime_yield <- function(
 }
 
 # N per hectare of each reporting polity-year, pooled over the buckets that
-# stand for it.
-.ryr_polity_intensity <- function(intensity, reporters) {
-  intensity |>
+# stand for it; `n_ha` is NA where any of them lacks cropland, so a pooled
+# value never rests on part of the polity's land.
+.ryr_polity_intensity <- function(n_rows, intensity, reporters) {
+  n_rows |>
     dplyr::inner_join(
       reporters,
       by = c(area_code = "bucket", "year"),
       relationship = "one-to-one"
     ) |>
+    dplyr::left_join(
+      dplyr::select(
+        intensity,
+        "area_code",
+        "year",
+        "cropland_ha",
+        "cropland_source"
+      ),
+      by = c("area_code", "year"),
+      relationship = "one-to-one"
+    ) |>
     dplyr::summarise(
       n_ha = sum(.data$synthetic_n_t) / sum(.data$cropland_ha),
       n_source = dplyr::first(.data$n_source),
+      cropland_path = dplyr::first(.data$cropland_source),
       .by = c("polity_code", "year")
     )
 }
@@ -1028,7 +1176,7 @@ split_regime_yield <- function(
 # resolve_polity_lineage() on the (bucket, year) pairs, against `support`.
 # Years the support does not cover cannot be resolved and are left out (their
 # n stays NA and is stamped by the caller). The lineage warning is muffled: an
-# unresolved pair is stamped `no_n_t` or `no_n_2010` instead.
+# unresolved pair is stamped by the caller instead.
 .ryr_lineage <- function(pairs, support) {
   pairs <- dplyr::filter(pairs, .data$year %in% support$start_year)
   if (nrow(pairs) == 0L) {
@@ -1062,10 +1210,15 @@ split_regime_yield <- function(
   )
 }
 
-# National synthetic N per hectare of cropland, by bucket and year.
+# National synthetic N per hectare of cropland, by bucket and year: a list of
+# the N rows (`n`, whether or not the bucket has cropland that year) and the
+# intensity rows (`intensity`, those with cropland).
 .ryr_n_intensity <- function(bucket_years, data) {
   years <- sort(unique(c(bucket_years$year, .ryr_anchor_year())))
   years <- years[years >= .ryr_first_synthetic_year()]
+  if (any(years < min(.ryr_smil_share_window()))) {
+    years <- sort(unique(c(years, min(.ryr_smil_share_window()))))
+  }
   fertilizer <- data$fertilizer %||%
     whep_read_file("faostat-fertilizer-nutrients")
   cropland <- data$cropland %||% get_arable_permanent_land(years = years)
@@ -1080,10 +1233,13 @@ split_regime_yield <- function(
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       year = as.integer(.data$year),
-      cropland_ha = .data$cropland_ha
+      cropland_ha = .data$cropland_ha,
+      cropland_source = "own"
     )
-  .ryr_synthetic_n(fertilizer) |>
-    dplyr::filter(.data$year %in% years) |>
+  n_rows <- .ryr_synthetic_n(fertilizer) |>
+    dplyr::filter(.data$year %in% years)
+  land <- dplyr::bind_rows(land, .ryr_successor_cropland(n_rows, land, data))
+  intensity <- n_rows |>
     dplyr::inner_join(land, by = c("area_code", "year")) |>
     dplyr::mutate(
       n_ha = dplyr::if_else(
@@ -1099,7 +1255,70 @@ split_regime_yield <- function(
       "synthetic_n_t",
       "cropland_ha",
       "n_ha",
-      "n_source"
+      "n_source",
+      "cropland_source"
+    )
+  list(n = n_rows, intensity = intensity)
+}
+
+# A polity with a Smil back-cast of N before 1961 but no cropland there
+# (the USSR 228 and Czechoslovakia 51, whose codes have no LUH2 country and so
+# no back-cast in get_arable_permanent_land()) takes its successors' combined
+# back-cast cropland. The back-cast follows get_arable_permanent_land()'s own
+# rule, applied to the successors together: their combined LUH2 cropland
+# (c3ann + c4ann + c3nfx + c3per + c4per) rescaled to the polity's own FAOSTAT
+# cropland in 1961, so the series meets FAOSTAT without a step. Successors are
+# the buckets whose 1961 lineage walks back to the polity's 1961 polity.
+.ryr_successor_cropland <- function(n_rows, land, data) {
+  anchor_year <- min(.ryr_smil_share_window())
+  proto <- dplyr::slice(land, 0L)
+  missing <- n_rows |>
+    dplyr::filter(.data$year < anchor_year) |>
+    dplyr::anti_join(land, by = c("area_code", "year")) |>
+    dplyr::semi_join(
+      dplyr::filter(land, .data$year == anchor_year),
+      by = "area_code"
+    )
+  if (nrow(missing) == 0L) {
+    return(proto)
+  }
+  luh2 <- .read_luh2_cft(luh2_data = data$luh2) |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      bucket = as.integer(.data$area_code),
+      year = as.integer(.data$year),
+      .data$luh2_cropland
+    )
+  successors <- .ryr_successors(
+    tibble::tibble(bucket = unique(missing$area_code), year = anchor_year),
+    unique(luh2$bucket)
+  )
+  if (nrow(successors) == 0L) {
+    return(proto)
+  }
+  combined <- successors |>
+    dplyr::select("historical", "bucket") |>
+    dplyr::inner_join(luh2, by = "bucket", relationship = "many-to-many") |>
+    dplyr::summarise(
+      luh2_ha = sum(.data$luh2_cropland),
+      .by = c("historical", "year")
+    )
+  at_anchor <- combined |>
+    dplyr::filter(.data$year == anchor_year, .data$luh2_ha > 0) |>
+    dplyr::select("historical", luh2_anchor = "luh2_ha")
+  fao_anchor <- land |>
+    dplyr::filter(.data$year == anchor_year) |>
+    dplyr::select(historical = "area_code", fao_anchor = "cropland_ha")
+  missing |>
+    dplyr::distinct(historical = .data$area_code, .data$year) |>
+    dplyr::inner_join(combined, by = c("historical", "year")) |>
+    dplyr::inner_join(at_anchor, by = "historical") |>
+    dplyr::inner_join(fao_anchor, by = "historical") |>
+    dplyr::transmute(
+      area_code = .data$historical,
+      .data$year,
+      cropland_ha = .data$fao_anchor * .data$luh2_ha / .data$luh2_anchor,
+      cropland_source = "successors_luh2_backcast"
     )
 }
 
@@ -1121,7 +1340,9 @@ split_regime_yield <- function(
 # is 1965, so its divisor is the 1965 value (19.0 Mt) rather than the mean of
 # the interpolated years (15.6 Mt), and its back-cast steps down by that
 # factor at 1960/1961. Here the mean is taken from the series interpolated
-# over 1913-1965, so the back-cast meets FAOSTAT without the step.
+# over 1913-1965, so the back-cast meets FAOSTAT without the step. This
+# divisor matches the fix proposed in issue #1303; the
+# script path differs from this one until #1303 is fixed.
 .ryr_smil_backcast <- function(faostat) {
   window <- .ryr_smil_share_window()
   global <- tibble::tibble(
@@ -1183,7 +1404,13 @@ split_regime_yield <- function(
   window <- .ryr_window_sums(
     data$lpjml_window %||% .ryr_read_lpjml_window(run_dir)
   )
+  grid <- .ryr_lpjml_grid(data$lpjml_grid %||% .ryr_read_lpjml_grid(run_dir))
   cells |>
+    dplyr::left_join(
+      grid,
+      by = c("lon", "lat"),
+      relationship = "many-to-one"
+    ) |>
     dplyr::left_join(items, by = "item_prod_code") |>
     dplyr::left_join(
       .ryr_cell_ratio(lpjml),
@@ -1214,6 +1441,29 @@ split_regime_yield <- function(
     )
 }
 
+# The cells the LPJmL run's output covers at all (any band). A WHEP cell
+# outside them (coastal and island cells of the run's land mask) has no LPJmL
+# ratio for any crop; it keeps an anomaly of 1, stamped `no_lpjml_cell`, apart
+# from the cells that are on the grid but lack a stand.
+.ryr_read_lpjml_grid <- function(run_dir) {
+  run_dir <- .lrg_resolve_run_dir(run_dir)
+  read_lpjml_npp(
+    "harvestc",
+    years = .ryr_anchor_year(),
+    run_dir = run_dir
+  ) |>
+    dplyr::distinct(.data$lon, .data$lat)
+}
+
+.ryr_lpjml_grid <- function(grid) {
+  .ryr_require_cols(grid, c("lon", "lat"), "lpjml_grid")
+  .ryr_check_supplied(grid, "lpjml_grid", "the run's grid")
+  grid |>
+    .ryr_round_cells() |>
+    dplyr::distinct(.data$lon, .data$lat) |>
+    dplyr::mutate(in_lpjml = TRUE)
+}
+
 # The cell-year LPJmL ratio, NA where either regime has no stand or the
 # rainfed stand no harvest.
 .ryr_cell_ratio <- function(lpjml) {
@@ -1235,9 +1485,9 @@ split_regime_yield <- function(
     )
 }
 
-# D22: the anomaly split in two. spatial = the cell's 1994-2023 ratio over the
+# The anomaly split in two. spatial = the cell's 1994-2023 ratio over the
 # country's; temporal = the cell-year ratio over the cell's 1994-2023 ratio.
-# Their product is the D15 anomaly (cell-year over country) wherever all
+# Their product is the single anomaly (cell-year over country) wherever all
 # three ratios exist. Each part falls back to 1, stamped, where its ratios do
 # not. A cell with a 1994-2023 ratio always has a country one, because the
 # country pools that cell's own positive sums, so the spatial part has one
@@ -1253,10 +1503,10 @@ split_regime_yield <- function(
   }
   x |>
     dplyr::mutate(
-      method_ratio_spatial = dplyr::if_else(
-        is.na(.data$cell_normal),
-        "no_cell_normal",
-        "lpjml"
+      method_ratio_spatial = dplyr::case_when(
+        is.na(.data$in_lpjml) ~ "no_lpjml_cell",
+        is.na(.data$cell_normal) ~ "no_cell_normal",
+        .default = "lpjml"
       ),
       ratio_spatial = dplyr::if_else(
         .data$method_ratio_spatial == "lpjml",
@@ -1264,6 +1514,7 @@ split_regime_yield <- function(
         1
       ),
       method_ratio_temporal = dplyr::case_when(
+        is.na(.data$in_lpjml) ~ "no_lpjml_cell",
         is.na(.data$cell_ratio) ~ "no_cell_ratio",
         is.na(.data$cell_normal) ~ "no_cell_normal",
         .data$lpjml_method == "lpjml_band_harvest_recycled_climate" ~
@@ -1367,13 +1618,13 @@ split_regime_yield <- function(
     dplyr::select(dplyr::all_of(c(by, name)))
 }
 
-# D22: each cell's own 1994-2023 ratio, pooled the same way as the country's.
+# Each cell's own 1994-2023 ratio, pooled the same way as the country's.
 .ryr_cell_normal <- function(window) {
   .ryr_pooled_ratio(window, c("lon", "lat", "lpjml_crop"), "cell_normal")
 }
 
-# LPJmL's irrigated:rainfed ratio per crop and country over the window (D15,
-# D24): each regime's yield is the sum of yield x stand area over the sum of
+# LPJmL's irrigated:rainfed ratio per crop and country over the window: each
+# regime's yield is the sum of yield x stand area over the sum of
 # stand area, pooled over the country's cells and the window years, the
 # LPJmL counterpart of the SPAM anchor. A cell of several area codes counts
 # in each.
@@ -1389,24 +1640,24 @@ split_regime_yield <- function(
 
 # -- Combination --------------------------------------------------------------
 
-# D22: the long-term component `ratio_level x ratio_spatial` is capped at 10;
-# the temporal part multiplies the capped value and is not capped, so only a
-# bad year can take R past 10. R is floored at 1.
+# The anomalies scale only the excess gap over 1. The long-term excess
+# `(ratio_level - 1) x ratio_spatial` is capped at 9, i.e. the long-term R at
+# 10; the temporal part scales the capped excess and is not
+# capped, so only a bad year takes R past 10. Every factor is non-negative, so
+# R >= 1 and R = 1 wherever the level is 1, whatever the anomaly.
 .ryr_combine <- function(x) {
-  cap <- .ryr_level_cap()
+  cap <- .ryr_level_cap() - 1
   x |>
     dplyr::mutate(
       ratio_anchor = pmax(1, .data$ratio_spam),
       ratio_level = 1 + (.data$ratio_anchor - 1) * .data$n_scale,
-      long_raw = .data$ratio_level * .data$ratio_spatial,
-      ratio_long_term = pmin(.data$long_raw, cap),
+      excess_raw = (.data$ratio_level - 1) * .data$ratio_spatial,
+      ratio_long_term = 1 + pmin(.data$excess_raw, cap),
       ratio_anomaly = .data$ratio_spatial * .data$ratio_temporal,
-      product = .data$ratio_long_term * .data$ratio_temporal,
-      ratio = pmax(1, .data$product),
+      ratio = 1 + (.data$ratio_long_term - 1) * .data$ratio_temporal,
       method_regime_yield = .ryr_stamp(
         anchor_floor = .data$ratio_spam < 1,
-        level_cap = .data$long_raw > cap,
-        ratio_floor = .data$product < 1
+        level_cap = .data$excess_raw > cap
       )
     ) |>
     dplyr::select(
@@ -1427,6 +1678,8 @@ split_regime_yield <- function(
       "method_ratio_anchor",
       "method_ratio_trend",
       "method_ratio_n_2010",
+      "method_ratio_cropland",
+      "method_dominance",
       "method_ratio_spatial",
       "method_ratio_temporal",
       "method_regime_yield"
@@ -1451,10 +1704,10 @@ split_regime_yield <- function(
 
 # -- Split and bound ----------------------------------------------------------
 
-# D20: the 99th percentile of each item's national yields over 1961-2023, for
-# the world or per WHEP region. A duplicated national value would weigh twice,
-# so it is refused.
-.ryr_yield_max <- function(production, bound) {
+# The 99th and 1st percentiles of each item's national yields
+# over 1961-2023, for the world or per WHEP region. A duplicated national
+# value would weigh twice, so it is refused.
+.ryr_yield_bounds <- function(production, bound) {
   .ryr_require_cols(
     production,
     c("year", "area_code", "item_prod_code", "unit", "value"),
@@ -1501,6 +1754,11 @@ split_regime_yield <- function(
         .ryr_bound_prob(),
         names = FALSE
       ),
+      yield_min = stats::quantile(
+        .data$yield,
+        .ryr_floor_prob(),
+        names = FALSE
+      ),
       .by = dplyr::all_of(by)
     )
 }
@@ -1516,7 +1774,7 @@ split_regime_yield <- function(
     dplyr::distinct()
 }
 
-.ryr_attach_yield_max <- function(cells, yield_max, bound) {
+.ryr_attach_bounds <- function(cells, bounds, bound) {
   cells <- dplyr::mutate(cells, .ryr_item = as.integer(.data$item_prod_code))
   keys <- c(.ryr_item = "item_prod_code")
   if (identical(bound, "region")) {
@@ -1529,13 +1787,16 @@ split_regime_yield <- function(
     keys <- c(keys, .ryr_region = "region")
   }
   cells |>
-    dplyr::left_join(yield_max, by = keys, relationship = "many-to-one") |>
+    dplyr::left_join(bounds, by = keys, relationship = "many-to-one") |>
     dplyr::mutate(method_yield_bound = bound)
 }
 
-# The conservation split, with the bound lowering R where it binds.
+# The conservation split, with the two plausibility bounds lowering R where
+# they bind: first the irrigated-yield ceiling, then the rainfed-yield
+# floor. Both only ever lower R, and lowering R raises Y_r and lowers
+# Y_i, so the floor cannot break the ceiling.
 .ryr_split <- function(cells) {
-  out <- cells |>
+  cells |>
     dplyr::mutate(
       .ryr_p = .data$production_t,
       .ryr_ar = .data$rainfed_ha,
@@ -1546,7 +1807,41 @@ split_regime_yield <- function(
         .data$.ryr_ai <= 0 ~ "rainfed_only",
         .data$.ryr_ar <= 0 ~ "irrigated_only",
         .default = "yield_ratio"
+      )
+    ) |>
+    .ryr_apply_ceiling() |>
+    .ryr_apply_floor() |>
+    dplyr::mutate(
+      .ryr_has = .data$method_regime_split %in%
+        c("yield_ratio", "rainfed_only", "irrigated_only"),
+      yield_rainfed = dplyr::if_else(
+        .data$.ryr_has,
+        .data$.ryr_p / (.data$.ryr_ar + .data$ratio_split * .data$.ryr_ai),
+        NA_real_
       ),
+      yield_irrigated = .data$ratio_split * .data$yield_rainfed
+    ) |>
+    dplyr::select(-dplyr::starts_with(".ryr_")) |>
+    dplyr::relocate(
+      "ratio_split",
+      "yield_rainfed",
+      "yield_irrigated",
+      "yield_max",
+      "yield_min",
+      "method_regime_split",
+      "method_regime_bound",
+      "method_rainfed_floor",
+      "method_yield_bound",
+      .after = dplyr::last_col()
+    )
+}
+
+# Where Y_i = R P / (A_r + R A_i) would pass Y_max, R is solved from
+# Y_i = Y_max, never below 1. A clip means R (P - Y_max A_i) > Y_max A_r >= 0,
+# so the denominator is positive.
+.ryr_apply_ceiling <- function(x) {
+  x |>
+    dplyr::mutate(
       .ryr_bounded = .data$method_regime_split %in%
         c("yield_ratio", "irrigated_only"),
       .ryr_yi = .data$ratio *
@@ -1555,8 +1850,6 @@ split_regime_yield <- function(
       .ryr_clip = .data$.ryr_bounded &
         !is.na(.data$yield_max) &
         .data$.ryr_yi > .data$yield_max,
-      # Y_i = R P / (A_r + R A_i) = Y_max solved for R. A clip means
-      # R (P - Y_max A_i) > Y_max A_r >= 0, so the denominator is positive.
       .ryr_r_star = .data$yield_max *
         .data$.ryr_ar /
         (.data$.ryr_p - .data$yield_max * .data$.ryr_ai),
@@ -1571,26 +1864,35 @@ split_regime_yield <- function(
         !.data$.ryr_clip ~ "not_binding",
         .data$.ryr_r_star < 1 ~ "clipped_at_one",
         .default = "clipped"
-      ),
-      .ryr_has = .data$method_regime_split %in%
-        c("yield_ratio", "rainfed_only", "irrigated_only"),
-      yield_rainfed = dplyr::if_else(
-        .data$.ryr_has,
-        .data$.ryr_p / (.data$.ryr_ar + .data$ratio_split * .data$.ryr_ai),
-        NA_real_
-      ),
-      yield_irrigated = .data$ratio_split * .data$yield_rainfed
+      )
     )
-  out |>
-    dplyr::select(-dplyr::starts_with(".ryr_")) |>
-    dplyr::relocate(
-      "ratio_split",
-      "yield_rainfed",
-      "yield_irrigated",
-      "yield_max",
-      "method_regime_split",
-      "method_regime_bound",
-      "method_yield_bound",
-      .after = dplyr::last_col()
+}
+
+# Where Y_r = P / (A_r + R A_i) would fall below Y_min, R is solved from
+# Y_r = Y_min, R = (P - Y_min A_r) / (Y_min A_i), never below 1. Only a
+# cell-crop with both regimes has a rainfed yield to hold up.
+.ryr_apply_floor <- function(x) {
+  x |>
+    dplyr::mutate(
+      .ryr_floored = .data$method_regime_split == "yield_ratio",
+      .ryr_yr = .data$.ryr_p /
+        (.data$.ryr_ar + .data$ratio_split * .data$.ryr_ai),
+      .ryr_low = .data$.ryr_floored &
+        !is.na(.data$yield_min) &
+        .data$.ryr_yr < .data$yield_min,
+      .ryr_r_floor = (.data$.ryr_p - .data$yield_min * .data$.ryr_ar) /
+        (.data$yield_min * .data$.ryr_ai),
+      ratio_split = dplyr::if_else(
+        dplyr::coalesce(.data$.ryr_low, FALSE),
+        pmax(1, .data$.ryr_r_floor),
+        .data$ratio_split
+      ),
+      method_rainfed_floor = dplyr::case_when(
+        !.data$.ryr_floored ~ "not_applicable",
+        is.na(.data$yield_min) ~ "no_bound",
+        !.data$.ryr_low ~ "not_binding",
+        .data$.ryr_r_floor < 1 ~ "rainfed_floor_at_one",
+        .default = "rainfed_floor"
+      )
     )
 }

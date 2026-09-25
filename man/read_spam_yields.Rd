@@ -47,7 +47,7 @@ tables for the irrigated ("I") and all-rainfed ("R") technologies, per
 ~5-arcmin pixel and crop, and joins harvested area, production and yield
 into one row per (pixel, crop, technology). This is the per-crop,
 per-country "Level" input to the irrigated:rainfed regime yield ratio
-(plan decision D15); it does not itself compute the ratio.
+of \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}; it does not itself compute the ratio.
 
 \code{vintage = "2010"} (SPAM2010 v2.0, doi:10.7910/DVN/PRFF8V) is fetched
 automatically: the three needed Global_CSV zips (harvested area,

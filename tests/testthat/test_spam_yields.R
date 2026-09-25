@@ -268,7 +268,7 @@ testthat::test_that("vintage 2020 is never fetched -- it aborts naming the guest
 
 testthat::test_that("2020 reads from a user-supplied dir through the same parser", {
   # The fixture's zip names match the real SPAM2020 manifest rows, but its
-  # bytes/md5 do not (nothing here was downloaded, per plan D16);
+  # bytes/md5 do not (nothing here was downloaded: SPAM2020 is gated);
   # `.spam_fixture_dir()` mocks `.spam_manifest()` to the fixture's own
   # computed values, scoped to this test.
   dir <- .spam_fixture_dir(vintage = "2020")
@@ -406,7 +406,7 @@ testthat::test_that("the manifest carries a row per vintage x variable", {
     c("harvested_area", "production", "yield")
   )
   testthat::expect_true(all(grepl("^[0-9a-f]{32}$", manifest$md5)))
-  # SPAM2020 is never downloaded (plan D16): no file id to fetch it with.
+  # SPAM2020 is never downloaded: no file id to fetch it with.
   testthat::expect_true(all(is.na(
     manifest$dataverse_file_id[manifest$vintage == "2020"]
   )))

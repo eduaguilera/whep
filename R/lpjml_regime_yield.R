@@ -1,6 +1,6 @@
 # LPJmL irrigated and rainfed crop yields per cell, crop and year: the ratio
 # that splits a crop row's synthetic N, production N and residue removals
-# between its rainfed and irrigated parts (#1233, plan decision D12).
+# between its rainfed and irrigated parts (#1233).
 #
 # CONFIRMED LPJmL FACTS (run inspected 2026-09-24; do not re-guess):
 # - pft_harvestc.nc holds var "harvestc", "harvested carbon excluding
@@ -76,7 +76,7 @@
 #'
 #' `include_others = TRUE` adds the `"others"` stand as a crop of its own,
 #' expanded to the items [cft_mapping] puts on it. Its yield is the composite
-#' stand's, not the item's. Plan decision D15 uses it as the year-to-year
+#' stand's, not the item's. The regime yield ratio uses it as the year-to-year
 #' anomaly source for crops without a crop-specific CFT, where only the ratio
 #' of the two regimes' yields matters; see [build_regime_yield_ratio()].
 #'
@@ -278,7 +278,7 @@ read_lpjml_regime_yield <- function(
 # the band vocabulary in inst/extdata/lpjml_cft_bands.csv. Grassland and the
 # two bioenergy stands are not crops, and "others" is LPJmL's catch-all stand,
 # whose yield is that of a composite rather than of any one item; it is kept
-# only on request (`include_others`), for the regime anomaly of D15.
+# only on request (`include_others`), for the regime yield ratio's anomaly.
 .lrg_crop_bands <- function(include_others = FALSE) {
   path <- system.file("extdata", "lpjml_cft_bands.csv", package = "whep")
   excluded <- .lrg_non_crop_bands()

@@ -13,7 +13,7 @@
 # guestbook ("IFPRI Guestbook 2021", id 380: email and institution
 # required), and the API's documented way past it needs a logged-in
 # Dataverse account submitting that response -- WHEP does not automate a
-# login or a licence click-through (plan decision D16, 2026-09-24). To use
+# login or a licence click-through. To use
 # SPAM2020 with read_spam_yields(vintage = "2020"):
 #   1. Open https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/SWPENT
 #      and fill the guestbook once (name/email/institution).

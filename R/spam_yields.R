@@ -1,5 +1,5 @@
 # SPAM harvested area, production and yield by crop and technology, for the
-# irrigated:rainfed regime yield ratio (issue #1233, plan decision D15/D16).
+# irrigated:rainfed regime yield ratio (issue #1233).
 #
 # CONFIRMED FORMAT (verified 2026-09-24 against live Harvard Dataverse
 # downloads; do not re-guess):
@@ -25,7 +25,7 @@
 #   here rather than silently fixed; `iso3` therefore is not perfectly
 #   reliable at the single-row level, is otherwise clean over 832,827 rows.
 #
-# SPAM2020 v2.0 IS NOT FETCHED (plan decision D16, 2026-09-24 investigation):
+# SPAM2020 v2.0 IS NOT FETCHED (investigated 2026-09-24):
 # Harvard Dataverse gates every file of doi:10.7910/DVN/SWPENT, including its
 # own 6 KB ReadMe, behind a mandatory guestbook ("IFPRI Guestbook 2021", id
 # 380: `GET /api/guestbooks/380` returns `"enabled": true, "emailRequired":
@@ -57,7 +57,7 @@
 #' ~5-arcmin pixel and crop, and joins harvested area, production and yield
 #' into one row per (pixel, crop, technology). This is the per-crop,
 #' per-country "Level" input to the irrigated:rainfed regime yield ratio
-#' (plan decision D15); it does not itself compute the ratio.
+#' of [build_regime_yield_ratio()]; it does not itself compute the ratio.
 #'
 #' `vintage = "2010"` (SPAM2010 v2.0, doi:10.7910/DVN/PRFF8V) is fetched
 #' automatically: the three needed Global_CSV zips (harvested area,
@@ -295,7 +295,7 @@ read_spam_yields <- function(
 # every SPAM2010 member carries, or no crop column at all. Returns the crop
 # columns (both technologies) so the caller does not re-derive them. This is
 # the "abort clearly if the expected columns are missing" path for
-# SPAM2020's unverified layout (plan D16), exercised identically for
+# SPAM2020's unverified layout, exercised identically for
 # SPAM2010.
 .spam_check_member_columns <- function(header, path) {
   required <- setdiff(.spam_full_id_cols(), c("x", "y"))
@@ -463,8 +463,8 @@ read_spam_yields <- function(
 
 # A `_<H|P|Y>_T?<I|R>.csv`-shaped entry in the zip's own listing -- never a
 # hardcoded SPAM2010 file name, so the exact same call works whether
-# SPAM2020 kept that naming or not (plan D16: "parse it with the same code
-# path"). Aborts, listing every entry the zip actually has, on anything but
+# SPAM2020 kept that naming or not (it is parsed with the same code path).
+# Aborts, listing every entry the zip actually has, on anything but
 # exactly one match.
 .spam_zip_find_member <- function(zip_path, var, tech) {
   letter <- switch(var, harvested_area = "H", production = "P", yield = "Y")

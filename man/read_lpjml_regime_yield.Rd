@@ -86,7 +86,7 @@ caller has to decide what to use instead.
 
 \code{include_others = TRUE} adds the \code{"others"} stand as a crop of its own,
 expanded to the items \link{cft_mapping} puts on it. Its yield is the composite
-stand's, not the item's. Plan decision D15 uses it as the year-to-year
+stand's, not the item's. The regime yield ratio uses it as the year-to-year
 anomaly source for crops without a crop-specific CFT, where only the ratio
 of the two regimes' yields matters; see \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}.
 

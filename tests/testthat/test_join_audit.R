@@ -230,16 +230,22 @@ test_that("the enumerated baseline can only shrink", {
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
   #
-  # 85 since #1233 (plan task T12e): the irrigated:rainfed regime yield ratio
+  # 85 since #1233: the irrigated:rainfed regime yield ratio
   # adds four year-free joins, and none reads a year's value on the wrong
   # year. One is the area -> polity-bucket identity its national inputs are
   # keyed on; two attach WHEP region membership, which `regions_full` holds
-  # without a year, for the D20 yield bound (the loss wedge's shape); and one
-  # attaches the D15 LPJmL normaliser, which is one number per crop and country
-  # by construction because it is pooled over a fixed 1994-2023 window. Every
+  # without a year, for the yield plausibility bounds (the loss wedge's shape);
+  # and one attaches the LPJmL country normaliser, which is one number per crop
+  # and country by construction because it is pooled over a fixed 1994-2023
+  # window. Every
   # value that varies by year -- synthetic N, cropland, the cell-year LPJmL
   # ratio -- is joined on its year. Measured by running the audit: 85.
-  expect_lte(sum(baseline$n), 85L)
+  #
+  # 87 since the regime ratio's rainfed floor and pre-1961 land: one join sums
+  # FAOSTAT reporting areas onto their bucket for the Linum/Hemp dominance
+  # (identity), one keeps the polities with a 1961 FAOSTAT cropland to anchor
+  # their successors' back-cast on (the anchor year is fixed). Measured.
+  expect_lte(sum(baseline$n), 87L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -390,15 +396,16 @@ test_that("every year-free territorial grouping is classified", {
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
   #
-  # 103 since #1233 (plan task T12e): the regime yield ratio's six. Two are
-  # `year_axis` -- plan decisions pool a country's years on purpose: the D17
-  # product dominance over 1961-2023 and the Smil back-cast's 1961-1965
-  # share. Two are `single_year`, the one SPAM2010 vintage D16 anchors on,
-  # summed by ISO3 and then by bucket. One is the area -> bucket identity
-  # fold, and one the cell -> area map the D15/D22 normalisers pool over.
+  # 102 since #1233: the regime yield ratio's five. One is
+  # `year_axis` -- it pools a country's years on purpose: the Smil
+  # back-cast's 1961-1965 share (the Linum/Hemp dominance now sums by bucket,
+  # which the audit reads as a non-territorial key). Two are `single_year`,
+  # the one SPAM2010 vintage the ratio anchors on, summed by ISO3 and then by
+  # bucket. One is the area -> bucket identity
+  # fold, and one the cell -> area map the LPJmL normalisers pool over.
   # (The normalisers' own pooling runs through `.ryr_pooled_ratio()`, whose
   # key the audit reads as dynamic.) Measured by running the audit.
-  expect_lte(sum(full$n), 103L)
+  expect_lte(sum(full$n), 102L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

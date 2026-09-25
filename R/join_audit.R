@@ -324,17 +324,25 @@
     ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
     "time_invariant",
     "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
-     which is ONE number per (area, crop) by construction: plan decisions
-     D15/D22 divide the cell's 1994-2023 ratio by the crop x country ratio
+     which is ONE number per (area, crop) by construction: the spatial
+     anomaly divides the cell's 1994-2023 ratio by the crop x country ratio
      pooled over the same fixed window. The cell-year ratio is joined on
      (cell, year, crop) two lines before.",
-    ".ryr_attach_yield_max", "left_join", "area_code", 1L, "time_invariant",
-    "WHEP region membership (`regions_full`, no year) for the D20 plausibility
-     bound under its `region` pool. The bound itself is a pooled 1961-2023
-     percentile, joined on (item, region) next.",
-    ".ryr_yield_max", "left_join", "area_code", 1L, "time_invariant",
-    "The same region membership, attached to the national yields the D20
-     percentile pools; every yield row keeps its own year.",
+    ".ryr_attach_bounds", "left_join", "area_code", 1L, "time_invariant",
+    "WHEP region membership (`regions_full`, no year) for the yield
+     plausibility bounds under their `region` pool. The bounds themselves are
+     pooled 1961-2023 percentiles, joined on (item, region) next.",
+    ".ryr_dominance_tonnes", "inner_join", "area_code", 1L, "identity_lookup",
+    "Sums FAOSTAT's reporting areas onto their polity bucket before the
+     Linum/Hemp product dominance, which pools 1961-2023 on purpose; the
+     bucket of an area code has no year (asserted in `.ryr_bucket_table()`).",
+    ".ryr_successor_cropland", "semi_join", "area_code", 1L, "single_year",
+    "Keeps the polities whose back-cast cropland is built from their
+     successors only where they have a FAOSTAT cropland in 1961, the anchor
+     year: the right side is filtered to 1961 before the join.",
+    ".ryr_yield_bounds", "left_join", "area_code", 1L, "time_invariant",
+    "The same region membership, attached to the national yields the bound
+     percentiles pool; every yield row keeps its own year.",
     "build_regime_yield_ratio", "left_join", "area_code", 1L,
     "identity_lookup",
     "Resolves each cell's area code to its polity bucket, the key of the
@@ -439,24 +447,19 @@
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
     ".ryr_anomaly", "distinct", "lon, lat, area_code", 1L, "time_invariant",
-    "The cells each area owns, which the D15 normaliser pools LPJmL over for
+    "The cells each area owns, which the country normaliser pools LPJmL over for
      the fixed 1994-2023 window: a cell-to-area map, not a year's data.",
     ".ryr_bucket_table", "distinct", "area_code, bucket, <dynamic>", 1L,
     "identity_lookup",
     "The area code -> polity bucket fold, deduplicated from the crosswalk's
      periods; asserted one bucket per code.",
-    ".ryr_dominance_tonnes", "summarise", "area_code, item_prod_code", 1L,
-    "year_axis",
-    "Plan decision D17 picks Linum's and Hemp's SPAM aggregate by which product
-     dominates the country's FAOSTAT production, one choice per country: the
-     sum over 1961-2023 IS the reduction over the year axis.",
     ".ryr_smil_backcast", "summarise", "area_code", 1L, "year_axis",
     "Each country's mean 1961-1965 share of synthetic N, the constant the Smil
      (2001) back-cast scales by (as prepare_nitrogen_inputs() does); the five
      years are the axis reduced over.",
     ".ryr_spam_totals", "[", "area_code, spam_crop, technology", 1L,
     "single_year",
-    "SPAM2010 v2.0 is one vintage (the 2009-2011 average), and D16 makes it the
+    "SPAM2010 v2.0 is one vintage (the 2009-2011 average), and it is the
      single anchor year of the regime ratio.",
     ".ryr_spam_totals", "[", "iso3c, spam_crop, technology", 1L,
     "single_year",
