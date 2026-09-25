@@ -37,17 +37,17 @@ with all six \code{sjos_levels$level} levels. This reproduces Global's 2-way rem
 (\code{Global/R/sjos_n.r:363}) at the per-\code{item_cbs} granularity Module 4's
 footprint needs.
 
-The boundary side reads \code{exceedance_n_t}, which is a decomposition of the
-actual pressure (see \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}) and so is capped at
-it. Where the critical surplus is negative the overshoot the source archive
-reports, \code{actual - critical}, is larger, so the classification is
-conservative there: it can call a crop within-boundary that
-Schulte-Uebbing's own exceedance layer puts over it. Measured against that
-layer (\code{threshold = "mi"}, \code{land_use = "ara"}, 28,573 cells, 2,076 of them
-with a negative critical surplus): the two definitions agree exactly on
-every positive-critical cell, 288 cells fall on opposite sides, and after
-aggregation to countries 1 of 175 flips and the global exceedance mass is
-0.6\% low.
+The boundary side reads \code{exceedance_n_t}, the crop's signed share of its
+source cell's overshoot \code{pmax(actual - critical, 0)}, summed to the
+country (see \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}}). The cell comparison is made
+before any crop attribution and the overshoot is not capped at the actual
+pressure. With \code{negative_critical = "keep"}, a cell whose critical surplus
+is negative exceeds even at zero actual surplus, its overshoot is larger
+than its actual surplus, and its \code{within_boundary_n_t} is negative; with
+\code{"clamp"} that cell's allowance is zero instead. A crop whose own surplus
+is negative inside an exceeding cell receives a negative exceedance share,
+so it falls on the \code{"Within_boundary"} side unless positive shares from
+other cells of the same country outweigh it.
 }
 \examples{
 classify_sjos_n(
