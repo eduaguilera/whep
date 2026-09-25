@@ -225,3 +225,13 @@ test_that(".read_raw_trade_data returns the packaged Spain trade extract", {
   # The extract is the historical pre-FAOSTAT window.
   expect_lte(max(out$Year), 1960)
 })
+
+test_that(".read_raw_trade_data reads package data, not inst/extdata", {
+  # whep#64: the extract ships as the dataset `europe_fao_spain_trade`; its
+  # CSV source of record lives in data-raw/, outside the installed package.
+  expect_identical(.read_raw_trade_data(), whep::europe_fao_spain_trade)
+  expect_identical(
+    system.file("extdata", "europe_fao_spain_trade.csv", package = "whep"),
+    ""
+  )
+})

@@ -540,26 +540,13 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
     .convert_trade_fm_to_n(codes_coefs_items_full, biomass_coefs)
 }
 
-# Reads Spain's historical Export/Import series, already reshaped to long
-# format and converted to Mg (fresh matter) by
-# `data-raw/europe_fao_spain_trade.R`. That script extracts it from the source
-# workbook `Europe_FAO_completed.xlsx`, a 19-sheet 35-country compilation of
-# which only these two sheets and only the Spanish rows are ever used; the
-# workbook is not shipped with the package.
+# Spain's historical Export/Import series, already reshaped to long format and
+# converted to Mg (fresh matter) by `data-raw/europe_fao_spain_trade_extract.R`
+# from the source workbook `Europe_FAO_completed.xlsx`, a 19-sheet 35-country
+# compilation of which only these two sheets and only the Spanish rows are ever
+# used; the workbook is not shipped with the package. The extract is package
+# data (`europe_fao_spain_trade`), not a CSV read from inst/extdata at run time
+# (whep#64).
 .read_raw_trade_data <- function() {
-  path <- system.file(
-    "extdata",
-    "europe_fao_spain_trade.csv",
-    package = "whep"
-  )
-
-  readr::read_csv(
-    path,
-    col_types = readr::cols(
-      Element = readr::col_character(),
-      Item = readr::col_character(),
-      Year = readr::col_integer(),
-      value_fm = readr::col_double()
-    )
-  )
+  whep::europe_fao_spain_trade
 }
