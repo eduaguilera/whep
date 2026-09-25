@@ -52,6 +52,7 @@ build_sjos_nitrogen(
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
+  negative_critical = c("keep", "clamp"),
   example = FALSE
 )
 ```
@@ -73,10 +74,13 @@ build_sjos_nitrogen(
   `n_inputs` when absent; inject a table to use any other source),
   `biomass_coefs` / `items_full` for the food supply,
   `manure_mgmt_nh3_n_t` for the pathway boundary when
-  `nh3_source = "total_agricultural"`, and either an `io` model or
-  `fp_flows` for the footprint. A real call without either source aborts
-  rather than fabricating a domestic-only footprint. Defaults to
-  [`list()`](https://rdrr.io/r/base/list.html).
+  `nh3_source = "total_agricultural"`, `critical_binding` (a
+  [`build_critical_n_binding()`](https://eduaguilera.github.io/whep/reference/build_critical_n_binding.md)
+  table for the `boundary_land_use` scope, whose `binding_threshold` is
+  then carried into the grid boundary; absent, the column is `NA`), and
+  either an `io` model or `fp_flows` for the footprint. A real call
+  without either source aborts rather than fabricating a domestic-only
+  footprint. Defaults to [`list()`](https://rdrr.io/r/base/list.html).
 
 - surplus_method:
 
@@ -131,6 +135,16 @@ build_sjos_nitrogen(
   [`list()`](https://rdrr.io/r/base/list.html), which leaves every
   builder on its own default.
 
+- negative_critical:
+
+  Treatment of cells whose critical surplus is below zero, passed to
+  [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md):
+  `"keep"` (default, as the source) or `"clamp"` (zero allowance, a
+  declared departure from Schulte-Uebbing et al. 2022). It reaches the
+  grid and country boundary and through them the classification and the
+  footprint, and is stamped as `negative_critical` in both boundary
+  tables, in `sjos_class` and in both footprint tables.
+
 - example:
 
   If `TRUE`, drive the whole chain from the coherent fixture set instead
@@ -148,7 +162,9 @@ carry `method_population`, `"read_population"` or `"supplied"`),
 `sjos_class` (the 2-way classification) and `footprint` (a list with the
 `fp_all` and `fp_food` embodied-nitrogen footprints, both carrying
 `target_nourish`, and `target_class_diag`, the per-year count of flows
-whose consumer country-year has no nourishment class).
+whose consumer country-year has no nourishment class). The boundary
+tables, `sjos_class` and both footprint tables carry
+`negative_critical`.
 
 ## Examples
 
@@ -174,7 +190,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 
 #> $boundary_surplus
 #> $boundary_surplus$grid
-#> # A tibble: 7 × 53
+#> # A tibble: 7 × 57
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -184,16 +200,16 @@ build_sjos_nitrogen(example = TRUE)
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 7  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 48 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> # ℹ 52 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
 #> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
 #> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
 #> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
-#> #   critical_threshold <chr>, actual_n_t <dbl>, pressure_share <dbl>,
-#> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>,
-#> #   crop_critical_n_t <dbl>, signed_margin_n_t <dbl>, …
+#> #   critical_threshold <chr>, binding_threshold <chr>,
+#> #   binding_matches_mi <lgl>, actual_n_t <dbl>, pressure_share <dbl>,
+#> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>, …
 #> 
 #> $boundary_surplus$country
-#> # A tibble: 6 × 34
+#> # A tibble: 6 × 35
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -202,7 +218,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 29 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 30 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, actual_n_t <dbl>, critical_n_t <dbl>,
 #> #   signed_margin_n_t <dbl>, crop_critical_n_t <dbl>,
 #> #   positive_overshoot_n_t <dbl>, exceedance_n_t <dbl>,
@@ -249,7 +265,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 2  2010         2         1.38          1.83 3000000000 supplied         
 #> 
 #> $sjos_class
-#> # A tibble: 6 × 9
+#> # A tibble: 6 × 10
 #>    year area_code item_cbs_code exceedance_n_t within_boundary_n_t actual_n_t
 #>   <int>     <int>         <int>          <dbl>               <dbl>      <dbl>
 #> 1  2010         1          2511         17.8                69.2           87
@@ -258,11 +274,12 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010         2          2511          0                  15             15
 #> 5  2010         2          2513          0                   1              1
 #> 6  2010         2          2555          0                   4              4
-#> # ℹ 3 more variables: nourish <chr>, boundary_side <chr>, sjos_class <fct>
+#> # ℹ 4 more variables: nourish <chr>, boundary_side <chr>, sjos_class <fct>,
+#> #   negative_critical <chr>
 #> 
 #> $footprint
 #> $footprint$fp_all
-#> # A tibble: 6 × 14
+#> # A tibble: 6 × 15
 #>    year origin_area origin_item target_area target_item target_fd origin        
 #>   <int>       <int>       <int>       <int>       <int> <chr>     <chr>         
 #> 1  2010           1        2511           1        2511 food      Domestic cons…
@@ -271,11 +288,12 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010           2        2511           2        2511 food      Domestic cons…
 #> 5  2010           2        2513           2        2513 food      Domestic cons…
 #> 6  2010           2        2555           2        2555 food      Domestic cons…
-#> # ℹ 7 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
-#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>
+#> # ℹ 8 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
+#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>,
+#> #   negative_critical <chr>
 #> 
 #> $footprint$fp_food
-#> # A tibble: 6 × 14
+#> # A tibble: 6 × 15
 #>    year origin_area origin_item target_area target_item target_fd origin        
 #>   <int>       <int>       <int>       <int>       <int> <chr>     <chr>         
 #> 1  2010           1        2511           1        2511 food      Domestic cons…
@@ -284,8 +302,9 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010           2        2511           2        2511 food      Domestic cons…
 #> 5  2010           2        2513           2        2513 food      Domestic cons…
 #> 6  2010           2        2555           2        2555 food      Domestic cons…
-#> # ℹ 7 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
-#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>
+#> # ℹ 8 more variables: impact_u <dbl>, item_cbs_code <int>, category <chr>,
+#> #   nourish <chr>, boundary_side <chr>, sjos_class <fct>, target_nourish <chr>,
+#> #   negative_critical <chr>
 #> 
 #> $footprint$target_class_diag
 #> # A tibble: 2 × 8

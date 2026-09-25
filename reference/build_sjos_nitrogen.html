@@ -118,6 +118,7 @@ single coherent fixture set drives the whole chain without any real data.</p>
 <span>  footprint_category <span class="op">=</span> <span class="st">"exceedance"</span>,</span>
 <span>  nourishment_thresholds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"composed"</span>, <span class="st">"flat"</span><span class="op">)</span>,</span>
 <span>  nourishment_band <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  negative_critical <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"clamp"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -136,7 +137,10 @@ at its own default composition over the years of <code>cbs_food</code> and
 <code>n_inputs</code> when absent; inject a table to use any other source),
 <code>biomass_coefs</code> / <code>items_full</code> for the food supply,
 <code>manure_mgmt_nh3_n_t</code> for the pathway boundary when
-<code>nh3_source = "total_agricultural"</code>, and either an <code>io</code> model or
+<code>nh3_source = "total_agricultural"</code>, <code>critical_binding</code> (a
+<code><a href="build_critical_n_binding.html">build_critical_n_binding()</a></code> table for the <code>boundary_land_use</code> scope, whose
+<code>binding_threshold</code> is then carried into the grid boundary; absent, the
+column is <code>NA</code>), and either an <code>io</code> model or
 <code>fp_flows</code> for the footprint. A real call without either source aborts
 rather than fabricating a domestic-only footprint.
 Defaults to <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code>.</p></dd>
@@ -188,6 +192,16 @@ sensitivity. Defaults to <code><a href="https://rdrr.io/r/base/list.html" class=
 default.</p></dd>
 
 
+<dt id="arg-negative-critical">negative_critical<a class="anchor" aria-label="anchor" href="#arg-negative-critical"></a></dt>
+<dd><p>Treatment of cells whose critical surplus is below
+zero, passed to <code><a href="build_n_boundary_exceedance.html">build_n_boundary_exceedance()</a></code>: <code>"keep"</code> (default, as the
+source) or <code>"clamp"</code> (zero allowance, a declared departure from
+Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
+through them the classification and the footprint, and is stamped as
+<code>negative_critical</code> in both boundary tables, in <code>sjos_class</code> and in both
+footprint tables.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, drive the whole chain from the coherent fixture set
 instead of <code>data</code>. Defaults to <code>FALSE</code>.</p></dd>
@@ -205,7 +219,8 @@ versus nourishment points; it and <code>nourishment</code> carry
 (the 2-way classification) and <code>footprint</code> (a list with the <code>fp_all</code> and
 <code>fp_food</code> embodied-nitrogen footprints, both carrying <code>target_nourish</code>,
 and <code>target_class_diag</code>, the per-year count of flows whose consumer
-country-year has no nourishment class).</p>
+country-year has no nourishment class). The boundary tables,
+<code>sjos_class</code> and both footprint tables carry <code>negative_critical</code>.</p>
     </div>
 
     <div class="section level2">
@@ -231,7 +246,7 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus$grid</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 53</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 7 × 57</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -241,16 +256,16 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 48 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 52 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   source_row &lt;int&gt;, source_col &lt;int&gt;, lon &lt;dbl&gt;, lat &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_year &lt;int&gt;, critical_reference_year &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;, image_region &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_threshold &lt;chr&gt;, actual_n_t &lt;dbl&gt;, pressure_share &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   crop_critical_n_t &lt;dbl&gt;, signed_margin_n_t &lt;dbl&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_threshold &lt;chr&gt;, binding_threshold &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   binding_matches_mi &lt;lgl&gt;, actual_n_t &lt;dbl&gt;, pressure_share &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;, …</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $boundary_surplus$country</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 34</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 35</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -259,7 +274,7 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010         2                2 AFG-1919-2025         Afghanistan          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 29 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 30 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_n_t &lt;dbl&gt;, critical_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   signed_margin_n_t &lt;dbl&gt;, crop_critical_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   positive_overshoot_n_t &lt;dbl&gt;, exceedance_n_t &lt;dbl&gt;,</span></span>
@@ -306,7 +321,7 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2         1.38          1.83 <span style="text-decoration: underline;">3</span>000<span style="text-decoration: underline;">000</span>000 supplied         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $sjos_class</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code exceedance_n_t within_boundary_n_t actual_n_t</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1          <span style="text-decoration: underline;">2</span>511         17.8                69.2           87</span>
@@ -315,11 +330,12 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         2          <span style="text-decoration: underline;">2</span>511          0                  15             15</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         2          <span style="text-decoration: underline;">2</span>513          0                   1              1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010         2          <span style="text-decoration: underline;">2</span>555          0                   4              4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   negative_critical &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$fp_all</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 14</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 15</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year origin_area origin_item target_area target_item target_fd origin        </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010           1        <span style="text-decoration: underline;">2</span>511           1        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
@@ -328,11 +344,12 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>511           2        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>513           2        <span style="text-decoration: underline;">2</span>513 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>555           2        <span style="text-decoration: underline;">2</span>555 food      Domestic cons…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   negative_critical &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$fp_food</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 14</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 15</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year origin_area origin_item target_area target_item target_fd origin        </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010           1        <span style="text-decoration: underline;">2</span>511           1        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
@@ -341,8 +358,9 @@ country-year has no nourishment class).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>511           2        <span style="text-decoration: underline;">2</span>511 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>513           2        <span style="text-decoration: underline;">2</span>513 food      Domestic cons…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>010           2        <span style="text-decoration: underline;">2</span>555           2        <span style="text-decoration: underline;">2</span>555 food      Domestic cons…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: impact_u &lt;dbl&gt;, item_cbs_code &lt;int&gt;, category &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   nourish &lt;chr&gt;, boundary_side &lt;chr&gt;, sjos_class &lt;fct&gt;, target_nourish &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   negative_critical &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $footprint$target_class_diag</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>

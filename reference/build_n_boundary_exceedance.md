@@ -43,6 +43,8 @@ build_n_boundary_exceedance(
   indicator = NULL,
   land_class = NULL,
   impact_scope = NULL,
+  negative_critical = c("keep", "clamp"),
+  binding = NULL,
   example = FALSE
 )
 ```
@@ -122,6 +124,22 @@ build_n_boundary_exceedance(
   Deposited impact surface: `"mi"`, `"sw"`, `"gw"`, or `"de"`. When
   supplied, it is validated against the critical layer.
 
+- negative_critical:
+
+  Treatment of a cell whose critical value is below zero. `"keep"`
+  (default) compares the actual pressure with the deposited value as it
+  is, as the source does. `"clamp"` sets it to zero (a zero allowance)
+  before the cell comparison. The choice is stamped in every output row
+  as `negative_critical`; see the Negative critical surplus section.
+
+- binding:
+
+  Optional
+  [`build_critical_n_binding()`](https://eduaguilera.github.io/whep/reference/build_critical_n_binding.md)
+  output for the same land-use scope. When supplied, its per-cell
+  `binding_threshold` and `binding_matches_mi` are carried into the cell
+  and grid results; when `NULL` (default) both columns are `NA`.
+
 - example:
 
   If `TRUE`, return the package fixture.
@@ -131,15 +149,40 @@ build_n_boundary_exceedance(
 A tibble at the requested grain. Cell results retain actual and critical
 masses, signed margin, positive overshoot, coverage state, integer
 source-grid key, IMAGE context, explicit years, selectors, and
-provenance. Crop results additionally retain the signed pressure share
-and crop-attributed quantities, which reconcile algebraically to the
-cell.
+provenance. `critical_kgn_ha` is the value compared (after the
+`negative_critical` treatment) and `source_critical_kgn_ha` the
+deposited one; the two differ only in clamped cells. Crop results
+additionally retain the signed pressure share and crop-attributed
+quantities, which reconcile algebraically to the cell. `exceedance_n_t`
+is the crop's share of the cell overshoot `pmax(actual - critical, 0)`
+and `within_boundary_n_t` is `actual_n_t - exceedance_n_t`, so the two
+always sum to the actual pressure. Summed over a cell,
+`within_boundary_n_t` is `min(actual, critical)`: under
+`negative_critical = "keep"` it is negative wherever the critical value
+is negative, and under `"clamp"` it is negative only where the actual
+pressure itself is.
+
+## Negative critical surplus
+
+Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and
+manure inputs to zero where non-agricultural losses alone exceed a
+threshold, but keep biological fixation and deposition in the critical
+input, so their deposited critical surplus stays negative in those cells
+(on the `"mi"` surface: 1,796 of 28,881 cells for `"all"`, minimum -396
+kg N/ha; 2,075 of 28,573 cells for `"ara"`, minimum -317 kg N/ha).
+`negative_critical = "keep"` follows the source, and it is the setting
+under which the published 2010 decomposition (43 Mt N allowable plus 76
+Mt N exceedance, 119 Mt N current surplus) is reproduced. `"clamp"` is a
+declared departure from the source: it gives such cells a zero allowance
+instead of a negative one, which lowers their overshoot to the actual
+pressure and keeps the cell within-boundary mass at or above zero
+wherever the actual pressure is.
 
 ## Examples
 
 ``` r
 build_n_boundary_exceedance(example = TRUE)
-#> # A tibble: 5 × 53
+#> # A tibble: 5 × 57
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -147,11 +190,11 @@ build_n_boundary_exceedance(example = TRUE)
 #> 3  2010         1                1 ARM-1991-2025         Armenia              
 #> 4  2010         1                1 ARM-1991-2025         Armenia              
 #> 5  2010         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 48 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> # ℹ 52 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
 #> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
 #> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
 #> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
-#> #   critical_threshold <chr>, actual_n_t <dbl>, pressure_share <dbl>,
-#> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>,
-#> #   crop_critical_n_t <dbl>, signed_margin_n_t <dbl>, …
+#> #   critical_threshold <chr>, binding_threshold <chr>,
+#> #   binding_matches_mi <lgl>, actual_n_t <dbl>, pressure_share <dbl>,
+#> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>, …
 ```

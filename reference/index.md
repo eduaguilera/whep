@@ -369,6 +369,8 @@ embodied-nitrogen trade footprint extension.
 
 - [`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
   : Read a Schulte-Uebbing gridded critical-nitrogen layer.
+- [`build_critical_n_binding()`](https://eduaguilera.github.io/whep/reference/build_critical_n_binding.md)
+  : Derive the binding critical-nitrogen threshold per cell.
 - [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
   : Build source-exact gridded critical-nitrogen exceedance.
 - [`build_n_pathway_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.md)

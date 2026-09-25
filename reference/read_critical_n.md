@@ -5,23 +5,33 @@ Schulte-Uebbing et al. (2022) archive (doi:10.5281/zenodo.6395016) onto
 WHEP's grid: the critical nitrogen surplus, the critical nitrogen input,
 the exceedance of the critical surplus, the three medium-specific
 critical losses (ammonia emission, groundwater leaching, surface-water
-load), or the pre-computed binding-threshold map. Values are in kg N per
-hectare per year (a categorical 1-8 impact code for
-`binding_threshold`). The critical surplus, input and exceedance are
-selectable by `threshold` (minimum of all media, surface water,
-groundwater or deposition) and `land_use` (all agricultural land, arable
-only, or intensively managed grassland); the three critical losses and
-the binding threshold ignore `threshold`. The archive directory comes
-from `dir`, else the `WHEP_CRITICAL_N_DIR` environment variable, else a
-local cache that is populated by downloading the archive from Zenodo on
-first use (see `dir`).
+load), or the threshold-exceedance map. Values are in kg N per hectare
+per year (a categorical 1-8 impact code for `threshold_exceedance`). The
+critical surplus, input and exceedance are selectable by `threshold`
+(minimum of all media, surface water, groundwater or deposition) and
+`land_use` (all agricultural land, arable only, or intensively managed
+grassland); the three critical losses and the threshold-exceedance map
+ignore `threshold`.
+
+The threshold-exceedance map (the archive's "Threshold exceedance by
+impact" folder, `threshold_exc_<land_use>.asc`) records which thresholds
+are exceeded in a cell, not which one binds. The threshold that binds,
+the one with the lowest critical surplus, is derived by
+[`build_critical_n_binding()`](https://eduaguilera.github.io/whep/reference/build_critical_n_binding.md).
+The layer was formerly requested as `var = "binding_threshold"`; that
+name still reads it, with a deprecation warning, and the result is
+stamped `critical_var = "threshold_exceedance"`.
+
+The archive directory comes from `dir`, else the `WHEP_CRITICAL_N_DIR`
+environment variable, else a local cache that is populated by
+downloading the archive from Zenodo on first use (see `dir`).
 
 ## Usage
 
 ``` r
 read_critical_n(
   var = c("critical_n_surplus", "critical_n_input", "exceedance", "crit_nh3_emission",
-    "crit_leaching_gw", "crit_load_sw", "binding_threshold"),
+    "crit_leaching_gw", "crit_load_sw", "threshold_exceedance", "binding_threshold"),
   threshold = c("mi", "sw", "gw", "de"),
   land_use = c("all", "ara", "igl"),
   dir = NULL,
@@ -37,14 +47,16 @@ read_critical_n(
 
   Which critical-nitrogen layer to read: one of `"critical_n_surplus"`,
   `"critical_n_input"`, `"exceedance"`, `"crit_nh3_emission"`,
-  `"crit_leaching_gw"`, `"crit_load_sw"` or `"binding_threshold"`.
+  `"crit_leaching_gw"`, `"crit_load_sw"` or `"threshold_exceedance"`.
+  `"binding_threshold"` is a deprecated alias of
+  `"threshold_exceedance"`.
 
 - threshold:
 
   Impact threshold selecting the critical value: `"mi"` (minimum across
   media, the collapsed boundary), `"sw"` (surface-water eutrophication),
   `"gw"` (groundwater nitrate) or `"de"` (atmospheric or terrestrial
-  deposition). Ignored by the critical-loss and binding-threshold
+  deposition). Ignored by the critical-loss and threshold-exceedance
   layers.
 
 - land_use:
@@ -53,7 +65,7 @@ read_critical_n(
   `"ara"` (arable only) or `"igl"` (intensively managed grassland).
   Ignored by the critical-loss layers (`crit_nh3_emission`,
   `crit_leaching_gw`, `crit_load_sw`), which have a single
-  land-use-agnostic file; used by the binding threshold and the
+  land-use-agnostic file; used by the threshold-exceedance map and the
   surplus/input/exceedance layers.
 
 - dir:
@@ -90,8 +102,8 @@ read_critical_n(
 ## Value
 
 A tibble with `lon`, `lat` (0.5-degree cell centres), `value` (kg N per
-hectare per year; a categorical impact code for `binding_threshold`) and
-retained layer provenance: `critical_var`, `critical_threshold`,
+hectare per year; a categorical impact code for `threshold_exceedance`)
+and retained layer provenance: `critical_var`, `critical_threshold`,
 `critical_land_use`, `critical_year` and `critical_source`, canonical
 integer `cell_id`/row/column keys, deposited `source_area_ha`,
 IMAGE-region membership, DOI/version and archive checksum. NODATA cells

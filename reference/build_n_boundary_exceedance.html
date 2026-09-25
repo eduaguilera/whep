@@ -116,6 +116,8 @@ produces), and a warning when it is not.</p>
 <span>  indicator <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  land_class <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  impact_scope <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  negative_critical <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"clamp"</span><span class="op">)</span>,</span>
+<span>  binding <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -194,6 +196,22 @@ hard-errors). When supplied, it overrides <code>metric</code>.</p></dd>
 <code>"de"</code>. When supplied, it is validated against the critical layer.</p></dd>
 
 
+<dt id="arg-negative-critical">negative_critical<a class="anchor" aria-label="anchor" href="#arg-negative-critical"></a></dt>
+<dd><p>Treatment of a cell whose critical value is below
+zero. <code>"keep"</code> (default) compares the actual pressure with the deposited
+value as it is, as the source does. <code>"clamp"</code> sets it to zero (a zero
+allowance) before the cell comparison. The choice is stamped in every
+output row as <code>negative_critical</code>; see the Negative critical surplus
+section.</p></dd>
+
+
+<dt id="arg-binding">binding<a class="anchor" aria-label="anchor" href="#arg-binding"></a></dt>
+<dd><p>Optional <code><a href="build_critical_n_binding.html">build_critical_n_binding()</a></code> output for the same
+land-use scope. When supplied, its per-cell <code>binding_threshold</code> and
+<code>binding_matches_mi</code> are carried into the cell and grid results; when
+<code>NULL</code> (default) both columns are <code>NA</code>.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return the package fixture.</p></dd>
 
@@ -203,14 +221,39 @@ hard-errors). When supplied, it overrides <code>metric</code>.</p></dd>
     <p>A tibble at the requested grain. Cell results retain actual and
 critical masses, signed margin, positive overshoot, coverage state,
 integer source-grid key, IMAGE context, explicit years, selectors, and
-provenance. Crop results additionally retain the signed pressure share and
-crop-attributed quantities, which reconcile algebraically to the cell.</p>
+provenance. <code>critical_kgn_ha</code> is the value compared (after the
+<code>negative_critical</code> treatment) and <code>source_critical_kgn_ha</code> the deposited
+one; the two differ only in clamped cells. Crop results additionally
+retain the signed pressure share and crop-attributed quantities, which
+reconcile algebraically to the cell. <code>exceedance_n_t</code> is the crop's share
+of the cell overshoot <code>pmax(actual - critical, 0)</code> and
+<code>within_boundary_n_t</code> is <code>actual_n_t - exceedance_n_t</code>, so the two always
+sum to the actual pressure. Summed over a cell, <code>within_boundary_n_t</code> is
+<code>min(actual, critical)</code>: under <code>negative_critical = "keep"</code> it is negative
+wherever the critical value is negative, and under <code>"clamp"</code> it is
+negative only where the actual pressure itself is.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="negative-critical-surplus">Negative critical surplus<a class="anchor" aria-label="anchor" href="#negative-critical-surplus"></a></h2>
+
+
+<p>Schulte-Uebbing et al. (2022, Methods) set critical fertilizer and manure
+inputs to zero where non-agricultural losses alone exceed a threshold, but
+keep biological fixation and deposition in the critical input, so their
+deposited critical surplus stays negative in those cells (on the <code>"mi"</code>
+surface: 1,796 of 28,881 cells for <code>"all"</code>, minimum -396 kg N/ha; 2,075 of
+28,573 cells for <code>"ara"</code>, minimum -317 kg N/ha). <code>negative_critical = "keep"</code> follows the source, and it is the setting under which the published
+2010 decomposition (43 Mt N allowable plus 76 Mt N exceedance, 119 Mt N
+current surplus) is reproduced. <code>"clamp"</code> is a declared departure from the
+source: it gives such cells a zero allowance instead of a negative one,
+which lowers their overshoot to the actual pressure and keeps the cell
+within-boundary mass at or above zero wherever the actual pressure is.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_boundary_exceedance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 53</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 57</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -218,13 +261,13 @@ crop-attributed quantities, which reconcile algebraically to the cell.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 48 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 52 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   source_row &lt;int&gt;, source_col &lt;int&gt;, lon &lt;dbl&gt;, lat &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_year &lt;int&gt;, critical_reference_year &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;, image_region &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_threshold &lt;chr&gt;, actual_n_t &lt;dbl&gt;, pressure_share &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   crop_critical_n_t &lt;dbl&gt;, signed_margin_n_t &lt;dbl&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_threshold &lt;chr&gt;, binding_threshold &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   binding_matches_mi &lt;lgl&gt;, actual_n_t &lt;dbl&gt;, pressure_share &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;, …</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
