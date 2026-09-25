@@ -229,7 +229,12 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 81L)
+  #
+  # 82 since whep#1300: `.n_manure_crop_layer()` spreads harvested area onto
+  # cells for the gridded nitrogen balance's manure allocation. It reads the
+  # SAME single-vintage crop-pattern weights as the `.sci_join_weights` row;
+  # the area it spreads is year-keyed and carries `year` through.
+  expect_lte(sum(baseline$n), 82L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
