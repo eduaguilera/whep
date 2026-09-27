@@ -210,13 +210,19 @@ build_feed_demand <- function(
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
+#
+# `production` and `cbs` default to the full pins; a caller that has already
+# read them for its own years (the gridded nitrogen balance) passes them in
+# rather than paying for a second, all-years read.
 .local_run_context <- function(
   demand_tier,
   feed_mode,
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  production = NULL,
+  cbs = NULL
 ) {
   list(
     paths = .local_paths(
@@ -225,15 +231,25 @@ build_feed_demand <- function(
       grass_availability = grass_availability,
       grass_availability_path = grass_availability_path
     ),
-    production = .normalise_feed_primary(get_primary_production()),
-    cbs = .normalise_feed_cbs(get_wide_cbs()),
+    production = .normalise_feed_primary(
+      production %||% get_primary_production()
+    ),
+    cbs = .normalise_feed_cbs(cbs %||% get_wide_cbs()),
     data = .feed_demand_data(),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
-    # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
-    # of a deficit cell's animals that can graze across the cell edge.
-    grass_border_allowance = 0.1
+    grass_border_allowance = .local_intake_defaults()$grass_border_allowance
   )
+}
+
+# The local grain's engine settings that no argument exposes, owned here once
+# so every caller of the local engine runs it the same way.
+#
+# grass_border_allowance: border-strip ratio (grazing range / cell width,
+# ~ 5 km / 55 km), the share of a deficit cell's animals that can graze
+# across the cell edge (.apply_grass_border_grazing()).
+.local_intake_defaults <- function() {
+  list(grass_border_allowance = 0.1)
 }
 
 # Years to build: every production year, or the requested subset intersected
@@ -251,11 +267,25 @@ build_feed_demand <- function(
 
 # One year's local intake: per-cell spatial inputs -> engine -> contract.
 .local_year_intake <- function(yr, ctx) {
-  spatial <- .local_spatial_inputs(yr, ctx$paths)
+  engine <- .local_year_engine(yr, ctx)
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    local = TRUE
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+# One year of the local engine: the raw redistribute_feed() result and the
+# per-animal reverse-split weights. `country_grid`, when given, is the cell
+# support the heads and the grass ceiling are placed on (see
+# .local_spatial_inputs()).
+.local_year_engine <- function(yr, ctx, country_grid = NULL) {
+  spatial <- .local_spatial_inputs(yr, ctx$paths, country_grid)
   spatial$grass_border_allowance <- ctx$grass_border_allowance
   prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
   cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
-  engine <- .run_redistribute_local(
+  .run_redistribute_local(
     prod_y,
     cbs_y,
     ctx$demand_tier,
@@ -263,12 +293,6 @@ build_feed_demand <- function(
     ctx$data,
     distribute_surplus = ctx$feed_mode == "scenario"
   )
-  .reshape_redistribute_intake(
-    engine$result,
-    engine$code_shares,
-    local = TRUE
-  ) |>
-    .add_reporting_polity_columns()
 }
 
 # Write per-year output to disk, skipping years already written (restartable)
@@ -325,10 +349,18 @@ build_feed_demand <- function(
 # grass availability). A heavy global computation: gridded livestock plus
 # LPJmL-derived grass for every model year. Years outside a local LPJmL run's
 # coverage get unbounded grass; pinned grass is already clipped to its coverage.
-.local_spatial_inputs <- function(years, paths) {
+#
+# `country_grid` replaces the livestock inputs' own cell support
+# (.load_country_grid(), the polycell support by default). The heads and the
+# grass ceiling are both placed on whichever one is used, so a caller that
+# places other inputs on its own support can put the animals on the same one.
+.local_spatial_inputs <- function(years, paths, country_grid = NULL) {
   input_dir <- if (.has_path(paths$input_dir)) paths$input_dir else NULL
   run_dir <- if (.has_path(paths$run_dir)) paths$run_dir else NULL
   ls_inputs <- .load_livestock_inputs(input_dir)
+  if (!is.null(country_grid)) {
+    ls_inputs$country_grid <- country_grid
+  }
   gridded_heads <- build_gridded_livestock(
     livestock_data = ls_inputs$livestock_data,
     gridded_pasture = ls_inputs$gridded_pasture,
@@ -1215,16 +1247,24 @@ build_feed_demand <- function(
 
 # Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
-# area_code). Pass `country_grid` (majority assignment, one polity per cell) to
-# match how gridded livestock heads are assigned; a `cell_polity` carrying
-# `polity_frac` instead splits a border cell's grass across its polities. The
-# result is the per-cell forage ceiling redistribute_feed binds the pasture sink
-# to.
+# area_code), and a border cell's grass is split across its polities by the
+# SAME share build_gridded_livestock() splits the heads by. The result is the
+# per-cell forage ceiling redistribute_feed binds the pasture sink to.
+#
+# The share is read through .normalize_country_grid(), so every name the heads
+# accept (`cell_area_frac`, `polity_frac`, ...) is accepted here too, and a
+# support with none is refused (S-A5). This used to read `polity_frac` only and
+# default to 1 without it; the polycell support the local grain reads by
+# default names its share `cell_area_frac`, so each polity of a border cell was
+# given the whole cell's grass (whep#1300).
 .grass_to_cells <- function(grass, cell_polity) {
-  cp <- dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2))
-  if (!rlang::has_name(cp, "polity_frac")) {
-    cp$polity_frac <- 1
-  }
+  cp <- .normalize_country_grid(cell_polity, "cell_polity") |>
+    dplyr::mutate(
+      lon = round(lon, 2),
+      lat = round(lat, 2),
+      polity_frac = cell_area_frac
+    ) |>
+    dplyr::select("lon", "lat", "area_code", "polity_frac")
   grass |>
     dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
     dplyr::inner_join(

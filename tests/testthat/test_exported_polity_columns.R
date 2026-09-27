@@ -116,7 +116,7 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       "build_primary_production",
       "build_soil_carbon_inputs",
       "build_supply_use",
-      "build_urban_n",
+      "build_human_n",
       "build_water_balance",
       "calculate_n_surplus",
       "get_arable_permanent_land",
@@ -134,7 +134,7 @@ testthat::test_that("the attached polity columns are populated, not just present
   # telling the caller nothing, which is the failure mode of attaching columns
   # with the wrong code column or an incompatible code type. So check the
   # payload: the full four-column set, and at least one resolved polity code.
-  # `build_urban_n` is in this list on purpose: its fixtures used to key cells
+  # `build_human_n` is in this list on purpose: its fixtures used to key cells
   # by the string "ESP", which cannot resolve against the numeric crosswalk.
   cols <- c(
     "polity_area_code",
@@ -145,7 +145,7 @@ testthat::test_that("the attached polity columns are populated, not just present
   for (nm in c(
     "build_nitrogen_balance",
     "build_water_balance",
-    "build_urban_n",
+    "build_human_n",
     "get_arable_permanent_land",
     "read_luh2_landuse",
     "get_crop_land_extension"

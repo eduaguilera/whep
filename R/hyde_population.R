@@ -8,8 +8,11 @@
 # - Each ZIP holds 5 ESRI ASCII grid (.asc) files with the same year suffix:
 #   popc (total population count), popd (population density), urbc (URBAN
 #   population count), rurc (rural population count), uopp (urban
-#   built-up-area occupancy). This reader uses urbc: it is the correct
-#   variable for an urban/human-excreta-to-agriculture nitrogen stream.
+#   built-up-area occupancy). read_hyde_population() reads the three counts,
+#   selected by `variable`: "total" (popc, the default), "urban" (urbc) or
+#   "rural" (rurc). All three share one parse and one block sum, so
+#   build_total_population_grid() (R/total_population_grid.R) reads popc
+#   through the private .read_hyde_year() exactly as the reader does.
 # - ASC header, 6 lines in this exact order, then the data matrix:
 #     ncols 4320
 #     nrows 2160
@@ -35,35 +38,48 @@
 # - Local dev data dir is read from Sys.getenv("WHEP_HYDE_DIR"); never
 #   hardcode an absolute path in committed code.
 
-#' Read gridded HYDE urban population onto WHEP's grid.
+#' Read gridded HYDE population onto WHEP's grid.
 #'
 #' @description
-#' Reads the HYDE baseline-scenario urban population count (`urbc`, native
-#' 5-arcmin ESRI ASCII grid, total people per native cell) for one or more
-#' calendar years and aggregates it to WHEP's 0.5-degree grid by summing the
-#' 6x6 fine cells inside each 0.5-degree block, since population count is an
+#' Reads a HYDE baseline-scenario population count (native 5-arcmin ESRI
+#' ASCII grid, people per native cell) for one or more calendar years and,
+#' by default, aggregates it to WHEP's 0.5-degree grid by summing the 6x6
+#' fine cells inside each 0.5-degree block, since population count is an
 #' extensive quantity. Each requested year is read from its own
-#' `"{year}AD_pop.zip"` archive.
+#' `"{year}AD_pop.zip"` archive, which holds the total (`popc`), urban
+#' (`urbc`) and rural (`rurc`) counts on the same grid.
 #'
 #' @param hyde_dir Path to the directory holding the HYDE `"{year}AD_pop.zip"`
 #'   archives. Defaults to `Sys.getenv("WHEP_HYDE_DIR")`.
 #' @param years Integer vector of calendar years to read (`AD`, so `>= 1`).
 #'   Required: each year is a real unzip-and-parse of a ~150MB archive, so
 #'   there is no default range.
+#' @param variable Which population count to read: `"total"` (default, HYDE
+#'   `popc`), `"urban"` (`urbc`) or `"rural"` (`rurc`). The output column is
+#'   named after it.
+#' @param aggregate If `TRUE` (default), sum the fine cells to WHEP's
+#'   0.5-degree grid. If `FALSE`, return the native 5-arcmin cells, keyed by
+#'   their own centres, for a consumer whose target grid is not 0.5 degrees.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
-#' @return A tibble with `lon`, `lat`, `year`, `urban_pop` (total urban
-#'   population in the 0.5-degree cell that year).
+#' @return A tibble with `lon`, `lat`, `year` and one count column named
+#'   after `variable`: `total_pop`, `urban_pop` or `rural_pop` (people in the
+#'   cell that year). Cells HYDE marks as no-data are absent, never zero.
 #' @export
 #' @examples
 #' read_hyde_population(example = TRUE)
+#' read_hyde_population(variable = "urban", example = TRUE)
 read_hyde_population <- function(
   hyde_dir = NULL,
   years = NULL,
+  variable = c("total", "urban", "rural"),
+  aggregate = TRUE,
   example = FALSE
 ) {
+  variable <- rlang::arg_match(variable)
+  column <- paste0(variable, "_pop")
   if (isTRUE(example)) {
-    return(.example_hyde_population())
+    return(dplyr::rename(.example_hyde_population(), !!column := "pop"))
   }
   if (is.null(years)) {
     cli::cli_abort(c(
@@ -74,11 +90,24 @@ read_hyde_population <- function(
   }
   .check_hyde_years(years)
   dir <- .resolve_hyde_dir(hyde_dir)
-  data.table::rbindlist(lapply(years, .read_hyde_year, hyde_dir = dir)) |>
-    tibble::as_tibble()
+  years |>
+    lapply(
+      .read_hyde_year,
+      hyde_dir = dir,
+      variable = .hyde_member(variable),
+      aggregate = isTRUE(aggregate)
+    ) |>
+    data.table::rbindlist() |>
+    tibble::as_tibble() |>
+    dplyr::rename(!!column := "pop")
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The archive member prefix each `variable` reads.
+.hyde_member <- function(variable) {
+  c(total = "popc", urban = "urbc", rural = "rurc")[[variable]]
+}
 
 # Resolve the HYDE data directory from the argument, else the env var.
 .resolve_hyde_dir <- function(hyde_dir) {
@@ -104,15 +133,28 @@ read_hyde_population <- function(
   invisible(NULL)
 }
 
-# Read one year's urban population ZIP and block-sum it to the 0.5-degree
-# grid.
-.read_hyde_year <- function(year, hyde_dir) {
+# Read one HYDE population count (`popc`, `urbc` or `rurc`) for one year and
+# block-sum it to the 0.5-degree grid (or keep the native cells), as a neutral
+# `pop` column the callers name. A member missing from the archive is refused
+# by name rather than left to unz() to fail on: substituting another variable
+# would change what the count IS.
+.read_hyde_year <- function(year, hyde_dir, variable, aggregate = TRUE) {
   zip_path <- file.path(hyde_dir, paste0(year, "AD_pop.zip"))
   if (!file.exists(zip_path)) {
     cli::cli_abort("HYDE population archive not found: {.file {zip_path}}.")
   }
-  arcname <- paste0("urbc_", year, "AD.asc")
+  arcname <- paste0(variable, "_", year, "AD.asc")
+  members <- utils::unzip(zip_path, list = TRUE)$Name
+  if (!arcname %in% members) {
+    cli::cli_abort(c(
+      "HYDE archive {.file {zip_path}} holds no {.file {arcname}}.",
+      i = "It holds: {.file {members}}."
+    ))
+  }
   grid <- .read_hyde_asc(zip_path, arcname)
+  if (!aggregate) {
+    return(.hyde_native_cells(grid, year))
+  }
   .hyde_block_sum(grid, year)
 }
 
@@ -141,10 +183,31 @@ read_hyde_population <- function(
   )
 }
 
-# Block-sum a native 5-arcmin population matrix to WHEP's 0.5-degree grid.
-# Row 1 is the northernmost row (standard ESRI convention); NODATA cells are
-# dropped before summing.
+# Block-sum a native 5-arcmin population matrix to WHEP's 0.5-degree grid, as
+# a neutral `pop` count. Row 1 is the northernmost row (standard ESRI
+# convention); NODATA cells are dropped before summing.
 .hyde_block_sum <- function(grid, year) {
+  dt <- .hyde_fine_cells(grid)
+  if (nrow(dt) == 0L) {
+    return(.hyde_empty())
+  }
+  dt[,
+    .(year = year, pop = sum(pop)),
+    by = .(lon = .hani_block_center(lon), lat = .hani_block_center(lat))
+  ]
+}
+
+# The native 5-arcmin cells, keyed by their own centres, NODATA dropped.
+.hyde_native_cells <- function(grid, year) {
+  dt <- .hyde_fine_cells(grid)
+  if (nrow(dt) == 0L) {
+    return(.hyde_empty())
+  }
+  dt[, .(lon, lat, year = year, pop)]
+}
+
+# One row per fine cell holding data: its centre and its count.
+.hyde_fine_cells <- function(grid) {
   meta <- grid$meta
   mat <- grid$matrix
   mat[mat == meta$NODATA_value] <- NA_real_
@@ -153,29 +216,27 @@ read_hyde_population <- function(
   lat <- 90 - meta$cellsize * (seq_len(n_row) - 0.5)
   lon <- -180 + meta$cellsize * (seq_len(n_col) - 0.5)
   dt <- data.table::data.table(
-    lon_block = .hani_block_center(lon)[rep(seq_len(n_col), times = n_row)],
-    lat_block = .hani_block_center(lat)[rep(seq_len(n_row), each = n_col)],
-    urban_pop = as.vector(t(mat))
+    lon = lon[rep(seq_len(n_col), times = n_row)],
+    lat = lat[rep(seq_len(n_row), each = n_col)],
+    pop = as.vector(t(mat))
   )
-  dt <- dt[!is.na(urban_pop)]
-  if (nrow(dt) == 0L) {
-    return(data.table::data.table(
-      lon = double(),
-      lat = double(),
-      year = integer(),
-      urban_pop = double()
-    ))
-  }
-  dt[,
-    .(year = year, urban_pop = sum(urban_pop)),
-    by = .(lon = lon_block, lat = lat_block)
-  ]
+  dt[!is.na(pop)]
 }
 
-# Toy fixture for a runnable example (one cell, one year).
+.hyde_empty <- function() {
+  data.table::data.table(
+    lon = double(),
+    lat = double(),
+    year = integer(),
+    pop = double()
+  )
+}
+
+# Toy fixture for a runnable example (one cell, one year), with the neutral
+# `pop` column the reader renames after `variable`.
 .example_hyde_population <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~year, ~urban_pop,
+    ~lon, ~lat, ~year, ~pop,
     -0.25, -0.25, 2020L, 12000
   )
 }

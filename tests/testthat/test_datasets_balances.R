@@ -203,7 +203,7 @@ test_that("fertiliser_n2o_modifiers transcribes the MF anchors", {
   # value would make calculate_soil_n2o(method = "aguilera") return NA).
   testthat::expect_equal(mf("Recycling", "MED"), 0.00)
   testthat::expect_equal(mf("SOM", "MED"), 0.00)
-  testthat::expect_equal(mf("Urban", "MED"), 0.00)
+  testthat::expect_equal(mf("Human", "MED"), 0.00)
 })
 
 test_that("meisinger_denitrification has the expected columns and size", {
@@ -352,21 +352,21 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
 })
 
-# Module C (Task C3) urban nitrogen benchmark series.
+# Module C (Task C3) human-population nitrogen benchmark series.
 
-testthat::test_that("urban_n_reference keys its area by FAOSTAT code", {
+testthat::test_that("human_n_reference keys its area by FAOSTAT code", {
   # whep#401: the vendored CSV labels the series with the ISO3 string "ESP",
   # but the column is named area_code, which everywhere else in this package
   # means the numeric FAOSTAT code. The other half of this same derivation,
-  # data-raw/build_urban_kgn_cap.R, keeps Spain by filtering on area code
-  # 203L, so while the built dataset held "ESP" the two steps keyed one
+  # data-raw/build_human_kgn_cap.R, keeps the series' country by filtering
+  # on area code 203L, so while the built dataset held "ESP" the two steps keyed one
   # concept two ways and this benchmark could not be joined to any area-keyed
   # table without an undocumented hand conversion. The build now resolves the
   # label through polity_area_crosswalk. This test fails on the string form:
   # is.integer("ESP") is FALSE.
-  x <- whep::urban_n_reference
+  x <- whep::human_n_reference
 
-  pointblank::expect_col_exists(x, c("area_code", "year", "urban_n_gg"))
+  pointblank::expect_col_exists(x, c("area_code", "year", "human_n_gg"))
   testthat::expect_true(is.integer(x$area_code))
   testthat::expect_setequal(x$area_code, 203L)
 
@@ -383,18 +383,18 @@ testthat::test_that("urban_n_reference keys its area by FAOSTAT code", {
   testthat::expect_equal(nrow(x), 10L)
   testthat::expect_equal(min(x$year), 1860)
   testthat::expect_equal(max(x$year), 2022)
-  testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
-  testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
+  testthat::expect_equal(x$human_n_gg[x$year == 1860], 6.97)
+  testthat::expect_equal(x$human_n_gg[x$year == 2022], 61.29)
 })
 
-testthat::test_that("urban_n_reference names its territory by polity code", {
+testthat::test_that("human_n_reference names its territory by polity code", {
   # whep#495 (epic whep#458): resolving the ISO3 label to 203 made the series
   # joinable, and 203 is still a FABIO aggregation bucket rather than the
   # identity of a territory. Every place in WHEP that identifies a territory has
   # to carry a polity code string, so this 10-row coefficient table names Spain
   # as ESP-1800-2025 and not only as 203. This test fails on the pre-#495 build:
   # the dataset had exactly three columns, none of them a polity code.
-  x <- whep::urban_n_reference
+  x <- whep::human_n_reference
 
   pointblank::expect_col_exists(x, "polity_code")
   testthat::expect_true(is.character(x$polity_code))
@@ -409,7 +409,7 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
 
   # ATTACHED, not substituted (whep#424's choice for the 25 area-keyed
   # exports): the numeric key external consumers may already join on survives.
-  pointblank::expect_col_exists(x, c("area_code", "year", "urban_n_gg"))
+  pointblank::expect_col_exists(x, c("area_code", "year", "human_n_gg"))
   testthat::expect_true(is.integer(x$area_code))
 
   # Re-derive the expected code independently of the build script: for each
@@ -454,8 +454,25 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   # The measured series is untouched by the added identifier: same ten
   # benchmark years, same Gg N.
   testthat::expect_equal(nrow(x), 10L)
-  testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
-  testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
+  testthat::expect_equal(x$human_n_gg[x$year == 1860], 6.97)
+  testthat::expect_equal(x$human_n_gg[x$year == 2022], 61.29)
+})
+
+testthat::test_that("the former dataset names still load, unchanged", {
+  # Kept for one release under their former names and column names, so a
+  # caller reading them sees exactly the rows it saw before the rename.
+  testthat::expect_identical(
+    whep::urban_n_reference,
+    dplyr::rename(whep::human_n_reference, urban_n_gg = "human_n_gg")
+  )
+  testthat::expect_equal(
+    whep::urban_kgn_cap_reference,
+    dplyr::rename(
+      whep::human_kgn_cap_reference,
+      urban_kgn_cap = "human_kgn_cap"
+    ),
+    ignore_attr = TRUE
+  )
 })
 
 # ---- the extdata CSVs must be well-formed CSV ---------------------------
@@ -516,4 +533,83 @@ testthat::test_that("soc_turnover_params reads identically through two readers",
   testthat::expect_equal(base_r$description, tidy$description)
   # And the shipped .rda must match both, not just one of them.
   testthat::expect_equal(nrow(whep::soc_turnover_params), nrow(base_r))
+})
+
+testthat::test_that("human_kgn_cap_total_reference is rebased on its total", {
+  # The per-TOTAL-inhabitant rate divides the same calibration nitrogen as
+  # human_kgn_cap_reference by the calibration WPP total population, which
+  # the table carries so the rebasing is checkable here without the WPP file.
+  total <- whep::human_kgn_cap_total_reference
+  pointblank::expect_col_exists(
+    total,
+    c("year", "human_kgn_cap", "calibration_population")
+  )
+  joined <- dplyr::inner_join(
+    total,
+    whep::human_n_reference,
+    by = "year"
+  )
+  # Every human_n_reference benchmark WPP covers (1950 on) has a row, and no
+  # row lacks its numerator.
+  testthat::expect_equal(nrow(joined), nrow(total))
+  testthat::expect_setequal(
+    total$year,
+    whep::human_n_reference$year[whep::human_n_reference$year >= 1950]
+  )
+  testthat::expect_equal(
+    joined$human_kgn_cap * joined$calibration_population,
+    joined$human_n_gg * 1e6,
+    tolerance = 1e-12
+  )
+  # A total population is larger than its urban part, so per total inhabitant
+  # is the smaller rate in every year both series cover.
+  both <- dplyr::inner_join(
+    total,
+    whep::human_kgn_cap_reference,
+    by = "year",
+    suffix = c("_total", "_urban")
+  )
+  testthat::expect_equal(nrow(both), nrow(total))
+  testthat::expect_true(all(
+    both$human_kgn_cap_total < both$human_kgn_cap_urban
+  ))
+})
+
+testthat::test_that("the renamed Human level keeps the former Urban coefficients", {
+  # The fert_type key was renamed from "Urban" to "Human" in both tables the
+  # loss cascade looks up. A key the cascade emits with no row would be an NA
+  # modifier (aborted) or an NA reduction (aborted), so pin both that the
+  # values are the ones "Urban" carried and that nothing still says "Urban".
+  mf <- whep::fertiliser_n2o_modifiers
+  testthat::expect_false("Urban" %in% mf$fert_type)
+  human_mf <- mf[mf$fert_type == "Human", ]
+  testthat::expect_equal(
+    human_mf$mf[match(c("MED", "ATL"), human_mf$climate)],
+    c(0.00, 0.60)
+  )
+  red <- whep::subsoil_no3_reduction
+  testthat::expect_false("Urban" %in% red$fert_type)
+  human_red <- red[red$fert_type == "Human", ]
+  key <- paste(human_red$climate, human_red$irrig_cat)
+  testthat::expect_equal(
+    human_red$no3_red[match(
+      c("MED Rainfed", "MED Irrigated", "ATL Rainfed", "ATL Irrigated"),
+      key
+    )],
+    c(0.40, 0.65, 0.70, 0.75)
+  )
+  # Every fert_type build_nitrogen_balance() sends to the direct-N2O lookup
+  # resolves to a modifier in both climates.
+  sent <- whep:::.nb_loss_fert_type(c(
+    "excreta",
+    "manure_liquid",
+    "manure_solid",
+    "som_mineralization",
+    "synthetic",
+    "human",
+    "recycling"
+  ))
+  grid <- tidyr::crossing(fert_type = sent, climate = c("MED", "ATL"))
+  joined <- dplyr::left_join(grid, mf, by = c("fert_type", "climate"))
+  testthat::expect_false(anyNA(joined$mf))
 })

@@ -24,6 +24,7 @@ build_carbon_balance(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  block_years = 10L,
   example = FALSE
 )
 }
@@ -174,6 +175,19 @@ Recorded per row in \code{method_som_cn}, which instead reads
 \code{"land_use_default"} on a row whose input C:N is unknown and
 \code{"directional_ipcc_range"} when no input C:N is carried at all.}
 
+\item{block_years}{How many consecutive years are built at a time. The
+climate drivers and the land-use areas are read, the class table and its
+equilibria built, the stocks marched and the output tail run one block of
+years at a time, and each cell's soil state is carried across a block
+boundary exactly as the march carries it from one year to the next. The
+result is therefore identical, bit for bit, to building the whole span in
+one pass, whatever the value: only memory and run time move. Memory then
+grows with the block rather than with the span; see the section below.
+\code{Inf} builds the whole span as one block, which is the fastest and the
+largest. A block is cut from \code{years} when the land use is read, and from
+the years of \code{data$land_use} when it is supplied; with neither, the span
+is unknown before reading and the build runs as one block.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}
 }
@@ -214,6 +228,46 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{Memory, and why the span is built in blocks}{
+
+Built in one pass, every stage holds the whole span at once, and two of them
+hold many times the table they return: the monthly climate read peaks at
+about 15 times its output and the output tail at 5 to 6 times its own
+(whep#1287). \code{block_years} bounds both by the block instead. Measured on the
+real grid as the process's peak committed memory, with the carbon inputs
+supplied, and the output identical in every case:\tabular{lllll}{
+   span \tab one pass \tab 10-year blocks \tab 3-year blocks \tab 2-year blocks \cr
+   1961-1966 \tab 13.8 GB \tab (one block) \tab 12.4 GB \tab 11.6 GB \cr
+   1961-1972 \tab 18.5 GB \tab 17.1 GB \tab 13.6 GB \tab  \cr
+}
+
+
+The single pass grows by about 0.8 GB per year of span. A blocked build
+grows only by what it must keep: the output (about 0.12 GB per year at
+\code{"grid"}) and the carbon inputs (about 0.08 GB per year), which are read
+once over the whole span because a year-scoped production and commodity
+build returns different rows for the same years (whep#833, whep#834). From
+1961-1966 to 1961-1972 the 3-year build rose 1.20 GB, against 1.17 GB for
+those two terms. Each year added to the block costs about 0.5 GB.
+
+Extrapolated linearly from these points to 1931-2023 (not measured there),
+one pass would need about 80 GB, 10-year blocks about 33 GB and 3-year
+blocks about 29 GB, while the span-wide carbon-input read that precedes
+the blocks is extrapolated in whep#1287 to 45-55 GB. The default of 10
+years keeps the blocks below that read, which is then the build's peak;
+every block re-reads the static cell support, clay and climate series, at
+3 to 4 minutes a block, so 3-year blocks would cost about an hour more over
+1931-2023 to save about 4 GB that the carbon-input read has already spent.
+
+Nothing about the carbon itself is decided per block. The balance opens
+from the first year it marches, and the year-less equilibrium-climate
+normal is read only then; the check that every cell carries every year runs
+across block boundaries; and each warning and message the class table and
+the output tail raise is gathered over the blocks and raised once for the
+whole span, as a single pass raises it. Messages the land-use and climate
+readers raise about their own read are raised by each block's read.
+}
+
 \section{The land-use-change ledger closes on mass, not on density}{
 
 \code{luc_transfer_mgc_ha} is the carbon a class received (positive) or

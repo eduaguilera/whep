@@ -305,13 +305,19 @@ build_ag_land_support <- function(
 # splitting border cells by the SAME cell_polity crosswalk the cropland side
 # uses (.normalize_country_grid() accepts polity_frac).
 #
-# `area_basis` is pinned to the transitional `"luh2_fraction"` ON PURPOSE. C7
-# moved the CARBON path onto the polycell's measured land (DA-26); this is the
-# nitrogen path's land support, whose cropland half is still split by
-# `polity_frac` on the crosswalk's own areas. Taking the polycell basis here
-# would put the two halves of one support on two different land definitions,
-# which is the mismatch AM-29 recorded for C3b to reconcile -- so it is pinned
-# rather than inherited, and moves when this support migrates, not before.
+# `area_basis` is pinned to `"luh2_fraction"` ON PURPOSE: LUH2's own grassland
+# hectares, split between a cell's polities by the support's share. The
+# cropland half is LUH2's cropland hectares split by `polity_frac` the same
+# way, so both halves share one land definition (the mismatch AM-29 recorded).
+#
+# The SPLIT has migrated. C7 moved the carbon path onto the polycell's measured
+# land (DA-26), and the gridded nitrogen driver now follows it (whep#1196):
+# `build_cell_polity(year = )` returns `polity_frac` as the polity's share of
+# the cell's measured land, equal to the carbon path's `cell_area_frac`, so
+# both halves of this support are split on measured land whenever that
+# support is passed. `"polycell_land"` stays out: it would rescale the
+# grassland hectares onto the polycell's own land while the cropland half
+# keeps LUH2's, putting the two halves back on two definitions.
 .als_read_luh2_grassland <- function(data, cell_polity, years) {
   covered <- .als_luh2_years(data, years)
   if (length(covered) == 0L) {

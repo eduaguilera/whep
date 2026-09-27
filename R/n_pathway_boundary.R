@@ -282,7 +282,7 @@ build_n_pathway_exceedance <- function(
 }
 
 # The medium exceeded most: NA when a share is NA (a per-cell row with no
-# agricultural area, e.g. the deposition/urban/SOM non-crop rows, cannot have a
+# agricultural area, e.g. the deposition/human/SOM non-crop rows, cannot have a
 # binding medium), "none" when neither medium exceeds, otherwise the medium with
 # the strictly greater exceedance share, or "both" on an exact positive tie. The
 # NA clause comes first so those rows are not swept into the "both" default by

@@ -20,7 +20,7 @@
 }
 
 # A build_n_inputs()-style long fixture: synthetic + bnf are the anthropogenic
-# reactive-N terms; manure_solid / deposition / urban must be excluded. Two
+# reactive-N terms; manure_solid / deposition / human must be excluded. Two
 # countries, with country 10's synthetic split across two cells so the grid
 # key must collapse to the country total.
 .npc_n_inputs <- function() {
@@ -39,7 +39,7 @@
     2000L, 10L, 0.25, 0.25, NA_integer_, "deposition", 1,
     2000L, 20L, 0.25, 0.25, 2511L, "synthetic", 10,
     2000L, 20L, 0.25, 0.25, 2511L, "bnf", 4,
-    2000L, 20L, 0.25, 0.25, NA_integer_, "urban", 5
+    2000L, 20L, 0.25, 0.25, NA_integer_, "human", 5
   )
 }
 
@@ -62,7 +62,7 @@ testthat::test_that("only synthetic and bnf are summed into the anthropogenic to
   ratio <- (109 + 33) / (0.85 * 109)
   # area 10: synthetic (2 + 3) * ratio + bnf (3); manure/deposition excluded.
   testthat::expect_equal(a10$n_percapita_kg, 5 * ratio + 3)
-  # area 20: synthetic (10) * ratio + bnf (4); urban excluded.
+  # area 20: synthetic (10) * ratio + bnf (4); human excluded.
   testthat::expect_equal(a20$n_percapita_kg, (10 * ratio + 4) / 2)
 })
 

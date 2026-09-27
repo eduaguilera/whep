@@ -36,7 +36,12 @@
 #' ([classify_sjos_n()]) and, via the per-capita anthropogenic reactive nitrogen
 #' ([build_n_percapita()]), into the boundary-versus-nourishment scatter
 #' ([build_n_boundary_percapita()]). The country exceedance finally becomes an
-#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]).
+#' embodied-nitrogen trade footprint ([build_sjos_n_footprint()]), which carries
+#' the producer's classes (`origin_classes`, the per-crop classification) and
+#' the consuming country's nourishment class (`target_nourish`, joined on
+#' `target_area` and `year` from the same nourishment table). The driver joins
+#' no consumer boundary class: that is a country-year class decided after
+#' aggregation, which a caller supplies to [build_sjos_n_footprint()] directly.
 #'
 #' The same nitrogen balance feeds the surplus and the pathway boundaries, the
 #' same nourishment feeds the classification and the scatter, and the one
@@ -53,16 +58,36 @@
 #'   `n_inputs` when absent; inject a table to use any other source),
 #'   `biomass_coefs` / `items_full` for the food supply,
 #'   `manure_mgmt_nh3_n_t` for the pathway boundary when
-#'   `nh3_source = "total_agricultural"`, and either an `io` model or
+#'   `nh3_source = "total_agricultural"`, `critical_binding` (a
+#'   [build_critical_n_binding()] table for the `boundary_land_use` scope, whose
+#'   `binding_threshold` is then carried into the grid boundary; absent, the
+#'   column is `NA`), and either an `io` model or
 #'   `fp_flows` for the footprint. A real call without either source aborts
-#'   rather than fabricating a domestic-only footprint.
+#'   rather than fabricating a domestic-only footprint. `grassland` is the
+#'   [build_n_boundary_exceedance()] grassland-split input, only used and
+#'   only optional when `boundary_land_use = "all"` and
+#'   `grassland_split = "image_density"` (see `grassland_split`); a real call
+#'   without it and without `critical` to build it from aborts rather than
+#'   guessing a var/threshold to match.
 #'   Defaults to `list()`.
 #' @param surplus_method Surplus definition passed to [calculate_n_surplus()],
 #'   `"harvest_removal"` (default) or `"full_balance"`.
 #' @param boundary_land_use Land-use scope stamp passed to
 #'   [build_n_boundary_exceedance()], `"ara"` (default, the robust historical
-#'   comparison) or `"all"` (all WHEP grassland, a sensitivity rather than a
-#'   reconstructed intensive-grassland class).
+#'   comparison) or `"all"` (cropland and intensive grassland compared like
+#'   for like against the critical allowance, extensive grassland against
+#'   IMAGE's 2010 budget; see `grassland_split`) (issue #1285).
+#' @param grassland_split Grassland treatment passed to
+#'   [build_n_boundary_exceedance()], used only when
+#'   `boundary_land_use = "all"`: `"image_density"` (default) splits each
+#'   cell into a managed and an extensive component, `"none"` compares one
+#'   cell pressure with the deposited `"all"`-scope allowance. Under
+#'   `"image_density"`, `data$grassland` is used when supplied (its four
+#'   elements, see [build_n_boundary_exceedance()]); otherwise it is built
+#'   from [build_grassland_intensity_classes()], the IMAGE 2010 extensive
+#'   budget, and the `"ara"`/`"igl"` critical layers matched to
+#'   `data$critical`'s own var and threshold. Ignored (no extra reads) when
+#'   `boundary_land_use` is not `"all"`.
 #' @param nh3_source Air-pressure scope passed to [build_n_pathway_exceedance()],
 #'   `"soil"` (default) or `"total_agricultural"`.
 #' @param footprint_category Which per-crop nitrogen mass the footprint traces,
@@ -85,6 +110,13 @@
 #'   a mistyped knob cannot silently run the default and be reported as a
 #'   sensitivity. Defaults to `list()`, which leaves every builder on its own
 #'   default.
+#' @param negative_critical Treatment of cells whose critical surplus is below
+#'   zero, passed to [build_n_boundary_exceedance()]: `"keep"` (default, as the
+#'   source) or `"clamp"` (zero allowance, a declared departure from
+#'   Schulte-Uebbing et al. 2022). It reaches the grid and country boundary and
+#'   through them the classification and the footprint, and is stamped as
+#'   `negative_critical` in both boundary tables, in `sjos_class` and in both
+#'   footprint tables.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -95,7 +127,10 @@
 #'   versus nourishment points; it and `nourishment` carry
 #'   `method_population`, `"read_population"` or `"supplied"`), `sjos_class`
 #'   (the 2-way classification) and `footprint` (a list with the `fp_all` and
-#'   `fp_food` embodied-nitrogen footprints).
+#'   `fp_food` embodied-nitrogen footprints, both carrying `target_nourish`,
+#'   and `target_class_diag`, the per-year count of flows whose consumer
+#'   country-year has no nourishment class). The boundary tables,
+#'   `sjos_class` and both footprint tables carry `negative_critical`.
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -103,13 +138,17 @@ build_sjos_nitrogen <- function(
   data = list(),
   surplus_method = "harvest_removal",
   boundary_land_use = "ara",
+  grassland_split = c("image_density", "none"),
   nh3_source = "soil",
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
+  negative_critical = c("keep", "clamp"),
   example = FALSE
 ) {
+  grassland_split <- rlang::arg_match(grassland_split)
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
+  negative_critical <- rlang::arg_match(negative_critical)
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   # `[[` not `$`: `data$population` partially matches `data$population_age`
   # when the caller left `population` out, and would divide by the age table.
@@ -122,6 +161,8 @@ build_sjos_nitrogen <- function(
   opts <- list(
     surplus_method = surplus_method,
     boundary_land_use = boundary_land_use,
+    grassland_split = grassland_split,
+    negative_critical = negative_critical,
     nh3_source = nh3_source,
     footprint_category = footprint_category,
     nourishment_thresholds = nourishment_thresholds,
@@ -142,17 +183,30 @@ build_sjos_nitrogen <- function(
     ),
     scatter = .sjos_scatter(data, nourishment) |>
       dplyr::mutate(method_population = .env$method_population),
-    sjos_class = sjos_class,
+    sjos_class = .sjos_stamp_critical(sjos_class, opts),
     footprint = .sjos_footprint(
       boundary$country,
       data,
       opts,
-      sjos_class
-    )
+      sjos_class,
+      nourishment
+    ) |>
+      purrr::modify_at(
+        c("fp_all", "fp_food"),
+        \(x) .sjos_stamp_critical(x, opts)
+      )
   )
 }
 
 # ---- Private helpers -------------------------------------------------------
+
+# Every table downstream of the surplus boundary records how negative critical
+# surpluses were treated, so a classification or footprint cannot be read
+# without it. Stamped on the returned tables only: the classification passed
+# to the footprint keeps the column set classify_sjos_n() produces.
+.sjos_stamp_critical <- function(x, opts) {
+  dplyr::mutate(x, negative_critical = .env$opts$negative_critical)
+}
 
 # The one denominator both per-capita axes divide by (#484): the nourishment
 # supply and the anthropogenic-N scatter, read once over every year either
@@ -169,26 +223,25 @@ build_sjos_nitrogen <- function(
 # The surplus-mode boundary at both grid (the per-crop map table Module 4 keys
 # on) and country (the aggregate the classification and footprint consume). Both
 # come from the same surplus and critical layer, so the two resolutions cannot
-# diverge.
+# diverge. The grassland-split inputs (when applicable) are resolved once here
+# so the grid and country calls share the same reads rather than each
+# rebuilding them.
 .sjos_boundary_surplus <- function(surplus, data, opts) {
+  grassland <- .sjos_resolve_grassland(surplus, data, opts)
   list(
-    grid = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "grid"
-    ),
-    country = .sjos_exceedance(
-      surplus,
-      data[["critical"]],
-      opts$boundary_land_use,
-      "country"
-    )
+    grid = .sjos_exceedance(surplus, data, opts, "grid", grassland),
+    country = .sjos_exceedance(surplus, data, opts, "country", grassland)
   )
 }
 
-# One surplus-mode exceedance call, parameterised by resolution.
-.sjos_exceedance <- function(surplus, critical, land_use, resolution) {
+# One surplus-mode exceedance call, parameterised by resolution. The clamp
+# choice, the optional binding table and the grassland-split inputs come from
+# the same opts/data for both resolutions, so the grid and country boundaries
+# cannot diverge on them. grassland_split and grassland are forwarded as-is:
+# build_n_boundary_exceedance() itself ignores both outside `land_use =
+# "all"`, so passing them through for `"ara"`/`"igl"` triggers no extra read
+# and changes nothing.
+.sjos_exceedance <- function(surplus, data, opts, resolution, grassland) {
   years <- unique(surplus$year[!is.na(surplus$year)])
   if (length(years) != 1L) {
     cli::cli_abort(
@@ -197,12 +250,82 @@ build_sjos_nitrogen <- function(
   }
   build_n_boundary_exceedance(
     surplus = surplus,
-    critical = critical,
-    land_use = land_use,
+    critical = data[["critical"]],
+    land_use = opts$boundary_land_use,
     resolution = resolution,
     metric = "surplus",
     actual_year = as.integer(years),
-    critical_reference_year = 2010L
+    critical_reference_year = 2010L,
+    grassland_split = opts$grassland_split,
+    grassland = grassland %||% list(classes = NULL, extensive_budget = NULL),
+    negative_critical = opts$negative_critical,
+    binding = data[["critical_binding"]]
+  )
+}
+
+# Resolve the grassland-split inputs once for a boundary_surplus call: NULL
+# (no read at all) unless the split is actually requested
+# (`boundary_land_use = "all"` and `grassland_split = "image_density"`, the
+# only combination build_n_boundary_exceedance() itself does anything with).
+# An injected data$grassland is used as-is -- its four elements are checked by
+# build_n_boundary_exceedance() itself, not re-validated here; otherwise the
+# real inputs are assembled from data$critical.
+.sjos_resolve_grassland <- function(surplus, data, opts) {
+  if (
+    opts$boundary_land_use != "all" || opts$grassland_split != "image_density"
+  ) {
+    return(NULL)
+  }
+  data[["grassland"]] %||% .sjos_grassland_inputs(surplus, data)
+}
+
+# Assemble the real "image_density" grassland-split inputs when the caller did
+# not inject data$grassland: the reclassification-through-time table
+# (build_grassland_intensity_classes()) for the surplus's own year(s), the
+# IMAGE 2010 extensive budget (.critical_n_extensive_budget() over
+# .critical_n_grassland_layers()), and the "ara"/"igl" critical layers read at
+# the same var and threshold as data$critical, so they are the same published
+# surface build_n_boundary_exceedance() checks them against
+# (.nbx_check_layer_consistency()). Never guesses a var/threshold of its own:
+# without data$critical there is nothing to match ara/igl to, so this aborts
+# rather than reading a default that could silently disagree with the "all"
+# layer already in use.
+.sjos_grassland_inputs <- function(surplus, data) {
+  critical <- data[["critical"]]
+  if (is.null(critical)) {
+    cli::cli_abort(
+      c(
+        "{.arg boundary_land_use = \"all\"} with
+         {.arg grassland_split = \"image_density\"} needs
+         {.field data$critical} to match the {.val ara}/{.val igl} layers
+         against.",
+        i = "Supply {.field data$grassland} directly (its four elements), or
+             {.field data$critical} so the split can build them from the real
+             inputs."
+      ),
+      class = "whep_sjos_grassland_missing"
+    )
+  }
+  .check_columns(critical, c("critical_var", "critical_threshold"), "critical")
+  var <- unique(critical$critical_var)
+  threshold <- unique(critical$critical_threshold)
+  years <- sort(unique(surplus$year[!is.na(surplus$year)]))
+  root <- .critn_root_path(.resolve_critical_n_dir(NULL))
+  list(
+    classes = build_grassland_intensity_classes(years),
+    extensive_budget = .critical_n_extensive_budget(
+      .critical_n_grassland_layers(root)
+    ),
+    critical_ara = read_critical_n(
+      var = var,
+      threshold = threshold,
+      land_use = "ara"
+    ),
+    critical_igl = read_critical_n(
+      var = var,
+      threshold = threshold,
+      land_use = "igl"
+    )
   )
 }
 
@@ -387,13 +510,29 @@ build_sjos_nitrogen <- function(
     )
 }
 
-# The embodied-nitrogen trade footprint from the country exceedance.
-.sjos_footprint <- function(country_exc, data, opts, origin_classes) {
+# The embodied-nitrogen trade footprint from the country exceedance. The
+# producer side carries the per-crop classification; the consumer side carries
+# the consuming country's nourishment class from the same nourishment table the
+# classification used, so the two sides cannot be classified against different
+# bands.
+.sjos_footprint <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  nourishment
+) {
   build_sjos_n_footprint(
     exceedance = country_exc,
     io = data$io,
     category = opts$footprint_category,
-    data = .sjos_fp_data(country_exc, data, opts, origin_classes)
+    data = .sjos_fp_data(
+      country_exc,
+      data,
+      opts,
+      origin_classes,
+      dplyr::select(nourishment, "year", "area_code", "nourish")
+    )
   )
 }
 
@@ -401,23 +540,32 @@ build_sjos_nitrogen <- function(
 # injected pre-traced flows. Domestic closure is a fixture concern only and is
 # supplied by .sjos_n_example_data(); silently creating it here would turn a
 # real no-IO analysis into a false 100% domestic footprint.
-.sjos_fp_data <- function(country_exc, data, opts, origin_classes) {
+.sjos_fp_data <- function(
+  country_exc,
+  data,
+  opts,
+  origin_classes,
+  target_classes
+) {
+  classes <- list(
+    origin_classes = origin_classes,
+    target_classes = target_classes
+  )
   if (!is.null(data$io)) {
-    return(list(origin_classes = origin_classes))
+    return(classes)
   }
   if (rlang::has_name(data, "fp_flows")) {
-    return(list(
-      fp_flows = data$fp_flows,
-      origin_classes = origin_classes
-    ))
+    return(c(list(fp_flows = data$fp_flows), classes))
   }
   if (isTRUE(opts$example)) {
-    return(list(
-      fp_flows = .sjos_fp_flows_fixture(
-        country_exc,
-        opts$footprint_category
+    return(c(
+      list(
+        fp_flows = .sjos_fp_flows_fixture(
+          country_exc,
+          opts$footprint_category
+        )
       ),
-      origin_classes = origin_classes
+      classes
     ))
   }
   cli::cli_abort(c(
