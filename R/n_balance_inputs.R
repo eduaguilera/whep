@@ -859,7 +859,7 @@ build_n_inputs <- function(
 
 # Resolve the manure engine's Cropland `crop` key to an item_cbs_code.
 #
-# The canonical key is `as.character(item_prod_code)` -- a code, per CLAUDE.md's
+# The canonical key is `as.character(item_prod_code)` -- a code, per AGENTS.md's
 # "join on codes, never on names": item_prod_code -> item_cbs_code is 1:1 across
 # all 310 crosswalk rows, whereas item_prod is not (`Fallow` names two codes)
 # and three codes carry no name at all. `.sci_manure_crop_layer()`

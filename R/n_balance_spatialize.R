@@ -616,7 +616,7 @@ spatialize_country_n_to_crops <- function(
 # This table is not a third-party archive: WHEP generates it from Natural Earth
 # plus its own regions.csv, in the same script that produces the nine sibling
 # artefacts that are all pins. Env-var gating is for the multi-GB inputs a user
-# cannot be handed (see CLAUDE.md, "Where input data comes from"), and gating a
+# cannot be handed (see AGENTS.md, "Where input data comes from"), and gating a
 # 62 KB WHEP-built table that way meant every user had to re-run the producer --
 # which is exactly how the retired-vocabulary copy of whep#694 came to be the
 # one everybody read.

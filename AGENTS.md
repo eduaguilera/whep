@@ -1,4 +1,4 @@
-# CLAUDE.md — WHEP Package
+# AGENTS.md — WHEP Package
 
 WHEP is an R package (~140 scripts in `R/`, ~70k lines, 290 documented topics)
 that builds agro-environmental data: FAOSTAT/LUH2 primary production,
@@ -862,28 +862,30 @@ arrive both unchecked and unexcluded.
 The repo used to carry per-tool copies of these rules
 (`.github/copilot-instructions.md`, `.agent/rules/whep.md`). They drifted —
 one still forbade `data.table`, which the package now Imports — so they were
-deleted.
+deleted in favour of a single `CLAUDE.md` with a byte-identical `AGENTS.md`
+copy, kept in step by a CI check. That copy existed only because not every
+agent read `AGENTS.md`; now that they do, the copy is gone and `AGENTS.md`
+is the one file.
 
-`CLAUDE.md` is the source of truth. If a tool needs a different filename,
-give it a **byte-identical copy** and keep it in step:
+`AGENTS.md` is the source of truth. Claude Code (>= 2.1.277), Codex and
+Copilot all read `AGENTS.md` directly — no per-tool copy is needed for any of
+them, and none should exist. Tools that look for another name by default can
+usually be configured to read `AGENTS.md` (for example Gemini CLI's
+`contextFileName` setting).
 
-```bash
-cp CLAUDE.md AGENTS.md   # after editing CLAUDE.md
-```
-
-`AGENTS.md` already exists as one. Add new names to `.Rbuildignore` too, or
-`R CMD check --as-cran` reports a non-standard file at top level.
-
-**Not a symlink.** Git for Windows only materialises symlinks when
-`core.symlinks` is true, which needs Developer Mode or admin rights; with it
-false the file is checked out as plain text containing the target path, so a
-tool would read the nine bytes `CLAUDE.md` instead of these rules — silently,
-and invisibly to a Linux-only CI job.
+**Not a symlink, and not a copy either.** A symlinked or copied per-tool file
+was the earlier failure mode: Git for Windows only materialises symlinks when
+`core.symlinks` is true, which needs Developer Mode or admin rights, so a
+symlink risks silently checking out as plain text containing the target path
+instead of the rules; a copy risks silently drifting from the file it was
+copied from. One canonical file that every tool reads natively removes both
+risks at once.
 
 This is enforced, not merely asked for:
-`.github/workflows/agent-instructions.yaml` fails the build if any known
-agent-instruction filename is present and is not byte-identical to
-`CLAUDE.md`. If your tool wants a name it does not list, add the name to its
-`candidates` list — do not start a second source of truth. If your tool looks
-for a name that workflow does not list, add the name to its `candidates` list
-and symlink it — do not start a second source of truth.
+`.github/workflows/agent-instructions.yaml` fails the build if `AGENTS.md` is
+missing, or if any other known agent-instruction filename (`CLAUDE.md`,
+`.github/copilot-instructions.md`, `.agent/rules/whep.md`, etc.) is present at
+all. If your tool looks for a name that workflow does not list and reads
+`AGENTS.md` natively, there is nothing to add. If your tool cannot be pointed
+at `AGENTS.md`, raise it before adding a copy — do not start a second source
+of truth.

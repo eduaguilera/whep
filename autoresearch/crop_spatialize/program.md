@@ -16,7 +16,7 @@ Each iteration you must:
    shows which call sites trigger them.
 3. **Form ONE hypothesis.** Pick a single targeted change. Write it down.
 4. **Implement.** Modify `inst/scripts/prepare_spatialize_all.R` only.
-   Follow all CLAUDE.md rules: tidyverse style, 80-char lines, no nested
+   Follow all AGENTS.md rules: tidyverse style, 80-char lines, no nested
    functions, namespace prefixes, native pipes.
 5. **Verify correctness.** Run `devtools::test()` — all tests must pass.
    Pre-existing failures: 2 failures in `test_commodity_balance_sheet.R` are
@@ -135,7 +135,7 @@ attaches yields and N rates.
 - **One change per iteration.** Don't bundle multiple optimizations.
 - **Only modify `inst/scripts/prepare_spatialize_all.R`.** Do not change `R/`,
   tests, data, or `_pkgdown.yml`.
-- **Respect CLAUDE.md.** Style rules apply throughout.
+- **Respect AGENTS.md.** Style rules apply throughout.
 - **I/O variance is real.** Raster/parquet reads can swing ±5s between runs.
   If improvement is marginal, run twice before keeping.
 - **Log everything.** Failed experiments stop future iterations from repeating

@@ -1,5 +1,5 @@
 # FAOSTAT area code for Spain. The national tables this file reads are keyed
-# on codes, never on names -- see "Join on codes, never on names" in CLAUDE.md.
+# on codes, never on names -- see "Join on codes, never on names" in AGENTS.md.
 .spain_area_code <- 203L
 
 #' @title GRAFS Nitrogen (N) flows
