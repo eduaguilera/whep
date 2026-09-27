@@ -15,7 +15,8 @@
 #   Rscript --no-init-file inst/scripts/run_nitrogen_balance.R [year] [resolution]
 #
 #   NOT `--vanilla`: that implies `--no-environ`, so R never reads
-#   `~/.Renviron` -- which is exactly where AGENTS.md says every `WHEP_*` path
+#   `~/.Renviron` -- which is exactly where
+#   agent-reference/build-verification-notes.md says every `WHEP_*` path
 #   belongs, and the only place a working checkout may keep them (a `.Renviron`
 #   at the repo root would hide the home one, whep#456). Run this way, the very
 #   first stage that needs a raster died with "No WHEP_TYPE_CROPLAND_PATH input
@@ -54,7 +55,7 @@
 #                           placed on (default `year_aware`; see
 #                           .nbd_cell_polity() below).
 #
-# Requires the local surfaces (AGENTS.md, "New data sources"):
+# Requires the local surfaces (AGENTS.md, "Where input data comes from"):
 #   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
 #   WHEP_HANI_DIR             WHEP_HYDE_DIR
 # plus cached pins for production, fertiliser and the commodity balances.
