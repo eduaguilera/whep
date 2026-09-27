@@ -16,15 +16,16 @@ separation); not every species has a \code{"Liquid"} row.}
 \item{inorganic_n_fraction}{Fraction of the stream's total nitrogen that
 is inorganic (ammoniacal).}
 \item{source}{Short author-year provenance string as cited in the
-Spain_Hist \code{Livestock.xlsx} \code{Manure_inorganic_N} sheet for
-that coefficient. These are secondary citations transcribed from that
-workbook, not independently DOI-verified full bibliographic entries.}
+source livestock coefficient workbook for that coefficient. These are
+secondary citations transcribed from that workbook, not independently
+DOI-verified full bibliographic entries.}
 }
 }
 \source{
 WHEP project-internal coefficient workbook (not a public DOI):
-Spain historical livestock coefficient workbook, \code{Livestock.xlsx},
-sheet \code{Manure_inorganic_N}. That sheet in turn cites: Van Soest, P.
+the livestock coefficient workbook of an earlier regional historical
+reconstruction, manure inorganic-nitrogen sheet. That sheet in turn
+cites: Van Soest, P.
 J. (1994); Nahm, K. H. (2003); Nahm, K. H. (2005); Smith, K. A. & Frost,
 J. P. (2000); Chambers, B. J. et al. (1999); Chambers, B. J. et al.
 (2000); Nicholson, F. A. et al. (1996); Canh, T. T. et al. (1997);
@@ -49,7 +50,7 @@ argument to this table's \code{species}/\code{manure_stream} keys
 (\code{cattle_slurry}/\code{pig_slurry} to the \code{"Liquid"} stream,
 \code{FYM} to Cattle \code{"Solid"}, \code{poultry_manure} to Poultry
 \code{"Solid"}) is a documented modelling choice made when porting this
-table, not a literal Spain_Hist crosswalk; see
+table, not a literal crosswalk from the source implementation; see
 \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}}'s Details.
 }
 \examples{

@@ -20,9 +20,8 @@ read, with a deprecation warning.}
 }
 }
 \source{
-Spain historical nitrogen coefficient workbook
-(\code{N_coefficients.xlsx}, sheet \code{Subsoil_NO3_denitrif}),
-parameterised from Mediterranean and Atlantic subsoil
+Nitrogen coefficient workbook of an earlier regional historical
+reconstruction, parameterised from Mediterranean and Atlantic subsoil
 denitrification literature consistent with the IPCC (2019) indirect
 N2O framework.
 }

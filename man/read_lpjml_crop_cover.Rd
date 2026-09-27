@@ -34,7 +34,8 @@ and adds \code{regime} and \code{cropped_frac}, the regime's share of the cell, 
 a consumer can pool the two back by area. Rainfed and irrigated stands
 of one crop sow and harvest on different dates; the per-regime layer is
 what the herbaceous rainfed and irrigated crop groups of
-\code{\link[=build_carbon_balance]{build_carbon_balance()}} (\code{crop_groups = list(method = "spain_hist")})
+\code{\link[=build_carbon_balance]{build_carbon_balance()}}
+(\code{crop_groups = list(method = "rotation_groups")})
 read, each from its own bands, while plain cropland reads the pool.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a run.

@@ -260,9 +260,10 @@ into one long-format tibble of nitrogen inputs to agricultural land.
 \code{fert_type} values: \code{"bnf"}, \code{"recycling"}, \code{"manure_solid"},
 \code{"manure_liquid"}, \code{"excreta"}, \code{"deposition"}, \code{"human"},
 \code{"som_mineralization"}, \code{"synthetic"} and \code{"accum_loss"}. The last is a
-documented gap (perennial-crop standing-biomass N accumulation from
-Spain_Hist's N_balance.R): its source computation was not available for
-this task, so it is never emitted, only reserved in the vocabulary.
+documented gap (perennial-crop standing-biomass N accumulation from the
+source implementation's nitrogen balance): its source computation was not
+available for this task, so it is never emitted, only reserved in the
+vocabulary.
 
 Terms that are fundamentally per-cell or per-land-use rather than per-crop
 are allocated over the agricultural land support, either supplied as

@@ -396,8 +396,9 @@ allocate_manure_to_land <- function(
   dplyr::select(grass, "year", "territory", "sub_territory", "grass_n_cap")
 }
 
-# Single room-weighted pass (Spain Calc_OA_redistribution analogue): proportional
-# fill clamped to cap, then the clamped excess redistributed to remaining room.
+# Single room-weighted pass (analogue of the source implementation's organic
+# amendment redistribution): proportional fill clamped to cap, then the clamped
+# excess redistributed to remaining room.
 .fill_cropland <- function(streams, crops) {
   coll <- dplyr::select(
     streams,

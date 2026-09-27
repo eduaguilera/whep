@@ -484,8 +484,9 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # The loss cascade's method set, and the one driver column it still needs.
 #
 # build_nitrogen_balance()'s defaults are MANNER ammonia and the Meisinger
-# drainage cascade. Both were ported from Spain_Hist and both need per-cell
-# driver columns that nothing in the package produces globally (#359): MANNER
+# drainage cascade. Both were ported from an earlier regional historical
+# reconstruction and both need per-cell driver columns that nothing in the
+# package produces globally (#359): MANNER
 # wants `manner_fertiliser` plus soil pH, application rate, rainfall,
 # irrigation, wind, technique, system, temperature and incorporation delay;
 # Meisinger wants `drainage_mm` plus tillage, irrigation category, SOM share

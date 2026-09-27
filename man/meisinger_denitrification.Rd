@@ -30,8 +30,8 @@ budgets for soil-crop systems. In R. F. Follett, D. R. Keeney & R.
 M. Cruse (Eds.), \emph{Managing Nitrogen for Groundwater Quality and Farm
 Profitability} (pp. 85-124). Soil Science Society of America.
 \doi{10.2136/1991.managingnitrogen.c5}. Values transcribed from the
-Spain historical nitrogen coefficient workbook
-(\code{N_coefficients.xlsx}, sheet \code{Denitrification_Meisinger}).
+nitrogen coefficient workbook of an earlier regional historical
+reconstruction.
 }
 \usage{
 meisinger_denitrification

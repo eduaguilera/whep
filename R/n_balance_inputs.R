@@ -28,10 +28,10 @@
 # that silently cost the gridded surplus 1.66 Tg of manure N, kept only so the
 # tonnage stays measurable by differencing.
 #
-# accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
-# from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
-# was not available for this task. It is listed in the fert_type vocabulary
-# below but never emitted -- do not guess a formula.
+# accum_loss (perennial-crop standing-biomass N accumulation/decumulation, from
+# the source implementation's nitrogen balance) is a DOCUMENTED GAP: its source
+# computation was not available for this task. It is listed in the fert_type
+# vocabulary below but never emitted -- do not guess a formula.
 
 #' Assemble gridded nitrogen inputs from every WHEP N-input source.
 #'
@@ -48,9 +48,10 @@
 #' `fert_type` values: `"bnf"`, `"recycling"`, `"manure_solid"`,
 #' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"human"`,
 #' `"som_mineralization"`, `"synthetic"` and `"accum_loss"`. The last is a
-#' documented gap (perennial-crop standing-biomass N accumulation from
-#' Spain_Hist's N_balance.R): its source computation was not available for
-#' this task, so it is never emitted, only reserved in the vocabulary.
+#' documented gap (perennial-crop standing-biomass N accumulation from the
+#' source implementation's nitrogen balance): its source computation was not
+#' available for this task, so it is never emitted, only reserved in the
+#' vocabulary.
 #'
 #' Terms that are fundamentally per-cell or per-land-use rather than per-crop
 #' are allocated over the agricultural land support, either supplied as

@@ -120,8 +120,9 @@ runs the nitrogen-loss cascade (\code{\link[=calculate_nh3]{calculate_nh3()}}, \
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}), closes the
 balance (\code{N_input_full - N_output_full}), applies the N-limitation cap on
 SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
-plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
-Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
+plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from the
+balance and indicator equations of an earlier regional historical
+reconstruction.
 }
 \details{
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in

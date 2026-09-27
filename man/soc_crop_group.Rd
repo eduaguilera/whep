@@ -29,11 +29,11 @@ Map \code{item_prod_code} and an irrigation flag to the crop group the soil
 carbon balance marches: \code{cropland_rainfed_herbaceous},
 \code{cropland_irrigated_herbaceous}, or one group per woody species such as
 \code{cropland_rainfed_olive} (the species slug comes from \code{Name_biomass}, the
-column Spain_Hist's own category is built from, so it is "Olive" rather
-than the \code{names_cats} key "Olives"). Every label keeps the \code{cropland_}
-prefix, which
-is what lets the balance recognise a group as cropland for its soil-cover
-curve, its C:N lookup and its water term without enumerating groups.
+column the source implementation builds its category from, so it is "Olive"
+rather than the \code{names_cats} key "Olives"). Every label keeps the \code{cropland_}
+prefix, which is what lets the balance recognise a group as cropland for its
+soil-cover curve, its C:N lookup and its water term without enumerating
+groups.
 }
 \examples{
 soc_crop_group(c(15L, 260L, 260L), irrigated = c(FALSE, FALSE, TRUE))

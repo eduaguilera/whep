@@ -1,8 +1,9 @@
-# Full nitrogen balance assembler (Module C, Task C7), ported from Spain_
-# Hist's Balance_parameters()/N_Figs.R equations. Combines the gridded N-
-# input assembly (build_n_inputs(), R/n_balance_inputs.R) with the output
-# side (production, residues, grazed weeds, soil organic-matter change) and
-# the loss cascade (calculate_nh3()/calculate_soil_n2o()/
+# Full nitrogen balance assembler (Module C, Task C7), ported from the balance
+# and indicator equations of an earlier regional historical reconstruction.
+# Combines the gridded N-input assembly (build_n_inputs(),
+# R/n_balance_inputs.R) with the output side (production, residues, grazed
+# weeds, soil organic-matter change) and the loss cascade
+# (calculate_nh3()/calculate_soil_n2o()/
 # calculate_n_leaching()/calculate_indirect_n2o_nh3(), R/n_balance_
 # losses.R) into one balance-closing tibble with NUE indicators, an
 # N-limitation cap on SOM sequestration and a GWP/CO2e indicator.
@@ -54,8 +55,9 @@
 #' [calculate_n_leaching()], [calculate_indirect_n2o_nh3()]), closes the
 #' balance (`N_input_full - N_output_full`), applies the N-limitation cap on
 #' SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
-#' plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
-#' Spain_Hist's `Balance_parameters()`/`N_Figs.R` equations.
+#' plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from the
+#' balance and indicator equations of an earlier regional historical
+#' reconstruction.
 #'
 #' @param methods A named list of method choices: `nh3` (forwarded to
 #'   [calculate_nh3()], default `"manner"`), `n2o` (forwarded to
@@ -244,10 +246,10 @@ build_nitrogen_balance <- function(
 
 # ---- Step 1: input aggregates ---------------------------------------------
 
-# The four N_input_* sums (Balance_parameters, verified). "recycling" is
+# The four N_input_* sums, as in the source implementation. "recycling" is
 # deliberately excluded (it feeds the residue OUTPUT terms, not an input
-# sum) and n_input_for_n2o_t is a separate sum that DOES include it
-# (N_Figs.R:496).
+# sum) and n_input_for_n2o_t is a separate sum that DOES include it, as the
+# source's N2O input sum does.
 .nb_inputs <- function(n_inputs, key) {
   provenance <- .nb_input_methods(n_inputs, key)
   wide <- n_inputs |>
@@ -599,8 +601,9 @@ build_nitrogen_balance <- function(
     return(dplyr::mutate(x, som_sequestration_n_t = 0))
   }
   seq_n <- data$carbon_balance |>
-    # Crop GROUPS are cropland too (crop_groups = list(method = "spain_hist")),
-    # so this keys on the prefix, not the literal.
+    # Crop GROUPS are cropland too
+    # (crop_groups = list(method = "rotation_groups")), so this keys on the
+    # prefix, not the literal.
     dplyr::filter(.soc_is_cropland(.data$land_use)) |>
     dplyr::mutate(item_cbs_code = NA_integer_) |>
     dplyr::summarise(
@@ -721,8 +724,8 @@ build_nitrogen_balance <- function(
 # ---- Step 3b/c: balance closure, SOM cap, NUE ------------------------------
 
 # First-pass balance from the input/output aggregates, BEFORE leaching (the
-# leaching call needs n_surplus_t from this pass, per n_fun.r:978-985's
-# ordering).
+# leaching call needs n_surplus_t from this pass, per the source
+# implementation's ordering).
 .nb_indicators_pass1 <- function(x) {
   x |>
     .nb_output_aggregates() |>
@@ -758,7 +761,7 @@ build_nitrogen_balance <- function(
     )
 }
 
-# N-limitation cap (N_balance.R:169-188, verified): a soil already in
+# N-limitation cap (as in the source implementation): a soil already in
 # deficit cannot additionally sequester N it doesn't have. Only engages
 # when n_balance_t < 0 AND som_sequestration_n_t > 0.
 .nb_cap_som <- function(x) {
@@ -818,8 +821,8 @@ build_nitrogen_balance <- function(
   dplyr::left_join(x, drivers, by = key, relationship = "many-to-one")
 }
 
-# Five NUE ratios (Balance_parameters n_fun.r:375-402 + NUE_calc N_Figs.R:
-# 338-344): nue_std/nue_residues divide by N_input_std, nue_som/nue_useful
+# Five NUE ratios (the source implementation's balance parameters and NUE
+# calculation): nue_std/nue_residues divide by N_input_std, nue_som/nue_useful
 # by N_input_full, nue_full by N_input_SOM. These denominators are NOT
 # collapsed into one shared variable -- the source genuinely uses two
 # different conventions and this keeps them independently traceable.

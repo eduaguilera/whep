@@ -43,10 +43,11 @@ application-technique survey data does not exist (see Details).
 \details{
 \link{manner_default_technique_mix} is a deliberate, permanent gross-
 assumption default, not a region/era-specific survey. It fixes
-\code{technique = "Broadcast"} on every row, matching Spain_Hist's own real
-production MANNER run, which itself hardcodes Broadcast application
-nationally with no region/era variation
-(\code{factor_ap_technique <- application_technique_manure[Technique == "Broadcast", ...]} applied unconditionally to its whole national run).
+\code{technique = "Broadcast"} on every row, matching the production MANNER run
+of the earlier regional historical reconstruction this model is ported
+from, which itself applies the Broadcast application-technique factor
+unconditionally to its whole national run, with no region/era
+variation.
 For incorporation delay, it blends four of
 \link{manner_incorporation_factor}'s \code{delay_bin} categories in equal 25\%
 shares: 25\% of applied nitrogen assumed never incorporated

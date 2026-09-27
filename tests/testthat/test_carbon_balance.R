@@ -157,8 +157,8 @@ test_that("init weights per-class equilibria by land-use fractions", {
   # The default opens each class at its own equilibrium.
   own <- whep:::.cb_init_density(classes, "own_equilibrium")
   testthat::expect_equal(own$stock_mgc_ha, c(40, 70), tolerance = 1e-9)
-  # "cell_average" is the Spain historical behaviour, still selectable: every
-  # class in the cell opens at the fraction-weighted mean.
+  # "cell_average" is the source implementation's behaviour, still
+  # selectable: every class in the cell opens at the fraction-weighted mean.
   avg <- whep:::.cb_init_density(classes, "cell_average")
   testthat::expect_equal(
     unique(avg$stock_mgc_ha),
@@ -1962,7 +1962,7 @@ testthat::test_that("every method choice reaches both resolutions", {
     method_class_water = "none",
     method_area_basis = "renormalised",
     method_grazing = "whep",
-    method_crop_groups = "spain_hist"
+    method_crop_groups = "rotation_groups"
   )
   cover <- .cb_full_coverage(marched)
   grid <- whep:::.cb_finalise(marched, "grid", cover)

@@ -506,7 +506,7 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero
 
 testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exactly on a shared drainage edge", {
   # S = 1000 is the shared High/Very_high edge; strictly-open bins match
-  # neither (n_fun.r:939), so the row is unmatched and aborts.
+  # neither, so the row is unmatched and aborts.
   x <- tibble::tribble(
     ~n_surplus_t,
     ~fert_type,
@@ -596,9 +596,9 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows wi
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf) for Mediterranean rows", {
-  # Same Solid / MED / Drip combination as the calculate_soil_n2o aguilera
-  # test (ef = 0.0051), but the indirect NH3-N2O term is NH3_MgN * N2O_EF
-  # (n_fun.r:955-957): the disaggregated ef ALONE, WITHOUT the fertiliser
+  # Same Solid / MED / Drip combination as the calculate_soil_n2o aguilera test
+  # (ef = 0.0051), but the indirect NH3-N2O term is NH3_MgN * N2O_EF as in the
+  # source implementation: the disaggregated ef ALONE, WITHOUT the fertiliser
   # modifier mf = 0.38 that only applies to the direct-N2O term.
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
