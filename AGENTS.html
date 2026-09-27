@@ -95,28 +95,8 @@
 <li>Cite in the roxygen <code>@description</code> or a code comment at the point of use, not only in the PR body, which nobody reads a year later.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="labels--the-triage-surface">Labels — the triage surface<a class="anchor" aria-label="anchor" href="#labels--the-triage-surface"></a></h3>
-<p>Labels are how the maintainer decides at a glance what can be batch-merged and what needs a domain expert. Label <strong>every</strong> issue extensively:</p>
-<ul><li>
-<strong>Triage axis (required, exactly one)</strong>: <code>mechanical</code> or <code>needs-expert</code>. Reference-value and coefficient changes are always <code>needs-expert</code>, even at one line. Infra, packaging, CRAN, docs, testing, and pure crash/identity fixes are <code>mechanical</code>. When in doubt, <code>needs-expert</code>.</li>
-<li>
-<strong>Subsystem</strong> (one or more, where applicable): <code>area:cbs</code>, <code>area:production</code>, <code>area:livestock</code>, <code>area:trade</code>, <code>area:footprint</code>, <code>area:nitrogen</code>, <code>area:soc</code>, <code>area:gapfilling</code>, <code>area:lmdi-decomp</code>, <code>area:data-io</code>, <code>area:spatialize</code>, <code>area:regions</code>, plus cross-cutting <code>fabio</code>, <code>lpjml</code>, <code>footprint-extension</code>. Cross-cutting infra/meta issues legitimately carry none — do not force one.</li>
-<li>
-<strong>Type</strong>: <code>bug</code> / <code>enhancement</code> / <code>documentation</code> / <code>dev-infra</code> / <code>testing</code> / <code>release</code>.</li>
-<li>
-<strong>Priority</strong>: a <code>priority:*</code> label.</li>
-</ul><p>Apply the full set when opening an issue; backfill missing labels when you touch an old one.</p>
-<p><strong>A missing axis or an understated priority makes a real defect invisible.</strong> The 2026-08-27 sweep found ~15 issues with no triage axis at all, and one that sat at <code>priority:low</code> for months while describing a coefficient table that is live in the Tier 2 emissions path — it was then rediscovered four times by work that could not see it. Priority is not a guess at effort; it is what decides whether anyone looks. If an issue describes something that moves a published number today, it is not <code>priority:low</code>, however small the diff.</p>
-<p>PRs do not need the labels duplicated when they close an already-labelled issue.</p>
-<div class="section level4">
-<h4 id="contributor-facing-labels">Contributor-facing labels<a class="anchor" aria-label="anchor" href="#contributor-facing-labels"></a></h4>
-<p>Three further labels exist for people outside the team, who pick work by them. Guidelines live in <code>.github/CONTRIBUTING.md</code> (that path keeps them out of the package build — <code>^\.github$</code> is in <code>.Rbuildignore</code>).</p>
-<ul><li>
-<strong><code>good first issue</code></strong> + <strong><code>help wanted</code></strong>: small, self-contained and precisely specified. <strong>Verify the defect still exists in current code before applying it.</strong> Several audit-era issues had already been fixed by a later commit while the issue stayed open; sending a newcomer to one of those is worse than leaving it unlabelled.</li>
-<li>
-<strong><code>no-data-needed</code></strong>: the issue can be reproduced, fixed <strong>and verified</strong> using only a clone. Package data (<code>data/*.rda</code>, <code>inst/extdata/</code>), hand-built <code>tribble()</code> fixtures and injected arguments all count as available; pins, <code>WHEP_*_DIR</code> rasters and any network read do not.</li>
-</ul><p><code>no-data-needed</code> exists because the data barrier, not the science, is what usually blocks an outside contributor: the test suite is fully offline, but a real pipeline build needs inputs that cannot be handed out. Two rules keep it worth having — apply it only after checking the verification path really is offline, and never apply it to code that is not on <code>main</code> (work living on an unmerged feature branch cannot be picked up from a fresh clone).</p>
-</div>
+<h3 id="labels">Labels<a class="anchor" aria-label="anchor" href="#labels"></a></h3>
+<p>Issue/PR labelling conventions (triage axis, subsystem, type, priority, plus the three contributor-facing labels) moved to <code>agent-reference/issue-labels.md</code>. Read it before opening or labelling an issue.</p>
 </div>
 <div class="section level3">
 <h3 id="writing-a-pr-or-issue-body">Writing a PR or issue body<a class="anchor" aria-label="anchor" href="#writing-a-pr-or-issue-body"></a></h3>
@@ -142,35 +122,13 @@
 <span>  error_on <span class="op">=</span> <span class="st">"error"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># linters and exclusions come from .lintr</span></span></code></pre></div>
-<p>Gotchas worth knowing before losing an hour:</p>
-<ul><li>
-<code>WHEP_*</code> paths belong in <code>~/.Renviron</code> and are read from there. Do <strong>not</strong> add a <code>.Renviron</code> at the repo root: R reads a working-directory <code>.Renviron</code> <em>instead of</em> <code>~/.Renviron</code>, never both, so one here silently hides every <code>WHEP_*</code> path an R session started at the root would otherwise see. That was #456, fixed by moving <code>_R_CHECK_SYSTEM_CLOCK_</code> out of a tracked <code>.Renviron</code> into the R-CMD-check workflow env and <code>.Rprofile</code>.</li>
-<li>
-<code>.Rprofile</code> has the same shape and the same trap: R reads the working-directory one <em>instead of</em> <code>~/.Rprofile</code>. The repo profile therefore <strong>chain-sources the user profile first</strong>, and must keep doing so. That line is not cosmetic: <code>r-lib/actions/setup-r</code> delivers <code>use-public-rspm: true</code> by writing the RSPM <code>repos</code> option into <code>~/.Rprofile</code>, so while it was shadowed every cold dependency install on ubuntu built all 141 packages from source instead of taking Linux binaries (#1102).</li>
-<li>Long pipeline builds are minutes-to-hours and read pins or multi-GB local rasters. Never put one in a test or an example; use the <a href="#documentation"><code>example = FALSE</code> fixture pattern</a>.</li>
-<li>
-<code>validation/</code> holds the ground-truth harness (<code>Rscript validation/validate_all.R</code>) — it compares real WHEP output against independent statistics. It <strong>needs network and external data</strong>, is <code>.Rbuildignore</code>d, and is not part of <code>R CMD check</code>. Run it when a change moves published numbers; see <code>validation/README.md</code> and <code>validation/SOURCES.md</code>.</li>
-</ul></div>
+<p>Gotchas worth knowing before losing an hour (<code>.Renviron</code>/<code>.Rprofile</code> shadowing, long pipeline builds, <code>validation/</code>) moved to <code>agent-reference/build-verification-notes.md</code>. Read it before debugging an env var or profile that “should” be set.</p>
+</div>
 <div class="section level2">
 <h2 id="conventions-that-are-easy-to-get-wrong">Conventions that are easy to get wrong<a class="anchor" aria-label="anchor" href="#conventions-that-are-easy-to-get-wrong"></a></h2>
 <div class="section level3">
 <h3 id="area-codes-and-polity-columns">Area codes and polity columns<a class="anchor" aria-label="anchor" href="#area-codes-and-polity-columns"></a></h3>
-<p>There are <strong>three</strong> territorial columns, they do three different jobs, and using one for another job silently misattributes data:</p>
-<ul><li>
-<code>reporting_polity_code</code> — <strong>the identity.</strong> The polity itself (<code>"ESP-1846-1914"</code>), year-aware: the same <code>area_code</code> resolves to different polities in different years. This is what says which territory a row is about, and it is the column a published output must carry.</li>
-<li>
-<code>polity_area_code</code> — <strong>the aggregation key.</strong> <code>coalesce(fabio_code, area_code)</code>: FABIO’s country numbering, adopted so WHEP’s builds sum on the same grain FABIO does. It is a <em>bucket, not an identity</em> — several reporting areas can share one. Legitimate in a <code>by =</code>; never a statement about who a row is.</li>
-<li>
-<code>area_code</code> — <strong>the provenance.</strong> The FAOSTAT-style area key the source used. Belongs at ingestion; it is not an identity either, because FAOSTAT retires and re-cuts codes as history happens.</li>
-</ul><p>The bucket is <strong>not</strong> required by the input-output model: <code><a href="reference/build_io_model.html">build_io_model()</a></code> sizes each year’s matrix from that year’s own areas (<code>.get_io_dims(su, cbs_yr)</code>), so every year is solved independently and no fixed country list is needed. The folding is inherited FABIO numbering, and almost all of it is gone — the Rest-of-World fold was removed in #628 and is un-folded by default. Measured live through <code>.polity_crosswalk()</code>, exactly three area codes still fold into a different bucket (276 and 277 into 206, 62 into 238), and <code><a href="reference/polity_bucket_coverage.html">polity_bucket_coverage()</a></code> reports <strong>one</strong> bucket summing two live territories: 206, Sudan and South Sudan, from 2012. Un-folding it is #680.</p>
-<div class="section level4">
-<h4 id="a-published-row-is-a-polity-period">A published row is a polity-period<a class="anchor" aria-label="anchor" href="#a-published-row-is-a-polity-period"></a></h4>
-<p><strong>Decided 2026-09-22 (#1192).</strong> One published row answers for the entity that existed that year, not for a reporting area across all time. A territorial handover is a real discontinuity and the series steps at it.</p>
-<p>The comparable-across-time view is <strong>derived, not the default</strong>: call the exported <code><a href="reference/build_constant_territory_series.html">build_constant_territory_series()</a></code>, which reallocates onto a reference year’s boundaries and reports <code>imputed_share</code> so the estimate says how much of itself was filled in.</p>
-<p>This matters at every reduction, because a <code>by =</code> answers it implicitly. 50 area codes carry more than one polity in or after 1961 (119 across all time), overwhelmingly decolonisation handovers — area 4 Algeria splits at 1962, 7 Angola at 1975, 16 Bangladesh at 1971. Grouping on the polity splits those series; grouping on the area does not.</p>
-<p><strong>Verify such a change by row and distinct-key counts, never by totals.</strong> Mass is conserved either way — it just spreads over more rows — so a totals diff reads as success. That is exactly how #561/#563 shipped a bucket that stopped summing without one value moving.</p>
-<p><code>R/polity_columns_doc.R</code> documents these once; inherit that section instead of writing a fresh, subtly different description. Rows that resolve to no polity keep <code>NA</code> rather than being dropped, so gaps stay visible.</p>
-</div>
+<p>Why <code>reporting_polity_code</code>, <code>polity_area_code</code> and <code>area_code</code> are not interchangeable, and the polity-period convention, moved to <code>agent-reference/area-codes-and-polities.md</code>. Read it before grouping, joining or reducing on any of them.</p>
 </div>
 <div class="section level3">
 <h3 id="join-on-codes-never-on-names">Join on codes, never on names<a class="anchor" aria-label="anchor" href="#join-on-codes-never-on-names"></a></h3>
@@ -208,9 +166,7 @@
 </div>
 <div class="section level3">
 <h3 id="nse-globals">NSE globals<a class="anchor" aria-label="anchor" href="#nse-globals"></a></h3>
-<p>Every NSE symbol must be declared in the <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> call at the top of <code>R/utils.R</code> or <code>R CMD check</code> NOTEs — and the CI action fails on warnings and above, never on notes, so an undeclared symbol merges green. That is how #1114 shipped <code>predecessor</code> and <code>reporting_polity_code</code> undeclared, and why #1135 had to be opened after it. <code>tests/testthat/test_utils.R</code> now runs the same scan <code>R CMD check</code> runs, with the same settings, and <strong>fails</strong> on it, naming the symbol, its file and its lines.</p>
-<p>The call is ~2000 entries long: <strong>append</strong> a small block at the end, above the <code>NULL</code> sentinel, preceded by a comment naming the file and what the symbols are for, following the existing pattern. Do not reorder or alphabetise it — the file-grouped comments are the only thing making it reviewable.</p>
-<p>The file must contain <strong>nothing but</strong> that one call, and the list must keep ending in <code>NULL</code>. Both are preconditions of the <code>merge=union</code> entry the next section explains, and the same test file asserts them: without the sentinel, two branches each appending a block merge into <code>"last of A"</code> followed by <code>"first of B"</code> with no comma between — a syntax error, introduced silently.</p>
+<p>The <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> append procedure moved to <code>agent-reference/merge-and-globals.md</code>. Read it before declaring a new NSE symbol.</p>
 </div>
 <div class="section level3">
 <h3 id="datatable-inside-private-helpers">data.table inside private helpers<a class="anchor" aria-label="anchor" href="#datatable-inside-private-helpers"></a></h3>
@@ -227,16 +183,7 @@
 <strong>Verified on-demand download</strong> — for third-party data already published with a stable DOI and checksum: download, verify the published MD5, cache under <code>rappdirs::user_cache_dir("whep")</code>, and treat the env var as an override. Prefer this over a pin, which adds an uncheckable second copy (#457). Current cases: the LUH2 <code>states.nc</code> (<code><a href="reference/read_luh2_landuse.html">read_luh2_landuse()</a></code>, Zenodo record 15556812) and the critical-nitrogen archive (<code><a href="reference/read_critical_n.html">read_critical_n()</a></code>, Zenodo record 6395016).</li>
 </ul><div class="section level4">
 <h4 id="fixing-the-reader-is-half-the-job-the-pin-it-feeds-is-now-stale">Fixing the reader is half the job: the pin it feeds is now stale<a class="anchor" aria-label="anchor" href="#fixing-the-reader-is-half-the-job-the-pin-it-feeds-is-now-stale"></a></h4>
-<p>A pin is a <strong>frozen output of code in this repository</strong>. So whenever a change alters what a producer function emits, the pin that function made is wrong from that moment, and <strong>the fix moves no published number until the pin is regenerated and re-uploaded</strong>. A merged PR whose effect is still sitting behind a stale pin is not done; it is latent.</p>
-<p>This is not hypothetical. whep#1092 restored FAOSTAT’s <code>1000 Head</code> live-animal trade – 76.1 billion head of poultry the reader had been dropping. The reader fix merged as PR #1113 and changed nothing anyone can see, because <code><a href="reference/build_detailed_trade.html">build_detailed_trade()</a></code> is the <code>bilateral_trade</code> <strong>producer</strong> and has no caller in <code>R/</code>: every published figure still comes from the pin built by the old, filtering reader.</p>
-<p>So when you touch a producer:</p>
-<ol style="list-style-type: decimal"><li>
-<strong>Say so in the PR body</strong>, explicitly: name the pin, and state that the change is latent until it is regenerated. “No published value changes” is the right measurement and the wrong conclusion if the reason is a stale pin – distinguish “this genuinely moves nothing” from “this moves nothing <em>yet</em>”.</li>
-<li>
-<strong>Open a follow-up issue for the regeneration</strong> if you cannot do it in the PR, and link it. Regenerating usually needs board credentials and a long run, so it is legitimately separate work – but it must be tracked, not assumed.</li>
-<li>
-<strong>Check whether the function you changed is a producer at all.</strong> <code>git grep</code> its name across <code>R/</code>: no caller outside <code>inst/scripts/</code> is the signature of one.</li>
-</ol><p>The LPJmL-derived pins carry an extra constraint – regenerate all four together, from one run, via <code>regenerate_whep_lpjml_pins()</code>. See the data pipeline section.</p>
+<p>Moved to <code>agent-reference/data-pipeline.md</code>. Read it before or after changing a producer function — the fix does not move a published number until the pin it feeds is regenerated.</p>
 </div>
 </div>
 <div class="section level3">
@@ -249,14 +196,8 @@
 </div>
 <div class="section level3">
 <h3 id="generated-and-append-only-files--regenerate-never-hand-merge">Generated and append-only files — regenerate, never hand-merge<a class="anchor" aria-label="anchor" href="#generated-and-append-only-files--regenerate-never-hand-merge"></a></h3>
-<p><code>.gitattributes</code> writes down the deterministic resolution for the tracked files that unrelated branches collide on by construction, so it is not rediscovered per merge. Over the 30 days to 2026-09-16, of 608 commits on <code>main</code>, <strong>52</strong> touched <code>R/utils.R</code>, <strong>37</strong> <code>NAMESPACE</code> and <strong>22</strong> <code>data/whep_inputs.rda</code> — the last of those conflicts unconditionally, because git cannot merge a binary at all.</p>
-<ul><li>
-<strong><code>R/utils.R</code></strong> — <code>merge=union</code>, so two appended blocks both survive. That is always the right answer for an allowlist of strings: order carries no meaning, <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">globalVariables()</a></code> drops duplicates, and each side keeps its own comment header. Its two preconditions are in <a href="#nse-globals">NSE globals</a>.</li>
-<li>
-<strong><code>NAMESPACE</code> and <code>man/</code></strong> — roxygen output. Never hand-merge either: take one side and re-run <code>devtools::document()</code>, which regenerates both from <code>R/</code>. <code>NAMESPACE</code> also carries <code>merge=union</code> so the common case — two branches each adding an export — resolves itself, and the <code>document()</code> run that <em>Before committing</em> requires anyway puts the block back in sorted order.</li>
-<li>
-<strong><code>data/*.rda</code></strong> — marked <code>binary</code>, so git leaves the conflict for a human instead of half-merging it. Resolve the <strong>source</strong> — the CSV under <code>inst/extdata/harmonization/</code>, or <code>inst/extdata/whep_inputs.csv</code> — then re-run the builder from <a href="#package-data-updates">Package data updates</a>. Never pick a side of the <code>.rda</code> itself: <code>tests/testthat/test_data_raw_freshness.R</code> fails when a table stops matching its own source, and that gate is the only thing standing between a lazy resolution and a pin version going missing unseen.</li>
-</ul></div>
+<p>The per-file merge-conflict rules for <code>R/utils.R</code>, <code>NAMESPACE</code>, <code>man/</code> and <code>data/*.rda</code> moved to <code>agent-reference/merge-and-globals.md</code>. Read it before resolving a conflict in any of them.</p>
+</div>
 <div class="section level3">
 <h3 id="file-naming">File naming<a class="anchor" aria-label="anchor" href="#file-naming"></a></h3>
 <p>New scripts in <code>R/</code> are <code>snake_case.R</code>, named after the subsystem (<code>n_balance_losses.R</code>), never after a person. <code>tests/testthat/test_&lt;script&gt;.R</code> mirrors the script. Some legacy files (<code>Typologies_Julia.R</code>, <code>whep_typologies_spain.R</code>) break this; do not copy them.</p>
@@ -345,16 +286,7 @@
 <span></span>
 <span><span class="co"># 4. Test</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<div class="section level3">
-<h3 id="there-are-three-verification-surfaces-and-they-disagree">There are three verification surfaces and they disagree<a class="anchor" aria-label="anchor" href="#there-are-three-verification-surfaces-and-they-disagree"></a></h3>
-<p>A green <code>devtools::test()</code> does <strong>not</strong> mean a green CI. Three layouts exist:</p>
-<ol style="list-style-type: decimal"><li>
-<strong>Source checkout</strong> — what <code>devtools::test()</code> runs. <code>.Rprofile</code> calls <code>devtools::load_all()</code>, which pre-attaches every package data object, and <code>inst/</code> is present.</li>
-<li>
-<strong><code>R CMD INSTALL .</code></strong> — installs <code>inst/</code> <strong>wholesale</strong>, ignoring <code>.Rbuildignore</code>.</li>
-<li>
-<strong>Built tarball</strong> — what <code>R CMD check</code>, r-universe and CRAN run. <code>.Rbuildignore</code> applies, so <code>^inst/scripts$</code>, <code>^validation$</code> and <code>data-raw</code> are simply <strong>absent</strong>.</li>
-</ol><p>Only (3) is what CI runs, and each surface has shipped a real failure the others could not see: a data fingerprint that hashed 55 of 100 objects because <code>load_all()</code> had already attached them; a test that “passed” under <code>INSTALL</code> while its script was <code>.Rbuildignore</code>d out of the tarball; an assertion that failed only because CI resolves a newer dplyr. If a change touches <code><a href="https://rdrr.io/r/utils/data.html" class="external-link">utils::data()</a></code>, package data, a lazy-loaded object or anything under <code>inst/</code>, verify on the tarball before claiming it is green.</p>
+<p>Why a green <code>devtools::test()</code> is not a green CI — the three build layouts and how they disagree — moved to <code>agent-reference/build-verification-notes.md</code>. Read it if a change touches package data, a lazy-loaded object or anything under <code>inst/</code>.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
 <span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
 <span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
@@ -363,42 +295,13 @@
 <p>Commits are conventional-commit style with a subsystem scope (<code>fix(cbs): key source selection on area_code, not periodized name</code>), branches are <code>fix/…</code>, <code>feat/…</code>, <code>perf/…</code> or <code>&lt;user&gt;/&lt;topic&gt;</code>.</p>
 <p><strong>Write <code>Closes #N</code> (or <code>Refs #N</code>) in the PR body, always.</strong> A backlog sweep found issues that had been fixed weeks earlier by PRs that never named them — they stayed open, and later work re-derived them from scratch. If a PR only partly addresses an issue, say <code>Refs #N</code> and state in the body which part survives, so the issue can be rescoped rather than closed by accident.</p>
 </div>
-</div>
 <div class="section level2">
 <h2 id="data-pipeline">Data pipeline<a class="anchor" aria-label="anchor" href="#data-pipeline"></a></h2>
-<ul><li>
-<strong>Primary production</strong>: <code><a href="reference/build_primary_production.html">build_primary_production()</a></code> — FAOSTAT + LUH2 extension (1850–2023).</li>
-<li>
-<strong>CBS</strong>: <code><a href="reference/build_commodity_balances.html">build_commodity_balances()</a></code> — long format output with <code>source</code> and <code>fao_flag</code> columns.</li>
-<li>
-<strong>Processing coefficients</strong>: <code><a href="reference/build_processing_coefs.html">build_processing_coefs()</a></code> — cascades from CBS.</li>
-<li>
-<strong>Soil water balance</strong>: <code><a href="reference/build_water_balance.html">build_water_balance()</a></code> — gridded (0.5° cell × polity) annual water budget from LPJmL hydrology (drainage for N leaching); <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> emits the monthly SOC climate drivers.</li>
-<li>
-<strong>Soil carbon (SOC)</strong>: <code><a href="reference/build_carbon_balance.html">build_carbon_balance()</a></code> — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. <code>calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg", "century"))</code> wraps the five SOC models (default <code>"hsoc"</code>); <code><a href="reference/build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> assembles humified C inputs.</li>
-<li>
-<strong>Soil nitrogen balance</strong>: <code><a href="reference/build_nitrogen_balance.html">build_nitrogen_balance()</a></code> — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). <code><a href="reference/build_n_inputs.html">build_n_inputs()</a></code> assembles the input terms; <code><a href="reference/calculate_nh3.html">calculate_nh3()</a></code> / <code><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o()</a></code> / <code><a href="reference/calculate_n_leaching.html">calculate_n_leaching()</a></code> are the selectable loss methods; <code><a href="reference/build_n_deposition.html">build_n_deposition()</a></code> / <code><a href="reference/build_human_n.html">build_urban_n()</a></code> read gridded deposition and urban/human N.</li>
-<li>
-<strong>Footprints</strong>: <code><a href="reference/build_footprint.html">build_footprint()</a></code> over the FABIO-style IO core (<code><a href="reference/build_io_model.html">build_io_model()</a></code>, <code>leontief.R</code>), with extensions wired per stressor (<code>crop_land_extension.R</code>, <code>grassland_land_extension.R</code>, <code>livestock_ghg_extension.R</code>, <code>energy_co2_extension.R</code>, <code>crop_soil_n2o_extension.R</code>, <code>n_exceedance_extension.R</code>). Conservation checks live in <code>R/conservation.R</code> — a footprint change should exercise them.</li>
-<li>
-<strong>Source labels</strong>: use dataset-specific names (<code>FAOSTAT_prod</code>, <code>FAOSTAT_FBS_New</code>, etc.).</li>
-<li>
-<strong>New data sources</strong>: see <a href="#where-input-data-comes-from">Where input data comes from</a> for which of the three mechanisms to use.</li>
-<li>
-<strong>LPJmL outputs are the one input a user cannot obtain</strong>, so unlike the third-party rasters they are <strong>pinned, and <code>WHEP_LPJML_RUN_DIR</code> is optional</strong>. <code><a href="reference/build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code> reads <code>lpjml-grass-natural-net-c</code> and <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> reads <code>lpjml-soc-hydrology</code> by default; set the env var (or pass <code>run_dir</code>) only to derive those layers from a local run instead. Both artifacts hold <strong>only</strong> LPJmL-derived quantities — grazing excreta, humification fractions, CRU air temperature and the HWSD texture products are always computed locally, so the pinned and run-derived paths cannot silently disagree.</li>
-<li>
-<strong>Regenerate the LPJmL-derived pins together, from one run.</strong> Four pins carry LPJmL model <em>output</em> — <code>lpjml-grass-availability</code>, <code>lpjml-grass-productivity</code>, <code>lpjml-grass-natural-net-c</code> and <code>lpjml-soc-hydrology</code>. Use the single entry point <code>regenerate_whep_lpjml_pins()</code> in the <code>~/whep_inputs</code> project: dry-run by default (it prints a manifest plus the change against each pin it would replace), <code>upload = TRUE</code> to publish. Refreshing only some of them leaves WHEP mixing two LPJmL versions across its feed, soil-carbon and water chains at once — worse than consistently using either version, and invisible downstream because every pin still loads with the right schema. The six <code>lpjml-wind-*</code> / <code>lpjml-rsds-*</code> / <code>lpjml-rlds-*</code> pins are climate <strong>forcing</strong> (they feed <em>into</em> LPJmL, so they do not change with the model version) and must never go through that path; they come from <code>inst/scripts/prepare_spatialize_all.R</code>.</li>
-<li>
-<strong>LPJmL output variable names are version-dependent.</strong> 6.x renames some outputs to their CF short names — <code>mprec.nc</code> holds <code>pr</code> where 5.x held <code>prec</code>. Readers resolve the name against what the file actually contains (<code>.hydro_var_aliases()</code>), because a run directory carries no version stamp and both versions’ output can sit side by side on one machine. Add the next rename there; the reader aborts listing the file’s actual variables rather than failing on a <code>NULL</code> lookup.</li>
-</ul></div>
+<p>The function catalogue (primary production, CBS, soil water/carbon/ nitrogen, footprints, LPJmL pins) moved to <code>agent-reference/data-pipeline.md</code>. Read it before touching a pipeline stage or a pin.</p>
+</div>
 <div class="section level2">
 <h2 id="package-data-updates">Package data updates<a class="anchor" aria-label="anchor" href="#package-data-updates"></a></h2>
-<p>When modifying CSV files in <code>inst/extdata/harmonization/</code>:</p>
-<ol style="list-style-type: decimal"><li>Edit the CSV.</li>
-<li>Run <code>Rscript data-raw/harmonization_tables.R</code> to rebuild <code>.rda</code> files.</li>
-<li>Run <code>Rscript data-raw/table_mappings.R</code> if <code>regions.csv</code> or <code>items_*.csv</code> changed.</li>
-<li>Run <code>Rscript data-raw/whep_inputs.R</code> if <code>whep_inputs.csv</code> changed.</li>
-</ol><p>Skipping the rebuild is a defect, not an omission: <code>data/*.rda</code> is a committed build product, so an edited CSV that was never rebuilt ships a table disagreeing with its own source, and it looks exactly like a fresh one (#384 — that is how <code>regions_full</code> came to resolve eight areas to polities upstream had retired). <code>tests/testthat/test_data_raw_freshness.R</code> is the gate. It re-runs every builder whose inputs live inside the repo, with the <code>usethis::use_data()</code> calls stripped so nothing is written, and compares each rebuilt object with the committed <code>.rda</code> by content. It covers 49 of the 56 tables; the seven it cannot rebuild (the whep-polities GeoPackage, the Coello CSV, the GLEAM workbook) are listed there with the input that blocks each one, and the list is asserted to be exactly the complement, so a new dataset cannot arrive both unchecked and unexcluded.</p>
+<p>The CSV-edit / rebuild procedure for <code>inst/extdata/harmonization/</code> moved to <code>agent-reference/data-pipeline.md</code>. Read it before or after editing a harmonization CSV.</p>
 </div>
 <div class="section level2">
 <h2 id="this-is-the-only-agent-instruction-file">This is the only agent instruction file<a class="anchor" aria-label="anchor" href="#this-is-the-only-agent-instruction-file"></a></h2>
