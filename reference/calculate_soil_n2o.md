@@ -11,8 +11,8 @@ table's two climate-level rows (`irrig_type == "Tier_1"` for ATL,
 [`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md),
 pulled from one shared source of truth rather than hardcoded a second
 time. It is the default because it is the internationally standard,
-globally applicable Tier 1 method. `"aguilera"` (`n_fun.r:906-912`) is a
-finer Mediterranean-calibrated disaggregation (Cayuela et al. 2017),
+globally applicable Tier 1 method. `"aguilera"` is a finer
+Mediterranean-calibrated disaggregation (Cayuela et al. 2017),
 selectable where its `irrig_type`/`fert_type` granularity is available
 and its regional emission factors apply:
 `n2o_direct_n_t = n_input_t * ef * mf`, `ef` from

@@ -30,8 +30,8 @@ A tibble with columns:
 
 ## Source
 
-Spain historical nitrogen coefficient workbook (`N_coefficients.xlsx`,
-sheet `Drainage_ranges`), companion to the Meisinger & Randall (1991)
+Nitrogen coefficient workbook of an earlier regional historical
+reconstruction, companion to the Meisinger & Randall (1991)
 denitrification matrix.
 [doi:10.2136/1991.managingnitrogen.c5](https://doi.org/10.2136/1991.managingnitrogen.c5)
 .

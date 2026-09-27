@@ -11,8 +11,8 @@ ammoniacal nitrogen actually applied. The mapping from
 `manure_type` argument to this table's `species`/`manure_stream` keys
 (`cattle_slurry`/`pig_slurry` to the `"Liquid"` stream, `FYM` to Cattle
 `"Solid"`, `poultry_manure` to Poultry `"Solid"`) is a documented
-modelling choice made when porting this table, not a literal Spain_Hist
-crosswalk; see
+modelling choice made when porting this table, not a literal crosswalk
+from the source implementation; see
 [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)'s
 Details.
 
@@ -44,25 +44,25 @@ A tibble with columns:
 
 - source:
 
-  Short author-year provenance string as cited in the Spain_Hist
-  `Livestock.xlsx` `Manure_inorganic_N` sheet for that coefficient.
-  These are secondary citations transcribed from that workbook, not
-  independently DOI-verified full bibliographic entries.
+  Short author-year provenance string as cited in the source livestock
+  coefficient workbook for that coefficient. These are secondary
+  citations transcribed from that workbook, not independently
+  DOI-verified full bibliographic entries.
 
 ## Source
 
-WHEP project-internal coefficient workbook (not a public DOI): Spain
-historical livestock coefficient workbook, `Livestock.xlsx`, sheet
-`Manure_inorganic_N`. That sheet in turn cites: Van Soest, P. J. (1994);
-Nahm, K. H. (2003); Nahm, K. H. (2005); Smith, K. A. & Frost, J. P.
-(2000); Chambers, B. J. et al. (1999); Chambers, B. J. et al. (2000);
-Nicholson, F. A. et al. (1996); Canh, T. T. et al. (1997); Sommer, S. G.
-et al. (2004); Burton, C. H. & Turner, C. (2003); Martinez, J. & Burton,
-C. H. (2003); Rotz, C. A. (2004); Wheeler, E. F. et al. (2011);
-Gungor-Demirci, G. & Demirer, G. N. (2004); Lebas, F. (1975); Lebas, F.
-(2004). These secondary citations are transcribed as recorded in the
-workbook and have not been independently verified against the primary
-sources.
+WHEP project-internal coefficient workbook (not a public DOI): the
+livestock coefficient workbook of an earlier regional historical
+reconstruction, manure inorganic-nitrogen sheet. That sheet in turn
+cites: Van Soest, P. J. (1994); Nahm, K. H. (2003); Nahm, K. H. (2005);
+Smith, K. A. & Frost, J. P. (2000); Chambers, B. J. et al. (1999);
+Chambers, B. J. et al. (2000); Nicholson, F. A. et al. (1996); Canh, T.
+T. et al. (1997); Sommer, S. G. et al. (2004); Burton, C. H. & Turner,
+C. (2003); Martinez, J. & Burton, C. H. (2003); Rotz, C. A. (2004);
+Wheeler, E. F. et al. (2011); Gungor-Demirci, G. & Demirer, G. N.
+(2004); Lebas, F. (1975); Lebas, F. (2004). These secondary citations
+are transcribed as recorded in the workbook and have not been
+independently verified against the primary sources.
 
 ## Examples
 

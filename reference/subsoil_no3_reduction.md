@@ -36,10 +36,10 @@ A tibble with columns:
 
 ## Source
 
-Spain historical nitrogen coefficient workbook (`N_coefficients.xlsx`,
-sheet `Subsoil_NO3_denitrif`), parameterised from Mediterranean and
-Atlantic subsoil denitrification literature consistent with the IPCC
-(2019) indirect N2O framework.
+Nitrogen coefficient workbook of an earlier regional historical
+reconstruction, parameterised from Mediterranean and Atlantic subsoil
+denitrification literature consistent with the IPCC (2019) indirect N2O
+framework.
 
 ## Examples
 

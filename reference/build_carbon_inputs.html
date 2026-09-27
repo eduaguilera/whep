@@ -118,13 +118,15 @@ supplied via <code>data</code>.</p></dd>
 
 <dt id="arg-crop-groups">crop_groups<a class="anchor" aria-label="anchor" href="#arg-crop-groups"></a></dt>
 <dd><p>How cropland is resolved into land-use classes, a named
-list validated element-wise. <code>method</code>: <code>"spain_hist"</code> (default) resolves
-cropland into crop GROUPS – herbaceous crops pooled per irrigation
-regime (they rotate, so nothing inside the pool is a land-use change),
-woody crops per species, rainfed and irrigated separate – labelled by
-<code><a href="soc_crop_group.html">soc_crop_group()</a></code>; <code>"none"</code> keeps the single <code>cropland</code> class the
-package used before, for comparison and for a caller that wants one
-cropland number.
+list validated element-wise. <code>method</code>: <code>"rotation_groups"</code> (default)
+resolves cropland into crop GROUPS – herbaceous crops pooled per
+irrigation regime (they rotate, so nothing inside the pool is a land-use
+change), woody crops per species, rainfed and irrigated separate –
+labelled by <code><a href="soc_crop_group.html">soc_crop_group()</a></code>; <code>"none"</code> keeps the single <code>cropland</code>
+class the package used before, for comparison and for a caller that
+wants one cropland number. The former name of <code>"rotation_groups"</code> is
+still accepted as a deprecated alias: it resolves to
+<code>"rotation_groups"</code>, with identical results, and warns once per session.
 <code>irrigation</code>: where each crop's irrigated share of its cell area comes
 from. <code>"spatialized"</code> (default) uses <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> on the
 pinned spatialization inputs, crop-specific and yearly; <code>"none"</code> puts

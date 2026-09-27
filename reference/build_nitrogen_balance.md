@@ -12,8 +12,8 @@ soil organic-matter sequestration), runs the nitrogen-loss cascade
 closes the balance (`N_input_full - N_output_full`), applies the
 N-limitation cap on SOM sequestration, and derives
 nutrient-use-efficiency (NUE) indicators plus a GWP/CO2e indicator for
-the nitrous-oxide streams. Ported from Spain_Hist's
-`Balance_parameters()`/`N_Figs.R` equations.
+the nitrous-oxide streams. Ported from the balance and indicator
+equations of an earlier regional historical reconstruction.
 
 ## Usage
 

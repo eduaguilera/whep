@@ -1961,9 +1961,10 @@
   for that year (5,769 rows, 211 areas, 83 items). `faostat-cbs-new`
   moves to the 2026-06-15 CB release, growing from 58,107 rows and 11
   items to 127,558 rows and 13 items. `population_yg` moves from
-  1860-2021 to 1860-2023, taking the two new years from Spain_Hist’s own
-  output rather than repeating 2021 (Spanish national population 47.37,
-  47.79 and 48.33 million over 2021-2023).
+  1860-2021 to 1860-2023, taking the two new years from the output of
+  the regional historical reconstruction it is sourced from rather than
+  repeating 2021 (Spanish national population 47.37, 47.79 and 48.33
+  million over 2021-2023).
 
   **Published values move.**
   [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)

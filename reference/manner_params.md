@@ -54,8 +54,8 @@ mass-flow ammonia framework: Webb, J. & Misselbrook, T. H. (2004). A
 mass-flow model of ammonia emissions from UK livestock production.
 *Atmospheric Environment*, 38(14), 2163-2176.
 [doi:10.1016/j.atmosenv.2004.01.023](https://doi.org/10.1016/j.atmosenv.2004.01.023)
-. Values transcribed from the Spain historical MANNER implementation
-(`MANNER_model.R`).
+. Values transcribed from the MANNER implementation of an earlier
+regional historical reconstruction.
 
 ## Examples
 

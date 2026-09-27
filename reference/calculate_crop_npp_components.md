@@ -44,10 +44,11 @@ carbon partition for crop, weeds and total, and
 
 ## Details
 
-The `weed_npp_scaling` table is taken from Spain_Hist and is flagged
-`to_be_revised`: it is Spain-specific and not validated for WHEP's
-global scope. A `weed_scaling_to_be_revised` column records this on the
-output and a one-time warning is emitted.
+The `weed_npp_scaling` table is taken from an earlier regional
+historical reconstruction and is flagged `to_be_revised`: it is
+Spain-specific and not validated for WHEP's global scope. A
+`weed_scaling_to_be_revised` column records this on the output and a
+one-time warning is emitted.
 
 ## Examples
 

@@ -2,10 +2,9 @@
 
 Converts the ammonia-N already volatilised
 ([`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)'s
-`nh3_n_t`) into indirect nitrous oxide (`n_fun.r:955-957`). Atlantic
-rows use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.014) and
-touch no emission-factor lookup; Mediterranean rows use the
-disaggregated
+`nh3_n_t`) into indirect nitrous oxide. Atlantic rows use the flat IPCC
+EF4 factor (`ef4_nh3_to_n2o_atl`, 0.014) and touch no emission-factor
+lookup; Mediterranean rows use the disaggregated
 [n2o_efs_disaggregated](https://eduaguilera.github.io/whep/reference/n2o_efs_disaggregated.md)
 `ef` on `(irrig_type, climate)` alone (`NH3_MgN * N2O_EF`), WITHOUT the
 [fertiliser_n2o_modifiers](https://eduaguilera.github.io/whep/reference/fertiliser_n2o_modifiers.md)

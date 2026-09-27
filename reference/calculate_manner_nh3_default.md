@@ -61,10 +61,10 @@ factor), `nh3_n_t` and `method_manner`.
 [manner_default_technique_mix](https://eduaguilera.github.io/whep/reference/manner_default_technique_mix.md)
 is a deliberate, permanent gross- assumption default, not a
 region/era-specific survey. It fixes `technique = "Broadcast"` on every
-row, matching Spain_Hist's own real production MANNER run, which itself
-hardcodes Broadcast application nationally with no region/era variation
-(`factor_ap_technique <- application_technique_manure[Technique == "Broadcast", ...]`
-applied unconditionally to its whole national run). For incorporation
+row, matching the production MANNER run of the earlier regional
+historical reconstruction this model is ported from, which itself
+applies the Broadcast application-technique factor unconditionally to
+its whole national run, with no region/era variation. For incorporation
 delay, it blends four of
 [manner_incorporation_factor](https://eduaguilera.github.io/whep/reference/manner_incorporation_factor.md)'s
 `delay_bin` categories in equal 25% shares: 25% of applied nitrogen

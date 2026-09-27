@@ -22,8 +22,8 @@ soc_rate_modifier_rothc(
 Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
 turnover of carbon in soil.
 [doi:10.1007/978-3-642-61094-3_17](https://doi.org/10.1007/978-3-642-61094-3_17)
-. Moisture deficit and cover terms as implemented in the Spain
-historical SOC pipeline.
+. Moisture deficit and cover terms as implemented in an earlier regional
+historical SOC reconstruction.
 
 ## Arguments
 

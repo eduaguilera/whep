@@ -79,15 +79,17 @@ assembled per the WHEP historical carbon-balance design.
 - crop_groups:
 
   How cropland is resolved into land-use classes, a named list validated
-  element-wise. `method`: `"spain_hist"` (default) resolves cropland
-  into crop GROUPS – herbaceous crops pooled per irrigation regime (they
-  rotate, so nothing inside the pool is a land-use change), woody crops
-  per species, rainfed and irrigated separate – labelled by
+  element-wise. `method`: `"rotation_groups"` (default) resolves
+  cropland into crop GROUPS – herbaceous crops pooled per irrigation
+  regime (they rotate, so nothing inside the pool is a land-use change),
+  woody crops per species, rainfed and irrigated separate – labelled by
   [`soc_crop_group()`](https://eduaguilera.github.io/whep/reference/soc_crop_group.md);
   `"none"` keeps the single `cropland` class the package used before,
-  for comparison and for a caller that wants one cropland number.
-  `irrigation`: where each crop's irrigated share of its cell area comes
-  from. `"spatialized"` (default) uses
+  for comparison and for a caller that wants one cropland number. The
+  former name of `"rotation_groups"` is still accepted as a deprecated
+  alias: it resolves to `"rotation_groups"`, with identical results, and
+  warns once per session. `irrigation`: where each crop's irrigated
+  share of its cell area comes from. `"spatialized"` (default) uses
   [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
   on the pinned spatialization inputs, crop-specific and yearly;
   `"none"` puts every crop in its rainfed group. Recorded in

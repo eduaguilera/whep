@@ -1,10 +1,9 @@
 # Estimate nitrate leaching, topsoil denitrification and indirect N2O.
 
 Two methods for partitioning a nitrogen surplus into leached nitrate and
-topsoil-denitrified nitrogen. `"meisinger_drainage"` (the default,
-`n_fun.r:932-988`) is the full Spain_Hist cascade: bins annual drainage
-and soil organic matter share, looks up a topsoil denitrification share
-from
+topsoil-denitrified nitrogen. `"meisinger_drainage"` (the default) is
+the full cascade of the source implementation: bins annual drainage and
+soil organic matter share, looks up a topsoil denitrification share from
 [meisinger_denitrification](https://eduaguilera.github.io/whep/reference/meisinger_denitrification.md),
 applies subsoil NO3 reduction
 ([subsoil_no3_reduction](https://eduaguilera.github.io/whep/reference/subsoil_no3_reduction.md))
@@ -60,15 +59,15 @@ calculate_n_leaching(
 
 For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
 twice: first as `n_surplus_t * denit_share` (the raw Meisinger share) to
-derive `no3_n_t`, then overwritten as `n_surplus_t - no3_n_t` (verified
-`n_fun.r:983`). The RETURNED `denitrification_n_t` is this second,
-residual value, not the raw share product; this is a deliberate two-step
-sequence in the source, not a redundant computation to simplify away.
-Drainage and soil organic matter bins are matched with the source's
-strictly-open `s_min < s < s_max` filter (`n_fun.r:939,942`): a value
-exactly on a shared bin edge, or outside the covered range, matches no
-bin and aborts via the unmatched-row check (the source drops it), rather
-than being pulled into an adjacent or ceiling bin.
+derive `no3_n_t`, then overwritten as `n_surplus_t - no3_n_t`, as in the
+source implementation. The RETURNED `denitrification_n_t` is this
+second, residual value, not the raw share product; this is a deliberate
+two-step sequence in the source, not a redundant computation to simplify
+away. Drainage and soil organic matter bins are matched with the
+source's strictly-open `s_min < s < s_max` filter: a value exactly on a
+shared bin edge, or outside the covered range, matches no bin and aborts
+via the unmatched-row check (the source drops it), rather than being
+pulled into an adjacent or ceiling bin.
 
 Manure/organic rows (`fert_cat == "Manure"`, i.e. every `fert_type`
 other than `"Synthetic"`) always join the Meisinger table's

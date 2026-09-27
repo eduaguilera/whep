@@ -36,8 +36,8 @@ Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
 cropland (Spain, 1900-2008). *Science of the Total Environment*, 621,
 634-648.
 [doi:10.1016/j.scitotenv.2017.11.243](https://doi.org/10.1016/j.scitotenv.2017.11.243)
-; land-use-change carbon transfer ported from the Spain historical
-pipeline.
+; land-use-change carbon transfer ported from an earlier regional
+historical reconstruction.
 
 ## Arguments
 
@@ -59,9 +59,10 @@ pipeline.
   balance would otherwise report as soil nitrogen mineralization, at the
   cost of opening cropland at roughly a third of the carbon measured in
   those soils. `"cell_average"` starts every class in a cell at the
-  fraction-weighted mean of the classes sharing it, the Spain historical
-  behaviour: it opens cropland near its observed stock, as a proxy for
-  the legacy carbon of the vegetation it replaced, at the cost of then
+  fraction-weighted mean of the classes sharing it, the behaviour of the
+  earlier regional historical reconstruction this balance is ported
+  from: it opens cropland near its observed stock, as a proxy for the
+  legacy carbon of the vegetation it replaced, at the cost of then
   draining that stock toward an equilibrium whep#799 puts several-fold
   too low. Recorded in `method_soc_init`.
 

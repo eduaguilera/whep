@@ -1,9 +1,9 @@
 # Estimate ammonia-N volatilisation from applied nitrogen.
 
 Three independent methods for the fraction of applied nitrogen
-volatilised as ammonia. `"ipcc"` (IPCC 2019 Tier 1, `n_fun.r:914-930`)
-needs only `fert_type` and applies a single global fraction. `"manner"`
-(the default) dispatches each row through the process-based
+volatilised as ammonia. `"ipcc"` (IPCC 2019 Tier 1) needs only
+`fert_type` and applies a single global fraction. `"manner"` (the
+default) dispatches each row through the process-based
 [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
 MANNER model (Task C4), which requires far more driver detail (see
 Details); this asymmetry in input requirements is intentional, not an

@@ -7,9 +7,10 @@ compute a carbon-weighted effective humification fraction per
 cell-year before running the SOC model. Other models (RothC, ICBM,
 AMG, Century) use their native carbon partition and ignore this table;
 AMG instead uses amg_h_by_input_type. Values are transcribed
-from the Spain historical agroecosystem Biomass_coefs
-Residue_humified_kgC_kgC column (manure and roots from the
-corresponding manure and Root_humified_kgC_kgC entries)."><meta property="og:description" content="Per-input-type fraction of soil carbon input that is stabilised
+from the biomass coefficient table of an earlier regional historical
+reconstruction, its Residue_humified_kgC_kgC column (manure and
+roots from the corresponding manure and Root_humified_kgC_kgC
+entries)."><meta property="og:description" content="Per-input-type fraction of soil carbon input that is stabilised
 directly into humus (rather than entering the labile, fresh pool).
 The HSOC turnover model takes a scalar humification fraction; this
 table supplies the type-specific values so a carbon-input builder can
@@ -17,9 +18,10 @@ compute a carbon-weighted effective humification fraction per
 cell-year before running the SOC model. Other models (RothC, ICBM,
 AMG, Century) use their native carbon partition and ignore this table;
 AMG instead uses amg_h_by_input_type. Values are transcribed
-from the Spain historical agroecosystem Biomass_coefs
-Residue_humified_kgC_kgC column (manure and roots from the
-corresponding manure and Root_humified_kgC_kgC entries)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+from the biomass coefficient table of an earlier regional historical
+reconstruction, its Residue_humified_kgC_kgC column (manure and
+roots from the corresponding manure and Root_humified_kgC_kgC
+entries)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -67,9 +69,10 @@ compute a carbon-weighted effective humification fraction per
 cell-year before running the SOC model. Other models (RothC, ICBM,
 AMG, Century) use their native carbon partition and ignore this table;
 AMG instead uses <code>amg_h_by_input_type</code>. Values are transcribed
-from the Spain historical agroecosystem <code>Biomass_coefs</code>
-<code>Residue_humified_kgC_kgC</code> column (manure and roots from the
-corresponding manure and <code>Root_humified_kgC_kgC</code> entries).</p>
+from the biomass coefficient table of an earlier regional historical
+reconstruction, its <code>Residue_humified_kgC_kgC</code> column (manure and
+roots from the corresponding manure and <code>Root_humified_kgC_kgC</code>
+entries).</p>
     </div>
 
     <div class="section level2">
@@ -92,14 +95,14 @@ directly into humus (kg humified carbon per kg carbon input).</p></dd>
 
 <dt>description</dt>
 <dd><p>Human-readable description of the input type and
-its Spain historical provenance.</p></dd>
+its provenance in the source coefficient table.</p></dd>
 
 
 </dl></div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
-    <p>Spain historical agroecosystem coefficient set
-(<code>Biomass_coefs.xlsx</code>, <code>Residue_humified_kgC_kgC</code> and
+    <p>Biomass coefficient set of an earlier regional historical
+reconstruction (its <code>Residue_humified_kgC_kgC</code> and
 <code>Root_humified_kgC_kgC</code> columns), itself compiled from soil
 organic carbon turnover and litter humification studies including
 Andren, O. &amp; Katterer, T. (1997).

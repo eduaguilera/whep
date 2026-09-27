@@ -1,15 +1,16 @@
 # Simulate soil organic carbon with the HSOC two-pool model.
 
-Annual HSOC trajectory (Spain historical pipeline): a fresh and a humus
-decomposing pool plus an inert organic matter pool. The inert pool is
-the Falloon (1998) function of initial carbon and, as in that paper, is
-a component of the measured stock rather than an addition to it, so the
-two decomposing pools open on the remainder `initial_soc_mgc_ha - iom`,
-split between them in the proportion of their steady states
-`input_pool / k_pool`. Each year a pool stock loses first-order
-decomposition and gains its carbon input, so the trajectory relaxes from
-the supplied stock toward that steady state. Land-use-change carbon
-transfer is deferred to a later phase (single land use here).
+Annual HSOC trajectory (as in an earlier regional historical
+reconstruction): a fresh and a humus decomposing pool plus an inert
+organic matter pool. The inert pool is the Falloon (1998) function of
+initial carbon and, as in that paper, is a component of the measured
+stock rather than an addition to it, so the two decomposing pools open
+on the remainder `initial_soc_mgc_ha - iom`, split between them in the
+proportion of their steady states `input_pool / k_pool`. Each year a
+pool stock loses first-order decomposition and gains its carbon input,
+so the trajectory relaxes from the supplied stock toward that steady
+state. Land-use-change carbon transfer is deferred to a later phase
+(single land use here).
 
 ## Usage
 

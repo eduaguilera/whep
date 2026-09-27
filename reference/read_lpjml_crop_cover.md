@@ -54,8 +54,8 @@ Development*, 11, 1343-1375.
   stands of one crop sow and harvest on different dates; the per-regime
   layer is what the herbaceous rainfed and irrigated crop groups of
   [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
-  (`crop_groups = list(method = "spain_hist")`) read, each from its own
-  bands, while plain cropland reads the pool.
+  (`crop_groups = list(method = "rotation_groups")`) read, each from its
+  own bands, while plain cropland reads the pool.
 
 - example:
 

@@ -39,9 +39,9 @@ A tibble with columns:
 
 ## Source
 
-WHEP project-internal coefficient workbook (not a public DOI): Spain
-historical MANNER implementation, `NH3_model.xlsx`, sheet "synthetic
-fertilisers".
+WHEP project-internal coefficient workbook (not a public DOI): the
+MANNER implementation of an earlier regional historical reconstruction,
+synthetic-fertiliser factors.
 
 ## Examples
 

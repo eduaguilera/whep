@@ -55,8 +55,8 @@ for soil-crop systems. In R. F. Follett, D. R. Keeney & R. M. Cruse
 (Eds.), *Managing Nitrogen for Groundwater Quality and Farm
 Profitability* (pp. 85-124). Soil Science Society of America.
 [doi:10.2136/1991.managingnitrogen.c5](https://doi.org/10.2136/1991.managingnitrogen.c5)
-. Values transcribed from the Spain historical nitrogen coefficient
-workbook (`N_coefficients.xlsx`, sheet `Denitrification_Meisinger`).
+. Values transcribed from the nitrogen coefficient workbook of an
+earlier regional historical reconstruction.
 
 ## Examples
 

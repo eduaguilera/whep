@@ -48,9 +48,9 @@ A tibble with columns:
 ## Source
 
 **Expert parameterisation with a documented rationale and no citation.**
-Traced through the Spain historical pipeline's coefficient workbook
-(`input/SOC_coefs.xlsx`, sheet `Soil_CN_ratios`), which has no source
-column and no notes column, as does the packaged
+Traced through the coefficient workbook of the earlier regional
+historical reconstruction the values come from, whose C:N sheet has no
+source column and no notes column, as does the packaged
 `inst/extdata/balances/soil_cn_ratios.csv`:
 
 - The bulk ratios (`cn_ratio` 10 cropland, 15 non-cropland) enter the
@@ -59,20 +59,18 @@ column and no notes column, as does the packaged
   no such sheet at all.
 
 - The asymmetry – management stratification plus `cn_mineralization` and
-  `cn_sequestration` – is added on 2026-03-26, in a commit titled "Use
-  asymmetric C:N ratios for SOC and add N-limitation on SOC
-  sequestration".
+  `cn_sequestration` – is added on 2026-03-26, together with an
+  N-limitation on SOC sequestration.
 
-The rationale is written up in that project's supplementary methods
-("Asymmetric C:N ratios for SOC-nitrogen coupling"): a lower ratio on
+The rationale recorded with the values is: a lower ratio on
 mineralization for the microbial-biomass and labile pools that are
 preferentially decomposed, a higher one on sequestration for stable
 humus formation, and organic cropland sequestering at 13 against 11
 conventional for the larger stable-humus fraction of manure- and
 compost-derived carbon. No citation is attached to any of the values.
 
-One published anchor exists nearby and is worth knowing: the same
-supplement cites Cleveland & Liptzin (2007),
+One published anchor exists nearby and is worth knowing: the source's
+methods cite Cleveland & Liptzin (2007),
 [doi:10.1007/s10533-007-9132-0](https://doi.org/10.1007/s10533-007-9132-0)
 , for a soil microbial-biomass C:N of roughly 8-13, and the cropland
 `cn_mineralization` values (8 and 9) fall inside it. It is cited there

@@ -4,10 +4,10 @@ Map `item_prod_code` and an irrigation flag to the crop group the soil
 carbon balance marches: `cropland_rainfed_herbaceous`,
 `cropland_irrigated_herbaceous`, or one group per woody species such as
 `cropland_rainfed_olive` (the species slug comes from `Name_biomass`,
-the column Spain_Hist's own category is built from, so it is "Olive"
-rather than the `names_cats` key "Olives"). Every label keeps the
-`cropland_` prefix, which is what lets the balance recognise a group as
-cropland for its soil-cover curve, its C:N lookup and its water term
+the column the source implementation builds its category from, so it is
+"Olive" rather than the `names_cats` key "Olives"). Every label keeps
+the `cropland_` prefix, which is what lets the balance recognise a group
+as cropland for its soil-cover curve, its C:N lookup and its water term
 without enumerating groups.
 
 ## Usage

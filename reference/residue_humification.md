@@ -7,10 +7,10 @@ the type-specific values so a carbon-input builder can compute a
 carbon-weighted effective humification fraction per cell-year before
 running the SOC model. Other models (RothC, ICBM, AMG, Century) use
 their native carbon partition and ignore this table; AMG instead uses
-`amg_h_by_input_type`. Values are transcribed from the Spain historical
-agroecosystem `Biomass_coefs` `Residue_humified_kgC_kgC` column (manure
-and roots from the corresponding manure and `Root_humified_kgC_kgC`
-entries).
+`amg_h_by_input_type`. Values are transcribed from the biomass
+coefficient table of an earlier regional historical reconstruction, its
+`Residue_humified_kgC_kgC` column (manure and roots from the
+corresponding manure and `Root_humified_kgC_kgC` entries).
 
 ## Usage
 
@@ -35,15 +35,15 @@ A tibble with columns:
 
 - description:
 
-  Human-readable description of the input type and its Spain historical
-  provenance.
+  Human-readable description of the input type and its provenance in the
+  source coefficient table.
 
 ## Source
 
-Spain historical agroecosystem coefficient set (`Biomass_coefs.xlsx`,
-`Residue_humified_kgC_kgC` and `Root_humified_kgC_kgC` columns), itself
-compiled from soil organic carbon turnover and litter humification
-studies including Andren, O. & Katterer, T. (1997).
+Biomass coefficient set of an earlier regional historical reconstruction
+(its `Residue_humified_kgC_kgC` and `Root_humified_kgC_kgC` columns),
+itself compiled from soil organic carbon turnover and litter
+humification studies including Andren, O. & Katterer, T. (1997).
 [doi:10.1890/1051-0761(1997)007\[1226:ITICBM\]2.0.CO;2](https://doi.org/10.1890/1051-0761%281997%29007%5B1226%3AITICBM%5D2.0.CO%3B2)
 ; Katterer, T., Bolinder, M. A., Andren, O., Kirchmann, H. & Menichetti,
 L. (2011). Roots contribute more to refractory soil organic matter than

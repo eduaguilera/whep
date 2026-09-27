@@ -66,18 +66,18 @@ and `method_manner`.
 The organic path's `inorganic_n_fraction` lookup
 ([manure_inorganic_n](https://eduaguilera.github.io/whep/reference/manure_inorganic_n.md))
 maps `manure_type` to its ammoniacal `manure_stream` (`"Liquid"` for
-`"cattle_slurry"`/`"pig_slurry"`, `"Solid"` for `"FYM"`/
-`"poultry_manure"`) and reads that stream's fraction for the actual
-`species` driver supplied by the caller. This matches Spain_Hist, which
-maps every species' solid stream to the FYM MANNER class yet looks the
-inorganic-N fraction up per real species. When `species` is omitted it
-falls back to the manure type's default species (Cattle for
-`"cattle_slurry"`/`"FYM"`, Pigs for `"pig_slurry"`, Poultry for
-`"poultry_manure"`). `"urban"` bypasses this lookup entirely: it fixes
-`inorganic_n_fraction = 0.5` regardless of species, matching
-`nh3.r:102-104`. For the AG availability and incorporation factors,
-`"urban"` maps to the FYM manure class (Spain_Hist Manner_ferts row 43),
-including the 0.4 Org_ef correction.
+`"cattle_slurry"`/`"pig_slurry"`, `"Solid"` for
+`"FYM"`/`"poultry_manure"`) and reads that stream's fraction for the
+actual `species` driver supplied by the caller. This matches the source
+implementation, which maps every species' solid stream to the FYM MANNER
+class yet looks the inorganic-N fraction up per real species. When
+`species` is omitted it falls back to the manure type's default species
+(Cattle for `"cattle_slurry"`/`"FYM"`, Pigs for `"pig_slurry"`, Poultry
+for `"poultry_manure"`). `"urban"` bypasses this lookup entirely: it
+fixes `inorganic_n_fraction = 0.5` regardless of species, matching the
+source implementation. For the AG availability and incorporation
+factors, `"urban"` maps to the FYM manure class, as the source
+coefficient table does, including the 0.4 Org_ef correction.
 
 ## Examples
 

@@ -105,10 +105,11 @@ emission factor), <code>nh3_n_t</code> and <code>method_manner</code>.</p>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><a href="manner_default_technique_mix.html">manner_default_technique_mix</a> is a deliberate, permanent gross-
 assumption default, not a region/era-specific survey. It fixes
-<code>technique = "Broadcast"</code> on every row, matching Spain_Hist's own real
-production MANNER run, which itself hardcodes Broadcast application
-nationally with no region/era variation
-(<code>factor_ap_technique &lt;- application_technique_manure[Technique == "Broadcast", ...]</code> applied unconditionally to its whole national run).
+<code>technique = "Broadcast"</code> on every row, matching the production MANNER run
+of the earlier regional historical reconstruction this model is ported
+from, which itself applies the Broadcast application-technique factor
+unconditionally to its whole national run, with no region/era
+variation.
 For incorporation delay, it blends four of
 <a href="manner_incorporation_factor.html">manner_incorporation_factor</a>'s <code>delay_bin</code> categories in equal 25%
 shares: 25% of applied nitrogen assumed never incorporated
