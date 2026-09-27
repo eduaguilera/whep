@@ -199,3 +199,35 @@ testthat::test_that(".nb_fresh_production converts dry matter to fresh weight", 
   out <- whep:::.nb_fresh_production(npp)
   testthat::expect_equal(out$production_t, 87 / as.numeric(dm[[1]]))
 })
+
+testthat::test_that(".nb_regime_shares handles missing production and uncovered cells", {
+  data <- .regime_share_data()
+  # One cell-crop without a fresh-weight production, one outside the regime
+  # layer: the first keeps an area share, the second gets no share at all.
+  data$.npp_cache <- dplyr::bind_rows(
+    data$.npp_cache,
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~item_prod_code, ~item_cbs_code, ~year,
+      ~production_t, ~area_ha,
+      1.25, 40.25, 203, 15, 2511, 2010, NA, 20,
+      1.75, 40.25, 203, 15, 2511, 2010, 50, 20
+    )
+  )
+  data$regime_areas <- dplyr::bind_rows(
+    data$regime_areas,
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~rainfed_ha,
+      ~irrigated_ha,
+      1.25, 40.25, 203, 15, 2010, 10, 10
+    )
+  )
+  shares <- whep:::.nb_regime_shares(data, .regime_key)
+  no_production <- dplyr::filter(shares, .data$lon == 1.25)
+  testthat::expect_equal(no_production$irrigated_area_share, 0.5)
+  testthat::expect_equal(no_production$irrigated_yield_share, 0.5)
+  testthat::expect_equal(
+    no_production$method_regime_share,
+    "area_no_production"
+  )
+  testthat::expect_false(any(shares$lon == 1.75))
+})

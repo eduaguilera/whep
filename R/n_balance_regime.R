@@ -148,8 +148,23 @@
   if (is.null(cells)) {
     return(NULL)
   }
-  ratio <- data$regime_ratio %||% build_regime_yield_ratio(cells = cells)
-  cells |>
+  # Only cell-crops the regime layer covers get a share; the rest are booked
+  # wholly rainfed downstream, stamped `no_regime_share`.
+  covered <- dplyr::filter(
+    cells,
+    !is.na(.data$rainfed_ha),
+    !is.na(.data$irrigated_ha)
+  )
+  if (nrow(covered) == 0L) {
+    return(NULL)
+  }
+  # split_regime_yield() needs a production on every row; one the NPP chain
+  # cannot express in fresh weight keeps its area and falls back to the area
+  # share for its yield share.
+  with_production <- !is.na(covered$production_t) & covered$production_t >= 0
+  ratio <- data$regime_ratio %||%
+    build_regime_yield_ratio(cells = covered[with_production, ])
+  split <- covered[with_production, ] |>
     dplyr::left_join(
       dplyr::select(
         ratio,
@@ -158,7 +173,15 @@
       by = .nb_regime_item_key(),
       relationship = "many-to-one"
     ) |>
-    split_regime_yield(production = data$regime_production) |>
+    split_regime_yield(production = data$regime_production)
+  dplyr::bind_rows(
+    split,
+    dplyr::mutate(
+      covered[!with_production, ],
+      production_t = NA_real_,
+      yield_irrigated = NA_real_
+    )
+  ) |>
     .nb_regime_shares_by_key(key)
 }
 
