@@ -168,10 +168,10 @@ calculate_crop_npp <- function(
 #' weed biomass into dry matter, carbon and nitrogen via
 #' [calculate_npp_carbon_nitrogen()].
 #'
-#' The `weed_npp_scaling` table is taken from Spain_Hist and is flagged
-#' `to_be_revised`: it is Spain-specific and not validated for WHEP's global
-#' scope. A `weed_scaling_to_be_revised` column records this on the output and a
-#' one-time warning is emitted.
+#' The `weed_npp_scaling` table is taken from an earlier regional historical
+#' reconstruction and is flagged `to_be_revised`: it is Spain-specific and not
+#' validated for WHEP's global scope. A `weed_scaling_to_be_revised` column
+#' records this on the output and a one-time warning is emitted.
 #'
 #' @param x A tibble with `item_prod_code`, `area_ha`, `year`, `product_dm_t`,
 #'   `residue_dm_t` and `root_dm_t` (e.g. the output of [calculate_crop_npp()]).

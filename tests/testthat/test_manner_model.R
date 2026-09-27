@@ -1,7 +1,7 @@
 testthat::test_that("calculate_manner_nh3 matches a hand-computed synthetic ef", {
   # Fertiliser Urea with a soil pH of 6 falls in the "pH<7" class (also the
   # non-calcareous soil type for the rate table, since non-calcareous maps
-  # to the same "pH<7" class per MANNER_model.R line 325). Hand-derived
+  # to the same "pH<7" class, as in the source implementation). Hand-derived
   # factors for this scenario:
   # - the soil-pH factor for Urea at "pH<7" is 1.00
   # - the fertiliser NH3 ceiling for Urea is 0.45
@@ -240,12 +240,12 @@ testthat::test_that("calculate_manner_nh3 urban maps to the FYM class and fixes 
     fertiliser = "cattle_slurry",
     drivers = c(drivers, list(species = "Cattle"))
   )
-  # Spain_Hist (N_coefficients.xlsx, Manner_ferts row 43) maps Urban to the
-  # FYM MANNER class, so urban shares FYM's AG (manure_coef 0.683), the 0.4
-  # Org_ef correction and the FYM incorporation factors: its ef must match
-  # the FYM path and must NOT match cattle_slurry's. It keeps its own fixed
-  # inorganic_n_fraction = 0.5 override (independent of species), so
-  # nh3_n_t = ef * n_applied_t * 0.5 and no species driver is required.
+  # The source coefficient table maps Urban to the FYM MANNER class, so urban
+  # shares FYM's AG (manure_coef 0.683), the 0.4 Org_ef correction and the FYM
+  # incorporation factors: its ef must match the FYM path and must NOT match
+  # cattle_slurry's. It keeps its own fixed inorganic_n_fraction = 0.5 override
+  # (independent of species), so nh3_n_t = ef * n_applied_t * 0.5 and no species
+  # driver is required.
   testthat::expect_equal(out$method_manner, "manner_organic_urban")
   testthat::expect_equal(out$ef, fym_out$ef, tolerance = 1e-9)
   testthat::expect_false(isTRUE(all.equal(out$ef, cattle_out$ef)))
@@ -262,11 +262,12 @@ testthat::test_that("calculate_manner_nh3 FYM inorganic_n_fraction tracks the ac
     temp_c = 15,
     incorporation_delay_h = Inf
   )
-  # Spain_Hist maps every species' solid stream to the FYM MANNER class but
-  # looks the ammoniacal fraction up per real species, so nh3_n_t must scale
-  # by each species' Solid-stream inorganic_n_fraction (whereas ef, computed
-  # before that scaling, stays constant across species). A regression to the
-  # old hardcoded Cattle-Solid (0.225) would make every species identical.
+  # The source implementation maps every species' solid stream to the FYM MANNER
+  # class but looks the ammoniacal fraction up per real species, so nh3_n_t must
+  # scale by each species' Solid-stream inorganic_n_fraction (whereas ef,
+  # computed before that scaling, stays constant across species). A regression
+  # to the old hardcoded Cattle-Solid (0.225) would make every species
+  # identical.
   expected_solid_fraction <- c(
     Cattle = 0.225,
     Sheep = 0.2,

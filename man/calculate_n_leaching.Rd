@@ -33,8 +33,8 @@ from \code{x}. Defaults to \code{FALSE}.}
 }
 \description{
 Two methods for partitioning a nitrogen surplus into leached nitrate and
-topsoil-denitrified nitrogen. \code{"meisinger_drainage"} (the default,
-\code{n_fun.r:932-988}) is the full Spain_Hist cascade: bins annual drainage
+topsoil-denitrified nitrogen. \code{"meisinger_drainage"} (the default) is the
+full cascade of the source implementation: bins annual drainage
 and soil organic matter share, looks up a topsoil denitrification share
 from \link{meisinger_denitrification}, applies subsoil NO3 reduction
 (\link{subsoil_no3_reduction}) and a carbon-to-nitrogen leaching attenuation,
@@ -47,12 +47,12 @@ in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}
 \details{
 For \code{method = "meisinger_drainage"}, \code{denitrification_n_t} is computed
 twice: first as \code{n_surplus_t * denit_share} (the raw Meisinger share) to
-derive \code{no3_n_t}, then overwritten as \code{n_surplus_t - no3_n_t} (verified
-\code{n_fun.r:983}). The RETURNED \code{denitrification_n_t} is this second,
+derive \code{no3_n_t}, then overwritten as \code{n_surplus_t - no3_n_t}, as in the
+source implementation. The RETURNED \code{denitrification_n_t} is this second,
 residual value, not the raw share product; this is a deliberate two-step
 sequence in the source, not a redundant computation to simplify away.
 Drainage and soil organic matter bins are matched with the source's
-strictly-open \verb{s_min < s < s_max} filter (\verb{n_fun.r:939,942}): a value
+strictly-open \verb{s_min < s < s_max} filter: a value
 exactly on a shared bin edge, or outside the covered range, matches no
 bin and aborts via the unmatched-row check (the source drops it),
 rather than being pulled into an adjacent or ceiling bin.

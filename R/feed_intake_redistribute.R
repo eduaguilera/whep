@@ -754,13 +754,13 @@ build_feed_demand <- function(
 # ---- Engine 2: MIX ----------------------------------------------------------
 
 # Split Engine-1's per-category DM total across Bouwman feed types and emit the
-# `redistribute_feed()` `feed_demand` schema. Ports the Spain_Hist `add_feedtypes`
-# mix (feed shares from Bouwman, per livestock_category with a grazer-average
-# fallback for the draft species IPCC/Bouwman does not cover), globalised: the
-# Bouwman region comes from each polity (not a hardcoded "OECD Europe") and the
-# Spain-specific reallocations are dropped. Demand is emitted at feed-type grain
-# (item_cbs_code/feed_group NA); `redistribute_feed` resolves items via its
-# feed_quality matching level.
+# `redistribute_feed()` `feed_demand` schema. Ports the feed-type mix of an
+# earlier regional historical reconstruction (feed shares from Bouwman, per
+# livestock_category with a grazer-average fallback for the draft species
+# IPCC/Bouwman does not cover), globalised: the Bouwman region comes from each
+# polity (not a hardcoded "OECD Europe") and the Spain-specific reallocations
+# are dropped. Demand is emitted at feed-type grain (item_cbs_code/feed_group
+# NA); `redistribute_feed` resolves items via its feed_quality matching level.
 .build_feed_mix <- function(demand_total, data = .feed_demand_data()) {
   if (nrow(demand_total) == 0) {
     return(.empty_feed_demand())
@@ -820,8 +820,8 @@ build_feed_demand <- function(
 
 # Bouwman feed-type shares: the share of each feed type in a livestock product's
 # feed, normalised per (item_bouwman, region, year) from `conv_bouwman` and
-# interpolated to every model year. This is the Spain_Hist `feed_share1` step,
-# without the Spain-specific Pigs->grass reallocation.
+# interpolated to every model year. This is the source implementation's
+# feed-share step, without the Spain-specific Pigs->grass reallocation.
 .bouwman_feedtype_shares <- function(conv_bouwman, years) {
   years <- sort(unique(as.integer(years)))
   conv <- tibble::as_tibble(conv_bouwman) |>
@@ -852,7 +852,8 @@ build_feed_demand <- function(
 }
 
 # Grazer-average feed-type shares: the mean Bouwman share across the grazing
-# products (the draft / other species borrow this, as in Spain_Hist).
+# products (the draft / other species borrow this, as in the source
+# implementation).
 .grazer_feedtype_shares <- function(shares) {
   shares |>
     dplyr::filter(

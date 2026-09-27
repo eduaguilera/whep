@@ -1,4 +1,4 @@
-# Crop groups for the soil carbon balance: the Spain_Hist convention as a
+# Crop groups for the soil carbon balance: the rotation-group convention as a
 # label function. Offline throughout; the shipped vocabulary is package data.
 
 .voc <- function() {
@@ -107,9 +107,9 @@ testthat::test_that("the shipped vocabulary classifies every area-bearing crop",
   ]
   gaps <- gaps[!is.na(gaps)]
   testthat::expect_setequal(gaps, c("Palm kernels", "Palm oil", "Cotton seed"))
-  # And the real vocabulary resolves a real olive and a real wheat. The
-  # species slug comes from Name_biomass ("Olive"), the column Spain_Hist's
-  # Cat_SOC is built from, not from the names_cats key ("Olives").
+  # And the real vocabulary resolves a real olive and a real wheat. The species
+  # slug comes from Name_biomass ("Olive"), the column the source implementation
+  # builds its SOC category from, not from the names_cats key ("Olives").
   testthat::expect_identical(
     whep::soc_crop_group(c(15L, 260L), irrigated = FALSE),
     c("cropland_rainfed_herbaceous", "cropland_rainfed_olive")

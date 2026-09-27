@@ -9,7 +9,7 @@ Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
 (2018). A historical perspective on soil organic carbon in Mediterranean
 cropland (Spain, 1900-2008). \emph{Science of the Total Environment}, 621,
 634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
-transfer ported from the Spain historical pipeline.
+transfer ported from an earlier regional historical reconstruction.
 }
 \usage{
 build_carbon_balance(
@@ -43,8 +43,9 @@ carbon input and climate support: it removes the opening transient the
 balance would otherwise report as soil nitrogen mineralization, at the
 cost of opening cropland at roughly a third of the carbon measured in
 those soils. \code{"cell_average"} starts every class in a cell at the
-fraction-weighted mean of the classes sharing it, the Spain historical
-behaviour: it opens cropland near its observed stock, as a proxy for the
+fraction-weighted mean of the classes sharing it, the behaviour of the
+earlier regional historical reconstruction this balance is ported from:
+it opens cropland near its observed stock, as a proxy for the
 legacy carbon of the vegetation it replaced, at the cost of then draining
 that stock toward an equilibrium whep#799 puts several-fold too low.
 Recorded in \code{method_soc_init}.}

@@ -53,7 +53,7 @@
 
 # The single-cropland-class path, named explicitly. These tests predate crop
 # groups and check the collapse of per-crop densities to ONE cropland class;
-# the package default is now `spain_hist`, which resolves each crop's
+# the package default is now `rotation_groups`, which resolves each crop's
 # irrigated share from the pinned spatialization inputs and so cannot run in
 # an offline test that injects only `cropland`. Tests of the grouped path
 # live in test_carbon_inputs_groups.R, where the share layer is injected.

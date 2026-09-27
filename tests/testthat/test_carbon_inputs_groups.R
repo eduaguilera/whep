@@ -1,4 +1,4 @@
-# Cropland resolved into crop groups (Spain_Hist convention) inside
+# Cropland resolved into crop groups (rotation-group convention) inside
 # build_carbon_inputs(). Offline: every input is injected.
 
 .cig_cropland <- function() {
@@ -52,7 +52,7 @@
 
 testthat::test_that("the config validates element-wise and defaults to groups", {
   cfg <- whep:::.ci_group_config()
-  testthat::expect_identical(cfg$method, "spain_hist")
+  testthat::expect_identical(cfg$method, "rotation_groups")
   testthat::expect_identical(cfg$irrigation, "spatialized")
   # "none" stays reachable and is what the pre-group behaviour is called.
   testthat::expect_identical(
@@ -66,6 +66,45 @@ testthat::test_that("the config validates element-wise and defaults to groups", 
   testthat::expect_error(
     whep:::.ci_group_config(list(mehtod = "none")),
     "Unknown"
+  )
+})
+
+testthat::test_that("the deprecated method name resolves to rotation_groups", {
+  rlang::local_options(rlib_warning_verbosity = "verbose")
+  testthat::expect_warning(
+    cfg <- whep:::.ci_group_config(list(method = "spain_hist")),
+    class = "whep_crop_groups_method_deprecated"
+  )
+  testthat::expect_identical(
+    cfg,
+    whep:::.ci_group_config(list(method = "rotation_groups"))
+  )
+  data <- .cig_data(.cig_share(wheat = 0.5, olive = 0))
+  new <- whep::build_carbon_inputs(
+    data = data,
+    crop_groups = list(method = "rotation_groups")
+  )
+  testthat::expect_warning(
+    old <- whep::build_carbon_inputs(
+      data = data,
+      crop_groups = list(method = "spain_hist")
+    ),
+    class = "lifecycle_warning_deprecated"
+  )
+  testthat::expect_identical(old, new)
+  crops <- old[whep:::.soc_is_cropland(old$land_use), ]
+  testthat::expect_true(all(
+    crops$method_c_input == "humified_weighted_rotation_groups"
+  ))
+})
+
+testthat::test_that("the deprecated method name warns once per session", {
+  rlang::local_options(rlib_warning_verbosity = "default")
+  # The first call may or may not warn, depending on whether an earlier call
+  # in this session already did; every later call must stay silent.
+  suppressWarnings(whep:::.ci_group_config(list(method = "spain_hist")))
+  testthat::expect_no_warning(
+    whep:::.ci_group_config(list(method = "spain_hist"))
   )
 })
 
@@ -86,10 +125,10 @@ testthat::test_that("method none is the single cropland class, unchanged", {
   testthat::expect_identical(crop$method_c_input, "humified_weighted")
 })
 
-testthat::test_that("spain_hist splits cropland into labelled groups", {
+testthat::test_that("rotation_groups splits cropland into labelled groups", {
   out <- whep::build_carbon_inputs(
     data = .cig_data(.cig_share(wheat = 0.5, olive = 0)),
-    crop_groups = list(method = "spain_hist")
+    crop_groups = list(method = "rotation_groups")
   )
   crops <- out[whep:::.soc_is_cropland(out$land_use), ]
   testthat::expect_setequal(
@@ -109,7 +148,7 @@ testthat::test_that("spain_hist splits cropland into labelled groups", {
   testthat::expect_equal(ir$c_input_mgc_ha_yr, 2.0)
   testthat::expect_equal(ol$c_input_mgc_ha_yr, 4.0)
   testthat::expect_true(all(
-    crops$method_c_input == "humified_weighted_spain_hist"
+    crops$method_c_input == "humified_weighted_rotation_groups"
   ))
   # Grassland and natural pass through untouched.
   testthat::expect_setequal(
@@ -123,7 +162,7 @@ testthat::test_that("group areas partition the cropland area", {
   out <- whep::build_carbon_inputs(
     resolution = "polity",
     data = data,
-    crop_groups = list(method = "spain_hist")
+    crop_groups = list(method = "rotation_groups")
   )
   # Polity aggregation area-weights by class_area_ha, so a group's density
   # survives aggregation only if its area was carried. Check by conservation:
@@ -154,7 +193,7 @@ testthat::test_that("a crop with no share row is booked rainfed and reported", {
   testthat::expect_message(
     out <- whep::build_carbon_inputs(
       data = .cig_data(share),
-      crop_groups = list(method = "spain_hist")
+      crop_groups = list(method = "rotation_groups")
     ),
     "no irrigated share"
   )
@@ -165,7 +204,7 @@ testthat::test_that("a crop with no share row is booked rainfed and reported", {
 testthat::test_that("irrigation = none puts every crop in its rainfed group", {
   out <- whep::build_carbon_inputs(
     data = .cig_data(),
-    crop_groups = list(method = "spain_hist", irrigation = "none")
+    crop_groups = list(method = "rotation_groups", irrigation = "none")
   )
   crops <- out$land_use[whep:::.soc_is_cropland(out$land_use)]
   testthat::expect_setequal(
@@ -178,7 +217,7 @@ testthat::test_that("a malformed share layer is named", {
   testthat::expect_error(
     whep::build_carbon_inputs(
       data = .cig_data(tibble::tibble(lon = 0.25)),
-      crop_groups = list(method = "spain_hist")
+      crop_groups = list(method = "rotation_groups")
     ),
     "crop_regime_share"
   )
@@ -222,7 +261,7 @@ testthat::test_that("the spatialized split rides the carbon path's polycell supp
     },
     .package = "whep"
   )
-  cfg <- whep:::.ci_group_config(list(method = "spain_hist"))
+  cfg <- whep:::.ci_group_config(list(method = "rotation_groups"))
   share <- whep:::.ci_regime_shares(list(), 2010L, cfg)
   testthat::expect_named(
     seen,
@@ -302,7 +341,7 @@ testthat::test_that("shares are built for the years the crop layer carries", {
     list(cropland = cropland, crop_area = crop_area),
     years = c(2000L, 2002L),
     crop_area,
-    whep:::.ci_group_config(list(method = "spain_hist"))
+    whep:::.ci_group_config(list(method = "rotation_groups"))
   )
   # Asked for exactly the layer's years, not the range argument.
   testthat::expect_identical(asked[[1]], c(2000L, 2001L, 2002L))
@@ -313,7 +352,7 @@ testthat::test_that("shares are built for the years the crop layer carries", {
 })
 
 testthat::test_that("an injected share layer is trimmed to the years asked", {
-  cfg <- whep:::.ci_group_config(list(method = "spain_hist"))
+  cfg <- whep:::.ci_group_config(list(method = "rotation_groups"))
   layer <- tibble::tibble(
     lon = 0.25,
     lat = 5.25,

@@ -7,10 +7,10 @@
 #' single-ring (king-move) neighbours in proportion to their remaining room; a
 #' sink that is over-subscribed by several sources is filled only to its room and
 #' the rejected manure returns to the sources as residual. This is the
-#' resolution-robust, mass-conserving analogue of Spain's room-weighted first-ring
-#' redistribution (`Calc_OA_redistribution`); cross-polity transport is not
-#' allowed. Carbon and volatile solids ride along with each nitrogen flow at the
-#' source cell's bundle ratio.
+#' resolution-robust, mass-conserving analogue of the room-weighted first-ring
+#' redistribution of an earlier regional historical reconstruction; cross-polity
+#' transport is not allowed. Carbon and volatile solids ride along with each
+#' nitrogen flow at the source cell's bundle ratio.
 #'
 #' @param source_cells A tibble of cells exporting manure, keyed by `year`,
 #'   `territory` (a stringified `area_code`, see [estimate_n_excretion()]) and

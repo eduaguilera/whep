@@ -1147,8 +1147,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' forward-fill.
 #'
 #' The `population_yg` pin reached only 2021 until whep#812 refreshed it to
-#' Spain_Hist's own 1860-2023 output, so in practice this now fills nothing
-#' unless production runs past the population series again.
+#' 1860-2023, so in practice this now fills nothing unless production runs past
+#' the population series again.
 #'
 #' @param population_yg Raw dataframe from `whep_read_file("population_yg")`.
 #' @param last_year Latest year present in the production data.
