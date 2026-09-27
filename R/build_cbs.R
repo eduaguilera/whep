@@ -370,7 +370,7 @@ build_commodity_balances <- function(
 # The pivot plus the live-animal rows the FAO sheet omits: the part of the wide
 # CBS every caller needs. Kept apart from .cbs_long_to_wide() because
 # build_io_model() consumes the matrix-ready table without the polity name
-# columns (see the name-column rule in CLAUDE.md) or the supply-use QC pass.
+# columns (see the name-column rule in AGENTS.md) or the supply-use QC pass.
 .cbs_wide_core <- function(cbs_long, primary_all, years) {
   cli::cli_progress_step("Adding livestock CBS rows")
   livestock_cbs <- primary_all |>

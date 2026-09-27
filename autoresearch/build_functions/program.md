@@ -18,7 +18,7 @@ Each iteration you must:
 3. **Form a hypothesis.** Pick ONE specific optimization to try. Write it
    down before making any changes.
 4. **Implement.** Modify the R source files in `R/`. Follow all rules in
-   CLAUDE.md (style, formatting, no nested functions, etc.).
+   AGENTS.md (style, formatting, no nested functions, etc.).
 5. **Verify correctness.** Run `devtools::test()` — all tests must pass
    (except the 2 known failures in `test_commodity_balance_sheet.R`).
 6. **Re-benchmark.** Run the benchmark again and compare to baseline.
@@ -40,7 +40,7 @@ Each iteration you must:
   This makes it easy to attribute gains and revert failures.
 - **Stay in R/.** Only modify files in `R/`. Do not change tests,
   data, or infrastructure.
-- **Respect CLAUDE.md.** All style rules apply: tidyverse style,
+- **Respect AGENTS.md.** All style rules apply: tidyverse style,
   80-char lines, `air format .` before committing, no `@importFrom`,
   namespace prefixes, etc.
 - **Focus on self-time hotspots.** The Rprof `by.self` output tells
