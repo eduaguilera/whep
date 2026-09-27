@@ -110,8 +110,10 @@
 #'   aborts, naming the coverage it has.
 #' @param run_dir Path to a finished LPJmL run output directory holding
 #'   `pft_harvestc.nc` and `cftfrac.nc`. `NULL` (default) uses
-#'   `WHEP_LPJML_RUN_DIR`. There is no pinned copy of this layer yet, so with
-#'   neither the reader aborts rather than reading anything else.
+#'   `WHEP_LPJML_RUN_DIR`, and with neither set reads the pinned
+#'   `lpjml-crop-regime-yield` layer, built from one LPJmL run together with
+#'   the other LPJmL-derived pins. A run that is named but lacks either file
+#'   aborts rather than falling back to the pin.
 #' @param data Optional list used in place of reading a run, for testing:
 #'   `harvestc` (as [read_lpjml_npp()] returns it for `"harvestc"`) and
 #'   `stand_frac` (as [read_lpjml_hydrology()] returns it for
@@ -173,7 +175,10 @@ read_lpjml_regime_yield <- function(
     out <- .lrg_band_yield(data$harvestc, data$stand_frac, include_others)
     return(.filter_years_if_present(out, years))
   }
-  run_dir <- .lrg_resolve_run_dir(run_dir)
+  run_dir <- .lrg_run_dir_or_pin(run_dir)
+  if (is.null(run_dir)) {
+    return(.lrg_read_pin(years, include_others))
+  }
   years <- years %||% .lrg_run_years(run_dir)
   # One year at a time: a year of cftfrac is 6.4 million band-cells, and the
   # whole 274-year record at once would not fit in memory.
@@ -388,9 +393,7 @@ read_lpjml_regime_yield <- function(
       c(
         "No LPJmL run to derive the regime yields from.",
         i = "Pass {.arg run_dir} or set {.envvar WHEP_LPJML_RUN_DIR} to a
-             finished LPJmL run's output directory.",
-        i = "No pinned {.val lpjml-crop-regime-yield} layer is published
-             yet, so there is nothing else to read."
+             finished LPJmL run's output directory."
       ),
       class = "whep_lpjml_regime_yield_no_run"
     )
@@ -409,6 +412,35 @@ read_lpjml_regime_yield <- function(
     )
   }
   resolved
+}
+
+# The run to derive the layer from: an explicit `run_dir`, else
+# `WHEP_LPJML_RUN_DIR`, else NULL, meaning the pinned layer is read instead,
+# as for the other LPJmL-derived layers. A run that is named but incomplete
+# still aborts: it is never silently swapped for the pin.
+.lrg_run_dir_or_pin <- function(run_dir) {
+  if (is.null(run_dir) && !.has_path(Sys.getenv("WHEP_LPJML_RUN_DIR"))) {
+    return(NULL)
+  }
+  .lrg_resolve_run_dir(run_dir)
+}
+
+# The pinned crop-grain layer (`lpjml-crop-regime-yield`, built by the
+# whep_inputs project's regenerate_whep_lpjml_pins() from one LPJmL run with
+# the other LPJmL-derived pins). It carries the "others" stand, dropped here
+# unless asked for.
+.lrg_read_pin <- function(years = NULL, include_others = FALSE) {
+  out <- .read_input(
+    "lpjml-crop-regime-yield",
+    years = years,
+    year_col = if (is.null(years)) NULL else "year"
+  ) |>
+    tibble::as_tibble() |>
+    .filter_years_if_present(years)
+  if (isTRUE(include_others)) {
+    return(out)
+  }
+  dplyr::filter(out, .data$lpjml_crop != "others")
 }
 
 # Every calendar year pft_harvestc.nc carries, read from its own time axis.

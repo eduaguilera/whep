@@ -255,10 +255,38 @@ testthat::test_that("a stand with area but no harvest value aborts", {
   )
 })
 
-testthat::test_that("with no run directory and no pin the reader aborts", {
+testthat::test_that("with no run directory the reader reads the pinned layer", {
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  seen <- new.env()
+  pinned <- tibble::tribble(
+    ~lon, ~lat, ~year, ~lpjml_crop, ~yield_rainfed, ~yield_irrigated,
+    ~stand_frac_rainfed, ~stand_frac_irrigated, ~method_regime_yield,
+    0.25, 40.25, 2010L, "maize", 400, 600, 0.2, 0.1, "lpjml_band_harvest",
+    0.25, 40.25, 2010L, "others", 100, 150, 0.1, 0.0, "lpjml_band_harvest",
+    0.25, 40.25, 2011L, "maize", 420, 610, 0.2, 0.1, "lpjml_band_harvest"
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      seen$alias <- pin_alias
+      data.table::as.data.table(pinned)
+    },
+    .package = "whep"
+  )
+  crops <- whep:::.lrg_crop_yield(years = 2010L)
+  testthat::expect_equal(seen$alias, "lpjml-crop-regime-yield")
+  testthat::expect_equal(crops$lpjml_crop, "maize")
+  testthat::expect_equal(crops$year, 2010L)
+  with_others <- whep:::.lrg_crop_yield(years = 2010L, include_others = TRUE)
+  testthat::expect_setequal(with_others$lpjml_crop, c("maize", "others"))
+})
+
+testthat::test_that("a named but missing run directory aborts, never reads the pin", {
   withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
   testthat::expect_error(
-    whep::read_lpjml_regime_yield(years = 2010L),
+    whep::read_lpjml_regime_yield(
+      years = 2010L,
+      run_dir = file.path(withr::local_tempdir(), "absent")
+    ),
     class = "whep_lpjml_regime_yield_no_run"
   )
 })

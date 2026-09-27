@@ -1472,8 +1472,17 @@ split_regime_yield <- function(
 # outside them (coastal and island cells of the run's land mask) has no LPJmL
 # ratio for any crop; it keeps an anomaly of 1, stamped `no_lpjml_cell`, apart
 # from the cells that are on the grid but lack a stand.
+# The cells the LPJmL run covers. Without a run, the cells the pinned layer
+# holds at the anchor year stand in: a cell with no crop stand at all is then
+# stamped as having no LPJmL cell, with the same anomaly of 1.
 .ryr_read_lpjml_grid <- function(run_dir) {
-  run_dir <- .lrg_resolve_run_dir(run_dir)
+  run_dir <- .lrg_run_dir_or_pin(run_dir)
+  if (is.null(run_dir)) {
+    return(
+      .lrg_read_pin(.ryr_anchor_year(), include_others = TRUE) |>
+        dplyr::distinct(.data$lon, .data$lat)
+    )
+  }
   read_lpjml_npp(
     "harvestc",
     years = .ryr_anchor_year(),
