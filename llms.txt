@@ -1159,6 +1159,8 @@ totals.
   : Plot national trade flows: model vs. raw historical FAO series
 - [`plot_national_trade_validation()`](https://eduaguilera.github.io/whep/reference/plot_national_trade_validation.md)
   : Plot national net trade validation
+- [`europe_fao_spain_trade`](https://eduaguilera.github.io/whep/reference/europe_fao_spain_trade.md)
+  : Spain's historical export and import series, 1849-1960
 
 ## Multi-regional input-output model
 
