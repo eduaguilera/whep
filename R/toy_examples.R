@@ -144,7 +144,7 @@
     dplyr::mutate(
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
-      method_unspatialized = "reallocate"
+      method_unspatialized = "fodder_pattern"
     ) |>
     .add_reporting_polity_columns()
 }
@@ -804,7 +804,7 @@
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
     ~method_unspatialized,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
-    "reallocate",
+    "fodder_pattern",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467,
     "lpjml_npp_minus_harvest", NA,
     0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325,

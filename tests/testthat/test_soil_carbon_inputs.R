@@ -43,6 +43,17 @@
   list(country_grid = country_grid, crop_patterns = crop_patterns)
 }
 
+# The layer the default `method_unspatialized = "fodder_pattern"` reads
+# (whep#1118). It carries only alfalfa (641), which no fixture crop is, so it
+# keeps these tests offline without moving any of the numbers they check;
+# test_soil_carbon_fodder.R tests the layer itself.
+.sci_fodder_fixture <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~crop_area_ha,
+    0.25, 0.25, "641", 5
+  )
+}
+
 .sci_fixture_data <- function() {
   grid <- .sci_grid_fixture()
   list(
@@ -50,6 +61,7 @@
     manure = .sci_manure_fixture(),
     country_grid = grid$country_grid,
     crop_patterns = grid$crop_patterns,
+    fodder_patterns = .sci_fodder_fixture(),
     residue_humification = whep::residue_humification
   )
 }
@@ -205,6 +217,7 @@ test_that("residue C uses residue_soil_c_t, not gross residue_c_t", {
     manure = manure,
     country_grid = grid$country_grid,
     crop_patterns = grid$crop_patterns,
+    fodder_patterns = .sci_fodder_fixture(),
     residue_humification = whep::residue_humification
   )
   out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
@@ -239,6 +252,7 @@ test_that("manure territory as an iso3c resolves instead of dropping to NA", {
     manure = manure,
     country_grid = country_grid,
     crop_patterns = crop_patterns,
+    fodder_patterns = .sci_fodder_fixture(),
     residue_humification = whep::residue_humification
   )
   # The iso3c form is a deprecated bridge (#463), so resolving it warns; this
@@ -951,9 +965,13 @@ testthat::test_that("a residue-plus-manure mix gives a mixed input C:N", {
   list(out = value, warnings = seen)
 }
 
-testthat::test_that("unspatialized carbon is reallocated, not dropped, by default", {
+testthat::test_that("unspatialized carbon is reallocated under 'reallocate'", {
   data <- .sci_unspatialized_data()
-  run <- .sci_run_reporting(resolution = "polity", data = data)
+  run <- .sci_run_reporting(
+    resolution = "polity",
+    data = data,
+    method_unspatialized = "reallocate"
+  )
   testthat::expect_match(run$warnings, "reallocating uniformly", all = FALSE)
   testthat::expect_setequal(run$out$item_prod_code, c("15", "27"))
   # Mass is conserved: per-hectare density times the crop area it is computed
@@ -967,7 +985,11 @@ testthat::test_that("unspatialized carbon is reallocated, not dropped, by defaul
 
 testthat::test_that("reallocated carbon follows the polity's cropland area", {
   data <- .sci_unspatialized_data()
-  run <- .sci_run_reporting(resolution = "grid", data = data)
+  run <- .sci_run_reporting(
+    resolution = "grid",
+    data = data,
+    method_unspatialized = "reallocate"
+  )
   crop27 <- run$out[run$out$item_prod_code == "27", ]
   testthat::expect_equal(nrow(crop27), 2L)
   # Crop 15 is the polity's whole crop-pattern cropland here: 30 ha in cell A
@@ -1011,7 +1033,11 @@ testthat::test_that("reallocation needs a national area, and says so when absent
   # still dropped rather than smeared onto an invented area.
   data <- .sci_unspatialized_data()
   data$harvested_area <- NULL
-  run <- .sci_run_reporting(resolution = "polity", data = data)
+  run <- .sci_run_reporting(
+    resolution = "polity",
+    data = data,
+    method_unspatialized = "reallocate"
+  )
   testthat::expect_match(
     run$warnings,
     "no national harvested area",
@@ -1044,7 +1070,11 @@ testthat::test_that("a polity absent from the cell support cannot be reallocated
       faostat_area_ha = 5
     )
   )
-  run <- .sci_run_reporting(resolution = "polity", data = data)
+  run <- .sci_run_reporting(
+    resolution = "polity",
+    data = data,
+    method_unspatialized = "reallocate"
+  )
   testthat::expect_match(
     run$warnings,
     "no cell in the polity support",
@@ -1074,7 +1104,8 @@ testthat::test_that("the reallocated carbon survives into build_carbon_inputs", 
     whep::build_carbon_inputs(
       resolution = "grid",
       data = data,
-      crop_groups = list(method = "none")
+      crop_groups = list(method = "none"),
+      method_unspatialized = "reallocate"
     ),
     warning = function(w) invokeRestart("muffleWarning")
   )

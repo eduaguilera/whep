@@ -124,15 +124,131 @@ testthat::test_that("the carbon placed on the fodder layer is reported", {
   )
 })
 
-testthat::test_that("fodder_pattern refuses to run without the layer", {
+# The `spatialize-fodder-patterns` pin in miniature: the pooled harvest
+# fraction of every fodder item, here only in cell B, plus the gridded-cropland
+# pin it is combined with (40 ha of cropland in cell B, so 0.2 x 40 = 8 ha of
+# fodder, the same layer `.fod_data()` hands in directly).
+.fod_pin_fixture <- function() {
+  list(
+    fractions = tibble::tibble(
+      lon = 0.75,
+      lat = 0.25,
+      item_prod_code = whep:::.fodder_earthstat_layers()$item_prod_code,
+      harvest_fraction = 0.2
+    ),
+    cropland = tibble::tribble(
+      ~lon, ~lat, ~year, ~cropland_ha,
+      0.25, 0.25, 2019L, 120,
+      0.25, 0.25, 2020L, 120,
+      0.75, 0.25, 2019L, 30,
+      0.75, 0.25, 2020L, 50
+    )
+  )
+}
+
+# Mock the pin reader with the fixture and record every alias it is asked for.
+.fod_mock_pins <- function(env = parent.frame()) {
+  pins <- .fod_pin_fixture()
+  read <- new.env()
+  read$aliases <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      read$aliases <- c(read$aliases, file_alias)
+      switch(
+        file_alias,
+        "spatialize-fodder-patterns" = pins$fractions,
+        "spatialize-gridded-cropland" = pins$cropland,
+        cli::cli_abort("Unexpected pin {.val {file_alias}} in a test.")
+      )
+    },
+    .package = "whep",
+    .env = env
+  )
+  read
+}
+
+testthat::test_that("fodder_pattern is the default in both builders", {
+  choices <- c("fodder_pattern", "reallocate", "drop")
+  testthat::expect_equal(
+    eval(formals(whep::build_soil_carbon_inputs)$method_unspatialized),
+    choices
+  )
+  testthat::expect_equal(
+    eval(formals(whep::build_carbon_inputs)$method_unspatialized),
+    choices
+  )
+})
+
+testthat::test_that("the default reads the fodder layer from the pin", {
   withr::local_envvar(WHEP_MONFREDA_DIR = "")
+  read <- .fod_mock_pins()
+  data <- .fod_data()
+  data$fodder_patterns <- NULL
+  out <- suppressWarnings(suppressMessages(
+    whep::build_soil_carbon_inputs(resolution = "grid", data = data)
+  ))
+  testthat::expect_true(all(out$method_unspatialized == "fodder_pattern"))
+  testthat::expect_setequal(
+    read$aliases,
+    c("spatialize-fodder-patterns", "spatialize-gridded-cropland")
+  )
+  # Same placement as the hand-supplied layer: all 60 Mg C of alfalfa in
+  # cell B, on its 16 FAOSTAT ha.
+  testthat::expect_equal(.fod_cell_mass(out, "641"), 60)
+  alfalfa <- dplyr::filter(out, .data$item_prod_code == "641")
+  testthat::expect_equal(alfalfa$lon, 0.75)
+  testthat::expect_equal(alfalfa$crop_area_ha, 16)
+})
+
+testthat::test_that("the pin layer is harvest fraction x mean cropland", {
+  withr::local_envvar(WHEP_MONFREDA_DIR = "")
+  .fod_mock_pins()
+  layer <- suppressMessages(whep:::.sci_read_fodder_patterns())
+  testthat::expect_setequal(
+    layer$item_prod_code,
+    whep:::.fodder_earthstat_layers()$item_prod_code
+  )
+  # Mean cropland in cell B is (30 + 50) / 2 = 40 ha; 0.2 of it is fodder.
+  testthat::expect_equal(unique(layer$crop_area_ha), 8)
+  testthat::expect_equal(unique(layer$lon), 0.75)
+})
+
+testthat::test_that("WHEP_MONFREDA_DIR overrides the pin with the rasters", {
+  dir <- withr::local_tempdir()
+  withr::local_envvar(WHEP_MONFREDA_DIR = dir)
+  read <- .fod_mock_pins()
+  rebuilt <- dplyr::mutate(.fod_pin_fixture()$fractions, lon = 0.25)
+  seen <- new.env()
+  testthat::local_mocked_bindings(
+    .sci_fodder_harvest_fraction = function(monfreda_dir, ...) {
+      seen$dir <- monfreda_dir
+      rebuilt
+    },
+    .package = "whep"
+  )
+  layer <- suppressMessages(whep:::.sci_read_fodder_patterns())
+  testthat::expect_equal(seen$dir, dir)
+  testthat::expect_false("spatialize-fodder-patterns" %in% read$aliases)
+  # The rebuilt layer, not the pin's: cell A, 0.2 x 120 ha.
+  testthat::expect_equal(unique(layer$lon), 0.25)
+  testthat::expect_equal(unique(layer$crop_area_ha), 24)
+})
+
+testthat::test_that("a wrong WHEP_MONFREDA_DIR aborts, never falls back", {
+  withr::local_envvar(WHEP_MONFREDA_DIR = withr::local_tempdir())
+  read <- .fod_mock_pins()
   data <- .fod_data()
   data$fodder_patterns <- NULL
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(
-      data = data,
-      method_unspatialized = "fodder_pattern"
-    ),
+    whep::build_soil_carbon_inputs(data = data),
+    class = "whep_missing_monfreda"
+  )
+  testthat::expect_false("spatialize-fodder-patterns" %in% read$aliases)
+})
+
+testthat::test_that("rebuilding the layer without a raster path aborts", {
+  testthat::expect_error(
+    whep:::.sci_fodder_harvest_fraction(""),
     class = "whep_missing_monfreda"
   )
 })
