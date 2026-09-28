@@ -137,6 +137,16 @@ testthat::test_that("blocking is identical across openings, models and grain", {
     dplyr::mutate(
       climate_modifier = 0.6 + 0.05 * (.data$year - 2007) + .data$lat / 400
     )
+  # ICBM's moisture response needs the soil-water drivers as well as
+  # temperature; a climate carrying only part of them is refused (whep#1034).
+  icbm_data <- .cbb_data()
+  icbm_data$climate <- icbm_data$climate |>
+    dplyr::mutate(
+      theta = 0.18 + 0.1 * (1 + sin(.data$month / 12 * 2 * pi)) / 2,
+      t_field = 0.29,
+      t_wilt = 0.14,
+      porosity = 0.43
+    )
   precomputed$clay <- dplyr::distinct(
     .cbb_climate(),
     .data$lon,
@@ -164,7 +174,7 @@ testthat::test_that("blocking is identical across openings, models and grain", {
     ),
     # A model whose modifier takes the per-group path, not the vectorised one.
     icbm_polity = list(
-      data = .cbb_data(),
+      data = icbm_data,
       model = "icbm",
       resolution = "polity"
     ),
