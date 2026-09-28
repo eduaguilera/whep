@@ -95,6 +95,7 @@ per-country ratio is emitted per row rather than summarised away.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_gridded_livestock_emissions</span><span class="op">(</span></span>
 <span>  gridded_livestock <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  method_diet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_cell_feed"</span>, <span class="st">"national_feed"</span>, <span class="st">"uniform_medium"</span><span class="op">)</span>,</span>
+<span>  method_species <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"national_head_share"</span>, <span class="st">"refuse"</span><span class="op">)</span>,</span>
 <span>  tier <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -113,8 +114,8 @@ per-country ratio is emitted per row rather than summarised away.</p>
 <code>area_code</code>, <code>heads</code>, and either <code>species</code> (an IPCC species label such as
 <code>"Cattle, dairy"</code>) or <code>species_group</code> (a spatializer group label). Groups
 that name more than one IPCC species (<code>"sheep_goats"</code>, <code>"equines"</code>,
-<code>"poultry"</code>, <code>"other"</code>) abort rather than being split on an assumption.
-Polity columns and cell identifiers are preserved when present.</p></dd>
+<code>"poultry"</code>, <code>"other"</code>) are split as <code>method_species</code> says. Polity
+columns and cell identifiers are preserved when present.</p></dd>
 
 
 <dt id="arg-method-diet">method_diet<a class="anchor" aria-label="anchor" href="#arg-method-diet"></a></dt>
@@ -129,6 +130,27 @@ for example from <code><a href="build_feed_intake_local.html">build_feed_intake_
 assumption, not a measurement, and is never selected implicitly.</p></li>
 </ul><p>Whatever is requested, the value actually used is recorded per row in
 <code>method_diet</code>. A row that no requested method resolves aborts.</p></dd>
+
+
+<dt id="arg-method-species">method_species<a class="anchor" aria-label="anchor" href="#arg-method-species"></a></dt>
+<dd><p>How a <code>species_group</code> that names more than one IPCC
+species is split into its species:</p><ul><li><p><code>"national_head_share"</code> (default): each cell's group head count is
+divided among the group's members in the proportions the country itself
+reports, from the national head counts by live-animal item
+(<code>data$species_heads</code>). The members are read from the same
+<code>livestock_mapping.csv</code> the spatializer summed them with, so the split
+inverts that grouping at national level: a country's gridded species
+mix equals its reported one, and the group's gridded head total is
+conserved exactly. It assumes the species mix is the
+same in every cell of a country, which is also what the spatializer
+assumed, because it gave all members of a group one spatial proxy.
+Countries are matched on <code>area_code</code>; a cell whose <code>area_code</code> the head
+table does not carry is matched on <code>polity_area_code</code> instead (for
+example Sudan and South Sudan, reported together as polity 206), and
+<code>method_species</code> says which. A cell matched by neither is returned with
+<code>NA</code> emissions and a warning, never split on an invented ratio.</p></li>
+<li><p><code>"refuse"</code>: abort on any aggregate group, the behaviour before whep#1126.</p></li>
+</ul><p>The rung used is recorded per row in <code>method_species</code>.</p></dd>
 
 
 <dt id="arg-tier">tier<a class="anchor" aria-label="anchor" href="#arg-tier"></a></dt>
@@ -199,11 +221,17 @@ be measured (whep#949).</p></dd>
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs: <code>cell_climate</code> (a
-<code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code> output) and <code>feed_intake</code> (a feed-intake
-table). <code>cell_climate</code> falls back to <code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code>, which
-reads CRU from <code>WHEP_CRU_DIR</code>. <code>feed_intake</code> has no fallback: the readers
-that produce it rebuild the whole feed allocation, so it is supplied or
-the diet method is <code>"uniform_medium"</code>.</p></dd>
+<code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code> output), <code>feed_intake</code> (a feed-intake table)
+and <code>species_heads</code> (national head counts by live-animal item, with
+<code>year</code>, <code>area_code</code>, <code>item_cbs_code</code> and <code>value</code> or <code>heads</code>, optionally
+<code>polity_area_code</code> and <code>unit</code>; rows with a <code>unit</code> other than <code>"heads"</code>
+are ignored). <code>cell_climate</code> falls back to <code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code>,
+which reads CRU from <code>WHEP_CRU_DIR</code>. <code>species_heads</code> falls back to
+<code><a href="get_primary_production.html">get_primary_production()</a></code>, the source the spatializer's country table
+is built from, and is read only when an aggregate group is present.
+<code>feed_intake</code> has no fallback: the readers that produce it rebuild the
+whole feed allocation, so it is supplied or the diet method is
+<code>"uniform_medium"</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -225,6 +253,11 @@ cell, so summing these over a country reproduces the national-grain run.</p></li
 national-grain total. <code>1</code> means the two grains agree.</p></li>
 <li><p><code>mean_annual_temp_c</code>, <code>climate_zone</code>, <code>diet_quality</code>: The resolved
 per-cell drivers.</p></li>
+<li><p><code>species_group</code>: The spatializer group, when the input carried one.</p></li>
+<li><p><code>method_species</code>: How the row's <code>species</code> was resolved: <code>"supplied"</code>,
+<code>"one_to_one"</code> (the group is a single species), <code>"national_head_share"</code>,
+<code>"polity_bucket_head_share"</code> or <code>"unsplit_no_national_mix"</code> (emissions
+<code>NA</code>, see <code>method_species</code>).</p></li>
 <li><p><code>method_climate_zone</code>, <code>method_diet</code>, <code>method_enteric</code>,
 <code>method_manure_ch4</code>, <code>method_manure_n2o</code>: Method tracking.</p></li>
 </ul><p>plus the polity columns below.</p>
@@ -271,19 +304,19 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_gridded_livestock_emissions</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 27</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 29</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">1</span>961       114              114 KEN-1926-1963         Kenya (1926-1963)    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">1</span>961       114              114 KEN-1926-1963         Kenya (1926-1963)    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">1</span>961       114              114 KEN-1926-1963         Kenya (1926-1963)    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 22 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 24 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, species &lt;chr&gt;, heads &lt;dbl&gt;, mean_annual_temp_c &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   climate_zone &lt;chr&gt;, diet_quality &lt;chr&gt;, enteric_ch4_kt &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_ch4_kt &lt;dbl&gt;, manure_n2o_kt &lt;dbl&gt;, divergence_enteric_ch4 &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   divergence_manure_ch4 &lt;dbl&gt;, divergence_manure_n2o &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   enteric_ch4_national_kt &lt;dbl&gt;, manure_ch4_national_kt &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_n2o_national_kt &lt;dbl&gt;, method_climate_zone &lt;chr&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_n2o_national_kt &lt;dbl&gt;, species_group &lt;chr&gt;, method_species &lt;chr&gt;, …</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

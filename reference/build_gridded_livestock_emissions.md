@@ -29,6 +29,7 @@ than summarised away.
 build_gridded_livestock_emissions(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
+  method_species = c("national_head_share", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -47,8 +48,8 @@ build_gridded_livestock_emissions(
   `species` (an IPCC species label such as `"Cattle, dairy"`) or
   `species_group` (a spatializer group label). Groups that name more
   than one IPCC species (`"sheep_goats"`, `"equines"`, `"poultry"`,
-  `"other"`) abort rather than being split on an assumption. Polity
-  columns and cell identifiers are preserved when present.
+  `"other"`) are split as `method_species` says. Polity columns and cell
+  identifiers are preserved when present.
 
 - method_diet:
 
@@ -69,6 +70,33 @@ build_gridded_livestock_emissions(
 
   Whatever is requested, the value actually used is recorded per row in
   `method_diet`. A row that no requested method resolves aborts.
+
+- method_species:
+
+  How a `species_group` that names more than one IPCC species is split
+  into its species:
+
+  - `"national_head_share"` (default): each cell's group head count is
+    divided among the group's members in the proportions the country
+    itself reports, from the national head counts by live-animal item
+    (`data$species_heads`). The members are read from the same
+    `livestock_mapping.csv` the spatializer summed them with, so the
+    split inverts that grouping at national level: a country's gridded
+    species mix equals its reported one, and the group's gridded head
+    total is conserved exactly. It assumes the species mix is the same
+    in every cell of a country, which is also what the spatializer
+    assumed, because it gave all members of a group one spatial proxy.
+    Countries are matched on `area_code`; a cell whose `area_code` the
+    head table does not carry is matched on `polity_area_code` instead
+    (for example Sudan and South Sudan, reported together as polity
+    206), and `method_species` says which. A cell matched by neither is
+    returned with `NA` emissions and a warning, never split on an
+    invented ratio.
+
+  - `"refuse"`: abort on any aggregate group, the behaviour before
+    whep#1126.
+
+  The rung used is recorded per row in `method_species`.
 
 - tier:
 
@@ -168,12 +196,19 @@ build_gridded_livestock_emissions(
 
   Optional named list of pre-loaded inputs: `cell_climate` (a
   [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md)
-  output) and `feed_intake` (a feed-intake table). `cell_climate` falls
-  back to
+  output), `feed_intake` (a feed-intake table) and `species_heads`
+  (national head counts by live-animal item, with `year`, `area_code`,
+  `item_cbs_code` and `value` or `heads`, optionally `polity_area_code`
+  and `unit`; rows with a `unit` other than `"heads"` are ignored).
+  `cell_climate` falls back to
   [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md),
-  which reads CRU from `WHEP_CRU_DIR`. `feed_intake` has no fallback:
-  the readers that produce it rebuild the whole feed allocation, so it
-  is supplied or the diet method is `"uniform_medium"`.
+  which reads CRU from `WHEP_CRU_DIR`. `species_heads` falls back to
+  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
+  the source the spatializer's country table is built from, and is read
+  only when an aggregate group is present. `feed_intake` has no
+  fallback: the readers that produce it rebuild the whole feed
+  allocation, so it is supplied or the diet method is
+  `"uniform_medium"`.
 
 - example:
 
@@ -201,6 +236,13 @@ A tibble with one row per `year`, `area_code`, `lon`, `lat` and
 
 - `mean_annual_temp_c`, `climate_zone`, `diet_quality`: The resolved
   per-cell drivers.
+
+- `species_group`: The spatializer group, when the input carried one.
+
+- `method_species`: How the row's `species` was resolved: `"supplied"`,
+  `"one_to_one"` (the group is a single species),
+  `"national_head_share"`, `"polity_bucket_head_share"` or
+  `"unsplit_no_national_mix"` (emissions `NA`, see `method_species`).
 
 - `method_climate_zone`, `method_diet`, `method_enteric`,
   `method_manure_ch4`, `method_manure_n2o`: Method tracking.
@@ -262,17 +304,17 @@ extra column.
 
 ``` r
 build_gridded_livestock_emissions(example = TRUE)
-#> # A tibble: 3 × 27
+#> # A tibble: 3 × 29
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  1961       114              114 KEN-1926-1963         Kenya (1926-1963)    
 #> 2  1961       114              114 KEN-1926-1963         Kenya (1926-1963)    
 #> 3  1961       114              114 KEN-1926-1963         Kenya (1926-1963)    
-#> # ℹ 22 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 24 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, species <chr>, heads <dbl>, mean_annual_temp_c <dbl>,
 #> #   climate_zone <chr>, diet_quality <chr>, enteric_ch4_kt <dbl>,
 #> #   manure_ch4_kt <dbl>, manure_n2o_kt <dbl>, divergence_enteric_ch4 <dbl>,
 #> #   divergence_manure_ch4 <dbl>, divergence_manure_n2o <dbl>,
 #> #   enteric_ch4_national_kt <dbl>, manure_ch4_national_kt <dbl>,
-#> #   manure_n2o_national_kt <dbl>, method_climate_zone <chr>, …
+#> #   manure_n2o_national_kt <dbl>, species_group <chr>, method_species <chr>, …
 ```
