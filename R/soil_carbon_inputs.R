@@ -54,7 +54,11 @@
 #'   the national density and carbon mass is conserved; defaults to the same
 #'   `get_primary_production()` table the NPP reader uses, and is skipped when a
 #'   hand-supplied `npp` keeps the pipeline offline unless supplied here);
-#'   `residue_humification` (defaults to [residue_humification]).
+#'   `residue_humification` (defaults to [residue_humification]);
+#'   `fodder_patterns` (only read under
+#'   `method_unspatialized = "fodder_pattern"`: per-cell fodder crop area in
+#'   the `crop_patterns` schema, defaulting to the Monfreda et al. (2008)
+#'   forage layers read from `WHEP_MONFREDA_DIR`).
 #' @param method_unspatialized What happens to a polity-crop whose crop has no
 #'   hectares in the (time-invariant) `crop_patterns` layer. `"reallocate"`
 #'   (default) spreads that carbon over the polity's crop-pattern cropland
@@ -64,7 +68,21 @@
 #'   spatialization already applies to the same gap
 #'   ([spatialize_country_n_to_crops()]). `"drop"` discards it, which is what
 #'   the package did before and what a caller who prefers a hole to a smear
-#'   should ask for. Either way the mass and the affected crops are reported,
+#'   should ask for. `"fodder_pattern"` first places the fodder crops (FAOSTAT
+#'   items 636-649, 651 and 655) on the pooled 16 forage layers of Monfreda,
+#'   Ramankutty and Foley (2008, \doi{10.1029/2007GB002947}), which the
+#'   crop-pattern pin omits, gridded exactly as a crop-pattern crop is. The
+#'   layers are pooled because the per-item ones follow the circa-2000
+#'   reporting vocabulary, not where each item is grown later. Whatever the
+#'   layer still cannot
+#'   place is reallocated as under `"reallocate"`. It needs the Monfreda
+#'   archive (`inst/scripts/download/download_monfreda.R`) with
+#'   `WHEP_MONFREDA_DIR` pointing at its
+#'   `HarvestedAreaYield175Crops_Geotiff` folder, or `data$fodder_patterns`,
+#'   and aborts rather than falling back when neither is available. The layer
+#'   codes are matched on the layer names, as the archive's metadata gives no
+#'   FAO name for them (assumed, unverified against a Monfreda table). Either
+#'   way the mass and the affected crops are reported,
 #'   and the choice is recorded in `method_unspatialized`. Reallocation needs a
 #'   national area to put the carbon on, so a polity-crop with no
 #'   `harvested_area` row -- and a polity with no cell at all in the support,
@@ -94,7 +112,7 @@ build_soil_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("reallocate", "fodder_pattern", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -121,7 +139,7 @@ build_soil_carbon_inputs <- function(
   reduce = NULL,
   method = "reallocate"
 ) {
-  d <- .sci_resolve_inputs(data, years)
+  d <- .sci_resolve_inputs(data, years, method)
   components <- .sci_assemble_components(d$npp, d$manure)
   .sci_grid_and_finalise(components, d, resolution, reduce, method)
 }
@@ -151,8 +169,19 @@ build_soil_carbon_inputs <- function(
 ) {
   weights <- .sci_grid_weights(d$country_grid, d$crop_patterns)
   # The cropland support a reallocated polity-crop lands on. Built once, like
-  # the crop weights, and only when the rule asks for it.
-  fallback <- if (method == "reallocate") .sci_cropland_weights(weights)
+  # the crop weights, and only when the rule asks for it. Built from the crop
+  # pattern alone, so adding the fodder layer below cannot move the cropland
+  # a non-fodder crop is reallocated over.
+  fallback <- if (method != "drop") .sci_cropland_weights(weights)
+  if (method == "fodder_pattern") {
+    fodder <- .sci_add_fodder_weights(
+      weights,
+      d$country_grid,
+      d$fodder_patterns
+    )
+    .sci_inform_fodder_placed(components, weights, fodder)
+    weights <- fodder
+  }
   # Once, over all components: this reports totals, so warning per year would
   # both spam the caller and change the numbers it reports.
   .sci_warn_unspatialized(components, weights, fallback, d$harvested_area)
@@ -199,10 +228,16 @@ build_soil_carbon_inputs <- function(
 # same get_primary_production() table the NPP chain starts from, while a
 # hand-supplied npp keeps the BYO path offline (harvested_area stays NULL and no
 # renormalization happens) unless the caller also supplies data$harvested_area.
-.sci_resolve_inputs <- function(data, years = NULL) {
+.sci_resolve_inputs <- function(data, years = NULL, method = "reallocate") {
   harvested_area <- data$harvested_area %||%
     (if (is.null(data$npp)) .sci_read_harvested_area(years) else NULL)
+  # Only read when the rule asks for it: the Monfreda rasters are a local
+  # archive (WHEP_MONFREDA_DIR), so the other methods must not need them.
+  fodder_patterns <- if (method == "fodder_pattern") {
+    data$fodder_patterns %||% .sci_read_fodder_patterns()
+  }
   list(
+    fodder_patterns = fodder_patterns,
     npp = data$npp %||% .sci_read_npp(years),
     manure = data$manure %||% .sci_read_manure(years),
     country_grid = data$country_grid %||% .sci_read_country_grid(),
