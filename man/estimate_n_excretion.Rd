@@ -10,6 +10,9 @@ estimate_n_excretion(intake, options = list())
 \item{intake}{A tibble of realised feed intake with at least \code{year},
 \code{territory}, \code{sub_territory}, \code{livestock_category}, \code{item_cbs_code},
 \code{feed_quality} and \code{intake_dm_t} (the \code{\link[=redistribute_feed]{redistribute_feed()}} result).
+The output of \code{\link[=get_feed_intake]{get_feed_intake()}} does not fit: it is keyed by
+\code{area_code} and \code{live_anim_code} and carries no \code{intake_dm_t}, and it is
+refused with a pointer to \code{\link[=redistribute_feed]{redistribute_feed()}}.
 \code{territory} is a stringified \code{area_code} (\code{as.character(area_code)}, what
 \code{\link[=redistribute_feed]{redistribute_feed()}} emits and what the whole manure chain carries
 through to the nitrogen inputs); an \code{iso3c} literal is still resolved

@@ -238,3 +238,36 @@ test_that("the single-method carbon guard names what it accepts", {
     class = "rlang_error"
   )
 })
+
+# whep#181: get_feed_intake is the documented feed-intake accessor, but its
+# columns are not the ones estimate_n_excretion reads. The mismatch used to
+# surface as a bare list of missing columns; it now names the right source.
+test_that("get_feed_intake() output is refused with a pointer to the source", {
+  feed <- whep::get_feed_intake(example = TRUE)
+  cnd <- expect_error(
+    whep::estimate_n_excretion(feed),
+    class = "whep_error_schema_violation"
+  )
+  expect_match(conditionMessage(cnd), "redistribute_feed")
+})
+
+test_that("an intake with a missing column aborts with the schema class", {
+  bad <- dplyr::select(.toy_intake(), -intake_dm_t)
+  cnd <- expect_error(
+    whep::estimate_n_excretion(bad),
+    class = "whep_error_schema_violation"
+  )
+  expect_match(conditionMessage(cnd), "intake_dm_t")
+})
+
+test_that("a complete intake carrying extra CBS-shaped columns is accepted", {
+  extra <- dplyr::mutate(
+    .toy_intake(),
+    live_anim_code = 960L,
+    intake_dry_matter = intake_dm_t
+  )
+  expect_equal(
+    whep::estimate_n_excretion(extra),
+    whep::estimate_n_excretion(.toy_intake())
+  )
+})
