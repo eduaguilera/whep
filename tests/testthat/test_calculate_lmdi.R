@@ -984,3 +984,146 @@ test_that("calculate_lmdi does not amplify accumulation residue", {
     -pair$high * log(2)
   )
 })
+
+# Logarithmic mean accuracy (#1089) ---------------------------------------------
+
+test_that(".log_mean is correct to rounding at and around the switch point", {
+  pair <- log_mean_switch_pairs()
+  expected <- log_mean_series_reference(pair$a, pair$b)
+
+  # log(a) - log(b) keeps only ~8 significant digits here, so the previous
+  # far branch was off by up to 5e-8 relative just above sqrt(eps).
+  expect_lte(
+    max(abs(whep:::.log_mean(pair$a, pair$b) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+  expect_lte(
+    max(abs(whep:::.log_mean(pair$b, pair$a) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+})
+
+test_that(".log_mean stays accurate for large and extreme ratios", {
+  k <- c(1, 2, 10, 40, 60)
+  expected <- (2^k - 1) / (k * log(2))
+
+  expect_equal(whep:::.log_mean(2^k, 1), expected, tolerance = 4 * 2^-52)
+  expect_equal(whep:::.log_mean(1, 2^k), expected, tolerance = 4 * 2^-52)
+  expect_equal(
+    whep:::.log_mean(2^-k, 1),
+    expected * 2^-k,
+    tolerance = 4 * 2^-52
+  )
+  # A ratio beyond the double range must not overflow to a zero weight.
+  expect_equal(
+    whep:::.log_mean(1e300, 1e-300),
+    (1e300 - 1e-300) / (log(1e300) - log(1e-300)),
+    tolerance = 4 * 2^-52
+  )
+  expect_equal(whep:::.log_mean(1, 1e-12), (1 - 1e-12) / log(1e12))
+})
+
+# Numeric helper columns are not balancing keys (#1232) -------------------------
+
+#' A panel shaped like `.build_urban_panel()`: the identity's variables plus
+#' two numeric helper columns (`excr_h`, `recycled`) outside the identity.
+lmdi_helper_column_fixture <- function() {
+  tibble::tibble(
+    year = 2000:2003,
+    excr_h = c(10, 11, 12, 13),
+    recycled = c(1, 1.2, 1.1, 1.3),
+    population = c(2, 2.1, 2.2, 2.3)
+  ) |>
+    dplyr::mutate(
+      excr_pc = excr_h / population,
+      loss_frac = 1 - recycled / excr_h,
+      loss = excr_h - recycled
+    )
+}
+
+test_that("numeric columns outside the identity do not balance the panel", {
+  data <- lmdi_helper_column_fixture()
+  identity <- "loss:population*excr_pc*loss_frac"
+
+  vars <- whep:::.lmdi_extract_vars(data, identity, "loss", year)
+  prepared <- whep:::.lmdi_prepare_data(
+    data,
+    identity,
+    "loss",
+    year,
+    1,
+    FALSE
+  )
+
+  expect_equal(vars$group_cols, character(0))
+  # Keyed on the helper columns this balanced to 4^3 = 64 rows.
+  expect_equal(nrow(prepared), nrow(data))
+})
+
+test_that("helper columns leave a correct decomposition unchanged", {
+  data <- lmdi_helper_column_fixture()
+  identity <- "loss:population*excr_pc*loss_frac"
+
+  with_helpers <- calculate_lmdi(data, identity, verbose = FALSE)
+  without_helpers <- data |>
+    dplyr::select(-excr_h, -recycled) |>
+    calculate_lmdi(identity, verbose = FALSE)
+
+  expect_identical(with_helpers, without_helpers)
+})
+
+test_that("helper columns do not split rolling-mean series", {
+  data <- lmdi_rolling_fixture() |>
+    dplyr::mutate(helper = seq_along(year) * 1.5)
+  identity <- "emissions:activity*intensity"
+
+  with_helper <- calculate_lmdi(
+    data,
+    identity,
+    rolling_mean = 3,
+    verbose = FALSE
+  )
+  without_helper <- data |>
+    dplyr::select(-helper) |>
+    calculate_lmdi(identity, rolling_mean = 3, verbose = FALSE)
+
+  expect_identical(with_helper, without_helper)
+})
+
+test_that("a numeric `.by` column still balances the panel", {
+  data <- tibble::tribble(
+    ~area_code, ~year, ~activity, ~intensity, ~helper,
+    1L,         2010,  1000,      0.10,       7.5,
+    1L,         2011,  1100,      0.11,       8.5,
+    2L,         2010,  2000,      0.05,       9.5
+  ) |>
+    dplyr::mutate(emissions = activity * intensity)
+  identity <- "emissions:activity*intensity"
+
+  vars <- whep:::.lmdi_extract_vars(
+    data,
+    identity,
+    "emissions",
+    year,
+    .by = "area_code"
+  )
+  prepared <- whep:::.lmdi_prepare_data(
+    data,
+    identity,
+    "emissions",
+    year,
+    1,
+    FALSE,
+    .by = "area_code"
+  )
+
+  expect_equal(vars$group_cols, "area_code")
+  # Only the missing (area 2, 2011) row is added, not one per helper value.
+  expect_equal(nrow(prepared), 4)
+  expect_equal(
+    prepared |>
+      dplyr::filter(area_code == 2L, year == 2011) |>
+      nrow(),
+    1
+  )
+})

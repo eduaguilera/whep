@@ -135,6 +135,12 @@ The input data frame must contain:
 \item Grouping variables if using \code{.by}.
 \item No missing values in key variables for decomposition periods.
 }
+
+The panel is balanced (and smoothed, with \code{rolling_mean}) over its key
+columns: every non-numeric column, the bracket selectors and the \code{.by}
+columns. Any other numeric column is carried along as a value and is
+not a key, so a numeric identifier that must keep its series apart
+belongs in \code{.by} or a selector.
 }
 
 \examples{
