@@ -80,7 +80,10 @@ drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column.
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
-as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
+as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}. At grid
+resolution the rainfed/irrigated split doubles the rows, so an aligned
+vector only fits with \code{methods$regime = "none"}; otherwise supply
+drainage as a column of \code{n_balance_leaching_drivers}.
 }}
 
 \item{gwp}{100-year global warming potential standard for N2O, \code{"ar6"}
@@ -92,8 +95,9 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble keyed by \code{year}/\code{area_code}/\code{item_cbs_code} (plus
 \code{lon}/\code{lat} at \code{resolution = "grid"}, and \code{water_regime}, \code{"rainfed"} or
-\code{"irrigated"}, at grid resolution unless \code{methods$regime = "none"}) with \code{area_ha} (each crop's
-harvested hectares in the cell, summed over cells at
+\code{"irrigated"}, at grid resolution unless \code{methods$regime = "none"}) with
+\code{area_ha} (each crop's harvested hectares in the cell, summed over cells
+at
 \code{resolution = "polity"}; used downstream to convert tonnes N to a
 per-hectare rate), the input aggregates
 (\code{n_input_full_t}, \code{n_input_full_nosom_t}, \code{n_input_std_t},
@@ -106,9 +110,13 @@ per-hectare rate), the input aggregates
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, \code{method_regime}
-and \code{method_regime_split} (\code{"regime_shares"}, or \code{"no_regime_share"}
-for a row booked wholly rainfed because the regime layer does not cover
-it) when the split ran, plus the polity columns below. When the supplied \code{n_inputs} carry them, the
+and \code{method_regime_split} when the split ran (\code{"yield_ratio"};
+\code{"area_no_production"} where the crop's production could not be
+expressed in fresh weight and the area share was used for everything;
+\code{"regime_shares"} for shares supplied as \code{data$regime_shares}; or
+\code{"no_regime_share"} for a row booked wholly rainfed because the regime
+layer does not cover it), plus the polity columns below. When the
+supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
 \code{method_deposition_scope}, \code{method_human_population},
 \code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure} and
