@@ -165,6 +165,12 @@ The input data frame must contain:
 
 - No missing values in key variables for decomposition periods.
 
+The panel is balanced (and smoothed, with `rolling_mean`) over its key
+columns: every non-numeric column, the bracket selectors and the `.by`
+columns. Any other numeric column is carried along as a value and is not
+a key, so a numeric identifier that must keep its series apart belongs
+in `.by` or a selector.
+
 ## Examples
 
 ``` r
@@ -230,9 +236,9 @@ calculate_lmdi(
 #> # A tibble: 3 × 5
 #>   period    component_type factor_label additive multiplicative
 #>   <chr>     <chr>          <chr>           <dbl>          <dbl>
-#> 1 2010-2013 factor         activity         30.0            1.3
-#> 2 2010-2013 factor         intensity         0              1  
-#> 3 2010-2013 target         emissions        30              1.3
+#> 1 2010-2013 factor         activity           30            1.3
+#> 2 2010-2013 factor         intensity           0            1  
+#> 3 2010-2013 target         emissions          30            1.3
 
 # --- 3. Year-over-year AND one cumulative summary period ---
 # Use periods_2 to append an extra comparison period alongside the
@@ -264,7 +270,7 @@ calculate_lmdi(
 #>  7 2012-2013 factor         activity         9.50          1.08 
 #>  8 2012-2013 factor         intensity       12.5           1.11 
 #>  9 2012-2013 target         emissions       22             1.20 
-#> 10 2010-2013 factor         activity        30.0           1.3  
+#> 10 2010-2013 factor         activity        30             1.3  
 #> 11 2010-2013 factor         intensity        0             1    
 #> 12 2010-2013 target         emissions       30             1.3  
 
@@ -298,18 +304,18 @@ calculate_lmdi(
 #> # A tibble: 12 × 6
 #>    country period    component_type factor_label additive multiplicative
 #>    <chr>   <chr>     <chr>          <chr>           <dbl>          <dbl>
-#>  1 ESP     2010-2011 factor         activity         10.5          1.1  
-#>  2 ESP     2010-2011 factor         intensity        10.5          1.1  
-#>  3 ESP     2010-2011 target         emissions        21            1.21 
-#>  4 ESP     2011-2012 factor         activity         10.5          1.09 
-#>  5 ESP     2011-2012 factor         intensity       -11.5          0.909
-#>  6 ESP     2011-2012 target         emissions        -1            0.992
-#>  7 FRA     2010-2011 factor         activity         10.0          1.1  
-#>  8 FRA     2010-2011 factor         intensity         0            1    
-#>  9 FRA     2010-2011 target         emissions        10            1.1  
-#> 10 FRA     2011-2012 factor         activity         10.0          1.09 
-#> 11 FRA     2011-2012 factor         intensity         0            1    
-#> 12 FRA     2011-2012 target         emissions        10            1.09 
+#>  1 ESP     2010-2011 factor         activity        10.5           1.1  
+#>  2 ESP     2010-2011 factor         intensity       10.5           1.1  
+#>  3 ESP     2010-2011 target         emissions       21             1.21 
+#>  4 ESP     2011-2012 factor         activity        10.5           1.09 
+#>  5 ESP     2011-2012 factor         intensity      -11.5           0.909
+#>  6 ESP     2011-2012 target         emissions       -1             0.992
+#>  7 FRA     2010-2011 factor         activity        10.0           1.1  
+#>  8 FRA     2010-2011 factor         intensity        0             1    
+#>  9 FRA     2010-2011 target         emissions       10             1.1  
+#> 10 FRA     2011-2012 factor         activity        10.00          1.09 
+#> 11 FRA     2011-2012 factor         intensity        0             1    
+#> 12 FRA     2011-2012 target         emissions       10             1.09 
 
 # --- 5. Ratio notation ---
 # Express factors as explicit ratios (e.g. intensity = emissions/activity).
@@ -330,15 +336,15 @@ calculate_lmdi(
 #> # A tibble: 9 × 5
 #>   period    component_type factor_label       additive multiplicative
 #>   <chr>     <chr>          <chr>                 <dbl>          <dbl>
-#> 1 2010-2011 factor         emissions/activity    21.0           1.20 
+#> 1 2010-2011 factor         emissions/activity    21.0           1.2  
 #> 2 2010-2011 factor         activity              11.0           1.1  
 #> 3 2010-2011 target         emissions             32             1.32 
-#> 4 2011-2012 factor         emissions/activity   -34.4           0.750
+#> 4 2011-2012 factor         emissions/activity   -34.4           0.75 
 #> 5 2011-2012 factor         activity              10.4           1.09 
 #> 6 2011-2012 target         emissions            -24             0.818
 #> 7 2012-2013 factor         emissions/activity    12.5           1.11 
 #> 8 2012-2013 factor         activity               9.50          1.08 
-#> 9 2012-2013 target         emissions             22.0           1.20 
+#> 9 2012-2013 target         emissions             22             1.20 
 
 # --- 6. Structural (sectoral) decomposition with [] notation ---
 # Decomposes emissions into:
@@ -447,10 +453,10 @@ calculate_lmdi(
 #>  1 2010-2011 factor         activity         5.00           1.05
 #>  2 2010-2011 factor         intensity        0              1   
 #>  3 2010-2011 target         emissions        5              1.05
-#>  4 2011-2012 factor         activity        10.0            1.09
+#>  4 2011-2012 factor         activity        10.00           1.09
 #>  5 2011-2012 factor         intensity        0              1   
 #>  6 2011-2012 target         emissions       10              1.09
-#>  7 2012-2013 factor         activity        10              1.08
+#>  7 2012-2013 factor         activity        10.00           1.08
 #>  8 2012-2013 factor         intensity        0              1   
 #>  9 2012-2013 target         emissions       10              1.08
 #> 10 2013-2014 factor         activity        10.0            1.08
