@@ -117,7 +117,11 @@ less than the theoretical used amount from <code>supply</code>.</p></li>
 dry matter, so it should be less than <code>intake</code>.</p></li>
 <li><p><code>loss</code>: The amount that is not used for feed. This is <code>supply - intake</code>.</p></li>
 <li><p><code>loss_share</code>: The percent that is lost. This is <code>loss / supply</code>.</p></li>
-</ul></div>
+</ul><p>This is not the input <code><a href="estimate_n_excretion.html">estimate_n_excretion()</a></code> reads: that function takes
+the per-livestock-category rows of <code><a href="redistribute_feed.html">redistribute_feed()</a></code> (<code>territory</code>,
+<code>livestock_category</code>, <code>feed_quality</code>, <code>intake_dm_t</code>), and refuses this
+table.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

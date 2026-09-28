@@ -91,6 +91,9 @@ deposition, so it never reaches the soil carbon this feeds.</p>
 <dd><p>A tibble of realised feed intake with at least <code>year</code>,
 <code>territory</code>, <code>sub_territory</code>, <code>livestock_category</code>, <code>item_cbs_code</code>,
 <code>feed_quality</code> and <code>intake_dm_t</code> (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> result).
+The output of <code><a href="get_feed_intake.html">get_feed_intake()</a></code> does not fit: it is keyed by
+<code>area_code</code> and <code>live_anim_code</code> and carries no <code>intake_dm_t</code>, and it is
+refused with a pointer to <code><a href="redistribute_feed.html">redistribute_feed()</a></code>.
 <code>territory</code> is a stringified <code>area_code</code> (<code>as.character(area_code)</code>, what
 <code><a href="redistribute_feed.html">redistribute_feed()</a></code> emits and what the whole manure chain carries
 through to the nitrogen inputs); an <code>iso3c</code> literal is still resolved

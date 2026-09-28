@@ -99,6 +99,13 @@ A tibble with the feed intake data. It contains the following columns:
 
 - `loss_share`: The percent that is lost. This is `loss / supply`.
 
+This is not the input
+[`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)
+reads: that function takes the per-livestock-category rows of
+[`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
+(`territory`, `livestock_category`, `feed_quality`, `intake_dm_t`), and
+refuses this table.
+
 ## Examples
 
 ``` r

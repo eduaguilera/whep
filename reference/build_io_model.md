@@ -51,10 +51,13 @@ build_io_model(
   By default, this function calls
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   internally. Must have columns: `year`, `area_code`, `item_cbs_code`,
-  `production`, `import`, `export`, `stock_withdrawal`,
-  `stock_addition`, plus final demand columns (`food`, `other_uses`).
-  `year`, `area_code` and `item_cbs_code` must hold no `NA`, here and in
-  `supply_use`: a row with a missing code cannot be placed in the model.
+  `production`, `export`, `stock_withdrawal`, `stock_addition`, plus
+  final demand columns (`food`, `other_uses`). `import` is read only
+  when `bilateral_trade` is `NULL`, by
+  [`get_bilateral_trade()`](https://eduaguilera.github.io/whep/reference/get_bilateral_trade.md),
+  which balances the trade matrices against it. `year`, `area_code` and
+  `item_cbs_code` must hold no `NA`, here and in `supply_use`: a row
+  with a missing code cannot be placed in the model.
 
 - years:
 

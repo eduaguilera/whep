@@ -99,8 +99,10 @@ internally. Must have columns: <code>year</code>, <code>item_cbs_code</code>,
 <dd><p>Tibble from <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>. By default, this
 function calls <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> internally. Must have
 columns: <code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>, <code>production</code>,
-<code>import</code>, <code>export</code>, <code>stock_withdrawal</code>, <code>stock_addition</code>,
-plus final demand columns (<code>food</code>, <code>other_uses</code>). <code>year</code>, <code>area_code</code>
+<code>export</code>, <code>stock_withdrawal</code>, <code>stock_addition</code>,
+plus final demand columns (<code>food</code>, <code>other_uses</code>). <code>import</code> is read
+only when <code>bilateral_trade</code> is <code>NULL</code>, by <code><a href="get_bilateral_trade.html">get_bilateral_trade()</a></code>,
+which balances the trade matrices against it. <code>year</code>, <code>area_code</code>
 and <code>item_cbs_code</code> must hold no <code>NA</code>, here and in <code>supply_use</code>: a row
 with a missing code cannot be placed in the model.</p></dd>
 

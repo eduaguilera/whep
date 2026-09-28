@@ -31,8 +31,13 @@ estimate_n_excretion(intake, options = list())
   `sub_territory`, `livestock_category`, `item_cbs_code`, `feed_quality`
   and `intake_dm_t` (the
   [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
-  result). `territory` is a stringified `area_code`
-  (`as.character(area_code)`, what
+  result). The output of
+  [`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)
+  does not fit: it is keyed by `area_code` and `live_anim_code` and
+  carries no `intake_dm_t`, and it is refused with a pointer to
+  [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md).
+  `territory` is a stringified `area_code` (`as.character(area_code)`,
+  what
   [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
   emits and what the whole manure chain carries through to the nitrogen
   inputs); an `iso3c` literal is still resolved there but is deprecated,
