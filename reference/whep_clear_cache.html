@@ -57,6 +57,29 @@ so that the next call rebuilds from scratch.</p>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Invisible <code>NULL</code>.</p>
     </div>
+    <div class="section level2">
+    <h2 id="memory-that-clearing-the-cache-does-not-return">Memory that clearing the cache does not return<a class="anchor" aria-label="anchor" href="#memory-that-clearing-the-cache-does-not-return"></a></h2>
+
+
+<p>Clearing the cache releases the cached tibbles to R, but the process may
+keep far more resident memory than it holds. That excess is not held by
+the cache or by any reachable object, so neither this function nor
+<code><a href="https://rdrr.io/r/base/gc.html" class="external-link">gc()</a></code> recovers it (whep#777).</p>
+<p>It is memory R has already freed and the C allocator keeps. On Linux,
+glibc serves a large allocation with its own mapping, which goes back to
+the operating system on free, only while it is bigger than the "mmap
+threshold". Each such free raises that threshold (up to 32 MB), so later
+vectors below it come from the heap, and freed heap blocks stay resident.
+The build chain frees many vectors of that size.</p>
+<p>Measured with <code><a href="get_primary_production.html">get_primary_production()</a></code> and <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> for
+2008-2012, after <code><a href="https://rdrr.io/r/base/gc.html" class="external-link">gc()</a></code>, holding 1.17 GB of live R objects: 5.5-5.8 GB
+resident by default, 3.3 GB with a fixed threshold, identical outputs.
+Fixing the threshold switches the raising off. glibc reads it when the
+process starts, so it must be set in the shell that launches R, not in
+<code>.Renviron</code>:</p>
+<p></p><div class="sourceCode sh"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="va">GLIBC_TUNABLES</span><span class="op">=</span>glibc.malloc.mmap_threshold=131072 <span class="ex">Rscript</span> build.R</span></code></pre><p></p></div>
+<p>Other platforms and allocators are unaffected by the variable.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
