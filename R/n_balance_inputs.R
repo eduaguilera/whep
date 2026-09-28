@@ -3,7 +3,7 @@
 # Combines every N-input source already built elsewhere in the package into
 # one long-format tibble keyed by (lon, lat, area_code, item_cbs_code, year,
 # fert_type). Each fert_type's heavy upstream computation (BNF, crop NPP,
-# livestock nutrient flows, atmospheric deposition, urban N, the SOC/SON
+# livestock nutrient flows, atmospheric deposition, human N, the SOC/SON
 # balance) is run by its own dedicated function elsewhere in the package;
 # this file only assembles their outputs into the common schema, plus the
 # ONE genuinely new assembly for synthetic fertiliser (country total ->
@@ -16,7 +16,7 @@
 # the gridded pipeline already carries. Deposition is multiplied by agricultural
 # hectares rather than whole-cell area, so forest/natural deposition never
 # enters the agricultural balance.
-# Urban N, SOM mineralization, and manure already assigned upstream to Cropland
+# Human N, SOM mineralization, and manure already assigned upstream to Cropland
 # but lacking a crop are apportioned only across local cropland items. Cropland
 # support carries crop CBS items; all pasture/rangeland support uses CBS 3000
 # without claiming a hard intensive/extensive historical split.
@@ -28,10 +28,10 @@
 # that silently cost the gridded surplus 1.66 Tg of manure N, kept only so the
 # tonnage stays measurable by differencing.
 #
-# accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
-# from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
-# was not available for this task. It is listed in the fert_type vocabulary
-# below but never emitted -- do not guess a formula.
+# accum_loss (perennial-crop standing-biomass N accumulation/decumulation, from
+# the source implementation's nitrogen balance) is a DOCUMENTED GAP: its source
+# computation was not available for this task. It is listed in the fert_type
+# vocabulary below but never emitted -- do not guess a formula.
 
 #' Assemble gridded nitrogen inputs from every WHEP N-input source.
 #'
@@ -39,24 +39,25 @@
 #' Combines biological nitrogen fixation ([calculate_bnf()]), residue/root N
 #' recycling ([calculate_npp_carbon_nitrogen()]), livestock manure
 #' ([build_livestock_nutrient_flows()]), atmospheric deposition
-#' ([build_n_deposition()]), urban/human-excreta N ([build_urban_n()]), soil
+#' ([build_n_deposition()]), human-population N ([build_human_n()]), soil
 #' organic-matter mineralization ([build_carbon_balance()]'s
 #' `son_change_kgn_ha`) and synthetic fertiliser (a country total
 #' spatialized to crops and cells via [spatialize_country_n_to_crops()])
 #' into one long-format tibble of nitrogen inputs to agricultural land.
 #'
 #' `fert_type` values: `"bnf"`, `"recycling"`, `"manure_solid"`,
-#' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"urban"`,
+#' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"human"`,
 #' `"som_mineralization"`, `"synthetic"` and `"accum_loss"`. The last is a
-#' documented gap (perennial-crop standing-biomass N accumulation from
-#' Spain_Hist's N_balance.R): its source computation was not available for
-#' this task, so it is never emitted, only reserved in the vocabulary.
+#' documented gap (perennial-crop standing-biomass N accumulation from the
+#' source implementation's nitrogen balance): its source computation was not
+#' available for this task, so it is never emitted, only reserved in the
+#' vocabulary.
 #'
 #' Terms that are fundamentally per-cell or per-land-use rather than per-crop
 #' are allocated over the agricultural land support, either supplied as
 #' `data$ag_land_support` or derived by [build_ag_land_support()] from the
 #' gridded inputs already present. Deposition uses both cropland and
-#' grassland support. `"urban"`, `"som_mineralization"`, and manure already
+#' grassland support. `"human"`, `"som_mineralization"`, and manure already
 #' assigned upstream to Cropland but lacking a crop use only local cropland
 #' support, so manure is not reassigned to grassland after the manure engine's
 #' capacity allocation. Forest and natural land are outside that support and
@@ -66,10 +67,10 @@
 #' @details
 #' `polity_validity` is forwarded to every builder this function calls that
 #' offers it -- [build_ag_land_support()], [build_n_deposition()],
-#' [build_urban_n()] and [spatialize_country_n_to_crops()] -- and then applied
+#' [build_human_n()] and [spatialize_country_n_to_crops()] -- and then applied
 #' to the assembled output, so one choice governs the whole assembly instead of
 #' each builder deciding on its own key space (whep#727). Under `"drop"` the
-#' support table loses those rows too, so a non-item input (deposition, urban,
+#' support table loses those rows too, so a non-item input (deposition, human,
 #' SOM mineralization) whose own rows were supplied directly and therefore not
 #' dropped can find no cropland support left to allocate over; that aborts in
 #' the mass check rather than silently losing nitrogen.
@@ -81,7 +82,7 @@
 #'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param unattributed_method Where nitrogen that reached agricultural land but
 #'   no single crop goes -- manure the engine placed on Cropland or landed by
-#'   transport without a crop, plus deposition, urban N and SOM mineralization,
+#'   transport without a crop, plus deposition, human N and SOM mineralization,
 #'   all of which carry `item_cbs_code = NA`. `"cropland_area"` (default)
 #'   spreads it over the cell-year's cropland support in proportion to each
 #'   crop's hectares; `"agricultural_area"` spreads it over cropland *and*
@@ -92,6 +93,23 @@
 #'   allocating methods conserve mass or abort; `"exclude"` does not conserve
 #'   it. When `NULL` (default), uses
 #'   `data$unattributed_method %||% "cropland_area"`.
+#' @param manure_method Where the three manure terms come from.
+#'   `"livestock_intake"` (default) is WHEP's manure engine,
+#'   [build_livestock_nutrient_flows()] over the realised feed intake.
+#'   `"faostat"` reads them instead from the FAOSTAT livestock-emissions
+#'   domain (`data$manure`, the `faostat-emissions-livestock` pin, source
+#'   `"FAO TIER 1"`, kg N): `"manure_solid"` and `"manure_liquid"` from
+#'   "Manure applied to soils (N content)" for "All Animals", split with the
+#'   engine's own solid share per country-year and spread to crops by
+#'   harvested-area share and to cells by [spatialize_country_n_to_crops()];
+#'   `"excreta"` from the per-species "Manure left on pasture (N content)",
+#'   mapped to species groups by `inst/extdata/livestock_mapping.csv` and
+#'   spread to cells by [build_gridded_livestock()] with that mapping's
+#'   spatial proxies. These are national statistics spread onto cells, a
+#'   cross-check on the engine rather than the default. A country-year the
+#'   engine gives no solid:liquid split for is booked wholly as solid,
+#'   with a warning. Recorded in `method_manure`. When `NULL` (default),
+#'   uses `data$manure_method %||% "livestock_intake"`.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
 #' @inheritParams build_water_balance
@@ -109,16 +127,39 @@
 #'   * `bnf_input`: [calculate_bnf()]'s required input tibble (`lon`, `lat`,
 #'     `area_code`, `year`, `item_prod_code`, `crop_npp_n_t`, `product_n_t`,
 #'     `weed_npp_n_t`, `land_use`, `legumes_seeded`,
-#'     `seeded_cover_crop_share`, `area_ha`).
+#'     `seeded_cover_crop_share`, `area_ha`). The `"bnf"` term's
+#'     `n_input_t` is the `bnf_t` column of [calculate_bnf()]'s output.
 #'   * `npp_n_input`: [calculate_npp_carbon_nitrogen()]'s required input
 #'     tibble (`lon`, `lat`, `area_code`, `year`, `item_prod_code`,
 #'     `item_cbs_code`, `product_dm_t`, `residue_dm_t`, `root_dm_t`,
-#'     optionally `residue_soil_dm_t`).
+#'     optionally `residue_soil_dm_t`). The `"recycling"` term's
+#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
+#'     [calculate_npp_carbon_nitrogen()]'s output, or plus `residue_n_t` when
+#'     `residue_soil_n_t` is absent (see `method_recycling_n`).
 #'   * `livestock_intake`: [build_livestock_nutrient_flows()]'s `intake`
 #'     argument (the [redistribute_feed()] realised-intake contract), plus
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
-#'     (forwarded as-is).
-#'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs.
+#'     (forwarded as-is). The manure terms sum `applied_n` from the
+#'     `$applied` table of [build_livestock_nutrient_flows()]'s output,
+#'     keyed by its `territory`, `sub_territory`, `crop`, `land_use`,
+#'     `manure_type` and `year`; `manure_type` selects the `"excreta"`,
+#'     `"manure_solid"` or `"manure_liquid"` term. Under
+#'     `manure_method = "faostat"` it supplies only the solid:liquid split.
+#'   * `manure`, `livestock_spatial`: the `manure_method = "faostat"`
+#'     inputs, read only under that method. `manure` is the
+#'     `faostat-emissions-livestock` pin, scoped by the caller to the years
+#'     wanted, as `fertilizer` is. `livestock_spatial` is a list of the
+#'     surfaces [build_gridded_livestock()] spreads pasture manure over:
+#'     `gridded_pasture`, `gridded_cropland` and `manure_pattern` (the
+#'     `spatialize-*` pins its production callers read), plus an optional
+#'     `species_proxy` overriding the mapping's proxies; needed only when
+#'     `cell_polity` is supplied.
+#'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs. From
+#'     its output the `"deposition"` term reads `deposition_kgn_ha` (the
+#'     whole-cell rate), `deposition_n_t` and `area_category` (only to form
+#'     the in-scope share of each polycell's mass, see `deposition_scope`)
+#'     and `method_deposition`; `n_input_t` is `deposition_kgn_ha` times that
+#'     share times the support's `area_ha`, divided by 1000.
 #'   * `deposition_scope`: which of a polycell's territory the `"deposition"`
 #'     term is credited with. `"territory"` (default) is land plus inland
 #'     water plus ice: nitrogen deposited on a lake or a glacier still drives
@@ -141,17 +182,33 @@
 #'     `grassland_source` selects its `grassland` argument
 #'     (`"gridded_pasture"` default, `"luh2"`, or `"none"` for cropland-only
 #'     support).
-#'   * `urban_population`, `cropland_ha`, `cell_polity`: [build_urban_n()]'s
-#'     inputs.
+#'   * `total_population`, `urban_population`, `cropland_ha`, `cell_polity`:
+#'     [build_human_n()]'s inputs. Which population is read is set by
+#'     `human_n_population_basis`. The `"human"` term's `n_input_t` is the
+#'     `human_n_t` column of [build_human_n()]'s output. The term was called
+#'     `"urban"` before it was renamed.
+#'   * `human_n_population_basis`: [build_human_n()]'s `population_basis`,
+#'     `"total"` (default: `total_population`, from
+#'     [build_total_population_grid()], with the per-inhabitant rate) or
+#'     `"urban"` (`urban_population` with the per-urban-inhabitant rate).
+#'     Supplying only the other basis's population aborts. Recorded in
+#'     `method_human_population` and `method_human_kgn_cap`.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
-#'     is never computed here.
+#'     is never computed here. The `"som_mineralization"` term keeps the
+#'     cropland rows with `son_change_kgn_ha > 0` and takes
+#'     `son_change_kgn_ha` times `area_ha`, divided by 1000, as `n_input_t`.
 #'   * `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
 #'     `cell_polity`: the synthetic-fertiliser assembly (country total from
 #'     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
 #'     by the chosen crop-share method, then to cells by
-#'     `crop_patterns`/`type_cropland`).
+#'     `crop_patterns`/`type_cropland`). From `fertilizer` it reads the
+#'     raw FAOSTAT columns `Element` (`"Agricultural Use"`), `Item`
+#'     (`"Nutrient nitrogen N (total)"`), `Year`, `Area Code` and `Value`;
+#'     `Value` becomes the country total `synthetic_n_t`, passed on as the
+#'     `n_t` column of [spatialize_country_n_to_crops()]'s `country_totals`,
+#'     whose output `n_t` is the `"synthetic"` term's `n_input_t`.
 #'   * `synthetic_method`: how the synthetic-N country total is split across
 #'     crops, `"coello"` (default; Coello 2025 rate-weighted, FAOSTAT-
 #'     conserving) or `"area_share"` (harvested-area shares only).
@@ -168,7 +225,7 @@
 #'     `resolution = "grid"` (cell-level nitrogen needs cell-level manure) and
 #'     to `"national"` otherwise. A value supplied here is always honoured.
 #' @param method_unsupported What happens to non-item nitrogen (deposition,
-#'   urban, soil-organic-matter mineralization, unattributed manure) whose own
+#'   human, soil-organic-matter mineralization, unattributed manure) whose own
 #'   cell-year carries no cropland support at all. `"abort"` (the default, and
 #'   the behaviour before this argument existed) refuses to continue and names
 #'   the streams and the mass, so a coverage gap cannot be lost silently.
@@ -188,12 +245,18 @@
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
-#'   `method_deposition_scope`, `method_unsupported`,
+#'   `method_deposition_scope`, `method_human_population`,
+#'   `method_human_kgn_cap`, `method_unsupported`, `method_manure`,
 #'   `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
-#'   `method_deposition`, `method_deposition_scope`, `method_unsupported`,
-#'   `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_deposition`, `method_deposition_scope`,
+#'   `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
+#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_manure` records the source of the three manure terms
+#'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
+#'   manure booked as solid for want of an engine split) and is `NA` for every
+#'   other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
@@ -208,6 +271,9 @@
 #'   `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`). Both are `NA` for every other
+#'   `fert_type`. `method_human_population` and `method_human_kgn_cap` record
+#'   the `"human"` term's population basis and the denominator of its
+#'   per-capita rate (see [build_human_n()]); both are `NA` for every other
 #'   `fert_type`.
 #'   `method_unsupported` records the rule applied to non-item nitrogen with no
 #'   cropland support in its own cell, and is the same on every row.
@@ -229,7 +295,8 @@ build_n_inputs <- function(
   unattributed_method = NULL,
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  manure_method = NULL
 ) {
   resolution <- rlang::arg_match(resolution)
   polity_validity <- rlang::arg_match(polity_validity)
@@ -254,6 +321,12 @@ build_n_inputs <- function(
       .ni_unattributed_methods()
     )
   }
+  if (!is.null(manure_method)) {
+    data$manure_method <- rlang::arg_match(
+      manure_method,
+      .ni_manure_methods()
+    )
+  }
   data$.n_input_resolution <- resolution
   data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
@@ -263,7 +336,7 @@ build_n_inputs <- function(
     .n_inputs_recycling(data),
     .n_inputs_manure(data),
     .n_inputs_deposition(data),
-    .n_inputs_urban(data),
+    .n_inputs_human(data),
     .n_inputs_som(data),
     .n_inputs_synthetic(data)
   )
@@ -294,7 +367,7 @@ build_n_inputs <- function(
     recycling = "npp_n_input",
     manure = "livestock_intake",
     deposition = "cell_polity",
-    urban = c("urban_population", "cropland_ha"),
+    human = c("total_population", "cropland_ha"),
     som_mineralization = "carbon_balance",
     synthetic = c("primary_prod", "fertilizer")
   )
@@ -309,7 +382,7 @@ build_n_inputs <- function(
     recycling = "recycling",
     manure = c("excreta", "manure_solid", "manure_liquid"),
     deposition = "deposition",
-    urban = "urban",
+    human = "human",
     som_mineralization = "som_mineralization",
     synthetic = "synthetic"
   )
@@ -319,8 +392,15 @@ build_n_inputs <- function(
   # build_nitrogen_balance() hands the NPP result in as `.npp_cache` rather
   # than as `npp_n_input`; either one asks for the recycling term.
   data$npp_n_input <- data$npp_n_input %||% data$.npp_cache
+  # Either population asks for the human term; build_human_n() then refuses
+  # the one that does not match `human_n_population_basis`. Read by exact
+  # name, as every population read in this file is.
+  data[["total_population"]] <- data[["total_population"]] %||%
+    data[["urban_population"]]
+  inputs <- .ni_stream_inputs()
+  inputs$manure <- .ni_manure_stream_inputs(.ni_manure_method(data))
   supplied <- purrr::map_lgl(
-    .ni_stream_inputs(),
+    inputs,
     \(needed) all(!purrr::map_lgl(needed, \(nm) is.null(data[[nm]])))
   )
   names(supplied)[supplied]
@@ -386,7 +466,9 @@ build_n_inputs <- function(
 # and `method_deposition_scope` are the deposition term's two provenance axes
 # and are likewise NA elsewhere: the first names the PRODUCT the field came
 # from, the second which of the polycell's territory it was credited with.
-# Both are per-source, so they live here rather than on the assembled schema.
+# `method_human_population` and `method_human_kgn_cap` are the human term's:
+# the population basis and the denominator of its per-capita rate.
+# All are per-source, so they live here rather than on the assembled schema.
 .ni_source_schema <- function() {
   c(
     "lon",
@@ -400,7 +482,10 @@ build_n_inputs <- function(
     "method_synthetic",
     "method_deposition",
     "method_deposition_scope",
-    "method_unsupported"
+    "method_human_population",
+    "method_human_kgn_cap",
+    "method_unsupported",
+    "method_manure"
   )
 }
 
@@ -530,7 +615,10 @@ build_n_inputs <- function(
         "method_synthetic",
         "method_deposition",
         "method_deposition_scope",
+        "method_human_population",
+        "method_human_kgn_cap",
         "method_unsupported",
+        "method_manure",
         "method_unattributed"
       )
     )
@@ -632,16 +720,25 @@ build_n_inputs <- function(
 # ---- 3. Manure (solid / liquid / excreta) ---------------------------------
 
 .n_inputs_manure <- function(data) {
+  if (.ni_manure_method(data) == "faostat") {
+    return(.n_inputs_manure_faostat(data))
+  }
   if (is.null(data$livestock_intake)) {
     return(.ni_empty())
   }
-  flows <- build_livestock_nutrient_flows(
+  flows <- .ni_manure_flows(data)
+  .manure_to_n_inputs(flows$applied)
+}
+
+# One engine run, shared by the default manure terms and by the solid:liquid
+# split of the "faostat" source (R/n_balance_manure_faostat.R).
+.ni_manure_flows <- function(data) {
+  build_livestock_nutrient_flows(
     data$livestock_intake,
     resolution = data$resolution %||% "national",
     methods = data$methods %||% list(),
-    gridded = data$gridded
+    gridded = data[["gridded"]]
   )
-  .manure_to_n_inputs(flows$applied)
 }
 
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,
@@ -673,7 +770,8 @@ build_n_inputs <- function(
         "year",
         "fert_type"
       )
-    )
+    ) |>
+    dplyr::mutate(method_manure = "livestock_intake")
 }
 
 # build_livestock_nutrient_flows()'s $applied$territory carries a stringified
@@ -762,7 +860,7 @@ build_n_inputs <- function(
 
 # Resolve the manure engine's Cropland `crop` key to an item_cbs_code.
 #
-# The canonical key is `as.character(item_prod_code)` -- a code, per CLAUDE.md's
+# The canonical key is `as.character(item_prod_code)` -- a code, per AGENTS.md's
 # "join on codes, never on names": item_prod_code -> item_cbs_code is 1:1 across
 # all 310 crosswalk rows, whereas item_prod is not (`Fallow` names two codes)
 # and three codes carry no name at all. `.sci_manure_crop_layer()`
@@ -781,7 +879,7 @@ build_n_inputs <- function(
 #
 # A non-NA crop that matches neither is a genuine mapping gap, so abort naming
 # it rather than emit an NA item_cbs_code indistinguishable from the
-# deliberately non-crop-specific deposition/urban/SOM rows, mirroring
+# deliberately non-crop-specific deposition/human/SOM rows, mirroring
 # .manure_territory_to_area_code()'s treatment of unresolvable territories. An
 # NA crop never reaches this abort: .ni_manure_item_cbs() assigns either the
 # grass code or the no-specific-item sentinel from land_use.
@@ -1019,16 +1117,22 @@ build_n_inputs <- function(
   ))
 }
 
-# ---- 5. Urban N (cell-level, not crop-specific) ---------------------------
+# ---- 5. Human N (cell-level, not crop-specific) ---------------------------
 
-.n_inputs_urban <- function(data) {
-  if (is.null(data$urban_population) || is.null(data$cropland_ha)) {
+.n_inputs_human <- function(data) {
+  # Exact-name reads throughout, so no population slot can partially match
+  # another `data` entry and hand a string on as a population.
+  no_population <- is.null(data[["urban_population"]]) &&
+    is.null(data[["total_population"]])
+  if (no_population || is.null(data$cropland_ha)) {
     return(.ni_empty())
   }
-  build_urban_n(
+  build_human_n(
+    population_basis = .ni_human_population_basis(data),
     polity_validity = .ni_polity_validity(data),
     data = list(
-      urban_population = data$urban_population,
+      urban_population = data[["urban_population"]],
+      total_population = data[["total_population"]],
       cell_polity = data$cell_polity,
       cropland_ha = data$cropland_ha
     )
@@ -1036,7 +1140,7 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() requires the numeric WHEP area_code on both of the
+      # build_human_n() requires the numeric WHEP area_code on both of the
       # frames it is handed and checks that at its own input boundary (#597),
       # so this column is already the code and nothing is left to resolve
       # here. Unlike the manure path there is no ISO3 bridge to go wrong: an
@@ -1044,9 +1148,27 @@ build_n_inputs <- function(
       area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
-      fert_type = "urban",
-      n_input_t = .data$urban_n_t
+      fert_type = "human",
+      n_input_t = .data$human_n_t,
+      method_human_population = .data$method_human_population,
+      method_human_kgn_cap = .data$method_human_kgn_cap
     )
+}
+
+# The human term's population basis, read off `data` like `deposition_scope`
+# so build_nitrogen_balance(), which forwards its whole `data` list, selects
+# it without an argument of its own. "total" is the default, as it is for
+# build_human_n() itself.
+.ni_human_population_basis <- function(data) {
+  basis <- data[["human_n_population_basis"]] %||% "total"
+  if (!rlang::is_string(basis) || !basis %in% c("total", "urban")) {
+    cli::cli_abort(c(
+      "{.field data$human_n_population_basis} must be {.val total} or
+       {.val urban}.",
+      x = "Got {.val {basis}}."
+    ))
+  }
+  basis
 }
 
 # ---- 6. SOM mineralization (positive son_change_kgn_ha only) -------------
@@ -1054,7 +1176,7 @@ build_n_inputs <- function(
 # Simple sentinel approach (not crop-weighted): SOM mineralization is a
 # per-land-use flux, not per-crop, in build_carbon_balance() itself, so it
 # is assigned the same NA_integer_ "not crop-specific" code as deposition
-# and urban rather than area-weight-split across the cell's actual crops.
+# and human N rather than area-weight-split across the cell's actual crops.
 # A crop-level split via spatialize_country_n_to_crops()'s crop-pattern
 # weights is a defensible future refinement, not required by this task.
 .n_inputs_som <- function(data) {
@@ -1275,10 +1397,10 @@ build_n_inputs <- function(
 # they account for -- the pooling below renumbers, so the residual check cannot
 # recover that from the rows themselves.
 #
-# The condition is real, not hypothetical: build_urban_n() hands back the urban
+# The condition is real, not hypothetical: build_human_n() hands back the
 # nitrogen its transport step could not deliver, at the SOURCE cell, and on a
-# 2010 global run 1985 of those cells hold no cropland -- 38,425 t of 4.02 Mt
-# urban N, which took the whole balance down (whep#446).
+# 2010 global run (urban basis) 1985 of those cells hold no cropland --
+# 38,425 t of 4.02 Mt, which took the whole balance down (whep#446).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.
@@ -1338,7 +1460,10 @@ build_n_inputs <- function(
     "fert_type",
     "method_recycling_n",
     "method_synthetic",
-    "method_deposition_scope"
+    "method_deposition_scope",
+    "method_human_population",
+    "method_human_kgn_cap",
+    "method_manure"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
@@ -1393,7 +1518,7 @@ build_n_inputs <- function(
 #
 # Two very different conditions reach this abort and a single pair of totals
 # cannot tell them apart. One is the expected territorial-coverage gap of #423:
-# deposition, urban nitrogen and soil-organic-matter mineralization all have a
+# deposition, human nitrogen and soil-organic-matter mineralization all have a
 # whole-territory extent, cropland support does not, so a cell with no cropland
 # has nowhere to put its share. The other is one stream arriving at an
 # implausible magnitude -- whep#792 reached this abort with 1,409 Tg N of source
@@ -1555,7 +1680,10 @@ build_n_inputs <- function(
     method_synthetic = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
-    method_unsupported = character()
+    method_human_population = character(),
+    method_human_kgn_cap = character(),
+    method_unsupported = character(),
+    method_manure = character()
   )
 }
 
@@ -1602,7 +1730,7 @@ build_n_inputs <- function(
     1L,
     NA_integer_,
     2020L,
-    "urban",
+    "human",
     4.5,
     -0.25,
     -0.25,
@@ -1654,7 +1782,22 @@ build_n_inputs <- function(
         "territory",
         NA_character_
       ),
+      method_human_population = dplyr::if_else(
+        .data$fert_type == "human",
+        "total_population",
+        NA_character_
+      ),
+      method_human_kgn_cap = dplyr::if_else(
+        .data$fert_type == "human",
+        "kg_n_per_total_inhabitant",
+        NA_character_
+      ),
       method_unsupported = "abort",
+      method_manure = dplyr::if_else(
+        .data$fert_type %in% c("excreta", "manure_solid", "manure_liquid"),
+        "livestock_intake",
+        NA_character_
+      ),
       method_unattributed = "cropland_area"
     ) |>
     .add_reporting_polity_columns()

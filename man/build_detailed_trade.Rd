@@ -11,6 +11,7 @@ build_detailed_trade(
   extend_time = FALSE,
   method_unbacked_quantity = c("drop", "keep", "abort"),
   method_head_units = c("convert", "drop", "abort"),
+  method_time_coverage = c("cbs_cells", "cbs_years"),
   example = FALSE
 )
 }
@@ -62,6 +63,17 @@ Any other unit label is dropped under every method, with a
 \code{"whep_unhandled_trade_unit"} warning naming it, and aborts under
 \code{"abort"}. Monetary units are removed silently, on purpose.}
 
+\item{method_time_coverage}{Which extended shares \code{extend_time} keeps.
+See the \emph{Time extension and CBS coverage} section. One of:
+\itemize{
+\item \code{"cbs_cells"} (default): only in the year, area, item and element
+cells where \code{cbs} reports a non-zero flow.
+\item \code{"cbs_years"}: in every CBS year, whether or not CBS reports the
+cell. The historical behaviour.
+}
+
+Ignored when \code{extend_time = FALSE}.}
+
 \item{example}{Logical. If \code{TRUE}, return a small example tibble
 without downloading remote data. Default \code{FALSE}.}
 }
@@ -81,6 +93,8 @@ FAOSTAT does not back with a mass, recorded so a downstream
 consumer can tell which variant it is holding.
 \item \code{method_head_units}: the treatment chosen for the \verb{1000 Head}
 rows, recorded for the same reason.
+\item \code{method_time_coverage}: the coverage rule of the time extension, or
+\code{NA} when \code{extend_time = FALSE}.
 }
 }
 \description{
@@ -92,26 +106,50 @@ mapped to CBS item codes.
 Optionally extends the time series by joining with commodity balance
 sheet years and gap-filling country shares via linear interpolation.
 }
-\section{Time extension is uniform across groups}{
+\section{Time extension and CBS coverage}{
 
-With \code{extend_time = TRUE} the extension is driven by the \strong{year axis} of
-CBS only. Every \verb{(area, item, partner, element, unit)} group observed in
-any trade year is carried across the union of trade and CBS years, and
-\code{\link[=fill_linear]{fill_linear()}} interpolates inside a group's observed span and holds the
-first and last observed share constant outside it. Whether CBS actually
-reports that area/item/element in that year is \strong{not} consulted, so shares
-are also emitted for country-item-year cells CBS never reports.
+With \code{extend_time = TRUE} every \verb{(area, item, partner, element, unit)}
+group observed in any trade year is carried across the union of trade and
+CBS years, and \code{\link[=fill_linear]{fill_linear()}} interpolates inside a group's observed span
+and holds the first and last observed share constant outside it. That
+fills two kinds of row: years outside the trade record, and trade years
+in which the reporter reported nothing at all for that item and element
+(the group's share there is 0/0). \code{method_time_coverage} then decides
+which of those filled shares are kept:
+\itemize{
+\item \code{"cbs_cells"} (default) keeps an extended share only in a
+\verb{(year, area_code, item_cbs_code, element)} cell where \code{cbs} reports a
+non-missing, non-zero flow for that element. A share partitions a CBS
+total among partners; where there is no total there is nothing to
+partition, so no share is invented there. Observed trade rows are
+always kept, whether or not CBS reports the cell.
+\item \code{"cbs_years"} keeps every extended share in every CBS year. The
+historical behaviour: the CBS \emph{year axis} alone drives the extension,
+so shares are also emitted for cells CBS never reports.
+}
 
-The year axis this rests on is wide. The \code{"faostat-trade-bilateral"} pin
-covers 1986-2021, while \code{\link[=build_commodity_balances]{build_commodity_balances()}} defaults to 1850-2023,
-so 138 of the 174 extended years (79\%) lie outside the trade record
-entirely and carry the 1986 (or 2021) partner mix held constant. On the
-full pin that is 1.17 million groups spread over up to 174 years each,
-against 9.97 million observed rows, and half of the emitted
-\verb{(year, area, item, element)} cells are cells CBS never reports (measured:
-3.42 of 6.85 million). Scoping the extension to the CBS
-coverage a group actually has is a methodological choice, not a bug fix,
-and is tracked in issue #232.
+The two methods differ only in which rows survive: a share kept by both
+is identical, because it comes from the same interpolation of the group's
+own anchors, and every kept cell keeps all its partners, so its shares
+still sum to one. Because filled rows inside the trade record are scoped
+too, a \code{cbs} that omits some trade years drops the filled rows of those
+years under \code{"cbs_cells"}; pass a CBS spanning the trade record.
+
+Measured on the \code{"faostat-trade-bilateral"} pin against a 1850-2023 CBS,
+half of the \verb{(year, area, item, element)} cells the uniform extension
+emits are cells CBS never reports (3.42 of 6.85 million; whep#232).
+Against single-year CBS builds, \code{"cbs_cells"} keeps 144,812 of the
+286,762 rows \code{"cbs_years"} emits for 1975 (50.5\%) and 342,617 of 384,954
+for 2023 (89.0\%), extending from trade years 1986-1987 and 2020-2021;
+and 231,530 of 249,833 for 2000 (92.7\%) and 279,210 of 293,815 for 2010
+(95.0\%), with trade years 1999-2001 and 2009-2011.
+
+Neither method bounds the \strong{year axis}. The pin covers 1986-2021, while
+\code{\link[=build_commodity_balances]{build_commodity_balances()}} defaults to 1850-2023, so 138 of the 174
+extended years (79\%) lie outside the trade record entirely and carry the
+1986 (or 2021) partner mix held constant. CBS is itself extended back to
+1850, so scoping to its cells does not shorten that back-cast; pass a
+year-scoped \code{cbs} to limit it.
 }
 
 \section{Quantities FAOSTAT does not back with a mass}{

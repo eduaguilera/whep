@@ -5,7 +5,7 @@
 # the 30 days to 2026-09-16: `R/utils.R` 52 commits, `NAMESPACE` 37,
 # `data/whep_inputs.rda` 22, out of 608 commits in all. Nothing is learned from
 # resolving those conflicts by hand, and a mis-resolution silently drops a
-# declaration or an export -- the same argument CLAUDE.md already makes for not
+# declaration or an export -- the same argument AGENTS.md already makes for not
 # writing a NEWS.md entry per PR.
 
 # R/utils.R is one append-only `utils::globalVariables()` call and nothing else.

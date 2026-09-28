@@ -415,6 +415,49 @@ test_that(".extract_cb row order does not depend on the read order", {
   expect_identical(forward, reversed)
 })
 
+# -- .extract_cb keys items on the code ----------------------------------------
+
+# The new Food Balances spell three items with a lower-case "other" --
+# "Cereals, other" (2520), "Vegetables, other" (2605), "Fruits, other" (2625)
+# -- where `items_full` and the old Food Balances write "Other". Keyed on the
+# name as well as the code, every row of those three items fell out of the
+# extract, so from 2010 on the CBS had their production but none of their food,
+# feed, seed or processing (whep#961). Aggregates such as 2905 are not CBS
+# items and must still be dropped.
+test_that(".extract_cb keeps an item whose label differs only in case", {
+  fixture <- tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                      ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2520,         "Cereals, other",           "Production", "tonnes", 2015L, 100,
+    203L,         "Testland", 2520,         "Cereals, other",           "Feed",       "tonnes", 2015L, 60,
+    203L,         "Testland", 2605,         "Vegetables, other",        "Food",       "tonnes", 2015L, 30,
+    203L,         "Testland", 2625,         "Fruits, other",            "Food",       "tonnes", 2015L, 20,
+    203L,         "Testland", 2511,         "Wheat and products",       "Food",       "tonnes", 2015L, 40,
+    203L,         "Testland", 2905,         "Cereals - Excluding Beer", "Food",       "tonnes", 2015L, 999
+  ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_cb("faostat-fbs-new") |>
+    tibble::as_tibble()
+
+  expect_setequal(out$item_cbs_code, c(2511, 2520, 2605, 2625))
+  labels <- dplyr::distinct(out, item_cbs_code, item_cbs)
+  expected <- whep::items_full$item_cbs[
+    match(labels$item_cbs_code, whep::items_full$item_cbs_code)
+  ]
+  expect_identical(labels$item_cbs, expected)
+  expect_true("Cereals, Other" %in% labels$item_cbs)
+  out |>
+    dplyr::filter(item_cbs_code == 2520, element == "feed") |>
+    dplyr::pull(value) |>
+    expect_equal(60)
+})
+
 # -- .extract_fao row order ----------------------------------------------------
 
 # The same defect one stage earlier, and the stage the CBS build consumes
@@ -496,6 +539,57 @@ test_that(".extract_fao returns exactly the requested years", {
 
   expect_equal(sort(unique(out$year)), c(1961, 2000))
   expect_equal(nrow(out), 2L)
+})
+
+# whep#811. CB's `Processed` element (5023) is the quantity handed to the next
+# link of a chain (natural rubber 836 -> 837), which reports it again as its
+# own `production`, and both links map onto CBS `Rubber`. The chain's use is
+# the last link's `other_uses`; booking `Processed` too -- as `processing` or
+# `other_uses` -- doubles it. This guard fails under that one-line mapping.
+test_that("CB Processed is not booked as a use of the aggregated item", {
+  fixture <- tibble::tribble(
+    ~`Item Code`, ~Item,                             ~Element,               ~Value,
+    836L,         "Natural rubber in primary forms", "Production",           100,
+    836L,         "Natural rubber in primary forms", "Processed",            90,
+    836L,         "Natural rubber in primary forms", "Export quantity",      10,
+    837L,         "Natural rubber in other forms",   "Production",           90,
+    837L,         "Natural rubber in other forms",   "Other uses (non-food)", 90,
+    837L,         "Natural rubber in other forms",   "Residuals",            0
+  ) |>
+    dplyr::mutate(
+      `Area Code` = 203L,
+      Area = "Testland",
+      Unit = "t",
+      Year = 2020L
+    ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  extracted <- whep:::.extract_fao("faostat-cbs-new")
+  expect_false(any(c("Processed", "processed") %in% extracted$element))
+
+  booked <- whep:::.get_fiber_tobacco(
+    extracted,
+    tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      836L,             "Rubber",
+      837L,             "Rubber"
+    ),
+    tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Rubber",  2672L
+    )
+  )
+  uses <- booked |>
+    dplyr::filter(element %in% c("processing", "other_uses", "food", "feed"))
+
+  expect_equal(uses$element, "other_uses")
+  expect_equal(uses$value, 90)
 })
 
 # Issue whep#833. `.correct_processed()` calibrates a processing output by

@@ -1,7 +1,8 @@
 # Crop groups for the soil carbon balance (Module B).
 #
-# The grouping convention is Spain_Hist's, adopted here as a CONVENTION only
-# (Spain_Hist is verification-only for WHEP; nothing is imported):
+# The grouping convention is that of an earlier regional historical
+# reconstruction, adopted here as a CONVENTION only (nothing is imported from
+# it):
 #
 #   herbaceous crops pool into one group per irrigation regime, because they
 #   rotate -- a wheat field this year is a barley field next year, so no
@@ -23,11 +24,11 @@
 #' carbon balance marches: `cropland_rainfed_herbaceous`,
 #' `cropland_irrigated_herbaceous`, or one group per woody species such as
 #' `cropland_rainfed_olive` (the species slug comes from `Name_biomass`, the
-#' column Spain_Hist's own category is built from, so it is "Olive" rather
-#' than the `names_cats` key "Olives"). Every label keeps the `cropland_`
-#' prefix, which
-#' is what lets the balance recognise a group as cropland for its soil-cover
-#' curve, its C:N lookup and its water term without enumerating groups.
+#' column the source implementation builds its category from, so it is "Olive"
+#' rather than the `names_cats` key "Olives"). Every label keeps the `cropland_`
+#' prefix, which is what lets the balance recognise a group as cropland for its
+#' soil-cover curve, its C:N lookup and its water term without enumerating
+#' groups.
 #'
 #' @param item_prod_code Integer vector of FAOSTAT production item codes.
 #' @param irrigated Logical vector, recycled: is the area irrigated?

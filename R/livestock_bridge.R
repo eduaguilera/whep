@@ -107,7 +107,7 @@ prepare_livestock_emissions <- function(
 #' `.ensure_production_cols()` adds its optional columns with
 #' `data[missing] <- NA_real_`, which `[<-.data.table` refuses, and
 #' `ensure_columns()` requires a tibble by contract. Converting once, at each
-#' exported boundary, is what CLAUDE.md asks for -- `data.table` stays an
+#' exported boundary, is what AGENTS.md asks for -- `data.table` stays an
 #' internal detail of private helpers (whep#1136).
 #'
 #' `as.data.frame()` first, and the attribute dropped afterwards, because

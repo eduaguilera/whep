@@ -110,7 +110,8 @@ and \code{method_regime_split} (\code{"regime_shares"}, or \code{"no_regime_shar
 for a row booked wholly rainfed because the regime layer does not cover
 it) when the split ran, plus the polity columns below. When the supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
-\code{method_deposition_scope}, \code{method_unsupported} and
+\code{method_deposition_scope}, \code{method_human_population},
+\code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure} and
 \code{method_unattributed} stamps from
 \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
 input conventions that produced it. Gains
@@ -124,8 +125,9 @@ runs the nitrogen-loss cascade (\code{\link[=calculate_nh3]{calculate_nh3()}}, \
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}), closes the
 balance (\code{N_input_full - N_output_full}), applies the N-limitation cap on
 SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
-plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
-Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
+plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from the
+balance and indicator equations of an earlier regional historical
+reconstruction.
 }
 \details{
 \strong{Rainfed/irrigated split.} At grid resolution each crop row is split
@@ -147,7 +149,7 @@ shares can be supplied as \code{data$regime_shares} (\code{lon}, \code{lat},
 column apply to both parts.
 
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
-turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}
+turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}
 and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied to the balance rows
 themselves, so one choice governs the whole build (whep#727). A
 \code{data$n_inputs} table supplied directly is left alone: it was built by its

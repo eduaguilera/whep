@@ -3803,3 +3803,16 @@ testthat::test_that("the absent-layer warning fires for each layer", {
     class = "whep_polycell_absent_water"
   )
 })
+
+testthat::test_that("crosswalk_year alone is never read as a crosswalk (#1214)", {
+  testthat::skip_if_not_installed("sf")
+  # R's `$` partially matches list names: with only `crosswalk_year`,
+  # `data$crosswalk` returned the year and was reconciled as a crosswalk.
+  out <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_da24_geometries(),
+    data = list(crosswalk_year = 2015L)
+  )
+  testthat::expect_null(attr(out, "footprints"))
+  testthat::expect_null(attr(out, "footprint_diff"))
+})

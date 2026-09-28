@@ -34,6 +34,10 @@
 #' @param max_column_sum Maximum allowed column sum in A. Must match the value
 #'   used by [compute_footprint()] (default `100`) so the path decomposition
 #'   and the footprint it decomposes share an identical A cap.
+#' @param a_denominator Which outputs A divides by. Must match the value
+#'   used by [compute_footprint()] (default `"traceable"`, which treats
+#'   `x_vec <= output_tol` as no output) so the paths decompose the same A.
+#'   See [compute_footprint()] for the alternatives.
 #' @param conserve_extensions If `TRUE`, rescale positive paths within each
 #'   origin area/item so their sum does not exceed the corresponding positive
 #'   extension total.
@@ -82,9 +86,11 @@ compute_footprint_paths <- function(
   output_tol = 1e-8,
   value_added_floor = 1e-3,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   min_value = 0
 ) {
+  a_denominator <- rlang::arg_match(a_denominator)
   .validate_fp_path_inputs(
     z_mat,
     x_vec,
@@ -141,7 +147,13 @@ compute_footprint_paths <- function(
     z_mat,
     x_vec,
     value_added_floor = value_added_floor,
-    max_column_sum = max_column_sum
+    max_column_sum = max_column_sum,
+    min_output = .footprint_a_min_output(
+      z_mat,
+      x_vec,
+      output_tol,
+      a_denominator
+    )
   )
   ia <- Matrix::Diagonal(n) - a_mat
   lu_fact <- .factor_ia(ia)
@@ -536,9 +548,11 @@ compute_fp_product_paths <- function(
   output_tol = 1e-8,
   value_added_floor = 1e-3,
   max_column_sum = 100,
+  a_denominator = c("traceable", "nonzero"),
   conserve_extensions = TRUE,
   min_value = 0
 ) {
+  a_denominator <- rlang::arg_match(a_denominator)
   .validate_fp_path_inputs(
     z_mat,
     x_vec,
@@ -595,7 +609,13 @@ compute_fp_product_paths <- function(
     z_mat,
     x_vec,
     value_added_floor = value_added_floor,
-    max_column_sum = max_column_sum
+    max_column_sum = max_column_sum,
+    min_output = .footprint_a_min_output(
+      z_mat,
+      x_vec,
+      output_tol,
+      a_denominator
+    )
   )
   ia_t <- Matrix::t(Matrix::Diagonal(n) - a_mat)
   lu_fact <- .factor_ia(ia_t)

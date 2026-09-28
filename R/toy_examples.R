@@ -214,6 +214,7 @@
     1961L, 236L, 2620, 11177., 11177., 0., 0., 0., 1.12e4, 0., 0., 0., 0., 0.,
     1995L, 49L, 2734, 71117., 71117., 56724., 0., 0., 1.48e4, 0., 0., 0., 0., 0.
   ) |>
+    dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
     .add_reporting_polity_columns()
 }
 
@@ -405,7 +406,8 @@
     .add_trade_polity_columns() |>
     dplyr::mutate(
       method_unbacked_quantity = "drop",
-      method_head_units = "convert"
+      method_head_units = "convert",
+      method_time_coverage = NA_character_
     )
 }
 
@@ -1211,6 +1213,48 @@
   )
 }
 
+# Five cells run through the real build_critical_n_binding(): one per single
+# binding threshold and two with all three surfaces equal, one of each source
+# rule. The yield-potential-cap cell exceeds no threshold (negative
+# exceedances); the non-agricultural-floor cell exceeds all three. The
+# supplied "mi" surface equals the minimum everywhere except the groundwater
+# cell, where it is lower: the undetermined mismatch found in 1,540 of the
+# 28,881 deposited "all" cells.
+.example_critical_n_binding <- function() {
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~de, ~gw, ~sw, ~mi, ~exc,
+    0.25, 0.25,  12,  40,  35,  12,    6,
+    0.75, 0.25,  60,  18,  25,  15,   -4,
+    0.25, 0.75,  50,  45, -20, -20,   30,
+    0.75, 0.75,  90,  90,  90,  90,  -35,
+    1.25, 0.75,   4,   4,   4,   4,   22
+  )
+  thresholds <- c("de", "gw", "sw", "mi")
+  critical <- purrr::map(
+    rlang::set_names(thresholds),
+    \(threshold) {
+      .example_binding_layer(cells, threshold, "critical_n_surplus", threshold)
+    }
+  )
+  exceedance <- purrr::map(
+    rlang::set_names(thresholds[1:3]),
+    \(threshold) .example_binding_layer(cells, threshold, "exceedance", "exc")
+  )
+  build_critical_n_binding(critical, exceedance, land_use = "ara")
+}
+
+.example_binding_layer <- function(cells, threshold, var, column) {
+  dplyr::transmute(
+    cells,
+    lon = .data$lon,
+    lat = .data$lat,
+    value = .data[[column]],
+    critical_var = .env$var,
+    critical_threshold = .env$threshold,
+    critical_land_use = "ara"
+  )
+}
+
 # A small build_nitrogen_balance()-shaped fixture (8 crop-cell-year rows, two
 # cells, a nitrogen deficit and a zero-surplus row included) constructed so the
 # harvest-removal surplus is exactly checkable. burnt_residue_n_t varies but
@@ -1283,7 +1327,8 @@
     resolution = "grid",
     metric = "surplus",
     actual_year = 2010L,
-    critical_reference_year = 2010L
+    critical_reference_year = 2010L,
+    grassland_split = "none"
   )
 }
 
@@ -1852,5 +1897,99 @@
       method_manure_n2o = "IPCC_2019_Tier2"
     ) |>
     .add_reporting_polity_columns()
+}
+
+# Per-CFT water inputs for build_crop_water_consumption(example = TRUE): two cells, one
+# year, three bands, in the reader's shape (per-STAND densities, mm/yr) with
+# their stand fractions and a cell-polity crosswalk. The example runs the real
+# weighting and aggregation over these rather than returning a frozen output.
+# The values are illustrative, not taken from a run.
+.example_cft_water_inputs <- function() {
+  list(
+    cft_consump_water_b = .example_cft_cube(c(0, 0, 180, 0, 0, 350)),
+    cft_consump_water_g = .example_cft_cube(c(420, 510, 260, 280, 330, 190)),
+    cft_nir = .example_cft_cube(c(0, 0, 150, 0, 0, 320)),
+    stand_frac = .example_cft_cube(c(0.30, 0.40, 0.05, 0.20, 0.25, 0.10)),
+    cell_polity = tibble::tribble(
+      ~lon,   ~lat,  ~area_code, ~polity_frac, ~cell_area_ha,
+      9.25,   47.75, 79L,        1,            30100,
+      -3.25,  40.25, 203L,       1,            27500
+    )
+  )
+}
+
+# One per-CFT cube over the example's two cells and three bands.
+.example_cft_cube <- function(values) {
+  tibble::tribble(
+    ~lon,   ~lat,  ~year, ~band, ~band_name,
+    9.25,   47.75, 2000L, 1L,    "rainfed temperate cereals",
+    9.25,   47.75, 2000L, 14L,   "rainfed grassland",
+    9.25,   47.75, 2000L, 17L,   "irrigated temperate cereals",
+    -3.25,  40.25, 2000L, 1L,    "rainfed temperate cereals",
+    -3.25,  40.25, 2000L, 14L,   "rainfed grassland",
+    -3.25,  40.25, 2000L, 17L,   "irrigated temperate cereals"
+  ) |>
+    dplyr::mutate(value = values)
+}
+
+# A small build_grassland_intensity_classes()-shaped fixture, hand-built to
+# be self-consistent: country 9 has 70,000 of 120,000 IMAGE grassland ha
+# intensive (share 7/12); a 1961 density ratio of 0.6 sets a target of
+# 42,000 ha, so the lower-manure intensive cell 179521 is demoted and the
+# nearest prefix keeps 40,000 ha. Country 185 (a 1.2 ratio, target 24,000
+# ha) keeps its 20,000 intensive ha: promoting the 60,000 ha extensive cell
+# would land further from the target. Cell 179523 has WHEP grassland only.
+.example_grassland_intensity_classes <- function() {
+  tibble::tribble(
+    ~cell_id, ~lon, ~lat, ~year, ~country_2010, ~image_region,
+    ~a_crop_ha, ~grass_ha_image, ~whep_grass_ha, ~image_class_2010,
+    ~grassland_class, ~density_ratio, ~target_share,
+    ~method_grassland_split,
+    50131L, 45.25, 55.25, 1961L, 185L, 15L,
+    5000, 20000, 18000, "intensive",
+    "intensive", 1.2, 0.3, "image2010_density_rank",
+    50131L, 45.25, 55.25, 2010L, 185L, 15L,
+    5000, 20000, 19000, "intensive",
+    "intensive", 1, 0.25, "image2010_density_rank",
+    50132L, 45.75, 55.25, 1961L, 185L, 15L,
+    2000, 60000, 55000, "extensive",
+    "extensive", 1.2, 0.3, "image2010_density_rank",
+    50132L, 45.75, 55.25, 2010L, 185L, 15L,
+    2000, 60000, 58000, "extensive",
+    "extensive", 1, 0.25, "image2010_density_rank",
+    179520L, -60.25, -34.75, 1961L, 9L, 5L,
+    10000, 40000, 42000, "intensive",
+    "intensive", 0.6, 0.35, "image2010_density_rank",
+    179520L, -60.25, -34.75, 2010L, 9L, 5L,
+    10000, 40000, 39000, "intensive",
+    "intensive", 1, 7 / 12, "image2010_density_rank",
+    179521L, -59.75, -34.75, 1961L, 9L, 5L,
+    8000, 30000, 31000, "intensive",
+    "extensive", 0.6, 0.35, "image2010_density_rank",
+    179521L, -59.75, -34.75, 2010L, 9L, 5L,
+    8000, 30000, 29000, "intensive",
+    "intensive", 1, 7 / 12, "image2010_density_rank",
+    179522L, -59.25, -34.75, 1961L, 9L, 5L,
+    0, 50000, 52000, "extensive",
+    "extensive", 0.6, 0.35, "image2010_density_rank",
+    179522L, -59.25, -34.75, 2010L, 9L, 5L,
+    0, 50000, 50000, "extensive",
+    "extensive", 1, 7 / 12, "image2010_density_rank",
+    179523L, -58.75, -34.75, 1961L, 9L, NA_integer_,
+    0, 0, 12000, NA_character_,
+    "extensive", 0.6, NA_real_, "no_image_grassland",
+    179523L, -58.75, -34.75, 2010L, 9L, NA_integer_,
+    0, 0, 10000, NA_character_,
+    "extensive", 1, NA_real_, "no_image_grassland"
+  ) |>
+    dplyr::mutate(
+      # Russia (185) reported as the USSR in 1961: its density that year is
+      # the USSR's trend chained onto Russia's own level.
+      density_basis = dplyr::if_else(
+        .data$country_2010 == 185L & .data$year == 1961L,
+        "chained_predecessor_trend",
+        "own"
+      )
+    )
 }
 # nolint end

@@ -602,9 +602,16 @@ get_arable_permanent_land <- function(
 #' extension in 2001 and 7.6% in 2019, then **0%** from 2020, with ordinary
 #' arable crops absorbing the difference (whep#938). A second, earlier
 #' composition change sits inside the covered window: from 2013 the
-#' FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
-#' jumps from 2.3 to 75.0 Mha, held flat to 2019.
+#' FAOSTAT-derived fodder area disappears and the 2012 area is carried forward,
+#' 2.2 Mha in 2012 and 75.0 Mha from 2013, held flat to 2019. Production rows
+#' say so in `source` (`"DM_yield_estimate_carried_forward"`, whep#1027), but
+#' this extension does not see `source`, and fodder is present on both sides
+#' of 2013, so [check_arable_composition()] does not flag that year.
 #' `fodder_gap` exposes the treatments; `"as_reported"` remains the default.
+#' Whatever the treatment, `fodder_coverage` in the output marks every
+#' country-year after the fodder input stops as `"lapsed"`, and
+#' [check_series_jumps()] with `dropouts = TRUE` flags each fodder series at
+#' the year it stops.
 #'
 #' @section Unsupported land targets:
 #' FAO reports positive land for some country-years in which the crop panel has
@@ -698,7 +705,14 @@ get_arable_permanent_land <- function(
 #'   that country-year's arable target, `0` where the netting term is
 #'   structurally absent), `method_temp_grassland` (the `temp_grassland_basis`
 #'   in force), `method_fodder` (the `fodder_gap` in force) and
-#'   `method_unsupported_target` (the `unsupported_target` in force). Under
+#'   `method_unsupported_target` (the `unsupported_target` in force), and
+#'   `fodder_coverage`, which says per country-year whether the fodder input
+#'   was there before any `fodder_gap` treatment: `"reported"` (the base
+#'   carries fodder area that year), `"lapsed"` (it carries none, but did in an
+#'   earlier year of that country's panel -- the 2020 break of whep#938, whose
+#'   land the other arable crops absorb under `"as_reported"`, or which
+#'   `"carry_forward"` fills) or `"not_reported"` (none that year or before).
+#'   Under
 #'   `unsupported_target = "unallocated"` a row with `item_cbs_code` `NA` carries
 #'   the FAO land no crop can be named for.
 #'
@@ -807,6 +821,7 @@ build_fao_arable_fallow_extension <- function(
       "arable"
     )
   ]
+  coverage <- .fodder_coverage(base)
   base <- .apply_fodder_gap(base, fodder_gap)
 
   # Static (year-independent) allocation weight, e.g. gridded_fallow_weights().
@@ -844,6 +859,9 @@ build_fao_arable_fallow_extension <- function(
     is.na(temp_grassland_netted_ha),
     temp_grassland_netted_ha := 0
   ]
+  out <- merge(out, coverage, by = c("area_code", "year"), all.x = TRUE)
+  # A country-year with no arable base rows at all has no fodder either.
+  out[is.na(fodder_coverage), fodder_coverage := "not_reported"]
   out <- out[impact_u > 0]
   data.table::setorder(out, year, area_code, item_cbs_code)
   out <- tibble::as_tibble(out) |>
@@ -986,10 +1004,14 @@ check_fodder_land_share <- function(
 #' behaviour.
 #'
 #' @details
-#' [check_series_jumps()] cannot find either break. A term does not fall to a
-#' small value at the boundary, it stops having rows, and its `min_value`
-#' guard skips any pair involving a zero, so a scan over the completed series
-#' would not flag it either. Coverage, not a ratio, is what has to be checked.
+#' [check_series_jumps()] does not find either break by default. A term does
+#' not fall to a small value at the boundary, it stops having rows, and its
+#' `min_value` guard skips any pair involving a zero. With `dropouts = TRUE` it
+#' completes each series with zero and flags the stop, so
+#' `check_series_jumps(extension, impact_u, .by = c("area_code",
+#' "item_cbs_code"), dropouts = TRUE)` reports each fodder series at its break
+#' year. This function answers the coverage question per term and area
+#' instead, and also covers the netting term, which is not an item series.
 #'
 #' @param extension Tibble of the arable/permanent land extension as returned
 #'   by [build_fao_arable_fallow_extension()]: `year`, `area_code`,
@@ -1421,6 +1443,37 @@ check_arable_composition <- function(
     return(base[!(kind == "arable" & item_cbs_code %in% fodder_codes)])
   }
   .carry_fodder_forward(base, fodder_codes)
+}
+
+# Per (area_code, year) of the arable base, before any fodder_gap treatment:
+# "reported" where fodder carries positive area, "lapsed" where it does not
+# but did in an earlier year of that area (whep#938), "not_reported"
+# otherwise. Relative to the panel built, so a build that starts after the
+# fodder sources end reads "not_reported" rather than "lapsed".
+.fodder_coverage <- function(base) {
+  fodder_codes <- .item_cbs_fodder()
+  panel <- unique(base[kind == "arable", .(area_code, year)])
+  reported <- unique(
+    base[
+      kind == "arable" & item_cbs_code %in% fodder_codes & physical_ha > 0,
+      .(area_code, year)
+    ]
+  )
+  panel[, fodder_coverage := "not_reported"]
+  panel[reported, on = c("area_code", "year"), fodder_coverage := "reported"]
+  # "Lapsed" is a statement about the year axis: absent now, reported in an
+  # earlier year of the same area. The cumulative count runs along the year.
+  data.table::setorder(panel, area_code, year)
+  panel[,
+    fodder_coverage := data.table::fifelse(
+      fodder_coverage == "not_reported" &
+        cumsum(fodder_coverage == "reported") > 0L,
+      "lapsed",
+      fodder_coverage
+    ),
+    by = area_code
+  ]
+  panel[]
 }
 
 # Hold each fodder series' last observed physical area over the panel years

@@ -245,7 +245,29 @@ test_that("the enumerated baseline can only shrink", {
   # FAOSTAT reporting areas onto their bucket for the Linum/Hemp dominance
   # (identity), one keeps the polities with a 1961 FAOSTAT cropland to anchor
   # their successors' back-cast on (the anchor year is fixed). Measured.
-  expect_lte(sum(baseline$n), 87L)
+  # 82 since whep#1196: `.cpy_key` attaches the recorded cell-support mapping
+  # to one year's polycells; the support and the mapping are both filtered to
+  # the year before the join, so the key has no second year to disagree about.
+  # It is what lets the gridded nitrogen balance place the USSR's 1961 total.
+  #
+  # 83 with both, re-derived by running the audit on the merged tree. The
+  # row added by whep#1300 is the manure crop layer, `.n_manure_crop_layer()`,
+  # which spreads harvested area onto cells for the gridded nitrogen balance's
+  # manure allocation. It reads the SAME single-vintage crop-pattern weights as
+  # the `.sci_join_weights` row; the area it spreads is year-keyed and carries
+  # `year` through.
+  #
+  # 84 with the human-N population basis (whep#1301), again re-derived by
+  # running the audit on the merged tree: `.human_check_polycells_known()`
+  # refuses a total-population polycell the crosswalk does not carry
+  # (build_human_n(population_basis = "total")). The crosswalk has no year,
+  # and the join only decides whether to abort -- the alternative was dropping
+  # that population silently, as the inner join on lon/lat does for the urban
+  # basis.
+  #
+  # 90 with both the regime yield ratio's joins and the ones above, measured
+  # by running the audit on the merged tree.
+  expect_lte(sum(baseline$n), 90L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -405,7 +427,17 @@ test_that("every year-free territorial grouping is classified", {
   # fold, and one the cell -> area map the LPJmL normalisers pool over.
   # (The normalisers' own pooling runs through `.ryr_pooled_ratio()`, whose
   # key the audit reads as dynamic.) Measured by running the audit.
-  expect_lte(sum(full$n), 102L)
+  # 100 since whep#1196: the year-aware cell support's fold of one year's
+  # polycells into their area codes (`single_year`, the grouping
+  # `.carbon_fold_area_code` makes at the carbon snapshot), and its two
+  # `diagnostic` reports of what it removed and what still shares a cell, and
+  # `.cpy_rows_at_year` reading a constant-territory polity at its first
+  # interval (`year_axis`). Measured by running the audit, not by adding four
+  # to the previous cap.
+  #
+  # 106 with both the regime yield ratio's groupings and the ones above,
+  # measured by running the audit on the merged tree.
+  expect_lte(sum(full$n), 106L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

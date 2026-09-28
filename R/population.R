@@ -277,7 +277,7 @@ read_population <- function(
     dplyr::transmute(
       year = as.integer(.data$Year),
       iso3c = as.character(.data$area_code),
-      population = as.numeric(.data$pop) * 1000,
+      population = as.numeric(.data$pop) * .persons_per_thousand(),
       source_pop = .env$source_pop
     ) |>
     dplyr::filter(

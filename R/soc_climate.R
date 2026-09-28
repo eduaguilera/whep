@@ -39,8 +39,8 @@
 #' @return The annual mean of the monthly a*b*c product (a single numeric).
 #' @source Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
 #'   turnover of carbon in soil. \doi{10.1007/978-3-642-61094-3_17}. Moisture
-#'   deficit and cover terms as implemented in the Spain historical SOC
-#'   pipeline.
+#'   deficit and cover terms as implemented in an earlier regional historical
+#'   SOC reconstruction.
 #' @export
 #' @examples
 #' soc_rate_modifier_rothc(
@@ -64,10 +64,10 @@ soc_rate_modifier_rothc <- function(
     0,
     47.91 / (1 + exp(106.06 / (temp_c + 18.27)))
   )
-  # Max topsoil-moisture deficit, matching the Spain_Hist oracle
-  # (Calc_HSOC_Modifying_factors): canonical RothC-26.3 additionally divides
-  # this by a bare-soil factor (1.8 bare / 1.0 covered), but Spain_Hist omits it
-  # and folds cover into the c factor below, so we match the oracle.
+  # Max topsoil-moisture deficit, matching the source implementation's
+  # modifying factors: canonical RothC-26.3 additionally divides this by a
+  # bare-soil factor (1.8 bare / 1.0 covered), but the source implementation
+  # omits it and folds cover into the c factor below, so we match it.
   max_tsmd <- soil_depth_m *
     100 *
     (-(20 + 1.3 * clay_pct - 0.01 * clay_pct^2)) /

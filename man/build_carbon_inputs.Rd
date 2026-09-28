@@ -48,13 +48,15 @@ builders so their readers slice to the requested years; ignored for inputs
 supplied via \code{data}.}
 
 \item{crop_groups}{How cropland is resolved into land-use classes, a named
-list validated element-wise. \code{method}: \code{"spain_hist"} (default) resolves
-cropland into crop GROUPS -- herbaceous crops pooled per irrigation
-regime (they rotate, so nothing inside the pool is a land-use change),
-woody crops per species, rainfed and irrigated separate -- labelled by
-\code{\link[=soc_crop_group]{soc_crop_group()}}; \code{"none"} keeps the single \code{cropland} class the
-package used before, for comparison and for a caller that wants one
-cropland number.
+list validated element-wise. \code{method}: \code{"rotation_groups"} (default)
+resolves cropland into crop GROUPS -- herbaceous crops pooled per
+irrigation regime (they rotate, so nothing inside the pool is a land-use
+change), woody crops per species, rainfed and irrigated separate --
+labelled by \code{\link[=soc_crop_group]{soc_crop_group()}}; \code{"none"} keeps the single \code{cropland}
+class the package used before, for comparison and for a caller that
+wants one cropland number. The former name of \code{"rotation_groups"} is
+still accepted as a deprecated alias: it resolves to
+\code{"rotation_groups"}, with identical results, and warns once per session.
 \code{irrigation}: where each crop's irrigated share of its cell area comes
 from. \code{"spatialized"} (default) uses \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} on the
 pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts

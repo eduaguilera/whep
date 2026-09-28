@@ -15,9 +15,9 @@ or \code{"None"}.}
 }
 }
 \source{
-Spain historical nitrogen coefficient workbook
-(\code{N_coefficients.xlsx}, sheet \code{Drainage_ranges}),
-companion to the Meisinger & Randall (1991) denitrification matrix.
+Nitrogen coefficient workbook of an earlier regional historical
+reconstruction, companion to the Meisinger & Randall (1991)
+denitrification matrix.
 \doi{10.2136/1991.managingnitrogen.c5}.
 }
 \usage{

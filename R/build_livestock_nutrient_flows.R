@@ -208,7 +208,7 @@ build_livestock_nutrient_flows <- function(
 
 # allocate_manure_transport()'s public contract is pooled across manure_type
 # (a cell's spare cropland-N-capacity does not care which manure_type fills
-# it, and that function is also reused by build_urban_n(); its signature is
+# it, and that function is also reused by build_human_n(); its signature is
 # out of scope here). To reattach manure_type to the transported/residual
 # rows, this recomputes the same source-to-sink pairwise flows with the
 # package's own transport helpers, defined in the manure transport module, so

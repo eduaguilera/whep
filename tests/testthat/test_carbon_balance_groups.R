@@ -1,4 +1,5 @@
-# The carbon balance marching crop GROUPS as classes (Spain_Hist convention).
+# The carbon balance marching crop GROUPS as classes (rotation-group
+# convention).
 # Offline throughout.
 
 testthat::test_that("cover profiles map groups without enumerating them", {
@@ -202,7 +203,7 @@ testthat::test_that("an ungrouped run leaves the land-use table untouched", {
 
 testthat::test_that("build_carbon_balance rejects a malformed crop_groups", {
   testthat::expect_error(
-    whep::build_carbon_balance(crop_groups = list(method = "spainhist")),
+    whep::build_carbon_balance(crop_groups = list(method = "rotationgroups")),
     "crop_groups"
   )
 })
@@ -230,7 +231,7 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
     },
     .package = "whep"
   )
-  cfg <- whep:::.ci_group_config(list(method = "spain_hist"))
+  cfg <- whep:::.ci_group_config(list(method = "rotation_groups"))
   whep:::.cb_resolve_inputs(list(), 2010L, cfg)
   testthat::expect_identical(seen, cfg)
 
@@ -250,7 +251,7 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
   testthat::expect_error(
     whep::build_carbon_balance(
       years = 2010L,
-      crop_groups = list(method = "spain_hist", irrigation = "none"),
+      crop_groups = list(method = "rotation_groups", irrigation = "none"),
       # Issue whep#1120: the default grazing method needs two inputs with no
       # reader, and is now refused at the entry -- before `.cb_resolve_inputs`
       # is reached at all. This assertion is about how `crop_groups` is
@@ -261,7 +262,41 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
   )
   testthat::expect_identical(
     captured,
-    list(method = "spain_hist", irrigation = "none")
+    list(method = "rotation_groups", irrigation = "none")
+  )
+})
+
+testthat::test_that("the deprecated method reaches the reader renamed", {
+  rlang::local_options(rlib_warning_verbosity = "verbose")
+  captured <- NULL
+  # The carbon-input reader is the first call that receives crop_groups;
+  # stopping there keeps the test offline.
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = function(
+      data = list(),
+      years = NULL,
+      crop_groups = list(),
+      methods = list()
+    ) {
+      captured <<- crop_groups
+      rlang::abort("stop here", class = "cbg_stop")
+    },
+    .package = "whep"
+  )
+  testthat::expect_warning(
+    testthat::expect_error(
+      whep::build_carbon_balance(
+        years = 2010L,
+        crop_groups = list(method = "spain_hist", irrigation = "none"),
+        method_grazing = "lpjml"
+      ),
+      class = "cbg_stop"
+    ),
+    class = "whep_crop_groups_method_deprecated"
+  )
+  testthat::expect_identical(
+    captured,
+    list(method = "rotation_groups", irrigation = "none")
   )
 })
 
@@ -440,11 +475,11 @@ testthat::test_that("the balance stamps method_class_water and marches groups on
   data <- list(land_use = land_use, c_inputs = c_inputs, climate = climate)
   cell <- whep::build_carbon_balance(
     data = data,
-    crop_groups = list(method = "spain_hist", irrigation = "none")
+    crop_groups = list(method = "rotation_groups", irrigation = "none")
   )
   regime <- whep::build_carbon_balance(
     data = data,
-    crop_groups = list(method = "spain_hist", irrigation = "none"),
+    crop_groups = list(method = "rotation_groups", irrigation = "none"),
     class_water = "regime"
   )
   testthat::expect_true(all(cell$method_class_water == "cell"))
@@ -465,7 +500,7 @@ testthat::test_that("the balance stamps method_class_water and marches groups on
   # The polity roll-up keeps the stamp.
   pol <- whep::build_carbon_balance(
     data = data,
-    crop_groups = list(method = "spain_hist", irrigation = "none"),
+    crop_groups = list(method = "rotation_groups", irrigation = "none"),
     class_water = "regime",
     resolution = "polity"
   )
@@ -623,7 +658,7 @@ testthat::test_that("the transfer closes on mass even when a class vanishes", {
   # over a cell-year was up to 4.3e7 Mg C, the stock of classes that had
   # gone to zero area that year. The density column cannot carry an outflow
   # at zero hectares; the mass column can, and must sum to zero.
-  cfg <- list(method = "spain_hist", irrigation = "none")
+  cfg <- list(method = "rotation_groups", irrigation = "none")
   live <- whep::build_carbon_balance(
     data = .cbg_luc_data(30, 70),
     crop_groups = cfg

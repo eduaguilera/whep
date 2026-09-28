@@ -34,9 +34,10 @@ A deliberate, permanent gross-assumption default for
 \code{incorporation_delay_h} organic-manure drivers, for use where real
 per-cell/per-era manure-application-technique survey data does not exist
 (which is everywhere right now). Every row fixes
-\code{technique = "Broadcast"}, matching Spain_Hist's own real production
-MANNER run (which itself hardcodes Broadcast application nationally with
-no region/era variation). The four rows blend
+\code{technique = "Broadcast"}, matching the production MANNER run of the
+earlier regional historical reconstruction this model is ported from
+(which itself applies Broadcast nationally with no region/era
+variation). The four rows blend
 \link{manner_incorporation_factor}'s \code{delay_bin} categories in equal
 shares: a quarter of applied nitrogen assumed never incorporated, a
 quarter incorporated within 2 hours, a quarter within 12-24 hours, and a

@@ -1946,3 +1946,25 @@ testthat::test_that("Sudan and Sudan (former) are duplicate labels", {
     tidyr::pivot_wider(names_from = Country, values_from = grass_share)
   testthat::expect_equal(wide$Sudan, wide$`Sudan (former)`)
 })
+
+testthat::test_that("items_full$FEDNA is a stand-in, not a product identity", {
+  # The `items_full` documentation says the `FEDNA` column names the
+  # feed-table row an item was given, not the substance it is (whep#1131).
+  # These rows are the evidence it cites. If upstream ever turns the column
+  # into a one-to-one identity, this fails and that paragraph (and the
+  # Methionine note under `biomass_coefs`) must be rewritten with it.
+  additives <- whep::items_full |>
+    dplyr::filter(.data$group == "Additives") |>
+    dplyr::select("item_cbs_code", "FEDNA")
+  testthat::expect_equal(nrow(additives), 28L)
+  testthat::expect_true(all(!is.na(additives$FEDNA)))
+  shared <- additives |>
+    dplyr::filter(.data$FEDNA %in% .data$FEDNA[duplicated(.data$FEDNA)])
+  testthat::expect_setequal(shared$item_cbs_code, c(4005, 4008, 4013, 4016))
+  fedna <- rlang::set_names(additives$FEDNA, additives$item_cbs_code)
+  testthat::expect_equal(fedna[["4008"]], fedna[["4016"]])
+  testthat::expect_equal(fedna[["4008"]], "PROTEINA DE PATATA")
+  testthat::expect_equal(fedna[["4018"]], "CARBONATO SODIO")
+  testthat::expect_equal(fedna[["4003"]], "MET HIDROXI SAL CALCICA")
+  testthat::expect_equal(fedna[["4011"]], "HIDROXI-ANAL MET")
+})

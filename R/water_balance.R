@@ -200,6 +200,13 @@ build_water_balance <- function(
 #' products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 #' sources.
 #'
+#' The drivers cover the intersection of the CRU and LPJmL grids. CRU TS 4.09
+#' masks as water 22 of the 58,795 cells the `lpjml-soc-hydrology` pin carries
+#' (small islands, coasts and large lakes), so those cells are excluded; the
+#' function reports the count every time it drops any (a message of class
+#' `whep_socd_cell_shortfall`) and aborts (class `whep_socd_cell_loss`) when
+#' more than 0.1% of the LPJmL cells in any year have no climate series.
+#'
 #' @param run_dir Path to the LPJmL run output directory. `NULL` (default) uses
 #'   `WHEP_LPJML_RUN_DIR` when set, and the pinned `lpjml-soc-hydrology`
 #'   artifact otherwise, so running LPJmL is not a prerequisite. That artifact
@@ -585,6 +592,27 @@ get_soc_climate_drivers <- function(
     )
 }
 
+# The same stand-weighted contributions, kept per band instead of summed
+# (#916). Each row is one band's water as a depth over the WHOLE cell, so
+# summing this over bands per cell-year reproduces .wb_cell_consump() exactly:
+# both reduce the same `weighted` vector, only the grouping differs.
+.wb_band_consump <- function(raw, out_col, stand_frac) {
+  if (is.null(raw)) {
+    return(NULL)
+  }
+  raw |>
+    .wb_weight_by_stand(out_col, stand_frac) |>
+    dplyr::mutate(stand_frac = dplyr::coalesce(.data$stand_frac, 0)) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      dplyr::any_of(c("band", "band_name")),
+      "stand_frac",
+      dplyr::all_of(stats::setNames("weighted", out_col))
+    )
+}
+
 # Attach each band's stand fraction and form the area-weighted contribution.
 #
 # Refuses rather than falling back to an unweighted sum: the unweighted number
@@ -639,7 +667,11 @@ get_soc_climate_drivers <- function(
 # because a caller may legitimately supply a narrower cube than its weights,
 # but it names what failed so the zero is never silent.
 .wb_check_stand_match <- function(joined, out_col, key) {
-  bad <- joined[is.na(joined$stand_frac) & joined$value > 0, ]
+  # `which()`, not a logical subscript: a non-land cell carries NA in both the
+  # cube and cftfrac.nc, `NA > 0` is NA, and an NA subscript returns an
+  # all-NA row -- 4,500,640 phantom "unmatched" rows naming no band on the
+  # 2010 global run (#916). An NA value carries no water to drop.
+  bad <- joined[which(is.na(joined$stand_frac) & joined$value > 0), ]
   if (nrow(bad) == 0L) {
     return(joined)
   }
@@ -1167,6 +1199,9 @@ get_soc_climate_drivers <- function(
   sources <- .socd_monthly_sources(data, run_dir, years, pin)
   groups <- purrr::map(sources, \(x) split(seq_len(nrow(x)), x$year))
   shared <- Reduce(intersect, purrr::map(groups, names))
+  purrr::map(shared, \(year) .socd_cell_shortfall(sources, groups, year)) |>
+    dplyr::bind_rows() |>
+    .socd_report_cell_loss()
   purrr::map(
     shared,
     \(year) .socd_monthly_year(sources, groups, year, partial_year)
@@ -1237,6 +1272,88 @@ get_soc_climate_drivers <- function(
       water_balance_mm,
       method_water_input
     )
+}
+
+# Which cells of the LPJmL grid a year's CRU temperature, CRU PET and LPJmL
+# irrigation do not carry at all. The inner joins in .socd_monthly_year() drop
+# such a cell whole, which the month-lattice check cannot see: it runs on what
+# survived the joins, and a cell with no row left has no gap to report.
+#
+# The reference grid is LPJmL's (the precipitation series, which comes from
+# the same pin or run as swc_topsoil): that is the grid the SOC chain is
+# computed on, and CRU cells outside it are outside by design (whep#1166).
+.socd_cell_shortfall <- function(sources, groups, year) {
+  cells <- purrr::imap(groups, \(idx, name) {
+    dplyr::distinct(sources[[name]][idx[[year]], c("lon", "lat")])
+  })
+  absent <- purrr::map(
+    cells[c("temp", "pet", "irrig")],
+    \(x) dplyr::anti_join(cells$prec, x, by = c("lon", "lat"))
+  )
+  tibble::tibble(
+    year = as.integer(year),
+    n_grid = nrow(cells$prec),
+    n_lost = nrow(dplyr::distinct(dplyr::bind_rows(absent))),
+    temp = nrow(absent$temp),
+    pet = nrow(absent$pet),
+    irrig = nrow(absent$irrig)
+  )
+}
+
+# Report the LPJmL cells the SOC climate drivers exclude for want of a CRU (or
+# LPJmL irrigation) series, and abort when the share is beyond the expected.
+#
+# Measured on CRU TS 4.09 against the lpjml-soc-hydrology pin (1901, 2000 and
+# 2023 alike): 22 of 58,795 LPJmL cells (0.037%) carry no CRU PET, 20 of them
+# no CRU temperature either. They are small islands, coasts and large lakes --
+# Lake Ladoga, the IJsselmeer, Svalbard, Franz Josef Land, Pacific atolls, the
+# Philippine and Bahamian coasts -- that CRU masks as water and LPJmL keeps as
+# land. The drivers cover the INTERSECTION of the two grids: CRU has no
+# observation there, and filling one (e.g. from the nearest CRU cell) is a
+# method choice nobody has made (whep#1095). 16 of the 22 fall inside the
+# polycell support for 2000, holding 0.31 Mha of land (0.0024% of it).
+#
+# This is a count assertion, not a membership one, so the known shortfall
+# reports and a change of grid or mask that loses far more fails loudly.
+.socd_report_cell_loss <- function(shortfall) {
+  if (nrow(shortfall) == 0L || all(shortfall$n_lost == 0L)) {
+    return(invisible(shortfall))
+  }
+  share <- shortfall$n_lost / shortfall$n_grid
+  worst <- shortfall[which.max(share), ]
+  pct <- signif(100 * max(share), 2)
+  tol_pct <- 100 * .socd_max_cell_loss()
+  bullets <- c(
+    "{worst$n_lost} of {worst$n_grid} LPJmL grid cells ({pct}%, year
+     {worst$year}) have no climate series and are excluded from the SOC
+     climate drivers.",
+    i = "Absent from CRU temperature: {worst$temp}; CRU PET: {worst$pet};
+         LPJmL irrigation: {worst$irrig}.",
+    i = "The drivers cover the intersection of the CRU and LPJmL grids; CRU
+         masks some island, coastal and lake cells as water (whep#1095)."
+  )
+  if (max(share) > .socd_max_cell_loss()) {
+    cli::cli_abort(
+      c(bullets, x = "That exceeds the {tol_pct}% expected."),
+      class = "whep_socd_cell_loss",
+      shortfall = shortfall
+    )
+  }
+  cli::cli_inform(
+    bullets,
+    class = "whep_socd_cell_shortfall",
+    shortfall = shortfall
+  )
+  invisible(shortfall)
+}
+
+# Largest share of LPJmL cells the drivers may lose before aborting. A guard
+# margin, not a coefficient -- it moves no number, only whether a build stops.
+# 0.1% is ~2.7x the measured 0.037% (22 of 58,795 cells) so the known
+# CRU/LPJmL mask disagreement passes while a real regression does not; the
+# margin itself is assumed, unverified.
+.socd_max_cell_loss <- function() {
+  0.001
 }
 
 # Attach the annual water balance (mm): the per-cell-year sum of the monthly
@@ -1456,7 +1573,7 @@ get_soc_climate_drivers <- function(
   # reach for NetCDF files anyway -- which is what happened: the test suite
   # injects `data` and passes no `run_dir`, but the env var is set on a
   # developer machine, so this read fired and the suite began reading multi-GB
-  # rasters. CLAUDE.md forbids exactly that ("the suite must never reach the
+  # rasters. AGENTS.md forbids exactly that ("the suite must never reach the
   # network or read a WHEP_* path"), and it stalled a gate run for 40 minutes
   # before anyone noticed.
   #

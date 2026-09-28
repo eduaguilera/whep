@@ -178,7 +178,13 @@
 #'   exceed 1 and the largest is 443 (Soyabean Cake 1956) — but **none of
 #'   them is applied**: every one is pre-1961 and the round emits rows from
 #'   1961 on only, so `"report"` and `"drop"` give identical output on that
-#'   range and no published value moves either way. Of the 77, 50 have no
+#'   range. **That does not hold after 2013** (whep#1177). On a real
+#'   2011–2023 build, 60 keys above 1 are applied, every one of them in
+#'   2014–2023 (oilseed cakes and molasses, up to 15.7 for Sesameseed Cake
+#'   2016): the round books 2,297 rows with a negative `domestic_supply`,
+#'   −18.33 Mt in total, and the finished balance under `"report"` carries
+#'   2.4–4.4 Mt more `export` a year than under `"drop"`, 33.6 Mt over
+#'   2014–2023, which `"drop"` books mostly as `feed`. Of the 77, 50 have no
 #'   world production in the denominator at all (the oils and cakes, whose
 #'   production is what this round is about to create) and the other 27 are
 #'   the `historical-trade-exports` defect of whep#1085. `"report"` keeps every
@@ -228,7 +234,8 @@
 #'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
 #'   become one column each, `stock_variation` is split into the non-negative
 #'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
-#'   excluding `export`.
+#'   excluding `export`. A `unit` column says each row's denomination:
+#'   `"tonnes"`, or `"heads"` for the live-animal rows (see [get_wide_cbs()]).
 #'
 #'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
 #'   from the source that `source` names (`"A"` official, `"E"` estimated,
@@ -363,7 +370,7 @@ build_commodity_balances <- function(
 # The pivot plus the live-animal rows the FAO sheet omits: the part of the wide
 # CBS every caller needs. Kept apart from .cbs_long_to_wide() because
 # build_io_model() consumes the matrix-ready table without the polity name
-# columns (see the name-column rule in CLAUDE.md) or the supply-use QC pass.
+# columns (see the name-column rule in AGENTS.md) or the supply-use QC pass.
 .cbs_wide_core <- function(cbs_long, primary_all, years) {
   cli::cli_progress_step("Adding livestock CBS rows")
   livestock_cbs <- primary_all |>
@@ -371,10 +378,15 @@ build_commodity_balances <- function(
     get_livestock_cbs() |>
     .filter_years(years)
 
+  # The long CBS is mass-only by construction (the whep#865 guards drop every
+  # non-mass row), while the livestock rows are head counts. The label says
+  # which is which, and each item must carry one of them (whep#1055).
   cbs_long |>
     .pivot_cbs_wide() |>
     .ensure_wide_cbs_destinies() |>
-    dplyr::bind_rows(livestock_cbs)
+    dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
+    dplyr::bind_rows(livestock_cbs) |>
+    .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
 }
 
 # `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
@@ -2701,6 +2713,10 @@ build_processing_coefs <- function(
   .abort_if_units_mixed(cbs_new, "faostat-cbs-new")
 
   cbs_new |>
+    dplyr::filter(
+      !(element == "production" &
+        item_cbs_code %in% .cb_chain_downstream_codes())
+    ) |>
     dplyr::rename(
       item_trade = item_cbs,
       item_code_trade = item_cbs_code
@@ -2726,6 +2742,28 @@ build_processing_coefs <- function(
       )
     ) |>
     dplyr::filter(year > 2013)
+}
+
+# Commodity Balances (non-food) item codes that are a downstream link of a
+# chain mapped onto the same CBS item, so their `production` is the upstream
+# link's `Processed` reported a second time (whep#1250). Rubber 836 -> 837:
+# on the `faostat-cbs-new` pin (reporting areas, 2010-2023) 837 production /
+# 836 Processed has median 1.00 over 374 rows, and no 837 production row
+# lacks an 836 Processed row. Summing both links booked Thailand 2020 at
+# 8.26 Mt against 4.86 Mt in FAOSTAT_prod, and Uzbekistan -- which grows no
+# rubber but processes imported 836 -- as a 3.2 kt producer. Dropping the
+# downstream production counts the chain's production once, at its primary
+# link, and closes the aggregated balance: supply (primary production plus
+# both links' net trade and stock change) then equals the last link's uses.
+#
+# Deliberately NOT listed, though the shape is the same: wool 987 -> 988
+# (greasy -> degreased, ~0.6 t/t) and silk 1185 -> 1186/1187 (cocoons -> raw
+# silk, ~0.14 t/t, whep#1251) change mass basis along the chain, so which
+# link's production to keep is a basis decision, not a dedup; tobacco 826 ->
+# 828/829/831 (manufactured products) reports no `Processed` at all, so the
+# link is unconfirmed.
+.cb_chain_downstream_codes <- function() {
+  837L
 }
 
 .assemble_cbs_sources <- function(
@@ -5567,13 +5605,27 @@ build_processing_coefs <- function(
 #   Fats, Animals, Raw (1). Those exports are not a tonnage and no conversion
 #   factor recovers the true value.
 #
-# No share above 1 is applied today. Every one of the 77 is pre-1961, and
-# this function emits nothing before 1961: of the 44,675 rows
+# On 1950-1965 no share above 1 is applied. Every one of the 77 is pre-1961,
+# and this function emits nothing before 1961: of the 44,675 rows
 # `.correct_processed()` returns at 1950-1965, all 29,427 pre-1961 ones
 # already carry a first-round value, so the `is.na(value_final_old)` filter
 # leaves 2,637 rows at 1961-1965 only. The largest share actually applied is
 # 0.319, and the round's output holds no negative value anywhere
 # (production 19.79 Mt, export 2.52 Mt, domestic_supply 17.27 Mt).
+#
+# After 2013 they ARE applied (whep#1177, measured on a real 2011-2023 build
+# of main at 18d6a20e, the first one the repaired faostat-cbs-new pin
+# allowed). 65 keys exceed 1 there; the 5 the round has no row for
+# (Miscellaneous 2020-2023, Abaca 2021) are not applied, and the other 60 --
+# oilseed cakes and molasses, every year 2014-2023, largest Sesameseed Cake
+# 2016 at 15.7 -- are. The round then books 51.06 Mt of export against
+# 32.73 Mt of production on those keys: 2,297 rows of negative
+# domestic_supply, -18.33 Mt. No negative domestic_supply survives into the
+# finished balance, but the export does: "report" against "drop" moves 6,880
+# final keys, 2.4-4.4 Mt of export a year and 33.6 Mt over 2014-2023, which
+# "drop" books mostly as feed. The 2005-2015 build gives the same 12 keys for
+# 2014-2015 with 7.01 Mt of export between the two policies. Why the share
+# exceeds 1 for these keys has not been traced.
 #
 # The -123.22 Mt of negative `production` whep#1086 cites is therefore not
 # from here: that figure is whep#1065's, and `.resolve_historical_supply()`
@@ -5735,8 +5787,9 @@ build_processing_coefs <- function(
       # The second place a domestic supply is computed without a floor
       # (whep#1065). `export_share` is a GLOBAL export / (production +
       # import) ratio and nothing bounds it at 1, so this supply can come out
-      # negative. It does not today: see `.cbs_export_overflow_choices()` for
-      # the measurement and for what each policy would do instead.
+      # negative, and from 2014 on it does (whep#1177): see
+      # `.cbs_export_overflow_choices()` for the measurement and for what
+      # each policy would do instead.
       domestic_supply = production - export
     ) |>
     dplyr::select(

@@ -36,7 +36,7 @@ build_residue_bedding_supply <- function(x) {
   # indistinguishable downstream from a build with no bedding at all, and it is
   # exactly what a caller gets who forgot to set `bedding_fraction`. So the
   # absence is refused here, where it is still visible, rather than travelling
-  # on as a zero (see "Absent inputs must not become zeros" in CLAUDE.md).
+  # on as a zero (see "Absent inputs must not become zeros" in AGENTS.md).
   check_inputs_supplied(
     x,
     "residue_bedding_dm_t",

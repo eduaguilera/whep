@@ -22,9 +22,27 @@
 #'   national inventory (e.g. a housed dairy herd calibrated to a
 #'   Zootecnicas/NIR Cfi), without changing the global default.
 #' @param method Method for calculation (default `"ipcc2019"`).
+#' @param lactation_method How net energy for lactation (NEl) is derived
+#'   from milk yield. One of:
+#'   - `"milk_composition"` (default): the NRC (2001) milk-energy equation,
+#'     `NEl = Milk * (0.389 * Fat + 0.229 * Protein + 0.165 * Lactose)`
+#'     (MJ/kg: the published Mcal/kg coefficients 0.0929, 0.0547 and 0.0395
+#'     times 4.184), for rows with a positive protein and lactose content.
+#'     Rows without that composition use the `"ipcc2019"` equations.
+#'   - `"ipcc2019"`: IPCC 2019 Refinement Vol 4 Ch 10. Eq 10.8,
+#'     `NEl = Milk * (1.47 + 0.40 * Fat)`, for cattle, buffalo and other
+#'     species; Eq 10.9, `NEl = Milk * EVmilk`, for sheep and goats with the
+#'     default `EVmilk` of 4.6 MJ/kg for sheep (7% fat; AFRC 1993, 1995) and
+#'     3 MJ/kg for goats (3.8% fat; AFRC 1998). The defaults ignore
+#'     `fat_percent`.
+#'
+#'   The equation used for each row is recorded in `method_lactation`
+#'   (`"nrc2001_milk_composition"`, `"ipcc2019_eq10_8"`,
+#'   `"ipcc2019_eq10_9_default_ev"`, or `"none"` when there is no milk).
 #'
 #' @return Dataframe with added `gross_energy` (MJ/day), intermediate
-#'   net energy components, and `method_energy` tracking column.
+#'   net energy components, and `method_energy` and `method_lactation`
+#'   tracking columns.
 #' @export
 #'
 #' @examples
@@ -36,7 +54,12 @@
 #'   estimate_energy_demand() |>
 #'   dplyr::select(species, cohort, heads, ne_maintenance,
 #'     ne_activity, ne_lactation, ne_growth, gross_energy)
-estimate_energy_demand <- function(data, method = "ipcc2019") {
+estimate_energy_demand <- function(
+  data,
+  method = "ipcc2019",
+  lactation_method = c("milk_composition", "ipcc2019")
+) {
+  lactation_method <- rlang::arg_match(lactation_method)
   data <- data |>
     .as_livestock_tibble() |>
     dplyr::mutate(
@@ -57,7 +80,7 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
   data <- data |>
     .calc_energy_maintenance() |>
     .calc_energy_activity() |>
-    .calc_energy_lactation() |>
+    .calc_energy_lactation(lactation_method) |>
     .calc_energy_wool() |>
     .calc_energy_work() |>
     .calc_energy_pregnancy() |>
@@ -118,28 +141,54 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
     )
 }
 
-#' NEl: IPCC Eq 10.8/10.9.
+#' NEl: NRC (2001) milk composition, or IPCC 2019 Eq 10.8/10.9.
+#'
+#' IPCC 2019 Refinement Vol 4 Ch 10: Eq 10.8 (cattle and buffalo) uses the
+#' milk fat content; Eq 10.9 (sheep and goats) multiplies milk by `EVmilk`,
+#' with defaults of 4.6 MJ/kg for sheep (7% fat) and 3 MJ/kg for goats (3.8%
+#' fat). The 2006 Guidelines gave only the sheep value, which goats used to
+#' share here (whep#217). The NRC (2001) composition equation is
+#' `0.0929 Fat + 0.0547 CP + 0.0395 Lactose` in Mcal/kg (Linn, "Energy in the
+#' 2001 Dairy NRC: Understanding the System"), converted to MJ/kg at
+#' 4.184 MJ/Mcal and rounded to three decimals.
 #' @noRd
-.calc_energy_lactation <- function(data) {
+.calc_energy_lactation <- function(data, lactation_method) {
   data |>
     dplyr::mutate(
+      method_lactation = .lactation_equation(
+        milk_yield_kg_day,
+        protein_percent,
+        lactose_percent,
+        species_gen,
+        lactation_method
+      ),
       ne_lactation = dplyr::case_when(
-        is.na(milk_yield_kg_day) |
-          milk_yield_kg_day == 0 ~
-          0,
-        !is.na(protein_percent) &
-          protein_percent > 0 &
-          !is.na(lactose_percent) &
-          lactose_percent > 0 ~
+        method_lactation == "none" ~ 0,
+        method_lactation == "nrc2001_milk_composition" ~
           milk_yield_kg_day *
           (0.389 *
             fat_percent +
             0.229 * protein_percent +
             0.165 * lactose_percent),
-        species_gen %in% c("Sheep", "Goats") ~ milk_yield_kg_day * 4.6,
+        method_lactation == "ipcc2019_eq10_9_default_ev" ~
+          milk_yield_kg_day *
+          dplyr::if_else(species_gen == "Sheep", 4.6, 3.0),
         TRUE ~ milk_yield_kg_day * (1.47 + 0.40 * fat_percent)
       )
     )
+}
+
+#' Pick the NEl equation for each row.
+#' @noRd
+.lactation_equation <- function(milk, protein, lactose, species_gen, method) {
+  has_composition <- dplyr::coalesce(protein > 0 & lactose > 0, FALSE)
+  dplyr::case_when(
+    is.na(milk) | milk == 0 ~ "none",
+    method == "milk_composition" & has_composition ~
+      "nrc2001_milk_composition",
+    species_gen %in% c("Sheep", "Goats") ~ "ipcc2019_eq10_9_default_ev",
+    TRUE ~ "ipcc2019_eq10_8"
+  )
 }
 
 #' NEwool: IPCC Eq 10.12.

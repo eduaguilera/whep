@@ -1257,6 +1257,7 @@ utils::globalVariables(
     "polities",
     "polity_area_crosswalk",
     "polity_label_aliases",
+    "polity_label_item_corrections",
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",
@@ -2273,6 +2274,36 @@ utils::globalVariables(
     # synthetic-N series interpolated by fill_linear() for the pre-1961
     # back-cast of the regime ratio's fertiliser scaling
     "global_t",
+    # n_prov_destiny.R (issue 1014) -- processing volume above domestic
+    # production that the share cap leaves out, and the years it spans
+    "excess_fm",
+    "n_years",
+    # build_production.R (issue 1027) -- `fill_linear()`'s provenance of a
+    # fodder area, kept so a carried area is labelled as carried
+    "source_ha",
+    # check_series_jumps.R (whep#938) — each series' first time, where the
+    # dropout completion grid starts
+    ".time_first",
+    # arable_permanent_land.R (whep#938) — the per-country-year fodder input
+    # coverage label
+    "fodder_coverage",
+    # lpjml_landuse_floor.R (issue 985) -- the per-cell land-use total, the
+    # float32-resolution keep flag and the surviving total it renormalises to
+    "cell_total_",
+    "keep_",
+    "kept_total_",
+    # livestock_energy.R (issue 217) -- which NEl equation each row used
+    "method_lactation",
+    # build_trade.R (issue 232) -- fill_linear()'s provenance column, read to
+    # keep observed trade rows when the time extension is scoped to CBS cells
+    "source_country_share",
+    # n_human.R (whep#1301) -- the human-population N term's renamed columns
+    "human_n_gg",
+    "human_kgn_cap",
+    "human_n_generated_t",
+    "human_n_t",
+    "method_human",
+    "human",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

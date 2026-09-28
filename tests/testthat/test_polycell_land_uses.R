@@ -27,7 +27,7 @@
 }
 
 # Injected empty rather than left NULL: an absent input falls back to its reader,
-# and the suite must never reach the network (CLAUDE.md).
+# and the suite must never reach the network (AGENTS.md).
 .plu_fx_no_meadows <- function() {
   tibble::tibble(
     area_code = integer(0),

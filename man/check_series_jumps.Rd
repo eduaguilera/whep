@@ -14,7 +14,8 @@ check_series_jumps(
   min_value = 0,
   consecutive_only = TRUE,
   allowlist = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  dropouts = FALSE
 )
 }
 \arguments{
@@ -48,6 +49,19 @@ with \code{allowlisted = TRUE} rather than dropped.}
 
 \item{verbose}{Logical. If \code{TRUE} (default), report flag counts with
 \code{cli}.}
+
+\item{dropouts}{Whether to also flag a series that stops: one that falls
+from above \code{min_value} to exactly zero, or has no row at a time value its
+panel has after the series began. Each series is completed with zero over
+those time values, so the flag carries \code{value = 0} and \code{ratio = 0}, and
+the step back up from zero is an onset the \code{min_value} gate keeps quiet.
+\code{FALSE} (default) scans only the rows supplied and skips any pair
+involving a zero. \code{TRUE} takes the panel to be every time value in
+\code{data}. A character vector, a subset of \code{.by}, takes it to be the time
+values present within that coarser group instead: with
+\code{.by = c("area_code", "item_cbs_code")}, \code{dropouts = "area_code"} flags an
+item that stops while its country goes on, and not a country that leaves
+the panel.}
 }
 \value{
 A tibble with one row per flagged jump: the grouping columns,
@@ -81,6 +95,13 @@ reported but not treated as defects. Undocumented jumps stay flagged.
 A robust variant (flagging via the median absolute deviation of log
 ratios, per the Hampel/MAD anchors in the framework) is a documented
 future extension, not implemented here.
+
+A term that switches off inside a panel is not a jump by default: its
+series stops having rows, or falls to zero, and the \code{min_value} gate skips
+any pair involving a zero. That is how the FAOSTAT fodder items leave the
+arable land extension at 2020 without a flag (whep#938). \code{dropouts} makes
+such a stop a flagged step, and the \code{allowlist} can then mark the
+documented ones.
 }
 \examples{
 series <- tibble::tibble(

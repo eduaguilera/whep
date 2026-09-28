@@ -6477,7 +6477,8 @@ prepare_lpjml6_static_inputs <- function(
   chunk_years,
   all_years,
   grid,
-  row_area_ha
+  row_area_ha,
+  landuse_floor = "float32_resolution"
 ) {
   lu <- data.table::as.data.table(cft_chunk)
   lu[, base_pft := as.integer(cft_to_pft[cft_name])]
@@ -6496,6 +6497,11 @@ prepare_lpjml6_static_inputs <- function(
   ]
   out <- rbind(rf, ir, .grassland_lu_band(pasture_chunk, grid, row_area_ha))
   out[, value := pmin(1, pmax(0, value))]
+  # whep#985: `value > 0` is not a tolerance on a float32 file. Drop what
+  # float32 cannot resolve at the cell's own scale and fold it back into the
+  # cell; the floor is argued in R/lpjml_landuse_floor.R.
+  out <- whep:::.floor_landuse_fractions(out, landuse_floor)
+  out[, value := pmin(1, value)]
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
@@ -6593,9 +6599,14 @@ run_crop_spatialize <- function(
   input_dir,
   year_range,
   lpjml_out_dir = file.path(run_dir, "lpjml_inputs"),
-  n_workers = NULL
+  n_workers = NULL,
+  landuse_floor = "float32_resolution"
 ) {
   cli::cli_h2("Section 10: Crop spatialization")
+  landuse_floor <- rlang::arg_match(
+    landuse_floor,
+    c("float32_resolution", "denormal", "none")
+  )
 
   country_grid <- nanoparquet::read_parquet(
     file.path(input_dir, "country_grid.parquet")
@@ -6748,6 +6759,8 @@ run_crop_spatialize <- function(
     1:32,
     years
   )
+  # whep#985: record which float32 floor the landuse fractions went through.
+  ncatt_put(nc_lu$nc, 0, "whep_method_landuse_floor", landuse_floor)
   nc_syn <- if (has_nitrogen) {
     .pft_nc_create(
       file.path(
@@ -6906,7 +6919,8 @@ run_crop_spatialize <- function(
         chunk_years,
         years,
         grid,
-        row_area_ha
+        row_area_ha,
+        landuse_floor
       )
     )
     summary_rows[[i]] <- dplyr::summarise(

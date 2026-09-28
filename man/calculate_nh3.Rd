@@ -26,10 +26,10 @@ from \code{x}. Defaults to \code{FALSE}.}
 }
 \description{
 Three independent methods for the fraction of applied nitrogen
-volatilised as ammonia. \code{"ipcc"} (IPCC 2019 Tier 1, \code{n_fun.r:914-930})
-needs only \code{fert_type} and applies a single global fraction. \code{"manner"}
-(the default) dispatches each row through the process-based
-\code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}} MANNER model (Task C4), which requires far more
+volatilised as ammonia. \code{"ipcc"} (IPCC 2019 Tier 1) needs only \code{fert_type}
+and applies a single global fraction. \code{"manner"} (the default) dispatches
+each row through the process-based \code{\link[=calculate_manner_nh3]{calculate_manner_nh3()}} MANNER model
+(Task C4), which requires far more
 driver detail (see Details); this asymmetry in input requirements is
 intentional, not an oversight. \code{"manner_default"} dispatches each row
 through \code{\link[=calculate_manner_nh3_default]{calculate_manner_nh3_default()}} instead, the same process-based

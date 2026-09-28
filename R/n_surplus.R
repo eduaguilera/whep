@@ -123,7 +123,7 @@ calculate_n_surplus <- function(
     x,
     surplus_kgn_ha = dplyr::if_else(
       .data$area_ha > 0,
-      .data$surplus_n_t * 1000 / .data$area_ha,
+      .data$surplus_n_t * .kg_per_tonne() / .data$area_ha,
       NA_real_
     )
   )

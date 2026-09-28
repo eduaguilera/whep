@@ -34,7 +34,7 @@
     "manure_liquid",
     "excreta",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization",
     "area_ha",
     "grazed_weeds_n_t",

@@ -395,101 +395,7 @@ testthat::test_that("an invalid drainage method is rejected", {
 # finalise on synthetic per-cell MONTHLY inputs; NOT the fixture). The synthetic
 # inputs are constructed so the 4-term budget closes exactly, i.e. precipitation
 # plus irrigation equals AET plus runoff plus seepage plus the storage change.
-
-# Build synthetic monthly LPJmL-style inputs for `n_cells` cells x 12 months x
-# one year. Soil-water saturation drops linearly Jan -> Dec so dStorage != 0 and
-# the storage term participates. prec is solved so the 4-term budget closes.
-.wb_synthetic_monthly <- function() {
-  cells <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    9.25, 47.75, 11L,
-    -55.25, -12.25, 21L
-  )
-  porosity <- 0.4
-  thickness_mm <- c(200, 300, 500, 1000, 1000, 10000)
-  swc_jan <- c(0.50, 0.45, 0.40, 0.35, 0.30, 0.25)
-  swc_dec <- c(0.40, 0.38, 0.34, 0.31, 0.28, 0.24)
-  d_storage_mm <- sum((swc_dec - swc_jan) * thickness_mm * porosity)
-
-  months <- 1:12
-  flux <- tidyr::expand_grid(cells, month = months) |>
-    dplyr::mutate(
-      year = 2000L,
-      transp = 40 + lon * 0,
-      evap = 15,
-      interc = 5,
-      irrig = 8,
-      runoff = 12,
-      seepage = 10
-    )
-  aet_annual <- (40 + 15 + 5) * 12
-  irrig_annual <- 8 * 12
-  runoff_annual <- 12 * 12
-  seepage_annual <- 10 * 12
-  water_input_annual <- aet_annual +
-    runoff_annual +
-    seepage_annual +
-    d_storage_mm
-  prec_monthly <- (water_input_annual - irrig_annual) / 12
-  flux <- dplyr::mutate(flux, prec = prec_monthly)
-
-  swc <- tidyr::expand_grid(
-    cells,
-    month = months,
-    layer = seq_along(swc_jan)
-  ) |>
-    dplyr::mutate(
-      year = 2000L,
-      value = swc_jan[layer] +
-        (swc_dec[layer] - swc_jan[layer]) * (month - 1) / 11
-    )
-
-  to_long <- function(var) {
-    dplyr::select(flux, lon, lat, year, month, value = dplyr::all_of(var))
-  }
-  cell_polity <- dplyr::mutate(cells, polity_frac = 1, cell_area_ha = 30000)
-  list(
-    inputs = list(
-      transp = to_long("transp"),
-      evap = to_long("evap"),
-      interc = to_long("interc"),
-      prec = to_long("prec"),
-      irrig = to_long("irrig"),
-      runoff = to_long("runoff"),
-      seepage = to_long("seepage"),
-      swc = swc,
-      cell_polity = cell_polity,
-      # Per-CFT cubes are per-STAND densities, so build_water_balance()
-      # weights every band by its stand fraction before summing it to a cell.
-      # These synthetic bands each get a fraction of 1, meaning "this band
-      # covers its cell", which leaves the arithmetic in the tests below
-      # exactly as it was when the sum was unweighted. The weighting itself is
-      # exercised with realistic fractions in its own tests at the end of this
-      # file -- mixing the two would make every expectation here depend on a
-      # fraction as well as on the value under test.
-      stand_frac = tidyr::expand_grid(
-        cells,
-        # Every band name any test in this file uses. A name missing here
-        # weights to zero and silently removes that band from the totals,
-        # which is what the join is meant to do for a band with no area --
-        # so the list has to stay in step with the fixtures below.
-        tibble::tribble(
-          ~band, ~band_name,
-          1L, "rainfed maize",
-          2L, "rainfed grassland",
-          3L, "irrigated maize",
-          4L, "rainfed rice",
-          14L, "rainfed grassland",
-          30L, "irrigated grassland"
-        ) |>
-          dplyr::distinct(band_name, .keep_all = TRUE)
-      ) |>
-        dplyr::mutate(year = 2000L, value = 1)
-    ),
-    water_input_annual = water_input_annual
-  )
-}
-
+# .wb_synthetic_monthly() lives in helper_water_balance.R.
 testthat::test_that("real-path 4-term budget closes within 1% (runoff included)", {
   syn <- .wb_synthetic_monthly()
   wb <- suppressWarnings(
@@ -1576,7 +1482,7 @@ testthat::test_that("a genuinely zero-area stand does not warn", {
 })
 
 testthat::test_that("soil temperature is never read without an explicit run_dir", {
-  # CLAUDE.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
+  # AGENTS.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
   # briefly fell back to WHEP_LPJML_RUN_DIR, so a caller that injected all its
   # own data still opened NetCDF rasters whenever a developer machine had the
   # env var set -- which stalled a gate run for 40 minutes. Reading is now
@@ -1850,4 +1756,120 @@ testthat::test_that("a complete SOC driver build is silent about lattices", {
   })
   testthat::expect_equal(results[[2]], results[[1]])
   testthat::expect_equal(results[[3]], results[[1]])
+})
+
+# ---- whep#1095: cells the LPJmL grid carries but CRU does not ---------------
+
+# A `.socd_synthetic()`-shaped input on `n` cells, every source on every cell.
+.socd_grid <- function(n) {
+  cells <- tidyr::expand_grid(
+    lat = 10.25 + 0.5 * (0:99),
+    lon = -179.75 + 0.5 * (0:99)
+  )[seq_len(n), c("lon", "lat")]
+  months <- tidyr::expand_grid(cells, year = 2000L, month = 1:12)
+  list(
+    temp = dplyr::mutate(months, value = 10),
+    pet = dplyr::mutate(months, value = 2),
+    prec = dplyr::mutate(months, value = 60),
+    irrig = dplyr::mutate(months, value = 5),
+    swc = tidyr::expand_grid(months, layer = 1:2) |>
+      dplyr::mutate(value = 0.4),
+    clay = dplyr::mutate(cells, clay_pct = 22),
+    cell_polity = dplyr::mutate(cells, area_code = 11L),
+    soil_hydraulic = dplyr::mutate(
+      cells,
+      t_field = 0.29,
+      t_wilt = 0.14,
+      porosity = 0.43
+    )
+  )
+}
+
+testthat::test_that("a cell CRU lacks is reported, not silently dropped", {
+  # Measured on CRU TS 4.09 x the lpjml-soc-hydrology pin: 22 of 58,795 LPJmL
+  # cells have no CRU PET (20 have no temperature) -- small islands, coasts
+  # and lakes CRU masks as water. The inner joins drop them; the drop must be
+  # reported with its size, because no total will ever reveal it.
+  data <- .socd_grid(2000L)
+  gone <- data$pet[1L, c("lon", "lat")]
+  data$pet <- dplyr::anti_join(data$pet, gone, by = c("lon", "lat"))
+  testthat::expect_message(
+    drv <- whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_equal(nrow(dplyr::distinct(drv, lon, lat)), 1999L)
+  testthat::expect_equal(
+    nrow(dplyr::semi_join(drv, gone, by = c("lon", "lat"))),
+    0L
+  )
+})
+
+testthat::test_that("the cell shortfall report names the short source", {
+  data <- .socd_grid(2000L)
+  data$pet <- dplyr::anti_join(
+    data$pet,
+    data$pet[1L, c("lon", "lat")],
+    by = c("lon", "lat")
+  )
+  cnd <- testthat::expect_message(
+    whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_s3_class(cnd, "whep_socd_cell_shortfall")
+  testthat::expect_equal(cnd$shortfall$n_grid, 2000L)
+  testthat::expect_equal(cnd$shortfall$n_lost, 1L)
+  testthat::expect_equal(cnd$shortfall$pet, 1L)
+  testthat::expect_equal(cnd$shortfall$temp, 0L)
+  testthat::expect_match(conditionMessage(cnd), "CRU PET: 1")
+})
+
+testthat::test_that("a cell shortfall beyond the expected one aborts", {
+  # A count assertion, not a membership one: the known ~0.04% passes, a
+  # change of mask or grid that loses far more fails loudly.
+  data <- .socd_synthetic()
+  data$temp <- dplyr::filter(data$temp, lon != data$temp$lon[[1L]])
+  testthat::expect_error(
+    whep::get_soc_climate_drivers(data = data),
+    class = "whep_socd_cell_loss"
+  )
+})
+
+testthat::test_that("the real 22-cell shortfall is within the cell tolerance", {
+  shortfall <- tibble::tibble(
+    year = 2000L,
+    n_grid = 58795L,
+    n_lost = c(22L, 2200L),
+    temp = c(20L, 2200L),
+    pet = c(22L, 2200L),
+    irrig = 0L
+  )
+  testthat::expect_message(
+    whep:::.socd_report_cell_loss(shortfall[1, ]),
+    class = "whep_socd_cell_shortfall"
+  )
+  testthat::expect_error(
+    whep:::.socd_report_cell_loss(shortfall),
+    class = "whep_socd_cell_loss"
+  )
+})
+
+testthat::test_that("a complete grid reports no cell shortfall", {
+  testthat::expect_no_message(
+    whep::get_soc_climate_drivers(data = .socd_grid(3L)),
+    class = "whep_socd_cell_shortfall"
+  )
+})
+
+# A non-land cell carries NA in both the per-CFT cube and cftfrac.nc. Its row
+# JOINS (an anti-join finds nothing unmatched) but carries an NA stand
+# fraction, and `NA > 0` made the unmatched-band check index one NA row per
+# such cell: on the 2010 global run it warned that 4,500,640 rows "carry water
+# but match no stand fraction" while naming no band and no year (#916).
+testthat::test_that("NA water on a non-land cell is not an unmatched band", {
+  cube <- .wb_two_band_cube(NA_real_, 200)
+  frac <- .wb_two_band_frac(NA_real_, 0.1)
+  testthat::expect_no_warning(
+    out <- whep:::.wb_cell_consump(cube, "blue_mm", frac)
+  )
+  testthat::expect_true(is.na(out$blue_mm))
 })

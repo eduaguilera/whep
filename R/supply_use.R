@@ -108,6 +108,7 @@ build_supply_use <- function(example = FALSE) {
   primary_prod,
   feed_intake
 ) {
+  .check_supply_use_inputs(cbs, feed_intake)
   husbandry_items <- items_cbs |>
     dplyr::filter(
       item_type %in% c("livestock", "livestock_meat", "livestock_draft")
@@ -170,6 +171,27 @@ build_supply_use <- function(example = FALSE) {
       type,
       value
     )
+}
+
+# Boundary contract for the two tables the supply-use assembly reads by column
+# (whep#181). `.build_slaughtering()` returns no rows at all when `cbs` lacks
+# `processing`, so without this a CBS missing that one column built a
+# supply-use table with no slaughtering process, and no message. A
+# `feed_intake` row with a NA `item_cbs_code` (the allocator's grass-deficit
+# substitute rows carry one) would become a husbandry use that
+# `build_io_model()` cannot place and drops.
+.check_supply_use_inputs <- function(cbs, feed_intake) {
+  keys <- c("year", "area_code", "item_cbs_code")
+  cbs_cols <- c(keys, "seed", "processing")
+  feed_keys <- c(keys, "live_anim_code")
+  cbs |>
+    assert_table_schema(.seam_schema(cbs, cbs_cols), "cbs")
+  feed_intake |>
+    assert_table_schema(
+      .seam_schema(feed_intake, c(feed_keys, "supply"), feed_keys),
+      "feed_intake"
+    )
+  invisible(NULL)
 }
 
 .build_crop_production <- function(

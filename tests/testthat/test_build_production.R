@@ -283,6 +283,110 @@ test_that(".combine_fodder ignores dm_yield years no fodder source covers", {
   expect_equal(unique(result$area_code), 59L)
 })
 
+.carried_fodder_fixture <- function() {
+  list(
+    # Area 59 reports FAOSTAT tonnage to 2011, area 60 only from 2012; area 100
+    # is an EU country whose hectares and tonnage come from EU AgriDB, which
+    # runs to 2013 and so sets the year universe.
+    i_fodder = tibble::tribble(
+      ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+      2010L, "Egypt", 59L, "Clover", "640", 100,
+      2011L, "Egypt", 59L, "Clover", "640", 120,
+      2012L, "Eritrea", 60L, "Clover", "640", 80,
+      2013L, "Eritrea", 60L, "Clover", "640", 90,
+      2010L, "Spain", 100L, "Alfalfa", "641", 500,
+      2011L, "Spain", 100L, "Alfalfa", "641", 520
+    ),
+    fodder_euadb = tidyr::expand_grid(
+      year = 2010:2013,
+      Label = c("Area", "Yield")
+    ) |>
+      dplyr::mutate(
+        area = "Spain",
+        area_code = 100L,
+        Name_Eurostat = "AlfEuro",
+        Unit = dplyr::if_else(Label == "Area", "Mha", "kgN/ha"),
+        value = dplyr::if_else(Label == "Area", 1e-4, 150)
+      ),
+    dm_yield = tidyr::expand_grid(
+      year = 2010:2013,
+      area_code = c(59L, 60L, 100L)
+    ) |>
+      dplyr::mutate(yield_dm = 4 + (year - 2010) / 10),
+    items_prod = tibble::tribble(
+      ~item_prod, ~item_prod_code, ~Name_biomass, ~Name_Eurostat,
+      "Clover", "640", "Clover biomass", NA_character_,
+      "Alfalfa", "641", "Alfalfa biomass", "AlfEuro"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+      "Clover biomass", 0.2, 0.03,
+      "Alfalfa biomass", 0.25, 0.03
+    )
+  )
+}
+
+test_that(".combine_fodder labels a carried fodder area (#1027)", {
+  # FAOSTAT fodder tonnage ends in 2012 while EU AgriDB runs to 2019, so from
+  # 2013 every non-EU fodder area is the 2012 one held flat. It used to read
+  # `DM_yield_estimate`, the same label an area interpolated between two
+  # FAOSTAT anchors gets, so the switch was invisible in `source`.
+  fx <- .carried_fodder_fixture()
+  result <- whep:::.combine_fodder(
+    fx$i_fodder,
+    fx$fodder_euadb,
+    fx$dm_yield,
+    fx$items_prod,
+    fx$biomass
+  )
+  src <- result |>
+    dplyr::filter(unit == "ha") |>
+    dplyr::select(year, area_code, source, value) |>
+    dplyr::arrange(area_code, year)
+
+  egypt <- dplyr::filter(src, area_code == 59L)
+  expect_equal(
+    egypt$source,
+    c(
+      "FAOSTAT_prod",
+      "FAOSTAT_prod",
+      "DM_yield_estimate_carried_forward",
+      "DM_yield_estimate_carried_forward"
+    )
+  )
+  # the label is honest: the area is the 2011 one, unchanged
+  expect_equal(egypt$value[3:4], rep(egypt$value[[2]], 2))
+
+  eritrea <- dplyr::filter(src, area_code == 60L)
+  expect_equal(
+    eritrea$source[1:2],
+    rep("DM_yield_estimate_carried_backward", 2)
+  )
+  expect_equal(eritrea$value[1:2], rep(eritrea$value[[3]], 2))
+})
+
+test_that(".combine_fodder labels EU AgriDB numbers as EuropeAgriDB (#1027)", {
+  # Where EU AgriDB supplies both the hectares and the tonnage, the row is EU
+  # AgriDB's whether or not FAOSTAT also reported a tonnage that year. Keying
+  # the label on the FAOSTAT tonnage relabelled every EU fodder row
+  # `EuropeAgriDB` the year FAOSTAT's series ended, with no number changing.
+  fx <- .carried_fodder_fixture()
+  result <- whep:::.combine_fodder(
+    fx$i_fodder,
+    fx$fodder_euadb,
+    fx$dm_yield,
+    fx$items_prod,
+    fx$biomass
+  )
+  spain <- dplyr::filter(result, area_code == 100L)
+
+  expect_equal(unique(spain$source), "EuropeAgriDB")
+  expect_equal(
+    spain |> dplyr::filter(unit == "ha") |> dplyr::pull(value),
+    rep(100, 4)
+  )
+})
+
 
 # -- EU AgriDB region crosswalk ------------------------------------------------
 

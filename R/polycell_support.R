@@ -1780,7 +1780,7 @@ expand_polycell_years <- function(support, years) {
     # exactly the disagreement this attribute exists to surface.
     attr(support, "water_excess") <- .pcs_water_excess(support)
   }
-  if (!is.null(data$crosswalk) || !is.null(data$producer_crosswalk)) {
+  if (!is.null(data[["crosswalk"]]) || !is.null(data$producer_crosswalk)) {
     attr(support, "footprints") <- .pcs_footprints(partition, data)
     attr(support, "footprint_diff") <- .pcs_footprint_diff(partition, data)
   }
@@ -2026,7 +2026,7 @@ expand_polycell_years <- function(support, years) {
 # movement and the restriction's movement inseparable.
 .pcs_footprints <- function(support, data) {
   sources <- list(
-    deployed_crosswalk = data$crosswalk,
+    deployed_crosswalk = data[["crosswalk"]],
     producer_crosswalk = data$producer_crosswalk,
     polycell = .pcs_polycell_footprint(support, data)
   )
@@ -2066,7 +2066,7 @@ expand_polycell_years <- function(support, years) {
 
 .pcs_footprint_diff <- function(support, data) {
   members <- list(
-    deployed_crosswalk = data$crosswalk,
+    deployed_crosswalk = data[["crosswalk"]],
     producer_crosswalk = data$producer_crosswalk,
     polycell = .pcs_polycell_footprint(support, data)
   ) |>

@@ -39,7 +39,8 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
       "value",
       "country_share",
       "method_unbacked_quantity",
-      "method_head_units"
+      "method_head_units",
+      "method_time_coverage"
     )
   )
 
@@ -627,14 +628,10 @@ testthat::test_that(".extract_cbs_years_for_dtm tolerates one flow only", {
   )
 })
 
-testthat::test_that("extend_time ignores per-area CBS coverage", {
-  # Reporter 2 is reported by CBS in both years; reporter 7 only in 2019.
-  # The extension is driven by the CBS *year axis* alone, so reporter 7 also
-  # gets a 2020 share even though CBS never reports it that year. This pins
-  # the documented uniform-extension behaviour: a change that scopes the
-  # extension to each group's own CBS coverage (#232) must fail here, because
-  # that is a methodological decision and not a silent refactor.
-  raw <- data.table::data.table(
+# Two reporters observed in 2019; CBS reports reporter 2 in 2019 and 2020 but
+# reporter 7 only in 2019, so 2020 is a CBS year reporter 7 is not covered in.
+.coverage_raw_trade <- function() {
+  data.table::data.table(
     `Reporter Country Code` = c(2L, 7L),
     `Partner Country Code` = c(9L, 9L),
     `Item Code` = c(15L, 15L),
@@ -643,25 +640,214 @@ testthat::test_that("extend_time ignores per-area CBS coverage", {
     Unit = c("tonnes", "tonnes"),
     Value = c(100, 100)
   )
+}
 
-  cbs <- tibble::tribble(
+.coverage_cbs <- function() {
+  tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~import, ~export,
     2019L, 2, 2511, 1000, NA,
     2020L, 2, 2511, 1200, NA,
     2019L, 7, 2511, 800, NA
   )
+}
+
+testthat::test_that("extend_time scopes shares to CBS-reported cells", {
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE
+  )
+
+  # Reporter 7 has no CBS import in 2020, so no 2020 share is invented.
+  testthat::expect_equal(
+    nrow(dplyr::filter(result, year == 2020, area_code == 7)),
+    0L
+  )
+  # Reporter 2 is reported in 2020 and is still extended into it.
+  covered <- dplyr::filter(result, year == 2020, area_code == 2)
+  testthat::expect_equal(covered$country_share, 1)
+  # Observed 2019 rows are kept for both reporters.
+  testthat::expect_setequal(
+    dplyr::filter(result, year == 2019)$area_code,
+    c(2, 7)
+  )
+  testthat::expect_equal(unique(result$method_time_coverage), "cbs_cells")
+})
+
+testthat::test_that("extend_time 'cbs_years' keeps the uniform extension", {
+  # The historical behaviour: the CBS year axis alone drives the extension,
+  # so reporter 7 also gets a 2020 share CBS never reports.
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE,
+    method_time_coverage = "cbs_years"
+  )
+
+  uncovered <- dplyr::filter(result, year == 2020, area_code == 7)
+  testthat::expect_equal(nrow(uncovered), 1L)
+  testthat::expect_equal(uncovered$country_share, 1)
+  testthat::expect_equal(unique(result$method_time_coverage), "cbs_years")
+})
+
+testthat::test_that("the two coverage methods agree on every kept share", {
+  cells <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE
+  )
+  years <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE,
+    method_time_coverage = "cbs_years"
+  )
+  keys <- c("year", "area_code", "area_code_partner", "element")
+
+  both <- dplyr::inner_join(cells, years, by = keys, suffix = c("_c", "_y"))
+  # Scoping only removes rows; it never changes a surviving share.
+  testthat::expect_equal(nrow(both), nrow(cells))
+  testthat::expect_equal(both$country_share_c, both$country_share_y)
+  testthat::expect_lt(nrow(cells), nrow(years))
+})
+
+testthat::test_that("coverage is checked per element, not per area", {
+  # CBS reports reporter 2's import in 2020 but not its export, so the
+  # export flow is not extended into 2020 while the import flow is.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L),
+    `Partner Country Code` = c(9L, 9L),
+    `Item Code` = c(15L, 15L),
+    Element = c("Import Quantity", "Export Quantity"),
+    Year = c(2019L, 2019L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 50)
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, 400,
+    2020L, 2, 2511, 1200, NA
+  )
+
+  result <- build_detailed_trade(raw_trade = raw, cbs = cbs, extend_time = TRUE)
+
+  testthat::expect_equal(
+    dplyr::filter(result, year == 2020)$element,
+    "import"
+  )
+})
+
+testthat::test_that("coverage is checked per item, not per area", {
+  # CBS reports reporter 2 in 2020, but for another item only.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2513, 1200, NA
+  )
 
   result <- build_detailed_trade(
-    raw_trade = raw,
+    raw_trade = .coverage_raw_trade()[1],
     cbs = cbs,
     extend_time = TRUE
   )
 
-  uncovered <- result |>
-    dplyr::filter(year == 2020, area_code == 7)
+  testthat::expect_false(2020L %in% result$year)
+})
 
-  testthat::expect_equal(nrow(uncovered), 1L)
-  testthat::expect_equal(uncovered$country_share, 1)
+testthat::test_that("a zero CBS flow does not count as coverage", {
+  cbs <- .coverage_cbs() |>
+    dplyr::mutate(import = dplyr::if_else(year == 2020, 0, import))
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  testthat::expect_false(2020L %in% result$year)
+})
+
+testthat::test_that("an observed trade row is kept outside CBS coverage", {
+  # CBS reports nothing for reporter 7; its observed 2019 flow is data, not
+  # an extension, and survives the scoping.
+  cbs <- dplyr::filter(.coverage_cbs(), area_code == 2)
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  kept <- dplyr::filter(result, area_code == 7)
+  testthat::expect_equal(kept$year, 2019L)
+})
+
+testthat::test_that("coverage is read from long-format CBS too", {
+  cbs_long <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2019L, 2, 2511, "import", 1000,
+    2020L, 2, 2511, "import", 1200,
+    2019L, 7, 2511, "import", 800,
+    2020L, 7, 2511, "production", 500
+  )
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs_long,
+    extend_time = TRUE
+  )
+
+  testthat::expect_equal(
+    dplyr::filter(result, year == 2020)$area_code,
+    2
+  )
+})
+
+testthat::test_that(".extract_cbs_cells_for_dtm returns reported cells", {
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2511, 0, 500,
+    2021L, 2, 2511, NA, NA
+  )
+
+  cells <- whep:::.extract_cbs_cells_for_dtm(wide)
+
+  testthat::expect_equal(
+    dplyr::arrange(tibble::as_tibble(data.table::setDF(cells)), year),
+    tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element,
+      2019L, 2L, 2511L, "import",
+      2020L, 2L, 2511L, "export"
+    )
+  )
+})
+
+testthat::test_that("CBS coverage is keyed on the polity bucket", {
+  # The trade side is aggregated onto polity_area_code, so a CBS row whose
+  # provenance area_code folds into another bucket (Sudan 276 into 206) must
+  # cover that bucket, not its own provenance code.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_cbs_code, ~import, ~export,
+    2020L, 276L, 206L, 2511, 1000, 0
+  )
+
+  cells <- whep:::.extract_cbs_cells_for_dtm(cbs)
+
+  testthat::expect_equal(cells$area_code, 206L)
+  testthat::expect_equal(cells$element, "import")
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown coverage method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .coverage_raw_trade(),
+      cbs = .coverage_cbs(),
+      extend_time = TRUE,
+      method_time_coverage = "everything"
+    ),
+    class = "rlang_error"
+  )
 })
 
 # Integration tests ------------------------------------------------------------
@@ -690,7 +876,8 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "value",
       "country_share",
       "method_unbacked_quantity",
-      "method_head_units"
+      "method_head_units",
+      "method_time_coverage"
     )
   )
   testthat::expect_equal(nrow(result), 10)

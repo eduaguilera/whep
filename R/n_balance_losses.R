@@ -1,6 +1,6 @@
 # Nitrogen loss cascade: ammonia volatilisation, direct soil N2O, nitrate
 # leaching + denitrification, and indirect N2O (Module C, Task C5), ported
-# from Spain_Hist n_fun.r.
+# from an earlier regional historical reconstruction.
 #
 # These four functions are PURE, TESTABLE row-wise transforms: they take a
 # tibble x (one row per N-input record) plus explicit driver columns already
@@ -12,10 +12,10 @@
 #'
 #' @description
 #' Three independent methods for the fraction of applied nitrogen
-#' volatilised as ammonia. `"ipcc"` (IPCC 2019 Tier 1, `n_fun.r:914-930`)
-#' needs only `fert_type` and applies a single global fraction. `"manner"`
-#' (the default) dispatches each row through the process-based
-#' [calculate_manner_nh3()] MANNER model (Task C4), which requires far more
+#' volatilised as ammonia. `"ipcc"` (IPCC 2019 Tier 1) needs only `fert_type`
+#' and applies a single global fraction. `"manner"` (the default) dispatches
+#' each row through the process-based [calculate_manner_nh3()] MANNER model
+#' (Task C4), which requires far more
 #' driver detail (see Details); this asymmetry in input requirements is
 #' intentional, not an oversight. `"manner_default"` dispatches each row
 #' through [calculate_manner_nh3_default()] instead, the same process-based
@@ -91,7 +91,7 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' value documented as `EF1` in [build_crop_soil_n2o_extension()], pulled
 #' from one shared source of truth rather than hardcoded a second time. It is
 #' the default because it is the internationally standard, globally
-#' applicable Tier 1 method. `"aguilera"` (`n_fun.r:906-912`) is a finer
+#' applicable Tier 1 method. `"aguilera"` is a finer
 #' Mediterranean-calibrated disaggregation (Cayuela et al. 2017), selectable
 #' where its `irrig_type`/`fert_type` granularity is available and its
 #' regional emission factors apply: `n2o_direct_n_t = n_input_t * ef * mf`,
@@ -135,8 +135,8 @@ calculate_soil_n2o <- function(
 #'
 #' @description
 #' Two methods for partitioning a nitrogen surplus into leached nitrate and
-#' topsoil-denitrified nitrogen. `"meisinger_drainage"` (the default,
-#' `n_fun.r:932-988`) is the full Spain_Hist cascade: bins annual drainage
+#' topsoil-denitrified nitrogen. `"meisinger_drainage"` (the default) is the
+#' full cascade of the source implementation: bins annual drainage
 #' and soil organic matter share, looks up a topsoil denitrification share
 #' from [meisinger_denitrification], applies subsoil NO3 reduction
 #' ([subsoil_no3_reduction]) and a carbon-to-nitrogen leaching attenuation,
@@ -149,12 +149,12 @@ calculate_soil_n2o <- function(
 #' @details
 #' For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
 #' twice: first as `n_surplus_t * denit_share` (the raw Meisinger share) to
-#' derive `no3_n_t`, then overwritten as `n_surplus_t - no3_n_t` (verified
-#' `n_fun.r:983`). The RETURNED `denitrification_n_t` is this second,
+#' derive `no3_n_t`, then overwritten as `n_surplus_t - no3_n_t`, as in the
+#' source implementation. The RETURNED `denitrification_n_t` is this second,
 #' residual value, not the raw share product; this is a deliberate two-step
 #' sequence in the source, not a redundant computation to simplify away.
 #' Drainage and soil organic matter bins are matched with the source's
-#' strictly-open `s_min < s < s_max` filter (`n_fun.r:939,942`): a value
+#' strictly-open `s_min < s < s_max` filter: a value
 #' exactly on a shared bin edge, or outside the covered range, matches no
 #' bin and aborts via the unmatched-row check (the source drops it),
 #' rather than being pulled into an adjacent or ceiling bin.
@@ -202,8 +202,8 @@ calculate_n_leaching <- function(
 #'
 #' @description
 #' Converts the ammonia-N already volatilised ([calculate_nh3()]'s
-#' `nh3_n_t`) into indirect nitrous oxide (`n_fun.r:955-957`). Atlantic rows
-#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.016) and touch no
+#' `nh3_n_t`) into indirect nitrous oxide. Atlantic rows
+#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.014) and touch no
 #' emission-factor lookup; Mediterranean rows use the disaggregated
 #' [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)` alone (`NH3_MgN *
 #' N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf` that
@@ -221,7 +221,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
-  .n_check_climate(x$climate)
+  .n_check_climate(x)
   med_rows <- which(x$climate == "MED")
   ef_med <- rep(NA_real_, nrow(x))
   if (length(med_rows) > 0L) {
@@ -241,7 +241,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # ---- Private helpers: calculate_nh3 ------------------------------------
 
 # IPCC Tier 1: a single global fraction per fert_type, from
-# n_attenuation_constants (n_fun.r:914-930).
+# n_attenuation_constants.
 .nh3_ipcc <- function(x) {
   frac_synth <- .n_constant("nh3_frac_synthetic")
   frac_org <- .n_constant("nh3_frac_organic")
@@ -418,8 +418,9 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(ef)
-  mf <- x |>
-    dplyr::select("fert_type", "climate") |>
+  keys <- dplyr::select(x, "fert_type", "climate")
+  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
+  mf <- keys |>
     dplyr::left_join(
       whep::fertiliser_n2o_modifiers,
       by = c("fert_type", "climate")
@@ -501,7 +502,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # 0.010/0.005 factors -- the same 0.010 documented as EF1 in
 # build_crop_soil_n2o_extension(), not re-hardcoded here.
 .soil_n2o_ipcc2019 <- function(x) {
-  .n_check_climate(x$climate)
+  .n_check_climate(x)
   ef_atl <- .n2o_disaggregated_row("Tier_1", "ATL")
   ef_med <- .n2o_disaggregated_row("Med_average", "MED")
   x |>
@@ -564,8 +565,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 
 # meisinger_drainage: bin drainage + SOM, look up the topsoil
 # denitrification share, apply subsoil NO3 reduction and the C:N
-# attenuation, then re-derive denitrification_n_t as the residual
-# (n_fun.r:932-988).
+# attenuation, then re-derive denitrification_n_t as the residual.
 .leaching_meisinger <- function(x, drainage_mm) {
   fert_cat <- dplyr::if_else(x$fert_type == "Synthetic", "Synthetic", "Manure")
   .leaching_check_tillage(x, fert_cat)
@@ -661,7 +661,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 }
 
 # Bin a numeric vector into a labelled class via the source's strictly-open
-# min < v < max filter (n_fun.r:939,942): a value on a shared bin edge or
+# min < v < max filter: a value on a shared bin edge or
 # outside the covered range matches no bin and returns NA (the source drops
 # such rows), rather than being pulled into an adjacent or ceiling bin.
 .bin_range <- function(values, ranges, label_col, min_col, max_col) {
@@ -688,8 +688,9 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 }
 
 .leaching_no3_red <- function(x) {
-  x |>
-    dplyr::select("fert_type", "climate", "irrig_cat") |>
+  keys <- dplyr::select(x, "fert_type", "climate", "irrig_cat")
+  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
+  keys |>
     dplyr::left_join(
       whep::subsoil_no3_reduction,
       by = c("fert_type", "climate", "irrig_cat")
@@ -706,7 +707,19 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     dplyr::pull("value")
 }
 
-.n_check_climate <- function(climate) {
+# Takes the whole table: a missing column must abort here, not pass as
+# unique(NULL) and resurface in if_else() as "object 'climate' not found".
+.n_check_climate <- function(x) {
+  if (!rlang::has_name(x, "climate")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} is missing required column {.field climate}.",
+        i = "Expected {.val ATL} or {.val MED} on every row."
+      ),
+      class = "whep_missing_climate"
+    )
+  }
+  climate <- x$climate
   valid <- c("ATL", "MED")
   bad <- unique(climate[is.na(climate) | !climate %in% valid])
   if (length(bad) > 0L) {
@@ -752,6 +765,6 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 .example_indirect_n2o_nh3 <- function() {
   tibble::tribble(
     ~nh3_n_t, ~climate, ~n2o_indirect_nh3_n_t,
-    1.1, "ATL", 0.0176
+    1.1, "ATL", 0.0154
   )
 }

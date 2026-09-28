@@ -232,12 +232,16 @@
     "Processing" = "processing",
     "Production" = "production"
   )
-  # The 2026-06-15 Commodity Balances (non-food) release added a "Processed"
-  # element (5023) for rubber, wool and silk. It is absent here, so those rows
-  # are filtered out by .extract_fao() before .get_fiber_tobacco() ever sees
-  # them -- even though cbs_trade_codes maps all three onto CBS items. Adding
-  # it would introduce a processing flow those items do not currently carry,
-  # which moves published values; that is #811, not this change.
+  # "Processed" (element 5023, Commodity Balances (non-food) from the
+  # 2026-06-15 release) is deliberately left unmapped, so .extract_fao()
+  # drops it. It is not a final use: it is the quantity passed to the next
+  # link of a CB chain, and it reappears there as `production` -- rubber
+  # 836 -> 837 (ratio ~1.0), silk cocoons 1185 -> raw silk 1186 (~0.14-0.25),
+  # greasy wool 987 -> 988 (~0.6). cbs_trade_codes maps every link of each
+  # chain onto the same CBS item, so the chain's use is already booked by
+  # the last link's `other_uses`. Booking "Processed" as well counts it twice:
+  # on a real 2020 build it adds 12.9 Mt to Rubber `other_uses` (13.5 -> 26.3
+  # Mt) and balances it with a 12.2 Mt stock withdrawal (whep#811).
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -724,7 +728,14 @@
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  # Keyed on the code alone, and the label replaced by the `items_full` one.
+  # The new Food Balances write "Cereals, other", "Vegetables, other" and
+  # "Fruits, other" where `items_full` writes "Other"; a join that also matched
+  # the label dropped every row of those three items, so from 2010 on the CBS
+  # kept their production and lost all of their destinies (whep#961). No pin
+  # carries one code under two labels, so this cannot merge two items.
+  dt[, item_cbs := NULL]
+  out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in

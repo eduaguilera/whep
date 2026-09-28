@@ -447,10 +447,11 @@ polity_bucket_coverage <- function(years = NULL) {
 #' Sudan and 4,679,716 to South Sudan.
 #'
 #' That tonnage is not reported data that stops being joined. It is
-#' `DM_yield_estimate`, WHEP's own extrapolation of the `faostat-production-old`
-#' fodder series for area 206, a source that carries no row for 276 or 277 in
-#' any year; the fold is what keeps bucket 206 a live key to extrapolate onto
-#' after FAOSTAT retired it in 2011. Restoring it under the promotion would need
+#' `DM_yield_estimate_carried_forward`, WHEP's own extrapolation of the
+#' `faostat-production-old` fodder series for area 206, a source that carries
+#' no row for 276 or 277 in any year; the fold is what keeps bucket 206 a live
+#' key to extrapolate onto after FAOSTAT retired it in 2011. Restoring it under
+#' the promotion would need
 #' a rule for apportioning a predecessor's series between its successors, which
 #' this package has no source for. Whether to publish the promotion is issue
 #' 680.
@@ -1001,10 +1002,11 @@ row_promotion_status <- function(crosswalk = NULL) {
 # 48,678 rows moves.
 #
 # That tonnage is not a reported value that stops being joined. It is
-# `DM_yield_estimate`, WHEP's own extrapolation of the `faostat-production-old`
-# fodder series for area 206 -- a source holding 1961-2013 and carrying NO row
-# for 276 or 277 at any year. Folded, that predecessor series is carried forward
-# into years FAOSTAT has not reported area 206 since 2011, because the fold
+# `DM_yield_estimate_carried_forward`, WHEP's own extrapolation of the
+# `faostat-production-old` fodder series for area 206 -- a source holding
+# 1961-2013 and carrying NO row for 276 or 277 at any year. Folded, that
+# predecessor series is carried forward into years FAOSTAT has not reported
+# area 206 since 2011, because the fold
 # keeps bucket 206 a live key; promoted, the successors have no fodder source at
 # all. Restoring it under the promotion would mean apportioning a predecessor's
 # series between its successors, which needs a share rule this package has no

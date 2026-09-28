@@ -47,7 +47,8 @@
 #'   a consumer can pool the two back by area. Rainfed and irrigated stands
 #'   of one crop sow and harvest on different dates; the per-regime layer is
 #'   what the herbaceous rainfed and irrigated crop groups of
-#'   [build_carbon_balance()] (`crop_groups = list(method = "spain_hist")`)
+#'   [build_carbon_balance()]
+#'   (`crop_groups = list(method = "rotation_groups")`)
 #'   read, each from its own bands, while plain cropland reads the pool.
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
 #'   Defaults to `FALSE`.

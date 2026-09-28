@@ -151,7 +151,19 @@ calculate_residue_destinies <- function(
     dplyr::mutate(method_residue_destiny = method)
 }
 
-#' Build residue feed availability for feed allocation.
+#' Build residue feed availability for feed allocation (deprecated).
+#'
+#' @description
+#' **Deprecated, and not WHEP's residue feed availability.** Nothing in the
+#' package calls it, and it warns (class
+#' `whep_residue_feed_avail_deprecated`) on every call. The pipeline's residue
+#' feed comes from the commodity balance instead: [build_commodity_balances()]
+#' books the recovered residue's feed share as the `feed` element of Straw
+#' (2105) and Other crop residues (2106), and the feed allocator converts that
+#' to available dry matter with the same `0.9` factor it applies to every CBS
+#' feed item. This function applies a different loss (`loss_fraction`, default
+#' `0.15`: assumed, unverified, no source on record) to a different residue
+#' estimate, so the two do not agree (whep#1138).
 #'
 #' Turns the feed destiny of crop residues into the `feed_avail` contract
 #' consumed by [redistribute_feed()]: maps each crop to its residue commodity
@@ -160,12 +172,15 @@ calculate_residue_destinies <- function(
 #'
 #' @param x A tibble with `item_prod_code`, `year`, `sub_territory` and
 #'   `residue_feed_dm_t` (from [calculate_residue_destinies()]).
+#'   `sub_territory` names the territory the residue belongs to.
 #' @param loss_fraction Fraction of the feed residue lost before intake
-#'   (default 0.15).
+#'   (default 0.15; assumed, unverified).
 #' @param feed_scale Value for the `feed_scale` column (default `"national"`).
 #' @return A tibble with the `redistribute_feed()` `feed_avail` columns: `year`,
-#'   `sub_territory`, `item_cbs_code`, `feed_group`, `feed_quality`
-#'   (`"residues"`), `avail_dm_t` and `feed_scale`.
+#'   `territory`, `sub_territory`, `item_cbs_code`, `feed_group`,
+#'   `feed_quality` (`"residues"`), `avail_dm_t` and `feed_scale`. `territory`
+#'   repeats `sub_territory`, because `redistribute_feed()` keys national-scale
+#'   availability on `territory` alone.
 #' @export
 #' @examples
 #' tibble::tibble(
@@ -183,6 +198,16 @@ build_residue_feed_avail <- function(
     c("item_prod_code", "year", "sub_territory", "residue_feed_dm_t"),
     "build_residue_feed_avail"
   )
+  cli::cli_warn(
+    c(
+      "{.fn build_residue_feed_avail} is deprecated (whep#1138).",
+      "i" = "WHEP's residue feed availability is the commodity balance's
+        {.field feed} element for items 2105 and 2106, which the feed
+        allocator converts with a {.val {0.9}} factor, not this function's
+        {.arg loss_fraction}."
+    ),
+    class = "whep_residue_feed_avail_deprecated"
+  )
   item_map <- whep::whep_coef_table("crop_residue_item_map") |>
     dplyr::transmute(
       item_prod_code = as.character(item_prod_code),
@@ -195,6 +220,13 @@ build_residue_feed_avail <- function(
     dplyr::summarise(
       avail_dm_t = sum(residue_feed_dm_t * (1 - loss_fraction), na.rm = TRUE),
       .by = c(year, sub_territory, item_cbs_code)
+    ) |>
+    dplyr::mutate(
+      # redistribute_feed() blanks sub_territory on national-scale rows, so
+      # without this every territory's residue pooled into one row that no
+      # demand could reach (whep#1138).
+      territory = as.character(sub_territory),
+      .after = year
     ) |>
     dplyr::mutate(
       feed_group = "residues",
