@@ -481,6 +481,7 @@ reference:
   - calculate_system_nue
   - create_n_nat_destiny
   - run_typology_sensitivity
+  - run_typology_area_sensitivity
   - plot_typology_indicators_panel
   - plot_typology_periods_panel
 

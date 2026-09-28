@@ -2296,11 +2296,10 @@ utils::globalVariables(
     # (n_prov_destiny.R) split out of population_food
     "population_food_inedible",
     # n_prov_destiny.R -- N_kgN_kgFM (the tabulated fresh-matter nitrogen
-    # density .convert_to_items_n()/.convert_fm_dm_n()/.add_product_n_per_fm()
-    # coalesce ahead of the Product-derived value) and the processing-excess
-    # allocation/shortfall columns built and consumed across
-    # .processing_excess_shares()/.processing_excess_by_province()/
-    # .processing_import_shortfall()/.route_processing_shortfall()
+    # density three item-conversion helpers coalesce ahead of the
+    # Product-derived value) and the processing-excess allocation/shortfall
+    # columns built and consumed across the processing-excess-shares,
+    # by-province, import-shortfall and shortfall-routing helpers
     "N_kgN_kgFM",
     "alloc_share",
     "combined_demand",
@@ -2321,6 +2320,11 @@ utils::globalVariables(
     "human_n_t",
     "method_human",
     "human",
+    # typologies_uaa_sensitivity.R -- the UAA area join column and the
+    # left_join(suffix)-generated Typology_base name for the UAA-basis
+    # reclassification, compared against the baseline's own Typology_base
+    "Area_ha_uaa",
+    "Typology_base_uaa",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
