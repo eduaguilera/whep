@@ -231,3 +231,10 @@ testthat::test_that(".nb_regime_shares handles missing production and uncovered 
   )
   testthat::expect_false(any(shares$lon == 1.75))
 })
+
+testthat::test_that(".nb_snap_share snaps only floating-point residue", {
+  testthat::expect_equal(
+    whep:::.nb_snap_share(c(1 + 2e-16, -1e-12, 0.4, 1.2, -0.1)),
+    c(1, 0, 0.4, 1.2, -0.1)
+  )
+})

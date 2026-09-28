@@ -322,7 +322,9 @@
         .data$by_yield,
         "yield_ratio",
         "area_no_production"
-      )
+      ),
+      irrigated_area_share = .nb_snap_share(.data$irrigated_area_share),
+      irrigated_yield_share = .nb_snap_share(.data$irrigated_yield_share)
     ) |>
     dplyr::select(
       dplyr::all_of(key),
@@ -330,6 +332,20 @@
       "irrigated_yield_share",
       "method_regime_share"
     )
+}
+
+# A share is a ratio of sums whose numerator is part of its denominator, so
+# it lies in [0, 1] exactly; only floating-point residue (a wholly irrigated
+# cell-crop at 1 + 2e-16) can put it outside. That residue, within 1e-9, is
+# snapped to the bound. Anything further out is left for
+# .nb_fill_missing_share() to refuse.
+.nb_snap_share <- function(share) {
+  tol <- 1e-9
+  dplyr::case_when(
+    share < 0 & share >= -tol ~ 0,
+    share > 1 & share <= 1 + tol ~ 1,
+    .default = share
+  )
 }
 
 # Split the numeric columns of `x` into rainfed and irrigated rows. Columns in
@@ -368,8 +384,16 @@
     joined$irrigated_yield_share > 1) %in%
     TRUE
   if (any(bad)) {
+    worst <- max(
+      abs(c(joined$irrigated_area_share, joined$irrigated_yield_share) - 0.5),
+      na.rm = TRUE
+    ) -
+      0.5
     cli::cli_abort(
-      "{sum(bad)} row{?s} carr{?ies/y} a regime share outside [0, 1].",
+      c(
+        "{sum(bad)} row{?s} carr{?ies/y} a regime share outside [0, 1].",
+        i = "The furthest lies {signif(worst, 3)} beyond the interval."
+      ),
       class = "whep_regime_share_range"
     )
   }
