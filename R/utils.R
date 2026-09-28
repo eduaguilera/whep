@@ -1257,6 +1257,7 @@ utils::globalVariables(
     "polities",
     "polity_area_crosswalk",
     "polity_label_aliases",
+    "polity_label_item_corrections",
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",

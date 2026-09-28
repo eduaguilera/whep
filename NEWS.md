@@ -1,5 +1,50 @@
 # whep (development version)
 
+* **`resolve_polity_label()` no longer resolves a bare subnational name to
+  another country's unit, and reads the contracts whep-polities added in its
+  #667 and #677.** The name route compares normalised names, and normalisation
+  drops parenthesised qualifiers, so "Santa Cruz" met "Santa Cruz (department
+  of Bolivia)" in years Argentina's province had no polity yet. whep-polities
+  #680 counted 8,928 panel rows sent to Bolivia that way, 5,526 Colombian
+  "Amazonas" rows sent to Brazil and 868 Mexican "Distrito Federal" rows sent
+  to Brazil. A new `country` argument (ISO3) now restricts the name and ISO3
+  routes to that country. Without it, a name that coexisting polities of two
+  countries carry is refused with a `whep_warn_ambiguous_polity_name` warning.
+  `item` applies the new `polity_label_item_corrections` table before any
+  route, and `back_cast = FALSE` drops the aliases whose new `disposition`
+  column marks them as reconstructions. The shipped snapshot is still
+  whep-polities e10c7421, which predates all three, so no shipped resolution
+  moves. `polity_label_item_corrections` ships with zero rows and
+  `disposition` is all `NA` until the next re-sync. It also honours two
+  rules whep-polities added in #692: a correction whose `polity_code` is
+  `"UNROUTED"` leaves its rows unassigned (`NA`) instead of resolving its
+  `correct_label`, and a corrected row drops the caller's `country` and is not
+  read as an ISO3 code, since both came with the label it was misfiled under.
+  New `unit` and `indicator` arguments carry the optional scope whep-polities
+  #700 added to that table: a scoped rule relabels only the rows whose own
+  unit / indicator equals it (Mitchell's 1955-1960 Vietnam rice output in
+  tonnes is North plus South, its area in hectares South only), and a row it
+  would otherwise match that gives no unit / indicator is an error of class
+  `whep_error_unscoped_label_item_correction` rather than a silent miss.
+  `polity_label_item_corrections` gains the two columns, all `NA` in the
+  shipped snapshot, and `data-raw/table_mappings.R` aborts on any header it
+  was not taught, so a new key column cannot be dropped unnoticed.
+  `polity_label_aliases` reads the optional last `indicator` column
+  whep-polities #703 added (blank = any indicator; allowed only on the
+  subnational panel's slugs), so one panel unit id can be split per indicator:
+  #703 found `CHL-LL`'s crops reported for Los Lagos plus Los Ríos while its
+  landuse and livestock are Los Lagos alone. `resolve_polity_label()` keeps
+  only the alias rules whose scope matches the row's `indicator`, answers `NA`
+  (not the name route) for an indicator a split leaves out, and raises
+  `whep_error_unscoped_indicator_alias` for a split label given no
+  `indicator`. Upstream publishes no scoped rule yet and the shipped snapshot
+  has no such column, so no resolution moves. `data-raw/table_mappings.R` now
+  aborts on an alias-map header it was not taught, on a scope value or slug the
+  resolver was not written for, and when the map's scoped-rule count differs
+  from the manifest's `label_alias_map.indicator_scoped_aliases`. No package
+  function resolves the subnational panel yet; a caller that does must pass
+  `indicator = panel$indicator`.
+
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it
   consumed (#1010, regression of #885).** `water` and `ice` are optional

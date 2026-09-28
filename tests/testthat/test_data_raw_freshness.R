@@ -21,9 +21,9 @@
 #   * checked  -- the 49 datasets written by the seven builders in
 #     `.offline_data_builders()`, which read only inst/extdata/, data-raw/ and
 #     committed data/*.rda.
-#   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
+#   * excluded -- the 8 datasets in `.externally_built_datasets()`. Six come
 #     from table_mappings.R, which cannot run past `sf::st_read()` on the
-#     whep-polities GeoPackage (`WHEP_POLITIES_GPKG`) -- those five get the
+#     whep-polities GeoPackage (`WHEP_POLITIES_GPKG`) -- those six get the
 #     opportunistic check at the end of this file instead; it does read
 #     items_cbs and items_prod verbatim from CSVs before that point, but only
 #     the whole script is a builder. coello_synthetic_n.R reads an off-repo
@@ -70,14 +70,15 @@
 # here instead of silently shrinking the gate.
 .externally_built_datasets <- function() {
   tibble::tribble(
-    ~dataset,                ~builder,                   ~blocked_by,
-    "items_cbs",             "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "items_prod",            "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "polities",              "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "polity_area_crosswalk", "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "polity_label_aliases",  "table_mappings.R",         "WHEP_POLITIES_GPKG",
-    "coello_synthetic_n",    "coello_synthetic_n.R",     "WHEP_COELLO_DIR",
-    "livestock_coefs",       "livestock_coefficients.R", "openxlsx"
+    ~dataset,                        ~builder,                   ~blocked_by,
+    "items_cbs",                     "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "items_prod",                    "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polities",                      "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polity_area_crosswalk",         "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polity_label_aliases",          "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polity_label_item_corrections", "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "coello_synthetic_n",            "coello_synthetic_n.R",     "WHEP_COELLO_DIR",
+    "livestock_coefs",               "livestock_coefficients.R", "openxlsx"
   )
 }
 
@@ -261,12 +262,13 @@ testthat::test_that("a data/*.rda built from its inputs passes", {
 # It reads no `WHEP_*` path that is not already set: `Sys.getenv()` with the
 # builder's own default resolves to `~/whep-polities`, the check is
 # file-existence, and absence skips. No network is involved -- the GeoPackage
-# and the two CSVs are local files.
+# and the three CSVs are local files.
 .whep_polities_input_files <- function() {
   c(
     WHEP_POLITIES_GPKG = "polities_database.gpkg",
     WHEP_POLITIES_FAOSTAT_MAP = "faostat_area_polity_map.csv",
-    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv"
+    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv",
+    WHEP_POLITIES_LABEL_ITEM_CORRECTIONS = "source_label_item_corrections.csv"
   )
 }
 
@@ -302,7 +304,7 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
   .skip_without_upstream()
   rebuilt <- .rebuild_data_objects("table_mappings.R", root)
 
-  # All five, not just the crosswalk: #835 was filed about
+  # All six, not just the crosswalk: #835 was filed about
   # `polity_area_crosswalk`, and the rebuild moved `polities` and
   # `polity_label_aliases` too. One builder, one revision, one comparison.
   excluded <- .externally_built_datasets()
@@ -365,5 +367,87 @@ testthat::test_that("the non-unique-key guard names the values (#621)", {
   testthat::expect_identical(
     assert_unique_key(ok, "item_cbs_code", "items_cbs"),
     ok
+  )
+})
+
+# Evaluates several top-level assignments out of a builder into one
+# environment, for a builder function that reads the builder's own constants.
+.builder_bindings <- function(builder, names, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  env <- new.env(parent = globalenv())
+  purrr::walk(names, function(name) {
+    wanted <- purrr::keep(exprs, function(expr) {
+      rlang::is_call(expr, c("<-", "=")) &&
+        identical(rlang::expr_text(expr[[2]]), name)
+    })
+    testthat::expect_length(wanted, 1L)
+    eval(wanted[[1]], envir = env)
+  })
+  env
+}
+
+testthat::test_that("the label-item corrections header is exact (#700)", {
+  # whep-polities #700 added `unit` and `indicator` as key columns. readr reads
+  # an undeclared column with a guessed type and nothing downstream uses it,
+  # so the builder must refuse any header it was not taught -- or the next key
+  # column's rules would apply to every row, as `unit`'s would have.
+  root <- .skip_without_data_raw()
+  env <- .builder_bindings(
+    "table_mappings.R",
+    c(
+      "excel_na",
+      "label_item_correction_types",
+      "label_item_scope_columns",
+      "read_label_item_corrections"
+    ),
+    root
+  )
+  read <- env$read_label_item_corrections
+  current <- c(
+    "source",
+    "source_label",
+    "item",
+    "year_start",
+    "year_end",
+    "unit",
+    "indicator",
+    "correct_label",
+    "polity_code",
+    "observed_rows",
+    "issue",
+    "evidence"
+  )
+  write_header <- function(columns, rows = character()) {
+    path <- withr::local_tempfile(
+      fileext = ".csv",
+      .local_envir = parent.frame()
+    )
+    writeLines(c(paste(columns, collapse = ","), rows), path)
+    path
+  }
+
+  rule <- paste(
+    "mitchell,viet nam,\"rice, paddy\",1955,1960,tonnes,,",
+    "Vietnam (combined reporting: DRV and RVN),F237-1954-1975,6,688,x",
+    sep = ""
+  )
+  shipped <- read(write_header(current, rule))
+  testthat::expect_identical(names(shipped), current)
+  testthat::expect_identical(shipped$unit, "tonnes")
+  testthat::expect_identical(shipped$indicator, NA_character_)
+
+  # A snapshot before #700: no scope columns, so no scoped rule.
+  legacy <- read(write_header(setdiff(current, c("unit", "indicator"))))
+  testthat::expect_identical(names(legacy), current)
+  testthat::expect_type(legacy$unit, "character")
+
+  # A column the builder was not taught, and one it lost.
+  testthat::expect_error(
+    suppressWarnings(read(write_header(c(current, "period")))),
+    "unexpected header"
+  )
+  testthat::expect_error(
+    suppressWarnings(read(write_header(setdiff(current, "indicator")))),
+    "unexpected header"
   )
 })
