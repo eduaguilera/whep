@@ -194,7 +194,7 @@ testthat::test_that(".nb_driver_key keeps water_regime only when drivers carry i
 testthat::test_that(".nb_fresh_production converts dry matter to fresh weight", {
   npp <- tibble::tibble(item_prod_code = 15L, product_dm_t = 87, area_ha = 1)
   dm <- whep::whep_coef_table("bio_coefs") |>
-    dplyr::filter(as.integer(.data$item_prod_code) == 15L) |>
+    dplyr::filter(as.character(.data$item_prod_code) == "15") |>
     dplyr::pull("product_dm_kgfm")
   out <- whep:::.nb_fresh_production(npp)
   testthat::expect_equal(out$production_t, 87 / as.numeric(dm[[1]]))
@@ -237,4 +237,42 @@ testthat::test_that(".nb_snap_share snaps only floating-point residue", {
     whep:::.nb_snap_share(c(1 + 2e-16, -1e-12, 0.4, 1.2, -0.1)),
     c(1, 0, 0.4, 1.2, -0.1)
   )
+})
+
+testthat::test_that(".nb_regime_shares counts an uncovered item as rainfed within its key", {
+  data <- .regime_share_data()
+  # A second production item under the same CBS item and cell, outside the
+  # regime layer: its 40 ha and 100 t count as rainfed, halving the shares.
+  data$.npp_cache <- dplyr::bind_rows(
+    data$.npp_cache,
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~item_prod_code, ~item_cbs_code, ~year,
+      ~production_t, ~area_ha,
+      0.25, 40.25, 203, 44, 2511, 2010, 100, 40
+    )
+  )
+  shares <- whep:::.nb_regime_shares(data, .regime_key)
+  first <- dplyr::filter(shares, .data$lon == 0.25)
+  testthat::expect_equal(first$irrigated_area_share, 10 / 80)
+  testthat::expect_equal(first$irrigated_yield_share, 40 / 200)
+})
+
+testthat::test_that("the split carries how each row's shares were obtained", {
+  shares <- dplyr::mutate(
+    .regime_shares(),
+    method_regime_share = c("yield_ratio", "area_no_production")
+  )
+  out <- whep:::.nb_split_regime(
+    .regime_rows(),
+    shares,
+    .regime_key,
+    area_cols = "bnf",
+    yield_cols = "synthetic"
+  )
+  stamps <- dplyr::distinct(out, .data$lon, .data$method_regime_split)
+  testthat::expect_equal(
+    stamps$method_regime_split[order(stamps$lon)],
+    c("yield_ratio", "area_no_production", "no_regime_share")
+  )
+  testthat::expect_false(rlang::has_name(out, "method_regime_share"))
 })

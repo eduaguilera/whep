@@ -316,3 +316,15 @@ testthat::test_that("manure ammonia is booked once across rainfed/irrigated rows
     unsplit
   )
 })
+
+testthat::test_that("manure ammonia follows N input on a key with no area", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  joined <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime, ~area_ha,
+    ~n_input_std_t, ~manure_mgmt_nh3_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, "rainfed", 0, 1, 4,
+    0.25, 0.25, 1L, 2511L, 2010L, "irrigated", 0, 3, 4
+  )
+  out <- whep:::.npb_share_manure_by_regime(joined, key)
+  testthat::expect_equal(out$manure_mgmt_nh3_n_t, c(1, 3))
+})

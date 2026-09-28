@@ -26,8 +26,10 @@ aborts, naming the coverage it has.}
 
 \item{run_dir}{Path to a finished LPJmL run output directory holding
 \code{pft_harvestc.nc} and \code{cftfrac.nc}. \code{NULL} (default) uses
-\code{WHEP_LPJML_RUN_DIR}. There is no pinned copy of this layer yet, so with
-neither the reader aborts rather than reading anything else.}
+\code{WHEP_LPJML_RUN_DIR}, and with neither set reads the pinned
+\code{lpjml-crop-regime-yield} layer, built from one LPJmL run together with
+the other LPJmL-derived pins. A run that is named but lacks either file
+aborts rather than falling back to the pin.}
 
 \item{data}{Optional list used in place of reading a run, for testing:
 \code{harvestc} (as \code{\link[=read_lpjml_npp]{read_lpjml_npp()}} returns it for \code{"harvestc"}) and

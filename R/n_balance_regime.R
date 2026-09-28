@@ -148,16 +148,22 @@
   if (is.null(cells)) {
     return(NULL)
   }
-  # Only cell-crops the regime layer covers get a share; the rest are booked
-  # wholly rainfed downstream, stamped `no_regime_share`.
-  covered <- dplyr::filter(
-    cells,
-    !is.na(.data$rainfed_ha),
-    !is.na(.data$irrigated_ha)
-  )
+  # A grid key the regime layer does not cover at all gets no share and is
+  # booked wholly rainfed downstream, stamped `no_regime_share`. Within a key
+  # it does cover, a production item it does not cover counts as rainfed, so
+  # the covered items' split is not stretched over the whole key.
+  has_areas <- !is.na(cells$rainfed_ha) & !is.na(cells$irrigated_ha)
+  covered <- cells[has_areas, ]
   if (nrow(covered) == 0L) {
     return(NULL)
   }
+  uncovered <- dplyr::mutate(
+    cells[!has_areas, ],
+    rainfed_ha = .data$area_ha,
+    irrigated_ha = 0,
+    yield_irrigated = NA_real_,
+    covered_row = FALSE
+  )
   # split_regime_yield() needs a production on every row; one the NPP chain
   # cannot express in fresh weight keeps its area and falls back to the area
   # share for its yield share.
@@ -175,12 +181,14 @@
     ) |>
     split_regime_yield(production = data$regime_production)
   dplyr::bind_rows(
-    split,
+    dplyr::mutate(split, covered_row = TRUE),
     dplyr::mutate(
       covered[!with_production, ],
       production_t = NA_real_,
-      yield_irrigated = NA_real_
-    )
+      yield_irrigated = NA_real_,
+      covered_row = TRUE
+    ),
+    uncovered
   ) |>
     .nb_regime_shares_by_key(key)
 }
@@ -236,7 +244,10 @@
   if (rlang::has_name(npp, "production_t")) {
     return(npp)
   }
+  # Only numeric codes are production items; a text code would coerce to NA
+  # and could then match an NPP row with a missing code.
   dm <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::filter(stringr::str_detect(.data$item_prod_code, "^[0-9]+$")) |>
     dplyr::transmute(
       item_prod_code = as.integer(.data$item_prod_code),
       product_dm_kgfm = as.numeric(.data$product_dm_kgfm)
@@ -304,8 +315,10 @@
         !anyNA(.data$yield_irrigated[.data$irrigated_ha > 0]),
       production_total = sum(.data$production_t, na.rm = TRUE),
       production_irrigated = sum(.data$irrigated_production_t, na.rm = TRUE),
+      any_covered = any(.data$covered_row),
       .by = dplyr::all_of(key)
     ) |>
+    dplyr::filter(.data$any_covered) |>
     dplyr::mutate(
       by_yield = .data$production_known & .data$production_total > 0,
       irrigated_area_share = dplyr::if_else(
@@ -362,7 +375,8 @@
     x,
     dplyr::select(
       shares,
-      dplyr::all_of(c(key, "irrigated_area_share", "irrigated_yield_share"))
+      dplyr::all_of(c(key, "irrigated_area_share", "irrigated_yield_share")),
+      dplyr::any_of("method_regime_share")
     ),
     by = key,
     relationship = "many-to-one"
@@ -372,7 +386,11 @@
     .nb_regime_part(joined, "rainfed", area_cols, yield_cols),
     .nb_regime_part(joined, "irrigated", area_cols, yield_cols)
   ) |>
-    dplyr::select(-"irrigated_area_share", -"irrigated_yield_share")
+    dplyr::select(
+      -"irrigated_area_share",
+      -"irrigated_yield_share",
+      -dplyr::any_of("method_regime_share")
+    )
 }
 
 # A row with no share is booked wholly rainfed and says so. Shares outside
@@ -399,12 +417,21 @@
   }
   missing <- is.na(joined$irrigated_area_share) |
     is.na(joined$irrigated_yield_share)
+  stamp <- if (rlang::has_name(joined, "method_regime_share")) {
+    joined$method_regime_share
+  } else {
+    NA_character_
+  }
   dplyr::mutate(
     joined,
+    # How each row's shares were obtained: "yield_ratio" or
+    # "area_no_production" from .nb_regime_shares(), "regime_shares" for
+    # shares supplied without that stamp, "no_regime_share" for a row booked
+    # wholly rainfed.
     method_regime_split = dplyr::if_else(
       missing,
       "no_regime_share",
-      "regime_shares"
+      dplyr::coalesce(.env$stamp, "regime_shares")
     ),
     irrigated_area_share = dplyr::if_else(
       missing,

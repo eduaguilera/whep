@@ -114,15 +114,19 @@
 #'     exact column.
 #'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()], as
 #'     a numeric vector aligned to the balance-key rows, or already present
-#'     as a `drainage_mm` column via `n_balance_leaching_drivers`.
+#'     as a `drainage_mm` column via `n_balance_leaching_drivers`. At grid
+#'     resolution the rainfed/irrigated split doubles the rows, so an aligned
+#'     vector only fits with `methods$regime = "none"`; otherwise supply
+#'     drainage as a column of `n_balance_leaching_drivers`.
 #' @param gwp 100-year global warming potential standard for N2O, `"ar6"`
 #'   (default), `"ar5"` or `"ar4"`, matching [build_crop_soil_n2o_extension()].
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`/`area_code`/`item_cbs_code` (plus
 #'   `lon`/`lat` at `resolution = "grid"`, and `water_regime`, `"rainfed"` or
-#'   `"irrigated"`, at grid resolution unless `methods$regime = "none"`) with `area_ha` (each crop's
-#'   harvested hectares in the cell, summed over cells at
+#'   `"irrigated"`, at grid resolution unless `methods$regime = "none"`) with
+#'   `area_ha` (each crop's harvested hectares in the cell, summed over cells
+#'   at
 #'   `resolution = "polity"`; used downstream to convert tonnes N to a
 #'   per-hectare rate), the input aggregates
 #'   (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
@@ -135,9 +139,13 @@
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 #'   `method_soil_n2o`/`method_leaching` provenance columns, `method_regime`
-#'   and `method_regime_split` (`"regime_shares"`, or `"no_regime_share"`
-#'   for a row booked wholly rainfed because the regime layer does not cover
-#'   it) when the split ran, plus the polity columns below. When the supplied `n_inputs` carry them, the
+#'   and `method_regime_split` when the split ran (`"yield_ratio"`;
+#'   `"area_no_production"` where the crop's production could not be
+#'   expressed in fresh weight and the area share was used for everything;
+#'   `"regime_shares"` for shares supplied as `data$regime_shares`; or
+#'   `"no_regime_share"` for a row booked wholly rainfed because the regime
+#'   layer does not cover it), plus the polity columns below. When the
+#'   supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
 #'   `method_human_kgn_cap`, `method_unsupported`, `method_manure` and
