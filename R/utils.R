@@ -2298,6 +2298,11 @@ utils::globalVariables(
     # arable_permanent_land.R (#937) -- which source supplied the temporary
     # grassland netted out of each country-year's arable target
     "temp_grassland_source",
+    # gridded_livestock_emissions.R (issue 1126) -- the national species mix
+    # that splits an aggregate spatializer group into its IPCC species
+    "species_share",
+    "share_key",
+    "heads_item",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

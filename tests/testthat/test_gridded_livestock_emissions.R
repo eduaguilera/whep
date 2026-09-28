@@ -85,6 +85,7 @@ testthat::test_that("the example fixture matches the documented contract", {
         "lon",
         "lat",
         "species",
+        "species_group",
         "heads",
         "enteric_ch4_kt",
         "manure_ch4_kt",
@@ -97,6 +98,7 @@ testthat::test_that("the example fixture matches the documented contract", {
         "divergence_manure_n2o",
         "climate_zone",
         "diet_quality",
+        "method_species",
         "method_climate_zone",
         "method_diet"
       )
@@ -138,6 +140,8 @@ testthat::test_that("the example fixture is what the function actually emits", {
   }
   testthat::expect_equal(fixture$method_manure_ch4, live$method_manure_ch4)
   testthat::expect_equal(fixture$method_manure_n2o, live$method_manure_n2o)
+  testthat::expect_equal(fixture$method_species, live$method_species)
+  testthat::expect_equal(fixture$species_group, live$species_group)
 })
 
 testthat::test_that("options reach the manure kernel from the cells", {
@@ -280,17 +284,222 @@ testthat::test_that("a cell with no climate row aborts", {
   )
 })
 
-testthat::test_that("an aggregate species group aborts rather than splitting", {
-  grid <- .grid_fixture() |>
-    dplyr::mutate(species_group = "sheep_goats")
+# Aggregate species groups (whep#1126) ----------------------------------------
 
+# The country reports three sheep for every goat, and a row that is not a head
+# count, which must not enter the mix.
+.species_heads_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_cbs_code,   ~unit, ~value,
+    1961L,       197L,              197L,           976L, "heads",    300,
+    1961L,       197L,              197L,          1016L, "heads",    100,
+    1961L,       197L,              197L,          1016L, "tonnes",  9999
+  )
+}
+
+.sheep_goat_grid <- function() {
+  dplyr::mutate(.grid_fixture(), species_group = "sheep_goats")
+}
+
+.run_split <- function(grid, heads = .species_heads_fixture(), ...) {
+  whep::build_gridded_livestock_emissions(
+    grid,
+    method_diet = "uniform_medium",
+    ...,
+    data = list(cell_climate = .climate_fixture(), species_heads = heads)
+  )
+}
+
+testthat::test_that("refuse still aborts on an aggregate group", {
   testthat::expect_error(
-    whep::build_gridded_livestock_emissions(
-      grid,
-      method_diet = "uniform_medium",
-      data = list(cell_climate = .climate_fixture())
-    ),
+    .run_split(.sheep_goat_grid(), method_species = "refuse"),
     "more than one IPCC species"
+  )
+})
+
+testthat::test_that("an aggregate group is split by the national mix", {
+  result <- .run_split(.sheep_goat_grid())
+
+  testthat::expect_setequal(result$species, c("Sheep", "Goats"))
+  testthat::expect_true(all(result$method_species == "national_head_share"))
+  testthat::expect_false(anyNA(result$enteric_ch4_kt))
+  by_species <- result |>
+    dplyr::summarise(heads = sum(heads), .by = species)
+  total <- sum(.sheep_goat_grid()$heads)
+  testthat::expect_equal(
+    by_species$heads[by_species$species == "Sheep"],
+    0.75 * total
+  )
+  testthat::expect_equal(
+    by_species$heads[by_species$species == "Goats"],
+    0.25 * total
+  )
+})
+
+testthat::test_that("the split conserves every cell's head count", {
+  grid <- .sheep_goat_grid()
+  result <- .run_split(grid)
+
+  per_cell <- result |>
+    dplyr::summarise(heads = sum(heads), .by = c(lon, lat, year, area_code))
+  expected <- grid |>
+    dplyr::summarise(heads = sum(heads), .by = c(lon, lat, year, area_code))
+  testthat::expect_equal(
+    dplyr::arrange(per_cell, lon, lat)$heads,
+    dplyr::arrange(expected, lon, lat)$heads
+  )
+})
+
+testthat::test_that("a split herd equals the same herd supplied by species", {
+  grid <- .sheep_goat_grid()
+  by_hand <- dplyr::bind_rows(
+    dplyr::mutate(grid, species = "Sheep", heads = heads * 0.75),
+    dplyr::mutate(grid, species = "Goats", heads = heads * 0.25)
+  ) |>
+    dplyr::select(-species_group)
+
+  split <- .run_split(grid) |>
+    dplyr::summarise(
+      dplyr::across(c(enteric_ch4_kt, manure_ch4_kt, manure_n2o_kt), sum),
+      .by = species
+    ) |>
+    dplyr::arrange(species)
+  supplied <- whep::build_gridded_livestock_emissions(
+    by_hand,
+    method_diet = "uniform_medium",
+    data = list(cell_climate = .climate_fixture())
+  ) |>
+    dplyr::summarise(
+      dplyr::across(c(enteric_ch4_kt, manure_ch4_kt, manure_n2o_kt), sum),
+      .by = species
+    ) |>
+    dplyr::arrange(species)
+
+  testthat::expect_equal(split, supplied)
+  # And the split is not a relabelling: goats do not emit like sheep.
+  testthat::expect_false(isTRUE(all.equal(
+    split$enteric_ch4_kt[1] / 0.25,
+    split$enteric_ch4_kt[2] / 0.75
+  )))
+})
+
+testthat::test_that("an area missing from the head table uses its polity", {
+  # Sudan's two successor areas are gridded under their own codes but reported
+  # nationally as the former-Sudan bucket 206.
+  grid <- .sheep_goat_grid() |>
+    dplyr::mutate(area_code = 276L, polity_area_code = 206L)
+  heads <- .species_heads_fixture() |>
+    dplyr::mutate(area_code = 206L, polity_area_code = 206L)
+  climate <- .climate_fixture()
+
+  result <- whep::build_gridded_livestock_emissions(
+    grid,
+    method_diet = "uniform_medium",
+    data = list(cell_climate = climate, species_heads = heads)
+  )
+
+  testthat::expect_true(all(
+    result$method_species == "polity_bucket_head_share"
+  ))
+  testthat::expect_equal(sum(result$heads), sum(grid$heads))
+})
+
+testthat::test_that("a group the country reports no member of stays NA", {
+  grid <- dplyr::bind_rows(
+    dplyr::slice(.grid_fixture(), 1L),
+    dplyr::mutate(dplyr::slice(.grid_fixture(), 2L), species_group = "equines")
+  )
+
+  testthat::expect_warning(
+    result <- .run_split(grid),
+    "could not be split"
+  )
+  unsplit <- dplyr::filter(result, species_group == "equines")
+  testthat::expect_equal(nrow(unsplit), 1L)
+  testthat::expect_equal(unsplit$heads, 80000)
+  testthat::expect_true(is.na(unsplit$enteric_ch4_kt))
+  testthat::expect_equal(unsplit$method_species, "unsplit_no_national_mix")
+  testthat::expect_false(anyNA(
+    result$enteric_ch4_kt[result$species_group == "cattle_dairy"]
+  ))
+})
+
+testthat::test_that("a head table without the needed columns aborts", {
+  testthat::expect_error(
+    .run_split(
+      .sheep_goat_grid(),
+      heads = dplyr::select(.species_heads_fixture(), -item_cbs_code)
+    ),
+    "cannot split an aggregate species group"
+  )
+})
+
+testthat::test_that("the head table is not read when no group is aggregate", {
+  # A NULL `species_heads` would fall back to the production pins; a
+  # single-species grid must never reach that read.
+  testthat::local_mocked_bindings(
+    .read_species_heads = function(...) stop("read species heads")
+  )
+  result <- whep::build_gridded_livestock_emissions(
+    .grid_fixture(),
+    method_diet = "uniform_medium",
+    data = list(cell_climate = .climate_fixture())
+  )
+  testthat::expect_true(all(result$method_species == "one_to_one"))
+})
+
+testthat::test_that("every spatializer group is either mapped or split", {
+  # The split reads its members from the mapping the spatializer groups with;
+  # a group added there must land in one of the two paths, not neither.
+  members <- whep:::.livestock_group_members()
+  mapping <- readr::read_csv(
+    system.file("extdata", "livestock_mapping.csv", package = "whep"),
+    show_col_types = FALSE
+  )
+  testthat::expect_setequal(members$item_cbs_code, mapping$item_code)
+  testthat::expect_false(anyNA(members$species))
+  aggregates <- setdiff(
+    unique(mapping$species_group),
+    whep:::.gridded_species_map()$species_group
+  )
+  testthat::expect_setequal(
+    aggregates,
+    c("sheep_goats", "equines", "poultry", "other")
+  )
+})
+
+testthat::test_that("the default diet rung is per_cell_feed on a split herd", {
+  # whep#1126: the default rung must key a split species onto its own feed.
+  intake <- tibble::tribble(
+    ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
+    ~intake_dry_matter,
+    1961L,       197L,  "34.25_-0.25",            976L,          2555L,
+    9000,
+    1961L,       197L,  "34.25_-0.25",           1016L,          2106L,
+    9000,
+    1961L,       197L,   "34.75_0.25",            976L,          3000L,
+    9000,
+    1961L,       197L,   "34.75_0.25",           1016L,          3000L,
+    9000
+  )
+  result <- whep::build_gridded_livestock_emissions(
+    .sheep_goat_grid(),
+    data = list(
+      cell_climate = .climate_fixture(),
+      feed_intake = intake,
+      species_heads = .species_heads_fixture()
+    )
+  )
+
+  testthat::expect_true(all(result$method_diet == "per_cell_feed"))
+  warm <- dplyr::filter(result, lon == 34.25)
+  testthat::expect_equal(
+    unique(warm$diet_quality[warm$species == "Sheep"]),
+    "High"
+  )
+  testthat::expect_equal(
+    unique(warm$diet_quality[warm$species == "Goats"]),
+    "Low"
   )
 })
 
