@@ -17,6 +17,17 @@ that no crop can be named for arrives on an `item_cbs_code` of `NA`,
 which the balance cannot route, so it is reported by the orphan-land
 warning rather than folded into a crop (whep#1026).
 
+Its temporary-grassland netting basis is pinned explicitly too, to
+`temp_grassland_basis = "modelled"`: modelled CBS 3002 covers 26 EU
+polities over 2001-2019 only, so for any other country, and for every
+country from 2020, nothing is netted and the arable land keeps FAO's
+temporary meadows (whep#937). The balance output does not carry that
+provenance per row; read `temp_grassland_source` in
+[`build_fao_arable_fallow_extension()`](https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.md)'s
+output, or
+[`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md),
+to see which country-years were netted.
+
 Grass items (`item_cbs_code` 3000 and 3002) are barely traded, so their
 land stays with the producing country: the balance, unlike the
 input-output model, does not route grass through the grass-to-livestock

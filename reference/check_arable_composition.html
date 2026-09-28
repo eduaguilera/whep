@@ -114,9 +114,12 @@ behaviour.</p>
 <dl><dt id="arg-extension">extension<a class="anchor" aria-label="anchor" href="#arg-extension"></a></dt>
 <dd><p>Tibble of the arable/permanent land extension as returned
 by <code><a href="build_fao_arable_fallow_extension.html">build_fao_arable_fallow_extension()</a></code>: <code>year</code>, <code>area_code</code>,
-<code>item_cbs_code</code>, <code>impact_u</code>, and optionally <code>temp_grassland_netted_ha</code>.
-The <code>temp_grassland_netting</code> term is reported only when that column is
-present.</p></dd>
+<code>item_cbs_code</code>, <code>impact_u</code>, and optionally <code>temp_grassland_source</code> or
+<code>temp_grassland_netted_ha</code>. The <code>temp_grassland_netting</code> term is reported
+only when one of them is present. With <code>temp_grassland_source</code> a
+country-year counts as covered whenever a source supplied the term, zero
+included; with <code>temp_grassland_netted_ha</code> alone, only when it is
+positive.</p></dd>
 
 
 <dt id="arg-items-prod-full">items_prod_full<a class="anchor" aria-label="anchor" href="#arg-items-prod-full"></a></dt>
@@ -130,8 +133,8 @@ perennial via <code>Herb_Woody</code>. Defaults to <a href="items_prod_full.html
 <li><p><code>area_code</code>: the country.</p></li>
 <li><p><code>panel_first_year</code>, <code>panel_last_year</code>: the years that country has arable
 rows for.</p></li>
-<li><p><code>term_first_year</code>, <code>term_last_year</code>: the years the term is positive
-(<code>NA</code> when it never is).</p></li>
+<li><p><code>term_first_year</code>, <code>term_last_year</code>: the years the term is present,
+as defined under <code>extension</code> (<code>NA</code> when it never is).</p></li>
 <li><p><code>n_years_absent</code>: panel years in which the term is absent.</p></li>
 <li><p><code>break_year</code>: the first panel year after <code>term_last_year</code> with no term
 (<code>NA</code> when the term runs to the end of the panel, or never appears).</p></li>

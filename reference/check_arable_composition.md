@@ -39,8 +39,11 @@ check_arable_composition(extension, items_prod_full = whep::items_prod_full)
   Tibble of the arable/permanent land extension as returned by
   [`build_fao_arable_fallow_extension()`](https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.md):
   `year`, `area_code`, `item_cbs_code`, `impact_u`, and optionally
-  `temp_grassland_netted_ha`. The `temp_grassland_netting` term is
-  reported only when that column is present.
+  `temp_grassland_source` or `temp_grassland_netted_ha`. The
+  `temp_grassland_netting` term is reported only when one of them is
+  present. With `temp_grassland_source` a country-year counts as covered
+  whenever a source supplied the term, zero included; with
+  `temp_grassland_netted_ha` alone, only when it is positive.
 
 - items_prod_full:
 
@@ -59,8 +62,8 @@ A tibble with one row per `(term, area_code)`:
 - `panel_first_year`, `panel_last_year`: the years that country has
   arable rows for.
 
-- `term_first_year`, `term_last_year`: the years the term is positive
-  (`NA` when it never is).
+- `term_first_year`, `term_last_year`: the years the term is present, as
+  defined under `extension` (`NA` when it never is).
 
 - `n_years_absent`: panel years in which the term is absent.
 

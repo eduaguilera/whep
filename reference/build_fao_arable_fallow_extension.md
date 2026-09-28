@@ -150,9 +150,12 @@ A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (fallow-inclusive physical land in hectares), `method_land`
 (`"fao_arable_fallow"`), `temp_grassland_netted_ha` (hectares netted out
 of that country-year's arable target, `0` where the netting term is
-structurally absent), `method_temp_grassland` (the
-`temp_grassland_basis` in force), `method_fodder` (the `fodder_gap` in
-force) and `method_unsupported_target` (the `unsupported_target` in
+structurally absent), `temp_grassland_source` (the source that supplied
+that netted term: `"modelled_cbs_3002"`, `"fao_6633_official"`,
+`"fao_6633_all"`, `"absent"` where the basis has no value for that
+country-year, or `"not_netted"` under `"none"`), `method_temp_grassland`
+(the `temp_grassland_basis` in force), `method_fodder` (the `fodder_gap`
+in force) and `method_unsupported_target` (the `unsupported_target` in
 force), and `fodder_coverage`, which says per country-year whether the
 fodder input was there before any `fodder_gap` treatment: `"reported"`
 (the base carries fodder area that year), `"lapsed"` (it carries none,
@@ -200,7 +203,18 @@ alternatives measured in whep#937 and whep#354; `"modelled"` remains the
 default so this argument changes no published number until a basis is
 chosen deliberately. `temp_grassland_netted_ha` in the output, and
 [`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md),
-make the switch-off visible either way.
+make the switch-off visible either way. `temp_grassland_source` says,
+per country-year, which source supplied the netted term:
+`"modelled_cbs_3002"`, `"fao_6633_official"` or `"fao_6633_all"`, or
+`"absent"` where the chosen basis has no value there, so a country-year
+with no measurement never reads as one with no temporary meadows. On the
+real 2001-2023 inputs under `"modelled"`, 494 of the 4,549 country-years
+in the output are `"modelled_cbs_3002"` (26 polities, 2001-2019) and the
+other 4,055 are `"absent"`, including all 787 from 2020. Under the
+`"fao_*"` bases the column also separates a reported value that nets 0
+ha from a missing report: 103 country-years under `"fao_official"` and
+993 under `"fao_all"` have a value yet net nothing, and before this
+column they read exactly like the country-years with no value at all.
 
 FAO's own item 6633 "Temporary meadows and pastures" measures the same
 concept, runs 2001-2023, and is what the `"fao_*"` bases read. It is not
@@ -313,11 +327,12 @@ build_fao_arable_fallow_extension(
   temporary_grassland = temporary_grassland,
   items_prod_full = items
 )
-#> # A tibble: 2 × 10
+#> # A tibble: 2 × 11
 #>    year area_code item_cbs_code impact_u method_land       method_temp_grassland
 #>   <int>     <int>         <int>    <dbl> <chr>             <chr>                
 #> 1  2020         1          2511      400 fao_arable_fallow modelled             
 #> 2  2020         1          2560      100 fao_arable_fallow modelled             
-#> # ℹ 4 more variables: method_fodder <chr>, method_unsupported_target <chr>,
-#> #   temp_grassland_netted_ha <dbl>, fodder_coverage <chr>
+#> # ℹ 5 more variables: method_fodder <chr>, method_unsupported_target <chr>,
+#> #   temp_grassland_netted_ha <dbl>, temp_grassland_source <chr>,
+#> #   fodder_coverage <chr>
 ```

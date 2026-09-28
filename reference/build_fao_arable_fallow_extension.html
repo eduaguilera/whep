@@ -233,7 +233,11 @@ removes the whole affected country-year, and <code>"abort"</code> refuses to con
 <code>impact_u</code> (fallow-inclusive physical land in hectares), <code>method_land</code>
 (<code>"fao_arable_fallow"</code>), <code>temp_grassland_netted_ha</code> (hectares netted out of
 that country-year's arable target, <code>0</code> where the netting term is
-structurally absent), <code>method_temp_grassland</code> (the <code>temp_grassland_basis</code>
+structurally absent), <code>temp_grassland_source</code> (the source that supplied
+that netted term: <code>"modelled_cbs_3002"</code>, <code>"fao_6633_official"</code>,
+<code>"fao_6633_all"</code>, <code>"absent"</code> where the basis has no value for that
+country-year, or <code>"not_netted"</code> under <code>"none"</code>),
+<code>method_temp_grassland</code> (the <code>temp_grassland_basis</code>
 in force), <code>method_fodder</code> (the <code>fodder_gap</code> in force) and
 <code>method_unsupported_target</code> (the <code>unsupported_target</code> in force), and
 <code>fodder_coverage</code>, which says per country-year whether the fodder input
@@ -284,7 +288,18 @@ land the netting removes is 8.2-9.8 Mha a year to 2019 and <strong>exactly 0</st
 and whep#354; <code>"modelled"</code> remains the default so this argument changes no
 published number until a basis is chosen deliberately.
 <code>temp_grassland_netted_ha</code> in the output, and
-<code><a href="check_arable_composition.html">check_arable_composition()</a></code>, make the switch-off visible either way.</p>
+<code><a href="check_arable_composition.html">check_arable_composition()</a></code>, make the switch-off visible either way.
+<code>temp_grassland_source</code> says, per country-year, which source supplied the
+netted term: <code>"modelled_cbs_3002"</code>, <code>"fao_6633_official"</code> or
+<code>"fao_6633_all"</code>, or <code>"absent"</code> where the chosen basis has no value there,
+so a country-year with no measurement never reads as one with no temporary
+meadows. On the real 2001-2023 inputs under <code>"modelled"</code>, 494 of the
+4,549 country-years in the output are <code>"modelled_cbs_3002"</code> (26 polities,
+2001-2019) and the other 4,055 are <code>"absent"</code>, including all 787 from 2020.
+Under the <code>"fao_*"</code> bases the column also separates a reported value that
+nets 0 ha from a missing report: 103 country-years under <code>"fao_official"</code>
+and 993 under <code>"fao_all"</code> have a value yet net nothing, and before this
+column they read exactly like the country-years with no value at all.</p>
 <p>FAO's own item 6633 "Temporary meadows and pastures" measures the same
 concept, runs 2001-2023, and is what the <code>"fao_*"</code> bases read. It is not a
 drop-in replacement: only ~19% of it is an official value, Greece and Poland
@@ -385,13 +400,14 @@ the 23 Marshall Islands rows, 11,500 ha.</p>
 <span class="r-in"><span>  temporary_grassland <span class="op">=</span> <span class="va">temporary_grassland</span>,</span></span>
 <span class="r-in"><span>  items_prod_full <span class="op">=</span> <span class="va">items</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land       method_temp_grassland</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow modelled             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow modelled             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: method_fodder &lt;chr&gt;, method_unsupported_target &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   temp_grassland_netted_ha &lt;dbl&gt;, fodder_coverage &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: method_fodder &lt;chr&gt;, method_unsupported_target &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   temp_grassland_netted_ha &lt;dbl&gt;, temp_grassland_source &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fodder_coverage &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
