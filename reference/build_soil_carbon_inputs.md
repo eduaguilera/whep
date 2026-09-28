@@ -43,7 +43,7 @@ build_soil_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("reallocate", "fodder_pattern", "drop"),
   example = FALSE
 )
 ```
@@ -83,7 +83,11 @@ build_soil_carbon_inputs(
   table the NPP reader uses, and is skipped when a hand-supplied `npp`
   keeps the pipeline offline unless supplied here);
   `residue_humification` (defaults to
-  [residue_humification](https://eduaguilera.github.io/whep/reference/residue_humification.md)).
+  [residue_humification](https://eduaguilera.github.io/whep/reference/residue_humification.md));
+  `fodder_patterns` (only read under
+  `method_unspatialized = "fodder_pattern"`: per-cell fodder crop area
+  in the `crop_patterns` schema, defaulting to the Monfreda et
+  al. (2008) forage layers read from `WHEP_MONFREDA_DIR`).
 
 - years:
 
@@ -103,10 +107,25 @@ build_soil_carbon_inputs(
   spatialization already applies to the same gap
   ([`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)).
   `"drop"` discards it, which is what the package did before and what a
-  caller who prefers a hole to a smear should ask for. Either way the
-  mass and the affected crops are reported, and the choice is recorded
-  in `method_unspatialized`. Reallocation needs a national area to put
-  the carbon on, so a polity-crop with no `harvested_area` row – and a
+  caller who prefers a hole to a smear should ask for.
+  `"fodder_pattern"` first places the fodder crops (FAOSTAT items
+  636-649, 651 and 655) on the pooled 16 forage layers of Monfreda,
+  Ramankutty and Foley (2008,
+  [doi:10.1029/2007GB002947](https://doi.org/10.1029/2007GB002947) ),
+  which the crop-pattern pin omits, gridded exactly as a crop-pattern
+  crop is. The layers are pooled because the per-item ones follow the
+  circa-2000 reporting vocabulary, not where each item is grown later.
+  Whatever the layer still cannot place is reallocated as under
+  `"reallocate"`. It needs the Monfreda archive
+  (`inst/scripts/download/download_monfreda.R`) with `WHEP_MONFREDA_DIR`
+  pointing at its `HarvestedAreaYield175Crops_Geotiff` folder, or
+  `data$fodder_patterns`, and aborts rather than falling back when
+  neither is available. The layer codes are matched on the layer names,
+  as the archive's metadata gives no FAO name for them (assumed,
+  unverified against a Monfreda table). Either way the mass and the
+  affected crops are reported, and the choice is recorded in
+  `method_unspatialized`. Reallocation needs a national area to put the
+  carbon on, so a polity-crop with no `harvested_area` row – and a
   polity with no cell at all in the support, which no rule here can
   reach (see whep#1002) – is dropped under both methods, reported
   separately.
