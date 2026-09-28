@@ -35,6 +35,25 @@ A tibble with one row per alias. Columns:
 - `observed_rows`: Source rows actually observed for the label, `NA`
   when the label is merely mappable.
 
+- `disposition`: `NA` when the source observed the territory,
+  `"back_cast"` when the years are a reconstruction onto a boundary that
+  did not exist yet. A `"back_cast"` alias may begin before its target
+  polity does, by design: the polity's own span still starts when the
+  territory did.
+  [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
+  drops these rules when asked `back_cast = FALSE`. All `NA` in a
+  snapshot taken before whep-polities introduced the column.
+
+- `indicator`: `NA` when the alias applies to every indicator, otherwise
+  the one indicator it routes (`"area"`, `"production"`, `"yield"`,
+  `"livestock_stock"` or `"landuse"`, the subnational panel's own
+  values). whep-polities \#703 added it so that a panel unit whose id
+  names different territories for different indicators can be split; it
+  allows the scope only on the panel's slugs.
+  [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
+  applies a scoped rule only to rows passing that `indicator`. Absent
+  from a snapshot taken before \#703, which is read as all `NA`.
+
 ## Source
 
 `~/whep-polities/data/final/label_alias_map.csv`.

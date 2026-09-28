@@ -18,7 +18,16 @@ directly.
 ## Usage
 
 ``` r
-resolve_polity_label(label, source = NULL, year = NULL)
+resolve_polity_label(
+  label,
+  source = NULL,
+  year = NULL,
+  item = NULL,
+  country = NULL,
+  back_cast = TRUE,
+  unit = NULL,
+  indicator = NULL
+)
 ```
 
 ## Arguments
@@ -44,6 +53,35 @@ resolve_polity_label(label, source = NULL, year = NULL)
   only for an identifier exactly one polity has ever carried, so
   supplying a year remains much the stronger question: it is what lets a
   label resolve to the right *period* rather than to nothing.
+
+- item:
+
+  Optional item names as the source writes them. Length 1, or the same
+  length as `label`. Only used to apply
+  [polity_label_item_corrections](https://eduaguilera.github.io/whep/reference/polity_label_item_corrections.md),
+  which needs `source` and `year` too.
+
+- country:
+
+  Optional ISO3 code of the country each label belongs to. Length 1, or
+  the same length as `label`. Restricts the name and ISO3 routes to that
+  country's polities.
+
+- back_cast:
+
+  Logical. `TRUE` (the default) keeps aliases upstream marks as
+  reconstructions (`disposition == "back_cast"`); `FALSE` drops them.
+
+- unit, indicator:
+
+  Optional unit and indicator of each row, as the source writes them
+  (e.g. `"tonnes"`, `"ha"`). Length 1, or the same length as `label`.
+  Used to match
+  [polity_label_item_corrections](https://eduaguilera.github.io/whep/reference/polity_label_item_corrections.md)
+  rules scoped on them, and `indicator` also to choose between
+  [polity_label_aliases](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md)
+  rules scoped on it; required for the rows such a rule would otherwise
+  match.
 
 ## Value
 
@@ -123,6 +161,72 @@ are regenerated together from a single upstream revision, and
 `data-raw/table_mappings.R` aborts the build if any alias names a polity
 the shipped table does not carry. A dangling resolution therefore cannot
 ship.
+
+Three more inputs follow contracts `whep-polities` publishes beside the
+alias map:
+
+- **`item`: rows a source files under another territory's label for one
+  item.** An alias has no item dimension, so it cannot say that
+  Mitchell's pre-1910 `"south africa"` sugar cane is Natal's while every
+  other `"south africa"` item of those years is the Cape's.
+  [polity_label_item_corrections](https://eduaguilera.github.io/whep/reference/polity_label_item_corrections.md)
+  states those cases. When `source`, the label, `item` and a year inside
+  the rule's inclusive range all match, the label is replaced by the
+  rule's `correct_label` BEFORE any route below runs, so the usual alias
+  and year rules then place it. Rules do not chain: each is tested
+  against the label the caller passed. A row without a year is never
+  corrected. A corrected row ignores `country`, which named the
+  territory it was misfiled under, and its new label is not read as an
+  ISO3 code, so only the corrected label decides. A rule whose
+  `polity_code` is `"UNROUTED"` marks rows that belong to no polity (a
+  wrong territory with no right one to land on), and those resolve to
+  `NA`. A rule may also be scoped on `unit` or `indicator`, where only
+  that separates the rows: Mitchell's 1955-1960 `"viet nam"` rice output
+  in tonnes is North plus South Vietnam, its area in hectares South
+  only. A scoped rule applies only when the caller's `unit` /
+  `indicator` equals it; a row it would otherwise match but whose scoped
+  value is missing is an error of class
+  `whep_error_unscoped_label_item_correction`, not a silent miss.
+
+- **`country`: the reporting country, as an ISO3 code.** The name route
+  compares normalised names, and normalisation drops parenthesised
+  qualifiers, so a bare subnational name meets another country's unit:
+  `"Santa Cruz (department of Bolivia)"` normalises to `"santa cruz"`,
+  and so does Argentina's province. Given `country`, the name and ISO3
+  routes only consider polities whose `iso3_code` (its code prefix where
+  that is missing) is that country. Without it, a name that live
+  polities of two or more countries carry at the same time – counting a
+  subnational polity's parenthesised qualifier as a name, so Mexico's
+  `"Ciudad de México (Distrito Federal)"` shares `"distrito federal"`
+  with Brazil's – is refused with a warning of class
+  `whep_warn_ambiguous_polity_name` rather than guessed. The refusal
+  holds in every year, not only in years two such polities overlap,
+  because a source can report a unit before its own polity begins: the
+  subnational panel reports Argentina's Santa Cruz from 1900, and with
+  no Argentine polity until 1955 the year alone sent it to Bolivia. The
+  alias route is not restricted: an alias names its polity explicitly.
+
+- **`back_cast`: whether to accept reconstructions.** An alias whose
+  `disposition` is `"back_cast"` routes years a source reconstructs onto
+  a boundary that did not exist yet to the modern polity, which may
+  begin after those years by design (`BRA-TOCANTINS-1988-2025` receives
+  the panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops
+  those aliases, for a caller that wants observation only.
+
+- **`indicator`: aliases split per indicator.** One panel unit id can
+  name two territories: whep-polities \#703 found `CHL-LL`'s crops
+  reported for Los Lagos plus Los Ríos in every year, while its landuse
+  and livestock are Los Lagos alone. The alias map's optional
+  `indicator` column scopes a rule to rows carrying that indicator (`NA`
+  means any). Where a label, source and year carry scoped rules, only
+  the rule for the row's `indicator` applies; an indicator the split
+  leaves out resolves to `NA`, never to the name route, which would put
+  the rows back on the post-split polity; and a row that gives no
+  `indicator` is an error of class
+  `whep_error_unscoped_indicator_alias`. Upstream allows the scope only
+  on the subnational panel's slugs (`"juan-subnational"`,
+  `"whep-lab-*"`), so callers resolving that panel must pass its
+  `indicator` column verbatim.
 
 ## See also
 

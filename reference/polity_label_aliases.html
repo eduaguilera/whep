@@ -68,6 +68,20 @@ is unbounded on that side; both missing means the alias is not year-scoped.</p><
 <li><p><code>confidence</code>: Curator's confidence in the alias.</p></li>
 <li><p><code>observed_rows</code>: Source rows actually observed for the label, <code>NA</code> when the
 label is merely mappable.</p></li>
+<li><p><code>disposition</code>: <code>NA</code> when the source observed the territory, <code>"back_cast"</code>
+when the years are a reconstruction onto a boundary that did not exist yet.
+A <code>"back_cast"</code> alias may begin before its target polity does, by design:
+the polity's own span still starts when the territory did.
+<code><a href="resolve_polity_label.html">resolve_polity_label()</a></code> drops these rules when asked <code>back_cast = FALSE</code>.
+All <code>NA</code> in a snapshot taken before whep-polities introduced the column.</p></li>
+<li><p><code>indicator</code>: <code>NA</code> when the alias applies to every indicator, otherwise the
+one indicator it routes (<code>"area"</code>, <code>"production"</code>, <code>"yield"</code>,
+<code>"livestock_stock"</code> or <code>"landuse"</code>, the subnational panel's own values).
+whep-polities #703 added it so that a panel unit whose id names different
+territories for different indicators can be split; it allows the scope only
+on the panel's slugs. <code><a href="resolve_polity_label.html">resolve_polity_label()</a></code> applies a scoped rule only to
+rows passing that <code>indicator</code>. Absent from a snapshot taken before #703,
+which is read as all <code>NA</code>.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>

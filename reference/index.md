@@ -589,6 +589,8 @@ Add name columns in dataframes from their codes or viceversa.
   : FAOSTAT/FABIO area-to-polity crosswalk
 - [`polity_label_aliases`](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md)
   : Source label to polity aliases
+- [`polity_label_item_corrections`](https://eduaguilera.github.io/whep/reference/polity_label_item_corrections.md)
+  : Source label corrections scoped to one item
 - [`polities_cats`](https://eduaguilera.github.io/whep/reference/polities_cats.md)
   : Polity categories and regional classifications
 - [`regions_full`](https://eduaguilera.github.io/whep/reference/regions_full.md)

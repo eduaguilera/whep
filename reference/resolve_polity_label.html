@@ -65,7 +65,16 @@ for Belize, <code>"ROM"</code> for Romania, <code>"ZAR"</code> for Zaire) and
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">resolve_polity_label</span><span class="op">(</span><span class="va">label</span>, source <span class="op">=</span> <span class="cn">NULL</span>, year <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">resolve_polity_label</span><span class="op">(</span></span>
+<span>  <span class="va">label</span>,</span>
+<span>  source <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  year <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  item <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  country <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  back_cast <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  unit <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  indicator <span class="op">=</span> <span class="cn">NULL</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -92,6 +101,32 @@ and ISO3 routes can still answer without a year, but only for an identifier
 exactly one polity has ever carried, so supplying a year remains much the
 stronger question: it is what lets a label resolve to the right <em>period</em>
 rather than to nothing.</p></dd>
+
+
+<dt id="arg-item">item<a class="anchor" aria-label="anchor" href="#arg-item"></a></dt>
+<dd><p>Optional item names as the source writes them. Length 1, or the
+same length as <code>label</code>. Only used to apply
+<a href="polity_label_item_corrections.html">polity_label_item_corrections</a>, which needs <code>source</code> and <code>year</code> too.</p></dd>
+
+
+<dt id="arg-country">country<a class="anchor" aria-label="anchor" href="#arg-country"></a></dt>
+<dd><p>Optional ISO3 code of the country each label belongs to.
+Length 1, or the same length as <code>label</code>. Restricts the name and ISO3
+routes to that country's polities.</p></dd>
+
+
+<dt id="arg-back-cast">back_cast<a class="anchor" aria-label="anchor" href="#arg-back-cast"></a></dt>
+<dd><p>Logical. <code>TRUE</code> (the default) keeps aliases upstream marks
+as reconstructions (<code>disposition == "back_cast"</code>); <code>FALSE</code> drops them.</p></dd>
+
+
+<dt id="arg-unit-indicator">unit, indicator<a class="anchor" aria-label="anchor" href="#arg-unit-indicator"></a></dt>
+<dd><p>Optional unit and indicator of each row, as the source
+writes them (e.g. <code>"tonnes"</code>, <code>"ha"</code>). Length 1, or the same length as
+<code>label</code>. Used to match <a href="polity_label_item_corrections.html">polity_label_item_corrections</a> rules scoped
+on them, and <code>indicator</code> also to choose between <a href="polity_label_aliases.html">polity_label_aliases</a>
+rules scoped on it; required for the rows such a rule would otherwise
+match.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -146,7 +181,63 @@ and that is an invariant rather than a happy accident: <a href="polity_label_ali
 and <a href="polities.html">polities</a> are regenerated together from a single upstream revision, and
 <code>data-raw/table_mappings.R</code> aborts the build if any alias names a polity the
 shipped table does not carry. A dangling resolution therefore cannot ship.</p>
-    </div>
+<p>Three more inputs follow contracts <code>whep-polities</code> publishes beside the
+alias map:</p><ul><li><p><strong><code>item</code>: rows a source files under another territory's label for one
+item.</strong> An alias has no item dimension, so it cannot say that Mitchell's
+pre-1910 <code>"south africa"</code> sugar cane is Natal's while every other
+<code>"south africa"</code> item of those years is the Cape's.
+<a href="polity_label_item_corrections.html">polity_label_item_corrections</a> states those cases. When <code>source</code>, the
+label, <code>item</code> and a year inside the rule's inclusive range all match, the
+label is replaced by the rule's <code>correct_label</code> BEFORE any route below
+runs, so the usual alias and year rules then place it. Rules do not chain:
+each is tested against the label the caller passed. A row without a year
+is never corrected. A corrected row ignores <code>country</code>, which named the
+territory it was misfiled under, and its new label is not read as an ISO3
+code, so only the corrected label decides. A rule whose <code>polity_code</code> is
+<code>"UNROUTED"</code> marks rows that belong to no polity (a wrong territory with
+no right one to land on), and those resolve to <code>NA</code>. A rule may also be
+scoped on <code>unit</code> or <code>indicator</code>, where only that separates the rows:
+Mitchell's 1955-1960 <code>"viet nam"</code> rice output in tonnes is North plus
+South Vietnam, its area in hectares South only. A scoped rule applies only
+when the caller's <code>unit</code> / <code>indicator</code> equals it; a row it would
+otherwise match but whose scoped value is missing is an error of class
+<code>whep_error_unscoped_label_item_correction</code>, not a silent miss.</p></li>
+<li><p><strong><code>country</code>: the reporting country, as an ISO3 code.</strong> The name route
+compares normalised names, and normalisation drops parenthesised
+qualifiers, so a bare subnational name meets another country's unit:
+<code>"Santa Cruz (department of Bolivia)"</code> normalises to <code>"santa cruz"</code>, and so
+does Argentina's province. Given <code>country</code>, the name and ISO3 routes only
+consider polities whose <code>iso3_code</code> (its code prefix where that is
+missing) is that country. Without it, a name that live polities of two or
+more countries carry at the same time – counting a subnational
+polity's parenthesised qualifier as a name, so
+Mexico's <code>"Ciudad de México (Distrito Federal)"</code> shares
+<code>"distrito federal"</code> with Brazil's – is refused with a warning of class
+<code>whep_warn_ambiguous_polity_name</code> rather than guessed. The refusal holds in
+every year, not only in years two such polities overlap, because a source
+can report a unit before its own polity begins: the subnational panel
+reports Argentina's Santa Cruz from 1900, and with no Argentine polity
+until 1955 the year alone sent it to Bolivia. The alias route is not
+restricted: an alias names its polity explicitly.</p></li>
+<li><p><strong><code>back_cast</code>: whether to accept reconstructions.</strong> An alias whose
+<code>disposition</code> is <code>"back_cast"</code> routes years a source reconstructs onto a
+boundary that did not exist yet to the modern polity, which may begin
+after those years by design (<code>BRA-TOCANTINS-1988-2025</code> receives the
+panel's 1900-1987 Tocantins series). <code>back_cast = FALSE</code> drops those
+aliases, for a caller that wants observation only.</p></li>
+<li><p><strong><code>indicator</code>: aliases split per indicator.</strong> One panel unit id can name
+two territories: whep-polities #703 found <code>CHL-LL</code>'s crops reported for
+Los Lagos plus Los Ríos in every year, while its landuse and livestock are
+Los Lagos alone. The alias map's optional <code>indicator</code> column scopes a rule
+to rows carrying that indicator (<code>NA</code> means any). Where a label, source
+and year carry scoped rules, only the rule for the row's <code>indicator</code>
+applies; an indicator the split leaves out resolves to <code>NA</code>, never to the
+name route, which would put the rows back on the post-split polity; and a
+row that gives no <code>indicator</code> is an error of class
+<code>whep_error_unscoped_indicator_alias</code>. Upstream allows the scope only on
+the subnational panel's slugs (<code>"juan-subnational"</code>, <code>"whep-lab-*"</code>), so
+callers resolving that panel must pass its <code>indicator</code> column verbatim.</p></li>
+</ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="add_polity_code.html">add_polity_code()</a></code> for numeric area codes.</p></div>
