@@ -51,7 +51,9 @@
   ) |>
     dplyr::mutate(
       has_cbs_totals = TRUE,
-      method_items_not_in_cbs = "drop"
+      method_items_not_in_cbs = "drop",
+      unit = "tonnes",
+      method_seed_unit = "target"
     )
 }
 
