@@ -174,7 +174,7 @@ private board”. **That is not what the code does.** Measured:
 - `inst/extdata/whep_inputs.csv` lists **73** pinned inputs, all on a
   single board: a **public, unauthenticated** WebDAV share on CSIC’s
   Nextcloud (`https://saco.csic.es/public.php/dav/...`), read through
-  [`pins::board_url()`](https://rdrr.io/pkg/pins/man/board_url.html).
+  [`pins::board_url()`](https://pins.rstudio.com/reference/board_url.html).
   The board’s `_pins.yaml` answers **HTTP 200 with no credentials**
   (checked 2026-09-10). Anyone can fetch it.
 - **Two** third-party datasets are downloaded on demand from a DOI and
