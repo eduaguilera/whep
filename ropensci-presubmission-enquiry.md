@@ -174,7 +174,7 @@ private board”. **That is not what the code does.** Measured:
 - `inst/extdata/whep_inputs.csv` lists **73** pinned inputs, all on a
   single board: a **public, unauthenticated** WebDAV share on CSIC’s
   Nextcloud (`https://saco.csic.es/public.php/dav/...`), read through
-  [`pins::board_url()`](https://pins.rstudio.com/reference/board_url.html).
+  [`pins::board_url()`](https://rdrr.io/pkg/pins/man/board_url.html).
   The board’s `_pins.yaml` answers **HTTP 200 with no credentials**
   (checked 2026-09-10). Anyone can fetch it.
 - **Two** third-party datasets are downloaded on demand from a DOI and
@@ -802,10 +802,12 @@ Stated so nobody quotes these as settled:
   exported-name collisions with `transx`/`FSK2R`/`cape`, the
   cyclomatic-complexity list — are still \#46’s August figures and may
   have moved.
-- **A local `covr::package_coverage()` figure.** A run was started and
-  did not finish within the session. The 83% cited is Codecov’s number
-  for `main`, produced by the same `covr` run in the `test-coverage`
-  workflow, which is the right number to quote anyway.
+- **A local
+  [`covr::package_coverage()`](http://covr.r-lib.org/reference/package_coverage.md)
+  figure.** A run was started and did not finish within the session. The
+  83% cited is Codecov’s number for `main`, produced by the same `covr`
+  run in the `test-coverage` workflow, which is the right number to
+  quote anyway.
 - **Whether rOpenSci has ever scoped a review to part of a package.**
   The policy text does not say, either way. Question 2 in the enquiry
   asks it directly rather than assuming an answer.

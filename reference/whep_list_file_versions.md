@@ -21,7 +21,7 @@ whep_list_file_versions(file_alias)
 ## Value
 
 A tibble where each row is a version. For details about its format, see
-[`pins::pin_versions()`](https://pins.rstudio.com/reference/pin_versions.html).
+[`pins::pin_versions()`](https://rdrr.io/pkg/pins/man/pin_versions.html).
 
 ## Examples
 
