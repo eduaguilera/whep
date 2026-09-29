@@ -2314,6 +2314,10 @@ utils::globalVariables(
     "unpaired_mcf",
     "paired_bo_mcf",
     "has_pair",
+    # commodity_balance_sheet.R (issue 1237) -- the live animal a dairy /
+    # layer cull is folded onto, and the cull method column
+    "meat_code",
+    "method_cull",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
