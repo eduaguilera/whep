@@ -131,8 +131,8 @@
 #'   `"historical_fill_negative_supply"` under `"report"`); and any negative
 #'   mass that reaches the published balance, from this or any other cause,
 #'   is reported by a separate warning of class `whep_negative_cbs_value`.
-#' @param hist_trade_scale One of `"report"` (default), `"drop"` or
-#'   `"abort"`, selecting what happens when a pre-1961 row of the
+#' @param hist_trade_scale One of `"report"` (default), `"drop"`,
+#'   `"abort"` or `"correct"`, selecting what happens when a pre-1961 row of the
 #'   `historical-trade-*` pins carries a quantity no mass unit can express
 #'   (whep#1085). The screen bounds a single reporter's flow by the largest
 #'   **world** flow FAOSTAT records for the same trade item, summed over
@@ -157,6 +157,29 @@
 #'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
 #'   clamp: the defect is in the pin's producer and no conversion factor
 #'   recovers the true value, so a clamped tonnage would be a fabricated one.
+#'
+#'   `"correct"` judges each flagged row on its own evidence from the two
+#'   pins and repairs only a proven ten-fold slip (whep#1117): a row is
+#'   divided by 10 when that brings it within the world bound, when as
+#'   published it exceeds the whole partner side of the pins (the opposite
+#'   flow of every other reporter, same item and year) but divided by 10 does
+#'   not, and when it sits one power of ten above the clean neighbours of its
+#'   own series within 5 years (the window is assumed, unverified). A row no
+#'   partner books, or still above the partner side after dividing by 10, is
+#'   dropped as not a mass (item 831's signature); every other flagged row is
+#'   dropped as unexplained. No factor other than 10 is ever applied.
+#'   Re-measured on current `main` against FAOSTAT 1961–2023 (the bound a
+#'   1850–2023 build uses), 1,659 rows carrying 3,958.8 Mt are flagged: 175
+#'   rows (1,002.0 Mt as published, 100.2 Mt used) are divided by 10, 1,126
+#'   (2,662.3 Mt) are dropped as not a mass and 358 (294.5 Mt) as
+#'   unexplained; 99.9% of the corrected mass is the USA. On a real
+#'   1950–1960 build it leaves the same 83 negative reconstructed supplies
+#'   (−6.87 Mt) as `"drop"`, against 151 (−1,015.70 Mt) under `"report"`,
+#'   while keeping 103.4 Mt of repaired trade that `"drop"` discards. The
+#'   output of every setting that builds carries a `hist_trade_scale_log`
+#'   attribute (absent with `.fixed_data`): one
+#'   row per flagged pin row, with the published and the used value, the
+#'   evidence (`world_max`, `mirror`, `neighbour`), the class and the action.
 #'
 #'   The warning also carries a second, informational class: rows larger than
 #'   any flow FAOSTAT records for the **same reporter**, item and element.
