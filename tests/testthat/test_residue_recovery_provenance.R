@@ -50,6 +50,9 @@ recovery_omitted <- paste(
   "assumed, unverified; Wirsenius 2000 Tab.3.17 omits the flow",
   "(p.94 default near 1.00)"
 )
+recovery_silent <- paste(
+  "assumed, unverified; no residue flow in Wirsenius 2000 Tab.2.6"
+)
 recovery_no_flow <- paste(
   "assumed, unverified; no residue flow in Wirsenius 2000",
   "(nearest Tab.3.17 grass-legume 0.90)"
@@ -92,17 +95,30 @@ recovery_3_17 <- tibble::tribble(
   "Rapeseed, oil crops",  rep(0.70, 8)
 )
 
-# Categories Table 3.17 does not govern at all. Wirsenius states that recovery
-# rates for the crop flows it omits "were assumed to be close to 100 percent"
-# (p. 94); this table assumes 0 to 0.9 for them instead.
-recovery_omitted_cats <- c(
-  "Roots and Tubers",
-  "Cassava",
+# Categories whose residue Wirsenius models (Table 2.6: cassava leaves and
+# tops, potato tops, oil palm leaves and trunks) but Table 3.17 does not list.
+# For those he states that recovery rates "were assumed to be close to 100
+# percent" (p. 94); the legacy table assumes 0 to 0.9 instead.
+recovery_omitted_cats <- c("Roots and Tubers", "Cassava", "Oil Palm Fruit")
+
+# Categories with no residue flow in the thesis at all: Table 2.6 gives
+# pulses, fruits, tree nuts, vegetables and stimulants "no representation of
+# by-products" (p. 47) and has no castor. The p. 94 default does not reach
+# them (whep#1163). Fodder crops is the fifth, labelled separately.
+recovery_silent_cats <- c(
   "Beans, Dry",
   "Pulses",
-  "Oil Palm Fruit",
   "Castor Beans",
   "Permanent crops"
+)
+
+# The closed vocabulary of the Wirsenius-variant provenance column.
+wirsenius_p94 <- paste(
+  "Wirsenius 2000 p.94 default (close to 100 percent) read as 1.00"
+)
+wirsenius_silent <- paste(
+  "assumed, unverified; no residue flow in Wirsenius 2000 Tab.2.6,",
+  "legacy rate kept"
 )
 
 expand_wirsenius <- function(x, value_col) {
@@ -139,7 +155,13 @@ test_that("both provenance columns use a closed vocabulary", {
   )
   testthat::expect_setequal(
     unique(tbl$source_recovery),
-    c(recovery_tab_3_17, recovery_below, recovery_omitted, recovery_no_flow)
+    c(
+      recovery_tab_3_17,
+      recovery_below,
+      recovery_omitted,
+      recovery_silent,
+      recovery_no_flow
+    )
   )
   # A label describes a crop category, never one region of it.
   labelled <- tbl |>
@@ -219,6 +241,7 @@ test_that("the categories below Table 3.17 are named and really are below", {
 })
 
 test_that("categories Table 3.17 omits are labelled, and sit under 1.00", {
+  # Legacy rates only; the Wirsenius variant is pinned further down.
   tbl <- whep::whep_coef_table("residue_recovery")
   omitted <- dplyr::filter(tbl, source_recovery == recovery_omitted)
   testthat::expect_setequal(
@@ -262,5 +285,64 @@ test_that("every production category has a rate for every region", {
   testthat::expect_setequal(
     setdiff(unique(tbl$cat_krausmann), produced),
     c("Sugar Crops nes", "Oil Palm Fruit")
+  )
+})
+
+test_that("categories with no Wirsenius residue flow are labelled as such", {
+  # whep#1163: these were labelled as governed by the p. 94 default, which
+  # speaks only of flows the thesis models. It models none for them.
+  tbl <- whep::whep_coef_table("residue_recovery")
+  silent <- dplyr::filter(tbl, source_recovery == recovery_silent)
+  testthat::expect_setequal(unique(silent$cat_krausmann), recovery_silent_cats)
+})
+
+test_that("the Wirsenius variant takes every rate the thesis states", {
+  tbl <- whep::whep_coef_table("residue_recovery")
+  testthat::expect_true(rlang::has_name(tbl, "recovery_rates_wirsenius"))
+  testthat::expect_setequal(
+    unique(tbl$source_recovery_wirsenius),
+    c(recovery_tab_3_17, wirsenius_p94, wirsenius_silent)
+  )
+  # All twelve categories Table 3.17 governs, at its value, in every region.
+  governed <- recovery_3_17 |>
+    expand_wirsenius(recovery) |>
+    dplyr::left_join(tbl, by = c("cat_krausmann", "region_krausmann"))
+  testthat::expect_equal(governed$recovery_rates_wirsenius, governed$recovery)
+  testthat::expect_true(
+    all(governed$source_recovery_wirsenius == recovery_tab_3_17)
+  )
+  testthat::expect_setequal(
+    tbl$cat_krausmann[tbl$source_recovery_wirsenius == recovery_tab_3_17],
+    recovery_3_17$cat_krausmann
+  )
+  # The p. 94 default, read as 1.00.
+  p94 <- dplyr::filter(tbl, source_recovery_wirsenius == wirsenius_p94)
+  testthat::expect_setequal(unique(p94$cat_krausmann), recovery_omitted_cats)
+  testthat::expect_true(all(p94$recovery_rates_wirsenius == 1))
+  # Where the source is silent, nothing is invented: the legacy rate stays.
+  kept <- dplyr::filter(tbl, source_recovery_wirsenius == wirsenius_silent)
+  testthat::expect_setequal(
+    unique(kept$cat_krausmann),
+    c(recovery_silent_cats, "Fodder crops")
+  )
+  testthat::expect_equal(kept$recovery_rates_wirsenius, kept$recovery_rates)
+})
+
+test_that("the Wirsenius variant never lowers a rate, and stays in [0, 1]", {
+  tbl <- whep::whep_coef_table("residue_recovery")
+  testthat::expect_true(all(tbl$recovery_rates_wirsenius >= tbl$recovery_rates))
+  testthat::expect_true(all(dplyr::between(tbl$recovery_rates_wirsenius, 0, 1)))
+  # Exactly the three below-source and three p. 94 categories move.
+  moved <- unique(tbl$cat_krausmann[
+    tbl$recovery_rates_wirsenius != tbl$recovery_rates
+  ])
+  testthat::expect_setequal(
+    moved,
+    c(
+      "Groundnuts in Shell",
+      "Sugar Beets",
+      "Sugar Crops nes",
+      recovery_omitted_cats
+    )
   )
 })
