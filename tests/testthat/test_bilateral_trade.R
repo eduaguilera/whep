@@ -11,7 +11,9 @@ testthat::test_that("get_bilateral_trade returns expected structure", {
       "item_cbs_code",
       "bilateral_trade",
       "has_cbs_totals",
-      "method_items_not_in_cbs"
+      "method_items_not_in_cbs",
+      "unit",
+      "method_seed_unit"
     )
   )
   testthat::expect_true(all(result$has_cbs_totals))
@@ -849,9 +851,9 @@ testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
     2010, 750, 20L, 10L, "tonnes", 250
   )
   cbs <- tibble::tribble(
-    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
-    2010, 2511, 10L, 100, 0,
-    2010, 2511, 20L, 0, 100
+    ~year, ~item_cbs_code, ~area_code, ~unit, ~export, ~import,
+    2010, 2511, 10L, "tonnes", 100, 0,
+    2010, 2511, 20L, "tonnes", 0, 100
   )
   codes <- factor(c(10L, 20L))
 
@@ -895,6 +897,7 @@ testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
     )
   cbs <- tidyr::expand_grid(keys, area_code = countries) |>
     dplyr::mutate(
+      unit = "tonnes",
       export = ((area_code + year) %% 5L) * 100 + 50,
       import = ((area_code * 3L + item_cbs_code) %% 7L) * 100 + 50
     )
@@ -1156,6 +1159,18 @@ testthat::test_that(".balance_total_trade rescales larger side", {
 
 # .mass_only_bilateral_trade / .nest_by_year_item_code -------------------------
 
+# One tonnes item (2511) and one live-animal item (1049) whose CBS margins are
+# head counts, as `get_livestock_cbs()` emits them.
+.head_margin_cbs_fixture <- function() {
+  tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~unit,    ~export, ~import,
+    2010,  2511,           10L,        "tonnes", 100,     0,
+    2010,  2511,           20L,        "tonnes", 0,       100,
+    2010,  1049,           10L,        "heads",  5000000, 0,
+    2010,  1049,           20L,        "heads",  0,       5000000,
+  )
+}
+
 testthat::test_that(".mass_only_bilateral_trade drops non-tonnes rows with a warning", {
   btd <- tibble::tribble(
       ~item_cbs_code, ~unit,    ~value,
@@ -1201,14 +1216,14 @@ testthat::test_that(
       2010,  1,              10L,        20L,      "heads",  5000000,
     )
     cbs <- tibble::tribble(
-      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
-      2010,  1,              10L,        100,     0,
-      2010,  1,              20L,        0,       100,
+      ~year, ~item_cbs_code, ~area_code, ~unit,    ~export, ~import,
+      2010,  1,              10L,        "tonnes", 100,     0,
+      2010,  1,              20L,        "tonnes", 0,       100,
     )
     codes <- factor(c(10L, 20L))
 
     testthat::expect_warning(
-      result <- .nest_by_year_item_code(btd, cbs, codes),
+      result <- .nest_by_year_item_code(btd, cbs, codes, "drop", "tonnes"),
       "not denominated in mass"
     )
 
@@ -1233,18 +1248,12 @@ testthat::test_that(
       2010,  2511,           10L,        20L,      "tonnes", 100,
       2010,  1049,           10L,        20L,      "heads",  5000000,
     )
-    cbs <- tibble::tribble(
-      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
-      2010,  2511,           10L,        100,     0,
-      2010,  2511,           20L,        0,       100,
-      2010,  1049,           10L,        5000000, 0,
-      2010,  1049,           20L,        0,       5000000,
-    )
+    cbs <- .head_margin_cbs_fixture()
     codes <- factor(c(10L, 20L))
 
     testthat::expect_warning(
       testthat::expect_warning(
-        result <- .nest_by_year_item_code(btd, cbs, codes),
+        result <- .nest_by_year_item_code(btd, cbs, codes, "drop", "tonnes"),
         "not denominated in mass"
       ),
       "lost every seed cell"
@@ -1254,6 +1263,147 @@ testthat::test_that(
     testthat::expect_equal(result$item_cbs_code, 2511)
   }
 )
+
+# method_seed_unit (whep#1031) -------------------------------------------------
+
+testthat::test_that("the 'target' seed keeps a head-only matrix and labels it in heads", {
+  # The 283 head-only groups of the 20250714 pin: seed and margins are both
+  # head counts, so the observed partner structure must survive.
+  btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+      2010,  2511,           10L,        20L,      "tonnes", 100,
+      2010,  1049,           10L,        20L,      "heads",  5000000,
+    )
+  codes <- factor(c(10L, 20L))
+
+  result <- testthat::expect_no_warning(
+    .nest_by_year_item_code(btd, .head_margin_cbs_fixture(), codes)
+  )
+
+  testthat::expect_equal(result$item_cbs_code, c(2511, 1049))
+  testthat::expect_equal(result$unit, c("tonnes", "heads"))
+  testthat::expect_equal(result$method_seed_unit, c("target", "target"))
+  testthat::expect_equal(sum(result$bilateral_trade[[2]]$value), 5000000)
+})
+
+testthat::test_that("the 'target' seed drops rows in the other unit, loudly", {
+  # From 2014 FAOSTAT reports live animals in both units. The tonnes row of
+  # a head-count matrix is the one that goes, and the head count, not the
+  # sum of the two, is what seeds it.
+  btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+      2010,  2511,           10L,        20L,      "tonnes", 100,
+      2010,  1049,           10L,        20L,      "heads",  5000000,
+      2010,  1049,           10L,        20L,      "tonnes", 2500,
+    )
+  codes <- factor(c(10L, 20L))
+
+  testthat::expect_warning(
+    result <- .nest_by_year_item_code(btd, .head_margin_cbs_fixture(), codes),
+    "not in the unit of the"
+  )
+
+  heads <- dplyr::filter(result, item_cbs_code == 1049)
+  testthat::expect_equal(heads$unit, "heads")
+  testthat::expect_equal(heads$bilateral_trade[[1]]$value, 5000000)
+})
+
+testthat::test_that("a 'tonnes'-seeded matrix balanced onto head counts is labelled heads", {
+  # IPF imposes the margins' level, so whatever seeds it, a matrix
+  # balanced onto head counts holds head counts.
+  btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+      2010,  1049,           10L,        20L,      "heads",  5000000,
+      2010,  1049,           10L,        20L,      "tonnes", 2500,
+    )
+  codes <- factor(c(10L, 20L))
+
+  testthat::expect_warning(
+    nested <- .nest_by_year_item_code(
+      btd,
+      .head_margin_cbs_fixture(),
+      codes,
+      "drop",
+      "tonnes"
+    ),
+    "not denominated in mass"
+  )
+  result <- .process_bilateral_trade(nested, codes)
+
+  heads <- dplyr::filter(result, item_cbs_code == 1049)
+  testthat::expect_equal(heads$unit, "heads")
+  testthat::expect_equal(heads$method_seed_unit, "tonnes")
+  testthat::expect_equal(sum(heads$bilateral_trade[[1]]), 5000000)
+})
+
+testthat::test_that("the two seed methods agree on every tonnes matrix", {
+  fixture <- .worker_invariance_fixture()
+  run <- function(seed_method) {
+    fixture$btd |>
+      .nest_by_year_item_code(
+        fixture$cbs,
+        fixture$codes,
+        "drop",
+        seed_method
+      ) |>
+      .process_bilateral_trade(fixture$codes) |>
+      dplyr::select(-method_seed_unit)
+  }
+
+  testthat::expect_identical(run("target"), run("tonnes"))
+})
+
+testthat::test_that("an unanchored 'keep' matrix is seeded and labelled tonnes", {
+  btd <- tibble::tribble(
+    ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+    2010,  2511,           10L,        20L,      "tonnes", 100,
+    2010,  750,            10L,        20L,      "tonnes", 750,
+    2010,  750,            20L,        10L,      "heads",  9e6,
+  )
+  codes <- factor(c(10L, 20L))
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      result <- .nest_by_year_item_code(
+        btd,
+        dplyr::filter(.head_margin_cbs_fixture(), item_cbs_code == 2511),
+        codes,
+        "keep"
+      ),
+      "no commodity balance"
+    ),
+    "not in the unit of the"
+  )
+
+  kept <- dplyr::filter(result, item_cbs_code == 750)
+  testthat::expect_false(kept$has_cbs_totals)
+  testthat::expect_equal(kept$unit, "tonnes")
+  testthat::expect_equal(kept$bilateral_trade[[1]]$value, 750)
+})
+
+testthat::test_that("the seed refuses CBS margins it cannot read a unit from", {
+  btd <- tibble::tribble(
+    ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+    2010,  2511,           10L,        20L,      "tonnes", 100,
+  )
+  codes <- factor(c(10L, 20L))
+  unlabelled <- dplyr::select(.head_margin_cbs_fixture(), -unit)
+  mixed <- .head_margin_cbs_fixture() |>
+    dplyr::mutate(unit = c("tonnes", "heads", "heads", "heads"))
+
+  testthat::expect_error(
+    .nest_by_year_item_code(btd, unlabelled, codes),
+    "no .*unit.* column"
+  )
+  testthat::expect_error(.nest_by_year_item_code(btd, mixed, codes))
+})
+
+testthat::test_that("get_bilateral_trade rejects an unknown seed method", {
+  testthat::expect_error(
+    get_bilateral_trade(method_seed_unit = "liveweight"),
+    class = "rlang_error"
+  )
+})
 
 # .match_btd_item_codes / .clean_bilateral_trade -------------------------------
 

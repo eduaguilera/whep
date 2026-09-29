@@ -21,7 +21,7 @@ WHEP's Leontief footprint engine is generic and already more rigorous than its p
 **Concrete steps in WHEP:**
 
   1. Add build_livestock_ghg_extension(year) in R/footprint_inputs.R that calls build_primary_production() to get heads by (area_code, item_cbs_code).
-  1. Pipe heads through prepare_livestock_emissions() (R/livestock_bridge.R) then calculate_livestock_emissions(tier = 2) with a tier = 1 fallback exposed via a method arg per the multi-method convention in CLAUDE.md.
+  1. Pipe heads through prepare_livestock_emissions() (R/livestock_bridge.R) then calculate_livestock_emissions(tier = 2) with a tier = 1 fallback exposed via a method arg per the multi-method convention in AGENTS.md.
   1. Aggregate cohort-level enteric_ch4_tier2 + manure_ch4_tier2 + manure_n2o_total back to (area_code, item_cbs_code), applying an IPCC AR6 GWP100 lookup (CH4 = 27.9, N2O = 273) to sum to kg CO2e per sector.
   1. Right-join to the IO model labels tibble to produce a numeric extensions vector aligned to (area_code, item_cbs_code) row order; tag output with extension_scope = 'ghg_livestock_co2e'.
   1. Add a crop/soil GHG counterpart later (currently absent entirely); start with livestock since the pipeline is ready.

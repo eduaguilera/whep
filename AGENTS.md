@@ -1,4 +1,4 @@
-# CLAUDE.md — WHEP Package
+# AGENTS.md — WHEP Package
 
 WHEP is an R package (~140 scripts in `R/`, ~70k lines, 290 documented topics)
 that builds agro-environmental data: FAOSTAT/LUH2 primary production,
@@ -107,61 +107,12 @@ decision.
 - Cite in the roxygen `@description` or a code comment at the point of use,
   not only in the PR body, which nobody reads a year later.
 
-### Labels — the triage surface
+### Labels
 
-Labels are how the maintainer decides at a glance what can be batch-merged and
-what needs a domain expert. Label **every** issue extensively:
-
-- **Triage axis (required, exactly one)**: `mechanical` or `needs-expert`.
-  Reference-value and coefficient changes are always `needs-expert`, even at
-  one line. Infra, packaging, CRAN, docs, testing, and pure crash/identity
-  fixes are `mechanical`. When in doubt, `needs-expert`.
-- **Subsystem** (one or more, where applicable): `area:cbs`,
-  `area:production`, `area:livestock`, `area:trade`, `area:footprint`,
-  `area:nitrogen`, `area:soc`, `area:gapfilling`, `area:lmdi-decomp`,
-  `area:data-io`, `area:spatialize`, `area:regions`, plus cross-cutting
-  `fabio`, `lpjml`, `footprint-extension`. Cross-cutting infra/meta issues
-  legitimately carry none — do not force one.
-- **Type**: `bug` / `enhancement` / `documentation` / `dev-infra` /
-  `testing` / `release`.
-- **Priority**: a `priority:*` label.
-
-Apply the full set when opening an issue; backfill missing labels when you
-touch an old one.
-
-**A missing axis or an understated priority makes a real defect invisible.**
-The 2026-08-27 sweep found ~15 issues with no triage axis at all, and one that
-sat at `priority:low` for months while describing a coefficient table that is
-live in the Tier 2 emissions path — it was then rediscovered four times by
-work that could not see it. Priority is not a guess at effort; it is what
-decides whether anyone looks. If an issue describes something that moves a
-published number today, it is not `priority:low`, however small the diff.
-
-PRs do not need the labels duplicated when they close an already-labelled
+Issue/PR labelling conventions (triage axis, subsystem, type, priority,
+plus the three contributor-facing labels) moved to
+`agent-reference/issue-labels.md`. Read it before opening or labelling an
 issue.
-
-#### Contributor-facing labels
-
-Three further labels exist for people outside the team, who pick work by them.
-Guidelines live in `.github/CONTRIBUTING.md` (that path keeps them out of the
-package build — `^\.github$` is in `.Rbuildignore`).
-
-- **`good first issue`** + **`help wanted`**: small, self-contained and
-  precisely specified. **Verify the defect still exists in current code before
-  applying it.** Several audit-era issues had already been fixed by a later
-  commit while the issue stayed open; sending a newcomer to one of those is
-  worse than leaving it unlabelled.
-- **`no-data-needed`**: the issue can be reproduced, fixed **and verified**
-  using only a clone. Package data (`data/*.rda`, `inst/extdata/`), hand-built
-  `tribble()` fixtures and injected arguments all count as available; pins,
-  `WHEP_*_DIR` rasters and any network read do not.
-
-`no-data-needed` exists because the data barrier, not the science, is what
-usually blocks an outside contributor: the test suite is fully offline, but a
-real pipeline build needs inputs that cannot be handed out. Two rules keep it
-worth having — apply it only after checking the verification path really is
-offline, and never apply it to code that is not on `main` (work living on an
-unmerged feature branch cannot be picked up from a fresh clone).
 
 ### Writing a PR or issue body
 
@@ -224,87 +175,19 @@ rcmdcheck::rcmdcheck(
 lintr::lint_package()   # linters and exclusions come from .lintr
 ```
 
-Gotchas worth knowing before losing an hour:
-
-- `WHEP_*` paths belong in `~/.Renviron` and are read from there. Do **not**
-  add a `.Renviron` at the repo root: R reads a working-directory `.Renviron`
-  *instead of* `~/.Renviron`, never both, so one here silently hides every
-  `WHEP_*` path an R session started at the root would otherwise see. That was
-  #456, fixed by moving `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron`
-  into the R-CMD-check workflow env and `.Rprofile`.
-- `.Rprofile` has the same shape and the same trap: R reads the
-  working-directory one *instead of* `~/.Rprofile`. The repo profile therefore
-  **chain-sources the user profile first**, and must keep doing so. That line
-  is not cosmetic: `r-lib/actions/setup-r` delivers `use-public-rspm: true` by
-  writing the RSPM `repos` option into `~/.Rprofile`, so while it was shadowed
-  every cold dependency install on ubuntu built all 141 packages from source
-  instead of taking Linux binaries (#1102).
-- Long pipeline builds are minutes-to-hours and read pins or multi-GB local
-  rasters. Never put one in a test or an example; use the
-  [`example = FALSE` fixture pattern](#documentation).
-- `validation/` holds the ground-truth harness (`Rscript
-  validation/validate_all.R`) — it compares real WHEP output against
-  independent statistics. It **needs network and external data**, is
-  `.Rbuildignore`d, and is not part of `R CMD check`. Run it when a change
-  moves published numbers; see `validation/README.md` and
-  `validation/SOURCES.md`.
+Gotchas worth knowing before losing an hour
+(`.Renviron`/`.Rprofile` shadowing, long pipeline builds, `validation/`)
+moved to `agent-reference/build-verification-notes.md`. Read it before
+debugging an env var or profile that "should" be set.
 
 ## Conventions that are easy to get wrong
 
 ### Area codes and polity columns
 
-There are **three** territorial columns, they do three different jobs, and
-using one for another job silently misattributes data:
-
-- `reporting_polity_code` — **the identity.** The polity itself
-  (`"ESP-1846-1914"`), year-aware: the same `area_code` resolves to different
-  polities in different years. This is what says which territory a row is
-  about, and it is the column a published output must carry.
-- `polity_area_code` — **the aggregation key.** `coalesce(fabio_code,
-  area_code)`: FABIO's country numbering, adopted so WHEP's builds sum on the
-  same grain FABIO does. It is a *bucket, not an identity* — several reporting
-  areas can share one. Legitimate in a `by =`; never a statement about who a
-  row is.
-- `area_code` — **the provenance.** The FAOSTAT-style area key the source
-  used. Belongs at ingestion; it is not an identity either, because FAOSTAT
-  retires and re-cuts codes as history happens.
-
-The bucket is **not** required by the input-output model: `build_io_model()`
-sizes each year's matrix from that year's own areas
-(`.get_io_dims(su, cbs_yr)`), so every year is solved independently and no
-fixed country list is needed. The folding is inherited FABIO numbering, and
-almost all of it is gone — the Rest-of-World fold was removed in #628 and is
-un-folded by default. Measured live through `.polity_crosswalk()`, exactly
-three area codes still fold into a different bucket (276 and 277 into 206,
-62 into 238), and `polity_bucket_coverage()` reports **one** bucket summing
-two live territories: 206, Sudan and South Sudan, from 2012. Un-folding it is
-#680.
-
-#### A published row is a polity-period
-
-**Decided 2026-09-22 (#1192).** One published row answers for the entity that
-existed that year, not for a reporting area across all time. A territorial
-handover is a real discontinuity and the series steps at it.
-
-The comparable-across-time view is **derived, not the default**: call the
-exported `build_constant_territory_series()`, which reallocates onto a
-reference year's boundaries and reports `imputed_share` so the estimate says
-how much of itself was filled in.
-
-This matters at every reduction, because a `by =` answers it implicitly. 50
-area codes carry more than one polity in or after 1961 (119 across all time),
-overwhelmingly decolonisation handovers — area 4 Algeria splits at 1962, 7
-Angola at 1975, 16 Bangladesh at 1971. Grouping on the polity splits those
-series; grouping on the area does not.
-
-**Verify such a change by row and distinct-key counts, never by totals.**
-Mass is conserved either way — it just spreads over more rows — so a totals
-diff reads as success. That is exactly how #561/#563 shipped a bucket that
-stopped summing without one value moving.
-
-`R/polity_columns_doc.R` documents these once; inherit that section instead of
-writing a fresh, subtly different description. Rows that resolve to no polity
-keep `NA` rather than being dropped, so gaps stay visible.
+Why `reporting_polity_code`, `polity_area_code` and `area_code` are not
+interchangeable, and the polity-period convention, moved to
+`agent-reference/area-codes-and-polities.md`. Read it before grouping,
+joining or reducing on any of them.
 
 ### Join on codes, never on names
 
@@ -406,26 +289,9 @@ count.
 
 ### NSE globals
 
-Every NSE symbol must be declared in the `utils::globalVariables()` call at
-the top of `R/utils.R` or `R CMD check` NOTEs — and the CI action fails on
-warnings and above, never on notes, so an undeclared symbol merges green.
-That is how #1114 shipped `predecessor` and `reporting_polity_code`
-undeclared, and why #1135 had to be opened after it.
-`tests/testthat/test_utils.R` now runs the same scan `R CMD check` runs, with
-the same settings, and **fails** on it, naming the symbol, its file and its
-lines.
-
-The call is ~2000 entries long: **append** a small block at the end, above
-the `NULL` sentinel, preceded by a comment naming the file and what the
-symbols are for, following the existing pattern. Do not reorder or
-alphabetise it — the file-grouped comments are the only thing making it
-reviewable.
-
-The file must contain **nothing but** that one call, and the list must keep
-ending in `NULL`. Both are preconditions of the `merge=union` entry the next
-section explains, and the same test file asserts them: without the sentinel,
-two branches each appending a block merge into `"last of A"` followed by
-`"first of B"` with no comma between — a syntax error, introduced silently.
+The `utils::globalVariables()` append procedure moved to
+`agent-reference/merge-and-globals.md`. Read it before declaring a new
+NSE symbol.
 
 ### data.table inside private helpers
 
@@ -475,37 +341,9 @@ Three distinct mechanisms, and picking the wrong one is a design error:
 
 #### Fixing the reader is half the job: the pin it feeds is now stale
 
-A pin is a **frozen output of code in this repository**. So whenever a change
-alters what a producer function emits, the pin that function made is wrong
-from that moment, and **the fix moves no published number until the pin is
-regenerated and re-uploaded**. A merged PR whose effect is still sitting
-behind a stale pin is not done; it is latent.
-
-This is not hypothetical. whep#1092 restored FAOSTAT's `1000 Head` live-animal
-trade -- 76.1 billion head of poultry the reader had been dropping. The reader
-fix merged as PR #1113 and changed nothing anyone can see, because
-`build_detailed_trade()` is the `bilateral_trade` **producer** and has no
-caller in `R/`: every published figure still comes from the pin built by the
-old, filtering reader.
-
-So when you touch a producer:
-
-1. **Say so in the PR body**, explicitly: name the pin, and state that the
-   change is latent until it is regenerated. "No published value changes" is
-   the right measurement and the wrong conclusion if the reason is a stale pin
-   -- distinguish "this genuinely moves nothing" from "this moves nothing
-   *yet*".
-2. **Open a follow-up issue for the regeneration** if you cannot do it in the
-   PR, and link it. Regenerating usually needs board credentials and a long
-   run, so it is legitimately separate work -- but it must be tracked, not
-   assumed.
-3. **Check whether the function you changed is a producer at all.** `git grep`
-   its name across `R/`: no caller outside `inst/scripts/` is the signature of
-   one.
-
-The LPJmL-derived pins carry an extra constraint -- regenerate all four
-together, from one run, via `regenerate_whep_lpjml_pins()`. See the data
-pipeline section.
+Moved to `agent-reference/data-pipeline.md`. Read it before or after
+changing a producer function — the fix does not move a published number
+until the pin it feeds is regenerated.
 
 ### NEWS.md — do not edit it per PR
 
@@ -530,32 +368,9 @@ flag it for the release notes there.
 
 ### Generated and append-only files — regenerate, never hand-merge
 
-`.gitattributes` writes down the deterministic resolution for the tracked
-files that unrelated branches collide on by construction, so it is not
-rediscovered per merge. Over the 30 days to 2026-09-16, of 608 commits on
-`main`, **52** touched `R/utils.R`, **37** `NAMESPACE` and **22**
-`data/whep_inputs.rda` — the last of those conflicts unconditionally, because
-git cannot merge a binary at all.
-
-- **`R/utils.R`** — `merge=union`, so two appended blocks both survive. That
-  is always the right answer for an allowlist of strings: order carries no
-  meaning, `globalVariables()` drops duplicates, and each side keeps its own
-  comment header. Its two preconditions are in
-  [NSE globals](#nse-globals).
-- **`NAMESPACE` and `man/`** — roxygen output. Never hand-merge either: take
-  one side and re-run `devtools::document()`, which regenerates both from
-  `R/`. `NAMESPACE` also carries `merge=union` so the common case — two
-  branches each adding an export — resolves itself, and the `document()` run
-  that *Before committing* requires anyway puts the block back in sorted
-  order.
-- **`data/*.rda`** — marked `binary`, so git leaves the conflict for a human
-  instead of half-merging it. Resolve the **source** — the CSV under
-  `inst/extdata/harmonization/`, or `inst/extdata/whep_inputs.csv` — then
-  re-run the builder from
-  [Package data updates](#package-data-updates). Never pick a side of the
-  `.rda` itself: `tests/testthat/test_data_raw_freshness.R` fails when a
-  table stops matching its own source, and that gate is the only thing
-  standing between a lazy resolution and a pin version going missing unseen.
+The per-file merge-conflict rules for `R/utils.R`, `NAMESPACE`, `man/` and
+`data/*.rda` moved to `agent-reference/merge-and-globals.md`. Read it
+before resolving a conflict in any of them.
 
 ### File naming
 
@@ -732,26 +547,10 @@ rcmdcheck::rcmdcheck(
 devtools::test()
 ```
 
-### There are three verification surfaces and they disagree
-
-A green `devtools::test()` does **not** mean a green CI. Three layouts exist:
-
-1. **Source checkout** — what `devtools::test()` runs. `.Rprofile` calls
-   `devtools::load_all()`, which pre-attaches every package data object, and
-   `inst/` is present.
-2. **`R CMD INSTALL .`** — installs `inst/` **wholesale**, ignoring
-   `.Rbuildignore`.
-3. **Built tarball** — what `R CMD check`, r-universe and CRAN run.
-   `.Rbuildignore` applies, so `^inst/scripts$`, `^validation$` and `data-raw`
-   are simply **absent**.
-
-Only (3) is what CI runs, and each surface has shipped a real failure the
-others could not see: a data fingerprint that hashed 55 of 100 objects because
-`load_all()` had already attached them; a test that "passed" under `INSTALL`
-while its script was `.Rbuildignore`d out of the tarball; an assertion that
-failed only because CI resolves a newer dplyr. If a change touches
-`utils::data()`, package data, a lazy-loaded object or anything under `inst/`,
-verify on the tarball before claiming it is green.
+Why a green `devtools::test()` is not a green CI — the three build
+layouts and how they disagree — moved to
+`agent-reference/build-verification-notes.md`. Read it if a change
+touches package data, a lazy-loaded object or anything under `inst/`.
 
 ```bash
 # 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml
@@ -773,117 +572,46 @@ survives, so the issue can be rescoped rather than closed by accident.
 
 ## Data pipeline
 
-- **Primary production**: `build_primary_production()` — FAOSTAT + LUH2
-  extension (1850–2023).
-- **CBS**: `build_commodity_balances()` — long format output with `source` and
-  `fao_flag` columns.
-- **Processing coefficients**: `build_processing_coefs()` — cascades from CBS.
-- **Soil water balance**: `build_water_balance()` — gridded (0.5° cell ×
-  polity) annual water budget from LPJmL hydrology (drainage for N leaching);
-  `get_soc_climate_drivers()` emits the monthly SOC climate drivers.
-- **Soil carbon (SOC)**: `build_carbon_balance()` — historical gridded SOC
-  dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding
-  ΔSOC → ΔSON. `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg",
-  "century"))` wraps the five SOC models (default `"hsoc"`);
-  `build_soil_carbon_inputs()` assembles humified C inputs.
-- **Soil nitrogen balance**: `build_nitrogen_balance()` — full gridded N
-  balance (inputs − outputs, NUE indicators, GWP/CO2e). `build_n_inputs()`
-  assembles the input terms; `calculate_nh3()` / `calculate_soil_n2o()` /
-  `calculate_n_leaching()` are the selectable loss methods;
-  `build_n_deposition()` / `build_urban_n()` read gridded deposition and
-  urban/human N.
-- **Footprints**: `build_footprint()` over the FABIO-style IO core
-  (`build_io_model()`, `leontief.R`), with extensions wired per stressor
-  (`crop_land_extension.R`, `grassland_land_extension.R`,
-  `livestock_ghg_extension.R`, `energy_co2_extension.R`,
-  `crop_soil_n2o_extension.R`, `n_exceedance_extension.R`). Conservation
-  checks live in `R/conservation.R` — a footprint change should exercise them.
-- **Source labels**: use dataset-specific names (`FAOSTAT_prod`,
-  `FAOSTAT_FBS_New`, etc.).
-- **New data sources**: see [Where input data comes
-  from](#where-input-data-comes-from) for which of the three mechanisms to
-  use.
-- **LPJmL outputs are the one input a user cannot obtain**, so unlike the
-  third-party rasters they are **pinned, and `WHEP_LPJML_RUN_DIR` is
-  optional**. `build_grass_natural_carbon_inputs()` reads
-  `lpjml-grass-natural-net-c` and `get_soc_climate_drivers()` reads
-  `lpjml-soc-hydrology` by default; set the env var (or pass `run_dir`) only
-  to derive those layers from a local run instead. Both artifacts hold **only**
-  LPJmL-derived quantities — grazing excreta, humification fractions, CRU air
-  temperature and the HWSD texture products are always computed locally, so
-  the pinned and run-derived paths cannot silently disagree.
-- **Regenerate the LPJmL-derived pins together, from one run.** Four pins carry
-  LPJmL model *output* — `lpjml-grass-availability`,
-  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
-  `lpjml-soc-hydrology`. Use the single entry point
-  `regenerate_whep_lpjml_pins()` in the `~/whep_inputs` project: dry-run by
-  default (it prints a manifest plus the change against each pin it would
-  replace), `upload = TRUE` to publish. Refreshing only some of them leaves
-  WHEP mixing two LPJmL versions across its feed, soil-carbon and water chains
-  at once — worse than consistently using either version, and invisible
-  downstream because every pin still loads with the right schema. The six
-  `lpjml-wind-*` / `lpjml-rsds-*` / `lpjml-rlds-*` pins are climate **forcing**
-  (they feed *into* LPJmL, so they do not change with the model version) and
-  must never go through that path; they come from
-  `inst/scripts/prepare_spatialize_all.R`.
-- **LPJmL output variable names are version-dependent.** 6.x renames some
-  outputs to their CF short names — `mprec.nc` holds `pr` where 5.x held
-  `prec`. Readers resolve the name against what the file actually contains
-  (`.hydro_var_aliases()`), because a run directory carries no version stamp
-  and both versions' output can sit side by side on one machine. Add the next
-  rename there; the reader aborts listing the file's actual variables rather
-  than failing on a `NULL` lookup.
+The function catalogue (primary production, CBS, soil water/carbon/
+nitrogen, footprints, LPJmL pins) moved to
+`agent-reference/data-pipeline.md`. Read it before touching a pipeline
+stage or a pin.
 
 ## Package data updates
 
-When modifying CSV files in `inst/extdata/harmonization/`:
-
-1. Edit the CSV.
-2. Run `Rscript data-raw/harmonization_tables.R` to rebuild `.rda` files.
-3. Run `Rscript data-raw/table_mappings.R` if `regions.csv` or `items_*.csv`
-   changed.
-4. Run `Rscript data-raw/whep_inputs.R` if `whep_inputs.csv` changed.
-
-Skipping the rebuild is a defect, not an omission: `data/*.rda` is a committed
-build product, so an edited CSV that was never rebuilt ships a table
-disagreeing with its own source, and it looks exactly like a fresh one
-(#384 — that is how `regions_full` came to resolve eight areas to polities
-upstream had retired). `tests/testthat/test_data_raw_freshness.R` is the gate.
-It re-runs every builder whose inputs live inside the repo, with the
-`usethis::use_data()` calls stripped so nothing is written, and compares each
-rebuilt object with the committed `.rda` by content. It covers 49 of the 56
-tables; the seven it cannot rebuild (the whep-polities GeoPackage, the Coello
-CSV, the GLEAM workbook) are listed there with the input that blocks each one,
-and the list is asserted to be exactly the complement, so a new dataset cannot
-arrive both unchecked and unexcluded.
+The CSV-edit / rebuild procedure for `inst/extdata/harmonization/` moved
+to `agent-reference/data-pipeline.md`. Read it before or after editing a
+harmonization CSV.
 
 ## This is the only agent instruction file
 
 The repo used to carry per-tool copies of these rules
 (`.github/copilot-instructions.md`, `.agent/rules/whep.md`). They drifted —
 one still forbade `data.table`, which the package now Imports — so they were
-deleted.
+deleted in favour of a single `CLAUDE.md` with a byte-identical `AGENTS.md`
+copy, kept in step by a CI check. That copy existed only because not every
+agent read `AGENTS.md`; now that they do, the copy is gone and `AGENTS.md`
+is the one file.
 
-`CLAUDE.md` is the source of truth. If a tool needs a different filename,
-give it a **byte-identical copy** and keep it in step:
+`AGENTS.md` is the source of truth. Claude Code (>= 2.1.277), Codex and
+Copilot all read `AGENTS.md` directly — no per-tool copy is needed for any of
+them, and none should exist. Tools that look for another name by default can
+usually be configured to read `AGENTS.md` (for example Gemini CLI's
+`contextFileName` setting).
 
-```bash
-cp CLAUDE.md AGENTS.md   # after editing CLAUDE.md
-```
-
-`AGENTS.md` already exists as one. Add new names to `.Rbuildignore` too, or
-`R CMD check --as-cran` reports a non-standard file at top level.
-
-**Not a symlink.** Git for Windows only materialises symlinks when
-`core.symlinks` is true, which needs Developer Mode or admin rights; with it
-false the file is checked out as plain text containing the target path, so a
-tool would read the nine bytes `CLAUDE.md` instead of these rules — silently,
-and invisibly to a Linux-only CI job.
+**Not a symlink, and not a copy either.** A symlinked or copied per-tool file
+was the earlier failure mode: Git for Windows only materialises symlinks when
+`core.symlinks` is true, which needs Developer Mode or admin rights, so a
+symlink risks silently checking out as plain text containing the target path
+instead of the rules; a copy risks silently drifting from the file it was
+copied from. One canonical file that every tool reads natively removes both
+risks at once.
 
 This is enforced, not merely asked for:
-`.github/workflows/agent-instructions.yaml` fails the build if any known
-agent-instruction filename is present and is not byte-identical to
-`CLAUDE.md`. If your tool wants a name it does not list, add the name to its
-`candidates` list — do not start a second source of truth. If your tool looks
-for a name that workflow does not list, add the name to its `candidates` list
-and symlink it — do not start a second source of truth.
+`.github/workflows/agent-instructions.yaml` fails the build if `AGENTS.md` is
+missing, or if any other known agent-instruction filename (`CLAUDE.md`,
+`.github/copilot-instructions.md`, `.agent/rules/whep.md`, etc.) is present at
+all. If your tool looks for a name that workflow does not list and reads
+`AGENTS.md` natively, there is nothing to add. If your tool cannot be pointed
+at `AGENTS.md`, raise it before adding a copy — do not start a second source
+of truth.

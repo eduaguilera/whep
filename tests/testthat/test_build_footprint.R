@@ -225,3 +225,74 @@ testthat::test_that("an extension that reaches every year is silent", {
   )
   testthat::expect_no_warning(whep::build_footprint(extension, io = io))
 })
+
+# whep#181: a row whose year, area or item code is NA matches no sector label,
+# so align_extension() used to drop it, and its magnitude, with no message.
+
+testthat::test_that("a NA-coded extension row used to vanish from the vector", {
+  # The mechanism the guard closes, on the unguarded join: 40 of 45 units
+  # carry a NA code and match nothing, so only 5 reach the model.
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L,         10L,            5,
+    2000L, NA,         10L,            25,
+    2000L, 1L,         NA,             15
+  )
+  reached <- extension |>
+    dplyr::summarise(
+      value = sum(impact_u),
+      .by = c(area_code, item_cbs_code)
+    ) |>
+    dplyr::right_join(.fp_labels(), by = c("area_code", "item_cbs_code"))
+  testthat::expect_equal(sum(reached$value, na.rm = TRUE), 5)
+})
+
+testthat::test_that("align_extension refuses NA year, area or item codes", {
+  good <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = 10L,
+    impact_u = 5
+  )
+  purrr::walk(c("year", "area_code", "item_cbs_code"), function(col) {
+    bad <- dplyr::bind_rows(good, dplyr::mutate(good, "{col}" := NA))
+    testthat::expect_error(
+      whep::align_extension(bad, .fp_labels(), 2000L),
+      class = "whep_error_schema_violation"
+    )
+    testthat::expect_error(
+      whep::build_footprint(bad, io = .fp_io()),
+      class = "whep_error_schema_violation"
+    )
+  })
+})
+
+testthat::test_that("align_extension still accepts a NA magnitude", {
+  # A NA value is an absent-input question (whep#1034), not a key defect.
+  extension <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = c(10L, 10L),
+    impact_u = c(5, NA)
+  )
+  testthat::expect_equal(
+    whep::align_extension(extension, .fp_labels(), 2000L),
+    c(5, 0)
+  )
+})
+
+testthat::test_that("align_extension's column checks carry the schema class", {
+  extension <- tibble::tibble(year = 2000L, area_code = 1L, impact_u = 5)
+  testthat::expect_error(
+    whep::align_extension(extension, .fp_labels(), 2000L),
+    class = "whep_error_schema_violation"
+  )
+  testthat::expect_error(
+    whep::align_extension(
+      dplyr::mutate(extension, item_cbs_code = 10L),
+      dplyr::select(.fp_labels(), -index),
+      2000L
+    ),
+    class = "whep_error_schema_violation"
+  )
+})

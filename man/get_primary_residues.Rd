@@ -30,8 +30,21 @@ this can be three different items right now:
 
 These are actually not FAOSTAT defined items, but custom defined by us.
 When necessary, FAOSTAT codes are extended for our needs.
-\item \code{value}: The amount of residue produced, measured in tonnes.
+\item \code{value}: The amount of residue produced, in tonnes of \strong{fresh matter},
+like every other commodity-balance quantity.
+\item \code{value_dm}: The same residue in tonnes of \strong{dry matter}: each crop's
+fresh residue times its own residue dry-matter content,
+\code{Residue_kgDM_kgFM} in \link{biomass_coefs}, summed per row. \code{NA} where a
+crop with residue mass carries no such coefficient, so the gap stays
+visible rather than reading as zero.
 }
+
+The pin's residue quantities are fresh matter. Across its crops the ratio of
+pinned residue to product tracks the fresh-matter residue:product ratio
+\code{kg_residue_kg_product_FM} of \link{biomass_coefs} (about 0.8 of it for nearly
+every crop), not the residue's dry-matter content, which runs from 0.13
+(tomato) to 1.0 (rapeseed) (whep#1215). Use \code{value_dm} wherever a quantity
+is defined per unit of dry matter, such as a residue nitrogen content.
 }
 \description{
 Get type and amount of residue produced for each crop production item.

@@ -1,15 +1,16 @@
 # Historical gridded soil-organic-carbon balance (Module B, Task B2a-3). Ports
-# the Spain_Hist SOC trajectory (R/SOC_Fun.R: Calc_equilibrium :220-233,
-# Calc_SOC_evolution :315-418) to the WHEP cell x polity grain. The selected
-# SOC turnover model (calculate_soc_dynamics()) is run to steady state under the
-# first-year per-land-use carbon inputs to set per-class equilibrium densities;
-# each class then opens either at its own equilibrium (the default) or at the
-# fraction-weighted cell mean of them, the Spain_Hist behaviour -- see
-# `.cb_init_density()`, which records what that choice costs on each side;
-# then stocks march forward year by year applying the
-# model's annual mineralization-minus-input update and a land-use-change carbon
-# transfer that conserves total cell carbon. Soil-organic-nitrogen change is
-# derived from the annual carbon rate via the asymmetric soil C:N ratios.
+# the SOC trajectory of an earlier regional historical reconstruction (its
+# equilibrium and year-by-year evolution steps) to the WHEP cell x polity
+# grain. The selected SOC turnover model (calculate_soc_dynamics()) is run to
+# steady state under the first-year per-land-use carbon inputs to set
+# per-class equilibrium densities; each class then opens either at its own
+# equilibrium (the default) or at the fraction-weighted cell mean of them, the
+# source implementation's behaviour -- see `.cb_init_density()`, which records
+# what that choice costs on each side; then stocks march forward year by year
+# applying the model's annual mineralization-minus-input update and a
+# land-use-change carbon transfer that conserves total cell carbon.
+# Soil-organic-nitrogen change is derived from the annual carbon rate via the
+# asymmetric soil C:N ratios.
 
 #' Build the historical gridded soil-organic-carbon balance.
 #'
@@ -44,8 +45,9 @@
 #'   balance would otherwise report as soil nitrogen mineralization, at the
 #'   cost of opening cropland at roughly a third of the carbon measured in
 #'   those soils. \code{"cell_average"} starts every class in a cell at the
-#'   fraction-weighted mean of the classes sharing it, the Spain historical
-#'   behaviour: it opens cropland near its observed stock, as a proxy for the
+#'   fraction-weighted mean of the classes sharing it, the behaviour of the
+#'   earlier regional historical reconstruction this balance is ported from:
+#'   it opens cropland near its observed stock, as a proxy for the
 #'   legacy carbon of the vegetation it replaced, at the cost of then draining
 #'   that stock toward an equilibrium whep#799 puts several-fold too low.
 #'   Recorded in \code{method_soc_init}.
@@ -341,7 +343,7 @@
 #'   (2018). A historical perspective on soil organic carbon in Mediterranean
 #'   cropland (Spain, 1900-2008). *Science of the Total Environment*, 621,
 #'   634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
-#'   transfer ported from the Spain historical pipeline.
+#'   transfer ported from an earlier regional historical reconstruction.
 #' @export
 #' @examples
 #' build_carbon_balance(example = TRUE)
@@ -2087,8 +2089,8 @@ build_carbon_balance <- function(
     cli::cli_abort(c(
       "{.arg class_water} = {.val regime} needs crop groups to carry the
        irrigation.",
-      i = "Pass {.code crop_groups = list(method = \"spain_hist\")}, or keep
-           {.arg class_water} = {.val cell}."
+      i = "Pass {.code crop_groups = list(method = \"rotation_groups\")},
+           or keep {.arg class_water} = {.val cell}."
     ))
   }
   class_water
@@ -2682,7 +2684,8 @@ build_carbon_balance <- function(
 # reaching the nitrogen balance (312 against 211 Tg N; whep#792, whep#799).
 #
 # POSITION B, open at the fraction-weighted cell mean (`"cell_average"`, the
-# Spain_Hist behaviour, `sum(frac * soc_eq)` over the classes sharing a cell).
+# source implementation's behaviour, `sum(frac * soc_eq)` over the classes
+# sharing a cell).
 # Real cropland carries legacy carbon from the vegetation it replaced, and
 # LPJmL's own cropland sits at 6.1 times its own equilibrium (whep#799,
 # measured by the maintainer). Opening every class at its own steady state
@@ -3102,13 +3105,13 @@ build_carbon_balance <- function(
   d
 }
 
-# March one cell forward year by year (Spain_Hist Calc_SOC_evolution
-# :370-410). State is a named density vector indexed by land-use class. The
-# first year keeps the equilibrium-weighted initial stock unchanged; each later
-# year advances the previous year's stock with the PREVIOUS year's rate and
-# input (soc - soc*K[i-1] + Input[i-1]) then redistributes released carbon via
-# the land-use-change buffer. Reported diagnostics for a year use that year's
-# own post-transfer stock, rate and input.
+# March one cell forward year by year (the source implementation's SOC
+# evolution step). State is a named density vector indexed by land-use class.
+# The first year keeps the equilibrium-weighted initial stock unchanged; each
+# later year advances the previous year's stock with the PREVIOUS year's rate
+# and input (soc - soc*K[i-1] + Input[i-1]) then redistributes released carbon
+# via the land-use-change buffer. Reported diagnostics for a year use that
+# year's own post-transfer stock, rate and input.
 .cb_march_cell <- function(cell, init) {
   years <- sort(unique(cell$year))
   # Split once by year (base) instead of a dplyr::filter per year -- the march
@@ -3135,8 +3138,8 @@ build_carbon_balance <- function(
 # previous-year stock with the previous year's rate and input, then applies the
 # carbon-conserving land-use-change transfer driven by the previous-to-current
 # area change. A class absent from the previous year starts from zero stock and
-# zero area (a newly appearing class carries no carbon; Spain_Hist NaN guard,
-# SOC_Fun.R:388-390).
+# zero area (a newly appearing class carries no carbon; the source
+# implementation guards the same NaN).
 .cb_year_step <- function(cur, prev, state) {
   cur <- .cb_year_keep_vanished(cur, state)
   # Base radix order matches dplyr::arrange(land_use)'s C-locale ordering
@@ -3192,7 +3195,8 @@ build_carbon_balance <- function(
 }
 
 # Named lookup that maps classes absent from the source vector to 0 rather than
-# propagating NA (Spain_Hist treats a class absent last year as zero stock).
+# propagating NA (the source implementation treats a class absent last year as
+# zero stock).
 .cb_lookup <- function(vec, land_use) {
   looked <- vec[land_use]
   dplyr::coalesce(unname(looked), 0)
@@ -3220,7 +3224,7 @@ build_carbon_balance <- function(
 }
 
 # Effective annual decay rate making the stock relax to the model equilibrium
-# (K = input / soc_eq), the Spain_Hist Miner = Stock * K form (SOC_Fun.R:280).
+# (K = input / soc_eq), the source implementation's Miner = Stock * K form.
 .cb_effective_rate <- function(yr) {
   eq <- yr$soc_eq_mgc_ha
   dplyr::if_else(eq > 0, yr$c_input_mgc_ha_yr / eq, 0)
@@ -3229,8 +3233,8 @@ build_carbon_balance <- function(
 # Assemble the per-class output rows for one cell-year. `transferred` is keyed
 # by land_use (it was reordered by area change inside the transfer), so it is
 # matched back to the year's class order. Mineralization, rate and input are the
-# year's own diagnostics on its post-transfer stock (Spain_Hist
-# Calc_SOC_categories, SOC_Fun.R:275-283). luc_transfer_mgc_ha is the buffer
+# year's own diagnostics on its post-transfer stock, as in the source
+# implementation. luc_transfer_mgc_ha is the buffer
 # mass exchanged per current hectare (sums to zero across the cell).
 .cb_year_rows <- function(cur, transferred) {
   idx <- match(cur$land_use, transferred$land_use)
@@ -3256,7 +3260,8 @@ build_carbon_balance <- function(
   )
 }
 
-# Land-use-change carbon transfer (Spain_Hist Calc_SOC_evolution :377-408).
+# Land-use-change carbon transfer, as in the source implementation's SOC
+# evolution step.
 # Classes are processed by area change ascending (losses first): a shrinking
 # class keeps its per-hectare density and releases the carbon on its abandoned
 # hectares (density x lost area) into a shared cell buffer; a growing class
@@ -3335,7 +3340,7 @@ build_carbon_balance <- function(
 # mineralization C:N (son_change > 0, a positive N-release flux into the mineral
 # pool that Module C consumes as an N input); net gain immobilizes nitrogen at
 # the sequestration C:N (son_change < 0). This is the N-release-flux convention
-# (negated relative to the Spain_Hist SOC_Fun.R:278-283 delta-SON-stock sign) so
+# (negated relative to the source implementation's delta-SON-stock sign) so
 # downstream consumers add it directly. The asymmetric ratios come from
 # whep::soil_cn_ratios (Conventional rows).
 # Nitrogen from the soil-carbon change, using the ratio the cell's NET change
@@ -3467,8 +3472,9 @@ build_carbon_balance <- function(
 # of whichever crop group happens to sit on part of it -- and the dataset
 # documents both as applying to the NET change for the same reason.
 #
-# The bounds are expert parameterisation from the Spain historical workbook
-# and carry no citation (see `soil_cn_ratios`); sourcing them is open.
+# The bounds are expert parameterisation from the source implementation's
+# coefficient workbook and carry no citation (see `soil_cn_ratios`); sourcing
+# them is open.
 #
 # Choosing per row instead broke that. Crop groups (the default since
 # c4900fe0) split cropland into several rows, so a cell with one group losing

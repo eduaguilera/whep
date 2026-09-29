@@ -111,7 +111,13 @@ run_typology_area_sensitivity <- function(
         )
       )
       result <- .classify_typology_base(area_bases[[area_basis]], th)
-      .compute_uaa_agreement(baseline, result, source, uaa_threshold, area_basis)
+      .compute_uaa_agreement(
+        baseline,
+        result,
+        source,
+        uaa_threshold,
+        area_basis
+      )
     }) |>
     purrr::list_rbind()
 }

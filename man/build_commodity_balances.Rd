@@ -19,6 +19,8 @@ build_commodity_balances(
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  unmatched_processing = .cbs_unmatched_proc_choices(),
+  silk_basis = .silk_basis_choices(),
   .fixed_data = NULL
 )
 }
@@ -112,44 +114,48 @@ at 1960 or earlier — against \code{"report"}, \code{"clamp"} moves 755 rows
 (\code{other_uses} +23.21 Mt, \code{stock_variation} −22.97 Mt, \code{food} −1.00 Mt)
 and \code{"drop"} moves 544 (\code{other_uses} +825 Mt, \code{stock_variation}
 −825 Mt), both upwards because the values they touch are negative
-(whep#1065). Which of those is right is
+(whep#1065; measured under \code{negative_supply = "report"}, which leaves
+those negatives in place). Which of those is right is
 an open question — see whep#980 — so the reporting default is the one
 that invents nothing.}
 
-\item{negative_supply}{One of \code{"report"} (default), \code{"floor"} or
+\item{negative_supply}{One of \code{"floor"} (default), \code{"report"} or
 \code{"abort"}, selecting what happens when a pre-1962 row has no observed
 \code{domestic_supply} and the \code{production + import - export} reconstruction
 that replaces it comes out below zero (whep#1065). Every destiny of such
-a row is apportioned from that negative supply, so every destiny comes
-out negative — including \code{other_uses}, which is not a quantity that can
-be negative.
+a row is apportioned from that supply, so a negative one makes every
+destiny negative -- including \code{other_uses}, which is not a quantity that
+can be negative.
 
 Measured on a real 1950–1965 build, 151 rows reconstruct a negative
-supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
-output as 121 negative \code{other_uses} rows worth −883.91 Mt (29.2\% of the
-positive pre-1962 \code{other_uses} mass they net against), plus −123.22 Mt
-of \code{production}, −76.66 Mt of \code{feed}, −64.62 Mt of \code{processing} and
-−15.61 Mt of \code{food}.
+supply totalling −1,015.70 Mt, all in 1950–1960. The cause is upstream:
+US tobacco 1951 carries a 117,504,000 t export against 728,949 t of
+production, 115,136,000 t of it \code{historical-trade-exports} item 831
+(whep#1085). With \code{hist_trade_scale = "drop"} the count falls to 83 rows
+worth −6.87 Mt, some of which a stock draw can describe.
 
-It is \strong{not} a stock draw: 83 of the 151 rows are the United States
-(99.77\% of the mass), the export/(production + import) ratio has median
-1.96 and maximum 107.98, and it persists for eleven consecutive years.
-The cause is upstream — US tobacco 1951 carries a 117,504,000 t export
-against 728,949 t of production, 115,136,000 t of which is
-\code{historical-trade-exports} item 831 recorded as 115,136 \code{"1000 MT"},
-46× the world's 1951 tobacco production and 473× the same country's
-observed 1961 export. So neither treatment makes the row physical.
+\code{"floor"} clamps the reconstruction at zero, the treatment an observed
+negative supply already receives, and so books the exported mass the
+supply cannot source as a stock withdrawal: \code{stock_variation} is
+recomputed downstream as \code{production + import - export - domestic_supply}. It leaves no negative mass anywhere in the published
+balance. \code{"report"} keeps the negative supply and its destinies as
+computed, which is what every build before this default did; against
+\code{"floor"} it moves 3,911 rows, all in 1950–1960, and the published
+balance then carries 1,155 negative masses worth −1,164.2 Mt, 147 of
+them \code{other_uses} worth −883.94 Mt (−3.9\% of the 1950–1965 net
+\code{other_uses} total of 22,749 Mt), with \code{stock_variation} 916 Mt
+smaller in magnitude. \code{"abort"} refuses to build any range starting
+before 1961.
 
-\code{"report"} keeps every value as computed, so it \strong{moves no published
-value}, and warns with the count, the total and the three largest.
-\code{"floor"} clamps the reconstruction at zero, which is what
-\code{.select_best_source()} already does to an observed negative supply, and
-is also the stock-draw treatment, because the residual is rebooked as
-\code{stock_withdrawal} downstream; it moves 3,981 rows, raises \code{other_uses}
-by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny anywhere, and
-adds 880.18 Mt of \code{stock_withdrawal}. \code{"abort"} refuses to build any
-range starting before 1961. Which is right is an open question — see
-whep#1065 — so the reporting default is the one that invents nothing.}
+Neither \code{"floor"} nor \code{"report"} makes a 97× export physical; \code{"floor"}
+is the default because it keeps every published use non-negative and
+puts the imbalance in the balancing item. Both stay visible: the build
+warns with the count, the total and the largest rows; the values WHEP
+estimated for such a key carry the \code{source}
+\code{"historical_fill_floored_supply"} (or
+\code{"historical_fill_negative_supply"} under \code{"report"}); and any negative
+mass that reaches the published balance, from this or any other cause,
+is reported by a separate warning of class \code{whep_negative_cbs_value}.}
 
 \item{hist_trade_scale}{One of \code{"report"} (default), \code{"drop"} or
 \code{"abort"}, selecting what happens when a pre-1961 row of the
@@ -249,6 +255,61 @@ reports for 1961, and \code{\link[=check_series_jumps]{check_series_jumps()}} on
 falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 than 295. Under \code{"production_share"} pre-1962 \code{seed} is 5.22 Gt, total
 tonnage moves -1.023\%, and the seam holds 5 jumps.}
+
+\item{unmatched_processing}{One of \code{"other_uses"} (default),
+\code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
+destiny goes when its item has no pathway in \link{cb_processing}, so no
+processed product exists for the mass to become (whep#781). Measured on
+a real 2010 build this is 15.92 Mt over 25 items, 10.10 Mt of it raw
+sugar.
+
+\code{"other_uses"} books it on \code{other_uses}, the destiny the processing
+shortfall of an item that \emph{has} a pathway already goes to, and leaves
+\code{food}, \code{feed} and \code{export} as FAOSTAT reported them. \code{"processing"}
+keeps FAOSTAT's row as a terminal destiny; the balance still closes, but
+\code{\link[=build_io_model]{build_io_model()}} folds processing that no product consumes into
+\code{food}. \code{"redistribute"} is the behaviour before whep#781: the mass is
+split pro rata over \code{food}, \code{feed}, \code{other_uses} and \code{export}.
+
+\strong{The default moves published values.} Against \code{"redistribute"} at
+2010, world \code{food} falls 10.82 Mt, \code{feed} 0.56 Mt and \code{export} 3.05 Mt,
+while \code{other_uses} rises 14.43 Mt and \code{domestic_supply} 3.05 Mt, because
+the export share had moved domestic processing out of the country.
+Food then sits within 0.6\% of FAOSTAT's for every affected item but
+coconut oil, against 6.0\% for raw sugar, 14.4\% for cottonseed oil and
+40.9\% for ricebran oil before. Which destiny is right is open — see
+whep#781 — and a sourced pathway per item would supersede all three.}
+
+\item{silk_basis}{One of \code{"cocoon"} (default), \code{"raw_silk"} or \code{"mixed"},
+selecting the mass basis of the Silk balance from 2014 on (whep#1251).
+Silk is a FAOSTAT chain -- reelable cocoons (1185) reeled into raw silk
+(1186), plus silk waste (1187) -- that the non-food Commodity Balances
+report link by link, each in its own mass, and that WHEP maps onto one
+item. Summed unconverted, with the cocoons sent to reeling dropped as a
+chain transfer, the reeled cocoons were left as stock build-up: 267 kt of
+\code{stock_variation} against 536 kt of production at 2020, 391 kt against
+517 kt at 2021, measured on a real 2019-2021 build.
+
+\code{"cocoon"} counts production once, as cocoons, books the cocoons reeled
+at FAO's own cocoon mass, and converts only the raw silk that crossed a
+border or a stock, dividing by a raw-silk extraction rate of 0.16 -- the
+midpoint of the 12-20\% of fresh cocoon weight in Lee (1999), \emph{Silk
+reeling and testing manual}, FAO Agricultural Services Bulletin 136; FAO's
+Technical Conversion Factors carry no silk entry. \code{"raw_silk"} is the
+same balance multiplied by that rate, so every Silk quantity depends on
+it. \code{"mixed"} keeps each link's own mass and books the reeled cocoons as
+\code{other_uses}, the convention of FAO's pre-2014 aggregate item 2747: the
+balance closes but raw silk is counted twice, once as the cocoons it was
+reeled from. Silk waste keeps its own mass under every setting.
+
+Measured at 2020 on that build, production is 443 / 71 / 536 kt
+(cocoon / raw_silk / mixed) and \code{stock_variation} -170 / -32 / -164 kt,
+of which -157 kt is one FAOSTAT record under every setting: China
+mainland's 2020 cocoons are booked both as \code{Processed} and as
+\verb{Other uses} (FAOSTAT's own \code{Residuals} is -156,943 t). No non-Silk row
+moves. Years before 2014 come from the aggregated old Commodity Balances,
+which carry no link breakdown, and are unchanged, so under \code{"cocoon"} the
+2013-2014 seam steps by roughly the raw silk production.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

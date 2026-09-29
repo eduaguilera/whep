@@ -242,7 +242,7 @@
   path <- system.file("extdata", "earthstat_mapping.csv", package = "whep")
   skip_if_not(nzchar(path) && file.exists(path))
   # read.csv, not fread: the item names carry commas and quoted prose, and a
-  # fread round trip doubles embedded quotes (see CLAUDE.md).
+  # fread round trip doubles embedded quotes (see AGENTS.md).
   utils::read.csv(path, stringsAsFactors = FALSE, na.strings = character())
 }
 

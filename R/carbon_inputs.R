@@ -45,13 +45,15 @@
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
 #' @param crop_groups How cropland is resolved into land-use classes, a named
-#'   list validated element-wise. `method`: `"spain_hist"` (default) resolves
-#'   cropland into crop GROUPS -- herbaceous crops pooled per irrigation
-#'   regime (they rotate, so nothing inside the pool is a land-use change),
-#'   woody crops per species, rainfed and irrigated separate -- labelled by
-#'   [soc_crop_group()]; `"none"` keeps the single `cropland` class the
-#'   package used before, for comparison and for a caller that wants one
-#'   cropland number.
+#'   list validated element-wise. `method`: `"rotation_groups"` (default)
+#'   resolves cropland into crop GROUPS -- herbaceous crops pooled per
+#'   irrigation regime (they rotate, so nothing inside the pool is a land-use
+#'   change), woody crops per species, rainfed and irrigated separate --
+#'   labelled by [soc_crop_group()]; `"none"` keeps the single `cropland`
+#'   class the package used before, for comparison and for a caller that
+#'   wants one cropland number. The former name of `"rotation_groups"` is
+#'   still accepted as a deprecated alias: it resolves to
+#'   `"rotation_groups"`, with identical results, and warns once per session.
 #'   `irrigation`: where each crop's irrigated share of its cell area comes
 #'   from. `"spatialized"` (default) uses [build_gridded_landuse()] on the
 #'   pinned spatialization inputs, crop-specific and yearly; `"none"` puts
@@ -99,7 +101,7 @@ build_carbon_inputs <- function(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -131,7 +133,7 @@ build_carbon_inputs <- function(
   cfg = .ci_group_config(),
   density_basis = "renormalised",
   method_grazing = "whep",
-  method_unspatialized = "reallocate"
+  method_unspatialized = "fodder_pattern"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -185,7 +187,7 @@ build_carbon_inputs <- function(
   crop_area,
   cfg,
   basis = "renormalised",
-  method_unspatialized = "reallocate"
+  method_unspatialized = "fodder_pattern"
 ) {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
@@ -345,7 +347,7 @@ build_carbon_inputs <- function(
         as.integer(.data$item_prod_code),
         .data$irrigated
       ),
-      method_c_input = "humified_weighted_spain_hist"
+      method_c_input = "humified_weighted_rotation_groups"
     ) |>
     dplyr::select(-"irrigated", -"irrigated_share")
 }
@@ -365,8 +367,8 @@ build_carbon_inputs <- function(
   }
   list(
     method = rlang::arg_match0(
-      crop_groups$method %||% "spain_hist",
-      c("none", "spain_hist"),
+      .ci_group_method_alias(crop_groups$method %||% "rotation_groups"),
+      c("none", "rotation_groups"),
       arg_nm = "crop_groups$method"
     ),
     irrigation = rlang::arg_match0(
@@ -377,11 +379,35 @@ build_carbon_inputs <- function(
   )
 }
 
+# `"spain_hist"` is the former name of `"rotation_groups"`. It still resolves,
+# so existing calls keep working and give identical results, but it warns once
+# per session and every output records the new name.
+.ci_group_method_alias <- function(method) {
+  if (!identical(method, "spain_hist")) {
+    return(method)
+  }
+  cli::cli_warn(
+    c(
+      "{.code crop_groups = list(method = \"spain_hist\")} is deprecated.",
+      i = "Use {.code crop_groups = list(method = \"rotation_groups\")}; the
+           results are identical and the output records
+           {.val rotation_groups}."
+    ),
+    class = c(
+      "whep_crop_groups_method_deprecated",
+      "lifecycle_warning_deprecated"
+    ),
+    .frequency = "once",
+    .frequency_id = "whep_crop_groups_method_deprecated"
+  )
+  "rotation_groups"
+}
+
 # The irrigated share of each crop's cell area, per year. NULL means the
 # single-class path (or, under `irrigation = "none"`, every crop rainfed, which
 # the split treats as a share of zero everywhere).
 .ci_regime_shares <- function(data, years, cfg) {
-  if (!identical(cfg$method, "spain_hist")) {
+  if (!identical(cfg$method, "rotation_groups")) {
     return(NULL)
   }
   if (!is.null(data$crop_regime_share)) {

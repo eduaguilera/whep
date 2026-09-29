@@ -28,10 +28,10 @@
 # that silently cost the gridded surplus 1.66 Tg of manure N, kept only so the
 # tonnage stays measurable by differencing.
 #
-# accum_loss (perennial-crop standing-biomass N accumulation/decumulation,
-# from Spain_Hist's N_balance.R) is a DOCUMENTED GAP: its source computation
-# was not available for this task. It is listed in the fert_type vocabulary
-# below but never emitted -- do not guess a formula.
+# accum_loss (perennial-crop standing-biomass N accumulation/decumulation, from
+# the source implementation's nitrogen balance) is a DOCUMENTED GAP: its source
+# computation was not available for this task. It is listed in the fert_type
+# vocabulary below but never emitted -- do not guess a formula.
 
 #' Assemble gridded nitrogen inputs from every WHEP N-input source.
 #'
@@ -48,9 +48,10 @@
 #' `fert_type` values: `"bnf"`, `"recycling"`, `"manure_solid"`,
 #' `"manure_liquid"`, `"excreta"`, `"deposition"`, `"human"`,
 #' `"som_mineralization"`, `"synthetic"` and `"accum_loss"`. The last is a
-#' documented gap (perennial-crop standing-biomass N accumulation from
-#' Spain_Hist's N_balance.R): its source computation was not available for
-#' this task, so it is never emitted, only reserved in the vocabulary.
+#' documented gap (perennial-crop standing-biomass N accumulation from the
+#' source implementation's nitrogen balance): its source computation was not
+#' available for this task, so it is never emitted, only reserved in the
+#' vocabulary.
 #'
 #' Terms that are fundamentally per-cell or per-land-use rather than per-crop
 #' are allocated over the agricultural land support, either supplied as
@@ -92,6 +93,15 @@
 #'   allocating methods conserve mass or abort; `"exclude"` does not conserve
 #'   it. When `NULL` (default), uses
 #'   `data$unattributed_method %||% "cropland_area"`.
+#'
+#'   This choice also governs `method_unsupported` (whep#1191): both run on
+#'   one allocation support. Under `"agricultural_area"` a cell holding only
+#'   grassland is no longer a stranded cell -- its nitrogen lands on its own
+#'   grassland and `method_unsupported` never sees it -- and a
+#'   `"reallocate"`/`"reallocate_drop"` rescue spreads over the polity-year's
+#'   cropland *and* grassland rather than its cropland alone. Under
+#'   `"exclude"` nothing reaches the stranded step, so `method_unsupported`
+#'   is inert apart from its stamp.
 #' @param manure_method Where the three manure terms come from.
 #'   `"livestock_intake"` (default) is WHEP's manure engine,
 #'   [build_livestock_nutrient_flows()] over the realised feed intake.
@@ -225,17 +235,22 @@
 #'     to `"national"` otherwise. A value supplied here is always honoured.
 #' @param method_unsupported What happens to non-item nitrogen (deposition,
 #'   human, soil-organic-matter mineralization, unattributed manure) whose own
-#'   cell-year carries no cropland support at all. `"abort"` (the default, and
+#'   cell-year carries no allocation support at all. The support is the one
+#'   `unattributed_method` selects: cropland under the default
+#'   `"cropland_area"`, cropland plus grassland under `"agricultural_area"`,
+#'   so the second argument decides both which rows are stranded and where
+#'   they are rescued to (whep#1191). `"abort"` (the default, and
 #'   the behaviour before this argument existed) refuses to continue and names
 #'   the streams and the mass, so a coverage gap cannot be lost silently.
-#'   `"reallocate"` spreads each such row over its own polity-year's cropland
-#'   support in proportion to area, which conserves mass and is the same rule
+#'   `"reallocate"` spreads each such row over its own polity-year's support
+#'   in proportion to area, which conserves mass and is the same rule
 #'   `spatialize_country_n_to_crops()` already applies to a polity-crop with
-#'   no crop-pattern cell; it still aborts when the polity-year has no cropland
-#'   support anywhere. `"reallocate_drop"` places the same rows the same way
+#'   no crop-pattern cell; it still aborts when the polity-year has no support
+#'   anywhere. `"reallocate_drop"` places the same rows the same way
 #'   and then discards that irreducible remainder, warning with its mass, so a
 #'   global build is not refused over a few polities with population and no
-#'   cropland. `"drop"` reallocates nothing and discards every such row.
+#'   agricultural land. `"drop"` reallocates nothing and discards every such
+#'   row.
 #'   Whichever is chosen is stamped on every output row as
 #'   `method_unsupported`. May also be supplied as `data$method_unsupported`,
 #'   which is how [build_nitrogen_balance()] forwards it.
@@ -275,7 +290,8 @@
 #'   per-capita rate (see [build_human_n()]); both are `NA` for every other
 #'   `fert_type`.
 #'   `method_unsupported` records the rule applied to non-item nitrogen with no
-#'   cropland support in its own cell, and is the same on every row.
+#'   allocation support in its own cell, and is the same on every row; read
+#'   it together with `method_unattributed`, which fixed that support.
 #'   `method_unattributed` records the `unattributed_method` the whole assembly
 #'   ran under and is stamped on **every** row, not only on the reallocated
 #'   ones: under `"exclude"` no reallocated row survives to carry it, and a
@@ -859,7 +875,7 @@ build_n_inputs <- function(
 
 # Resolve the manure engine's Cropland `crop` key to an item_cbs_code.
 #
-# The canonical key is `as.character(item_prod_code)` -- a code, per CLAUDE.md's
+# The canonical key is `as.character(item_prod_code)` -- a code, per AGENTS.md's
 # "join on codes, never on names": item_prod_code -> item_cbs_code is 1:1 across
 # all 310 crosswalk rows, whereas item_prod is not (`Fallow` names two codes)
 # and three codes carry no name at all. `.sci_manure_crop_layer()`
@@ -1311,11 +1327,18 @@ build_n_inputs <- function(
     spread_over,
     c("lon", "lat", "area_code", "year")
   )
+  # whep#1191: the two policies meet here. `spread_over` is the support
+  # `unattributed_method` chose, and the stranded step reuses it, so that
+  # choice decides both WHICH rows are stranded (none in a grassland-only cell
+  # under "agricultural_area") and WHERE a "reallocate" rescue puts them (the
+  # polity-year's cropland plus grassland). A single policy for the whole
+  # allocation is deliberate; giving the rescue its own cropland-only support
+  # would be a second land definition inside one assembly.
   placement <- .ni_place_stranded(
     allocated,
     sourced,
     spread_over,
-    method_unsupported
+    list(unsupported = method_unsupported, unattributed = method)
   )
   if (!.ni_unsupported_allows_loss(method_unsupported)) {
     .ni_check_unallocated(sourced, placement, support, method)
@@ -1391,8 +1414,8 @@ build_n_inputs <- function(
   )
 }
 
-# What happens to non-item nitrogen whose own cell-year carries no cropland
-# support at all, returned as the placed rows plus the ids of the SOURCE rows
+# What happens to non-item nitrogen whose own cell-year carries no support at
+# all, returned as the placed rows plus the ids of the SOURCE rows
 # they account for -- the pooling below renumbers, so the residual check cannot
 # recover that from the rows themselves.
 #
@@ -1403,8 +1426,8 @@ build_n_inputs <- function(
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.
-# "reallocate" spreads each stranded row over its OWN polity-year's cropland
-# support, weighted by area -- mass-conserving, and the same rule
+# "reallocate" spreads each stranded row over its OWN polity-year's support,
+# weighted by area -- mass-conserving, and the same rule
 # .n_grid_unmatched() already applies to a polity-crop with no crop-pattern
 # cell, so the two gaps in this chain are answered the same way. It still
 # aborts for a polity-year with no cropland support ANYWHERE, because then
@@ -1412,7 +1435,9 @@ build_n_inputs <- function(
 # "reallocate_drop" is the same placement and then discards that irreducible
 # remainder rather than refusing the build over 0.02% of one stream, saying how
 # much it cost. "drop" reallocates nothing and discards every stranded row.
-.ni_place_stranded <- function(allocated, sourced, cropland, method) {
+.ni_place_stranded <- function(allocated, sourced, spread_over, methods) {
+  method <- methods$unsupported
+  land <- .ni_allocation_land_label(methods$unattributed)
   stranded <- dplyr::filter(
     sourced,
     !.data$.source_row %in% allocated$.source_row
@@ -1421,20 +1446,20 @@ build_n_inputs <- function(
     return(list(rows = allocated, placed = allocated$.source_row))
   }
   if (method == "drop") {
-    .ni_warn_stranded_dropped(stranded)
+    .ni_warn_stranded_dropped(stranded, land)
     return(list(rows = allocated, placed = allocated$.source_row))
   }
   supported <- dplyr::semi_join(
     stranded,
-    dplyr::distinct(cropland, .data$area_code, .data$year),
+    dplyr::distinct(spread_over, .data$area_code, .data$year),
     by = c("area_code", "year")
   )
   rescued <- .ni_spread_over_support(
     .ni_pool_stranded(supported),
-    cropland,
+    spread_over,
     c("area_code", "year")
   )
-  .ni_report_reallocated(supported, stranded, method)
+  .ni_report_reallocated(supported, stranded, method, land)
   list(
     rows = dplyr::bind_rows(allocated, rescued),
     placed = c(allocated$.source_row, supported$.source_row)
@@ -1475,26 +1500,32 @@ build_n_inputs <- function(
 
 # Say what the placement moved, and -- for "reallocate_drop" -- what no polity
 # could carry and is therefore gone.
-.ni_report_reallocated <- function(supported, stranded, method) {
+.ni_report_reallocated <- function(supported, stranded, method, land) {
   cli::cli_inform(c(
     i = "Reallocated {nrow(supported)} non-item nitrogen row{?s}
          ({signif(sum(supported$n_input_t, na.rm = TRUE), 6)} t N) with no
-         cropland support in their own cell over their polity's cropland cells."
+         {land} support in their own cell over their polity's {land} cells."
   ))
   if (method != "reallocate_drop") {
     return(invisible(NULL))
   }
   lost <- dplyr::anti_join(stranded, supported, by = ".source_row")
   if (nrow(lost) > 0L) {
-    .ni_warn_stranded_dropped(lost, "whose polity has no cropland support")
+    .ni_warn_stranded_dropped(
+      lost,
+      land,
+      "whose polity has no {land} support"
+    )
   }
   invisible(NULL)
 }
 
 .ni_warn_stranded_dropped <- function(
   rows,
-  why = "with no cropland support in their own cell"
+  land,
+  why = "with no {land} support in their own cell"
 ) {
+  why <- cli::format_inline(why)
   cli::cli_warn(c(
     "Dropping {nrow(rows)} non-item nitrogen row{?s}
      ({signif(sum(rows$n_input_t, na.rm = TRUE), 6)} t N) {why}.",

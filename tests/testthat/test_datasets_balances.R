@@ -118,12 +118,13 @@ test_that("residue_humification has the expected columns", {
   )
 })
 
-test_that("residue_humification transcribes the Spain_Hist anchors", {
+test_that("residue_humification transcribes the source anchors", {
   lookup <- whep::residue_humification |>
     dplyr::select(input_type, humified_fraction) |>
     tibble::deframe()
 
-  # Weed/grass aboveground = Spain_Hist "Grass" Residue_humified_kgC_kgC.
+  # Weed/grass aboveground = the source table's "Grass"
+  # Residue_humified_kgC_kgC.
   testthat::expect_equal(
     lookup[["weed"]],
     0.1153466666666667,

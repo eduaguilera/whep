@@ -194,12 +194,8 @@ build_footprint <- function(
 #' align_extension(extension, labels, 2000L)
 align_extension <- function(extension, labels, year, value_col = "impact_u") {
   .check_extension_table(extension, value_col)
-  if (!all(c("area_code", "item_cbs_code", "index") %in% names(labels))) {
-    cli::cli_abort(
-      "{.arg labels} must have columns {.field area_code},
-      {.field item_cbs_code} and {.field index}."
-    )
-  }
+  label_cols <- c("area_code", "item_cbs_code", "index")
+  assert_table_schema(labels, .seam_schema(labels, label_cols), "labels")
 
   extension |>
     dplyr::filter(.data$year == .env$year) |>
@@ -213,14 +209,20 @@ align_extension <- function(extension, labels, year, value_col = "impact_u") {
     dplyr::pull(.data$value)
 }
 
+# Seam schema for an extension table (whep#181). A row with a NA `year`,
+# `area_code` or `item_cbs_code` matches no sector label, so
+# `align_extension()` used to drop it, and its magnitude, without a word. The
+# keys must therefore be complete. A NA *magnitude* is a different question --
+# whether an absent value may count as zero -- and belongs to whep#1034, so it
+# is not judged here.
 .check_extension_table <- function(extension, value_col) {
-  required <- c("year", "area_code", "item_cbs_code", value_col)
-  missing <- required[!required %in% names(extension)]
-  if (length(missing) > 0L) {
-    cli::cli_abort(
-      "{.arg extension} is missing required column{?s}: {.field {missing}}."
-    )
-  }
+  keys <- c("year", "area_code", "item_cbs_code")
+  assert_table_schema(
+    extension,
+    .seam_schema(extension, c(keys, value_col), keys),
+    "extension"
+  )
+  invisible(NULL)
 }
 
 .check_io_model <- function(io) {

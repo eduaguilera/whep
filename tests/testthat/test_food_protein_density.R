@@ -96,7 +96,8 @@ testthat::test_that("the items outside the FBS band are the known set", {
   # species reached through Almonds); rice 2807 is a milled density over a
   # mass already converted to milled equivalent, settled in #751/#755, so its
   # 1.54 here is the density alone and not the axis error; the meat, fish and
-  # root entries are open in #500. A row leaving this set is progress; a row
+  # root entries are open in #500. Olives 2563 left it in #1096. A row leaving
+  # this set is progress; a row
   # joining it is a regression, and either way the test says so.
   known <- c(
     2513L,
@@ -109,7 +110,6 @@ testthat::test_that("the items outside the FBS band are the known set", {
     2557L,
     2558L,
     2560L,
-    2563L,
     2570L,
     2605L,
     2614L,
@@ -131,4 +131,75 @@ testthat::test_that("the items outside the FBS band are the known set", {
     2807L
   )
   testthat::expect_equal(.fpd_out_of_band()$item_cbs_code, known)
+})
+
+testthat::test_that("olive, rye and honey carry their food-composition row", {
+  # whep#1096: in the source workbook these three rows had their protein cut
+  # loose from the food-composition row that fills the rest of their nutrition
+  # block. Olive and honey held bare literals (0.0038 and 0) and rye the
+  # agronomic whole-grain nitrogen. Each now carries its own
+  # `Conversores_Dieta` `Proteinas` value: `Aceituna de mesa` 8 g/kg, `Miel`
+  # 5 g/kg, `Harina de Centeno` 100 g/kg. Olive is 0.8 edible, hence 6.4.
+  paired <- .fpd_paired()
+  olive <- dplyr::filter(paired, .data$item_cbs_code == 2563L)
+  rye <- dplyr::filter(paired, .data$item_cbs_code == 2515L)
+  honey <- dplyr::filter(paired, .data$item_cbs_code == 2745L)
+  testthat::expect_equal(olive$whep_protein_g_kgfm, 6.4)
+  testthat::expect_equal(rye$whep_protein_g_kgfm, 100)
+  testthat::expect_equal(honey$whep_protein_g_kgfm, 5)
+  # Honey's whole block was a hand-typed placeholder (carbohydrate 1000 g/kg
+  # in 785 g/kg of dry matter); the `Miel` row's protein and carbohydrate sum
+  # to exactly that dry matter.
+  honey_row <- dplyr::filter(whep::biomass_coefs, .data$Name_biomass == "Honey")
+  testthat::expect_equal(
+    honey_row$N_kgN_kgFM * 6250 + honey_row$Carbohydrates_g_kgFM,
+    honey_row$Product_kgDM_kgFM * 1000
+  )
+  # Olive was 3.2x the FBS density and rye 0.90x; both land within 10%.
+  testthat::expect_lt(
+    abs(olive$whep_protein_g_kgfm / olive$fbs_protein_g_kgfm - 1),
+    0.1
+  )
+  testthat::expect_lt(
+    abs(rye$whep_protein_g_kgfm / rye$fbs_protein_g_kgfm - 1),
+    0.1
+  )
+})
+
+testthat::test_that("foods FAOSTAT credits with protein but WHEP zeroes are known", {
+  # The band test above cannot see a zero on a low-protein item: honey at
+  # 0 g/kg against FBS 2.99 sat inside its 5 g/kg absolute floor (whep#1096).
+  # Pinned, not tolerated, like the band set: a row leaving it is progress, a
+  # row joining it is a regression. The four that remain are refined sugar,
+  # oil, fat and alcoholic-beverage items whose workbook food-composition row
+  # is a genuine 0; whether FBS's 1.8-11.8 g/kg for them should be matched is
+  # #500's question, not this one.
+  zero <- .fpd_paired() |>
+    dplyr::filter(
+      .data$fbs_protein_g_kgfm > 1,
+      .data$whep_protein_g_kgfm <= 0
+    ) |>
+    dplyr::arrange(.data$item_cbs_code)
+  testthat::expect_equal(zero$item_cbs_code, c(2541L, 2586L, 2658L, 2737L))
+})
+
+testthat::test_that("the cereals still on agronomic nitrogen are known", {
+  # whep#1096: five cereal rows carried the agronomic whole-grain nitrogen
+  # (Product_kgN_kgDM * Product_kgDM_kgFM) because the workbook never derived
+  # a nitrogen value for their food-composition rows. Wheat (#796) and rye now
+  # take their flour protein. Maize and oats do not: their workbook food rows
+  # (87 and 117 g/kg) move away from the FBS density (62.2 and 72.6) where the
+  # agronomic value (78.0 and 83.8) is closer, and rice's basis is #751/#755.
+  # Those three are an open expert call. Pinned so that changing any of them
+  # is a decision someone makes, not a drift nobody sees.
+  agronomic <- whep::biomass_coefs |>
+    dplyr::filter(
+      .data$Name_biomass %in% c("Wheat", "Rye", "Oats", "Maize", "Rice"),
+      abs(
+        .data$N_kgN_kgFM - .data$Product_kgN_kgDM * .data$Product_kgDM_kgFM
+      ) <
+        1e-12
+    ) |>
+    dplyr::pull(.data$Name_biomass)
+  testthat::expect_setequal(agronomic, c("Oats", "Maize", "Rice"))
 })

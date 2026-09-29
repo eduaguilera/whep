@@ -144,9 +144,9 @@
 #' a different quantity.
 #'
 #' @source **Expert parameterisation with a documented rationale and no
-#'   citation.** Traced through the Spain historical pipeline's coefficient
-#'   workbook (\code{input/SOC_coefs.xlsx}, sheet \code{Soil_CN_ratios}),
-#'   which has no source column and no notes column, as does the packaged
+#'   citation.** Traced through the coefficient workbook of the earlier
+#'   regional historical reconstruction the values come from, whose C:N sheet
+#'   has no source column and no notes column, as does the packaged
 #'   \code{inst/extdata/balances/soil_cn_ratios.csv}:
 #'
 #'   \itemize{
@@ -156,20 +156,18 @@
 #'       tracked version (2021-02-19) has no such sheet at all.
 #'     \item The asymmetry -- management stratification plus
 #'       \code{cn_mineralization} and \code{cn_sequestration} -- is added on
-#'       2026-03-26, in a commit titled "Use asymmetric C:N ratios for SOC
-#'       and add N-limitation on SOC sequestration".
+#'       2026-03-26, together with an N-limitation on SOC sequestration.
 #'   }
 #'
-#'   The rationale is written up in that project's supplementary methods
-#'   ("Asymmetric C:N ratios for SOC-nitrogen coupling"): a lower ratio on
+#'   The rationale recorded with the values is: a lower ratio on
 #'   mineralization for the microbial-biomass and labile pools that are
 #'   preferentially decomposed, a higher one on sequestration for stable
 #'   humus formation, and organic cropland sequestering at 13 against 11
 #'   conventional for the larger stable-humus fraction of manure- and
 #'   compost-derived carbon. No citation is attached to any of the values.
 #'
-#'   One published anchor exists nearby and is worth knowing: the same
-#'   supplement cites Cleveland & Liptzin (2007),
+#'   One published anchor exists nearby and is worth knowing: the source's
+#'   methods cite Cleveland & Liptzin (2007),
 #'   \doi{10.1007/s10533-007-9132-0}, for a soil microbial-biomass C:N of
 #'   roughly 8-13, and the cropland \code{cn_mineralization} values (8 and
 #'   9) fall inside it. It is cited there for a different parameter, and it
@@ -264,9 +262,10 @@
 #' cell-year before running the SOC model. Other models (RothC, ICBM,
 #' AMG, Century) use their native carbon partition and ignore this table;
 #' AMG instead uses \code{amg_h_by_input_type}. Values are transcribed
-#' from the Spain historical agroecosystem \code{Biomass_coefs}
-#' \code{Residue_humified_kgC_kgC} column (manure and roots from the
-#' corresponding manure and \code{Root_humified_kgC_kgC} entries).
+#' from the biomass coefficient table of an earlier regional historical
+#' reconstruction, its \code{Residue_humified_kgC_kgC} column (manure and
+#' roots from the corresponding manure and \code{Root_humified_kgC_kgC}
+#' entries).
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -278,11 +277,11 @@
 #'   \item{humified_fraction}{Fraction of input carbon stabilised
 #'     directly into humus (kg humified carbon per kg carbon input).}
 #'   \item{description}{Human-readable description of the input type and
-#'     its Spain historical provenance.}
+#'     its provenance in the source coefficient table.}
 #' }
 #'
-#' @source Spain historical agroecosystem coefficient set
-#'   (\code{Biomass_coefs.xlsx}, \code{Residue_humified_kgC_kgC} and
+#' @source Biomass coefficient set of an earlier regional historical
+#'   reconstruction (its \code{Residue_humified_kgC_kgC} and
 #'   \code{Root_humified_kgC_kgC} columns), itself compiled from soil
 #'   organic carbon turnover and litter humification studies including
 #'   Andren, O. & Katterer, T. (1997).
@@ -415,8 +414,8 @@
 #'   M. Cruse (Eds.), *Managing Nitrogen for Groundwater Quality and Farm
 #'   Profitability* (pp. 85-124). Soil Science Society of America.
 #'   \doi{10.2136/1991.managingnitrogen.c5}. Values transcribed from the
-#'   Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Denitrification_Meisinger}).
+#'   nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction.
 #'
 #' @examples
 #' meisinger_denitrification
@@ -439,9 +438,9 @@
 #'   \item{s_max}{Upper bound of the drainage flux interval (mm).}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Drainage_ranges}),
-#'   companion to the Meisinger & Randall (1991) denitrification matrix.
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, companion to the Meisinger & Randall (1991)
+#'   denitrification matrix.
 #'   \doi{10.2136/1991.managingnitrogen.c5}.
 #'
 #' @examples
@@ -470,9 +469,8 @@
 #'   \item{no3_red}{Fraction of leaching nitrate reduced in the subsoil.}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Subsoil_NO3_denitrif}),
-#'   parameterised from Mediterranean and Atlantic subsoil
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, parameterised from Mediterranean and Atlantic subsoil
 #'   denitrification literature consistent with the IPCC (2019) indirect
 #'   N2O framework.
 #'
@@ -517,8 +515,8 @@
 #'   Webb, J. & Misselbrook, T. H. (2004). A mass-flow model of ammonia
 #'   emissions from UK livestock production. *Atmospheric Environment*,
 #'   38(14), 2163-2176. \doi{10.1016/j.atmosenv.2004.01.023}. Values
-#'   transcribed from the Spain historical MANNER implementation
-#'   (\code{MANNER_model.R}).
+#'   transcribed from the MANNER implementation of an earlier regional
+#'   historical reconstruction.
 #'
 #' @examples
 #' manner_params
@@ -544,8 +542,9 @@
 #'   \item{description}{Human-readable description of the constant.}
 #' }
 #'
-#' @source C:N attenuation parameters from the Spain historical nitrogen
-#'   pipeline (\code{n_fun.r}). Indirect emission factors and ammonia
+#' @source C:N attenuation parameters from the nitrogen pipeline of an
+#'   earlier regional historical reconstruction. Indirect emission factors
+#'   and ammonia
 #'   volatilisation fractions: IPCC (2019), 2019 Refinement to the 2006
 #'   IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
 #'   Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for
@@ -710,8 +709,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "synthetic fertilisers".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, synthetic-fertiliser factors.
 #'
 #' @examples
 #' manner_rate_factor
@@ -739,8 +738,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "synthetic fertilisers".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, synthetic-fertiliser factors.
 #'
 #' @examples
 #' manner_rain_factor
@@ -771,8 +770,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "manures".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, manure factors.
 #'
 #' @examples
 #' manner_incorporation_factor
@@ -786,9 +785,10 @@
 #' \code{incorporation_delay_h} organic-manure drivers, for use where real
 #' per-cell/per-era manure-application-technique survey data does not exist
 #' (which is everywhere right now). Every row fixes
-#' \code{technique = "Broadcast"}, matching Spain_Hist's own real production
-#' MANNER run (which itself hardcodes Broadcast application nationally with
-#' no region/era variation). The four rows blend
+#' \code{technique = "Broadcast"}, matching the production MANNER run of the
+#' earlier regional historical reconstruction this model is ported from
+#' (which itself applies Broadcast nationally with no region/era
+#' variation). The four rows blend
 #' [manner_incorporation_factor]'s \code{delay_bin} categories in equal
 #' shares: a quarter of applied nitrogen assumed never incorporated, a
 #' quarter incorporated within 2 hours, a quarter within 12-24 hours, and a
@@ -831,7 +831,7 @@
 #' (\code{cattle_slurry}/\code{pig_slurry} to the \code{"Liquid"} stream,
 #' \code{FYM} to Cattle \code{"Solid"}, \code{poultry_manure} to Poultry
 #' \code{"Solid"}) is a documented modelling choice made when porting this
-#' table, not a literal Spain_Hist crosswalk; see
+#' table, not a literal crosswalk from the source implementation; see
 #' [calculate_manner_nh3()]'s Details.
 #'
 #' @format A tibble with columns:
@@ -845,14 +845,15 @@
 #'   \item{inorganic_n_fraction}{Fraction of the stream's total nitrogen that
 #'     is inorganic (ammoniacal).}
 #'   \item{source}{Short author-year provenance string as cited in the
-#'     Spain_Hist \code{Livestock.xlsx} \code{Manure_inorganic_N} sheet for
-#'     that coefficient. These are secondary citations transcribed from that
-#'     workbook, not independently DOI-verified full bibliographic entries.}
+#'     source livestock coefficient workbook for that coefficient. These are
+#'     secondary citations transcribed from that workbook, not independently
+#'     DOI-verified full bibliographic entries.}
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical livestock coefficient workbook, \code{Livestock.xlsx},
-#'   sheet \code{Manure_inorganic_N}. That sheet in turn cites: Van Soest, P.
+#'   the livestock coefficient workbook of an earlier regional historical
+#'   reconstruction, manure inorganic-nitrogen sheet. That sheet in turn
+#'   cites: Van Soest, P.
 #'   J. (1994); Nahm, K. H. (2003); Nahm, K. H. (2005); Smith, K. A. & Frost,
 #'   J. P. (2000); Chambers, B. J. et al. (1999); Chambers, B. J. et al.
 #'   (2000); Nicholson, F. A. et al. (1996); Canh, T. T. et al. (1997);
@@ -923,9 +924,9 @@
 #'     literal source bound (see Description).}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{SOM_ranges}), companion to the
-#'   Meisinger & Randall (1991) denitrification matrix.
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, companion to the Meisinger & Randall (1991)
+#'   denitrification matrix.
 #'   \doi{10.2136/1991.managingnitrogen.c5}.
 #'
 #' @examples

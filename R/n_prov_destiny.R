@@ -1,5 +1,5 @@
 # FAOSTAT area code for Spain. The national tables this file reads are keyed
-# on codes, never on names -- see "Join on codes, never on names" in CLAUDE.md.
+# on codes, never on names -- see "Join on codes, never on names" in AGENTS.md.
 .spain_area_code <- 203L
 
 #' @title GRAFS Nitrogen (N) flows
@@ -1352,8 +1352,8 @@ build_food_protein_destiny <- function(
 #' forward-fill.
 #'
 #' The `population_yg` pin reached only 2021 until whep#812 refreshed it to
-#' Spain_Hist's own 1860-2023 output, so in practice this now fills nothing
-#' unless production runs past the population series again.
+#' 1860-2023, so in practice this now fills nothing unless production runs past
+#' the population series again.
 #'
 #' @param population_yg Raw dataframe from `whep_read_file("population_yg")`.
 #' @param last_year Latest year present in the production data.

@@ -23,7 +23,10 @@ testthat::test_that("calculate_nh3(method = \"manner\") aborts when a driver col
     ~n_input_t, ~fert_type, ~manner_fertiliser,
     10, "Synthetic", "Urea"
   )
-  testthat::expect_error(whep::calculate_nh3(x, method = "manner"))
+  testthat::expect_error(
+    whep::calculate_nh3(x, method = "manner"),
+    class = "whep_error_nh3_missing_driver"
+  )
 })
 
 testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner_nh3 directly", {
@@ -117,7 +120,27 @@ testthat::test_that("calculate_nh3(method = \"manner_default\") aborts when a dr
     ~n_input_t, ~fert_type, ~manner_fertiliser,
     10, "Solid", "cattle_slurry"
   )
-  testthat::expect_error(whep::calculate_nh3(x, method = "manner_default"))
+  testthat::expect_error(
+    whep::calculate_nh3(x, method = "manner_default"),
+    class = "whep_error_nh3_missing_driver"
+  )
+})
+
+testthat::test_that("a missing windspeed_ms names the one reader that supplies it", {
+  # whep#1078: the LPJmL wind reader is the only in-package source of the
+  # driver and nothing wires it in, so the abort is where a user learns of it.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~manner_fertiliser, ~rainfall_mm, ~irrigated,
+    ~system, ~temp_c, ~species,
+    10, "Solid", "cattle_slurry", 40, FALSE, "Arable", 15, "Cattle"
+  )
+  err <- rlang::catch_cnd(
+    whep::calculate_nh3(x, method = "manner_default"),
+    classes = "whep_error_nh3_missing_driver"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "windspeed_ms", fixed = TRUE)
+  testthat::expect_match(msg, "read_lpjml_wind", fixed = TRUE)
 })
 
 testthat::test_that("calculate_nh3(method = \"manner_default\") dispatches without technique/incorporation_delay_h columns", {
@@ -506,7 +529,7 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero
 
 testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exactly on a shared drainage edge", {
   # S = 1000 is the shared High/Very_high edge; strictly-open bins match
-  # neither (n_fun.r:939), so the row is unmatched and aborts.
+  # neither, so the row is unmatched and aborts.
   x <- tibble::tribble(
     ~n_surplus_t,
     ~fert_type,
@@ -596,9 +619,9 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows wi
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf) for Mediterranean rows", {
-  # Same Solid / MED / Drip combination as the calculate_soil_n2o aguilera
-  # test (ef = 0.0051), but the indirect NH3-N2O term is NH3_MgN * N2O_EF
-  # (n_fun.r:955-957): the disaggregated ef ALONE, WITHOUT the fertiliser
+  # Same Solid / MED / Drip combination as the calculate_soil_n2o aguilera test
+  # (ef = 0.0051), but the indirect NH3-N2O term is NH3_MgN * N2O_EF as in the
+  # source implementation: the disaggregated ef ALONE, WITHOUT the fertiliser
   # modifier mf = 0.38 that only applies to the direct-N2O term.
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,

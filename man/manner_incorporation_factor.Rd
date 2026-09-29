@@ -18,8 +18,8 @@ A tibble with columns:
 }
 \source{
 WHEP project-internal coefficient workbook (not a public DOI):
-Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-"manures".
+the MANNER implementation of an earlier regional historical
+reconstruction, manure factors.
 }
 \usage{
 manner_incorporation_factor

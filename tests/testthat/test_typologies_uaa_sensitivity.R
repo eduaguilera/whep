@@ -117,7 +117,10 @@ test_that("run_typology_area_sensitivity returns one row per source/area-basis c
     2000, "B", "Forest_high", 9000
   )
 
-  out <- run_typology_area_sensitivity(npp_ygpit = npp_ygpit, baseline = baseline)
+  out <- run_typology_area_sensitivity(
+    npp_ygpit = npp_ygpit,
+    baseline = baseline
+  )
 
   expect_equal(nrow(out), 4)
   expect_setequal(out$source, c("Julia", "Josette"))
@@ -157,7 +160,10 @@ test_that("run_typology_area_sensitivity's whole-province basis under-counts spe
     2000, "B", "Forest_high", 9000
   )
 
-  out <- run_typology_area_sensitivity(npp_ygpit = npp_ygpit, baseline = baseline)
+  out <- run_typology_area_sensitivity(
+    npp_ygpit = npp_ygpit,
+    baseline = baseline
+  )
 
   julia_uaa <- out[out$source == "Julia" & out$area_basis == "uaa", ]
   julia_whole <- out[
