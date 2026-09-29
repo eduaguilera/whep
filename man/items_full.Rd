@@ -55,7 +55,13 @@ carry more than their entries imply and Ammonium chloride and Choline
 chloride carry zero although their entries hold nitrogen. No WHEP
 function reads this column.
 \item \code{default_destiny}: Default CBS use category for this item. One of
-\code{"Feed"}, \code{"Food"}, \code{"Other_uses"}, \code{"Processing"}, or \code{NA}.
+\code{"Feed"}, \code{"Food"}, \code{"Other_uses"}, \code{"Processing"}, or \code{NA}. It is
+where the final balance books the domestic supply a row's reported
+destinies leave unexplained. The values come from the \code{items_full} sheet
+of afsetools' \code{Codes_coefs.xlsx}, which records no derivation for them.
+All nine oilseed cakes (\code{comm_group == "Oil cakes"}) are \code{"Feed"}: five
+of them (2591, 2592, 2594, 2595, 2596) were \code{"Food"} until whep#1066,
+unlike the other four.
 }
 }
 \source{
