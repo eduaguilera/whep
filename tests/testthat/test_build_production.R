@@ -388,6 +388,106 @@ test_that(".combine_fodder labels EU AgriDB numbers as EuropeAgriDB (#1027)", {
 })
 
 
+# -- EU AgriDB area split across a shared Eurostat label (#654) ----------------
+
+# One EU AgriDB area is reported per Eurostat label, and several FAOSTAT fodder
+# items can share a label (seven share "Other plants harvested green from
+# arable land"). The area has to be divided among them, never copied onto each:
+# Portugal 2015 carried the same 349,940 ha on four items (#654).
+# EU AgriDB reports the label at 1000 ha in every year, as the real source does
+# for every year the FAO fodder series covers.
+.fodder_split_fixture <- function(i_fodder) {
+  fodder_euadb <- tidyr::expand_grid(
+    year = 2008:2010,
+    tibble::tribble(
+      ~Label, ~Unit, ~value,
+      "Harvested area", "Mha", 0.001,
+      "Yield", "kg N / ha", 100
+    )
+  ) |>
+    dplyr::mutate(
+      area = "Foo",
+      area_code = 100L,
+      Name_Eurostat = "Green n.e.c."
+    )
+  list(
+    i_fodder = i_fodder,
+    fodder_euadb = fodder_euadb,
+    dm_yield = tibble::tibble(year = 2008:2010, area_code = 100L, yield_dm = 4),
+    items_prod = tibble::tribble(
+      ~item_prod                 , ~item_prod_code, ~Name_biomass   , ~Name_Eurostat,
+      "Cabbage for fodder"       , "637"          , "Fodder biomass", "Green n.e.c.",
+      "Forage products"          , "651"          , "Fodder biomass", "Green n.e.c.",
+      "Forage and silage, maize" , "636"          , "Fodder biomass", "Green maize"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+      "Fodder biomass", 0.2, 0.03
+    )
+  )
+}
+
+# The 2010 area of the two items sharing the EU AgriDB label.
+.fodder_split_run <- function(fx, ...) {
+  whep:::.combine_fodder(
+    fx$i_fodder,
+    fx$fodder_euadb,
+    fx$dm_yield,
+    fx$items_prod,
+    fx$biomass,
+    ...
+  ) |>
+    dplyr::filter(unit == "ha", year == 2010L, item_prod_code != "636") |>
+    dplyr::arrange(item_prod_code)
+}
+
+test_that("an EU AgriDB area with no FAO item mix is split, not copied", {
+  # FAO reports fodder for the country, but none for the two items sharing the
+  # label -- the branch that set `ha_share = 1` on every item.
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2010L, "Foo", 100L, "Forage and silage, maize", "636", 100
+  ))
+
+  result <- .fodder_split_run(fx)
+
+  expect_equal(sum(result$value), 1000)
+  expect_equal(result$value, c(500, 500))
+})
+
+test_that("item shares carried from different years still sum to one", {
+  # Each item is the only one FAO reports in its year, so each carries a share
+  # of 1 into 2010, when only EU AgriDB reports.
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2008L, "Foo", 100L, "Cabbage for fodder", "637", 100,
+    2009L, "Foo", 100L, "Forage products", "651", 300
+  ))
+
+  result <- .fodder_split_run(fx)
+
+  expect_equal(sum(result$value), 1000)
+})
+
+test_that("fodder_split chooses between the FAO item mix and an even split", {
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2010L, "Foo", 100L, "Cabbage for fodder", "637", 100,
+    2010L, "Foo", 100L, "Forage products", "651", 300
+  ))
+
+  fao_mix <- .fodder_split_run(fx)
+  equal <- .fodder_split_run(fx, fodder_split = "equal")
+
+  expect_equal(fao_mix$value, c(250, 750))
+  expect_equal(equal$value, c(500, 500))
+  expect_error(
+    .fodder_split_run(fx, fodder_split = "copy"),
+    class = "rlang_error"
+  )
+})
+
+
 # -- EU AgriDB region crosswalk ------------------------------------------------
 
 # `.read_fodder_euadb()` resolves the source's `Region` through

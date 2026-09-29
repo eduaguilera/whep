@@ -52,6 +52,15 @@
 #'     resolved to in that year. It moves published pre-1962 values, needs
 #'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
 #'     is minutes of extra work.
+#' @param fodder_split Character. How an EU AgriDB fodder area is divided
+#'   among the FAOSTAT items that share its Eurostat label (seven items share
+#'   "Other plants harvested green from arable land", four "Other root crops
+#'   n.e.c."). Either way the items together get exactly the reported area;
+#'   until whep#654 each item could get all of it.
+#'   * `"fao_mix"` (default) splits it in proportion to FAOSTAT's own item
+#'     areas in that year, or in the nearest years that report them. A label
+#'     FAOSTAT never gives an item area for in that country is split evenly.
+#'   * `"equal"` gives every item sharing the label the same share.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -120,6 +129,7 @@ build_primary_production <- function(
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
+  fodder_split = c("fao_mix", "equal"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -127,6 +137,7 @@ build_primary_production <- function(
   }
   federation_land <- rlang::arg_match(federation_land)
   land_method <- rlang::arg_match(land_method)
+  fodder_split <- rlang::arg_match(fodder_split)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -134,7 +145,8 @@ build_primary_production <- function(
       end_year,
       historical_data,
       federation_land = federation_land,
-      land_method = land_method
+      land_method = land_method,
+      fodder_split = fodder_split
     )
   } else {
     if (!is.null(historical_data)) {
@@ -247,7 +259,8 @@ build_primary_production <- function(
   end_year = 2023,
   historical_data = NULL,
   federation_land = "none",
-  land_method = "present_day"
+  land_method = "present_day",
+  fodder_split = "fao_mix"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -276,7 +289,11 @@ build_primary_production <- function(
   fao_crop_liv <- .read_fao_crop_liv(years = years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years)
+  fodder <- .build_fodder(
+    fao_crop_liv,
+    years = years,
+    fodder_split = fodder_split
+  )
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -803,7 +820,11 @@ build_primary_production <- function(
 # so a window narrower than the fodder sources both starts from a smaller group
 # universe and has no anchors to interpolate from -- which silently drops every
 # forage item (#623). Run the whole chain over the full span and trim at the end.
-.build_fodder <- function(fao_crop_liv, years = NULL) {
+.build_fodder <- function(
+  fao_crop_liv,
+  years = NULL,
+  fodder_split = "fao_mix"
+) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
   items <- whep::items_full
@@ -829,7 +850,8 @@ build_primary_production <- function(
     fodder_euadb,
     dm_yield,
     items_prod,
-    biomass
+    biomass,
+    fodder_split = fodder_split
   ) |>
     .filter_years(years)
 }
@@ -990,8 +1012,10 @@ build_primary_production <- function(
   fodder_euadb,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = c("fao_mix", "equal")
 ) {
+  fodder_split <- rlang::arg_match(fodder_split)
   crops_dm <- items_prod |>
     dplyr::left_join(
       biomass |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
@@ -1031,7 +1055,7 @@ build_primary_production <- function(
       ha = t_dm / yield_dm
     ) |>
     .merge_euadb_fodder(fodder_euadb, items_prod) |>
-    .fill_fodder_gaps(dm_yield, items_prod, biomass)
+    .fill_fodder_gaps(dm_yield, items_prod, biomass, fodder_split)
 
   fodder_all |>
     .attach_fodder_area(source_labels) |>
@@ -1134,12 +1158,15 @@ build_primary_production <- function(
       ha_tot = sum(ha, na.rm = TRUE),
       .by = c(year, area_code)
     ) |>
+    # A label FAO gives no item area for has no item mix in that year: `NA`,
+    # so `.fill_fodder_gaps()` takes the mix from the nearest years that have
+    # one. It used to be 1 for every item, copying the area onto each (#654).
     dplyr::mutate(
       sum_ha = sum(ha, na.rm = TRUE),
       ha_share = dplyr::if_else(
-        ha_tot == 0,
+        ha_tot == 0 | sum_ha == 0,
         NA_real_,
-        dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
+        ha / sum_ha
       ),
       .by = c(year, area_code, Name_Eurostat)
     )
@@ -1149,7 +1176,8 @@ build_primary_production <- function(
   fodder,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = "fao_mix"
 ) {
   grp_cols <- c(
     "area_code",
@@ -1202,6 +1230,7 @@ build_primary_production <- function(
     .by = grp_cols,
     .copy = FALSE
   )
+  dt <- .split_euadb_area(dt, fodder_split)
   dt[, ha := data.table::fifelse(is.na(ha_euadb), ha, ha_euadb * ha_share)]
   dt <- fill_linear(dt, ha, time_col = year, .by = grp_cols, .copy = FALSE)
 
@@ -1247,7 +1276,38 @@ build_primary_production <- function(
   dt[, source := .fodder_row_source(t, t_euadb, source_ha)]
   dt[, source_ha := NULL]
 
-  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
+  # A zero share is an item FAOSTAT never reports under that label: it has no
+  # area to carry, so it is left out rather than written as a zero row.
+  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2) & !(ha_share %in% 0)])
+}
+
+# EU AgriDB reports one area per Eurostat label, and up to seven FAOSTAT items
+# share a label, so the area is divided among them: the item shares of each
+# `(year, area_code, Name_Eurostat)` that reports an area are made to sum to
+# one. Interpolated shares need it too -- each item's share is carried along
+# the year axis on its own, from whichever year last reported that item, so
+# they did not sum to one either (#654).
+#
+# * `"fao_mix"`: FAOSTAT's own item mix, from the same year or carried from the
+#   nearest years that report one. A label FAOSTAT never gives an item area for
+#   has no mix to use and is split evenly.
+# * `"equal"`: every item sharing the label gets the same share.
+.split_euadb_area <- function(dt, fodder_split) {
+  by <- c("year", "area_code", "Name_Eurostat")
+  if (identical(fodder_split, "equal")) {
+    dt[!is.na(ha_euadb), ha_share := 1 / .N, by = by]
+    return(dt)
+  }
+  dt[!is.na(ha_euadb), ha_share := .normalise_shares(ha_share), by = by]
+  dt
+}
+
+.normalise_shares <- function(share) {
+  total <- sum(share, na.rm = TRUE)
+  if (total > 0) {
+    return(data.table::fcoalesce(share, 0) / total)
+  }
+  rep(1 / length(share), length(share))
 }
 
 # Provenance of a fodder row's numbers (#1027). An area `fill_linear()` held
