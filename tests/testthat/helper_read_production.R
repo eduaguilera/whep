@@ -23,7 +23,7 @@
       seen$fao <- years
       .stub_fao_rows(years)
     },
-    .build_fodder = function(fao_crop_liv, years = NULL) {
+    .build_fodder = function(fao_crop_liv, years = NULL, fodder_split = NULL) {
       seen$fodder <- years
       fao_crop_liv[0, ]
     },
