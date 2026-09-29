@@ -15,14 +15,15 @@ select regional emission factors.}
 \item{tier}{Integer 1 or 2. If \code{NULL} (default),
 auto-selects based on data completeness.}
 
-\item{options}{A named list of manure-engine options. All but three
+\item{options}{A named list of manure-engine options. All but four
 defaults reproduce the behaviour in force before whep#949. The exceptions
 are \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
-in whep#958 and does move both tiers' manure N2O, and \code{pasture_bo}, which
+in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
 since whep#1137 pairs the 2019 pasture MCF with its published \code{Bo} and
-moves Tier 2 manure CH4.
+moves Tier 2 manure CH4, and \code{tier2_uncovered}, which since whep#1028
+gives species with no Tier 2 method their Tier 1 values instead of \code{NA}.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

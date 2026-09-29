@@ -4,14 +4,15 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but three
+#' @param options A named list of manure-engine options. All but four
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
 #'   are `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
-#'   in whep#958 and does move both tiers' manure N2O, and `pasture_bo`, which
+#'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
 #'   since whep#1137 pairs the 2019 pasture MCF with its published `Bo` and
-#'   moves Tier 2 manure CH4.
+#'   moves Tier 2 manure CH4, and `tier2_uncovered`, which since whep#1028
+#'   gives species with no Tier 2 method their Tier 1 values instead of `NA`.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -1188,11 +1189,12 @@ NULL
 #' The `mms_region` and climate defaults reproduce the behaviour in force
 #' before whep#949 exactly: the `region == "Global"` MMS split on any frame
 #' that does not already carry a `region` column, and an assumed Temperate
-#' climate zone. Three defaults do not: whep#1022 moved `mcf_source` off the
+#' climate zone. Four defaults do not: whep#1022 moved `mcf_source` off the
 #' shipped MCF table onto the 2019 Refinement, whep#958 moved `mms_shares`
-#' off the unsourced placeholder table onto the GLEAM 2.0 ingest, and
+#' off the unsourced placeholder table onto the GLEAM 2.0 ingest,
 #' whep#1137 made `pasture_bo` honour the Bo the Refinement pairs with its
-#' pasture MCF.
+#' pasture MCF, and whep#1028 made `tier2_uncovered` fill species with no
+#' Tier 2 method from Tier 1 instead of leaving them `NA`.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
