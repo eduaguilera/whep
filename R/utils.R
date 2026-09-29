@@ -2325,6 +2325,12 @@ utils::globalVariables(
     # reclassification, compared against the baseline's own Typology_base
     "Area_ha_uaa",
     "Typology_base_uaa",
+    # n_prov_destiny.R (#379) -- the aquaculture feed intake/share .add_feed()
+    # computes as a third Livestock_type alongside ruminant/monogastric, and
+    # its resulting destiny column in .split_local_consumption()/
+    # .split_import_consumption()
+    "aquaculture",
+    "share_aqua",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

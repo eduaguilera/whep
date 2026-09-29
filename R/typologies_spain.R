@@ -112,6 +112,7 @@ create_typologies_spain <- function(
                 "population_other_uses",
                 "livestock_mono",
                 "livestock_rum",
+                "aquaculture",
                 "export"
               )
         ],

@@ -164,7 +164,7 @@ create_n_production <- function(example = FALSE) {
     ) |>
     .ensure_destiny_cols() |>
     dplyr::mutate(
-      feed = livestock_rum + livestock_mono,
+      feed = livestock_rum + livestock_mono + aquaculture,
       # population_food_inedible is the remainder .split_food_inedible_loss()
       # (n_prov_destiny.R) split out of population_food -- it was still
       # produced, so it belongs in this total or NUE would be understated by
@@ -195,6 +195,7 @@ create_n_production <- function(example = FALSE) {
   required <- c(
     "livestock_rum",
     "livestock_mono",
+    "aquaculture",
     "population_food",
     "population_food_inedible",
     "population_other_uses",

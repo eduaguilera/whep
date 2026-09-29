@@ -71,17 +71,49 @@ test_that(".create_n_flow_df labels and sums crop and livestock flows", {
     dplyr::pull(data)
   expect_equal(crops_to_livestock, 50)
 
-  # all five flow labels are always present (completed with zeros)
+  # all seven flow labels are always present (completed with zeros), even
+  # though this fixture has no aquaculture rows
   expect_setequal(
     unique(out$label),
     c(
       "{CROP_EXPORT}",
       "{CROPS_TO_POP}",
       "{CROPS_TO_LIVESTOCK}",
+      "{CROPS_TO_AQUACULTURE}",
       "{LIVESTOCK_TO_HUMAN}",
-      "{GRASS_TO_LIVESTOCK}"
+      "{GRASS_TO_LIVESTOCK}",
+      "{GRASS_TO_AQUACULTURE}"
     )
   )
+})
+
+test_that(".create_n_flow_df labels aquaculture feed separately from livestock feed (#379)", {
+  fixture <- .fixture_prov_destiny() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+        "Huesca", 2000, "Fishmeal", NA, "Agro-industry", "Cropland", "aquaculture", 12,
+        "Huesca", 2000, "Grassland", NA, "semi_natural_agroecosystems", "semi_natural_agroecosystems", "aquaculture", 4
+      )
+    )
+
+  out <- .create_n_flow_df(fixture)
+
+  crops_to_aqua <- out |>
+    dplyr::filter(label == "{CROPS_TO_AQUACULTURE}") |>
+    dplyr::pull(data)
+  expect_equal(crops_to_aqua, 12)
+
+  grass_to_aqua <- out |>
+    dplyr::filter(label == "{GRASS_TO_AQUACULTURE}") |>
+    dplyr::pull(data)
+  expect_equal(grass_to_aqua, 4)
+
+  # Aquaculture feed must not also be counted as livestock feed.
+  crops_to_livestock <- out |>
+    dplyr::filter(label == "{CROPS_TO_LIVESTOCK}") |>
+    dplyr::pull(data)
+  expect_equal(crops_to_livestock, 50)
 })
 
 
@@ -1122,6 +1154,7 @@ test_that("create_n_nat_destiny(example) stays within the grafs filter vocab", {
         "population_other_uses",
         "livestock_rum",
         "livestock_mono",
+        "aquaculture",
         "export",
         "Cropland",
         "semi_natural_agroecosystems"

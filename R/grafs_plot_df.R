@@ -136,6 +136,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
+    "{CROPS_TO_AQUACULTURE}",
     "{CRP_PROCLOSS}"
   )
 
@@ -197,8 +198,10 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
+    "{CROPS_TO_AQUACULTURE}",
     "{LIVESTOCK_TO_HUMAN}",
     "{GRASS_TO_LIVESTOCK}",
+    "{GRASS_TO_AQUACULTURE}",
     "{RCRTOLVSTCK_R}",
     "{MCRTOLVSTCK_M}",
     "{CRP_OTHUSES}",
@@ -1335,8 +1338,10 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
+    "{CROPS_TO_AQUACULTURE}",
     "{LIVESTOCK_TO_HUMAN}",
-    "{GRASS_TO_LIVESTOCK}"
+    "{GRASS_TO_LIVESTOCK}",
+    "{GRASS_TO_AQUACULTURE}"
   )
 
   prov_destiny_df |>
@@ -1349,12 +1354,20 @@ create_grafs_plot_df <- function(example = FALSE) {
         Origin == "Cropland" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
           "{CROPS_TO_LIVESTOCK}",
+        # Not drawn as its own box in the GRAFS diagram (#379: aquaculture is
+        # sea-based, not land, and the flow is small) -- but it still needs
+        # its own label so {CRPLNDTOTN} (.create_cropland_total_df()) counts
+        # it in cropland's throughput total instead of silently dropping it.
+        Origin == "Cropland" & Destiny == "aquaculture" ~
+          "{CROPS_TO_AQUACULTURE}",
         Origin == "Livestock" &
           Destiny %in% c("population_food", "population_other_uses") ~
           "{LIVESTOCK_TO_HUMAN}",
         Origin == "semi_natural_agroecosystems" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
           "{GRASS_TO_LIVESTOCK}",
+        Origin == "semi_natural_agroecosystems" & Destiny == "aquaculture" ~
+          "{GRASS_TO_AQUACULTURE}",
         TRUE ~ NA_character_
       )
     ) |>

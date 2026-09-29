@@ -642,7 +642,7 @@ plot_input_output_four_panel <- function(example = FALSE) {
 
   feed_import <- .import_use(
     df,
-    c("livestock_rum", "livestock_mono"),
+    c("livestock_rum", "livestock_mono", "aquaculture"),
     "Feed_import"
   )
   food_import <- .import_use(
@@ -672,7 +672,7 @@ plot_input_output_four_panel <- function(example = FALSE) {
 .system_level_uses <- function(df) {
   livestock_ingestion <- df |>
     dplyr::filter(
-      Destiny %in% c("livestock_rum", "livestock_mono"),
+      Destiny %in% c("livestock_rum", "livestock_mono", "aquaculture"),
       Origin %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
     dplyr::group_by(Year) |>

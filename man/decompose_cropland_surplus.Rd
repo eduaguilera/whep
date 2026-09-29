@@ -57,6 +57,19 @@ This is a simplified, national-only view (no provincial or destiny
 breakdown); \code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} still uses the
 full province x destiny detail for its \code{cropland_province} and
 \code{cropland_destiny} series.
+
+Still built from \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}} and summed to national
+afterwards (\code{.national_area_panel()}), even though the result is
+national-only: unlike \code{\link[=decompose_destiny_mix]{decompose_destiny_mix()}}, this function does not
+report a destiny breakdown, so the provincial \code{"export"} destiny's
+inter-provincial/true-export ambiguity washes out in the total (every
+destiny sums into the same national surplus regardless). Aquaculture
+feed (#379) is the one thing this misses, since it is reported
+nationally only and provincial data cannot carry it -- not switched to
+\code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}} to pick it up, since that would need this
+function's shared area-allocation machinery
+(\code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} also uses it, and needs real
+provinces) to support two incompatible shapes for one small addition.
 }
 \examples{
 decompose_cropland_surplus(example = TRUE)

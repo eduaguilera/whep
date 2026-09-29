@@ -92,6 +92,7 @@ create_typo_ts_plot <- function(
               "population_other_uses",
               "livestock_mono",
               "livestock_rum",
+              "aquaculture",
               "export"
             )
       ]),

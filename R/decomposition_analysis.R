@@ -19,6 +19,19 @@
 #' full province x destiny detail for its `cropland_province` and
 #' `cropland_destiny` series.
 #'
+#' Still built from [create_n_prov_destiny()] and summed to national
+#' afterwards (`.national_area_panel()`), even though the result is
+#' national-only: unlike [decompose_destiny_mix()], this function does not
+#' report a destiny breakdown, so the provincial `"export"` destiny's
+#' inter-provincial/true-export ambiguity washes out in the total (every
+#' destiny sums into the same national surplus regardless). Aquaculture
+#' feed (#379) is the one thing this misses, since it is reported
+#' nationally only and provincial data cannot carry it -- not switched to
+#' [create_n_nat_destiny()] to pick it up, since that would need this
+#' function's shared area-allocation machinery
+#' ([decompose_specialization_cov()] also uses it, and needs real
+#' provinces) to support two incompatible shapes for one small addition.
+#'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()]. If `NULL`, loaded automatically.
 #' @param npp_ygpit Land use and area tibble from
@@ -115,6 +128,15 @@ decompose_cropland_surplus <- function(
 #' between two compared years; this function warns when that occurs
 #' instead of silently returning `NA`, but does not implement the
 #' Shapley/Sun alternative required for those cases.
+#'
+#' Still built from [create_n_prov_destiny()], for the same reason as
+#' [decompose_cropland_surplus()]: no destiny breakdown is reported, so
+#' every destiny (including `"export"`) sums into the same national
+#' surplus regardless of whether it is correctly classified, and the one
+#' thing provincial data cannot carry -- aquaculture feed, reported
+#' nationally only (#379) -- is small enough that reworking the shared
+#' area-allocation machinery ([decompose_specialization_cov()] also uses
+#' it and needs real provinces) is not worth it.
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()]. If `NULL`, loaded automatically.
@@ -1805,7 +1827,7 @@ plot_compart_factor_periods <- function(
     destiny %in% c("population_food", "population_food_inedible") ~
       "domestic_food",
     destiny == "population_other_uses" ~ "non_food",
-    destiny %in% c("livestock_rum", "livestock_mono") ~ "feed",
+    destiny %in% c("livestock_rum", "livestock_mono", "aquaculture") ~ "feed",
     destiny == "export" ~ "exported"
   )
 }
@@ -1821,6 +1843,7 @@ plot_compart_factor_periods <- function(
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
+          "aquaculture",
           "export"
         )
     ) |>
@@ -2090,6 +2113,7 @@ plot_compart_factor_periods <- function(
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
+          "aquaculture",
           "export"
         )
     ) |>

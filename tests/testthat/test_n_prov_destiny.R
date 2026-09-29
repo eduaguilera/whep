@@ -62,6 +62,24 @@ test_that(".assemble_n_nat_destiny keeps processing losses out of export", {
   expect_equal(sum(out$mg_n), 35)
 })
 
+test_that(".assemble_n_nat_destiny keeps aquaculture as its own destiny, not silently dropped (#379)", {
+  # Two provinces both feeding Fishmeal to aquaculture, entirely from local
+  # (Cropland-origin) production, so it should show up whole as local
+  # aquaculture consumption -- no export/import residual to reason about.
+  prov_raw <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Fishmeal", NA, "Agro-industry", "Agro-industry", "aquaculture", 30,
+    2000, "B", "Fishmeal", NA, "Agro-industry", "Agro-industry", "aquaculture", 20
+  )
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  expect_true("aquaculture" %in% out$destiny)
+  expect_equal(sum(out$mg_n[out$destiny == "aquaculture"]), 50)
+  # Nothing should have leaked into export/import as an unhandled residual.
+  expect_false(any(out$destiny %in% c("export", "import")))
+})
+
 
 # .summarise_crops_residues ----------------------------------------------------
 
@@ -1306,6 +1324,28 @@ test_that(".add_feed maps all livestock types correctly", {
   expect_equal(fs$share_mono, 40 / 80)
 })
 
+test_that(".add_feed classifies Aquaculture instead of dropping it into an unnamed NA column (#379)", {
+  intake <- tibble::tribble(
+    ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
+    2000, "A", "Fishmeal", "Cattle_meat", 60,
+    2000, "A", "Fishmeal", "Aquaculture", 40
+  )
+
+  out <- .add_feed(intake)
+
+  # feed must include the aquaculture intake, not just rum/mono, or it is
+  # silently excluded from the item's total feed demand.
+  expect_equal(out$feed_intake$feed, 60 + 40)
+
+  fs <- out$feed_share_rum_mono
+  expect_named(
+    fs,
+    c("Year", "Province_name", "Item", "share_rum", "share_mono", "share_aqua")
+  )
+  expect_equal(fs$share_rum, 60 / 100, tolerance = 1e-12)
+  expect_equal(fs$share_aqua, 40 / 100, tolerance = 1e-12)
+})
+
 
 # .calculate_population_share -------------------------------------------------
 
@@ -1714,8 +1754,8 @@ test_that(".split_local_consumption splits by shares and feed type", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.6, 0.4
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.5, 0.4, 0.1
   )
 
   out <- .split_local_consumption(local_import, feed_shares)
@@ -1726,8 +1766,9 @@ test_that(".split_local_consumption splits by shares and feed type", {
 
   expect_equal(vals[["population_food"]], 50)
   expect_equal(vals[["population_other_uses"]], 20)
-  expect_equal(vals[["livestock_rum"]], 100 * 0.3 * 0.6)
+  expect_equal(vals[["livestock_rum"]], 100 * 0.3 * 0.5)
   expect_equal(vals[["livestock_mono"]], 100 * 0.3 * 0.4)
+  expect_equal(vals[["aquaculture"]], 100 * 0.3 * 0.1)
   expect_equal(unique(out$Origin), "Cropland")
 })
 
@@ -1744,9 +1785,9 @@ test_that(".split_import_consumption limits imports and splits", {
   )
 
   feed_share_rum_mono <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.7, 0.3,
-    2000, "A", "FishProd", 0.6, 0.4
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.7, 0.3, 0,
+    2000, "A", "FishProd", 0.6, 0.3, 0.1
   )
 
   out <- .split_import_consumption(
@@ -1793,6 +1834,30 @@ test_that(".split_import_consumption limits imports and splits", {
   expect_equal(fish_food, 10 * 0.5, tolerance = 1e-12)
 })
 
+test_that(".split_local_consumption and .split_import_consumption split feed into aquaculture too, not just rum/mono", {
+  # All demand goes to feed, entirely via the local route, so the math stays
+  # simple: local_feed = local_consumption = 100, split 50/30/20 across
+  # rum/mono/aqua.
+  local_import <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "FeedMix", "Agro-industry", NA, 100, 0, 0, 1, 0
+  )
+  feed_shares <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "FeedMix", 0.5, 0.3, 0.2
+  )
+
+  out <- .split_local_consumption(local_import, feed_shares)
+
+  vals <- out |>
+    dplyr::select(Destiny, MgN) |>
+    tibble::deframe()
+
+  expect_equal(vals[["aquaculture"]], 100 * 0.2, tolerance = 1e-12)
+  expect_equal(vals[["livestock_rum"]], 100 * 0.5, tolerance = 1e-12)
+  expect_equal(vals[["livestock_mono"]], 100 * 0.3, tolerance = 1e-12)
+})
+
 test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   # Two Irrig_cat rows that become NA → should be aggregated
   local_vs_import <- tibble::tribble(
@@ -1802,8 +1867,8 @@ test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 1.0, 0.0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 1.0, 0.0, 0.0
   )
 
   out <- .split_import_consumption(local_vs_import, feed_shares)
@@ -2088,9 +2153,9 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.7, 0.3,
-    2000, "A", "Fish", 0.0, 0.0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.7, 0.3, 0.0,
+    2000, "A", "Fish", 0.0, 0.0, 0.0
   )
 
   out <- .finalize_prod_destiny(
@@ -2146,8 +2211,8 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Beet pulp", 1, 0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Beet pulp", 1, 0, 0
   )
 
   out <- .finalize_prod_destiny(trade_data, codes, soil, feed_shares)

@@ -64,6 +64,15 @@ LMDI relies on logarithms and cannot handle a series that changes sign
 between two compared years; this function warns when that occurs
 instead of silently returning \code{NA}, but does not implement the
 Shapley/Sun alternative required for those cases.
+
+Still built from \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}, for the same reason as
+\code{\link[=decompose_cropland_surplus]{decompose_cropland_surplus()}}: no destiny breakdown is reported, so
+every destiny (including \code{"export"}) sums into the same national
+surplus regardless of whether it is correctly classified, and the one
+thing provincial data cannot carry -- aquaculture feed, reported
+nationally only (#379) -- is small enough that reworking the shared
+area-allocation machinery (\code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} also uses
+it and needs real provinces) is not worth it.
 }
 \examples{
 decompose_semi_natural_surplus(example = TRUE)
