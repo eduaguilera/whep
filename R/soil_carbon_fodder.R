@@ -10,7 +10,15 @@
 # uniformly over the polity's cropland. The rasters themselves exist and are
 # reproducibly obtainable (`inst/scripts/download/download_monfreda.R`); this
 # file reads them so the fodder carbon can be placed where Monfreda puts the
-# fodder harvested area instead, as `method_unspatialized = "fodder_pattern"`.
+# fodder harvested area instead, as `method_unspatialized = "fodder_pattern"`
+# (the default).
+#
+# The 0.5-degree layer those rasters reduce to is WHEP-built, so it is a pin,
+# `spatialize-fodder-patterns`, produced by
+# `inst/scripts/prepare_fodder_patterns.R`; `WHEP_MONFREDA_DIR` is only an
+# override that rebuilds it from a local copy of the rasters. The separate pin
+# is an interim step: whep#1271 would map the forage layers into the
+# `spatialize-crop-patterns` pin itself, which would supersede this one.
 #
 # Source: Monfreda, C., N. Ramankutty and J. A. Foley (2008), Farming the
 # planet: 2. Geographic distribution of crop areas, yields, physiological
@@ -53,13 +61,27 @@
 # (`lon`, `lat`, `item_prod_code`, `crop_area_ha`), so a fodder crop is gridded
 # exactly as it would be had the crop-pattern pin carried it: the static
 # harvest fraction times the cell's mean gridded cropland.
+#
+# The harvest fractions come from the `spatialize-fodder-patterns` pin, which
+# is `.sci_fodder_harvest_fraction()` run once on the Monfreda rasters (see
+# `inst/scripts/prepare_fodder_patterns.R`). `WHEP_MONFREDA_DIR`, when set,
+# overrides the pin by rebuilding the same layer from those rasters; a set but
+# wrong path aborts rather than falling back to the pin, and nothing here falls
+# back to uniform reallocation.
 .sci_read_fodder_patterns <- function(
   monfreda_dir = Sys.getenv("WHEP_MONFREDA_DIR")
 ) {
   .sci_combine_crop_patterns(
-    .sci_fodder_harvest_fraction(monfreda_dir),
+    .sci_fodder_fractions(monfreda_dir),
     whep_read_file("spatialize-gridded-cropland")
   )
+}
+
+.sci_fodder_fractions <- function(monfreda_dir) {
+  if (.has_path(monfreda_dir)) {
+    return(.sci_fodder_harvest_fraction(monfreda_dir))
+  }
+  whep_read_file("spatialize-fodder-patterns")
 }
 
 # Per-cell harvest fraction of fodder at 0.5 degrees, aggregated from the
@@ -97,18 +119,18 @@
 
 # The GeoTiff directory, from either the dataset folder the download script
 # writes (`<dest_dir>/HarvestedAreaYield175Crops_Geotiff`) or its `GeoTiff`
-# child. Aborts with the instruction when the env var is unset or wrong: never
-# a silent fallback to uniform reallocation.
+# child. Aborts with the instruction when the path is unset or wrong: never a
+# silent fallback to the pin or to uniform reallocation.
 .sci_monfreda_geotiff_dir <- function(monfreda_dir) {
   if (!.has_path(monfreda_dir)) {
     cli::cli_abort(
       c(
-        "{.code method_unspatialized = \"fodder_pattern\"} needs the Monfreda
-         et al. (2008) crop rasters.",
-        i = "Run {.file inst/scripts/download/download_monfreda.R} and set
-             {.envvar WHEP_MONFREDA_DIR} to its
-             {.file HarvestedAreaYield175Crops_Geotiff} folder, or pass
-             {.code data$fodder_patterns}."
+        "Rebuilding the fodder layer needs the Monfreda et al. (2008) crop
+         rasters.",
+        i = "Run {.file inst/scripts/download/download_monfreda.R} and pass
+             its {.file HarvestedAreaYield175Crops_Geotiff} folder. Unless
+             {.envvar WHEP_MONFREDA_DIR} is set, the soil carbon builders
+             read the {.val spatialize-fodder-patterns} pin instead."
       ),
       class = "whep_missing_monfreda"
     )
@@ -171,7 +193,8 @@
       c(
         "The fodder layer for {.code method_unspatialized =
          \"fodder_pattern\"} has no rows.",
-        i = "Check {.code data$fodder_patterns} or the rasters under
+        i = "Check {.code data$fodder_patterns}, the
+             {.val spatialize-fodder-patterns} pin, or the rasters under
              {.envvar WHEP_MONFREDA_DIR}."
       ),
       class = "whep_absent_input"

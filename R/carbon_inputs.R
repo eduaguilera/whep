@@ -101,7 +101,7 @@ build_carbon_inputs <- function(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
-  method_unspatialized = c("reallocate", "fodder_pattern", "drop"),
+  method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -133,7 +133,7 @@ build_carbon_inputs <- function(
   cfg = .ci_group_config(),
   density_basis = "renormalised",
   method_grazing = "whep",
-  method_unspatialized = "reallocate"
+  method_unspatialized = "fodder_pattern"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -187,7 +187,7 @@ build_carbon_inputs <- function(
   crop_area,
   cfg,
   basis = "renormalised",
-  method_unspatialized = "reallocate"
+  method_unspatialized = "fodder_pattern"
 ) {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
