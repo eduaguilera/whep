@@ -15,7 +15,10 @@ ipcc_tier2_bo_values
 }
 \description{
 Maximum CH4 producing capacity by detailed category.
-Dairy cattle 0.24 vs other cattle 0.18.
+Dairy cattle 0.24 vs other cattle 0.18. Under the default
+\code{mcf_source = "ipcc_2019"} these price every manure stream except
+pasture/range/paddock, which takes the 0.19 the Refinement pairs with its
+pasture MCF (see \link{climate_mcf_ipcc}, whep#1137).
 }
 \examples{
 ipcc_tier2_bo_values

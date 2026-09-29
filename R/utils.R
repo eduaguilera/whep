@@ -2306,6 +2306,14 @@ utils::globalVariables(
     # livestock_cohorts.R (issue 1194) -- per-row provenance of the production
     # system split: reported by the commodity, assumed default, or supplied
     "method_system_share",
+    # livestock_manure.R (issue 1137) -- the Bo an MCF row is published with
+    # and the per-stream split of the Tier 2 Bo x MCF product it feeds
+    "paired_bo_m3_kg_vs",
+    "paired_bo",
+    "published_pair",
+    "unpaired_mcf",
+    "paired_bo_mcf",
+    "has_pair",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
