@@ -2322,6 +2322,12 @@ utils::globalVariables(
     # is seeded and labelled in, and the anchoring flag it is labelled by
     "margin_unit",
     "has_cbs_totals",
+    # silk_mass_basis.R (issue 1251) -- per area-year terms of the silk chain
+    "processed",
+    "raw_use",
+    "raw_prod",
+    "has_raw_use",
+    "has_processed",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
