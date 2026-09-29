@@ -18,12 +18,14 @@ get_wide_cbs(
 
 - years:
 
-  Optional integer vector of years to build. When `NULL` (default) the
-  whole series is built. Supplying a window builds only that range
-  rather than building 1850-2023 and discarding the rest, and caches it
-  under a window-specific key. The window is widened internally to 2011
-  when it reaches 2013, because that overlap is what splices the old FBS
-  series onto `FAOSTAT_FBS_New`.
+  Optional integer vector of years to return. When `NULL` (default) the
+  whole series is returned. A window returns exactly those years of the
+  full-range result. The balances themselves are always built over the
+  whole series, once per session and then cached, because several of
+  their gap fills carry an observation across the whole year axis: a
+  balance built over the window alone would differ from the same years
+  of the full build (whep#833). A window therefore costs as much as the
+  full series the first time, and nothing after that.
 
 - trade_recovery:
 
@@ -98,6 +100,12 @@ For use:
 
 There is an additional column `domestic_supply` which is computed as
 total use excluding `export`.
+
+The live-animal rows also carry `method_cull`, saying where the
+slaughter of culled dairy cattle and laying hens was booked (see the
+argument of that name in
+[`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md));
+it is `NA` on the tonnes rows.
 
 ## Examples
 

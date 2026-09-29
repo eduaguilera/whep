@@ -56,6 +56,15 @@ A tibble with columns:
   edition publishes no default – the 2006 anaerobic digester, which is
   "0-100 percent, calculate".
 
+- paired_bo_m3_kg_vs:
+
+  The methane potential (`Bo`, m3 CH4 per kg volatile solids) the
+  edition publishes this MCF together with, or `NA` where it publishes
+  none and the animal-category `Bo` of
+  [ipcc_tier2_bo_values](https://eduaguilera.github.io/whep/reference/ipcc_tier2_bo_values.md)
+  applies. Only the three 2019 pasture/range/paddock rows carry one,
+  0.19 (whep#1137).
+
 ## Source
 
 IPCC. 2006. *2006 IPCC Guidelines for National Greenhouse Gas
@@ -99,31 +108,34 @@ default, the second of them is live on every Tier 2 run:
 
 The Refinement's single 0.47 percent for pasture, range and paddock is
 **not** a drop-in replacement for the 2006 triple. Section 10.4.2 of the
-same chapter states that it "must be used in conjunction with a single
-B0 value of 0.19 m3 CH4 kg-1 of VS excreted", and that this pair "was
-judged by the expert panel to be more accurate than emission factors
-estimated from regionally based MCFs and animal category based B0" –
-which is precisely what WHEP computes. `.calc_manure_ch4_tier2()`
-multiplies one per-species `Bo` from
-[ipcc_tier2_bo_values](https://eduaguilera.github.io/whep/reference/ipcc_tier2_bo_values.md)
-by the share-weighted MCF, so it cannot hold a system-specific `Bo`
-without computing the product per manure stream instead. Because
-`"ipcc_2019"` is the default, **the shipped Tier 2 path now runs that
-hybrid**: the Refinement's pasture MCF against WHEP's animal-category
-`Bo`, which is the combination the Refinement rejects.
+same chapter (p. 10.66) states that it "must be used in conjunction with
+a single B0 value of 0.19 m3 CH4 kg-1 of VS excreted", and that this
+pair "was judged by the expert panel to be more accurate than emission
+factors estimated from regionally based MCFs and animal category based
+B0"; footnote 2 of Table 10.17 (Updated) (p. 10.70) repeats that pasture
+MCFs "must always be used in conjunction with a B0 value of 0.19", and
+Annex 10B.6 (p. 10.164) derives the pair from grazing measurements on
+cattle and sheep, finding no significant difference by climate zone or
+animal category. The pair is carried in `paired_bo_m3_kg_vs`.
 
-Measured, on FAOSTAT 2020 heads at the Temperate default, repricing only
-the pasture stream at `Bo` 0.19 moves global Tier 2 manure CH4 by
-**+0.18 percent** (14.385 to 14.411 Tg). It is small in total because
-the species that reach Tier 2 are dominated by cattle, for which pasture
-is only 3.2 percent of the weighted MCF, and because sheep already carry
-`Bo` 0.19 exactly. It is not small everywhere: buffalo (`Bo` 0.10) would
-rise **30.5 percent**, goats (0.18) 5.6 percent and cattle fall 0.07
-percent. Horses (0.30), mules and asses (0.33) and camels (0.26) would
-move most of all, but contribute no Tier 2 CH4 today because they are
-dropped for want of cohort and energy inputs. Restructuring the kernel
-to a per-stream `Bo` is out of scope for the table and open in
-whep#1022.
+Since whep#1137 the Tier 2 kernel honours it by default: the
+`pasture_bo = "paired"` manure-engine option (see
+[manure_engine_options](https://eduaguilera.github.io/whep/reference/manure_engine_options.md))
+prices the pasture stream at 0.19 and every other stream at the
+animal-category `Bo`, and `pasture_bo = "species"` restores the single
+per-species `Bo` – the hybrid the Refinement rejects – for
+reproducibility and sensitivity. `method_manure_ch4` records which.
+
+Measured on FAOSTAT 2020 heads, national grain, the Temperate default
+and the Global GLEAM 2.0 manure-management split, the pairing moves
+global Tier 2 manure CH4 by **+0.033 percent** (14.3353 to 14.3401 Tg):
+goats +1.1 percent (`Bo` 0.18, pasture a fifth of their weighted MCF),
+buffalo +0.84 percent (`Bo` 0.10, pasture under 1 percent of theirs),
+cattle -0.07 percent and sheep unchanged (`Bo` 0.19 already). Horses,
+mules and asses and camels, whose `Bo` is furthest from 0.19, reach no
+Tier 2 CH4 in that run. The +30.5 percent buffalo figure first quoted in
+whep#1137 was measured under the placeholder split that whep#958
+replaced, which sent 60 percent of buffalo manure to pasture.
 
 ## What the table cannot hold
 
@@ -140,18 +152,18 @@ percent range and requires the compiler to evaluate its Formula 1.
 
 ``` r
 climate_mcf_ipcc
-#> # A tibble: 81 × 4
-#>    edition   mms_type      climate_zone mcf_percent
-#>    <chr>     <chr>         <chr>              <dbl>
-#>  1 ipcc_2006 Daily Spread  Cool                 0.1
-#>  2 ipcc_2006 Daily Spread  Temperate            0.5
-#>  3 ipcc_2006 Daily Spread  Warm                 1  
-#>  4 ipcc_2006 Solid Storage Cool                 2  
-#>  5 ipcc_2006 Solid Storage Temperate            4  
-#>  6 ipcc_2006 Solid Storage Warm                 5  
-#>  7 ipcc_2006 Dry Lot       Cool                 1  
-#>  8 ipcc_2006 Dry Lot       Temperate            1.5
-#>  9 ipcc_2006 Dry Lot       Warm                 2  
-#> 10 ipcc_2006 Liquid/Slurry Cool                20  
+#> # A tibble: 81 × 5
+#>    edition   mms_type      climate_zone mcf_percent paired_bo_m3_kg_vs
+#>    <chr>     <chr>         <chr>              <dbl>              <dbl>
+#>  1 ipcc_2006 Daily Spread  Cool                 0.1                 NA
+#>  2 ipcc_2006 Daily Spread  Temperate            0.5                 NA
+#>  3 ipcc_2006 Daily Spread  Warm                 1                   NA
+#>  4 ipcc_2006 Solid Storage Cool                 2                   NA
+#>  5 ipcc_2006 Solid Storage Temperate            4                   NA
+#>  6 ipcc_2006 Solid Storage Warm                 5                   NA
+#>  7 ipcc_2006 Dry Lot       Cool                 1                   NA
+#>  8 ipcc_2006 Dry Lot       Temperate            1.5                 NA
+#>  9 ipcc_2006 Dry Lot       Warm                 2                   NA
+#> 10 ipcc_2006 Liquid/Slurry Cool                20                   NA
 #> # ℹ 71 more rows
 ```

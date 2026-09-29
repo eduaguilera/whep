@@ -110,7 +110,7 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> Caused by warning:
 #> ! Unknown or uninitialised column: `method_bedding_mms`.
 #> $applied
-#> # A tibble: 5 × 24
+#> # A tibble: 5 × 25
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Liquid     
@@ -118,12 +118,12 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Liquid     
 #> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 17 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 18 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
-#> #   method_vs <chr>, method_c_excretion <chr>, method_forage_n <chr>,
-#> #   method_mms <chr>, method_losses <chr>, method_bedding_c <chr>,
-#> #   method_bedding_mms <chr>, method_transport <chr>
+#> #   method_vs <chr>, method_digestibility <chr>, method_c_excretion <chr>,
+#> #   method_forage_n <chr>, method_mms <chr>, method_losses <chr>,
+#> #   method_bedding_c <chr>, method_bedding_mms <chr>, method_transport <chr>
 #> 
 #> $losses
 #> # A tibble: 1 × 10
@@ -133,12 +133,12 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> # ℹ 3 more variables: n2o_indirect_n <dbl>, c_lost <dbl>, vs_destroyed <dbl>
 #> 
 #> $excretion
-#> # A tibble: 1 × 12
+#> # A tibble: 1 × 13
 #>    year territory sub_territory livestock_category n_intake n_excretion
 #>   <int> <chr>     <lgl>         <chr>                 <dbl>       <dbl>
 #> 1  2020 203       NA            Cattle_milk            15.7        12.6
-#> # ℹ 6 more variables: c_excretion <dbl>, vs_excretion <dbl>,
-#> #   method_n_excretion <chr>, method_vs <chr>, method_c_excretion <chr>,
-#> #   method_forage_n <chr>
+#> # ℹ 7 more variables: c_excretion <dbl>, vs_excretion <dbl>,
+#> #   method_n_excretion <chr>, method_vs <chr>, method_digestibility <chr>,
+#> #   method_c_excretion <chr>, method_forage_n <chr>
 #> 
 ```

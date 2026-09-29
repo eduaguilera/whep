@@ -24,7 +24,7 @@ Three nitrogen inputs to soil are included:
   is a synthetic-N rate basis only).
 
 - **Crop residues** (F_CR): the dry matter of above-ground residues
-  returned to soil (from
+  returned to soil (`value_dm` from
   [`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md),
   net of the removed fraction) times the crop's residue nitrogen content
   (IPCC 2019 Table 11.1a).

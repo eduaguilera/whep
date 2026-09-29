@@ -4,6 +4,23 @@ Distributes national herd totals across GLEAM-defined cohorts and
 production systems using `gleam_livestock_categories` and regional
 weight data.
 
+GLEAM supplies only the taxonomy here: which systems and cohorts each
+species has. It supplies no herd shares. `gleam_livestock_categories`
+has no share column, and the herd-parameter tables of the GLEAM 2.0 and
+3.0 supplements give demographic rates and live weights, not a
+dairy/meat or layer/broiler split of the herd (whep#1194).
+
+Where FAOSTAT already reports the herd split into the items
+[`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+carries (`"Cattle, dairy"` / `"Cattle, non-dairy"`, `"Pigs"` / `"Hogs"`
+for market / breeding swine, and `"Chickens, layers"` /
+`"Chickens, broilers"`), the whole herd goes to the system its item
+names and no share is applied. Every other herd (buffalo, sheep, goats,
+ducks, turkeys, geese, and any aggregate cattle, swine or poultry label)
+is split by WHEP's default shares, which are **assumed, unverified**
+placeholders with no source. The `method_system_share` column says which
+of the two applied to each row.
+
 ## Usage
 
 ``` r
@@ -19,14 +36,18 @@ calculate_cohorts_systems(data, system_shares = NULL)
 - system_shares:
 
   Optional dataframe with `species_gen`, `system`, `system_share`
-  columns. If `NULL`, uses GLEAM defaults and routes dairy/non-dairy
-  commodities to their matching production system. Supplying this
-  overrides both, so the supplied shares are used verbatim.
+  columns. If `NULL`, a herd whose commodity names a production system
+  goes wholly to it, and every other herd uses WHEP's assumed,
+  unverified default shares. Supplying this overrides both, so the
+  supplied shares are used verbatim.
 
 ## Value
 
 Dataframe expanded to cohort level with `cohort`, `system`,
-`cohort_heads`, and `cohort_fraction` columns.
+`cohort_heads`, and `cohort_fraction` columns, plus
+`method_system_share`: `"reported"` when the commodity itself names the
+system, `"assumed"` when WHEP's unsourced default split was applied, or
+`"supplied"` when `system_shares` was given.
 
 ## Examples
 
@@ -36,18 +57,19 @@ tibble::tibble(
   iso3 = "DEU"
 ) |>
   calculate_cohorts_systems()
-#> # A tibble: 11 × 8
-#>    species heads iso3  species_gen system cohort    cohort_fraction cohort_heads
-#>    <chr>   <dbl> <chr> <chr>       <chr>  <chr>               <dbl>        <dbl>
-#>  1 Cattle  10000 DEU   Cattle      Dairy  Adult Fe…            0.05          500
-#>  2 Cattle  10000 DEU   Cattle      Dairy  Adult Ma…            0.05          500
-#>  3 Cattle  10000 DEU   Cattle      Dairy  Replacem…            0.05          500
-#>  4 Cattle  10000 DEU   Cattle      Dairy  Replacem…            0.05          500
-#>  5 Cattle  10000 DEU   Cattle      Dairy  Surplus …            0.05          500
-#>  6 Cattle  10000 DEU   Cattle      Dairy  Surplus …            0.05          500
-#>  7 Cattle  10000 DEU   Cattle      Beef   Adult Fe…            0.14         1400
-#>  8 Cattle  10000 DEU   Cattle      Beef   Adult Ma…            0.14         1400
-#>  9 Cattle  10000 DEU   Cattle      Beef   Replacem…            0.14         1400
-#> 10 Cattle  10000 DEU   Cattle      Beef   Replacem…            0.14         1400
-#> 11 Cattle  10000 DEU   Cattle      Beef   Fattening            0.14         1400
+#> # A tibble: 11 × 9
+#>    species heads iso3  species_gen system method_system_share cohort            
+#>    <chr>   <dbl> <chr> <chr>       <chr>  <chr>               <chr>             
+#>  1 Cattle  10000 DEU   Cattle      Dairy  assumed             Adult Female      
+#>  2 Cattle  10000 DEU   Cattle      Dairy  assumed             Adult Male        
+#>  3 Cattle  10000 DEU   Cattle      Dairy  assumed             Replacement Female
+#>  4 Cattle  10000 DEU   Cattle      Dairy  assumed             Replacement Male  
+#>  5 Cattle  10000 DEU   Cattle      Dairy  assumed             Surplus Female    
+#>  6 Cattle  10000 DEU   Cattle      Dairy  assumed             Surplus Male      
+#>  7 Cattle  10000 DEU   Cattle      Beef   assumed             Adult Female      
+#>  8 Cattle  10000 DEU   Cattle      Beef   assumed             Adult Male        
+#>  9 Cattle  10000 DEU   Cattle      Beef   assumed             Replacement Female
+#> 10 Cattle  10000 DEU   Cattle      Beef   assumed             Replacement Male  
+#> 11 Cattle  10000 DEU   Cattle      Beef   assumed             Fattening         
+#> # ℹ 2 more variables: cohort_fraction <dbl>, cohort_heads <dbl>
 ```

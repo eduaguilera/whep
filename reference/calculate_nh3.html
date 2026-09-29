@@ -130,6 +130,18 @@ It does NOT require <code>technique</code> or <code>incorporation_delay_h</code>
 filled in from <a href="manner_default_technique_mix.html">manner_default_technique_mix</a> (see
 <code><a href="calculate_manner_nh3_default.html">calculate_manner_nh3_default()</a></code>'s Details for the gross-assumption
 reasoning), never invented per-row.</p>
+<p>Where the MANNER drivers come from: nothing in the package produces them
+on any build path, so a caller supplies them. The one exception with a
+reader is <code>windspeed_ms</code>, which <code><a href="read_lpjml_wind.html">read_lpjml_wind()</a></code> returns as monthly
+0.5-degree GSWP3-W5E5 wind speed (m/s, the forcing LPJmL is driven with,
+from the <code>lpjml-wind-isimip-1901-2019</code> input via <code>WHEP_WIND_DIR</code>). It is
+not joined onto the N-loss rows by any builder: the grain of that join,
+the averaging window (growing season, application month or year) and the
+rule for years outside the wind record are open modelling choices
+(whep#1078). <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> therefore refuses a MANNER
+<code>nh3</code> method before assembling anything unless its
+<code>data$n_balance_drivers</code> carries the columns listed above. <code>"ipcc"</code>
+needs none of them.</p>
     </div>
 
     <div class="section level2">

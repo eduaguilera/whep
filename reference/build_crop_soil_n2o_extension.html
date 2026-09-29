@@ -13,8 +13,9 @@ Applied manure (F_ON): FAOSTAT &quot;Manure applied to soils (N content)&quot;
 country total, allocated to crops by harvested area (Coello is a
 synthetic-N rate basis only).
 Crop residues (F_CR): the dry matter of above-ground residues returned
-to soil (from get_primary_residues(), net of the removed fraction) times
-the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
+to soil (value_dm from get_primary_residues(), net of the removed
+fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+11.1a).
 
 
 Both country totals are read under raw FAOSTAT Area Code values and
@@ -53,8 +54,9 @@ Applied manure (F_ON): FAOSTAT &quot;Manure applied to soils (N content)&quot;
 country total, allocated to crops by harvested area (Coello is a
 synthetic-N rate basis only).
 Crop residues (F_CR): the dry matter of above-ground residues returned
-to soil (from get_primary_residues(), net of the removed fraction) times
-the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
+to soil (value_dm from get_primary_residues(), net of the removed
+fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+11.1a).
 
 
 Both country totals are read under raw FAOSTAT Area Code values and
@@ -132,8 +134,9 @@ national total is preserved), or by harvested-area share when
 country total, allocated to crops by harvested area (Coello is a
 synthetic-N rate basis only).</p></li>
 <li><p><strong>Crop residues</strong> (F_CR): the dry matter of above-ground residues returned
-to soil (from <code><a href="get_primary_residues.html">get_primary_residues()</a></code>, net of the removed fraction) times
-the crop's residue nitrogen content (IPCC 2019 Table 11.1a).</p></li>
+to soil (<code>value_dm</code> from <code><a href="get_primary_residues.html">get_primary_residues()</a></code>, net of the removed
+fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+11.1a).</p></li>
 </ul><p>Both country totals are read under raw FAOSTAT <code>Area Code</code> values and
 harmonised to the whep polity <code>area_code</code> through <a href="polity_area_crosswalk.html">polity_area_crosswalk</a>
 before they are split to crops, so reporting units that FABIO folds into one

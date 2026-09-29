@@ -44,13 +44,26 @@ redistribute_feed(feed_demand, feed_avail, options = list())
   surplus-distribution pass that pushes leftover CBS availability onto
   variable-demand livestock (correct for historical analyses where the
   CBS feed element is the realised consumption; keep `TRUE`, the
-  default, for unconstrained scenario projections).
+  default, for unconstrained scenario projections). Supply
+  `feed_exclusions` (a tibble with `livestock_category` and
+  `item_cbs_code`) to bar those items from those categories at every
+  allocation level, including the substitute pool, the surplus pass, the
+  grass-deficit substitute and the `max_intake_share` reroute. A barred
+  item is offered first to the categories allowed to eat it, then the
+  unrestricted items are shared among everyone. Demand that no allowed
+  item can fill stays unmet (`scaling_factor < 1`) rather than being
+  filled with a barred item. `feed_eligibility` names the rule the
+  exclusions come from and is recorded in the `method_feed_eligibility`
+  column (default `"custom"` when `feed_exclusions` is supplied,
+  `"none"` otherwise).
 
 ## Value
 
-A tibble of realised intake per demand row. When `maintenance_share` is
-supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
-attribute lists demand rows underfed below maintenance.
+A tibble of realised intake per demand row, with a
+`method_feed_eligibility` column naming the eligibility rule applied.
+When `maintenance_share` is supplied alongside `grass_availability`, a
+`grass_deficit_diagnosis` attribute lists demand rows underfed below
+maintenance.
 
 ## Examples
 
@@ -75,12 +88,12 @@ feed_avail <- tibble::tribble(
 )
 
 redistribute_feed(feed_demand, feed_avail)
-#> # A tibble: 2 × 14
+#> # A tibble: 2 × 15
 #>    year territory sub_territory livestock_category item_cbs_code feed_group
 #>   <int> <chr>     <chr>         <chr>                      <int> <chr>     
 #> 1  2000 79        79            Cattle_milk                 2514 cereals   
 #> 2  2000 79        79            Pigs                        2514 cereals   
-#> # ℹ 8 more variables: feed_quality <chr>, demand_dm_t <dbl>, intake_dm_t <dbl>,
+#> # ℹ 9 more variables: feed_quality <chr>, demand_dm_t <dbl>, intake_dm_t <dbl>,
 #> #   scaling_factor <dbl>, hierarchy_level <chr>, requested_item <int>,
-#> #   source_compartment <chr>, fixed_demand <lgl>
+#> #   source_compartment <chr>, fixed_demand <lgl>, method_feed_eligibility <chr>
 ```

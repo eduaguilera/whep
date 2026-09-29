@@ -19,8 +19,10 @@ get_processing_coefs(
 - years:
 
   Optional integer vector of years to build. When `NULL` (default) the
-  whole series is built. Supplying a window builds only that range
-  rather than building 1850-2023 and discarding the rest, and caches it
+  whole series is built. Supplying a window calibrates the coefficients
+  on that range of the full-range commodity balances (see
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
+  for why those are always built over the whole series) and caches them
   under a window-specific key.
 
 - trade_recovery:

@@ -71,8 +71,20 @@ this can be three different items right now:</p><ul><li><p><code>2105</code>: <c
 <li><p><code>2107</code>: <code>Firewood</code></p></li>
 </ul><p>These are actually not FAOSTAT defined items, but custom defined by us.
 When necessary, FAOSTAT codes are extended for our needs.</p></li>
-<li><p><code>value</code>: The amount of residue produced, measured in tonnes.</p></li>
-</ul></div>
+<li><p><code>value</code>: The amount of residue produced, in tonnes of <strong>fresh matter</strong>,
+like every other commodity-balance quantity.</p></li>
+<li><p><code>value_dm</code>: The same residue in tonnes of <strong>dry matter</strong>: each crop's
+fresh residue times its own residue dry-matter content,
+<code>Residue_kgDM_kgFM</code> in <a href="biomass_coefs.html">biomass_coefs</a>, summed per row. <code>NA</code> where a
+crop with residue mass carries no such coefficient, so the gap stays
+visible rather than reading as zero.</p></li>
+</ul><p>The pin's residue quantities are fresh matter. Across its crops the ratio of
+pinned residue to product tracks the fresh-matter residue:product ratio
+<code>kg_residue_kg_product_FM</code> of <a href="biomass_coefs.html">biomass_coefs</a> (about 0.8 of it for nearly
+every crop), not the residue's dry-matter content, which runs from 0.13
+(tomato) to 1.0 (rapeseed) (whep#1215). Use <code>value_dm</code> wherever a quantity
+is defined per unit of dry matter, such as a residue nitrogen content.</p>
+    </div>
     <div class="section level2">
     <h2 id="the-two-batch-pins-on-the-build-path">The two batch pins on the build path<a class="anchor" aria-label="anchor" href="#the-two-batch-pins-on-the-build-path"></a></h2>
 
@@ -161,7 +173,7 @@ two shapes share exactly one column name, <code>area_code</code>.
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">get_primary_residues</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010       174              174 PRT-1800-2025         Portugal              </span>
@@ -174,8 +186,9 @@ two shapes share exactly one column name, <code>area_code</code>.
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>018       167              167 CZE-1993-2025         Czechia               </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>994       109              109 JAM-1800-2025         Jamaica               </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>982       194              194 SAU-1924-2025         Saudi Arabia          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code_crop &lt;dbl&gt;, item_cbs_code_residue &lt;dbl&gt;, value &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code_crop &lt;dbl&gt;, item_cbs_code_residue &lt;dbl&gt;, value &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   value_dm &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

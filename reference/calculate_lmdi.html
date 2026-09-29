@@ -63,7 +63,8 @@ bracket notation for both summing and grouping operations.</p>
 <span>  .by <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  rolling_mean <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  output_format <span class="op">=</span> <span class="st">"clean"</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  zero_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"limit"</span>, <span class="st">"small_value"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -127,6 +128,24 @@ applied before decomposition. Default: 1 (no smoothing).</p></dd>
 <dd><p>Logical. If TRUE (default), prints progress messages during
 decomposition.</p></dd>
 
+
+<dt id="arg-zero-method">zero_method<a class="anchor" aria-label="anchor" href="#arg-zero-method"></a></dt>
+<dd><p>Character. How zero values are handled, since the
+logarithmic mean weight is undefined at zero. Missing values (including
+rows added when balancing the panel) are treated as zeros by both
+methods. One of:</p><ul><li><p><code>"limit"</code> (default): the analytical limit of the small-value strategy
+as the replacement value tends to zero (Ang and Liu, 2007). Zeros are
+kept as zeros and each affected sub-category's change is attributed
+exactly, so the additive decomposition is perfect and does not depend
+on an arbitrary constant. See the <em>Zero values</em> section.</p></li>
+<li><p><code>"small_value"</code>: the previous behaviour. Every zero is replaced by
+<code>1e-12</code> before decomposing (the small-value strategy of Ang, Zhang and
+Choi, 1998; the constant itself is the package's historical choice,
+assumed, unverified against a source), and for identities whose factors are all plain columns
+the target is re-derived as the product of the factors. Kept for
+comparison and sensitivity analysis.</p></li>
+</ul><p>The chosen method is recorded in the <code>method_zero_handling</code> column.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -134,6 +153,7 @@ decomposition.</p></dd>
 <li><p><code>additive</code>: Additive contributions (sum equals total change in target).</p></li>
 <li><p><code>multiplicative</code>: Multiplicative indices (product equals target ratio).</p></li>
 <li><p><code>multiplicative_log</code>: Log of multiplicative indices.</p></li>
+<li><p><code>method_zero_handling</code>: the <code>zero_method</code> used.</p></li>
 <li><p>Period identifiers and metadata.</p></li>
 </ul></div>
     <div class="section level2">
@@ -185,6 +205,52 @@ columns: every non-numeric column, the bracket selectors and the <code>.by</code
 columns. Any other numeric column is carried along as a value and is
 not a key, so a numeric identifier that must keep its series apart
 belongs in <code>.by</code> or a selector.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="zero-values">Zero values<a class="anchor" aria-label="anchor" href="#zero-values"></a></h2>
+
+
+<p>With <code>zero_method = "limit"</code>, a zero is treated as a quantity
+\(\delta \to 0\). Every aggregate a factor is built from
+is then of the form \(c \delta^p\) (a sum is of order
+\(\delta\) only when all its terms are zero; a ratio subtracts
+the orders). For a sub-category with target change \(\Delta V\)
+and factor \(k\) of order \(q_{k0}\) at the start and
+\(q_{kT}\) at the end, the additive contribution tends to:</p><ul><li><p>the usual LMDI-I term when neither target value is zero;</p></li>
+<li><p>\(\Delta V \Delta q_k / \sum_j \Delta q_j\),
+with \(\Delta q_k = q_{kT} - q_{k0}\), when exactly
+one of them is zero: the whole change of that sub-category goes to the
+factor(s) that reach or leave zero, split by their order when several
+do;</p></li>
+<li><p>zero when the target is zero at both ends.</p></li>
+</ul><p>These sum exactly to the change in the target, which is what
+<code>"small_value"</code> approaches only slowly (its error decays like
+\(1 / \log(1 / \epsilon)\)): with
+<code>1e-12</code> a factor that is zero at the start still leaves a few percent of
+the change on the other factors. Ang and Liu (2007) show that the
+small-value results converge as the replacement value tends to zero;
+the limits above are derived here from that convergence with one common
+replacement value for every zero (their tables were not accessible when
+this was written, so the term-by-term match with them is assumed,
+unverified).
+A sub-category whose target stays positive while one of its factors goes
+to zero and another to infinity (for example emissions with no activity),
+or whose target reaches or leaves zero while none of its factors does
+(data breaking the identity), has no finite decomposition: its
+contributions are returned as <code>NA</code> with a warning. The multiplicative form is undefined when the aggregate target
+is zero at either end, so its factor indices are then <code>NA</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Ang, B. W., Zhang, F. and Choi, K. (1998). Factorizing changes in
+energy and environmental indicators through decomposition. <em>Energy</em>,
+23(6), 489-495. <a href="https://doi.org/10.1016/S0360-5442%2898%2900016-4" class="external-link">doi:10.1016/S0360-5442(98)00016-4</a></p>
+<p>Ang, B. W. and Liu, N. (2007). Handling zero values in the logarithmic
+mean Divisia index decomposition approach. <em>Energy Policy</em>, 35(1),
+238-246. <a href="https://doi.org/10.1016/j.enpol.2005.11.001" class="external-link">doi:10.1016/j.enpol.2005.11.001</a></p>
+<p>Ang, B. W. (2015). LMDI decomposition approach: A guide for
+implementation. <em>Energy Policy</em>, 86, 233-238.
+<a href="https://doi.org/10.1016/j.enpol.2015.07.007" class="external-link">doi:10.1016/j.enpol.2015.07.007</a></p>
     </div>
 
     <div class="section level2">

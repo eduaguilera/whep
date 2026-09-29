@@ -127,7 +127,12 @@ build_nitrogen_balance(
     one row per balance key (a many-to-one join aborts on duplicate keys
     rather than fanning the rows out and misaligning `drainage_mm`).
     Missing required drivers abort inside the called `calculate_*()`
-    function, naming the exact column.
+    function, naming the exact column; for the MANNER `nh3` methods the
+    check runs on `n_balance_drivers` before any input is assembled,
+    because no function in the package supplies those drivers (only
+    `windspeed_ms` has a reader,
+    [`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md),
+    not wired in).
 
   - `drainage_mm`: annual drainage (mm) for
     [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),

@@ -78,6 +78,21 @@ covers that path) plus `rainfall_mm`, `irrigated`, `windspeed_ms`,
 [`calculate_manner_nh3_default()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3_default.md)'s
 Details for the gross-assumption reasoning), never invented per-row.
 
+Where the MANNER drivers come from: nothing in the package produces them
+on any build path, so a caller supplies them. The one exception with a
+reader is `windspeed_ms`, which
+[`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md)
+returns as monthly 0.5-degree GSWP3-W5E5 wind speed (m/s, the forcing
+LPJmL is driven with, from the `lpjml-wind-isimip-1901-2019` input via
+`WHEP_WIND_DIR`). It is not joined onto the N-loss rows by any builder:
+the grain of that join, the averaging window (growing season,
+application month or year) and the rule for years outside the wind
+record are open modelling choices (whep#1078).
+[`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+therefore refuses a MANNER `nh3` method before assembling anything
+unless its `data$n_balance_drivers` carries the columns listed above.
+`"ipcc"` needs none of them.
+
 ## Examples
 
 ``` r

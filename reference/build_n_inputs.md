@@ -75,20 +75,24 @@ build_n_inputs(
 
   What happens to non-item nitrogen (deposition, human,
   soil-organic-matter mineralization, unattributed manure) whose own
-  cell-year carries no cropland support at all. `"abort"` (the default,
-  and the behaviour before this argument existed) refuses to continue
-  and names the streams and the mass, so a coverage gap cannot be lost
-  silently. `"reallocate"` spreads each such row over its own
-  polity-year's cropland support in proportion to area, which conserves
-  mass and is the same rule
+  cell-year carries no allocation support at all. The support is the one
+  `unattributed_method` selects: cropland under the default
+  `"cropland_area"`, cropland plus grassland under
+  `"agricultural_area"`, so the second argument decides both which rows
+  are stranded and where they are rescued to (whep#1191). `"abort"` (the
+  default, and the behaviour before this argument existed) refuses to
+  continue and names the streams and the mass, so a coverage gap cannot
+  be lost silently. `"reallocate"` spreads each such row over its own
+  polity-year's support in proportion to area, which conserves mass and
+  is the same rule
   [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
   already applies to a polity-crop with no crop-pattern cell; it still
-  aborts when the polity-year has no cropland support anywhere.
+  aborts when the polity-year has no support anywhere.
   `"reallocate_drop"` places the same rows the same way and then
   discards that irreducible remainder, warning with its mass, so a
   global build is not refused over a few polities with population and no
-  cropland. `"drop"` reallocates nothing and discards every such row.
-  Whichever is chosen is stamped on every output row as
+  agricultural land. `"drop"` reallocates nothing and discards every
+  such row. Whichever is chosen is stamped on every output row as
   `method_unsupported`. May also be supplied as
   `data$method_unsupported`, which is how
   [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
@@ -109,6 +113,15 @@ build_n_inputs(
   by stream. The allocating methods conserve mass or abort; `"exclude"`
   does not conserve it. When `NULL` (default), uses
   `data$unattributed_method %||% "cropland_area"`.
+
+  This choice also governs `method_unsupported` (whep#1191): both run on
+  one allocation support. Under `"agricultural_area"` a cell holding
+  only grassland is no longer a stranded cell – its nitrogen lands on
+  its own grassland and `method_unsupported` never sees it – and a
+  `"reallocate"`/`"reallocate_drop"` rescue spreads over the
+  polity-year's cropland *and* grassland rather than its cropland alone.
+  Under `"exclude"` nothing reaches the stranded step, so
+  `method_unsupported` is inert apart from its stamp.
 
 - polity_validity:
 
@@ -345,13 +358,14 @@ the `"human"` term's population basis and the denominator of its
 per-capita rate (see
 [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md));
 both are `NA` for every other `fert_type`. `method_unsupported` records
-the rule applied to non-item nitrogen with no cropland support in its
-own cell, and is the same on every row. `method_unattributed` records
-the `unattributed_method` the whole assembly ran under and is stamped on
-**every** row, not only on the reallocated ones: under `"exclude"` no
-reallocated row survives to carry it, and a choice that removes nitrogen
-has to stay readable from the table. Both grains also carry the polity
-columns below, plus `reporting_polity_out_of_span` when
+the rule applied to non-item nitrogen with no allocation support in its
+own cell, and is the same on every row; read it together with
+`method_unattributed`, which fixed that support. `method_unattributed`
+records the `unattributed_method` the whole assembly ran under and is
+stamped on **every** row, not only on the reallocated ones: under
+`"exclude"` no reallocated row survives to carry it, and a choice that
+removes nitrogen has to stay readable from the table. Both grains also
+carry the polity columns below, plus `reporting_polity_out_of_span` when
 `polity_validity = "flag"`.
 
 ## Details

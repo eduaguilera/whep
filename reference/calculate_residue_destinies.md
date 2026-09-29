@@ -11,7 +11,8 @@ calculate_residue_destinies(
   x,
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
-  unmatched_recovery = c("report", "abort")
+  unmatched_recovery = c("report", "abort"),
+  recovery = c("legacy", "wirsenius")
 )
 ```
 
@@ -49,14 +50,23 @@ calculate_residue_destinies(
   count and tonnage, `"abort"` refuses to continue. Ignored by the
   `"shares"` method.
 
+- recovery:
+
+  Which recovery-rate variant the `recovery_regional` method reads:
+  `"legacy"` (default, the table as shipped before whep#1163) or
+  `"wirsenius"` (every rate Wirsenius 2000 states, at the value it
+  states; the default switch is deferred to whep#1330). See the Two
+  recovery variants section. Ignored by the `"shares"` method.
+
 ## Value
 
 The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
-`method_residue_destiny`. The `"recovery_regional"` method also returns
-`residue_recovery_matched`, `FALSE` where no recovery rate was found,
-which is what separates a rate the table gives as zero from a zero
-standing in for a failed lookup.
+`method_residue_destiny`, and `method_residue_recovery` (the `recovery`
+variant, `NA` for the `"shares"` method). The `"recovery_regional"`
+method also returns `residue_recovery_matched`, `FALSE` where no
+recovery rate was found, which is what separates a rate the table gives
+as zero from a zero standing in for a failed lookup.
 
 ## Bedding
 
@@ -95,18 +105,18 @@ denominator, so each needs converting before it can be used here:
 ## Where the recovery rates come from
 
 The `recovery_regional` recovery rates live in
-`inst/extdata/coefs/residue_recovery.csv`. Its two numeric columns are
-sourced separately and carry a provenance column each, `source_ratio`
-and `source_recovery`, because they agree with the source to different
-degrees. Both are **Wirsenius (2000)**, *Human Use of Land and Organic
-Materials*, PhD thesis, Chalmers University of Technology – Table 3.17
-(recovery rates, p. 94) and Table 3.16 (harvest index, p. 92, from which
-`residue_dm_product_dm` is the residue:product ratio rounded to one
-decimal). The file was named after Krausmann and its two key columns
-still are, but no coefficient in it is Krausmann's. Only the crop
-category (`items_prod_full$Cat_Krausmann`) really is his:
-`region_krausmann` here holds `regions_full$region_HANPP` labels, whose
-eight values are Wirsenius's eight regions (whep#1132).
+`inst/extdata/coefs/residue_recovery.csv`. Its numeric columns are
+sourced separately and carry a provenance column each (`source_ratio`,
+`source_recovery` and `source_recovery_wirsenius`), because they agree
+with the source to different degrees. All are **Wirsenius (2000)**,
+*Human Use of Land and Organic Materials*, PhD thesis, Chalmers
+University of Technology – Table 3.17 (recovery rates, p. 94) and Table
+3.16 (harvest index, p. 92, from which `residue_dm_product_dm` is the
+residue:product ratio rounded to one decimal). The file was named after
+Krausmann and its two key columns still are, but no coefficient in it is
+Krausmann's. Only the crop category (`items_prod_full$Cat_Krausmann`)
+really is his: `region_krausmann` here holds `regions_full$region_HANPP`
+labels, whose eight values are Wirsenius's eight regions (whep#1132).
 
 Table 3.17 states its rates per crop **category**, not per crop: one
 "Cereals straw & stover" row governs every cereal, and one "Sugar crops
@@ -119,30 +129,56 @@ categories here, and `source_recovery` splits them (whep#1150):
 - three sit **below** it – `Groundnuts in Shell`, `Sugar Beets` and
   `Sugar Crops nes`, each against 0.90 in every region;
 
-- seven – roots and tubers, cassava, dry beans, pulses, oil palm, castor
-  beans and permanent crops – it omits, and Wirsenius states that
-  recovery rates for the flows it omits "were assumed to be close to 100
-  percent" (p. 94). None of the seven reaches 0.90 in its most generous
-  region;
+- three – roots and tubers, cassava and oil palm – are residues the
+  thesis does model (Table 2.6, pp. 48-49: cassava leaves and tops,
+  potato tops, oil palm leaves and trunks) but Table 3.17 does not list,
+  and for those Wirsenius states that recovery rates "were assumed to be
+  close to 100 percent" (p. 94);
 
-- `Fodder crops` has no residue flow in the thesis at all. Its nearest
-  row, grass-legume, is 0.90; the rate here is 0 in all eight regions.
+- five – dry beans, pulses, castor beans, permanent crops and fodder
+  crops – have **no residue flow in the thesis at all**: Table 2.6 gives
+  pulses, fruits, tree nuts, vegetables and stimulants "no
+  representation of by-products" (p. 47), models forage crops whole, and
+  has no castor. The p. 94 default does not reach them, so the source is
+  silent on them (whep#1163).
 
-The departures are one-directional: no rate in the table exceeds the
-rate its source gives. Substituting the source value everywhere, with
-1.00 for the seven omitted flows, raises recovered residue from 256.4 to
-273.3 Gt DM over 1961–2021 (+6.59%) and the feed destiny from 72.1 to
-76.7 Gt (+6.44%), on the `crop_residues` pin as read by
-[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md).
-`Permanent crops` alone is 23% of all residue mass and two thirds of
-that gap. That substitution is **not** made here, because the gross
-residue base these rates multiply is itself too high, so re-anchoring
-the rate first would land further from the truth (whep#1132, whep#1041).
+## Two recovery variants
 
-Three of the unsourced categories move no mass at all today, which is
-why the fodder rate of 0 is not the live problem it looks like:
-`Sugar Crops nes` and `Oil Palm Fruit` are in the table and in no
-production item, and no `Fodder crops` item reaches the residue pin.
+`recovery =` selects the rate column, and `method_residue_recovery`
+records which one was used:
+
+- `"legacy"` (default) reads `recovery_rates`, the table as shipped
+  before whep#1163, whose departures from the source are all downward.
+
+- `"wirsenius"` reads `recovery_rates_wirsenius`: every rate the thesis
+  states, at the value it states. The three below-source categories take
+  0.90, the three p. 94 categories take 1.00 – "close to 100 percent"
+  read as 1.00, which is a reading of the text and not a number it
+  prints – and the five categories the source is silent on keep the
+  legacy assumed rate. `source_recovery_wirsenius` labels each.
+
+`"wirsenius"` is the only variant in which every rate is traceable to
+the cited source, but it is **not** the default yet. The gross residue
+base these rates multiply is itself thought to be about 36% too high
+(whep#1330, step 2 of whep#1132), so raising the rate before that base
+is corrected would move recovered residue further from the literature,
+not closer. The switch of default is deferred to whep#1330; until then
+`"legacy"` keeps every published value where it was.
+
+Measured on the `crop_residues` pin as read by
+[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
+(after its per-crop fresh-to-dry-matter conversion, whep#1255),
+`"wirsenius"` against `"legacy"` in 2010 raises recovered residue from
+6341 to 6463 Mt DM (+1.9%), the feed destiny from 1852 to 1891 Mt
+(+2.1%) and the burned/other-use destiny from 4489 to 4572 Mt (+1.8%),
+and lowers the soil destiny from 1294 to 1172 Mt (-9.4%); over 1961–1965
+the same moves are +3.5%, +3.4%, +3.6% and -15.2%. Roots and tubers,
+cassava, sugar beet and groundnut are the only categories that move.
+
+Three categories move no mass at all today, which is why the fodder rate
+of 0 is not the live problem it looks like: `Sugar Crops nes` and
+`Oil Palm Fruit` are in the table and in no production item, and no
+`Fodder crops` item reaches the residue pin.
 
 ## The feed-use fraction is a different, unpaired source
 
@@ -171,12 +207,12 @@ calculate_residue_destinies(
     region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
-#> # A tibble: 1 × 11
+#> # A tibble: 1 × 12
 #>   item_prod_code residue_dm_t region_krausmann region_un_sub 
 #>   <chr>                 <dbl> <chr>            <chr>         
 #> 1 15                      100 West Europe      Western Europe
-#> # ℹ 7 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
+#> # ℹ 8 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
 #> #   residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
 #> #   residue_bedding_dm_t <dbl>, residue_bedding_fraction <dbl>,
-#> #   method_residue_destiny <chr>
+#> #   method_residue_destiny <chr>, method_residue_recovery <chr>
 ```

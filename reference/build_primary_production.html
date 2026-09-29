@@ -74,6 +74,7 @@ surviving (deduplicated) values.</p></li>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  federation_land <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"successor_union"</span><span class="op">)</span>,</span>
 <span>  land_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"present_day"</span>, <span class="st">"historical_polity"</span><span class="op">)</span>,</span>
+<span>  fodder_split <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fao_mix"</span>, <span class="st">"equal"</span><span class="op">)</span>,</span>
 <span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -145,6 +146,18 @@ gridded LUH2 summed inside the polygon of the polity <code>area_code</code>
 resolved to in that year. It moves published pre-1962 values, needs
 <code>sf</code> and <code>terra</code>, and reads gridded LUH2 for every back-cast year, so it
 is minutes of extra work.</p></li>
+</ul></dd>
+
+
+<dt id="arg-fodder-split">fodder_split<a class="anchor" aria-label="anchor" href="#arg-fodder-split"></a></dt>
+<dd><p>Character. How an EU AgriDB fodder area is divided
+among the FAOSTAT items that share its Eurostat label (seven items share
+"Other plants harvested green from arable land", four "Other root crops
+n.e.c."). Either way the items together get exactly the reported area;
+until whep#654 each item could get all of it.</p><ul><li><p><code>"fao_mix"</code> (default) splits it in proportion to FAOSTAT's own item
+areas in that year, or in the nearest years that report them. A label
+FAOSTAT never gives an item area for in that country is split evenly.</p></li>
+<li><p><code>"equal"</code> gives every item sharing the label the same share.</p></li>
 </ul></dd>
 
 

@@ -110,6 +110,13 @@ vocabulary, plus the six 2019 anaerobic-digester classes.</p></dd>
 achieved). <code>NA</code> where the edition publishes no default – the 2006
 anaerobic digester, which is "0-100 percent, calculate".</p></dd>
 
+<dt>paired_bo_m3_kg_vs</dt>
+<dd><p>The methane potential (<code>Bo</code>, m3 CH4 per kg
+volatile solids) the edition publishes this MCF together with, or <code>NA</code>
+where it publishes none and the animal-category <code>Bo</code> of
+<a href="ipcc_tier2_bo_values.html">ipcc_tier2_bo_values</a> applies. Only the three 2019
+pasture/range/paddock rows carry one, 0.19 (whep#1137).</p></dd>
+
 
 </dl></div>
     <div class="section level2">
@@ -154,28 +161,31 @@ time is unknown (Table 10.17 footnote 1).</p></li>
 
 <p>The Refinement's single 0.47 percent for pasture, range and paddock is
 <strong>not</strong> a drop-in replacement for the 2006 triple. Section 10.4.2 of the
-same chapter states that it "must be used in conjunction with a single B0
-value of 0.19 m3 CH4 kg-1 of VS excreted", and that this pair "was judged
-by the expert panel to be more accurate than emission factors estimated
-from regionally based MCFs and animal category based B0" – which is
-precisely what WHEP computes. <code>.calc_manure_ch4_tier2()</code> multiplies one
-per-species <code>Bo</code> from <a href="ipcc_tier2_bo_values.html">ipcc_tier2_bo_values</a> by the share-weighted MCF, so
-it cannot hold a system-specific <code>Bo</code> without computing the product per
-manure stream instead. Because <code>"ipcc_2019"</code> is the default, <strong>the shipped
-Tier 2 path now runs that hybrid</strong>: the Refinement's pasture MCF against
-WHEP's animal-category <code>Bo</code>, which is the combination the Refinement
-rejects.</p>
-<p>Measured, on FAOSTAT 2020 heads at the Temperate default, repricing only
-the pasture stream at <code>Bo</code> 0.19 moves global Tier 2 manure CH4 by
-<strong>+0.18 percent</strong> (14.385 to 14.411 Tg). It is small in total because the
-species that reach Tier 2 are dominated by cattle, for which pasture is
-only 3.2 percent of the weighted MCF, and because sheep already carry
-<code>Bo</code> 0.19 exactly. It is not small everywhere: buffalo (<code>Bo</code> 0.10) would
-rise <strong>30.5 percent</strong>, goats (0.18) 5.6 percent and cattle fall
-0.07 percent. Horses (0.30), mules and asses (0.33) and camels (0.26)
-would move most of all, but contribute no Tier 2 CH4 today because they
-are dropped for want of cohort and energy inputs. Restructuring the kernel
-to a per-stream <code>Bo</code> is out of scope for the table and open in whep#1022.</p>
+same chapter (p. 10.66) states that it "must be used in conjunction with a
+single B0 value of 0.19 m3 CH4 kg-1 of VS excreted", and that this pair
+"was judged by the expert panel to be more accurate than emission factors
+estimated from regionally based MCFs and animal category based B0";
+footnote 2 of Table 10.17 (Updated) (p. 10.70) repeats that pasture MCFs
+"must always be used in conjunction with a B0 value of 0.19", and Annex
+10B.6 (p. 10.164) derives the pair from grazing measurements on cattle and
+sheep, finding no significant difference by climate zone or animal
+category. The pair is carried in <code>paired_bo_m3_kg_vs</code>.</p>
+<p>Since whep#1137 the Tier 2 kernel honours it by default: the
+<code>pasture_bo = "paired"</code> manure-engine option (see <a href="manure_engine_options.html">manure_engine_options</a>)
+prices the pasture stream at 0.19 and every other stream at the
+animal-category <code>Bo</code>, and <code>pasture_bo = "species"</code> restores the single
+per-species <code>Bo</code> – the hybrid the Refinement rejects – for
+reproducibility and sensitivity. <code>method_manure_ch4</code> records which.</p>
+<p>Measured on FAOSTAT 2020 heads, national grain, the Temperate default and
+the Global GLEAM 2.0 manure-management split, the pairing moves global
+Tier 2 manure CH4 by <strong>+0.033 percent</strong> (14.3353 to 14.3401 Tg): goats
++1.1 percent (<code>Bo</code> 0.18, pasture a fifth of their weighted MCF), buffalo
++0.84 percent (<code>Bo</code> 0.10, pasture under 1 percent of theirs), cattle
+-0.07 percent and sheep unchanged (<code>Bo</code> 0.19 already). Horses, mules and
+asses and camels, whose <code>Bo</code> is furthest from 0.19, reach no Tier 2 CH4
+in that run. The +30.5 percent buffalo figure first quoted in whep#1137
+was measured under the placeholder split that whep#958 replaced, which
+sent 60 percent of buffalo manure to pasture.</p>
     </div>
     <div class="section level2">
     <h2 id="what-the-table-cannot-hold">What the table cannot hold<a class="anchor" aria-label="anchor" href="#what-the-table-cannot-hold"></a></h2>
@@ -194,19 +204,19 @@ percent range and requires the compiler to evaluate its Formula 1.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">climate_mcf_ipcc</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 81 × 4</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    edition   mms_type      climate_zone mcf_percent</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ipcc_2006 Daily Spread  Cool                 0.1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> ipcc_2006 Daily Spread  Temperate            0.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> ipcc_2006 Daily Spread  Warm                 1  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> ipcc_2006 Solid Storage Cool                 2  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> ipcc_2006 Solid Storage Temperate            4  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> ipcc_2006 Solid Storage Warm                 5  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> ipcc_2006 Dry Lot       Cool                 1  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> ipcc_2006 Dry Lot       Temperate            1.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> ipcc_2006 Dry Lot       Warm                 2  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> ipcc_2006 Liquid/Slurry Cool                20  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 81 × 5</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    edition   mms_type      climate_zone mcf_percent paired_bo_m3_kg_vs</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ipcc_2006 Daily Spread  Cool                 0.1                 <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> ipcc_2006 Daily Spread  Temperate            0.5                 <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> ipcc_2006 Daily Spread  Warm                 1                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> ipcc_2006 Solid Storage Cool                 2                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> ipcc_2006 Solid Storage Temperate            4                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> ipcc_2006 Solid Storage Warm                 5                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> ipcc_2006 Dry Lot       Cool                 1                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> ipcc_2006 Dry Lot       Temperate            1.5                 <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> ipcc_2006 Dry Lot       Warm                 2                   <span style="color: #BB0000;">NA</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> ipcc_2006 Liquid/Slurry Cool                20                   <span style="color: #BB0000;">NA</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 71 more rows</span></span>
 </code></pre></div>
     </div>

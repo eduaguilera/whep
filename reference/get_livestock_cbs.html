@@ -76,7 +76,8 @@ directly by husbandry.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_livestock_cbs</span><span class="op">(</span></span>
 <span>  <span class="va">primary_prod</span>,</span>
-<span>  method_head_units <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"drop"</span>, <span class="st">"abort"</span><span class="op">)</span></span>
+<span>  method_head_units <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"drop"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
+<span>  method_cull <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fold"</span>, <span class="st">"separate"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -96,10 +97,32 @@ animals are reported in two head units</em> section. <code>"convert"</code>
 (default) rescales them by 1,000 onto <code>heads</code>, <code>"drop"</code> discards
 them with a warning, <code>"abort"</code> refuses.</p></dd>
 
+
+<dt id="arg-method-cull">method_cull<a class="anchor" aria-label="anchor" href="#arg-method-cull"></a></dt>
+<dd><p>Where the slaughter FAOSTAT books on dairy cattle (960)
+and laying hens (1052) goes. FAOSTAT reports one slaughter count per
+species (cattle 866, chickens 1057); WHEP splits it between the dairy /
+layer and the non-dairy / broiler stock sub-items by stock share, while
+beef, poultry meat and live-animal trade are all keyed on 961 and 1053.</p><ul><li><p><code>"fold"</code> (default): count that slaughter toward the live-animal balance
+of 961 (non-dairy cattle) and 1053 (broilers), next to the meat and the
+trade it belongs with. The balance then holds FAOSTAT's whole observed
+slaughter. The cost: in the live-animal balance, culled dairy cows and
+spent hens are counted as raised by the non-dairy / broiler sector.</p></li>
+<li><p><code>"separate"</code>: give 960 and 1052 a live-animal balance of their own, in
+which production and processing are the cull and trade is zero (FAOSTAT
+does not split live-animal trade by sub-item). Total slaughter is the
+same. No slaughtering process consumes those rows, because the meat of
+culled animals is still keyed on 961 / 1053, but <code><a href="build_io_model.html">build_io_model()</a></code> reads
+CBS <code>production</code> as the 960 / 1052 output.</p></li>
+</ul><p>Breeding swine (1051) are always folded onto 1049 (whep#1149): 1051 has
+no sector of its own to keep a balance on. The choice is recorded in the
+<code>method_cull</code> column.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble with the same columns as <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>.</p>
+    <p>A tibble with the same columns as <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>, plus
+<code>method_cull</code>.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

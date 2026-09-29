@@ -41,7 +41,24 @@ A tibble with the crop residue data. It contains the following columns:
   These are actually not FAOSTAT defined items, but custom defined by
   us. When necessary, FAOSTAT codes are extended for our needs.
 
-- `value`: The amount of residue produced, measured in tonnes.
+- `value`: The amount of residue produced, in tonnes of **fresh
+  matter**, like every other commodity-balance quantity.
+
+- `value_dm`: The same residue in tonnes of **dry matter**: each crop's
+  fresh residue times its own residue dry-matter content,
+  `Residue_kgDM_kgFM` in
+  [biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md),
+  summed per row. `NA` where a crop with residue mass carries no such
+  coefficient, so the gap stays visible rather than reading as zero.
+
+The pin's residue quantities are fresh matter. Across its crops the
+ratio of pinned residue to product tracks the fresh-matter
+residue:product ratio `kg_residue_kg_product_FM` of
+[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
+(about 0.8 of it for nearly every crop), not the residue's dry-matter
+content, which runs from 0.13 (tomato) to 1.0 (rapeseed) (whep#1215).
+Use `value_dm` wherever a quantity is defined per unit of dry matter,
+such as a residue nitrogen content.
 
 ## The two batch pins on the build path
 
@@ -139,7 +156,7 @@ shapes share exactly one column name, `area_code`.
 
 ``` r
 get_primary_residues(example = TRUE)
-#> # A tibble: 10 × 9
+#> # A tibble: 10 × 10
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
 #>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
 #>  1  2010       174              174 PRT-1800-2025         Portugal              
@@ -152,6 +169,7 @@ get_primary_residues(example = TRUE)
 #>  8  2018       167              167 CZE-1993-2025         Czechia               
 #>  9  1994       109              109 JAM-1800-2025         Jamaica               
 #> 10  1982       194              194 SAU-1924-2025         Saudi Arabia          
-#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>,
-#> #   item_cbs_code_crop <dbl>, item_cbs_code_residue <dbl>, value <dbl>
+#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code_crop <dbl>, item_cbs_code_residue <dbl>, value <dbl>,
+#> #   value_dm <dbl>
 ```

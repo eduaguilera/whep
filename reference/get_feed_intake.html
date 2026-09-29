@@ -49,7 +49,8 @@
 <span>  grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"national"</span>, <span class="st">"local"</span><span class="op">)</span>,</span>
 <span>  demand_tier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"fcr"</span><span class="op">)</span>,</span>
 <span>  feed_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"historical"</span>, <span class="st">"scenario"</span><span class="op">)</span>,</span>
-<span>  years <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  feed_eligibility <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"feed_table"</span>, <span class="st">"none"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -90,6 +91,17 @@ intake). <code>"scenario"</code> distributes the surplus.</p></dd>
 year in the production data (1850-2023 via the LUH2 extension). Restricting
 the range cuts run time proportionally; allocation is independent per year,
 so a subset returns exactly the same rows for those years.</p></dd>
+
+
+<dt id="arg-feed-eligibility">feed_eligibility<a class="anchor" aria-label="anchor" href="#arg-feed-eligibility"></a></dt>
+<dd><p>Which feeds each livestock category may receive.
+<code>"feed_table"</code> (default) follows <code>feed_taxonomy</code>: an item with a grazer
+feed type but no granivore feed type (straw and green fodder) is fibrous
+roughage that pigs and poultry do not eat, so it is never allocated to
+them, at any allocation level. Granivore demand that the feeds they may
+eat cannot cover stays unmet rather than being filled with roughage.
+<code>"none"</code> lets any category receive any item (the behaviour before
+whep#1218), for sensitivity analysis.</p></dd>
 
 </dl></div>
     <div class="section level2">

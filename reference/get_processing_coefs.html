@@ -60,9 +60,10 @@ and quantities of their corresponding processed output items.</p>
 
 <dl><dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
 <dd><p>Optional integer vector of years to build. When <code>NULL</code>
-(default) the whole series is built. Supplying a window builds only that
-range rather than building 1850-2023 and discarding the rest, and caches it
-under a window-specific key.</p></dd>
+(default) the whole series is built. Supplying a window calibrates the
+coefficients on that range of the full-range commodity balances (see
+<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> for why those are always built over the whole series)
+and caches them under a window-specific key.</p></dd>
 
 
 <dt id="arg-trade-recovery">trade_recovery<a class="anchor" aria-label="anchor" href="#arg-trade-recovery"></a></dt>

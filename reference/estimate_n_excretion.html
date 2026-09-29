@@ -107,6 +107,13 @@ bucket and so loses the territory for 62 of the 257 codes it knows.</p></dd>
 (<code>n_intake - product_n</code>).</p></li>
 <li><p><code>method_vs</code>: <code>"intake_digestibility"</code> (default,
 <code>intake_dm_t * (1 - digestibility) * (1 - ash)</code>).</p></li>
+<li><p><code>method_digestibility</code>: where <code>digestibility</code> comes from.
+<code>"species_feed_quality"</code> (default) looks it up per species and feed
+quality: pigs and poultry fed concentrates digest far more of them
+than a ruminant does, so they take the IPCC (2019) Table 10.2
+(Updated) values for confined monogastrics; see Details.
+<code>"feed_quality"</code> is the earlier species-blind lookup, one value per
+feed quality for every species, kept for comparison (whep#1007).</p></li>
 <li><p><code>method_c</code>: <code>"volatile_solids"</code> (the only method,
 <code>vs_excretion * c_vs_fraction</code>). The route it replaced,
 <code>n_excretion</code> times the <code>bio_coefs</code> <code>Excreta</code> C:N, is deliberately not
@@ -136,8 +143,8 @@ Supplement S1 Tab. S.3.3, or <code>"biomass_coefs_grass"</code> (0.0174) from th
     <p>A tibble with one row per
 <code>year x territory x sub_territory x livestock_category</code> and columns
 <code>n_intake</code>, <code>n_excretion</code>, <code>c_excretion</code>, <code>vs_excretion</code>,
-<code>method_n_excretion</code>, <code>method_vs</code>, <code>method_c_excretion</code> and
-<code>method_forage_n</code>.</p>
+<code>method_n_excretion</code>, <code>method_vs</code>, <code>method_digestibility</code>,
+<code>method_c_excretion</code> and <code>method_forage_n</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -151,7 +158,31 @@ manures bracket it: 0.52 for fresh bedded dairy manure (Choi et al. 2022,
 PeerJ 10:e14134, doi:10.7717/peerj.14134, Table 1: 43.3% C and 83.3% VS
 of dry matter) and 0.39-0.46 for stored cattle and pig manure (Baek et al.
 2020, Int. J. Environ. Res. Public Health 17:4737,
-doi:10.3390/ijerph17134737, Table 1).</p>
+doi:10.3390/ijerph17134737, Table 1).</p><div class="section">
+<h3 id="digestibility">Digestibility<a class="anchor" aria-label="anchor" href="#digestibility"></a></h3>
+
+
+<p>Digestibility here is the digestible share of the feed's gross energy
+(DE), which is what IPCC (2019) Eq. 10.24 uses for volatile solids. The
+per-feed-quality values are a scaffold anchored on the GLEAM 3.0
+ruminant feed table (<a href="gleam_feed_digestibility.html">gleam_feed_digestibility</a>: fresh grass 66 and hay
+58, straws 44-47) and are applied to every species under
+<code>"feed_quality"</code>. Under <code>"species_feed_quality"</code> three of them are
+replaced by the representative values of the IPCC 2019 Refinement,
+Vol. 4, Ch. 10, Table 10.2 (Updated), taking the mid-point of each range:</p><ul><li><p>pigs, <code>high_quality</code>: 0.85, growing swine in confinement (80-90).
+Market swine are the chain's representative pig category; mature
+confined swine are 70-80. The GLEAM 3.0 pig feed table (<a href="gleam_feed_conversion_ratios.html">gleam_feed_conversion_ratios</a>, Table
+S.3.4) agrees: maize 88, wheat 83, barley 76, soybean meal 80.</p></li>
+<li><p>pigs, <code>scavenging</code>: 0.60, free-range swine (50-70).</p></li>
+<li><p>poultry, <code>high_quality</code>: 0.89, broilers in confinement (85-93).
+Broilers are the representative poultry category of the whole manure
+chain; layers in confinement are 70-80.</p></li>
+</ul><p>Every other livestock category and feed quality keeps the scaffold value
+(rabbits too, although they borrow the swine coefficients elsewhere), and
+so does crop-residue feed for pigs and poultry: the GLEAM pig table gives
+straw 49 and crop tops 52, the same as the ruminant straws.</p>
+</div>
+
     </div>
 
     <div class="section level2">
@@ -163,13 +194,13 @@ doi:10.3390/ijerph17134737, Table 1).</p>
 <span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="cn">NA</span>, <span class="st">"grass"</span>, <span class="fl">500</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">estimate_n_excretion</span><span class="op">(</span><span class="va">intake</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 12</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category n_intake n_excretion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk            11.9        9.49</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: c_excretion &lt;dbl&gt;, vs_excretion &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_n_excretion &lt;chr&gt;, method_vs &lt;chr&gt;, method_c_excretion &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_forage_n &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: c_excretion &lt;dbl&gt;, vs_excretion &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_n_excretion &lt;chr&gt;, method_vs &lt;chr&gt;, method_digestibility &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_c_excretion &lt;chr&gt;, method_forage_n &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

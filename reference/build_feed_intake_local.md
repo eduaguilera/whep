@@ -20,7 +20,8 @@ build_feed_intake_local(
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  feed_eligibility = c("feed_table", "none")
 )
 ```
 
@@ -82,6 +83,17 @@ build_feed_intake_local(
   Optional path to an already-derived grass availability artifact passed
   to
   [`build_grass_availability_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.md).
+
+- feed_eligibility:
+
+  Which feeds each livestock category may receive. `"feed_table"`
+  (default) follows `feed_taxonomy`: an item with a grazer feed type but
+  no granivore feed type (straw and green fodder) is fibrous roughage
+  that pigs and poultry do not eat, so it is never allocated to them, at
+  any allocation level. Granivore demand that the feeds they may eat
+  cannot cover stays unmet rather than being filled with roughage.
+  `"none"` lets any category receive any item (the behaviour before
+  whep#1218), for sensitivity analysis.
 
 ## Value
 

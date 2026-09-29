@@ -18,7 +18,8 @@ calculate_lmdi(
   .by = NULL,
   rolling_mean = 1,
   output_format = "clean",
-  verbose = TRUE
+  verbose = TRUE,
+  zero_method = c("limit", "small_value")
 )
 ```
 
@@ -79,6 +80,29 @@ calculate_lmdi(
   Logical. If TRUE (default), prints progress messages during
   decomposition.
 
+- zero_method:
+
+  Character. How zero values are handled, since the logarithmic mean
+  weight is undefined at zero. Missing values (including rows added when
+  balancing the panel) are treated as zeros by both methods. One of:
+
+  - `"limit"` (default): the analytical limit of the small-value
+    strategy as the replacement value tends to zero (Ang and Liu, 2007).
+    Zeros are kept as zeros and each affected sub-category's change is
+    attributed exactly, so the additive decomposition is perfect and
+    does not depend on an arbitrary constant. See the *Zero values*
+    section.
+
+  - `"small_value"`: the previous behaviour. Every zero is replaced by
+    `1e-12` before decomposing (the small-value strategy of Ang, Zhang
+    and Choi, 1998; the constant itself is the package's historical
+    choice, assumed, unverified against a source), and for identities
+    whose factors are all plain columns the target is re-derived as the
+    product of the factors. Kept for comparison and sensitivity
+    analysis.
+
+  The chosen method is recorded in the `method_zero_handling` column.
+
 ## Value
 
 A tibble with LMDI decomposition results containing:
@@ -92,6 +116,8 @@ A tibble with LMDI decomposition results containing:
   ratio).
 
 - `multiplicative_log`: Log of multiplicative indices.
+
+- `method_zero_handling`: the `zero_method` used.
 
 - Period identifiers and metadata.
 
@@ -170,6 +196,57 @@ columns: every non-numeric column, the bracket selectors and the `.by`
 columns. Any other numeric column is carried along as a value and is not
 a key, so a numeric identifier that must keep its series apart belongs
 in `.by` or a selector.
+
+## Zero values
+
+With `zero_method = "limit"`, a zero is treated as a quantity \\\delta
+\to 0\\. Every aggregate a factor is built from is then of the form \\c
+\delta^p\\ (a sum is of order \\\delta\\ only when all its terms are
+zero; a ratio subtracts the orders). For a sub-category with target
+change \\\Delta V\\ and factor \\k\\ of order \\q\_{k0}\\ at the start
+and \\q\_{kT}\\ at the end, the additive contribution tends to:
+
+- the usual LMDI-I term when neither target value is zero;
+
+- \\\Delta V \Delta q_k / \sum_j \Delta q_j\\, with \\\Delta q_k =
+  q\_{kT} - q\_{k0}\\, when exactly one of them is zero: the whole
+  change of that sub-category goes to the factor(s) that reach or leave
+  zero, split by their order when several do;
+
+- zero when the target is zero at both ends.
+
+These sum exactly to the change in the target, which is what
+`"small_value"` approaches only slowly (its error decays like \\1 /
+\log(1 / \epsilon)\\): with `1e-12` a factor that is zero at the start
+still leaves a few percent of the change on the other factors. Ang and
+Liu (2007) show that the small-value results converge as the replacement
+value tends to zero; the limits above are derived here from that
+convergence with one common replacement value for every zero (their
+tables were not accessible when this was written, so the term-by-term
+match with them is assumed, unverified). A sub-category whose target
+stays positive while one of its factors goes to zero and another to
+infinity (for example emissions with no activity), or whose target
+reaches or leaves zero while none of its factors does (data breaking the
+identity), has no finite decomposition: its contributions are returned
+as `NA` with a warning. The multiplicative form is undefined when the
+aggregate target is zero at either end, so its factor indices are then
+`NA`.
+
+## References
+
+Ang, B. W., Zhang, F. and Choi, K. (1998). Factorizing changes in energy
+and environmental indicators through decomposition. *Energy*, 23(6),
+489-495.
+[doi:10.1016/S0360-5442(98)00016-4](https://doi.org/10.1016/S0360-5442%2898%2900016-4)
+
+Ang, B. W. and Liu, N. (2007). Handling zero values in the logarithmic
+mean Divisia index decomposition approach. *Energy Policy*, 35(1),
+238-246.
+[doi:10.1016/j.enpol.2005.11.001](https://doi.org/10.1016/j.enpol.2005.11.001)
+
+Ang, B. W. (2015). LMDI decomposition approach: A guide for
+implementation. *Energy Policy*, 86, 233-238.
+[doi:10.1016/j.enpol.2015.07.007](https://doi.org/10.1016/j.enpol.2015.07.007)
 
 ## Examples
 

@@ -17,12 +17,14 @@ from `Edible_portion` instead of stored redundantly. `N_kgN_kgFM` must
 be a **food-composition** density for this to mean anything, because
 `food_t` for a processed FBS item is the primary equivalent of the
 products actually eaten: a whole-grain nitrogen density on that mass
-counts milling offal as food. Five cereal rows carry the agronomic value
-instead, and others a bare literal; both sets are named in
-[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md).
-`Wheat` was the largest, at 1.27x FAOSTAT FBS world protein until \#796,
-and now ships on the **flour basis**, 93 g of protein per kg, sourced
-and measured in
+counts milling offal as food. Five cereal rows carried the agronomic
+value instead, and others a bare literal;
+[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
+names both sets and what became of each (#1096: `Olive`, `Rye` and
+`Honey` now follow their food-composition rows, `Oats`, `Maize` and
+`Rice` do not). `Wheat` was the largest, at 1.27x FAOSTAT FBS world
+protein until \#796, and now ships on the **flour basis**, 93 g of
+protein per kg, sourced and measured in
 [biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md).
 Energy per kilogram fresh matter follows
 `GE_product_edible_portion_MJ_kgFM`, then `GE_product_MJ_kgFM` (MJ per

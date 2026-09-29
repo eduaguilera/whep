@@ -151,7 +151,10 @@ balance-key-only driver columns (<code>fert_type</code>, <code>climate</code>, <
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning <code>drainage_mm</code>). Missing required
 drivers abort inside the called <code>calculate_*()</code> function, naming the
-exact column.</p></li>
+exact column; for the MANNER <code>nh3</code> methods the check runs on
+<code>n_balance_drivers</code> before any input is assembled, because no
+function in the package supplies those drivers (only <code>windspeed_ms</code>
+has a reader, <code><a href="read_lpjml_wind.html">read_lpjml_wind()</a></code>, not wired in).</p></li>
 <li><p><code>drainage_mm</code>: annual drainage (mm) for <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>, as
 a numeric vector aligned to the balance-key rows, or already present
 as a <code>drainage_mm</code> column via <code>n_balance_leaching_drivers</code>.</p></li>

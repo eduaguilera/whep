@@ -55,6 +55,14 @@ estimate_n_excretion(intake, options = list())
   - `method_vs`: `"intake_digestibility"` (default,
     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
 
+  - `method_digestibility`: where `digestibility` comes from.
+    `"species_feed_quality"` (default) looks it up per species and feed
+    quality: pigs and poultry fed concentrates digest far more of them
+    than a ruminant does, so they take the IPCC (2019) Table 10.2
+    (Updated) values for confined monogastrics; see Details.
+    `"feed_quality"` is the earlier species-blind lookup, one value per
+    feed quality for every species, kept for comparison (whep#1007).
+
   - `method_c`: `"volatile_solids"` (the only method,
     `vs_excretion * c_vs_fraction`). The route it replaced,
     `n_excretion` times the `bio_coefs` `Excreta` C:N, is deliberately
@@ -86,8 +94,8 @@ estimate_n_excretion(intake, options = list())
 A tibble with one row per
 `year x territory x sub_territory x livestock_category` and columns
 `n_intake`, `n_excretion`, `c_excretion`, `vs_excretion`,
-`method_n_excretion`, `method_vs`, `method_c_excretion` and
-`method_forage_n`.
+`method_n_excretion`, `method_vs`, `method_digestibility`,
+`method_c_excretion` and `method_forage_n`.
 
 ## Details
 
@@ -103,6 +111,36 @@ manures bracket it: 0.52 for fresh bedded dairy manure (Choi et al.
 (Baek et al. 2020, Int. J. Environ. Res. Public Health 17:4737,
 doi:10.3390/ijerph17134737, Table 1).
 
+### Digestibility
+
+Digestibility here is the digestible share of the feed's gross energy
+(DE), which is what IPCC (2019) Eq. 10.24 uses for volatile solids. The
+per-feed-quality values are a scaffold anchored on the GLEAM 3.0
+ruminant feed table
+([gleam_feed_digestibility](https://eduaguilera.github.io/whep/reference/gleam_feed_digestibility.md):
+fresh grass 66 and hay 58, straws 44-47) and are applied to every
+species under `"feed_quality"`. Under `"species_feed_quality"` three of
+them are replaced by the representative values of the IPCC 2019
+Refinement, Vol. 4, Ch. 10, Table 10.2 (Updated), taking the mid-point
+of each range:
+
+- pigs, `high_quality`: 0.85, growing swine in confinement (80-90).
+  Market swine are the chain's representative pig category; mature
+  confined swine are 70-80. The GLEAM 3.0 pig feed table
+  ([gleam_feed_conversion_ratios](https://eduaguilera.github.io/whep/reference/gleam_feed_conversion_ratios.md),
+  Table S.3.4) agrees: maize 88, wheat 83, barley 76, soybean meal 80.
+
+- pigs, `scavenging`: 0.60, free-range swine (50-70).
+
+- poultry, `high_quality`: 0.89, broilers in confinement (85-93).
+  Broilers are the representative poultry category of the whole manure
+  chain; layers in confinement are 70-80.
+
+Every other livestock category and feed quality keeps the scaffold value
+(rabbits too, although they borrow the swine coefficients elsewhere),
+and so does crop-residue feed for pigs and poultry: the GLEAM pig table
+gives straw 49 and crop tops 52, the same as the ruminant straws.
+
 ## Examples
 
 ``` r
@@ -113,11 +151,11 @@ intake <- tibble::tribble(
   2020L, "203", NA, "Cattle_milk", NA, "grass", 500
 )
 estimate_n_excretion(intake)
-#> # A tibble: 1 × 12
+#> # A tibble: 1 × 13
 #>    year territory sub_territory livestock_category n_intake n_excretion
 #>   <int> <chr>     <lgl>         <chr>                 <dbl>       <dbl>
 #> 1  2020 203       NA            Cattle_milk            11.9        9.49
-#> # ℹ 6 more variables: c_excretion <dbl>, vs_excretion <dbl>,
-#> #   method_n_excretion <chr>, method_vs <chr>, method_c_excretion <chr>,
-#> #   method_forage_n <chr>
+#> # ℹ 7 more variables: c_excretion <dbl>, vs_excretion <dbl>,
+#> #   method_n_excretion <chr>, method_vs <chr>, method_digestibility <chr>,
+#> #   method_c_excretion <chr>, method_forage_n <chr>
 ```

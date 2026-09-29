@@ -69,7 +69,8 @@ custom local inputs instead.</p>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  input_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  grass_availability <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  grass_availability_path <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  grass_availability_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  feed_eligibility <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"feed_table"</span>, <span class="st">"none"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -130,6 +131,17 @@ tibble/data frame passed to <code><a href="build_grass_availability_lpjml.html">
 <dt id="arg-grass-availability-path">grass_availability_path<a class="anchor" aria-label="anchor" href="#arg-grass-availability-path"></a></dt>
 <dd><p>Optional path to an already-derived grass
 availability artifact passed to <code><a href="build_grass_availability_lpjml.html">build_grass_availability_lpjml()</a></code>.</p></dd>
+
+
+<dt id="arg-feed-eligibility">feed_eligibility<a class="anchor" aria-label="anchor" href="#arg-feed-eligibility"></a></dt>
+<dd><p>Which feeds each livestock category may receive.
+<code>"feed_table"</code> (default) follows <code>feed_taxonomy</code>: an item with a grazer
+feed type but no granivore feed type (straw and green fodder) is fibrous
+roughage that pigs and poultry do not eat, so it is never allocated to
+them, at any allocation level. Granivore demand that the feeds they may
+eat cannot cover stays unmet rather than being filled with roughage.
+<code>"none"</code> lets any category receive any item (the behaviour before
+whep#1218), for sensitivity analysis.</p></dd>
 
 </dl></div>
     <div class="section level2">

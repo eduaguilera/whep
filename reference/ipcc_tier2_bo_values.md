@@ -1,7 +1,11 @@
 # Tier 2 Bo values.
 
 Maximum CH4 producing capacity by detailed category. Dairy cattle 0.24
-vs other cattle 0.18.
+vs other cattle 0.18. Under the default `mcf_source = "ipcc_2019"` these
+price every manure stream except pasture/range/paddock, which takes the
+0.19 the Refinement pairs with its pasture MCF (see
+[climate_mcf_ipcc](https://eduaguilera.github.io/whep/reference/climate_mcf_ipcc.md),
+whep#1137).
 
 ## Usage
 
