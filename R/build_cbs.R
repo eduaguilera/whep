@@ -224,10 +224,9 @@
 #'   the supply it is apportioned from, so 1 is a true bound there, while
 #'   here the denominator is incomplete and capping at 1 would book a
 #'   country's whole processed output as export. Those figures are for the
-#'   step-4 denominator, `export_share_basis = "snapshot"`; on a 1955–2023
-#'   build that basis applies 60 shares above 1, all at 2014–2023, while the
-#'   default `"current"` leaves 25 above 1 (Tobacco, whep#1085) and applies
-#'   none of them.
+#'   step-4 denominator, `export_share_basis = "snapshot"`; on a 2014–2023
+#'   build the default `"current"` leaves 2 shares above 1 (Abaca 2021,
+#'   Fish, Liver Oil 2017) and applies neither.
 #' @param export_share_basis One of `"current"` (default), `"processed"` or
 #'   `"snapshot"`, selecting which world balance the second processed-products
 #'   round reads its export share `export / (production + import)` off
@@ -244,22 +243,21 @@
 #'   of them before 1961, and the new food balance sheets' oilseed cakes and
 #'   molasses from 2014 — its denominator is world import alone.
 #'
-#'   **The default moves published values**, at 1961–2023 only. Measured on
-#'   a real 1955–2023 build against `"snapshot"`: 34,691 rows change, world
-#'   `export` falls 33.0 Mt summed over all years (52.2 Mt gross) and
-#'   `domestic_supply` rises by the same, landing 30.4 Mt on `feed`. The
-#'   largest share applied falls from 15.7 (Sesameseed Cake 2016) to 0.66;
-#'   world Sesameseed Cake export at 2020 goes from 612 kt to 1.7 kt against
-#'   0.4 kt of world import, Oilseed Cakes, Other from 3.91 Mt to 2.18 Mt
-#'   against 1.85 Mt. Of the export change, 48.5 Mt gross is at 2014–2023,
-#'   where the step-4 sheet carries no cake or molasses production at all.
-#'   `"processed"` moves the
-#'   same 2014–2023 cakes (export −42.4 Mt net) but almost nothing earlier
-#'   (−0.09 Mt at 1961–2013 against `"current"`'s +3.45 Mt): the two differ
-#'   on items whose trade only step 7 supplies — DDGS (+3.2 Mt of export),
-#'   Sugarbeet pulp (+1.1 Mt), which `"processed"` books no export for at all
-#'   — and on Beverages, Fermented (+4.2 Mt), whose imputed trade is itself
-#'   in question (whep#960). Production is identical under all three.
+#'   **The default moves published values**, at 2014–2023 almost entirely.
+#'   Measured on real 2014–2023 and 1961–1965 builds of main after whep#1242
+#'   against `"snapshot"`: at 2014–2023, 16,526 rows change, world `export`
+#'   falls 36.1 Mt summed over the ten years (42.8 Mt gross) and
+#'   `domestic_supply` rises by the same, landing 29.3 Mt on `feed`; applied
+#'   shares above 1 fall from 60 to 0 (largest 15.7, Sesameseed Cake 2016).
+#'   World Sesameseed Cake export at 2020 goes from 466 kt to 1.6 kt against
+#'   0.4 kt of world import, Oilseed Cakes, Other from 3.17 Mt to 2.13 Mt
+#'   against 1.85 Mt. The step-4 sheet carries no cake or molasses production
+#'   there at all. At 1961–1965 the change is 13 kt gross. `"processed"`
+#'   moves the same cakes (export −39.3 Mt at 2014–2023) and differs from
+#'   `"current"` only on items whose trade step 7 alone supplies: DDGS
+#'   (+2.37 Mt of export under `"current"`) and Sugarbeet pulp (+0.60 Mt),
+#'   for which `"processed"` books no export at all. Production is identical
+#'   under all three.
 #' @param seed_backcast One of `"area_rate"` (default) or
 #'   `"production_share"`, selecting what the pre-1962 seed back-cast reads
 #'   its rate off and spends it on (whep#699). The fill carries a rate along
@@ -6182,9 +6180,7 @@ build_processing_coefs <- function(
 # * `"processed"` -- `cbs_raw2`, the step-5 balance: processed production
 #   included, trade as read. It isolates the production fix from whatever
 #   step 7 imputes, which matters for items the CBS carries no trade for
-#   (DDGS, Sugarbeet pulp: share 0 here, 0.08-0.55 under `"current"`) and for
-#   Beverages, Fermented, whose step-7 world export is about twice its world
-#   import (7.18 Mt against 3.46 Mt at 1965).
+#   (DDGS, Sugarbeet pulp: share 0 here, 0.08-0.55 under `"current"`).
 # * `"snapshot"` -- `proc_result$cbs_glob`, the step-4 balance, which is what
 #   every build before whep#1143 used. It predates the processed production,
 #   so for a processed product whose FAOSTAT production is absent (every one
