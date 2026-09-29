@@ -246,7 +246,8 @@ interpolates along the year axis, so a narrow window lost *every* forage crop â€
 1.16% of production tonnes, 1.85% of `t_ha`, 1.36% of wide-CBS `feed`, while
 PR #570 was 10/10 green), the **#625** residual underneath it (since split into
 #665/#666/#667), and the trade/stock cross-year dependency that #570 papered
-over with the `.context_years()` margin.
+over with a `.context_years()` margin (retired by #833, which cuts a scoped CBS
+from the full-range build).
 
 ```bash
 Rscript validation/year_scoping.R                       # production, 2010
