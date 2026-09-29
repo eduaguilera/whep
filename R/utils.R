@@ -2328,8 +2328,8 @@ utils::globalVariables(
     "Typology_base_uaa",
     # n_prov_destiny.R (#379) -- the aquaculture feed intake/share .add_feed()
     # computes as a third Livestock_type alongside ruminant/monogastric, and
-    # its resulting destiny column in .split_local_consumption()/
-    # .split_import_consumption()
+    # its resulting destiny column in the local/import consumption split
+    # helpers
     "aquaculture",
     "share_aqua",
     # arable_permanent_land.R (#937) -- which source supplied the temporary

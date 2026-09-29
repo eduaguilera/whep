@@ -1837,7 +1837,7 @@ test_that(".split_import_consumption limits imports and splits", {
 test_that(".split_local_consumption and .split_import_consumption split feed into aquaculture too, not just rum/mono", {
   # All demand goes to feed, entirely via the local route, so the math stays
   # simple: local_feed = local_consumption = 100, split 50/30/20 across
-  # rum/mono/aqua.
+  # ruminant, monogastric and aquaculture.
   local_import <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
     2000, "A", "FeedMix", "Agro-industry", NA, 100, 0, 0, 1, 0
