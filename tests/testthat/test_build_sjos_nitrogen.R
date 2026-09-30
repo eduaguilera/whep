@@ -636,3 +636,63 @@ testthat::test_that("negative_critical and the binding table thread through", {
     "keep"
   )
 })
+
+testthat::test_that("country_table adds the country-year table and nothing else", {
+  quiet <- \(...) {
+    suppressMessages(suppressWarnings(whep::build_sjos_nitrogen(...)))
+  }
+  base <- quiet(example = TRUE)
+  out <- quiet(example = TRUE, country_table = TRUE)
+
+  # Off by default: the same elements as before the option existed.
+  testthat::expect_named(
+    base,
+    c(
+      "surplus",
+      "boundary_surplus",
+      "boundary_pathway",
+      "nourishment",
+      "scatter",
+      "sjos_class",
+      "footprint"
+    )
+  )
+  testthat::expect_identical(out[names(base)], base)
+  testthat::expect_named(out$country_table, c("country", "diagnostics"))
+
+  # Two countries of the fixture: agricultural land from data$ag_land, the
+  # boundary side after aggregation and the class from the driver's own band.
+  country <- out$country_table$country
+  testthat::expect_equal(country$area_code, 1:2)
+  testthat::expect_equal(country$ag_area_ha, c(390, 160))
+  testthat::expect_equal(
+    country$exceedance_n_t,
+    dplyr::summarise(
+      out$boundary_surplus$country,
+      x = sum(.data$exceedance_n_t),
+      .by = "area_code"
+    ) |>
+      dplyr::arrange(.data$area_code) |>
+      dplyr::pull("x")
+  )
+  testthat::expect_equal(
+    country$nourish,
+    dplyr::arrange(out$nourishment, .data$area_code)$nourish
+  )
+  testthat::expect_equal(
+    as.character(country$sjos_class),
+    paste(country$boundary_side, country$nourish)
+  )
+  testthat::expect_equal(country$boundary_side, rep("Within_boundary", 2))
+
+  # The cut is passed through.
+  low <- quiet(example = TRUE, country_table = TRUE, beyond_share_cut = 0.2)
+  testthat::expect_equal(
+    low$country_table$country$boundary_side,
+    c("Exceedance", "Within_boundary")
+  )
+  testthat::expect_equal(
+    low$country_table$country$beyond_share_cut,
+    c(0.2, 0.2)
+  )
+})
