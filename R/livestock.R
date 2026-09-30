@@ -23,6 +23,14 @@
 #'   year in the production data (1850-2023 via the LUH2 extension). Restricting
 #'   the range cuts run time proportionally; allocation is independent per year,
 #'   so a subset returns exactly the same rows for those years.
+#' @param feed_eligibility Which feeds each livestock category may receive.
+#'   `"feed_table"` (default) follows `feed_taxonomy`: an item with a grazer
+#'   feed type but no granivore feed type (straw and green fodder) is fibrous
+#'   roughage that pigs and poultry do not eat, so it is never allocated to
+#'   them, at any allocation level. Granivore demand that the feeds they may
+#'   eat cannot cover stays unmet rather than being filled with roughage.
+#'   `"none"` lets any category receive any item (the behaviour before
+#'   whep#1218), for sensitivity analysis.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -50,6 +58,11 @@
 #' - `loss`: The amount that is not used for feed. This is `supply - intake`.
 #' - `loss_share`: The percent that is lost. This is `loss / supply`.
 #'
+#' This is not the input [estimate_n_excretion()] reads: that function takes
+#' the per-livestock-category rows of [redistribute_feed()] (`territory`,
+#' `livestock_category`, `feed_quality`, `intake_dm_t`), and refuses this
+#' table.
+#'
 #' @export
 #'
 #' @examples
@@ -59,11 +72,13 @@ get_feed_intake <- function(
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
   feed_mode = c("historical", "scenario"),
-  years = NULL
+  years = NULL,
+  feed_eligibility = c("feed_table", "none")
 ) {
   grain <- rlang::arg_match(grain)
   demand_tier <- rlang::arg_match(demand_tier)
   feed_mode <- rlang::arg_match(feed_mode)
+  feed_eligibility <- rlang::arg_match(feed_eligibility)
   if (example) {
     return(.example_get_feed_intake())
   }
@@ -71,7 +86,8 @@ get_feed_intake <- function(
     grain = grain,
     demand_tier = demand_tier,
     feed_mode = feed_mode,
-    years = years
+    years = years,
+    feed_eligibility = feed_eligibility
   ) |>
     .add_reporting_polity_columns()
 }

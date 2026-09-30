@@ -22,9 +22,13 @@
 #'   excretion rates).
 #' - `2`: Tier 2 cohort energy balance (IPCC 2019). It derives enteric CH4 and
 #'   manure N2O from a per-animal energy and nitrogen balance, for finer
-#'   resolution, but requires cohort weight and diet inputs. Animals whose
-#'   emissions cannot be resolved (missing diet or energy data) are dropped with
-#'   a warning rather than entering the footprint as `NA`. Its per-head enteric
+#'   resolution, but requires cohort weight and diet inputs. It covers cattle,
+#'   buffalo, sheep and goats; swine, poultry, horses, mules and asses and
+#'   camels, for which the IPCC suggests Tier 1, take Tier 1 by default (see
+#'   `tier2_uncovered` under `options`), so their sectors show
+#'   `"IPCC_2019_Tier1"` in `method_manure_ch4`. Rows that still cannot be
+#'   resolved (missing diet data) are dropped with a warning rather than
+#'   entering the footprint as `NA`. Its per-head enteric
 #'   and manure emissions now sit in the same range as the Tier 1 regional
 #'   factors. Tier 1 remains the default because it is complete for every
 #'   country in [get_primary_production()], whereas Tier 2 needs cohort and

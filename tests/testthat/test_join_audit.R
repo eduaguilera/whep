@@ -301,7 +301,16 @@ test_that("the enumerated baseline can only shrink", {
   # subset of the other: main added the human-N and manure-layer rows while the
   # branch added the depth-allocation ones, so the sum is not either cap plus a
   # delta.
-  expect_lte(sum(baseline$n), 99L)
+  # 87 with whep#1118: `.sci_add_fodder_weights()` fills the polity-crops the
+  # single-vintage crop pattern cannot place from the circa-2000 fodder layer,
+  # and `.sci_inform_fodder_placed()` reports them (two diagnostic joins).
+  # Re-derived by running the audit on the merged tree.
+  #
+  # 102 on the 2026-09-30 merge with main, re-derived by running the audit:
+  # the branch's 15 rows beside main's net three -- four added and
+  # `.sci_warn_unspatialized` renamed to `.sci_classify_unspatialized` --
+  # over 96 signatures, which is what the deltas give, so no row moved.
+  expect_lte(sum(baseline$n), 102L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -529,7 +538,18 @@ test_that("every year-free territorial grouping is classified", {
   # 1959-1991) and has one dissolution year, so `year` in the key would return
   # one row per epoch and answer nothing. The audit finds exactly 126, with
   # nothing unclassified and nothing stale.
-  expect_lte(sum(full$n), 126L)
+  # 104 with whep#1118: the fodder layer's `distinct()` pairs, one
+  # time-invariant and two diagnostic. Re-derived by running the audit.
+  #
+  # 106 with whep#1002: `.sci_spatialized_weights()` renormalises and sums one
+  # year's engine output per (area, crop), both `single_year`. Re-derived by
+  # RUNNING `sum(.territorial_grouping_baseline()$n)` on the merged tree.
+  #
+  # 131 on the same merge, over 126 signatures. The one row both sides
+  # touched is the `.spatialize_year` share-denominator grouping: main kept
+  # its count at 2, while the branch split one of those into the unit-grain
+  # row beside it, so the branch's 1 + 1 stands and main's 2 is dropped.
+  expect_lte(sum(full$n), 131L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

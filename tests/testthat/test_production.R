@@ -99,7 +99,11 @@ residues_pin_fixture <- function() {
     "Tanzania",    "Residue",        "Straw",               11,
     "Nowhereland", "Residue",        "Straw",               7
   ) |>
-    dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+    dplyr::mutate(
+      Year = 2000L,
+      Item_cbs_crop = "Wheat and products",
+      Name_biomass = "Wheat"
+    )
 }
 
 testthat::test_that("get_primary_residues aggregates residues on codes", {
@@ -135,7 +139,11 @@ testthat::test_that("get_primary_residues ignores NA rows within a group", {
       "Spain", "Residue",        "Straw",   100,
       "Spain", "Residue",        "Straw",   NA_real_
     ) |>
-      dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+      dplyr::mutate(
+        Year = 2000L,
+        Item_cbs_crop = "Wheat and products",
+        Name_biomass = "Wheat"
+      )
   })
 
   out <- whep::get_primary_residues()
@@ -144,6 +152,75 @@ testthat::test_that("get_primary_residues ignores NA rows within a group", {
   # The valid 100-tonne row must survive; only the NA sibling is ignored.
   testthat::expect_equal(nrow(spain), 1)
   testthat::expect_equal(spain$value, 100)
+})
+
+testthat::test_that("get_primary_residues converts each crop's residue to DM", {
+  # whep#1215: the pin's residue tonnes are fresh matter. `value` stays fresh,
+  # like every CBS quantity, and `value_dm` converts each pin row with the
+  # residue dry-matter content of its own crop.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    tibble::tribble(
+      ~Area,   ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
+      ~Item_cbs_crop,           ~Name_biomass,
+      "Spain", "Residue",        "Straw",               100,
+      "Wheat and products",     "Wheat",
+      "Spain", "Residue",        "Straw",               NA_real_,
+      "Wheat and products",     "Wheat",
+      "Spain", "Residue",        "Other crop residues", 200,
+      "Tomatoes and products",  "Tomato",
+      "Spain", "Residue",        "Other crop residues", 50,
+      "Tomatoes and products",  "Lettuce"
+    ) |>
+      dplyr::mutate(Year = 2000L)
+  })
+  kgdm <- function(nm) {
+    coefs <- whep::biomass_coefs
+    coefs$Residue_kgDM_kgFM[coefs$Name_biomass == nm]
+  }
+
+  out <- whep::get_primary_residues()
+
+  straw <- out[out$item_cbs_code_residue == 2105, ]
+  testthat::expect_equal(straw$value, 100)
+  testthat::expect_equal(straw$value_dm, 100 * kgdm("Wheat"))
+  other <- out[out$item_cbs_code_residue == 2106, ]
+  testthat::expect_equal(other$value, 250)
+  testthat::expect_equal(
+    other$value_dm,
+    200 * kgdm("Tomato") + 50 * kgdm("Lettuce")
+  )
+  # Fresh tomato haulm is mostly water: nowhere near 0.9 kg DM per kg.
+  testthat::expect_lt(other$value_dm / other$value, 0.25)
+})
+
+testthat::test_that("get_primary_residues keeps a missing DM content visible", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    tibble::tribble(
+      ~Area,   ~Product_residue, ~Item_cbs, ~Prod_ygpit_Mg, ~Name_biomass,
+      "Spain", "Residue",        "Straw",   100,            "Wheat",
+      "Spain", "Residue",        "Straw",   40,             "Mushrooms"
+    ) |>
+      dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+  })
+
+  testthat::expect_warning(
+    out <- whep::get_primary_residues(),
+    "no residue dry-matter content"
+  )
+  # The fresh mass is kept whole; the dry matter is NA, not a silent partial
+  # sum that would read as a real, smaller number.
+  testthat::expect_equal(out$value, 140)
+  testthat::expect_true(is.na(out$value_dm))
+})
+
+testthat::test_that("get_primary_residues aborts without name_biomass", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::select(residues_pin_fixture(), -"Name_biomass")
+  })
+  testthat::expect_error(
+    suppressMessages(suppressWarnings(whep::get_primary_residues())),
+    "name_biomass"
+  )
 })
 
 testthat::test_that("get_primary_residues keeps unresolved areas visible", {

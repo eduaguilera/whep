@@ -1482,7 +1482,7 @@ testthat::test_that("a genuinely zero-area stand does not warn", {
 })
 
 testthat::test_that("soil temperature is never read without an explicit run_dir", {
-  # CLAUDE.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
+  # AGENTS.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
   # briefly fell back to WHEP_LPJML_RUN_DIR, so a caller that injected all its
   # own data still opened NetCDF rasters whenever a developer machine had the
   # env var set -- which stalled a gate run for 40 minutes. Reading is now

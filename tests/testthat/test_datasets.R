@@ -25,6 +25,20 @@ test_that("items_full has correct default_destiny for non-food items", {
   expect_true(all(wool$default_destiny == "Other_uses", na.rm = TRUE))
 })
 
+test_that("every oilseed cake defaults to Feed (whep#1066)", {
+  # Oilseed cake is the solid residue of oil extraction and is traded as
+  # feed. Five of the nine used to default to `Food`.
+  cakes <- whep::items_full |>
+    dplyr::filter(comm_group == "Oil cakes")
+
+  expect_equal(nrow(cakes), 9)
+  expect_setequal(
+    cakes$item_cbs_code,
+    c(2590, 2591, 2592, 2593, 2594, 2595, 2596, 2597, 2598)
+  )
+  expect_equal(unique(cakes$default_destiny), "Feed")
+})
+
 
 # -- polity coverage -----------------------------------------------------------
 
@@ -1378,7 +1392,13 @@ test_that("climate_mcf_ipcc is a clean tibble over both editions", {
   assert_clean_tibble(
     obj,
     "climate_mcf_ipcc",
-    c("edition", "mms_type", "climate_zone", "mcf_percent"),
+    c(
+      "edition",
+      "mms_type",
+      "climate_zone",
+      "mcf_percent",
+      "paired_bo_m3_kg_vs"
+    ),
     min_rows = 60L
   )
   testthat::expect_setequal(
@@ -1398,6 +1418,22 @@ test_that("climate_mcf_ipcc is a clean tibble over both editions", {
   na_rows <- obj[is.na(obj$mcf_percent), ]
   testthat::expect_setequal(na_rows$mms_type, "Anaerobic Digester")
   testthat::expect_setequal(na_rows$edition, "ipcc_2006")
+})
+
+test_that("climate_mcf_ipcc pairs only the 2019 pasture MCF with a Bo", {
+  # 2019 Refinement, Vol 4, Ch 10, Table 10.17 (Updated) footnote 2, p. 10.70:
+  # pasture/range/paddock MCFs "must always be used in conjunction with a B0
+  # value of 0.19". No other row of either edition publishes a pair
+  # (whep#1137).
+  paired <- whep::climate_mcf_ipcc |>
+    dplyr::filter(!is.na(.data$paired_bo_m3_kg_vs))
+  testthat::expect_setequal(paired$edition, "ipcc_2019")
+  testthat::expect_setequal(paired$mms_type, "Pasture/Range/Paddock")
+  testthat::expect_setequal(
+    paired$climate_zone,
+    c("Cool", "Temperate", "Warm")
+  )
+  testthat::expect_setequal(paired$paired_bo_m3_kg_vs, 0.19)
 })
 
 test_that("climate_mcf_ipcc transcribes Table 10.17 of each edition", {
@@ -1766,6 +1802,22 @@ test_that("mapping tables have unique keys and no duplicate rows", {
   assert_unique_key(whep::regions_full, "regions_full", "code")
   assert_unique_key(whep::cbs_trade_codes, "cbs_trade_codes", "item_code_trade")
   assert_unique_key(whep::animals_codes, "animals_codes", "item_cbs_code")
+})
+
+test_that("cbs_trade_codes maps no FAOSTAT trade group row (#960)", {
+  # On the `faostat-trade-totals` pin (20260325T120525Z-7b85f) every item code
+  # up to 1296 is a single commodity and every code from 1719 up is a FAOSTAT
+  # group total -- "Beverages", "Alcoholic Beverages", "Tobacco", "Fodder and
+  # Feeding Stuff" -- reported next to the items it sums. The bilateral pin
+  # carries none of them. Mapping a group onto a CBS item adds its members a
+  # second time: at 2010, 1895 "Beverages" put 62.5 Mt of world export on CBS
+  # 2657 against 0.73 Mt from 2657's own members, and 1896 "Tobacco" doubled
+  # CBS tobacco exactly.
+  group_codes <- whep::cbs_trade_codes |>
+    dplyr::filter(item_code_trade >= 1700) |>
+    dplyr::pull(item_code_trade)
+
+  expect_length(group_codes, 0L)
 })
 
 test_that("FAOSTAT production code 1807 maps only to Sheep and Goat Meat", {

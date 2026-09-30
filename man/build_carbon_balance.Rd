@@ -9,7 +9,7 @@ Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
 (2018). A historical perspective on soil organic carbon in Mediterranean
 cropland (Spain, 1900-2008). \emph{Science of the Total Environment}, 621,
 634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
-transfer ported from the Spain historical pipeline.
+transfer ported from an earlier regional historical reconstruction.
 }
 \usage{
 build_carbon_balance(
@@ -24,6 +24,7 @@ build_carbon_balance(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  method_input_cn = c("known_crops", "require_all"),
   block_years = 10L,
   example = FALSE
 )
@@ -43,8 +44,9 @@ carbon input and climate support: it removes the opening transient the
 balance would otherwise report as soil nitrogen mineralization, at the
 cost of opening cropland at roughly a third of the carbon measured in
 those soils. \code{"cell_average"} starts every class in a cell at the
-fraction-weighted mean of the classes sharing it, the Spain historical
-behaviour: it opens cropland near its observed stock, as a proxy for the
+fraction-weighted mean of the classes sharing it, the behaviour of the
+earlier regional historical reconstruction this balance is ported from:
+it opens cropland near its observed stock, as a proxy for the
 legacy carbon of the vegetation it replaced, at the cost of then draining
 that stock toward an equilibrium whep#799 puts several-fold too low.
 Recorded in \code{method_soc_init}.}
@@ -175,6 +177,14 @@ Recorded per row in \code{method_som_cn}, which instead reads
 \code{"land_use_default"} on a row whose input C:N is unknown and
 \code{"directional_ipcc_range"} when no input C:N is carried at all.}
 
+\item{method_input_cn}{What a crop of unknown input C:N does to the C:N of
+the cropland class it sits in, and so to the C:N of the organic matter
+that input forms; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{"known_crops"} (default)
+forms the class ratio from the crops that have one; \code{"require_all"}
+leaves it \code{NA}, which sends the class to the land-use default C:N.
+Only read when the carbon inputs are built here rather than supplied
+through \code{data$c_inputs}.}
+
 \item{block_years}{How many consecutive years are built at a time. The
 climate drivers and the land-use areas are read, the class table and its
 equilibria built, the stocks marched and the output tail run one block of
@@ -201,6 +211,7 @@ with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
 \code{method_area_basis}, \code{method_grazing},
 \code{method_som_cn} and
+\code{method_input_cn} and
 \code{method_crop_groups}. All of them survive the \code{"polity"}
 roll-up, which additionally carries \code{input_land_ha} (the land the
 land-use input gave that polity-year) and \code{modelled_land_frac}

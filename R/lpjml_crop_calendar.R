@@ -47,7 +47,8 @@
 #'   a consumer can pool the two back by area. Rainfed and irrigated stands
 #'   of one crop sow and harvest on different dates; the per-regime layer is
 #'   what the herbaceous rainfed and irrigated crop groups of
-#'   [build_carbon_balance()] (`crop_groups = list(method = "spain_hist")`)
+#'   [build_carbon_balance()]
+#'   (`crop_groups = list(method = "rotation_groups")`)
 #'   read, each from its own bands, while plain cropland reads the pool.
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
 #'   Defaults to `FALSE`.
@@ -108,17 +109,41 @@ read_lpjml_crop_cover <- function(
       i = "Bands are matched by name; only 12 of 24 align by index."
     ))
   }
-  group <- if (by == "regime") {
-    .crop_band_regime(cal_bands)
-  } else {
-    rep("cropland", length(band))
-  }
+  group <- .crop_band_groups(cal_bands, by)
   lon <- ncdf4::ncvar_get(nc$sdate, "lon")
   lat <- ncdf4::ncvar_get(nc$sdate, "lat")
   keep <- .fpc_year_index(years, first_year, nc$sdate$dim$time$len)
   purrr::list_rbind(purrr::map(keep, \(i) {
     .crop_cover_year(nc, band, group, i, first_year + i - 1L, lon, lat, by)
   }))
+}
+
+# The accumulation group of each calendar band. Per regime, both regimes must
+# be found (whep#1034): the rule below is "irrigated or not", so a run whose
+# irrigated stands are spelled any other way puts every band in "rainfed". The
+# per-regime read then carries no irrigated row at all, the carbon balance keeps
+# irrigated cropland on the curve, and the "rainfed" cover is really the pool of
+# both -- while the pooled-versus-regime identity still holds exactly, because
+# a pool of one regime is that regime. LPJmL writes both stands for every crop,
+# so a real calendar always carries both.
+.crop_band_groups <- function(cal_bands, by) {
+  if (by != "regime") {
+    return(rep("cropland", length(cal_bands)))
+  }
+  group <- .crop_band_regime(cal_bands)
+  shown <- utils::head(cal_bands, 4L)
+  check_labels_supplied(
+    tibble::tibble(regime = group),
+    "regime",
+    c("irrigated", "rainfed"),
+    details = c(
+      i = "Calendar bands are assigned a regime by an {.val irrigated} name
+           prefix. Check the {.field NamePFT} spelling of this run's
+           {.file sdate.nc}.",
+      i = cli::format_inline("Its bands begin {.val {shown}}.")
+    )
+  )
+  group
 }
 
 # The irrigation regime of a calendar band, from its name: LPJmL names the

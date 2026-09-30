@@ -45,13 +45,15 @@
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
 #' @param crop_groups How cropland is resolved into land-use classes, a named
-#'   list validated element-wise. `method`: `"spain_hist"` (default) resolves
-#'   cropland into crop GROUPS -- herbaceous crops pooled per irrigation
-#'   regime (they rotate, so nothing inside the pool is a land-use change),
-#'   woody crops per species, rainfed and irrigated separate -- labelled by
-#'   [soc_crop_group()]; `"none"` keeps the single `cropland` class the
-#'   package used before, for comparison and for a caller that wants one
-#'   cropland number.
+#'   list validated element-wise. `method`: `"rotation_groups"` (default)
+#'   resolves cropland into crop GROUPS -- herbaceous crops pooled per
+#'   irrigation regime (they rotate, so nothing inside the pool is a land-use
+#'   change), woody crops per species, rainfed and irrigated separate --
+#'   labelled by [soc_crop_group()]; `"none"` keeps the single `cropland`
+#'   class the package used before, for comparison and for a caller that
+#'   wants one cropland number. The former name of `"rotation_groups"` is
+#'   still accepted as a deprecated alias: it resolves to
+#'   `"rotation_groups"`, with identical results, and warns once per session.
 #'   `irrigation`: where each crop's irrigated share of its cell area comes
 #'   from. `"spatialized"` (default) uses [build_gridded_landuse()] on the
 #'   pinned spatialization inputs, crop-specific and yearly; `"none"` puts
@@ -75,14 +77,24 @@
 #'   `"whep"` (default) charges the class WHEP's own grass intake and applied
 #'   excreta, and so needs `data$livestock_intake` and `data$excreta`;
 #'   `"lpjml"` uses the model's livestock module instead and needs neither.
+#' @param method_input_cn What a crop of unknown input C:N does to the C:N of
+#'   the class it sits in. `"known_crops"` (default) forms the class ratio
+#'   from the crops that have one, weighted by the carbon that came with them
+#'   -- the rule [build_soil_carbon_inputs()] already applies one level down,
+#'   where the input nitrogen totals only the components that carry a nitrogen
+#'   and the carbon paired with them. `"require_all"` leaves the class ratio
+#'   `NA` as soon as any one crop's is unknown, so the class takes the
+#'   land-use default C:N instead of the ratio its other crops measured.
+#'   Recorded in `method_input_cn` on cropland rows.
 #' @inheritParams build_soil_carbon_inputs
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
-#'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
-#'   `method_unspatialized` (`NA` on the grassland and natural classes, which
-#'   are not spatialized from polity-crop totals), for `land_use` in
+#'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
+#'   `method_unspatialized`, `method_input_cn` and `method_crop_weights` (all
+#'   `NA` on the grassland and natural classes, which are neither spatialized
+#'   from polity-crop totals nor collapsed from crops), for `land_use` in
 #'   `"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
 #'   below.
 #' @inheritSection whep_polity_columns Polity columns
@@ -99,13 +111,17 @@ build_carbon_inputs <- function(
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
-  method_unspatialized = c("reallocate", "drop"),
+  method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
+  method_input_cn = c("known_crops", "require_all"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   density_basis <- rlang::arg_match(density_basis)
   method_grazing <- rlang::arg_match(method_grazing)
   method_unspatialized <- rlang::arg_match(method_unspatialized)
+  method_input_cn <- rlang::arg_match(method_input_cn)
+  method_crop_weights <- rlang::arg_match(method_crop_weights)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
@@ -116,7 +132,8 @@ build_carbon_inputs <- function(
     cfg,
     density_basis,
     method_grazing,
-    method_unspatialized
+    list(unspatialized = method_unspatialized, weights = method_crop_weights),
+    method_input_cn
   )
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
@@ -131,7 +148,8 @@ build_carbon_inputs <- function(
   cfg = .ci_group_config(),
   density_basis = "renormalised",
   method_grazing = "whep",
-  method_unspatialized = "reallocate"
+  spatial = list(unspatialized = "fodder_pattern", weights = "spatialized"),
+  method_input_cn = "known_crops"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -145,7 +163,8 @@ build_carbon_inputs <- function(
       crop_area,
       cfg,
       density_basis,
-      method_unspatialized
+      spatial,
+      method_input_cn
     ),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
@@ -185,11 +204,12 @@ build_carbon_inputs <- function(
   crop_area,
   cfg,
   basis = "renormalised",
-  method_unspatialized = "reallocate"
+  spatial = list(unspatialized = "fodder_pattern", weights = "spatialized"),
+  method_input_cn = "known_crops"
 ) {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
-    .ci_cropland_class(cropland, crop_area, shares, basis)
+    .ci_cropland_class(cropland, crop_area, shares, basis, method_input_cn)
   }
   if (!is.null(data$cropland)) {
     return(collapse(data$cropland))
@@ -199,7 +219,8 @@ build_carbon_inputs <- function(
     data,
     years,
     reduce = collapse,
-    method = method_unspatialized
+    method = spatial$unspatialized,
+    weights = spatial$weights
   )
 }
 
@@ -207,7 +228,8 @@ build_carbon_inputs <- function(
   cropland,
   crop_area,
   shares = NULL,
-  basis = "renormalised"
+  basis = "renormalised",
+  method_input_cn = "known_crops"
 ) {
   joined <- .ci_weighted_cropland(cropland, crop_area, basis)
   if (is.null(shares)) {
@@ -225,7 +247,10 @@ build_carbon_inputs <- function(
     ensure_columns(tibble::tibble(input_cn = numeric())) |>
     # A hand-supplied per-crop layer need not carry the rule that produced
     # it; NA then says "not recorded", never "dropped".
-    ensure_columns(tibble::tibble(method_unspatialized = character())) |>
+    ensure_columns(tibble::tibble(
+      method_unspatialized = character(),
+      method_crop_weights = character()
+    )) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
     ) |>
@@ -238,11 +263,20 @@ build_carbon_inputs <- function(
       # Carbon-weighted, because a class's input C:N is the ratio of the
       # carbon and nitrogen it actually receives: weighting by area would let
       # a large, barely-cropped class outvote a small, heavily-amended one.
-      input_cn = .ci_wmean(.data$input_cn, .data$c_mass),
+      # `.env$`, because the per-crop layer a caller supplies may itself
+      # carry a `method_input_cn` column and the data mask would find that
+      # before the argument.
+      input_cn = .ci_class_cn(
+        .data$input_cn,
+        .data$c_mass,
+        .env$method_input_cn
+      ),
       class_area_ha = sum(.data$crop_area_ha),
       method_c_input = .data$method_c_input[1],
       method_area_basis = basis,
+      method_input_cn = .env$method_input_cn,
       method_unspatialized = .data$method_unspatialized[1],
+      method_crop_weights = .data$method_crop_weights[1],
       .by = c("lon", "lat", "area_code", "year", "land_use")
     )
 }
@@ -345,7 +379,7 @@ build_carbon_inputs <- function(
         as.integer(.data$item_prod_code),
         .data$irrigated
       ),
-      method_c_input = "humified_weighted_spain_hist"
+      method_c_input = "humified_weighted_rotation_groups"
     ) |>
     dplyr::select(-"irrigated", -"irrigated_share")
 }
@@ -365,8 +399,8 @@ build_carbon_inputs <- function(
   }
   list(
     method = rlang::arg_match0(
-      crop_groups$method %||% "spain_hist",
-      c("none", "spain_hist"),
+      .ci_group_method_alias(crop_groups$method %||% "rotation_groups"),
+      c("none", "rotation_groups"),
       arg_nm = "crop_groups$method"
     ),
     irrigation = rlang::arg_match0(
@@ -377,11 +411,35 @@ build_carbon_inputs <- function(
   )
 }
 
+# `"spain_hist"` is the former name of `"rotation_groups"`. It still resolves,
+# so existing calls keep working and give identical results, but it warns once
+# per session and every output records the new name.
+.ci_group_method_alias <- function(method) {
+  if (!identical(method, "spain_hist")) {
+    return(method)
+  }
+  cli::cli_warn(
+    c(
+      "{.code crop_groups = list(method = \"spain_hist\")} is deprecated.",
+      i = "Use {.code crop_groups = list(method = \"rotation_groups\")}; the
+           results are identical and the output records
+           {.val rotation_groups}."
+    ),
+    class = c(
+      "whep_crop_groups_method_deprecated",
+      "lifecycle_warning_deprecated"
+    ),
+    .frequency = "once",
+    .frequency_id = "whep_crop_groups_method_deprecated"
+  )
+  "rotation_groups"
+}
+
 # The irrigated share of each crop's cell area, per year. NULL means the
 # single-class path (or, under `irrigation = "none"`, every crop rainfed, which
 # the split treats as a share of zero everywhere).
 .ci_regime_shares <- function(data, years, cfg) {
-  if (!identical(cfg$method, "spain_hist")) {
+  if (!identical(cfg$method, "rotation_groups")) {
     return(NULL)
   }
   if (!is.null(data$crop_regime_share)) {
@@ -425,22 +483,11 @@ build_carbon_inputs <- function(
 # `country_grid.parquet`: that file is the centroid crosswalk with no polity
 # share, which `build_gridded_landuse()` refuses (S-A5), and using a second
 # crosswalk here would key the regime split on different polycells than the
-# carbon it splits.
+# carbon it splits. The engine call is `.sci_engine_crops()`, the one the
+# `"spatialized"` crop weights of build_soil_carbon_inputs() make, so the crop
+# geography and its irrigated split come from the same allocation (whep#1002).
 .ci_spatialized_regime_share <- function(years, country_grid) {
-  aliases <- .spatial_input_aliases()
-  read <- function(key, file) {
-    .read_spatial_input(NULL, file, aliases[[key]])
-  }
-  support <- .normalize_carbon_support(country_grid) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
-  gridded <- build_gridded_landuse(
-    country_areas = read("country_areas", "country_areas.parquet"),
-    crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
-    gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
-    country_grid = support,
-    config = list(years = years)
-  )
-  gridded |>
+  .sci_engine_crops(years, country_grid) |>
     dplyr::mutate(
       total = .data$rainfed_ha + .data$irrigated_ha,
       irrigated_share = dplyr::if_else(
@@ -497,9 +544,17 @@ build_carbon_inputs <- function(
 # `land_use` when supplied; a class with no available area retains the plain
 # mean fallback via .ci_wmean's zero-weight guard.
 .ci_finalise <- function(x, resolution, land_use = NULL) {
-  # Grassland and natural rows are not spatialized from polity-crop totals, so
-  # they carry no allocation rule; the column still has to exist for them.
-  x <- ensure_columns(x, tibble::tibble(method_unspatialized = character()))
+  # Grassland and natural rows are not spatialized from polity-crop totals and
+  # are not collapsed from crops, so they carry neither the allocation rule nor
+  # the class-C:N rule; the columns still have to exist for them.
+  x <- ensure_columns(
+    x,
+    tibble::tibble(
+      method_unspatialized = character(),
+      method_input_cn = character(),
+      method_crop_weights = character()
+    )
+  )
   drop_cols <- c("class_area_ha")
   if (resolution == "grid") {
     # Grouped cropland keeps its area as `group_area_ha`: the balance splits
@@ -529,7 +584,9 @@ build_carbon_inputs <- function(
         dplyr::any_of(c(
           "method_c_input",
           "method_area_basis",
-          "method_unspatialized"
+          "method_input_cn",
+          "method_unspatialized",
+          "method_crop_weights"
         )),
         \(x) x[1]
       ),
@@ -571,6 +628,32 @@ build_carbon_inputs <- function(
     return(mean(value))
   }
   sum(value * weight) / sum(weight)
+}
+
+# The class input C:N, from the crops that have one.
+#
+# `.ci_wmean()` takes no `na.rm`, so a single crop of unknown C:N used to make
+# the WHOLE class's ratio NA, and the class then took the land-use default in
+# `.soc_marginal_cn()` instead of the ratio its other crops measured (#1123).
+#
+# `"known_crops"` forms the ratio from the crops whose own C:N is known,
+# weighted by the carbon that came with them -- the same rule
+# `.sci_sum_components()` applies one level down, where the nitrogen total
+# counts only the components that carry a nitrogen and the carbon paired with
+# them, "so the ratio is formed from a matched pair rather than dividing all
+# the carbon by some of the nitrogen". `"require_all"` keeps the stricter
+# reading -- a class containing a component of unknown C:N has an unknown C:N
+# -- and is what the package did before. A class where NO crop has a ratio is
+# unknown under both.
+.ci_class_cn <- function(value, weight, method = "known_crops") {
+  if (identical(method, "require_all")) {
+    return(.ci_wmean(value, weight))
+  }
+  keep <- !is.na(value) & !is.na(weight)
+  if (!any(keep)) {
+    return(NA_real_)
+  }
+  .ci_wmean(value[keep], weight[keep])
 }
 
 # -- Crop-area reader ---------------------------------------------------------

@@ -10,7 +10,7 @@
 # This writes a parquet rather than a `data/*.rda`: it is an INPUT to the
 # pipeline, not a harmonisation table, so its home is the pins board that
 # `whep_inputs.csv` indexes. Publishing it there is the remaining step (see
-# `inst/scripts/prepare_upload.R` and the pin guidance in CLAUDE.md);
+# `inst/scripts/prepare_upload.R` and the pin guidance in AGENTS.md);
 # until it is published, pass the parquet to
 # `build_historical_land_areas(data = )` or let the pipeline recompute it.
 #

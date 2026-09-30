@@ -16,8 +16,9 @@ A tibble with columns:
 }
 }
 \source{
-C:N attenuation parameters from the Spain historical nitrogen
-pipeline (\code{n_fun.r}). Indirect emission factors and ammonia
+C:N attenuation parameters from the nitrogen pipeline of an
+earlier regional historical reconstruction. Indirect emission factors
+and ammonia
 volatilisation fractions: IPCC (2019), 2019 Refinement to the 2006
 IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
 Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for

@@ -75,7 +75,10 @@ balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_c
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
-exact column.
+exact column; for the MANNER \code{nh3} methods the check runs on
+\code{n_balance_drivers} before any input is assembled, because no
+function in the package supplies those drivers (only \code{windspeed_ms}
+has a reader, \code{\link[=read_lpjml_wind]{read_lpjml_wind()}}, not wired in).
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
@@ -120,8 +123,9 @@ runs the nitrogen-loss cascade (\code{\link[=calculate_nh3]{calculate_nh3()}}, \
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}), closes the
 balance (\code{N_input_full - N_output_full}), applies the N-limitation cap on
 SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
-plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
-Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
+plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from the
+balance and indicator equations of an earlier regional historical
+reconstruction.
 }
 \details{
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in

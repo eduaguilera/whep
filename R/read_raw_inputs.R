@@ -629,7 +629,23 @@
   dt
 }
 
-.extract_fao <- function(pin_alias, years = NULL) {
+# `keep_elements` retains raw FAOSTAT elements the lookup leaves unmapped,
+# under their FAOSTAT label. Its only use is the silk chain's "Processed"
+# (whep#1251), which `.cbs_silk_mass_basis()` consumes and then removes; by
+# default nothing unmapped comes out (whep#811).
+#
+# `elements` narrows the result to those balance elements, filtered before
+# the per-row fixes and the polity aggregation. Every step after the filter is
+# row-wise or keyed by element, so the rows kept are the rows a full
+# extraction returns for those elements -- at a fraction of the cost. Used by
+# the yield chain, which only needs `production` over the whole span
+# (whep#834).
+.extract_fao <- function(
+  pin_alias,
+  years = NULL,
+  keep_elements = character(),
+  elements = NULL
+) {
   cb_elements <- c(
     "production",
     "import",
@@ -640,7 +656,8 @@
     "feed",
     "seed",
     "processing",
-    "other_uses"
+    "other_uses",
+    keep_elements
   )
 
   # `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
@@ -680,6 +697,9 @@
   # Before anything normalises the label into an ordinary-looking string.
   .assert_unit_labels(dt$unit, pin_alias)
   dt <- .harmonize_element_names(dt)
+  if (!is.null(elements)) {
+    dt <- dt[element %in% elements]
+  }
   dt <- .normalise_units(dt)
   # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and
   # products" row is the new Food Balances item and is on a paddy basis.
@@ -725,8 +745,8 @@
   out
 }
 
-.extract_cb <- function(pin_alias, years = NULL) {
-  dt <- .extract_fao(pin_alias, years = years)
+.extract_cb <- function(pin_alias, years = NULL, elements = NULL) {
+  dt <- .extract_fao(pin_alias, years = years, elements = elements)
   items <- .items_cbs_bridge()
   # Keyed on the code alone, and the label replaced by the `items_full` one.
   # The new Food Balances write "Cereals, other", "Vegetables, other" and
@@ -842,8 +862,8 @@
   # a full-range build keeps. Measured at 2010, the 14 keys the scoped build
   # lost sit 7 to 49 years from their nearest anchor -- Italy's Ricebran Oil is
   # calibrated at 2010 off a single 1961 observation carried forward 49 years.
-  # A wider `.context_years()` margin therefore cannot fix it; see the margin
-  # comment in R/build_cache.R.
+  # No finite margin reaches that, so a scoped CBS is cut from the full-range
+  # build instead; see the whep#833 comment in R/build_cache.R.
   dt <- fill_linear(
     dt,
     scaling_raw,

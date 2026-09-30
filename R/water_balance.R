@@ -1573,7 +1573,7 @@ get_soc_climate_drivers <- function(
   # reach for NetCDF files anyway -- which is what happened: the test suite
   # injects `data` and passes no `run_dir`, but the env var is set on a
   # developer machine, so this read fired and the suite began reading multi-GB
-  # rasters. CLAUDE.md forbids exactly that ("the suite must never reach the
+  # rasters. AGENTS.md forbids exactly that ("the suite must never reach the
   # network or read a WHEP_* path"), and it stalled a gate run for 40 minutes
   # before anyone noticed.
   #

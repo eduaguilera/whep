@@ -9,7 +9,8 @@ get_feed_intake(
   grain = c("national", "local"),
   demand_tier = c("ipcc", "fcr"),
   feed_mode = c("historical", "scenario"),
-  years = NULL
+  years = NULL,
+  feed_eligibility = c("feed_table", "none")
 )
 }
 \arguments{
@@ -37,6 +38,15 @@ intake). \code{"scenario"} distributes the surplus.}
 year in the production data (1850-2023 via the LUH2 extension). Restricting
 the range cuts run time proportionally; allocation is independent per year,
 so a subset returns exactly the same rows for those years.}
+
+\item{feed_eligibility}{Which feeds each livestock category may receive.
+\code{"feed_table"} (default) follows \code{feed_taxonomy}: an item with a grazer
+feed type but no granivore feed type (straw and green fodder) is fibrous
+roughage that pigs and poultry do not eat, so it is never allocated to
+them, at any allocation level. Granivore demand that the feeds they may
+eat cannot cover stays unmet rather than being filled with roughage.
+\code{"none"} lets any category receive any item (the behaviour before
+whep#1218), for sensitivity analysis.}
 }
 \value{
 A tibble with the feed intake data.
@@ -67,6 +77,11 @@ dry matter, so it should be less than \code{intake}.
 \item \code{loss}: The amount that is not used for feed. This is \code{supply - intake}.
 \item \code{loss_share}: The percent that is lost. This is \code{loss / supply}.
 }
+
+This is not the input \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} reads: that function takes
+the per-livestock-category rows of \code{\link[=redistribute_feed]{redistribute_feed()}} (\code{territory},
+\code{livestock_category}, \code{feed_quality}, \code{intake_dm_t}), and refuses this
+table.
 }
 \description{
 Get amount of items used for feeding livestock.

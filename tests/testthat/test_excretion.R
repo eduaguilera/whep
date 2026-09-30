@@ -238,3 +238,144 @@ test_that("the single-method carbon guard names what it accepts", {
     class = "rlang_error"
   )
 })
+
+# whep#181: get_feed_intake is the documented feed-intake accessor, but its
+# columns are not the ones estimate_n_excretion reads. The mismatch used to
+# surface as a bare list of missing columns; it now names the right source.
+test_that("get_feed_intake() output is refused with a pointer to the source", {
+  feed <- whep::get_feed_intake(example = TRUE)
+  cnd <- expect_error(
+    whep::estimate_n_excretion(feed),
+    class = "whep_error_schema_violation"
+  )
+  expect_match(conditionMessage(cnd), "redistribute_feed")
+})
+
+test_that("an intake with a missing column aborts with the schema class", {
+  bad <- dplyr::select(.toy_intake(), -intake_dm_t)
+  cnd <- expect_error(
+    whep::estimate_n_excretion(bad),
+    class = "whep_error_schema_violation"
+  )
+  expect_match(conditionMessage(cnd), "intake_dm_t")
+})
+
+test_that("a complete intake carrying extra CBS-shaped columns is accepted", {
+  extra <- dplyr::mutate(
+    .toy_intake(),
+    live_anim_code = 960L,
+    intake_dry_matter = intake_dm_t
+  )
+  expect_equal(
+    whep::estimate_n_excretion(extra),
+    whep::estimate_n_excretion(.toy_intake())
+  )
+})
+
+# whep#1007: digestibility depends on the species as well as the feed. ------
+
+.one_row_intake <- function(category, quality, dm = 100) {
+  tibble::tibble(
+    year = 2020L,
+    territory = "203",
+    sub_territory = NA_character_,
+    livestock_category = category,
+    item_cbs_code = 2514L,
+    feed_quality = quality,
+    intake_dm_t = dm
+  )
+}
+
+.vs_of <- function(category, quality, method = NULL) {
+  opts <- if (is.null(method)) list() else list(method_digestibility = method)
+  whep::estimate_n_excretion(
+    .one_row_intake(category, quality),
+    options = opts
+  ) |>
+    dplyr::pull("vs_excretion")
+}
+
+test_that("monogastric concentrates use their own digestibility", {
+  # VS = DM * (1 - DE) * (1 - ash). IPCC 2019 Table 10.2 (Updated): growing
+  # swine in confinement 80-90 (0.85), broilers in confinement 85-93 (0.89).
+  # Ash from ipcc_tier2_manure_ash: swine 4%, poultry 25%.
+  expect_equal(.vs_of("Pigs", "high_quality"), 100 * 0.15 * 0.96)
+  expect_equal(.vs_of("Poultry", "high_quality"), 100 * 0.11 * 0.75)
+  # Free-range swine 50-70 (0.60) for the scavenged feed.
+  expect_equal(.vs_of("Pigs", "scavenging"), 100 * 0.40 * 0.96)
+})
+
+test_that("the species-blind method stays selectable and reproduces 0.72", {
+  expect_equal(
+    .vs_of("Pigs", "high_quality", "feed_quality"),
+    100 * 0.28 * 0.96
+  )
+  expect_equal(
+    .vs_of("Poultry", "high_quality", "feed_quality"),
+    100 * 0.28 * 0.75
+  )
+})
+
+test_that("ruminant and residue rows do not move between the methods", {
+  cases <- tidyr::expand_grid(
+    category = c("Cattle_milk", "Cattle_meat", "Sheep", "Goats", "Horses"),
+    quality = c("high_quality", "grass", "residues", "scavenging")
+  ) |>
+    dplyr::bind_rows(
+      tibble::tibble(
+        category = c("Pigs", "Poultry", "Rabbits"),
+        quality = c("residues", "residues", "high_quality")
+      )
+    )
+  new <- purrr::map2_dbl(cases$category, cases$quality, .vs_of)
+  old <- purrr::map2_dbl(
+    cases$category,
+    cases$quality,
+    \(c, q) .vs_of(c, q, "feed_quality")
+  )
+  expect_equal(new, old)
+})
+
+test_that("the chosen digestibility method is recorded on every row", {
+  res <- whep::estimate_n_excretion(.toy_intake())
+  expect_true(rlang::has_name(res, "method_digestibility"))
+  expect_true(all(res$method_digestibility == "species_feed_quality"))
+  old <- whep::estimate_n_excretion(
+    .toy_intake(),
+    options = list(method_digestibility = "feed_quality")
+  )
+  expect_true(all(old$method_digestibility == "feed_quality"))
+})
+
+test_that("an unknown digestibility method aborts instead of falling back", {
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(method_digestibility = "calibrated")
+    ),
+    "species_feed_quality"
+  )
+})
+
+test_that("the digestibility table covers every species x feed quality once", {
+  # An override that silently missed its key would leave the species-blind
+  # value in place and every total would still reconcile, so assert the table
+  # is complete AND that each override actually landed.
+  categories <- whep:::.species_taxonomy_bridge()$livestock_category
+  qualities <- whep:::.feed_quality_digestibility()$feed_quality
+  purrr::walk(c("species_feed_quality", "feed_quality"), \(m) {
+    tbl <- whep:::.digestibility_table(m)
+    expect_equal(nrow(tbl), length(categories) * length(qualities))
+    expect_equal(
+      nrow(dplyr::distinct(tbl, livestock_category, feed_quality)),
+      nrow(tbl)
+    )
+    expect_false(anyNA(tbl$digestibility))
+    expect_true(all(tbl$digestibility > 0 & tbl$digestibility < 1))
+  })
+  over <- whep:::.species_digestibility()
+  landed <- whep:::.digestibility_table("species_feed_quality") |>
+    dplyr::inner_join(over, by = c("livestock_category", "feed_quality"))
+  expect_equal(nrow(landed), nrow(over))
+  expect_equal(landed$digestibility.x, landed$digestibility.y)
+})

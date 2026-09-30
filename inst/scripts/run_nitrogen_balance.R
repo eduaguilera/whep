@@ -15,7 +15,8 @@
 #   Rscript --no-init-file inst/scripts/run_nitrogen_balance.R [year] [resolution]
 #
 #   NOT `--vanilla`: that implies `--no-environ`, so R never reads
-#   `~/.Renviron` -- which is exactly where CLAUDE.md says every `WHEP_*` path
+#   `~/.Renviron` -- which is exactly where
+#   agent-reference/build-verification-notes.md says every `WHEP_*` path
 #   belongs, and the only place a working checkout may keep them (a `.Renviron`
 #   at the repo root would hide the home one, whep#456). Run this way, the very
 #   first stage that needs a raster died with "No WHEP_TYPE_CROPLAND_PATH input
@@ -54,7 +55,7 @@
 #                           placed on (default `year_aware`; see
 #                           .nbd_cell_polity() below).
 #
-# Requires the local surfaces (CLAUDE.md, "New data sources"):
+# Requires the local surfaces (AGENTS.md, "Where input data comes from"):
 #   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
 #   WHEP_HANI_DIR             WHEP_HYDE_DIR
 # plus cached pins for production, fertiliser and the commodity balances.
@@ -483,8 +484,9 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # The loss cascade's method set, and the one driver column it still needs.
 #
 # build_nitrogen_balance()'s defaults are MANNER ammonia and the Meisinger
-# drainage cascade. Both were ported from Spain_Hist and both need per-cell
-# driver columns that nothing in the package produces globally (#359): MANNER
+# drainage cascade. Both were ported from an earlier regional historical
+# reconstruction and both need per-cell driver columns that nothing in the
+# package produces globally (#359): MANNER
 # wants `manner_fertiliser` plus soil pH, application rate, rainfall,
 # irrigation, wind, technique, system, temperature and incorporation delay;
 # Meisinger wants `drainage_mm` plus tillage, irrigation category, SOM share
