@@ -131,6 +131,167 @@
 
         </dt>
         <dd>Build gridded livestock dataset</dd>
+
+        <dt>
+
+          <code><a href="read_glw_density.html">read_glw_density()</a></code>
+
+        </dt>
+        <dd>Read GLW3 gridded livestock counts on WHEP's 0.5-degree grid</dd>
+
+        <dt>
+
+          <code><a href="admin_shares_prototype.html">admin_shares_prototype()</a></code>
+
+        </dt>
+        <dd>The admin-shares zero-row prototype</dd>
+
+        <dt>
+
+          <code><a href="admin_shares_schema.html">admin_shares_schema()</a></code>
+
+        </dt>
+        <dd>The admin-shares table contract</dd>
+
+        <dt>
+
+          <code><a href="ensure_admin_shares.html">ensure_admin_shares()</a></code>
+
+        </dt>
+        <dd>Complete a table to the admin-shares contract</dd>
+
+        <dt>
+
+          <code><a href="read_admin_stats_nass.html">read_admin_stats_nass()</a></code>
+
+        </dt>
+        <dd>Read United States state or county agricultural statistics from NASS</dd>
+
+        <dt>
+
+          <code><a href="read_admin_stats_eurostat.html">read_admin_stats_eurostat()</a></code>
+
+        </dt>
+        <dd>Read Eurostat regional crop and livestock statistics</dd>
+
+        <dt>
+
+          <code><a href="read_admin_stats_sidra.html">read_admin_stats_sidra()</a></code>
+
+        </dt>
+        <dd>Read Brazilian state agricultural statistics from IBGE SIDRA</dd>
+
+        <dt>
+
+          <code><a href="read_admin_family.html">read_admin_family()</a></code>
+
+        </dt>
+        <dd>Read the per-family subnational admin-statistics pins</dd>
+
+        <dt>
+
+          <code><a href="read_admin_shares.html">read_admin_shares()</a></code>
+
+        </dt>
+        <dd>Read the assembled subnational admin-shares pin</dd>
+
+        <dt>
+
+          <code><a href="resolve_admin_units.html">resolve_admin_units()</a></code>
+
+        </dt>
+        <dd>Resolve source-native admin identifiers to polity codes</dd>
+
+        <dt>
+
+          <code><a href="resolve_admin_shares.html">resolve_admin_shares()</a></code>
+
+        </dt>
+        <dd>Resolve one source per container from the admin-shares table</dd>
+
+        <dt>
+
+          <code><a href="read_level_country_grid.html">read_level_country_grid()</a></code>
+
+        </dt>
+        <dd>Read the cell-to-polity country grid at a containment depth</dd>
+
+        <dt>
+
+          <code><a href="build_allocation_layer.html">build_allocation_layer()</a></code>
+
+        </dt>
+        <dd>Choose an allocation depth per country and assert no cell is claimed twice</dd>
+
+        <dt>
+
+          <code><a href="admin_coverage_prototype.html">admin_coverage_prototype()</a></code>
+
+        </dt>
+        <dd>Zero-row prototype of the run's admin-coverage report</dd>
+
+        <dt>
+
+          <code><a href="build_level_crop_targets.html">build_level_crop_targets()</a></code>
+
+        </dt>
+        <dd>Split a national crop total across the units of its container</dd>
+
+        <dt>
+
+          <code><a href="allocate_level_crops.html">allocate_level_crops()</a></code>
+
+        </dt>
+        <dd>Allocate national crop areas at a granted containment depth</dd>
+
+        <dt>
+
+          <code><a href="reconcile_admin_allocation.html">reconcile_admin_allocation()</a></code>
+
+        </dt>
+        <dd>Reconcile a level allocation against the national totals that bind</dd>
+
+        <dt>
+
+          <code><a href="unit_cropland_extent.html">unit_cropland_extent()</a></code>
+
+        </dt>
+        <dd>The cropland each unit holds, on the basis the capacity ceiling uses</dd>
+
+        <dt>
+
+          <code><a href="aggregate_unit_extent.html">aggregate_unit_extent()</a></code>
+
+        </dt>
+        <dd>Aggregate a gridded land quantity onto administrative units</dd>
+
+        <dt>
+
+          <code><a href="check_extent_jumps.html">check_extent_jumps()</a></code>
+
+        </dt>
+        <dd>Flag implausible year-on-year jumps in a per-unit extent</dd>
+
+        <dt>
+
+          <code><a href="backcast_admin_shares.html">backcast_admin_shares()</a></code>
+
+        </dt>
+        <dd>Back-cast admin shares across the seam</dd>
+
+        <dt>
+
+          <code><a href="seam_gate_tolerances.html">seam_gate_tolerances()</a></code>
+
+        </dt>
+        <dd>Tolerances of the admin-shares seam gate</dd>
+
+        <dt>
+
+          <code><a href="seam_gate.html">seam_gate()</a></code>
+
+        </dt>
+        <dd>Gate an admin-shares back-cast at its seams</dd>
       </dl></div><div class="section level2">
       <h2 id="polycell-spatial-support">Polycell spatial support<a class="anchor" aria-label="anchor" href="#polycell-spatial-support"></a></h2>
 
@@ -935,6 +1096,13 @@
 
         <dt>
 
+          <code><a href="build_n_boundary_country.html">build_n_boundary_country()</a></code>
+
+        </dt>
+        <dd>Summarise gridded nitrogen exceedance to a country-year table.</dd>
+
+        <dt>
+
           <code><a href="build_n_pathway_exceedance.html">build_n_pathway_exceedance()</a></code>
 
         </dt>
@@ -1507,6 +1675,13 @@
 
         <dt>
 
+          <code><a href="polity_containment.html">polity_containment</a></code>
+
+        </dt>
+        <dd>Polity containment edges</dd>
+
+        <dt>
+
           <code><a href="polity_label_item_corrections.html">polity_label_item_corrections</a></code>
 
         </dt>
@@ -1711,6 +1886,71 @@
 
         </dt>
         <dd>Get production item names from item codes</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="administrative-statistics-vocabularies">Administrative-statistics vocabularies<a class="anchor" aria-label="anchor" href="#administrative-statistics-vocabularies"></a></h3>
+      <div class="section-desc"><p>Source crop classes and livestock classes of the subnational statistics readers mapped onto WHEP items and species groups, with the mapping kind and, for livestock aggregates, the group set whose sum they constrain.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="admin_source_vocabularies.html">admin_source_vocabularies</a></code>
+
+        </dt>
+        <dd>Source-item vocabularies for the subnational admin statistics</dd>
+
+        <dt>
+
+          <code><a href="admin_items_nass.html">admin_items_nass</a></code>
+
+        </dt>
+        <dd>USDA NASS crop series and their WHEP items</dd>
+
+        <dt>
+
+          <code><a href="admin_items_eurostat.html">admin_items_eurostat</a></code>
+
+        </dt>
+        <dd>Eurostat crop classes and their WHEP items</dd>
+
+        <dt>
+
+          <code><a href="admin_items_sidra.html">admin_items_sidra</a></code>
+
+        </dt>
+        <dd>IBGE SIDRA crop classes and their WHEP items</dd>
+
+        <dt>
+
+          <code><a href="admin_items_jrc.html">admin_items_jrc</a></code>
+
+        </dt>
+        <dd>JRC subnational crop classes and their WHEP items</dd>
+
+        <dt>
+
+          <code><a href="admin_species_nass.html">admin_species_nass</a></code>
+
+        </dt>
+        <dd>USDA NASS livestock series and their WHEP species groups</dd>
+
+        <dt>
+
+          <code><a href="admin_species_eurostat.html">admin_species_eurostat</a></code>
+
+        </dt>
+        <dd>Eurostat livestock classes and their WHEP species groups</dd>
+
+        <dt>
+
+          <code><a href="admin_species_sidra.html">admin_species_sidra</a></code>
+
+        </dt>
+        <dd>IBGE SIDRA herd types and their WHEP species groups</dd>
       </dl></div><div class="section level2">
       <h2 id="reference-tables">Reference tables<a class="anchor" aria-label="anchor" href="#reference-tables"></a></h2>
 

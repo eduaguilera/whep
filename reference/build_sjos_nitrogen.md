@@ -54,6 +54,8 @@ build_sjos_nitrogen(
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
   negative_critical = c("keep", "clamp"),
+  country_table = FALSE,
+  beyond_share_cut = 0.5,
   example = FALSE
 )
 ```
@@ -169,6 +171,27 @@ build_sjos_nitrogen(
   footprint, and is stamped as `negative_critical` in both boundary
   tables, in `sjos_class` and in both footprint tables.
 
+- country_table:
+
+  If `TRUE`, add the `country_table` element (see Value): the grid
+  exceedance summarised to a country-year table by
+  [`build_n_boundary_country()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_country.md),
+  with the country boundary side crossed with the nourishment class. It
+  needs the agricultural land area, taken from `data$ag_land` (a
+  [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+  table) or, when absent, read with
+  [`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md)
+  for the years of the balance. Defaults to `FALSE`, which leaves every
+  other element as it was.
+
+- beyond_share_cut:
+
+  Share of a country's positive surplus above which it is on the
+  `"Exceedance"` side, passed to
+  [`build_n_boundary_country()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_country.md);
+  used only when `country_table = TRUE`. Defaults to `0.5`, a WHEP
+  criterion.
+
 - example:
 
   If `TRUE`, drive the whole chain from the coherent fixture set instead
@@ -188,7 +211,10 @@ carry `method_population`, `"read_population"` or `"supplied"`),
 `target_nourish`, and `target_class_diag`, the per-year count of flows
 whose consumer country-year has no nourishment class). The boundary
 tables, `sjos_class` and both footprint tables carry
-`negative_critical`.
+`negative_critical`. With `country_table = TRUE` the list also holds
+`country_table`, the
+[`build_n_boundary_country()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_country.md)
+result (a list with the `country` and `diagnostics` tables).
 
 ## Examples
 

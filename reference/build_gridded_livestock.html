@@ -185,7 +185,9 @@ LSU/ha reference for use with the <code>glw_density</code> parameter.</p>
 <span>  glw_density <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  grass_productivity <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  area_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity_area"</span><span class="op">)</span></span>
+<span>  proxy_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"luh2"</span>, <span class="st">"glw3"</span><span class="op">)</span>,</span>
+<span>  area_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity_area"</span><span class="op">)</span>,</span>
+<span>  polity_support <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -272,13 +274,18 @@ If <code>NULL</code>, land-use weights are used alone.</p></li>
 
 <dt id="arg-glw-density">glw_density<a class="anchor" aria-label="anchor" href="#arg-glw-density"></a></dt>
 <dd><p>A tibble with species-specific gridded
-livestock density from GLW3 (Gilbert et al. 2018). Optional.
+livestock density from GLW3 (Gilbert et al. 2018). Required when
+<code>proxy_method = "glw3"</code>; ignored, with a warning, under
+<code>proxy_method = "luh2"</code>.
 Expected columns:</p><ul><li><p><code>lon</code>, <code>lat</code>: Cell centre coordinates.</p></li>
 <li><p><code>species_group</code>: Must match <code>livestock_data</code>.</p></li>
-<li><p><code>density</code>: Heads per cell (reference year ~2010).
-If provided, this <strong>replaces</strong> the LUH2-based proxy for the
-matching groups, while still being scaled by LUH2 time trends.
-If <code>NULL</code>, LUH2 proxies are used for all groups.</p></li>
+<li><p><code>density</code>: Heads per cell (reference year ~2010).</p></li>
+<li><p><code>glw_variant</code>: Optional, <code>"DA"</code> or <code>"AW"</code>; <code><a href="read_glw_density.html">read_glw_density()</a></code>
+always supplies it. A table mixing the two products is refused,
+since one recorded label cannot describe both geographies.
+Under <code>"glw3"</code> it <strong>replaces</strong> the LUH2 proxy for every group, still
+masked by that year's LUH2 extent so a cell whose land use has gone
+receives nothing.</p></li>
 </ul></dd>
 
 
@@ -298,12 +305,33 @@ When supplied, <code>livestock_data</code>, <code>gridded_pasture</code>, and
 <code>gridded_cropland</code> are filtered to this set before processing.</p></dd>
 
 
+<dt id="arg-proxy-method">proxy_method<a class="anchor" aria-label="anchor" href="#arg-proxy-method"></a></dt>
+<dd><p>Which spatial proxy carries the within-country
+weight: <code>"luh2"</code> (default) or <code>"glw3"</code>, validated with
+<code><a href="https://rlang.r-lib.org/reference/arg_match.html" class="external-link">rlang::arg_match()</a></code>. They are alternatives, never fallbacks: under
+<code>"glw3"</code> a <code>NULL</code> <code>glw_density</code>, or a <code>species_group</code> that table has
+no positive cell for, aborts instead of quietly reverting to the LUH2
+proxy. The resolved value is recorded per row in
+<code>method_livestock_proxy</code>. See <em>Which livestock proxy the weights come
+from</em>.</p></dd>
+
+
 <dt id="arg-area-key">area_key<a class="anchor" aria-label="anchor" href="#arg-area-key"></a></dt>
 <dd><p>Which area code the output is keyed on: <code>"grid"</code>
 (default, the reporting codes <code>livestock_data</code> and <code>country_grid</code> are
 keyed on) or <code>"polity_area"</code> (the <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> bucket
 national tables are aggregated on). See
 <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>'s <em>Which area code the output is keyed on</em>.</p></dd>
+
+
+<dt id="arg-polity-support">polity_support<a class="anchor" aria-label="anchor" href="#arg-polity-support"></a></dt>
+<dd><p>The UNFOLDED polity support, used to reconcile
+<code>livestock_data</code>'s polity vintage with a year-aware <code>country_grid</code>'s
+before the match is judged. <code>NULL</code> (default) skips the reconciliation,
+which is correct for a snapshot grid. It cannot be recovered from
+<code>country_grid</code>: the level-0 fold summarises <code>polity_code</code> away, so a grid
+alone cannot say which polity holds a cell. <code><a href="read_polycell_support.html">read_polycell_support()</a></code>
+returns it, and <code><a href="run_spatialize.html">run_spatialize()</a></code> passes it automatically.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -322,7 +350,60 @@ reporting code the engine allocated on.</p></li>
 <li><p><code>heads</code>: Allocated live animal count.</p></li>
 <li><p>Any additional numeric columns from <code>livestock_data</code>
 (e.g. <code>enteric_ch4_kt</code>, <code>manure_ch4_kt</code>).</p></li>
+<li><p><code>method_livestock_proxy</code>: Which proxy produced the weights for
+this row, one of <code>"luh2_area"</code>, <code>"luh2_grass"</code>, <code>"glw3_da"</code>,
+<code>"glw3_aw"</code> (or plain <code>"glw3"</code> for a <code>glw_density</code> table carrying
+no <code>glw_variant</code>). Constant within a <code>(year, species_group)</code> block.</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="which-livestock-proxy-the-weights-come-from">Which livestock proxy the weights come from<a class="anchor" aria-label="anchor" href="#which-livestock-proxy-the-weights-come-from"></a></h2>
+
+
+<p><code>proxy_method</code> selects the within-country weight, and every output row
+records the resolved value in <code>method_livestock_proxy</code>:</p><ul><li><p><code>"luh2_area"</code>: LUH2 extent alone (<code>proxy_method = "luh2"</code>).</p></li>
+<li><p><code>"luh2_grass"</code>: LUH2 extent times grass NPP (<code>proxy_method = "luh2"</code>
+with <code>grass_productivity</code> supplied). The grass weighting reaches the
+<code>pasture</code> and <code>rangeland</code> proxies only, so <code>cropland</code> and <code>mixed</code>
+groups in the same call stay <code>"luh2_area"</code>. The label is per species
+group, not per cell: a grazer cell with no <code>grass_npp</code> keeps its area
+weight but still travels under <code>"luh2_grass"</code>, because what the
+column records is the weighting regime the group ran under.</p></li>
+<li><p><code>"glw3_da"</code> / <code>"glw3_aw"</code>: GLW3 density masked by that year's LUH2
+extent (<code>proxy_method = "glw3"</code>), from the dasymetric or the
+areal-weighted product respectively. The two are different
+within-country geographies, so the label names which one: it is read
+off <code>glw_density</code>'s <code>glw_variant</code> column, which <code><a href="read_glw_density.html">read_glw_density()</a></code>
+stamps, and therefore cannot disagree with the raster the weights
+came from. A <code>glw_density</code> built by hand, carrying no such column,
+travels as plain <code>"glw3"</code>.</p></li>
+</ul><p>The default stays <code>"luh2"</code> even though <code>"glw3"</code> is the better-informed
+proxy. GLW3 now has a data mechanism – <code><a href="read_glw_density.html">read_glw_density()</a></code>, the
+<code>WHEP_GLW3_DIR</code> environment variable and
+<code>inst/scripts/download/download_glw3.R</code> (whep#1000, task T15a-ii) –
+but it is an opt-in local raster set, so a <code>"glw3"</code> default would abort
+every run on a machine that has not fetched it, and GLW3 covers nine of
+the eleven species groups (not <code>camels</code>, not <code>other</code>). This is a
+deliberate, documented deviation from "the default is the most rigorous
+available method", of the same shape as the interim <code>area_key = "grid"</code>
+default in <code>R/spatialize_compartments.R</code>; whep#1000 task T20 is the gate
+that revisits it.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="species-groups-must-be-mapped-not-guessed">Species groups must be mapped, not guessed<a class="anchor" aria-label="anchor" href="#species-groups-must-be-mapped-not-guessed"></a></h2>
+
+
+<p>Every <code>species_group</code> in <code>livestock_data</code> must have a row in
+<code>species_proxy</code>; an unmapped group aborts naming it. It used to fall
+back to the <code>"pasture"</code> proxy silently, so a typo or a new FAOSTAT item
+was given a grazing distribution with no trace in the output.</p>
+<p>The catch-all is explicit, not implicit.
+<code>inst/extdata/livestock_mapping.csv</code> maps FAOSTAT items 1140 and 1150
+(rabbits and hares, other rodents) and 1171 (live animals nes) onto the
+group <code>"other"</code> with the <code>cropland</code> and <code>mixed</code> proxies, so a catch-all
+group is reached by an explicit item mapping upstream and never by
+name-matching here. A group carrying several proxies keeps the first,
+as before.</p>
+    </div>
     <div class="section level2">
     <h2 id="which-area-code-the-output-is-keyed-on">Which area code the output is keyed on<a class="anchor" aria-label="anchor" href="#which-area-code-the-output-is-keyed-on"></a></h2>
 
@@ -378,13 +459,13 @@ the shape <code><a href="build_cell_polity.html">build_cell_polity()</a></code> 
 <span class="r-in"><span>  <span class="va">livestock_data</span>, <span class="va">gridded_pasture</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Spatializing 1 groups over 1 years</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: reporting_polity_has_geometry &lt;lgl&gt;, species_group &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lon &lt;dbl&gt;, lat &lt;dbl&gt;, heads &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: reporting_polity_has_geometry &lt;lgl&gt;, species_group &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lon &lt;dbl&gt;, lat &lt;dbl&gt;, heads &lt;dbl&gt;, method_livestock_proxy &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

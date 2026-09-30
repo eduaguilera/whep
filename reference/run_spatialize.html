@@ -126,8 +126,63 @@ area. <code>0</code> restores the untoleranced behaviour of whep#1070.</p></li>
 forwarded to both engines. See <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>'s
 <em>Which area code the output is keyed on</em>.</p></li>
 <li><p><code>country_grid</code>: which cell-to-polity crosswalk the engines
-allocate into, <code>"centroid"</code> (default) or <code>"fraction"</code>. See
-<em>Which cell-to-polity crosswalk</em>.</p></li>
+allocate into, <code>"polycell"</code> (default), <code>"centroid"</code> or
+<code>"fraction"</code>. See <em>Which cell-to-polity crosswalk</em>.</p></li>
+<li><p><code>grid_vintage</code>: which vintage of the polycell support the level-0
+grid is read at, <code>"year_aware"</code> (default) or <code>"snapshot_2015"</code>. See
+<code><a href="read_level_country_grid.html">read_level_country_grid()</a></code>'s <em>Which vintage of the support level 0 is
+read at</em>. The two are different geographies, not two precisions of one:
+<code>"snapshot_2015"</code> allocates every year of a run into the present-day
+cell-to-country map, <code>"year_aware"</code> into the map valid that year. The
+year-aware read is the default because a cell belongs to the polity
+that actually held it; the national table is reconciled onto that
+polity by <code>.level0_reconcile_vintage()</code>, which both gridded builders
+call before the match is judged: see
+<code>.grid_vintages()</code> and <code>validation/spatialize_grid_vintage.R</code>.
+Recorded in <code>run_metadata.yaml</code> and per row in <code>method_grid_vintage</code>.
+Not read under <code>country_grid = "centroid"</code> or <code>"fraction"</code>, which carry
+no validity interval at all and are recorded as <code>"static_crosswalk"</code>.</p></li>
+<li><p><code>level</code> (integer, default <code>0L</code>): containment depth the grid is
+resolved at. <code>0L</code> is today's cell-to-<code>area_code</code> grid; <code>1L</code> and
+deeper key the cells on admin units through
+<code><a href="read_level_country_grid.html">read_level_country_grid()</a></code>, which only the <code>"polycell"</code>
+crosswalk supports.</p></li>
+<li><p><code>granted_containers</code> (default <code>NULL</code>): the container <code>area_code</code>s the
+run grants a depth, e.g. <code>110L</code> for Japan. <strong>Required whenever
+<code>level &gt; 0</code></strong> and refused at <code>level = 0</code>; a depth run must say whose
+depth it is, because that decides which containment edges
+<code><a href="read_level_country_grid.html">read_level_country_grid()</a></code> reads, which admin-share rows constrain
+the run, and which cells <code><a href="build_allocation_layer.html">build_allocation_layer()</a></code> takes from the
+deep grid rather than from level 0. See <em>What a granted depth runs</em>.</p></li>
+<li><p><code>double_claim</code>: which clashes the depth read's double-claim gate
+refuses, <code>"co_presence"</code> (default) or <code>"measured"</code>, forwarded to
+<code><a href="read_level_country_grid.html">read_level_country_grid()</a></code>. The default is the fail-closed rule.</p></li>
+<li><p><code>output_level</code> (integer, default <code>0L</code>): grain of the crop output.
+<code>0L</code> sums granted-depth rows back onto the container, so
+<code>(lon, lat, area_code, item_prod_code, year)</code> stays unique and the
+schema equals a level-0 run's; a positive value returns unit-grain
+rows carrying <code>level_polity_code</code>. It may not exceed <code>level</code>.</p></li>
+<li><p><code>constraint_exclude</code> (default <code>NULL</code>): container x year ranges to
+hold out of the admin constraint, as a list named by <code>area_code</code>,
+such as <code>list("840" = 1961:1989)</code>. That is the key
+<code><a href="resolve_admin_shares.html">resolve_admin_shares()</a></code> reads, and it is checked here against the
+same rule, so a hold-out this run records is one the resolver can
+honour. Recorded in <code>run_metadata.yaml</code> and consumed by the
+admin-shares resolver; it does not by itself change a run that has
+no admin constraint wired.</p></li>
+<li><p><code>livestock_proxy</code>: one of <code>"luh2"</code> (default) or <code>"glw3"</code>, forwarded
+to <code><a href="build_gridded_livestock.html">build_gridded_livestock()</a></code>'s <code>proxy_method</code>. Under <code>"glw3"</code> the
+density table is read with <code><a href="read_glw_density.html">read_glw_density()</a></code>, which needs a
+<code>WHEP_GLW3_DIR</code> tree and aborts without one; under <code>"luh2"</code> it is
+not read at all.</p></li>
+<li><p><code>livestock_glw_variant</code>: which GLW3 product a <code>"glw3"</code> run
+allocates on, <code>"DA"</code> (default, the dasymetric rasters) or <code>"AW"</code>
+(the areal-weighted ones), forwarded to <code><a href="read_glw_density.html">read_glw_density()</a></code>'s
+<code>variant</code>. They are different within-country geographies, so the
+resolved value is recorded twice: in <code>run_metadata.yaml</code> with the
+rest of the config, and per row in the output's
+<code>method_livestock_proxy</code> as <code>"glw3_da"</code> or <code>"glw3_aw"</code>. Ignored
+under <code>livestock_proxy = "luh2"</code>, which reads no raster.</p></li>
 </ul></dd>
 
 
@@ -145,8 +200,10 @@ otherwise to a session temporary directory (suffixed with <code>_custom</code> w
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Invisibly, a named list with <code>preset</code>, resolved <code>config</code>,
-<code>years</code>, <code>out_dir</code>, and <code>output_paths</code>.</p>
+    <p>Invisibly, a named list with <code>preset</code>, <code>components</code>, <code>cft_target</code>,
+resolved <code>config</code>, <code>years</code>, <code>out_dir</code>, <code>output_paths</code>, and <code>admin</code> – the
+resolver's coverage report and the constraint summary at a granted depth,
+<code>NULL</code> otherwise.</p>
     </div>
     <div class="section level2">
     <h2 id="presets">Presets<a class="anchor" aria-label="anchor" href="#presets"></a></h2>
@@ -181,7 +238,50 @@ historical year range present in <code>country_areas</code>.</p></dd>
 <li><p><code>manure_pattern.parquet</code> (optional, enables
 manure-intensity weighting if present).</p></li>
 <li><p><code>livestock_mapping.csv</code> from the installed package.</p></li>
+<li><p>The GLW3 rasters under <code>WHEP_GLW3_DIR</code>, read only when
+<code>livestock_proxy = "glw3"</code> (see <code><a href="read_glw_density.html">read_glw_density()</a></code>).</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="what-a-granted-depth-runs">What a granted depth runs<a class="anchor" aria-label="anchor" href="#what-a-granted-depth-runs"></a></h2>
+
+
+<p>With <code>level &gt; 0</code> the landuse step does not call <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>
+on a level-0 grid. It runs the subnational chain, in this order, and each
+step aborts naming what it is missing rather than continuing on the
+level-0 pattern:</p>
+<ol><li><p><code><a href="read_level_country_grid.html">read_level_country_grid()</a></code> twice – level 0 for the ungranted
+countries, <code>level</code> scoped to <code>granted_containers</code> for the granted ones
+– and <code><a href="build_allocation_layer.html">build_allocation_layer()</a></code> to assert the two partition every
+cell. Both halves are read year-aware, which is what
+<code>method_grid_vintage</code> has always recorded for a depth run.</p></li>
+<li><p><code><a href="read_admin_shares.html">read_admin_shares()</a></code>, scoped to <code>granted_containers</code>. A granted
+container with no admin row aborts with class
+<code>whep_run_admin_container_absent</code>; an unregistered pin with
+<code>whep_run_no_admin_shares</code>.</p></li>
+<li><p><code><a href="resolve_admin_units.html">resolve_admin_units()</a></code>, turning each source's native identifier
+into a polity code under the code system that identifier belongs to.
+Rows resolving to nothing are dropped and counted; a source resolving
+to nothing at all aborts with <code>whep_run_admin_unresolved</code>, and a
+source whose code system is undeclared with
+<code>whep_run_admin_code_system</code>.</p></li>
+<li><p><code><a href="resolve_admin_shares.html">resolve_admin_shares()</a></code>, applying indicator and source precedence
+and honouring <code>constraint_exclude</code>. A constraint sharing no
+<code>level_polity_code</code> with the layer aborts with
+<code>whep_run_admin_layer_mismatch</code>, because a run whose constraint
+matched nothing is indistinguishable from an unconstrained one in
+every output it writes.</p></li>
+<li><p><code><a href="allocate_level_crops.html">allocate_level_crops()</a></code>, splitting each national total across the
+container's units and spreading each unit's target over that unit's
+cells.</p></li>
+<li><p><code><a href="reconcile_admin_allocation.html">reconcile_admin_allocation()</a></code> and <code><a href="seam_gate.html">seam_gate()</a></code>, written beside
+the parquets as the run's own audit trail.</p></li>
+</ol><p>What actually happened is recorded in <code>run_metadata.yaml</code> under
+<code>admin_constraint</code> – the resolved, dropped and held-out row counts, the
+units constrained, the <code>method_crop_alloc</code> tally over the targets, the
+share basis the gate judged on, and the gate's verdict – and per row in
+the targets' own <code>method_crop_alloc</code>. A level-0 run records
+<code>admin_constraint: none</code>.</p>
+    </div>
     <div class="section level2">
     <h2 id="which-cell-to-polity-crosswalk">Which cell-to-polity crosswalk<a class="anchor" aria-label="anchor" href="#which-cell-to-polity-crosswalk"></a></h2>
 
@@ -214,14 +314,29 @@ area the chosen grid has no cell for and the national total at stake.</p>
     <h2 id="outputs-written-to-out-dir">Outputs written to <code>out_dir</code><a class="anchor" aria-label="anchor" href="#outputs-written-to-out-dir"></a></h2>
 
 
-<ul><li><p><code>gridded_landuse_crops.parquet</code> — crop-level output.</p></li>
+<p>Every parquet below carries <code>method_grid_vintage</code>, the geography the run
+allocated into: <code>"year_aware"</code>, <code>"snapshot_2015"</code> or <code>"static_crosswalk"</code>.</p><ul><li><p><code>gridded_landuse_crops.parquet</code> — crop-level output.</p></li>
 <li><p><code>gridded_landuse.parquet</code> — CFT-aggregated output
 (when <code>aggregate_to_cft = TRUE</code>).</p></li>
 <li><p><code>gridded_livestock_emissions.parquet</code> — gridded
 livestock stocks and emissions (when livestock component
 selected).</p></li>
 <li><p><code>run_metadata.yaml</code> — resolved preset, components,
-flags, years, timestamp, and package version.</p></li>
+flags, years, timestamp, package version, and the resolved
+<code>method_grid_vintage</code>.</p></li>
+<li><p><code>admin_coverage.csv</code> — which admin source constrained each
+container x item x year, at what tier, grain and depth. Written
+only when <code>level &gt; 0</code>, with its header and no rows where no
+coverage is granted. See <code><a href="admin_coverage_prototype.html">admin_coverage_prototype()</a></code>.</p></li>
+<li><p>Eleven further CSVs, written only when <code>level &gt; 0</code> and the
+landuse component ran: <code>admin_targets.csv</code> (one row per unit, item and
+year with its share, target and <code>method_crop_alloc</code>),
+<code>admin_group_coverage.csv</code>, <code>admin_conservation.csv</code>,
+<code>admin_breach.csv</code>, <code>admin_reconciliation.csv</code>,
+<code>admin_reconciliation_units.csv</code>, <code>admin_unit_cropland.csv</code>,
+<code>admin_seams.csv</code> and the three seam-gate tiers
+<code>admin_seam_gate_a.csv</code>, <code>admin_seam_gate_b.csv</code>,
+<code>admin_seam_gate_c.csv</code>.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -258,7 +373,7 @@ flags, years, timestamp, and package version.</p></li>
 <span class="r-in"><span>  <span class="va">country_areas</span>, <span class="va">crop_patterns</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span>,</span></span>
 <span class="r-in"><span>  config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>years <span class="op">=</span> <span class="fl">2000L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0s)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>

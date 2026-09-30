@@ -142,18 +142,11 @@ build_gridded_landuse(
   - `max_iterations`: Maximum iterations for the redistribution loop.
     Default: `1000L`.
 
-  - `expansion_threshold`: Defunct. It was documented as the iteration
-    after which crops may expand into cells without an existing pattern,
-    but that expansion was never implemented and the value never reached
-    the redistribution (whep#1001). It is now dropped with a warning of
-    class `whep_defunct_config_key`. A crop is only ever placed in cells
-    its `crop_patterns` (or uniform fallback) gives it; when those cells
-    are too small the per-cell ceiling gives way and a warning reports
-    it.
-
-  - `area_key`: Which area code the output is keyed on, `"grid"`
-    (default) or `"polity_area"`. See *Which area code the output is
-    keyed on*.
+  - `polity_support`: the unfolded polity support, used to reconcile
+    `country_areas`' polity vintage with a year-aware `country_grid`'s.
+    Absent, the reconciliation is skipped, which is correct for a
+    snapshot grid. See
+    [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md).
 
   - `pattern_signal_floor`: The `harvest_fraction` below which a
     `crop_patterns` cell is treated as float underflow rather than an
@@ -163,6 +156,27 @@ build_gridded_landuse(
     behaviour of whep#1070, in which a (country, crop) whose whole
     pattern is underflow is placed proportional to that underflow
     instead of uniformly.
+
+  - `expansion_threshold`: Iteration number after which crops are
+    allowed to expand into cells without an existing pattern. Default:
+    `100L`.
+
+  - `area_key`: Which area code the output is keyed on, `"grid"`
+    (default) or `"polity_area"`. See *Which area code the output is
+    keyed on*.
+
+  - `mc_factor`: Which multi-cropping factor sets the capacity ceiling
+    of a granted-depth compartment, `"unit"` (default) or `"national"`.
+    See *The capacity ceiling and its breach*. A grid with no
+    `level_polity_code` has no unit, so the two are the same table there
+    and a level-0 run is unaffected.
+
+  - `pattern_extension`: `"none"` (default) or `"granted_units"`. Under
+    `"granted_units"`, a granted-depth compartment carrying no
+    `crop_patterns` row for an item the national table gives it a target
+    for gains one at `harvest_fraction = 0`, so the crop is placed
+    uniformly over that unit's cropland of its LUH2 type instead of
+    being dropped. Level-0 rows are never extended.
 
 ## Value
 
@@ -187,6 +201,51 @@ A tibble with gridded crop (or CFT) harvested areas. Columns:
 - `rainfed_ha`: Rainfed harvested area in the cell.
 
 - `irrigated_ha`: Irrigated harvested area in the cell.
+
+The per-compartment capacity breach is a second table and is therefore
+**not** returned here: this function's return value is a contract two
+in-package consumers and every
+[`run_spatialize()`](https://eduaguilera.github.io/whep/reference/run_spatialize.md)
+caller already depend on, and an attribute would ride through every
+dplyr verb into comparisons that are about the allocation. Allocate at a
+granted depth with
+[`allocate_level_crops()`](https://eduaguilera.github.io/whep/reference/allocate_level_crops.md),
+which returns the breach beside the allocation. See *The capacity
+ceiling and its breach*.
+
+## The capacity ceiling and its breach
+
+The ceiling is soft: `.redistribute_country_dt()` rescales every crop
+back to its target after the logit passes, so where a compartment's
+cells cannot hold the target the target wins and the ceiling gives way.
+That excess is measured rather than absorbed, and returned as the
+`breach` table of
+[`allocate_level_crops()`](https://eduaguilera.github.io/whep/reference/allocate_level_crops.md):
+one row per compartment, cell, item and `mc_basis`, with `rf_over` and
+`ir_over` in hectares, which T14's reconciliation consumes as a table
+and never as warning text. A cell's ceiling is shared by every item in
+it, so the cell's excess is attributed to items **pro rata by their
+allocated area** – no other split is available, and summing the rows of
+a cell recovers its excess exactly.
+
+`mc_basis` records which multi-cropping factor the row was scored
+against. Rows carrying a `level_polity_code` are scored twice: at
+`"national"`, the factor the `multicropping` layer supplies (which is a
+national figure broadcast to every cell, so it inflates a unit's breach
+by construction), and at `"unit"`, the unit's own implied intensity –
+its whole allocated harvested area over the same physical cropland the
+ceiling uses, floored at 1 because a factor below 1 would forbid single
+cropping on land that exists. `in_force` marks the basis `mc_factor`
+selected, which is the one the redistribution ran against.
+
+The unit factor makes a unit's *aggregate* ceiling equal its own
+allocation by construction, so a breach at `"unit"` is always a
+within-unit concentration, never a shortfall of the unit as a whole;
+that is the difference the pair of bases exists to show. The plan
+phrases the unit factor as unit harvested over unit *herbaceous* LUH2
+cropland; the ceiling carries no LUH2 type split, so it is computed over
+the same cropland the ceiling itself multiplies, and a herbaceous-only
+denominator would leave the two inconsistent.
 
 ## Which area code the output is keyed on
 

@@ -37,6 +37,53 @@ comparison.
   : Build gridded landuse dataset
 - [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
   : Build gridded livestock dataset
+- [`read_glw_density()`](https://eduaguilera.github.io/whep/reference/read_glw_density.md)
+  : Read GLW3 gridded livestock counts on WHEP's 0.5-degree grid
+- [`admin_shares_prototype()`](https://eduaguilera.github.io/whep/reference/admin_shares_prototype.md)
+  : The admin-shares zero-row prototype
+- [`admin_shares_schema()`](https://eduaguilera.github.io/whep/reference/admin_shares_schema.md)
+  : The admin-shares table contract
+- [`ensure_admin_shares()`](https://eduaguilera.github.io/whep/reference/ensure_admin_shares.md)
+  : Complete a table to the admin-shares contract
+- [`read_admin_stats_nass()`](https://eduaguilera.github.io/whep/reference/read_admin_stats_nass.md)
+  : Read United States state or county agricultural statistics from NASS
+- [`read_admin_stats_eurostat()`](https://eduaguilera.github.io/whep/reference/read_admin_stats_eurostat.md)
+  : Read Eurostat regional crop and livestock statistics
+- [`read_admin_stats_sidra()`](https://eduaguilera.github.io/whep/reference/read_admin_stats_sidra.md)
+  : Read Brazilian state agricultural statistics from IBGE SIDRA
+- [`read_admin_family()`](https://eduaguilera.github.io/whep/reference/read_admin_family.md)
+  : Read the per-family subnational admin-statistics pins
+- [`read_admin_shares()`](https://eduaguilera.github.io/whep/reference/read_admin_shares.md)
+  : Read the assembled subnational admin-shares pin
+- [`resolve_admin_units()`](https://eduaguilera.github.io/whep/reference/resolve_admin_units.md)
+  : Resolve source-native admin identifiers to polity codes
+- [`resolve_admin_shares()`](https://eduaguilera.github.io/whep/reference/resolve_admin_shares.md)
+  : Resolve one source per container from the admin-shares table
+- [`read_level_country_grid()`](https://eduaguilera.github.io/whep/reference/read_level_country_grid.md)
+  : Read the cell-to-polity country grid at a containment depth
+- [`build_allocation_layer()`](https://eduaguilera.github.io/whep/reference/build_allocation_layer.md)
+  : Choose an allocation depth per country and assert no cell is claimed
+  twice
+- [`admin_coverage_prototype()`](https://eduaguilera.github.io/whep/reference/admin_coverage_prototype.md)
+  : Zero-row prototype of the run's admin-coverage report
+- [`build_level_crop_targets()`](https://eduaguilera.github.io/whep/reference/build_level_crop_targets.md)
+  : Split a national crop total across the units of its container
+- [`allocate_level_crops()`](https://eduaguilera.github.io/whep/reference/allocate_level_crops.md)
+  : Allocate national crop areas at a granted containment depth
+- [`reconcile_admin_allocation()`](https://eduaguilera.github.io/whep/reference/reconcile_admin_allocation.md)
+  : Reconcile a level allocation against the national totals that bind
+- [`unit_cropland_extent()`](https://eduaguilera.github.io/whep/reference/unit_cropland_extent.md)
+  : The cropland each unit holds, on the basis the capacity ceiling uses
+- [`aggregate_unit_extent()`](https://eduaguilera.github.io/whep/reference/aggregate_unit_extent.md)
+  : Aggregate a gridded land quantity onto administrative units
+- [`check_extent_jumps()`](https://eduaguilera.github.io/whep/reference/check_extent_jumps.md)
+  : Flag implausible year-on-year jumps in a per-unit extent
+- [`backcast_admin_shares()`](https://eduaguilera.github.io/whep/reference/backcast_admin_shares.md)
+  : Back-cast admin shares across the seam
+- [`seam_gate_tolerances()`](https://eduaguilera.github.io/whep/reference/seam_gate_tolerances.md)
+  : Tolerances of the admin-shares seam gate
+- [`seam_gate()`](https://eduaguilera.github.io/whep/reference/seam_gate.md)
+  : Gate an admin-shares back-cast at its seams
 
 ## Polycell spatial support
 
@@ -400,6 +447,8 @@ embodied-nitrogen trade footprint extension.
   : Derive the binding critical-nitrogen threshold per cell.
 - [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
   : Build source-exact gridded critical-nitrogen exceedance.
+- [`build_n_boundary_country()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_country.md)
+  : Summarise gridded nitrogen exceedance to a country-year table.
 - [`build_n_pathway_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.md)
   : Build the pathway-mode critical-nitrogen boundary exceedance.
 - [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
@@ -605,6 +654,8 @@ Add name columns in dataframes from their codes or viceversa.
   : FAOSTAT/FABIO area-to-polity crosswalk
 - [`polity_label_aliases`](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md)
   : Source label to polity aliases
+- [`polity_containment`](https://eduaguilera.github.io/whep/reference/polity_containment.md)
+  : Polity containment edges
 - [`polity_label_item_corrections`](https://eduaguilera.github.io/whep/reference/polity_label_item_corrections.md)
   : Source label corrections scoped to one item
 - [`polities_cats`](https://eduaguilera.github.io/whep/reference/polities_cats.md)
@@ -667,6 +718,29 @@ Add name columns in dataframes from their codes or viceversa.
   : Get production item codes from item names
 - [`add_item_prod_name()`](https://eduaguilera.github.io/whep/reference/add_item_prod_name.md)
   : Get production item names from item codes
+
+### Administrative-statistics vocabularies
+
+Source crop classes and livestock classes of the subnational statistics
+readers mapped onto WHEP items and species groups, with the mapping kind
+and, for livestock aggregates, the group set whose sum they constrain.
+
+- [`admin_source_vocabularies`](https://eduaguilera.github.io/whep/reference/admin_source_vocabularies.md)
+  : Source-item vocabularies for the subnational admin statistics
+- [`admin_items_nass`](https://eduaguilera.github.io/whep/reference/admin_items_nass.md)
+  : USDA NASS crop series and their WHEP items
+- [`admin_items_eurostat`](https://eduaguilera.github.io/whep/reference/admin_items_eurostat.md)
+  : Eurostat crop classes and their WHEP items
+- [`admin_items_sidra`](https://eduaguilera.github.io/whep/reference/admin_items_sidra.md)
+  : IBGE SIDRA crop classes and their WHEP items
+- [`admin_items_jrc`](https://eduaguilera.github.io/whep/reference/admin_items_jrc.md)
+  : JRC subnational crop classes and their WHEP items
+- [`admin_species_nass`](https://eduaguilera.github.io/whep/reference/admin_species_nass.md)
+  : USDA NASS livestock series and their WHEP species groups
+- [`admin_species_eurostat`](https://eduaguilera.github.io/whep/reference/admin_species_eurostat.md)
+  : Eurostat livestock classes and their WHEP species groups
+- [`admin_species_sidra`](https://eduaguilera.github.io/whep/reference/admin_species_sidra.md)
+  : IBGE SIDRA herd types and their WHEP species groups
 
 ## Reference tables
 

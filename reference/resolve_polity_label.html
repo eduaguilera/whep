@@ -131,7 +131,10 @@ match.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A character vector of polity codes, <code>NA</code> where nothing matched.</p>
+    <p>A character vector of polity codes, <code>NA</code> where nothing matched.
+On the identity routes a subnational polity contained in another
+candidate (per <a href="polity_containment.html">polity_containment</a>) never competes with its container,
+so an ISO3 shared by a state and its provinces resolves to the state.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -66,7 +66,9 @@ build_gridded_livestock(
   glw_density = NULL,
   grass_productivity = NULL,
   years = NULL,
-  area_key = c("grid", "polity_area")
+  proxy_method = c("luh2", "glw3"),
+  area_key = c("grid", "polity_area"),
+  polity_support = NULL
 )
 ```
 
@@ -164,16 +166,22 @@ build_gridded_livestock(
 - glw_density:
 
   A tibble with species-specific gridded livestock density from GLW3
-  (Gilbert et al. 2018). Optional. Expected columns:
+  (Gilbert et al. 2018). Required when `proxy_method = "glw3"`; ignored,
+  with a warning, under `proxy_method = "luh2"`. Expected columns:
 
   - `lon`, `lat`: Cell centre coordinates.
 
   - `species_group`: Must match `livestock_data`.
 
-  - `density`: Heads per cell (reference year ~2010). If provided, this
-    **replaces** the LUH2-based proxy for the matching groups, while
-    still being scaled by LUH2 time trends. If `NULL`, LUH2 proxies are
-    used for all groups.
+  - `density`: Heads per cell (reference year ~2010).
+
+  - `glw_variant`: Optional, `"DA"` or `"AW"`;
+    [`read_glw_density()`](https://eduaguilera.github.io/whep/reference/read_glw_density.md)
+    always supplies it. A table mixing the two products is refused,
+    since one recorded label cannot describe both geographies. Under
+    `"glw3"` it **replaces** the LUH2 proxy for every group, still
+    masked by that year's LUH2 extent so a cell whose land use has gone
+    receives nothing.
 
 - grass_productivity:
 
@@ -192,6 +200,17 @@ build_gridded_livestock(
   `livestock_data`, `gridded_pasture`, and `gridded_cropland` are
   filtered to this set before processing.
 
+- proxy_method:
+
+  Which spatial proxy carries the within-country weight: `"luh2"`
+  (default) or `"glw3"`, validated with
+  [`rlang::arg_match()`](https://rlang.r-lib.org/reference/arg_match.html).
+  They are alternatives, never fallbacks: under `"glw3"` a `NULL`
+  `glw_density`, or a `species_group` that table has no positive cell
+  for, aborts instead of quietly reverting to the LUH2 proxy. The
+  resolved value is recorded per row in `method_livestock_proxy`. See
+  *Which livestock proxy the weights come from*.
+
 - area_key:
 
   Which area code the output is keyed on: `"grid"` (default, the
@@ -201,6 +220,19 @@ build_gridded_livestock(
   bucket national tables are aggregated on). See
   [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)'s
   *Which area code the output is keyed on*.
+
+- polity_support:
+
+  The UNFOLDED polity support, used to reconcile `livestock_data`'s
+  polity vintage with a year-aware `country_grid`'s before the match is
+  judged. `NULL` (default) skips the reconciliation, which is correct
+  for a snapshot grid. It cannot be recovered from `country_grid`: the
+  level-0 fold summarises `polity_code` away, so a grid alone cannot say
+  which polity holds a cell.
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  returns it, and
+  [`run_spatialize()`](https://eduaguilera.github.io/whep/reference/run_spatialize.md)
+  passes it automatically.
 
 ## Value
 
@@ -226,6 +258,64 @@ A tibble with gridded livestock data. Columns:
 
 - Any additional numeric columns from `livestock_data` (e.g.
   `enteric_ch4_kt`, `manure_ch4_kt`).
+
+- `method_livestock_proxy`: Which proxy produced the weights for this
+  row, one of `"luh2_area"`, `"luh2_grass"`, `"glw3_da"`, `"glw3_aw"`
+  (or plain `"glw3"` for a `glw_density` table carrying no
+  `glw_variant`). Constant within a `(year, species_group)` block.
+
+## Which livestock proxy the weights come from
+
+`proxy_method` selects the within-country weight, and every output row
+records the resolved value in `method_livestock_proxy`:
+
+- `"luh2_area"`: LUH2 extent alone (`proxy_method = "luh2"`).
+
+- `"luh2_grass"`: LUH2 extent times grass NPP (`proxy_method = "luh2"`
+  with `grass_productivity` supplied). The grass weighting reaches the
+  `pasture` and `rangeland` proxies only, so `cropland` and `mixed`
+  groups in the same call stay `"luh2_area"`. The label is per species
+  group, not per cell: a grazer cell with no `grass_npp` keeps its area
+  weight but still travels under `"luh2_grass"`, because what the column
+  records is the weighting regime the group ran under.
+
+- `"glw3_da"` / `"glw3_aw"`: GLW3 density masked by that year's LUH2
+  extent (`proxy_method = "glw3"`), from the dasymetric or the
+  areal-weighted product respectively. The two are different
+  within-country geographies, so the label names which one: it is read
+  off `glw_density`'s `glw_variant` column, which
+  [`read_glw_density()`](https://eduaguilera.github.io/whep/reference/read_glw_density.md)
+  stamps, and therefore cannot disagree with the raster the weights came
+  from. A `glw_density` built by hand, carrying no such column, travels
+  as plain `"glw3"`.
+
+The default stays `"luh2"` even though `"glw3"` is the better-informed
+proxy. GLW3 now has a data mechanism –
+[`read_glw_density()`](https://eduaguilera.github.io/whep/reference/read_glw_density.md),
+the `WHEP_GLW3_DIR` environment variable and
+`inst/scripts/download/download_glw3.R` (whep#1000, task T15a-ii) – but
+it is an opt-in local raster set, so a `"glw3"` default would abort
+every run on a machine that has not fetched it, and GLW3 covers nine of
+the eleven species groups (not `camels`, not `other`). This is a
+deliberate, documented deviation from "the default is the most rigorous
+available method", of the same shape as the interim `area_key = "grid"`
+default in `R/spatialize_compartments.R`; whep#1000 task T20 is the gate
+that revisits it.
+
+## Species groups must be mapped, not guessed
+
+Every `species_group` in `livestock_data` must have a row in
+`species_proxy`; an unmapped group aborts naming it. It used to fall
+back to the `"pasture"` proxy silently, so a typo or a new FAOSTAT item
+was given a grazing distribution with no trace in the output.
+
+The catch-all is explicit, not implicit.
+`inst/extdata/livestock_mapping.csv` maps FAOSTAT items 1140 and 1150
+(rabbits and hares, other rodents) and 1171 (live animals nes) onto the
+group `"other"` with the `cropland` and `mixed` proxies, so a catch-all
+group is reached by an explicit item mapping upstream and never by
+name-matching here. A group carrying several proxies keeps the first, as
+before.
 
 ## Which area code the output is keyed on
 
@@ -286,11 +376,11 @@ build_gridded_livestock(
   livestock_data, gridded_pasture, gridded_cropland, country_grid
 )
 #> ℹ Spatializing 1 groups over 1 years
-#> # A tibble: 2 × 10
+#> # A tibble: 2 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2000         1                1 ARM-1991-2025         Armenia              
 #> 2  2000         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>, species_group <chr>,
-#> #   lon <dbl>, lat <dbl>, heads <dbl>
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, species_group <chr>,
+#> #   lon <dbl>, lat <dbl>, heads <dbl>, method_livestock_proxy <chr>
 ```

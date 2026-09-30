@@ -85,7 +85,11 @@ resolve_polity_label(
 
 ## Value
 
-A character vector of polity codes, `NA` where nothing matched.
+A character vector of polity codes, `NA` where nothing matched. On the
+identity routes a subnational polity contained in another candidate (per
+[polity_containment](https://eduaguilera.github.io/whep/reference/polity_containment.md))
+never competes with its container, so an ISO3 shared by a state and its
+provinces resolves to the state.
 
 ## Details
 
