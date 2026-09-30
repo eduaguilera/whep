@@ -691,7 +691,7 @@ test_that("the excluded report says why a family contributes nothing", {
   france <- excluded[excluded$source == "admin-stats-france-livestock", ]
 
   expect_equal(france$reason, "no_rows_in_pin")
-  expect_match(france$detail, "head count")
+  expect_match(france$detail, "assembly report")
   expect_no_match(france$detail, "attribution:")
 })
 
@@ -883,10 +883,13 @@ test_that("the example's excluded report is the real reporter's", {
     example$excluded,
     whep:::.admin_shares_excluded(example$shares)
   )
-  france <- example$excluded[
-    example$excluded$source == "admin-stats-france-livestock",
-  ]
-  expect_match(france$detail, "head count")
+  # France used to be named here as excluded, every one of its rows a head
+  # count the contract had no measure for. The contract carries livestock now
+  # and the example ships one of France's rows, so the family is no longer
+  # absent -- and a report still naming it would be reporting a drop that
+  # no longer happens.
+  expect_false("admin-stats-france-livestock" %in% example$excluded$source)
+  expect_true("admin-stats-france-livestock" %in% example$shares$source)
 })
 
 test_that("an excluded report with nothing to say is still typed", {

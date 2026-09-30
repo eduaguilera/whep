@@ -8,7 +8,7 @@ admin_shares_schema()
 }
 \value{
 A schema list, as documented in \code{\link[=check_table_schema]{check_table_schema()}}: closed
-(\code{extra_columns = "forbid"}), keyed on \verb{(area_code, level_polity_code, level, item_prod_code, indicator_used, year)}.
+(\code{extra_columns = "forbid"}), keyed on \verb{(area_code, level_polity_code, level, item_prod_code, species_group, indicator_used, year)}.
 }
 \description{
 Declare, as data, the shared row shape every admin-shares reader emits
@@ -32,7 +32,7 @@ with \code{\link[=empty_table_from_schema]{empty_table_from_schema()}}.
 }
 \section{Admin-shares table}{
 
-One row per \verb{(area_code, level_polity_code, level, item_prod_code, indicator_used, year)}:
+One row per \verb{(area_code, level_polity_code, level, item_prod_code, species_group, indicator_used, year)}:
 \itemize{
 \item \code{area_code}: FAOSTAT-style area code of the \emph{container} -- the polity
 the subnational units sum into, not the unit itself.
@@ -42,10 +42,15 @@ polity.
 \item \code{level}: administrative depth granted for this row, a positive
 integer (\code{1L} is the container's direct subnational units).
 \item \code{item_prod_code}: WHEP production-item code (see \code{add_item_prod_code()}
-/ \code{add_item_prod_name()}).
-\item \code{indicator_used}: which FAOSTAT-style indicator this row's \code{value}
-anchors to, one of \code{"area_harvested"}, \code{"area_planted_or_sown"},
-\code{"area_main"}, \code{"area_cultivated"}, \code{"production"}, \code{"yield"}.
+/ \code{add_item_prod_name()}) on a crop row; \code{NA} on a livestock row.
+\item \code{species_group}: the livestock group a livestock row counts, in the
+vocabulary \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} allocates in (\code{"cattle_dairy"},
+\code{"pigs"}, \code{"sheep_goats"}, ...); \code{NA} on a crop row. A row names
+exactly one of \code{item_prod_code} and \code{species_group}.
+\item \code{indicator_used}: which indicator this row's \code{value} anchors to, one of
+\code{"area_harvested"}, \code{"area_planted_or_sown"}, \code{"area_main"},
+\code{"area_cultivated"}, \code{"production"}, \code{"yield"} for a crop row, or
+\code{"head_count"} (live animals, head) for a livestock row.
 \item \code{year}: calendar year of the observation.
 \item \code{value}: the unit's own reported value for \code{indicator_used}, in the
 source's native unit. \code{NA} on a row whose source is consented to
@@ -100,6 +105,10 @@ writes.
 \item \code{treatment_year}: how this row's year was obtained, one of
 \code{"observed"}, \code{"interpolated"}, \code{"carried"}. Reserved for the gap
 rule; this contract only names the vocabulary.
+\item \code{treatment_value}: how the row's value was obtained, \code{"observed"}
+(reported by the unit) or \code{"reconstructed"} (derived by the source,
+e.g. from a national total). \code{NA} when the source does not say, which is
+every source today; it is never defaulted to \code{"observed"}.
 \item \code{value_flag}: a free-text data-quality flag, \code{NA} when the row is
 clean.
 }

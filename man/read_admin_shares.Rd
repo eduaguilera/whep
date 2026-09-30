@@ -59,13 +59,6 @@ nothing about this family was measured. Every family carries this
 reason together, and \code{not_shipped} says the same thing.
 }
 
-The second reason is expected for \code{"admin-stats-france-livestock"} and
-will stay so: that family is head counts, and head counts are outside
-\code{\link[=admin_shares_schema]{admin_shares_schema()}} by design -- \code{indicator_used} closes over area,
-production and yield (\code{R/admin_stats_sidra.R}). The livestock
-constraint travels the reader and family path, not this pin, and that
-is what its \code{detail} says.
-
 A read cannot see which rows were dropped or why, so for any other
 family \code{detail} points at the assembly's per-source counts. Those
 counts are a \strong{second, build-time report}, written by

@@ -874,6 +874,7 @@ test_that("the contiguous run counts consecutive years around the year", {
     area_code = 840L,
     level = 1L,
     item_prod_code = 15L,
+    species_group = NA_character_,
     indicator_used = "area_harvested",
     source = "s",
     year = c(1990L, 1991L, 1992L, 1995L, 1996L)

@@ -160,10 +160,10 @@ read_admin_family <- function(families = NULL, example = FALSE) {
 # `R/admin_stats_nass.R`, `R/admin_stats_sidra.R`,
 # `R/admin_stats_eurostat.R` and `inst/scripts/prepare_jrc_subnational.R`.
 # Three of them (`IBGE_PPM`, `Eurostat_apro_mt_ls_r`,
-# `Eurostat_ef_lsk_poultry`) serve head counts, which
-# `admin_shares_schema()` does not carry, so no row of theirs reaches the
-# assembled pin today; they are declared because they are recognised
-# producers, not because they are expected.
+# `Eurostat_ef_lsk_poultry`) serve head counts. `admin_shares_schema()`
+# carries those under `species_group`, but the assembly script has no
+# tier-1 livestock placement yet, so no row of theirs reaches the pin
+# today; they are declared because they are recognised producers.
 .admin_source_registry <- function() {
   tibble::tribble(
     ~source,                        ~is_family, ~measure, ~consent,
@@ -638,13 +638,6 @@ read_admin_family <- function(families = NULL, example = FALSE) {
 #'   nothing about this family was measured. Every family carries this
 #'   reason together, and `not_shipped` says the same thing.
 #'
-#' The second reason is expected for `"admin-stats-france-livestock"` and
-#' will stay so: that family is head counts, and head counts are outside
-#' [admin_shares_schema()] by design -- `indicator_used` closes over area,
-#' production and yield (`R/admin_stats_sidra.R`). The livestock
-#' constraint travels the reader and family path, not this pin, and that
-#' is what its `detail` says.
-#'
 #' A read cannot see which rows were dropped or why, so for any other
 #' family `detail` points at the assembly's per-source counts. Those
 #' counts are a **second, build-time report**, written by
@@ -705,6 +698,7 @@ read_admin_shares <- function(example = FALSE) {
     "source_native_id",
     "level",
     "item_prod_code",
+    "species_group",
     "indicator_used",
     "year"
   )
@@ -732,14 +726,25 @@ read_admin_shares <- function(example = FALSE) {
 # The schema is proved first, so that a pin missing a column fails on the
 # column it is missing. The cross-column and per-source rules below all
 # read columns the schema has just established.
+#
+# COMPLETED BEFORE IT IS PROVED, because a pin is written once and read
+# afterwards. The contract gained `species_group` and `treatment_value` for
+# livestock and value provenance, and every pin published before that says
+# nothing about either -- which is not a malformed pin, it is an older one,
+# and the honest completion is `NA`: this artifact makes no claim about a
+# species or about how its values were obtained. Asserting first would have
+# made the widening unreadable backwards, so the published pin would have had
+# to be rebuilt before the package could read it at all.
 .admin_shares_check_pin <- function(
   rows,
   manifest = .admin_shares_manifest()
 ) {
+  rows <- .admin_fill_added_columns(rows)
   assert_table_schema(rows, .admin_shares_pin_schema(), arg = "admin-shares")
   .admin_shares_check_unresolved(rows)
   .abort_nonfinite_admin_rows(rows, arg = "admin-shares")
   .abort_measureless_admin_rows(rows, arg = "admin-shares")
+  .abort_itemless_admin_rows(rows, arg = "admin-shares")
   .admin_shares_check_identity(rows)
   .admin_shares_check_declared(rows)
   .admin_shares_check_consent(rows, manifest)
@@ -1081,35 +1086,18 @@ read_admin_shares <- function(example = FALSE) {
 
 # Why a consented family contributed no row. The family's attribution used
 # to be reported here, which says what permission the family ships under
-# and nothing at all about its absence. Where the reason is structural --
-# the family's rows cannot enter this contract at any vintage -- it is
-# named; otherwise the report points at the only thing that can say which
-# filter took the rows, which is the assembly's own per-source counts.
+# and nothing at all about its absence. The report points at the only thing
+# that can say which filter took the rows: the assembly's own per-source
+# counts. (France's head counts used to be named here as a permanent,
+# structural absence; the contract now carries `species_group`, so no
+# family is excluded by the schema itself.)
 .admin_shares_absence <- function(alias) {
-  known <- .admin_family_no_rows_reason()
-  ifelse(
-    alias %in% names(known),
-    known[alias],
+  rep(
     paste0(
       "consent is recorded and no row of this family reached the ",
       "contract; the per-source drop counts are in the assembly report ",
       "of inst/scripts/prepare_admin_shares_pin.R"
-    )
-  )
-}
-
-# The one family whose absence is permanent and explainable from the
-# contract itself: it ships head counts, and `indicator_used` closes over
-# area, production and yield (`admin_shares_schema()`), so no row of it
-# can enter. No count is hardcoded here -- a count would go stale against
-# the family pin, and the reason would not.
-.admin_family_no_rows_reason <- function() {
-  c(
-    "admin-stats-france-livestock" = paste0(
-      "the family ships head counts only, and head counts are outside ",
-      "admin_shares_schema()'s indicator_used vocabulary by design, so ",
-      "no row of it can enter this contract; the livestock constraint ",
-      "travels the read_admin_family() path instead"
-    )
+    ),
+    length(alias)
   )
 }

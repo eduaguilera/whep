@@ -2148,17 +2148,30 @@
 .example_admin_shares <- function() {
   japan <- "admin-stats-japan"
   latam <- "admin-stats-latam"
+  france <- "admin-stats-france-livestock"
+  # Five rows, covering the three shapes the contract admits: a crop row
+  # carrying a value, a consented shares-only crop row, and a LIVESTOCK row.
+  # The livestock one keys on `species_group` instead of `item_prod_code` and
+  # measures `head_count`; its value is the `admin-stats-france-livestock`
+  # pin's own figure for Seine-et-Marne dairy cattle in 2000, not a made-up
+  # one.
+  #
+  # `treatment_value` is `NA` on every row, and that is the point of it: none
+  # of these three sources ships a column saying whether a value was reported
+  # or reconstructed, so the honest record is that they did not say. A source
+  # that does say carries "observed" or "reconstructed" here.
   shares <- tibble::tibble(
-    area_code = c(110L, 110L, 19L, 19L),
+    area_code = c(110L, 110L, 19L, 19L, 68L),
     level_polity_code = NA_character_,
     level = 1L,
-    item_prod_code = c(27L, 27L, 661L, 661L),
-    indicator_used = "area_harvested",
-    year = c(2000L, 2000L, 2023L, 2023L),
-    value = c(134900, 120700, NA, NA),
-    share = c(NA, NA, 0.792032501, 0.009048142),
-    source = c(japan, japan, latam, latam),
-    tier = c(2L, 2L, 3L, 3L),
+    item_prod_code = c(27L, 27L, 661L, 661L, NA_integer_),
+    species_group = c(rep(NA_character_, 4L), "cattle_dairy"),
+    indicator_used = c(rep("area_harvested", 4L), "head_count"),
+    year = c(2000L, 2000L, 2023L, 2023L, 2000L),
+    value = c(134900, 120700, NA, NA, 5153.002),
+    share = c(NA, NA, 0.792032501, 0.009048142, NA),
+    source = c(japan, japan, latam, latam, france),
+    tier = c(2L, 2L, 3L, 3L, 2L),
     grain = "admin1",
     concept_break = FALSE,
     nuts_version = NA_character_,
@@ -2166,18 +2179,27 @@
       "JPN-HOKKAIDO",
       "JPN-NIIGATA",
       "BOL-LAPAZ",
-      "BOL-SANTACRUZ"
+      "BOL-SANTACRUZ",
+      "FRA-FR102"
     ),
-    source_native_name = c("Hokkaido", "Niigata", "La Paz", "Santa Cruz"),
-    source_id = c(japan, japan, latam, latam),
+    source_native_name = c(
+      "Hokkaido",
+      "Niigata",
+      "La Paz",
+      "Santa Cruz",
+      "FR102"
+    ),
+    source_id = c(japan, japan, latam, latam, france),
     source_version = c(
       "NATIONAL_OFFICIAL:JPN:MAFF",
       "NATIONAL_OFFICIAL:JPN:MAFF",
       "2026-05-21",
-      "2026-05-21"
+      "2026-05-21",
+      "PI_COMPILATION:MEDITERRANEAN_SUBNATIONAL"
     ),
     recorded_at = "2026-09-03T06:21:54Z",
     treatment_year = "observed",
+    treatment_value = NA_character_,
     value_flag = NA_character_
   )
   list(

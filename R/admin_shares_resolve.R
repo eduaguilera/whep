@@ -203,20 +203,34 @@ resolve_admin_shares <- function(
     "area_planted_or_sown",
     "area_main",
     "area_cultivated",
-    "production"
+    "production",
+    # The livestock measure. It never competes with a crop indicator for the
+    # same rank: the candidate group below keys on `item_prod_code` AND
+    # `species_group`, and a row carries exactly one of them, so a livestock
+    # row and a crop row are never in one group. It is here because a measure
+    # absent from this order has no rank at all, and `match()` would return
+    # `NA` for every livestock row.
+    "head_count"
   )
 }
 
 .admin_group_cols <- function() {
-  c("area_code", "level", "item_prod_code", "indicator_used", "year")
+  c(
+    "area_code",
+    "level",
+    "item_prod_code",
+    "species_group",
+    "indicator_used",
+    "year"
+  )
 }
 
 .admin_run_cols <- function() {
-  c("area_code", "level", "item_prod_code", "indicator_used")
+  c("area_code", "level", "item_prod_code", "species_group", "indicator_used")
 }
 
 .admin_series_cols <- function() {
-  c("area_code", "level", "item_prod_code")
+  c("area_code", "level", "item_prod_code", "species_group")
 }
 
 .admin_seam_cols <- function() {
@@ -249,9 +263,16 @@ resolve_admin_shares <- function(
     )
   }
   shares <- tibble::as_tibble(shares)
-  assert_table_schema(shares, .admin_resolve_schema(), arg = "shares")
-  .abort_unobserved_shares(shares)
-  completed <- ensure_columns(shares, admin_shares_prototype())
+  # COMPLETED BEFORE IT IS ASSERTED, the order `ensure_admin_shares()` uses.
+  # The two disagreed: this one validated the caller's raw table, so a
+  # producer had to supply every optional column by hand or fail on presence
+  # rather than on content. Widening the contract for livestock made that
+  # visible -- a crop table that says nothing about `species_group` is a
+  # complete crop table, not a malformed one. A column the schema requires to
+  # carry a value still fails, one line later, on the value.
+  completed <- .admin_fill_added_columns(shares)
+  assert_table_schema(completed, .admin_resolve_schema(), arg = "shares")
+  .abort_unobserved_shares(completed)
   # The contract's cross-column rule, which no schema specification can
   # carry: `value` may be missing where `share` is present (the consented
   # shares-only case), but a row with neither measurement constrains
@@ -260,6 +281,7 @@ resolve_admin_shares <- function(
   # artefact would enter resolution as a consented shares-only row.
   .abort_nonfinite_admin_rows(completed, arg = "shares")
   .abort_measureless_admin_rows(completed, arg = "shares")
+  .abort_itemless_admin_rows(completed, arg = "shares")
   completed
 }
 
@@ -461,10 +483,14 @@ resolve_admin_shares <- function(
 # the rows in the order it finds them.
 .add_admin_run_lengths <- function(candidates) {
   candidates |>
+    # `species_group` sorts beside `item_prod_code` because the groups below
+    # key on both: left out, a crop series and a livestock series of one
+    # container interleave by year and `diff()` reads a false gap.
     dplyr::arrange(
       area_code,
       level,
       item_prod_code,
+      species_group,
       indicator_used,
       source,
       year,
@@ -843,6 +869,7 @@ resolve_admin_shares <- function(
     area_code = integer(),
     level = integer(),
     item_prod_code = integer(),
+    species_group = character(),
     year = integer(),
     resolved_source = character(),
     resolved_tier = integer(),
@@ -862,6 +889,7 @@ resolve_admin_shares <- function(
     area_code = integer(),
     level = integer(),
     item_prod_code = integer(),
+    species_group = character(),
     seam_year = integer(),
     seam_kind = character(),
     previous_year = integer(),

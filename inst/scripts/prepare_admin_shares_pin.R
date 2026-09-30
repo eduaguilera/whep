@@ -76,12 +76,12 @@
 # ---------------------------------------------
 # Per source, in this order, every step reporting its own count:
 #
-#   1. head counts (`indicator_used` missing). Head counts are outside
-#      this schema BY DESIGN: `indicator_used` closes over area,
-#      production and yield (`R/admin_stats_sidra.R:76-77, 222-223`), and
-#      the livestock constraint travels the reader/family path instead. So
+#   1. rows with no indicator at all (`dropped_indicator_missing`). Head
+#      counts are NOT dropped here: they are recognised by their unit,
+#      given `indicator_used = "head_count"` and a `species_group` from
+#      `livestock_mapping.csv`, and carried (`.shares_species()`). So
 #      `admin-stats-france-livestock` -- 58,740 rows, all head counts --
-#      contributes NO ROW to this pin, and that is the design, not a loss.
+#      now contributes 48,060 rows once same-group members are summed.
 #   2. an indicator outside the contract's closed vocabulary.
 #   3. an item the WHEP production vocabulary does not carry. Tier-2/3
 #      families need no T11 crosswalk -- their `source_native_item_code`
@@ -121,7 +121,8 @@
 #     rows is `lane == "legacy_balanced"`: 667,142 area and 676,623
 #     production rows against ZERO observational ones in all six
 #     countries. Its only observational rows are 9,807 head counts, which
-#     this schema does not carry.
+#     are shares-only and multi-member, so they are dropped (see
+#     `.shares_sum_species()`).
 #
 # So the 820,214 Latin American rows in this pin are a balanced
 # reconstruction, not directly transcribed statistics, and filtering that
@@ -208,8 +209,50 @@ ADMIN_SHARES_LEVEL <- 1L
     "area_main",
     "area_cultivated",
     "production",
-    "yield"
+    "yield",
+    "head_count"
   )
+}
+
+# A family's live-animal rows carry a FAOSTAT live-animal item code and a
+# head count, and `livestock_mapping.csv` is where the package already maps
+# those codes onto the livestock engine's `species_group`. Read from there,
+# not restated, so a group renamed in the engine's crosswalk cannot leave the
+# pin pointing at a name the engine no longer allocates.
+.shares_species_map <- function() {
+  path <- system.file("extdata", "livestock_mapping.csv", package = "whep")
+  readr::read_csv(
+    path,
+    col_types = readr::cols(.default = readr::col_character()),
+    show_col_types = FALSE
+  ) |>
+    dplyr::distinct(.data$item_code, .data$species_group)
+}
+
+# HEAD COUNTS ARE CARRIED, not dropped. They used to be removed wholesale
+# here, because the contract had no measure for them: 58,740 rows of the
+# France family and 52,806 of the Latin American one. A head row now takes
+# its `species_group` from the item code and measures `head_count`, and its
+# crop key goes empty -- a row names one vocabulary, never both.
+#
+# A head row whose species cannot be named is still dropped, and counted
+# with its codes shown. Nothing is guessed for it: a code the mapping does not
+# carry may be a total over several groups (Australia's 866 "Cattle" is dairy
+# plus non-dairy, so it cannot bind either), a vocabulary the crosswalk does
+# not yet equate (Australia's 1034 "Pigs"), something that is not livestock
+# at all (1181, bees), or a row that ships a name and no code, which only a
+# name join could place.
+.shares_species <- function(rows) {
+  heads <- !is.na(rows$quantity) & rows$quantity == "heads"
+  map <- .shares_species_map()
+  rows$species_group <- NA_character_
+  rows$species_group[heads] <- map$species_group[
+    match(rows$item_code[heads], map$item_code)
+  ]
+  rows$indicator_used[heads] <- "head_count"
+  rows$item_code[heads] <- NA_character_
+  unnamed <- heads & is.na(rows$species_group)
+  list(rows = rows, unnamed = unnamed)
 }
 
 .shares_grains <- function() {
@@ -220,7 +263,8 @@ ADMIN_SHARES_LEVEL <- 1L
 # vocabulary that maps their classes and the rule that gives each row its
 # container. The livestock readers (`Eurostat_apro_mt_ls_r`,
 # `Eurostat_ef_lsk_poultry`, `IBGE_PPM`) are deliberately absent: they
-# serve head counts only, which are outside this schema by design.
+# serve head counts, which the schema now carries, but their species
+# placement is not written yet.
 #
 # Every label here must also be DECLARED in
 # `whep:::.admin_source_registry()`, or the rows it places would be
@@ -410,6 +454,11 @@ ADMIN_SHARES_LEVEL <- 1L
     source_native_id = as.character(rows$source_native_unit_id),
     source_native_name = as.character(rows$source_native_unit_name),
     item_code = as.character(rows$source_native_item_code),
+    quantity = if (rlang::has_name(rows, "quantity")) {
+      as.character(rows$quantity)
+    } else {
+      NA_character_
+    },
     indicator_used = as.character(rows$indicator_used),
     year = as.integer(rows$year),
     value = if (measure == "value") as.numeric(rows$value) else NA_real_,
@@ -674,19 +723,83 @@ ADMIN_SHARES_LEVEL <- 1L
   stringr::str_c(sort(kept), collapse = "; ")
 }
 
+# SEVERAL SOURCE SPECIES CAN BE ONE ENGINE GROUP. `sheep_goats` is sheep plus
+# goats, `poultry` is ducks, turkeys and geese, `equines` is horses, asses and
+# mules -- that is how `livestock_mapping.csv` defines the groups the engine
+# allocates, and the engine's national table is aggregated the same way. So a
+# unit-year carrying two members of one group becomes one row of that group.
+#
+# For a VALUE family that is a sum of head counts, and the member rows are
+# counted as merged, not dropped. For a SHARES-ONLY family it is not
+# computable: a unit's share of national ducks plus its share of national
+# turkeys is not its share of national poultry, and the counts that could
+# weight the members are exactly what the consent withholds. Those groups are
+# dropped and counted instead. A group with a single member present is
+# carried as it is, whatever the family ships.
+#
+# Everything but the measures is grouped on, so two members that disagree
+# about anything else (a grain, a version) stay two rows and the pin's
+# duplicate-key check refuses them rather than a sum hiding it.
+.shares_sum_species <- function(rows) {
+  livestock <- !is.na(rows$species_group)
+  if (!any(livestock)) {
+    return(list(rows = rows, merged = 0L, dropped = 0L))
+  }
+  keep <- setdiff(names(rows), c("value", "share", "value_flag"))
+  lv <- dplyr::mutate(
+    rows[livestock, ],
+    n_members = dplyr::n(),
+    .by = dplyr::all_of(keep)
+  )
+  multi <- lv$n_members > 1L
+  unweighable <- multi & is.na(lv$value)
+  summed <- lv[multi & !unweighable, ] |>
+    dplyr::summarise(
+      value = sum(.data$value),
+      share = NA_real_,
+      value_flag = .shares_join_flags(.data$value_flag),
+      .by = dplyr::all_of(keep)
+    )
+  single <- lv[!multi, setdiff(names(lv), "n_members")]
+  out <- dplyr::bind_rows(rows[!livestock, ], single, summed)
+  list(
+    rows = out[, names(rows)],
+    merged = sum(multi & !unweighable) - nrow(summed),
+    dropped = sum(unweighable)
+  )
+}
+
 # ---- The filters every source goes through ----------------------------
 
 .shares_common_filters <- function(staged, counts) {
   counts$rows_in <- nrow(staged)
-  step <- .shares_drop(staged, is.na(staged$indicator_used))
+  if (!rlang::has_name(staged, "quantity")) {
+    staged$quantity <- NA_character_
+  }
+  species <- .shares_species(staged)
+  # The codes were blanked for head rows, so the examples come from the input.
+  counts$species_examples <- .shares_examples(unique(stats::na.omit(
+    staged$item_code[species$unnamed]
+  )))
+  step <- .shares_drop(species$rows, species$unnamed)
   counts$dropped_headcount <- step$n
+  grouped <- .shares_sum_species(step$rows)
+  step$rows <- grouped$rows
+  counts$merged_species_member <- grouped$merged
+  counts$dropped_species_share <- grouped$dropped
+  step <- .shares_drop(step$rows, is.na(step$rows$indicator_used))
+  counts$dropped_indicator_missing <- step$n
   step <- .shares_drop(
     step$rows,
     !step$rows$indicator_used %in% .shares_indicators()
   )
   counts$dropped_indicator <- step$n
   valid_items <- whep::items_prod_full$item_prod_code
-  step <- .shares_drop(step$rows, !step$rows$item_code %in% valid_items)
+  crop <- is.na(step$rows$species_group)
+  step <- .shares_drop(
+    step$rows,
+    crop & !step$rows$item_code %in% valid_items
+  )
   counts$dropped_item <- step$n
   # The container is resolved BEFORE the grain filter so that a unit id
   # carrying no country at all is attributed to the right cause and named.
@@ -722,7 +835,8 @@ ADMIN_SHARES_LEVEL <- 1L
 # is already past its vocabulary join.
 .shares_check_counts <- function(counts) {
   drops <- sum(unlist(counts[grepl("^dropped_", names(counts))]))
-  merged <- counts$merged_sum_member %||% 0L
+  merged <- (counts$merged_sum_member %||% 0L) +
+    (counts$merged_species_member %||% 0L)
   if (counts$rows_read == counts$rows_out + drops + merged) {
     return(invisible(NULL))
   }
@@ -756,6 +870,7 @@ ADMIN_SHARES_LEVEL <- 1L
     level_polity_code = NA_character_,
     level = ADMIN_SHARES_LEVEL,
     item_prod_code = as.integer(rows$item_code),
+    species_group = rows$species_group,
     indicator_used = rows$indicator_used,
     year = rows$year,
     value = rows$value,
@@ -771,6 +886,9 @@ ADMIN_SHARES_LEVEL <- 1L
     source_version = rows$source_version,
     recorded_at = rows$recorded_at,
     treatment_year = "observed",
+    # No family pin ships a column saying whether a value was reported or
+    # reconstructed, so none is claimed; see `admin_shares_schema()`.
+    treatment_value = NA_character_,
     value_flag = rows$value_flag
   )
 }
@@ -845,9 +963,8 @@ assemble_admin_shares <- function(
 
 # A source that was read, gated and then filtered down to nothing is an
 # exclusion too, and it is named together with the filter that took it.
-# Otherwise `admin-stats-france-livestock` -- 58,740 head counts, none of
-# which this schema admits -- would leave no trace but a zero in a counts
-# table nobody reads twice.
+# Otherwise a family filtered to nothing would leave no trace but a zero
+# in a counts table nobody reads twice.
 #
 # The reason is `"no_rows_in_pin"`, the same word `read_admin_shares()`
 # uses for the same state, so that the build-time report and the
@@ -910,7 +1027,10 @@ assemble_admin_shares <- function(
     dropped_sum_member_yield = 0L,
     dropped_sum_member_partial = 0L,
     merged_sum_member = 0L,
+    merged_species_member = 0L,
+    dropped_species_share = 0L,
     dropped_headcount = 0L,
+    dropped_indicator_missing = 0L,
     dropped_indicator = 0L,
     dropped_item = 0L,
     dropped_container = 0L,
@@ -919,7 +1039,8 @@ assemble_admin_shares <- function(
     lane_examples = NA_character_,
     country_code_examples = NA_character_,
     container_examples = NA_character_,
-    grain_examples = NA_character_
+    grain_examples = NA_character_,
+    species_examples = NA_character_
   )
   utils::modifyList(zeros, counts) |>
     tibble::as_tibble() |>
@@ -962,9 +1083,7 @@ stage_admin_shares_pin <- function(
 # A consented family that contributed NO row is named too. Listing only
 # the contributing families left a manifest reader unable to tell a fifth
 # consented family that was read and dropped from one that was never
-# consented at all -- and `admin-stats-france-livestock` is exactly that
-# case, permanently: it ships head counts, which this contract does not
-# carry.
+# consented at all.
 .shares_attribution <- function(rows, manifest) {
   used <- sort(unique(rows$source))
   in_house <- intersect(used, manifest$alias)

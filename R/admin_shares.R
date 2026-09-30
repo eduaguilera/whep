@@ -27,7 +27,7 @@
 #'
 #' @section Admin-shares table:
 #' One row per `(area_code, level_polity_code, level, item_prod_code,
-#' indicator_used, year)`:
+#' species_group, indicator_used, year)`:
 #'
 #' - `area_code`: FAOSTAT-style area code of the *container* -- the polity
 #'   the subnational units sum into, not the unit itself.
@@ -37,10 +37,15 @@
 #' - `level`: administrative depth granted for this row, a positive
 #'   integer (`1L` is the container's direct subnational units).
 #' - `item_prod_code`: WHEP production-item code (see `add_item_prod_code()`
-#'   / `add_item_prod_name()`).
-#' - `indicator_used`: which FAOSTAT-style indicator this row's `value`
-#'   anchors to, one of `"area_harvested"`, `"area_planted_or_sown"`,
-#'   `"area_main"`, `"area_cultivated"`, `"production"`, `"yield"`.
+#'   / `add_item_prod_name()`) on a crop row; `NA` on a livestock row.
+#' - `species_group`: the livestock group a livestock row counts, in the
+#'   vocabulary [build_gridded_livestock()] allocates in (`"cattle_dairy"`,
+#'   `"pigs"`, `"sheep_goats"`, ...); `NA` on a crop row. A row names
+#'   exactly one of `item_prod_code` and `species_group`.
+#' - `indicator_used`: which indicator this row's `value` anchors to, one of
+#'   `"area_harvested"`, `"area_planted_or_sown"`, `"area_main"`,
+#'   `"area_cultivated"`, `"production"`, `"yield"` for a crop row, or
+#'   `"head_count"` (live animals, head) for a livestock row.
 #' - `year`: calendar year of the observation.
 #' - `value`: the unit's own reported value for `indicator_used`, in the
 #'   source's native unit. `NA` on a row whose source is consented to
@@ -97,6 +102,10 @@
 #' - `treatment_year`: how this row's year was obtained, one of
 #'   `"observed"`, `"interpolated"`, `"carried"`. Reserved for the gap
 #'   rule; this contract only names the vocabulary.
+#' - `treatment_value`: how the row's value was obtained, `"observed"`
+#'   (reported by the unit) or `"reconstructed"` (derived by the source,
+#'   e.g. from a national total). `NA` when the source does not say, which is
+#'   every source today; it is never defaulted to `"observed"`.
 #' - `value_flag`: a free-text data-quality flag, `NA` when the row is
 #'   clean.
 #'
@@ -157,7 +166,7 @@
 #'
 #' @return A schema list, as documented in [check_table_schema()]: closed
 #'   (`extra_columns = "forbid"`), keyed on `(area_code, level_polity_code,
-#'   level, item_prod_code, indicator_used, year)`.
+#'   level, item_prod_code, species_group, indicator_used, year)`.
 #'
 #' @export
 #'
@@ -206,7 +215,32 @@ admin_shares_schema <- function() {
       list(name = "area_code", type = "integer", allow_missing = FALSE),
       list(name = "level_polity_code", type = "character"),
       list(name = "level", type = "integer", allow_missing = FALSE, min = 1L),
-      list(name = "item_prod_code", type = "integer", allow_missing = FALSE),
+      # ONE ROW NAMES ONE THING, in one of two vocabularies. A crop row
+      # carries `item_prod_code`; a livestock row carries `species_group`,
+      # because a species has no crop code and the two vocabularies are
+      # separate tables (`items_prod_full` and `livestock_mapping.csv`).
+      # Both are therefore allow-missing HERE, and the rule that exactly one
+      # is present lives in `.abort_itemless_admin_rows()` -- a cross-column
+      # rule is not expressible in a `check_table_schema()` column spec, the
+      # same reason the `value`/`share` rule lives outside this list.
+      list(name = "item_prod_code", type = "integer"),
+      list(
+        name = "species_group",
+        type = "character",
+        allowed = c(
+          "buffalo",
+          "camels",
+          "cattle_dairy",
+          "cattle_non_dairy",
+          "chickens_broilers",
+          "chickens_layers",
+          "equines",
+          "other",
+          "pigs",
+          "poultry",
+          "sheep_goats"
+        )
+      ),
       list(
         name = "indicator_used",
         type = "character",
@@ -217,7 +251,11 @@ admin_shares_schema <- function() {
           "area_main",
           "area_cultivated",
           "production",
-          "yield"
+          "yield",
+          # The livestock measure. It names its own unit the way
+          # `area_harvested` names hectares, so no `value_unit` column is
+          # needed for it either.
+          "head_count"
         )
       ),
       list(name = "year", type = "integer", allow_missing = FALSE),
@@ -257,6 +295,22 @@ admin_shares_schema <- function() {
         allow_missing = FALSE,
         allowed = c("observed", "interpolated", "carried")
       ),
+      # HOW THE VALUE WAS OBTAINED, which `treatment_year` does not say: it
+      # describes how the row's YEAR was reached, and is this package's own
+      # gap bookkeeping. A compilation that reconstructs a provincial figure
+      # from a national total had nowhere to record that, so every row of the
+      # assembled pin read `treatment_year = "observed"` and a reconstruction
+      # was indistinguishable from a reported measurement downstream.
+      #
+      # ALLOW-MISSING AND NOT DEFAULTED. `NA` means the source did not say,
+      # which is the honest reading for every source that ships no such
+      # column today. Defaulting it to `"observed"` would restate exactly the
+      # claim this field exists to stop being made by accident.
+      list(
+        name = "treatment_value",
+        type = "character",
+        allowed = c("observed", "reconstructed")
+      ),
       list(name = "value_flag", type = "character")
     ),
     key = c(
@@ -264,6 +318,7 @@ admin_shares_schema <- function() {
       "level_polity_code",
       "level",
       "item_prod_code",
+      "species_group",
       "indicator_used",
       "year"
     ),
@@ -351,6 +406,7 @@ ensure_admin_shares <- function(x) {
   completed <- ensure_columns(x, admin_shares_prototype())
   .abort_nonfinite_admin_rows(completed, arg = "x")
   .abort_measureless_admin_rows(completed, arg = "x")
+  .abort_itemless_admin_rows(completed, arg = "x")
   assert_table_schema(completed, admin_shares_schema(), arg = "x")
 }
 
@@ -366,6 +422,79 @@ ensure_admin_shares <- function(x) {
 # bare `x$value` on a table without that column emits tibble's "Unknown or
 # uninitialised column" warning ahead of the classed error the caller is
 # waiting for.
+# EXACTLY ONE VOCABULARY PER ROW. `item_prod_code` names a crop and
+# `species_group` names a livestock group, and a row is one or the other: the
+# two come from different tables and nothing downstream can read a row that
+# claims both or neither. Both columns are allow-missing in the schema
+# precisely so this rule can be the one that decides, and it is a cross-column
+# rule, which a `check_table_schema()` column specification cannot express --
+# the same reason `.abort_measureless_admin_rows()` sits here rather than in
+# the column list.
+# THE COLUMNS THE CONTRACT GAINED, and nothing else.
+#
+# A table written before the livestock widening cannot carry `species_group`
+# or `treatment_value`, and that is not a defect: it is an older producer,
+# and the honest completion is `NA` -- this table makes no claim about a
+# species, or about how its values were obtained.
+#
+# It is deliberately NOT a general `ensure_columns()` against the prototype.
+# Completing every absent column before validating would mean a table that
+# LOST a column it always had passes presence and is judged on content
+# instead: a pin whose `value` column went missing would be filled with `NA`
+# and then read as a consented shares-only pin, which is a real artifact this
+# package already ships and cannot be distinguished from by content alone.
+# An absent column that was never optional is a broken producer and has to
+# fail on the column it is missing. So only the two names below are filled,
+# and every other absence is still an error.
+.admin_added_columns <- function() {
+  c("species_group", "treatment_value")
+}
+
+.admin_fill_added_columns <- function(x) {
+  absent <- setdiff(.admin_added_columns(), names(x))
+  if (length(absent) == 0L) {
+    return(x)
+  }
+  prototype <- admin_shares_prototype()
+  for (nm in absent) {
+    x[[nm]] <- rep(prototype[[nm]][0][NA_integer_], nrow(x))
+  }
+  # Back into contract order, so an older table completed here is the same
+  # shape as a new one and not merely the same set of columns.
+  dplyr::relocate(x, dplyr::any_of(names(prototype)))
+}
+
+.abort_itemless_admin_rows <- function(x, arg = "x") {
+  if (!all(rlang::has_name(x, c("item_prod_code", "species_group")))) {
+    return(invisible(NULL))
+  }
+  has_crop <- !is.na(x$item_prod_code)
+  has_species <- !is.na(x$species_group)
+  bad <- has_crop == has_species
+  if (!any(bad)) {
+    return(invisible(NULL))
+  }
+  first <- which(bad)[[1L]]
+  both <- has_crop[first] && has_species[first]
+  # Computed before the call: a `{}` expression starting with a dot is a cli
+  # style, not an R expression, since cli 3.4.0.
+  unit <- .admin_row_field(x, "source_native_id", first)
+  when <- .admin_row_field(x, "year", first)
+  producer <- .admin_row_field(x, "source", first)
+  what <- if (both) "both" else "neither"
+  cli::cli_abort(
+    c(
+      "{sum(bad)} {.arg {arg}} row{?s} name{?s/} {what}
+       {.field item_prod_code} and {.field species_group}.",
+      "x" = "First at row {first}: unit {.val {unit}}, year {.val {when}},
+             source {.val {producer}}.",
+      "i" = "A crop row carries {.field item_prod_code}; a livestock row
+             carries {.field species_group}. One row is one or the other."
+    ),
+    class = "whep_error_admin_no_item"
+  )
+}
+
 .abort_measureless_admin_rows <- function(x, arg = "x") {
   if (!all(rlang::has_name(x, c("value", "share")))) {
     return(invisible(NULL))

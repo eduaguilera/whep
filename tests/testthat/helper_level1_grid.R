@@ -247,6 +247,8 @@
       source_version = NA_character_,
       recorded_at = "2026-01-01T00:00:00Z",
       treatment_year = "observed",
+      species_group = NA_character_,
+      treatment_value = NA_character_,
       value_flag = NA_character_
     ) |>
     dplyr::mutate(
@@ -258,6 +260,7 @@
       level_polity_code,
       level,
       item_prod_code,
+      species_group,
       indicator_used,
       year,
       value,
@@ -273,6 +276,7 @@
       source_version,
       recorded_at,
       treatment_year,
+      treatment_value,
       value_flag
     )
 }

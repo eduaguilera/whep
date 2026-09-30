@@ -4,6 +4,7 @@ valid_admin_shares_rows <- function() {
     level_polity_code = c("USA-IOWA", "USA-ILLINOIS"),
     level = c(1L, 1L),
     item_prod_code = c(44L, 44L),
+    species_group = NA_character_,
     indicator_used = c("area_harvested", "area_harvested"),
     year = c(2020L, 2020L),
     value = c(1000000, 800000),
@@ -19,6 +20,7 @@ valid_admin_shares_rows <- function() {
     source_version = c("2021-05", "2021-05"),
     recorded_at = "2026-01-01T00:00:00Z",
     treatment_year = c("observed", "observed"),
+    treatment_value = NA_character_,
     value_flag = NA_character_
   )
 }
@@ -35,6 +37,7 @@ test_that("the prototype has exactly the contract columns and types", {
       "level_polity_code",
       "level",
       "item_prod_code",
+      "species_group",
       "indicator_used",
       "year",
       "value",
@@ -50,6 +53,7 @@ test_that("the prototype has exactly the contract columns and types", {
       "source_version",
       "recorded_at",
       "treatment_year",
+      "treatment_value",
       "value_flag"
     )
   )
@@ -57,6 +61,7 @@ test_that("the prototype has exactly the contract columns and types", {
   expect_true(is.character(proto$level_polity_code))
   expect_true(is.integer(proto$level))
   expect_true(is.integer(proto$item_prod_code))
+  expect_true(is.character(proto$species_group))
   expect_true(is.character(proto$indicator_used))
   expect_true(is.integer(proto$year))
   expect_true(is.double(proto$value))
@@ -72,6 +77,7 @@ test_that("the prototype has exactly the contract columns and types", {
   expect_true(is.character(proto$source_version))
   expect_true(is.character(proto$recorded_at))
   expect_true(is.character(proto$treatment_year))
+  expect_true(is.character(proto$treatment_value))
   expect_true(is.character(proto$value_flag))
 
   # Built from the schema, so it conforms by construction.
@@ -91,6 +97,7 @@ test_that("the schema declares the documented key and closes extra columns", {
       "level_polity_code",
       "level",
       "item_prod_code",
+      "species_group",
       "indicator_used",
       "year"
     )
@@ -222,6 +229,7 @@ shares_only_rows <- function() {
     level_polity_code = c("BOL-LAPAZ", "BOL-SANTACRUZ"),
     level = c(1L, 1L),
     item_prod_code = c(661L, 661L),
+    species_group = NA_character_,
     indicator_used = c("area_harvested", "area_harvested"),
     year = c(2020L, 2020L),
     value = NA_real_,
@@ -237,6 +245,7 @@ shares_only_rows <- function() {
     source_version = "2026-05-21",
     recorded_at = "2026-09-03T06:21:54Z",
     treatment_year = "observed",
+    treatment_value = NA_character_,
     value_flag = NA_character_
   )
 }
@@ -348,4 +357,98 @@ test_that("a row with neither measurement is refused even in bulk", {
     class = "whep_error_admin_no_measure"
   )
   expect_match(conditionMessage(err), "2")
+})
+
+
+# --- Livestock rows and value provenance ------------------------------------
+#
+# The contract carried crops only: `item_prod_code` was required and
+# `indicator_used` knew no head count, so every livestock row a family shipped
+# -- France's 58,740 among them -- was dropped at the door. A livestock row
+# keys on `species_group` and measures `head_count`, the vocabulary
+# `build_gridded_livestock()` already allocates in.
+
+livestock_rows <- function() {
+  rows <- valid_admin_shares_rows()
+  rows$item_prod_code <- NA_integer_
+  rows$species_group <- c("cattle_dairy", "cattle_dairy")
+  rows$indicator_used <- "head_count"
+  rows$value <- c(5153, 4120)
+  rows
+}
+
+test_that("a livestock row is a valid row", {
+  expect_equal(
+    nrow(whep::check_table_schema(
+      livestock_rows(),
+      whep::admin_shares_schema()
+    )),
+    0
+  )
+  expect_no_error(whep::ensure_admin_shares(livestock_rows()))
+})
+
+test_that("a species outside the livestock vocabulary is refused", {
+  rows <- livestock_rows()
+  rows$species_group[1] <- "cows"
+  diagnostics <- whep::check_table_schema(rows, whep::admin_shares_schema())
+
+  expect_true(any(diagnostics$column == "species_group"))
+})
+
+test_that("a row naming both vocabularies, or neither, is refused", {
+  both <- livestock_rows()
+  both$item_prod_code <- 44L
+  err <- expect_error(
+    whep::ensure_admin_shares(both),
+    class = "whep_error_admin_no_item"
+  )
+  expect_match(conditionMessage(err), "both")
+
+  neither <- livestock_rows()
+  neither$species_group <- NA_character_
+  err <- expect_error(
+    whep::ensure_admin_shares(neither),
+    class = "whep_error_admin_no_item"
+  )
+  expect_match(conditionMessage(err), "neither")
+})
+
+test_that("a crop row and a livestock row of one unit-year are two keys", {
+  rows <- dplyr::bind_rows(valid_admin_shares_rows(), livestock_rows())
+
+  expect_equal(
+    nrow(whep::check_table_schema(rows, whep::admin_shares_schema())),
+    0
+  )
+})
+
+test_that("treatment_value admits only its vocabulary, and missing", {
+  rows <- valid_admin_shares_rows()
+  rows$treatment_value <- c("observed", NA)
+  expect_equal(
+    nrow(whep::check_table_schema(rows, whep::admin_shares_schema())),
+    0
+  )
+  rows$treatment_value <- c("estimated", "observed")
+  diagnostics <- whep::check_table_schema(rows, whep::admin_shares_schema())
+  expect_true(any(diagnostics$column == "treatment_value"))
+})
+
+test_that("a table written before the widening is completed, not refused", {
+  # Only the two added columns are filled: an older producer makes no claim
+  # about a species or about how its values were obtained, so NA is the
+  # honest completion. Every other absent column is still a broken producer.
+  old <- valid_admin_shares_rows()
+  old$species_group <- NULL
+  old$treatment_value <- NULL
+
+  filled <- whep:::.admin_fill_added_columns(old)
+  expect_named(filled, names(whep::admin_shares_prototype()))
+  expect_true(all(is.na(filled$species_group)))
+  expect_true(all(is.na(filled$treatment_value)))
+
+  lost <- old
+  lost$value <- NULL
+  expect_false("value" %in% names(whep:::.admin_fill_added_columns(lost)))
 })
