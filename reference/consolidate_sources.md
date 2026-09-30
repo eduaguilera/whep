@@ -21,7 +21,8 @@ consolidate_sources(
   measure = NULL,
   tie_break = NULL,
   continuity_override = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  priority_scope = c("specific", "source")
 )
 ```
 
@@ -43,10 +44,16 @@ consolidate_sources(
 
 - priority:
 
-  Source-to-rank map, as either a named integer vector
-  (`c(OWID = 1L, Malanima = 4L)`) or a two-column data frame (source,
-  rank). Lower rank wins. Sources absent here take the fallback rank
-  `drop_at - 1L`.
+  Source-to-rank map, as a named integer vector
+  (`c(OWID = 1L, Malanima = 4L)`), a two-column data frame (source,
+  rank), or a scoped table: a data frame with the source column named as
+  `source_col`, a `rank` column, and any number of further columns
+  present in `data` that scope the entry (`NA` matches any value). Lower
+  rank wins. A row takes the rank of the most specific entry it matches;
+  sources absent here take the fallback rank `drop_at - 1L`. A data
+  frame with more than two columns must name them: which column carries
+  the rank cannot be guessed, and guessing wrong would publish another
+  source's number.
 
 - .by:
 
@@ -93,6 +100,15 @@ consolidate_sources(
     it is strictly positive (`value_col` must then be numeric); `FALSE`
     disables the coverage tie-break.
 
+  - `coverage_by`: character vector of `.by` columns at which coverage
+    is counted, overriding the default of the full `.by` group. It must
+    be a subset of `.by` – coverage may be counted at a coarser grain
+    than the cell, never at a different one – and `character(0)` counts
+    a source's coverage across the whole panel. Counting coverage one
+    level coarser than the cell lets a source with broad category-level
+    coverage win a tie in a subcategory where it is thin. Default:
+    `NULL` (the `.by` grain).
+
   - `quality_col`: string naming a quality column used as a tie-break
     after coverage. Default: `NULL`.
 
@@ -108,23 +124,52 @@ consolidate_sources(
 
 - continuity_override:
 
-  Logical. Revert isolated single-period winner flips. Default: `TRUE`.
+  Revert isolated single-period winner flips. `TRUE` (default) or
+  `FALSE`, or a named list of options, which also turns the override on:
+
+  - `adjacency`: one of `"step"` (default) or `"within"`. `"step"` flags
+    a flip only when both flanking periods sit exactly one time step
+    away; `"within"` accepts at most one step, flagging flips in a
+    series whose spacing is finer or irregular.
+
+  - `exempt`: one-sided formula selecting winning rows the isolation
+    flag never applies to, such as `~ source == "Smil_2017"`, evaluated
+    on the winners. Use it for a source whose observations are
+    deliberately sparse, which would otherwise lose every anchor to the
+    override. Default: `NULL`.
 
 - verbose:
 
-  Logical. Report the drop count, any resolved quality variants,
-  name-order ties, and continuity reversions. Default: `TRUE`.
+  Logical. Report the drop count, how many rows took a scope-specific
+  priority rank, any resolved quality variants, name-order ties, and
+  continuity reversions. Default: `TRUE`.
+
+- priority_scope:
+
+  One of `"specific"` (default) or `"source"`, selecting how a scoped
+  `priority` table is read. `"specific"` honours the scope keys, so a
+  source can outrank its usual tier in one category only. `"source"`
+  drops every scoped entry and ranks by source alone, reproducing what
+  the table expressed before scoping existed; it is the sensitivity run
+  that says what the scope is worth. No effect on an unscoped
+  `priority`.
 
 ## Value
 
 A tibble with the winning row per (`.by`, `time_col`) cell, the original
-columns of `data`, and four added provenance columns: `n_sources`
+columns of `data`, and five added provenance columns: `n_sources`
 (distinct sources contesting the cell after the hard drop),
 `source_rank` (the winner's base priority rank), `effective_rank` (base
-rank plus any measure penalty applied), and `measure_demoted` (whether
-the winner carried the measure penalty; a flagged source only wins a
-cell that no measure-consistent source reports). Rows are ordered by
-`.by` then `time_col`.
+rank plus any measure penalty applied), `measure_demoted` (whether the
+winner carried the measure penalty; a flagged source only wins a cell
+that no measure-consistent source reports), and `method_source`, naming
+the stage that decided the cell: `"sole_source"` (no rival contested
+it), `"nonmissing"` (the rival reported no value), `"priority"` or
+`"priority_scoped"` (a lower effective rank, from a source-keyed or a
+scope-keyed `priority` entry), `"coverage"`, `"quality"`, `"name_order"`
+(ascending source name settled a full tie), or `"continuity"` (the
+continuity override handed the cell back). Rows are ordered by `.by`
+then `time_col`.
 
 ## Details
 
@@ -137,7 +182,19 @@ Selection proceeds in four stages.
     below every source listed with a smaller rank. To exclude an
     unreliable source, list it at `drop_at` or above.
 
-2.  **Measure-aware demotion.** A source can report a different measure
+`priority` may also be **scoped**. A table keyed on the source plus
+further columns of `data` (a category, say) pins one source's rank
+inside one category while leaving its ordinary rank everywhere else,
+which listing that source at a different global rank cannot do: that
+would move the outcome in every other category too. A row takes the rank
+of the most specific entry it matches, an `NA` scope key meaning "any
+value", and two equally specific entries that disagree abort rather than
+let table order decide. `priority_scope = "source"` reads the same table
+with its scoped entries ignored, which is exactly what it bought before
+scoping existed and is therefore the comparison that quantifies what the
+scope changes.
+
+1.  **Measure-aware demotion.** A source can report a different measure
     than the panel's target concept (production where the panel means
     consumption, generation shares where it means primary energy, a
     sector fragment where it means a category total). Rows flagged by
@@ -148,14 +205,15 @@ Selection proceeds in four stages.
     `measure$exempt` keep their base rank (for example world-level
     cells, where production equals consumption).
 
-3.  **Winner selection.** Within each (`.by`, `time_col`) cell any row
+2.  **Winner selection.** Within each (`.by`, `time_col`) cell any row
     with a real (non-missing) value outranks every `value_col`-missing
     row, so a higher-priority source's `NA` never discards a
     lower-priority source's real observation; a cell wins `NA` only when
     no source reports a real value. Among rows with a real value the
     winner is the row of lowest effective rank; ties are broken by
     broader within-series coverage (the count of cells the source
-    reports across the `.by` group) when `tie_break$coverage`, then by
+    reports across the `.by` group, or across the coarser group
+    `tie_break$coverage_by` names) when `tie_break$coverage`, then by
     `tie_break$quality_col` ordered per `tie_break$quality_levels`, then
     by ascending source name (reported when `verbose`). Coverage counts
     the cells where `value_col` is non-missing, or only the strictly
@@ -164,7 +222,7 @@ Selection proceeds in four stages.
     zero" and would otherwise inflate the coverage of a mostly-zero
     series.
 
-4.  **Continuity override.** When enabled, an isolated single-period
+3.  **Continuity override.** When enabled, an isolated single-period
     winner flip is reverted: if the immediately preceding and following
     periods share a different winner that also reports the middle
     period, that continuous source reclaims the middle cell, removing
@@ -175,6 +233,17 @@ Selection proceeds in four stages.
     one: continuity never undoes the measure penalty, because a
     single-period source switch is cosmetic while a measure switch
     corrupts the series.
+
+A source whose observations are deliberately sparse – a milestone grid
+meant to be interpolated between – looks like a run of isolated flips
+inside another source's annual run, and the override strips every one of
+its anchors, collapsing the backbone to a lower-priority partial series.
+`continuity_override$exempt` selects the rows the isolation flag never
+applies to. `continuity_override$adjacency` states what counts as a
+flanking period: `"step"` (the default) requires both neighbours to sit
+exactly one time step away, so only a true single-period tooth is
+reverted; `"within"` accepts at most one step, which also reverts a flip
+flanked at a finer-than-unit spacing in an irregular series.
 
 This operationalises the AFE decision *Consolidate multi-source panels
 measure-consistently*
@@ -210,11 +279,36 @@ consolidate_sources(
   .by = c("region", "category"),
   verbose = FALSE
 )
-#> # A tibble: 3 × 9
+#> # A tibble: 3 × 10
 #>    year region category source   value n_sources source_rank effective_rank
 #>   <dbl> <chr>  <chr>    <chr>    <dbl>     <int>       <int>          <int>
 #> 1  1900 WLD    Coal     OWID        10         2           1              1
 #> 2  1901 WLD    Coal     Malanima    21         1           4              4
 #> 3  1902 WLD    Coal     Malanima    22         1           4              4
-#> # ℹ 1 more variable: measure_demoted <lgl>
+#> # ℹ 2 more variables: measure_demoted <lgl>, method_source <chr>
+
+# A scoped table pins Malanima above OWID for Coal alone: its rank in every
+# other category stays 4, which inflating its global rank could not do.
+scoped <- tibble::tribble(
+  ~source, ~category, ~rank,
+  "OWID", NA_character_, 1L,
+  "Malanima", NA_character_, 4L,
+  "Malanima", "Coal", 0L
+)
+
+consolidate_sources(
+  panel,
+  value_col = value,
+  source_col = source,
+  priority = scoped,
+  .by = c("region", "category"),
+  verbose = FALSE
+)
+#> # A tibble: 3 × 10
+#>    year region category source   value n_sources source_rank effective_rank
+#>   <dbl> <chr>  <chr>    <chr>    <dbl>     <int>       <int>          <int>
+#> 1  1900 WLD    Coal     Malanima    20         2           0              0
+#> 2  1901 WLD    Coal     Malanima    21         1           0              0
+#> 3  1902 WLD    Coal     Malanima    22         1           0              0
+#> # ℹ 2 more variables: measure_demoted <lgl>, method_source <chr>
 ```

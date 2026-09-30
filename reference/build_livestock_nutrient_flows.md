@@ -50,7 +50,17 @@ build_livestock_nutrient_flows(
 
   A named list of per-stage option lists, any of `excretion`, `split`,
   `bedding`, `losses`, `allocation` and `transport`, each forwarded to
-  the matching pipeline function's `options`.
+  the matching pipeline function's `options`. `transport` also takes
+  `land_split`, which decides where manure trucked into a cell lands
+  inside that cell's remaining room: `"cropland_first"` (default) fills
+  the remaining cropland room and puts the rest on grassland, the same
+  priority
+  [`allocate_manure_to_land()`](https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.md)
+  gives a cell's own collected manure; `"room_share"` splits it in
+  proportion to the remaining cropland and grassland room;
+  `"cropland_only"` books all of it as cropland, the behaviour before
+  whep#341, which counts grassland room as cropland. The total delivered
+  to each cell is the same under all three.
 
 - gridded:
 
@@ -83,9 +93,10 @@ build_livestock_nutrient_flows(
 
 A named list with `applied` (manure applied per
 `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
-`"Liquid"`) and all `method_*` provenance columns), `losses`
-(management-loss side-streams per polity) and `excretion` (the
-per-category excretion totals).
+`"Liquid"`) and all `method_*` provenance columns, including
+`method_transport_land_use`, the `land_split` used, `NA` unless the
+resolution is `"subnational"`), `losses` (management-loss side-streams
+per polity) and `excretion` (the per-category excretion totals).
 
 ## Examples
 
@@ -110,7 +121,7 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> Caused by warning:
 #> ! Unknown or uninitialised column: `method_bedding_mms`.
 #> $applied
-#> # A tibble: 5 × 25
+#> # A tibble: 5 × 26
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Liquid     
@@ -118,12 +129,13 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Liquid     
 #> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 18 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 19 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
 #> #   method_vs <chr>, method_digestibility <chr>, method_c_excretion <chr>,
 #> #   method_forage_n <chr>, method_mms <chr>, method_losses <chr>,
-#> #   method_bedding_c <chr>, method_bedding_mms <chr>, method_transport <chr>
+#> #   method_bedding_c <chr>, method_bedding_mms <chr>, method_transport <chr>,
+#> #   method_transport_land_use <chr>
 #> 
 #> $losses
 #> # A tibble: 1 × 10

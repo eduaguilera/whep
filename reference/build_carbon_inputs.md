@@ -24,6 +24,7 @@ build_carbon_inputs(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
+  method_input_cn = c("known_crops", "require_all"),
   example = FALSE
 )
 ```
@@ -161,6 +162,19 @@ assembled per the WHEP historical carbon-balance design.
   at all in the support, which no rule here can reach (see whep#1002) –
   is dropped under all three methods, reported separately.
 
+- method_input_cn:
+
+  What a crop of unknown input C:N does to the C:N of the class it sits
+  in. `"known_crops"` (default) forms the class ratio from the crops
+  that have one, weighted by the carbon that came with them – the rule
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  already applies one level down, where the input nitrogen totals only
+  the components that carry a nitrogen and the carbon paired with them.
+  `"require_all"` leaves the class ratio `NA` as soon as any one crop's
+  is unknown, so the class takes the land-use default C:N instead of the
+  ratio its other crops measured. Recorded in `method_input_cn` on
+  cropland rows.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -170,11 +184,11 @@ assembled per the WHEP historical carbon-balance design.
 
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
-`c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input` and
-`method_unspatialized` (`NA` on the grassland and natural classes, which
-are not spatialized from polity-crop totals), for `land_use` in
-`"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
-below.
+`c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
+`method_unspatialized` and `method_input_cn` (both `NA` on the grassland
+and natural classes, which are neither spatialized from polity-crop
+totals nor collapsed from crops), for `land_use` in `"cropland"`,
+`"grassland"` and `"natural"`, plus the polity columns below.
 
 ## Polity columns
 

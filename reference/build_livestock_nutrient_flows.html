@@ -98,7 +98,15 @@ result); see <code><a href="estimate_n_excretion.html">estimate_n_excretion()</a
 <dt id="arg-methods">methods<a class="anchor" aria-label="anchor" href="#arg-methods"></a></dt>
 <dd><p>A named list of per-stage option lists, any of <code>excretion</code>,
 <code>split</code>, <code>bedding</code>, <code>losses</code>, <code>allocation</code> and <code>transport</code>, each forwarded
-to the matching pipeline function's <code>options</code>.</p></dd>
+to the matching pipeline function's <code>options</code>. <code>transport</code> also takes
+<code>land_split</code>, which decides where manure trucked into a cell lands inside
+that cell's remaining room: <code>"cropland_first"</code> (default) fills the
+remaining cropland room and puts the rest on grassland, the same priority
+<code><a href="allocate_manure_to_land.html">allocate_manure_to_land()</a></code> gives a cell's own collected manure;
+<code>"room_share"</code> splits it in proportion to the remaining cropland and
+grassland room; <code>"cropland_only"</code> books all of it as cropland, the
+behaviour before whep#341, which counts grassland room as cropland. The
+total delivered to each cell is the same under all three.</p></dd>
 
 
 <dt id="arg-gridded">gridded<a class="anchor" aria-label="anchor" href="#arg-gridded"></a></dt>
@@ -126,7 +134,9 @@ residue used as bedding is unset in this package pending a source
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A named list with <code>applied</code> (manure applied per
 <code>land_use x crop (x cell)</code> with <code>manure_type</code> (<code>"Excreta"</code>/<code>"Solid"</code>/
-<code>"Liquid"</code>) and all <code>method_*</code> provenance columns), <code>losses</code>
+<code>"Liquid"</code>) and all <code>method_*</code> provenance columns, including
+<code>method_transport_land_use</code>, the <code>land_split</code> used, <code>NA</code> unless the
+resolution is <code>"subnational"</code>), <code>losses</code>
 (management-loss side-streams per polity) and <code>excretion</code> (the
 per-category excretion totals).</p>
     </div>
@@ -153,7 +163,7 @@ per-category excretion totals).</p>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> Caused by warning:</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> Unknown or uninitialised column: `method_bedding_mms`.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $applied</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 25</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 26</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use  crop  source_stream manure_type</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  44    collected     Liquid     </span>
@@ -161,12 +171,13 @@ per-category excretion totals).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Liquid     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Solid      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Grassland <span style="color: #BB0000;">NA</span>    grazing       Excreta    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 18 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 19 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   over_cap &lt;lgl&gt;, method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;, resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_vs &lt;chr&gt;, method_digestibility &lt;chr&gt;, method_c_excretion &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_forage_n &lt;chr&gt;, method_mms &lt;chr&gt;, method_losses &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;, method_bedding_mms &lt;chr&gt;, method_transport &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;, method_bedding_mms &lt;chr&gt;, method_transport &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_transport_land_use &lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $losses</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>

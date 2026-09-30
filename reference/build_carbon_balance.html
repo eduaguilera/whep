@@ -74,6 +74,7 @@ carbon-to-nitrogen ratios.</p>
 <span>  density_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"renormalised"</span>, <span class="st">"static"</span><span class="op">)</span>,</span>
 <span>  method_grazing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep"</span>, <span class="st">"lpjml"</span><span class="op">)</span>,</span>
 <span>  method_som_cn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"justes_2009"</span>, <span class="st">"nicolardot_2001"</span>, <span class="st">"century"</span><span class="op">)</span>,</span>
+<span>  method_input_cn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"known_crops"</span>, <span class="st">"require_all"</span><span class="op">)</span>,</span>
 <span>  block_years <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -262,6 +263,16 @@ Recorded per row in <code>method_som_cn</code>, which instead reads
 <code>"directional_ipcc_range"</code> when no input C:N is carried at all.</p></dd>
 
 
+<dt id="arg-method-input-cn">method_input_cn<a class="anchor" aria-label="anchor" href="#arg-method-input-cn"></a></dt>
+<dd><p>What a crop of unknown input C:N does to the C:N of
+the cropland class it sits in, and so to the C:N of the organic matter
+that input forms; see <code><a href="build_carbon_inputs.html">build_carbon_inputs()</a></code>. <code>"known_crops"</code> (default)
+forms the class ratio from the crops that have one; <code>"require_all"</code>
+leaves it <code>NA</code>, which sends the class to the land-use default C:N.
+Only read when the carbon inputs are built here rather than supplied
+through <code>data$c_inputs</code>.</p></dd>
+
+
 <dt id="arg-block-years">block_years<a class="anchor" aria-label="anchor" href="#arg-block-years"></a></dt>
 <dd><p>How many consecutive years are built at a time. The
 climate drivers and the land-use areas are read, the class table and its
@@ -293,6 +304,7 @@ with <code>stock_mgc_ha</code>, <code>mineralization_mgc_ha</code>, <code>c_inpu
 <code>method_soc</code>, <code>method_soc_init</code>, <code>method_class_water</code>,
 <code>method_area_basis</code>, <code>method_grazing</code>,
 <code>method_som_cn</code> and
+<code>method_input_cn</code> and
 <code>method_crop_groups</code>. All of them survive the <code>"polity"</code>
 roll-up, which additionally carries <code>input_land_ha</code> (the land the
 land-use input gave that polity-year) and <code>modelled_land_frac</code>

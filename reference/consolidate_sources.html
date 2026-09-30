@@ -70,7 +70,8 @@ long-term historical energy panel.</p>
 <span>  measure <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  tie_break <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  continuity_override <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  priority_scope <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"specific"</span>, <span class="st">"source"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -93,9 +94,15 @@ positive when <code>tie_break$coverage</code> is <code>"positive"</code>.</p></d
 
 
 <dt id="arg-priority">priority<a class="anchor" aria-label="anchor" href="#arg-priority"></a></dt>
-<dd><p>Source-to-rank map, as either a named integer vector
-(<code>c(OWID = 1L, Malanima = 4L)</code>) or a two-column data frame (source, rank).
-Lower rank wins. Sources absent here take the fallback rank <code>drop_at - 1L</code>.</p></dd>
+<dd><p>Source-to-rank map, as a named integer vector
+(<code>c(OWID = 1L, Malanima = 4L)</code>), a two-column data frame (source, rank),
+or a scoped table: a data frame with the source column named as
+<code>source_col</code>, a <code>rank</code> column, and any number of further columns present
+in <code>data</code> that scope the entry (<code>NA</code> matches any value). Lower rank wins.
+A row takes the rank of the most specific entry it matches; sources absent
+here take the fallback rank <code>drop_at - 1L</code>. A data frame with more than
+two columns must name them: which column carries the rank cannot be
+guessed, and guessing wrong would publish another source's number.</p></dd>
 
 
 <dt id="arg--by">.by<a class="anchor" aria-label="anchor" href="#arg--by"></a></dt>
@@ -136,6 +143,13 @@ the hard drop. Default: <code>NULL</code>.</p></li>
 <code>value_col</code> is non-missing; <code>"positive"</code> counts only the cells where it
 is strictly positive (<code>value_col</code> must then be numeric); <code>FALSE</code>
 disables the coverage tie-break.</p></li>
+<li><p><code>coverage_by</code>: character vector of <code>.by</code> columns at which coverage is
+counted, overriding the default of the full <code>.by</code> group. It must be a
+subset of <code>.by</code> – coverage may be counted at a coarser grain than the
+cell, never at a different one – and <code>character(0)</code> counts a source's
+coverage across the whole panel. Counting coverage one level coarser
+than the cell lets a source with broad category-level coverage win a tie
+in a subcategory where it is thin. Default: <code>NULL</code> (the <code>.by</code> grain).</p></li>
 <li><p><code>quality_col</code>: string naming a quality column used as a tie-break
 after coverage. Default: <code>NULL</code>.</p></li>
 <li><p><code>quality_levels</code>: character vector ordering <code>quality_col</code> values best
@@ -149,24 +163,51 @@ Default: <code>FALSE</code>.</p></li>
 
 
 <dt id="arg-continuity-override">continuity_override<a class="anchor" aria-label="anchor" href="#arg-continuity-override"></a></dt>
-<dd><p>Logical. Revert isolated single-period winner
-flips. Default: <code>TRUE</code>.</p></dd>
+<dd><p>Revert isolated single-period winner flips.
+<code>TRUE</code> (default) or <code>FALSE</code>, or a named list of options, which also turns
+the override on:</p><ul><li><p><code>adjacency</code>: one of <code>"step"</code> (default) or <code>"within"</code>. <code>"step"</code> flags a
+flip only when both flanking periods sit exactly one time step away;
+<code>"within"</code> accepts at most one step, flagging flips in a series whose
+spacing is finer or irregular.</p></li>
+<li><p><code>exempt</code>: one-sided formula selecting winning rows the isolation flag
+never applies to, such as <code>~ source == "Smil_2017"</code>, evaluated on the
+winners. Use it for a source whose observations are deliberately sparse,
+which would otherwise lose every anchor to the override. Default:
+<code>NULL</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Logical. Report the drop count, any resolved quality variants,
-name-order ties, and continuity reversions. Default: <code>TRUE</code>.</p></dd>
+<dd><p>Logical. Report the drop count, how many rows took a
+scope-specific priority rank, any resolved quality variants, name-order
+ties, and continuity reversions. Default: <code>TRUE</code>.</p></dd>
+
+
+<dt id="arg-priority-scope">priority_scope<a class="anchor" aria-label="anchor" href="#arg-priority-scope"></a></dt>
+<dd><p>One of <code>"specific"</code> (default) or <code>"source"</code>, selecting
+how a scoped <code>priority</code> table is read. <code>"specific"</code> honours the scope
+keys, so a source can outrank its usual tier in one category only.
+<code>"source"</code> drops every scoped entry and ranks by source alone, reproducing
+what the table expressed before scoping existed; it is the sensitivity
+run that says what the scope is worth. No effect on an unscoped
+<code>priority</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the winning row per (<code>.by</code>, <code>time_col</code>) cell, the original
-columns of <code>data</code>, and four added provenance columns: <code>n_sources</code> (distinct
+columns of <code>data</code>, and five added provenance columns: <code>n_sources</code> (distinct
 sources contesting the cell after the hard drop), <code>source_rank</code> (the
 winner's base priority rank), <code>effective_rank</code> (base rank plus any measure
-penalty applied), and <code>measure_demoted</code> (whether the winner carried the
+penalty applied), <code>measure_demoted</code> (whether the winner carried the
 measure penalty; a flagged source only wins a cell that no
-measure-consistent source reports). Rows are ordered by <code>.by</code> then
+measure-consistent source reports), and <code>method_source</code>, naming the stage
+that decided the cell: <code>"sole_source"</code> (no rival contested it),
+<code>"nonmissing"</code> (the rival reported no value), <code>"priority"</code> or
+<code>"priority_scoped"</code> (a lower effective rank, from a source-keyed or a
+scope-keyed <code>priority</code> entry), <code>"coverage"</code>, <code>"quality"</code>, <code>"name_order"</code>
+(ascending source name settled a full tie), or <code>"continuity"</code> (the
+continuity override handed the cell back). Rows are ordered by <code>.by</code> then
 <code>time_col</code>.</p>
     </div>
     <div class="section level2">
@@ -177,7 +218,16 @@ an uncontested cell. Sources absent from <code>priority</code> receive the docum
 fallback rank <code>drop_at - 1L</code>: kept in play but ranked below every source
 listed with a smaller rank. To exclude an unreliable source, list it at
 <code>drop_at</code> or above.</p></li>
-<li><p><strong>Measure-aware demotion.</strong> A source can report a different measure than
+</ol><p><code>priority</code> may also be <strong>scoped</strong>. A table keyed on the source plus
+further columns of <code>data</code> (a category, say) pins one source's rank inside
+one category while leaving its ordinary rank everywhere else, which
+listing that source at a different global rank cannot do: that would move
+the outcome in every other category too. A row takes the rank of the most
+specific entry it matches, an <code>NA</code> scope key meaning "any value", and two
+equally specific entries that disagree abort rather than let table order
+decide. <code>priority_scope = "source"</code> reads the same table with its scoped
+entries ignored, which is exactly what it bought before scoping existed
+and is therefore the comparison that quantifies what the scope changes.</p><ol><li><p><strong>Measure-aware demotion.</strong> A source can report a different measure than
 the panel's target concept (production where the panel means consumption,
 generation shares where it means primary energy, a sector fragment where it
 means a category total). Rows flagged by <code>measure$basis</code> receive
@@ -192,7 +242,8 @@ higher-priority source's <code>NA</code> never discards a lower-priority source'
 observation; a cell wins <code>NA</code> only when no source reports a real value. Among
 rows with a real value the winner is the row of lowest effective rank; ties
 are broken by broader within-series coverage (the count of cells the source
-reports across the <code>.by</code> group) when <code>tie_break$coverage</code>, then by
+reports across the <code>.by</code> group, or across the coarser group
+<code>tie_break$coverage_by</code> names) when <code>tie_break$coverage</code>, then by
 <code>tie_break$quality_col</code> ordered per <code>tie_break$quality_levels</code>, then by
 ascending source name (reported when <code>verbose</code>). Coverage counts the cells
 where <code>value_col</code> is non-missing, or only the strictly positive ones under
@@ -209,7 +260,17 @@ and when it would hand a cell won by a measure-consistent source back to a
 measure-demoted one: continuity never undoes the measure penalty, because a
 single-period source switch is cosmetic while a measure switch corrupts the
 series.</p></li>
-</ol><p>This operationalises the AFE decision <em>Consolidate multi-source panels
+</ol><p>A source whose observations are deliberately sparse – a milestone grid
+meant to be interpolated between – looks like a run of isolated flips
+inside another source's annual run, and the override strips every one of
+its anchors, collapsing the backbone to a lower-priority partial series.
+<code>continuity_override$exempt</code> selects the rows the isolation flag never
+applies to. <code>continuity_override$adjacency</code> states what counts as a
+flanking period: <code>"step"</code> (the default) requires both neighbours to sit
+exactly one time step away, so only a true single-period tooth is
+reverted; <code>"within"</code> accepts at most one step, which also reverts a flip
+flanked at a finer-than-unit spacing in an irregular series.</p>
+<p>This operationalises the AFE decision <em>Consolidate multi-source panels
 measure-consistently</em> (<code>wiki/decisions/measure-consistent-panel-consolidation</code>):
 measure identity is part of the dedup key's semantics, and priority alone
 cannot arbitrate cells whose sources report different measures.</p>
@@ -240,13 +301,38 @@ sharing a source, a cell <em>and</em> a quality level still abort.</p>
 <span class="r-in"><span>  .by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"region"</span>, <span class="st">"category"</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year region category source   value n_sources source_rank effective_rank</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">1</span>900 WLD    Coal     OWID        10         2           1              1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">1</span>901 WLD    Coal     Malanima    21         1           4              4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">1</span>902 WLD    Coal     Malanima    22         1           4              4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: measure_demoted &lt;lgl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: measure_demoted &lt;lgl&gt;, method_source &lt;chr&gt;</span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># A scoped table pins Malanima above OWID for Coal alone: its rank in every</span></span></span>
+<span class="r-in"><span><span class="co"># other category stays 4, which inflating its global rank could not do.</span></span></span>
+<span class="r-in"><span><span class="va">scoped</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">source</span>, <span class="op">~</span><span class="va">category</span>, <span class="op">~</span><span class="va">rank</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"OWID"</span>, <span class="cn">NA_character_</span>, <span class="fl">1L</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"Malanima"</span>, <span class="cn">NA_character_</span>, <span class="fl">4L</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"Malanima"</span>, <span class="st">"Coal"</span>, <span class="fl">0L</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="fu">consolidate_sources</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">panel</span>,</span></span>
+<span class="r-in"><span>  value_col <span class="op">=</span> <span class="va">value</span>,</span></span>
+<span class="r-in"><span>  source_col <span class="op">=</span> <span class="va">source</span>,</span></span>
+<span class="r-in"><span>  priority <span class="op">=</span> <span class="va">scoped</span>,</span></span>
+<span class="r-in"><span>  .by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"region"</span>, <span class="st">"category"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year region category source   value n_sources source_rank effective_rank</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">1</span>900 WLD    Coal     Malanima    20         2           0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">1</span>901 WLD    Coal     Malanima    21         1           0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">1</span>902 WLD    Coal     Malanima    22         1           0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: measure_demoted &lt;lgl&gt;, method_source &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

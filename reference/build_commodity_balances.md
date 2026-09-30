@@ -27,6 +27,7 @@ build_commodity_balances(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
@@ -203,25 +204,25 @@ build_commodity_balances(
 
 - hist_trade_scale:
 
-  One of `"report"` (default), `"drop"` or `"abort"`, selecting what
-  happens when a pre-1961 row of the `historical-trade-*` pins carries a
-  quantity no mass unit can express (whep#1085). The screen bounds a
-  single reporter's flow by the largest **world** flow FAOSTAT records
-  for the same trade item, summed over reporters, over the FAOSTAT years
-  the build already reads — a measured bound, not a chosen cap, because
-  world trade in these commodities grew through the twentieth century.
-  Re-measured on the real pins at 1850–2023 for whep#1117, 1,693 rows
-  exceed it, carrying 3,874.4 Mt, 21.0% of the pins' whole 18,455.4 Mt;
-  a further 10,243 rows have no FAOSTAT reference and go unchecked.
-  **97.2% of the flagged mass is the USA**, whose block over roughly
-  1900–1960 is inflated by a factor of ten, interleaved with correct
-  values in the same series (cotton lint 767 and raw sugar imports 162
-  alternate correct and ten-fold values year to year; whep#1117), and by
-  far more on item 831, "Tobacco products nes", published at 115.1 Mt
-  for 1951 — 159x the largest world flow of that item FAOSTAT has ever
-  recorded and 32x the entire 1961 world tobacco crop. `"report"` keeps
-  every value and only warns, so it **moves no published value**
-  (verified: the screened read is
+  One of `"correct"` (default), `"report"`, `"drop"` or `"abort"`,
+  selecting what happens when a pre-1961 row of the `historical-trade-*`
+  pins carries a quantity no mass unit can express (whep#1085). The
+  screen bounds a single reporter's flow by the largest **world** flow
+  FAOSTAT records for the same trade item, summed over reporters, over
+  the FAOSTAT years the build already reads — a measured bound, not a
+  chosen cap, because world trade in these commodities grew through the
+  twentieth century. Re-measured on the real pins at 1850–2023 for
+  whep#1117, 1,693 rows exceed it, carrying 3,874.4 Mt, 21.0% of the
+  pins' whole 18,455.4 Mt; a further 10,243 rows have no FAOSTAT
+  reference and go unchecked. **97.2% of the flagged mass is the USA**,
+  whose block over roughly 1900–1960 is inflated by a factor of ten,
+  interleaved with correct values in the same series (cotton lint 767
+  and raw sugar imports 162 alternate correct and ten-fold values year
+  to year; whep#1117), and by far more on item 831, "Tobacco products
+  nes", published at 115.1 Mt for 1951 — 159x the largest world flow of
+  that item FAOSTAT has ever recorded and 32x the entire 1961 world
+  tobacco crop. `"report"` keeps every value and only warns, so it
+  **moves no published value** (verified: the screened read is
   [`identical()`](https://rdrr.io/r/base/identical.html) to the
   unscreened one); it names the count, the mass, the reporters and the
   three largest. `"drop"` removes the flagged rows, taking 3,874.2 Mt
@@ -230,6 +231,30 @@ build_commodity_balances(
   refuses to build. There is deliberately no clamp: the defect is in the
   pin's producer and no conversion factor recovers the true value, so a
   clamped tonnage would be a fabricated one.
+
+  `"correct"`, the default (a maintainer decision), judges each flagged
+  row on its own evidence from the two pins and repairs only a proven
+  ten-fold slip (whep#1117): a row is divided by 10 when that brings it
+  within the world bound, when as published it exceeds the whole partner
+  side of the pins (the opposite flow of every other reporter, same item
+  and year) but divided by 10 does not, and when it sits one power of
+  ten above the clean neighbours of its own series within 5 years (the
+  window is assumed, unverified). A row no partner books, or still above
+  the partner side after dividing by 10, is dropped as not a mass (item
+  831's signature); every other flagged row is dropped as unexplained.
+  No factor other than 10 is ever applied. Re-measured on current `main`
+  against FAOSTAT 1961–2023 (the bound a 1850–2023 build uses), 1,659
+  rows carrying 3,958.8 Mt are flagged: 175 rows (1,002.0 Mt as
+  published, 100.2 Mt used) are divided by 10, 1,126 (2,662.3 Mt) are
+  dropped as not a mass and 358 (294.5 Mt) as unexplained; 99.9% of the
+  corrected mass is the USA. On a real 1950–1960 build it leaves the
+  same 83 negative reconstructed supplies (−6.87 Mt) as `"drop"`,
+  against 151 (−1,015.70 Mt) under `"report"`, while keeping 103.4 Mt of
+  repaired trade that `"drop"` discards. The output of every setting
+  that builds carries a `hist_trade_scale_log` attribute (absent with
+  `.fixed_data`): one row per flagged pin row, with the published and
+  the used value, the evidence (`world_max`, `mirror`, `neighbour`), the
+  class and the action.
 
   The warning also carries a second, informational class: rows larger
   than any flow FAOSTAT records for the **same reporter**, item and
@@ -276,7 +301,44 @@ build_commodity_balances(
   deliberately no clamp, unlike `share_overflow`: a destiny cannot
   exceed the supply it is apportioned from, so 1 is a true bound there,
   while here the denominator is incomplete and capping at 1 would book a
-  country's whole processed output as export.
+  country's whole processed output as export. Those figures are for the
+  step-4 denominator, `export_share_basis = "snapshot"`; on a 2014–2023
+  build the default `"current"` leaves 2 shares above 1 (Abaca 2021,
+  Fish, Liver Oil 2017) and applies neither.
+
+- export_share_basis:
+
+  One of `"current"` (default), `"processed"` or `"snapshot"`, selecting
+  which world balance the second processed-products round reads its
+  export share `export / (production + import)` off (whep#1143). The
+  share is multiplied by a country's newly created processed production,
+  so its denominator must contain that kind of production. `"current"`
+  reads the balance the round runs on and adds its rows to: processed
+  production from the first round, trade after imputation. It is also
+  the self-consistent choice, since a share `E / S` leaves the world
+  share unchanged once the round's own production and export are added.
+  `"processed"` reads the same production with trade as read, before
+  imputation. `"snapshot"` reads the balance before any processed
+  production exists, which is what every build before whep#1143 did:
+  wherever FAOSTAT reports no production of a processed product — all of
+  them before 1961, and the new food balance sheets' oilseed cakes and
+  molasses from 2014 — its denominator is world import alone.
+
+  **The default moves published values**, at 2014–2023 almost entirely.
+  Measured on real 2014–2023 and 1961–1965 builds of main after
+  whep#1242 against `"snapshot"`: at 2014–2023, 16,526 rows change,
+  world `export` falls 36.1 Mt summed over the ten years (42.8 Mt gross)
+  and `domestic_supply` rises by the same, landing 29.3 Mt on `feed`;
+  applied shares above 1 fall from 60 to 0 (largest 15.7, Sesameseed
+  Cake 2016). World Sesameseed Cake export at 2020 goes from 466 kt to
+  1.6 kt against 0.4 kt of world import, Oilseed Cakes, Other from 3.17
+  Mt to 2.13 Mt against 1.85 Mt. The step-4 sheet carries no cake or
+  molasses production there at all. At 1961–1965 the change is 13 kt
+  gross. `"processed"` moves the same cakes (export −39.3 Mt at
+  2014–2023) and differs from `"current"` only on items whose trade step
+  7 alone supplies: DDGS (+2.37 Mt of export under `"current"`) and
+  Sugarbeet pulp (+0.60 Mt), for which `"processed"` books no export at
+  all. Production is identical under all three.
 
 - seed_backcast:
 

@@ -23,6 +23,7 @@ build_carbon_balance(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  method_input_cn = c("known_crops", "require_all"),
   block_years = 10L,
   example = FALSE
 )
@@ -220,6 +221,17 @@ historical reconstruction.
   unknown and `"directional_ipcc_range"` when no input C:N is carried at
   all.
 
+- method_input_cn:
+
+  What a crop of unknown input C:N does to the C:N of the cropland class
+  it sits in, and so to the C:N of the organic matter that input forms;
+  see
+  [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md).
+  `"known_crops"` (default) forms the class ratio from the crops that
+  have one; `"require_all"` leaves it `NA`, which sends the class to the
+  land-use default C:N. Only read when the carbon inputs are built here
+  rather than supplied through `data$c_inputs`.
+
 - block_years:
 
   How many consecutive years are built at a time. The climate drivers
@@ -249,12 +261,12 @@ resolution (or `(area_code, year)` at `"polity"`), with `stock_mgc_ha`,
 `luc_transfer_mgc`, `rate_mgc_ha`, `son_change_kgn_ha`, `area_ha`, and
 one column per method choice that moves a number: `method_soc`,
 `method_soc_init`, `method_class_water`, `method_area_basis`,
-`method_grazing`, `method_som_cn` and `method_crop_groups`. All of them
-survive the `"polity"` roll-up, which additionally carries
-`input_land_ha` (the land the land-use input gave that polity-year) and
-`modelled_land_frac` (`area_ha / input_land_ha`, the share of it the
-densities in the same row are a mean over); see the coverage section
-below. Plus the polity columns below, plus
+`method_grazing`, `method_som_cn` and `method_input_cn` and
+`method_crop_groups`. All of them survive the `"polity"` roll-up, which
+additionally carries `input_land_ha` (the land the land-use input gave
+that polity-year) and `modelled_land_frac` (`area_ha / input_land_ha`,
+the share of it the densities in the same row are a mean over); see the
+coverage section below. Plus the polity columns below, plus
 `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 
 ## Details

@@ -70,6 +70,7 @@ natural classes come from <code><a href="build_grass_natural_carbon_inputs.html"
 <span>  density_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"renormalised"</span>, <span class="st">"static"</span><span class="op">)</span>,</span>
 <span>  method_grazing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep"</span>, <span class="st">"lpjml"</span><span class="op">)</span>,</span>
 <span>  method_unspatialized <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fodder_pattern"</span>, <span class="st">"reallocate"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  method_input_cn <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"known_crops"</span>, <span class="st">"require_all"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -195,6 +196,18 @@ which no rule here can reach (see whep#1002) – is dropped under all
 three methods, reported separately.</p></dd>
 
 
+<dt id="arg-method-input-cn">method_input_cn<a class="anchor" aria-label="anchor" href="#arg-method-input-cn"></a></dt>
+<dd><p>What a crop of unknown input C:N does to the C:N of
+the class it sits in. <code>"known_crops"</code> (default) forms the class ratio
+from the crops that have one, weighted by the carbon that came with them
+– the rule <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> already applies one level down,
+where the input nitrogen totals only the components that carry a nitrogen
+and the carbon paired with them. <code>"require_all"</code> leaves the class ratio
+<code>NA</code> as soon as any one crop's is unknown, so the class takes the
+land-use default C:N instead of the ratio its other crops measured.
+Recorded in <code>method_input_cn</code> on cropland rows.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small fixture instead of reading remote
 data. Defaults to <code>FALSE</code>.</p></dd>
@@ -204,9 +217,10 @@ data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>(lon, lat, area_code, year, land_use)</code> at <code>"grid"</code>
 resolution (or <code>(area_code, year, land_use)</code> at <code>"polity"</code>), with
-<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code>, <code>method_c_input</code> and
-<code>method_unspatialized</code> (<code>NA</code> on the grassland and natural classes, which
-are not spatialized from polity-crop totals), for <code>land_use</code> in
+<code>c_input_mgc_ha_yr</code>, <code>humified_fraction</code>, <code>method_c_input</code>, and
+<code>method_unspatialized</code> and <code>method_input_cn</code> (both <code>NA</code> on the grassland
+and natural classes, which are neither spatialized from polity-crop
+totals nor collapsed from crops), for <code>land_use</code> in
 <code>"cropland"</code>, <code>"grassland"</code> and <code>"natural"</code>, plus the polity columns
 below.</p>
     </div>
