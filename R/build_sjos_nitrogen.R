@@ -117,6 +117,16 @@
 #'   through them the classification and the footprint, and is stamped as
 #'   `negative_critical` in both boundary tables, in `sjos_class` and in both
 #'   footprint tables.
+#' @param country_table If `TRUE`, add the `country_table` element (see
+#'   Value): the grid exceedance summarised to a country-year table by
+#'   [build_n_boundary_country()], with the country boundary side crossed with
+#'   the nourishment class. It needs the agricultural land area, taken from
+#'   `data$ag_land` (a [build_ag_land_support()] table) or, when absent, read
+#'   with [build_ag_land_support()] for the years of the balance. Defaults to
+#'   `FALSE`, which leaves every other element as it was.
+#' @param beyond_share_cut Share of a country's positive surplus above which it
+#'   is on the `"Exceedance"` side, passed to [build_n_boundary_country()]; used
+#'   only when `country_table = TRUE`. Defaults to `0.5`, a WHEP criterion.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -130,7 +140,10 @@
 #'   `fp_food` embodied-nitrogen footprints, both carrying `target_nourish`,
 #'   and `target_class_diag`, the per-year count of flows whose consumer
 #'   country-year has no nourishment class). The boundary tables,
-#'   `sjos_class` and both footprint tables carry `negative_critical`.
+#'   `sjos_class` and both footprint tables carry `negative_critical`. With
+#'   `country_table = TRUE` the list also holds `country_table`, the
+#'   [build_n_boundary_country()] result (a list with the `country` and
+#'   `diagnostics` tables).
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -144,6 +157,8 @@ build_sjos_nitrogen <- function(
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
   negative_critical = c("keep", "clamp"),
+  country_table = FALSE,
+  beyond_share_cut = 0.5,
   example = FALSE
 ) {
   grassland_split <- rlang::arg_match(grassland_split)
@@ -167,13 +182,15 @@ build_sjos_nitrogen <- function(
     footprint_category = footprint_category,
     nourishment_thresholds = nourishment_thresholds,
     nourishment_band = .sjos_band_options(nourishment_band),
+    country_table = isTRUE(country_table),
+    beyond_share_cut = beyond_share_cut,
     example = isTRUE(example)
   )
   surplus <- calculate_n_surplus(data$balance, method = opts$surplus_method)
   boundary <- .sjos_boundary_surplus(surplus, data, opts)
   nourishment <- .sjos_nourishment(data, opts)
   sjos_class <- classify_sjos_n(boundary$country, nourishment)
-  list(
+  out <- list(
     surplus = surplus,
     boundary_surplus = boundary,
     boundary_pathway = .sjos_boundary_pathway(data, opts),
@@ -196,9 +213,45 @@ build_sjos_nitrogen <- function(
         \(x) .sjos_stamp_critical(x, opts)
       )
   )
+  if (!opts$country_table) {
+    return(out)
+  }
+  c(
+    out,
+    list(
+      country_table = .sjos_country_table(
+        boundary$grid,
+        surplus,
+        data,
+        nourishment,
+        opts
+      )
+    )
+  )
 }
 
 # ---- Private helpers -------------------------------------------------------
+
+# The country-year table from the grid boundary of this run. The nourishment
+# class is the same table the classification used, one row per country-year,
+# so the country boundary side and the class cannot come from different
+# bands. `data$ag_land` is read from the land-support builder only when it is
+# not injected, like the population.
+.sjos_country_table <- function(grid, surplus, data, nourishment, opts) {
+  build_n_boundary_country(
+    exceedance = grid,
+    surplus = surplus,
+    ag_land = data[["ag_land"]] %||%
+      build_ag_land_support(years = unique(surplus$year)),
+    nourishment = dplyr::distinct(
+      nourishment,
+      .data$year,
+      .data$area_code,
+      .data$nourish
+    ),
+    beyond_share_cut = opts$beyond_share_cut
+  )
+}
 
 # Every table downstream of the surplus boundary records how negative critical
 # surpluses were treated, so a classification or footprint cannot be read

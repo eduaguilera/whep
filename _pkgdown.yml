@@ -287,6 +287,7 @@ reference:
   - build_grassland_intensity_classes
   - build_critical_n_binding
   - build_n_boundary_exceedance
+  - build_n_boundary_country
   - build_n_pathway_exceedance
   - build_food_supply
   - build_protein_requirement

@@ -1335,6 +1335,52 @@
   )
 }
 
+# A shared-border-cell fixture run through the real
+# build_n_boundary_exceedance() (grid, negative critical surpluses clamped) and
+# then build_n_boundary_country(): cell (0.25, 0.25) is shared by countries 1
+# and 2 and exceeds its allowance, cell (0.75, 0.25) is a deficit cell that
+# country 1 cannot use to offset it, and cell (0.25, 0.75) lies within its
+# allowance.
+.example_n_boundary_country <- function() {
+  surplus <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~area_ha, ~n_input_std_t,
+    ~surplus_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, 60, 20, 12,
+    0.25, 0.25, 2L, 2511L, 2010L, 40, 10, 8,
+    0.75, 0.25, 1L, 2511L, 2010L, 100, 6, -4,
+    0.25, 0.75, 2L, 2513L, 2010L, 500, 40, 30
+  )
+  critical <- tibble::tribble(
+    ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+    0.25, 0.25, 100, 100, 11L,
+    0.75, 0.25, 100, 100, 11L,
+    0.25, 0.75, 100, 500, 11L
+  ) |>
+    dplyr::mutate(
+      critical_var = "critical_n_surplus",
+      critical_land_use = "all",
+      critical_threshold = "mi",
+      critical_year = 2010L
+    )
+  grid <- build_n_boundary_exceedance(
+    surplus = surplus,
+    critical = critical,
+    land_use = "all",
+    resolution = "grid",
+    metric = "surplus",
+    actual_year = 2010L,
+    critical_reference_year = 2010L,
+    grassland_split = "none",
+    negative_critical = "clamp"
+  )
+  ag_land <- tibble::tribble(
+    ~area_code, ~year, ~area_ha,
+    1L, 2010L, 160,
+    2L, 2010L, 540
+  )
+  build_n_boundary_country(grid, surplus, ag_land)
+}
+
 # The embodied-nitrogen trade footprint fixture (fp_all + fp_food). Produced by
 # tracing the exceedance category of a minimal 2-region x 2-item scenario through
 # build_sjos_n_footprint(): area 1 exports part of its item-10 nitrogen to area
@@ -1480,7 +1526,23 @@
     habitual_cv = .sjos_n_habitual_cv_fixture(),
     n_inputs = .sjos_n_inputs_fixture(),
     biomass_coefs = .sjos_n_coefs_fixture(),
-    items_full = .sjos_n_items_fixture()
+    items_full = .sjos_n_items_fixture(),
+    ag_land = .sjos_n_ag_land_fixture()
+  )
+}
+
+# Agricultural land support at the balance cells, read only when the driver is
+# asked for its country table (build_sjos_nitrogen(country_table = TRUE)).
+.sjos_n_ag_land_fixture <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~land_use, ~area_ha,
+    0.25, 0.25, 1L, 2511L, 2010L, "cropland", 100,
+    0.25, 0.25, 1L, 2513L, 2010L, "cropland", 50,
+    0.75, 0.25, 1L, 2511L, 2010L, "cropland", 200,
+    0.75, 0.25, 1L, 2555L, 2010L, "cropland", 40,
+    10.25, 5.25, 2L, 2511L, 2010L, "cropland", 80,
+    10.25, 5.25, 2L, 2513L, 2010L, "cropland", 60,
+    10.75, 5.25, 2L, 2555L, 2010L, "cropland", 20
   )
 }
 

@@ -14,6 +14,8 @@ build_sjos_nitrogen(
   nourishment_thresholds = c("composed", "flat"),
   nourishment_band = list(),
   negative_critical = c("keep", "clamp"),
+  country_table = FALSE,
+  beyond_share_cut = 0.5,
   example = FALSE
 )
 }
@@ -95,6 +97,18 @@ through them the classification and the footprint, and is stamped as
 \code{negative_critical} in both boundary tables, in \code{sjos_class} and in both
 footprint tables.}
 
+\item{country_table}{If \code{TRUE}, add the \code{country_table} element (see
+Value): the grid exceedance summarised to a country-year table by
+\code{\link[=build_n_boundary_country]{build_n_boundary_country()}}, with the country boundary side crossed with
+the nourishment class. It needs the agricultural land area, taken from
+\code{data$ag_land} (a \code{\link[=build_ag_land_support]{build_ag_land_support()}} table) or, when absent, read
+with \code{\link[=build_ag_land_support]{build_ag_land_support()}} for the years of the balance. Defaults to
+\code{FALSE}, which leaves every other element as it was.}
+
+\item{beyond_share_cut}{Share of a country's positive surplus above which it
+is on the \code{"Exceedance"} side, passed to \code{\link[=build_n_boundary_country]{build_n_boundary_country()}}; used
+only when \code{country_table = TRUE}. Defaults to \code{0.5}, a WHEP criterion.}
+
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}
 }
@@ -110,7 +124,10 @@ versus nourishment points; it and \code{nourishment} carry
 \code{fp_food} embodied-nitrogen footprints, both carrying \code{target_nourish},
 and \code{target_class_diag}, the per-year count of flows whose consumer
 country-year has no nourishment class). The boundary tables,
-\code{sjos_class} and both footprint tables carry \code{negative_critical}.
+\code{sjos_class} and both footprint tables carry \code{negative_critical}. With
+\code{country_table = TRUE} the list also holds \code{country_table}, the
+\code{\link[=build_n_boundary_country]{build_n_boundary_country()}} result (a list with the \code{country} and
+\code{diagnostics} tables).
 }
 \description{
 Composes the Safe and Just Operating Space for nitrogen (SJOS-N) modules into
