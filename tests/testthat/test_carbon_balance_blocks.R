@@ -78,7 +78,7 @@ testthat::test_that("a blocked build is identical to one pass", {
     data,
     NULL,
     groups,
-    list(basis = "renormalised", grazing = "whep")
+    list(basis = "renormalised", grazing = "whep", input_cn = "known_crops")
   )
   d$class_water <- "cell"
   classes <- whep:::.cb_class_table(d, "hsoc")
@@ -94,6 +94,7 @@ testthat::test_that("a blocked build is identical to one pass", {
       method_class_water = "cell",
       method_area_basis = "renormalised",
       method_grazing = "whep",
+      method_input_cn = "known_crops",
       method_crop_groups = if (is.null(groups$method)) "none" else groups$method
     ) |>
     whep:::.cb_finalise(resolution, coverage) |>
