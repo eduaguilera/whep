@@ -1,0 +1,73 @@
+source,source_table,class_key,source_class_code,source_class_name,item_prod_code,mapping_kind,mapping_reason
+IBGE_PAM,5457,0,0,Total,,dropped,"No exact WHEP counterpart: the all-crops total, not an item; not folded into a near neighbour (T10 crop rule 4)."
+IBGE_PAM,5457,40129,40129,Abacate,572,exact,
+IBGE_PAM,5457,40092,40092,Abacaxi*,574,exact,
+IBGE_PAM,5457,45982,45982,Açaí,,dropped,No exact WHEP counterpart: acai has no WHEP item; 603 (Other tropical fruits) is a catch-all; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40329,40329,Alfafa fenada,641,exact,
+IBGE_PAM,5457,40130,40130,Algodão arbóreo (em caroço),328,sum_member,"One of several source classes summed to make the WHEP item 328 (Seed cotton, unginned) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40099,40099,Algodão herbáceo (em caroço),328,sum_member,"One of several source classes summed to make the WHEP item 328 (Seed cotton, unginned) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40100,40100,Alho,,dropped,No exact WHEP counterpart: SIDRA reports dry garlic and WHEP's only garlic item is 406 (Green garlic); not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40101,40101,Amendoim (em casca),242,exact,
+IBGE_PAM,5457,40102,40102,Arroz (em casca),27,exact,"Source rice area is paddy, so it binds WHEP item 27 (T10 crop rule 3)."
+IBGE_PAM,5457,40103,40103,Aveia (em grão),75,exact,
+IBGE_PAM,5457,40131,40131,Azeitona,260,exact,
+IBGE_PAM,5457,40136,40136,Banana (cacho),486,exact,
+IBGE_PAM,5457,40104,40104,Batata-doce,122,exact,
+IBGE_PAM,5457,40105,40105,Batata-inglesa,116,exact,
+IBGE_PAM,5457,40137,40137,Borracha (látex coagulado),836,sum_member,"One of several source classes summed to make the WHEP item 836 (Natural rubber in primary forms) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40468,40468,Borracha (látex líquido),836,sum_member,"One of several source classes summed to make the WHEP item 836 (Natural rubber in primary forms) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40138,40138,Cacau (em amêndoa),661,exact,
+IBGE_PAM,5457,40139,40139,Café (em grão) Total,656,aggregate,Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1).
+IBGE_PAM,5457,40140,40140,Café (em grão) Arábica,656,member,"Member of the published aggregate 40139, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+IBGE_PAM,5457,40141,40141,Café (em grão) Canephora,656,member,"Member of the published aggregate 40139, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+IBGE_PAM,5457,40330,40330,Caju,591,exact,
+IBGE_PAM,5457,40106,40106,Cana-de-açúcar,156,exact,
+IBGE_PAM,5457,40331,40331,Cana para forragem,,dropped,No exact WHEP counterpart: fodder cane has no WHEP item; 651 (Forage products) is a catch-all; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40142,40142,Caqui,587,exact,
+IBGE_PAM,5457,40143,40143,Castanha de caju,217,exact,
+IBGE_PAM,5457,40107,40107,Cebola,403,exact,
+IBGE_PAM,5457,40108,40108,Centeio (em grão),71,exact,
+IBGE_PAM,5457,40109,40109,Cevada (em grão),44,exact,
+IBGE_PAM,5457,40144,40144,Chá-da-índia (folha verde),667,exact,
+IBGE_PAM,5457,40145,40145,Coco-da-baía*,249,exact,"SIDRA reports the fruit as harvested, in shell, which is WHEP 249 rather than the legacy 248 (Coconuts)."
+IBGE_PAM,5457,40146,40146,Dendê (cacho de coco),254,exact,
+IBGE_PAM,5457,40147,40147,Erva-mate (folha verde),671,exact,
+IBGE_PAM,5457,40110,40110,Ervilha (em grão),187,exact,
+IBGE_PAM,5457,40111,40111,Fava (em grão),181,exact,
+IBGE_PAM,5457,40112,40112,Feijão (em grão),176,exact,
+IBGE_PAM,5457,40148,40148,Figo,569,exact,
+IBGE_PAM,5457,40113,40113,Fumo (em folha),826,exact,
+IBGE_PAM,5457,40114,40114,Girassol (em grão),267,exact,
+IBGE_PAM,5457,40149,40149,Goiaba,571,sum_member,"One of several source classes summed to make the WHEP item 571 (Mangoes, guavas and mangosteens) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40150,40150,Guaraná (semente),,dropped,No exact WHEP counterpart: guarana has no WHEP item; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40115,40115,Juta (fibra),780,exact,
+IBGE_PAM,5457,40151,40151,Laranja,490,exact,
+IBGE_PAM,5457,40152,40152,Limão,497,exact,
+IBGE_PAM,5457,40116,40116,Linho (semente),333,exact,
+IBGE_PAM,5457,40260,40260,Maçã,515,exact,
+IBGE_PAM,5457,40117,40117,Malva (fibra),,dropped,No exact WHEP counterpart: malva (Urena lobata) has no WHEP item; 782 is a residual bast-fibre class; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40261,40261,Mamão,600,exact,
+IBGE_PAM,5457,40118,40118,Mamona (baga),265,exact,
+IBGE_PAM,5457,40119,40119,Mandioca,125,exact,
+IBGE_PAM,5457,40262,40262,Manga,571,sum_member,"One of several source classes summed to make the WHEP item 571 (Mangoes, guavas and mangosteens) (T10 crop rule 1: no aggregate is published, so members sum)."
+IBGE_PAM,5457,40263,40263,Maracujá,,dropped,No exact WHEP counterpart: passion fruit has no WHEP item; 603 (Other tropical fruits) is a catch-all; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40264,40264,Marmelo,523,exact,
+IBGE_PAM,5457,40120,40120,Melancia,567,exact,
+IBGE_PAM,5457,40121,40121,Melão,568,exact,
+IBGE_PAM,5457,40122,40122,Milho (em grão),56,exact,"SIDRA's own grain class, so grain maize only (T10 crop rule 2)."
+IBGE_PAM,5457,40265,40265,Noz (fruto seco),222,exact,
+IBGE_PAM,5457,40266,40266,Palmito,,dropped,No exact WHEP counterpart: heart of palm has no WHEP item; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40267,40267,Pera,521,exact,
+IBGE_PAM,5457,40268,40268,Pêssego,534,exact,
+IBGE_PAM,5457,40269,40269,Pimenta-do-reino,687,exact,
+IBGE_PAM,5457,40123,40123,Rami (fibra),788,exact,
+IBGE_PAM,5457,40270,40270,Sisal ou agave (fibra),,dropped,"No exact WHEP counterpart: the class spans sisal (789) and other agave fibres (800), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+IBGE_PAM,5457,40124,40124,Soja (em grão),236,exact,
+IBGE_PAM,5457,40125,40125,Sorgo (em grão),83,exact,
+IBGE_PAM,5457,40271,40271,Tangerina,495,exact,
+IBGE_PAM,5457,40126,40126,Tomate,388,exact,
+IBGE_PAM,5457,40127,40127,Trigo (em grão),15,exact,
+IBGE_PAM,5457,40128,40128,Triticale (em grão),97,exact,
+IBGE_PAM,5457,40272,40272,Tungue (fruto seco),275,exact,
+IBGE_PAM,5457,40273,40273,Urucum (semente),,dropped,No exact WHEP counterpart: annatto has no WHEP item; not folded into a near neighbour (T10 crop rule 4).
+IBGE_PAM,5457,40274,40274,Uva,560,exact,

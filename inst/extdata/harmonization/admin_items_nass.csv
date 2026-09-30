@@ -1,0 +1,7 @@
+source,source_table,class_key,source_class_code,source_class_name,item_prod_code,mapping_kind,mapping_reason
+USDA_NASS,qs.crops,"CORN, GRAIN - ACRES HARVESTED",,"CORN, GRAIN - ACRES HARVESTED",56,exact,"NASS's own GRAIN class, so grain maize only (T10 crop rule 2)."
+USDA_NASS,qs.crops,"CORN, SILAGE - ACRES HARVESTED",,"CORN, SILAGE - ACRES HARVESTED",,dropped,"Excluded: maize is grain maize only, silage and forage maize excluded (T10 crop rule 2). WHEP item 636 (Forage and silage, maize) exists but T10 does not admit this class into the maize vocabulary."
+USDA_NASS,qs.crops,WHEAT - ACRES HARVESTED,,WHEAT - ACRES HARVESTED,15,exact,All-wheat class; the class splits NASS also publishes are never summed alongside it (T10 crop rule 1).
+USDA_NASS,qs.crops,BARLEY - ACRES HARVESTED,,BARLEY - ACRES HARVESTED,44,exact,All-barley class; the class splits NASS also publishes are never summed alongside it (T10 crop rule 1).
+USDA_NASS,qs.crops,OATS - ACRES HARVESTED,,OATS - ACRES HARVESTED,75,exact,
+USDA_NASS,qs.crops,SOYBEANS - ACRES HARVESTED,,SOYBEANS - ACRES HARVESTED,236,exact,
