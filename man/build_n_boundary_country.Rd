@@ -50,12 +50,14 @@ A named list of two tibbles.
 \code{exceedance_n_t}, signed).
 \item \code{input_std_n_t}: sum of \code{n_input_std_t} over the same rows, t N.
 \item \code{excess_share_of_inputs}: \code{exceedance_n_t / input_std_n_t}.
+\item \code{exceedance_share_of_positive_surplus}: \code{exceedance_n_t / positive_surplus_n_t}, \code{NA} when the denominator is not positive.
 \item \code{positive_surplus_n_t}, \code{exceeding_surplus_n_t}, \code{beyond_share},
-\code{boundary_side}: see above.
+\code{exceedance_share_of_positive_surplus}, \code{boundary_side}: see above.
 \item \code{ag_area_ha}: WHEP agricultural area, ha.
 \item \code{signed_denominator_nonpositive}: \code{positive_surplus_n_t} or
 \code{input_std_n_t} is zero or negative.
-\item \code{ratio_outside_unit}: \code{beyond_share} or \code{excess_share_of_inputs} lies
+\item \code{ratio_outside_unit}: \code{beyond_share},
+\code{exceedance_share_of_positive_surplus} or \code{excess_share_of_inputs} lies
 outside \verb{[0, 1]} (beyond a rounding tolerance of \code{1e-9}).
 \item \code{nourish}, \code{sjos_class} when \code{nourishment} is given.
 \item \code{negative_critical}, \code{land_use}, \code{grassland_split}, \code{beyond_share_cut}:
@@ -69,10 +71,14 @@ every crop row of the land-use scope), \code{valid_input_fraction} (their
 ratio), \code{exceedance_n_t} (sum over countries), \code{unallocated_exceedance_n_t}
 (exceedance left on residual rows), \code{cell_exceedance_n_t} (summed cell
 exceedance), \code{exceedance_gap_n_t} (\code{cell - country - unallocated}, zero up
-to rounding), \code{positive_surplus_n_t}, \code{excess_share_of_inputs} (world ratio),
+to rounding), \code{positive_surplus_n_t},
+\code{exceedance_share_of_positive_surplus} and \code{excess_share_of_inputs} (world
+ratios), \code{world_ratio_outside_unit} (either world ratio lies outside
+\verb{[0, 1]}, beyond the \code{1e-9} tolerance),
 \code{overshoot_without_surplus_n_t} (overshoot of units with no positive
 surplus, zero under the clamp), and the counts \code{n_undefined_beyond_share},
-\code{n_undefined_excess_share}, \code{n_signed_denominator_nonpositive},
+\code{n_undefined_exceedance_share}, \code{n_undefined_excess_share},
+\code{n_signed_denominator_nonpositive},
 \code{n_ratio_outside_unit}, \code{n_missing_ag_area}, \code{n_undefined_attribution_rows}
 (crop rows whose attribution is undefined), \code{n_unallocated_units} (units
 whose overshoot sits on a residual record) and \code{n_unclassified} (\code{NA}
@@ -81,8 +87,9 @@ without \code{nourishment}).
 \description{
 Turns the crop rows of a \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}} grid result into
 one row per country and year, holding the exceedance, the share of nitrogen
-inputs it represents, and the share of the country's positive surplus that
-lies in comparison units above their critical surplus. Every quantity is
+inputs it represents, the share of the country's positive surplus it
+represents, and the share of that surplus that lies in comparison units
+above their critical surplus. Every quantity is
 formed from the attributed crop rows of cells with
 \code{coverage_state == "valid"}, so the numerator and every denominator cover
 the same rows. Inputs in cells that are out of the critical-surplus domain,
@@ -108,6 +115,11 @@ managed surplus is counted even beside a negative extensive one;
 over their allowance is positive.
 }
 
+The fraction of the country's positive surplus that is excess is
+\code{exceedance_share_of_positive_surplus = exceedance_n_t / positive_surplus_n_t}. It is the country exceedance itself over the same
+positive surplus, so it is not \code{beyond_share}, which counts the whole
+surplus of an exceeding unit and not only the part above its allowance.
+
 Unit membership is decided from the unit's own state (its surplus and its
 overshoot), never from the crop-attributed exceedance. A unit whose crop
 shares are undefined (zero or ill-conditioned total surplus) attributes no
@@ -120,8 +132,12 @@ of the diagnostics, which also count the units and rows involved.
 The country's own crop surplus in a shared unit can be negative while the
 unit total is positive (the other polity carries the excess), and crop
 exceedance is a signed share of the unit overshoot, so a country ratio can
-fall outside \verb{[0, 1]}. Such rows are kept, flagged in \code{ratio_outside_unit},
-and counted in the diagnostics; they are never clipped.
+fall outside \verb{[0, 1]}: such negative own rows lower the country's positive
+surplus, and its exceedance can be negative or larger than that surplus.
+This affects \code{exceedance_share_of_positive_surplus}, \code{beyond_share} and
+\code{excess_share_of_inputs}. Such rows are kept, flagged in
+\code{ratio_outside_unit}, and counted in the diagnostics; they are never
+clipped.
 
 The world sum of \code{positive_surplus_n_t} equals the sum of the positive unit
 surpluses of the valid cells. The world sum of \code{exceedance_n_t} equals the
@@ -163,8 +179,27 @@ negative. The country ratio has a signed numerator, so it is bounded by
 exceedance are non-negative; at world level, summed over all attributed
 rows, it is bounded once negative critical surpluses are clamped
 (\code{negative_critical = "clamp"}), because a unit overshoot is then at most
-its positive surplus, which is at most its inputs. Under \code{"keep"} a unit
-with a negative critical surplus can overshoot by more than its inputs.
+its positive surplus, which is at most its inputs. The last step needs
+\code{surplus_n_t <= n_input_std_t} on every row. That holds for
+\code{surplus_method = "harvest_removal"}, where the surplus is the inputs minus
+non-negative harvest removals, but not for \code{"full_balance"}: its
+\code{n_balance_t} includes soil organic matter mineralisation, which
+\code{n_input_std_t} excludes, so the world share can exceed one even after the
+clamp. Under \code{"keep"} a unit with a negative critical surplus can overshoot
+by more than its inputs. The world ratio outside \verb{[0, 1]} is reported in
+\code{world_ratio_outside_unit} of the diagnostics.
+}
+
+\section{Exceedance share of positive surplus}{
+
+\code{exceedance_share_of_positive_surplus = exceedance_n_t / positive_surplus_n_t}, with the exceedance signed as above. It is \code{NA} when
+\code{positive_surplus_n_t} is zero or negative, exactly where \code{beyond_share} is
+\code{NA}. The country ratio is guaranteed to lie in \verb{[0, 1]} only when negative
+critical surpluses are clamped and the country's contributions to every
+positive unit are non-negative. At world level it is bounded once negative
+critical surpluses are clamped, because a unit overshoot is then at most its
+positive surplus; unlike the share of inputs, that bound needs no assumption
+on the surplus method.
 }
 
 \section{Polity columns}{

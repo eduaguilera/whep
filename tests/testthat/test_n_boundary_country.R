@@ -98,6 +98,14 @@ testthat::test_that("a shared border cell is not counted once per polity", {
   testthat::expect_equal(one$exceeding_surplus_n_t, 12)
   testthat::expect_equal(two$exceeding_surplus_n_t, 8)
   testthat::expect_equal(c(one$beyond_share, two$beyond_share), c(1, 1))
+  # The exceedance over the positive surplus: 6 / 12 and 4 / 8.
+  testthat::expect_equal(
+    c(
+      one$exceedance_share_of_positive_surplus,
+      two$exceedance_share_of_positive_surplus
+    ),
+    c(0.5, 0.5)
+  )
   testthat::expect_equal(one$input_std_n_t, 20)
   testthat::expect_equal(two$input_std_n_t, 10)
   testthat::expect_equal(one$excess_share_of_inputs, 6 / 20)
@@ -181,12 +189,21 @@ testthat::test_that("negative critical surplus: keep versus clamp", {
   testthat::expect_true(keep$country$ratio_outside_unit)
   testthat::expect_equal(keep$diagnostics$excess_share_of_inputs, 1.5)
   testthat::expect_equal(keep$diagnostics$n_ratio_outside_unit, 1L)
+  testthat::expect_true(keep$diagnostics$world_ratio_outside_unit)
   testthat::expect_equal(keep$country$negative_critical, "keep")
+  # 3 t of exceedance over 1 t of positive surplus.
+  testthat::expect_equal(keep$country$exceedance_share_of_positive_surplus, 3)
+  testthat::expect_equal(
+    keep$diagnostics$exceedance_share_of_positive_surplus,
+    3
+  )
 
   testthat::expect_equal(clamp$country$exceedance_n_t, 1)
   testthat::expect_equal(clamp$country$excess_share_of_inputs, 0.5)
   testthat::expect_false(clamp$country$ratio_outside_unit)
   testthat::expect_equal(clamp$diagnostics$excess_share_of_inputs, 0.5)
+  testthat::expect_false(clamp$diagnostics$world_ratio_outside_unit)
+  testthat::expect_equal(clamp$country$exceedance_share_of_positive_surplus, 1)
   testthat::expect_equal(clamp$country$negative_critical, "clamp")
 
   # The country's own positive surplus is the same either way.
@@ -251,6 +268,7 @@ testthat::test_that("a country-year without positive surplus is undefined", {
 
   testthat::expect_equal(three$positive_surplus_n_t, 0)
   testthat::expect_true(is.na(three$beyond_share))
+  testthat::expect_true(is.na(three$exceedance_share_of_positive_surplus))
   testthat::expect_true(is.na(three$boundary_side))
   testthat::expect_true(three$signed_denominator_nonpositive)
   testthat::expect_true(is.na(three$sjos_class))
@@ -259,6 +277,7 @@ testthat::test_that("a country-year without positive surplus is undefined", {
 
   testthat::expect_equal(two$positive_surplus_n_t, -3)
   testthat::expect_true(is.na(two$beyond_share))
+  testthat::expect_true(is.na(two$exceedance_share_of_positive_surplus))
   testthat::expect_true(two$signed_denominator_nonpositive)
   # Cell A: 5 t surplus, 2 t allowance, 3 t over, shared -3/5 and 8/5.
   testthat::expect_equal(two$exceedance_n_t, -1.8)
@@ -270,9 +289,106 @@ testthat::test_that("a country-year without positive surplus is undefined", {
 
   d <- out$diagnostics
   testthat::expect_equal(d$n_undefined_beyond_share, 2L)
+  testthat::expect_equal(d$n_undefined_exceedance_share, 2L)
   testthat::expect_equal(d$n_signed_denominator_nonpositive, 2L)
   testthat::expect_equal(d$n_unclassified, 2L)
   testthat::expect_equal(d$n_countries, 3L)
+})
+
+testthat::test_that("a signed shared-cell share puts the exceedance ratio outside [0, 1]", {
+  # Cell A is shared: country 1 has -3 t and country 2 +8 t, a 5 t unit against
+  # a 2 t allowance, so 3 t over, shared -3/5 and 8/5 (-1.8 t and +4.8 t of
+  # exceedance). Cell B is country 1 alone: 4 t against 1 t, 3 t over. Country 1
+  # therefore has 1.2 t of exceedance over a positive surplus of -3 + 4 = 1 t,
+  # a ratio above one, while both of its other ratios stay inside [0, 1]: every
+  # unit it is in exceeds, so beyond_share is 1, and its inputs are 6 t.
+  rows <- tibble::tribble(
+    ~cell, ~area_code, ~item_cbs_code, ~surplus_n_t, ~n_input_std_t,
+    "A",   1L,         2511L,          -3,           1,
+    "A",   2L,         2511L,          8,            9,
+    "B",   1L,         2511L,          4,            5
+  )
+  rates <- tibble::tribble(~cell, ~rate, "A", 20, "B", 10)
+  for (negative_critical in c("keep", "clamp")) {
+    out <- .nbc_run(rows, rates, negative_critical)
+    one <- .nbc_row(out, 1L)
+    two <- .nbc_row(out, 2L)
+
+    testthat::expect_equal(one$exceedance_n_t, 1.2)
+    testthat::expect_equal(one$positive_surplus_n_t, 1)
+    testthat::expect_equal(one$exceedance_share_of_positive_surplus, 1.2)
+    testthat::expect_equal(one$beyond_share, 1)
+    testthat::expect_equal(one$excess_share_of_inputs, 1.2 / 6)
+    # Only the exceedance ratio is outside [0, 1], and it alone sets the flag.
+    testthat::expect_true(one$ratio_outside_unit)
+
+    testthat::expect_equal(two$exceedance_n_t, 4.8)
+    testthat::expect_equal(two$exceedance_share_of_positive_surplus, 4.8 / 8)
+    testthat::expect_false(two$ratio_outside_unit)
+
+    d <- out$diagnostics
+    testthat::expect_equal(d$n_ratio_outside_unit, 1L)
+    testthat::expect_equal(d$n_undefined_exceedance_share, 0L)
+    # World: 6 t of exceedance over 9 t of positive surplus (the two cells'
+    # 5 t and 4 t), inside [0, 1] although one country is not.
+    testthat::expect_equal(d$positive_surplus_n_t, 9)
+    testthat::expect_equal(d$exceedance_share_of_positive_surplus, 6 / 9)
+    testthat::expect_false(d$world_ratio_outside_unit)
+  }
+})
+
+testthat::test_that("a negative unit beneath a negative allowance is left outside the surpluses", {
+  # Cell A: -1 t against a -2 t allowance, kept, so a 1 t overshoot on a unit
+  # with a negative surplus; its single crop row has a defined share of one, so
+  # the country's exceedance carries the 1 t. Cell B: +4 t well within its
+  # allowance. Membership follows the unit's state, not the attributed
+  # exceedance: A is outside the positive surplus (4 t, not 3 t) and outside
+  # the exceeding surplus (0 t), and its overshoot is reported.
+  rows <- tibble::tribble(
+    ~cell, ~area_code, ~item_cbs_code, ~surplus_n_t, ~n_input_std_t,
+    "A",   1L,         2511L,          -1,           1,
+    "B",   1L,         2511L,          4,            5
+  )
+  rates <- tibble::tribble(~cell, ~rate, "A", -20, "B", 100)
+  out <- .nbc_run(rows, rates, "keep")
+  one <- .nbc_row(out, 1L)
+  d <- out$diagnostics
+
+  testthat::expect_equal(one$exceedance_n_t, 1)
+  testthat::expect_equal(one$positive_surplus_n_t, 4)
+  testthat::expect_equal(one$exceeding_surplus_n_t, 0)
+  testthat::expect_equal(one$beyond_share, 0)
+  testthat::expect_equal(one$exceedance_share_of_positive_surplus, 1 / 4)
+  testthat::expect_equal(one$boundary_side, "Within_boundary")
+  testthat::expect_false(one$ratio_outside_unit)
+  testthat::expect_equal(d$overshoot_without_surplus_n_t, 1)
+  testthat::expect_equal(d$unallocated_exceedance_n_t, 0)
+  testthat::expect_equal(d$n_undefined_attribution_rows, 0L)
+  testthat::expect_equal(d$exceedance_gap_n_t, 0, tolerance = 1e-12)
+
+  # Clamped, the allowance is zero and the deficit unit does not overshoot.
+  clamp <- .nbc_run(rows, rates, "clamp")
+  testthat::expect_equal(clamp$country$exceedance_n_t, 0)
+  testthat::expect_equal(clamp$diagnostics$overshoot_without_surplus_n_t, 0)
+})
+
+testthat::test_that("the world flag reports a share of inputs above one", {
+  # A surplus above the row's inputs, as a balance that includes soil organic
+  # matter mineralisation can give: 5 t of surplus on 2 t of inputs with a zero
+  # allowance is 5 t of exceedance even after the clamp, 2.5 times the inputs.
+  # The exceedance over the positive surplus is exactly one.
+  rows <- tibble::tribble(
+    ~cell, ~area_code, ~item_cbs_code, ~surplus_n_t, ~n_input_std_t,
+    "A",   1L,         2511L,          5,            2
+  )
+  rates <- tibble::tribble(~cell, ~rate, "A", 0)
+  out <- .nbc_run(rows, rates, "clamp")
+
+  testthat::expect_equal(out$country$excess_share_of_inputs, 2.5)
+  testthat::expect_equal(out$country$exceedance_share_of_positive_surplus, 1)
+  testthat::expect_true(out$country$ratio_outside_unit)
+  testthat::expect_equal(out$diagnostics$excess_share_of_inputs, 2.5)
+  testthat::expect_true(out$diagnostics$world_ratio_outside_unit)
 })
 
 testthat::test_that("the residual reconciles country sums to cell exceedance", {
@@ -362,6 +478,18 @@ testthat::test_that("the world excess share stays in [0, 1] under the clamp", {
   clamp <- purrr::map_dbl(shares, \(s) s$clamp$excess_share_of_inputs)
   keep <- purrr::map_dbl(shares, \(s) s$keep$excess_share_of_inputs)
   testthat::expect_true(all(clamp >= 0 & clamp <= 1))
+  # The world exceedance over the positive surplus is bounded the same way
+  # (a clamped unit overshoot is at most its positive surplus), and the
+  # clamped runs are not flagged.
+  positive <- purrr::map_dbl(
+    shares,
+    \(s) s$clamp$exceedance_share_of_positive_surplus
+  )
+  testthat::expect_true(all(positive >= 0 & positive <= 1))
+  testthat::expect_false(any(purrr::map_lgl(
+    shares,
+    \(s) s$clamp$world_ratio_outside_unit
+  )))
   # The property is not vacuous: the shares are well above zero, and kept
   # negative allowances raise the share in every one of these grids.
   testthat::expect_true(all(clamp > 0.05))

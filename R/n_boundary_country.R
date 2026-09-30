@@ -14,8 +14,9 @@
 #' @description
 #' Turns the crop rows of a [build_n_boundary_exceedance()] grid result into
 #' one row per country and year, holding the exceedance, the share of nitrogen
-#' inputs it represents, and the share of the country's positive surplus that
-#' lies in comparison units above their critical surplus. Every quantity is
+#' inputs it represents, the share of the country's positive surplus it
+#' represents, and the share of that surplus that lies in comparison units
+#' above their critical surplus. Every quantity is
 #' formed from the attributed crop rows of cells with
 #' `coverage_state == "valid"`, so the numerator and every denominator cover
 #' the same rows. Inputs in cells that are out of the critical-surplus domain,
@@ -39,6 +40,12 @@
 #' * `exceeding_surplus_n_t`: the same, restricted to the units whose overshoot
 #'   over their allowance is positive.
 #'
+#' The fraction of the country's positive surplus that is excess is
+#' `exceedance_share_of_positive_surplus = exceedance_n_t /
+#' positive_surplus_n_t`. It is the country exceedance itself over the same
+#' positive surplus, so it is not `beyond_share`, which counts the whole
+#' surplus of an exceeding unit and not only the part above its allowance.
+#'
 #' Unit membership is decided from the unit's own state (its surplus and its
 #' overshoot), never from the crop-attributed exceedance. A unit whose crop
 #' shares are undefined (zero or ill-conditioned total surplus) attributes no
@@ -51,8 +58,12 @@
 #' The country's own crop surplus in a shared unit can be negative while the
 #' unit total is positive (the other polity carries the excess), and crop
 #' exceedance is a signed share of the unit overshoot, so a country ratio can
-#' fall outside `[0, 1]`. Such rows are kept, flagged in `ratio_outside_unit`,
-#' and counted in the diagnostics; they are never clipped.
+#' fall outside `[0, 1]`: such negative own rows lower the country's positive
+#' surplus, and its exceedance can be negative or larger than that surplus.
+#' This affects `exceedance_share_of_positive_surplus`, `beyond_share` and
+#' `excess_share_of_inputs`. Such rows are kept, flagged in
+#' `ratio_outside_unit`, and counted in the diagnostics; they are never
+#' clipped.
 #'
 #' The world sum of `positive_surplus_n_t` equals the sum of the positive unit
 #' surpluses of the valid cells. The world sum of `exceedance_n_t` equals the
@@ -91,8 +102,26 @@
 #' exceedance are non-negative; at world level, summed over all attributed
 #' rows, it is bounded once negative critical surpluses are clamped
 #' (`negative_critical = "clamp"`), because a unit overshoot is then at most
-#' its positive surplus, which is at most its inputs. Under `"keep"` a unit
-#' with a negative critical surplus can overshoot by more than its inputs.
+#' its positive surplus, which is at most its inputs. The last step needs
+#' `surplus_n_t <= n_input_std_t` on every row. That holds for
+#' `surplus_method = "harvest_removal"`, where the surplus is the inputs minus
+#' non-negative harvest removals, but not for `"full_balance"`: its
+#' `n_balance_t` includes soil organic matter mineralisation, which
+#' `n_input_std_t` excludes, so the world share can exceed one even after the
+#' clamp. Under `"keep"` a unit with a negative critical surplus can overshoot
+#' by more than its inputs. The world ratio outside `[0, 1]` is reported in
+#' `world_ratio_outside_unit` of the diagnostics.
+#'
+#' @section Exceedance share of positive surplus:
+#' `exceedance_share_of_positive_surplus = exceedance_n_t /
+#' positive_surplus_n_t`, with the exceedance signed as above. It is `NA` when
+#' `positive_surplus_n_t` is zero or negative, exactly where `beyond_share` is
+#' `NA`. The country ratio is guaranteed to lie in `[0, 1]` only when negative
+#' critical surpluses are clamped and the country's contributions to every
+#' positive unit are non-negative. At world level it is bounded once negative
+#' critical surpluses are clamped, because a unit overshoot is then at most its
+#' positive surplus; unlike the share of inputs, that bound needs no assumption
+#' on the surplus method.
 #'
 #' @param exceedance A [build_n_boundary_exceedance()] result at
 #'   `resolution = "grid"` with `metric = "surplus"`, possibly bound over
@@ -123,12 +152,15 @@
 #'   `exceedance_n_t`, signed).
 #' * `input_std_n_t`: sum of `n_input_std_t` over the same rows, t N.
 #' * `excess_share_of_inputs`: `exceedance_n_t / input_std_n_t`.
+#' * `exceedance_share_of_positive_surplus`: `exceedance_n_t /
+#'   positive_surplus_n_t`, `NA` when the denominator is not positive.
 #' * `positive_surplus_n_t`, `exceeding_surplus_n_t`, `beyond_share`,
-#'   `boundary_side`: see above.
+#'   `exceedance_share_of_positive_surplus`, `boundary_side`: see above.
 #' * `ag_area_ha`: WHEP agricultural area, ha.
 #' * `signed_denominator_nonpositive`: `positive_surplus_n_t` or
 #'   `input_std_n_t` is zero or negative.
-#' * `ratio_outside_unit`: `beyond_share` or `excess_share_of_inputs` lies
+#' * `ratio_outside_unit`: `beyond_share`,
+#'   `exceedance_share_of_positive_surplus` or `excess_share_of_inputs` lies
 #'   outside `[0, 1]` (beyond a rounding tolerance of `1e-9`).
 #' * `nourish`, `sjos_class` when `nourishment` is given.
 #' * `negative_critical`, `land_use`, `grassland_split`, `beyond_share_cut`:
@@ -141,10 +173,14 @@
 #' ratio), `exceedance_n_t` (sum over countries), `unallocated_exceedance_n_t`
 #' (exceedance left on residual rows), `cell_exceedance_n_t` (summed cell
 #' exceedance), `exceedance_gap_n_t` (`cell - country - unallocated`, zero up
-#' to rounding), `positive_surplus_n_t`, `excess_share_of_inputs` (world ratio),
+#' to rounding), `positive_surplus_n_t`,
+#' `exceedance_share_of_positive_surplus` and `excess_share_of_inputs` (world
+#' ratios), `world_ratio_outside_unit` (either world ratio lies outside
+#' `[0, 1]`, beyond the `1e-9` tolerance),
 #' `overshoot_without_surplus_n_t` (overshoot of units with no positive
 #' surplus, zero under the clamp), and the counts `n_undefined_beyond_share`,
-#' `n_undefined_excess_share`, `n_signed_denominator_nonpositive`,
+#' `n_undefined_exceedance_share`, `n_undefined_excess_share`,
+#' `n_signed_denominator_nonpositive`,
 #' `n_ratio_outside_unit`, `n_missing_ag_area`, `n_undefined_attribution_rows`
 #' (crop rows whose attribution is undefined), `n_unallocated_units` (units
 #' whose overshoot sits on a residual record) and `n_unclassified` (`NA`
@@ -430,6 +466,7 @@ build_n_boundary_country <- function(
       "positive_surplus_n_t",
       "exceeding_surplus_n_t",
       "beyond_share",
+      "exceedance_share_of_positive_surplus",
       "boundary_side",
       "ag_area_ha",
       "signed_denominator_nonpositive",
@@ -454,6 +491,11 @@ build_n_boundary_country <- function(
       .data$exceeding_surplus_n_t / .data$positive_surplus_n_t,
       NA_real_
     ),
+    exceedance_share_of_positive_surplus = dplyr::if_else(
+      .data$positive_surplus_n_t > 0,
+      .data$exceedance_n_t / .data$positive_surplus_n_t,
+      NA_real_
+    ),
     excess_share_of_inputs = dplyr::if_else(
       .data$input_std_n_t > 0,
       .data$exceedance_n_t / .data$input_std_n_t,
@@ -467,6 +509,7 @@ build_n_boundary_country <- function(
     signed_denominator_nonpositive = .data$positive_surplus_n_t <= 0 |
       .data$input_std_n_t <= 0,
     ratio_outside_unit = .nbc_outside_unit(.data$beyond_share) |
+      .nbc_outside_unit(.data$exceedance_share_of_positive_surplus) |
       .nbc_outside_unit(.data$excess_share_of_inputs),
     beyond_share_cut = .env$cut
   )
@@ -583,7 +626,9 @@ build_n_boundary_country <- function(
       "cell_exceedance_n_t",
       "exceedance_gap_n_t",
       "positive_surplus_n_t",
+      "exceedance_share_of_positive_surplus",
       "excess_share_of_inputs",
+      "world_ratio_outside_unit",
       "overshoot_without_surplus_n_t",
       dplyr::starts_with("n_")
     ) |>
@@ -643,6 +688,9 @@ build_n_boundary_country <- function(
       exceedance_n_t = sum(.data$exceedance_n_t),
       positive_surplus_n_t = sum(.data$positive_surplus_n_t),
       n_undefined_beyond_share = sum(is.na(.data$beyond_share)),
+      n_undefined_exceedance_share = sum(
+        is.na(.data$exceedance_share_of_positive_surplus)
+      ),
       n_undefined_excess_share = sum(is.na(.data$excess_share_of_inputs)),
       n_signed_denominator_nonpositive = sum(
         .data$signed_denominator_nonpositive
@@ -652,11 +700,20 @@ build_n_boundary_country <- function(
       .by = "year"
     ) |>
     dplyr::mutate(
+      exceedance_share_of_positive_surplus = dplyr::if_else(
+        .data$positive_surplus_n_t > 0,
+        .data$exceedance_n_t / .data$positive_surplus_n_t,
+        NA_real_
+      ),
       excess_share_of_inputs = dplyr::if_else(
         .data$input_std_n_t > 0,
         .data$exceedance_n_t / .data$input_std_n_t,
         NA_real_
-      )
+      ),
+      world_ratio_outside_unit = .nbc_outside_unit(
+        .data$exceedance_share_of_positive_surplus
+      ) |
+        .nbc_outside_unit(.data$excess_share_of_inputs)
     ) |>
     dplyr::left_join(
       .nbc_unclassified(country),
