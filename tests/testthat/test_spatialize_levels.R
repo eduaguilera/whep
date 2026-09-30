@@ -93,6 +93,35 @@
     dplyr::mutate(basis = "prefecture inside JPN-1952-2025")
 }
 
+# The world pin's shape for the same two cells: the container stands where its
+# prefectures will, beside the neighbour that shares cell 2.
+.lv_world_support <- function() {
+  provinces <- .lv_support()
+  dplyr::bind_rows(
+    provinces |>
+      dplyr::filter(polity_code == "USA-1959-2025") |>
+      dplyr::mutate(area_code = 231L),
+    tibble::tibble(
+      polycell_id = c("JPN@1", "JPN@2"),
+      cell_id = c(1L, 2L),
+      lon = c(137.25, 137.75),
+      lat = 35.25,
+      polity_code = "JPN-1952-2025",
+      area_code = 110L,
+      start_year = 1952L,
+      end_year = 2025L,
+      cell_area_ha = c(3000, 4000),
+      land_area_ha = c(3000, 3000)
+    )
+  )
+}
+
+.lv_province_support <- function() {
+  .lv_support() |>
+    dplyr::filter(polity_code != "USA-1959-2025") |>
+    dplyr::mutate(layers_supplied = "water,ice")
+}
+
 # The T37 fixture's country A at level 1 and country B at level 0, with the
 # matching level-0 grid the cross-depth assertion compares against.
 .lv_layer_inputs <- function() {
@@ -544,9 +573,10 @@ testthat::test_that("level 1 keys cells on the unit and the container code", {
   testthat::expect_equal(aichi_1$cell_area_frac, 1, tolerance = 1e-12)
 })
 
-testthat::test_that("level 1 reads the support pin when none is passed", {
+testthat::test_that("level 1 reads the support pins when none is passed", {
   testthat::local_mocked_bindings(
-    read_polycell_support = function(...) .lv_support(),
+    read_polycell_support = function(...) .lv_world_support(),
+    .read_subnational_support = function(...) .lv_province_support(),
     .package = "whep"
   )
   grid <- whep:::read_level_country_grid(
@@ -4832,4 +4862,85 @@ testthat::test_that("a depth read drops a cell with no measured land", {
   )
   testthat::expect_false(any(is.na(grid$cell_area_frac)))
   testthat::expect_false(138.25 %in% grid$lon)
+})
+
+# The default depth support: world pin + subnational pin ---------------------
+
+test_that("the depth support swaps a container for its members only", {
+  edges <- .lv_containment()
+  composed <- .level_compose_support(
+    .lv_world_support(),
+    .lv_province_support(),
+    edges
+  ) |>
+    suppressMessages()
+
+  expect_false("JPN-1952-2025" %in% composed$polity_code)
+  expect_setequal(
+    unique(composed$polity_code),
+    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025", "USA-1959-2025")
+  )
+  # The neighbour keeps its world row, so the shared cell's land is whole.
+  cell2 <- dplyr::filter(composed, cell_id == 2L)
+  expect_equal(sum(cell2$land_area_ha), 4000)
+})
+
+test_that("a depth read with no support reads both pins and matches", {
+  testthat::local_mocked_bindings(
+    read_polycell_support = function(...) .lv_world_support(),
+    .read_subnational_support = function(...) .lv_province_support()
+  )
+  default <- read_level_country_grid(
+    level = 1L,
+    containment = .lv_containment()
+  ) |>
+    suppressMessages()
+  given <- read_level_country_grid(
+    level = 1L,
+    support = .lv_support(),
+    containment = .lv_containment()
+  ) |>
+    suppressMessages()
+
+  expect_equal(default, given, ignore_attr = TRUE)
+  # Aichi holds 1000 of the shared cell's 4000 ha, not 1000 of 3000.
+  aichi2 <- dplyr::filter(
+    default,
+    level_polity_code == "JPN-AICHI-1871-2025",
+    lon == 137.75
+  )
+  expect_equal(aichi2$cell_area_frac, 0.25)
+})
+
+test_that("the subnational reader refuses a missing or layer-less table", {
+  expect_error(
+    .read_subnational_support(path = tempfile(fileext = ".parquet")),
+    "not found"
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) cli::cli_abort("no such pin")
+  )
+  expect_error(
+    .read_subnational_support(path = ""),
+    class = "whep_level_subnational_missing"
+  )
+  bare <- tempfile(fileext = ".parquet")
+  .lv_support() |>
+    dplyr::mutate(inland_water_ha = 0, ice_area_ha = 0) |>
+    nanoparquet::write_parquet(bare)
+  expect_error(
+    .read_subnational_support(path = bare),
+    class = "whep_polycell_absent_layers"
+  )
+})
+
+test_that("the subnational reader returns a supplied local table", {
+  path <- tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(.lv_province_support(), path)
+  read <- .read_subnational_support(path = path)
+  expect_equal(nrow(read), 3L)
+  expect_setequal(
+    unique(read$polity_code),
+    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
+  )
 })

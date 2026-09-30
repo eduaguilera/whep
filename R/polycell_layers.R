@@ -422,6 +422,44 @@ read_polycell_support <- function(
   .polycell_support_role(support, role)
 }
 
+# The subnational support a granted depth reads beside the world pin (see
+# `.level_default_support()`). It is its own pin because the world pin must
+# stay a partition of NATIONAL polities for every level-0 consumer. It carries
+# only province rows, built by `build_polycell_support()` with their
+# neighbouring countries present so a border cell's water is shared the same
+# way the world pin shares it, and it is held to the same supplied-layers
+# gate. `WHEP_POLYCELL_SUBNATIONAL_PATH` points at a local build instead.
+.read_subnational_support <- function(
+  path = Sys.getenv("WHEP_POLYCELL_SUBNATIONAL_PATH", "")
+) {
+  if (nzchar(path)) {
+    if (!file.exists(path)) {
+      cli::cli_abort("Subnational support table not found at {.file {path}}.")
+    }
+    support <- tibble::as_tibble(nanoparquet::read_parquet(path))
+    .check_polycell_layers(support, TRUE, path)
+    return(support)
+  }
+  support <- tryCatch(
+    whep_read_file("polycell_support_subnational"),
+    error = function(e) {
+      cli::cli_abort(
+        c(
+          "The {.val polycell_support_subnational} pin could not be read.",
+          i = "A granted depth needs the province rows. Point
+               {.envvar WHEP_POLYCELL_SUBNATIONAL_PATH} at a local parquet
+               written by {.fn build_polycell_support}, or pass
+               {.arg support} to {.fn read_level_country_grid}."
+        ),
+        parent = e,
+        class = "whep_level_subnational_missing"
+      )
+    }
+  )
+  .check_polycell_layers(support, TRUE, "the polycell_support_subnational pin")
+  tibble::as_tibble(support)
+}
+
 # The guard whep#885 asked for and whep#1010 had to ask for again. It ABORTS,
 # and it asserts the layers were SUPPLIED rather than that the totals
 # reconcile -- the two properties that distinguish it from everything that

@@ -305,13 +305,13 @@ read_level_country_grid <- function(
     ))
   }
   .inform_deep_vintage(level, vintage_given)
-  support <- support %||% read_polycell_support()
-  support <- .level_support_intervals(tibble::as_tibble(support))
   containment <- tibble::as_tibble(containment %||% whep::polity_containment)
   edges <- .level_scope_containers(
     .level_admit_edges(containment, level),
     containers
   )
+  support <- support %||% .level_default_support(edges)
+  support <- .level_support_intervals(tibble::as_tibble(support))
   units <- .level_support_units(support, edges, level)
   grid <- .level_attach_cell_share(units, support, double_claim)
   if (!is.null(reference_year)) {
@@ -600,6 +600,51 @@ admin_coverage_prototype <- function() {
     .grid_vintages(),
     arg_nm = arg
   )
+}
+
+# --- The default support at a granted depth -----------------------------------
+
+# The world pin partitions every cell among NATIONAL polities, and the
+# provinces live in a pin of their own, because neither table can carry both:
+# a container beside its own members is refused by
+# `.level_check_no_double_claim()`, and every level-0 consumer of the world pin
+# -- the carbon path, the cell-polity crosswalk, the water apportionment inside
+# the builder -- would count the same ground twice.
+#
+# So a depth read composes the two. Each container that has members in the
+# province pin is swapped out of the world pin and its members swapped in;
+# every other polity keeps its world row. The neighbours matter: a border
+# cell's land is the denominator of each unit's share, and a support holding
+# the provinces alone hands a province the whole of a cell it shares with the
+# next country. On the nine-country 2015 pilot that was 419 cells in which
+# the neighbour held 57.3 Mha, as much land as the provinces themselves.
+.level_default_support <- function(edges) {
+  .level_compose_support(
+    read_polycell_support(),
+    .read_subnational_support(),
+    edges
+  )
+}
+
+# A container is swapped out whole, over every interval it has, not only where
+# a member is valid. Where the members start later than their container
+# (Chilean regions from 1976 inside `CHL-1902-2025`) the earlier years carry no
+# row for that country at all, so a neighbouring province's share of a border
+# cell is taken over less land than the cell holds in those years. No depth row
+# is emitted for the swapped country then either, so this moves a neighbour's
+# border share and nothing else.
+.level_compose_support <- function(world, provinces, edges) {
+  .check_columns(provinces, c("polity_code", "land_area_ha"), "provinces")
+  present <- unique(provinces$polity_code)
+  swapped <- unique(edges$container_code[edges$member_code %in% present])
+  cli::cli_inform(
+    "Depth support: {length(swapped)} container{?s} replaced by
+     {length(present)} member polit{?y/ies} from the subnational pin."
+  )
+  world |>
+    tibble::as_tibble() |>
+    dplyr::filter(!(.data$polity_code %in% swapped)) |>
+    dplyr::bind_rows(tibble::as_tibble(provinces))
 }
 
 # --- Level 0, at either vintage ----------------------------------------------
