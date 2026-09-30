@@ -114,34 +114,24 @@ create_n_prov_destiny <- function(example = FALSE) {
   ) |>
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
-  processing_excess <- .calculate_processing_excess(
+  # The excess is only surfaced as a warning (#1014), not booked anywhere:
+  # crediting it to processed_fm as well as to the primary item's own
+  # import both attribute the same N twice. The generic local/import trade
+  # split below (.calculate_trade()) already books the processed item's
+  # own resulting shortfall as that item's import.
+  .calculate_processing_excess(
     spain_coefs_observed,
     national_production
   ) |>
-    .warn_processing_excess() |>
-    .backfill_processing_shares(first_year) |>
-    .forwardfill_processing_shares(last_year)
+    .warn_processing_excess()
 
   prod_combined_boxes_no_seeds <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
 
-  # food_and_other_uses only depends on population/PIE data, not on the
-  # processing step below, so it is computed here (rather than after, where
-  # its own inputs would allow) to double as the consumption-share basis for
-  # allocating the import-fed processing excess across provinces.
   food_and_other_uses <- population_yg |>
     .forwardfill_population(last_year) |>
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
-
-  processing_excess_by_province <- .processing_excess_by_province(
-    processing_excess,
-    .processing_excess_shares(
-      spain_coefs,
-      add_feed_output$feed_intake,
-      food_and_other_uses
-    )
-  )
 
   processed <- .calculate_processed_amounts(
     prod_combined_boxes_no_seeds,
@@ -150,41 +140,8 @@ create_n_prov_destiny <- function(example = FALSE) {
     coefs = list(
       items = codes_coefs_items_full,
       biomass = biomass_coefs
-    ),
-    processing_excess_fm = processing_excess_by_province
-  )
-
-  # The import-fed excess pushed some primary items' processing above their
-  # own domestic production; .route_processing_shortfall() folds that
-  # shortfall into the primary item's own default-use bucket (feed/food/
-  # other_uses) so it surfaces as that item's own import instead of vanishing
-  # -- see .processing_import_shortfall() and .subtract_processed_mass().
-  shortfall_routed <- .route_processing_shortfall(
-    processed$import_shortfall,
-    codes_coefs_items_full
-  )
-  feed_intake_final <- dplyr::bind_rows(
-    add_feed_output$feed_intake,
-    shortfall_routed |>
-      dplyr::filter(feed > 0) |>
-      dplyr::transmute(Year, Province_name, Item, feed, food_pets = 0)
-  ) |>
-    dplyr::summarise(
-      feed = sum(feed, na.rm = TRUE),
-      food_pets = sum(food_pets, na.rm = TRUE),
-      .by = c(Year, Province_name, Item)
     )
-  food_and_other_uses_final <- dplyr::bind_rows(
-    food_and_other_uses,
-    shortfall_routed |>
-      dplyr::filter(food > 0 | other_uses > 0) |>
-      dplyr::transmute(Year, Province_name, Item, food, other_uses)
-  ) |>
-    dplyr::summarise(
-      food = sum(food, na.rm = TRUE),
-      other_uses = sum(other_uses, na.rm = TRUE),
-      .by = c(Year, Province_name, Item)
-    )
+  )
 
   grafs_prod_item_trade <- processed$non_processed |>
     .add_grass_wood(biomass_coefs) |>
@@ -193,7 +150,7 @@ create_n_prov_destiny <- function(example = FALSE) {
       codes_coefs_items_full
     ) |>
     .convert_fm_dm_n(biomass_coefs) |>
-    .combine_destinies(feed_intake_final, food_and_other_uses_final) |>
+    .combine_destinies(add_feed_output$feed_intake, food_and_other_uses) |>
     .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
     .calculate_trade() |>
     .finalize_prod_destiny(
@@ -1387,61 +1344,46 @@ build_food_protein_destiny <- function(
 #' booked as `"processing_losses"`. See `.processing_n_scaling()` for why that
 #' needs enforcing and what it costs.
 #'
+#' Processing volume above domestic production
+#' (`.calculate_processing_shares()`'s `share_processing` cap) is left out
+#' of `processed_fm` here, not added back in: Spain's soybean crush runs
+#' almost entirely on imported beans, and crediting that processed volume
+#' to Cropland while also booking the same beans as the primary item's own
+#' import (as an earlier version of this function did, #1014) double-counts
+#' the N once as domestic cake production and once as an imported raw
+#' material. The generic local/import trade split
+#' (`.split_local_consumption()`/`.split_import_consumption()`) already
+#' books the resulting shortfall in the *processed* item's own supply as
+#' that item's import, correctly and without a second booking.
+#' `.warn_processing_excess()` still surfaces the dropped volume so it is
+#' never silently invisible.
+#'
 #' @param prod_combined_boxes Dataframe with production_fm by province.
 #' @param processing_shares Output of `.calculate_processing_shares()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param coefs Named list with `items` (`codes_coefs_items_full`) and
 #' `biomass` (`biomass_coefs`), used to price each item's N per tonne FM.
-#' @param processing_excess_fm Output of `.processing_excess_by_province()`:
-#' processing volume with no domestic production to draw from, already
-#' allocated to provinces by where the processed outputs are consumed. Added
-#' on top of the domestic-production-based `processed_fm` so an
-#' import-dependent item (Spain's soybean crush runs almost entirely on
-#' imported beans) still gets fully processed instead of being capped at
-#' whatever the country grows itself. `NULL` (the default) is equivalent to
-#' an all-zero excess, i.e. the pre-existing domestic-production-only
-#' behaviour.
 #'
-#' @return A list with 'non_processed', 'processed_items',
-#' 'processing_losses' and 'import_shortfall' dataframes.
+#' @return A list with 'non_processed', 'processed_items' and
+#' 'processing_losses' dataframes.
 #' @keywords internal
 #' @noRd
 .calculate_processed_amounts <- function(
   prod_combined_boxes,
   processing_shares,
   spain_coefs,
-  coefs,
-  processing_excess_fm = NULL
+  coefs
 ) {
-  if (is.null(processing_excess_fm)) {
-    processing_excess_fm <- tibble::tibble(
-      Year = numeric(0),
-      Province_name = character(0),
-      Item = character(0),
-      excess_fm = numeric(0)
-    )
-  }
-
   candidate <- prod_combined_boxes |>
     dplyr::left_join(processing_shares, by = c("Year", "Item")) |>
-    dplyr::left_join(
-      processing_excess_fm,
-      by = c("Year", "Province_name", "Item")
-    ) |>
     dplyr::mutate(
       share_processing = dplyr::if_else(
         Box == "Cropland",
         dplyr::coalesce(share_processing, 0),
         0
       ),
-      excess_fm = dplyr::if_else(
-        Box == "Cropland",
-        dplyr::coalesce(excess_fm, 0),
-        0
-      ),
-      processed_fm = production_fm * share_processing + excess_fm
-    ) |>
-    dplyr::select(-excess_fm)
+      processed_fm = production_fm * share_processing
+    )
 
   outputs <- .expand_processed_items(candidate, spain_coefs)
   scaling <- .processing_n_scaling(candidate, outputs, coefs)
@@ -1449,178 +1391,10 @@ build_food_protein_destiny <- function(
   list(
     non_processed = .subtract_processed_mass(candidate, scaling),
     processed_items = .scale_processed_items(outputs, scaling),
-    processing_losses = .compute_processing_losses(candidate, scaling),
-    import_shortfall = .processing_import_shortfall(candidate, scaling)
+    processing_losses = .compute_processing_losses(candidate, scaling)
   )
 }
 
-#' @title Province shares of a primary item's processed-output demand --------
-#' @description Allocates an import-fed processing excess (see
-#' `.calculate_processing_excess()`) across provinces by where the primary
-#' item's own processed outputs are actually consumed (food + feed +
-#' other_uses, summed across every `ProcessedItem` the primary item yields),
-#' not by which province happens to grow a little of the primary item:
-#' imported feedstock has no province of origin, so where it is actually
-#' used is the only sensible allocation key.
-#'
-#' @param spain_coefs Output of `.spain_processing_coefs()`, giving each
-#' primary Item's ProcessedItem outputs.
-#' @param feed_intake Output of `.add_feed()$feed_intake`.
-#' @param food_other_uses Output of `.calculate_food_and_other_uses()`.
-#'
-#' @return A dataframe with Year, Item, Province_name, alloc_share (sums to 1
-#' per Year/Item where any of its outputs has demand, 0 otherwise).
-#' @keywords internal
-#' @noRd
-.processing_excess_shares <- function(
-  spain_coefs,
-  feed_intake,
-  food_other_uses
-) {
-  output_map <- spain_coefs |>
-    dplyr::distinct(Item, ProcessedItem)
-
-  demand_by_output <- feed_intake |>
-    dplyr::summarise(
-      feed = sum(feed, na.rm = TRUE),
-      .by = c(Year, Province_name, Item)
-    ) |>
-    dplyr::full_join(
-      food_other_uses |>
-        dplyr::summarise(
-          food = sum(food, na.rm = TRUE),
-          other_uses = sum(other_uses, na.rm = TRUE),
-          .by = c(Year, Province_name, Item)
-        ),
-      by = c("Year", "Province_name", "Item")
-    ) |>
-    dplyr::mutate(
-      demand = dplyr::coalesce(feed, 0) +
-        dplyr::coalesce(food, 0) +
-        dplyr::coalesce(other_uses, 0)
-    ) |>
-    dplyr::select(Year, Province_name, Item, demand)
-
-  output_map |>
-    dplyr::left_join(
-      demand_by_output,
-      by = c("ProcessedItem" = "Item"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::filter(!is.na(Province_name)) |>
-    dplyr::mutate(demand = dplyr::coalesce(demand, 0)) |>
-    dplyr::summarise(
-      combined_demand = sum(demand, na.rm = TRUE),
-      .by = c(Year, Item, Province_name)
-    ) |>
-    dplyr::mutate(
-      national_demand = sum(combined_demand, na.rm = TRUE),
-      alloc_share = dplyr::if_else(
-        national_demand > 0,
-        combined_demand / national_demand,
-        0
-      ),
-      .by = c(Year, Item)
-    ) |>
-    dplyr::select(Year, Item, Province_name, alloc_share)
-}
-
-#' @title Distribute the import-fed processing excess across provinces ------
-#' @description Combines the national import-fed processing volume (see
-#' `.calculate_processing_excess()`) with each province's share of the
-#' primary item's processed-output demand (see
-#' `.processing_excess_shares()`).
-#'
-#' @param processing_excess Output of `.calculate_processing_excess()`.
-#' @param alloc_shares Output of `.processing_excess_shares()`.
-#'
-#' @return A dataframe with Year, Province_name, Item, excess_fm.
-#' @keywords internal
-#' @noRd
-.processing_excess_by_province <- function(processing_excess, alloc_shares) {
-  processing_excess |>
-    dplyr::left_join(alloc_shares, by = c("Year", "Item")) |>
-    dplyr::mutate(
-      alloc_share = dplyr::coalesce(alloc_share, 0),
-      excess_fm = excess_fm * alloc_share
-    ) |>
-    dplyr::filter(!is.na(Province_name), excess_fm > 0) |>
-    dplyr::select(Year, Province_name, Item, excess_fm)
-}
-
-#' @title N that processing consumed beyond domestic production -------------
-#' @description When the import-fed excess (see
-#' `.calculate_processing_excess()`) pushes `processed_fm` above what a
-#' province produced, `.subtract_processed_mass()` floors the primary item's
-#' remaining production at zero instead of going negative. The difference is
-#' the primary item's own import requirement -- raw material that has to be
-#' imported before it can be processed -- and is returned here so it can be
-#' folded into the primary item's own demand (see
-#' `.route_processing_shortfall()`) instead of vanishing.
-#'
-#' @param candidate Production rows with processed_fm, as built by
-#' `.calculate_processed_amounts()`.
-#' @param scaling Output of `.processing_n_scaling()`.
-#'
-#' @return A dataframe with Year, Province_name, Item, shortfall_fm.
-#' @keywords internal
-#' @noRd
-.processing_import_shortfall <- function(candidate, scaling) {
-  candidate |>
-    dplyr::left_join(
-      scaling |>
-        dplyr::select(Year, Province_name, Name_biomass, Item, remove_mass),
-      by = c("Year", "Province_name", "Name_biomass", "Item")
-    ) |>
-    dplyr::mutate(
-      shortfall_fm = pmax(
-        processed_fm * dplyr::coalesce(remove_mass, 0) - production_fm,
-        0
-      )
-    ) |>
-    dplyr::filter(shortfall_fm > 0) |>
-    dplyr::summarise(
-      shortfall_fm = sum(shortfall_fm, na.rm = TRUE),
-      .by = c(Year, Province_name, Item)
-    )
-}
-
-#' @title Route a primary item's processing shortfall to its default use ----
-#' @description Adds the processing shortfall (see
-#' `.processing_import_shortfall()`) to whichever of food/feed/other_uses
-#' matches the primary item's own `default_destiny`, so its own import ends
-#' up counted under the same destiny its direct consumption already uses --
-#' no new destiny category, matching the food/feed/other_uses split the rest
-#' of the pipeline already has. Items whose `default_destiny` is neither
-#' "Feed" nor "Food" (including NA) fall back to "Other_uses" so the mass is
-#' never silently dropped.
-#'
-#' @param shortfall Output of `.processing_import_shortfall()`.
-#' @param codes_coefs_items_full Dataframe linking items to `default_destiny`.
-#'
-#' @return A dataframe with Year, Province_name, Item, feed, food,
-#' other_uses (exactly one non-zero per row).
-#' @keywords internal
-#' @noRd
-.route_processing_shortfall <- function(shortfall, codes_coefs_items_full) {
-  destiny_map <- codes_coefs_items_full |>
-    dplyr::distinct(item, default_destiny) |>
-    dplyr::rename(Item = item)
-
-  shortfall |>
-    dplyr::left_join(destiny_map, by = "Item") |>
-    dplyr::mutate(
-      default_destiny = dplyr::coalesce(default_destiny, ""),
-      feed = dplyr::if_else(default_destiny == "Feed", shortfall_fm, 0),
-      food = dplyr::if_else(default_destiny == "Food", shortfall_fm, 0),
-      other_uses = dplyr::if_else(
-        !default_destiny %in% c("Feed", "Food"),
-        shortfall_fm,
-        0
-      )
-    ) |>
-    dplyr::select(Year, Province_name, Item, feed, food, other_uses)
-}
 
 #' @title Expand processed input mass into processed item quantities -----------
 #' @description Aggregates the processed input mass per item and converts it
@@ -1892,12 +1666,9 @@ build_food_protein_destiny <- function(
       by = c("Year", "Province_name", "Name_biomass", "Item")
     ) |>
     dplyr::mutate(
-      # Floored at 0 rather than left negative: when processed_fm includes
-      # the import-fed excess (.calculate_processing_excess()), it can exceed
-      # this province's own production_fm. The shortfall is the primary
-      # item's own import requirement, tracked separately by
-      # .processing_import_shortfall() instead of leaking through here as a
-      # negative production value.
+      # share_processing is capped at 1 (.calculate_processing_shares()), so
+      # processed_fm never exceeds this row's own production_fm; the pmax(0)
+      # is a defensive floor, not a live case.
       production_fm = pmax(
         production_fm - processed_fm * dplyr::coalesce(remove_mass, 0),
         0
