@@ -48,7 +48,8 @@ build_human_n(
   population_basis = c("total", "urban"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  method_residual = c("nearest", "polity", "keep", "drop")
 )
 
 build_urban_n(...)
@@ -124,6 +125,54 @@ build_urban_n(...)
   If `TRUE`, return a small fixture instead of reading data. Defaults to
   `FALSE`.
 
+- method_residual:
+
+  What happens to human N that the transport step cannot deliver and
+  that sits on a source cell with **no cropland** (the residual on a
+  source cell that has cropland is applied there under every method). On
+  the 2010 global grid, under the default `"total"` basis, this is
+  13,198 cells and 47,365 t N, 0.700% of the 6.77 Mt of human N; under
+  `"nearest"` 2,145 t of it stays stranded, in the three polities with
+  no cropland cell that year (Qatar, Iceland, Samoa).
+
+  - `"nearest"` (default): run the transport step's own rule again with
+    a growing radius. Each such cell offers its nitrogen to the
+    same-polity cropland cells in its nearest ring (Chebyshev distance
+    in 0.5-degree steps, wrapped at the antimeridian) that still has
+    room, in proportion to that room; a cell's room is its 170 kg N/ha
+    ceiling minus the human N already on it, and an over-subscribed cell
+    is filled only to its room. The radius grows one ring at a time
+    until the nitrogen is placed or the polity has no room left.
+    Conserves mass and keeps the nitrogen as close to the people who
+    produced it as the room allows. No distance cap or transport
+    coefficient is applied.
+
+  - `"polity"`: pool it per polity-year and spread it over all of that
+    polity-year's cropland in proportion to cropland room (area), the
+    rule
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+    applies under `method_unsupported = "reallocate"`. Conserves mass,
+    but places the nitrogen anywhere in the polity.
+
+  - `"keep"`: leave it on its source cell, as before this argument
+    existed, flagged in `human_n_stranded_t`.
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
+    `method_unsupported` then decides its fate (by default, it aborts).
+
+  - `"drop"`: discard it. Loses the mass, biased towards dense,
+    cropland-free cells.
+
+  `"nearest"` and `"polity"` never cross a polity, like the transport
+  step itself, so a polity-year with population and no cropland anywhere
+  keeps its nitrogen on the source cell under either, flagged in
+  `human_n_stranded_t`; `"nearest"` does the same with whatever its
+  polity has no room left for. Whenever any cell is undelivered, the
+  count, the tonnes and the share of human N are reported (a warning,
+  class `whep_human_n_undelivered`, when any nitrogen is dropped or left
+  stranded; otherwise a message of the same class), and the per-year
+  figures are attached as `attr(x, "human_n_undelivered")`. Recorded in
+  the `method_human_residual` output column.
+
 - ...:
 
   For `build_urban_n()`, arguments passed on to `build_human_n()`.
@@ -134,11 +183,18 @@ build_urban_n(...)
 ## Value
 
 A tibble with `lon`, `lat`, `area_code`, `year`, `human_n_t`,
+`human_n_relocated_t` (the part of `human_n_t` placed on the cell by
+`method_residual`), `human_n_stranded_t` (the part sitting on a cell
+with no cropland, which no downstream cropland allocation can place),
 `method_human`, `method_human_population` (`"total_population"` or
-`"urban_population"`) and `method_human_kgn_cap`
-(`"kg_n_per_total_inhabitant"` or `"kg_n_per_urban_inhabitant"`), plus
-the polity columns below, plus `reporting_polity_out_of_span` when
-`polity_validity = "flag"`.
+`"urban_population"`), `method_human_kgn_cap`
+(`"kg_n_per_total_inhabitant"` or `"kg_n_per_urban_inhabitant"`) and
+`method_human_residual`, plus the polity columns below, plus
+`reporting_polity_out_of_span` when `polity_validity = "flag"`. The
+attribute `"human_n_undelivered"` is a tibble with one row per year:
+`year`, `human_n_t`, `n_cells` (undelivered source cells),
+`undelivered_t`, `relocated_t`, `stranded_t`, `dropped_t`,
+`undelivered_share` (of `human_n_t`) and `method_human_residual`.
 
 ## Details
 
@@ -207,11 +263,13 @@ extra column.
 
 ``` r
 build_human_n(example = TRUE)
-#> # A tibble: 1 × 12
+#> # A tibble: 1 × 15
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020       203              203 ESP-1800-2025         Spain                
-#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
-#> #   lat <dbl>, human_n_t <dbl>, method_human <chr>,
-#> #   method_human_population <chr>, method_human_kgn_cap <chr>
+#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, human_n_t <dbl>, human_n_relocated_t <dbl>,
+#> #   human_n_stranded_t <dbl>, method_human <chr>,
+#> #   method_human_population <chr>, method_human_kgn_cap <chr>,
+#> #   method_human_residual <chr>
 ```

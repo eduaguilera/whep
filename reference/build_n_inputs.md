@@ -249,6 +249,13 @@ build_n_inputs(
     population aborts. Recorded in `method_human_population` and
     `method_human_kgn_cap`.
 
+  - `human_n_method_residual`:
+    [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)'s
+    `method_residual` (`"nearest"` default, `"polity"`, `"keep"` or
+    `"drop"`), for human N the transport step leaves on a source cell
+    with no cropland. Only what that rule leaves stranded reaches
+    `method_unsupported`.
+
   - `carbon_balance`:
     [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)'s
     `"grid"`-resolution output (`lon`, `lat`, `area_code`, `land_use`,

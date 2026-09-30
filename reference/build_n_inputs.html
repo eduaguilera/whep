@@ -290,6 +290,10 @@ support).</p></li>
 <code>"urban"</code> (<code>urban_population</code> with the per-urban-inhabitant rate).
 Supplying only the other basis's population aborts. Recorded in
 <code>method_human_population</code> and <code>method_human_kgn_cap</code>.</p></li>
+<li><p><code>human_n_method_residual</code>: <code><a href="build_human_n.html">build_human_n()</a></code>'s <code>method_residual</code>
+(<code>"nearest"</code> default, <code>"polity"</code>, <code>"keep"</code> or <code>"drop"</code>), for human N
+the transport step leaves on a source cell with no cropland. Only what
+that rule leaves stranded reaches <code>method_unsupported</code>.</p></li>
 <li><p><code>carbon_balance</code>: <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>'s <code>"grid"</code>-resolution
 output (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>land_use</code>, <code>year</code>, <code>area_ha</code>,
 <code>son_change_kgn_ha</code>); this driver requires it supplied directly, it
