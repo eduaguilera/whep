@@ -25,6 +25,7 @@ build_carbon_inputs(
   method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   method_input_cn = c("known_crops", "require_all"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 )
 ```
@@ -160,7 +161,10 @@ assembled per the WHEP historical carbon-balance design.
   Reallocation needs a national area to put the carbon on, so a
   polity-crop with no `harvested_area` row – and a polity with no cell
   at all in the support, which no rule here can reach (see whep#1002) –
-  is dropped under all three methods, reported separately.
+  is dropped under all three methods, reported separately. Under either
+  `method_crop_weights`, the fodder layer only fills the polity-crops
+  that year's crop weights do not place, and the 83.6 Mt C figure above
+  was measured on the static weights.
 
 - method_input_cn:
 
@@ -175,6 +179,26 @@ assembled per the WHEP historical carbon-balance design.
   ratio its other crops measured. Recorded in `method_input_cn` on
   cropland rows.
 
+- method_crop_weights:
+
+  Where each crop's within-polity cell weights come from.
+  `"spatialized"` (default) takes them from the spatialization engine's
+  crop-level output,
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  run on the pinned spatialization inputs and the same cell support,
+  year by year: the crop's placement follows that year's cropland, its
+  irrigated share and the engine's per-cell capacity ceiling, so the
+  carbon lands where the gridded land use puts the crop.
+  `data$gridded_crops` supplies that output pre-built. `"static"` uses
+  the time-invariant `crop_patterns` layer (`harvest_fraction` times
+  each cell's cropland averaged over every year of the gridded-cropland
+  pin), one map for every year, which is what the package did before
+  (whep#1002). Measured on the pins, the L1 distance between the two
+  cell-share vectors of a polity-crop (0 = same placement, 2 = disjoint)
+  has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and 0.47
+  in 2020. Polity totals are the same under both; only where the carbon
+  sits moves. Recorded in `method_crop_weights`.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -185,10 +209,11 @@ assembled per the WHEP historical carbon-balance design.
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
 `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
-`method_unspatialized` and `method_input_cn` (both `NA` on the grassland
-and natural classes, which are neither spatialized from polity-crop
-totals nor collapsed from crops), for `land_use` in `"cropland"`,
-`"grassland"` and `"natural"`, plus the polity columns below.
+`method_unspatialized`, `method_input_cn` and `method_crop_weights` (all
+`NA` on the grassland and natural classes, which are neither spatialized
+from polity-crop totals nor collapsed from crops), for `land_use` in
+`"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
+below.
 
 ## Polity columns
 

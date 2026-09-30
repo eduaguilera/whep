@@ -115,6 +115,7 @@ fraction re-derived from the polity totals.</p>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  method_unspatialized <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fodder_pattern"</span>, <span class="st">"reallocate"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  method_crop_weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"spatialized"</span>, <span class="st">"static"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -142,8 +143,12 @@ case-insensitively), and <code>territory</code> a stringified <code>area_code</c
 <code>area_code</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_frac</code>, the polycell's
 share of the cell's land), refused when a cell-<code>area_code</code> group is
 duplicated or <code>NA</code> (DA-23);
-<code>crop_patterns</code> (the spatialization input carrying per-cell
-<code>crop_area_ha</code>); <code>harvested_area</code> (the
+<code>crop_patterns</code> (the static per-cell <code>crop_area_ha</code> layer, read only
+under <code>method_crop_weights = "static"</code>); <code>gridded_crops</code> (the crop-level
+<code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> output on the same <code>country_grid</code> support,
+<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>, <code>rainfed_ha</code>,
+<code>irrigated_ha</code>, read only under <code>"spatialized"</code> and built from the pinned
+spatialization inputs when absent); <code>harvested_area</code> (the
 FAOSTAT national harvested area per <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>
 in a <code>faostat_area_ha</code> column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are
@@ -199,7 +204,28 @@ and the choice is recorded in <code>method_unspatialized</code>. Reallocation ne
 national area to put the carbon on, so a polity-crop with no
 <code>harvested_area</code> row – and a polity with no cell at all in the support,
 which no rule here can reach (see whep#1002) – is dropped under all
-three methods, reported separately.</p></dd>
+three methods, reported separately. Under either <code>method_crop_weights</code>,
+the fodder layer only fills the polity-crops that year's crop weights do
+not place, and the 83.6 Mt C figure above was measured on the static
+weights.</p></dd>
+
+
+<dt id="arg-method-crop-weights">method_crop_weights<a class="anchor" aria-label="anchor" href="#arg-method-crop-weights"></a></dt>
+<dd><p>Where each crop's within-polity cell weights
+come from. <code>"spatialized"</code> (default) takes them from the spatialization
+engine's crop-level output, <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> run on the pinned
+spatialization inputs and the same cell support, year by year: the
+crop's placement follows that year's cropland, its irrigated share and
+the engine's per-cell capacity ceiling, so the carbon lands where the
+gridded land use puts the crop. <code>data$gridded_crops</code> supplies that output
+pre-built. <code>"static"</code> uses the time-invariant <code>crop_patterns</code> layer
+(<code>harvest_fraction</code> times each cell's cropland averaged over every year
+of the gridded-cropland pin), one map for every year, which is what the
+package did before (whep#1002). Measured on the pins, the L1 distance
+between the two cell-share vectors of a polity-crop (0 = same placement,
+2 = disjoint) has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and
+0.47 in 2020. Polity totals are the same under both; only where the
+carbon sits moves. Recorded in <code>method_crop_weights</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -213,7 +239,8 @@ data. Defaults to <code>FALSE</code>.</p></dd>
 <code>"grid"</code> resolution (or <code>(area_code, item_prod_code, year)</code> at
 <code>"polity"</code>), with <code>residue_c_mgc_ha_yr</code>, <code>root_c_mgc_ha_yr</code>,
 <code>weed_c_mgc_ha_yr</code>, <code>manure_c_mgc_ha_yr</code>, <code>total_c_input_mgc_ha_yr</code>,
-<code>humified_fraction</code>, <code>method_c_input</code>, <code>method_unspatialized</code> and
+<code>humified_fraction</code>, <code>method_c_input</code>, <code>method_unspatialized</code>,
+<code>method_crop_weights</code> and
 <code>crop_area_ha</code> – the crop's area at that grain on the basis the
 densities are computed on: the FAOSTAT-renormalised cell area where a
 national harvested area was supplied, the spatialized area otherwise, so
@@ -262,18 +289,19 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_soil_carbon_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 18</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 19</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_prod_code &lt;chr&gt;, crop_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   residue_c_mgc_ha_yr &lt;dbl&gt;, root_c_mgc_ha_yr &lt;dbl&gt;, weed_c_mgc_ha_yr &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   manure_c_mgc_ha_yr &lt;dbl&gt;, total_c_input_mgc_ha_yr &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   humified_fraction &lt;dbl&gt;, method_c_input &lt;chr&gt;, method_unspatialized &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   humified_fraction &lt;dbl&gt;, method_c_input &lt;chr&gt;, method_unspatialized &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_crop_weights &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

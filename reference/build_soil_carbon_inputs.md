@@ -44,6 +44,7 @@ build_soil_carbon_inputs(
   data = list(),
   years = NULL,
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 )
 ```
@@ -72,13 +73,18 @@ build_soil_carbon_inputs(
   `country_grid`, the polycell support resolved to one row per cell and
   `area_code` (`lon`, `lat`, `area_code`, `cell_area_frac`, the
   polycell's share of the cell's land), refused when a cell-`area_code`
-  group is duplicated or `NA` (DA-23); `crop_patterns` (the
-  spatialization input carrying per-cell `crop_area_ha`);
-  `harvested_area` (the FAOSTAT national harvested area per `area_code`,
-  `item_prod_code`, `year` in a `faostat_area_ha` column, used to
-  renormalize each polity-crop-year's spatialized cell area to the
-  national total so per-hectare densities are the national density and
-  carbon mass is conserved; defaults to the same
+  group is duplicated or `NA` (DA-23); `crop_patterns` (the static
+  per-cell `crop_area_ha` layer, read only under
+  `method_crop_weights = "static"`); `gridded_crops` (the crop-level
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  output on the same `country_grid` support, `lon`, `lat`, `area_code`,
+  `item_prod_code`, `year`, `rainfed_ha`, `irrigated_ha`, read only
+  under `"spatialized"` and built from the pinned spatialization inputs
+  when absent); `harvested_area` (the FAOSTAT national harvested area
+  per `area_code`, `item_prod_code`, `year` in a `faostat_area_ha`
+  column, used to renormalize each polity-crop-year's spatialized cell
+  area to the national total so per-hectare densities are the national
+  density and carbon mass is conserved; defaults to the same
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
   table the NPP reader uses, and is skipped when a hand-supplied `npp`
   keeps the pipeline offline unless supplied here);
@@ -133,7 +139,30 @@ build_soil_carbon_inputs(
   Reallocation needs a national area to put the carbon on, so a
   polity-crop with no `harvested_area` row – and a polity with no cell
   at all in the support, which no rule here can reach (see whep#1002) –
-  is dropped under all three methods, reported separately.
+  is dropped under all three methods, reported separately. Under either
+  `method_crop_weights`, the fodder layer only fills the polity-crops
+  that year's crop weights do not place, and the 83.6 Mt C figure above
+  was measured on the static weights.
+
+- method_crop_weights:
+
+  Where each crop's within-polity cell weights come from.
+  `"spatialized"` (default) takes them from the spatialization engine's
+  crop-level output,
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  run on the pinned spatialization inputs and the same cell support,
+  year by year: the crop's placement follows that year's cropland, its
+  irrigated share and the engine's per-cell capacity ceiling, so the
+  carbon lands where the gridded land use puts the crop.
+  `data$gridded_crops` supplies that output pre-built. `"static"` uses
+  the time-invariant `crop_patterns` layer (`harvest_fraction` times
+  each cell's cropland averaged over every year of the gridded-cropland
+  pin), one map for every year, which is what the package did before
+  (whep#1002). Measured on the pins, the L1 distance between the two
+  cell-share vectors of a polity-crop (0 = same placement, 2 = disjoint)
+  has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and 0.47
+  in 2020. Polity totals are the same under both; only where the carbon
+  sits moves. Recorded in `method_crop_weights`.
 
 - example:
 
@@ -146,12 +175,12 @@ A tibble keyed by `(lon, lat, area_code, item_prod_code, year)` at
 `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-`humified_fraction`, `method_c_input`, `method_unspatialized` and
-`crop_area_ha` – the crop's area at that grain on the basis the
-densities are computed on: the FAOSTAT-renormalised cell area where a
-national harvested area was supplied, the spatialized area otherwise, so
-a consumer can recover the carbon mass without re-deriving it – plus the
-polity columns below.
+`humified_fraction`, `method_c_input`, `method_unspatialized`,
+`method_crop_weights` and `crop_area_ha` – the crop's area at that grain
+on the basis the densities are computed on: the FAOSTAT-renormalised
+cell area where a national harvested area was supplied, the spatialized
+area otherwise, so a consumer can recover the carbon mass without
+re-deriving it – plus the polity columns below.
 
 ## Polity columns
 
@@ -208,16 +237,17 @@ extra column.
 
 ``` r
 build_soil_carbon_inputs(example = TRUE)
-#> # A tibble: 4 × 18
+#> # A tibble: 4 × 19
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
 #> 2  2020         1                1 ARM-1991-2025         Armenia              
 #> 3  2020         1                1 ARM-1991-2025         Armenia              
 #> 4  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 13 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 14 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_prod_code <chr>, crop_area_ha <dbl>,
 #> #   residue_c_mgc_ha_yr <dbl>, root_c_mgc_ha_yr <dbl>, weed_c_mgc_ha_yr <dbl>,
 #> #   manure_c_mgc_ha_yr <dbl>, total_c_input_mgc_ha_yr <dbl>,
-#> #   humified_fraction <dbl>, method_c_input <chr>, method_unspatialized <chr>
+#> #   humified_fraction <dbl>, method_c_input <chr>, method_unspatialized <chr>,
+#> #   method_crop_weights <chr>
 ```
