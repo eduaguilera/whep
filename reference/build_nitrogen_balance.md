@@ -36,10 +36,12 @@ build_nitrogen_balance(
   [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md),
   default `"manner"`), `n2o` (forwarded to
   [`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md),
-  default `"ipcc2019"`, the globally applicable IPCC 2019 Tier 1 method)
-  and `leaching` (forwarded to
+  default `"ipcc2019"`, the globally applicable IPCC 2019 Tier 1
+  method), `leaching` (forwarded to
   [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
-  default `"meisinger_drainage"`).
+  default `"meisinger_drainage"`) and `regime`, how each grid row is
+  split into a rainfed and an irrigated part (see Details):
+  `"yield_split"` (default), `"area_split"` or `"none"`.
 
 - resolution:
 
@@ -138,6 +140,10 @@ build_nitrogen_balance(
     [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
     as a numeric vector aligned to the balance-key rows, or already
     present as a `drainage_mm` column via `n_balance_leaching_drivers`.
+    At grid resolution the rainfed/irrigated split doubles the rows, so
+    an aligned vector only fits with `methods$regime = "none"`;
+    otherwise supply drainage as a column of
+    `n_balance_leaching_drivers`.
 
 - gwp:
 
@@ -153,30 +159,58 @@ build_nitrogen_balance(
 ## Value
 
 A tibble keyed by `year`/`area_code`/`item_cbs_code` (plus `lon`/`lat`
-at `resolution = "grid"`) with `area_ha` (each crop's harvested hectares
-in the cell, summed over cells at `resolution = "polity"`; used
-downstream to convert tonnes N to a per-hectare rate), the input
-aggregates (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
-`n_input_som_t`, `n_input_for_n2o_t`), the output aggregates
-(`n_output_residues_t`, `n_output_som_t`, `n_output_useful_t`,
-`n_output_std_t`, `n_output_full_t`), the loss terms (`nh3_n_t`,
-`n2o_direct_n_t`, `no3_n_t`, `denitrification_n_t`,
-`n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`), the (post-cap)
-`som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
-the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
-`nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-`method_soil_n2o`/`method_leaching` provenance columns, plus the polity
-columns below. When the supplied `n_inputs` carry them, the
-`method_recycling_n`, `method_synthetic`, `method_deposition`,
-`method_deposition_scope`, `method_human_population`,
-`method_human_kgn_cap`, `method_unsupported`, `method_manure` and
-`method_unattributed` stamps from
+at `resolution = "grid"`, and `water_regime`, `"rainfed"` or
+`"irrigated"`, at grid resolution unless `methods$regime = "none"`) with
+`area_ha` (each crop's harvested hectares in the cell, summed over cells
+at `resolution = "polity"`; used downstream to convert tonnes N to a
+per-hectare rate), the input aggregates (`n_input_full_t`,
+`n_input_full_nosom_t`, `n_input_std_t`, `n_input_som_t`,
+`n_input_for_n2o_t`), the output aggregates (`n_output_residues_t`,
+`n_output_som_t`, `n_output_useful_t`, `n_output_std_t`,
+`n_output_full_t`), the loss terms (`nh3_n_t`, `n2o_direct_n_t`,
+`no3_n_t`, `denitrification_n_t`, `n2o_indirect_no3_n_t`,
+`n2o_indirect_nh3_n_t`), the (post-cap) `som_sequestration_n_t`,
+`n_balance_t`, `surplus_t`, `surplus_share`, the five NUE ratios
+(`nue_std`, `nue_residues`, `nue_som`, `nue_useful`, `nue_full`),
+`total_gwp_co2e_kg`, and the `method_nh3`/
+`method_soil_n2o`/`method_leaching` provenance columns, `method_regime`
+and `method_regime_split` when the split ran (`"yield_ratio"`;
+`"area_no_production"` where the crop's production could not be
+expressed in fresh weight and the area share was used for everything;
+`"regime_shares"` for shares supplied as `data$regime_shares`; or
+`"no_regime_share"` for a row booked wholly rainfed because the regime
+layer does not cover it), plus the polity columns below. When the
+supplied `n_inputs` carry them, the `method_recycling_n`,
+`method_synthetic`, `method_deposition`, `method_deposition_scope`,
+`method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
+`method_manure` and `method_unattributed` stamps from
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
 are carried through as well, so a balance names the input conventions
 that produced it. Gains `reporting_polity_out_of_span` when
 `polity_validity = "flag"`.
 
 ## Details
+
+**Rainfed/irrigated split.** At grid resolution each crop row is split
+into a rainfed and an irrigated part before the losses are computed, so
+regime-specific loss drivers can attach. Two shares per row drive it:
+the irrigated share of the crop's cell area, from the spatialization
+chain's rainfed/irrigated hectares
+([`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)),
+and the irrigated share of its production, from
+[`split_regime_yield()`](https://eduaguilera.github.io/whep/reference/split_regime_yield.md)
+on the ratio of
+[`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md).
+Synthetic N, production N and the residue destinies (used, bedding,
+burnt) split by the production share, on the assumption that N
+availability per unit of yield is the same in both regimes; every other
+input, the harvested area, grazed weeds and SOM sequestration split by
+the area share. Summing the two parts reproduces the unsplit balance for
+every additive column. `"area_split"` uses the area share for everything
+and `"none"` returns the unsplit balance. The shares can be supplied as
+`data$regime_shares` (`lon`, `lat`, `area_code`, `item_cbs_code`,
+`year`, `irrigated_area_share`, `irrigated_yield_share`). Loss-driver
+tables without a `water_regime` column apply to both parts.
 
 `polity_validity` is forwarded to
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)

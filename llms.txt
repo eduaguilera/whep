@@ -375,6 +375,22 @@ dynamics.
 
 - [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
   : Read an LPJmL hydrology variable into a tidy tibble.
+- [`read_lpjml_litterfall()`](https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.md)
+  : Read litterfall by land-use class from an LPJmL run.
+- [`read_lpjml_natural_cover()`](https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.md)
+  : Read natural-land soil cover from an LPJmL run.
+- [`read_lpjml_npp()`](https://eduaguilera.github.io/whep/reference/read_lpjml_npp.md)
+  : Read a per-PFT annual LPJmL carbon variable into a tidy tibble.
+- [`read_lpjml_regime_yield()`](https://eduaguilera.github.io/whep/reference/read_lpjml_regime_yield.md)
+  : Read LPJmL irrigated and rainfed crop yields per cell.
+- [`read_spam_yields()`](https://eduaguilera.github.io/whep/reference/read_spam_yields.md)
+  : Read SPAM harvested area, production and yield by crop and
+  technology.
+- [`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)
+  : Build the irrigated:rainfed yield ratio per cell, crop and year.
+- [`split_regime_yield()`](https://eduaguilera.github.io/whep/reference/split_regime_yield.md)
+  : Split a cell-crop's production between its rainfed and irrigated
+  regimes.
 - [`read_cru_climate()`](https://eduaguilera.github.io/whep/reference/read_cru_climate.md)
   : Read a CRU TS 4.09 monthly climate variable into a tidy tibble.
 - [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
@@ -945,6 +961,8 @@ Lookup and coefficient tables used internally across the pipeline.
   : Synthetic nitrogen application rates by crop and country
 - [`primary_double`](https://eduaguilera.github.io/whep/reference/primary_double.md)
   : Items with double-counting in production statistics
+- [`regime_yield_crop_mapping`](https://eduaguilera.github.io/whep/reference/regime_yield_crop_mapping.md)
+  : Crop sources for the irrigated:rainfed regime yield ratio
 - [`smil_2001_synthetic_n_global`](https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.md)
   : Smil (2001) global synthetic nitrogen production, 1913-2000
 

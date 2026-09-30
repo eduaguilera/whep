@@ -386,9 +386,11 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   treat the env var as an override. Prefer this over a pin, which adds
   an uncheckable second copy (#457). Current cases: the LUH2 `states.nc`
   ([`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
-  Zenodo record 15556812) and the critical-nitrogen archive
+  Zenodo record 15556812), the critical-nitrogen archive
   ([`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md),
-  Zenodo record 6395016).
+  Zenodo record 6395016) and SPAM2010
+  ([`read_spam_yields()`](https://eduaguilera.github.io/whep/reference/read_spam_yields.md),
+  Harvard Dataverse <doi:10.7910/DVN/PRFF8V>, override `WHEP_SPAM_DIR`).
 
 #### Fixing the reader is half the job: the pin it feeds is now stale
 

@@ -94,6 +94,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_protein_quality.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_protein_requirement.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_protein_score.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_residue_bedding_supply.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.html</loc></url>
@@ -353,6 +354,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_litterfall.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_natural_cover.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_npp.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_regime_yield.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_wind.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_luh2_landuse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_luh2_terrestrial.html</loc></url>
@@ -361,9 +363,11 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_ph.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_spam_yields.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_wpp_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/record_provenance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/redistribute_feed.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/regime_yield_crop_mapping.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/regional_mms_distribution.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/residue_humification.html</loc></url>
@@ -389,6 +393,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/som_ranges.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/split_manure_management.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/split_regime_yield.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/stamp_inputs_supplied.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/subsoil_no3_reduction.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/summarise_conservation.html</loc></url>
