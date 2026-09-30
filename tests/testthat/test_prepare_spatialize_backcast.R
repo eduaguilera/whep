@@ -37,7 +37,7 @@
 
 
 test_that(".backcast_crop_areas is a no-op when no year precedes the base", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   crop_areas <- .bc_crop_areas()
   out <- .backcast_crop_areas(
     crop_areas,
@@ -50,7 +50,7 @@ test_that(".backcast_crop_areas is a no-op when no year precedes the base", {
 
 
 test_that(".backcast_crop_areas scales each crop by its own LUH2 type", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   out <- .backcast_crop_areas(
     .bc_crop_areas(),
     .bc_luh2_totals(),
@@ -75,7 +75,7 @@ test_that(".backcast_crop_areas scales each crop by its own LUH2 type", {
 
 
 test_that(".backcast_crop_areas holds the mix within a LUH2 type", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   out <- .backcast_crop_areas(
     .bc_crop_areas(),
     .bc_luh2_totals(),
@@ -92,7 +92,7 @@ test_that(".backcast_crop_areas holds the mix within a LUH2 type", {
 
 
 test_that(".backcast_crop_areas keeps the base rows untouched", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   crop_areas <- .bc_crop_areas()
   out <- .backcast_crop_areas(
     crop_areas,
@@ -110,7 +110,7 @@ test_that(".backcast_crop_areas keeps the base rows untouched", {
 
 
 test_that(".backcast_crop_areas drops a country with no base LUH2 area", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   # area 20 has 1750 LUH2 cropland but none in the base year, so the ratio is
   # undefined; it must be dropped rather than divided by zero.
   luh2 <- dplyr::bind_rows(
@@ -138,7 +138,7 @@ test_that(".backcast_crop_areas drops a country with no base LUH2 area", {
 
 
 test_that(".backcast_crop_areas emits no zero or negative areas", {
-  skip_if_not(exists(".backcast_crop_areas", mode = "function"))
+  .need_spatialize_helper(".backcast_crop_areas")
   luh2 <- .bc_luh2_totals()
   luh2$crop_ha[luh2$year == 1750L & luh2$luh2_type == "c4ann"] <- 0
   out <- .backcast_crop_areas(.bc_crop_areas(), luh2, 1750:1852)
