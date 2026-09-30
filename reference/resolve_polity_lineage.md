@@ -133,10 +133,10 @@ support <- tibble::tribble(
   "RUS-2014-2025",       2014L,     2025L
 )
 resolve_polity_lineage(national, support)
-#> # A tibble: 2 × 7
+#> # A tibble: 2 × 6
 #>   area_code  year harvested_area_ha lineage_polity_code method_polity_lineage
 #>       <dbl> <int>             <dbl> <chr>               <chr>                
 #> 1       185  1961          85049155 F228-1945-1991      predecessor          
 #> 2       185  2015          45000000 RUS-2014-2025       anchor               
-#> # ℹ 2 more variables: lineage_polity_name <chr>, geom <MULTIPOLYGON [°]>
+#> # ℹ 1 more variable: lineage_polity_name <chr>
 ```
