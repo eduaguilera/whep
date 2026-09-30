@@ -165,6 +165,7 @@ build_n_boundary_country <- function(
     return(.example_n_boundary_country())
   }
   .nbc_check_cut(beyond_share_cut)
+  surplus <- .nbc_collapse_regimes(surplus)
   crop <- .nbc_crop_rows(exceedance, surplus)
   country <- .nbc_country(crop, ag_land, beyond_share_cut) |>
     .nbc_add_class(nourishment)
@@ -315,6 +316,34 @@ build_n_boundary_country <- function(
     }
   )
   invisible(exceedance)
+}
+
+# A balance split into rainfed and irrigated rows (build_nitrogen_balance()'s
+# `methods$regime`, whep#1233) carries two surplus rows per grid, crop and year
+# key. build_n_boundary_exceedance() sums them back to one row before it
+# compares a cell with its critical surplus, so the input read here is summed
+# the same way; the split conserves `n_input_std_t`, so the sum is the unsplit
+# input. Only the key and `n_input_std_t` are read from `surplus`. A key
+# repeated within one regime is left for `.nbc_join_inputs()` to refuse rather
+# than being summed away.
+.nbc_collapse_regimes <- function(surplus) {
+  if (!rlang::has_name(surplus, "water_regime")) {
+    return(surplus)
+  }
+  key <- .nbc_input_key()
+  .check_columns(surplus, c(key, "n_input_std_t"), "surplus")
+  per_regime <- dplyr::count(
+    surplus,
+    dplyr::across(dplyr::all_of(c(key, "water_regime")))
+  )
+  if (any(per_regime$n > 1L)) {
+    return(surplus)
+  }
+  surplus |>
+    dplyr::summarise(
+      n_input_std_t = sum(.data$n_input_std_t),
+      .by = dplyr::all_of(key)
+    )
 }
 
 .nbc_input_key <- function() {

@@ -740,3 +740,75 @@ testthat::test_that("the country table example runs and is coherent", {
   testthat::expect_equal(out$country$exceedance_n_t, c(6, 4))
   testthat::expect_equal(out$diagnostics$exceedance_gap_n_t, 0)
 })
+
+# build_nitrogen_balance() splits each grid row into a rainfed and an
+# irrigated part (whep#1233), so calculate_n_surplus() returns two rows per
+# cell, crop and year. build_n_boundary_exceedance() sums them back to one
+# before comparing a cell with its critical surplus; the country table must
+# read the surplus the same way, or it would refuse the default balance.
+.nbc_split_regimes <- function(surplus, irrigated_share = 0.3) {
+  additive <- c("surplus_n_t", "n_input_std_t", "area_ha")
+  dplyr::bind_rows(
+    surplus |>
+      dplyr::mutate(
+        water_regime = "rainfed",
+        dplyr::across(dplyr::all_of(additive), \(v) v * (1 - irrigated_share))
+      ),
+    surplus |>
+      dplyr::mutate(
+        water_regime = "irrigated",
+        dplyr::across(dplyr::all_of(additive), \(v) v * irrigated_share)
+      )
+  )
+}
+
+testthat::test_that("a rainfed/irrigated split surplus gives the unsplit table", {
+  rows <- tibble::tribble(
+    ~cell, ~area_code, ~item_cbs_code, ~surplus_n_t, ~n_input_std_t,
+    "A",            1L,          2511L,           10,             20,
+    "B",            1L,          2511L,           -8,              5,
+    "C",            2L,          2513L,            6,             12
+  )
+  critical <- .nbc_critical(tibble::tribble(
+    ~cell, ~rate,
+    "A",      20,
+    "B",      20,
+    "C",      20
+  ))
+  unsplit <- .nbc_surplus(rows)
+  split <- .nbc_split_regimes(unsplit)
+  expected <- whep::build_n_boundary_country(
+    .nbc_grid(unsplit, critical),
+    unsplit,
+    .nbc_ag_land()
+  )
+  out <- whep::build_n_boundary_country(
+    .nbc_grid(split, critical),
+    split,
+    .nbc_ag_land()
+  )
+  testthat::expect_equal(out$country, expected$country)
+  testthat::expect_equal(out$diagnostics, expected$diagnostics)
+  testthat::expect_equal(sum(out$country$input_std_n_t), 37)
+})
+
+testthat::test_that("a duplicate within one water regime is still refused", {
+  rows <- tibble::tribble(
+    ~cell, ~area_code, ~item_cbs_code, ~surplus_n_t, ~n_input_std_t,
+    "A",            1L,          2511L,           10,             20
+  )
+  critical <- .nbc_critical(tibble::tribble(~cell, ~rate, "A", 20))
+  split <- .nbc_split_regimes(.nbc_surplus(rows))
+  doubled <- dplyr::bind_rows(
+    split,
+    dplyr::filter(split, .data$water_regime == "rainfed")
+  )
+  testthat::expect_error(
+    whep::build_n_boundary_country(
+      .nbc_grid(split, critical),
+      doubled,
+      .nbc_ag_land(1L)
+    ),
+    class = "whep_nbc_duplicate_surplus"
+  )
+})
