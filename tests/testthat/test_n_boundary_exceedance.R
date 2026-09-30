@@ -1428,3 +1428,21 @@ testthat::test_that("binding labels only the managed rows under the split", {
     rep("groundwater", 5L)
   )
 })
+
+testthat::test_that("rainfed and irrigated rows are summed before the exceedance", {
+  x <- tibble::tribble(
+    ~cell_id, ~source_row, ~source_col, ~lon, ~lat, ~area_code,
+    ~item_cbs_code, ~year, ~area_ha, ~actual_n_t, ~water_regime,
+    1L, 1L, 1L, 0.25, 0.25, 1L, 2511L, 2010L, 70, -2, "rainfed",
+    1L, 1L, 1L, 0.25, 0.25, 1L, 2511L, 2010L, 30, 5, "irrigated",
+    2L, 1L, 2L, 0.75, 0.25, 1L, 2511L, 2010L, NA, NA, "rainfed",
+    2L, 1L, 2L, 0.75, 0.25, 1L, 2511L, 2010L, NA, NA, "irrigated"
+  )
+  out <- whep:::.nbx_collapse_regimes(x)
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_false(rlang::has_name(out, "water_regime"))
+  testthat::expect_equal(out$actual_n_t, c(3, NA))
+  testthat::expect_equal(out$area_ha, c(100, NA))
+  unsplit <- dplyr::select(x[1, ], -"water_regime")
+  testthat::expect_identical(whep:::.nbx_collapse_regimes(unsplit), unsplit)
+})
