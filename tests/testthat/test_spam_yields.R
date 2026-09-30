@@ -416,3 +416,48 @@ testthat::test_that("the manifest carries a row per vintage x variable", {
     )
   ))
 })
+
+testthat::test_that("the healed-quote warning is muffled and nothing else is", {
+  path <- withr::local_tempfile(fileext = ".csv")
+  writeLines(
+    c(
+      "iso3,name_adm2,whea_r",
+      "\"YEM\",\"Ok, with comma\",1.5",
+      "\"YEM\",\"Jabal \"Iyal Yazi\",2.5"
+    ),
+    path
+  )
+  out <- testthat::expect_no_warning(whep:::.spam_fread_quiet(path))
+  testthat::expect_equal(out$whea_r, c(1.5, 2.5))
+  testthat::expect_equal(out$name_adm2[[1]], "Ok, with comma")
+  testthat::expect_warning(
+    whep:::.spam_fread_quiet(path, select = "no_such_column"),
+    "no_such_column"
+  )
+})
+
+# The download script keeps its own copy of the SPAM2010 manifest so it runs
+# without whep installed. `^inst/scripts$` is in `.Rbuildignore`, so the
+# script is absent from the built tarball and this only runs from a checkout.
+testthat::test_that("download_spam.R's manifest matches the package's", {
+  path <- testthat::test_path(
+    "..",
+    "..",
+    "inst",
+    "scripts",
+    "download",
+    "download_spam.R"
+  )
+  testthat::skip_if_not(file.exists(path), "download_spam.R not available")
+  env <- new.env()
+  sys.source(path, envir = env)
+  script <- env$.spam_download_manifest_2010()
+  pkg <- whep:::.spam_manifest() |>
+    dplyr::filter(.data$vintage == "2010")
+  cols <- c("var", "zip_name", "bytes", "md5", "dataverse_file_id")
+  testthat::expect_equal(
+    dplyr::arrange(script[cols], .data$var),
+    dplyr::arrange(tibble::as_tibble(pkg[cols]), .data$var),
+    ignore_attr = TRUE
+  )
+})

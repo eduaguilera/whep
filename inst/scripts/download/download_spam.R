@@ -105,7 +105,7 @@ download_spam <- function(dest_dir) {
   cli::cli_alert("Downloading SPAM {zip_name} ({round(bytes / 1e6)} MB)...")
   old_timeout <- getOption("timeout")
   on.exit(options(timeout = old_timeout), add = TRUE)
-  options(timeout = max(600, old_timeout %||% 60))
+  options(timeout = max(600, old_timeout))
   utils::download.file(url, zip_path, mode = "wb")
   if (!identical(unname(tools::md5sum(zip_path)), md5)) {
     unlink(zip_path)

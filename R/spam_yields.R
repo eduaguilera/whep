@@ -342,7 +342,7 @@ read_spam_yields <- function(
        for technology {.val {tech}}."
     )
   }
-  dt <- data.table::fread(path, select = c(id_cols, tech_crop_cols))
+  dt <- .spam_fread_quiet(path, select = c(id_cols, tech_crop_cols))
   long <- data.table::melt(
     dt,
     id.vars = id_cols,
@@ -356,6 +356,23 @@ read_spam_yields <- function(
   ]
   long[, technology := tech]
   tibble::as_tibble(long)
+}
+
+# fread() of a SPAM2010 member, muffling only its "improper quoting" warning.
+# Five rows of every member name a Yemeni district `"Jabal "Iyal Yazi"` with an
+# unescaped inner quote; fread heals them, and every numeric field of those
+# rows was checked against the raw line (only the district name loses its
+# trailing quote). `quote = ""` is not the fix: 97,528 rows quote a name that
+# holds a comma. Any other warning still reaches the user.
+.spam_fread_quiet <- function(path, ...) {
+  withCallingHandlers(
+    data.table::fread(path, ...),
+    warning = \(w) {
+      if (grepl("improper quoting", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
 }
 
 # Both technologies for one variable (harvested_area/production/yield).
