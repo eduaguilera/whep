@@ -229,6 +229,22 @@ test_that("the enumerated baseline can only shrink", {
   # at all and was therefore booked entirely to soil at a recovery rate of zero.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
+  #
+  # 85 since #1233: the irrigated:rainfed regime yield ratio
+  # adds four year-free joins, and none reads a year's value on the wrong
+  # year. One is the area -> polity-bucket identity its national inputs are
+  # keyed on; two attach WHEP region membership, which `regions_full` holds
+  # without a year, for the yield plausibility bounds (the loss wedge's shape);
+  # and one attaches the LPJmL country normaliser, which is one number per crop
+  # and country by construction because it is pooled over a fixed 1994-2023
+  # window. Every
+  # value that varies by year -- synthetic N, cropland, the cell-year LPJmL
+  # ratio -- is joined on its year. Measured by running the audit: 85.
+  #
+  # 87 since the regime ratio's rainfed floor and pre-1961 land: one join sums
+  # FAOSTAT reporting areas onto their bucket for the Linum/Hemp dominance
+  # (identity), one keeps the polities with a 1961 FAOSTAT cropland to anchor
+  # their successors' back-cast on (the anchor year is fixed). Measured.
   # 82 since whep#1196: `.cpy_key` attaches the recorded cell-support mapping
   # to one year's polycells; the support and the mapping are both filtered to
   # the year before the join, so the key has no second year to disagree about.
@@ -253,7 +269,10 @@ test_that("the enumerated baseline can only shrink", {
   # single-vintage crop pattern cannot place from the circa-2000 fodder layer,
   # and `.sci_inform_fodder_placed()` reports them (two diagnostic joins).
   # Re-derived by running the audit on the merged tree.
-  expect_lte(sum(baseline$n), 87L)
+  #
+  # 93 with the regime yield ratio's joins (whep#1233) and the N balance's
+  # rainfed/irrigated split, measured by running the audit on the merged tree.
+  expect_lte(sum(baseline$n), 93L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -403,6 +422,16 @@ test_that("every year-free territorial grouping is classified", {
   # which carries its own period, so neither has a year to collapse.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
+  #
+  # 102 since #1233: the regime yield ratio's five. One is
+  # `year_axis` -- it pools a country's years on purpose: the Smil
+  # back-cast's 1961-1965 share (the Linum/Hemp dominance now sums by bucket,
+  # which the audit reads as a non-territorial key). Two are `single_year`,
+  # the one SPAM2010 vintage the ratio anchors on, summed by ISO3 and then by
+  # bucket. One is the area -> bucket identity
+  # fold, and one the cell -> area map the LPJmL normalisers pool over.
+  # (The normalisers' own pooling runs through `.ryr_pooled_ratio()`, whose
+  # key the audit reads as dynamic.) Measured by running the audit.
   # 100 since whep#1196: the year-aware cell support's fold of one year's
   # polycells into their area codes (`single_year`, the grouping
   # `.carbon_fold_area_code` makes at the carbon snapshot), and its two
@@ -417,7 +446,10 @@ test_that("every year-free territorial grouping is classified", {
   # 106 with whep#1002: `.sci_spatialized_weights()` renormalises and sums one
   # year's engine output per (area, crop), both `single_year`. Re-derived by
   # RUNNING `sum(.territorial_grouping_baseline()$n)` on the merged tree.
-  expect_lte(sum(full$n), 106L)
+  #
+  # 111 with the regime yield ratio's groupings (whep#1233), measured by
+  # running the audit on the merged tree.
+  expect_lte(sum(full$n), 111L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

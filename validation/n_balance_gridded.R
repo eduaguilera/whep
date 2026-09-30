@@ -96,8 +96,10 @@ report(
 )
 
 # ---- 2. the balance key is a key -------------------------------------------
+# `water_regime` is part of the key once the balance is split into rainfed
+# and irrigated rows (build_nitrogen_balance(methods$regime)).
 key <- intersect(
-  c("lon", "lat", "area_code", "item_cbs_code", "year"),
+  c("lon", "lat", "area_code", "item_cbs_code", "water_regime", "year"),
   names(balance)
 )
 duplicated_keys <- sum(duplicated(balance[key]))
