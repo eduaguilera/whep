@@ -276,3 +276,30 @@ test_that("constant_territory leaves those rows on modern polities", {
   # the attribution error this basis keeps.
   expect_false(any(out$lineage_polity_code %in% support$polity_code))
 })
+
+test_that("the walk never compares polity geometries, even with sf loaded", {
+  # `polities` is an sf data frame. Once sf is loaded, dplyr verbs on it
+  # dispatch to sf's methods, and `distinct.sf()` tests rows for equality by
+  # comparing their polygons on the sphere. That made every lineage call cost
+  # seconds instead of milliseconds, and the test suite 20-100 times slower
+  # in any file run after one that loads sf. The lineage only reads
+  # attributes, so it must never reach sf's geometry predicates.
+  skip_if_not_installed("sf")
+  loadNamespace("sf")
+  local_mocked_bindings(
+    st_equals = function(...) stop("polity geometries were compared"),
+    .package = "sf"
+  )
+  national <- tibble::tribble(
+    ~area_code, ~year,
+           185, 1961L,
+           185, 2015L
+  )
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "F228-1945-1991",      1945L,     1991L,
+    "RUS-2014-2025",       2014L,     2025L
+  )
+  out <- whep::resolve_polity_lineage(national, support)
+  expect_equal(out$lineage_polity_code, c("F228-1945-1991", "RUS-2014-2025"))
+})

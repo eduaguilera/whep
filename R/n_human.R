@@ -30,7 +30,10 @@
 # cropland-N-need do not coincide 1:1) and spilled to neighbouring cells
 # with cropland room via allocate_manure_transport() (R/manure_transport.R),
 # the same king-move room-weighted transport used by the manure engine's
-# .manure_subnational() (R/build_livestock_nutrient_flows.R).
+# .manure_subnational() (R/build_livestock_nutrient_flows.R). What that
+# transport step cannot deliver and hands back to a source cell with no
+# cropland is placed by `method_residual` (whep#1171); see
+# .human_place_undelivered().
 
 #' Build gridded human-population nitrogen inputs to agriculture.
 #'
@@ -118,12 +121,56 @@
 #'   [regions_full].
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
+#' @param method_residual What happens to human N that the transport step
+#'   cannot deliver and that sits on a source cell with **no cropland** (the
+#'   residual on a source cell that has cropland is applied there under every
+#'   method). On the 2010 global grid, under the default `"total"` basis,
+#'   this is 13,198 cells and 47,365 t N, 0.700% of the 6.77 Mt of human N;
+#'   under `"nearest"` 2,145 t of it stays stranded, in the three polities
+#'   with no cropland cell that year (Qatar, Iceland, Samoa).
+#'   * `"nearest"` (default): run the transport step's own rule again with a
+#'     growing radius. Each such cell offers its nitrogen to the same-polity
+#'     cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
+#'     steps, wrapped at the antimeridian) that still has room, in proportion
+#'     to that room; a cell's room is its 170 kg N/ha ceiling minus the human
+#'     N already on it, and an over-subscribed cell is filled only to its
+#'     room. The radius grows one ring at a time until the nitrogen is placed
+#'     or the polity has no room left. Conserves mass and keeps the nitrogen
+#'     as close to the people who produced it as the room allows. No distance
+#'     cap or transport coefficient is applied.
+#'   * `"polity"`: pool it per polity-year and spread it over all of that
+#'     polity-year's cropland in proportion to cropland room (area), the rule
+#'     [build_n_inputs()] applies under `method_unsupported = "reallocate"`.
+#'     Conserves mass, but places the nitrogen anywhere in the polity.
+#'   * `"keep"`: leave it on its source cell, as before this argument
+#'     existed, flagged in `human_n_stranded_t`. [build_n_inputs()]'s
+#'     `method_unsupported` then decides its fate (by default, it aborts).
+#'   * `"drop"`: discard it. Loses the mass, biased towards dense,
+#'     cropland-free cells.
+#'
+#'   `"nearest"` and `"polity"` never cross a polity, like the transport step
+#'   itself, so a polity-year with population and no cropland anywhere keeps
+#'   its nitrogen on the source cell under either, flagged in
+#'   `human_n_stranded_t`; `"nearest"` does the same with whatever its polity
+#'   has no room left for. Whenever any cell is undelivered, the count, the
+#'   tonnes and the share of human N are reported (a warning, class
+#'   `whep_human_n_undelivered`, when any nitrogen is dropped or left
+#'   stranded; otherwise a message of the same class), and the per-year
+#'   figures are attached as `attr(x, "human_n_undelivered")`. Recorded in
+#'   the `method_human_residual` output column.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `human_n_t`,
+#'   `human_n_relocated_t` (the part of `human_n_t` placed on the cell by
+#'   `method_residual`), `human_n_stranded_t` (the part sitting on a cell with
+#'   no cropland, which no downstream cropland allocation can place),
 #'   `method_human`, `method_human_population` (`"total_population"` or
-#'   `"urban_population"`) and `method_human_kgn_cap`
-#'   (`"kg_n_per_total_inhabitant"` or `"kg_n_per_urban_inhabitant"`), plus
-#'   the polity columns below, plus `reporting_polity_out_of_span` when
-#'   `polity_validity = "flag"`.
+#'   `"urban_population"`), `method_human_kgn_cap`
+#'   (`"kg_n_per_total_inhabitant"` or `"kg_n_per_urban_inhabitant"`) and
+#'   `method_human_residual`, plus the polity columns below, plus
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`. The
+#'   attribute `"human_n_undelivered"` is a tibble with one row per year:
+#'   `year`, `human_n_t`, `n_cells` (undelivered source cells),
+#'   `undelivered_t`, `relocated_t`, `stranded_t`, `dropped_t`,
+#'   `undelivered_share` (of `human_n_t`) and `method_human_residual`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -133,13 +180,15 @@ build_human_n <- function(
   population_basis = c("total", "urban"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  method_residual = c("nearest", "polity", "keep", "drop")
 ) {
   population_basis <- rlang::arg_match(population_basis)
   polity_validity <- rlang::arg_match(polity_validity)
+  method_residual <- rlang::arg_match(method_residual)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
-      .example_human_n(population_basis),
+      .example_human_n(population_basis, method_residual),
       polity_validity
     ))
   }
@@ -162,9 +211,17 @@ build_human_n <- function(
   generated <- .human_n_generated(population, population_basis)
   source_cells <- .human_source_cells(generated)
   sink_cells <- .human_sink_cells(cropland)
-  flows <- allocate_manure_transport(source_cells, sink_cells)
-  .human_finalise(flows, population_basis) |>
+  flows <- allocate_manure_transport(source_cells, sink_cells) |>
+    .human_route_residual(sink_cells)
+  placed <- .human_place_undelivered(flows, sink_cells, method_residual)
+  out <- .human_finalise(placed, population_basis, method_residual) |>
     .resolve_polity_validity(polity_validity)
+  attr(out, "human_n_undelivered") <- .human_undelivered_summary(
+    flows,
+    placed,
+    method_residual
+  )
+  out
 }
 
 #' @rdname build_human_n
@@ -498,9 +555,341 @@ build_urban_n <- function(...) {
     )
 }
 
-# Parse sub_territory back to lon/lat, aggregate transported + residual flows
-# to the final schema and stamp method_human and the population basis.
-.human_finalise <- function(flows, basis) {
+# ---- Undelivered human N (whep#1171) ------------------------------------
+#
+# allocate_manure_transport() hands back, at the SOURCE cell, whatever a source
+# could not send to its ring neighbours. On a source cell that has cropland the
+# residual is simply applied there. On a source cell with NO cropland there is
+# nothing to apply it to: build_n_inputs() spreads non-item nitrogen over its
+# own cell's cropland, so such a row joins nothing and the balance aborts. On
+# the 2010 global grid (default "total" basis) that is 13,198 cells and
+# 47,365 t N, 0.700% of the 6.77 Mt of human N (urban basis: 1,985 cells,
+# 38,425 t, 0.955%). Until #1171 the output carried it with nothing to tell
+# it apart from nitrogen that had been placed.
+
+# Tag every transport row with where it ended up: "transported" (delivered to a
+# neighbour), "residual_local" (handed back to a source cell that has cropland)
+# or "undelivered" (handed back to a source cell with no cropland).
+.human_route_residual <- function(flows, sink_cells) {
+  has_cropland <- sink_cells |>
+    dplyr::distinct(.data$year, .data$territory, .data$sub_territory) |>
+    dplyr::mutate(.has_cropland = TRUE)
+  flows |>
+    dplyr::left_join(
+      has_cropland,
+      by = c("year", "territory", "sub_territory")
+    ) |>
+    dplyr::mutate(
+      route = dplyr::case_when(
+        .data$kind == "transported" ~ "transported",
+        dplyr::coalesce(.data$.has_cropland, FALSE) ~ "residual_local",
+        .default = "undelivered"
+      )
+    ) |>
+    dplyr::select(-".has_cropland")
+}
+
+# Apply `method_residual` to the "undelivered" rows. Every rule except "drop"
+# conserves mass. "nearest" and "polity" move nitrogen only inside its own
+# polity-year, as the transport step does, so an undelivered row in a
+# polity-year with no cropland anywhere stays where it is, re-tagged
+# "stranded" -- 70 cells and 2,145 t N at 2010 (total basis; Qatar, Iceland
+# and Samoa). "nearest" also strands what a polity has no room left for.
+.human_place_undelivered <- function(flows, sink_cells, method) {
+  undelivered <- dplyr::filter(flows, .data$route == "undelivered")
+  kept <- dplyr::filter(flows, .data$route != "undelivered")
+  if (nrow(undelivered) == 0L || method == "drop") {
+    return(kept)
+  }
+  if (method == "keep") {
+    return(dplyr::bind_rows(kept, .human_mark_stranded(undelivered)))
+  }
+  by <- c("year", "territory")
+  reachable <- dplyr::semi_join(undelivered, sink_cells, by = by)
+  stranded <- dplyr::anti_join(undelivered, sink_cells, by = by)
+  relocated <- if (method == "nearest") {
+    .human_relocate_nearest(reachable, sink_cells, kept)
+  } else {
+    .human_relocate_polity(reachable, sink_cells)
+  }
+  dplyr::bind_rows(kept, relocated, .human_mark_stranded(stranded))
+}
+
+.human_mark_stranded <- function(rows) {
+  dplyr::mutate(rows, route = "stranded")
+}
+
+# "nearest": the transport step's own rule, widened. Each undelivered cell
+# offers its nitrogen to the same-polity cropland cells in its nearest ring
+# that still has room, in proportion to that room, and an over-subscribed sink
+# is filled only to its room -- exactly allocate_manure_transport()'s rule,
+# with the ring radius growing one step at a time instead of stopping at 1.
+# A sink's room is its room_n minus the human N already on it (transported
+# there, or its own residual), so a sink the ring-1 pass filled takes nothing
+# more. No distance cap and no transport coefficient is introduced: the
+# radius grows until the nitrogen is placed or the polity has no room left.
+# What is left then stays on its source cell, "stranded".
+#
+# Why room matters: without it, the whole load of a city lands on the one
+# nearest cropland cell. On the 2010 urban basis that put 3,459 t N on 1,219 ha
+# next to Jeddah (3,985 kg N/ha) and lifted the 99th percentile of human N per
+# cropland hectare from 182 to 4,141 kg N/ha (measured in whep#1224).
+.human_relocate_nearest <- function(undelivered, sink_cells, kept) {
+  sinks <- .human_sink_room(sink_cells, kept)
+  pairs <- .human_nearest_pairs(undelivered, sinks)
+  remaining <- undelivered |>
+    dplyr::transmute(
+      .source = dplyr::row_number(),
+      rem_n = .data$applied_n,
+      rem_n0 = .data$applied_n
+    )
+  room <- dplyr::transmute(
+    sinks,
+    .data$.sink,
+    .data$room_left,
+    room_left0 = .data$room_left
+  )
+  placed <- list()
+  # Sequential by construction: each ring sees the room the previous one left.
+  # Every pass either places a source's whole load or fills every sink in its
+  # nearest ring with room, so the loop ends within the number of rings.
+  while (nrow(pairs) > 0L) {
+    step <- .human_ring_step(pairs, remaining, room)
+    placed[[length(placed) + 1L]] <- step$flows
+    remaining <- step$remaining
+    room <- step$room
+    pairs <- .human_prune_pairs(pairs, remaining, room)
+  }
+  relocated <- dplyr::bind_rows(placed) |>
+    dplyr::inner_join(dplyr::select(sinks, -"room_left"), by = ".sink") |>
+    .human_relocated_rows()
+  left <- undelivered |>
+    dplyr::mutate(.source = dplyr::row_number()) |>
+    dplyr::inner_join(remaining, by = ".source") |>
+    dplyr::filter(.data$rem_n > .human_live_tol() * .data$rem_n0) |>
+    dplyr::mutate(applied_n = .data$rem_n) |>
+    dplyr::select(-".source", -"rem_n", -"rem_n0")
+  dplyr::bind_rows(relocated, .human_mark_stranded(left))
+}
+
+# Room left on each cropland cell once the transport step has run.
+.human_sink_room <- function(sink_cells, kept) {
+  landed <- dplyr::summarise(
+    kept,
+    landed_n = sum(.data$applied_n),
+    .by = c("year", "territory", "sub_territory")
+  )
+  xy <- .parse_cell_id(sink_cells$sub_territory)
+  sink_cells |>
+    dplyr::mutate(lon = xy$lon, lat = xy$lat) |>
+    dplyr::left_join(landed, by = c("year", "territory", "sub_territory")) |>
+    dplyr::transmute(
+      .sink = dplyr::row_number(),
+      year = .data$year,
+      territory = .data$territory,
+      sub_territory = .data$sub_territory,
+      lon = .data$lon,
+      lat = .data$lat,
+      room_left = pmax(.data$room_n - dplyr::coalesce(.data$landed_n, 0), 0)
+    )
+}
+
+# Every (undelivered source, same-polity sink with room) pair, with its ring.
+.human_nearest_pairs <- function(undelivered, sinks) {
+  xy <- .parse_cell_id(undelivered$sub_territory)
+  undelivered |>
+    dplyr::transmute(
+      .source = dplyr::row_number(),
+      year = .data$year,
+      territory = .data$territory,
+      slon = xy$lon,
+      slat = xy$lat
+    ) |>
+    dplyr::inner_join(
+      dplyr::filter(sinks, .data$room_left > 0),
+      by = c("year", "territory"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      .data$.source,
+      .data$.sink,
+      ring = .human_ring_distance(.data$slon, .data$slat, .data$lon, .data$lat)
+    )
+}
+
+# One pass of the transport rule: each source's nearest ring that still has
+# room, room-weighted offers, over-subscribed sinks scaled to their room.
+.human_ring_step <- function(pairs, remaining, room) {
+  flows <- pairs |>
+    dplyr::filter(.data$ring == min(.data$ring), .by = ".source") |>
+    dplyr::inner_join(
+      dplyr::select(remaining, ".source", "rem_n"),
+      by = ".source"
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(room, ".sink", "room_left"),
+      by = ".sink"
+    ) |>
+    dplyr::mutate(
+      offer = .data$rem_n * .data$room_left / sum(.data$room_left),
+      .by = ".source"
+    ) |>
+    dplyr::mutate(
+      applied_n = .data$offer *
+        pmin(1, .data$room_left / sum(.data$offer)),
+      .by = ".sink"
+    )
+  sent <- dplyr::summarise(flows, sent = sum(.data$applied_n), .by = ".source")
+  took <- dplyr::summarise(flows, took = sum(.data$applied_n), .by = ".sink")
+  list(
+    flows = dplyr::select(flows, ".sink", "applied_n"),
+    remaining = .human_subtract(remaining, sent, ".source", "rem_n", "sent"),
+    room = .human_subtract(room, took, ".sink", "room_left", "took")
+  )
+}
+
+.human_subtract <- function(x, delta, key, value, by_value) {
+  x |>
+    dplyr::left_join(delta, by = key) |>
+    dplyr::mutate(
+      !!value := pmax(
+        .data[[value]] - dplyr::coalesce(.data[[by_value]], 0),
+        0
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of(by_value))
+}
+
+# Drop the pairs whose source is placed or whose sink is full. "Placed" and
+# "full" are relative to the starting amount, so the rounding residue of the
+# room scaling (~1e-16 of the load) cannot keep the loop alive.
+.human_prune_pairs <- function(pairs, remaining, room) {
+  tol <- .human_live_tol()
+  live_sources <- remaining$.source[remaining$rem_n > tol * remaining$rem_n0]
+  live_sinks <- room$.sink[room$room_left > tol * room$room_left0]
+  dplyr::filter(
+    pairs,
+    .data$.source %in% live_sources,
+    .data$.sink %in% live_sinks
+  )
+}
+
+.human_live_tol <- function() {
+  1e-12
+}
+
+# Chebyshev distance in 0.5-degree grid steps, with longitude wrapped across
+# the antimeridian: Chukotka's cells at 179.75 and -179.75 are one step apart,
+# not 719.
+.human_ring_distance <- function(lon1, lat1, lon2, lat2) {
+  dlon <- abs(lon1 - lon2) %% 360
+  dlon <- pmin(dlon, 360 - dlon)
+  round(pmax(dlon, abs(lat1 - lat2)) / 0.5)
+}
+
+# "polity": the undelivered nitrogen of each polity-year is pooled and spread
+# over all of that polity-year's cropland cells by room_n, i.e. by cropland
+# area -- the rule build_n_inputs(method_unsupported = "reallocate") applies to
+# the same rows further down the chain.
+.human_relocate_polity <- function(undelivered, sink_cells) {
+  sinks <- dplyr::select(
+    sink_cells,
+    "year",
+    "territory",
+    "sub_territory",
+    "room_n"
+  )
+  undelivered |>
+    dplyr::summarise(
+      applied_n = sum(.data$applied_n),
+      .by = c("year", "territory")
+    ) |>
+    dplyr::inner_join(sinks, by = c("year", "territory")) |>
+    dplyr::mutate(
+      applied_n = .data$applied_n * .data$room_n / sum(.data$room_n),
+      .by = c("year", "territory")
+    ) |>
+    .human_relocated_rows()
+}
+
+.human_relocated_rows <- function(x) {
+  x |>
+    dplyr::summarise(
+      applied_n = sum(.data$applied_n),
+      .by = c("year", "territory", "sub_territory")
+    ) |>
+    dplyr::mutate(route = "relocated")
+}
+
+# One row per year: how much human N the transport step could not deliver to
+# any cropland, and what `method_residual` did with it. Attached to the output
+# as the "human_n_undelivered" attribute, and reported.
+.human_undelivered_summary <- function(flows, placed, method) {
+  totals <- dplyr::summarise(
+    flows,
+    human_n_t = sum(.data$applied_n),
+    n_cells = sum(.data$route == "undelivered"),
+    undelivered_t = sum(.data$applied_n[.data$route == "undelivered"]),
+    .by = "year"
+  )
+  outcome <- dplyr::summarise(
+    placed,
+    relocated_t = sum(.data$applied_n[.data$route == "relocated"]),
+    stranded_t = sum(.data$applied_n[.data$route == "stranded"]),
+    .by = "year"
+  )
+  summary <- totals |>
+    dplyr::left_join(outcome, by = "year") |>
+    dplyr::mutate(
+      relocated_t = dplyr::coalesce(.data$relocated_t, 0),
+      stranded_t = dplyr::coalesce(.data$stranded_t, 0),
+      dropped_t = pmax(
+        .data$undelivered_t - .data$relocated_t - .data$stranded_t,
+        0
+      ),
+      undelivered_share = .data$undelivered_t / .data$human_n_t,
+      method_human_residual = method
+    ) |>
+    dplyr::arrange(.data$year)
+  .human_report_undelivered(summary, method)
+  summary
+}
+
+# A message when every undelivered tonne was relocated; a warning when any of
+# it was dropped or is left on a cell with no cropland, because then the
+# nitrogen balance cannot place it (build_n_inputs()'s `method_unsupported`
+# decides what happens next).
+.human_report_undelivered <- function(summary, method) {
+  n_cells <- sum(summary$n_cells)
+  if (n_cells == 0L) {
+    return(invisible(NULL))
+  }
+  undelivered <- signif(sum(summary$undelivered_t), 6)
+  share <- signif(100 * undelivered / sum(summary$human_n_t), 3)
+  msg <- c(
+    "{cli::qty(n_cells)}{n_cells} human-N source cell-year{?s} with no
+     cropland could not deliver {undelivered} t N ({share}% of human N).",
+    i = "{.arg method_residual} = {.val {method}}: relocated
+         {signif(sum(summary$relocated_t), 6)} t, left on cells with no
+         cropland {signif(sum(summary$stranded_t), 6)} t, dropped
+         {signif(sum(summary$dropped_t), 6)} t.",
+    i = "Per-year totals: {.code attr(x, \"human_n_undelivered\")}."
+  )
+  if (sum(summary$dropped_t) + sum(summary$stranded_t) > 0) {
+    cli::cli_warn(msg, class = "whep_human_n_undelivered")
+  } else {
+    cli::cli_inform(msg, class = "whep_human_n_undelivered")
+  }
+  invisible(NULL)
+}
+
+
+# Parse sub_territory back to lon/lat, aggregate transported, residual and
+# relocated flows to the final schema, and stamp the methods. The two
+# component columns say how much of a cell's `human_n_t` reached it through
+# the residual rule (`human_n_relocated_t`) and how much sits on a cell with
+# no cropland (`human_n_stranded_t`).
+.human_finalise <- function(flows, basis, method_residual) {
   coords <- .parse_cell_id(flows$sub_territory)
   flows |>
     dplyr::mutate(
@@ -514,11 +903,14 @@ build_urban_n <- function(...) {
     ) |>
     dplyr::summarise(
       human_n_t = sum(.data$applied_n),
+      human_n_relocated_t = sum(.data$applied_n[.data$route == "relocated"]),
+      human_n_stranded_t = sum(.data$applied_n[.data$route == "stranded"]),
       .by = c("lon", "lat", "area_code", "year")
     ) |>
     dplyr::mutate(
       method_human = "calibration_rate|room_weighted",
-      !!!.human_basis_stamps(basis)
+      !!!.human_basis_stamps(basis),
+      method_human_residual = method_residual
     )
 }
 
@@ -649,11 +1041,19 @@ build_urban_n <- function(...) {
 }
 
 # Toy fixture for a runnable example (one cell, one polity, one year).
-.example_human_n <- function(basis = "total") {
+.example_human_n <- function(basis = "total", method_residual = "nearest") {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~human_n_t, ~method_human,
     -0.25, -0.25, 203L, 2020L, 4.5, "calibration_rate|room_weighted"
   ) |>
-    dplyr::mutate(!!!.human_basis_stamps(basis)) |>
+    dplyr::mutate(
+      human_n_relocated_t = 0,
+      human_n_stranded_t = 0,
+      .after = "human_n_t"
+    ) |>
+    dplyr::mutate(
+      !!!.human_basis_stamps(basis),
+      method_human_residual = method_residual
+    ) |>
     .add_reporting_polity_columns()
 }

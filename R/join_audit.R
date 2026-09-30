@@ -332,13 +332,43 @@
      by construction, so a year in the key would return the year; and the join
      feeds only a warning -- the reporter class is never dropped and never
      aborts, so no published value passes through it.",
+    ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
+    "time_invariant",
+    "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
+     which is ONE number per (area, crop) by construction: the spatial
+     anomaly divides the cell's 1994-2023 ratio by the crop x country ratio
+     pooled over the same fixed window. The cell-year ratio is joined on
+     (cell, year, crop) two lines before.",
+    ".ryr_attach_bounds", "left_join", "area_code", 1L, "time_invariant",
+    "WHEP region membership (`regions_full`, no year) for the yield
+     plausibility bounds under their `region` pool. The bounds themselves are
+     pooled 1961-2023 percentiles, joined on (item, region) next.",
+    ".ryr_dominance_tonnes", "inner_join", "area_code", 1L, "identity_lookup",
+    "Sums FAOSTAT's reporting areas onto their polity bucket before the
+     Linum/Hemp product dominance, which pools 1961-2023 on purpose; the
+     bucket of an area code has no year (asserted in `.ryr_bucket_table()`).",
+    ".ryr_successor_cropland", "semi_join", "area_code", 1L, "single_year",
+    "Keeps the polities whose back-cast cropland is built from their
+     successors only where they have a FAOSTAT cropland in 1961, the anchor
+     year: the right side is filtered to 1961 before the join.",
+    ".ryr_national_yields", "left_join", "area_code", 1L, "time_invariant",
+    "The same region membership, attached to the national yields the bound
+     percentiles pool; every yield row keeps its own year.",
+    "build_regime_yield_ratio", "left_join", "area_code", 1L,
+    "identity_lookup",
+    "Resolves each cell's area code to its polity bucket, the key of the
+     national inputs; `polity_area_code` is functionally determined by
+     `area_code` (asserted in `.ryr_bucket_table()`). The year enters at the
+     next two joins, on (bucket, year) and (cell, item, year).",
     ".sci_crop_prod_wide", "left_join", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
     ".sci_join_weights", "inner_join", "area_code, item_prod_code", 1L,
     "time_invariant",
-    "`crop_patterns` is a single-vintage gridded map, applied to every year on
-     purpose.",
+    "Under `method_crop_weights = \"static\"` the weights are the
+     single-vintage `crop_patterns` map, applied to every year on purpose;
+     under `\"spatialized\"` they are one year's engine output, joined onto
+     that year's chunk only, so the year is a constant (whep#1002).",
     ".sci_reallocate", "anti_join", "area_code, item_prod_code", 1L,
     "time_invariant",
     "Selects the polity-crops the row above could not place, against the same
@@ -349,20 +379,22 @@
      support is summed from the same single-vintage map, so it has no year to
      key on; the crop's own area DOES come from a year-keyed join, the one
      above it on `(area_code, item_prod_code, year)` (whep#599, whep#1002).",
-    ".sci_warn_unspatialized", "anti_join", "area_code, item_prod_code", 1L,
-    "diagnostic", "Reports the carbon the join above cannot spatialize.",
+    ".sci_classify_unspatialized", "anti_join", "area_code, item_prod_code",
+    1L, "diagnostic",
+    "Tags the carbon the join above cannot spatialize, one year's chunk at a
+     time, so the warning can report it.",
     ".sci_add_fodder_weights", "anti_join", "area_code, item_prod_code", 1L,
     "time_invariant",
-    "Keeps the fodder-layer weights only for the polity-crops the single-vintage
-     `crop_patterns` map does not carry; the Monfreda (2008) fodder layer is
-     itself one circa-2000 vintage, so neither side has a year (whep#1118).",
-    ".sci_inform_fodder_placed", "anti_join", "area_code, item_prod_code", 1L,
+    "Keeps the fodder-layer weights only for the polity-crops the crop weights
+     do not carry; the Monfreda (2008) fodder layer is itself one circa-2000
+     vintage, so it has no year to key on (whep#1118).",
+    ".sci_fodder_added", "anti_join", "area_code, item_prod_code", 1L,
     "diagnostic",
     "Names the polity-crops the fodder layer added, for a message only.",
-    ".sci_inform_fodder_placed", "semi_join", "area_code, item_prod_code", 1L,
+    ".sci_fodder_placed", "semi_join", "area_code, item_prod_code", 1L,
     "diagnostic",
-    "Sums the carbon of those polity-crops for the same message; moves no
-     value.",
+    "Picks one year's carbon of those polity-crops for the same message; moves
+     no value.",
     ".select_best_source", "[", "area_code", 1L, "identity_lookup",
     "Re-attaches one label per code after selection, deliberately not keyed on
      the label the sources disagree about.",
@@ -446,6 +478,25 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".ryr_anomaly", "distinct", "lon, lat, area_code", 1L, "time_invariant",
+    "The cells each area owns, which the country normaliser pools LPJmL over for
+     the fixed 1994-2023 window: a cell-to-area map, not a year's data.",
+    ".ryr_bucket_table", "distinct", "area_code, bucket, <dynamic>", 1L,
+    "identity_lookup",
+    "The area code -> polity bucket fold, deduplicated from the crosswalk's
+     periods; asserted one bucket per code.",
+    ".ryr_smil_backcast", "summarise", "area_code", 1L, "year_axis",
+    "Each country's mean 1961-1965 share of synthetic N, the constant the Smil
+     (2001) back-cast scales by (as prepare_nitrogen_inputs() does); the five
+     years are the axis reduced over.",
+    ".ryr_spam_totals", "[", "area_code, spam_crop, technology", 1L,
+    "single_year",
+    "SPAM2010 v2.0 is one vintage (the 2009-2011 average), and it is the
+     single anchor year of the regime ratio.",
+    ".ryr_spam_totals", "[", "iso3c, spam_crop, technology", 1L,
+    "single_year",
+    "The same SPAM2010 vintage, summed by ISO3 before the ISO3 -> bucket
+     bridge.",
     ".area_last_reporting_year", "summarise", "area_code", 1L, "year_axis",
     "`max(map_year_end)` IS the reduction over the crosswalk's periods: the
      last year the upstream FAOSTAT map reports each area, which is what tells
@@ -774,18 +825,27 @@
     "time_invariant",
     "The same (area, crop) pairs, taken so the crops the map does not carry can
      be reallocated instead of dropped.",
-    ".sci_warn_unspatialized", "distinct", "area_code, item_prod_code", 1L,
-    "diagnostic",
-    "The (area, crop) pairs the crop-pattern weights cover, so the warning can
-     name the carbon they cannot spatialize.",
+    ".sci_classify_unspatialized", "distinct", "area_code, item_prod_code",
+    1L, "diagnostic",
+    "The (area, crop) pairs the crop weights cover, so the warning can name
+     the carbon they cannot spatialize.",
     ".sci_add_fodder_weights", "distinct", "area_code, item_prod_code", 1L,
     "time_invariant",
-    "The (area, crop) pairs the single-vintage crop pattern already places, so
-     the circa-2000 fodder layer only fills the ones it does not (whep#1118).",
-    ".sci_inform_fodder_placed", "distinct", "area_code, item_prod_code", 2L,
+    "The (area, crop) pairs the crop weights already place, so the circa-2000
+     fodder layer only fills the ones they do not (whep#1118).",
+    ".sci_fodder_added", "distinct", "area_code, item_prod_code", 2L,
     "diagnostic",
     "The (area, crop) pairs before and after the fodder layer, for a message
      only.",
+    ".sci_spatialized_weights", "mutate", "area_code, item_prod_code", 1L,
+    "single_year",
+    "Renormalises one year's engine cell area within (area, crop). The layer
+     is filtered to that year in `.sci_year_weights()` before it gets here
+     (whep#1002).",
+    ".sci_spatialized_weights", "summarise",
+    "lon, lat, area_code, item_prod_code", 1L, "single_year",
+    "Sums the engine's rainfed and irrigated rows of one cell-crop within the
+     same single year.",
     ".spatialize_year", "[", "area_code, item_prod_code", 2L, "single_year",
     "Both are inside `.spatialize_year(yr, ...)`, which stamps `year = yr` at
      the end.",

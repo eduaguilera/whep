@@ -625,8 +625,45 @@ build_n_boundary_exceedance <- function(
     "year",
     "area_ha",
     "actual_n_t",
-    dplyr::any_of("production_n_t")
+    dplyr::any_of(c("production_n_t", "water_regime"))
+  ) |>
+    .nbx_collapse_regimes()
+}
+
+# A sum that stays missing when every part is missing, so the collapse never
+# turns an absent quantity into a zero.
+.nbx_sum_known <- function(v) {
+  if (all(is.na(v))) NA_real_ else sum(v, na.rm = TRUE)
+}
+
+# A balance split into rainfed and irrigated rows (build_nitrogen_balance()'s
+# methods$regime) is summed back to one row per cell and crop: the critical
+# loads are per cell, and the attribution works at the crop grain. Summing
+# first keeps every quantity -- including the absolute pressure, which two
+# regime rows of opposite sign would otherwise inflate -- exactly what the
+# unsplit balance gives.
+.nbx_collapse_regimes <- function(x) {
+  if (!rlang::has_name(x, "water_regime")) {
+    return(x)
+  }
+  key <- c(
+    "cell_id",
+    "source_row",
+    "source_col",
+    "lon",
+    "lat",
+    "area_code",
+    "item_cbs_code",
+    "year"
   )
+  x |>
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::any_of(c("area_ha", "actual_n_t", "production_n_t")),
+        .nbx_sum_known
+      ),
+      .by = dplyr::all_of(key)
+    )
 }
 
 .nbx_prepare_critical <- function(x) {

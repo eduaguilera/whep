@@ -296,3 +296,35 @@ testthat::test_that("build_n_pathway_exceedance(example = TRUE) runs", {
     out$actual_water_n_t
   )
 })
+
+testthat::test_that("manure ammonia is booked once across rainfed/irrigated rows", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  # After the many-to-one join both regime rows carry the key's full 1 t.
+  joined <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime, ~area_ha,
+    ~manure_mgmt_nh3_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, "rainfed", 30, 1,
+    0.25, 0.25, 1L, 2511L, 2010L, "irrigated", 70, 1,
+    0.75, 0.25, 1L, 2511L, 2010L, "rainfed", 0, 2,
+    0.75, 0.25, 1L, 2511L, 2010L, "irrigated", 0, 2
+  )
+  out <- whep:::.npb_share_manure_by_regime(joined, key)
+  testthat::expect_equal(out$manure_mgmt_nh3_n_t, c(0.3, 0.7, 2, 0))
+  unsplit <- dplyr::select(joined, -"water_regime")
+  testthat::expect_identical(
+    whep:::.npb_share_manure_by_regime(unsplit, key),
+    unsplit
+  )
+})
+
+testthat::test_that("manure ammonia follows N input on a key with no area", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  joined <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime, ~area_ha,
+    ~n_input_std_t, ~manure_mgmt_nh3_n_t,
+    0.25, 0.25, 1L, 2511L, 2010L, "rainfed", 0, 1, 4,
+    0.25, 0.25, 1L, 2511L, 2010L, "irrigated", 0, 3, 4
+  )
+  out <- whep:::.npb_share_manure_by_regime(joined, key)
+  testthat::expect_equal(out$manure_mgmt_nh3_n_t, c(1, 3))
+})

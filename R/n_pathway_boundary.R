@@ -230,10 +230,45 @@ build_n_pathway_exceedance <- function(
       by = key,
       relationship = "many-to-one"
     ) |>
+    .npb_share_manure_by_regime(key) |>
     dplyr::mutate(
       nh3_air_n_t = .data$nh3_n_t +
         tidyr::replace_na(.data$manure_mgmt_nh3_n_t, 0)
     )
+}
+
+# A balance split into rainfed and irrigated rows carries two rows per key,
+# while the manure-management ammonia is keyed without the regime. Each row
+# takes the share of the cell-crop's harvested area it holds, the same basis
+# its manure inputs were split on, so the key's total is booked once. A
+# cell-crop with no harvested area in the balance follows the rows' share of
+# N input (the split applied to its manure), and one with neither books it
+# on the rainfed row.
+.npb_share_manure_by_regime <- function(x, key) {
+  if (!rlang::has_name(x, "water_regime")) {
+    return(x)
+  }
+  input <- if (rlang::has_name(x, "n_input_std_t")) {
+    dplyr::coalesce(x$n_input_std_t, 0)
+  } else {
+    rep(0, nrow(x))
+  }
+  x$.input <- input
+  x |>
+    dplyr::mutate(
+      area_total = sum(.data$area_ha, na.rm = TRUE),
+      input_total = sum(.data$.input),
+      manure_share = dplyr::case_when(
+        .data$area_total > 0 ~
+          dplyr::coalesce(.data$area_ha, 0) / .data$area_total,
+        .data$input_total > 0 ~ .data$.input / .data$input_total,
+        .data$water_regime == "rainfed" ~ 1,
+        .default = 0
+      ),
+      manure_mgmt_nh3_n_t = .data$manure_mgmt_nh3_n_t * .data$manure_share,
+      .by = dplyr::all_of(key)
+    ) |>
+    dplyr::select(-".input", -"area_total", -"input_total", -"manure_share")
 }
 
 # Water medium: the per-hectare nitrate pressure, the binding (tighter) water
@@ -327,6 +362,7 @@ build_n_pathway_exceedance <- function(
     "lat",
     "area_code",
     "item_cbs_code",
+    dplyr::any_of("water_regime"),
     "year",
     "area_ha",
     "critical_air_kgn_ha",
