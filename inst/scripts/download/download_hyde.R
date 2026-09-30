@@ -126,30 +126,30 @@ download_hyde <- function(dest_dir, years = NULL, timeout = 7200) {
 # Two things make this more than an unzip. The archive is 4.97 GB, i.e. zip64,
 # which R's internal unzip cannot even list -- so an external unzip is required.
 # And DANS packages the data differently from the PBL portal the reader was
-# written against: it ships baseline/asc/<year>AD_pop/urbc_<year>AD.asc loose,
-# not "<year>AD_pop.zip". Of the 78 GB and 2738 entries inside, the reader wants
-# one ~66 MB file per year, so extract only those and repackage them under the
-# names it opens.
+# written against: it ships baseline/asc/<year>AD_pop/<count>_<year>AD.asc
+# loose, not "<year>AD_pop.zip". Of the 78 GB and 2738 entries inside, the
+# reader wants the three population counts per year (HYDE_COUNTS), so extract
+# only those and repackage them under the names it opens.
 .hyde_extract_baseline <- function(hyde_dir, years = NULL) {
   archive <- file.path(hyde_dir, HYDE_FILES$baseline$name)
   zip_dir <- file.path(hyde_dir, "pop_zip")
   dir.create(zip_dir, recursive = TRUE, showWarnings = FALSE)
   unzip_bin <- .hyde_unzip_bin()
 
-  members <- .hyde_urbc_members(archive, unzip_bin, years)
-  if (length(members) == 0L) {
+  by_year <- .hyde_count_members(archive, unzip_bin, years)
+  if (length(by_year) == 0L) {
     cli::cli_abort(c(
-      "No {.file urbc_<year>AD.asc} entries in {.file {archive}}.",
+      "No {.file popc/urbc/rurc_<year>AD.asc} entries in {.file {archive}}.",
       i = "The HYDE packaging has changed; {.fn read_hyde_population} reads
-           the urban population count from one per-year archive."
+           the population counts from one per-year archive."
     ))
   }
   cli::cli_alert(
-    "Repackaging {length(members)} year{?s} of urban population..."
+    "Repackaging {length(by_year)} year{?s} of population counts..."
   )
-  for (member in members) {
-    .hyde_repackage_year(archive, member, zip_dir, unzip_bin)
-  }
+  purrr::iwalk(by_year, \(members, year) {
+    .hyde_repackage_year(archive, members, year, zip_dir, unzip_bin)
+  })
   zip_dir
 }
 
@@ -169,23 +169,55 @@ download_hyde <- function(dest_dir, years = NULL, timeout = 7200) {
   unname(bin)
 }
 
-.hyde_urbc_members <- function(archive, unzip_bin, years) {
+# The counts read_hyde_population() selects by `variable`: total (its
+# default, and build_human_n()'s default basis), urban and rural.
+HYDE_COUNTS <- c("popc", "urbc", "rurc")
+
+# Archive members holding HYDE_COUNTS, split by year. A year missing any of
+# the three is an abort, not a partial archive: the reader would fail on it
+# later, far from the cause.
+.hyde_count_members <- function(archive, unzip_bin, years) {
   listing <- system2(unzip_bin, c("-Z1", shQuote(archive)), stdout = TRUE)
-  members <- grep("urbc_[0-9]+AD[.]asc$", listing, value = TRUE)
-  if (is.null(years)) {
-    return(members)
+  pattern <- paste0(
+    "(",
+    paste(HYDE_COUNTS, collapse = "|"),
+    ")_[0-9]+AD[.]asc$"
+  )
+  members <- grep(pattern, listing, value = TRUE)
+  year <- sub("^[a-z]+_([0-9]+)AD[.]asc$", "\\1", basename(members))
+  if (!is.null(years)) {
+    keep <- year %in% as.character(years)
+    members <- members[keep]
+    year <- year[keep]
   }
-  wanted <- paste0("urbc_", years, "AD.asc")
-  members[basename(members) %in% wanted]
+  by_year <- split(members, year)
+  short <- names(by_year)[lengths(by_year) != length(HYDE_COUNTS)]
+  if (length(short) > 0L) {
+    cli::cli_abort(c(
+      "HYDE year{?s} {.val {short}} lack{?s/} one of {.val {HYDE_COUNTS}}.",
+      i = "Every per-year archive must hold all three counts."
+    ))
+  }
+  by_year
 }
 
-.hyde_repackage_year <- function(archive, member, zip_dir, unzip_bin) {
-  asc <- basename(member)
-  year <- sub("^urbc_([0-9]+)AD[.]asc$", "\\1", asc)
+# An existing ZIP is reused only if it already holds every count: earlier
+# versions of this script packed urbc alone, and such a ZIP must be rebuilt
+# rather than kept, or the total-population default fails on it.
+.hyde_zip_complete <- function(out_zip, year) {
+  if (!file.exists(out_zip)) {
+    return(FALSE)
+  }
+  held <- utils::unzip(out_zip, list = TRUE)$Name
+  all(paste0(HYDE_COUNTS, "_", year, "AD.asc") %in% held)
+}
+
+.hyde_repackage_year <- function(archive, members, year, zip_dir, unzip_bin) {
   out_zip <- file.path(zip_dir, paste0(year, "AD_pop.zip"))
-  if (file.exists(out_zip)) {
+  if (.hyde_zip_complete(out_zip, year)) {
     return(invisible(out_zip))
   }
+  unlink(out_zip)
   staging <- file.path(tempdir(), paste0("hyde_", year))
   dir.create(staging, recursive = TRUE, showWarnings = FALSE)
   on.exit(unlink(staging, recursive = TRUE), add = TRUE)
@@ -196,14 +228,14 @@ download_hyde <- function(dest_dir, years = NULL, timeout = 7200) {
       "-j",
       "-q",
       shQuote(archive),
-      shQuote(member),
+      shQuote(members),
       "-d",
       shQuote(staging)
     )
   )
   utils::zip(
     zipfile = out_zip,
-    files = file.path(staging, asc),
+    files = file.path(staging, basename(members)),
     flags = "-q -j"
   )
   invisible(out_zip)
