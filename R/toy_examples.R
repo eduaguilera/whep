@@ -146,7 +146,8 @@
     dplyr::mutate(
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
-      method_unspatialized = "fodder_pattern"
+      method_unspatialized = "fodder_pattern",
+      method_crop_weights = "spatialized"
     ) |>
     .add_reporting_polity_columns()
 }
@@ -761,6 +762,123 @@
     -74.75, -52.25, 2000L, 10L, "Temperate C3 grass", 279.0,
     -74.75, -52.25, 2000L, 25L, "rainfed grassland", 325.0,
     -74.75, -52.25, 2000L, 41L, "irrigated grassland", 0.0
+  )
+}
+
+# LPJmL rainfed and irrigated crop yield fixture: six cells, one year, four
+# items. Yields are harvested carbon per m2 of each regime's own stand
+# (gC/m2/yr); NA where the regime has no stand in the cell. Mirrors
+# read_lpjml_regime_yield() output. Sampled from the real
+# global_1750-2023_spinup_300_our_inputs_lpjml611_preindustrial_v2 run at
+# 2010 (values rounded to two decimals).
+.example_lpjml_regime_yield <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~item_prod_code, ~item_cbs_code, ~lpjml_crop,
+    ~yield_rainfed, ~yield_irrigated, ~method_regime_yield,
+    80.75, 21.75, 2010L, 56L, 2514L, "maize",
+    85.47, 84.82, "lpjml_band_harvest",
+    -93.75, 33.25, 2010L, 15L, 2511L, "temperate cereals",
+    282.72, 400.58, "lpjml_band_harvest",
+    113.25, 35.25, 2010L, 236L, 2555L, "oil crops soybean",
+    11.20, 85.79, "lpjml_band_harvest",
+    106.75, 39.25, 2010L, 27L, 2807L, "rice",
+    70.82, 70.82, "lpjml_band_harvest",
+    -100.25, 36.25, 2010L, 15L, 2511L, "temperate cereals",
+    147.86, NA, "lpjml_band_harvest",
+    69.25, 23.75, 2010L, 15L, 2511L, "temperate cereals",
+    15.49, NA, "lpjml_band_harvest"
+  )
+}
+
+# build_regime_yield_ratio() fixture: ten 2010 cell-crops sampled from a real
+# run (gridded land use of the spatialization pins, SPAM2010 v2.0, the
+# faostat-fertilizer-nutrients and faostat-landuse pins, and the LPJmL 6.1.1
+# run of read_lpjml_regime_yield()), each in a cell its country owns alone in
+# the `spatialize-country-grid` pin. They show each stamp: a missing 2010 N
+# value (Somalia seed cotton), an anchor floor (China oil palm on the global
+# SPAM `oilp` ratio of 0.89), a level cap (Mexico rapeseed, SPAM 12.9), good
+# years that shrink the excess (Spain maize, Thailand sesame) and LPJmL
+# spatial and temporal anomalies.
+.example_regime_yield_ratio <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~ratio_spam, ~ratio_anchor,
+    ~ratio_level, ~ratio_spatial, ~ratio_long_term, ~ratio_temporal,
+    ~ratio_anomaly, ~ratio_unbounded, ~spam_crop_used, ~method_ratio_anchor,
+    ~method_ratio_trend, ~method_ratio_n_2010, ~method_ratio_cropland,
+    ~method_dominance, ~method_ratio_spatial, ~method_ratio_temporal,
+    ~method_regime_yield,
+    44.25, 40.75, 1L, 15L, 2010L, 2.04114, 2.04114, 2.04114, 0.790811, 1.82335,
+    0.866441, 0.685191, 1.71338, "whea", "spam_country", "faostat", "own",
+    "own", "not_applicable", "lpjml", "lpjml", "none",
+    133.25, 34.75, 110L, 15L, 2010L, 1.47077, 1.47077, 1.47077, 0.8531, 1.40162,
+    0.978875, 0.835079, 1.39313, "whea", "spam_country", "faostat", "own",
+    "own", "not_applicable", "lpjml", "lpjml", "none",
+    108.75, 30.25, 41L, 27L, 2010L, 1.40231, 1.40231, 1.40231, 1.07851, 1.4339,
+    1.00398, 1.0828, 1.43562, "rice", "spam_country", "faostat", "own", "own",
+    "not_applicable", "lpjml", "lpjml", "none",
+    0.75, 41.75, 203L, 56L, 2010L, 1.51748, 1.51748, 1.51748, 0.89204, 1.46162,
+    0.577519, 0.51517, 1.26659, "maiz", "spam_global", "faostat", "own", "own",
+    "not_applicable", "lpjml", "lpjml", "none",
+    116.25, 32.75, 41L, 254L, 2010L, 0.891805, 1, 1, 0.803664, 1, 0.793528,
+    0.63773, 1, "oilp", "spam_global", "faostat", "own", "own",
+    "not_applicable", "lpjml", "lpjml", "anchor_floor",
+    -100.75, 21.75, 138L, 270L, 2010L, 12.8699, 12.8699, 12.8699, 2.02428, 10,
+    0.813501, 1.64675, 8.32151, "rape", "spam_country", "faostat", "own", "own",
+    "not_applicable", "lpjml", "lpjml", "level_cap",
+    102.75, 15.25, 216L, 289L, 2010L, 1.0266, 1.0266, 1.0266, 0.854807, 1.02274,
+    1.00089, 0.855569, 1.02276, "sesa", "spam_global", "faostat", "own", "own",
+    "not_applicable", "lpjml", "lpjml", "none",
+    42.25, 0.25, 201L, 328L, 2010L, 2.27919, 2.27919, NA, 1, NA, 1, 1, NA,
+    "cott", "spam_country", "no_n_2010", "none", "none", "not_applicable",
+    "no_cell_normal", "no_cell_ratio", "none",
+    103.75, 26.25, 41L, 603L, 2010L, 1.31215, 1.31215, 1.31215, 1, 1.31215, 1,
+    1, 1.31215, "trof", "spam_global", "faostat", "own", "own",
+    "not_applicable", "no_cell_normal", "no_cell_ratio", "none",
+    6.25, 7.25, 159L, 723L, 2010L, 1.98677, 1.98677, 1.98677, 1, 1.98677, 1, 1,
+    1.98677, "rest", "spam_country", "faostat", "own", "own", "not_applicable",
+    "no_cell_normal", "no_cell_ratio", "none"
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+# SPAM2010 v2.0 harvested area, production and yield fixture: six pixels
+# (Russia, Afghanistan, USA, India, Mali, Gambia), one crop each, both
+# technologies (12 rows). Mirrors read_spam_yields() output. Sampled from
+# the real spam2010v2r0_global_{harv_area,prod,yield}.csv.zip download
+# (doi:10.7910/DVN/PRFF8V), values as published. Two pairs are legitimately
+# all-zero on one technology (USA on both; Russia and Afghanistan on
+# rainfed only) -- SPAM's overwhelmingly common case, not a parsing gap.
+.example_spam_yields <- function() {
+  tibble::tribble(
+    ~cell5m, ~lon, ~lat, ~iso3, ~name_cntr, ~name_adm1, ~name_adm2,
+    ~alloc_key, ~spam_crop, ~technology, ~harvested_area_ha, ~production_t,
+    ~yield_kg_ha, ~vintage, ~method_spam_source,
+    1652909L, 42.458333, 58.125000, "RUS", "Russian Federation",
+    "Kostromskaya Oblast", "Administrative unit not availa", 3832670L,
+    "ocer", "I", 10.3, 18.3, 1772.7, "2010", "cache",
+    1652909L, 42.458333, 58.125000, "RUS", "Russian Federation",
+    "Kostromskaya Oblast", "Administrative unit not availa", 3832670L,
+    "ocer", "R", 0, 0, 0, "2010", "cache",
+    2737530L, 67.541667, 37.208333, "AFG", "Afghanistan", "Balkh",
+    "Kaldar", 6342971L, "vege", "I", 35.4, 318.9, 9006.9, "2010", "cache",
+    2737530L, 67.541667, 37.208333, "AFG", "Afghanistan", "Balkh",
+    "Kaldar", 6342971L, "vege", "R", 0, 0, 0, "2010", "cache",
+    2968820L, -98.291667, 32.708333, "USA", "United States Of America",
+    "Texas", "Palo Pinto", 6880981L, "ocer", "I", 0, 0, 0, "2010", "cache",
+    2968820L, -98.291667, 32.708333, "USA", "United States Of America",
+    "Texas", "Palo Pinto", 6880981L, "ocer", "R", 0, 0, 0, "2010", "cache",
+    3342453L, 77.791667, 25.541667, "IND", "India", "Madhya Pradesh",
+    "Shivpuri", 7743094L, "opul", "I", 15.8, 9.3, 590.6, "2010", "cache",
+    3342453L, 77.791667, 25.541667, "IND", "India", "Madhya Pradesh",
+    "Shivpuri", 7743094L, "opul", "R", 15.0, 7.8, 520.0, "2010", "cache",
+    3851276L, -0.291667, 15.708333, "MLI", "Mali", "Gao", "Gao", 8922157L,
+    "rice", "I", 0, 0, 0, "2010", "cache",
+    3851276L, -0.291667, 15.708333, "MLI", "Mali", "Gao", "Gao", 8922157L,
+    "rice", "R", 25.5, 27.4, 1074.5, "2010", "cache",
+    3967747L, -14.375000, 13.458333, "GMB", "Gambia", "Upper River",
+    "Sandu", 9191988L, "sorg", "I", 0, 0, 0, "2010", "cache",
+    3967747L, -14.375000, 13.458333, "GMB", "Gambia", "Upper River",
+    "Sandu", 9191988L, "sorg", "R", 614.2, 604.1, 983.6, "2010", "cache"
   )
 }
 

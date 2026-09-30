@@ -2265,6 +2265,15 @@ utils::globalVariables(
     # recovery rate the table gives as zero from a zero standing in for a
     # lookup that found nothing
     "residue_recovery_matched",
+    # spam_yields.R (issue #1233) -- the data.table `:=` targets when
+    # pivoting a SPAM member's wide crop columns to long (spam_crop) and
+    # stamping the technology it was read for
+    "spam_crop",
+    "technology",
+    # regime_yield_ratio.R (issue #1233) -- the Smil (2001) global
+    # synthetic-N series interpolated by fill_linear() for the pre-1961
+    # back-cast of the regime ratio's fertiliser scaling
+    "global_t",
     # n_prov_destiny.R (issue 1014) -- processing volume above domestic
     # production that the share cap leaves out, and the years it spans
     "excess_fm",
@@ -2351,6 +2360,14 @@ utils::globalVariables(
     "i.near",
     "i.own",
     "i.total",
+    # consolidate_sources.R (issue 393) -- the scope-key match that resolves a
+    # (source, category)-keyed priority entry to a rank, and the continuity
+    # exemption mask that keeps a deliberately sparse source's anchors
+    ".cs_row",
+    ".rank",
+    ".specificity",
+    ".n_rank",
+    ".cs_exempt",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

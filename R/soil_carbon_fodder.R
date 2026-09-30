@@ -209,21 +209,31 @@
   dplyr::bind_rows(weights, fodder)
 }
 
-# Report the carbon the fodder layer placed, so the move from uniform
-# reallocation is visible and sized. Informational: placing carbon on a sourced
-# layer is not a loss.
-.sci_inform_fodder_placed <- function(components, weights, fodder_weights) {
-  added <- dplyr::anti_join(
+# The polity-crops only the fodder layer places: those in the weights with the
+# fodder layer added that the crop weights alone do not carry.
+.sci_fodder_added <- function(weights, fodder_weights) {
+  dplyr::anti_join(
     dplyr::distinct(fodder_weights, .data$area_code, .data$item_prod_code),
     dplyr::distinct(weights, .data$area_code, .data$item_prod_code),
     by = c("area_code", "item_prod_code")
   )
-  placed <- dplyr::semi_join(
-    components,
-    added,
-    by = c("area_code", "item_prod_code")
-  )
-  if (nrow(placed) == 0) {
+}
+
+# One year's components that the fodder layer placed. Taken per year, because
+# under `method_crop_weights = "spatialized"` the crop weights -- and so the
+# polity-crops the fodder layer fills -- change from year to year.
+.sci_fodder_placed <- function(chunk, added) {
+  if (is.null(added)) {
+    return(NULL)
+  }
+  dplyr::semi_join(chunk, added, by = c("area_code", "item_prod_code"))
+}
+
+# Report the carbon the fodder layer placed, so the move from uniform
+# reallocation is visible and sized. Informational: placing carbon on a sourced
+# layer is not a loss.
+.sci_inform_fodder_placed <- function(placed) {
+  if (is.null(placed) || nrow(placed) == 0) {
     return(invisible(NULL))
   }
   n <- nrow(placed)

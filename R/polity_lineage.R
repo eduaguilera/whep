@@ -110,6 +110,7 @@ resolve_polity_lineage <- function(
   )
   years <- sort(unique(as.integer(national$year)))
   .check_lineage_support(support, years)
+  polities <- .lineage_attributes(polities)
   .check_lineage_edges(polities, basis)
 
   pairs <- .lineage_anchor_pairs(national)
@@ -119,6 +120,22 @@ resolve_polity_lineage <- function(
     .lineage_walk(pairs, support, polities)
   }
   .lineage_attach(national, resolved, polities)
+}
+
+# `polities` without its geometry, as a plain tibble. It is an sf data frame,
+# and once sf is loaded every dplyr verb on it dispatches to sf's methods:
+# `distinct.sf()` decides which rows are duplicates by comparing their polygons
+# on the sphere, which turned each lineage call from milliseconds into seconds
+# (the test suite ran 20-100 times slower in every file after one that loads
+# sf). The lineage reads attributes only. The columns are taken by name because
+# sf is suggested, not imported, so `sf::st_drop_geometry()` is not available.
+# A geometry column is recognised by its `sfc` class as well as by the
+# `sf_column` attribute, which a dplyr verb run without sf loaded can drop.
+.lineage_attributes <- function(polities) {
+  columns <- as.list(polities)
+  is_geometry <- purrr::map_lgl(columns, \(col) inherits(col, "sfc")) |
+    names(columns) %in% attr(polities, "sf_column")
+  tibble::as_tibble(columns[!is_geometry])
 }
 
 # --- Private helpers ----------------------------------------------------------

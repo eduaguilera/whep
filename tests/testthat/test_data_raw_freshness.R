@@ -60,6 +60,7 @@
     "feed_coefficients.R",
     "harmonization_tables.R",
     "nitrogen_refs.R",
+    "regime_yield_crop_mapping.R",
     "sjos_n_coefficients.R",
     "whep_inputs.R"
   )

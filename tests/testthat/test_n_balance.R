@@ -362,7 +362,8 @@
     methods = list(
       nh3 = "ipcc",
       n2o = "ipcc2019",
-      leaching = "ipcc_fracleach"
+      leaching = "ipcc_fracleach",
+      regime = "none"
     ),
     resolution = resolution,
     data = data
@@ -1035,7 +1036,8 @@ testthat::test_that("build_nitrogen_balance forwards polity_validity down", {
     methods = list(
       nh3 = "ipcc",
       n2o = "ipcc2019",
-      leaching = "ipcc_fracleach"
+      leaching = "ipcc_fracleach",
+      regime = "none"
     ),
     polity_validity = "flag",
     data = .nb_data_with_drivers()
@@ -1222,6 +1224,120 @@ testthat::test_that("residue destinies no N coefficient joins are refused", {
   )
 })
 
+# ---- Rainfed/irrigated split -----------------------------------------------
+
+.nb_run_regime <- function(regime, data = .nb_data_with_drivers()) {
+  whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "ipcc_fracleach",
+      regime = regime
+    ),
+    data = data
+  )
+}
+
+# Shares for every grid key of the unsplit balance, so the split is offline.
+.nb_regime_share_fixture <- function(unsplit, area = 0.3, yield = 0.6) {
+  unsplit |>
+    dplyr::distinct(
+      .data$lon,
+      .data$lat,
+      .data$area_code,
+      .data$item_cbs_code,
+      .data$year
+    ) |>
+    dplyr::mutate(
+      irrigated_area_share = area,
+      irrigated_yield_share = yield
+    )
+}
+
+testthat::test_that("the regime split conserves the unsplit balance", {
+  unsplit <- .nb_run_regime("none")
+  data <- .nb_data_with_drivers()
+  data$regime_shares <- .nb_regime_share_fixture(unsplit)
+  split <- .nb_run_regime("yield_split", data = data)
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  additive <- c(
+    "n_input_full_t",
+    "n_input_std_t",
+    "prod_n_t",
+    "used_residue_n_t",
+    "area_ha",
+    "grazed_weeds_n_t",
+    "som_sequestration_n_t",
+    "n_output_full_t",
+    "n_balance_t",
+    "nh3_n_t",
+    "n2o_direct_n_t"
+  )
+  summed <- split |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(additive), sum),
+      .by = dplyr::all_of(key)
+    ) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+  base <- unsplit |>
+    dplyr::select(dplyr::all_of(c(key, additive))) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+  testthat::expect_equal(nrow(split), 2L * nrow(unsplit))
+  for (col in additive) {
+    testthat::expect_equal(summed[[col]], base[[col]], tolerance = 1e-9)
+  }
+  pointblank::expect_col_vals_in_set(
+    split,
+    "water_regime",
+    c("rainfed", "irrigated")
+  )
+  testthat::expect_true(all(split$method_regime == "yield_split"))
+  testthat::expect_true(all(split$method_regime_split == "regime_shares"))
+})
+
+testthat::test_that("the regime split weights production by the yield share", {
+  unsplit <- .nb_run_regime("none")
+  data <- .nb_data_with_drivers()
+  data$regime_shares <- .nb_regime_share_fixture(unsplit)
+  split <- .nb_run_regime("yield_split", data = data)
+  irrigated <- dplyr::filter(split, .data$water_regime == "irrigated")
+  base <- unsplit |>
+    dplyr::select("lon", "lat", "item_cbs_code", "prod_n_t", "area_ha") |>
+    dplyr::rename(prod_base = "prod_n_t", area_base = "area_ha")
+  joined <- dplyr::inner_join(
+    irrigated,
+    base,
+    by = c("lon", "lat", "item_cbs_code")
+  )
+  testthat::expect_equal(joined$prod_n_t, 0.6 * joined$prod_base)
+  testthat::expect_equal(joined$area_ha, 0.3 * joined$area_base)
+})
+
+testthat::test_that("area_split replaces the yield share by the area share", {
+  unsplit <- .nb_run_regime("none")
+  data <- .nb_data_with_drivers()
+  data$regime_shares <- .nb_regime_share_fixture(unsplit)
+  split <- .nb_run_regime("area_split", data = data)
+  irrigated <- dplyr::filter(split, .data$water_regime == "irrigated")
+  total <- sum(unsplit$prod_n_t)
+  testthat::expect_equal(sum(irrigated$prod_n_t), 0.3 * total)
+  testthat::expect_true(all(split$method_regime == "area_split"))
+})
+
+testthat::test_that("the regime split aborts when no shares can be built", {
+  testthat::local_mocked_bindings(
+    .nb_regime_shares = function(...) NULL,
+    .package = "whep"
+  )
+  testthat::expect_error(
+    .nb_run_regime("yield_split"),
+    class = "whep_regime_shares_missing"
+  )
+})
+
+testthat::test_that("build_nitrogen_balance validates methods$regime", {
+  testthat::expect_error(.nb_run_regime("tiled"), "regime")
+})
 testthat::test_that("the balance names the human-N population basis it used", {
   out <- .nb_run()
   testthat::expect_setequal(

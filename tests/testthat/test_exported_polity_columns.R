@@ -85,7 +85,15 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       # polity means CHOOSING one, which is a modelling decision and not
       # plumbing. Left out until that convention is decided.
       "build_grazing_feed_footprint",
-      "build_land_balance_footprint"
+      "build_land_balance_footprint",
+      # read_spam_yields() is a faithful low-level reader of SPAM's own
+      # `iso3` codes, on a multi-year vintage average ("avg(2009-2011)" for
+      # SPAM2010) rather than a single reporting year -- resolving a polity
+      # needs choosing which year backs that average, the same "choosing a
+      # year is a modelling decision" shape as the two exceptions above.
+      # Mapping SPAM's countries (and crops) onto WHEP's own codes is
+      # build_regime_yield_ratio()'s job (issue #1233), not this reader's.
+      "read_spam_yields"
     )
   )
 

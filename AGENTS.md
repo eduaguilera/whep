@@ -336,8 +336,9 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   under `rappdirs::user_cache_dir("whep")`, and treat the env var as an
   override. Prefer this over a pin, which adds an uncheckable second copy
   (#457). Current cases: the LUH2 `states.nc` (`read_luh2_landuse()`, Zenodo
-  record 15556812) and the critical-nitrogen archive (`read_critical_n()`,
-  Zenodo record 6395016).
+  record 15556812), the critical-nitrogen archive (`read_critical_n()`,
+  Zenodo record 6395016) and SPAM2010 (`read_spam_yields()`, Harvard
+  Dataverse doi:10.7910/DVN/PRFF8V, override `WHEP_SPAM_DIR`).
 
 #### Fixing the reader is half the job: the pin it feeds is now stale
 

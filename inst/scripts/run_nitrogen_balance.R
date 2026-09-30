@@ -32,6 +32,9 @@
 #                           boundary exceedance, so
 #                           `validation/n_balance_gridded.R` can check them
 #                           without re-running the assembly.
+#   WHEP_NBD_REGIME=yield_split|area_split|none
+#                           rainfed/irrigated split of the balance rows
+#                           (default yield_split; see build_nitrogen_balance()).
 #   WHEP_NBD_UNSUPPORTED_FERTILIZER=drop|abort
 #                           what to do with synthetic N of polities that have
 #                           no cropland cell (default `drop`; see
@@ -503,10 +506,13 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # .nb_inputs()/.nb_outputs() before .nb_losses() runs, and those four are the
 # whole of calculate_n_surplus(method = "harvest_removal"). The script checks
 # that identity below rather than asserting it.
+# WHEP_NBD_REGIME selects the rainfed/irrigated split (#1233):
+# yield_split (default), area_split or none (the unsplit balance).
 NBD_LOSS_METHODS <- list(
   nh3 = "ipcc",
   n2o = "ipcc2019",
-  leaching = "ipcc_fracleach"
+  leaching = "ipcc_fracleach",
+  regime = Sys.getenv("WHEP_NBD_REGIME", "yield_split")
 )
 NBD_PLACEHOLDER_CLIMATE <- "ATL"
 
