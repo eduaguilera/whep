@@ -866,6 +866,9 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
 # `read_polycell_support()` returns. `area_code` is carried explicitly because
 # `polity_area_crosswalk` has no row for a prefecture: without it the level-0
 # half of the allocation layer would lose the container entirely.
+# Already in the replacement shape (the prefectures stand instead of Japan),
+# so the depth runs below mock the subnational pin as empty: nothing is
+# swapped, and no test reads that pin from the board.
 .rs_depth_support <- function() {
   tibble::tribble(
     ~polycell_id, ~cell_id, ~lon,   ~lat,  ~polity_code,
@@ -968,6 +971,7 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
 .rs_local_depth_mocks <- function(env = parent.frame()) {
   testthat::local_mocked_bindings(
     read_polycell_support = function(...) .rs_depth_support(),
+    .read_subnational_support = function(...) .rs_depth_support()[0L, ],
     read_admin_shares = function(...) {
       list(
         shares = .rs_depth_shares(),
@@ -1125,6 +1129,7 @@ testthat::test_that("a depth needs containers, and level 0 refuses them", {
 testthat::test_that("an unregistered admin-shares pin aborts a depth run", {
   testthat::local_mocked_bindings(
     read_polycell_support = function(...) .rs_depth_support(),
+    .read_subnational_support = function(...) .rs_depth_support()[0L, ],
     read_admin_shares = function(...) {
       list(
         shares = whep::admin_shares_prototype(),
