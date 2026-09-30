@@ -2340,6 +2340,17 @@ utils::globalVariables(
     "value_dm",
     "feed_fm_t",
     "feed_true_dm_t",
+    # hist_trade_scale.R (whep#1085) -- per-row evidence of the "correct"
+    # historical trade screen
+    "flagged",
+    "mirror",
+    "neighbour",
+    "hist_trade_class",
+    "near_year",
+    "near",
+    "i.near",
+    "i.own",
+    "i.total",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

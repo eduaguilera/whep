@@ -131,8 +131,8 @@
 #'   `"historical_fill_negative_supply"` under `"report"`); and any negative
 #'   mass that reaches the published balance, from this or any other cause,
 #'   is reported by a separate warning of class `whep_negative_cbs_value`.
-#' @param hist_trade_scale One of `"report"` (default), `"drop"` or
-#'   `"abort"`, selecting what happens when a pre-1961 row of the
+#' @param hist_trade_scale One of `"correct"` (default), `"report"`,
+#'   `"drop"` or `"abort"`, selecting what happens when a pre-1961 row of the
 #'   `historical-trade-*` pins carries a quantity no mass unit can express
 #'   (whep#1085). The screen bounds a single reporter's flow by the largest
 #'   **world** flow FAOSTAT records for the same trade item, summed over
@@ -157,6 +157,30 @@
 #'   `domestic_supply`. `"abort"` refuses to build. There is deliberately no
 #'   clamp: the defect is in the pin's producer and no conversion factor
 #'   recovers the true value, so a clamped tonnage would be a fabricated one.
+#'
+#'   `"correct"`, the default (a maintainer decision), judges each flagged
+#'   row on its own evidence from the two
+#'   pins and repairs only a proven ten-fold slip (whep#1117): a row is
+#'   divided by 10 when that brings it within the world bound, when as
+#'   published it exceeds the whole partner side of the pins (the opposite
+#'   flow of every other reporter, same item and year) but divided by 10 does
+#'   not, and when it sits one power of ten above the clean neighbours of its
+#'   own series within 5 years (the window is assumed, unverified). A row no
+#'   partner books, or still above the partner side after dividing by 10, is
+#'   dropped as not a mass (item 831's signature); every other flagged row is
+#'   dropped as unexplained. No factor other than 10 is ever applied.
+#'   Re-measured on current `main` against FAOSTAT 1961–2023 (the bound a
+#'   1850–2023 build uses), 1,659 rows carrying 3,958.8 Mt are flagged: 175
+#'   rows (1,002.0 Mt as published, 100.2 Mt used) are divided by 10, 1,126
+#'   (2,662.3 Mt) are dropped as not a mass and 358 (294.5 Mt) as
+#'   unexplained; 99.9% of the corrected mass is the USA. On a real
+#'   1950–1960 build it leaves the same 83 negative reconstructed supplies
+#'   (−6.87 Mt) as `"drop"`, against 151 (−1,015.70 Mt) under `"report"`,
+#'   while keeping 103.4 Mt of repaired trade that `"drop"` discards. The
+#'   output of every setting that builds carries a `hist_trade_scale_log`
+#'   attribute (absent with `.fixed_data`): one
+#'   row per flagged pin row, with the published and the used value, the
+#'   evidence (`world_max`, `mirror`, `neighbour`), the class and the action.
 #'
 #'   The warning also carries a second, informational class: rows larger than
 #'   any flow FAOSTAT records for the **same reporter**, item and element.
@@ -355,8 +379,9 @@ build_commodity_balances <- function(
       "i" = "The live-animal rows are derived from primary production."
     ))
   }
+  scale_log <- NULL
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(
+    raw <- .read_cbs(
       primary_all,
       start_year,
       end_year,
@@ -366,7 +391,9 @@ build_commodity_balances <- function(
       hist_trade_scale = hist_trade_scale,
       seed_backcast = seed_backcast,
       silk_basis = silk_basis
-    ) |>
+    )
+    scale_log <- attr(raw, ".hist_trade_scale_log")
+    fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
         trade_zero = trade_zero,
@@ -401,7 +428,7 @@ build_commodity_balances <- function(
          supplied."
       )
     }
-    if (hist_trade_scale != "report") {
+    if (hist_trade_scale != "correct") {
       cli::cli_warn(
         "{.arg hist_trade_scale} is ignored when {.arg .fixed_data} is \
          supplied."
@@ -438,11 +465,14 @@ build_commodity_balances <- function(
     .report_negative_cbs_values(
       negative_supply = if (is.null(.fixed_data)) negative_supply
     )
+  attr(long, "hist_trade_scale_log") <- scale_log
 
   if (format == "long") {
     return(long)
   }
-  .cbs_long_to_wide(long, primary_all, start_year:end_year)
+  wide <- .cbs_long_to_wide(long, primary_all, start_year:end_year)
+  attr(wide, "hist_trade_scale_log") <- scale_log
+  wide
 }
 
 # The pivot plus the live-animal rows the FAO sheet omits: the part of the wide
@@ -709,6 +739,10 @@ build_commodity_balances <- function(
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
   attr(cbs_raw, ".years") <- output_years
+  attr(cbs_raw, ".hist_trade_scale_log") <- attr(
+    inputs$trade_hist,
+    "hist_trade_scale_log"
+  )
 
   # Aggregate FAOSTAT + FishStat trade to CBS item level for imputation
   # Both aggregates are reduced to their mass rows first: this attribute is the
@@ -1468,16 +1502,21 @@ build_processing_coefs <- function(
   # which reversed the direction. Verified against the 1961 FAOSTAT overlap:
   # on the exports pin USA wheat is ~19.2 Mt (a known 17-19 Mt exporter) vs
   # ~0.2 Mt on the imports pin, and Egypt (an importer) is ~0.4 vs ~661.
+  # `"correct"` judges a row against its neighbours in the same series, so it
+  # reads the pins a neighbour window wider than the build and trims back
+  # after the screen; otherwise a row at the edge of a short build would lose
+  # the neighbours a full build gives it.
+  read_years <- .hist_trade_read_years(years, scale_screen)
   exports <- .read_input(
     "historical-trade-exports",
-    years = years,
+    years = read_years,
     year_col = "year"
   )
   exports[, element := "export"]
 
   imports <- .read_input(
     "historical-trade-imports",
-    years = years,
+    years = read_years,
     year_col = "year"
   )
   imports[, element := "import"]
@@ -1500,13 +1539,19 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
+  scale_log <- NULL
   if (!is.null(reference)) {
     dt <- .screen_hist_trade_scale(
       dt,
       reference,
       scale_screen,
-      reporter_reference = reporter_reference
+      reporter_reference = reporter_reference,
+      keep_years = if (identical(read_years, years)) NULL else years
     )
+    scale_log <- attr(dt, "hist_trade_scale_log")
+  }
+  if (!identical(read_years, years)) {
+    dt <- dt[year %in% years]
   }
 
   dt <- .resolve_hist_trade_polities(dt)
@@ -1543,14 +1588,26 @@ build_processing_coefs <- function(
       "polity_code"
     )
   )
-  dt[!is.na(polity_code)]
+  out <- dt[!is.na(polity_code)]
+  data.table::setattr(out, "hist_trade_scale_log", scale_log)
+  out
+}
+
+# The years `.read_historical_trade()` reads the pins over: the build's own,
+# widened by the neighbour window when `"correct"` needs the neighbours.
+.hist_trade_read_years <- function(years, scale_screen) {
+  if (is.null(years) || scale_screen != "correct") {
+    return(years)
+  }
+  window <- .hist_trade_neighbour_years()
+  seq(min(years) - window, max(years) + window)
 }
 
 # What happens to a pre-1961 historical trade flow that no mass unit can make
 # physical. See `.screen_hist_trade_scale()` for the bound and whep#1085 for
 # the measurement.
 .hist_trade_scale_choices <- function() {
-  c("report", "drop", "abort")
+  c("correct", "report", "drop", "abort")
 }
 
 # The bound the historical trade screen measures against: for each
@@ -1691,15 +1748,21 @@ build_processing_coefs <- function(
 #
 # `method` is a policy, not an estimate: `"report"` keeps every value and only
 # warns, so it moves no published number; `"drop"` removes the flagged rows;
-# `"abort"` refuses to build. There is deliberately no "clamp" and no
-# "rescale" -- a clamped or divided tonnage would be a fabricated one. `method`
-# governs the world bound only; the reporter bound is informational under every
-# setting, for the reason `.hist_trade_reporter_reference()` records.
+# `"abort"` refuses to build; `"correct"` divides a flagged row by 10 only where
+# that row's own mirror and neighbours prove a ten-fold slip, and drops the
+# rest (see R/hist_trade_scale.R for the per-row rule). That is narrower than
+# the blanket rescale ruled out above: it never touches a row within the world
+# bound, never applies a factor other than 10, and applies 10 only where the
+# pins' partner side and the same series agree for that row. There is still no
+# "clamp" -- a clamped tonnage would be a fabricated one. `method` governs the
+# world bound only; the reporter bound is informational under every setting,
+# for the reason `.hist_trade_reporter_reference()` records.
 .screen_hist_trade_scale <- function(
   dt,
   reference,
   method,
-  reporter_reference = NULL
+  reporter_reference = NULL,
+  keep_years = NULL
 ) {
   method <- rlang::arg_match(method, .hist_trade_scale_choices())
   out <- data.table::as.data.table(dt)
@@ -1715,6 +1778,14 @@ build_processing_coefs <- function(
   }
   out[ref, world_max := i.world_max, on = c("item_code_trade", "element")]
   out <- .add_hist_trade_reporter_max(out, reporter_reference)
+  # `"correct"` classifies on every row it was given -- the neighbours may lie
+  # outside the build -- and only then keeps the build's own years.
+  if (method == "correct") {
+    out <- .classify_hist_trade_scale(out)
+  }
+  if (!is.null(keep_years)) {
+    out <- out[year %in% keep_years]
+  }
   # The reporter class is restricted to the rows the CBS actually consumes
   # from these pins. `.prepare_trade_hist_source()` keeps `year < 1961`, and
   # the pins' 1961 layer is FAOSTAT verbatim, so including it would only
@@ -1726,11 +1797,18 @@ build_processing_coefs <- function(
     out,
     method
   )
+  log <- .hist_trade_scale_log(out, method)
+  if (method == "correct") {
+    out <- .correct_hist_trade_scale(out)
+    .inform_hist_trade_correct(log)
+  }
   if (method == "drop") {
     out <- out[is.na(world_max) | value <= world_max]
   }
   out[, c("world_max", "reporter_max") := NULL]
-  out[]
+  out <- out[]
+  data.table::setattr(out, "hist_trade_scale_log", log)
+  out
 }
 
 # Attach the reporter bound, leaving it all-`NA` when no reporter reference was
@@ -1807,8 +1885,8 @@ build_processing_coefs <- function(
     "i" = paste0(
       "{.arg hist_trade_scale} is {.val {method}}; ",
       "{.val {setdiff(.hist_trade_scale_choices(), method)}} also select",
-      "able. The pin is wrong at the producer (whep#1085) and no conversion ",
-      "factor recovers the true value."
+      "able. The pin is wrong at the producer (whep#1085); only ",
+      "{.val correct} repairs a row, and only a proven ten-fold slip."
     )
   )
   if (method == "abort") {
