@@ -16,12 +16,22 @@ a single 0.47 percent for pasture/range/paddock against 1.0/1.5/2.0
 here, and 1.0/2.0/2.5 for static-pile and passive-windrow composting
 against 0.5/0.5/0.5 and 1.0/1.0/1.5 here. Some cells match neither
 edition: dry lot 1.5/2.5/4.0 (both editions give 1.0/1.5/2.0),
-intensive-windrow composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5) and
-pit storage under one month 3/3/5 (2006 gives 3/3/30). Where a 2006 row
-is resolved per degree Celsius the value taken is not always the
-mid-point of the class (uncovered anaerobic lagoon temperate 73 percent
-is the 14 degree column, not the 78 percent of 20 degrees);
-tracked in whep#601.
+intensive-windrow composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5),
+passive-windrow composting 1.0/1.0/1.5 (2006 gives 0.5/1.0/1.5, the
+2019 Refinement 1.0/2.0/2.5), pit storage under one month 3/3/5 (2006
+gives 3/3/30) and liquid/slurry with crust warm 47 percent, which is in
+no column of that 2006 row (its warm class runs 44 percent at 26 degrees,
+48 at 27 and 50 at 28 or above) and in no cell of the 2019 table.
+\code{"Anaerobic Digester"} 0 is not a published default in either edition:
+2006 Table 10.17 gives the range 0-100 percent and requires the compiler
+to calculate it, and the 2019 Refinement resolves it into six
+leakage-and-storage classes spanning 1.00 to 13.17 percent.
+\strong{Assumed, unverified.} Where a 2006 row is resolved per degree Celsius
+the value taken is not always the mid-point of the class: uncovered
+anaerobic lagoon temperate 73 percent is the 14 degree column, not the
+78 percent of 20 degrees, and liquid/slurry without crust and pit storage
+over one month take 35 percent for temperate, which is the 18 degree
+column rather than the 42 percent of 20 degrees. Tracked in whep#601.
 }
 \usage{
 ipcc_2019_mcf_manure

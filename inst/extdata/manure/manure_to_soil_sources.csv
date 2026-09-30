@@ -3,7 +3,7 @@ ipcc_2019_v4ch10,IPCC 2019 Refinement to the 2006 Guidelines Vol.4 Ch.10,https:/
 bio_coefs_manure,WHEP bio_coefs Solid/Liquid/Excreta category rows (migrated from biomass_coefs which is being superseded),whep_coef_table bio_coefs,manure C:N + humification per species x manure-type,verified
 bio_coefs_feed,WHEP bio_coefs product_n_kgdm incl. migrated feed byproducts,whep_coef_table bio_coefs,feed-item N content (item_cbs->name_biomass->product_n_kgdm),verified
 webb_2004,Webb & Misselbrook 2004 (via IPCC 2019 Table 10.23),see IPCC 2019 V4 Ch10 Table 10.23,N2:N2O ratio underlying value,derived
-herrero_2013,Herrero et al. 2013 PNAS,doi:10.1073/pnas.1308149110,MMS-share distribution (regional_mms_distribution),verified
+gleam_2_0_s1,FAO 2018 GLEAM Model description Version 2.0 Revision 5 Supplement S1 Tables 4.2-4.11 (no DOI issued),md5 72fd2ea477dfe8b30cd3657b2baa4af1,MMS-share distribution (regional_mms_distribution source gleam_2_0; crosswalked onto WHEP mms_type - see ?regional_mms_distribution),verified
 west_2014,West et al. 2014 Science 345:325-328,doi:10.1126/science.1246067,crop manure-N receptivity (crops_manure_n),verified
 ipcc_2006_v4ch3,IPCC 2006 Guidelines Vol.4 Ch.3 Annex 3A.5 decision tree,https://www.ipcc-nggip.iges.or.jp,climate-zone MAT cuts (Cool<=10; Temperate 10-18; Warm>18) adopted by 2019 Ch10,verified
 ipcc_climate_zones_zenodo,IPCC Climate Zones gridded (2019 Refinement),doi:10.5281/zenodo.7303808,iso3->climate-zone layer (P2/P4 build),verified

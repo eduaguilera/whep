@@ -51,16 +51,16 @@
 #' change of territory can only reach the back-cast as a ratio. What that ratio
 #' should be is a real choice, and `boundary_step` makes it:
 #'
-#' * `"relink"` (default) re-measures the previous year inside the **incoming**
+#' * `"relink"` re-measures the previous year inside the **incoming**
 #'   polity's polygon before taking the ratio, so only within-territory growth
 #'   is ever used and annexing a province never moves the back-cast. On Ethiopia
 #'   in 1952, when Eritrea joins, that is +1.9% instead of +8.0%.
-#' * `"level_step"` takes the ratio between the two polygons as measured, so the
-#'   territorial change passes through as a level step and the 1850 row is
-#'   scaled to the smaller empire it is labelled with. That is the reframing the
-#'   whole method exists for; it is also the option most exposed to a bad
-#'   polygon, because an artefact of the polity database then compounds down the
-#'   back-cast exactly as a real annexation would.
+#' * `"level_step"` (default) takes the ratio between the two polygons as
+#'   measured, so the territorial change passes through as a level step and the
+#'   1850 row is scaled to the smaller empire it is labelled with. That is the
+#'   reframing the whole method exists for; it is also the option most exposed
+#'   to a bad polygon, because an artefact of the polity database then compounds
+#'   down the back-cast exactly as a real annexation would.
 #'
 #' Measured over 1850-1961 against the present-day series, 18.0% of back-cast
 #' crop tonnage at 1850 sits between the two rules, falling to 0.07% by 1960.
@@ -131,8 +131,29 @@ build_historical_land_areas <- function(
     \(yr) .measure_land_year(yr, polity_areas, cover, data$cell_areas)
   ) |>
     data.table::rbindlist(use.names = TRUE) |>
+    .check_land_classes() |>
     .chain_link_land(boundary_step) |>
     .label_land_polities(polity_areas)
+}
+
+# Both classes must reach `.land_series_to_wide()`, because a class with no
+# rows at all is filled with 0 there by `ensure_columns()` (whep#1034): the
+# back-cast then reads a Cropland or Pasture series of zeros, and
+# `agriland == Cropland + Pasture` still holds exactly while one half of it is
+# missing. On the reader path both labels come from `.luh2_map_classes()`,
+# which keeps zero-fraction rows, so a real series always carries both; an
+# injected `cell_areas`, or a change to that lookup, is what can drop one.
+.check_land_classes <- function(measured) {
+  check_labels_supplied(
+    measured,
+    "land_use",
+    c("cropland", "grassland"),
+    details = c(
+      i = "{.fn build_historical_land_areas} measures the {.val cropland} and
+           {.val grassland} classes of {.fn read_luh2_landuse}; check the
+           labels of any injected {.code data$cell_areas}."
+    )
+  )
 }
 
 # Name the territory each row was measured on. Keyed on (year, area_code), so

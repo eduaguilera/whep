@@ -1,8 +1,10 @@
 # Generalized LPJmL hydrology NetCDF reader.
 #
 # CONFIRMED LPJmL FACTS (run inspected; do not re-guess):
-# - Gridded NetCDF lon[720] x lat[277] x time, 0.5 deg, monthly, firstyear
-#   1901.
+# - Gridded NetCDF lon[720] x lat[277] x time, 0.5 deg, monthly. The FIRST
+#   year is read from each file's own time axis ("days since YYYY-M-D",
+#   noleap) and never assumed: it was assumed to be 1901 until 2026-08-30,
+#   which silently relabels every year of the 1750-2023 run by 151.
 # - The LAST year is a property of the run, not of this reader, so it is read
 #   from the file's own time dimension and never assumed. WHEP's runs end in
 #   different years and sit side by side in one LPJmL_runs/ folder: the
@@ -58,10 +60,42 @@
 #'
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-#'   `"discharge"`, `"swc"`, `"cft_nir"` (per-CFT net irrigation requirement)
-#'   or the per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
+#'   `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
+#'   `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
+#'   `"stand_frac"` (per-CFT stand area fraction, from `cftfrac.nc`: the
+#'   weight every other per-CFT cube needs before it can be summed to a
+#'   cell),
+#'   `"cft_nir"` (per-CFT net irrigation requirement), `"cft_airrig_month"`
+#'   (per-CFT APPLIED irrigation by month) or the per-CFT
+#'   consumptive-water cubes `"cft_consump_water_b"` (blue) and
 #'   `"cft_consump_water_g"` (green). The per-CFT variables keep their `band`
 #'   dimension, and carry `band_name` when the file names its bands.
+#'
+#'   `"pet"` and the two soil temperatures exist because the SOC drivers take
+#'   both from CRU instead, mixing two models' quantities in one expression;
+#'   see the note at `.hydro_var_map()`. Nothing consumes them yet.
+#' @section Per-CFT cubes are per-STAND densities:
+#' Every per-CFT variable is a density per square metre of ITS OWN CROP'S
+#' STAND, not of the gridcell. Summing the bands therefore does NOT give a
+#' cell total, and comparing that sum against a whole-cell cube overstates it
+#' badly: on the 2026-09-01 run, `"cft_airrig_month"` summed raw across bands
+#' is **122.8 times** `"irrig"` (from `mirrig.nc`) for July 2010. Weight each
+#' band by its `cftfrac` stand fraction first and the same comparison closes
+#' to **0.999**, and to 1.000-1.001 cell by cell on the most irrigated cells.
+#'
+#' So: multiply by the stand fraction before aggregating over bands, over
+#' cells, or against anything crop-less. The reader returns the model's own
+#' units and does not do this for you, because which weighting is wanted
+#' depends on the question -- a per-hectare-of-crop intensity keeps the
+#' per-stand value, a cell or catchment total does not.
+#'
+#' @section Rainfed rice carries applied water:
+#' `"cft_airrig_month"` and `"cft_nir"` both book water on the *rainfed* rice
+#' band -- 36% of the stand-weighted applied total at July 2010. That is
+#' LPJmL's paddy management rather than a defect: flooded rice receives water
+#' whether or not the stand is classed as irrigated. Filtering to bands whose
+#' name starts with `"irrigated"` therefore drops real water.
+#'
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -69,7 +103,8 @@
 #'   have aborts, naming the coverage it does have: LPJmL runs ending in
 #'   different years sit side by side in one folder, so the coverage is a
 #'   property of `run_dir`, never an assumption of this reader.
-#' @param first_year First calendar year of the run's monthly time axis. The
+#' @param first_year First calendar year of the run's monthly time axis.
+#'   `NULL` (default) reads it from each file's own `time` axis. The
 #'   last year is not an argument — it is read from the file's own time
 #'   dimension.
 #' @param monthly If `TRUE`, return one row per cell-month; if `FALSE`,
@@ -80,11 +115,36 @@
 #'   are already one per cell-year-band.
 #' @param agg Annual aggregation for `monthly = FALSE`, `"sum"` (flux default)
 #'   or `"mean"` (soil-water default).
+#' @param partial_year What to do when `monthly = FALSE` and a cell-year does
+#'   not carry all twelve months, so that aggregating it would silently return
+#'   a total over eleven. `"abort"` (default) refuses, naming the absent
+#'   cell-months; `"warn"` returns the short aggregate anyway; `"drop"` removes
+#'   the incomplete cell-years and reports how many went, so the year is
+#'   *absent* rather than wrong. Immaterial for the annual per-CFT variables,
+#'   which carry no `month`. See *Partial years* below.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
 #'   `value`, plus `layer` for `"swc"` or `band` for `"cft_nir"`) used in
 #'   place of reading NetCDF, for testing.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
+#'
+#' @section Partial years:
+#' An LPJmL monthly output grows one time step at a time, so a run that was
+#' interrupted, or is still writing, leaves a final year with fewer than twelve
+#' steps. Aggregating that year sums **eleven** months and says nothing: no
+#' value is `NA`, the row count is unchanged (one row per cell-year either
+#' way), and every downstream total and identity goes on balancing over the
+#' eleven. Reproduced on a real 24-month run truncated to 23 with
+#' `ncks -d time,0,22`: the second year's summed deep seepage fell 3.05% over
+#' 500 land cells (98,478 to 95,477 mm), with an identical 3,392-row output and
+#' no `NA` in any land cell (whep#1073).
+#'
+#' The refusal lives here, at the reader, because this is where the absence is
+#' created; once the short annual total is downstream it is indistinguishable
+#' from a measurement. `years = ` was already safe -- the coverage check counts
+#' only whole years, so requesting a partial one aborts -- and `partial_year`
+#' closes the `years = NULL` whole-file read that it does not cover.
+#'
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
 #'   for the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
 #'   `band` plus `band_name` for the per-CFT variables). The annual per-CFT
@@ -105,15 +165,21 @@ read_lpjml_hydrology <- function(
     "runoff",
     "discharge",
     "swc",
+    "pet",
+    "soiltemp1",
+    "soiltemp2",
+    "stand_frac",
     "cft_nir",
+    "cft_airrig_month",
     "cft_consump_water_b",
     "cft_consump_water_g"
   ),
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   monthly = TRUE,
   agg = c("sum", "mean"),
+  partial_year = c("abort", "warn", "drop"),
   data = NULL,
   example = FALSE
 ) {
@@ -122,14 +188,49 @@ read_lpjml_hydrology <- function(
   }
   var <- rlang::arg_match(var)
   agg <- if (var == "swc" && missing(agg)) "mean" else rlang::arg_match(agg)
+  partial_year <- rlang::arg_match(partial_year)
   long <- data %||%
     .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
   long <- .hydro_name_band(long, var)
+  .hydro_check_band_spread(long, var)
   long <- .filter_years_if_present(long, years)
-  if (monthly) long else .aggregate_hydro_annual(long, var, agg)
+  if (monthly) {
+    return(long)
+  }
+  long <- .hydro_resolve_partial_years(long, var, partial_year)
+  .aggregate_hydro_annual(long, var, agg)
 }
 
+# `pet` and `soiltemp1`/`soiltemp2` are here because the SOC drivers have been
+# taking both from CRU instead, and both are inconsistent with the LPJmL water
+# and carbon beside them:
+#
+#   PET  CRU ships a Penman-Monteith PET at FIXED stomatal resistance, so it
+#        carries no CO2 response, while the precipitation it is differenced
+#        against comes from a CO2-aware LPJmL run. Over the historical period
+#        that is an inconsistency of order 3-5% in the RothC/HSOC moisture
+#        term. R/water_balance.R:459 recorded this as "pet placeholder (no
+#        LPJmL PET)", which was true of an earlier delivery and is not now.
+#
+#   soil A soil decomposition modifier driven by AIR temperature is a choice
+#        made when nothing else was available. Soil temperature damps and lags
+#        the air signal, most in the cold and snow-covered cells where the
+#        modifier collapses toward zero and the equilibrium diverges (#365).
+#
+# Reading them does not by itself change any published number: nothing
+# consumes them yet, and the pinned driver path cannot until the pin carries
+# them. Wiring them in is a science decision and is deliberately separate.
 # Logical name -> (file, in-file variable, time steps per year) for each LPJmL
+# `cft_airrig_month` is the only cube that is BOTH monthly and per-CFT, and it
+# is why whep#916 was filed. Before it, applied irrigation was available either
+# monthly with no crop dimension (`irrig`, from mirrig.nc) or per crop with no
+# month (`cft_airrig`, `cft_nir`), so the water a crop received could not be
+# placed on that crop at the time it received it -- which a per-crop water
+# footprint needs, and which the soil-moisture term needs to charge irrigation
+# to the months the crop was actually in the ground. First written 2026-08-27;
+# its in-file variable is `irrig`, the same name mirrig.nc uses for the
+# crop-less monthly cube.
+#
 # hydrology output. `steps_per_year` is 12 for the monthly outputs and 1 for the
 # annual per-CFT consumptive-water cubes (see the header facts).
 .hydro_var_map <- function() {
@@ -145,6 +246,11 @@ read_lpjml_hydrology <- function(
     "runoff", "mrunoff.nc", "runoff", 12L,
     "discharge", "mdischarge.nc", "discharge", 12L,
     "swc", "mswc.nc", "SWC", 12L,
+    "pet", "pet.nc", "PET", 12L,
+    "soiltemp1", "soiltemp1.nc", "soiltemp1", 12L,
+    "soiltemp2", "soiltemp2.nc", "soiltemp2", 12L,
+    "stand_frac", "cftfrac.nc", "CFTfrac", 1L,
+    "cft_airrig_month", "cft_airrig_month.nc", "irrig", 12L,
     "cft_nir", "cft_nir.nc", "nir", 1L,
     "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
     "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L
@@ -154,7 +260,13 @@ read_lpjml_hydrology <- function(
 # The logical variables whose third dimension is a per-CFT band rather than a
 # soil layer.
 .hydro_band_vars <- function() {
-  c("cft_nir", "cft_consump_water_b", "cft_consump_water_g")
+  c(
+    "stand_frac",
+    "cft_nir",
+    "cft_airrig_month",
+    "cft_consump_water_b",
+    "cft_consump_water_g"
+  )
 }
 
 # Time steps per year for a logical variable; 12 (monthly) unless mapped
@@ -225,6 +337,75 @@ read_lpjml_hydrology <- function(
   resolved
 }
 
+# The calendar year of a file's first time step, taken from the file itself.
+#
+# Every LPJmL output stamps its time axis as "days since YYYY-M-D" on a noleap
+# calendar, so a run's start year is a property of the artifact and never has
+# to be assumed. It used to be assumed, and the assumption was 1901 -- which
+# silently relabels every year of the 1750-2023 run by 151, with no error and
+# no visible symptom downstream. Returns NULL when the units carry no
+# reference date, so the caller can say so rather than guess.
+.lpjml_first_year <- function(nc) {
+  units <- nc$dim$time$units %||% ""
+  ref <- stringr::str_match(units, "since\\s+(\\d{3,4})-")[, 2]
+  vals <- nc$dim$time$vals
+  if (is.na(ref) || length(vals) == 0L || !is.finite(vals[1])) {
+    return(NULL)
+  }
+  as.integer(ref) + as.integer(floor(vals[1] / 365))
+}
+
+# An explicit `first_year` always wins; otherwise the file is asked. A file
+# that cannot answer aborts rather than falling back to a year that happens
+# to be right for one run and wrong by 151 for another.
+.lpjml_resolve_first_year <- function(nc, first_year, what = "this file") {
+  if (!is.null(first_year)) {
+    return(as.integer(first_year))
+  }
+  derived <- .lpjml_first_year(nc)
+  if (is.null(derived)) {
+    cli::cli_abort(c(
+      "Cannot tell which year {what} starts in.",
+      i = "Its {.field time} axis carries no {.val since YYYY-} reference.",
+      i = "Pass {.arg first_year} explicitly."
+    ))
+  }
+  derived
+}
+
+# Refuse a per-CFT cube whose values all sit on ONE band.
+#
+# `cft_airrig_month` as written on 2026-08-27 does exactly that: every crop's
+# applied irrigation is accumulated into band 29, `irrigated others`, in every
+# month of every year. It is provably wrong rather than merely surprising --
+# `cft_nir` from the same run splits across 14 of 32 bands and `cftfrac` gives
+# 13 irrigated bands real area, so the crops exist and are irrigated -- and the
+# single band carries 3.3 times the crop-less `mirrig` total for the same
+# month, which is what summing every crop into one slot looks like.
+#
+# This aborts rather than warns because the whole point of a per-CFT cube is
+# the split: a footprint or a moisture term built on it would charge every
+# crop's water to one crop, and nothing downstream could detect that.
+.hydro_check_band_spread <- function(long, var) {
+  if (!var %in% .hydro_band_vars() || !rlang::has_name(long, "band")) {
+    return(invisible(long))
+  }
+  live <- long[is.finite(long$value) & long$value > 0, ]
+  bands <- unique(live$band)
+  if (length(bands) != 1L || length(unique(long$band)) < 2L) {
+    return(invisible(long))
+  }
+  name <- unique(live$band_name %||% NA_character_)[[1]]
+  cli::cli_abort(c(
+    "{.val {var}} puts every value on a single band, {.val {name}}.",
+    x = "A per-crop cube whose water is all on one crop is not per-crop.",
+    i = "Known defect in the 2026-08-27 run: compare {.val cft_nir}, which
+         splits across 14 of 32 bands on the same run.",
+    i = "Do not work around this by summing over bands; the split is the
+         quantity. The run has to be redone (whep#916)."
+  ))
+}
+
 # Read one logical hydrology variable into a long tibble. The synthetic "aet"
 # sums its three actual-evapotranspiration components per cell-month. `years`
 # (when supplied) is forwarded so only the covering NetCDF time slice is read
@@ -289,6 +470,7 @@ read_lpjml_hydrology <- function(
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
   netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
+  first_year <- .lpjml_resolve_first_year(nc, first_year, basename(path))
   .hydro_check_coverage(nc, first_year, years, path, steps_per_year)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
@@ -477,16 +659,80 @@ read_lpjml_hydrology <- function(
   long
 }
 
-# Aggregate the 12 monthly values of each year per cell and third-dimension
-# member (`layer` for SWC, `band` for cft_nir): flux variables sum, soil water
-# content means.
-.aggregate_hydro_annual <- function(long, var, agg) {
-  group_cols <- c(
+# Apply the `partial_year` policy before the annual aggregation below sums a
+# cell-year that has fewer than twelve months in it.
+#
+# The check is against the calendar lattice 1..12 per (lon, lat, year) rather
+# than against anything the rows themselves say, because the rows say nothing:
+# an absent month is an absent ROW, not an NA, so no na.rm choice, no
+# conservation identity and no row count can see it (whep#1073). Grouped on the
+# third dimension too where there is one, since a layer or band is a separate
+# series with its own twelve months.
+#
+# Skipped for the variables LPJmL writes one step per year, which have no
+# calendar-month lattice to be short of: a real read of one carries no `month`
+# column, and asserting 1..12 over an injected fixture that adds one would
+# refuse a shape the variable never has on disk.
+.hydro_resolve_partial_years <- function(long, var, partial_year) {
+  monthly_var <- .hydro_steps_per_year(var) == 12L
+  if (!monthly_var || !rlang::has_name(long, "month")) {
+    return(long)
+  }
+  by_cols <- .hydro_annual_groups(long)
+  if (identical(partial_year, "drop")) {
+    return(.hydro_drop_partial_years(long, by_cols))
+  }
+  check_keys_complete(
+    long,
+    list(month = 1:12),
+    .by = by_cols,
+    action = if (identical(partial_year, "abort")) "abort" else "warn",
+    details = c(
+      i = "{.field {var}} is aggregated to annual totals, so a cell-year with
+           fewer than twelve months returns a short sum that nothing
+           downstream can tell from a complete one.",
+      i = "An LPJmL monthly output grows one step at a time: an interrupted or
+           still-running simulation leaves its last year partial.",
+      i = "Pass {.code partial_year = \"drop\"} to aggregate only the complete
+           cell-years, or {.code partial_year = \"warn\"} to accept the short
+           sums."
+    )
+  )
+}
+
+# Drop the cell-years that cannot be summed, and say how many went. A silent
+# drop would be the same defect wearing the opposite sign.
+.hydro_drop_partial_years <- function(long, by_cols) {
+  gaps <- key_lattice_gaps(long, list(month = 1:12), .by = by_cols)
+  if (nrow(gaps) == 0L) {
+    return(long)
+  }
+  incomplete <- dplyr::distinct(gaps[by_cols])
+  cli::cli_inform(c(
+    "!" = "Dropped {nrow(incomplete)} incomplete cell-year{?s}
+           ({nrow(gaps)} absent cell-month{?s}) before annual aggregation.",
+    i = "{.code partial_year = \"drop\"}: the year is absent rather than
+         summed over fewer than twelve months."
+  ))
+  dplyr::anti_join(long, incomplete, by = by_cols)
+}
+
+# The cell-year grouping the annual aggregation reduces to, third dimension
+# included: a layer or band is its own series and needs its own twelve months.
+.hydro_annual_groups <- function(long) {
+  c(
     "lon",
     "lat",
     "year",
     intersect(c("layer", "band", "band_name"), names(long))
   )
+}
+
+# Aggregate the 12 monthly values of each year per cell and third-dimension
+# member (`layer` for SWC, `band` for cft_nir): flux variables sum, soil water
+# content means.
+.aggregate_hydro_annual <- function(long, var, agg) {
+  group_cols <- .hydro_annual_groups(long)
   reducer <- if (agg == "mean") base::mean else base::sum
   dplyr::summarise(
     long,

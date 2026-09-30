@@ -86,9 +86,14 @@ testthat::test_that("whep_read_file errors when remote down and no cache", {
     .find_cache_dir = function(...) NULL
   )
 
-  testthat::expect_error(
-    whep_read_file("commodity_balance_sheet"),
-    "No local cached copy"
+  # The alias is one of the frozen predecessor-pipeline references, so the read
+  # flags its provenance before it gets as far as the cache.
+  testthat::expect_warning(
+    testthat::expect_error(
+      whep_read_file("commodity_balance_sheet"),
+      "No local cached copy"
+    ),
+    "predecessor"
   )
 })
 
@@ -358,8 +363,13 @@ testthat::test_that("whep_read_file falls back to cache for 'latest'", {
     }
   )
 
+  # Two warnings, in this order: the provenance flag on a predecessor-pipeline
+  # alias, then the cache fallback. The inner expectation takes the first.
   testthat::expect_warning(
-    result <- whep_read_file(alias, version = "latest"),
+    testthat::expect_warning(
+      result <- whep_read_file(alias, version = "latest"),
+      "predecessor"
+    ),
     "Using cached local copy"
   )
 
@@ -389,4 +399,249 @@ testthat::test_that(".find_cache_dir survives an unreadable neighbour", {
 
   testthat::expect_true(fs::dir_exists(empty))
   testthat::expect_equal(fs::path(result), fs::path(wanted))
+})
+
+# -- the year filter is pushed into the parquet -------------------------------
+
+# `lpjml-soc-hydrology` holds 193,317,960 monthly rows over 1901-2022. Reading
+# it whole and filtering afterwards is what made a one-year gridded carbon
+# balance unrunnable -- two hours of CPU without ever leaving the input stage.
+# The pushdown is only worth having if it returns exactly what the whole-file
+# read returned, so that is what these pin.
+
+.year_pin_fixture <- function(path) {
+  full <- tibble::tibble(
+    lon = rep(c(0.25, 0.75), times = 5L),
+    lat = rep(c(10.25, 10.75), times = 5L),
+    year = rep(2001:2005, each = 2L),
+    value = (1:10) * 1.5
+  )
+  nanoparquet::write_parquet(full, path)
+  full
+}
+
+testthat::test_that(".read_parquet_years agrees with the whole-file read", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  fast <- whep:::.read_parquet_years(path, 2003L)
+  slow <- nanoparquet::read_parquet(path) |>
+    tibble::as_tibble() |>
+    whep:::.filter_years_if_present(2003L)
+
+  testthat::expect_equal(fast, slow)
+  testthat::expect_equal(nrow(fast), 2L)
+})
+
+testthat::test_that(".read_parquet_years honours non-contiguous years", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  out <- whep:::.read_parquet_years(path, c(2001L, 2003L))
+
+  # The pushdown can only express a RANGE, so 2002 is read off the disk and
+  # has to be dropped afterwards. Without that second filter this returns a
+  # year the caller did not ask for.
+  testthat::expect_equal(sort(unique(out$year)), c(2001L, 2003L))
+})
+
+testthat::test_that(".read_parquet_years reads it all when years is NULL", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  full <- .year_pin_fixture(path)
+
+  testthat::expect_equal(whep:::.read_parquet_years(path, NULL), full)
+})
+
+testthat::test_that(".read_parquet_years aborts with no year column", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  yearless <- tibble::tibble(lon = c(0.25, 0.75), value = c(1.5, 3))
+  nanoparquet::write_parquet(yearless, path)
+
+  # Both ways of absorbing this are worse than stopping: returning the whole
+  # file hands back every year when one was asked for, and dropping the filter
+  # silently reinstates the read the pushdown exists to avoid.
+  testthat::expect_error(
+    whep:::.read_parquet_years(path, 2003L, year_col = "vintage"),
+    "no .*vintage.* column"
+  )
+})
+
+testthat::test_that("whep_read_file forwards years to the parquet read", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  # `.read_file()` is the wiring point: it is what `whep_read_file()` hands
+  # the downloaded paths to, so this pins that `years` actually reaches it.
+  out <- whep:::.read_file(path, "parquet", years = 2004L)
+
+  testthat::expect_equal(unique(out$year), 2004L)
+})
+
+testthat::test_that("whep_read_file refuses years on a path-returning type", {
+  # Silently ignoring the filter would hand the caller every year it asked to
+  # exclude, which is the failure the argument exists to prevent.
+  testthat::expect_error(
+    whep:::.read_file("some.nc", "nc", years = 2004L),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that(".read_parquet_years does not push down a text year", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  # Arrow does not refuse this: it coerces silently, so a text column whose
+  # order differs from its numeric order would quietly drop requested years.
+  # The whole-file path coerces in R instead, which is why it is taken here.
+  textual <- tibble::tibble(
+    year = as.character(c(998, 1000, 1002)),
+    value = c(1, 2, 3)
+  )
+  nanoparquet::write_parquet(textual, path)
+
+  out <- whep:::.read_parquet_years(path, c(998L, 1000L, 1002L))
+
+  testthat::expect_equal(nrow(out), 3L)
+})
+
+testthat::test_that(".read_parquet_years honours a non-default year_col", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  # Both a `Year` and a `year` column, which is the shape that used to fail
+  # silently: the range was pushed down on one and the exact set applied to
+  # the other, returning a subset the caller never asked for.
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      Year = c(2001L, 2002L, 2003L),
+      year = c(2003L, 2002L, 2001L),
+      value = c(1, 2, 3)
+    ),
+    path
+  )
+
+  out <- whep:::.read_parquet_years(path, 2003L, year_col = "Year")
+
+  testthat::expect_equal(out$Year, 2003L)
+  testthat::expect_equal(out$value, 3)
+})
+
+testthat::test_that(".read_parquet_years asks the file for nothing", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  .year_pin_fixture(path)
+
+  # An empty request used to fall through to the whole-file read -- about
+  # 12 GB for `lpjml-soc-hydrology` -- and then discard every row of it.
+  out <- whep:::.read_parquet_years(path, integer(0))
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_setequal(names(out), c("lon", "lat", "year", "value"))
+})
+
+testthat::test_that(".filter_years_if_present honours year_col", {
+  d <- tibble::tibble(vintage = c(2001L, 2002L), value = c(1, 2))
+
+  testthat::expect_equal(
+    whep:::.filter_years_if_present(d, 2002L, "vintage")$value,
+    2
+  )
+  testthat::expect_error(
+    whep:::.filter_years_if_present(d, 2002L),
+    class = "whep_year_filter_error"
+  )
+})
+
+# Frozen predecessor-pipeline references ------------------------------------
+
+testthat::test_that("reading a predecessor-pipeline pin says so", {
+  # #1030: the `primary_prod` pin is the 2025-07-14 snapshot of the pipeline
+  # that preceded this package, kept only as a benchmark. Its 2020-2021 fodder
+  # harvested area is carried forward from 2019 -- 85.93 Mha a year over 468
+  # country-item series, equal to 2019 to the last digit -- where current code
+  # emits no fodder row after 2019, because `eu-agridb-fodder` stops in 2019,
+  # `faostat-production-old` in 2013, and `faostat-production` carries none of
+  # the 16 fodder item codes at all. Same schema, plausible magnitude and no
+  # flag was the whole defect, so the flag is what is tested.
+  testthat::expect_warning(
+    .warn_legacy_reference("primary_prod"),
+    "predecessor"
+  )
+  testthat::expect_warning(
+    .warn_legacy_reference("primary_prod"),
+    "fodder"
+  )
+})
+
+testthat::test_that("the predecessor flag skips aliases code reads", {
+  purrr::walk(
+    .legacy_reference_aliases(),
+    ~ testthat::expect_warning(.warn_legacy_reference(.x), "predecessor")
+  )
+  # Aliases current code reads on its default build path must stay silent,
+  # `crop_residues` and `bilateral_trade` included even though they come from
+  # the same 2025-07-14 batch.
+  purrr::walk(
+    c("faostat-production", "bilateral_trade", "crop_residues", "luh2-areas"),
+    ~ testthat::expect_no_warning(.warn_legacy_reference(.x))
+  )
+})
+
+testthat::test_that("every flagged predecessor alias is a real alias", {
+  # A typo here would disable the flag silently, which is the failure mode the
+  # flag exists to prevent.
+  testthat::expect_setequal(
+    setdiff(.legacy_reference_aliases(), whep::whep_inputs$alias),
+    character(0)
+  )
+  testthat::expect_length(.legacy_reference_aliases(), 4L)
+})
+
+# The 2025-07-14 predecessor pin batch --------------------------------------
+
+testthat::test_that("the predecessor batch census matches the registry", {
+  # #1054: six aliases were published together on 2025-07-14, and the roxygen
+  # section on `whep_read_file()` says, per alias, what produced it and what
+  # reads it. Nothing keeps prose in step with the registry, so the census is
+  # asserted here instead. A seventh artifact from that batch, or a refresh of
+  # one of the six, then has to come with a rewrite of that section rather than
+  # leaving it quietly wrong.
+  registered <- whep::whep_inputs |>
+    dplyr::filter(stringr::str_starts(version, "20250714")) |>
+    dplyr::pull(alias)
+
+  testthat::expect_setequal(registered, .predecessor_batch_aliases())
+  testthat::expect_true(
+    all(.predecessor_batch_aliases() %in% whep::whep_inputs$alias)
+  )
+})
+
+testthat::test_that("the build-path subset is part of the batch", {
+  # These two are why the issue existed: they are read by package functions
+  # rather than only by `inst/scripts/compare_global_whep.R`, so each one's
+  # provenance had to be established separately. `crop_residues` turned out to
+  # be predecessor output and `bilateral_trade` a FAOSTAT harmonisation.
+  testthat::expect_true(
+    all(.predecessor_batch_build_path() %in% .predecessor_batch_aliases())
+  )
+  testthat::expect_setequal(
+    .predecessor_batch_build_path(),
+    c("bilateral_trade", "crop_residues")
+  )
+})
+
+testthat::test_that("the documented readers read the documented aliases", {
+  # The census is only worth asserting if it tracks the code, so this pins the
+  # two call sites the roxygen section names. Both readers are stubbed, so
+  # nothing reaches the network.
+  seen <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      seen <<- c(seen, file_alias)
+      rlang::abort("stubbed", class = "whep_test_stub")
+    }
+  )
+
+  testthat::expect_error(get_primary_residues(), class = "whep_test_stub")
+  testthat::expect_error(
+    get_bilateral_trade(cbs = .example_get_wide_cbs()),
+    class = "whep_test_stub"
+  )
+
+  testthat::expect_setequal(seen, .predecessor_batch_build_path())
 })

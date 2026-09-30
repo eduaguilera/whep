@@ -40,15 +40,28 @@ test_that("split_manure_management conserves N, C and VS across MMS", {
   expect_equal(agg$n[agg$livestock_category == "Pigs"], 30)
 })
 
-test_that("grazing (PRP) stream present for cattle, absent for pigs", {
+test_that("the grazing (PRP) stream is large for cattle, small for pigs", {
+  # Before whep#958 the placeholder gave swine no pasture row at all. GLEAM
+  # 2.0 Tab. 4.8 gives backyard pigs 5 percent pasture in every one of its ten
+  # regions, so pigs now carry a small grazing stream; cattle keep a large
+  # one. Both halves of the table are checked, because the loss stage treats
+  # grazing and collected manure differently and the two must stay apart.
   res <- whep::split_manure_management(.toy_excretion())
   cattle <- res[res$livestock_category == "Cattle_milk", ]
   pigs <- res[res$livestock_category == "Pigs", ]
   expect_true("grazing" %in% cattle$stream)
   expect_true("Pasture/Range/Paddock" %in% cattle$mms_type)
-  expect_false("grazing" %in% pigs$stream)
-  expect_true(all(pigs$stream == "collected"))
-  expect_true(all(res$method_mms == "regional_default"))
+  expect_gt(sum(cattle$n_stream[cattle$stream == "grazing"]) / 100, 0.4)
+  expect_lt(sum(pigs$n_stream[pigs$stream == "grazing"]) / 30, 0.05)
+  expect_true(all(res$method_mms == "gleam_2_0/regional_default"))
+
+  old <- whep::split_manure_management(
+    .toy_excretion(),
+    options = list(mms_shares = "placeholder")
+  )
+  old_pigs <- old[old$livestock_category == "Pigs", ]
+  expect_false("grazing" %in% old_pigs$stream)
+  expect_true(all(old$method_mms == "placeholder/regional_default"))
 })
 
 test_that("split_manure_management guards bad input", {
@@ -87,10 +100,12 @@ test_that("split_manure_management guards bad input", {
 
 test_that("region_specific reaches the North America and Latin America mixes", {
   # Regression for #466: .mms_shares() filtered regional_mms_distribution to
-  # region == "Global" unconditionally, so the 15 region-specific rows were
+  # region == "Global" unconditionally, so the region-specific rows were
   # unreachable and every territory got the Global split. area_code 231 is the
   # USA (GLEAM "North America"), 21 Brazil (GLEAM "Central & South America",
-  # IPCC "Latin America").
+  # IPCC "Latin America"). The values are the GLEAM 2.0 ingest (whep#958):
+  # the mean of Tab. 4.2 (dairy) and Tab. 4.3 (beef) for each region, with
+  # drylot folded into solid storage.
   opt <- list(mms_source = "region_specific")
   usa <- whep::split_manure_management(.cattle_in("231"), options = opt)
   bra <- whep::split_manure_management(.cattle_in("21"), options = opt)
@@ -98,30 +113,73 @@ test_that("region_specific reaches the North America and Latin America mixes", {
   expect_equal(
     .mms_fracs(usa),
     c(
+      "Anaerobic Lagoon" = 0.135,
       "Daily Spread" = 0.05,
-      "Liquid/Slurry" = 0.40,
-      "Pasture/Range/Paddock" = 0.25,
-      "Solid Storage" = 0.30
+      "Liquid/Slurry" = 0.135,
+      "Pasture/Range/Paddock" = 0.275,
+      "Solid Storage" = 0.405
     )
   )
   expect_equal(
     .mms_fracs(bra),
     c(
-      "Daily Spread" = 0.10,
-      "Liquid/Slurry" = 0.05,
-      "Pasture/Range/Paddock" = 0.70,
-      "Solid Storage" = 0.15
+      "Pasture/Range/Paddock" = 0.73,
+      "Solid Storage" = 0.27
     )
   )
-  # The Global cattle split is 0.50 grazing; neither region may collapse to it.
+  # The Global cattle split is 0.4435 grazing; neither region may collapse to
+  # it, which is what #466 broke.
+  global_prp <- 0.443522579379146
   expect_false(isTRUE(all.equal(
     unname(.mms_fracs(usa)[["Pasture/Range/Paddock"]]),
-    0.50
+    global_prp
   )))
   expect_false(isTRUE(all.equal(
     unname(.mms_fracs(bra)[["Pasture/Range/Paddock"]]),
-    0.50
+    global_prp
   )))
+})
+
+test_that("mms_shares selects the table half, and rejects anything else", {
+  # whep#958 replaced the unsourced placeholder with the GLEAM 2.0 ingest and
+  # kept the placeholder selectable. The default must be the sourced half, the
+  # placeholder must still reproduce the exact pre-whep#958 split, and an
+  # unknown name must abort rather than silently pick one.
+  gleam <- whep::split_manure_management(.cattle_in("231"))
+  old <- whep::split_manure_management(
+    .cattle_in("231"),
+    options = list(mms_shares = "placeholder")
+  )
+  expect_equal(
+    .mms_fracs(old),
+    c(
+      "Daily Spread" = 0.05,
+      "Liquid/Slurry" = 0.15,
+      "Pasture/Range/Paddock" = 0.50,
+      "Solid Storage" = 0.30
+    )
+  )
+  expect_equal(
+    .mms_fracs(gleam),
+    c(
+      "Anaerobic Lagoon" = 0.016,
+      "Daily Spread" = 0.009,
+      "Liquid/Slurry" = 0.084530612244898,
+      "Pasture/Range/Paddock" = 0.443522579379146,
+      "Solid Storage" = 0.446946808375956
+    )
+  )
+  expect_false(isTRUE(all.equal(.mms_fracs(gleam), .mms_fracs(old))))
+  # Mass is conserved under either half.
+  expect_equal(sum(gleam$n_stream), 100)
+  expect_equal(sum(old$n_stream), 100)
+  expect_error(
+    whep::split_manure_management(
+      .cattle_in("231"),
+      options = list(mms_shares = "gleam_3_0")
+    ),
+    "mms_shares"
+  )
 })
 
 test_that("region_specific leaves the default split untouched", {
@@ -131,21 +189,22 @@ test_that("region_specific leaves the default split untouched", {
   expect_equal(
     .mms_fracs(usa),
     c(
-      "Daily Spread" = 0.05,
-      "Liquid/Slurry" = 0.15,
-      "Pasture/Range/Paddock" = 0.50,
-      "Solid Storage" = 0.30
+      "Anaerobic Lagoon" = 0.016,
+      "Daily Spread" = 0.009,
+      "Liquid/Slurry" = 0.084530612244898,
+      "Pasture/Range/Paddock" = 0.443522579379146,
+      "Solid Storage" = 0.446946808375956
     )
   )
-  expect_true(all(usa$method_mms == "regional_default"))
+  expect_true(all(usa$method_mms == "gleam_2_0/regional_default"))
 })
 
 test_that("region_specific falls back to Global and conserves mass", {
   opt <- list(mms_source = "region_specific")
-  # 231 = USA: cattle and swine have North American rows, sheep do not.
-  # 114 = Kenya (IPCC "Africa") has no regional rows at all.
-  # "ES" is neither an area code nor an ISO3: it must resolve to no region
-  # instead of aborting, and take the Global rows.
+  # 231 = USA and 114 = Kenya (IPCC "Africa") both resolve to a region the
+  # GLEAM 2.0 ingest has rows for. "ES" is neither an area code nor an ISO3:
+  # it must resolve to no region instead of aborting, and fall back to the
+  # Global rows, which is the branch under test.
   excretion <- dplyr::bind_rows(
     .cattle_in("114"),
     dplyr::mutate(.cattle_in("231"), livestock_category = "Sheep"),
@@ -154,11 +213,16 @@ test_that("region_specific falls back to Global and conserves mass", {
   res <- whep::split_manure_management(excretion, options = opt)
 
   global <- whep::split_manure_management(excretion)
-  expect_equal(
+  unresolved <- function(d) {
+    dplyr::arrange(d[d$territory == "ES", ], mms_type)$n_stream
+  }
+  expect_equal(unresolved(res), unresolved(global))
+  # The two territories that DO resolve must not have fallen back with it.
+  expect_false(isTRUE(all.equal(
     dplyr::arrange(res, territory, mms_type)$n_stream,
     dplyr::arrange(global, territory, mms_type)$n_stream
-  )
-  expect_true(all(res$method_mms == "region_specific"))
+  )))
+  expect_true(all(res$method_mms == "gleam_2_0/region_specific"))
   # Mass is conserved per input row under either source.
   totals <- res |>
     dplyr::summarise(
@@ -194,20 +258,28 @@ test_that("region_specific adds and drops no rows", {
   expect_setequal(unique(a$territory), unique(b$territory))
 })
 
-test_that("the loss stage handles the MMS only region_specific can emit", {
-  # "Anaerobic Lagoon" appears in regional_mms_distribution only for North
-  # American swine, so the Global-only split could never emit it and the
-  # downstream loss tables were never exercised on it. apply_management_losses()
-  # aborts on a missing EF3, loss fraction or post-storage C:N, so reaching it
-  # at all is the assertion.
+test_that("the loss stage handles the lagoon MMS under either half", {
+  # Under the placeholder "Anaerobic Lagoon" appeared only for North American
+  # swine, so the Global split could never emit it and the downstream loss
+  # tables were never exercised on it. The GLEAM 2.0 ingest puts it in the
+  # Global swine split too, so both paths now reach it.
+  # apply_management_losses() aborts on a missing EF3, loss fraction or
+  # post-storage C:N, so reaching it at all is the assertion.
   swine <- dplyr::mutate(.cattle_in("231"), livestock_category = "Pigs")
   split <- whep::split_manure_management(
     swine,
     options = list(mms_source = "region_specific")
   )
   expect_true("Anaerobic Lagoon" %in% split$mms_type)
-  expect_false(
+  expect_true(
     "Anaerobic Lagoon" %in% whep::split_manure_management(swine)$mms_type
+  )
+  expect_false(
+    "Anaerobic Lagoon" %in%
+      whep::split_manure_management(
+        swine,
+        options = list(mms_shares = "placeholder")
+      )$mms_type
   )
 
   res <- whep::apply_management_losses(split)
@@ -392,12 +464,7 @@ test_that(".resolve_mms_shares serves both engines' region columns", {
   expect_equal(sum(methane_shape$fraction), 1)
   expect_setequal(
     methane_shape$mms_type,
-    c(
-      "Pasture/Range/Paddock",
-      "Solid Storage",
-      "Daily Spread",
-      "Liquid/Slurry"
-    )
+    c("Pasture/Range/Paddock", "Solid Storage")
   )
 })
 
@@ -409,13 +476,29 @@ test_that(".resolve_mms_shares falls back to the Global mix", {
     whep:::.resolve_mms_shares() |>
     dplyr::arrange(mms_type)
 
-  purrr::walk(list("Africa", "not a region", NA_character_), function(case) {
+  purrr::walk(list("not a region", NA_character_), function(case) {
     got <- tibble::tibble(species_gen = "Cattle", region = case) |>
       whep:::.resolve_mms_shares("region") |>
       dplyr::arrange(mms_type)
     expect_equal(got$mms_type, global$mms_type)
     expect_equal(got$fraction, global$fraction)
   })
+
+  # A real region label the table has no rows for takes the same branch. The
+  # GLEAM 2.0 ingest covers all nine labels for cattle, so the case is only
+  # reachable through a species the source leaves a gap for: Tab. 4.5 and 4.6
+  # publish no Oceania column for either buffalo herd.
+  buffalo_global <- tibble::tibble(species_gen = "Buffalo") |>
+    whep:::.resolve_mms_shares() |>
+    dplyr::arrange(mms_type)
+  buffalo_oce <- tibble::tibble(
+    species_gen = "Buffalo",
+    region = "Oceania"
+  ) |>
+    whep:::.resolve_mms_shares("region") |>
+    dplyr::arrange(mms_type)
+  expect_equal(buffalo_oce$mms_type, buffalo_global$mms_type)
+  expect_equal(buffalo_oce$fraction, buffalo_global$fraction)
 
   # A named region column the rows do not carry also takes the Global branch.
   absent <- tibble::tibble(species_gen = "Cattle") |>
@@ -463,4 +546,78 @@ test_that("both engines see the same MMS mix for one territory", {
     ],
     stats::setNames(engine$fraction, engine$mms_type)[sort(engine$mms_type)]
   )
+})
+
+testthat::test_that("storage carbon loss comes from the sourced table, per system", {
+  # whep#1006: the loss used to be a side effect of a C:N cap, so it moved
+  # whenever the excreted composition moved, with no coefficient changing.
+  # It is now its own coefficient and must depend on the SYSTEM alone.
+  coefs <- whep:::.storage_c_loss_coefs()
+  testthat::expect_true(all(
+    c("mms_type", "species", "c_loss_fraction", "basis", "source", "note") %in%
+      names(coefs)
+  ))
+  # Every row carries a source. A coefficient without one is the thing the
+  # package forbids.
+  testthat::expect_true(all(nzchar(coefs$source)))
+  testthat::expect_true(all(coefs$c_loss_fraction >= 0))
+  testthat::expect_true(all(coefs$c_loss_fraction < 1))
+
+  # The systems with no storage stage lose nothing, by definition.
+  no_storage <- coefs[
+    coefs$mms_type %in% c("Pasture/Range/Paddock", "Daily Spread"),
+  ]
+  testthat::expect_true(all(no_storage$c_loss_fraction == 0))
+
+  # Solid systems lose far more than slurry: heaps are aerobic and warm.
+  solid <- coefs$c_loss_fraction[
+    coefs$mms_type == "Solid Storage" & coefs$species == "All_species"
+  ]
+  liquid <- coefs$c_loss_fraction[
+    coefs$mms_type == "Liquid/Slurry" & coefs$species == "Cattle"
+  ]
+  testthat::expect_gt(solid, liquid)
+  testthat::expect_equal(solid, 0.420)
+  testthat::expect_equal(liquid, 0.110)
+})
+
+testthat::test_that("the loss no longer depends on the excreted C:N", {
+  # The regression test for the defect itself. Two excretion frames identical
+  # except in carbon: the FRACTION lost must be the same, because storage
+  # mineralises a share of what it is given. Under the old cap the low-carbon
+  # frame lost proportionally far less, which is how a coefficient change
+  # nobody made moved a published loss.
+  base <- .toy_excretion()
+  rich <- dplyr::mutate(base, c_excretion = .data$c_excretion * 2)
+  frac <- function(exc) {
+    l <- whep::apply_management_losses(whep::split_manure_management(exc))
+    keep <- l$stream != "grazing"
+    sum(l$c_lost[keep]) / sum(l$c_lost[keep] + l$applied_c[keep])
+  }
+  testthat::expect_equal(frac(base), frac(rich), tolerance = 1e-9)
+})
+
+testthat::test_that("an MMS with no loss coefficient aborts", {
+  # A system missing from the table must not silently lose nothing.
+  out <- tibble::tibble(
+    mms_type = "Some New System",
+    cn_species = "Cattle",
+    c_stream = 100
+  )
+  testthat::expect_error(
+    whep:::.attach_storage_c_loss(out),
+    "storage carbon-loss fraction"
+  )
+})
+
+testthat::test_that("a species with no published value takes the table's fallback row", {
+  # The fallback is a row in the CSV, not a default in the code, so it is
+  # visible in the data. Sheep have no Kupper value; they take All_species.
+  out <- tibble::tibble(
+    mms_type = c("Liquid/Slurry", "Liquid/Slurry", "Liquid/Slurry"),
+    cn_species = c("Cattle", "Pigs", "Sheep"),
+    c_stream = 100
+  )
+  got <- whep:::.attach_storage_c_loss(out)
+  testthat::expect_equal(got$c_loss_fraction, c(0.110, 0.128, 0.110))
 })

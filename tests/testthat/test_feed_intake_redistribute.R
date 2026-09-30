@@ -704,6 +704,70 @@ test_that(".build_feed_avail_national warns on unclassified CBS feed mass", {
   expect_true(2591L %in% out$item_cbs_code)
 })
 
+test_that(".build_feed_avail_national names the placeholder item it drops", {
+  # whep#970: CBS item 2775 "Aquatic Plants" is bridged by whep::items_full to
+  # the literal Name_biomass "0", which matches no biomass_coefs row, so its
+  # feed mass leaves availability at the density join. The warning has to say
+  # which item, how much, and that the bridge -- not the taxonomy -- is the
+  # gap, because the two need different repairs.
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    1L,
+    2591L,
+    1000, # groundnut cake -> high_quality, classified fine
+    1970L,
+    1L,
+    2775L,
+    302970 # aquatic plants -> placeholder Name_biomass, no density
+  )
+  warning_text <- tryCatch(
+    {
+      whep:::.build_feed_avail_national(cbs)
+      NA_character_
+    },
+    warning = function(w) conditionMessage(w)
+  )
+  # cli wraps the message to the console width, so compare on one line.
+  warning_text <- stringr::str_squish(warning_text)
+  expect_match(warning_text, "Aquatic Plants", fixed = TRUE)
+  expect_match(warning_text, "2775", fixed = TRUE)
+  expect_match(warning_text, "302970", fixed = TRUE)
+  expect_match(warning_text, "placeholder", fixed = TRUE)
+  # It is classified by the taxonomy, so the taxonomy must not be blamed.
+  expect_false(grepl("absent from feed_taxonomy", warning_text, fixed = TRUE))
+
+  out <- suppressWarnings(whep:::.build_feed_avail_national(cbs))
+  expect_false(2775L %in% out$item_cbs_code)
+})
+
+test_that(".build_feed_avail_national does not blame a non_feed item", {
+  # CBS item 2899 "Miscellaneous" carries the same "0" placeholder but is
+  # tagged "non_feed", so availability excludes it by design and no gap in
+  # biomass_coefs costs anything. Warning on it would report feed mass as lost
+  # to a data gap when it was never offered as feed.
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    1L,
+    2591L,
+    1000, # groundnut cake -> high_quality, classified fine
+    1970L,
+    1L,
+    2899L,
+    500 # miscellaneous -> non_feed AND placeholder Name_biomass
+  )
+  expect_no_warning(out <- whep:::.build_feed_avail_national(cbs))
+  expect_false(2899L %in% out$item_cbs_code)
+  expect_true(2591L %in% out$item_cbs_code)
+})
+
 test_that(".run_redistribute_national meets grass, caps concentrates", {
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
@@ -1394,6 +1458,38 @@ test_that(".grass_to_cells maps grass to per-cell local grass_availability", {
   expect_equal(sum(out$grass_avail_dm_t), 1500, tolerance = 1e-9)
 })
 
+test_that(".grass_to_cells splits a border cell on the polycell share", {
+  # The polycell support (.carbon_cell_support(), the default country_grid of
+  # the local grain) names its share `cell_area_frac`, not `polity_frac`. The
+  # heads are split by it, so the grass ceiling must be too: read as a missing
+  # share, each polity of a border cell got the WHOLE cell's grass.
+  grass <- tibble::tribble(
+    ~lon  , ~lat  , ~year , ~grass_avail_dm_t ,
+    10.25 , 50.25 , 2000L ,              1000 ,
+    10.75 , 50.25 , 2000L ,               500
+  )
+  support <- tibble::tribble(
+    ~lon  , ~lat  , ~area_code , ~cell_area_frac ,
+    10.25 , 50.25 ,         1L ,             0.6 ,
+    10.25 , 50.25 ,         2L ,             0.4 ,
+    10.75 , 50.25 ,         1L ,             1.0
+  )
+  out <- whep:::.grass_to_cells(grass, support)
+  expect_equal(
+    out$grass_avail_dm_t[out$territory == "2"],
+    400,
+    tolerance = 1e-9
+  )
+  expect_equal(sum(out$grass_avail_dm_t), sum(grass$grass_avail_dm_t))
+})
+
+test_that(".grass_to_cells refuses a support with no polity share", {
+  grass <- tibble::tibble(lon = 10.25, lat = 50.25, year = 2000L)
+  grass$grass_avail_dm_t <- 1000
+  support <- tibble::tibble(lon = 10.25, lat = 50.25, area_code = 1L)
+  expect_error(whep:::.grass_to_cells(grass, support), "polity share")
+})
+
 test_that(".heads_to_cell_shares maps species groups and shares per category", {
   gridded_heads <- tibble::tribble(
     ~year,
@@ -1875,4 +1971,72 @@ test_that("the Rest-of-World mix is a weighted average of its regions", {
     dplyr::arrange(.data$feed_quality)
 
   expect_equal(blended, dplyr::relocate(per_region, "demand_dm_t", .after = -1))
+})
+
+# ---- Feed eligibility (whep#1218) --------------------------------------------
+
+test_that(".feed_table_exclusions bars roughage from granivores only", {
+  excl <- whep:::.feed_table_exclusions(whep:::.livestock_crosswalk())
+  expect_setequal(unique(excl$livestock_category), c("Pigs", "Poultry"))
+  # Straw and the green fodders have no granivore feed type in feed_taxonomy.
+  expect_setequal(unique(excl$item_cbs_code), c(2105L, 2000L, 2001L, 2003L))
+  # Other crop residues (2106) is a granivore feed in the taxonomy.
+  expect_false(2106L %in% excl$item_cbs_code)
+  expect_equal(nrow(excl), 8L)
+})
+
+test_that(".with_feed_eligibility derives, disables and yields to options", {
+  cw <- whep:::.livestock_crosswalk()
+  derived <- whep:::.with_feed_eligibility(list(), "feed_table", cw)
+  expect_equal(derived$feed_eligibility, "feed_table")
+  expect_gt(nrow(derived$feed_exclusions), 0)
+  none <- whep:::.with_feed_eligibility(list(), "none", cw)
+  expect_null(none$feed_exclusions)
+  own <- tibble::tibble(livestock_category = "Pigs", item_cbs_code = 1L)
+  kept <- whep:::.with_feed_eligibility(
+    list(feed_exclusions = own),
+    "feed_table",
+    cw
+  )
+  expect_equal(kept$feed_exclusions, own)
+  expect_error(whep:::.with_feed_eligibility(list(), "bogus", cw))
+})
+
+test_that("national engine never feeds straw to pigs under feed_table", {
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  codes <- tibble::tribble(
+    ~year, ~area_code, ~live_anim_code, ~demand_dm_t, ~method_demand,
+    1970L, area,       1049L,           1e5,          "bouwman_fcr",
+    1970L, area,       960L,            1e5,          "ipcc_tier2"
+  )
+  testthat::local_mocked_bindings(
+    .build_feed_demand_codes = function(...) codes
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, area,       2105L,          1e6
+  )
+  straw_to <- function(out, category) {
+    sum(out$intake_dm_t[
+      out$livestock_category == category & out$item_cbs_code %in% 2105L
+    ])
+  }
+  restricted <- whep:::.run_redistribute_national(NULL, cbs, "ipcc")
+  expect_equal(straw_to(restricted, "Pigs"), 0)
+  expect_gt(straw_to(restricted, "Cattle_milk"), 0)
+  expect_equal(unique(restricted$method_feed_eligibility), "feed_table")
+  # The unmet pig demand is reported as underfeeding, not hidden.
+  pigs <- restricted[restricted$livestock_category == "Pigs", ]
+  expect_lt(sum(pigs$intake_dm_t), sum(unique(pigs$demand_dm_t)))
+
+  open <- whep:::.run_redistribute_national(
+    NULL,
+    cbs,
+    "ipcc",
+    feed_eligibility = "none"
+  )
+  expect_gt(straw_to(open, "Pigs"), 0)
+  expect_equal(unique(open$method_feed_eligibility), "none")
 })

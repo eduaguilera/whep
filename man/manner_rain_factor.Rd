@@ -18,8 +18,8 @@ A tibble with columns:
 }
 \source{
 WHEP project-internal coefficient workbook (not a public DOI):
-Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-"synthetic fertilisers".
+the MANNER implementation of an earlier regional historical
+reconstruction, synthetic-fertiliser factors.
 }
 \usage{
 manner_rain_factor

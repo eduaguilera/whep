@@ -59,8 +59,10 @@ A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_i
 \code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
 \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
 \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
-\code{coverage_status}, \code{support_role}, \code{area_engine} and \code{luh2_vintage}, plus
-\code{year} when \code{years} is supplied. \code{support_role} is \code{"partition"} on every
+\code{coverage_status}, \code{support_role}, \code{area_engine}, \code{luh2_vintage} and
+\code{layers_supplied}, plus \code{year} when \code{years} is supplied.
+\code{layers_supplied} is the provenance stamp described under \emph{Optional layers
+are stamped, not inferred} below. \code{support_role} is \code{"partition"} on every
 row unless \code{aggregates = "overlap_layer"} was asked for. \code{area_engine} is
 \code{"s2"} except on the pieces the spherical engine cannot read back, which
 are measured with \code{terra::expanse()} rather than dropped. Diagnostics ride
@@ -252,6 +254,29 @@ layer -- the one its bucket resolves to that year -- and never sums the
 layer as a whole. That is also why the \code{"overlap"} diagnostic keeps
 measuring the partition only: an over-full cell means something there, and
 in this layer it means nothing.
+}
+
+\section{Optional layers are stamped, not inferred}{
+
+\code{water} and \code{ice} are optional, and when either is absent its column is
+filled with zeros. That is correct for a smoke build and wrong for a
+published pin, and no identity this table carries can tell the two apart:
+\code{polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha} holds to
+\verb{max |residual| = 0 ha} on an all-zero layer, because zero satisfies it.
+Two published pins were built that way and passed every check --
+\verb{20260818T105426Z-a0330} (whep#885) and \verb{20260827T190201Z-f82a2}
+(whep#1010), the second of them two days after the first was closed and with
+whep#885's warning already in place. On the second, 2015 land came out
+534.9 Mha (+4.1\%) high and single cells in Lake Victoria went from 2.9 ha of
+land to 309,083 ha.
+
+So the output carries \code{layers_supplied}, a label naming which of the two the
+build actually consumed: \code{"ice,water"}, \code{"water"}, \code{"ice"} or \code{"none"}. It
+records what was consumed rather than what was passed, since an empty layer
+is dropped before use. A label cannot be satisfied by arithmetic, which is
+the whole point -- \code{\link[=read_polycell_support]{read_polycell_support()}} refuses a support whose stamp
+says a layer was missing, and falls back to asserting the columns are not
+identically zero on a table published before the stamp existed.
 }
 
 \examples{

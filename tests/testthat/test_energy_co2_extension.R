@@ -956,3 +956,87 @@ testthat::test_that("an uncovered dissolved entity stays unpriced", {
   testthat::expect_match(msgs, "has no row for", all = FALSE)
   testthat::expect_match(msgs, "USSR", all = FALSE)
 })
+
+testthat::test_that("a fully missing dressing region aborts, not NaN", {
+  # whep#972. `gleam_dressing_percentages` already ships one missing
+  # `dressing_percent`; it is absorbed today only because sibling rows cover
+  # the same (grp, reg). Give a region nothing but the missing row and the
+  # group mean over it becomes NaN, which `.energy_join_dressing()` would then
+  # average into the global fallback used by every country GLEAM cannot place,
+  # silently blanking their emissions. It must abort instead.
+  percentages <- tibble::tribble(
+    ~species, ~production_system, ~gleam_region, ~dressing_percent,
+    "Pigs",   "Industrial",       "WE",          NA_real_,
+    "Pigs",   "Industrial",       "NA",          71.0
+  )
+  testthat::expect_error(
+    .energy_dressing_by_group(percentages),
+    class = "whep_energy_missing_coef"
+  )
+  testthat::expect_error(
+    .energy_dressing_by_group(percentages),
+    "pig / Western Europe"
+  )
+})
+
+testthat::test_that("a missing GLEAM emission factor aborts", {
+  # whep#972, the same shape one table over. A grouping whose only published
+  # factor is missing would hand `.energy_global_intensity()` an NA, blanking
+  # the world-mean intensity `unclassified = "global_mean"` relies on.
+  factors <- tibble::tribble(
+    ~species, ~energy_type, ~denominator, ~herd, ~grouping, ~emission_factor,
+    "cattle", "embedded", "lw", "non_dairy", "OECD", NA_real_,
+    "cattle", "embedded", "lw", "non_dairy", "non_OECD", 1.5
+  )
+  testthat::expect_error(
+    .energy_mean_factor("cattle", "non_dairy", "embedded", factors),
+    class = "whep_energy_missing_coef"
+  )
+})
+
+testthat::test_that("the shipped GLEAM coefficient tables pass the guard", {
+  # The guard must be inert on the data the package ships today, so this
+  # change moves no published value: all 40 (grp, reg) dressing fractions and
+  # every species/herd/stage energy grouping resolve finite.
+  dressing <- .energy_dressing_by_group()
+  testthat::expect_true(all(is.finite(dressing$dressing)))
+  testthat::expect_equal(nrow(dressing), 40L)
+
+  purrr::pwalk(
+    .energy_meat_groups(),
+    function(emb_species, dir_species, herd, ...) {
+      testthat::expect_true(all(is.finite(
+        .energy_mean_factor(emb_species, herd, "embedded")$ef
+      )))
+      testthat::expect_true(all(is.finite(
+        .energy_mean_factor(dir_species, herd, "direct")$ef
+      )))
+    }
+  )
+})
+
+# ---- whep#1034: a carcass unit vocabulary that moved -----------------------
+
+testthat::test_that("a moved carcass unit cannot ship as no energy CO2", {
+  # Same production, the unit spelled the way build_production.R's own
+  # intermediates spell it. Unguarded, the extension comes back with no rows,
+  # and an empty extension satisfies every property a footprint checks.
+  relabelled <- dplyr::mutate(
+    .energy_prod_fixture(),
+    unit = dplyr::if_else(.data$unit == "tonnes", "t", .data$unit)
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    whep::build_energy_co2_extension(data = list(primary_prod = relabelled)),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+
+  expect_supplied_guard(
+    identity = nrow(unguarded) == 0L &&
+      all(unguarded$impact_u >= 0) &&
+      sum(unguarded$impact_u) == 0,
+    guard = whep::build_energy_co2_extension(
+      data = list(primary_prod = relabelled)
+    ),
+    class = "whep_absent_label"
+  )
+})

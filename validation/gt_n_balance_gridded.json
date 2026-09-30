@@ -1,0 +1,38 @@
+{
+  "recorded_at": "2026-09-17",
+  "recorded_from": "inst/scripts/run_nitrogen_balance.R 2010 grid, WHEP_NBD_SKIP_HEAVY=1, whep main at f9b23762",
+  "note": "First end-to-end gridded nitrogen balance (whep#446). NOT a tolerance and NOT a target: every number is a measurement, to be re-recorded when the chain changes, and compared bidirectionally so a term quietly dropping out is as loud as one appearing. This run carries NO manure, NO grazed weeds and NO soil-organic-matter mineralization: the livestock chain starts at get_wide_cbs(), which aborts on the faostat-cbs-new pin (whep#1025), and build_carbon_balance()'s default grazing method needs that same chain (whep#1120). Adding them will move input_tg and surplus_tg up, and that is expected, not a regression.",
+  "configuration": {
+    "year": 2010,
+    "resolution": "grid",
+    "methods": {
+      "nh3": "ipcc",
+      "n2o": "ipcc2019",
+      "leaching": "ipcc_fracleach"
+    },
+    "method_unsupported": "reallocate_drop",
+    "climate_driver": "ATL placeholder, no global classifier exists (whep#359); the surplus is checked to be independent of it",
+    "streams_present": [
+      "synthetic",
+      "recycling",
+      "bnf",
+      "deposition",
+      "urban"
+    ]
+  },
+  "measured": {
+    "year": 2010,
+    "input_tg": 169.5823,
+    "surplus_tg": 93.84564,
+    "critical_tg": 38.06638,
+    "surplus_over_critical": 2.465316,
+    "balance_rows": 1460358
+  },
+  "input_streams_tg_n": {
+    "synthetic": 101.180705,
+    "recycling": 87.381259,
+    "bnf": 36.462324,
+    "deposition": 27.915512,
+    "urban": 4.023748
+  }
+}

@@ -37,7 +37,10 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity",
+      "method_head_units",
+      "method_time_coverage"
     )
   )
 
@@ -625,14 +628,10 @@ testthat::test_that(".extract_cbs_years_for_dtm tolerates one flow only", {
   )
 })
 
-testthat::test_that("extend_time ignores per-area CBS coverage", {
-  # Reporter 2 is reported by CBS in both years; reporter 7 only in 2019.
-  # The extension is driven by the CBS *year axis* alone, so reporter 7 also
-  # gets a 2020 share even though CBS never reports it that year. This pins
-  # the documented uniform-extension behaviour: a change that scopes the
-  # extension to each group's own CBS coverage (#232) must fail here, because
-  # that is a methodological decision and not a silent refactor.
-  raw <- data.table::data.table(
+# Two reporters observed in 2019; CBS reports reporter 2 in 2019 and 2020 but
+# reporter 7 only in 2019, so 2020 is a CBS year reporter 7 is not covered in.
+.coverage_raw_trade <- function() {
+  data.table::data.table(
     `Reporter Country Code` = c(2L, 7L),
     `Partner Country Code` = c(9L, 9L),
     `Item Code` = c(15L, 15L),
@@ -641,25 +640,214 @@ testthat::test_that("extend_time ignores per-area CBS coverage", {
     Unit = c("tonnes", "tonnes"),
     Value = c(100, 100)
   )
+}
 
-  cbs <- tibble::tribble(
+.coverage_cbs <- function() {
+  tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~import, ~export,
     2019L, 2, 2511, 1000, NA,
     2020L, 2, 2511, 1200, NA,
     2019L, 7, 2511, 800, NA
   )
+}
+
+testthat::test_that("extend_time scopes shares to CBS-reported cells", {
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE
+  )
+
+  # Reporter 7 has no CBS import in 2020, so no 2020 share is invented.
+  testthat::expect_equal(
+    nrow(dplyr::filter(result, year == 2020, area_code == 7)),
+    0L
+  )
+  # Reporter 2 is reported in 2020 and is still extended into it.
+  covered <- dplyr::filter(result, year == 2020, area_code == 2)
+  testthat::expect_equal(covered$country_share, 1)
+  # Observed 2019 rows are kept for both reporters.
+  testthat::expect_setequal(
+    dplyr::filter(result, year == 2019)$area_code,
+    c(2, 7)
+  )
+  testthat::expect_equal(unique(result$method_time_coverage), "cbs_cells")
+})
+
+testthat::test_that("extend_time 'cbs_years' keeps the uniform extension", {
+  # The historical behaviour: the CBS year axis alone drives the extension,
+  # so reporter 7 also gets a 2020 share CBS never reports.
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE,
+    method_time_coverage = "cbs_years"
+  )
+
+  uncovered <- dplyr::filter(result, year == 2020, area_code == 7)
+  testthat::expect_equal(nrow(uncovered), 1L)
+  testthat::expect_equal(uncovered$country_share, 1)
+  testthat::expect_equal(unique(result$method_time_coverage), "cbs_years")
+})
+
+testthat::test_that("the two coverage methods agree on every kept share", {
+  cells <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE
+  )
+  years <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = .coverage_cbs(),
+    extend_time = TRUE,
+    method_time_coverage = "cbs_years"
+  )
+  keys <- c("year", "area_code", "area_code_partner", "element")
+
+  both <- dplyr::inner_join(cells, years, by = keys, suffix = c("_c", "_y"))
+  # Scoping only removes rows; it never changes a surviving share.
+  testthat::expect_equal(nrow(both), nrow(cells))
+  testthat::expect_equal(both$country_share_c, both$country_share_y)
+  testthat::expect_lt(nrow(cells), nrow(years))
+})
+
+testthat::test_that("coverage is checked per element, not per area", {
+  # CBS reports reporter 2's import in 2020 but not its export, so the
+  # export flow is not extended into 2020 while the import flow is.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L),
+    `Partner Country Code` = c(9L, 9L),
+    `Item Code` = c(15L, 15L),
+    Element = c("Import Quantity", "Export Quantity"),
+    Year = c(2019L, 2019L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 50)
+  )
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, 400,
+    2020L, 2, 2511, 1200, NA
+  )
+
+  result <- build_detailed_trade(raw_trade = raw, cbs = cbs, extend_time = TRUE)
+
+  testthat::expect_equal(
+    dplyr::filter(result, year == 2020)$element,
+    "import"
+  )
+})
+
+testthat::test_that("coverage is checked per item, not per area", {
+  # CBS reports reporter 2 in 2020, but for another item only.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2513, 1200, NA
+  )
 
   result <- build_detailed_trade(
-    raw_trade = raw,
+    raw_trade = .coverage_raw_trade()[1],
     cbs = cbs,
     extend_time = TRUE
   )
 
-  uncovered <- result |>
-    dplyr::filter(year == 2020, area_code == 7)
+  testthat::expect_false(2020L %in% result$year)
+})
 
-  testthat::expect_equal(nrow(uncovered), 1L)
-  testthat::expect_equal(uncovered$country_share, 1)
+testthat::test_that("a zero CBS flow does not count as coverage", {
+  cbs <- .coverage_cbs() |>
+    dplyr::mutate(import = dplyr::if_else(year == 2020, 0, import))
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  testthat::expect_false(2020L %in% result$year)
+})
+
+testthat::test_that("an observed trade row is kept outside CBS coverage", {
+  # CBS reports nothing for reporter 7; its observed 2019 flow is data, not
+  # an extension, and survives the scoping.
+  cbs <- dplyr::filter(.coverage_cbs(), area_code == 2)
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  kept <- dplyr::filter(result, area_code == 7)
+  testthat::expect_equal(kept$year, 2019L)
+})
+
+testthat::test_that("coverage is read from long-format CBS too", {
+  cbs_long <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2019L, 2, 2511, "import", 1000,
+    2020L, 2, 2511, "import", 1200,
+    2019L, 7, 2511, "import", 800,
+    2020L, 7, 2511, "production", 500
+  )
+
+  result <- build_detailed_trade(
+    raw_trade = .coverage_raw_trade(),
+    cbs = cbs_long,
+    extend_time = TRUE
+  )
+
+  testthat::expect_equal(
+    dplyr::filter(result, year == 2020)$area_code,
+    2
+  )
+})
+
+testthat::test_that(".extract_cbs_cells_for_dtm returns reported cells", {
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2511, 0, 500,
+    2021L, 2, 2511, NA, NA
+  )
+
+  cells <- whep:::.extract_cbs_cells_for_dtm(wide)
+
+  testthat::expect_equal(
+    dplyr::arrange(tibble::as_tibble(data.table::setDF(cells)), year),
+    tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element,
+      2019L, 2L, 2511L, "import",
+      2020L, 2L, 2511L, "export"
+    )
+  )
+})
+
+testthat::test_that("CBS coverage is keyed on the polity bucket", {
+  # The trade side is aggregated onto polity_area_code, so a CBS row whose
+  # provenance area_code folds into another bucket (Sudan 276 into 206) must
+  # cover that bucket, not its own provenance code.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_cbs_code, ~import, ~export,
+    2020L, 276L, 206L, 2511, 1000, 0
+  )
+
+  cells <- whep:::.extract_cbs_cells_for_dtm(cbs)
+
+  testthat::expect_equal(cells$area_code, 206L)
+  testthat::expect_equal(cells$element, "import")
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown coverage method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .coverage_raw_trade(),
+      cbs = .coverage_cbs(),
+      extend_time = TRUE,
+      method_time_coverage = "everything"
+    ),
+    class = "rlang_error"
+  )
 })
 
 # Integration tests ------------------------------------------------------------
@@ -686,7 +874,10 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "item_cbs_code",
       "unit",
       "value",
-      "country_share"
+      "country_share",
+      "method_unbacked_quantity",
+      "method_head_units",
+      "method_time_coverage"
     )
   )
   testthat::expect_equal(nrow(result), 10)
@@ -704,4 +895,271 @@ testthat::test_that("build_detailed_trade example has valid content", {
   testthat::expect_true(all(
     result$area_code != result$area_code_partner
   ))
+})
+
+# tonnes that are not masses (whep#1023) --------------------------------------
+
+.fake_unbacked_trade <- function() {
+  # Trade item 1293 is FAOSTAT's "Crude organic material n.e.c.". Its
+  # Detailed Trade Matrix tonnage is not a mass: FAOSTAT's aggregate domain
+  # publishes no country-level quantity for it, and Colombia's 2004 export to
+  # the United States is booked as 2,579,549,000 tonnes at USD 0.227/tonne.
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 2579549000)
+  )
+}
+
+testthat::test_that(".unbacked_mass_trade_items maps to CBS item 5001", {
+  # The item list is a measurement (see the helper's comment); the CBS side
+  # is derived from the shipped crosswalks, so guard the derivation.
+  testthat::expect_equal(.unbacked_mass_trade_items(), 1293L)
+  testthat::expect_equal(.unbacked_mass_cbs_items(), 5001)
+  testthat::expect_true(
+    "Crude materials" %in% .unbacked_mass_trade_names(1293L)
+  )
+})
+
+testthat::test_that("build_detailed_trade drops unbacked tonnage by default", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_unbacked_trade()),
+    class = "whep_unbacked_mass_quantity"
+  )
+
+  testthat::expect_false(5001 %in% result$item_cbs_code)
+  testthat::expect_equal(result$item_cbs_code, 2511)
+  testthat::expect_equal(sum(result$value), 100)
+  testthat::expect_true(all(result$method_unbacked_quantity == "drop"))
+})
+
+testthat::test_that("build_detailed_trade 'keep' carries unbacked tonnage", {
+  # Asserted on the screen itself, because item 1293 never reaches the
+  # output of `build_detailed_trade()` under any method: its CBS name
+  # "Other" has no row in `whep::items_full`, so `.map_dtm_to_cbs_items()`
+  # already loses it on the `items_bridge` merge. That is a separate,
+  # unreported drop, and the screen must not be confused with it.
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    kept <- .screen_unbacked_quantities(dt, "keep"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(kept), 2)
+  testthat::expect_equal(max(kept$value), 2579549000)
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      result <- build_detailed_trade(
+        raw_trade = .fake_unbacked_trade(),
+        method_unbacked_quantity = "keep"
+      ),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_true(all(result$method_unbacked_quantity == "keep"))
+})
+
+testthat::test_that("a CBS name with no item_cbs_code is warned, not silent", {
+  # Found while tracing whep#1023: `whep::items_full` has no "Other" row, so
+  # every item 1293 row left this producer with no message at all.
+  raw <- .fake_unbacked_trade()
+
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    class = "whep_item_cbs_code_missing"
+  )
+  testthat::expect_warning(
+    testthat::expect_warning(
+      build_detailed_trade(raw_trade = raw, method_unbacked_quantity = "keep"),
+      class = "whep_unbacked_mass_quantity"
+    ),
+    "Other"
+  )
+})
+
+testthat::test_that("the screen removes exactly the unbacked mass rows", {
+  dt <- .read_and_clean_dtm(.fake_unbacked_trade())
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(nrow(dropped), 1)
+  testthat::expect_equal(dropped$item_code_trade, 15)
+  testthat::expect_equal(dropped$value, 100)
+})
+
+testthat::test_that("build_detailed_trade 'abort' refuses unbacked tonnage", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "abort"
+    ),
+    class = "whep_unbacked_mass_quantity"
+  )
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_unbacked_trade(),
+      method_unbacked_quantity = "rescale"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the screen leaves a clean pin untouched", {
+  result <- testthat::expect_no_warning(
+    build_detailed_trade(raw_trade = .fake_bilateral_trade())
+  )
+  testthat::expect_equal(nrow(result), 3)
+})
+
+testthat::test_that("the screen also works on the name-keyed path", {
+  # `.map_dtm_to_cbs_items()` falls back to joining on the item *name* when
+  # no item code column is present; the screen must follow it there.
+  raw <- .fake_unbacked_trade()
+  raw[, `Item Code` := NULL]
+  raw[, item := c("Wheat", "Crude materials")]
+  dt <- .read_and_clean_dtm(raw)
+
+  testthat::expect_warning(
+    dropped <- .screen_unbacked_quantities(dt, "drop"),
+    class = "whep_unbacked_mass_quantity"
+  )
+  testthat::expect_equal(dropped$item, "Wheat")
+})
+
+testthat::test_that("head-count rows are not screened as mass", {
+  # The screen is scoped to `tonnes`: a head count for the same item is a
+  # different quantity and is not what whep#1023 is about.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 44L),
+    `Partner Country Code` = c(9L, 231L),
+    `Item Code` = c(15L, 1293L),
+    Element = c("Export Quantity", "Export Quantity"),
+    Year = c(2004L, 2004L),
+    Unit = c("tonnes", "Head"),
+    Value = c(100, 1e9)
+  )
+  dt <- .read_and_clean_dtm(raw)
+
+  result <- testthat::expect_no_warning(
+    .screen_unbacked_quantities(dt, "drop")
+  )
+  testthat::expect_setequal(result$unit, c("tonnes", "heads"))
+  testthat::expect_equal(max(result$value), 1e9)
+})
+
+# whep#1092: FAOSTAT denominates live poultry, rabbit and rodent trade in
+# `1000 Head`, a label the unit filter never covered, so every one of those
+# rows left without a word -- 89,073 rows and 76,141,882 thousand head on the
+# `faostat-trade-bilateral` pin `20260407T095142Z-b3f81`.
+.fake_thousand_head_trade <- function() {
+  data.table::data.table(
+    `Reporter Country Code` = c(2L, 2L, 2L, 2L),
+    `Partner Country Code` = c(9L, 9L, 9L, 9L),
+    `Item Code` = c(15L, 866L, 1057L, 1181L),
+    Element = rep("Export Quantity", 4),
+    Year = rep(2010L, 4),
+    Unit = c("tonnes", "Head", "1000 Head", "No"),
+    Value = c(100, 50, 7, 3)
+  )
+}
+
+testthat::test_that("'1000 Head' trade is rescaled onto heads", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(.fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+  # 7 thousand head becomes 7,000 head; the `Head` row is untouched.
+  testthat::expect_equal(sort(dt$value[dt$unit == "heads"]), c(50, 7000))
+  testthat::expect_equal(dt$value[dt$unit == "tonnes"], 100)
+})
+
+testthat::test_that("'drop' keeps the historical head-unit filter", {
+  testthat::expect_warning(
+    dt <- .read_and_clean_dtm(
+      .fake_thousand_head_trade(),
+      method_head_units = "drop"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_equal(nrow(dt), 2)
+  testthat::expect_equal(dt$value[dt$unit == "heads"], 50)
+})
+
+testthat::test_that("'abort' refuses an unconvertible trade unit", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_thousand_head_trade(),
+      method_head_units = "abort"
+    ),
+    class = "whep_unhandled_trade_unit"
+  )
+})
+
+testthat::test_that("an unrecognised trade unit is never dropped silently", {
+  # The `No` row (bees or beehives -- FAOSTAT does not say which) has no
+  # quantity this package can express, so it goes; it must not go quietly.
+  testthat::expect_warning(
+    .read_and_clean_dtm(.fake_thousand_head_trade()),
+    "No"
+  )
+})
+
+testthat::test_that("a monetary unit is dropped without a warning", {
+  # Value rows are removed on purpose and must not be reported as an
+  # unrecognised quantity, or every real pin read raises a false alarm.
+  raw <- data.table::rbindlist(list(
+    .fake_thousand_head_trade()[Unit != "No"],
+    data.table::data.table(
+      `Reporter Country Code` = 2L,
+      `Partner Country Code` = 9L,
+      `Item Code` = 15L,
+      Element = "Export Value",
+      Year = 2010L,
+      Unit = "1000 US$",
+      Value = 42
+    )
+  ))
+
+  dt <- testthat::expect_no_warning(.read_and_clean_dtm(raw))
+  testthat::expect_setequal(dt$unit, c("tonnes", "heads"))
+})
+
+testthat::test_that("build_detailed_trade records method_head_units", {
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = .fake_thousand_head_trade()),
+    class = "whep_unhandled_trade_unit"
+  )
+
+  testthat::expect_true(all(result$method_head_units == "convert"))
+  # Trade item 1057 (Chickens) maps to CBS item 1053 (Chickens, broilers).
+  chickens <- result[result$item_cbs_code == 1053, ]
+  testthat::expect_equal(chickens$unit, "heads")
+  testthat::expect_equal(chickens$value, 7000)
+})
+
+testthat::test_that("build_detailed_trade rejects an unknown head method", {
+  testthat::expect_error(
+    build_detailed_trade(
+      raw_trade = .fake_bilateral_trade(),
+      method_head_units = "rescale"
+    ),
+    class = "rlang_error"
+  )
 })

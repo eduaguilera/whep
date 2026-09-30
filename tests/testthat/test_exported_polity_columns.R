@@ -81,9 +81,6 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
   testthat::expect_setequal(
     without,
     c(
-      # Pre-resolution reader: returns FAOSTAT's own `area` NAME ("Portugal"),
-      # not an area code, because resolving is the caller's job.
-      "get_faostat_data",
       # Footprints aggregated over time. They have no `year`, so resolving a
       # polity means CHOOSING one, which is a modelling decision and not
       # plumbing. Left out until that convention is decided.
@@ -102,6 +99,7 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       "build_carbon_balance",
       "build_carbon_inputs",
       "build_crop_soil_n2o_extension",
+      "build_crop_water_use",
       "build_energy_co2_extension",
       "build_feed_demand",
       "build_feed_intake_local",
@@ -118,7 +116,7 @@ testthat::test_that("area-keyed exports carry the reporting-polity columns", {
       "build_primary_production",
       "build_soil_carbon_inputs",
       "build_supply_use",
-      "build_urban_n",
+      "build_human_n",
       "build_water_balance",
       "calculate_n_surplus",
       "get_arable_permanent_land",
@@ -136,7 +134,7 @@ testthat::test_that("the attached polity columns are populated, not just present
   # telling the caller nothing, which is the failure mode of attaching columns
   # with the wrong code column or an incompatible code type. So check the
   # payload: the full four-column set, and at least one resolved polity code.
-  # `build_urban_n` is in this list on purpose: its fixtures used to key cells
+  # `build_human_n` is in this list on purpose: its fixtures used to key cells
   # by the string "ESP", which cannot resolve against the numeric crosswalk.
   cols <- c(
     "polity_area_code",
@@ -147,7 +145,7 @@ testthat::test_that("the attached polity columns are populated, not just present
   for (nm in c(
     "build_nitrogen_balance",
     "build_water_balance",
-    "build_urban_n",
+    "build_human_n",
     "get_arable_permanent_land",
     "read_luh2_landuse",
     "get_crop_land_extension"
@@ -353,16 +351,10 @@ testthat::test_that("the mapping-status switch is off, and adds one column", {
   }
 })
 
-testthat::test_that("the three carve-outs are carved out for the stated reason", {
+testthat::test_that("the two carve-outs are carved out for the stated reason", {
   # The reasons are the load-bearing part of the exception list, so they are
   # asserted, not asserted-in-a-comment. If a `year` column ever appears on the
-  # footprints, or `get_faostat_data()` starts returning a resolved area code,
-  # this fails and the exception should be revisited.
-  faostat <- .run_example("get_faostat_data")
-  testthat::expect_true(rlang::has_name(faostat, "area"))
-  testthat::expect_false(rlang::has_name(faostat, "area_code"))
-  testthat::expect_type(faostat$area, "character")
-
+  # footprints, this fails and the exception should be revisited.
   for (nm in c(
     "build_grazing_feed_footprint",
     "build_land_balance_footprint"

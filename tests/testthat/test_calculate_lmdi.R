@@ -619,7 +619,8 @@ test_that("calculate_lmdi recalculates target after epsilon replacement", {
     data,
     identity = "emissions:activity*intensity",
     time_var = year,
-    verbose = FALSE
+    verbose = FALSE,
+    zero_method = "small_value"
   )
 
   # Get the decomposition for this period
@@ -829,7 +830,8 @@ lmdi_internal_args <- function(data) {
     "emissions",
     year,
     1,
-    FALSE
+    FALSE,
+    "limit"
   )
   list(
     data = prepared,
@@ -839,7 +841,8 @@ lmdi_internal_args <- function(data) {
       target_var = "emissions",
       factors = c("activity", "intensity"),
       factor_labels = c("activity", "intensity"),
-      target_label_final = "emissions"
+      target_label_final = "emissions",
+      zero_method = "limit"
     )
   )
 }
@@ -892,5 +895,536 @@ test_that("calculate_lmdi total output keeps every per-period target field", {
       dplyr::filter(component_type == "target") |>
       dplyr::select(period, target_initial, target_final, total_change),
     expected
+  )
+})
+
+# Logarithmic mean weight ------------------------------------------------------
+
+#' Two period totals that are equal in exact arithmetic but one ulp apart.
+#'
+#' The pair has to be *accumulated*, not written down. Two literals that look
+#' equal are bit-identical, so the exact-equality test catches them and an
+#' in-memory pair of constants stays green on the broken code -- the same trap
+#' PR 1068 hit with `read_soil_ph()`, where a fixture held in memory never
+#' exercised the defect. Here the same six item-level values are folded in two
+#' different orders, as two independently aggregated period sums are in a real
+#' panel: double addition is not associative, so the totals are mathematically
+#' equal and differ by one ulp as doubles. A left fold is used rather than
+#' `sum()` because `sum()` accumulates in long double on some platforms and
+#' would there agree bit for bit.
+lmdi_ulp_pair_fixture <- function() {
+  items <- c(53728.8, 92562.9, 95662.2, 95680.0, 97779.9, 88685.5)
+  list(
+    high = purrr::reduce(items, `+`),
+    low = purrr::reduce(rev(items), `+`)
+  )
+}
+
+test_that("log-mean fixture really is an accumulated, non-identical pair", {
+  pair <- lmdi_ulp_pair_fixture()
+
+  expect_false(pair$high == pair$low)
+  expect_equal(pair$high, pair$low)
+})
+
+test_that(".log_mean weights two equal accumulated sums by their value", {
+  pair <- lmdi_ulp_pair_fixture()
+
+  # Exactly equal inputs, the case the old exact test did catch.
+  expect_equal(whep:::.log_mean(500, 500), 500)
+  # A genuine change still follows the closed form.
+  expect_equal(whep:::.log_mean(110, 100), 10 / log(1.1))
+  # One ulp of accumulation residue must not move the weight. The old
+  # exact-equality test missed this pair and returned 262144 for the first
+  # ordering, 49.98 percent below the correct 524099.3.
+  expect_equal(whep:::.log_mean(pair$high, pair$low), pair$high)
+  expect_equal(whep:::.log_mean(pair$low, pair$high), pair$high)
+})
+
+test_that(".log_mean keeps its non-positive and missing-input behaviour", {
+  expect_equal(whep:::.log_mean(0, 0), 0)
+  expect_equal(whep:::.log_mean(-5, -5), -5)
+  expect_equal(whep:::.log_mean(10, 0), 0)
+  expect_equal(whep:::.log_mean(0, 10), 0)
+  expect_equal(whep:::.log_mean(-10, 10), 0)
+  expect_equal(whep:::.log_mean(NA_real_, 10), NA_real_)
+  expect_equal(
+    whep:::.log_mean(c(100, 100, 0, NA), c(100, 200, 10, 5)),
+    c(100, -100 / log(0.5), 0, NA)
+  )
+})
+
+test_that("calculate_lmdi does not amplify accumulation residue", {
+  pair <- lmdi_ulp_pair_fixture()
+  # A period over which production is unchanged, to the last ulp of two
+  # independently accumulated totals, while area doubles and yield halves.
+  # The logarithmic mean weight is then the common total, and each factor
+  # contributes plus or minus total times log(2).
+  data <- tibble::tibble(
+    year = c(2000, 2001),
+    area = c(1000, 2000),
+    prod = c(pair$low, pair$high)
+  ) |>
+    dplyr::mutate(yield = prod / area)
+
+  result <- calculate_lmdi(
+    data,
+    identity = "prod:area*yield",
+    time_var = year,
+    verbose = FALSE
+  )
+
+  additive <- result |>
+    dplyr::filter(component_type == "factor") |>
+    dplyr::select(factor_label, additive)
+
+  expect_equal(
+    additive$additive[additive$factor_label == "area"],
+    pair$high * log(2)
+  )
+  expect_equal(
+    additive$additive[additive$factor_label == "yield"],
+    -pair$high * log(2)
+  )
+})
+
+# Logarithmic mean accuracy (#1089) ---------------------------------------------
+
+test_that(".log_mean is correct to rounding at and around the switch point", {
+  pair <- log_mean_switch_pairs()
+  expected <- log_mean_series_reference(pair$a, pair$b)
+
+  # log(a) - log(b) keeps only ~8 significant digits here, so the previous
+  # far branch was off by up to 5e-8 relative just above sqrt(eps).
+  expect_lte(
+    max(abs(whep:::.log_mean(pair$a, pair$b) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+  expect_lte(
+    max(abs(whep:::.log_mean(pair$b, pair$a) / expected - 1)),
+    4 * .Machine$double.eps
+  )
+})
+
+test_that(".log_mean stays accurate for large and extreme ratios", {
+  k <- c(1, 2, 10, 40, 60)
+  expected <- (2^k - 1) / (k * log(2))
+
+  expect_equal(whep:::.log_mean(2^k, 1), expected, tolerance = 4 * 2^-52)
+  expect_equal(whep:::.log_mean(1, 2^k), expected, tolerance = 4 * 2^-52)
+  expect_equal(
+    whep:::.log_mean(2^-k, 1),
+    expected * 2^-k,
+    tolerance = 4 * 2^-52
+  )
+  # A ratio beyond the double range must not overflow to a zero weight.
+  expect_equal(
+    whep:::.log_mean(1e300, 1e-300),
+    (1e300 - 1e-300) / (log(1e300) - log(1e-300)),
+    tolerance = 4 * 2^-52
+  )
+  expect_equal(whep:::.log_mean(1, 1e-12), (1 - 1e-12) / log(1e12))
+})
+
+# Numeric helper columns are not balancing keys (#1232) -------------------------
+
+#' A panel shaped like `.build_urban_panel()`: the identity's variables plus
+#' two numeric helper columns (`excr_h`, `recycled`) outside the identity.
+lmdi_helper_column_fixture <- function() {
+  tibble::tibble(
+    year = 2000:2003,
+    excr_h = c(10, 11, 12, 13),
+    recycled = c(1, 1.2, 1.1, 1.3),
+    population = c(2, 2.1, 2.2, 2.3)
+  ) |>
+    dplyr::mutate(
+      excr_pc = excr_h / population,
+      loss_frac = 1 - recycled / excr_h,
+      loss = excr_h - recycled
+    )
+}
+
+test_that("numeric columns outside the identity do not balance the panel", {
+  data <- lmdi_helper_column_fixture()
+  identity <- "loss:population*excr_pc*loss_frac"
+
+  vars <- whep:::.lmdi_extract_vars(data, identity, "loss", year)
+  prepared <- whep:::.lmdi_prepare_data(
+    data,
+    identity,
+    "loss",
+    year,
+    1,
+    FALSE,
+    "limit"
+  )
+
+  expect_equal(vars$group_cols, character(0))
+  # Keyed on the helper columns this balanced to 4^3 = 64 rows.
+  expect_equal(nrow(prepared), nrow(data))
+})
+
+test_that("helper columns leave a correct decomposition unchanged", {
+  data <- lmdi_helper_column_fixture()
+  identity <- "loss:population*excr_pc*loss_frac"
+
+  with_helpers <- calculate_lmdi(data, identity, verbose = FALSE)
+  without_helpers <- data |>
+    dplyr::select(-excr_h, -recycled) |>
+    calculate_lmdi(identity, verbose = FALSE)
+
+  expect_identical(with_helpers, without_helpers)
+})
+
+test_that("helper columns do not split rolling-mean series", {
+  data <- lmdi_rolling_fixture() |>
+    dplyr::mutate(helper = seq_along(year) * 1.5)
+  identity <- "emissions:activity*intensity"
+
+  with_helper <- calculate_lmdi(
+    data,
+    identity,
+    rolling_mean = 3,
+    verbose = FALSE
+  )
+  without_helper <- data |>
+    dplyr::select(-helper) |>
+    calculate_lmdi(identity, rolling_mean = 3, verbose = FALSE)
+
+  expect_identical(with_helper, without_helper)
+})
+
+test_that("a numeric `.by` column still balances the panel", {
+  data <- tibble::tribble(
+    ~area_code, ~year, ~activity, ~intensity, ~helper,
+    1L,         2010,  1000,      0.10,       7.5,
+    1L,         2011,  1100,      0.11,       8.5,
+    2L,         2010,  2000,      0.05,       9.5
+  ) |>
+    dplyr::mutate(emissions = activity * intensity)
+  identity <- "emissions:activity*intensity"
+
+  vars <- whep:::.lmdi_extract_vars(
+    data,
+    identity,
+    "emissions",
+    year,
+    .by = "area_code"
+  )
+  prepared <- whep:::.lmdi_prepare_data(
+    data,
+    identity,
+    "emissions",
+    year,
+    1,
+    FALSE,
+    "limit",
+    .by = "area_code"
+  )
+
+  expect_equal(vars$group_cols, "area_code")
+  # Only the missing (area 2, 2011) row is added, not one per helper value.
+  expect_equal(nrow(prepared), 4)
+  expect_equal(
+    prepared |>
+      dplyr::filter(area_code == 2L, year == 2011) |>
+      nrow(),
+    1
+  )
+})
+
+
+# Zero values: analytical limit (#69) ------------------------------------------
+
+lmdi_zero_run <- function(data, identity, ...) {
+  calculate_lmdi(data, identity = identity, verbose = FALSE, ...)
+}
+
+# Largest |target change - sum of factor contributions| over every period.
+lmdi_closure_gap <- function(result) {
+  result |>
+    dplyr::summarise(
+      gap = abs(
+        sum(additive[component_type == "target"]) -
+          sum(additive[component_type == "factor"])
+      ),
+      .by = dplyr::any_of(c("period", "country"))
+    ) |>
+    dplyr::pull(gap) |>
+    max()
+}
+
+lmdi_factor_add <- function(result, label) {
+  result |>
+    dplyr::filter(component_type == "factor", factor_label == label) |>
+    dplyr::pull(additive)
+}
+
+# A sector that is absent at the start, present in the middle and absent again
+# at the end, next to one that is always present and one that is zero in every
+# year.
+lmdi_zero_sector_fixture <- function() {
+  tibble::tribble(
+    ~year, ~sector, ~activity, ~emissions,
+    2010,  "a",     100,       10,
+    2010,  "b",     0,         0,
+    2010,  "c",     0,         0,
+    2011,  "a",     120,       12,
+    2011,  "b",     30,        6,
+    2011,  "c",     0,         0,
+    2012,  "a",     150,       12,
+    2012,  "b",     0,         0,
+    2012,  "c",     0,         0
+  ) |>
+    dplyr::mutate(total_activity = sum(activity), .by = year)
+}
+
+lmdi_structural_identity <- paste0(
+  "emissions:total_activity*(activity[sector]/total_activity)*",
+  "(emissions[sector]/activity[sector])"
+)
+
+test_that("limit decomposition is perfect with zeros at start, end, both", {
+  simple <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100,
+    2012,  250,       0,          0,
+    2013,  300,       0,          0,
+    2014,  300,       0.2,        60
+  )
+  expect_no_warning(
+    simple_result <- lmdi_zero_run(simple, "emissions:activity*intensity")
+  )
+  expect_lt(lmdi_closure_gap(simple_result), 1e-10)
+  expect_equal(
+    simple_result |>
+      dplyr::filter(component_type == "target") |>
+      dplyr::pull(additive),
+    c(100, -100, 0, 60)
+  )
+
+  expect_no_warning(
+    sector_result <- lmdi_zero_run(
+      lmdi_zero_sector_fixture(),
+      lmdi_structural_identity
+    )
+  )
+  expect_lt(lmdi_closure_gap(sector_result), 1e-10)
+  expect_equal(
+    sector_result |>
+      dplyr::filter(component_type == "target") |>
+      dplyr::pull(additive),
+    c(8, -6)
+  )
+})
+
+test_that("limit gives the whole change to the factor leaving zero", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100,
+    2012,  250,       0,          0
+  )
+  result <- lmdi_zero_run(data, "emissions:activity*intensity")
+
+  expect_equal(lmdi_factor_add(result, "activity"), c(0, 0))
+  expect_equal(lmdi_factor_add(result, "intensity"), c(100, -100))
+  pointblank::expect_col_vals_in_set(
+    result,
+    method_zero_handling,
+    set = "limit"
+  )
+})
+
+test_that("limit gives a new sector's emissions to the structure effect", {
+  result <- lmdi_zero_run(lmdi_zero_sector_fixture(), lmdi_structural_identity)
+  first <- result |> dplyr::filter(period == "2010-2011")
+  # Sector a alone (standard LMDI-I), plus sector b's 6 t on the share factor.
+  weight_a <- whep:::.log_mean(12, 10)
+  expect_equal(
+    lmdi_factor_add(first, "activity[sector]/total_activity"),
+    weight_a * log((120 / 150) / (100 / 100)) + 6
+  )
+  expect_equal(lmdi_factor_add(first, "emissions[sector]/activity[sector]"), 0)
+})
+
+test_that("limit splits a change among simultaneously zero factors", {
+  data <- tibble::tribble(
+    ~year, ~a, ~b, ~c, ~v,
+    2010,  0,  0,  2,  0,
+    2011,  3,  4,  5,  60
+  )
+  result <- lmdi_zero_run(data, "v:a*b*c")
+
+  expect_equal(lmdi_factor_add(result, "a"), 30)
+  expect_equal(lmdi_factor_add(result, "b"), 30)
+  expect_equal(lmdi_factor_add(result, "c"), 0)
+})
+
+test_that("limit is the small-value result as the constant tends to zero", {
+  # Hand-computed small-value LMDI with delta = 1e-300 (far below the
+  # package's 1e-12): its error against the limit decays like
+  # 1 / log(1 / delta), so it must land within about one percent.
+  delta <- 1e-300
+  f0 <- c(activity = 100, intensity = delta)
+  f_final <- c(activity = 200, intensity = 0.5)
+  weight <- whep:::.log_mean(prod(f_final), prod(f0))
+  small_value <- unname(weight * log(f_final / f0))
+
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  result <- lmdi_zero_run(data, "emissions:activity*intensity")
+
+  expect_equal(
+    lmdi_factor_add(result, "intensity"),
+    small_value[2],
+    tolerance = 0.01
+  )
+  expect_lt(abs(lmdi_factor_add(result, "activity") - small_value[1]), 0.2)
+  expect_gt(small_value[1], 0)
+})
+
+test_that("limit and small value move attribution by a measurable amount", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  identity <- "emissions:activity*intensity"
+  limit <- lmdi_zero_run(data, identity)
+  small <- lmdi_zero_run(data, identity, zero_method = "small_value")
+
+  # With 1e-12 the weight is 100 / log(1e14), so activity keeps
+  # 100 * log(2) / log(1e14), about 2.5 of the 100.
+  expect_equal(
+    lmdi_factor_add(small, "activity"),
+    (100 - 1e-10) / log(100 / 1e-10) * log(2)
+  )
+  expect_equal(lmdi_factor_add(limit, "activity"), 0)
+  pointblank::expect_col_vals_in_set(
+    small,
+    method_zero_handling,
+    set = "small_value"
+  )
+})
+
+test_that("limit closes a ratio identity that small value breaks (#69)", {
+  # A non-simple identity is never re-derived after epsilon replacement, so
+  # `pop * (gdp / pop) * intensity` no longer equals `emissions` there.
+  data <- tibble::tribble(
+    ~year, ~pop, ~gdp, ~intensity, ~emissions,
+    2010,  10,   1000, 0,          0,
+    2011,  11,   1200, 0.1,        120
+  )
+  identity <- "emissions:pop*(gdp/pop)*intensity"
+
+  expect_no_warning(limit <- lmdi_zero_run(data, identity))
+  expect_lt(lmdi_closure_gap(limit), 1e-10)
+  expect_equal(lmdi_factor_add(limit, "intensity"), 120)
+
+  small_value_warnings <- testthat::capture_warnings(
+    lmdi_zero_run(data, identity, zero_method = "small_value")
+  )
+  expect_match(
+    small_value_warnings,
+    "Additive contributions differ",
+    all = FALSE
+  )
+})
+
+test_that("limit leaves zero-free decompositions unchanged", {
+  identity <- "emissions:activity*intensity"
+  data <- lmdi_varying_fixture()
+  limit <- lmdi_zero_run(data, identity)
+  small <- lmdi_zero_run(data, identity, zero_method = "small_value")
+
+  expect_equal(limit$additive, small$additive, tolerance = 1e-12)
+  expect_equal(limit$multiplicative, small$multiplicative, tolerance = 1e-12)
+
+  sectors <- lmdi_sector_fixture() |>
+    dplyr::mutate(total_activity = sum(activity), .by = year)
+  sector_limit <- lmdi_zero_run(sectors, lmdi_structural_identity)
+  sector_small <- lmdi_zero_run(
+    sectors,
+    lmdi_structural_identity,
+    zero_method = "small_value"
+  )
+  expect_equal(sector_limit$additive, sector_small$additive, tolerance = 1e-12)
+  expect_equal(
+    sector_limit$multiplicative,
+    sector_small$multiplicative,
+    tolerance = 1e-12
+  )
+})
+
+test_that("limit is perfect per group with .by and after rolling mean", {
+  data <- tibble::tribble(
+    ~country, ~year, ~activity, ~intensity, ~emissions,
+    "ESP",    2010,  100,       0,          0,
+    "ESP",    2011,  110,       0.2,        22,
+    "FRA",    2010,  200,       0.1,        20,
+    "FRA",    2011,  220,       0,          0
+  )
+  result <- lmdi_zero_run(
+    data,
+    "emissions:activity*intensity",
+    .by = "country"
+  )
+  expect_lt(lmdi_closure_gap(result), 1e-10)
+
+  smoothed <- tibble::tibble(
+    year = 2010:2015,
+    activity = c(100, 110, 120, 130, 140, 150),
+    intensity = c(0, 0, 0.1, 0.2, 0.1, 0)
+  ) |>
+    dplyr::mutate(emissions = activity * intensity)
+  rolled <- lmdi_zero_run(
+    smoothed,
+    "emissions:activity*intensity",
+    rolling_mean = 3
+  )
+  expect_lt(lmdi_closure_gap(rolled), 1e-10)
+})
+
+test_that("limit reports multiplicative indices as NA at a zero aggregate", {
+  data <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010,  100,       0,          0,
+    2011,  200,       0.5,        100
+  )
+  expect_no_warning(
+    result <- lmdi_zero_run(data, "emissions:activity*intensity")
+  )
+  factors <- result |> dplyr::filter(component_type == "factor")
+  expect_true(all(is.na(factors$multiplicative)))
+})
+
+test_that("limit warns and returns NA when a factor diverges", {
+  # Positive emissions over zero activity: activity -> 0 and intensity -> Inf
+  # while the target stays finite, which has no finite decomposition.
+  data <- tibble::tribble(
+    ~year, ~activity, ~emissions,
+    2010,  0,         5,
+    2011,  10,        8
+  )
+  expect_warning(
+    result <- lmdi_zero_run(data, "emissions:activity*(emissions/activity)"),
+    "no finite value"
+  )
+  expect_true(is.na(lmdi_factor_add(result, "activity")))
+})
+
+test_that("calculate_lmdi rejects an unknown zero_method", {
+  expect_error(
+    lmdi_zero_run(
+      lmdi_basic_fixture(),
+      "emissions:activity*intensity",
+      zero_method = "epsilon"
+    ),
+    class = "rlang_error"
   )
 })

@@ -104,7 +104,31 @@ testthat::test_that("read_n_deposition returns its schema when requested years a
   )
 
   testthat::expect_equal(nrow(result), 0L)
-  testthat::expect_named(result, c("lon", "lat", "year", "value_g"))
+  testthat::expect_named(
+    result,
+    c("lon", "lat", "year", "value_g", "method_deposition")
+  )
+})
+
+# ---- Provenance of the deposition field (#1097) ------------------------
+#
+# HaNi understates European deposition by a margin that GROWS BACKWARDS in
+# time: measured against EMEP MSC-W rv5.6 over the EU27 cells, HaNi/EMEP is
+# 0.651 in 1990 and 0.984 in 2019 (validation/n_deposition_emep.R). Correcting
+# or substituting the field is therefore an expected use of the `data`
+# argument -- and a corrected field must not come back out of
+# build_n_deposition() wearing HaNi's name.
+
+testthat::test_that("read_n_deposition tags its own rows as hani", {
+  cube <- .hani_fixture_cube(n_lon_blocks = 1L, n_lat_blocks = 1L, n_years = 1L)
+  result <- whep::read_n_deposition(
+    species = "nhx",
+    hani_dir = cube$dir,
+    years = 1850L
+  )
+
+  pointblank::expect_col_exists(result, "method_deposition")
+  pointblank::expect_col_vals_equal(result, "method_deposition", "hani")
 })
 
 # ---- build_n_deposition() ---------------------------------------------
@@ -167,6 +191,107 @@ testthat::test_that("build_n_deposition filters preloaded inputs by years", {
 
   testthat::expect_equal(out$year, 2020L)
   testthat::expect_equal(nrow(out), 1L)
+})
+
+testthat::test_that("build_n_deposition records an untagged field as supplied", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 1000000000
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  pointblank::expect_col_vals_equal(out, "method_deposition", "supplied")
+})
+
+testthat::test_that("build_n_deposition carries an injected provenance tag", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "emep_corrected"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "emep_corrected"
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  pointblank::expect_col_vals_equal(
+    out,
+    "method_deposition",
+    "emep_corrected"
+  )
+  # The label is the ONLY thing the tag changes: the mass is untouched.
+  testthat::expect_equal(out$deposition_kgn_ha, 10)
+})
+
+testthat::test_that("build_n_deposition takes the tag of the only species present", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "hani"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    0.25, -0.25, 2020L, 1000000000, "hani"
+  )
+  # Each cell carries exactly one of the two species; the support carries both
+  # cells, so the surface as a whole is still built from both fields and only
+  # the per-cell combination is under test here.
+  cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha,
+    -0.25, -0.25, 1L, 1, 300000,
+    0.25, -0.25, 2L, 1, 300000
+  )
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = cell_polity)
+  )
+
+  pointblank::expect_col_vals_equal(out, "method_deposition", "hani")
+})
+
+testthat::test_that("build_n_deposition aborts when the two species disagree", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, "hani"
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "emep_corrected"
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+    ),
+    "disagree"
+  )
+})
+
+testthat::test_that("build_n_deposition refuses an unusable provenance column", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 2000000000, NA_character_
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g, ~method_deposition,
+    -0.25, -0.25, 2020L, 1000000000, "hani"
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+    ),
+    "method_deposition"
+  )
 })
 
 testthat::test_that("build_n_deposition example fixture is schema-complete", {
@@ -744,10 +869,18 @@ testthat::test_that("C3a: each cell is partitioned on its own, not with its neig
   # between cells at the same longitude and only the global total would still
   # add up. Two cells on one meridian, carrying different masses and very
   # different territory totals, is what makes that visible.
+  # The two species are split within each cell's total (3e9 and 1e9) rather
+  # than the whole mass being put on NHx, so the partition under test is
+  # unchanged while both fields are still supplied.
   nhx <- tibble::tribble(
     ~lon, ~lat, ~year, ~value_g,
-    -0.25, -0.25, 2000L, 3e9,
-    -0.25, 0.25, 2000L, 1e9
+    -0.25, -0.25, 2000L, 2e9,
+    -0.25, 0.25, 2000L, 0.6e9
+  )
+  noy <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2000L, 1e9,
+    -0.25, 0.25, 2000L, 0.4e9
   )
   cp <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha, ~polity_area_ha,
@@ -758,7 +891,7 @@ testthat::test_that("C3a: each cell is partitioned on its own, not with its neig
   )
   out <- dplyr::arrange(
     whep::build_n_deposition(
-      data = list(nhx = nhx, noy = nhx[0, ], cell_polity = cp)
+      data = list(nhx = nhx, noy = noy, cell_polity = cp)
     ),
     area_code
   )
@@ -1173,4 +1306,104 @@ testthat::test_that("build_n_deposition is silent when every year is in span", {
   testthat::expect_no_warning(
     whep::build_n_deposition(years = 2020L, data = .nd_out_of_span_data())
   )
+})
+
+# ---- NHx + NOy must both have been supplied (whep#1034) ----------------
+
+testthat::test_that("the deposition rate alone cannot catch a lost species", {
+  # The whole of what build_n_deposition() checks about its own arithmetic --
+  # a non-negative rate, and a mass that round-trips through cell_area_ha --
+  # is satisfied exactly by a surface built from one species, because zero
+  # satisfies a sum. That is the state the guard has to catch instead.
+  placed <- tibble::tibble(
+    lon = -0.25,
+    lat = -0.25,
+    year = 2020L,
+    value_g_nhx = 2e9,
+    value_g_noy = 0,
+    cell_area_ha = 3e5
+  ) |>
+    dplyr::mutate(
+      value_g_total = .data$value_g_nhx + .data$value_g_noy,
+      deposition_kgn_ha = .data$value_g_total / 1000 / .data$cell_area_ha
+    )
+
+  expect_supplied_guard(
+    identity = placed$deposition_kgn_ha >= 0 &&
+      isTRUE(all.equal(
+        placed$deposition_kgn_ha * placed$cell_area_ha * 1000,
+        placed$value_g_total
+      )),
+    guard = whep:::.nd_check_species(placed)
+  )
+})
+
+testthat::test_that("a species that arrives with no rows is refused", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = nhx,
+        noy = nhx[0, ],
+        cell_polity = .example_cell_polity()
+      )
+    ),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("a species that arrives identically zero is refused", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = nhx,
+        noy = dplyr::mutate(nhx, value_g = 0),
+        cell_polity = .example_cell_polity()
+      )
+    ),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("a species on its own longitude convention is refused", {
+  # The full join keeps the stray rows, so the absence is only visible on the
+  # cells that reach the output -- which is where the guard sits.
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = nhx,
+        noy = dplyr::mutate(nhx, lon = 359.75),
+        cell_polity = .example_cell_polity()
+      )
+    ),
+    "noy"
+  )
+})
+
+testthat::test_that("both species supplied passes the guard untouched", {
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2020L, 2000000000
+  )
+  noy <- dplyr::mutate(nhx, value_g = 1000000000)
+
+  out <- whep::build_n_deposition(
+    data = list(nhx = nhx, noy = noy, cell_polity = .example_cell_polity())
+  )
+
+  testthat::expect_equal(out$deposition_kgn_ha, 10)
 })

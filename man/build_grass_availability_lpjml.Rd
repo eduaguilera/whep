@@ -7,7 +7,7 @@
 build_grass_availability_lpjml(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   shares = grass_access_shares(),
   example = FALSE,
   availability = NULL,

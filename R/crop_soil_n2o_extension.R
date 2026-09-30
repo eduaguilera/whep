@@ -17,8 +17,9 @@
 #'   country total, allocated to crops by harvested area (Coello is a
 #'   synthetic-N rate basis only).
 #' - **Crop residues** (F_CR): the dry matter of above-ground residues returned
-#'   to soil (from [get_primary_residues()], net of the removed fraction) times
-#'   the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
+#'   to soil (`value_dm` from [get_primary_residues()], net of the removed
+#'   fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+#'   11.1a).
 #'
 #' Both country totals are read under raw FAOSTAT `Area Code` values and
 #' harmonised to the whep polity `area_code` through [polity_area_crosswalk]
@@ -163,8 +164,28 @@ build_crop_soil_n2o_extension <- function(
 
 # Country-total manure N applied to soils (tonnes N) from the FAOSTAT emissions
 # pin (reported in kg N as "Manure applied to soils (N content)").
+#
+# The Item and Element labels are the pin's vocabulary, not WHEP's contract, and
+# this pin has already lost labels once: the frozen revision carries 10 Element
+# labels where its predecessor carried 25. A label that has moved makes this
+# filter match nothing, the stream is then dropped by a `bind_rows()` and a
+# `sum(na.rm = TRUE)` in `.soil_n2o_co2e()`, and the extension ships short by
+# its whole applied-manure term with nothing raised (whep#1016, whep#1034).
 .manure_applied_n_country <- function(manure) {
+  check_labels_supplied(
+    manure,
+    "Element",
+    "Manure applied to soils (N content)",
+    details = c(i = "Source: the {.val faostat-emissions-livestock} pin.")
+  )
+  check_labels_supplied(
+    manure,
+    "Item",
+    "All Animals",
+    details = c(i = "Source: the {.val faostat-emissions-livestock} pin.")
+  )
   manure |>
+    .faostat_tier1_only() |>
     dplyr::filter(
       .data$Item == "All Animals",
       .data$Element == "Manure applied to soils (N content)"
@@ -181,8 +202,69 @@ build_crop_soil_n2o_extension <- function(
     .n_country_to_polity("manure_applied_n_t")
 }
 
+# Keep one FAOSTAT reporting system, then prove the key is unique.
+#
+# FAOSTAT publishes the livestock emissions domain under two sources, `FAO
+# TIER 1` and `UNFCCC`, and reports the same country-year under both wherever a
+# country submits an inventory. The pin registered before whep#1098 carried no
+# `Source` column at all -- one row per (area, year), so nothing here had to
+# choose -- and the bulk archive that restores the missing emission Elements
+# brings the column, and the second row, back with it. Summing them is not a
+# larger estimate, it is the same manure counted twice: measured on the 2026-09
+# release it inflates global manure N by +6.2% (1990), +6.7% (2010) and +6.7%
+# (2020), over 1,227 duplicated area-years.
+#
+# `FAO TIER 1` is the leg kept, matching what
+# `inst/scripts/prepare_faostat_bulk.R` builds the pin from and what the
+# livestock emission readers select. It is a no-op against the pre-#1098 pin:
+# filtering the current bulk to it reproduces that pin's totals to -0.00% in
+# all three years above, with a maximum relative difference of 8.6e-09.
+#
+# The uniqueness assertion is the part that does not depend on today's
+# vocabulary: a third source, or a renamed one, would otherwise re-open the
+# same double count silently.
+.faostat_tier1_only <- function(manure) {
+  if (rlang::has_name(manure, "Source")) {
+    manure <- dplyr::filter(manure, .data$Source == "FAO TIER 1")
+  }
+  duplicated_keys <- manure |>
+    dplyr::filter(
+      .data$Item == "All Animals",
+      .data$Element == "Manure applied to soils (N content)"
+    ) |>
+    dplyr::count(.data$Year, .data[["Area Code"]]) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(duplicated_keys) > 0L) {
+    cli::cli_abort(c(
+      "FAOSTAT manure N is reported more than once for
+       {nrow(duplicated_keys)} area-year{?s}.",
+      x = "Summing them would count the same manure twice.",
+      i = "Expected one row per {.field Area Code} and {.field Year} after
+           keeping {.val FAO TIER 1}; check whether the pin gained a
+           reporting source."
+    ))
+  }
+  manure
+}
+
 # Country-total synthetic fertiliser N (tonnes N) from the FAOSTAT pin.
+#
+# Same shape, and this pin has already recased a label in a shipped revision:
+# `Export Quantity` became `Export quantity` between two versions. Nothing in
+# the synthetic-fertiliser chain would notice the equivalent happening here.
 .synthetic_n_country <- function(fertilizer) {
+  check_labels_supplied(
+    fertilizer,
+    "Element",
+    "Agricultural Use",
+    details = c(i = "Source: the {.val faostat-fertilizer-nutrients} pin.")
+  )
+  check_labels_supplied(
+    fertilizer,
+    "Item",
+    "Nutrient nitrogen N (total)",
+    details = c(i = "Source: the {.val faostat-fertilizer-nutrients} pin.")
+  )
   fertilizer |>
     dplyr::filter(
       .data$Element == "Agricultural Use",
@@ -259,11 +341,26 @@ build_crop_soil_n2o_extension <- function(
 
 # Above-ground crop-residue N returned to soil (tonnes N) per crop: residue dry
 # matter (net of the removed fraction) times residue N content.
+#
+# The dry matter is `value_dm`, not `value`. `get_primary_residues()` reports
+# `value` in fresh matter, and N_AG is per kg of dry matter, so reading `value`
+# here overstated residue N by the inverse of each crop's residue dry-matter
+# content -- about 1.15x for cereal straw, 7.6x for tomato haulm (whep#1215).
 .residue_n_inputs <- function(primary_residues, removed_frac) {
+  if (!rlang::has_name(primary_residues, "value_dm")) {
+    cli::cli_abort(
+      c(
+        "The crop residues carry no {.field value_dm} column.",
+        i = "Residue N is dry matter times N content; {.field value} is fresh
+          matter. Pass the output of {.fn get_primary_residues}."
+      ),
+      class = "whep_residue_no_dry_matter"
+    )
+  }
   n_content <- .crop_residue_n_content()
   primary_residues |>
     dplyr::summarise(
-      residue_dm_t = sum(.data$value, na.rm = TRUE),
+      residue_dm_t = sum(.data$value_dm, na.rm = TRUE),
       .by = c(year, area_code, item_cbs_code_crop)
     ) |>
     dplyr::rename(item_cbs_code = item_cbs_code_crop) |>

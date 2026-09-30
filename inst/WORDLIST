@@ -40,6 +40,7 @@ Bo
 Bolinder
 Bonaire
 Bondeau
+Boreal
 Borner
 Bouwman
 CFT
@@ -97,6 +98,7 @@ ESEA
 ETH
 EarthStat
 Eq
+Erenstein
 Eswatini
 Eurostat
 Eustatius
@@ -181,6 +183,7 @@ IIASA
 ILO
 IOP
 IPCC
+IPCC's
 ISIMIP
 Jaramillo
 Jenkinson
@@ -193,6 +196,7 @@ Kitagawa
 Kitts
 Kosovo
 Krausmann
+Krausmann's
 Kroeze
 Kros
 Kuschnig
@@ -206,6 +210,7 @@ LUH
 Labour
 LandInG
 LandInG's
+Lal
 Landuse
 Lassaletta
 Laxenburg
@@ -233,6 +238,7 @@ MacLeod
 Maillard
 Marino
 Maus
+McIntire
 Mayotte
 Mcal
 Megagrams
@@ -246,6 +252,7 @@ Miquelon
 Misselbrook
 Mkm
 Monfreda
+Montane
 Mouny
 Multipolygon
 NDF
@@ -296,6 +303,7 @@ README
 RL
 RUS
 Raes
+Rahimi
 Rainfed
 Ramankutty
 Rangeland
@@ -331,6 +339,7 @@ Sankey
 Sanz
 Sao
 Sayer
+Scheer
 Schaake
 Schimel
 Schulte
@@ -341,6 +350,7 @@ Shi
 Shindell
 Shrubland
 Sint
+Smerald
 Smil
 Soest
 SoilR
@@ -384,6 +394,8 @@ WLF
 WPP
 WPP's
 Wieland
+Wirsenius
+Wirsenius's
 Xu
 Ym
 Zenodo
@@ -426,6 +438,7 @@ cbs
 cdot
 centre
 centres
+checksummed
 checksums
 citable
 cli
@@ -664,6 +677,7 @@ splitter
 stabilised
 stressor
 stringified
+stover
 subcell
 subgrid
 subnational

@@ -100,6 +100,9 @@ test_that("applied output carries provenance for every stage", {
     "resolution",
     "method_n_excretion",
     "method_vs",
+    "method_digestibility",
+    "method_c_excretion",
+    "method_forage_n",
     "method_mms",
     "method_losses",
     "method_allocation",
@@ -319,6 +322,37 @@ test_that("transport room includes grass-only as well as crop-only cells", {
   expect_equal(out$room_n[out$sub_territory == "1.5_40"], 60)
 })
 
+test_that("bedding reaches the field and widens the N balance (whep#1005)", {
+  bedding <- tibble::tibble(
+    year = 2020L,
+    territory = "ESP",
+    bedding_dm_t = 150,
+    bedding_c_t = 68.7,
+    bedding_n_t = 0.888
+  )
+  bare <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    gridded = .toy_gridded_nat()
+  )
+  bedded <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    gridded = .toy_gridded_nat(),
+    bedding = bedding
+  )
+
+  # Bedding N is added outside (1 - FracLossMS), so it lands whole on the
+  # field: the balance is now excreted + bedded = applied + losses.
+  bal <- .balance_n(bedded)
+  expect_equal(
+    bal[["out"]],
+    bal[["excreted"]] + sum(bedding$bedding_n_t),
+    tolerance = 1e-6
+  )
+  expect_gt(sum(bedded$applied$applied_c), sum(bare$applied$applied_c))
+  expect_true(all(bedded$applied$method_bedding_mms == "ipcc_2019"))
+  expect_true(all(is.na(bare$applied$method_bedding_mms)))
+})
+
 test_that("build_livestock_nutrient_flows guards bad resolution and methods stage", {
   expect_error(
     whep::build_livestock_nutrient_flows(
@@ -336,4 +370,166 @@ test_that("build_livestock_nutrient_flows guards bad resolution and methods stag
     ),
     "excrete"
   )
+})
+
+# ---- Transported manure's cropland/grassland split (whep#341) ----
+
+# All herds sit on "1.5_40", which can hold almost nothing, so the collected
+# surplus is trucked to its neighbour "1_40". That sink has little cropland
+# room (1 t N cap, 1.2 t after the 1.2 tolerance) and a lot of grassland room
+# (1000 t cap), so where the transported N lands depends on the split rule.
+.toy_intake_sink_grass <- function() {
+  dplyr::mutate(.toy_intake_nat(), sub_territory = "1.5_40")
+}
+
+.toy_gridded_sink_grass <- function() {
+  list(
+    crops = tibble::tribble(
+      ~year , ~territory , ~sub_territory , ~crop    , ~manure_n_receptivity , ~crop_n_cap ,
+      2020L , "ESP"      , "1.5_40"       , "barley" ,                     6 ,        0.01 ,
+      2020L , "ESP"      , "1_40"         , "barley" ,                     6 ,           1
+    ),
+    grass = tibble::tribble(
+      ~year , ~territory , ~sub_territory , ~grass_n_cap ,
+      2020L , "ESP"      , "1.5_40"       ,         0.01 ,
+      2020L , "ESP"      , "1_40"         ,         1000
+    )
+  )
+}
+
+.transported_by_land_use <- function(land_split = NULL) {
+  methods <- if (is.null(land_split)) {
+    list()
+  } else {
+    list(transport = list(land_split = land_split))
+  }
+  res <- whep::build_livestock_nutrient_flows(
+    .toy_intake_sink_grass(),
+    resolution = "subnational",
+    methods = methods,
+    gridded = .toy_gridded_sink_grass()
+  )
+  tr <- res$applied |>
+    dplyr::filter(.data$source_stream == "transported") |>
+    dplyr::summarise(
+      applied_n = sum(.data$applied_n),
+      applied_c = sum(.data$applied_c),
+      .by = "land_use"
+    )
+  list(res = res, tr = tr)
+}
+
+.land_n <- function(tr, land_use) {
+  sum(tr$applied_n[tr$land_use == land_use])
+}
+
+test_that("transported manure fills cropland room, then grassland (whep#341)", {
+  out <- .transported_by_land_use()
+  total <- sum(out$tr$applied_n)
+  # The fixture really does send more than the sink's cropland can hold.
+  expect_gt(total, 1.2)
+  # Cropland takes exactly its remaining room, the rest lands on grassland.
+  expect_equal(.land_n(out$tr, "Cropland"), 1.2, tolerance = 1e-9)
+  expect_equal(.land_n(out$tr, "Grassland"), total - 1.2, tolerance = 1e-9)
+  expect_true(all(
+    out$res$applied$method_transport_land_use == "cropland_first"
+  ))
+  bal <- .balance_n(out$res)
+  expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
+})
+
+test_that("transport land split methods conserve the transported mass", {
+  splits <- c("cropland_first", "room_share", "cropland_only")
+  outs <- purrr::map(splits, .transported_by_land_use)
+  totals_n <- purrr::map_dbl(outs, ~ sum(.x$tr$applied_n))
+  totals_c <- purrr::map_dbl(outs, ~ sum(.x$tr$applied_c))
+  expect_equal(totals_n, rep(totals_n[1], 3), tolerance = 1e-12)
+  expect_equal(totals_c, rep(totals_c[1], 3), tolerance = 1e-12)
+  purrr::walk2(outs, splits, function(o, s) {
+    expect_true(all(o$res$applied$method_transport_land_use == s))
+    bal <- .balance_n(o$res)
+    expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
+  })
+})
+
+test_that("room_share splits transported manure by the sink's room shares", {
+  out <- .transported_by_land_use("room_share")
+  total <- sum(out$tr$applied_n)
+  crop_share <- 1.2 / (1.2 + 1200)
+  expect_equal(
+    .land_n(out$tr, "Cropland"),
+    total * crop_share,
+    tolerance = 1e-9
+  )
+  expect_equal(
+    .land_n(out$tr, "Grassland"),
+    total * (1 - crop_share),
+    tolerance = 1e-9
+  )
+})
+
+test_that("cropland_only keeps the pre-#341 all-cropland landing", {
+  out <- .transported_by_land_use("cropland_only")
+  expect_equal(unique(out$tr$land_use), "Cropland")
+})
+
+test_that("an unknown transport land split aborts", {
+  expect_error(.transported_by_land_use("grass_first"), "land_split")
+})
+
+test_that("without a grassland layer the default equals the old landing", {
+  # No in-package caller passes gridded$grass, so this is the case every real
+  # pipeline run is in: no grassland room, nothing for the split to move.
+  crops_only <- list(crops = .toy_gridded_sink_grass()$crops)
+  run <- function(land_split) {
+    whep::build_livestock_nutrient_flows(
+      .toy_intake_sink_grass(),
+      resolution = "subnational",
+      methods = list(transport = list(land_split = land_split)),
+      gridded = crops_only
+    )$applied |>
+      dplyr::select(-"method_transport_land_use")
+  }
+  new <- run("cropland_first")
+  expect_true("transported" %in% new$source_stream)
+  expect_equal(new, run("cropland_only"))
+})
+
+test_that("non-subnational runs record no transport land split", {
+  res <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    gridded = .toy_gridded_nat()
+  )
+  expect_true(all(is.na(res$applied$method_transport_land_use)))
+})
+
+test_that("cell room is netted per land use against local placement", {
+  local <- tibble::tribble(
+    ~year , ~territory , ~sub_territory , ~source_stream , ~land_use   , ~applied_n ,
+    2020L , "ESP"      , "1_40"         , "collected"    , "Cropland"  ,         30 ,
+    2020L , "ESP"      , "1_40"         , "collected"    , "Grassland" ,         10 ,
+    2020L , "ESP"      , "1_40"         , "grazing"      , "Grassland" ,        500
+  )
+  gridded <- list(
+    crops = tibble::tibble(
+      year = 2020L,
+      territory = "ESP",
+      sub_territory = "1_40",
+      crop = "barley",
+      manure_n_receptivity = 1,
+      crop_n_cap = 100
+    ),
+    grass = tibble::tibble(
+      year = 2020L,
+      territory = "ESP",
+      sub_territory = "1_40",
+      grass_n_cap = 50
+    )
+  )
+
+  out <- whep:::.cell_room(local, gridded, list())
+
+  expect_equal(out$crop_room_n, 120 - 30)
+  expect_equal(out$grass_room_n, 60 - 10)
+  expect_equal(out$room_n, out$crop_room_n + out$grass_room_n)
 })

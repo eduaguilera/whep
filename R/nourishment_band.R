@@ -165,7 +165,7 @@ build_nourishment_band <- function(
   .nb_check_shortfall(shortfall)
   ceiling <- .nb_check_ceiling(ceiling)
   terms <- .nb_join_terms(data)
-  .nb_warn_safe_anchor(data$requirement)
+  .nb_warn_safe_anchor(data[["requirement"]])
 
   terms |>
     .nb_compose(shortfall, ceiling, requirement_sd) |>
@@ -236,7 +236,7 @@ build_nourishment_band <- function(
 # table cannot be counted.
 .nb_join_terms <- function(data) {
   average <- .nb_take(
-    data$requirement,
+    data[["requirement"]],
     "requirement_g_cap_day",
     "data$requirement"
   )
@@ -397,7 +397,7 @@ build_nourishment_band <- function(
 # because both divide by read_population(). Absent from both, the headcounts are
 # NA rather than a guess.
 .nb_population <- function(data) {
-  for (table in list(data$supply, data$requirement)) {
+  for (table in list(data$supply, data[["requirement"]])) {
     if (rlang::has_name(table, "population")) {
       return(dplyr::select(table, "year", "area_code", "population"))
     }

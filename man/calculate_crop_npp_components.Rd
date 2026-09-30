@@ -34,10 +34,10 @@ weed biomass into dry matter, carbon and nitrogen via
 \code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}}.
 }
 \details{
-The \code{weed_npp_scaling} table is taken from Spain_Hist and is flagged
-\code{to_be_revised}: it is Spain-specific and not validated for WHEP's global
-scope. A \code{weed_scaling_to_be_revised} column records this on the output and a
-one-time warning is emitted.
+The \code{weed_npp_scaling} table is taken from an earlier regional historical
+reconstruction and is flagged \code{to_be_revised}: it is Spain-specific and not
+validated for WHEP's global scope. A \code{weed_scaling_to_be_revised} column
+records this on the output and a one-time warning is emitted.
 }
 \examples{
 tibble::tibble(

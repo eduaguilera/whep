@@ -58,6 +58,12 @@
 #'   - Grouping variables if using `.by`.
 #'   - No missing values in key variables for decomposition periods.
 #'
+#'   The panel is balanced (and smoothed, with `rolling_mean`) over its key
+#'   columns: every non-numeric column, the bracket selectors and the `.by`
+#'   columns. Any other numeric column is carried along as a value and is
+#'   not a key, so a numeric identifier that must keep its series apart
+#'   belongs in `.by` or a selector.
+#'
 #' @param data A data frame containing the variables for decomposition. Must
 #'   include all variables specified in the identity, time variable, and any
 #'   grouping variables.
@@ -85,6 +91,69 @@
 #'   `"clean"` (default) or `"total"`.
 #' @param verbose Logical. If TRUE (default), prints progress messages during
 #'   decomposition.
+#' @param zero_method Character. How zero values are handled, since the
+#'   logarithmic mean weight is undefined at zero. Missing values (including
+#'   rows added when balancing the panel) are treated as zeros by both
+#'   methods. One of:
+#'   - `"limit"` (default): the analytical limit of the small-value strategy
+#'     as the replacement value tends to zero (Ang and Liu, 2007). Zeros are
+#'     kept as zeros and each affected sub-category's change is attributed
+#'     exactly, so the additive decomposition is perfect and does not depend
+#'     on an arbitrary constant. See the *Zero values* section.
+#'   - `"small_value"`: the previous behaviour. Every zero is replaced by
+#'     `1e-12` before decomposing (the small-value strategy of Ang, Zhang and
+#'     Choi, 1998; the constant itself is the package's historical choice,
+#'     assumed, unverified against a source), and for identities whose factors are all plain columns
+#'     the target is re-derived as the product of the factors. Kept for
+#'     comparison and sensitivity analysis.
+#'
+#'   The chosen method is recorded in the `method_zero_handling` column.
+#'
+#' @section Zero values:
+#'   With `zero_method = "limit"`, a zero is treated as a quantity
+#'   \eqn{\delta \to 0}{delta -> 0}. Every aggregate a factor is built from
+#'   is then of the form \eqn{c \delta^p}{c * delta^p} (a sum is of order
+#'   \eqn{\delta}{delta} only when all its terms are zero; a ratio subtracts
+#'   the orders). For a sub-category with target change \eqn{\Delta V}{dV}
+#'   and factor \eqn{k} of order \eqn{q_{k0}}{qk0} at the start and
+#'   \eqn{q_{kT}}{qkT} at the end, the additive contribution tends to:
+#'   - the usual LMDI-I term when neither target value is zero;
+#'   - \eqn{\Delta V \Delta q_k / \sum_j \Delta q_j}{dV * dqk / sum(dqj)},
+#'     with \eqn{\Delta q_k = q_{kT} - q_{k0}}{dqk = qkT - qk0}, when exactly
+#'     one of them is zero: the whole change of that sub-category goes to the
+#'     factor(s) that reach or leave zero, split by their order when several
+#'     do;
+#'   - zero when the target is zero at both ends.
+#'
+#'   These sum exactly to the change in the target, which is what
+#'   `"small_value"` approaches only slowly (its error decays like
+#'   \eqn{1 / \log(1 / \epsilon)}{1 / log(1 / epsilon)}): with
+#'   `1e-12` a factor that is zero at the start still leaves a few percent of
+#'   the change on the other factors. Ang and Liu (2007) show that the
+#'   small-value results converge as the replacement value tends to zero;
+#'   the limits above are derived here from that convergence with one common
+#'   replacement value for every zero (their tables were not accessible when
+#'   this was written, so the term-by-term match with them is assumed,
+#'   unverified).
+#'   A sub-category whose target stays positive while one of its factors goes
+#'   to zero and another to infinity (for example emissions with no activity),
+#'   or whose target reaches or leaves zero while none of its factors does
+#'   (data breaking the identity), has no finite decomposition: its
+#'   contributions are returned as `NA` with a warning. The multiplicative form is undefined when the aggregate target
+#'   is zero at either end, so its factor indices are then `NA`.
+#'
+#' @references
+#'   Ang, B. W., Zhang, F. and Choi, K. (1998). Factorizing changes in
+#'   energy and environmental indicators through decomposition. *Energy*,
+#'   23(6), 489-495. \doi{10.1016/S0360-5442(98)00016-4}
+#'
+#'   Ang, B. W. and Liu, N. (2007). Handling zero values in the logarithmic
+#'   mean Divisia index decomposition approach. *Energy Policy*, 35(1),
+#'   238-246. \doi{10.1016/j.enpol.2005.11.001}
+#'
+#'   Ang, B. W. (2015). LMDI decomposition approach: A guide for
+#'   implementation. *Energy Policy*, 86, 233-238.
+#'   \doi{10.1016/j.enpol.2015.07.007}
 #'
 #' @return
 #'   A tibble with LMDI decomposition results containing:
@@ -92,6 +161,7 @@
 #'   - `additive`: Additive contributions (sum equals total change in target).
 #'   - `multiplicative`: Multiplicative indices (product equals target ratio).
 #'   - `multiplicative_log`: Log of multiplicative indices.
+#'   - `method_zero_handling`: the `zero_method` used.
 #'   - Period identifiers and metadata.
 #'
 #' @export
@@ -301,8 +371,10 @@ calculate_lmdi <- function(
   .by = NULL,
   rolling_mean = 1,
   output_format = "clean",
-  verbose = TRUE
+  verbose = TRUE,
+  zero_method = c("limit", "small_value")
 ) {
+  zero_method <- rlang::arg_match(zero_method)
   id <- .parse_identity(identity)
   target_var <- id$target
   factors <- id$factors
@@ -313,7 +385,9 @@ calculate_lmdi <- function(
     target_var,
     {{ time_var }},
     rolling_mean,
-    verbose
+    verbose,
+    zero_method,
+    .by = .by
   )
 
   labels <- .lmdi_handle_identity_labels(identity_labels, factors, target_var)
@@ -332,7 +406,8 @@ calculate_lmdi <- function(
     target_var = target_var,
     factors = factors,
     factor_labels = labels$factor_labels,
-    target_label_final = labels$target_label_final
+    target_label_final = labels$target_label_final,
+    zero_method = zero_method
   )
 
   all_results <- .lmdi_process_all_groups(
@@ -365,9 +440,17 @@ calculate_lmdi <- function(
   target_var,
   time_var,
   rolling_mean,
-  verbose
+  verbose,
+  zero_method,
+  .by = NULL
 ) {
-  vars_info <- .lmdi_extract_vars(data, identity, target_var, {{ time_var }})
+  vars_info <- .lmdi_extract_vars(
+    data,
+    identity,
+    target_var,
+    {{ time_var }},
+    .by = .by
+  )
   numeric_vars <- vars_info$numeric_vars
   group_cols <- vars_info$group_cols
 
@@ -385,7 +468,11 @@ calculate_lmdi <- function(
     .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose)
 
   # Treat zeros after balancing so filled-in gaps are handled too (#155).
-  data <- .lmdi_treat_zeros(data, numeric_vars, target_var, factors, verbose)
+  data <- if (zero_method == "limit") {
+    .lmdi_zeros_as_zero(data, numeric_vars, verbose)
+  } else {
+    .lmdi_treat_zeros(data, numeric_vars, target_var, factors, verbose)
+  }
 
   # Only apply rolling mean smoothing if requested (rolling_mean > 1)
   if (rolling_mean > 1) {
@@ -537,16 +624,14 @@ calculate_lmdi <- function(
       target_add = dplyr::first(
         .data$additive[.data$component_type == "target"]
       ),
-      sum_factors_add = sum(
-        .data$additive[.data$component_type == "factor"],
-        na.rm = TRUE
-      ),
+      # NA contributions are already reported by the limit path (#69).
+      sum_factors_add = sum(.data$additive[.data$component_type == "factor"]),
       target_mult = dplyr::first(
         .data$multiplicative[.data$component_type == "target"]
       ),
       prod_factors_mult = {
         vals <- .data$multiplicative[.data$component_type == "factor"]
-        if (length(vals) == 0) 1 else prod(vals, na.rm = TRUE)
+        if (length(vals) == 0) 1 else prod(vals)
       },
       .groups = "drop"
     )
@@ -582,8 +667,50 @@ calculate_lmdi <- function(
 }
 
 
+# Logarithmic mean of two period sums, the LMDI weight.
+#
+# `a` and `b` are independently accumulated sums, so two mathematically
+# equal totals can still land a few ulps apart. An exact `a == b` test then
+# misses and `(a - b) / log(a / b)` evaluates on pure accumulation residue:
+# it does not error or return Inf, it returns a plausible weight that is
+# wrong by up to 15 percent, and that weight multiplies every factor's
+# log-ratio (#1071). The numerics are in `.log_mean_positive()`, shared
+# with `.ratio_log_mean()` in R/decompose_weighted_ratio.R.
+# Non-positive or missing inputs keep the previous behaviour: an exactly
+# equal pair returns its common value, anything else returns 0.
 .log_mean <- function(a, b) {
-  ifelse(a == b, a, ifelse(a > 0 & b > 0, (a - b) / log(a / b), 0))
+  size <- max(length(a), length(b))
+  a <- rep_len(a, size)
+  b <- rep_len(b, size)
+  difference <- a - b
+  equal <- !is.na(difference) & difference == 0
+  changed <- !is.na(difference) & a > 0 & b > 0 & !equal
+  result <- rep(0, size)
+  result[is.na(difference)] <- NA_real_
+  result[equal] <- a[equal]
+  result[changed] <- .log_mean_positive(a[changed], b[changed])
+  result
+}
+
+# Logarithmic mean (a - b) / log(a / b) of two distinct positive numbers.
+#
+# Written as d / log1p(d / m), with d = |a - b| and m = min(a, b), so the
+# argument of log1p() is never negative. That form is accurate to a few
+# ulps everywhere (#1089): `d` is exact for close pairs (Sterbenz), and
+# log1p(x) for x >= 0 has a condition number x / ((1 + x) log1p(x)) <= 1.
+# `log(a) - log(b)` has condition number 1 / |log(a / b)|, so near a == b it
+# loses digits: at a relative difference of sqrt(eps), where both previous
+# implementations switched to it, it was off by up to 5.5e-8 relative. No
+# tolerance switch is needed any more. The only fallback is for a ratio past
+# the double range, where d / m overflows to Inf and the two logs are exact
+# enough because their difference is then large.
+.log_mean_positive <- function(a, b) {
+  difference <- abs(a - b)
+  lower <- pmin(a, b)
+  log_ratio <- log1p(difference / lower)
+  overflow <- !is.finite(log_ratio)
+  log_ratio[overflow] <- log(pmax(a, b)[overflow]) - log(lower[overflow])
+  difference / log_ratio
 }
 
 .parse_identity <- function(identity_expr) {
@@ -630,60 +757,36 @@ calculate_lmdi <- function(
 }
 
 .eval_factor <- function(df_period, factor, group_vals) {
-  pat1 <- "^([a-zA-Z0-9_]+)\\[([a-zA-Z0-9_+]+)\\]$"
-  pat2 <- "^([a-zA-Z0-9_]+)\\/([a-zA-Z0-9_]+)$"
-  pat3 <- "^([a-zA-Z0-9_]+)\\[([a-zA-Z0-9_+]+)\\]\\/([a-zA-Z0-9_]+)$"
-  pat4 <- "^([a-zA-Z0-9_]+)\\/([a-zA-Z0-9_]+)\\[([a-zA-Z0-9_+]+)\\]$"
-  pat5 <- paste0(
-    "^([a-zA-Z0-9_]+)\\[([a-zA-Z0-9_+]+)\\]\\/",
-    "([a-zA-Z0-9_]+)\\[([a-zA-Z0-9_+]+)\\]$"
+  spec <- .lmdi_factor_spec(factor)
+  num <- sum(
+    .filter_by_group(df_period, spec$num_group, group_vals)[[spec$num_var]],
+    na.rm = TRUE
   )
-
-  if (stringr::str_detect(factor, pat5)) {
-    m <- stringr::str_match(factor, pat5)
-    var1 <- m[2]
-    group1 <- m[3]
-    var2 <- m[4]
-    group2 <- m[5]
-    num_df <- .filter_by_group(df_period, group1, group_vals)
-    den_df <- .filter_by_group(df_period, group2, group_vals)
-    num <- sum(num_df[[var1]], na.rm = TRUE)
-    den <- sum(den_df[[var2]], na.rm = TRUE)
-    ifelse(den == 0, NA_real_, num / den)
-  } else if (stringr::str_detect(factor, pat3)) {
-    m <- stringr::str_match(factor, pat3)
-    var1 <- m[2]
-    group1 <- m[3]
-    var2 <- m[4]
-    num_df <- .filter_by_group(df_period, group1, group_vals)
-    num <- sum(num_df[[var1]], na.rm = TRUE)
-    den <- sum(df_period[[var2]], na.rm = TRUE)
-    ifelse(den == 0, NA_real_, num / den)
-  } else if (stringr::str_detect(factor, pat4)) {
-    m <- stringr::str_match(factor, pat4)
-    var1 <- m[2]
-    var2 <- m[3]
-    group2 <- m[4]
-    num <- sum(df_period[[var1]], na.rm = TRUE)
-    den_df <- .filter_by_group(df_period, group2, group_vals)
-    den <- sum(den_df[[var2]], na.rm = TRUE)
-    ifelse(den == 0, NA_real_, num / den)
-  } else if (stringr::str_detect(factor, pat2)) {
-    m <- stringr::str_match(factor, pat2)
-    var1 <- m[2]
-    var2 <- m[3]
-    num <- sum(df_period[[var1]], na.rm = TRUE)
-    den <- sum(df_period[[var2]], na.rm = TRUE)
-    ifelse(den == 0, NA_real_, num / den)
-  } else if (stringr::str_detect(factor, pat1)) {
-    m <- stringr::str_match(factor, pat1)
-    var1 <- m[2]
-    group1 <- m[3]
-    sub_df <- .filter_by_group(df_period, group1, group_vals)
-    sum(sub_df[[var1]], na.rm = TRUE)
-  } else {
-    sum(df_period[[factor]], na.rm = TRUE)
+  if (is.na(spec$den_var)) {
+    return(num)
   }
+  den <- sum(
+    .filter_by_group(df_period, spec$den_group, group_vals)[[spec$den_var]],
+    na.rm = TRUE
+  )
+  ifelse(den == 0, NA_real_, num / den)
+}
+
+# Split a factor expression into the numerator and (optional) denominator
+# variable and the bracket selector each is summed over. `NA` means "no
+# denominator" or "sum over the whole period frame".
+.lmdi_factor_spec <- function(factor) {
+  side <- "([a-zA-Z0-9_]+)(?:\\[([a-zA-Z0-9_+]+)\\])?"
+  m <- stringr::str_match(factor, paste0("^", side, "(?:\\/", side, ")?$"))
+  if (is.na(m[1])) {
+    return(list(
+      num_var = factor,
+      num_group = NA_character_,
+      den_var = NA_character_,
+      den_group = NA_character_
+    ))
+  }
+  list(num_var = m[2], num_group = m[3], den_var = m[4], den_group = m[5])
 }
 
 .lmdi_validate_inputs <- function(data, group_vars, .by) {
@@ -711,7 +814,13 @@ calculate_lmdi <- function(
   list(group_vars = group_vars, .by = .by)
 }
 
-.lmdi_extract_vars <- function(data, identity, target_var, time_var) {
+.lmdi_extract_vars <- function(
+  data,
+  identity,
+  target_var,
+  time_var,
+  .by = NULL
+) {
   time_var_str <- rlang::as_name(rlang::enquo(time_var))
   all_vars <- unique(c(
     target_var,
@@ -721,9 +830,30 @@ calculate_lmdi <- function(
   numeric_vars <- numeric_vars[purrr::map_lgl(data[numeric_vars], is.numeric)]
   # Bracket selectors (e.g. `sector` in `activity[sector]`) are grouping keys,
   # never numeric decomposition variables, even when integer-coded (#247).
-  numeric_vars <- setdiff(numeric_vars, .extract_selectors(identity))
-  group_cols <- setdiff(names(data), c(time_var_str, numeric_vars))
-  list(numeric_vars = numeric_vars, group_cols = group_cols)
+  selectors <- .extract_selectors(identity)
+  numeric_vars <- setdiff(numeric_vars, selectors)
+  list(
+    numeric_vars = numeric_vars,
+    group_cols = .lmdi_key_cols(
+      data,
+      c(time_var_str, numeric_vars),
+      selectors,
+      .by
+    )
+  )
+}
+
+# Panel keys: the non-numeric columns, plus the selectors and `.by` columns
+# whatever their type. Any other numeric column (a helper carried next to the
+# identity's variables) is a value, not a key: keyed on, it made balancing
+# cross every distinct value with every year, n^(k + 1) rows for n years and
+# k such columns, and split each year into its own rolling-mean series
+# (#1232).
+.lmdi_key_cols <- function(data, exclude, selectors, .by) {
+  candidates <- setdiff(names(data), exclude)
+  is_key <- !purrr::map_lgl(data[candidates], is.numeric) |
+    candidates %in% c(selectors, .by)
+  candidates[is_key]
 }
 
 .lmdi_balance_panel <- function(
@@ -755,6 +885,23 @@ calculate_lmdi <- function(
   data
 }
 
+# `zero_method = "limit"`: zeros stay zeros (the limit is taken in
+# `.lmdi_contributions_limit()`); missing values, including rows added by
+# panel balancing, become zeros, matching the small-value path, which
+# replaces both with the same constant.
+.lmdi_zeros_as_zero <- function(data, numeric_vars, verbose) {
+  if (verbose) {
+    cli::cli_inform("")
+    cli::cli_inform(
+      "Step 2: Zero/NA treatment (analytical limit, Ang and Liu, 2007)"
+    )
+  }
+  data |>
+    dplyr::mutate(
+      dplyr::across(dplyr::all_of(numeric_vars), \(x) dplyr::coalesce(x, 0))
+    )
+}
+
 .lmdi_treat_zeros <- function(
   data,
   numeric_vars,
@@ -764,7 +911,9 @@ calculate_lmdi <- function(
 ) {
   if (verbose) {
     cli::cli_inform("")
-    cli::cli_inform("Step 2: Zero/NA treatment (Ang, 2015 methodology)")
+    cli::cli_inform(
+      "Step 2: Zero/NA treatment (small value, Ang, Zhang and Choi, 1998)"
+    )
   }
   epsilon <- 1e-12
 
@@ -963,6 +1112,14 @@ calculate_lmdi <- function(
   identity_info,
   period_totals
 ) {
+  if (identical(identity_info$zero_method, "limit")) {
+    return(.lmdi_contributions_limit(
+      period_data,
+      group_info,
+      identity_info,
+      period_totals
+    ))
+  }
   d0 <- period_data$d0
   d_final <- period_data$d_final
   groups <- group_info$groups
@@ -1016,16 +1173,163 @@ calculate_lmdi <- function(
   } else {
     exp(period_contribs_mult_log)
   }
+  .lmdi_contribs_list(period_contribs_add, period_contribs_mult)
+}
 
+.lmdi_contribs_list <- function(add, mult) {
   list(
-    add = period_contribs_add,
-    mult = period_contribs_mult,
-    mult_log = ifelse(
-      period_contribs_mult > 0,
-      log(period_contribs_mult),
-      NA_real_
-    )
+    add = add,
+    mult = mult,
+    mult_log = ifelse(mult > 0, log(mult), NA_real_)
   )
+}
+
+# Additive LMDI-I in the analytical zero-value limit (`zero_method =
+# "limit"`, #69). Each group's target and factors are evaluated as
+# `coef * delta^power` (see `.lmdi_monomial_sum()`), and the contribution is
+# the limit of the small-value result as delta -> 0 (see the "Zero values"
+# section of `calculate_lmdi()`). Multiplicative indices follow from the
+# LMDI-I relation ln(D_k) = additive_k / L(V_T, V_0).
+.lmdi_contributions_limit <- function(
+  period_data,
+  group_info,
+  identity_info,
+  period_totals
+) {
+  groups <- group_info$groups
+  factors <- identity_info$factors
+  per_group <- purrr::map(seq_len(nrow(groups)), \(g) {
+    group_vals <- if (!is.null(group_info$group_vars)) {
+      as.list(groups[g, , drop = FALSE])
+    } else {
+      list()
+    }
+    .lmdi_group_limit(period_data, group_info, identity_info, group_vals)
+  }) |>
+    purrr::compact()
+  add <- purrr::reduce(per_group, `+`, .init = rep(0, length(factors)))
+  if (anyNA(add)) {
+    cli::cli_warn(c(
+      "LMDI period {period_data$t0}-{period_data$t_final}: the zero-value
+       limit has no finite value for at least one sub-category.",
+      "i" = "Either a factor goes to zero while another goes to infinity
+             (a positive numerator over a zero denominator, e.g. emissions
+             with no activity), or the target reaches or leaves zero while
+             no factor does, so the data break the identity.",
+      "i" = "Affected contributions are {.val {NA}}."
+    ))
+  }
+  y0 <- period_totals$y0_total
+  y_final <- period_totals$y_final_total
+  mult <- if (y0 > 0 && y_final > 0) {
+    exp(add / .log_mean(y_final, y0))
+  } else {
+    rep(NA_real_, length(factors))
+  }
+  .lmdi_contribs_list(add, mult)
+}
+
+.lmdi_group_limit <- function(
+  period_data,
+  group_info,
+  identity_info,
+  group_vals
+) {
+  index <- group_info$group_index_str
+  target_var <- identity_info$target_var
+  y0 <- .filter_by_group(period_data$d0, index, group_vals)[[target_var]] |>
+    .lmdi_monomial_sum()
+  y_final <- .filter_by_group(period_data$d_final, index, group_vals)[[
+    target_var
+  ]] |>
+    .lmdi_monomial_sum()
+  f0 <- .lmdi_eval_factors_limit(period_data$d0, identity_info, group_vals)
+  f_final <- .lmdi_eval_factors_limit(
+    period_data$d_final,
+    identity_info,
+    group_vals
+  )
+  values <- c(
+    unlist(y0),
+    unlist(y_final),
+    unlist(f0),
+    unlist(f_final)
+  )
+  if (anyNA(values)) {
+    return(NULL)
+  }
+  .lmdi_limit_terms(y0, y_final, f0, f_final)
+}
+
+.lmdi_eval_factors_limit <- function(df_period, identity_info, group_vals) {
+  parts <- purrr::map(
+    identity_info$factors,
+    \(factor) .lmdi_factor_monomial(df_period, factor, group_vals)
+  )
+  list(
+    coef = purrr::map_dbl(parts, "coef"),
+    power = purrr::map_dbl(parts, "power")
+  )
+}
+
+.lmdi_factor_monomial <- function(df_period, factor, group_vals) {
+  spec <- .lmdi_factor_spec(factor)
+  num <- .filter_by_group(df_period, spec$num_group, group_vals)[[
+    spec$num_var
+  ]] |>
+    .lmdi_monomial_sum()
+  if (is.na(spec$den_var)) {
+    return(num)
+  }
+  den <- .filter_by_group(df_period, spec$den_group, group_vals)[[
+    spec$den_var
+  ]] |>
+    .lmdi_monomial_sum()
+  list(coef = num$coef / den$coef, power = num$power - den$power)
+}
+
+# Sum of values in which every zero stands for delta -> 0, written as
+# `coef * delta^power`: any non-zero sum is order 0; a sum of n zeros is
+# n * delta (order 1). An empty or cancelling sum cannot be written this way
+# and is `NA`, which drops the group as the small-value path does.
+.lmdi_monomial_sum <- function(x) {
+  x <- dplyr::coalesce(as.numeric(x), 0)
+  total <- sum(x)
+  if (total != 0) {
+    return(list(coef = total, power = 0))
+  }
+  if (length(x) > 0 && all(x == 0)) {
+    return(list(coef = length(x), power = 1))
+  }
+  list(coef = NA_real_, power = NA_real_)
+}
+
+# Limit of L(y_T, y_0) * ln(f_T / f_0) for every factor as delta -> 0.
+# The target's change is taken from its own values; how it is shared follows
+# the factors' orders, whose total is the order of the factor product. That
+# product, not the recorded zero, fixes the target's order in the identity
+# (two zero factors make it delta^2), so a lone zero target is not used as
+# an order. `NA` marks a sub-category with no finite limit.
+.lmdi_limit_terms <- function(y0, y_final, f0, f_final) {
+  n_factors <- length(f0$coef)
+  power_change <- f_final$power - f0$power
+  if (y0$power == 0 && y_final$power == 0) {
+    if (any(power_change != 0)) {
+      return(rep(NA_real_, n_factors))
+    }
+    valid <- f0$coef > 0 & f_final$coef > 0
+    log_ratios <- ifelse(valid, log(f_final$coef / f0$coef), 0)
+    return(.log_mean(y_final$coef, y0$coef) * log_ratios)
+  }
+  if (min(y0$power, y_final$power) > 0) {
+    return(rep(0, n_factors))
+  }
+  total_power_change <- sum(power_change)
+  if (total_power_change == 0) {
+    return(rep(NA_real_, n_factors))
+  }
+  change <- (y_final$power == 0) * y_final$coef - (y0$power == 0) * y0$coef
+  change * power_change / total_power_change
 }
 
 .lmdi_build_result <- function(
@@ -1054,8 +1358,10 @@ calculate_lmdi <- function(
   period_id <- paste(t0, t_final, sep = "-")
   target_ratio <- if (y0_total > 0) y_final_total / y0_total else NA_real_
   additive_gap <- total_change - sum(contribs$add)
-  mult_product <- prod(contribs$mult, na.rm = TRUE)
-  multiplicative_gap <- if (is.na(target_ratio) || mult_product == 0) {
+  mult_product <- prod(contribs$mult)
+  multiplicative_gap <- if (
+    is.na(target_ratio) || is.na(mult_product) || mult_product == 0
+  ) {
     NA_real_
   } else {
     target_ratio / mult_product
@@ -1077,7 +1383,8 @@ calculate_lmdi <- function(
     multiplicative = contribs$mult,
     multiplicative_log = contribs$mult_log,
     closure_gap_additive = NA_real_,
-    closure_gap_ratio = NA_real_
+    closure_gap_ratio = NA_real_,
+    method_zero_handling = identity_info$zero_method
   )
 
   target_row <- tibble::tibble(
@@ -1104,7 +1411,8 @@ calculate_lmdi <- function(
       NA_real_
     },
     closure_gap_additive = additive_gap,
-    closure_gap_ratio = multiplicative_gap
+    closure_gap_ratio = multiplicative_gap,
+    method_zero_handling = identity_info$zero_method
   )
 
   if (length(analysis_cols) > 0) {
@@ -1232,7 +1540,8 @@ calculate_lmdi <- function(
       "identity_var",
       "additive",
       "multiplicative",
-      "multiplicative_log"
+      "multiplicative_log",
+      "method_zero_handling"
     )
     select_cols <- select_cols[select_cols %in% names(out)]
     out <- out |> dplyr::select(dplyr::all_of(select_cols))

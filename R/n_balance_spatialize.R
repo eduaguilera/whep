@@ -38,7 +38,7 @@
 #' same 0.5-degree cell-area formula used across the package (see
 #' [build_grass_availability_lpjml()]). This assembles the
 #' `data$cell_polity` contract that every Module C function (e.g.
-#' [build_n_deposition()], [build_urban_n()], [get_soc_climate_drivers()])
+#' [build_n_deposition()], [build_human_n()], [get_soc_climate_drivers()])
 #' expects as a required input.
 #'
 #' @section Which area code the grid is keyed on:
@@ -98,17 +98,64 @@
 #' runs on the pin too so that pinning an older `version` cannot reintroduce
 #' the deletion either.
 #'
+#' @section Year-aware support:
+#' With `year` set, the support is not this crosswalk at all: it is the
+#' polycell support ([read_polycell_support()]) read at the validity interval
+#' covering `year`, so each cell carries the polity the grid holds that year.
+#' In 1961 the former-USSR cells carry the USSR (`228`), Czechoslovakia's carry
+#' `51` and Yugoslavia's `248`; FAOSTAT reports their national totals under
+#' those codes, which the year-invariant crosswalk has no cell for (whep#1196).
+#' Each code is resolved from `polity_code` through [polity_area_crosswalk],
+#' and, under `area_key = "polity_area"`, folded onto its bucket.
+#'
+#' Where the polity grid and FAOSTAT's reporting units disagree, a recorded
+#' mapping (`inst/extdata/polity_cell_support_map.csv`) keys the cells, and
+#' every mapped row is labelled in `polity_rule`:
+#'
+#' * `"aggregate_member"`: an aggregate reported by FAOSTAT whose members the
+#'   grid carries separately takes the union of its members' cells in its
+#'   reporting years (Belgium-Luxembourg `15` to 1999, Viet Nam `237` to 1974,
+#'   Yemen `249` in 1961).
+#' * `"contained_fold"`: a polity with no FAOSTAT row in the year folds into
+#'   the reporting unit containing it (the Baltic and Azerbaijan SSRs into the
+#'   USSR to 1990, the fifteen USSR successors into it in 1991, North
+#'   Macedonia into `248` in 1991).
+#' * `"constant_territory"`: Yemen `249` in 1962-1989, for which the grid
+#'   carries no complete predecessor, is placed on modern Yemen's cells.
+#'
+#' Some cells carry an aggregate over its members, or two claimants, so their
+#' polities' territory adds up to more than the cell. In such an overlapping
+#' cell, a polity with no area code, none of `reporting_areas`, or duplicating
+#' the container it folds into, is removed from the share denominator. The
+#' removed polycells are returned in the `"deduplicated"` attribute, and the
+#' overlapping cells where two reporting polities still share are returned in
+#' the `"overlap_kept"` attribute.
+#'
+#' `polity_frac` is then the polity's share of the cell's measured **land**,
+#' the same basis as the carbon path's `cell_area_frac` (which is carried too,
+#' with the same value), rather than the crosswalk's subcell count. The land of
+#' a polity with no area code stays in the denominator, so it is never handed
+#' to a neighbour. `cell_area_ha` keeps the latitude formula of the
+#' year-invariant path.
+#'
 #' @param polity_fraction_path Optional path to a local parquet, overriding
-#'   `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin.
+#'   `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin. Not used with
+#'   `year`.
 #' @param area_key Which area code the output is keyed on: `"grid"` (default,
 #'   the table's own reporting-area codes) or `"polity_area"` (the
 #'   [polity_area_crosswalk] bucket national tables are aggregated on).
 #' @param version Pin version, passed to [whep_read_file()]. `NULL` takes the
-#'   version frozen in [whep_inputs].
+#'   version frozen in [whep_inputs]. With `year`, the version of the
+#'   `polycell_support` pin, passed to [read_polycell_support()].
 #' @param example If `TRUE`, return a small fixture instead of reading the pin,
 #'   so the example runs offline.
+#' @param year `NULL` (default) returns the year-invariant crosswalk. One year
+#'   returns the year-aware support described in *Year-aware support*.
+#' @param reporting_areas Required with `year`: the area codes carrying national
+#'   data in `year`, in the code space `area_key` selects.
 #' @return A tibble with `lon`, `lat`, `area_code`, `polity_frac` and
-#'   `cell_area_ha`.
+#'   `cell_area_ha`. With `year` it also carries `cell_area_frac`,
+#'   `polity_rule` and `method_cell_polity` (`"year_aware"`).
 #' @export
 #' @examples
 #' build_cell_polity(example = TRUE)
@@ -116,11 +163,22 @@ build_cell_polity <- function(
   polity_fraction_path = NULL,
   area_key = c("grid", "polity_area"),
   version = NULL,
-  example = FALSE
+  example = FALSE,
+  year = NULL,
+  reporting_areas = NULL
 ) {
   area_key <- rlang::arg_match(area_key)
   if (isTRUE(example)) {
     return(.example_cell_polity())
+  }
+  if (!is.null(year)) {
+    if (!is.null(polity_fraction_path)) {
+      cli::cli_abort(
+        "{.arg polity_fraction_path} is a year-invariant crosswalk; the
+         year-aware support is read from {.fn read_polycell_support}."
+      )
+    }
+    return(.cell_polity_at_year(year, reporting_areas, area_key, version))
   }
   raw <- .read_cell_polity_fraction(polity_fraction_path, version)
   .check_columns(
@@ -558,7 +616,7 @@ spatialize_country_n_to_crops <- function(
 # This table is not a third-party archive: WHEP generates it from Natural Earth
 # plus its own regions.csv, in the same script that produces the nine sibling
 # artefacts that are all pins. Env-var gating is for the multi-GB inputs a user
-# cannot be handed (see CLAUDE.md, "Where input data comes from"), and gating a
+# cannot be handed (see AGENTS.md, "Where input data comes from"), and gating a
 # 62 KB WHEP-built table that way meant every user had to re-run the producer --
 # which is exactly how the retired-vocabulary copy of whep#694 came to be the
 # one everybody read.
@@ -1030,4 +1088,105 @@ spatialize_country_n_to_crops <- function(
     dplyr::filter(.data$group_ha > 0) |>
     dplyr::mutate(cropland_share = .data$weighted_ha / .data$group_ha) |>
     dplyr::select(lon, lat, area_code, year, cropland_share)
+}
+
+# Synthetic fertiliser of polities with no cropland cell (whep#1196).
+#
+# `supported` holds the (year, area_code) polities the grid step can spread
+# nitrogen onto. Every other polity with positive synthetic N would make
+# .n_grid_unmatched() abort, so the gridded nitrogen driver
+# (inst/scripts/run_nitrogen_balance.R) resolves them first, by `action`:
+#
+# - "drop" removes their raw FAOSTAT rows and RETURNS what it removed, per year
+#   and area_code, so the loss travels with the result instead of only being
+#   printed. It is the driver's behaviour from before whep#1196.
+# - "abort" refuses, naming the codes and the worst year's share.
+#
+# On the year-invariant cell-polity map the removal is large before 1992:
+# FAOSTAT reports the fertiliser of the USSR (228), Czechoslovakia (51), the
+# Yugoslav SFR (248), Belgium-Luxembourg (15) and, to 2005, Serbia and
+# Montenegro (186) under their own codes, which that map has no cell for, and
+# the Sudan bucket 206 is missed in every year. The year-aware support
+# (`build_cell_polity(year = )`, whep#1196) gives all of them cells, so what
+# the driver removes on it is only territory with no cropland cell at all. The
+# driver's comment carries the measured masses on both supports.
+.n_drop_uncelled_fertilizer <- function(
+  fertilizer,
+  supported,
+  action = c("drop", "abort")
+) {
+  action <- rlang::arg_match(action)
+  removed <- .n_uncelled_fertilizer(fertilizer, supported)
+  if (nrow(removed) == 0L) {
+    return(list(fertilizer = fertilizer, removed = removed))
+  }
+  if (action == "abort") {
+    .abort_uncelled_fertilizer(removed)
+  }
+  removed$method_unsupported_fertilizer <- action
+  drop_raw <- .polity_raw_area_codes(unique(removed$area_code))
+  list(
+    fertilizer = dplyr::filter(
+      fertilizer,
+      !as.integer(.data[["Area Code"]]) %in% drop_raw
+    ),
+    removed = removed
+  )
+}
+
+# Per year and polity: the synthetic N (t) with no supporting cell, and its
+# share of that year's global synthetic N (the sum over all polities of
+# .synthetic_n_country(), so FAOSTAT's regional aggregates are not in it).
+.n_uncelled_fertilizer <- function(fertilizer, supported) {
+  .synthetic_n_country(fertilizer) |>
+    dplyr::mutate(
+      global_synthetic_n_t = sum(.data$synthetic_n_t),
+      .by = "year"
+    ) |>
+    dplyr::filter(.data$synthetic_n_t > 0) |>
+    dplyr::anti_join(
+      dplyr::distinct(supported, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::mutate(
+      share_of_global = .data$synthetic_n_t / .data$global_synthetic_n_t,
+      method_unsupported_fertilizer = NA_character_
+    ) |>
+    dplyr::arrange(.data$year, dplyr::desc(.data$synthetic_n_t))
+}
+
+# The raw FAOSTAT `Area Code`s that re-key onto the given polity codes, through
+# the SAME crosswalk .synthetic_n_country() re-keys with: .polity_crosswalk(),
+# not the static whep::polity_area_crosswalk. The static table lacks the
+# Rest-of-World unfold (whep#628), so at 2010 it left the raw rows of six codes
+# (22, 69, 85, 135, 180, 182) behind and the balance still aborted on them.
+.polity_raw_area_codes <- function(polity_codes) {
+  bridge <- .polity_crosswalk() |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      raw = as.integer(.data$area_code),
+      polity = as.integer(.data$polity_area_code)
+    )
+  bridge$raw[bridge$polity %in% polity_codes]
+}
+
+.abort_uncelled_fertilizer <- function(removed) {
+  by_year <- dplyr::summarise(
+    removed,
+    share = sum(.data$share_of_global),
+    .by = "year"
+  )
+  worst <- by_year[which.max(by_year$share), ]
+  codes <- unique(removed$area_code)
+  cli::cli_abort(
+    c(
+      "{cli::qty(length(codes))}{length(codes)} polit{?y/ies} report{?s/}
+       synthetic N but ha{?s/ve} no cropland cell to spread it on.",
+      i = "Worst year {worst$year}: {signif(100 * worst$share, 3)}% of that
+           year's global synthetic N.",
+      i = "Area codes: {codes}.",
+      i = "Choose {.val drop} to remove it and record the removal."
+    ),
+    class = "whep_uncelled_fertilizer"
+  )
 }

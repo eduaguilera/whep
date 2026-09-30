@@ -2,8 +2,8 @@
 # download_hyde.R
 #
 # Downloads the HYDE 3.2.1 baseline archive, which carries the gridded
-# urban population count read_hyde_population() reads for the urban/human
-# excreta nitrogen stream (build_urban_n()).
+# total, urban and rural population counts read_hyde_population() reads,
+# among others for the human-population nitrogen term (build_human_n()).
 #
 # HYDE is distributed as one 5 GB baseline archive containing per-year ZIPs
 # ("2010AD_pop.zip"), which is the granularity read_hyde_population() wants:

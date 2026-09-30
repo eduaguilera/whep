@@ -17,8 +17,8 @@ A tibble with one row per folded reporting area, ordered by
 \item \code{area_name}, \code{area_iso3c}: Its name and ISO3-like code.
 \item \code{polity_area_code}: The bucket its rows are summed into.
 \item \code{polity_code}, \code{polity_name}: The polity the fold attributes them to.
-\item \code{fold_kind}: \code{"fabio_rest_of_world"}, \code{"cbs_reporter_folded"} or
-\code{"successor_state"}.
+\item \code{fold_kind}: \code{"fabio_rest_of_world"}, \code{"cbs_reporter_folded"},
+\code{"predecessor_bucket"} or \code{"successor_state"}.
 }
 }
 \description{
@@ -105,6 +105,36 @@ while it is set. \code{"cbs_reporters"} re-folds all but the four
 \code{"cbs_reporter_folded"} areas and warns for the same reason. The
 \code{"successor_state"} folds are never lifted by any mode, since those are
 territorial identities rather than a FABIO convention.
+}
+
+\section{The predecessor-bucket fold, and the switch that lifts it}{
+
+\code{"predecessor_bucket"} is the other direction and a separate switch. FAOSTAT
+retired area 206 "Sudan (former)" at the 2011 secession and reports 276 Sudan
+and 277 South Sudan from 2012, so here the \emph{bucket} is the dead code and its
+members are live -- the reverse of 62 Ethiopia PDR folding into its live
+successor 238, which stays a \code{"successor_state"} fold and is never lifted.
+
+WHEP publishes the fold. \code{options(whep.unfold_predecessor_bucket = "all")}
+promotes the successors and warns on every crosswalk read, because unlike the
+Rest-of-World promotion it is \strong{not} mass-neutral. Measured on
+\code{build_primary_production(2015, 2015)} it moves nothing at all outside areas
+206, 276 and 277 -- 48,678 rows, no key present in only one run, no matched
+value differing -- and inside the region it withdraws exactly one series:
+item 651 Forage products, 1,432,940 t (4.22\% of the region's tonnage) and
+208,350 ha (0.25\%). Heads, livestock units and slaughtered heads are
+conserved; item 1052 Chickens, layers splits exactly, 9,439,000 head to
+Sudan and 4,679,716 to South Sudan.
+
+That tonnage is not reported data that stops being joined. It is
+\code{DM_yield_estimate_carried_forward}, WHEP's own extrapolation of the
+\code{faostat-production-old} fodder series for area 206, a source that carries
+no row for 276 or 277 in any year; the fold is what keeps bucket 206 a live
+key to extrapolate onto after FAOSTAT retired it in 2011. Restoring it under
+the promotion would need
+a rule for apportioning a predecessor's series between its successors, which
+this package has no source for. Whether to publish the promotion is issue
+680.
 
 An earlier measurement recorded in issue 419 reported this change at up to
 13.7x on \code{feed}; that comparison predates the \code{dcast()} duplicate-key fix in
@@ -115,7 +145,7 @@ An earlier measurement recorded in issue 419 reported this change at up to
 folded <- folded_reporting_areas()
 nrow(folded)
 head(folded[folded$fold_kind == "successor_state", ], 4)
-folded[folded$fold_kind == "cbs_reporter_folded", ]
+folded[folded$fold_kind == "predecessor_bucket", ]
 }
 \references{
 Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,

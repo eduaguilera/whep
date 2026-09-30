@@ -490,3 +490,35 @@ testthat::test_that("add_footprint_product_stage rejects invalid area labels", {
     "other_area_name"
   )
 })
+
+testthat::test_that("paths share compute_footprint's A denominator (#1110)", {
+  # Sector 2 has a residue output (1e-12) but takes 5 of sector 1 as input.
+  args <- list(
+    z_mat = matrix(c(0, 0, 5, 0), nrow = 2),
+    x_vec = c(100, 1e-12),
+    y_mat = matrix(c(95, 5), ncol = 1),
+    extensions = c(10, 0),
+    labels = tibble::tibble(
+      area_code = c(1L, 1L),
+      item_cbs_code = c(10L, 20L)
+    ),
+    fd_labels = tibble::tibble(area_code = 1L, fd_col = "food"),
+    conserve_extensions = FALSE
+  )
+  totals <- purrr::map(c("traceable", "nonzero"), function(rule) {
+    run <- function(f) {
+      suppressWarnings(
+        do.call(f, c(args, a_denominator = rule))
+      )$value |>
+        sum()
+    }
+    c(
+      footprint = run(compute_footprint),
+      first_use = run(compute_footprint_paths),
+      product = run(compute_fp_product_paths)
+    )
+  })
+
+  testthat::expect_equal(unname(totals[[1]]), rep(9.5, 3))
+  testthat::expect_equal(unname(totals[[2]]), rep(59.5, 3))
+})

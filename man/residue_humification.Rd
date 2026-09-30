@@ -15,12 +15,12 @@ A tibble with columns:
 \item{humified_fraction}{Fraction of input carbon stabilised
 directly into humus (kg humified carbon per kg carbon input).}
 \item{description}{Human-readable description of the input type and
-its Spain historical provenance.}
+its provenance in the source coefficient table.}
 }
 }
 \source{
-Spain historical agroecosystem coefficient set
-(\code{Biomass_coefs.xlsx}, \code{Residue_humified_kgC_kgC} and
+Biomass coefficient set of an earlier regional historical
+reconstruction (its \code{Residue_humified_kgC_kgC} and
 \code{Root_humified_kgC_kgC} columns), itself compiled from soil
 organic carbon turnover and litter humification studies including
 Andren, O. & Katterer, T. (1997).
@@ -43,9 +43,10 @@ compute a carbon-weighted effective humification fraction per
 cell-year before running the SOC model. Other models (RothC, ICBM,
 AMG, Century) use their native carbon partition and ignore this table;
 AMG instead uses \code{amg_h_by_input_type}. Values are transcribed
-from the Spain historical agroecosystem \code{Biomass_coefs}
-\code{Residue_humified_kgC_kgC} column (manure and roots from the
-corresponding manure and \code{Root_humified_kgC_kgC} entries).
+from the biomass coefficient table of an earlier regional historical
+reconstruction, its \code{Residue_humified_kgC_kgC} column (manure and
+roots from the corresponding manure and \code{Root_humified_kgC_kgC}
+entries).
 }
 \examples{
 residue_humification

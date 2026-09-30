@@ -286,9 +286,56 @@ allocate_manure_to_land <- function(
       "{.field crops} needs {.field {weight_col}} for {.arg method} {.val {opt$method}}."
     )
   }
+  .check_crop_weight(crops, weight_col)
   crops |>
     dplyr::mutate(weight = .data[[weight_col]]) |>
     .resolve_crop_caps(opt)
+}
+
+# The allocation weight must be finite and non-negative (whep#1043).
+#
+# `.fill_cropland()` divides by `sum(weight)` behind an `if_else(sum_w > 0,
+# ...)` guard. That guard is safe only while the terms are non-negative: an
+# IEEE sum of non-negative terms is exactly zero iff every term is zero, so no
+# residue can manufacture a tiny positive denominator. A signed sum can --
+# `sum(c(0.1, -0.3, 0.2))` is 2.78e-17, not 0 -- and the guard then takes the
+# dividing branch on a denominator made entirely of rounding residue.
+#
+# Measured on a single 100 t N collection with caps that bind on nothing:
+# weights `c(6, -4)` put 300 t N on one crop and -200 t N on the other, and
+# `c(0.1, -0.3, 0.2)` gives shares of order 1e16 and 1200 / -2304 / 1200 t N
+# plus 4 t of disposal. Both conserve N exactly, report `over_cap = FALSE` and
+# emit no warning, so a mass-balance check downstream cannot see them.
+#
+# The precondition is not hypothetical: `.resolve_crop_caps()` below already
+# `pmax()`es the sibling `crop_n_cap` because "the underlying growth model's
+# own edge cases" emit negatives, and the same layer supplies the weight.
+# `allocate_manure_to_land()` is exported, and its only in-repo caller
+# (`soil_carbon_inputs.R`, `manure_n_receptivity = crop_area_ha`) is
+# non-negative by construction -- so nothing on the pipeline path changes.
+#
+# Aborting rather than clamping to zero is deliberate, and follows
+# `.check_applied_finite()` in this file: `pmax(weight, 0)` would silently
+# reallocate a crop's manure to its neighbours, which is a share the caller
+# should choose rather than discover.
+.check_crop_weight <- function(crops, weight_col) {
+  w <- crops[[weight_col]]
+  bad <- unique(w[is.na(w) | !is.finite(w) | w < 0])
+  if (length(bad) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- utils::head(bad, 3)
+  cli::cli_abort(
+    c(
+      "{.field {weight_col}} in {.field crops} must be finite and
+       non-negative.",
+      x = "{cli::qty(length(bad))}Rejected value{?s}: {.val {shown}}.",
+      i = "A signed allocation weight turns the {.code sum(weight) > 0} guard
+           into a cancellation test, so rounding residue decides whether the
+           collected manure is divided by it."
+    ),
+    class = "whep_manure_weight_invalid"
+  )
 }
 
 # Caps: fixed_ceiling = rate x area (the legal ceiling, no tolerance); the
@@ -349,8 +396,9 @@ allocate_manure_to_land <- function(
   dplyr::select(grass, "year", "territory", "sub_territory", "grass_n_cap")
 }
 
-# Single room-weighted pass (Spain Calc_OA_redistribution analogue): proportional
-# fill clamped to cap, then the clamped excess redistributed to remaining room.
+# Single room-weighted pass (analogue of the source implementation's organic
+# amendment redistribution): proportional fill clamped to cap, then the clamped
+# excess redistributed to remaining room.
 .fill_cropland <- function(streams, crops) {
   coll <- dplyr::select(
     streams,
@@ -361,6 +409,7 @@ allocate_manure_to_land <- function(
   )
   crops |>
     dplyr::left_join(coll, by = c("year", "territory", "sub_territory")) |>
+    .check_crops_joined(streams) |>
     dplyr::filter(!is.na(.data$coll_n) & .data$coll_n > 0) |>
     dplyr::mutate(
       sum_w = sum(.data$weight),
@@ -377,6 +426,30 @@ allocate_manure_to_land <- function(
         ),
       .by = c("year", "territory", "sub_territory")
     )
+}
+
+# A crop layer keyed on another territory vocabulary (an ISO3 against the
+# stringified `area_code` estimate_n_excretion() writes, a cell id against a
+# polity) joins no stream. Every crop then receives nothing, and the whole
+# collected pool leaves through the grassland spill or the disposal path: N, C
+# and VS are still conserved to the tonne and `over_cap` stays FALSE on every
+# grassland row, so no mass balance downstream can see that cropland got no
+# manure at all (whep#1034). Only judged when some collected manure exists and
+# the layer has rows, so a grazing-only run and an empty layer are left alone.
+.check_crops_joined <- function(joined, streams) {
+  if (nrow(joined) == 0L || !any(streams$coll_n > 0)) {
+    return(joined)
+  }
+  check_inputs_supplied(
+    joined,
+    c(collected_manure_on_cropland = "coll_n"),
+    details = c(
+      i = "No {.field crops} row shares a {.field year}, {.field territory}
+           and {.field sub_territory} with collected manure.",
+      i = "Key the crop layer on the same {.field territory} as
+           {.arg applied}."
+    )
+  )
 }
 
 .assemble_allocation <- function(streams, cropland, grass_cap, opt) {
@@ -489,10 +562,37 @@ allocate_manure_to_land <- function(
   }
   leftover |>
     dplyr::left_join(
-      dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
+      dplyr::mutate(
+        dplyr::rename(grass_cap, grass_cap_n = "grass_n_cap"),
+        grass_layer_joined = 1
+      ),
       by = c("year", "territory", "sub_territory")
     ) |>
-    dplyr::mutate(grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0))
+    .check_grass_joined(grass_cap) |>
+    dplyr::mutate(grass_cap_n = dplyr::coalesce(.data$grass_cap_n, 0)) |>
+    dplyr::select(-"grass_layer_joined")
+}
+
+# A supplied grassland layer that joins no stream reads, after the coalesce
+# below, exactly like the documented "no grassland sink": cap zero everywhere,
+# so the spill that should land on grassland goes to disposal or is over-applied
+# on cropland, and the allocation still conserves N exactly (whep#1034). Absent
+# grassland (`grass = NULL`) stays a legitimate zero-cap choice; a layer that was
+# passed and matched nothing is a key mismatch. The test is on the join, not on
+# the cap's value, because a cap floored to zero is a real answer.
+.check_grass_joined <- function(joined, grass_cap) {
+  if (nrow(grass_cap) == 0L) {
+    return(joined)
+  }
+  check_inputs_supplied(
+    joined,
+    c(grassland_cap = "grass_layer_joined"),
+    details = c(
+      i = "No {.field grass} row shares a {.field year}, {.field territory}
+           and {.field sub_territory} with {.arg applied}.",
+      i = "Pass {.code grass = NULL} to allocate with no grassland sink."
+    )
+  )
 }
 
 .disposal_rows <- function(leftover, opt) {

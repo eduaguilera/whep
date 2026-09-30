@@ -1,5 +1,99 @@
 # whep (development version)
 
+* **`resolve_polity_label()` no longer resolves a bare subnational name to
+  another country's unit, and reads the contracts whep-polities added in its
+  #667 and #677.** The name route compares normalised names, and normalisation
+  drops parenthesised qualifiers, so "Santa Cruz" met "Santa Cruz (department
+  of Bolivia)" in years Argentina's province had no polity yet. whep-polities
+  #680 counted 8,928 panel rows sent to Bolivia that way, 5,526 Colombian
+  "Amazonas" rows sent to Brazil and 868 Mexican "Distrito Federal" rows sent
+  to Brazil. A new `country` argument (ISO3) now restricts the name and ISO3
+  routes to that country. Without it, a name that coexisting polities of two
+  countries carry is refused with a `whep_warn_ambiguous_polity_name` warning.
+  `item` applies the new `polity_label_item_corrections` table before any
+  route, and `back_cast = FALSE` drops the aliases whose new `disposition`
+  column marks them as reconstructions. The shipped snapshot is still
+  whep-polities e10c7421, which predates all three, so no shipped resolution
+  moves. `polity_label_item_corrections` ships with zero rows and
+  `disposition` is all `NA` until the next re-sync. It also honours two
+  rules whep-polities added in #692: a correction whose `polity_code` is
+  `"UNROUTED"` leaves its rows unassigned (`NA`) instead of resolving its
+  `correct_label`, and a corrected row drops the caller's `country` and is not
+  read as an ISO3 code, since both came with the label it was misfiled under.
+  New `unit` and `indicator` arguments carry the optional scope whep-polities
+  #700 added to that table: a scoped rule relabels only the rows whose own
+  unit / indicator equals it (Mitchell's 1955-1960 Vietnam rice output in
+  tonnes is North plus South, its area in hectares South only), and a row it
+  would otherwise match that gives no unit / indicator is an error of class
+  `whep_error_unscoped_label_item_correction` rather than a silent miss.
+  `polity_label_item_corrections` gains the two columns, all `NA` in the
+  shipped snapshot, and `data-raw/table_mappings.R` aborts on any header it
+  was not taught, so a new key column cannot be dropped unnoticed.
+  `polity_label_aliases` reads the optional last `indicator` column
+  whep-polities #703 added (blank = any indicator; allowed only on the
+  subnational panel's slugs), so one panel unit id can be split per indicator:
+  #703 found `CHL-LL`'s crops reported for Los Lagos plus Los Ríos while its
+  landuse and livestock are Los Lagos alone. `resolve_polity_label()` keeps
+  only the alias rules whose scope matches the row's `indicator`, answers `NA`
+  (not the name route) for an indicator a split leaves out, and raises
+  `whep_error_unscoped_indicator_alias` for a split label given no
+  `indicator`. Upstream publishes no scoped rule yet and the shipped snapshot
+  has no such column, so no resolution moves. `data-raw/table_mappings.R` now
+  aborts on an alias-map header it was not taught, on a scope value or slug the
+  resolver was not written for, and when the map's scoped-rule count differs
+  from the manifest's `label_alias_map.indicator_scoped_aliases`. No package
+  function resolves the subnational panel yet; a caller that does must pass
+  `indicator = panel$indicator`.
+
+* **`read_polycell_support()` now refuses a support built without its inland
+  water and ice layers, and `build_polycell_support()` stamps which layers it
+  consumed (#1010, regression of #885).** `water` and `ice` are optional
+  arguments that zero-fill when absent, so a pin can ship with every lake,
+  river and glacier inside a polity booked as `land_area_ha` -- and nothing in
+  the table's own arithmetic can see it, because the identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` holds to
+  `max |residual| = 0 ha` on an all-zero layer. Two published pins were built
+  that way, `20260818T105426Z-a0330` (#885) and `20260827T190201Z-f82a2`
+  (#1010), the second two days after the first was closed and with #885's
+  warning already in place.
+
+  The output now carries `layers_supplied`, a label naming what the build
+  consumed (`"ice,water"`, `"water"`, `"ice"` or `"none"`). A label cannot be
+  satisfied by arithmetic, which is the point: every cross-column check this
+  table has is satisfied by a zero. `read_polycell_support()` aborts with class
+  `whep_polycell_absent_layers` when the stamp says a layer was missing, and
+  on a support published before the stamp existed falls back to asserting that
+  `inland_water_ha` and `ice_area_ha` are not identically zero. Pass
+  `require_layers = FALSE` for a caller that needs the territory and not the
+  land/water/ice split. `inst/scripts/verify_polycell_support.R` gains an S-A0
+  gate that aborts on an unset `WHEP_LPJML_INPUT_DIR` or
+  `WHEP_NATURALEARTH_DIR` instead of alerting and continuing, and applies the
+  whole-table floors (100,000 wet rows / 1,000 Mha; 5,000 icy rows / 400 Mha).
+
+  **Published values move**, for every consumer keyed on the cell support:
+  `build_n_deposition()`, `build_carbon_balance()`, `build_nitrogen_balance()`,
+  `build_polycell_land_uses()` and `build_historical_land_areas()`. The pin is
+  regenerated as `20260907T111653Z-e654d` with GLWD v2 inland water and
+  `ne_10m_glaciated_areas` ice, on the committed polities snapshot, keeping the
+  #907 reporting `area_code` that the previous sound pin
+  (`20260825T102349Z-1a0eb`) predates -- so this is a regeneration rather than
+  a revert, which would have traded #1010 for #907. Global land in the pinned
+  support falls
+  from 85,698.454 Mha to 83,621.586 Mha, inland water rises from 0 to
+  1,636.259 Mha over 457,823 rows and ice from 0 to 440.610 Mha over 12,407
+  rows. Territory is unchanged: the new support holds the **same 484,314
+  polycell-intervals** as the old one with per-row `polity_area_ha` identical
+  to 0 ha, so the only thing that moved is that 2,076.869 Mha of it is now
+  booked as water and ice rather than land. At the gridded carbon path's 2015
+  slice land falls from 13,463.044 Mha to 12,928.139 Mha -- the old figure was
+  534.9 Mha (4.1%) high -- across 94.3% of the 73,997 `(cell, area_code)`
+  groups; single cells in Lake Victoria drop from 309,083 ha of land to 2.9 ha.
+  Every gridded nutrient and carbon density divided by land area moves in the
+  opposite direction. The pin keeps `aggregates = "exclude"` like the one it
+  replaces, and at a fixed year that is provably free: an overlap-layer build
+  of the same inputs agrees with it to 0 ha on land, water, ice and territory
+  at both 1900 and 2015.
+
 * **A positive trade record now outranks a CBS zero, and
   `build_commodity_balances()` gains `trade_zero` to select the old behaviour
   (#866).** Tier 1 of the trade imputation fills the CBS from the crosswalked
@@ -1496,8 +1590,9 @@
   `Processing` element for that year (5,769 rows, 211 areas, 83 items).
   `faostat-cbs-new` moves to the 2026-06-15 CB release, growing from 58,107
   rows and 11 items to 127,558 rows and 13 items. `population_yg` moves from
-  1860-2021 to 1860-2023, taking the two new years from Spain_Hist's own
-  output rather than repeating 2021 (Spanish national population 47.37,
+  1860-2021 to 1860-2023, taking the two new years from the output of the
+  regional historical reconstruction it is sourced from rather than repeating
+  2021 (Spanish national population 47.37,
   47.79 and 48.33 million over 2021-2023).
 
   **Published values move.** `get_processing_coefs()` for 2023 goes from 359

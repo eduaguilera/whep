@@ -37,12 +37,15 @@
     )
   }
 
+  # The method label is set before the Ym join, not after it: `.join_ym()`
+  # stamps the diet assumption onto it, and a later assignment would erase it.
   data <- data |>
     dplyr::mutate(
       species_gen = dplyr::coalesce(
         species_gen,
         .get_general_species(species)
-      )
+      ),
+      method_enteric = "IPCC_2019_Tier2"
     )
 
   data <- .join_ym(data)
@@ -56,8 +59,7 @@
         (ym_factor / 100) *
         365 /
         energy_conversion,
-      enteric_ch4_tier2 = n_animals * enteric_ch4_per_head,
-      method_enteric = "IPCC_2019_Tier2"
+      enteric_ch4_tier2 = n_animals * enteric_ch4_per_head
     )
 }
 
@@ -372,14 +374,21 @@
 }
 
 #' Join Ym values from IPCC 2019 Table 10.13 with feed situation mapping.
+#'
+#' The Ym itself is never defaulted: a species with no Tier 2 Ym row keeps `NA`.
+#' The former `coalesce(ym_percent, 6.5)` handed every unmatched species the
+#' cattle/buffalo Ym of IPCC Table 10.13 as a bare number, which is wrong for
+#' horses, mules, asses, swine and poultry -- IPCC defines no Tier 2 Ym for them
+#' at all.
+#'
+#' A row with no diet does keep its methane, under a declared assumption: see
+#' [.assume_missing_diet()]. Callers that want the diet chosen deliberately have
+#' the `method_diet` ladder on [build_gridded_livestock_emissions()] and
+#' [build_livestock_ghg_extension()], which resolves it before this point.
 #' @noRd
 .join_ym <- function(data) {
   ym_tbl <- ipcc_tier2_ym_values
-
-  if (!rlang::has_name(data, "diet_quality")) {
-    data <- data |>
-      dplyr::mutate(diet_quality = "Medium")
-  }
+  data <- .assume_missing_diet(data)
 
   # Ensure system column exists
   if (!rlang::has_name(data, "system")) {
@@ -403,13 +412,79 @@
         "feed_situation"
       )
     ) |>
-    dplyr::mutate(
-      ym_factor = dplyr::coalesce(ym_percent, 6.5)
-    ) |>
-    dplyr::select(
-      -dplyr::any_of(c(
-        "ym_percent",
-        "feed_situation"
-      ))
-    )
+    dplyr::rename(ym_factor = ym_percent) |>
+    .warn_species_without_ym() |>
+    dplyr::select(-dplyr::any_of("feed_situation"))
+}
+
+#' Declare the diet assumed for a row that carries none.
+#'
+#' A missing diet is not the `"Medium"` diet, but refusing the row excludes an
+#' animal whose methane exists, so the row keeps its emissions and says which
+#' diet it was given. `estimate_energy_demand()` already makes exactly this
+#' assumption one step upstream -- an absent diet leaves `de_percent` at
+#' `livestock_constants$default_de_percent`, which is the Medium diet's DE% --
+#' so aborting here refused a gross energy that had already been computed under
+#' the same assumption.
+#'
+#' MEASURED: the assumption moves no Ym. `ipcc_tier2_ym_values` gives one Ym per
+#' species irrespective of diet (cattle and buffalo 6.5, sheep 6.7, goats 5.5,
+#' camels 5.0); only the `"Feedlot"` situation differs, and that comes from
+#' `system`, not from `diet_quality`. Where the diet does bite is DE% upstream,
+#' which is why the stamp matters more than the number.
+#'
+#' Callers that want the choice made deliberately have the `method_diet` ladder,
+#' which resolves the diet before this point and never reaches here.
+#' @noRd
+.assume_missing_diet <- function(data) {
+  if (!rlang::has_name(data, "diet_quality")) {
+    data <- dplyr::mutate(data, diet_quality = NA_character_)
+  }
+  gap <- is.na(data$diet_quality)
+  if (!any(gap)) {
+    return(data)
+  }
+  assumed <- .assumed_diet_quality()
+  cli::cli_warn(c(
+    "!" = "{sum(gap)} row{?s} {?has/have} no {.field diet_quality}.",
+    i = "Assumed the IPCC {.val {assumed}} diet and stamped it in
+         {.field method_enteric}.",
+    i = "Resolve it with the {.arg method_diet} ladder, e.g.
+         {.val national_feed}, to choose it deliberately."
+  ))
+  data$diet_quality[gap] <- assumed
+  .stamp_assumption(data, "method_enteric", "diet_assumed_medium", gap)
+}
+
+#' The diet assumed when a row carries none.
+#' @noRd
+.assumed_diet_quality <- function() {
+  "Medium"
+}
+
+#' Warn where a resolvable animal has no Tier 2 Ym.
+#'
+#' Only rows whose gross energy did resolve are worth reporting: a row with no
+#' gross energy is already unresolved for other reasons and is reported by the
+#' caller. A row with gross energy but no Ym is the case the old bare 6.5
+#' default hid.
+#' @noRd
+.warn_species_without_ym <- function(data) {
+  if (!rlang::has_name(data, "gross_energy")) {
+    return(data)
+  }
+  affected <- data |>
+    dplyr::filter(!is.na(gross_energy), is.na(ym_factor)) |>
+    dplyr::distinct(species_gen) |>
+    dplyr::pull(species_gen)
+  if (length(affected) == 0L) {
+    return(data)
+  }
+  cli::cli_warn(c(
+    "!" = "No Tier 2 methane conversion factor (Ym) for
+      {.val {affected}}: their enteric CH4 is {.val NA}, not zero.",
+    i = "IPCC 2019 Vol.4 Ch.10 Table 10.13 defines Ym for ruminants and
+         camels only; use Tier 1 for the others."
+  ))
+  data
 }

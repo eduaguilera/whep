@@ -12,14 +12,15 @@
 #'   `sub_territory`, `livestock_category`, `n_excretion`, `c_excretion` and
 #'   `vs_excretion`.
 #' @param options A named list. `mms_source` selects how the MMS shares in
-#'   `regional_mms_distribution` are read:
+#'   [regional_mms_distribution] are read:
 #'   * `"regional_default"` (default): every territory takes the table's
-#'     `region == "Global"` rows, the IPCC/GLEAM global default.
+#'     `region == "Global"` rows.
 #'   * `"region_specific"`: each territory takes the rows of the region it
-#'     resolves to, and the Global rows when its region has none. Only four
-#'     `(region, species)` pairs carry region-specific rows (North America
-#'     cattle and swine, Western Europe cattle, Latin America cattle), so
-#'     every other row is unchanged.
+#'     resolves to, and the Global rows when its region has none.
+#'
+#'   `mms_shares` selects which half of [regional_mms_distribution] is read:
+#'   `"gleam_2_0"` (default), the GLEAM 2.0 Supplement S1 Tab. 4.2-4.11
+#'   ingest, or `"placeholder"`, the unsourced table it replaced (whep#958).
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category x mms_type`, plus
@@ -35,12 +36,15 @@
 #' )
 #' split_manure_management(excretion)
 split_manure_management <- function(excretion, options = list()) {
-  opt <- utils::modifyList(list(mms_source = "regional_default"), options)
+  defaults <- list(mms_source = "regional_default", mms_shares = "gleam_2_0")
+  opt <- utils::modifyList(defaults, options)
   mms_source <- opt$mms_source
+  mms_shares <- opt$mms_shares
   opt$mms_source <- rlang::arg_match(
     mms_source,
     c("regional_default", "region_specific")
   )
+  opt$mms_shares <- .mms_shares_arg(mms_shares)
   .check_excretion_cols(excretion)
   bridge <- dplyr::select(
     .species_taxonomy_bridge(),
@@ -53,7 +57,7 @@ split_manure_management <- function(excretion, options = list()) {
   joined <- excretion |>
     tibble::as_tibble() |>
     dplyr::left_join(bridge, by = "livestock_category") |>
-    .attach_mms_shares(opt$mms_source)
+    .attach_mms_shares(opt$mms_source, opt$mms_shares)
   if (anyNA(joined$mms_type)) {
     bad <- unique(joined$species_gen[is.na(joined$mms_type)])
     cli::cli_abort("No MMS distribution for species {.val {bad}}.")
@@ -69,7 +73,7 @@ split_manure_management <- function(excretion, options = list()) {
       n_stream = .data$n_excretion * .data$fraction,
       c_stream = .data$c_excretion * .data$fraction,
       vs_stream = .data$vs_excretion * .data$fraction,
-      method_mms = opt$mms_source
+      method_mms = paste0(opt$mms_shares, "/", opt$mms_source)
     ) |>
     dplyr::select(
       "year",
@@ -110,13 +114,20 @@ split_manure_management <- function(excretion, options = list()) {
 # Attach the MMS shares to the excretion rows, one row per (input row, MMS).
 # "regional_default" gives every territory the Global rows. "region_specific"
 # resolves each territory's region and hands it to the shared resolver below.
-.attach_mms_shares <- function(rows, source) {
+.attach_mms_shares <- function(rows, source, shares = "gleam_2_0") {
   if (identical(source, "regional_default")) {
-    return(.resolve_mms_shares(rows))
+    return(.resolve_mms_shares(rows, shares = shares))
   }
   rows |>
     dplyr::mutate(mms_region = .mms_region_of(.data$territory)) |>
-    .resolve_mms_shares("mms_region")
+    .resolve_mms_shares("mms_region", shares = shares)
+}
+
+# The `mms_shares` option, validated against the `source` column of the
+# shipped table rather than a hardcoded list, so a variant added to the data
+# becomes selectable without a second edit here.
+.mms_shares_arg <- function(mms_shares) {
+  rlang::arg_match(mms_shares, unique(whep::regional_mms_distribution$source))
 }
 
 # The one MMS-share resolver, shared by both manure engines (#679): this
@@ -127,16 +138,23 @@ split_manure_management <- function(excretion, options = list()) {
 # `regional_mms_distribution` on `species_gen`. With no region column, or with
 # `region_col` absent from `rows`, every row takes the `region == "Global"`
 # distribution. With a region column, a row takes its own region's rows when
-# the table has any for that (region, species) -- only four pairs do -- and the
-# Global rows for that species otherwise. The fallback is a left_join on
-# species only, so a row whose region is unknown or unmatched keeps the Global
-# split rather than losing its rows or collapsing to a flat default (#201).
-.resolve_mms_shares <- function(rows, region_col = NULL) {
-  global <- .mms_global_shares()
+# the table has any for that (region, species), and the Global rows for that
+# species otherwise. The fallback is a left_join on species only, so a row
+# whose region is unknown or unmatched keeps the Global split rather than
+# losing its rows or collapsing to a flat default (#201).
+#
+# `shares` picks the half of the table to read: the GLEAM 2.0 ingest or the
+# unsourced placeholder it replaced (whep#958).
+.resolve_mms_shares <- function(
+  rows,
+  region_col = NULL,
+  shares = "gleam_2_0"
+) {
+  global <- .mms_global_shares(shares)
   if (is.null(region_col) || !rlang::has_name(rows, region_col)) {
     return(.join_mms_shares(rows, global))
   }
-  regional <- .mms_regional_shares()
+  regional <- .mms_regional_shares(shares)
   by <- c(
     c("species_gen" = "species"),
     rlang::set_names("region", region_col)
@@ -158,11 +176,14 @@ split_manure_management <- function(excretion, options = list()) {
 
 # The shares are renormalised to sum to one within each (region, species), so
 # the split conserves mass whatever the table holds. On the shipped
-# `regional_mms_distribution` every group already sums to exactly 1, so the
-# division is by 1.0 and leaves each fraction bit-identical.
-.mms_global_shares <- function() {
+# `regional_mms_distribution` every group already sums to one to within
+# floating-point, in both halves of the table.
+.mms_global_shares <- function(shares = "gleam_2_0") {
   whep::regional_mms_distribution |>
-    dplyr::filter(.data$region == "Global") |>
+    dplyr::filter(
+      .data$source == shares,
+      .data$region == "Global"
+    ) |>
     dplyr::mutate(
       fraction = .data$fraction / sum(.data$fraction),
       .by = "species"
@@ -170,9 +191,12 @@ split_manure_management <- function(excretion, options = list()) {
     dplyr::select("species", "mms_type", "fraction")
 }
 
-.mms_regional_shares <- function() {
+.mms_regional_shares <- function(shares = "gleam_2_0") {
   whep::regional_mms_distribution |>
-    dplyr::filter(.data$region != "Global") |>
+    dplyr::filter(
+      .data$source == shares,
+      .data$region != "Global"
+    ) |>
     dplyr::mutate(
       fraction = .data$fraction / sum(.data$fraction),
       .by = c("region", "species")
@@ -219,19 +243,69 @@ split_manure_management <- function(excretion, options = list()) {
 #' nitrogen (its in-situ soil losses belong to the soil stage). Indirect N2O is
 #' reported as a labelled sub-flux of the already-removed volatilized and leached
 #' nitrogen (the same N is not removed twice). Carbon applied to the field is
-#' `applied_n` times the post-storage manure C:N (the solid/liquid/excreta value
-#' for the stream's management system), so the applied C:N reflects storage, not
-#' fresh excreta; the carbon and volatile-solids storage losses follow from that.
-#' The grazing stream undergoes no storage and keeps its full carbon and volatile
-#' solids (no storage C:N cap is applied to it).
+#' `c_stream * (1 - c_loss_fraction)`, the stream's carbon less what its
+#' management system mineralises in storage, and the volatile solids are scaled
+#' by the same ratio. The applied C:N is therefore a RESULT of that loss rather
+#' than an imposed cap. Loss fractions and their sources are in
+#' `inst/extdata/manure/manure_storage_c_loss.csv`: nothing for grazing or daily
+#' spread, which have no storage stage; 0.420 of initial carbon for solid
+#' storage and 0.424 for poultry litter (Pardo et al. 2015,
+#' \doi{10.1111/gcb.12806}); 0.110 (cattle) and 0.128 (pigs) for slurry,
+#' derived from Kupper et al. 2020 (\doi{10.1016/j.agee.2020.106963}) using
+#' this package's own 0.47 kg C per kg volatile solids.
 #'
-#' @param split A tibble from [split_manure_management()].
+#' Until whep#1006 this was a cap, `pmin(c_stream, applied_n * post-storage
+#' C:N)`, which produced a loss only as a side effect of holding the applied
+#' C:N down. That made the loss depend on the excreted composition rather than
+#' on the storage system: when excreted carbon moved, the reported loss for
+#' cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.
+#'
+#' @section Bedding:
+#' When the rows carry `n_bedding` and `c_bedding` (from
+#' [add_manure_bedding()]), the straw bedded under housed animals is part of
+#' the manure that reaches the field, and the applied C:N is the C:N of the
+#' bedded farmyard manure rather than of the excreta alone. Without those
+#' columns nothing changes: they default to zero and every number is the
+#' excreta-only one.
+#'
+#' Nitrogen follows IPCC 2019 Refinement Vol. 4 Ch. 10 Eq. 10.34 (p. 10.94)
+#' exactly: `NbeddingMS` sits **outside** the `(1 - FracLossMS)` term, because
+#' "mineralization of nitrogen compounds in beddings occurs more slowly
+#' compared to manure and the concentration of ammonia fraction in organic
+#' beddings is negligible", so "both volatilization and leaching losses during
+#' storage of bedding are assumed to be zero" (p. 10.93). Bedding nitrogen
+#' therefore raises `applied_n` one-for-one and raises none of the loss
+#' side-streams.
+#'
+#' Carbon has no IPCC rule at all -- manure CO2 is out of scope there -- so
+#' `bedding_c_loss` selects it. `"same_as_excreta"` (default) applies the
+#' stream's own storage carbon-loss fraction to the bedding carbon too: the
+#' 0.420 for solid storage comes from Pardo et al. 2015
+#' (\doi{10.1111/gcb.12806}, Table 2), a systematic review of whole manure
+#' heaps, and a heap in solid storage in practice already contains its litter,
+#' so the measured loss is a whole-heap loss. `"none"` keeps every gram of
+#' bedding carbon, mirroring the zero storage loss IPCC gives bedding nitrogen;
+#' it is the upper bound on applied carbon and raises the applied carbon of a
+#' bedded solid-storage stream by `0.420 / (1 - 0.420) = 72%` of the bedding
+#' carbon relative to the default.
+#'
+#' Volatile solids stay excreta-only under both, so the Tier 2 methane engine
+#' in [build_livestock_ghg_extension()] is untouched. IPCC 2019 Ch. 10 does ask
+#' for bedding to be combined with volatile solids when estimating manure
+#' methane; that is a separate change to a separate engine and is not made
+#' here.
+#'
+#' @param split A tibble from [split_manure_management()], optionally with the
+#'   `n_bedding` and `c_bedding` columns [add_manure_bedding()] adds.
 #' @param options A named list. `method` selects the loss method
-#'   (`"ipcc_2019_tier2"`).
+#'   (`"ipcc_2019_tier2"`). `bedding_c_loss` selects how bedding carbon is
+#'   treated in storage: `"same_as_excreta"` (default) or `"none"`; see the
+#'   Bedding section.
 #'
 #' @return The input rows with `manure_type`, `applied_n`, `applied_c`,
 #'   `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
-#'   `n2o_indirect_n`, `c_lost`, `vs_destroyed` and `method_losses`.
+#'   `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
+#'   `method_losses` and `method_bedding_c`.
 #' @export
 #' @examples
 #' excretion <- tibble::tribble(
@@ -241,10 +315,18 @@ split_manure_management <- function(excretion, options = list()) {
 #' )
 #' apply_management_losses(split_manure_management(excretion))
 apply_management_losses <- function(split, options = list()) {
-  opt <- utils::modifyList(list(method = "ipcc_2019_tier2"), options)
+  opt <- utils::modifyList(
+    list(method = "ipcc_2019_tier2", bedding_c_loss = "same_as_excreta"),
+    options
+  )
   if (!identical(opt$method, "ipcc_2019_tier2")) {
     cli::cli_abort("Unknown {.arg method} {.val {opt$method}}.")
   }
+  bedding_c_loss <- opt$bedding_c_loss
+  opt$bedding_c_loss <- rlang::arg_match(
+    bedding_c_loss,
+    c("same_as_excreta", "none")
+  )
   .check_split_cols(split)
 
   ind <- whep::indirect_n2o_ef
@@ -254,6 +336,7 @@ apply_management_losses <- function(split, options = list()) {
 
   out <- split |>
     tibble::as_tibble() |>
+    .attach_bedding_streams() |>
     dplyr::left_join(
       .manure_loss_fractions(),
       by = c("mms_type", "loss_category" = "animal_category")
@@ -282,48 +365,50 @@ apply_management_losses <- function(split, options = list()) {
       ),
       n2_n = .data$n2o_direct_n * n2_ratio,
       n2o_indirect_n = .data$n_volatilized * ef4 + .data$n_leached * ef5,
-      applied_n = dplyr::if_else(
-        .data$stream == "grazing",
-        .data$n_stream,
-        pmax(
-          0,
-          .data$n_stream -
-            .data$n_volatilized -
-            .data$n_leached -
-            .data$n2o_direct_n -
-            .data$n2_n
+      # IPCC 2019 Eq. 10.34: bedding N is added OUTSIDE the (1 - FracLossMS)
+      # term, because storage volatilization and leaching of bedding N are
+      # assumed zero (Ch. 10 p. 10.93). It is zero on every stream that took no
+      # bedding, so the grazing branch needs no separate treatment.
+      applied_n = .data$n_bedding +
+        dplyr::if_else(
+          .data$stream == "grazing",
+          .data$n_stream,
+          pmax(
+            0,
+            .data$n_stream -
+              .data$n_volatilized -
+              .data$n_leached -
+              .data$n2o_direct_n -
+              .data$n2_n
+          )
         )
-      )
     ) |>
     dplyr::left_join(.mms_manure_type(), by = "mms_type") |>
-    dplyr::left_join(
-      dplyr::transmute(
-        .manure_cn_coefs(),
-        cn_species = .data$species,
-        manure_type = .data$manure_type,
-        cn_post = .data$cn_ratio
-      ),
-      by = c("cn_species", "manure_type")
-    )
-  if (anyNA(out$cn_post)) {
-    cli::cli_abort("Missing post-storage C:N for some (species, manure_type).")
-  }
+    .attach_storage_c_loss()
+
+  # 1 applies the stream's own storage loss to the bedding carbon as well,
+  # 0 exempts it; see the Bedding section.
+  bedding_loss_share <- .bedding_c_loss_share(opt$bedding_c_loss)
 
   out |>
     dplyr::mutate(
-      applied_c = dplyr::if_else(
-        .data$stream == "grazing",
-        .data$c_stream,
-        pmin(.data$c_stream, .data$applied_n * .data$cn_post)
-      ),
-      c_lost = .data$c_stream - .data$applied_c,
+      applied_c_excreta = .data$c_stream * (1 - .data$c_loss_fraction),
+      applied_c = .data$applied_c_excreta +
+        .data$c_bedding *
+          (1 - .data$c_loss_fraction * bedding_loss_share),
+      c_lost = .data$c_stream + .data$c_bedding - .data$applied_c,
+      # Volatile solids track the EXCRETA carbon only. Bedding is organic
+      # matter too, but vs_stream feeds the Tier 2 methane potential, and
+      # scaling it by a carbon ratio that now includes straw would move manure
+      # methane as a side effect of a soil-carbon change.
       applied_vs = dplyr::if_else(
         .data$c_stream > 0,
-        .data$vs_stream * .data$applied_c / .data$c_stream,
+        .data$vs_stream * .data$applied_c_excreta / .data$c_stream,
         .data$vs_stream
       ),
       vs_destroyed = .data$vs_stream - .data$applied_vs,
-      method_losses = opt$method
+      method_losses = opt$method,
+      method_bedding_c = opt$bedding_c_loss
     ) |>
     dplyr::select(
       "year",
@@ -344,8 +429,35 @@ apply_management_losses <- function(split, options = list()) {
       "n2o_indirect_n",
       "c_lost",
       "vs_destroyed",
-      "method_losses"
+      "n_bedding",
+      "c_bedding",
+      "method_losses",
+      "method_bedding_c"
     )
+}
+
+# Bedding carbon and nitrogen are optional: a split that never met
+# add_manure_bedding() carries neither column and must come out of this
+# function with exactly the numbers it had before bedding existed. Zero is the
+# right fill here and only here -- it is a declared absence, stamped on every
+# row by method_bedding_c, not a measurement that went missing.
+.attach_bedding_streams <- function(split) {
+  split |>
+    ensure_columns(
+      tibble::tibble(n_bedding = numeric(), c_bedding = numeric()),
+      defaults = list(n_bedding = 0, c_bedding = 0)
+    ) |>
+    dplyr::mutate(
+      n_bedding = tidyr::replace_na(.data$n_bedding, 0),
+      c_bedding = tidyr::replace_na(.data$c_bedding, 0)
+    )
+}
+
+# How much of the stream's excreta carbon-loss fraction the bedding carbon
+# also suffers. See the Bedding section of apply_management_losses() for why
+# "same_as_excreta" is the default.
+.bedding_c_loss_share <- function(bedding_c_loss) {
+  switch(bedding_c_loss, same_as_excreta = 1, none = 0)
 }
 
 .check_split_cols <- function(split) {
@@ -389,6 +501,76 @@ apply_management_losses <- function(split, options = list()) {
       pick("Poultry Manure - Deep Litter")
     )
   )
+}
+
+# Storage carbon loss, per management system, from a sourced table.
+#
+# This REPLACED a C:N cap (`applied_c = pmin(c_stream, applied_n * cn_post)`),
+# which produced a storage loss only as a side effect of the applied C:N being
+# held below a tabulated post-storage value. That coupling failed the moment
+# excreted carbon changed: when whep#1006 took excreted C from the volatile
+# solids instead of a dung C:N, the cap stopped binding for cattle solid
+# storage and the reported loss collapsed from 40.3% (beef) and 26.7% (dairy)
+# to 6.9% and 8.1%, with no coefficient having changed. A loss term that moves
+# because something else moved is not a modelled quantity.
+#
+# So storage loss is now its own coefficient with its own source, and the
+# post-storage C:N falls out as a RESULT rather than being imposed. The
+# `bio_coefs` Solid/Liquid C:N values are no longer read here.
+#
+# Values and provenance live in inst/extdata/manure/manure_storage_c_loss.csv.
+# In summary: grazing and daily spread lose nothing because neither has a
+# storage stage (IPCC 2019 Table 10.18, definitional); solid storage loses
+# 0.420 of initial carbon and poultry litter 0.424 (Pardo et al. 2015,
+# doi:10.1111/gcb.12806, Table 2 -- a systematic review, on a carbon basis);
+# slurry loses 0.110 (cattle) and 0.128 (pigs), DERIVED from Kupper et al.
+# 2020 (doi:10.1016/j.agee.2020.106963) gas-per-VS figures using this
+# package's own 0.47 kg C per kg VS, so one carbon fraction is used
+# throughout. IPCC publishes no carbon-loss fraction for any system and puts
+# manure CO2 out of scope, which is why none of this is cited to it.
+.storage_c_loss_coefs <- function() {
+  system.file(
+    "extdata",
+    "manure",
+    "manure_storage_c_loss.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble()
+}
+
+# Join the loss fraction on (mms_type, species), falling back to the table's
+# own `All_species` row. The fallback is a row in the table, not a default in
+# the code, so a species with no published value is visible in the data rather
+# than being silently absorbed here.
+.attach_storage_c_loss <- function(out) {
+  coefs <- .storage_c_loss_coefs()
+  by_species <- coefs |>
+    dplyr::filter(.data$species != "All_species") |>
+    dplyr::select("mms_type", cn_species = "species", "c_loss_fraction")
+  by_mms <- coefs |>
+    dplyr::filter(.data$species == "All_species") |>
+    dplyr::select("mms_type", any_species = "c_loss_fraction")
+  joined <- out |>
+    dplyr::left_join(by_species, by = c("mms_type", "cn_species")) |>
+    dplyr::left_join(by_mms, by = "mms_type") |>
+    dplyr::mutate(
+      c_loss_fraction = dplyr::coalesce(
+        .data$c_loss_fraction,
+        .data$any_species
+      )
+    ) |>
+    dplyr::select(-"any_species")
+  missing <- sort(unique(joined$mms_type[is.na(joined$c_loss_fraction)]))
+  if (length(missing) > 0) {
+    cli::cli_abort(c(
+      "No storage carbon-loss fraction for MMS {.val {missing}}.",
+      i = "Add a row to
+           {.file inst/extdata/manure/manure_storage_c_loss.csv} with its
+           source. A missing system must not silently lose nothing."
+    ))
+  }
+  joined
 }
 
 # Map each engine MMS to the bio_coefs manure_type whose post-storage C:N applies:

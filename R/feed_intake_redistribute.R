@@ -30,7 +30,9 @@
   feed_mode,
   production = NULL,
   cbs = NULL,
-  years = NULL
+  years = NULL,
+  feed_eligibility = "feed_table",
+  residues = NULL
 ) {
   if (grain == "local") {
     cli::cli_abort(c(
@@ -42,14 +44,25 @@
   }
   production <- .filter_years(production %||% get_primary_production(), years)
   cbs <- .filter_years(cbs %||% get_wide_cbs(), years)
+  # The CBS residue feed is fresh matter of a crop mix; convert it with that
+  # mix's own dry-matter content, not the item's single one (whep#1215).
+  data <- .with_residue_kgdm(
+    .feed_demand_data(),
+    .filter_years(residues %||% get_primary_residues(), years)
+  )
   engine <- .national_redistribute(
     production,
     cbs,
     demand_tier,
-    .feed_demand_data(),
-    options = list(distribute_surplus = feed_mode == "scenario")
+    data,
+    options = list(distribute_surplus = feed_mode == "scenario"),
+    feed_eligibility = feed_eligibility
   )
-  .reshape_redistribute_intake(engine$result, engine$code_shares)
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    data = .reshape_data(data$residue_kgdm)
+  )
 }
 
 #' Build local (per-cell) feed intake, chunked by year.
@@ -87,6 +100,14 @@
 #'   tibble/data frame passed to [build_grass_availability_lpjml()].
 #' @param grass_availability_path Optional path to an already-derived grass
 #'   availability artifact passed to [build_grass_availability_lpjml()].
+#' @param feed_eligibility Which feeds each livestock category may receive.
+#'   `"feed_table"` (default) follows `feed_taxonomy`: an item with a grazer
+#'   feed type but no granivore feed type (straw and green fodder) is fibrous
+#'   roughage that pigs and poultry do not eat, so it is never allocated to
+#'   them, at any allocation level. Granivore demand that the feeds they may
+#'   eat cannot cover stays unmet rather than being filled with roughage.
+#'   `"none"` lets any category receive any item (the behaviour before
+#'   whep#1218), for sensitivity analysis.
 #'
 #' @returns
 #' When `out_dir` is `NULL`, a tibble in the `get_feed_intake()` contract plus a
@@ -109,13 +130,15 @@ build_feed_intake_local <- function(
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  feed_eligibility = c("feed_table", "none")
 ) {
   if (example) {
     return(.example_local_intake())
   }
   demand_tier <- rlang::arg_match(demand_tier)
   feed_mode <- rlang::arg_match(feed_mode)
+  feed_eligibility <- rlang::arg_match(feed_eligibility)
   ctx <- .local_run_context(
     demand_tier,
     feed_mode,
@@ -124,6 +147,7 @@ build_feed_intake_local <- function(
     grass_availability = grass_availability,
     grass_availability_path = grass_availability_path
   )
+  ctx$feed_eligibility <- feed_eligibility
   years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
     return(.bind_local_years(years, ctx))
@@ -210,13 +234,19 @@ build_feed_demand <- function(
 # Shared per-run context (configured paths + the once-fetched, normalised
 # production / CBS / coefficient data), grouped so the per-year helpers take few
 # arguments.
+#
+# `production` and `cbs` default to the full pins; a caller that has already
+# read them for its own years (the gridded nitrogen balance) passes them in
+# rather than paying for a second, all-years read.
 .local_run_context <- function(
   demand_tier,
   feed_mode,
   run_dir = NULL,
   input_dir = NULL,
   grass_availability = NULL,
-  grass_availability_path = NULL
+  grass_availability_path = NULL,
+  production = NULL,
+  cbs = NULL
 ) {
   list(
     paths = .local_paths(
@@ -225,15 +255,25 @@ build_feed_demand <- function(
       grass_availability = grass_availability,
       grass_availability_path = grass_availability_path
     ),
-    production = .normalise_feed_primary(get_primary_production()),
-    cbs = .normalise_feed_cbs(get_wide_cbs()),
-    data = .feed_demand_data(),
+    production = .normalise_feed_primary(
+      production %||% get_primary_production()
+    ),
+    cbs = .normalise_feed_cbs(cbs %||% get_wide_cbs()),
+    data = .with_residue_kgdm(.feed_demand_data(), get_primary_residues()),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
-    # Border-strip ratio (grazing range / cell width ~ 5 km / 55 km); the share
-    # of a deficit cell's animals that can graze across the cell edge.
-    grass_border_allowance = 0.1
+    grass_border_allowance = .local_intake_defaults()$grass_border_allowance
   )
+}
+
+# The local grain's engine settings that no argument exposes, owned here once
+# so every caller of the local engine runs it the same way.
+#
+# grass_border_allowance: border-strip ratio (grazing range / cell width,
+# ~ 5 km / 55 km), the share of a deficit cell's animals that can graze
+# across the cell edge (.apply_grass_border_grazing()).
+.local_intake_defaults <- function() {
+  list(grass_border_allowance = 0.1)
 }
 
 # Years to build: every production year, or the requested subset intersected
@@ -251,24 +291,36 @@ build_feed_demand <- function(
 
 # One year's local intake: per-cell spatial inputs -> engine -> contract.
 .local_year_intake <- function(yr, ctx) {
-  spatial <- .local_spatial_inputs(yr, ctx$paths)
+  engine <- .local_year_engine(yr, ctx)
+  .reshape_redistribute_intake(
+    engine$result,
+    engine$code_shares,
+    data = .reshape_data(ctx$data$residue_kgdm),
+    local = TRUE
+  ) |>
+    .add_reporting_polity_columns()
+}
+
+# One year of the local engine: the raw redistribute_feed() result and the
+# per-animal reverse-split weights. `country_grid`, when given, is the cell
+# support the heads and the grass ceiling are placed on (see
+# .local_spatial_inputs()).
+.local_year_engine <- function(yr, ctx, country_grid = NULL) {
+  spatial <- .local_spatial_inputs(yr, ctx$paths, country_grid)
   spatial$grass_border_allowance <- ctx$grass_border_allowance
   prod_y <- dplyr::filter(ctx$production, as.integer(.data$year) == yr)
   cbs_y <- dplyr::filter(ctx$cbs, as.integer(.data$year) == yr)
-  engine <- .run_redistribute_local(
+  .run_redistribute_local(
     prod_y,
     cbs_y,
     ctx$demand_tier,
     spatial,
     ctx$data,
-    distribute_surplus = ctx$feed_mode == "scenario"
+    list(
+      distribute_surplus = ctx$feed_mode == "scenario",
+      feed_eligibility = ctx$feed_eligibility %||% "feed_table"
+    )
   )
-  .reshape_redistribute_intake(
-    engine$result,
-    engine$code_shares,
-    local = TRUE
-  ) |>
-    .add_reporting_polity_columns()
 }
 
 # Write per-year output to disk, skipping years already written (restartable)
@@ -325,10 +377,18 @@ build_feed_demand <- function(
 # grass availability). A heavy global computation: gridded livestock plus
 # LPJmL-derived grass for every model year. Years outside a local LPJmL run's
 # coverage get unbounded grass; pinned grass is already clipped to its coverage.
-.local_spatial_inputs <- function(years, paths) {
+#
+# `country_grid` replaces the livestock inputs' own cell support
+# (.load_country_grid(), the polycell support by default). The heads and the
+# grass ceiling are both placed on whichever one is used, so a caller that
+# places other inputs on its own support can put the animals on the same one.
+.local_spatial_inputs <- function(years, paths, country_grid = NULL) {
   input_dir <- if (.has_path(paths$input_dir)) paths$input_dir else NULL
   run_dir <- if (.has_path(paths$run_dir)) paths$run_dir else NULL
   ls_inputs <- .load_livestock_inputs(input_dir)
+  if (!is.null(country_grid)) {
+    ls_inputs$country_grid <- country_grid
+  }
   gridded_heads <- build_gridded_livestock(
     livestock_data = ls_inputs$livestock_data,
     gridded_pasture = ls_inputs$gridded_pasture,
@@ -556,22 +616,22 @@ build_feed_demand <- function(
     dplyr::filter(
       (unit == "heads" & item_cbs_code %in% ruminant_codes) | unit == "t_head"
     ) |>
-    .ensure_diet_quality() |>
+    .bootstrap_diet_quality() |>
     prepare_livestock_emissions(expand_cohorts = TRUE) |>
     estimate_energy_demand() |>
     .energy_to_dm()
 }
 
-# Demand assumes a default IPCC "Medium" diet (DE 65%) where diet quality is not
-# supplied; this documented assumption feeds both DE% and the gross-energy
-# density used in the dry-matter conversion.
-.ensure_diet_quality <- function(data) {
-  if (!rlang::has_name(data, "diet_quality")) {
-    data$diet_quality <- "Medium"
-  } else {
-    data$diet_quality <- dplyr::coalesce(data$diet_quality, "Medium")
-  }
-  data
+# The IPCC energy demand needs a diet before any feed has been allocated, and
+# the allocation this demand feeds is what would tell us the diet: the two are
+# circular at this point in the pipeline. Break it with the explicitly named
+# uniform-medium rung of the diet ladder rather than an inline default, so the
+# assumption is selected by name, recorded per row in `method_diet`, and a diet
+# the caller did supply is kept rather than overwritten. It sets DE% (65%) and
+# hence both the gross energy and the gross-energy density used in the
+# dry-matter conversion.
+.bootstrap_diet_quality <- function(data) {
+  .resolve_diet_quality(data, "uniform_medium", feed_intake = NULL)
 }
 
 # gross_energy (MJ/day/head) -> dry-matter tonnes/year, summed over cohorts.
@@ -722,13 +782,13 @@ build_feed_demand <- function(
 # ---- Engine 2: MIX ----------------------------------------------------------
 
 # Split Engine-1's per-category DM total across Bouwman feed types and emit the
-# `redistribute_feed()` `feed_demand` schema. Ports the Spain_Hist `add_feedtypes`
-# mix (feed shares from Bouwman, per livestock_category with a grazer-average
-# fallback for the draft species IPCC/Bouwman does not cover), globalised: the
-# Bouwman region comes from each polity (not a hardcoded "OECD Europe") and the
-# Spain-specific reallocations are dropped. Demand is emitted at feed-type grain
-# (item_cbs_code/feed_group NA); `redistribute_feed` resolves items via its
-# feed_quality matching level.
+# `redistribute_feed()` `feed_demand` schema. Ports the feed-type mix of an
+# earlier regional historical reconstruction (feed shares from Bouwman, per
+# livestock_category with a grazer-average fallback for the draft species
+# IPCC/Bouwman does not cover), globalised: the Bouwman region comes from each
+# polity (not a hardcoded "OECD Europe") and the Spain-specific reallocations
+# are dropped. Demand is emitted at feed-type grain (item_cbs_code/feed_group
+# NA); `redistribute_feed` resolves items via its feed_quality matching level.
 .build_feed_mix <- function(demand_total, data = .feed_demand_data()) {
   if (nrow(demand_total) == 0) {
     return(.empty_feed_demand())
@@ -788,8 +848,8 @@ build_feed_demand <- function(
 
 # Bouwman feed-type shares: the share of each feed type in a livestock product's
 # feed, normalised per (item_bouwman, region, year) from `conv_bouwman` and
-# interpolated to every model year. This is the Spain_Hist `feed_share1` step,
-# without the Spain-specific Pigs->grass reallocation.
+# interpolated to every model year. This is the source implementation's
+# feed-share step, without the Spain-specific Pigs->grass reallocation.
 .bouwman_feedtype_shares <- function(conv_bouwman, years) {
   years <- sort(unique(as.integer(years)))
   conv <- tibble::as_tibble(conv_bouwman) |>
@@ -820,7 +880,8 @@ build_feed_demand <- function(
 }
 
 # Grazer-average feed-type shares: the mean Bouwman share across the grazing
-# products (the draft / other species borrow this, as in Spain_Hist).
+# products (the draft / other species borrow this, as in the source
+# implementation).
 .grazer_feedtype_shares <- function(shares) {
   shares |>
     dplyr::filter(
@@ -932,9 +993,17 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   data = .feed_demand_data(),
-  options = list()
+  options = list(),
+  feed_eligibility = "feed_table"
 ) {
-  .national_redistribute(production, cbs, demand_tier, data, options)$result
+  .national_redistribute(
+    production,
+    cbs,
+    demand_tier,
+    data,
+    options,
+    feed_eligibility
+  )$result
 }
 
 # Run the national-grain engine, returning both the raw redistribute result and
@@ -945,13 +1014,16 @@ build_feed_demand <- function(
   cbs,
   demand_tier,
   data = .feed_demand_data(),
-  options = list()
+  options = list(),
+  feed_eligibility = "feed_table"
 ) {
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
-  feed_avail <- .build_feed_avail_national(cbs) |>
+  feed_avail <- cbs |>
+    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
     .add_scavenging_avail(feed_demand)
+  options <- .with_feed_eligibility(options, feed_eligibility, data$crosswalk)
   list(
     result = redistribute_feed(feed_demand, feed_avail, options = options),
     code_shares = .demand_code_shares(codes, data$crosswalk)
@@ -988,16 +1060,62 @@ build_feed_demand <- function(
   dplyr::bind_rows(feed_avail, scav_avail)
 }
 
+# Feed eligibility (whep#1218). `feed_taxonomy` gives each item a feed type
+# for grazers and one for granivores; `granivore_feedtype` is NA for the fibrous
+# roughage granivores never request (data-raw/feed_coefficients.R: "granivores
+# get a restricted set; only grazers eat fibrous roughage"). Under
+# "feed_table", every item a grazer eats but a granivore does not (Straw 2105
+# and the green fodders 2000, 2001, 2003) is barred from every category whose
+# crosswalk rows are all Granivores (Pigs, Poultry). An explicit
+# `options$feed_exclusions` from the caller wins over the derived table.
+.with_feed_eligibility <- function(options, feed_eligibility, crosswalk) {
+  feed_eligibility <- rlang::arg_match(
+    feed_eligibility,
+    c("feed_table", "none")
+  )
+  derived <- list(feed_eligibility = feed_eligibility)
+  if (feed_eligibility == "feed_table") {
+    derived$feed_exclusions <- .feed_table_exclusions(crosswalk)
+  }
+  # Not utils::modifyList(): it recurses into a data-frame value column by
+  # column and would merge a caller's exclusion table into the derived one.
+  c(derived[setdiff(names(derived), names(options))], options)
+}
+
+.feed_table_exclusions <- function(
+  crosswalk,
+  feed_taxonomy = whep::feed_taxonomy
+) {
+  granivores <- tibble::as_tibble(crosswalk) |>
+    dplyr::summarise(
+      granivore = all(graniv_grazers %in% "Granivores"),
+      .by = livestock_category
+    ) |>
+    dplyr::filter(granivore) |>
+    dplyr::pull(livestock_category)
+  roughage <- tibble::as_tibble(feed_taxonomy) |>
+    dplyr::filter(is.na(granivore_feedtype), !is.na(grazer_feedtype)) |>
+    dplyr::pull(item_cbs_code) |>
+    as.integer() |>
+    unique()
+  tidyr::expand_grid(livestock_category = granivores, item_cbs_code = roughage)
+}
+
 # National feed availability from the Commodity Balance Sheet `feed` element:
 # per-item dry-matter supply (with the 0.9 feed-loss factor), tagged with its
 # feed_group + feed_quality from `feed_taxonomy` and feed_scale = "national"
 # (served to every territory by the national-scale allocator). Grass is not a
 # CBS item; it enters redistribute_feed as the grassland sink, not here.
+#
+# `residue_kgdm` (from `.residue_feed_kgdm()`) gives the crop residue items
+# their own per-country dry-matter content in place of the item's single one
+# (whep#1215); `NULL` applies the item coefficient to every row.
 .build_feed_avail_national <- function(
   cbs,
   items_full = whep::items_full,
   biomass_coefs = whep::biomass_coefs,
-  feed_taxonomy = whep::feed_taxonomy
+  feed_taxonomy = whep::feed_taxonomy,
+  residue_kgdm = NULL
 ) {
   cbs <- .normalise_feed_cbs(cbs)
   items <- .feed_items_lookup(items_full)
@@ -1011,6 +1129,7 @@ build_feed_demand <- function(
     dplyr::left_join(items, by = "item_cbs_code") |>
     dplyr::left_join(biomass, by = "Name_biomass") |>
     dplyr::left_join(tax, by = "item_cbs_code") |>
+    .apply_residue_kgdm(residue_kgdm, mass_col = "feed") |>
     dplyr::mutate(avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm)
   .warn_unclassified_feed(joined)
   joined |>
@@ -1037,26 +1156,55 @@ build_feed_demand <- function(
 # stays NA) or has no matching `biomass_coefs` density (`avail_dm_t` stays
 # NA). Either drops real feed supply from availability with no trace, unlike
 # the demand-side steps (`.warn_dropped_mix`, `.warn_uncelled_demand`,
-# `.warn_unsplit_intake`). Items tagged "non_feed" by the taxonomy are an
-# intentional exclusion, not a classification gap, so they are not warned on.
+# `.warn_unsplit_intake`).
+#
+# Each item is named with its own tonnage and its own reason (whep#970): the
+# code alone does not say whether the taxonomy or the `items_full` bridge is
+# the gap, and the two need different fixes. Items tagged "non_feed" are an
+# intentional exclusion, not a classification gap, so they are skipped on the
+# density leg too, which the plain `is.na(avail_dm_t)` test did not do: CBS
+# item 2899 "Miscellaneous" is both "non_feed" and unbridged, so any feed mass
+# it ever carried would have been reported as lost to a gap when it is
+# excluded by design.
 .warn_unclassified_feed <- function(joined) {
-  unclassified <- joined[
-    is.na(joined$feed_quality) | is.na(joined$avail_dm_t),
-    ,
-    drop = FALSE
-  ]
-  if (nrow(unclassified) == 0) {
+  gaps <- joined |>
+    dplyr::filter(
+      !(.data$feed_quality %in% "non_feed"),
+      is.na(.data$feed_quality) | is.na(.data$avail_dm_t)
+    ) |>
+    dplyr::summarise(
+      feed_t = sum(.data$feed, na.rm = TRUE),
+      .by = c("item_cbs_code", "item_cbs", "Name_biomass", "feed_quality")
+    )
+  if (nrow(gaps) == 0) {
     return(invisible(NULL))
   }
-  items <- unique(unclassified$item_cbs_code)
-  dropped <- round(sum(unclassified$feed, na.rm = TRUE))
+  labels <- sprintf(
+    "%s (%s): %.0f t, %s",
+    dplyr::coalesce(gaps$item_cbs, "not in items_full"),
+    gaps$item_cbs_code,
+    gaps$feed_t,
+    .feed_gap_reason(gaps$feed_quality, gaps$Name_biomass)
+  )
   cli::cli_warn(c(
-    "{length(items)} CBS feed item{?s} could not be classified for national
-     availability: {.val {items}}.",
-    i = "{dropped} t of CBS feed mass is dropped (missing from
+    "{nrow(gaps)} CBS feed item{?s} could not be classified for national
+     availability: {.val {labels}}.",
+    i = "{round(sum(gaps$feed_t))} t of CBS feed mass is dropped (missing from
       {.field feed_taxonomy} or {.field biomass_coefs})."
   ))
   invisible(NULL)
+}
+
+# Why one CBS feed item failed to classify, so the warning says which table to
+# repair. A `Name_biomass` of "0" is the upstream placeholder carried by three
+# items_full rows, not a biomass name (whep#970).
+.feed_gap_reason <- function(feed_quality, name_biomass) {
+  dplyr::case_when(
+    is.na(feed_quality) ~ "absent from feed_taxonomy",
+    is.na(name_biomass) ~ "no Name_biomass in items_full",
+    name_biomass == "0" ~ "placeholder Name_biomass '0'",
+    .default = paste0("no biomass_coefs row named ", name_biomass)
+  )
 }
 
 # ---- Provincial grain (sub_territory = cell) --------------------------------
@@ -1074,22 +1222,28 @@ build_feed_demand <- function(
   demand_tier,
   spatial,
   data = .feed_demand_data(),
-  distribute_surplus = FALSE
+  run = list(distribute_surplus = FALSE, feed_eligibility = "feed_table")
 ) {
+  run <- utils::modifyList(
+    list(distribute_surplus = FALSE, feed_eligibility = "feed_table"),
+    run
+  )
   codes <- .build_feed_demand_codes(production, demand_tier, data)
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data) |>
     .distribute_demand_to_cells(spatial$cell_shares)
-  feed_avail <- .build_feed_avail_national(cbs) |>
+  feed_avail <- cbs |>
+    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
     .add_scavenging_avail(feed_demand)
-  result <- redistribute_feed(
-    feed_demand,
-    feed_avail,
-    options = list(
+  options <- .with_feed_eligibility(
+    list(
       grass_availability = spatial$grass_avail,
-      distribute_surplus = distribute_surplus
-    )
+      distribute_surplus = run$distribute_surplus
+    ),
+    run$feed_eligibility,
+    data$crosswalk
   )
+  result <- redistribute_feed(feed_demand, feed_avail, options = options)
   allowance <- spatial$grass_border_allowance
   if (!is.null(allowance) && allowance > 0) {
     result <- .apply_grass_border_grazing(
@@ -1186,16 +1340,24 @@ build_feed_demand <- function(
 
 # Map gridded grass availability to the local grass_availability schema:
 # each 0.5-degree cell becomes a sub_territory under its polity (territory =
-# area_code). Pass `country_grid` (majority assignment, one polity per cell) to
-# match how gridded livestock heads are assigned; a `cell_polity` carrying
-# `polity_frac` instead splits a border cell's grass across its polities. The
-# result is the per-cell forage ceiling redistribute_feed binds the pasture sink
-# to.
+# area_code), and a border cell's grass is split across its polities by the
+# SAME share build_gridded_livestock() splits the heads by. The result is the
+# per-cell forage ceiling redistribute_feed binds the pasture sink to.
+#
+# The share is read through .normalize_country_grid(), so every name the heads
+# accept (`cell_area_frac`, `polity_frac`, ...) is accepted here too, and a
+# support with none is refused (S-A5). This used to read `polity_frac` only and
+# default to 1 without it; the polycell support the local grain reads by
+# default names its share `cell_area_frac`, so each polity of a border cell was
+# given the whole cell's grass (whep#1300).
 .grass_to_cells <- function(grass, cell_polity) {
-  cp <- dplyr::mutate(cell_polity, lon = round(lon, 2), lat = round(lat, 2))
-  if (!rlang::has_name(cp, "polity_frac")) {
-    cp$polity_frac <- 1
-  }
+  cp <- .normalize_country_grid(cell_polity, "cell_polity") |>
+    dplyr::mutate(
+      lon = round(lon, 2),
+      lat = round(lat, 2),
+      polity_frac = cell_area_frac
+    ) |>
+    dplyr::select("lon", "lat", "area_code", "polity_frac")
   grass |>
     dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
     dplyr::inner_join(
@@ -1504,7 +1666,7 @@ build_feed_demand <- function(
   result |>
     .split_intake_to_animals(code_shares) |>
     .label_feed_type(data$item_feedtype) |>
-    .intake_to_fresh_matter(data$item_kgdm) |>
+    .intake_to_fresh_matter(data$item_kgdm, data$residue_kgdm) |>
     .summarise_feed_intake(local)
 }
 
@@ -1586,9 +1748,12 @@ build_feed_demand <- function(
 # Substitute rows have no item; report them at a dry-roughage density (0.9) so
 # their fresh matter is realistic, not the 5x over-statement a grass density
 # would give (a documented MVP value, until the substitute's items are tracked).
-.intake_to_fresh_matter <- function(result, item_kgdm) {
+.intake_to_fresh_matter <- function(result, item_kgdm, residue_kgdm = NULL) {
   result |>
     dplyr::left_join(item_kgdm, by = "item_cbs_code") |>
+    # The same per-country residue content availability was converted with, so
+    # a residue tonne returns to the fresh mass it left the balance as.
+    .apply_residue_kgdm(residue_kgdm) |>
     dplyr::mutate(
       product_kgdm_kgfm = dplyr::if_else(
         feed_group %in% "substitute",
@@ -1669,11 +1834,19 @@ build_feed_demand <- function(
 
 # Datasets the reshape needs (feed-type labels and DM->fresh densities), grouped
 # so the reshape signature stays small and tests can inject fixtures.
-.reshape_data <- function() {
+# `residue_kgdm` is the per-country residue content from `.residue_feed_kgdm()`.
+.reshape_data <- function(residue_kgdm = NULL) {
   list(
     item_feedtype = .item_feedtype_lookup(),
-    item_kgdm = .item_kgdm_lookup()
+    item_kgdm = .item_kgdm_lookup(),
+    residue_kgdm = residue_kgdm
   )
+}
+
+# Attach the residue crop-mix dry-matter table to a `.feed_demand_data()` list.
+.with_residue_kgdm <- function(data, residues) {
+  data$residue_kgdm <- .residue_feed_kgdm(residues)
+  data
 }
 
 # item_cbs_code -> Bouwman feed type. grazer_feedtype is the complete per-item

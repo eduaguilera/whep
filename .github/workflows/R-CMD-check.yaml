@@ -28,13 +28,22 @@ concurrency:
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
-    # Backstop against a hung test (e.g. a large remote read) that would
-    # otherwise run for tens of minutes. A healthy leg is ~13-15 min end to end
-    # (2-3 min setup on a warm dependency cache, ~11-13 min checking), so 45
-    # absorbs a slow package mirror -- measured at 24 min of dependency install
-    # on a bad day, which the old 30-minute budget could not survive -- while
-    # still killing a real hang well inside GitHub's 360-minute default.
-    timeout-minutes: 45
+    # Two budgets, because the two risks are not the same risk. The hung test
+    # this workflow has to survive lives in the check step, and that step is
+    # steady: across 167 completed ubuntu-release attempts (2026-08-27 to
+    # 2026-09-14) the 135 that passed ran p50 12.5 min, p95 13.8, max 16.0.
+    # Its own cap sits on the step, so a hang is killed where it happens and
+    # reported as a failure rather than as a job-level `cancelled` that reads
+    # like someone pressed stop (#1102).
+    #
+    # The job budget then only has to absorb setup, which is pure download and
+    # is not steady: setup-r p50 0.6 min but 16.4 on a bad CDN day, and the
+    # dependency install p50 1.2 min warm. 60 covers the worst observed setup
+    # alongside a full check budget, and still kills a runaway job well inside
+    # GitHub's 360-minute default. The 45 this replaces could not: the one leg
+    # that crossed it spent 36 of its 45 minutes in setup with the check step
+    # on pace.
+    timeout-minutes: 60
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
@@ -72,6 +81,11 @@ jobs:
           needs: check
 
       - uses: r-lib/actions/check-r-package@v2
+        # The hang backstop, on the step that can hang. Over the window above,
+        # the slowest check that PASSED on any platform took 19.9 min and the
+        # slowest that failed took 33.5, so 40 clears both without giving a
+        # hang half an hour of runner time it does not need.
+        timeout-minutes: 40
         with:
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'

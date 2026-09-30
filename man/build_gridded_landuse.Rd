@@ -100,12 +100,24 @@ If \code{NULL} (default), the capacity constraint still runs with
 physical cropland).
 \item \code{max_iterations}: Maximum iterations for the redistribution
 loop. Default: \code{1000L}.
-\item \code{expansion_threshold}: Iteration number after which crops are
-allowed to expand into cells without an existing pattern.
-Default: \code{100L}.
+\item \code{expansion_threshold}: Defunct. It was documented as the iteration
+after which crops may expand into cells without an existing pattern,
+but that expansion was never implemented and the value never reached
+the redistribution (whep#1001). It is now dropped with a warning of
+class \code{whep_defunct_config_key}. A crop is only ever placed in cells
+its \code{crop_patterns} (or uniform fallback) gives it; when those cells
+are too small the per-cell ceiling gives way and a warning reports it.
 \item \code{area_key}: Which area code the output is keyed on, \code{"grid"}
 (default) or \code{"polity_area"}. See \emph{Which area code the output is
 keyed on}.
+\item \code{pattern_signal_floor}: The \code{harvest_fraction} below which a
+\code{crop_patterns} cell is treated as float underflow rather than an
+allocated area, and zeroed before the placement weights are formed.
+Default \code{1e-12}, argued from EarthStat's own float32 precision in
+\code{.crop_pattern_signal_floor()}. \code{0} restores the untoleranced
+behaviour of whep#1070, in which a (country, crop) whose whole
+pattern is underflow is placed proportional to that underflow instead
+of uniformly.
 }}
 }
 \value{

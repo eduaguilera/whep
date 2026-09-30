@@ -1,0 +1,174 @@
+# Deletes the dependency caches a pull request leaves behind once it is closed.
+#
+# GitHub scopes a cache to the ref that wrote it, and a cache written from
+# `refs/pull/N/merge` is readable ONLY by a run on that same pull request --
+# never by `main`, never by another PR. GitHub also never deletes it on merge;
+# it survives until it goes seven days unread or until the repository's 10 GB
+# quota evicts it. So every PR that misses its cache mints a full private copy
+# of a set that is already on `main`, and those copies then push `main`'s own
+# caches out under the quota, which is what makes a later run do a cold install
+# (#1104).
+#
+# Measured 2026-09-16 before this workflow existed: 10.51 GB active against the
+# 10 GB limit, of which 6.14 GB (58%) sat on five pull-request refs -- and all
+# five PRs were already MERGED, so not one of those bytes could ever be read
+# again. Pruning them leaves 4.37 GB, all of it `main`'s and all of it shared.
+#
+# A cache a PR minted is dead the moment the PR closes, so deleting it costs
+# nothing: nothing can restore it. If the PR is reopened its next run does one
+# cold install and saves a fresh copy, exactly as the first run did.
+#
+# Two triggers, because one is not enough:
+#   * `pull_request: closed` reclaims the space within seconds of the merge.
+#   * the schedule sweeps every pull-request ref whose PR is closed. It has to
+#     exist: with the runner queue backed up, a job routinely finishes -- and
+#     saves its cache -- minutes AFTER its PR merged, i.e. after the close-
+#     triggered prune has already run. It also covers pull requests from forks,
+#     whose `pull_request` event gets a read-only token that cannot delete, and
+#     any backlog from before this workflow landed.
+#
+# This changes no check: nothing here runs on the pull-request check path, and
+# the four R-CMD-check platforms, `--as-cran` and every other job are untouched.
+# The R-devel leg deliberately stays off the PR path (see R-CMD-check.yaml) and
+# keeps its cache -- its key prefix is stable across weekly runs, so that cache
+# is reusable and is not what is filling the quota.
+on:
+  pull_request:
+    types: [closed]
+  # 00:23 and every six hours after. Off the hour, so it does not queue behind
+  # everything else that fires on the hour.
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+name: cache-prune.yaml
+
+permissions:
+  # Deleting a cache needs `actions: write`. Everything else is read-only.
+  actions: write
+  contents: read
+  pull-requests: read
+
+# Never two prunes at once: both would list the same caches and one would then
+# delete ids the other had already removed. Queue instead of cancelling -- a
+# prune that is superseded still had work to do.
+concurrency:
+  group: cache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    # A fork's `pull_request` event carries a read-only token whatever the
+    # `permissions` block says, so the delete would 403 and report a failure
+    # that means nothing. The scheduled sweep runs in the base repository's
+    # context and cleans those up instead.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    # A few dozen API calls. A budget this small turns a wedged run into a
+    # prompt failure rather than six hours of a held concurrency group.
+    timeout-minutes: 10
+
+    steps:
+      - name: Delete caches held by closed pull requests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          CLOSED_PR: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Every cache the repository holds, paged out in full. Anything not
+          # listed here cannot be pruned, so a short page would silently leave
+          # bytes behind.
+          list_caches() {
+            local out=$1 page=1 found
+            : > "${out}"
+            while :; do
+              gh api \
+                "repos/${GH_REPO}/actions/caches?per_page=100&page=${page}" \
+                > page.json
+              jq -c '.actions_caches[]' page.json >> "${out}"
+              found=$(jq '.actions_caches | length' page.json)
+              if [ "${found}" -lt 100 ]; then break; fi
+              page=$((page + 1))
+            done
+          }
+
+          # Totals come from the listing, not from `actions/cache/usage`: that
+          # endpoint lags. Immediately after this script deleted 30 caches, the
+          # usage endpoint still reported 41 caches and 9.40 GB while the
+          # listing already showed the true 17 and 4.37 GB.
+          describe() {
+            jq -rs \
+              '"\(length) caches, \(map(.size_in_bytes) | add // 0) bytes"' \
+              "$1"
+          }
+
+          list_caches caches.ndjson
+          echo "Before: $(describe caches.ndjson)"
+
+          # Only pull-request refs are ever prunable. A cache on refs/heads/* is
+          # the shared one every branch restores from -- deleting it is the bug
+          # this workflow exists to prevent, so it is filtered out here rather
+          # than guarded against later.
+          jq -r '
+            select(.ref | test("^refs/pull/[0-9]+/"))
+            | [.id, (.ref | capture("^refs/pull/(?<n>[0-9]+)/").n),
+               .size_in_bytes, .ref]
+            | @tsv
+          ' caches.ndjson > pull_caches.tsv
+
+          : > prune_prs.txt
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            # The event already says which PR just closed.
+            echo "${CLOSED_PR}" >> prune_prs.txt
+          else
+            # Ask about each PR that actually holds a cache, not about every PR
+            # in the repository.
+            cut -f2 pull_caches.tsv | sort -un > candidate_prs.txt
+            while read -r number; do
+              [ -n "${number}" ] || continue
+              # Assign only on success. `gh api` prints the error body on
+              # STDOUT, so `|| echo unknown` would leave the 404 JSON in the
+              # variable rather than replacing it.
+              if ! state=$(gh api "repos/${GH_REPO}/pulls/${number}" \
+                   --jq .state </dev/null 2>/dev/null); then
+                state=unknown
+              fi
+              # "closed" covers merged. Anything else -- including a lookup that
+              # failed -- keeps the cache: a PR still open must keep restoring.
+              if [ "${state}" = "closed" ]; then
+                echo "${number}" >> prune_prs.txt
+              else
+                echo "Keeping PR ${number} (state: ${state})"
+              fi
+            done < candidate_prs.txt
+          fi
+
+          deleted=0
+          freed=0
+          while IFS=$'\t' read -r id number size ref; do
+            grep -qx "${number}" prune_prs.txt || continue
+            if gh api --method DELETE \
+                 "repos/${GH_REPO}/actions/caches/${id}" --silent </dev/null
+            then
+              deleted=$((deleted + 1))
+              freed=$((freed + size))
+              echo "Deleted cache ${id} on ${ref} (${size} bytes)"
+            else
+              # A concurrent run or GitHub's own eviction may have removed it
+              # first. That is the outcome we wanted, not a failure.
+              echo "::warning::Could not delete cache ${id} on ${ref}"
+            fi
+          done < pull_caches.tsv
+
+          list_caches caches_after.ndjson
+          echo "After: $(describe caches_after.ndjson)"
+          {
+            echo "Deleted ${deleted} cache(s) from closed pull requests,"
+            echo "freeing ${freed} bytes."
+          } >> "$GITHUB_STEP_SUMMARY"

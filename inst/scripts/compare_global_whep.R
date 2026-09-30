@@ -309,6 +309,18 @@ compare_outputs <- function(
 cli::cli_h1("Loading data")
 
 # ---- Global reference (from pins) ----
+# These three pins are frozen 1961-2021 output of the Global pipeline, not of
+# whep, so `whep_read_file()` warns on each -- that is expected here and is the
+# whole point of the script. Two known divergences are structural, not defects
+# to fix in whep (#1030). Measured on primary_prod over 2015-2021:
+#   * the reference has no slaughtered_heads rows at all where whep emits
+#     12,195, and three item_prod codes each side are unmatched, so the
+#     key-matching below can never cover them;
+#   * its 2020-2021 fodder harvested area is carried forward from 2019 (85.93
+#     Mha a year, 468 country-item series, equal to 2019 to the last digit)
+#     while whep emits no fodder row after 2019, because eu-agridb-fodder
+#     stops in 2019 and faostat-production carries no fodder item at all.
+#     Restrict any fodder comparison to <= 2019.
 cli::cli_text("Reading Global reference data from pins...")
 
 global_primary <- whep::whep_read_file(

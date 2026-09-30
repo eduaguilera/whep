@@ -1,5 +1,6 @@
 # MANNER process-based ammonia-volatilisation model (Module C, Task C4),
-# ported from Spain_Hist MANNER_model.R + nh3.r:81-108.
+# ported from the MANNER implementation of an earlier regional historical
+# reconstruction.
 #
 # This module is a PURE, TESTABLE function: it takes driver values as
 # arguments and returns an NH3-N loss. It does not read any gridded
@@ -21,20 +22,19 @@
 #' (arable/grassland) and incorporation delay.
 #'
 #' @details
-#' The organic path's `inorganic_n_fraction` lookup ([manure_inorganic_n])
-#' maps `manure_type` to its ammoniacal `manure_stream` (`"Liquid"` for
-#' `"cattle_slurry"`/`"pig_slurry"`, `"Solid"` for `"FYM"`/
-#' `"poultry_manure"`) and reads that stream's fraction for the actual
-#' `species` driver supplied by the caller. This matches Spain_Hist, which
-#' maps every species' solid stream to the FYM MANNER class yet looks the
-#' inorganic-N fraction up per real species. When `species` is omitted it
-#' falls back to the manure type's default species (Cattle for
-#' `"cattle_slurry"`/`"FYM"`, Pigs for `"pig_slurry"`, Poultry for
-#' `"poultry_manure"`). `"urban"` bypasses this lookup entirely: it fixes
-#' `inorganic_n_fraction = 0.5` regardless of species, matching
-#' `nh3.r:102-104`. For the AG availability and incorporation factors,
-#' `"urban"` maps to the FYM manure class (Spain_Hist Manner_ferts row 43),
-#' including the 0.4 Org_ef correction.
+#' The organic path's `inorganic_n_fraction` lookup ([manure_inorganic_n]) maps
+#' `manure_type` to its ammoniacal `manure_stream` (`"Liquid"` for
+#' `"cattle_slurry"`/`"pig_slurry"`, `"Solid"` for `"FYM"`/`"poultry_manure"`)
+#' and reads that stream's fraction for the actual `species` driver supplied by
+#' the caller. This matches the source implementation, which maps every species'
+#' solid stream to the FYM MANNER class yet looks the inorganic-N fraction up
+#' per real species. When `species` is omitted it falls back to the manure
+#' type's default species (Cattle for `"cattle_slurry"`/`"FYM"`, Pigs for
+#' `"pig_slurry"`, Poultry for `"poultry_manure"`). `"urban"` bypasses this
+#' lookup entirely: it fixes `inorganic_n_fraction = 0.5` regardless of species,
+#' matching the source implementation. For the AG availability and incorporation
+#' factors, `"urban"` maps to the FYM manure class, as the source coefficient
+#' table does, including the 0.4 Org_ef correction.
 #'
 #' @param n_applied_t Numeric, nitrogen applied (t).
 #' @param fertiliser One of `"Urea"`, `"AN"`, `"CAN"`, `"AS"` (synthetic
@@ -104,11 +104,11 @@ calculate_manner_nh3 <- function(
 #' @details
 #' [manner_default_technique_mix] is a deliberate, permanent gross-
 #' assumption default, not a region/era-specific survey. It fixes
-#' `technique = "Broadcast"` on every row, matching Spain_Hist's own real
-#' production MANNER run, which itself hardcodes Broadcast application
-#' nationally with no region/era variation
-#' (`factor_ap_technique <- application_technique_manure[Technique ==
-#' "Broadcast", ...]` applied unconditionally to its whole national run).
+#' `technique = "Broadcast"` on every row, matching the production MANNER run
+#' of the earlier regional historical reconstruction this model is ported
+#' from, which itself applies the Broadcast application-technique factor
+#' unconditionally to its whole national run, with no region/era
+#' variation.
 #' For incorporation delay, it blends four of
 #' [manner_incorporation_factor]'s `delay_bin` categories in equal 25%
 #' shares: 25% of applied nitrogen assumed never incorporated
@@ -186,7 +186,8 @@ calculate_manner_nh3_default <- function(
 }
 
 # Rate factor: soil_type is the same pH-class axis, re-expressed as
-# calcareous/non-calcareous (calcareous == "other pH", MANNER_model.R:325).
+# calcareous/non-calcareous (calcareous == "other pH", as in the source
+# implementation).
 .manner_synth_rate_factor <- function(fertiliser, ph_class, rate_kg_ha) {
   soil_type <- if (ph_class == "other pH") "calcareous" else "non-calcareous"
   rate_bin <- .manner_rate_bin(rate_kg_ha)
@@ -284,10 +285,9 @@ calculate_manner_nh3_default <- function(
 }
 
 # "urban" is not a real manure type in the AG/incorporation sub-tables; the
-# verified Spain_Hist source (N_coefficients.xlsx, Manner_ferts sheet, row
-# 43) maps Urban to FYM, so it borrows FYM's coefficients: manure_coef
-# 0.683, the 0.4 Org_ef correction and the FYM incorporation factors (see
-# calculate_manner_nh3 Details for the inorganic_n_fraction override that
+# source coefficient table maps Urban to FYM, so it borrows FYM's coefficients:
+# manure_coef 0.683, the 0.4 Org_ef correction and the FYM incorporation factors
+# (see calculate_manner_nh3 Details for the inorganic_n_fraction override that
 # still fixes urban at 0.5 regardless of this class).
 .manner_manure_key <- function(fertiliser) {
   if (fertiliser == "urban") "FYM" else fertiliser
@@ -349,8 +349,8 @@ calculate_manner_nh3_default <- function(
 # top-to-bottom in its monotonically increasing delay_hours order; a
 # missing or infinite delay maps to "No incorporation" (factor 1). This
 # bin-selection rule is an inference from the monotonic structure of the
-# source table (not restated in-line in Spain_Hist), so it should be
-# double-checked.
+# source table (not restated in-line in the source implementation), so it should
+# be double-checked.
 .manner_incorporation_factor <- function(manure_key, incorporation_delay_h) {
   table <- whep::manner_incorporation_factor |>
     dplyr::filter(.data$manure_type == .env$manure_key)
@@ -370,16 +370,17 @@ calculate_manner_nh3_default <- function(
   dplyr::slice_min(ceiling_bin, .data$delay_hours, n = 1)$factor
 }
 
-# Inorganic (ammoniacal) nitrogen fraction: "urban" is a fixed 0.5
-# override (nh3.r:102-104), independent of species; every other manure type
-# looks up manure_inorganic_n at its ammoniacal stream (Liquid for the
-# slurries, Solid for FYM/poultry) for the ACTUAL applied species. Spain_Hist
-# maps every species' solid stream (Sheep/Horses/Goats/Donkeys_mules/Rabbits)
-# to the FYM MANNER class but looks Manure_inorganic_N up per real species, so
-# the caller-supplied species drives the fraction. species is NULL only when a
-# direct caller omits it; then it falls back to the manure type's default
-# species (Cattle slurry/FYM, Pigs slurry, Poultry manure) per the documented
-# calculate_manner_nh3 Details mapping.
+# Inorganic (ammoniacal) nitrogen fraction: "urban" is a fixed 0.5 override (as
+# in the source implementation), independent of species; every other manure type
+# looks up manure_inorganic_n at its ammoniacal stream (Liquid for the slurries,
+# Solid for FYM/poultry) for the ACTUAL applied species. The source
+# implementation maps every species' solid stream
+# (Sheep/Horses/Goats/Donkeys_mules/Rabbits) to the FYM MANNER class but looks
+# Manure_inorganic_N up per real species, so the caller-supplied species drives
+# the fraction. species is NULL only when a direct caller omits it; then it
+# falls back to the manure type's default species (Cattle slurry/FYM, Pigs
+# slurry, Poultry manure) per the documented calculate_manner_nh3 Details
+# mapping.
 .manner_inorganic_n_fraction <- function(fertiliser, species) {
   if (fertiliser == "urban") {
     return(0.5)

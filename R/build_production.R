@@ -52,22 +52,69 @@
 #'     resolved to in that year. It moves published pre-1962 values, needs
 #'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
 #'     is minutes of extra work.
+#' @param fodder_split Character. How an EU AgriDB fodder area is divided
+#'   among the FAOSTAT items that share its Eurostat label (seven items share
+#'   "Other plants harvested green from arable land", four "Other root crops
+#'   n.e.c."). Either way the items together get exactly the reported area;
+#'   until whep#654 each item could get all of it.
+#'   * `"fao_mix"` (default) splits it in proportion to FAOSTAT's own item
+#'     areas in that year, or in the nearest years that report them. A label
+#'     FAOSTAT never gives an item area for in that country is split evenly.
+#'   * `"equal"` gives every item sharing the label the same share.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
 #'   `.fix_production()`. Columns required: `year`, `area`, `area_code`,
 #'   `item_prod`, `item_prod_code`, `item_cbs`, `item_cbs_code`,
-#'   `live_anim`, `live_anim_code`, `unit`, `value`, `source`.
+#'   `live_anim`, `live_anim_code`, `unit`, `value`, `source`. `fao_flag` is
+#'   used when present and completed as `NA` when it is not.
 #'   Default `NULL`.
 #'
-#' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
-#'   `reporting_polity_code`, `reporting_polity_name`,
+#' @returns A tibble with the columns of [get_primary_production()] plus
+#'   `fao_flag`: `year`, legacy numeric `area_code`, numeric
+#'   `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
 #'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
-#'   `live_anim_code`, `unit`, `value`, and `source`.
+#'   `live_anim_code`, `unit`, `value`, `source`, and `fao_flag`.
 #'   Item names can be recovered via [add_item_prod_name()] and related helpers.
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
+#'
+#'   `fao_flag` is FAOSTAT's own observation-status code for the value (`"A"`
+#'   official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), and it describes
+#'   the number in `value` rather than the row's item or area. It is `NA`
+#'   wherever the number is not one FAOSTAT published under a flag, which is
+#'   most rows that are not `unit == "tonnes"` or `unit == "ha"`:
+#'   * WHEP's own yields (`t_ha`, `t_LU`, `t_head`) are ratios it computes, so
+#'     FAOSTAT's separate Yield flag is not a statement about them;
+#'   * `LU` and `heads` are livestock-unit conversions summed over an animal's
+#'     products, and `slaughtered_heads` is one FAOSTAT count split across CBS
+#'     items by shares;
+#'   * a gap-filled, back-cast, imputed or reconstructed value (`fill_linear`,
+#'     `imputed_yield`, `LUH2_*`, `EuropeAgriDB`, `DM_yield_estimate`,
+#'     `Estimated`) is WHEP's estimate, not a reported figure -- and a
+#'     `FAOSTAT_prod` row can still be one of these, because `source` is
+#'     resolved per key while the flag is resolved per quantity;
+#'   * a value summed or averaged from parts whose flags disagree is dropped
+#'     rather than credited to one of them (whep#581).
+#'
+#'   Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
+#'   `tonnes` rows and 88.2% of `ha` rows.
+#'
+#'   Green fodder area is reconstructed, and `source` says how. FAOSTAT
+#'   reports fodder tonnage only (`faostat-production-old`, to 2012); EU
+#'   AgriDB reports area and yield (to 2019), and its rows read
+#'   `"EuropeAgriDB"`. A fodder area held flat past its series' last
+#'   observation reads `"DM_yield_estimate_carried_forward"`, one held flat
+#'   before its first `"DM_yield_estimate_carried_backward"`, and one
+#'   interpolated between two observations `"DM_yield_estimate"`. From 2013
+#'   every non-EU fodder area is its 2012 value carried forward: measured on
+#'   the real inputs, 75.0 of the 100.0 Mha of green fodder area in 2013,
+#'   against 2.2 of 99.5 Mha in 2012. A fodder series therefore changes what
+#'   it is made of at 2012/2013 with no change in level (whep#1027). That is
+#'   why [check_series_jumps()] finds nothing at 2013 in fodder area per
+#'   country (no area of 100 is flagged), and why it finds the break at once
+#'   in the yearly share of fodder area whose `source` is a carried one (0.022
+#'   to 0.750, a ratio of 33.5).
 #'
 #' @export
 #'
@@ -82,6 +129,7 @@ build_primary_production <- function(
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
+  fodder_split = c("fao_mix", "equal"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -89,6 +137,7 @@ build_primary_production <- function(
   }
   federation_land <- rlang::arg_match(federation_land)
   land_method <- rlang::arg_match(land_method)
+  fodder_split <- rlang::arg_match(fodder_split)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -96,7 +145,8 @@ build_primary_production <- function(
       end_year,
       historical_data,
       federation_land = federation_land,
-      land_method = land_method
+      land_method = land_method,
+      fodder_split = fodder_split
     )
   } else {
     if (!is.null(historical_data)) {
@@ -109,6 +159,7 @@ build_primary_production <- function(
   cb_extracts <- attr(raw, ".cb_extracts")
 
   clean <- raw |>
+    .ensure_fao_flag() |>
     .fix_production() |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
     tibble::as_tibble()
@@ -138,7 +189,13 @@ build_primary_production <- function(
       unit,
       value,
       source,
-      dplyr::any_of("fao_flag")
+      # `all_of()`, not `any_of()`. `any_of()` cannot fail on a missing column
+      # by design, so for as long as `.read_production()` did not carry the
+      # flag this line silently selected nothing and the code still read as
+      # though the flag reached the CBS -- which is what hid whep#1044. The
+      # column is now guaranteed upstream by `.ensure_fao_flag()`, so a future
+      # rename should stop the build rather than empty the column.
+      dplyr::all_of("fao_flag")
     ) |>
     .add_reporting_polity_columns()
 
@@ -165,11 +222,13 @@ build_primary_production <- function(
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_prod`, `item_prod_code`,
 #'   `item_cbs`, `item_cbs_code`, `live_anim`, `live_anim_code`,
-#'   `unit`, `value`, `source`.
+#'   `unit`, `value`, `source`, `fao_flag`.
 #'
 #'   The `source` column indicates data provenance:
 #'   `"FAOSTAT_prod"` (original FAOSTAT production), `"EuropeAgriDB"` (European AgriDB fodder),
 #'   `"DM_yield_estimate"` (dry-matter yield imputation),
+#'   `"DM_yield_estimate_carried_forward"` /
+#'   `"DM_yield_estimate_carried_backward"` (fodder area held flat),
 #'   `"fill_linear"` (interpolation), `"imputed_yield"` (yield × area),
 #'   `"imputed_cbs_ratio"` (CBS ratio imputation),
 #'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy),
@@ -195,12 +254,43 @@ build_primary_production <- function(
 # full-range request takes the historical branch and is unaffected.
 .yield_year_margin <- 3L
 
+# The span the yield chain (steps 1-7 of `.read_production()`) reads: the
+# full-range build's own span, whatever window was requested.
+#
+# The chain cannot be scoped to a window and stay exact (whep#834, #1082).
+# Three `fill_linear()` calls in it -- `yield_c` per country, `yield_glo` per
+# item, `prod_cbs_ratio` per country and CBS item -- interpolate or carry a
+# value from the nearest year that has one, and that year can be decades away:
+# with no anchor inside a 2010 +-3-year window, Singapore duck meat (1091) fell
+# through to the global yield -- itself a ratio of sums over whichever areas the
+# window holds -- and shipped 0.508 t_LU against the full build's 0.107. Shared
+# `t_LU`/`t_head` rows differed by up to 79% at 2010 and 97% at 1995, while the
+# totals agreed to 3e-04. No finite margin is safe, because the
+# look-back is data-dependent and unbounded, so the chain reads the whole span
+# and only its output is trimmed. `max()`/`min()` keep a request outside the
+# default span reading at least what it asks for.
+.yield_chain_years <- function(start_year, end_year) {
+  min(start_year, 1850L):max(end_year, 2023L)
+}
+
+# Trim a yield-chain table back to the window the rest of the build reads. A
+# full-range build reads the same span in both places and gets its input back
+# untouched, so its output cannot move.
+.trim_yield_chain <- function(df, chain_years, years) {
+  if (identical(chain_years, years)) {
+    return(df)
+  }
+  out <- .filter_years(df, years)
+  if (tibble::is_tibble(df)) tibble::as_tibble(out) else out
+}
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
   historical_data = NULL,
   federation_land = "none",
-  land_method = "present_day"
+  land_method = "present_day",
+  fodder_split = "fao_mix"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -210,11 +300,10 @@ build_primary_production <- function(
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
   #
-  # A requested window is also widened by a margin either side, for the same
-  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
-  # window with no neighbouring years cannot reconstruct a yield the full-range
-  # build reconstructs, and the row is dropped instead (#666). A full-range
-  # request takes the historical branch and is therefore unaffected.
+  # A requested window is also widened by a margin either side (#666). The
+  # yield chain no longer reads `years` at all (see `.yield_chain_years()`), so
+  # the margin now only widens the land-area and historical-yield reads. A
+  # full-range request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
@@ -222,14 +311,28 @@ build_primary_production <- function(
     max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
-  # 1. Read commodity balances (for gap-filling)
+  # 1-7 are the yield chain. It reads its own span, not `years`: see
+  # `.yield_chain_years()`. Only the yield table leaves it, trimmed to `years`.
+  chain_years <- .yield_chain_years(start_year, end_year)
+
+  # 1. Read commodity balances (for gap-filling). The CBS build reuses the
+  # extracts, so they stay on the window; the chain reads only `production`
+  # over its own span, which costs a tenth of the full extraction.
   cbs_prod_raw <- .read_cbs_production(years = years)
+  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+  if (!identical(chain_years, years)) {
+    cbs_prod_raw <- .read_cbs_production(chain_years, elements = "production")
+  }
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(years = years)
+  fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years)
+  fodder <- .build_fodder(
+    fao_crop_liv,
+    years = chain_years,
+    fodder_split = fodder_split
+  )
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -237,11 +340,13 @@ build_primary_production <- function(
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    years = years
+    years = chain_years
   )
 
-  # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(fao_combined)
+  # 5b. Livestock slaughter counts (read counts, no year-axis fill: scoped)
+  fao_slaughter <- .build_livestock_slaughter(
+    .trim_yield_chain(fao_combined, chain_years, years)
+  )
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -250,10 +355,14 @@ build_primary_production <- function(
   yield_all <- .compute_yields(
     primary_raw,
     cbs_prod_raw
-  )
+  ) |>
+    .trim_yield_chain(chain_years, years)
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
-  primary_raw2 <- .assemble_production_raw(yield_all)
+  primary_raw2 <- .assemble_production_raw(
+    yield_all,
+    .trim_yield_chain(primary_raw, chain_years, years)
+  )
 
   historical_rows <- .prepare_historical_production(
     historical_data,
@@ -281,12 +390,14 @@ build_primary_production <- function(
   # 10. Add grassland + historical yields
   grassland <- .build_grassland(land_areas)
 
-  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+  prod_long <- primary_ext |>
+    dplyr::bind_rows(grassland)
+  fao_flags <- .production_flag_lookup(prod_long)
 
-  result <- primary_ext |>
-    dplyr::bind_rows(grassland) |>
+  result <- prod_long |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
+    .attach_production_flags(fao_flags) |>
     dplyr::bind_rows(fao_slaughter) |>
     .filter_years(output_years)
 
@@ -383,6 +494,18 @@ build_primary_production <- function(
       by = by_cols,
       anchor_years = anchor_years
     )
+    # The smoothed value is a linear trend WHEP fitted over the anchor years,
+    # not the figure FAOSTAT published, so the flag goes with the number it
+    # replaced (whep#1044).
+    if ("fao_flag" %in% names(df)) {
+      df[,
+        fao_flag := data.table::fifelse(
+          !is.na(qc_carry_forward) & qc_carry_forward,
+          NA_character_,
+          fao_flag
+        )
+      ]
+    }
   }
 
   df <- .collapse_qc_flags(df)
@@ -392,18 +515,12 @@ build_primary_production <- function(
 
 # -- Input reading helpers -----------------------------------------------------
 
-.read_cbs_production <- function(years = NULL) {
+.read_cbs_production <- function(years = NULL, elements = NULL) {
   cli::cli_progress_step("Reading CBS production")
-  fbs_new <- .extract_cb("faostat-fbs-new", years = years)
-  fbs_old <- .extract_cb("faostat-fbs-old", years = years)
-  cbs_anim <- .extract_cb(
-    "faostat-cbs-old-animal",
-    years = years
-  )
-  cbs_crops <- .extract_cb(
-    "faostat-cbs-old-crops",
-    years = years
-  )
+  fbs_new <- .extract_cb("faostat-fbs-new", years, elements)
+  fbs_old <- .extract_cb("faostat-fbs-old", years, elements)
+  cbs_anim <- .extract_cb("faostat-cbs-old-animal", years, elements)
+  cbs_crops <- .extract_cb("faostat-cbs-old-crops", years, elements)
 
   dt <- data.table::rbindlist(
     list(
@@ -448,9 +565,27 @@ build_primary_production <- function(
       "value"
     )
   )
-  # Rename FAOSTAT flag so .aggregate_to_polities carries it through
+  # Rename FAOSTAT flag so .aggregate_to_polities carries it through.
+  #
+  # Absence is reported rather than tolerated. Every one of the 4,209,110 rows
+  # of the pin carries a flag, so a missing column means the pin was rebuilt
+  # without it -- and everything downstream would then complete the column with
+  # NA and pass every shape check, which is how whep#1044 stayed invisible.
+  # A guard that only asserts the column EXISTS cannot see that.
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
+  } else {
+    cli::cli_warn(
+      c(
+        "{.field faostat-production} carries no {.field Flag} column.",
+        "!" = "Every production row's {.field fao_flag} will be {.val NA},
+               so the CBS cannot tell an official measurement from FAO's own
+               estimate.",
+        "i" = "The pin is expected to keep FAOSTAT's observation-status codes;
+               regenerate it from a download that includes them (whep#1044)."
+      ),
+      class = "whep_warn_missing_prod_flag"
+    )
   }
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(
@@ -722,7 +857,11 @@ build_primary_production <- function(
 # so a window narrower than the fodder sources both starts from a smaller group
 # universe and has no anchors to interpolate from -- which silently drops every
 # forage item (#623). Run the whole chain over the full span and trim at the end.
-.build_fodder <- function(fao_crop_liv, years = NULL) {
+.build_fodder <- function(
+  fao_crop_liv,
+  years = NULL,
+  fodder_split = "fao_mix"
+) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
   items <- whep::items_full
@@ -748,7 +887,8 @@ build_primary_production <- function(
     fodder_euadb,
     dm_yield,
     items_prod,
-    biomass
+    biomass,
+    fodder_split = fodder_split
   ) |>
     .filter_years(years)
 }
@@ -909,8 +1049,10 @@ build_primary_production <- function(
   fodder_euadb,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = c("fao_mix", "equal")
 ) {
+  fodder_split <- rlang::arg_match(fodder_split)
   crops_dm <- items_prod |>
     dplyr::left_join(
       biomass |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
@@ -950,7 +1092,7 @@ build_primary_production <- function(
       ha = t_dm / yield_dm
     ) |>
     .merge_euadb_fodder(fodder_euadb, items_prod) |>
-    .fill_fodder_gaps(dm_yield, items_prod, biomass)
+    .fill_fodder_gaps(dm_yield, items_prod, biomass, fodder_split)
 
   fodder_all |>
     .attach_fodder_area(source_labels) |>
@@ -1053,12 +1195,15 @@ build_primary_production <- function(
       ha_tot = sum(ha, na.rm = TRUE),
       .by = c(year, area_code)
     ) |>
+    # A label FAO gives no item area for has no item mix in that year: `NA`,
+    # so `.fill_fodder_gaps()` takes the mix from the nearest years that have
+    # one. It used to be 1 for every item, copying the area onto each (#654).
     dplyr::mutate(
       sum_ha = sum(ha, na.rm = TRUE),
       ha_share = dplyr::if_else(
-        ha_tot == 0,
+        ha_tot == 0 | sum_ha == 0,
         NA_real_,
-        dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
+        ha / sum_ha
       ),
       .by = c(year, area_code, Name_Eurostat)
     )
@@ -1068,7 +1213,8 @@ build_primary_production <- function(
   fodder,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = "fao_mix"
 ) {
   grp_cols <- c(
     "area_code",
@@ -1121,6 +1267,7 @@ build_primary_production <- function(
     .by = grp_cols,
     .copy = FALSE
   )
+  dt <- .split_euadb_area(dt, fodder_split)
   dt[, ha := data.table::fifelse(is.na(ha_euadb), ha, ha_euadb * ha_share)]
   dt <- fill_linear(dt, ha, time_col = year, .by = grp_cols, .copy = FALSE)
 
@@ -1134,6 +1281,7 @@ build_primary_production <- function(
       t_dm,
       ha_share,
       ha,
+      source_ha,
       kgnha_euadb
     )
   ]
@@ -1162,17 +1310,65 @@ build_primary_production <- function(
     t_dmbased = ha * yield_dm / Product_kgDM_kgFM
   )]
   dt[, t_2 := data.table::fifelse(!is.na(t_euadb), t_euadb, t_dmbased)]
-  dt[,
-    source := data.table::fcase(
-      !is.na(t)       ,
-      "FAOSTAT_prod"  ,
-      !is.na(t_euadb) ,
-      "EuropeAgriDB"  ,
-      default = "DM_yield_estimate"
-    )
-  ]
+  dt[, source := .fodder_row_source(t, t_euadb, source_ha)]
+  dt[, source_ha := NULL]
 
-  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
+  # A zero share is an item FAOSTAT never reports under that label: it has no
+  # area to carry, so it is left out rather than written as a zero row.
+  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2) & !(ha_share %in% 0)])
+}
+
+# EU AgriDB reports one area per Eurostat label, and up to seven FAOSTAT items
+# share a label, so the area is divided among them: the item shares of each
+# `(year, area_code, Name_Eurostat)` that reports an area are made to sum to
+# one. Interpolated shares need it too -- each item's share is carried along
+# the year axis on its own, from whichever year last reported that item, so
+# they did not sum to one either (#654).
+#
+# * `"fao_mix"`: FAOSTAT's own item mix, from the same year or carried from the
+#   nearest years that report one. A label FAOSTAT never gives an item area for
+#   has no mix to use and is split evenly.
+# * `"equal"`: every item sharing the label gets the same share.
+.split_euadb_area <- function(dt, fodder_split) {
+  by <- c("year", "area_code", "Name_Eurostat")
+  if (identical(fodder_split, "equal")) {
+    dt[!is.na(ha_euadb), ha_share := 1 / .N, by = by]
+    return(dt)
+  }
+  dt[!is.na(ha_euadb), ha_share := .normalise_shares(ha_share), by = by]
+  dt
+}
+
+.normalise_shares <- function(share) {
+  total <- sum(share, na.rm = TRUE)
+  if (total > 0) {
+    return(data.table::fcoalesce(share, 0) / total)
+  }
+  rep(1 / length(share), length(share))
+}
+
+# Provenance of a fodder row's numbers (#1027). An area `fill_linear()` held
+# flat past a series' last anchor, or before its first, is a carried value and
+# says so: FAOSTAT's fodder tonnage ends in 2012 while EU AgriDB runs to 2019,
+# so from 2013 every non-EU fodder area is its 2012 value held flat, and under
+# the one label an interpolated area also gets that switch was invisible.
+# Carried comes first because the area is what was carried; the tonnage is that
+# area times a dry-matter or EU AgriDB yield. EU AgriDB comes before FAOSTAT
+# because where it exists it supplies both the hectares and the tonnage (`t_2`);
+# keying on the FAOSTAT tonnage relabelled every EU row the year that series
+# ended, with no number changing.
+.fodder_row_source <- function(t, t_euadb, source_ha) {
+  data.table::fcase(
+    source_ha == "Last value carried forward"    ,
+    "DM_yield_estimate_carried_forward"          ,
+    source_ha == "First value carried backwards" ,
+    "DM_yield_estimate_carried_backward"         ,
+    !is.na(t_euadb)                              ,
+    "EuropeAgriDB"                               ,
+    !is.na(t)                                    ,
+    "FAOSTAT_prod"                               ,
+    default = "DM_yield_estimate"
+  )
 }
 
 .correct_tea <- function(df) {
@@ -1207,12 +1403,9 @@ build_primary_production <- function(
   # 2010, Italy, Kazakhstan and Latvia have no duck stock row of their own that
   # year, so a scoped read never formed the combination at all.
   #
-  # This is a partial improvement, not a fix for #666. It does now form the
-  # combination -- the rows appear -- but a scoped build still derives `LU` as NA
-  # where a full build derives 0, so the duck-product rows are still lost at 2010
-  # and 1995 and only half recovered at 2015. `LU` = heads * LU_head via a join
-  # on `Animal_class`, which the completion's `nesting()` does not carry; why the
-  # full build nonetheless lands on 0 is the open question. See #666.
+  # This alone did not recover #666's duck-product rows: the rest of the yield
+  # chain still ran on the window. Since whep#834 the whole chain reads the full
+  # span (see `.yield_chain_years()`), and those rows match the full build.
   #
   # Trimmed back below, so only the read widens: full-range output is unchanged.
   fao_stocks <- .read_livestock_stocks(years = NULL)
@@ -1653,7 +1846,7 @@ build_primary_production <- function(
 
 .combine_primary_raw <- function(fao_combined, fao_liv_all) {
   cli::cli_progress_step("Combining primary raw dataset")
-  dplyr::bind_rows(
+  bound <- dplyr::bind_rows(
     fao_combined |>
       dplyr::filter(unit %in% c("ha", "t")) |>
       dplyr::mutate(
@@ -1664,19 +1857,29 @@ build_primary_production <- function(
         )
       ),
     fao_liv_all
-  ) |>
+  )
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "unit"
+  )
+  out <- bound |>
     dplyr::summarise(
       value = sum(value),
       source = source[1L],
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        unit
-      )
+      .by = dplyr::all_of(by_cols)
     )
+  # `source[1L]` above is an arbitrary pick and always was. The FAOSTAT
+  # observation-status flag must not be, because it is a claim about the summed
+  # value rather than a label for one of its parts -- a FAOSTAT tonnage bound to
+  # a reconstructed fodder tonnage on the same key is not "official" because one
+  # half of it was. Kept when every part agrees, `NA` when they disagree
+  # (whep#581). An unflagged part blocks it as well (whep#1044).
+  .add_folded_fao_flags(out, bound, by_cols, unflagged = "blocks") |>
+    tibble::as_tibble()
 }
 
 .add_game_meat <- function(df) {
@@ -1705,6 +1908,10 @@ build_primary_production <- function(
     whep::primary_double
   )
 
+  # `yield_double` carries no flag columns and therefore binds as NA. That is
+  # the right answer rather than an omission: a double-product row's tonnage
+  # and area are `.build_double_combined()`'s reconstruction from two reported
+  # series, not a figure FAOSTAT published under a flag (whep#1044).
   dplyr::bind_rows(
     yield_raw |>
       dplyr::filter(
@@ -1716,6 +1923,7 @@ build_primary_production <- function(
 }
 
 .calculate_raw_yields <- function(primary_raw, items_prod) {
+  primary_raw <- .ensure_fao_flag(primary_raw)
   crop_dt <- data.table::as.data.table(primary_raw)[unit %in% c("ha", "t")]
   crop_yield <- data.table::dcast(
     crop_dt,
@@ -1739,11 +1947,14 @@ build_primary_production <- function(
     all.x = TRUE,
     sort = FALSE
   )
+  crop_yield <- .add_crop_yield_flags(crop_yield, crop_dt)
   crop_yield <- tibble::as_tibble(crop_yield)
 
   liv_yield <- primary_raw |>
     dplyr::filter(unit == "t") |>
     dplyr::select(-unit) |>
+    dplyr::rename(flag_t = fao_flag) |>
+    dplyr::mutate(flag_fu = NA_character_) |>
     dplyr::right_join(
       items_prod |>
         dplyr::filter(!is.na(live_anim)) |>
@@ -1821,7 +2032,13 @@ build_primary_production <- function(
         yield_c == 0 | is.infinite(yield_c) | is.nan(yield_c),
         NA_real_,
         yield_c
-      )
+      ),
+      # A flag describes the number it arrived with, so it goes wherever that
+      # number goes -- including to NA. A reported zero is discarded here and
+      # `.impute_missing_values()` replaces it, so keeping its flag would put a
+      # FAOSTAT observation status on WHEP's own estimate (whep#1044).
+      flag_t = dplyr::if_else(is.na(t), NA_character_, flag_t),
+      flag_fu = dplyr::if_else(is.na(fu), NA_character_, flag_fu)
     ) |>
     tidyr::complete(
       year,
@@ -1853,6 +2070,41 @@ build_primary_production <- function(
   src <- src[src[, .I[1L], by = key]$V1]
   src[, .src_rank := NULL]
   src[]
+}
+
+# The FAOSTAT observation-status flag of each of the two quantities the yield
+# dcast folds into columns, pivoted the same way the values are.
+#
+# It has to be per-unit. FAOSTAT flags "Area harvested" and "Production" as
+# separate observations and they disagree, so a single flag for the pair would
+# credit the tonnage's provenance to the hectarage or the other way round --
+# exactly the misattribution whep#953 refused for the CBS sources. Unlike
+# `source`, which `.best_source_by_key()` has to arbitrate down to one per key,
+# there is nothing to arbitrate here: each flag follows its own number.
+#
+# `crop_dt` is unique on (key, unit) -- `.combine_primary_raw()` summed it that
+# way -- which is the same fact the value dcast above relies on, so neither
+# needs a `fun.aggregate`.
+.add_crop_yield_flags <- function(crop_yield, crop_dt) {
+  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  crop_yield[, `:=`(flag_fu = NA_character_, flag_t = NA_character_)]
+  flags <- data.table::dcast(
+    crop_dt,
+    year + area + area_code + item_prod + item_prod_code ~ unit,
+    value.var = "fao_flag"
+  )
+  # A frame carrying only one of the two units still has to come out with both
+  # flag columns, so the caller's shape does not depend on its input.
+  for (unit_col in setdiff(c("ha", "t"), names(flags))) {
+    flags[, (unit_col) := NA_character_]
+  }
+  data.table::setnames(flags, c("ha", "t"), c("flag_fu", "flag_t"))
+  crop_yield[
+    flags,
+    `:=`(flag_fu = i.flag_fu, flag_t = i.flag_t),
+    on = key
+  ]
+  crop_yield
 }
 
 .handle_double_products <- function(yield_raw, primary_double) {
@@ -2059,6 +2311,11 @@ build_primary_production <- function(
   )
 
   out <- out[chars]
+  # Not folded through `.first_non_na_chars()` with `source`: that helper keeps
+  # whichever row's value is non-NA first, which is the arbitrary pick whep#581
+  # ruled out for a flag. `t` and `fu` are summed over the group above, so the
+  # flag of the sum is only defined when every part agrees.
+  out <- .add_folded_fao_flags(out, df, by_cols, c("flag_t", "flag_fu"))
   df[, c(".t_ok", ".fu_ok") := NULL]
   out
 }
@@ -2195,12 +2452,15 @@ build_primary_production <- function(
   )
 
   out <- out[chars]
+  out <- .add_folded_fao_flags(out, df, by_cols, c("flag_t", "flag_fu"))
   df[, .tcbs_ok := NULL]
   out
 }
 
 .impute_missing_values <- function(df) {
   df |>
+    .ensure_fao_flag("flag_t") |>
+    .ensure_fao_flag("flag_fu") |>
     dplyr::mutate(
       yield = dplyr::if_else(
         !is.na(yield_c),
@@ -2237,6 +2497,15 @@ build_primary_production <- function(
         TRUE ~ "imputed_yield"
       )
     ) |>
+    # The load-bearing guarantee behind `fao_flag` on the production output:
+    # `t2` is `t` exactly when `t` is present and an imputation otherwise, and
+    # `fu2` is `fu` on the same terms. So each flag is valid on precisely the
+    # rows where its own number survived, and NA is asserted rather than
+    # assumed everywhere else (whep#1044).
+    dplyr::mutate(
+      flag_t = dplyr::if_else(is.na(t), NA_character_, flag_t),
+      flag_fu = dplyr::if_else(is.na(fu), NA_character_, flag_fu)
+    ) |>
     dplyr::mutate(
       remove = dplyr::if_else(
         (is.na(group) | group == "Crop products") |
@@ -2252,10 +2521,26 @@ build_primary_production <- function(
 
 # -- Assembly ------------------------------------------------------------------
 
-.assemble_production_raw <- function(yield_all) {
+# `items` is an argument only so a test can build the "live animal with no
+# `items_full` row" case by hand: since whep#1107 no curated live animal is in
+# that class, and a `whep::` data read cannot be mocked.
+.assemble_production_raw <- function(
+  yield_all,
+  stocks = NULL,
+  items = whep::items_full
+) {
   cli::cli_progress_step("Assembling production")
-  items <- whep::items_full
 
+  yield_all <- yield_all |>
+    .ensure_fao_flag("flag_t") |>
+    .ensure_fao_flag("flag_fu")
+
+  # Each output row takes the flag of the quantity it is: the `ha` row gets
+  # "Area harvested"'s flag, the `t` row gets "Production"'s. The yield rows get
+  # neither. WHEP computes its own yield as t/fu, so FAOSTAT's Yield flag is not
+  # a statement about this number and the two input flags describe different
+  # quantities -- a ratio of an official area and an estimated tonnage is not
+  # "official" (whep#1044).
   ha_df <- yield_all |>
     dplyr::filter(unit == "t_ha") |>
     dplyr::mutate(unit = "ha") |>
@@ -2269,7 +2554,8 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = fu2
+      value = fu2,
+      fao_flag = flag_fu
     )
 
   tonnes_df <- yield_all |>
@@ -2285,10 +2571,12 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = t2
+      value = t2,
+      fao_flag = flag_t
     )
 
   yield_df <- yield_all |>
+    dplyr::mutate(fao_flag = NA_character_) |>
     dplyr::select(
       year,
       area,
@@ -2299,14 +2587,19 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = yield
+      value = yield,
+      fao_flag
     )
 
+  # No flag: the stock these rows report is `.finalise_livestock()`'s LU/head
+  # conversion averaged over every product of the animal, so it is not a figure
+  # FAOSTAT published for any one of them.
   live_anim_df <- yield_all |>
     dplyr::filter(unit %in% c("t_LU", "t_head")) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
       source = source[1L],
+      fao_flag = NA_character_,
       .by = c(
         year,
         area,
@@ -2322,13 +2615,9 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::rename(item_prod_code = live_anim_code) |>
-    dplyr::left_join(
-      items |>
-        dplyr::select(item_cbs, item_cbs_code) |>
-        dplyr::mutate(item_prod_code = as.character(item_cbs_code)),
-      by = "item_prod_code"
-    ) |>
-    dplyr::mutate(item_prod = item_cbs)
+    .name_live_anim(items)
+
+  live_anim_df <- .restore_unproduced_stocks(live_anim_df, stocks, items)
 
   dplyr::bind_rows(ha_df, tonnes_df, yield_df) |>
     dplyr::select(-item_prod) |>
@@ -2355,6 +2644,101 @@ build_primary_production <- function(
         as.character(unit)
       )
     )
+}
+
+# Give a live-animal count row its CBS identity. `items_full` keys on the CBS
+# item, and a live animal's `item_prod_code` is that same code as a string.
+.name_live_anim <- function(df, items) {
+  df |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs, item_cbs_code) |>
+        dplyr::mutate(item_prod_code = as.character(item_cbs_code)),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(item_prod = item_cbs)
+}
+
+# Add back the live-animal stocks the yield branch cannot carry (whep#1050).
+#
+# `live_anim_df` above reads the head/LU count off `yield_all`, which reaches a
+# live animal only through its *products*: `.calculate_raw_yields()` joins the
+# stock on to `items_prod_full`'s product rows, and `.impute_missing_values()`
+# then drops any row whose tonnage is missing or zero. So a country that keeps
+# an animal but reports no tonnage for any product of it lost its whole
+# reported herd -- a FAOSTAT-published stock discarded because a *different*
+# quantity was absent. Measured on the 2020 world build: asses 52.17 -> 7.81 M
+# head (124 -> 9 areas), mules 7.88 -> 0.67 M, horses 55.42 -> 39.85 M,
+# 524 M head in all.
+#
+# `stocks` is `primary_raw`, whose "heads" / "LU" rows are
+# `.finalise_livestock()`'s own output, so restoring one asserts nothing new --
+# it re-emits a number the build already had. Rows the yield branch did carry
+# are left exactly as they were: for those, `fu2` *is* the reported stock, so
+# the anti-join changes no value and adds no duplicate.
+.restore_unproduced_stocks <- function(live_anim_df, stocks, items) {
+  if (is.null(stocks) || nrow(stocks) == 0L) {
+    return(live_anim_df)
+  }
+  eligible <- .eligible_stock_rows(stocks)
+  named <- .report_unnamed_live_anim(eligible, items)
+  restored <- named |>
+    dplyr::anti_join(
+      live_anim_df,
+      by = c("year", "area_code", "item_prod_code", "unit")
+    )
+  dplyr::bind_rows(live_anim_df, restored)
+}
+
+# The stock rows eligible for restoration: the curated live animals of
+# `animals_codes`, never FAO's own aggregates. `.combine_livestock()` completes
+# the year axis against every item in the emissions pin, which carries
+# "Sheep and Goats" (1749), "Mules and Asses" (1759), "All Animals" (1755) and
+# others; each is a sum of rows already present, so restoring one would double
+# count the herd. `fao_flag` is NA for the same reason the yield branch gives:
+# the number is `.finalise_livestock()`'s LU/head conversion, not a figure
+# FAOSTAT published under a flag.
+.eligible_stock_rows <- function(stocks) {
+  live_codes <- as.character(whep::animals_codes$item_cbs_code)
+  stocks |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      .data$unit %in% c("LU", "heads"),
+      as.character(.data$item_prod_code) %in% live_codes,
+      !is.na(.data$value),
+      .data$value != 0
+    ) |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      source = .data$source[1L],
+      fao_flag = NA_character_,
+      .by = c("year", "area", "area_code", "item_prod_code", "unit")
+    )
+}
+
+# A live animal with no `items_full` row has no CBS identity, so it cannot be
+# emitted as a production row. Say which one and how much is lost rather than
+# dropping it quietly -- a silent drop of exactly this shape is what hid
+# whep#1050. FAOSTAT's breeding swine (code 1051, "Hogs") were in this class
+# until whep#1107 gave them an `items_full` row; no curated live animal is
+# today, so this warning is unreachable on a full build and fires only for a
+# future animal added to `animals_codes` and not to `items_full`.
+.report_unnamed_live_anim <- function(eligible, items) {
+  named <- .name_live_anim(eligible, items)
+  unnamed <- named |> dplyr::filter(is.na(.data$item_cbs))
+  if (nrow(unnamed) > 0L) {
+    codes <- sort(unique(unnamed$item_prod_code))
+    heads <- round(sum(unnamed$value[unnamed$unit == "heads"], na.rm = TRUE))
+    cli::cli_warn(
+      c(
+        "{cli::qty(length(codes))}Live-animal stock code{?s} {.val {codes}}
+         {cli::qty(length(codes))}{?has/have} no {.field items_full} row.",
+        i = "Its stock is not emitted: {.val {heads}} head at stake."
+      ),
+      class = "whep_warn_unnamed_live_anim"
+    )
+  }
+  named |> dplyr::filter(!is.na(.data$item_cbs))
 }
 
 .prepare_historical_production <- function(historical_data, years) {
@@ -2755,7 +3139,11 @@ build_primary_production <- function(
       value = value * 3,
       unit = "LU",
       item_prod = "Game",
-      item_prod_code = 1190
+      item_prod_code = 1190,
+      # The tonnage's flag does not describe these rows. A stock inferred from
+      # a meat tonnage through an assumed 3 LU/t factor is WHEP's estimate for
+      # an item FAOSTAT reports no stock for at all (whep#1044).
+      fao_flag = NA_character_
     )
 
   game_heads <- game_lu |>
@@ -3522,6 +3910,66 @@ build_primary_production <- function(
   out
 }
 
+# The grain both ends of the wide detour below share: one row per production
+# key and unit.
+.production_flag_key <- function() {
+  c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+}
+
+# The FAOSTAT observation-status flags of the long production rows, parked while
+# the values take their wide detour through `.add_historical_yields()` and
+# `.finalise_primary()`, and re-joined on the far side.
+#
+# Parked rather than carried, for the reason `.best_source_by_key()` parks
+# `source` around the yield dcast and the CBS parks it around its pivots: a
+# character passenger cannot cross a `dcast`/`melt` cycle without becoming an id
+# column of it, and this one would have to cross two. What makes parking sound
+# here is that the grain does not change across the detour -- both ends are one
+# row per (key, unit) -- and nothing in between replaces a value that has a
+# flag. `tonnes := ha * t_ha` recomputes `tonnes / ha * ha` wherever the tonnage
+# was reported, and only reaches a back-cast `t_ha` where it was not, in which
+# case there is no flag to invalidate (whep#1044).
+#
+# The fold is over the key WITHOUT `land_use`, which is the one column
+# `.finalise_primary()` drops, so a key split across two land-use labels folds
+# rather than joining twice.
+.production_flag_lookup <- function(df) {
+  by_cols <- .production_flag_key()
+  src <- .ensure_fao_flag(data.table::as.data.table(df))
+  src <- data.table::copy(src[, c(by_cols, "fao_flag"), with = FALSE])
+  src[, unit := as.character(unit)]
+  .fold_fao_flag_by(src, by_cols)
+}
+
+.attach_production_flags <- function(df, flags) {
+  dt <- data.table::as.data.table(df)
+  dt[, fao_flag := NA_character_]
+  if (nrow(flags) == 0L) {
+    return(dt)
+  }
+  # `.finalise_primary()`'s `melt` leaves `unit` a factor; the lookup keys on
+  # the character labels, so the join gets a character column of its own rather
+  # than either side being coerced under it.
+  dt[, .join_unit := as.character(unit)]
+  join_cols <- c(setdiff(.production_flag_key(), "unit"), ".join_unit")
+  data.table::setnames(flags, "unit", ".join_unit")
+  dt[flags, fao_flag := i.fao_flag_folded, on = join_cols]
+  data.table::setnames(flags, ".join_unit", "unit")
+  dt[, .join_unit := NULL]
+  dt
+}
+
 .prod_source_rank <- function(source) {
   dplyr::case_when(
     source == "FAOSTAT_prod" ~ 1L,
@@ -3529,7 +3977,7 @@ build_primary_production <- function(
     stringr::str_starts(source, "historical_") ~ 3L,
     stringr::str_starts(source, "imputed_yield") ~ 4L,
     source == "imputed_cbs_ratio" ~ 5L,
-    source == "DM_yield_estimate" ~ 6L,
+    stringr::str_starts(source, "DM_yield_estimate") ~ 6L,
     source == "fill_linear" ~ 7L,
     source == "fill_linear_historical" ~ 8L,
     source == "LUH2_cropland" ~ 9L,

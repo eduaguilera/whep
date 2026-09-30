@@ -6,7 +6,7 @@
 # commodity-balance food have no denominator and vanish from every per-capita
 # output (#644); WPP covers 14 of them individually.
 #
-# Mechanism. CLAUDE.md prefers a verified on-demand download over a pin for
+# Mechanism. AGENTS.md prefers a verified on-demand download over a pin for
 # third-party data, because a pin adds an uncheckable second copy (#457). WPP
 # fits that shape except in one respect: UN DESA publishes no checksum and no
 # DOI for these CSVs, unlike the Zenodo records read_critical_n() and
@@ -182,8 +182,8 @@ read_wpp_population <- function(
         1L,
         as.integer(.data$AgeGrpSpan)
       ),
-      male = as.numeric(.data$PopMale) * 1000,
-      female = as.numeric(.data$PopFemale) * 1000
+      male = as.numeric(.data$PopMale) * .persons_per_thousand(),
+      female = as.numeric(.data$PopFemale) * .persons_per_thousand()
     )
   if (!is.null(years)) {
     out <- dplyr::filter(out, .data$year %in% years)

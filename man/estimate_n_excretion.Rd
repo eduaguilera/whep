@@ -10,6 +10,9 @@ estimate_n_excretion(intake, options = list())
 \item{intake}{A tibble of realised feed intake with at least \code{year},
 \code{territory}, \code{sub_territory}, \code{livestock_category}, \code{item_cbs_code},
 \code{feed_quality} and \code{intake_dm_t} (the \code{\link[=redistribute_feed]{redistribute_feed()}} result).
+The output of \code{\link[=get_feed_intake]{get_feed_intake()}} does not fit: it is keyed by
+\code{area_code} and \code{live_anim_code} and carries no \code{intake_dm_t}, and it is
+refused with a pointer to \code{\link[=redistribute_feed]{redistribute_feed()}}.
 \code{territory} is a stringified \code{area_code} (\code{as.character(area_code)}, what
 \code{\link[=redistribute_feed]{redistribute_feed()}} emits and what the whole manure chain carries
 through to the nitrogen inputs); an \code{iso3c} literal is still resolved
@@ -23,6 +26,32 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 (\code{n_intake - product_n}).
 \item \code{method_vs}: \code{"intake_digestibility"} (default,
 \code{intake_dm_t * (1 - digestibility) * (1 - ash)}).
+\item \code{method_digestibility}: where \code{digestibility} comes from.
+\code{"species_feed_quality"} (default) looks it up per species and feed
+quality: pigs and poultry fed concentrates digest far more of them
+than a ruminant does, so they take the IPCC (2019) Table 10.2
+(Updated) values for confined monogastrics; see Details.
+\code{"feed_quality"} is the earlier species-blind lookup, one value per
+feed quality for every species, kept for comparison (whep#1007).
+\item \code{method_c}: \code{"volatile_solids"} (the only method,
+\code{vs_excretion * c_vs_fraction}). The route it replaced,
+\code{n_excretion} times the \code{bio_coefs} \code{Excreta} C:N, is deliberately not
+offered as an alternative: it applied a fresh-dung C:N to
+whole-excreta nitrogen, some 60\% of which is urinary and carries almost
+no carbon, and returned 0.73 kg C per kg of volatile solids -- above
+pure protein, so not a composition organic matter can have (whep#1006).
+A route that cannot be right is not a sensitivity case, so this option
+names the algebra behind \code{c_excretion} rather than a choice, and
+\code{method_c_excretion} has one value until a second defensible method
+exists (whep#1100).
+\item \code{c_vs_fraction}: carbon per unit of volatile solids, kg C / kg VS.
+Default 0.47; see Details.
+\item \code{forage_n}: nitrogen content of the grazed forage that intake rows with
+no \code{item_cbs_code} take. \code{"assumed_midrange"} (default, 0.02 kg N/kg DM,
+an assumed unverified value), \code{"gleam_grass_fresh"} (0.022),
+\code{"gleam_grass_hay"} (0.017) and \code{"gleam_grass_mean"} from GLEAM 3.0
+Supplement S1 Tab. S.3.3, or \code{"biomass_coefs_grass"} (0.0174) from the
+\code{bio_coefs} \code{Grass} row.
 \item \code{product_n}: a tibble (\code{year}, \code{territory}, \code{sub_territory},
 \code{livestock_category}, \code{product_n}) required by \code{"intake_minus_product_n"}.
 }}
@@ -31,7 +60,8 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 A tibble with one row per
 \verb{year x territory x sub_territory x livestock_category} and columns
 \code{n_intake}, \code{n_excretion}, \code{c_excretion}, \code{vs_excretion},
-\code{method_n_excretion} and \code{method_vs}.
+\code{method_n_excretion}, \code{method_vs}, \code{method_digestibility},
+\code{method_c_excretion} and \code{method_forage_n}.
 }
 \description{
 Converts realised feed intake (the output of \code{\link[=redistribute_feed]{redistribute_feed()}}) into
@@ -40,6 +70,53 @@ excreted nitrogen, carbon and volatile solids per
 share one canonical nitrogen intake,
 \code{n_intake = sum(intake_dm_t * feed_n_content)}, so the methods are directly
 comparable.
+
+Carbon is the carbon of the excreted organic matter,
+\code{vs_excretion * c_vs_fraction}, so it inherits the intake-and-digestibility
+mass balance of the volatile solids. Urine carbon is not part of the
+volatile solids under \code{method_vs = "intake_digestibility"} and is not
+counted: at a C:N near 0.9 it is under a tenth of a dairy cow's excreted
+carbon (Dijkstra et al. 2018, Table 5) and is respired within days of
+deposition, so it never reaches the soil carbon this feeds.
+}
+\details{
+The default \code{c_vs_fraction} of 0.47 kg C per kg of volatile solids is the
+carbon content of the components that make up faecal organic matter in
+Dijkstra et al. (2018, Front. Sustain. Food Syst. 2:63,
+doi:10.3389/fsufs.2018.00063, Table 1): fibre 0.44, microbial organic
+matter 0.47, protein 0.52 and lipids 0.75 g C per g dry matter, weighted
+towards the fibre and microbial debris that dominate faeces. Measured
+manures bracket it: 0.52 for fresh bedded dairy manure (Choi et al. 2022,
+PeerJ 10:e14134, doi:10.7717/peerj.14134, Table 1: 43.3\% C and 83.3\% VS
+of dry matter) and 0.39-0.46 for stored cattle and pig manure (Baek et al.
+2020, Int. J. Environ. Res. Public Health 17:4737,
+doi:10.3390/ijerph17134737, Table 1).
+\subsection{Digestibility}{
+
+Digestibility here is the digestible share of the feed's gross energy
+(DE), which is what IPCC (2019) Eq. 10.24 uses for volatile solids. The
+per-feed-quality values are a scaffold anchored on the GLEAM 3.0
+ruminant feed table (\link{gleam_feed_digestibility}: fresh grass 66 and hay
+58, straws 44-47) and are applied to every species under
+\code{"feed_quality"}. Under \code{"species_feed_quality"} three of them are
+replaced by the representative values of the IPCC 2019 Refinement,
+Vol. 4, Ch. 10, Table 10.2 (Updated), taking the mid-point of each range:
+\itemize{
+\item pigs, \code{high_quality}: 0.85, growing swine in confinement (80-90).
+Market swine are the chain's representative pig category; mature
+confined swine are 70-80. The GLEAM 3.0 pig feed table (\link{gleam_feed_conversion_ratios}, Table
+S.3.4) agrees: maize 88, wheat 83, barley 76, soybean meal 80.
+\item pigs, \code{scavenging}: 0.60, free-range swine (50-70).
+\item poultry, \code{high_quality}: 0.89, broilers in confinement (85-93).
+Broilers are the representative poultry category of the whole manure
+chain; layers in confinement are 70-80.
+}
+
+Every other livestock category and feed quality keeps the scaffold value
+(rabbits too, although they borrow the swine coefficients elsewhere), and
+so does crop-residue feed for pigs and poultry: the GLEAM pig table gives
+straw 49 and crop tops 52, the same as the ruminant straws.
+}
 }
 \examples{
 intake <- tibble::tribble(

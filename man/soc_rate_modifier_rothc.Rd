@@ -6,8 +6,8 @@
 \source{
 Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
 turnover of carbon in soil. \doi{10.1007/978-3-642-61094-3_17}. Moisture
-deficit and cover terms as implemented in the Spain historical SOC
-pipeline.
+deficit and cover terms as implemented in an earlier regional historical
+SOC reconstruction.
 }
 \usage{
 soc_rate_modifier_rothc(
@@ -15,7 +15,7 @@ soc_rate_modifier_rothc(
   water_minus_pet_mm,
   clay_pct,
   soil_cover,
-  soil_depth_m = 0.3
+  soil_depth_m = .soc_topsoil_depth_m()
 )
 }
 \arguments{
@@ -31,7 +31,9 @@ accumulate the topsoil moisture deficit.}
 a scalar or monthly series.}
 
 \item{soil_depth_m}{Topsoil depth over which the moisture deficit is
-accumulated (metres). Defaults to 0.3.}
+accumulated (metres). Defaults to 0.3, the layer every soil-carbon stock
+in this package is defined over; RothC's published expression is
+calibrated on its own 0-23 cm layer and is rescaled to this depth.}
 }
 \value{
 The annual mean of the monthly a\emph{b}c product (a single numeric).

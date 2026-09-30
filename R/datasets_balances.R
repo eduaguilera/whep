@@ -125,10 +125,68 @@
 #'     organic carbon is sequestered (net carbon gain).}
 #' }
 #'
-#' @source Soil carbon-to-nitrogen ratios from the Spain historical SOC
-#'   pipeline coefficient set, consistent with the RothC framework of
-#'   Coleman, K. & Jenkinson, D. S. (1996).
-#'   \doi{10.1007/978-3-642-61094-3_17}.
+#' @section What the asymmetry represents:
+#' The two directional ratios are not two process stoichiometries. They express
+#' the FLEXIBILITY of soil C:N: a soil gaining carbon is expected to move to a
+#' wider ratio, a soil losing carbon to a narrower one, so the pair brackets
+#' the bulk value. Cropland is 8 -- 10 -- 11 and non-cropland 11 -- 15 -- 15.
+#'
+#' This is why both are documented as applying to the \emph{net} change: the
+#' ratio describes where a given soil's C:N is heading, which is a property of
+#' the soil, not of an individual crop or field on part of it. Applying the
+#' choice at a finer grain than the soil makes the two directions
+#' non-cancelling and manufactures nitrogen at a soil whose carbon did not
+#' change.
+#'
+#' The bounds themselves remain unsourced; see the source section below. What
+#' is wanted is a published \emph{marginal} C:N -- the ratio of the CHANGE in
+#' soil carbon to the change in soil nitrogen -- not a bulk soil C:N, which is
+#' a different quantity.
+#'
+#' @source **Expert parameterisation with a documented rationale and no
+#'   citation.** Traced through the coefficient workbook of the earlier
+#'   regional historical reconstruction the values come from, whose C:N sheet
+#'   has no source column and no notes column, as does the packaged
+#'   \code{inst/extdata/balances/soil_cn_ratios.csv}:
+#'
+#'   \itemize{
+#'     \item The bulk ratios (\code{cn_ratio} 10 cropland, 15 non-cropland)
+#'       enter the workbook on 2025-03-14, in a sheet holding only
+#'       \code{Cropland_class} and \code{CN_ratio}. The workbook's earliest
+#'       tracked version (2021-02-19) has no such sheet at all.
+#'     \item The asymmetry -- management stratification plus
+#'       \code{cn_mineralization} and \code{cn_sequestration} -- is added on
+#'       2026-03-26, together with an N-limitation on SOC sequestration.
+#'   }
+#'
+#'   The rationale recorded with the values is: a lower ratio on
+#'   mineralization for the microbial-biomass and labile pools that are
+#'   preferentially decomposed, a higher one on sequestration for stable
+#'   humus formation, and organic cropland sequestering at 13 against 11
+#'   conventional for the larger stable-humus fraction of manure- and
+#'   compost-derived carbon. No citation is attached to any of the values.
+#'
+#'   One published anchor exists nearby and is worth knowing: the source's
+#'   methods cite Cleveland & Liptzin (2007),
+#'   \doi{10.1007/s10533-007-9132-0}, for a soil microbial-biomass C:N of
+#'   roughly 8-13, and the cropland \code{cn_mineralization} values (8 and
+#'   9) fall inside it. It is cited there for a different parameter, and it
+#'   is not offered here as the source of these numbers -- only as the
+#'   nearest published range they are consistent with.
+#'
+#'   This entry previously cited Coleman & Jenkinson's RothC (1996) as the
+#'   framework the values are "consistent with". That attribution has been
+#'   removed: RothC is a carbon-only model and sets no carbon-to-nitrogen
+#'   ratio at all -- \code{\link{calculate_soc_rothc}} returns \code{dpm},
+#'   \code{rpm}, \code{bio}, \code{hum}, \code{iom} and \code{soc_total},
+#'   and no nitrogen anywhere -- so no RothC reference can be a source for
+#'   these numbers. Naming one made an undocumented coefficient set read as
+#'   a sourced one (whep#346).
+#'
+#'   The values move published nitrogen: every soil-carbon stock change is
+#'   divided by one of them to reach mineralized or sequestered nitrogen.
+#'   Whether to cite Cleveland & Liptzin for the mineralization ratios, and
+#'   what to cite for the rest, is whep#346 and still open.
 #'
 #' @examples
 #' soil_cn_ratios
@@ -204,9 +262,10 @@
 #' cell-year before running the SOC model. Other models (RothC, ICBM,
 #' AMG, Century) use their native carbon partition and ignore this table;
 #' AMG instead uses \code{amg_h_by_input_type}. Values are transcribed
-#' from the Spain historical agroecosystem \code{Biomass_coefs}
-#' \code{Residue_humified_kgC_kgC} column (manure and roots from the
-#' corresponding manure and \code{Root_humified_kgC_kgC} entries).
+#' from the biomass coefficient table of an earlier regional historical
+#' reconstruction, its \code{Residue_humified_kgC_kgC} column (manure and
+#' roots from the corresponding manure and \code{Root_humified_kgC_kgC}
+#' entries).
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -218,11 +277,11 @@
 #'   \item{humified_fraction}{Fraction of input carbon stabilised
 #'     directly into humus (kg humified carbon per kg carbon input).}
 #'   \item{description}{Human-readable description of the input type and
-#'     its Spain historical provenance.}
+#'     its provenance in the source coefficient table.}
 #' }
 #'
-#' @source Spain historical agroecosystem coefficient set
-#'   (\code{Biomass_coefs.xlsx}, \code{Residue_humified_kgC_kgC} and
+#' @source Biomass coefficient set of an earlier regional historical
+#'   reconstruction (its \code{Residue_humified_kgC_kgC} and
 #'   \code{Root_humified_kgC_kgC} columns), itself compiled from soil
 #'   organic carbon turnover and litter humification studies including
 #'   Andren, O. & Katterer, T. (1997).
@@ -292,14 +351,16 @@
 #' IPCC (2019) dry-area values for excreta; Atlantic factors follow the
 #' IPCC (2019) wet-area values. Missing factors mark sources whose N2O
 #' is not modelled through this pathway in the Mediterranean (recycled
-#' organic fertilisers, soil organic matter, urban N).
+#' organic fertilisers, soil organic matter, human-population N).
 #'
 #' @format A tibble with columns:
 #' \describe{
 #'   \item{fert_type}{Nitrogen source: one of \code{"Synthetic"},
 #'     \code{"Solid"}, \code{"Liquid"}, \code{"Recycling"},
 #'     \code{"Excreta_cattle_monog"}, \code{"Excreta_other"},
-#'     \code{"SOM"}, \code{"Urban"}.}
+#'     \code{"SOM"}, \code{"Human"} (the human-population N term,
+#'     keyed \code{"Urban"} before it was renamed; the former key is still
+#'     read, with a deprecation warning).}
 #'   \item{climate}{Climate zone: \code{"MED"} or \code{"ATL"}.}
 #'   \item{mf}{Multiplicative modifying factor on the N2O emission
 #'     factor; \code{NA} where the source is not modelled through this
@@ -353,8 +414,8 @@
 #'   M. Cruse (Eds.), *Managing Nitrogen for Groundwater Quality and Farm
 #'   Profitability* (pp. 85-124). Soil Science Society of America.
 #'   \doi{10.2136/1991.managingnitrogen.c5}. Values transcribed from the
-#'   Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Denitrification_Meisinger}).
+#'   nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction.
 #'
 #' @examples
 #' meisinger_denitrification
@@ -377,9 +438,9 @@
 #'   \item{s_max}{Upper bound of the drainage flux interval (mm).}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Drainage_ranges}),
-#'   companion to the Meisinger & Randall (1991) denitrification matrix.
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, companion to the Meisinger & Randall (1991)
+#'   denitrification matrix.
 #'   \doi{10.2136/1991.managingnitrogen.c5}.
 #'
 #' @examples
@@ -399,16 +460,17 @@
 #'   \item{fert_type}{Nitrogen source: one of \code{"Synthetic"},
 #'     \code{"SOM"}, \code{"Deposition"}, \code{"Solid"},
 #'     \code{"Excreta_cattle_monog"}, \code{"Excreta_other"},
-#'     \code{"Liquid"}, \code{"Urban"}, \code{"BNF"}.}
+#'     \code{"Liquid"}, \code{"Human"}, \code{"BNF"}. \code{"Human"} was
+#'     keyed \code{"Urban"} before it was renamed; the former key is still
+#'     read, with a deprecation warning.}
 #'   \item{climate}{Climate zone: \code{"MED"} or \code{"ATL"}.}
 #'   \item{irrig_cat}{Irrigation category: \code{"Rainfed"} or
 #'     \code{"Irrigated"}.}
 #'   \item{no3_red}{Fraction of leaching nitrate reduced in the subsoil.}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{Subsoil_NO3_denitrif}),
-#'   parameterised from Mediterranean and Atlantic subsoil
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, parameterised from Mediterranean and Atlantic subsoil
 #'   denitrification literature consistent with the IPCC (2019) indirect
 #'   N2O framework.
 #'
@@ -453,8 +515,8 @@
 #'   Webb, J. & Misselbrook, T. H. (2004). A mass-flow model of ammonia
 #'   emissions from UK livestock production. *Atmospheric Environment*,
 #'   38(14), 2163-2176. \doi{10.1016/j.atmosenv.2004.01.023}. Values
-#'   transcribed from the Spain historical MANNER implementation
-#'   (\code{MANNER_model.R}).
+#'   transcribed from the MANNER implementation of an earlier regional
+#'   historical reconstruction.
 #'
 #' @examples
 #' manner_params
@@ -480,91 +542,149 @@
 #'   \item{description}{Human-readable description of the constant.}
 #' }
 #'
-#' @source C:N attenuation parameters from the Spain historical nitrogen
-#'   pipeline (\code{n_fun.r}). Indirect emission factors and ammonia
+#' @source C:N attenuation parameters from the nitrogen pipeline of an
+#'   earlier regional historical reconstruction. Indirect emission factors
+#'   and ammonia
 #'   volatilisation fractions: IPCC (2019), 2019 Refinement to the 2006
 #'   IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
-#'   Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.016 for
-#'   Atlantic ammonia to N2O; NH3 volatilisation fractions 0.11 synthetic
-#'   and 0.21 organic, Table 11.3).
+#'   Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for
+#'   Atlantic, i.e. wet-climate, ammonia to N2O, p. 11.26; NH3
+#'   volatilisation fractions 0.11 synthetic and 0.21 organic, Table 11.3).
 #'
 #' @examples
 #' n_attenuation_constants
 "n_attenuation_constants"
 
-#' Spain historical urban nitrogen applied to agriculture.
+#' Historical human-population nitrogen applied to agriculture.
 #'
 #' @description
-#' National-total nitrogen from Spanish urban human excreta and municipal
-#' waste actually applied to agricultural land, at benchmark years. Used by
-#' [build_urban_n()] as the global default per-capita urban-N-to-agriculture
-#' rate (a documented placeholder, see that function's Details): this is
-#' Spain's own historical series applied everywhere, not a
-#' globally-calibrated estimate.
+#' National-total nitrogen from a population's municipal solid waste, sewage
+#' sludge and human excreta actually applied to agricultural land, at
+#' benchmark years: the Spanish series taken as reference. It calibrates the
+#' per-capita rates [human_kgn_cap_total_reference] and
+#' [human_kgn_cap_reference] that [build_human_n()] applies everywhere, as a
+#' documented placeholder (see that function's Details) rather than a
+#' globally calibrated estimate.
+#'
+#' `urban_n_reference` is the deprecated former name of this table, kept for
+#' one release. It holds the same rows, with `human_n_gg` under its former
+#' name `urban_n_gg`.
 #'
 #' @format A tibble with columns:
 #' \describe{
 #'   \item{area_code}{Numeric FAOSTAT area code, as everywhere else in this
-#'     package; currently only \code{203} (Spain). The vendored CSV records the
-#'     ISO3 string \code{"ESP"} and it is resolved to a code through
+#'     package; currently a single national series. The vendored CSV records
+#'     an ISO3 string and it is resolved to a code through
 #'     [polity_area_crosswalk] at build time, so this series joins to
 #'     area-keyed tables without a hand conversion. It held the string itself
 #'     until 0.3.0.9000, which made it the one column named \code{area_code}
 #'     in this package that was not one (whep#401). Keep using it to join;
 #'     it is an aggregation key, not the territory's identity.}
-#'   \item{polity_code}{The polity the row's territory IS, e.g.
-#'     \code{"ESP-1800-2025"}: the identifier every place in WHEP that names a
-#'     territory is meant to carry (whep#458). Resolved at build time against
-#'     the polity active in that benchmark year, so a series spanning a
-#'     succession would carry more than one code. Added alongside
-#'     \code{area_code} rather than replacing it (whep#495), so callers keying
-#'     on the numeric are unaffected.}
+#'   \item{polity_code}{The polity the row's territory IS: the identifier
+#'     every place in WHEP that names a territory is meant to carry
+#'     (whep#458). Resolved at build time against the polity active in that
+#'     benchmark year, so a series spanning a succession would carry more than
+#'     one code. Added alongside \code{area_code} rather than replacing it
+#'     (whep#495), so callers keying on the numeric are unaffected.}
 #'   \item{year}{Benchmark calendar year.}
-#'   \item{urban_n_gg}{National-total urban nitrogen applied to agriculture
-#'     (Gg N/year).}
+#'   \item{human_n_gg}{National-total human-population nitrogen applied to
+#'     agriculture (Gg N/year).}
 #' }
 #'
-#' @source Aguilera, E. (WHEP project team). Own estimation, transcribed
-#'   from the Spain_Hist repository (private project data, not a public
-#'   DOI): \code{input/Urban_waste.xlsx} sheet \code{UrbanN} and
-#'   \code{input/updates/UrbanN_update.csv}.
+#' @source Aguilera, E. (WHEP project team). Own estimation from unpublished
+#'   project data (no public DOI): workbook \code{Urban_waste.xlsx}, sheet
+#'   \code{UrbanN}, and its update \code{UrbanN_update.csv}.
 #'
 #' @examples
-#' urban_n_reference
+#' human_n_reference
+"human_n_reference"
+
+#' @rdname human_n_reference
+#' @format NULL
 "urban_n_reference"
 
-#' Spain historical per-capita urban nitrogen rate.
+#' Human-population nitrogen rate per urban inhabitant.
 #'
 #' @description
-#' The per-capita urban-nitrogen-to-agriculture rate,
-#' \code{urban_n_reference$urban_n_gg * 1e6 / spain_urban_population}, at
-#' each \code{urban_n_reference} benchmark year `build_urban_n()` could
-#' compute a verified rate for. See \code{data-raw/build_urban_kgn_cap.R}
-#' for the derivation: every \code{urban_n_reference} benchmark year,
-#' including 1860, 1900 and 1950, now has its own verified denominator.
-#' Most rows use real gridded HYDE baseline-scenario urban population
-#' (summed over Spain's cell_polity footprint from
+#' The calibration nitrogen per URBAN inhabitant,
+#' \code{human_n_reference$human_n_gg * 1e6} over the calibration country's
+#' urban population, at each [human_n_reference] benchmark year a verified
+#' rate could be computed for. It is the rate [build_human_n()] applies under
+#' `population_basis = "urban"`. See \code{data-raw/build_human_kgn_cap.R}
+#' for the derivation: every [human_n_reference] benchmark year, including
+#' 1860, 1900 and 1950, has its own verified denominator. Most rows use real
+#' gridded HYDE baseline-scenario urban population (summed over the
+#' calibration country's cell_polity footprint from
 #' \code{whep::build_cell_polity()}); the 2018, 2020 and 2022 rows keep the
 #' World Bank \code{SP.URB.TOTL} urban-population denominator instead,
 #' because the local HYDE mirror used to build this table only extends
 #' through 2017. Every row is real, verified data; not all rows share the
 #' same source.
 #'
+#' `urban_kgn_cap_reference` is the deprecated former name of this table,
+#' kept for one release. It holds the same rows, with `human_kgn_cap` under
+#' its former name `urban_kgn_cap`.
+#'
 #' @format A tibble with columns:
 #' \describe{
 #'   \item{year}{Benchmark calendar year.}
-#'   \item{urban_kgn_cap}{Per-capita urban nitrogen applied to agriculture
-#'     (kg N per person per year).}
+#'   \item{human_kgn_cap}{Human-population nitrogen applied to agriculture per
+#'     urban inhabitant (kg N per person per year).}
 #' }
 #'
-#' @source Derived from \code{urban_n_reference} and Spain urban population:
-#'   HYDE baseline-scenario gridded population (1860-2016 rows) and World
-#'   Bank indicator \code{SP.URB.TOTL} (2018-2022 rows); see
-#'   \code{data-raw/build_urban_kgn_cap.R}.
+#' @source Derived from [human_n_reference] and the calibration country's
+#'   urban population: HYDE baseline-scenario gridded population (1860-2016
+#'   rows) and World Bank indicator \code{SP.URB.TOTL} (2018-2022 rows); see
+#'   \code{data-raw/build_human_kgn_cap.R}.
 #'
 #' @examples
-#' urban_kgn_cap_reference
+#' human_kgn_cap_reference
+"human_kgn_cap_reference"
+
+#' @rdname human_kgn_cap_reference
+#' @format NULL
 "urban_kgn_cap_reference"
+
+#' Human-population nitrogen rate per inhabitant.
+#'
+#' @description
+#' The calibration nitrogen per inhabitant,
+#' \code{human_n_reference$human_n_gg * 1e6 / calibration_population}, where
+#' \code{calibration_population} is the calibration country's UN WPP 2024
+#' total population. It is the rate [build_human_n()] applies under its
+#' default `population_basis = "total"`, whose population level is the UN
+#' WPP total ([build_total_population_grid()]), and the counterpart of
+#' [human_kgn_cap_reference] (kg N per URBAN inhabitant). Pairing each
+#' population with the rate on its own basis is what lets either basis
+#' regenerate its calibration total; applying the per-urban-inhabitant rate
+#' to a total population would scale the term by the inverse urban fraction
+#' (global WPP total over HYDE urban population: 3.02 in 1960, 2.01 in 2010,
+#' 1.91 in 2017).
+#'
+#' The series starts at 1950, the first year UN WPP covers, so the 1860 and
+#' 1900 benchmarks of [human_n_reference] have no row here. The same
+#' calibration series is applied as a global default under either basis; see
+#' [build_human_n()].
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{year}{Benchmark calendar year.}
+#'   \item{human_kgn_cap}{Human-population nitrogen applied to agriculture per
+#'     inhabitant (kg N per person per year).}
+#'   \item{calibration_population}{The calibration country's total population
+#'     that year (persons), the denominator, from [read_wpp_population()] with
+#'     `by = "total"`.}
+#' }
+#'
+#' @source Derived from [human_n_reference] and United Nations, Department of
+#'   Economic and Social Affairs, Population Division (2024), World
+#'   Population Prospects 2024, medium variant
+#'   (\code{WPP2024_PopulationByAge5GroupSex_Medium.csv.gz}); see
+#'   \code{data-raw/build_human_kgn_cap.R}.
+#'
+#' @examples
+#' human_kgn_cap_total_reference
+"human_kgn_cap_total_reference"
 
 #' MANNER synthetic-fertiliser application-rate factor.
 #'
@@ -589,8 +709,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "synthetic fertilisers".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, synthetic-fertiliser factors.
 #'
 #' @examples
 #' manner_rate_factor
@@ -618,8 +738,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "synthetic fertilisers".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, synthetic-fertiliser factors.
 #'
 #' @examples
 #' manner_rain_factor
@@ -650,8 +770,8 @@
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical MANNER implementation, \code{NH3_model.xlsx}, sheet
-#'   "manures".
+#'   the MANNER implementation of an earlier regional historical
+#'   reconstruction, manure factors.
 #'
 #' @examples
 #' manner_incorporation_factor
@@ -665,9 +785,10 @@
 #' \code{incorporation_delay_h} organic-manure drivers, for use where real
 #' per-cell/per-era manure-application-technique survey data does not exist
 #' (which is everywhere right now). Every row fixes
-#' \code{technique = "Broadcast"}, matching Spain_Hist's own real production
-#' MANNER run (which itself hardcodes Broadcast application nationally with
-#' no region/era variation). The four rows blend
+#' \code{technique = "Broadcast"}, matching the production MANNER run of the
+#' earlier regional historical reconstruction this model is ported from
+#' (which itself applies Broadcast nationally with no region/era
+#' variation). The four rows blend
 #' [manner_incorporation_factor]'s \code{delay_bin} categories in equal
 #' shares: a quarter of applied nitrogen assumed never incorporated, a
 #' quarter incorporated within 2 hours, a quarter within 12-24 hours, and a
@@ -710,7 +831,7 @@
 #' (\code{cattle_slurry}/\code{pig_slurry} to the \code{"Liquid"} stream,
 #' \code{FYM} to Cattle \code{"Solid"}, \code{poultry_manure} to Poultry
 #' \code{"Solid"}) is a documented modelling choice made when porting this
-#' table, not a literal Spain_Hist crosswalk; see
+#' table, not a literal crosswalk from the source implementation; see
 #' [calculate_manner_nh3()]'s Details.
 #'
 #' @format A tibble with columns:
@@ -724,14 +845,15 @@
 #'   \item{inorganic_n_fraction}{Fraction of the stream's total nitrogen that
 #'     is inorganic (ammoniacal).}
 #'   \item{source}{Short author-year provenance string as cited in the
-#'     Spain_Hist \code{Livestock.xlsx} \code{Manure_inorganic_N} sheet for
-#'     that coefficient. These are secondary citations transcribed from that
-#'     workbook, not independently DOI-verified full bibliographic entries.}
+#'     source livestock coefficient workbook for that coefficient. These are
+#'     secondary citations transcribed from that workbook, not independently
+#'     DOI-verified full bibliographic entries.}
 #' }
 #'
 #' @source WHEP project-internal coefficient workbook (not a public DOI):
-#'   Spain historical livestock coefficient workbook, \code{Livestock.xlsx},
-#'   sheet \code{Manure_inorganic_N}. That sheet in turn cites: Van Soest, P.
+#'   the livestock coefficient workbook of an earlier regional historical
+#'   reconstruction, manure inorganic-nitrogen sheet. That sheet in turn
+#'   cites: Van Soest, P.
 #'   J. (1994); Nahm, K. H. (2003); Nahm, K. H. (2005); Smith, K. A. & Frost,
 #'   J. P. (2000); Chambers, B. J. et al. (1999); Chambers, B. J. et al.
 #'   (2000); Nicholson, F. A. et al. (1996); Canh, T. T. et al. (1997);
@@ -802,9 +924,9 @@
 #'     literal source bound (see Description).}
 #' }
 #'
-#' @source Spain historical nitrogen coefficient workbook
-#'   (\code{N_coefficients.xlsx}, sheet \code{SOM_ranges}), companion to the
-#'   Meisinger & Randall (1991) denitrification matrix.
+#' @source Nitrogen coefficient workbook of an earlier regional historical
+#'   reconstruction, companion to the Meisinger & Randall (1991)
+#'   denitrification matrix.
 #'   \doi{10.2136/1991.managingnitrogen.c5}.
 #'
 #' @examples

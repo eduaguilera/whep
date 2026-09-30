@@ -52,13 +52,17 @@ areas 276/277 for 2012-2024, never in the same year, so counting the stand-ins
 reported bucket 206 as a three-way fold in all 65 years rather than a two-way
 fold in the 14 it is one (whep#414).
 
-Bucket 206 is the one fold reported today, \code{"predecessor"} from 2012: it sums
-FAOSTAT areas 276 Sudan and 277 South Sudan and is labelled \code{SUD-1956-2011},
-whose successors are exactly \code{SDN-2011-2025} and \code{SSD-2011-2025}. No \strong{live}
-polity means "Sudan and South Sudan"; whether to mint one upstream, or to
-stop folding the two areas, is the open decision in whep#414. The un-fold is
-costed in whep#680 — it moves nothing outside the region and loses 4.2\% of
-the region's own tonnage, so it is not a switch-flip.
+Bucket 206 is the one fold reported today, and it is \code{"aggregate"} for
+2012-2025: it sums FAOSTAT areas 276 Sudan and 277 South Sudan and resolves
+to \code{F206-2011-2025} "Sudan and South Sudan (combined reporting)", the
+aggregate whep#860 wired in. It read \code{"predecessor"} before that, labelled
+with \code{SUD-1956-2011}, a polity that had ended.
+
+So the labelling is settled and only the regionalisation is still open:
+whether to keep folding the two successors at all is whep#680, and
+\code{options(whep.unfold_predecessor_bucket = "all")} is the switch that
+promotes them. It is off by default because it is not mass-neutral — see
+\code{\link[=folded_reporting_areas]{folded_reporting_areas()}} for what it withdraws and why.
 \code{.aggregate_to_polities()} warns when it builds such a bucket; set
 \code{options(whep.warn_polity_folds = FALSE)} to silence that warning.
 

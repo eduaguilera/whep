@@ -108,6 +108,7 @@ build_supply_use <- function(example = FALSE) {
   primary_prod,
   feed_intake
 ) {
+  .check_supply_use_inputs(cbs, feed_intake)
   husbandry_items <- items_cbs |>
     dplyr::filter(
       item_type %in% c("livestock", "livestock_meat", "livestock_draft")
@@ -170,6 +171,27 @@ build_supply_use <- function(example = FALSE) {
       type,
       value
     )
+}
+
+# Boundary contract for the two tables the supply-use assembly reads by column
+# (whep#181). `.build_slaughtering()` returns no rows at all when `cbs` lacks
+# `processing`, so without this a CBS missing that one column built a
+# supply-use table with no slaughtering process, and no message. A
+# `feed_intake` row with a NA `item_cbs_code` (the allocator's grass-deficit
+# substitute rows carry one) would become a husbandry use that
+# `build_io_model()` cannot place and drops.
+.check_supply_use_inputs <- function(cbs, feed_intake) {
+  keys <- c("year", "area_code", "item_cbs_code")
+  cbs_cols <- c(keys, "seed", "processing")
+  feed_keys <- c(keys, "live_anim_code")
+  cbs |>
+    assert_table_schema(.seam_schema(cbs, cbs_cols), "cbs")
+  feed_intake |>
+    assert_table_schema(
+      .seam_schema(feed_intake, c(feed_keys, "supply"), feed_keys),
+      "feed_intake"
+    )
+  invisible(NULL)
 }
 
 .build_crop_production <- function(
@@ -447,6 +469,19 @@ build_supply_use <- function(example = FALSE) {
     dplyr::mutate(proc_cbs_code = .data[[item_column]])
 }
 
+# Supply only the RECOVERED residue, the same mass the CBS produces.
+#
+# The supply matrix and the output vector must describe the same commodity:
+# `.build_mr_supply()` builds the transformation from these rows while
+# `.build_output_vector()` takes x from the CBS `production` element. Since
+# whep#1003 the CBS carries only what leaves the field, so supplying the whole
+# residue here would make the two disagree -- by 9.34 Pg against 7.79 Pg at
+# 2020 globally, and totally where recovery is zero (roots, tubers, cassava,
+# sugar beet and dry beans in West Europe, North America and Oceania; the
+# Fodder crops rate is also 0 everywhere but reaches no residue row, see
+# whep#1150). It would not surface as an error either:
+# `.build_output_vector()` falls back to the Z/Y-derived output when the CBS
+# output is 0, and inflates the residue column of A by 1 / recovery elsewhere.
 .build_supply_crop_residue <- function(cbs_items, crop_residues) {
   cbs_items <- .ensure_process_column(cbs_items, "item_cbs_code_crop")
   processes <- cbs_items |>
@@ -458,7 +493,13 @@ build_supply_use <- function(example = FALSE) {
       by = c("item_cbs_code_crop" = "proc_cbs_code"),
       relationship = "many-to-many"
     ) |>
-    dplyr::mutate(proc_cbs_code = .data$item_cbs_code_crop) |>
+    # `warn = FALSE`: the CBS path already names the unrecovered mass once,
+    # and this is the same rows a second time.
+    .residue_recovered_split(warn = FALSE) |>
+    dplyr::mutate(
+      proc_cbs_code = .data$item_cbs_code_crop,
+      value = dplyr::coalesce(.data$recovered, 0)
+    ) |>
     dplyr::select(
       year,
       area_code,

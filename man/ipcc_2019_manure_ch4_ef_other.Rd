@@ -14,7 +14,10 @@ A tibble with \code{category}, \code{ef_kg_head_yr}.
 The temperature column each value is taken from varies by species
 (sheep 0.19 and goats 0.13 are the developed-country cool column, while
 horses 1.64, mules 0.90 and camels 1.92 are the developing-country
-temperate column); tracked in whep#601.
+temperate column). For buffalo 2.00 and swine 6.00 the source region is
+not recorded and cannot be recovered from the value: 2006 Table 10.14 is
+resolved by region and by degree Celsius, and more than one cell carries
+each of those two numbers. Tracked in whep#601.
 }
 \usage{
 ipcc_2019_manure_ch4_ef_other

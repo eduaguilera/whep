@@ -1,6 +1,6 @@
 # Guards the vocabulary of residue_feed_fraction.csv against the failure mode of
 # #405: the file's region column was named region_hanpp but held UN M49
-# sub-regions, and .residue_destiny_krausmann() joined it against a column the
+# sub-regions, and .residue_destiny_recovery() joined it against a column the
 # pipeline filled from regions_full$region_HANPP. None of the 8 HANPP labels is
 # an M49 sub-region label, so the left_join matched NOTHING and the very next
 # line, tidyr::replace_na(feed_use_fraction, global_feed), handed every polity on
@@ -140,7 +140,7 @@ test_that("the fix moves the feed:burn split only, not the soil return", {
   testthat::expect_lt(low$residue_feed_dm_t, high$residue_feed_dm_t)
 })
 
-test_that("krausmann_regional demands the M49 sub-region column", {
+test_that("recovery_regional demands the M49 sub-region column", {
   # region_hanpp is a real pipeline column keying a real HANPP table (the
   # modern-variety adoption share in calculate_crop_npp()), so supplying it and
   # not region_un_sub is exactly the mistake #405 was. It must abort rather than

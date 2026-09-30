@@ -14,6 +14,14 @@ build_commodity_balances(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
+  hist_trade_scale = .hist_trade_scale_choices(),
+  export_share_overflow = .cbs_export_overflow_choices(),
+  export_share_basis = .cbs_export_basis_choices(),
+  seed_backcast = .cbs_seed_backcast_choices(),
+  unmatched_processing = .cbs_unmatched_proc_choices(),
+  silk_basis = .silk_basis_choices(),
   .fixed_data = NULL
 )
 }
@@ -55,11 +63,13 @@ creates the missing rows from the trade record, restricted to
 tonnes-denominated items (live-animal trade is in heads and arrives
 through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
 already covers in that year. Selecting it \strong{moves published values} —
-at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
+current build; 1,164 keys when whep#864 landed), and reclassifies three
 areas on the nourishment axis. \code{NEWS.md} states the rest, and whep#762
 keeps the remaining decisions open.
-\code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
-get the wide table with recovery applied.}
+\code{\link[=get_wide_cbs]{get_wide_cbs()}}, \code{\link[=get_processing_coefs]{get_processing_coefs()}} and \code{\link[=build_io_model]{build_io_model()}} take the
+same argument and pass it into the shared build chain, each method under
+its own cache slot, so a downstream build can be run either way.}
 
 \item{trade_zero}{One of \code{"prefer_record"} (default) or \code{"keep"},
 selecting what happens when the CBS carries a \strong{zero} import or export
@@ -78,6 +88,289 @@ it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 10.27 Mt, moving 26,538 published rows over 180 areas; see \code{NEWS.md}.
 The conflict count is reported by every build under either setting.}
 
+\item{share_overflow}{One of \code{"report"} (default), \code{"clamp"}, \code{"drop"} or
+\code{"abort"}, selecting what happens when a pre-1962 destiny share exceeds 1
+— a destiny larger than the \code{domestic_supply} it is apportioned from
+(whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows do:
+\code{other_uses} 70, \code{processing_primary} 19, \code{food} 15, \code{feed} 4. They are
+1.03\% of the 1961 \code{other_uses} mass and 0.17\% of the \code{food} mass. The
+cause is not this arithmetic: 89 of them are FAOSTAT's own 1961 balances
+not closing (the non-food Commodity Balances, which carry tobacco, hides
+and skins, silk, wool and fibres as \code{other_uses} and which no
+better-ranked source overwrites), and the other 19 are hops in
+net-exporting years, whose \code{processing_primary} is the whole production
+by construction — a trade ratio rather than an apportionment, which no
+setting can move, so the warning names that subset separately.
+\code{"report"} therefore keeps every value as measured and
+only warns, so it \strong{moves no published value}; it names the count, the
+split by destiny and the three largest. \code{"clamp"} caps the share at 1,
+\code{"drop"} sets it to \code{NA} so the key is filled from a neighbouring year
+instead (and booked as 0 where the violating year is the only
+observation), and \code{"abort"} refuses to build. The share is an
+intermediate, not a published number: \code{.cbs_fill_destinies()} later
+re-derives each destiny as \code{domestic_supply} times a share normalised to
+sum to one, so on that build no published row from 1961 on carries a
+destiny above its supply and every difference between the settings sits
+at 1960 or earlier — against \code{"report"}, \code{"clamp"} moves 755 rows
+(\code{other_uses} +23.21 Mt, \code{stock_variation} −22.97 Mt, \code{food} −1.00 Mt)
+and \code{"drop"} moves 544 (\code{other_uses} +825 Mt, \code{stock_variation}
+−825 Mt), both upwards because the values they touch are negative
+(whep#1065; measured under \code{negative_supply = "report"}, which leaves
+those negatives in place). Which of those is right is
+an open question — see whep#980 — so the reporting default is the one
+that invents nothing.}
+
+\item{negative_supply}{One of \code{"floor"} (default), \code{"report"} or
+\code{"abort"}, selecting what happens when a pre-1962 row has no observed
+\code{domestic_supply} and the \code{production + import - export} reconstruction
+that replaces it comes out below zero (whep#1065). Every destiny of such
+a row is apportioned from that supply, so a negative one makes every
+destiny negative -- including \code{other_uses}, which is not a quantity that
+can be negative.
+
+Measured on a real 1950–1965 build, 151 rows reconstruct a negative
+supply totalling −1,015.70 Mt, all in 1950–1960. The cause is upstream:
+US tobacco 1951 carries a 117,504,000 t export against 728,949 t of
+production, 115,136,000 t of it \code{historical-trade-exports} item 831
+(whep#1085). With \code{hist_trade_scale = "drop"} the count falls to 83 rows
+worth −6.87 Mt, some of which a stock draw can describe.
+
+\code{"floor"} clamps the reconstruction at zero, the treatment an observed
+negative supply already receives, and so books the exported mass the
+supply cannot source as a stock withdrawal: \code{stock_variation} is
+recomputed downstream as \code{production + import - export - domestic_supply}. It leaves no negative mass anywhere in the published
+balance. \code{"report"} keeps the negative supply and its destinies as
+computed, which is what every build before this default did; against
+\code{"floor"} it moves 3,911 rows, all in 1950–1960, and the published
+balance then carries 1,155 negative masses worth −1,164.2 Mt, 147 of
+them \code{other_uses} worth −883.94 Mt (−3.9\% of the 1950–1965 net
+\code{other_uses} total of 22,749 Mt), with \code{stock_variation} 916 Mt
+smaller in magnitude. \code{"abort"} refuses to build any range starting
+before 1961.
+
+Neither \code{"floor"} nor \code{"report"} makes a 97× export physical; \code{"floor"}
+is the default because it keeps every published use non-negative and
+puts the imbalance in the balancing item. Both stay visible: the build
+warns with the count, the total and the largest rows; the values WHEP
+estimated for such a key carry the \code{source}
+\code{"historical_fill_floored_supply"} (or
+\code{"historical_fill_negative_supply"} under \code{"report"}); and any negative
+mass that reaches the published balance, from this or any other cause,
+is reported by a separate warning of class \code{whep_negative_cbs_value}.}
+
+\item{hist_trade_scale}{One of \code{"correct"} (default), \code{"report"},
+\code{"drop"} or \code{"abort"}, selecting what happens when a pre-1961 row of the
+\verb{historical-trade-*} pins carries a quantity no mass unit can express
+(whep#1085). The screen bounds a single reporter's flow by the largest
+\strong{world} flow FAOSTAT records for the same trade item, summed over
+reporters, over the FAOSTAT years the build already reads — a measured
+bound, not a chosen cap, because world trade in these commodities grew
+through the twentieth century. Re-measured on the real pins at
+1850–2023 for whep#1117, 1,693 rows exceed it, carrying 3,874.4 Mt,
+21.0\% of the pins' whole 18,455.4 Mt; a further 10,243 rows have no
+FAOSTAT reference and go unchecked. \strong{97.2\% of the flagged mass is the
+USA}, whose block over roughly 1900–1960 is inflated by a factor of
+ten, interleaved with correct values in the same series (cotton lint 767
+and raw sugar imports 162 alternate correct and ten-fold values year to
+year; whep#1117), and by far more on
+item 831, "Tobacco products nes", published at 115.1 Mt for 1951 — 159x
+the largest world flow of that item FAOSTAT has ever recorded and 32x
+the entire 1961 world tobacco crop. \code{"report"} keeps every value and
+only warns, so it \strong{moves no published value} (verified: the screened
+read is \code{identical()} to the unscreened one); it names the count, the
+mass, the reporters and the three largest. \code{"drop"} removes the flagged
+rows, taking 3,874.2 Mt out of the historical trade input and with it
+the impossible pre-1962 exports behind whep#1065's negative
+\code{domestic_supply}. \code{"abort"} refuses to build. There is deliberately no
+clamp: the defect is in the pin's producer and no conversion factor
+recovers the true value, so a clamped tonnage would be a fabricated one.
+
+\code{"correct"}, the default (a maintainer decision), judges each flagged
+row on its own evidence from the two
+pins and repairs only a proven ten-fold slip (whep#1117): a row is
+divided by 10 when that brings it within the world bound, when as
+published it exceeds the whole partner side of the pins (the opposite
+flow of every other reporter, same item and year) but divided by 10 does
+not, and when it sits one power of ten above the clean neighbours of its
+own series within 5 years (the window is assumed, unverified). A row no
+partner books, or still above the partner side after dividing by 10, is
+dropped as not a mass (item 831's signature); every other flagged row is
+dropped as unexplained. No factor other than 10 is ever applied.
+Re-measured on current \code{main} against FAOSTAT 1961–2023 (the bound a
+1850–2023 build uses), 1,659 rows carrying 3,958.8 Mt are flagged: 175
+rows (1,002.0 Mt as published, 100.2 Mt used) are divided by 10, 1,126
+(2,662.3 Mt) are dropped as not a mass and 358 (294.5 Mt) as
+unexplained; 99.9\% of the corrected mass is the USA. On a real
+1950–1960 build it leaves the same 83 negative reconstructed supplies
+(−6.87 Mt) as \code{"drop"}, against 151 (−1,015.70 Mt) under \code{"report"},
+while keeping 103.4 Mt of repaired trade that \code{"drop"} discards. The
+output of every setting that builds carries a \code{hist_trade_scale_log}
+attribute (absent with \code{.fixed_data}): one
+row per flagged pin row, with the published and the used value, the
+evidence (\code{world_max}, \code{mirror}, \code{neighbour}), the class and the action.
+
+The warning also carries a second, informational class: rows larger than
+any flow FAOSTAT records for the \strong{same reporter}, item and element.
+That bound is far tighter — 19,375 pre-1961 rows carrying 9,154.0 Mt,
+against the world bound's 1,693 — and it is what makes whep#1117's
+ten-fold block visible at all. USA raw sugar imports (item 162) are the
+clearest case: 37 rows, 35–43 Mt over 1955–1959 against the pins' own
+4.7 Mt at 1960 and FAOSTAT's 3.7 Mt at 1961, and \strong{not one of them is
+above the world bound}, so today nothing reports them. It is \strong{never
+dropped and never aborts}, under any setting, because it provably mixes
+two populations that no offline anchor separates: the pins' 1961 layer is
+FAOSTAT verbatim (all 18,531 overlapping rows agree to machine
+precision), FAOSTAT itself starts in 1961, so no pre-1961 row has a
+per-row anchor, and nineteenth-century Britain genuinely imported more
+flax fibre, cotton lint, linseed and cheese than modern Britain does. A
+÷10 repair is a change to the pin's producer, not to this reader.}
+
+\item{export_share_overflow}{One of \code{"report"} (default), \code{"drop"} or
+\code{"abort"}, selecting what happens when the global export share the
+second processed-products round apportions a new product with exceeds 1
+(whep#1086). The share is world \code{export / (production + import)} for the
+\verb{(year, item_cbs)} key, multiplied by a country's newly created
+processed production, so a share above 1 books more export than that
+country produced. Measured on a real 1950–1965 build, 77 of 2,012 keys
+exceed 1 and the largest is 443 (Soyabean Cake 1956) — but \strong{none of
+them is applied}: every one is pre-1961 and the round emits rows from
+1961 on only, so \code{"report"} and \code{"drop"} give identical output on that
+range. \strong{That does not hold after 2013} (whep#1177). On a real
+2011–2023 build, 60 keys above 1 are applied, every one of them in
+2014–2023 (oilseed cakes and molasses, up to 15.7 for Sesameseed Cake
+2016): the round books 2,297 rows with a negative \code{domestic_supply},
+−18.33 Mt in total, and the finished balance under \code{"report"} carries
+2.4–4.4 Mt more \code{export} a year than under \code{"drop"}, 33.6 Mt over
+2014–2023, which \code{"drop"} books mostly as \code{feed}. Of the 77, 50 have no
+world production in the denominator at all (the oils and cakes, whose
+production is what this round is about to create) and the other 27 are
+the \code{historical-trade-exports} defect of whep#1085. \code{"report"} keeps every
+share as measured and names the count, the largest, and how many are
+actually applied. \code{"drop"} sets a violating share to \code{NA}, which is
+booked as no export at all. \code{"abort"} refuses to build. There is
+deliberately no clamp, unlike \code{share_overflow}: a destiny cannot exceed
+the supply it is apportioned from, so 1 is a true bound there, while
+here the denominator is incomplete and capping at 1 would book a
+country's whole processed output as export. Those figures are for the
+step-4 denominator, \code{export_share_basis = "snapshot"}; on a 2014–2023
+build the default \code{"current"} leaves 2 shares above 1 (Abaca 2021,
+Fish, Liver Oil 2017) and applies neither.}
+
+\item{export_share_basis}{One of \code{"current"} (default), \code{"processed"} or
+\code{"snapshot"}, selecting which world balance the second processed-products
+round reads its export share \code{export / (production + import)} off
+(whep#1143). The share is multiplied by a country's newly created
+processed production, so its denominator must contain that kind of
+production. \code{"current"} reads the balance the round runs on and adds its
+rows to: processed production from the first round, trade after
+imputation. It is also the self-consistent choice, since a share \code{E / S}
+leaves the world share unchanged once the round's own production and
+export are added. \code{"processed"} reads the same production with trade as
+read, before imputation. \code{"snapshot"} reads the balance before any
+processed production exists, which is what every build before whep#1143
+did: wherever FAOSTAT reports no production of a processed product — all
+of them before 1961, and the new food balance sheets' oilseed cakes and
+molasses from 2014 — its denominator is world import alone.
+
+\strong{The default moves published values}, at 2014–2023 almost entirely.
+Measured on real 2014–2023 and 1961–1965 builds of main after whep#1242
+against \code{"snapshot"}: at 2014–2023, 16,526 rows change, world \code{export}
+falls 36.1 Mt summed over the ten years (42.8 Mt gross) and
+\code{domestic_supply} rises by the same, landing 29.3 Mt on \code{feed}; applied
+shares above 1 fall from 60 to 0 (largest 15.7, Sesameseed Cake 2016).
+World Sesameseed Cake export at 2020 goes from 466 kt to 1.6 kt against
+0.4 kt of world import, Oilseed Cakes, Other from 3.17 Mt to 2.13 Mt
+against 1.85 Mt. The step-4 sheet carries no cake or molasses production
+there at all. At 1961–1965 the change is 13 kt gross. \code{"processed"}
+moves the same cakes (export −39.3 Mt at 2014–2023) and differs from
+\code{"current"} only on items whose trade step 7 alone supplies: DDGS
+(+2.37 Mt of export under \code{"current"}) and Sugarbeet pulp (+0.60 Mt),
+for which \code{"processed"} books no export at all. Production is identical
+under all three.}
+
+\item{seed_backcast}{One of \code{"area_rate"} (default) or
+\code{"production_share"}, selecting what the pre-1962 seed back-cast reads
+its rate off and spends it on (whep#699). The fill carries a rate along
+the year axis: a rate is read from the years that report \code{seed},
+interpolated and extrapolated into the years that do not, and multiplied
+back out. It yields tonnes only if the quantity it is spent on is the
+quantity it was divided by.
+
+\code{"area_rate"} is tonnes of seed per hectare harvested,
+\code{seed / area_ha} spent as \code{area_ha * seed_rate}, and is the default: a
+seeding rate is an agronomic quantity that holds while yields change, so
+it is the ratio worth carrying across decades. \code{"production_share"} is
+tonnes of seed per tonne of output, \code{seed / production} spent as
+\code{production * seed_rate}; it moves with yield, but reaches keys the
+production build gives no harvested area.
+
+\strong{The default moves published values}, because neither is what shipped:
+a rate defined per hectare used to be spent on production, giving
+\verb{t x t/ha}. Measured on a real 1850-2023 build, pre-1962 \code{seed} falls
+from 38.62 Gt to 7.13 Gt while the number of keys carrying one rises
+from 87,882 to 118,332, total tonnage moves -0.934\% and pre-1962
+tonnage -2.716\%, and no 1962-or-later value changes at all. World seed
+at 1960 goes from 680.3 Mt to 77.7 Mt against the 126.1 Mt FAOSTAT
+reports for 1961, and \code{\link[=check_series_jumps]{check_series_jumps()}} on \code{seed} over 1950-1970
+falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
+than 295. Under \code{"production_share"} pre-1962 \code{seed} is 5.22 Gt, total
+tonnage moves -1.023\%, and the seam holds 5 jumps.}
+
+\item{unmatched_processing}{One of \code{"other_uses"} (default),
+\code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
+destiny goes when its item has no pathway in \link{cb_processing}, so no
+processed product exists for the mass to become (whep#781). Measured on
+a real 2010 build this is 15.92 Mt over 25 items, 10.10 Mt of it raw
+sugar.
+
+\code{"other_uses"} books it on \code{other_uses}, the destiny the processing
+shortfall of an item that \emph{has} a pathway already goes to, and leaves
+\code{food}, \code{feed} and \code{export} as FAOSTAT reported them. \code{"processing"}
+keeps FAOSTAT's row as a terminal destiny; the balance still closes, but
+\code{\link[=build_io_model]{build_io_model()}} folds processing that no product consumes into
+\code{food}. \code{"redistribute"} is the behaviour before whep#781: the mass is
+split pro rata over \code{food}, \code{feed}, \code{other_uses} and \code{export}.
+
+\strong{The default moves published values.} Against \code{"redistribute"} at
+2010, world \code{food} falls 10.82 Mt, \code{feed} 0.56 Mt and \code{export} 3.05 Mt,
+while \code{other_uses} rises 14.43 Mt and \code{domestic_supply} 3.05 Mt, because
+the export share had moved domestic processing out of the country.
+Food then sits within 0.6\% of FAOSTAT's for every affected item but
+coconut oil, against 6.0\% for raw sugar, 14.4\% for cottonseed oil and
+40.9\% for ricebran oil before. Which destiny is right is open — see
+whep#781 — and a sourced pathway per item would supersede all three.}
+
+\item{silk_basis}{One of \code{"cocoon"} (default), \code{"raw_silk"} or \code{"mixed"},
+selecting the mass basis of the Silk balance from 2014 on (whep#1251).
+Silk is a FAOSTAT chain -- reelable cocoons (1185) reeled into raw silk
+(1186), plus silk waste (1187) -- that the non-food Commodity Balances
+report link by link, each in its own mass, and that WHEP maps onto one
+item. Summed unconverted, with the cocoons sent to reeling dropped as a
+chain transfer, the reeled cocoons were left as stock build-up: 267 kt of
+\code{stock_variation} against 536 kt of production at 2020, 391 kt against
+517 kt at 2021, measured on a real 2019-2021 build.
+
+\code{"cocoon"} counts production once, as cocoons, books the cocoons reeled
+at FAO's own cocoon mass, and converts only the raw silk that crossed a
+border or a stock, dividing by a raw-silk extraction rate of 0.16 -- the
+midpoint of the 12-20\% of fresh cocoon weight in Lee (1999), \emph{Silk
+reeling and testing manual}, FAO Agricultural Services Bulletin 136; FAO's
+Technical Conversion Factors carry no silk entry. \code{"raw_silk"} is the
+same balance multiplied by that rate, so every Silk quantity depends on
+it. \code{"mixed"} keeps each link's own mass and books the reeled cocoons as
+\code{other_uses}, the convention of FAO's pre-2014 aggregate item 2747: the
+balance closes but raw silk is counted twice, once as the cocoons it was
+reeled from. Silk waste keeps its own mass under every setting.
+
+Measured at 2020 on that build, production is 443 / 71 / 536 kt
+(cocoon / raw_silk / mixed) and \code{stock_variation} -170 / -32 / -164 kt,
+of which -157 kt is one FAOSTAT record under every setting: China
+mainland's 2020 cocoons are booked both as \code{Processed} and as
+\verb{Other uses} (FAOSTAT's own \code{Residuals} is -156,943 t). No non-Silk row
+moves. Years before 2014 come from the aggregated old Commodity Balances,
+which carry no link breakdown, and are unchanged, so under \code{"cocoon"} the
+2013-2014 seam steps by roughly the raw silk production.}
+
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
 supplied, \code{primary_all} is ignored and the pipeline skips directly
@@ -91,7 +384,20 @@ For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{value}, \code{source}, and \code{fao_flag}. For \code{format = "wide"}, the elements
 become one column each, \code{stock_variation} is split into the non-negative
 \code{stock_addition} and \code{stock_withdrawal}, and \code{domestic_supply} is total use
-excluding \code{export}.
+excluding \code{export}. A \code{unit} column says each row's denomination:
+\code{"tonnes"}, or \code{"heads"} for the live-animal rows (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
+
+\code{fao_flag} is FAOSTAT's own observation-status code for the value, taken
+from the source that \code{source} names (\code{"A"} official, \code{"E"} estimated,
+\code{"I"} imputed, \code{"S"} standardized, \code{"SD"}, \code{"X"}). It is \code{NA} wherever
+the number is not one FAOSTAT published under a flag: a WHEP-derived row
+(the processing pathway, the destiny gap-fills, the pre-1961 historical
+extension), a row whose source carries no flag, and a row summed or
+averaged from parts whose flags disagree. The flag is a claim about the
+value, so it is dropped rather than guessed when the parts do not agree.
+Rows sourced from \code{"FAOSTAT_prod"} are \code{NA} today because
+\code{\link[=build_primary_production]{build_primary_production()}} does not carry the flag out of the
+production pin.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

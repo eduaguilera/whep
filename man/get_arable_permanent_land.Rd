@@ -23,7 +23,12 @@ available (1700-2025). The pre-1961 LUH2 backcast is computed only when
 
 \item{data}{Optional in-memory FAOSTAT RL table in the raw pin schema (columns
 \verb{Area Code}, \verb{Item Code}, \code{Element}, \code{Unit}, \code{Year}, \code{Value}), used instead
-of the pin (chiefly for testing).}
+of the pin (chiefly for testing). The two vocabularies this read selects
+on -- \code{Element == "Area"} and the \code{"1000 ha"} unit label -- are checked
+before the filter runs: either one moving takes every row with it, and a
+zero-row land base is indistinguishable downstream from a world with no
+cropland, so it is refused with a \code{whep_absent_label} error naming the
+labels the table does carry (#1034).}
 
 \item{luh2_data}{Optional in-memory LUH2 land-use table (columns \code{ISO3},
 \code{Year}, \code{Land_Use}, \code{Area_Mha}) used for the pre-1961 backcast instead of

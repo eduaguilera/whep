@@ -2,9 +2,15 @@
 % Please edit documentation in R/hyde_population.R
 \name{read_hyde_population}
 \alias{read_hyde_population}
-\title{Read gridded HYDE urban population onto WHEP's grid.}
+\title{Read gridded HYDE population onto WHEP's grid.}
 \usage{
-read_hyde_population(hyde_dir = NULL, years = NULL, example = FALSE)
+read_hyde_population(
+  hyde_dir = NULL,
+  years = NULL,
+  variable = c("total", "urban", "rural"),
+  aggregate = TRUE,
+  example = FALSE
+)
 }
 \arguments{
 \item{hyde_dir}{Path to the directory holding the HYDE \code{"{year}AD_pop.zip"}
@@ -14,21 +20,32 @@ archives. Defaults to \code{Sys.getenv("WHEP_HYDE_DIR")}.}
 Required: each year is a real unzip-and-parse of a ~150MB archive, so
 there is no default range.}
 
+\item{variable}{Which population count to read: \code{"total"} (default, HYDE
+\code{popc}), \code{"urban"} (\code{urbc}) or \code{"rural"} (\code{rurc}). The output column is
+named after it.}
+
+\item{aggregate}{If \code{TRUE} (default), sum the fine cells to WHEP's
+0.5-degree grid. If \code{FALSE}, return the native 5-arcmin cells, keyed by
+their own centres, for a consumer whose target grid is not 0.5 degrees.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{year}, \code{urban_pop} (total urban
-population in the 0.5-degree cell that year).
+A tibble with \code{lon}, \code{lat}, \code{year} and one count column named
+after \code{variable}: \code{total_pop}, \code{urban_pop} or \code{rural_pop} (people in the
+cell that year). Cells HYDE marks as no-data are absent, never zero.
 }
 \description{
-Reads the HYDE baseline-scenario urban population count (\code{urbc}, native
-5-arcmin ESRI ASCII grid, total people per native cell) for one or more
-calendar years and aggregates it to WHEP's 0.5-degree grid by summing the
-6x6 fine cells inside each 0.5-degree block, since population count is an
+Reads a HYDE baseline-scenario population count (native 5-arcmin ESRI
+ASCII grid, people per native cell) for one or more calendar years and,
+by default, aggregates it to WHEP's 0.5-degree grid by summing the 6x6
+fine cells inside each 0.5-degree block, since population count is an
 extensive quantity. Each requested year is read from its own
-\code{"{year}AD_pop.zip"} archive.
+\code{"{year}AD_pop.zip"} archive, which holds the total (\code{popc}), urban
+(\code{urbc}) and rural (\code{rurc}) counts on the same grid.
 }
 \examples{
 read_hyde_population(example = TRUE)
+read_hyde_population(variable = "urban", example = TRUE)
 }

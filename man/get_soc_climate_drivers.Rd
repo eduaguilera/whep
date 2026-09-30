@@ -8,6 +8,7 @@ get_soc_climate_drivers(
   run_dir = NULL,
   years = NULL,
   polity_validity = c("keep", "flag", "drop"),
+  partial_year = c("abort", "warn", "drop"),
   data = list(),
   example = FALSE
 )
@@ -33,6 +34,14 @@ codes involved. \code{"flag"} keeps them and adds the per-row logical
 \code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
 See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
 already-built table.}
+
+\item{partial_year}{What to do when a cell-year does not carry all twelve
+months by the time \code{water_balance_mm} is summed. A cell-month survives to
+that point only if CRU temperature, CRU PET, LPJmL precipitation and LPJmL
+irrigation all carry it, so an inner join can strip one and the annual
+surplus is then summed over eleven with nothing \code{NA} and no row visibly
+lost. \code{"abort"} (default) refuses, naming the absent cell-months; \code{"warn"}
+returns the short sums; \code{"drop"} excludes the affected cell-years.}
 
 \item{data}{Optional named list of pre-loaded inputs, each falling back to
 its reader when absent: \code{temp} (CRU \code{tmp}, \code{lon}, \code{lat}, \code{year}, \code{month},
@@ -105,6 +114,13 @@ input basis is recorded in \code{method_water_input} (\code{"lpjml_prec_irrig"},
 precipitation plus irrigation). Air temperature (CRU) and the soil texture
 products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 sources.
+
+The drivers cover the intersection of the CRU and LPJmL grids. CRU TS 4.09
+masks as water 22 of the 58,795 cells the \code{lpjml-soc-hydrology} pin carries
+(small islands, coasts and large lakes), so those cells are excluded; the
+function reports the count every time it drops any (a message of class
+\code{whep_socd_cell_shortfall}) and aborts (class \code{whep_socd_cell_loss}) when
+more than 0.1\% of the LPJmL cells in any year have no climate series.
 }
 \section{Polity columns}{
 

@@ -29,8 +29,9 @@
 #'
 #' The per-crop (`item_cbs_code`) granularity is preserved so the footprint can
 #' be traced to origin (locked plan decision 14). Rows with a missing key are
-#' dropped defensively; zero-impact crops are kept because they still consume
-#' trade.
+#' dropped defensively and the excluded impact is reported with a warning,
+#' never dropped silently; zero-impact crops are kept because they still
+#' consume trade.
 #'
 #' @param exceedance A [build_n_boundary_exceedance()] output at
 #'   `resolution = "country"`, keyed by `year`, `area_code`, `item_cbs_code`
@@ -122,14 +123,39 @@ build_n_exceedance_extension <- function(
 }
 
 # Drop rows whose footprint key is incomplete, keeping zero-impact crops (they
-# still consume trade).
+# still consume trade). Nothing on the package's own chain reaches here with an
+# incomplete key: the only crop-less rows build_n_boundary_exceedance() emits
+# are its cell residuals, and .nex_validate_attribution() aborts on those
+# first. So a drop here means a hand-assembled table, and it is reported rather
+# than decided in silence (#1173) -- including the part that matters most, that
+# dropping a row is also what stops .nex_validate_impact() from ever seeing a
+# non-finite impact on it.
 .nex_drop_bad_keys <- function(x) {
-  dplyr::filter(
-    x,
-    !is.na(.data$year),
-    !is.na(.data$area_code),
-    !is.na(.data$item_cbs_code)
+  complete <- !is.na(x$year) & !is.na(x$area_code) & !is.na(x$item_cbs_code)
+  if (!all(complete)) {
+    .nex_report_bad_keys(dplyr::filter(x, !.env$complete))
+  }
+  dplyr::filter(x, .env$complete)
+}
+
+.nex_report_bad_keys <- function(dropped) {
+  n_dropped <- nrow(dropped)
+  mass <- sum(dropped$impact_u, na.rm = TRUE)
+  n_unusable <- sum(!is.finite(dropped$impact_u))
+  cli::cli_warn(
+    c(
+      "{n_dropped} exceedance row{?s} carry an incomplete footprint key and
+       cannot enter the extension.",
+      x = "Excluded impact: {mass} t N.",
+      x = "Of those, {n_unusable} carry a missing or infinite impact, which
+           this drop removes before the finiteness check can refuse it.",
+      i = "The extension is keyed by {.field year}, {.field area_code} and
+           {.field item_cbs_code}; a row missing any of them has no footprint
+           to attach to."
+    ),
+    class = "whep_nex_incomplete_key"
   )
+  invisible(NULL)
 }
 
 # Crop-attributed boundary quantities may be signed, but missing or infinite

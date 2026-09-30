@@ -4,7 +4,12 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(example = FALSE, cbs = NULL)
+get_bilateral_trade(
+  example = FALSE,
+  cbs = NULL,
+  method_items_not_in_cbs = c("drop", "keep", "abort"),
+  method_seed_unit = c("target", "tonnes")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without
@@ -12,6 +17,39 @@ downloading remote data. Default is \code{FALSE}.}
 
 \item{cbs}{Optional pre-computed wide CBS tibble from
 \code{\link[=get_wide_cbs]{get_wide_cbs()}}. If \code{NULL} (default), it is built internally.}
+
+\item{method_items_not_in_cbs}{How to treat a traded item whose
+\code{item_cbs_code} has no commodity balance sheet row to balance it
+against. See the \emph{Items with no CBS row} section. One of:
+\itemize{
+\item \code{"drop"} (default): discard those flows, the historical
+behaviour. Published values are unaffected by this argument's
+existence as long as the default is kept.
+\item \code{"keep"}: keep the flows and take the row and column margins from
+the reported bilateral data itself instead of from the CBS.
+\item \code{"abort"}: fail, so that a refreshed pin cannot introduce
+unanchored items unnoticed.
+}
+
+Under \strong{every} method, an item that survives this step whose tonnes
+are not masses is refused; see the \emph{Items with no CBS row} section.
+
+\code{example = TRUE} always returns the \code{"drop"} fixture.}
+
+\item{method_seed_unit}{Which reported bilateral rows seed each trade
+matrix before it is balanced. See the \emph{Which unit seeds a matrix}
+section. One of:
+\itemize{
+\item \code{"target"} (default): seed each (year, item) matrix from the rows
+reported in the unit of the CBS margins it is balanced onto, i.e.
+head counts for the live-animal rows of the livestock balance and
+tonnes for everything else.
+\item \code{"tonnes"}: seed every matrix from its tonnes rows only, the
+behaviour before whep#1031. A live-animal (year, item) with no
+tonnes rows gets no matrix at all.
+}
+
+\code{example = TRUE} always returns the \code{"target"} fixture.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient
@@ -31,8 +69,9 @@ details see e.g. \code{add_area_name()}.
 item. See row name explanation above.
 }
 
-If \code{m} is the matrix, the value at \code{m["A", "B"]} is the trade in tonnes
-from country \code{"A"} to country \code{"B"}, for the corresponding year and item.
+If \code{m} is the matrix, the value at \code{m["A", "B"]} is the trade from
+country \code{"A"} to country \code{"B"}, for the corresponding year and item, in
+the row's \code{unit} (tonnes, or head counts for live animals).
 The matrix can be considered \emph{balanced}. This means:
 \itemize{
 \item The sum of all values from row \code{"A"}, where \code{"A"} is any country,
@@ -46,6 +85,21 @@ commodity balance sheet (which is considered more accurate for totals).
 The sums may not be exactly the expected values because of precision
 issues and/or the iterative proportional fitting algorithm not converging
 fast enough, but should be relatively very close to the desired totals.
+\item \code{has_cbs_totals}: \code{TRUE} when the matrix margins came from the
+commodity balance sheet, \code{FALSE} when the item had no CBS row for
+that year and its margins were taken from the reported bilateral
+flows themselves. Always \code{TRUE} unless
+\code{method_items_not_in_cbs = "keep"}.
+\item \code{method_items_not_in_cbs}: the treatment chosen for items with no
+CBS row, recorded so a downstream consumer can tell which variant it
+is holding.
+\item \code{unit}: the denomination of the matrix values, taken from the CBS
+margins it was balanced onto: \code{"tonnes"}, or \code{"heads"} for the live
+animals. A matrix balanced onto its own reported flows
+(\code{has_cbs_totals == FALSE}) is seeded from, and so denominated in,
+tonnes.
+\item \code{method_seed_unit}: the seed-unit method chosen, see
+\code{method_seed_unit}.
 }
 
 The step by step approach to obtain this data tries to follow the FABIO
@@ -113,6 +167,217 @@ exports and imports computed from the commodity balance sheet.
 \description{
 Reports trade between pairs of countries in given years.
 }
+\section{Which unit seeds a matrix}{
+
+Each matrix is balanced onto the CBS \code{export}/\code{import} margins of its
+(year, item), so it is denominated in the \code{unit} of those margins: tonnes
+for the FAO-style balance and \strong{head counts} for the live-animal rows
+that \code{\link[=get_livestock_cbs]{get_livestock_cbs()}} adds, whose margins are summed from exactly the
+\code{Head} rows of the same bilateral data. The seed only supplies the partner
+structure; iterative proportional fitting imposes the level. The choice is
+therefore which observed rows supply that structure (whep#1031).
+
+\code{"tonnes"} keeps the mass rows alone. On the \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392}, FAOSTAT reports the live-animal items in \code{Head}
+only up to 2013, so 283 of the pin's 4,589 (year, item) groups, over 11
+items and 1986-2013, have no tonnes row. Such a group has no seed cell at
+all, so it produces \strong{no matrix}, and \code{\link[=build_io_model]{build_io_model()}} then treats the
+item as wholly domestically sourced (\code{.item_trade_shares()} returns the
+identity for an item with no matrix). In 2010 that is all 9 live-animal
+items with CBS trade: 62.9 million imported head with no country of
+origin. Over 2014-2021 a further 86 groups carry both units; their
+structure then comes from the tonnes rows while their margins are head
+counts.
+
+\code{"target"} seeds each matrix in its margins' own unit, so seed and target
+agree and the observed head-count partner structure is kept. Measured on
+that pin against the 2010 and 2016 wide CBS:
+\itemize{
+\item every tonnes-denominated matrix (110 in 2010, 111 in 2016) is
+identical under both methods;
+\item 2010: \code{"target"} returns 9 head-count matrices where \code{"tonnes"} returns
+none. Their export-weighted partner shares differ from the reported
+head flows by a total-variation distance of 0 to 0.096 (0.0001 for
+pigs, 0.0006 for sheep).
+\item 2016: both return the 10 head-count matrices with non-zero margins. The
+export-weighted total-variation distance between the two methods'
+partner shares is 0.11 (camels) to 0.82 (mules), 0.49 for pigs and 0.70
+for sheep, and the \code{"tonnes"} shares sit that far from the reported
+head flows while the \code{"target"} ones sit within 0.056.
+}
+
+\code{"tonnes"} also returns 5 more 2016 matrices, all zero: chickens,
+turkeys, rabbits, geese and rodents, whose CBS head margins are zero
+because the pin carries their \verb{1000 Head} rows nowhere (whep#1092). An
+all-zero matrix carries no partner structure either, so \code{"target"} drops
+them as seedless (with a warning) and nothing observed is lost.
+
+The seed is not only a structure. \code{.fill_missing_trade()} fills each
+unreported cell from the margins, capped by the gap between an exporter's
+margin and its reported row sum, and the balancing step then starts from
+reported and estimated cells together. Both comparisons are made in the
+margins' unit, so a tonnes seed under head-count margins leaves most of
+each gap unfilled by what was reported and lets the estimate outweigh it.
+In 2016 the pin's summed live-animal head counts exceed its summed tonnes
+by 4.6 times for non-dairy cattle and 31 times for sheep, consistent with
+how far the 2016 \code{"tonnes"} shares sit from the reported flows.
+
+Converting head counts to mass is deliberately not offered. It would put
+the seed in tonnes under head-count margins, the mismatch just
+described, unless the margins were converted as well, and converting them
+needs a sourced live weight per species. The package holds none:
+\code{gleam_animal_weights} is an unsourced placeholder (whep#881, whep#182).
+}
+
+\section{Items with no CBS row}{
+
+The bilateral trade matrices are balanced against the total exports and
+imports reported in the commodity balance sheet, so an item with no CBS
+supply/use row has nothing to balance against. Historically those flows
+were discarded silently. Measured on the \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392} (after the export-preference deduplication and
+the tonnes filter, i.e. exactly what reaches this step): 12.51 Gt of
+47.48 Gt, \strong{26.4\% of the traded tonnage over 1986-2021}, in 7 items, of
+which 99.1\% is the FABIO-style aggregate placeholder \code{"Other"}
+(\code{item_cbs_code} 5001). The drop is now reported with
+\code{cli::cli_warn()} whichever method is chosen, because a quarter of world
+trade should not disappear without a message.
+
+The share is far from constant: 9.1\% over 1986-2003, \strong{49.6\% over
+2004-2013} and 4.3\% over 2014-2021. The middle block is not a real
+trade signal. It contains physically impossible flows booked in tonnes:
+Colombia to the United States, 2004, 2.58 Gt of \code{"Other"} in a single
+cell, more than world cereal production; Kenya to the Netherlands,
+515-594 Mt/year over 2005-2009. Excluding item 5001 altogether, the
+whole drop is 112 Mt, 0.24\% of traded tonnage.
+
+Which treatment is right is therefore a methodological question, not a
+lookup: \code{"Other"} is an unallocated residual whose 2004-2013 values are
+demonstrably corrupt, so \code{"keep"} carries that corruption into the
+output, and mapping the residual onto real CBS items would need a
+sourced disaggregation key that does not exist in the package. Nothing
+downstream consumes the kept rows yet either: \code{\link[=build_io_model]{build_io_model()}} takes
+its item dimension from supply-use and the CBS, so an item absent from
+both is ignored by \code{.build_trade_shares()} regardless of this argument.
+
+Those figures are not masses, and that has now been traced to the
+FAOSTAT source (whep#1023). CBS item 5001 is fed by FAOSTAT trade item
+1293 (\emph{Crude organic material n.e.c.}), for which FAOSTAT's aggregate
+\emph{Trade: Crops and livestock products} domain publishes a value but no
+country-level mass, while its Detailed Trade Matrix reports tonnages
+worth USD 0.01-0.5 per tonne whose mirrored report of the same flow
+disagrees by factors of 356 to 838,000. What the large side
+counts is unverified and the implied units per tonne are not constant,
+so nothing can be rescaled. See
+\code{\link[=build_detailed_trade]{build_detailed_trade()}}'s \emph{Quantities FAOSTAT does not back with a
+mass} section for the full measurement.
+
+This function therefore \strong{aborts} with class
+\code{"whep_unbacked_mass_trade"} whenever such an item would survive this
+step, rather than distributing 2.58 Gt through a matrix. The test is on
+what is \emph{kept}, under every method, and not on whether the item has a
+CBS row: those two coincide on today's data, and that coincidence was
+the only thing keeping the figures out of a published number. Give item
+5001 a CBS row and the earlier, \code{"keep"}-only refusal let the whole
+12.40 Gt through on the default method, silently.
+
+No published number moves. Measured on the live \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392}, item 5001 carries 12.40 Gt of \code{tonnes} over
+277,201 rows - 8.9\% of 1986-2003, \strong{49.4\% of 2004-2013} and 3.9\% of
+2014-2021 - and no commodity balance sheet carries item 5001, so
+\code{"drop"} removes all of it exactly as before.
+
+A caller who wants a trade matrix that carries item 5001 has to obtain
+a mass for it first. \code{\link[=build_detailed_trade]{build_detailed_trade()}} screens the same rows at
+the producer, where the fix belongs; that screen is latent until the
+\code{bilateral_trade} pin is regenerated from it, which whep#1122 tracks.
+}
+
+\section{The two batch pins on the build path}{
+
+Two further aliases were published in that same 2025-07-14 batch ---
+\code{crop_residues} and \code{bilateral_trade}, alongside the four above, between
+12:33:43Z and 12:33:50Z. Unlike the four, these two are read on the default
+build path, which is why no warning is attached to them: every commodity
+balance build reads them, so a warning at the read is noise rather than
+information.
+
+They do \strong{not} share a provenance despite sharing a timestamp. Each was
+established separately (#1054), because the timestamp alone establishes
+nothing.
+\subsection{\code{crop_residues} is predecessor output}{
+
+Read by \code{\link[=get_primary_residues]{get_primary_residues()}}, and from there by
+\code{\link[=build_commodity_balances]{build_commodity_balances()}}. All 475,688 of its \code{Product} rows equal the
+\code{primary_prod} pin's \code{tonnes} values exactly --- no key unmatched on either
+side, no value differing at a relative tolerance of 1e-6 --- so it is a
+downstream artifact of the same predecessor run, carrying that run's
+production series into the commodity balance.
+
+Its residue quantities are those production numbers times a
+residue-to-product ratio that varies by year and does not exist in this
+repository: 100 of its 116 \code{Name_biomass} items carry between 77 and 252
+distinct ratios across 1961--2021 (the 16 that carry one flat ratio are all
+fodder items), 33,411 area-item-year keys carry a residue of exactly 0, and
+\code{biomass_coefs$kg_residue_kg_product_FM} reproduces only 3,189 of the
+472,790 keys where the comparison can be made.
+The ratios are therefore not recoverable here, and the artifact is not
+reproducible from this package.
+
+It is not a small input. \code{\link[=get_primary_residues]{get_primary_residues()}} supplies 7.63 Gt to the
+2010 commodity balance (Straw 3.60 Gt, Other crop residues 2.49 Gt,
+Firewood 1.54 Gt) and 327.7 Gt over 1961--2021, and 3,998 of its 249,095
+output rows carry \code{NA} polity columns because the pin is name-keyed.
+
+Driving the same residue model off a fresh \code{\link[=get_primary_production]{get_primary_production()}} would
+move those numbers. Measured for 2010 at (\code{area_code}, \code{item_prod}): 1.958
+Gt of current production sits on 6,425 keys the pin never sees (809 Mt of
+it primary crops, including the modelled temporary-grassland item), 64.8 Mt
+on 296 keys is pin-only, and of the 8,010 shared keys 538 disagree, putting
+1.102 Gt --- 11.01\% of the pin's shared-key mass --- more than 1\% apart.
+The largest class is rice, 673.9 Mt in the pin against 463.3 Mt fresh, a
+ratio of 0.6876: current code puts rice on a milled-equivalent basis while
+the pin's is paddy, which is a basis difference rather than an error, since
+straw scales with the field crop. The second is fodder, where the current
+build is close to twice the pin on every forage and silage item, the pin
+predating that work. Replacing the pin therefore means choosing a residue
+model, which is a science decision and not a refresh.
+}
+
+\subsection{\code{bilateral_trade} is a curated FAOSTAT input}{
+
+Read by \code{\link[=get_bilateral_trade]{get_bilateral_trade()}} and by the live-animal branch of
+\code{\link[=build_commodity_balances]{build_commodity_balances()}}. Its values are the FAOSTAT Detailed Trade
+Matrix, not model output: against the \code{faostat-trade-bilateral} pin over
+2010, all 296,642 shared \code{tonnes} keys and all 5,102 shared \code{Head} keys
+agree exactly, with not one key differing. Over the full 1986--2021 span it
+carries 83,147,095,412 tonnes against FAOSTAT's 83,159,972,741 on
+CBS-mapped quantity rows, and 11,707,083,640 head against 11,708,244,416.
+
+The only transformations are an aggregation of FAOSTAT trade items onto CBS
+item names, a fold of 18 FAOSTAT areas into area code 999 (Bhutan, Comoros,
+Cook Islands, Equatorial Guinea, Faroe Islands, Marshall Islands,
+Micronesia, Nauru, New Caledonia, North Macedonia, Niue, Seychelles,
+Eswatini, Syrian Arab Republic, China Taiwan Province of, Tonga, Tuvalu and
+Palestine --- 3.18\% of its rows, 1.892\% of its tonnage, 0.492\% of its head
+counts), and a \code{Country_share} column the reader discards. So the shared
+timestamp implies nothing about it: what it holds is what FAOSTAT
+published, through the filters its producer applied.
+
+Two things it does not hold. FAOSTAT's \verb{1000 Head} rows are absent
+entirely --- 89,073 rows and 76,141,882 thousand head over 1986--2021,
+against the 11,707,083,640 head the pin does carry, all of it live broiler
+chicken, turkey, duck, rabbit and goose trade --- and so are its 5,011 \code{No}
+rows. \code{\link[=build_detailed_trade]{build_detailed_trade()}} recovers the first of those since PR #1113:
+run on the raw \code{faostat-trade-bilateral} pin today it emits 87,840,869,640
+head, 7.50x what this pin carries, against 64,450,133,319 tonnes, 22.5\%
+below it. That gain is latent until this pin is regenerated from the
+producer (#1122), which is a schema migration rather than a refresh: the
+two shapes share exactly one column name, \code{area_code}.
+\code{.clean_bilateral_trade()} reads either.
+}
+}
+
 \examples{
 get_bilateral_trade(example = TRUE)
 }

@@ -484,6 +484,7 @@ build_hayr_land_extension <- function(
       season_months = dplyr::coalesce(.data$season_months, default_months)
     ) |>
     dplyr::left_join(fallow, by = c("year", "area_code", "item_cbs_code")) |>
+    .hayr_check_fallow(base) |>
     dplyr::mutate(
       fallow_ha = dplyr::coalesce(.data$fallow_ha, 0),
       impact_u = .data$harvested_ha *
@@ -500,6 +501,31 @@ build_hayr_land_extension <- function(
       impact_u = .data$impact_u,
       method_land = .data$method_land
     )
+}
+
+# `base = "cropgrids_fallow"` stamps every row `cropgrids_fallow_hayr`, a claim
+# that rotational fallow is in the figure. The fallow is a difference of two
+# pins, joined on keys and coalesced to zero, so a fallow pin that matches the
+# cropped one, or one whose keys match no harvested row, yields zero fallow
+# everywhere -- and the extension ships as cropped-only land under the
+# fallow-inclusive label, with `impact_u` still non-negative and still
+# summing (whep#1034). The joined rows are checked, not `fallow`, so a fallow
+# table keyed on a code space the harvested rows do not share is caught too.
+# One crop without fallow is an observation; none anywhere is not.
+.hayr_check_fallow <- function(occ, base) {
+  if (base != "cropgrids_fallow") {
+    return(occ)
+  }
+  check_inputs_supplied(
+    occ,
+    c("rotational fallow" = "fallow_ha"),
+    details = c(
+      i = "{.code base = \"cropgrids_fallow\"} would label cropped-only land
+           as fallow-inclusive.",
+      i = "Use {.code base = \"cropgrids\"} for an extension without
+           fallow."
+    )
+  )
 }
 
 # Rotational fallow attributed to each crop = the fallow-inclusive CROPGRIDS
@@ -790,8 +816,22 @@ gridded_fallow_weights <- function(
     as.integer()
 }
 
+# Harvested area is selected by `unit == "ha"`. A production table in another
+# unit vocabulary matches no row, and both CROPGRIDS and ha*yr extensions then
+# return no rows: every footprint built on them loses its whole crop-land term
+# while the conservation checks pass, because an empty extension distributes
+# to nothing (whep#1034).
 .harvested_area_by_cbs <- function(primary_prod) {
   grass_items <- .grass_item_cbs()
+  check_labels_supplied(
+    primary_prod,
+    "unit",
+    "ha",
+    details = c(
+      i = "Harvested area is read from the {.val ha} rows of
+           {.fn get_primary_production}."
+    )
+  )
   primary_prod |>
     dplyr::filter(
       .data$unit == "ha",

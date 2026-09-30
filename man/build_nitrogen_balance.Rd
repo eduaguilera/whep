@@ -52,8 +52,10 @@ carries.
 \item \code{residue_destiny_input}: \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}'s required
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{residue_destiny_method} needs), for \code{used_residue_n_t}/
-\code{burnt_residue_n_t}. \code{residue_destiny_method} selects the method
-(default \code{"krausmann_regional"}).
+\code{bedding_residue_n_t}/\code{burnt_residue_n_t}. \code{residue_destiny_method}
+selects the method (default \code{"recovery_regional"}) and
+\code{residue_bedding_fraction} the share of the recovered non-feed residue
+used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
@@ -73,7 +75,10 @@ balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_c
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
-exact column.
+exact column; for the MANNER \code{nh3} methods the check runs on
+\code{n_balance_drivers} before any input is assembled, because no
+function in the package supplies those drivers (only \code{windspeed_ms}
+has a reader, \code{\link[=read_lpjml_wind]{read_lpjml_wind()}}, not wired in).
 \item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}.
@@ -102,9 +107,12 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
 columns below. When the supplied \code{n_inputs} carry them, the
-\code{method_recycling_n}, \code{method_synthetic} and \code{method_deposition_scope}
-stamps from \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance
-names the input conventions that produced it. Gains
+\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
+\code{method_deposition_scope}, \code{method_human_population},
+\code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure} and
+\code{method_unattributed} stamps from
+\code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance names the
+input conventions that produced it. Gains
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{
@@ -115,12 +123,13 @@ runs the nitrogen-loss cascade (\code{\link[=calculate_nh3]{calculate_nh3()}}, \
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}), closes the
 balance (\code{N_input_full - N_output_full}), applies the N-limitation cap on
 SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
-plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
-Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
+plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from the
+balance and indicator equations of an earlier regional historical
+reconstruction.
 }
 \details{
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
-turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}
+turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}
 and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied to the balance rows
 themselves, so one choice governs the whole build (whep#727). A
 \code{data$n_inputs} table supplied directly is left alone: it was built by its

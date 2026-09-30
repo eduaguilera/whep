@@ -36,6 +36,19 @@ gap-filled from the nearest available neighbour; otherwise cropping and
 gap-filling are both skipped and the returned grid covers every cell where
 HWSD itself has data.
 }
+\section{Caching}{
+
+Aggregating the HWSD raster to the 0.5-degree grid takes about an hour per
+pass, and its result depends only on the archive and the target grid, so it
+is cached under \code{rappdirs::user_cache_dir("whep")}. The cache key covers the
+archive's raster and header (size and modification time), the resolution,
+the requested columns, the target grid's cells and the derived map-unit
+values, plus an algorithm version that is bumped whenever a change would
+move the numbers. Set \code{WHEP_HWSD_CACHE_DIR} to relocate it; the test suite
+points it at a temporary directory so a fixture-derived grid can never reach
+a real cache.
+}
+
 \examples{
 read_soil_ph(example = TRUE)
 }

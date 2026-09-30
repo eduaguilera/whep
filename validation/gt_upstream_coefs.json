@@ -1,0 +1,19 @@
+{
+  "note": "Recorded state of the packaged coefficient tables against the external workbooks they are transcribed from. `changed` is the accepted difference at the time of recording, not a target of zero: WHEP may deliberately differ from upstream. Re-record only when the difference has been looked at, and say in the commit what moved and why.",
+  "sources": {
+    "biomass_coefs": {
+      "md5": "3f0c4f2270ad103608fc7429c7cab741",
+      "upstream_rows": 421,
+      "packaged_rows": 421,
+      "only_upstream": [
+        "BG_Biomass_kgDM_ha",
+        "Root_Shoot_ratio",
+        "Root_kgC_kgDM",
+        "Rhizodeposits_mass_kgC_kgDM",
+        "Rhizodeposits_N_kgN_kgRootN"
+      ],
+      "only_packaged": [],
+      "changed": {}
+    }
+  }
+}

@@ -1,4 +1,4 @@
-# CLAUDE.md — WHEP Package
+# AGENTS.md — WHEP Package
 
 WHEP is an R package (~140 scripts in `R/`, ~70k lines, 290 documented topics)
 that builds agro-environmental data: FAOSTAT/LUH2 primary production,
@@ -41,8 +41,12 @@ a review on them while leaving 1 and 2 unexamined.
   A pin shipped with **zero** inland water and ice — 533 Mha of lakes and
   glaciers booked as land — while `territory == land + water + ice` still
   held, because zero satisfies it. The layers were optional arguments that
-  zero-filled silently. Assert that an input was *supplied* (row count,
-  a provenance column), not merely that the totals reconcile. The same shape
+  zero-filled silently. Assert that an input was *supplied* (a provenance
+  column, or at least one non-missing non-zero value — a row count is not
+  enough), not merely that the totals reconcile; the helpers for this are
+  `check_inputs_supplied()` and `check_labels_supplied()`, and the rule is
+  [Absent inputs must not become zeros](#absent-inputs-must-not-become-zeros).
+  The same shape
   has appeared in a balance check with no unit dimension (head counts balanced
   against head counts), a global mean unchanged while every cell moved, and
   two Rest-of-World buckets matching by code while covering different
@@ -103,61 +107,49 @@ decision.
 - Cite in the roxygen `@description` or a code comment at the point of use,
   not only in the PR body, which nobody reads a year later.
 
-### Labels — the triage surface
+### Labels
 
-Labels are how the maintainer decides at a glance what can be batch-merged and
-what needs a domain expert. Label **every** issue extensively:
-
-- **Triage axis (required, exactly one)**: `mechanical` or `needs-expert`.
-  Reference-value and coefficient changes are always `needs-expert`, even at
-  one line. Infra, packaging, CRAN, docs, testing, and pure crash/identity
-  fixes are `mechanical`. When in doubt, `needs-expert`.
-- **Subsystem** (one or more, where applicable): `area:cbs`,
-  `area:production`, `area:livestock`, `area:trade`, `area:footprint`,
-  `area:nitrogen`, `area:soc`, `area:gapfilling`, `area:lmdi-decomp`,
-  `area:data-io`, `area:spatialize`, `area:regions`, plus cross-cutting
-  `fabio`, `lpjml`, `footprint-extension`. Cross-cutting infra/meta issues
-  legitimately carry none — do not force one.
-- **Type**: `bug` / `enhancement` / `documentation` / `dev-infra` /
-  `testing` / `release`.
-- **Priority**: a `priority:*` label.
-
-Apply the full set when opening an issue; backfill missing labels when you
-touch an old one.
-
-**A missing axis or an understated priority makes a real defect invisible.**
-The 2026-08-27 sweep found ~15 issues with no triage axis at all, and one that
-sat at `priority:low` for months while describing a coefficient table that is
-live in the Tier 2 emissions path — it was then rediscovered four times by
-work that could not see it. Priority is not a guess at effort; it is what
-decides whether anyone looks. If an issue describes something that moves a
-published number today, it is not `priority:low`, however small the diff.
-
-PRs do not need the labels duplicated when they close an already-labelled
+Issue/PR labelling conventions (triage axis, subsystem, type, priority,
+plus the three contributor-facing labels) moved to
+`agent-reference/issue-labels.md`. Read it before opening or labelling an
 issue.
 
-#### Contributor-facing labels
+### Writing a PR or issue body
 
-Three further labels exist for people outside the team, who pick work by them.
-Guidelines live in `.github/CONTRIBUTING.md` (that path keeps them out of the
-package build — `^\.github$` is in `.Rbuildignore`).
+**Lead with what the change adds: the problem, then the result.** A reviewer
+must be able to learn what they are being asked to merge from the opening
+lines. Then the details, then the numbers, then the evidence.
 
-- **`good first issue`** + **`help wanted`**: small, self-contained and
-  precisely specified. **Verify the defect still exists in current code before
-  applying it.** Several audit-era issues had already been fixed by a later
-  commit while the issue stayed open; sending a newcomer to one of those is
-  worse than leaving it unlabelled.
-- **`no-data-needed`**: the issue can be reproduced, fixed **and verified**
-  using only a clone. Package data (`data/*.rda`, `inst/extdata/`), hand-built
-  `tribble()` fixtures and injected arguments all count as available; pins,
-  `WHEP_*_DIR` rasters and any network read do not.
+**Process goes last.** Reconciliation with a branch that landed mid-flight, an
+approach that turned out wrong, a claim that failed its own check, a figure
+corrected on a second pass — all of it belongs in a closing section, never in
+the opening and never woven through the substance. This is about placement,
+not disclosure: a correction that changes the reviewer's decision is still
+mandatory, and a wrong number is still fixed and stated. Do not tally your own
+errors; state what is true now.
 
-`no-data-needed` exists because the data barrier, not the science, is what
-usually blocks an outside contributor: the test suite is fully offline, but a
-real pipeline build needs inputs that cannot be handed out. Two rules keep it
-worth having — apply it only after checking the verification path really is
-offline, and never apply it to code that is not on `main` (work living on an
-unmerged feature branch cannot be picked up from a fresh clone).
+**Never use a bare number as a heading or a reference.** Every mention of a
+pull request or an issue says which of the two it is and carries a short title
+naming its subject — `PR #1042 — gridded livestock emissions restored`,
+`issue #1043 — truncated aggregation factor`, never `#1042` alone. A reader
+scanning headings, a release-notes assembler, and anyone reading `git log` a
+year from now all need the subject without opening a link. The `Closes #N` /
+`Refs #N` lines are the exception: those are machine-read and stay bare.
+
+**State the base of every percentage**, and never quote a change in a
+component as though it were the change in the total that contains it. Where
+several figures come from different variants of one computation, either report
+a single consistent series or label every variant — a figure taken from a
+different variant than its neighbours is not a series.
+
+**Ask open questions with the questioning tool, not in prose.** A science
+decision surfaced under [Classify every change](#classify-every-change-mechanical-or-science-decision)
+is put to the maintainer through the structured question interface, with the
+alternatives and what changes numerically between them, not mentioned in a
+paragraph and left to be noticed. A question buried in a PR body or a report is
+a question that does not get answered: the work stalls, or proceeds on an
+assumption nobody agreed to. Keep working on whatever does not depend on the
+answer while it is outstanding.
 
 ## Running things
 
@@ -183,42 +175,19 @@ rcmdcheck::rcmdcheck(
 lintr::lint_package()   # linters and exclusions come from .lintr
 ```
 
-Gotchas worth knowing before losing an hour:
-
-- `WHEP_*` paths belong in `~/.Renviron` and are read from there. Do **not**
-  add a `.Renviron` at the repo root: R reads a working-directory `.Renviron`
-  *instead of* `~/.Renviron`, never both, so one here silently hides every
-  `WHEP_*` path an R session started at the root would otherwise see. That was
-  #456, fixed by moving `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron`
-  into the R-CMD-check workflow env and `.Rprofile`.
-- Long pipeline builds are minutes-to-hours and read pins or multi-GB local
-  rasters. Never put one in a test or an example; use the
-  [`example = FALSE` fixture pattern](#documentation).
-- `validation/` holds the ground-truth harness (`Rscript
-  validation/validate_all.R`) — it compares real WHEP output against
-  independent statistics. It **needs network and external data**, is
-  `.Rbuildignore`d, and is not part of `R CMD check`. Run it when a change
-  moves published numbers; see `validation/README.md` and
-  `validation/SOURCES.md`.
+Gotchas worth knowing before losing an hour
+(`.Renviron`/`.Rprofile` shadowing, long pipeline builds, `validation/`)
+moved to `agent-reference/build-verification-notes.md`. Read it before
+debugging an env var or profile that "should" be set.
 
 ## Conventions that are easy to get wrong
 
 ### Area codes and polity columns
 
-There are **two code spaces**, and confusing them silently misattributes data:
-
-- `area_code` — the FAOSTAT-style area key of the row.
-- `polity_area_code` — the numeric key rows are **aggregated on** for the
-  matrix workflows. It is a *bucket, not an identity*: 999 is Rest of World,
-  206 is Sudan (former), and 62 of the 257 ISO3 codes in `regions_full` do not
-  get their own code.
-- `reporting_polity_code` — the polity itself (`"ESP-1846-1914"`), year-aware:
-  the same `area_code` resolves to different polities in different years.
-  Use this to say which territory a row belongs to.
-
-`R/polity_columns_doc.R` documents these once; inherit that section instead of
-writing a fresh, subtly different description. Rows that resolve to no polity
-keep `NA` rather than being dropped, so gaps stay visible.
+Why `reporting_polity_code`, `polity_area_code` and `area_code` are not
+interchangeable, and the polity-period convention, moved to
+`agent-reference/area-codes-and-polities.md`. Read it before grouping,
+joining or reducing on any of them.
 
 ### Join on codes, never on names
 
@@ -248,14 +217,81 @@ not base R, and abort with `cli::cli_abort()`. For completing a tibble to a
 known schema, use the exported `ensure_columns()` with a zero-row prototype
 rather than ad-hoc `if (!has_name(...)) mutate(x = NA)` chains.
 
+### Absent inputs must not become zeros
+
+Three times in one week an absent input silently became a zero and every check
+downstream passed (#1010, #1016, #1034). **A guard must sit where the absence
+is created, not where it is consumed**: once a zero is downstream it is
+indistinguishable from a measurement, and no care at the consuming end
+recovers the distinction.
+
+Two exported helpers, in `R/absent_input.R`:
+
+- `check_inputs_supplied(data, required)` — the column exists **and** holds at
+  least one value that is neither missing nor zero. Use it at a boundary an
+  external table crosses. It does not judge a zero-row frame (a filter that
+  matched nothing is the caller's to answer for) and one non-zero value
+  anywhere passes, so it cannot see a partial absence.
+- `check_labels_supplied(data, column, labels)` — the labels a `filter()`
+  selects on still occur in the column. This is #1016's mechanism, and it is
+  invisible to any rule written around `coalesce()`, `replace_na()` or
+  `na.rm`: none of those appear anywhere near it. The message names the labels
+  that *are* there, because a rename is only obvious once you see the new
+  spelling.
+
+`stamp_inputs_supplied()` writes the provenance label the first reads: a
+comma-separated list of the optional inputs a build consumed. A label cannot
+be satisfied by arithmetic, which is the whole point — see `layers_supplied`
+in `build_polycell_support()` and `read_polycell_support()`, the prior art
+both helpers generalise, and `method_weed_npp` in
+`calculate_npp_carbon_nitrogen()` for the per-row form.
+
+Three states, and the middle one is where the completeness principle bites:
+
+1. a bare zero or silent literal — forbidden, because it cannot be told from a
+   measurement;
+2. a refusal — also wrong wherever the quantity is known to exist, because
+   excluding it biases the total just as silently;
+3. a **declared assumption** — a named value, a citation or an explicit
+   "assumed, unverified" note, and a `method_*` / `source` / `*_supplied`
+   stamp on the row.
+
+The line between (2) and (3) is not abort-versus-fill. It is whether the
+absent thing is a **quantity** (a species with no published emission factor —
+fill it and declare it) or a **contract** (a corrupted lookup, a label in an
+unrecognised vocabulary — no defensible fill exists; abort). And before
+filling anything: **run the lookup and look at what it returns.** A value the
+code failed to reach is a defect, not an absent quantity, and a `method_*`
+stamp on it makes a missed lookup read as a considered choice.
+
+A structural zero — one where the right-hand side is a ledger or lattice WHEP
+itself defines, so absence really is "did not happen" — is fine, but **say so
+in a comment at the point of use**. There are ~170 silent sites in ~51 files;
+they stay a documented backlog rather than a build-stopping gate, and turning
+the readable ones into readable code is what makes any future gate possible.
+
+Every guard ships with a test of the shape in
+`tests/testthat/helper_absent_input.R`:
+
+```r
+expect_supplied_guard(
+  identity = <the reconciliation, which HOLDS on the vacuous input>,
+  guard = <the call, which must fire anyway>
+)
+```
+
+Its subject is the inadequacy of the identity, not the identity. #1016's own
+test is named *"enteric_ch4_kt conservation is exact"* and passes today while
+the pin ships nothing, because zero distributes to zero. A row count is not
+enough either: an Element whose rows exist while every `Value` is `NA`
+collapses to a literal zero through `sum(na.rm = TRUE)` with a positive row
+count.
+
 ### NSE globals
 
-Every NSE symbol must be declared in the `utils::globalVariables()` call at the
-top of `R/utils.R` or `R CMD check` NOTEs. It is ~1700 entries long: **append**
-a small block at the end, preceded by a comment naming the file and what the
-symbols are for, following the existing pattern. Do not reorder or
-alphabetise it — the file-grouped comments are the only thing making it
-reviewable.
+The `utils::globalVariables()` append procedure moved to
+`agent-reference/merge-and-globals.md`. Read it before declaring a new
+NSE symbol.
 
 ### data.table inside private helpers
 
@@ -303,6 +339,12 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   record 15556812) and the critical-nitrogen archive (`read_critical_n()`,
   Zenodo record 6395016).
 
+#### Fixing the reader is half the job: the pin it feeds is now stale
+
+Moved to `agent-reference/data-pipeline.md`. Read it before or after
+changing a producer function — the fix does not move a published number
+until the pin it feeds is regenerated.
+
 ### NEWS.md — do not edit it per PR
 
 **Do not add a `NEWS.md` entry in a PR.** Every PR touching the same
@@ -323,6 +365,12 @@ That is the same information the old per-PR entries carried, recorded where it
 cannot conflict and where `git log` can find it. If a change is large enough
 that a user needs prose beyond a commit message, write it in the PR body and
 flag it for the release notes there.
+
+### Generated and append-only files — regenerate, never hand-merge
+
+The per-file merge-conflict rules for `R/utils.R`, `NAMESPACE`, `man/` and
+`data/*.rda` moved to `agent-reference/merge-and-globals.md`. Read it
+before resolving a conflict in any of them.
 
 ### File naming
 
@@ -438,7 +486,9 @@ Conventions of the codebase (follow them; they are how the code reads):
 
 The PR must pass these GitHub Actions checks:
 
-1. **R-CMD-check** (4 platforms, 45-min timeout): `rcmdcheck::rcmdcheck()`
+1. **R-CMD-check** (4 platforms, 60-min job cap over a 40-min cap on the check
+   step itself — setup is download and varies, the check step is what can
+   hang): `rcmdcheck::rcmdcheck()`
    with no errors, warnings, or notes. Tests run here, which is why a
    network-dependent test breaks the build. **R-devel is not one of the four**:
    RSPM ships no R-devel binaries, so that leg source-builds the geo stack every
@@ -465,6 +515,16 @@ forgets, not a licence to skip — a PR is not ready until you have run
 `air format .` yourself, so that the diff under review is the diff that lands
 and `main` does not fill up with formatting-only commits.
 
+`cache-prune` is not a check and never runs on a pull request's check path. It
+deletes the dependency caches a pull request leaves behind once that PR closes,
+on close and on a six-hourly sweep. A cache written from `refs/pull/N/merge` is
+readable only by that same PR and GitHub never deletes it on merge, so without
+this the repository sat at 10.51 GB against the 10 GB quota with 6.14 GB of it
+held by five already-merged PRs — bytes nothing could ever read, evicting
+`main`'s shared caches and making later runs do cold installs (#1104). If a
+cache seems to have vanished, read that workflow's log before suspecting a key
+change.
+
 ## Before committing
 
 ```bash
@@ -487,26 +547,10 @@ rcmdcheck::rcmdcheck(
 devtools::test()
 ```
 
-### There are three verification surfaces and they disagree
-
-A green `devtools::test()` does **not** mean a green CI. Three layouts exist:
-
-1. **Source checkout** — what `devtools::test()` runs. `.Rprofile` calls
-   `devtools::load_all()`, which pre-attaches every package data object, and
-   `inst/` is present.
-2. **`R CMD INSTALL .`** — installs `inst/` **wholesale**, ignoring
-   `.Rbuildignore`.
-3. **Built tarball** — what `R CMD check`, r-universe and CRAN run.
-   `.Rbuildignore` applies, so `^inst/scripts$`, `^validation$` and `data-raw`
-   are simply **absent**.
-
-Only (3) is what CI runs, and each surface has shipped a real failure the
-others could not see: a data fingerprint that hashed 55 of 100 objects because
-`load_all()` had already attached them; a test that "passed" under `INSTALL`
-while its script was `.Rbuildignore`d out of the tarball; an assertion that
-failed only because CI resolves a newer dplyr. If a change touches
-`utils::data()`, package data, a lazy-loaded object or anything under `inst/`,
-verify on the tarball before claiming it is green.
+Why a green `devtools::test()` is not a green CI — the three build
+layouts and how they disagree — moved to
+`agent-reference/build-verification-notes.md`. Read it if a change
+touches package data, a lazy-loaded object or anything under `inst/`.
 
 ```bash
 # 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml
@@ -528,117 +572,46 @@ survives, so the issue can be rescoped rather than closed by accident.
 
 ## Data pipeline
 
-- **Primary production**: `build_primary_production()` — FAOSTAT + LUH2
-  extension (1850–2023).
-- **CBS**: `build_commodity_balances()` — long format output with `source` and
-  `fao_flag` columns.
-- **Processing coefficients**: `build_processing_coefs()` — cascades from CBS.
-- **Soil water balance**: `build_water_balance()` — gridded (0.5° cell ×
-  polity) annual water budget from LPJmL hydrology (drainage for N leaching);
-  `get_soc_climate_drivers()` emits the monthly SOC climate drivers.
-- **Soil carbon (SOC)**: `build_carbon_balance()` — historical gridded SOC
-  dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding
-  ΔSOC → ΔSON. `calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg",
-  "century"))` wraps the five SOC models (default `"hsoc"`);
-  `build_soil_carbon_inputs()` assembles humified C inputs.
-- **Soil nitrogen balance**: `build_nitrogen_balance()` — full gridded N
-  balance (inputs − outputs, NUE indicators, GWP/CO2e). `build_n_inputs()`
-  assembles the input terms; `calculate_nh3()` / `calculate_soil_n2o()` /
-  `calculate_n_leaching()` are the selectable loss methods;
-  `build_n_deposition()` / `build_urban_n()` read gridded deposition and
-  urban/human N.
-- **Footprints**: `build_footprint()` over the FABIO-style IO core
-  (`build_io_model()`, `leontief.R`), with extensions wired per stressor
-  (`crop_land_extension.R`, `grassland_land_extension.R`,
-  `livestock_ghg_extension.R`, `energy_co2_extension.R`,
-  `crop_soil_n2o_extension.R`, `n_exceedance_extension.R`). Conservation
-  checks live in `R/conservation.R` — a footprint change should exercise them.
-- **Source labels**: use dataset-specific names (`FAOSTAT_prod`,
-  `FAOSTAT_FBS_New`, etc.).
-- **New data sources**: see [Where input data comes
-  from](#where-input-data-comes-from) for which of the three mechanisms to
-  use.
-- **LPJmL outputs are the one input a user cannot obtain**, so unlike the
-  third-party rasters they are **pinned, and `WHEP_LPJML_RUN_DIR` is
-  optional**. `build_grass_natural_carbon_inputs()` reads
-  `lpjml-grass-natural-net-c` and `get_soc_climate_drivers()` reads
-  `lpjml-soc-hydrology` by default; set the env var (or pass `run_dir`) only
-  to derive those layers from a local run instead. Both artifacts hold **only**
-  LPJmL-derived quantities — grazing excreta, humification fractions, CRU air
-  temperature and the HWSD texture products are always computed locally, so
-  the pinned and run-derived paths cannot silently disagree.
-- **Regenerate the LPJmL-derived pins together, from one run.** Four pins carry
-  LPJmL model *output* — `lpjml-grass-availability`,
-  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
-  `lpjml-soc-hydrology`. Use the single entry point
-  `regenerate_whep_lpjml_pins()` in the `~/whep_inputs` project: dry-run by
-  default (it prints a manifest plus the change against each pin it would
-  replace), `upload = TRUE` to publish. Refreshing only some of them leaves
-  WHEP mixing two LPJmL versions across its feed, soil-carbon and water chains
-  at once — worse than consistently using either version, and invisible
-  downstream because every pin still loads with the right schema. The six
-  `lpjml-wind-*` / `lpjml-rsds-*` / `lpjml-rlds-*` pins are climate **forcing**
-  (they feed *into* LPJmL, so they do not change with the model version) and
-  must never go through that path; they come from
-  `inst/scripts/prepare_spatialize_all.R`.
-- **LPJmL output variable names are version-dependent.** 6.x renames some
-  outputs to their CF short names — `mprec.nc` holds `pr` where 5.x held
-  `prec`. Readers resolve the name against what the file actually contains
-  (`.hydro_var_aliases()`), because a run directory carries no version stamp
-  and both versions' output can sit side by side on one machine. Add the next
-  rename there; the reader aborts listing the file's actual variables rather
-  than failing on a `NULL` lookup.
+The function catalogue (primary production, CBS, soil water/carbon/
+nitrogen, footprints, LPJmL pins) moved to
+`agent-reference/data-pipeline.md`. Read it before touching a pipeline
+stage or a pin.
 
 ## Package data updates
 
-When modifying CSV files in `inst/extdata/harmonization/`:
-
-1. Edit the CSV.
-2. Run `Rscript data-raw/harmonization_tables.R` to rebuild `.rda` files.
-3. Run `Rscript data-raw/table_mappings.R` if `regions.csv` or `items_*.csv`
-   changed.
-4. Run `Rscript data-raw/whep_inputs.R` if `whep_inputs.csv` changed.
-
-Skipping the rebuild is a defect, not an omission: `data/*.rda` is a committed
-build product, so an edited CSV that was never rebuilt ships a table
-disagreeing with its own source, and it looks exactly like a fresh one
-(#384 — that is how `regions_full` came to resolve eight areas to polities
-upstream had retired). `tests/testthat/test_data_raw_freshness.R` is the gate.
-It re-runs every builder whose inputs live inside the repo, with the
-`usethis::use_data()` calls stripped so nothing is written, and compares each
-rebuilt object with the committed `.rda` by content. It covers 49 of the 56
-tables; the seven it cannot rebuild (the whep-polities GeoPackage, the Coello
-CSV, the GLEAM workbook) are listed there with the input that blocks each one,
-and the list is asserted to be exactly the complement, so a new dataset cannot
-arrive both unchecked and unexcluded.
+The CSV-edit / rebuild procedure for `inst/extdata/harmonization/` moved
+to `agent-reference/data-pipeline.md`. Read it before or after editing a
+harmonization CSV.
 
 ## This is the only agent instruction file
 
 The repo used to carry per-tool copies of these rules
 (`.github/copilot-instructions.md`, `.agent/rules/whep.md`). They drifted —
 one still forbade `data.table`, which the package now Imports — so they were
-deleted.
+deleted in favour of a single `CLAUDE.md` with a byte-identical `AGENTS.md`
+copy, kept in step by a CI check. That copy existed only because not every
+agent read `AGENTS.md`; now that they do, the copy is gone and `AGENTS.md`
+is the one file.
 
-`CLAUDE.md` is the source of truth. If a tool needs a different filename,
-give it a **byte-identical copy** and keep it in step:
+`AGENTS.md` is the source of truth. Claude Code (>= 2.1.277), Codex and
+Copilot all read `AGENTS.md` directly — no per-tool copy is needed for any of
+them, and none should exist. Tools that look for another name by default can
+usually be configured to read `AGENTS.md` (for example Gemini CLI's
+`contextFileName` setting).
 
-```bash
-cp CLAUDE.md AGENTS.md   # after editing CLAUDE.md
-```
-
-`AGENTS.md` already exists as one. Add new names to `.Rbuildignore` too, or
-`R CMD check --as-cran` reports a non-standard file at top level.
-
-**Not a symlink.** Git for Windows only materialises symlinks when
-`core.symlinks` is true, which needs Developer Mode or admin rights; with it
-false the file is checked out as plain text containing the target path, so a
-tool would read the nine bytes `CLAUDE.md` instead of these rules — silently,
-and invisibly to a Linux-only CI job.
+**Not a symlink, and not a copy either.** A symlinked or copied per-tool file
+was the earlier failure mode: Git for Windows only materialises symlinks when
+`core.symlinks` is true, which needs Developer Mode or admin rights, so a
+symlink risks silently checking out as plain text containing the target path
+instead of the rules; a copy risks silently drifting from the file it was
+copied from. One canonical file that every tool reads natively removes both
+risks at once.
 
 This is enforced, not merely asked for:
-`.github/workflows/agent-instructions.yaml` fails the build if any known
-agent-instruction filename is present and is not byte-identical to
-`CLAUDE.md`. If your tool wants a name it does not list, add the name to its
-`candidates` list — do not start a second source of truth. If your tool looks
-for a name that workflow does not list, add the name to its `candidates` list
-and symlink it — do not start a second source of truth.
+`.github/workflows/agent-instructions.yaml` fails the build if `AGENTS.md` is
+missing, or if any other known agent-instruction filename (`CLAUDE.md`,
+`.github/copilot-instructions.md`, `.agent/rules/whep.md`, etc.) is present at
+all. If your tool looks for a name that workflow does not list and reads
+`AGENTS.md` natively, there is nothing to add. If your tool cannot be pointed
+at `AGENTS.md`, raise it before adding a copy — do not start a second source
+of truth.

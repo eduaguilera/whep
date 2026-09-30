@@ -53,6 +53,14 @@
 #'    - `t_head`: tonnes per head, available for livestock products.
 #'    - `t_LU`: tonnes per Livestock Unit, available for livestock products.
 #' - `value`: The amount of item produced, measured in `unit`.
+#' - `source`: Where the value came from, e.g. `"FAOSTAT_prod"`,
+#'    `"EuropeAgriDB"`, `"LUH2_cropland"`, `"imputed_yield"`.
+#' - `fao_flag`: FAOSTAT's observation-status code for the value (`"A"`
+#'    official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), or `NA` where
+#'    the number is not one FAOSTAT published under a flag. It describes the
+#'    value rather than the item or area, so it is `NA` on WHEP's computed
+#'    yields, on the livestock-unit conversions, and on every gap-filled or
+#'    back-cast row. See [build_primary_production()] for the full rule.
 #'
 #' @export
 #'
@@ -92,7 +100,22 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #'    These are actually not FAOSTAT defined items, but custom defined by us.
 #'    When necessary, FAOSTAT codes are extended for our needs.
-#' - `value`: The amount of residue produced, measured in tonnes.
+#' - `value`: The amount of residue produced, in tonnes of **fresh matter**,
+#'    like every other commodity-balance quantity.
+#' - `value_dm`: The same residue in tonnes of **dry matter**: each crop's
+#'    fresh residue times its own residue dry-matter content,
+#'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
+#'    crop with residue mass carries no such coefficient, so the gap stays
+#'    visible rather than reading as zero.
+#'
+#' The pin's residue quantities are fresh matter. Across its crops the ratio of
+#' pinned residue to product tracks the fresh-matter residue:product ratio
+#' `kg_residue_kg_product_FM` of [biomass_coefs] (about 0.8 of it for nearly
+#' every crop), not the residue's dry-matter content, which runs from 0.13
+#' (tomato) to 1.0 (rapeseed) (whep#1215). Use `value_dm` wherever a quantity
+#' is defined per unit of dry matter, such as a residue nitrogen content.
+#'
+#' @inheritSection whep_read_file The two batch pins on the build path
 #'
 #' @export
 #'
@@ -103,11 +126,18 @@ get_primary_residues <- function(example = FALSE) {
     return(.example_get_primary_residues())
   }
 
+  # The `crop_residues` pin is predecessor-pipeline output, not a curated
+  # input: its `Product` rows equal the `primary_prod` pin's tonnes to the last
+  # digit, and the year-varying residue ratio behind its `Residue` rows is not
+  # in this repository. See the pin-batch section above for the measurement,
+  # and note that this is where the predecessor's production series enters the
+  # commodity balance (#1054).
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
+    .residue_area_from_polity() |>
     .warn_residues_no_area() |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",
@@ -117,11 +147,13 @@ get_primary_residues <- function(example = FALSE) {
       name_column = "item_cbs",
       code_column = "item_cbs_code_residue"
     ) |>
+    .add_residue_dm_content() |>
     dplyr::summarise(
       # whep#167: a single NA `prod_ygpit_mg` sibling otherwise poisons the
       # whole group sum to NA, which `filter(value > 0)` below then silently
       # drops -- erasing real, non-NA residue rows along with the missing one.
       value = sum(prod_ygpit_mg, na.rm = TRUE),
+      value_dm = .sum_residue_dm(prod_ygpit_mg, residue_kgdm_kgfm),
       .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
     ) |>
     dplyr::filter(value > 0) |>
@@ -130,34 +162,142 @@ get_primary_residues <- function(example = FALSE) {
       area_code,
       item_cbs_code_crop,
       item_cbs_code_residue,
-      value
+      value,
+      value_dm
     ) |>
     .use_crop_process_cbs_item() |>
     .add_reporting_polity_columns()
+}
+
+# Resolve a residue area label the NAME join could not, through the polity the
+# label names.
+#
+# `add_area_code()` matches the crosswalk's canonical area names exactly, and
+# this pin -- the only source resolved by name -- spells 14 of its 185 labels in
+# the common short form: "Tanzania" against "United Republic of Tanzania",
+# "Turkey" against "Turkiye", "Netherlands" against "Netherlands (Kingdom of
+# the)". Measured on the current pin, those 14 labels are 44,985 of 475,688 rows
+# (9.5%) and 16,651,046,476 t of residue fresh matter (5.08%), and every one of
+# them then took a missing-value path through the rest of the package:
+# `.read_crop_residues()` drops a row that reaches no polity, and
+# `calculate_residue_destinies()` gives a row with no `region_krausmann` a
+# recovery rate of 0, so the whole residue is booked to soil with nothing
+# recovered, nothing fed and nothing burned (whep#1175, whep#684).
+#
+# NOTHING IS INVENTED HERE. The label goes through `resolve_polity_label()` --
+# WHEP's curated alias table, regenerated together with `polities` from one
+# upstream revision -- and the polity it names is mapped back to the single area
+# that reports it. All 14 resolve, and none of the 14 target codes is already
+# carried by another label in the pin, so no country is counted twice.
+#
+# It is asked per (label, year) because a label's referent moves. "Tanzania" is
+# TZA-1964-2025 from 1964 on but the pre-union TZA-1961-1964 before it, and no
+# FAOSTAT area reports Tanganyika: those 150 rows (23,413,534 t, 0.14% of the
+# gap) keep `NA` rather than being booked to the United Republic, and
+# `.warn_residues_no_area()` below names what is left.
+#
+# Only rows the name join left `NA` are touched, so the 171 labels that already
+# resolve keep exactly the code they had.
+.residue_area_from_polity <- function(dt) {
+  if (!all(c("area", "area_code", "year") %in% names(dt))) {
+    return(dt)
+  }
+  unresolved <- is.na(dt$area_code)
+  if (!any(unresolved)) {
+    return(dt)
+  }
+  keys <- tibble::tibble(
+    .residue_label = as.character(dt$area[unresolved]),
+    .residue_year = as.integer(dt$year[unresolved])
+  ) |>
+    dplyr::distinct() |>
+    dplyr::mutate(
+      polity_code = resolve_polity_label(
+        .data$.residue_label,
+        year = .data$.residue_year
+      )
+    ) |>
+    dplyr::left_join(.unique_polity_area(), by = "polity_code") |>
+    dplyr::filter(!is.na(.data$area_code_from_polity)) |>
+    dplyr::select(-"polity_code")
+  if (nrow(keys) == 0L) {
+    return(dt)
+  }
+  out <- dt |>
+    dplyr::mutate(
+      .residue_label = as.character(.data$area),
+      .residue_year = as.integer(.data$year)
+    ) |>
+    dplyr::left_join(keys, by = c(".residue_label", ".residue_year")) |>
+    dplyr::mutate(
+      area_code = dplyr::coalesce(
+        .data$area_code,
+        .data$area_code_from_polity
+      )
+    )
+  .inform_residue_area_route(
+    dt$area[unresolved],
+    out$area_code[unresolved]
+  )
+  dplyr::select(
+    out,
+    -".residue_label",
+    -".residue_year",
+    -"area_code_from_polity"
+  )
+}
+
+# The one area that reports each polity. A polity several areas map to resolves
+# to none: in the shipped crosswalk that is only the Rest-of-World bucket
+# ROW-1850-2025, which 15 areas share, and picking one of them would be a guess.
+.unique_polity_area <- function() {
+  .current_area_lookup(include_unmapped = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::filter(!is.na(.data$polity_code), !is.na(.data$area_code)) |>
+    dplyr::distinct(.data$polity_code, .data$area_code) |>
+    dplyr::filter(dplyr::n() == 1L, .by = "polity_code") |>
+    dplyr::transmute(
+      polity_code = .data$polity_code,
+      area_code_from_polity = as.integer(.data$area_code)
+    )
+}
+
+# Changing where a row's area comes from is a change of attribution, so say it.
+# No cli pluralisation markers, for the reason `.warn_residues_no_area()` gives.
+.inform_residue_area_route <- function(labels, codes) {
+  gained <- !is.na(codes)
+  if (!any(gained)) {
+    return(invisible(NULL))
+  }
+  n_rows <- sum(gained)
+  named <- sort(unique(as.character(labels[gained])))
+  n_labels <- length(named)
+  cli::cli_inform(c(
+    "v" = "{n_rows} crop-residue rows took their area code from the polity
+       their label names, because no canonical area name matched it.",
+    "i" = "{n_labels} labels resolved this way: {.val {named}}"
+  ))
+  invisible(NULL)
 }
 
 # Say when a residue row cannot be attributed to any area, instead of emitting
 # it silently.
 #
 # `add_area_code()` resolves this source by NAME -- it is the only builder that
-# does -- and leaves `area_code` as NA where no name matches. Those rows then
-# travel all the way to the output with NA polity columns and reach
-# `build_supply_use()` from there. Measured on the current pin: 44,985 of 475,688
-# rows (9.5%) have no area code, over 14 labels and years 1961-2021, and 3,937
-# rows of `get_primary_residues()`'s own output carry NA polity columns as a
-# result. Every one of the 14 is a common short form of an area the crosswalk
-# holds under a FAOSTAT long form -- "Tanzania" against "United Republic of
-# Tanzania", "Netherlands" against "Netherlands (Kingdom of the)" -- so the codes
-# are reachable and the spellings are not.
+# does -- and leaves `area_code` as NA where no name matches.
+# `.residue_area_from_polity()` above now recovers the 14 short-form labels that
+# caused nearly all of it; what reaches here is what neither route resolves.
+# Those rows travel all the way to the output with NA polity columns and reach
+# `build_supply_use()` from there, so the gap stays named rather than silent.
 #
-# Nothing said so. Every other unattributable-row path in this package names
-# itself; this was the exception, and it is the origin of the gap, so tracing it
-# from downstream took a full-range run instead of reading a warning.
+# Nothing said so before whep#684. Every other unattributable-row path in this
+# package names itself; this was the exception, and it is the origin of the gap,
+# so tracing it from downstream took a full-range run instead of reading a
+# warning.
 #
-# Reports rather than drops. The rows stay in the output exactly as before,
-# because whether an unattributable residue row should be dropped is a modelling
-# question and this is a diagnostic. Repairing the name-based join itself is a
-# separate change.
+# Reports rather than drops. The rows stay in the output, because whether an
+# unattributable residue row should be dropped is a modelling question and this
+# is a diagnostic.
 .warn_residues_no_area <- function(dt) {
   if (!all(c("area", "area_code", "year") %in% names(dt))) {
     return(dt)
@@ -182,6 +322,71 @@ get_primary_residues <- function(example = FALSE) {
        {.val {labels}}"
   ))
   dt
+}
+
+# Attach each pin row's residue dry-matter content (kg DM per kg fresh
+# residue), keyed on the row's own `name_biomass`, so the conversion follows
+# the crop that produced the residue and not the CBS residue item it is booked
+# to. "Other crop residues" (2106) mixes vegetable haulm at 0.13-0.30 with
+# pulse straw at 0.9; a single coefficient for the item cannot convert it
+# (whep#1215).
+#
+# Joined many-to-one on purpose: `biomass_coefs` repeats a few livestock names,
+# and a crop name that ever matched two different contents would be a guess,
+# so it aborts rather than duplicating residue mass.
+.add_residue_dm_content <- function(dt, biomass_coefs = whep::biomass_coefs) {
+  if (!rlang::has_name(dt, "name_biomass")) {
+    cli::cli_abort(
+      "The crop-residue table has no {.field name_biomass} column, so its
+       residue cannot be converted to dry matter."
+    )
+  }
+  coefs <- biomass_coefs |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$Name_biomass %in% dt$name_biomass) |>
+    dplyr::distinct(
+      name_biomass = .data$Name_biomass,
+      residue_kgdm_kgfm = .data$Residue_kgDM_kgFM
+    )
+  dt |>
+    dplyr::left_join(
+      coefs,
+      by = "name_biomass",
+      relationship = "many-to-one"
+    ) |>
+    .warn_residue_no_dm()
+}
+
+# Name the residue mass that has no dry-matter content, instead of letting it
+# vanish from `value_dm`. No cli pluralisation markers, for the reason
+# `.warn_residues_no_area()` gives.
+.warn_residue_no_dm <- function(dt) {
+  gap <- is.na(dt$residue_kgdm_kgfm) &
+    !is.na(dt$prod_ygpit_mg) &
+    dt$prod_ygpit_mg > 0
+  if (!any(gap)) {
+    return(dt)
+  }
+  mass_mt <- round(sum(dt$prod_ygpit_mg[gap]) / 1e6, 3)
+  names_gap <- sort(unique(as.character(dt$name_biomass[gap])))
+  cli::cli_warn(c(
+    "!" = "{mass_mt} Mt of crop residue has no residue dry-matter content in
+       {.field biomass_coefs}, so {.field value_dm} is NA for it.",
+    "i" = "Biomass names without {.field Residue_kgDM_kgFM}:
+       {.val {names_gap}}"
+  ))
+  dt
+}
+
+# Dry matter of one residue group. A missing fresh mass is ignored, as in
+# `value` (whep#167); a missing dry-matter content on real mass is not, and
+# makes the group NA.
+.sum_residue_dm <- function(fresh_t, kgdm_kgfm) {
+  has_mass <- !is.na(fresh_t) & fresh_t > 0
+  if (any(has_mass & is.na(kgdm_kgfm))) {
+    return(NA_real_)
+  }
+  sum(fresh_t[has_mass] * kgdm_kgfm[has_mass])
 }
 
 # TODO: This is dirty, revisit when we build the data here directly.

@@ -7,7 +7,7 @@
 # This script pins the numbers that need real inputs. The invariants that can
 # be pinned on fixtures live in the test suite instead, where they run in CI:
 #   tests/testthat/test_n_deposition.R  deposition mass conservation.
-#   tests/testthat/test_n_urban.R       urban population partition.
+#   tests/testthat/test_n_human.R       human-N population partition.
 #   tests/testthat/test_feed_lpjml.R    grass conservation.
 #
 # THESE ARE CHARACTERISATIONS, NOT CORRECTNESS ASSERTIONS. Everything here

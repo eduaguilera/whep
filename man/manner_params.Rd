@@ -27,8 +27,8 @@ MANNER-NPK. \emph{Soil Use and Management}, 29(4), 473-484.
 Webb, J. & Misselbrook, T. H. (2004). A mass-flow model of ammonia
 emissions from UK livestock production. \emph{Atmospheric Environment},
 38(14), 2163-2176. \doi{10.1016/j.atmosenv.2004.01.023}. Values
-transcribed from the Spain historical MANNER implementation
-(\code{MANNER_model.R}).
+transcribed from the MANNER implementation of an earlier regional
+historical reconstruction.
 }
 \usage{
 manner_params

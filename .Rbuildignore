@@ -21,6 +21,7 @@
 ^\.claude$
 ^CLAUDE\.md$
 ^AGENTS\.md$
+^agent-reference$
 ^autoresearch$
 ^LPJmL_inputs$
 ^WHEP_LFILES_DIR$
@@ -44,3 +45,4 @@
 ^codemeta\.json$
 ^\.pkgcheck$
 ^CITATION\.cff$
+^Rplots\.pdf$

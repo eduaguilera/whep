@@ -329,3 +329,15 @@ testthat::test_that("a duplicated country-year key aborts, never fans out", {
     "one row per"
   )
 })
+
+testthat::test_that("requirement_safe is never read as requirement (#1214)", {
+  # R's `$` partially matches list names: without a `requirement` entry,
+  # `data$requirement` returned `requirement_safe`, so the safe level was
+  # silently used as the average requirement.
+  inputs <- .nb_inputs()
+  inputs$requirement <- NULL
+  testthat::expect_error(
+    whep::build_nourishment_band(data = inputs),
+    "data\\$requirement"
+  )
+})

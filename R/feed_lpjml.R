@@ -72,7 +72,7 @@ build_grass_availability <- function(
 build_grass_availability_lpjml <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   shares = grass_access_shares(),
   example = FALSE,
   availability = NULL,
@@ -215,7 +215,7 @@ aggregate_grass_to_polity <- function(
 read_lpjml_grass_productivity <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   example = FALSE,
   productivity = NULL,
   productivity_path = NULL
@@ -267,10 +267,26 @@ read_lpjml_grass_productivity <- function(
 # the fact that a local run directory is an equally valid answer -- the whole
 # point of pinning these layers is that a user has a choice, so the error has to
 # state both options.
-.read_lpjml_pin <- function(alias, envvar = "WHEP_LPJML_RUN_DIR") {
+.read_lpjml_pin <- function(
+  alias,
+  envvar = "WHEP_LPJML_RUN_DIR",
+  years = NULL
+) {
   tryCatch(
-    whep_read_file(alias),
+    whep_read_file(alias, years = years),
     error = function(e) {
+      # A `years` wiring mistake is NOT a missing pin, so it passes through
+      # untouched rather than being relabelled as a network failure.
+      #
+      # This test lives INSIDE the `error` handler on purpose. Catching the
+      # class in a sibling handler and re-signalling with `cnd_signal()` does
+      # NOT work: the enclosing `tryCatch()`'s own `error` handler is still
+      # established while a sibling handler runs, so the re-signalled condition
+      # is caught by it and rewritten anyway -- which is exactly what the
+      # previous version of this function did while claiming otherwise.
+      if (inherits(e, "whep_year_filter_error")) {
+        stop(e)
+      }
       cli::cli_abort(
         c(
           "Could not read the pinned {.val {alias}} artifact.",
@@ -295,7 +311,7 @@ read_lpjml_grass_productivity <- function(
 
 .read_pin_grass_avail <- function(years, shares) {
   .normalise_grass_avail(
-    whep_read_file(.lpjml_grass_avail_alias()),
+    whep_read_file(.lpjml_grass_avail_alias(), years = years),
     years,
     shares,
     .lpjml_grass_avail_alias()
@@ -359,7 +375,7 @@ read_lpjml_grass_productivity <- function(
 
 .read_pin_grass_prod <- function(years) {
   .normalise_grass_prod(
-    whep_read_file(.lpjml_grass_prod_alias()),
+    whep_read_file(.lpjml_grass_prod_alias(), years = years),
     years,
     .lpjml_grass_prod_alias()
   )
@@ -411,12 +427,24 @@ read_lpjml_grass_productivity <- function(
   )
 }
 
-.filter_years_if_present <- function(data, years) {
+.filter_years_if_present <- function(data, years, year_col = "year") {
   if (is.null(years)) {
-    data
-  } else {
-    dplyr::filter(data, as.integer(.data$year) %in% as.integer(years))
+    return(data)
   }
+  # `year_col` is honoured rather than assumed: `whep_read_file()` exposes it,
+  # and hardcoding `year` here meant a caller naming another column had the
+  # range pushed down on THEIR column and the exact set applied to `year` --
+  # an abort when only theirs existed, and a wrong subset when both did.
+  if (!rlang::has_name(data, year_col)) {
+    cli::cli_abort(
+      "No {.field {year_col}} column to filter {.arg years} on.",
+      class = "whep_year_filter_error"
+    )
+  }
+  dplyr::filter(
+    data,
+    as.integer(.data[[year_col]]) %in% as.integer(years)
+  )
 }
 
 # gC/m2/yr -> grazable t DM/ha/yr. 1 gC/m2 = 0.01 tC/ha; / w_c_dm -> t DM/ha.
@@ -476,6 +504,14 @@ read_lpjml_grass_productivity <- function(
       "Band(s) not in {.file {path}}: {band_names[is.na(band_idx)]}."
     )
   }
+  # bef4be1c made `first_year` default to NULL so a run's start year is read
+  # from the file rather than assumed to be 1901, but this reader was left
+  # passing the NULL straight through. `.clip_run_years()` then evaluated
+  # `NULL + seq_len(n_time) - 1L`, which is `numeric(0)`, so EVERY requested
+  # year was "outside coverage": the warning printed the coverage as Inf-Inf
+  # and the read returned zero rows, silently, for any caller that did not
+  # pass the year explicitly. Resolve it here, as the other LPJmL readers do.
+  first_year <- .lpjml_resolve_first_year(nc, first_year, basename(path))
   years <- .clip_run_years(years, first_year, nc$dim[["time"]]$len, path)
   if (length(years) == 0) {
     return(.empty_lpjml_bands())

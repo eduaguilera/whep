@@ -116,10 +116,17 @@ build_grassland_land_extension <- function(
 # here, so they cannot double-count. This replaces an earlier `!is.na(iso3c)`
 # heuristic on regions_full, which reinvented aggregate detection and left the
 # two grassland sources keyed on different area codes (raw FAOSTAT vs polity).
+#
+# The two labels this filter selects on are a VOCABULARY the pin owns, not a
+# contract WHEP controls. If a pin revision renames either, the filter matches
+# no rows, the extension comes back empty, and every footprint built on it is
+# short its whole grassland term with no complaint anywhere -- the shape of
+# whep#1016. So the labels are asserted before they are used (whep#1034).
 .grassland_occupation_faostat <- function(landuse = NULL) {
   if (is.null(landuse)) {
     landuse <- whep_read_file("faostat-landuse")
   }
+  landuse <- .check_landuse_labels(landuse)
   landuse |>
     dplyr::filter(.data[["Item Code"]] == 6655, .data$Element == "Area") |>
     dplyr::transmute(
@@ -130,6 +137,16 @@ build_grassland_land_extension <- function(
     ) |>
     dplyr::filter(!is.na(.data$impact_u), .data$impact_u > 0) |>
     .grassland_faostat_to_polities()
+}
+
+.check_landuse_labels <- function(landuse) {
+  remedy <- c(
+    i = "Check the {.val faostat-landuse} pin: the label was renamed, or the
+         version frozen in {.file inst/extdata/whep_inputs.csv} is a different
+         FAOSTAT domain."
+  )
+  check_labels_supplied(landuse, "Element", "Area", details = remedy)
+  check_labels_supplied(landuse, "Item Code", 6655, details = remedy)
 }
 
 # Collapse raw FAOSTAT reporting areas to WHEP polity_area_code via the canonical
@@ -178,12 +195,33 @@ build_grassland_land_extension <- function(
       area_code = as.integer(.data$area_code)
     )
 
-  occupation |>
+  joined <- occupation |>
     dplyr::mutate(
       occupation_total = sum(.data$impact_u, na.rm = TRUE),
       .by = c(year, area_code)
     ) |>
-    dplyr::left_join(intake, by = c("year", "area_code")) |>
+    dplyr::left_join(intake, by = c("year", "area_code"))
+
+  # One country with grassland and no grazing is an observation, and the
+  # zero-fill below is the right answer for it. NO country with any grazing at
+  # all is an absent input: the cap is then zero everywhere and the whole
+  # extension ships as zero, while non-negativity, the cap inequality and
+  # conservation all still hold, because zero satisfies them (whep#1034). The
+  # join is checked rather than `intake`, so a partial match still passes.
+  check_inputs_supplied(
+    joined,
+    c("grass feed intake" = "grazing_intake_dm_t"),
+    details = c(
+      i = "No row of {.arg feed_intake} joined a grassland row, so
+           {.code grassland_metric = \"active_grazing\"} would charge zero
+           hectares everywhere.",
+      i = "Check the {.field feed_type} vocabulary of {.fn get_feed_intake}
+           and that its {.field year}/{.field area_code} keys match the
+           grassland source."
+    )
+  )
+
+  joined |>
     dplyr::mutate(
       grazing_intake_dm_t = tidyr::replace_na(.data$grazing_intake_dm_t, 0),
       capped_total = pmin(

@@ -1262,8 +1262,17 @@ build_polycell_land_uses <- function(
 }
 
 # One FAOSTAT Land Use item, in hectares. Returns NULL when the input is not
-# reachable, so the temporary-meadow split degrades to "not applied" and is
-# visible in `level_source`, rather than silently changing the anchor.
+# reachable, so the temporary-meadow split degrades to "not applied".
+#
+# That degradation is NOT visible in the output: the meadow rows inherit the
+# cropland row's `level_source`, so a build with the split and a build without
+# it carry the same labels. A pin that IS reachable but whose item or element
+# code has moved is therefore refused here (whep#1034). Unguarded, the filter
+# below matches no rows, `.plu_temporary_meadows()` reads the empty result as
+# "no meadows", and every hectare of FAO item 6633 is spread over the cropland
+# pattern instead of the grassland one -- while the classes still tile every
+# polycell exactly, because the partition holds whichever pattern the land is
+# put on. This pin has already changed shape once (whep#1178).
 .plu_read_landuse_item <- function(item_code, years) {
   raw <- tryCatch(
     .read_input("faostat-landuse", years = NULL),
@@ -1274,6 +1283,7 @@ build_polycell_land_uses <- function(
   }
   out <- tibble::as_tibble(raw)
   names(out) <- .plu_landuse_names(names(out))
+  .plu_check_landuse_labels(out, item_code)
   out |>
     dplyr::filter(
       .data$item_code == !!item_code,
@@ -1285,6 +1295,16 @@ build_polycell_land_uses <- function(
       meadow_ha = as.numeric(.data$value) * 1000
     ) |>
     .plu_filter_years(years)
+}
+
+.plu_check_landuse_labels <- function(landuse, item_code) {
+  remedy <- c(
+    i = "Check the {.val faostat-landuse} pin: the code was renamed, or the
+         version frozen in {.file inst/extdata/whep_inputs.csv} is a different
+         FAOSTAT domain."
+  )
+  check_labels_supplied(landuse, "item_code", item_code, details = remedy)
+  check_labels_supplied(landuse, "element_code", 5110L, details = remedy)
 }
 
 .plu_landuse_names <- function(nms) {

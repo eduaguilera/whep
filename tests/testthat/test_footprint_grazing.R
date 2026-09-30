@@ -242,3 +242,86 @@ testthat::test_that("example output is a tidy tibble", {
   testthat::expect_true(all(ex$method == "grazing_feed_allocation"))
   testthat::expect_true(all(ex$value > 0))
 })
+
+# ---- whep#1034: a moved feed-type or unit label ------------------------------
+
+.grazing_raw_intake <- function(grass = "grass") {
+  tibble::tibble(
+    year = 2010L,
+    area_code = 10L,
+    live_anim_code = 961L,
+    feed_type = c(grass, "residues", "crops"),
+    intake_dry_matter = c(60, 40, 25)
+  )
+}
+
+.grazing_raw_production <- function(unit = "tonnes") {
+  tibble::tibble(
+    year = 2010L,
+    area_code = 10L,
+    live_anim_code = 961L,
+    item_cbs_code = 2731L,
+    unit = c(unit, "heads"),
+    value = c(100, 50)
+  )
+}
+
+# Grass land and trade are supplied; intake and production go through the
+# package's own raw-input builders, reading the mocked tables.
+.grazing_footprint_from <- function(intake, production) {
+  testthat::with_mocked_bindings(
+    whep::build_grazing_feed_footprint(
+      year = 2010L,
+      data = list(
+        grass_land = tibble::tibble(year = 2010L, area_code = 10L, value = 200),
+        trade = tibble::tibble(
+          from_code = 10L,
+          to_code = 41L,
+          item_cbs_code = 2731L,
+          value = 40
+        )
+      )
+    ),
+    get_feed_intake = function(...) intake,
+    get_primary_production = function(...) production
+  )
+}
+
+testthat::test_that("the raw-input builders price a keyed input", {
+  fp <- .grazing_footprint_from(
+    .grazing_raw_intake(),
+    .grazing_raw_production()
+  )
+  testthat::expect_equal(sum(fp$value), 200)
+})
+
+testthat::test_that("a moved grass label cannot ship as a grazing footprint", {
+  intake <- .grazing_raw_intake(grass = "Grass")
+  unguarded <- testthat::with_mocked_bindings(
+    .grazing_footprint_from(intake, .grazing_raw_production()),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  # Unguarded, the residues alone carry the whole 200 ha: the land is conserved
+  # and the footprint looks complete while grass never entered it.
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(sum(unguarded$value), 200)) &&
+      all(unguarded$method == "grazing_feed_allocation"),
+    guard = .grazing_footprint_from(intake, .grazing_raw_production()),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("a moved output unit cannot ship as an empty footprint", {
+  production <- .grazing_raw_production(unit = "t")
+  unguarded <- testthat::with_mocked_bindings(
+    suppressWarnings(
+      .grazing_footprint_from(.grazing_raw_intake(), production)
+    ),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  expect_supplied_guard(
+    identity = sum(unguarded$value) == 0 && all(unguarded$value >= 0),
+    guard = .grazing_footprint_from(.grazing_raw_intake(), production),
+    class = "whep_absent_label"
+  )
+})

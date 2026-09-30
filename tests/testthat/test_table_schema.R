@@ -499,3 +499,38 @@ test_that("the constructor refuses a schema forbidding empty tables", {
     class = "whep_error_table_schema"
   )
 })
+
+# whep#181: the seam schema judges presence and NA keys, never code types.
+
+test_that("a seam schema accepts integer or double codes alike", {
+  as_int <- tibble::tibble(area_code = 1L, value = 2)
+  as_dbl <- tibble::tibble(area_code = 1, value = 2L)
+  purrr::walk(list(as_int, as_dbl), function(data) {
+    schema <- whep:::.seam_schema(data, c("area_code", "value"), "area_code")
+    expect_equal(nrow(whep::check_table_schema(data, schema)), 0L)
+  })
+})
+
+test_that("a seam schema flags a missing column and a NA key", {
+  data <- tibble::tibble(area_code = c(1L, NA), value = c(NA, 2))
+  schema <- whep:::.seam_schema(
+    data,
+    c("area_code", "value", "year"),
+    "area_code"
+  )
+  rules <- whep::check_table_schema(data, schema) |>
+    dplyr::select(column, rule, row)
+  expected <- tibble::tribble(
+    ~column,     ~rule,            ~row,
+    "area_code", "missing_value",  2L,
+    "year",      "missing_column", NA_integer_
+  )
+  expect_equal(rules, expected)
+})
+
+test_that("a seam schema skips the NA rule on an untyped key", {
+  data <- tibble::tibble(area_code = factor(c("a", NA)))
+  schema <- whep:::.seam_schema(data, "area_code", "area_code")
+  expect_equal(schema$columns[[1]]$type, "any")
+  expect_equal(nrow(whep::check_table_schema(data, schema)), 0L)
+})

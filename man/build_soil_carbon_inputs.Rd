@@ -8,6 +8,8 @@ build_soil_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 )
 }
@@ -28,20 +30,82 @@ case-insensitively), and \code{territory} a stringified \code{area_code} -- an
 \code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, the polycell's
 share of the cell's land), refused when a cell-\code{area_code} group is
 duplicated or \code{NA} (DA-23);
-\code{crop_patterns} (the spatialization input carrying per-cell
-\code{crop_area_ha}); \code{harvested_area} (the
+\code{crop_patterns} (the static per-cell \code{crop_area_ha} layer, read only
+under \code{method_crop_weights = "static"}); \code{gridded_crops} (the crop-level
+\code{\link[=build_gridded_landuse]{build_gridded_landuse()}} output on the same \code{country_grid} support,
+\code{lon}, \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{rainfed_ha},
+\code{irrigated_ha}, read only under \code{"spatialized"} and built from the pinned
+spatialization inputs when absent); \code{harvested_area} (the
 FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}
 in a \code{faostat_area_ha} column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are
 the national density and carbon mass is conserved; defaults to the same
 \code{get_primary_production()} table the NPP reader uses, and is skipped when a
 hand-supplied \code{npp} keeps the pipeline offline unless supplied here);
-\code{residue_humification} (defaults to \link{residue_humification}).}
+\code{residue_humification} (defaults to \link{residue_humification});
+\code{fodder_patterns} (only read under
+\code{method_unspatialized = "fodder_pattern"}: per-cell fodder crop area in
+the \code{crop_patterns} schema, defaulting to the pooled Monfreda et al.
+(2008) forage layer from the \code{spatialize-fodder-patterns} pin, or rebuilt
+from the rasters under \code{WHEP_MONFREDA_DIR} when that is set).}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover. Threaded into the default NPP
 and manure readers so they slice to the requested years; ignored for inputs
 supplied via \code{data}.}
+
+\item{method_unspatialized}{What happens to a polity-crop whose crop has no
+hectares in the (time-invariant) \code{crop_patterns} layer.
+\code{"fodder_pattern"} (default) first places the fodder crops (FAOSTAT items
+636-649, 651 and 655) on the pooled 16 forage layers of Monfreda,
+Ramankutty and Foley (2008, \doi{10.1029/2007GB002947}), which the
+crop-pattern pin omits, gridded exactly as a crop-pattern crop is. The
+layers are pooled because the per-item ones follow the circa-2000
+reporting vocabulary, not where each item is grown later. Whatever the
+layer still cannot place is reallocated as under \code{"reallocate"}. The layer
+is read from the \code{spatialize-fodder-patterns} pin (built by
+\code{inst/scripts/prepare_fodder_patterns.R}); setting \code{WHEP_MONFREDA_DIR} to
+the \code{HarvestedAreaYield175Crops_Geotiff} folder of the Monfreda archive
+(\code{inst/scripts/download/download_monfreda.R}) rebuilds it from the
+rasters instead, and \code{data$fodder_patterns} replaces it. It aborts rather
+than falling back to uniform reallocation when the layer is empty or a
+set \code{WHEP_MONFREDA_DIR} is wrong. The layer codes are matched on the layer
+names, as the archive's metadata gives no FAO name for them (assumed,
+unverified against a Monfreda table). At 2010 it moves 83.6 Mt C between
+cells relative to \code{"reallocate"}, with polity totals unchanged.
+\code{"reallocate"} spreads that carbon over the polity's crop-pattern cropland
+cells in proportion to each cell's total cropland area, and puts it on the
+crop's FAOSTAT national harvested area, so the polity's gridded carbon
+mass equals its national mass; this is the rule the sibling nitrogen
+spatialization already applies to the same gap
+(\code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}), and was the default before whep#1118.
+\code{"drop"} discards it, which is what the package did before and what a
+caller who prefers a hole to a smear should ask for. Either way the mass
+and the affected crops are reported,
+and the choice is recorded in \code{method_unspatialized}. Reallocation needs a
+national area to put the carbon on, so a polity-crop with no
+\code{harvested_area} row -- and a polity with no cell at all in the support,
+which no rule here can reach (see whep#1002) -- is dropped under all
+three methods, reported separately. Under either \code{method_crop_weights},
+the fodder layer only fills the polity-crops that year's crop weights do
+not place, and the 83.6 Mt C figure above was measured on the static
+weights.}
+
+\item{method_crop_weights}{Where each crop's within-polity cell weights
+come from. \code{"spatialized"} (default) takes them from the spatialization
+engine's crop-level output, \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} run on the pinned
+spatialization inputs and the same cell support, year by year: the
+crop's placement follows that year's cropland, its irrigated share and
+the engine's per-cell capacity ceiling, so the carbon lands where the
+gridded land use puts the crop. \code{data$gridded_crops} supplies that output
+pre-built. \code{"static"} uses the time-invariant \code{crop_patterns} layer
+(\code{harvest_fraction} times each cell's cropland averaged over every year
+of the gridded-cropland pin), one map for every year, which is what the
+package did before (whep#1002). Measured on the pins, the L1 distance
+between the two cell-share vectors of a polity-crop (0 = same placement,
+2 = disjoint) has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and
+0.47 in 2020. Polity totals are the same under both; only where the
+carbon sits moves. Recorded in \code{method_crop_weights}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -51,7 +115,13 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction} and \code{method_c_input}, plus the polity columns below.
+\code{humified_fraction}, \code{method_c_input}, \code{method_unspatialized},
+\code{method_crop_weights} and
+\code{crop_area_ha} -- the crop's area at that grain on the basis the
+densities are computed on: the FAOSTAT-renormalised cell area where a
+national harvested area was supplied, the spatialized area otherwise, so
+a consumer can recover the carbon mass without re-deriving it -- plus the
+polity columns below.
 }
 \description{
 Builds the carbon returned to soil from crop residues, crop roots, weeds and
@@ -67,6 +137,14 @@ divided by the cell-crop area to give Mg C per hectare per year. A
 carbon-weighted humification fraction is computed per cell-year from
 \link{residue_humification}, with the weed carbon humified at the weed
 (spontaneous-grass) coefficient.
+
+The weed stream is structurally present but ZERO on the default path: the
+turnkey chain runs \code{\link[=calculate_crop_npp]{calculate_crop_npp()}} and
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} without \code{\link[=calculate_crop_npp_components]{calculate_crop_npp_components()}},
+which is the only producer of \code{weed_ag_dm_t}, so weed carbon is zero for
+every crop, polity and year unless \code{data$npp} is supplied from a chain that
+includes it. Whether to wire it into the default path is open (whep#806);
+until then the zero is reported rather than passed off as computed.
 
 At \code{"polity"} resolution the component carbon masses are summed back to
 \verb{(area_code, item_prod_code, year)} and the per-hectare values and humified

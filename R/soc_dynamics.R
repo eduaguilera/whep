@@ -31,8 +31,8 @@
 #' chosen model is stamped into a \code{method_soc} column on the output.
 #'
 #' @param model SOC model to run: one of \code{"hsoc"}, \code{"rothc"},
-#'   \code{"icbm"}, \code{"amg"} or \code{"century"}. Defaults to the most
-#'   detailed pool structure available, \code{"hsoc"}.
+#'   \code{"icbm"}, \code{"amg"}, \code{"century"} or \code{"lpjml"}.
+#'   Defaults to the most detailed pool structure available, \code{"hsoc"}.
 #' @param data Named list of model arguments. Always carries
 #'   \code{initial_soc_mgc_ha}, \code{c_input_mgc_ha_yr} and \code{years};
 #'   may also carry \code{clay_pct} and model-specific arguments (for example
@@ -65,7 +65,7 @@
 #'   data = list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 5)
 #' )
 calculate_soc_dynamics <- function(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   data = list(),
   example = FALSE
 ) {
@@ -104,7 +104,8 @@ calculate_soc_dynamics <- function(
     rothc = calculate_soc_rothc,
     icbm = calculate_soc_icbm,
     amg = calculate_soc_amg,
-    century = calculate_soc_century
+    century = calculate_soc_century,
+    lpjml = calculate_soc_lpjml
   )
   args <- data[intersect(names(data), rlang::fn_fmls_names(fn))]
   do.call(fn, args)
@@ -115,6 +116,8 @@ calculate_soc_dynamics <- function(
 .soc_climate_modifier <- function(model, data) {
   drivers <- .soc_climate_drivers(model)
   if (!all(purrr::map_lgl(drivers, \(d) rlang::has_name(data, d)))) {
+    .soc_refuse_neutral(model, drivers, data)
+    .soc_refuse_partial_drivers(model, drivers, data)
     return(data$climate_modifier %||% 1)
   }
   fn <- switch(
@@ -123,9 +126,87 @@ calculate_soc_dynamics <- function(
     rothc = soc_rate_modifier_rothc,
     icbm = soc_rate_modifier_icbm,
     amg = soc_rate_modifier_amg,
-    century = soc_rate_modifier_century
+    century = soc_rate_modifier_century,
+    lpjml = soc_rate_modifier_lpjml
   )
   do.call(fn, data[drivers])
+}
+
+# Refuse to run the LPJmL model at a neutral modifier.
+#
+# A missing driver resolving to 1 is a reasonable default for a model whose
+# climate response is an optional refinement. It is not reasonable for this
+# one: LPJmL's decomposition IS its temperature and moisture response, so a
+# neutral modifier does not degrade the model, it deletes it -- silently, on
+# every production path, because `get_soc_climate_drivers()` emitted no
+# `temp_soil_c` at all until whep#1006 and the pinned path still does not.
+# The package's own rule is that methods are alternatives, never silent
+# fallbacks.
+#
+# The other five models keep the permissive behaviour, because for them the
+# modifier genuinely is a refinement on top of a rate that stands without it.
+.soc_refuse_neutral <- function(model, drivers, data) {
+  if (!identical(model, "lpjml") || !is.null(data$climate_modifier)) {
+    return(invisible(NULL))
+  }
+  missing <- drivers[!purrr::map_lgl(drivers, \(d) rlang::has_name(data, d))]
+  cli::cli_abort(c(
+    "{.val lpjml} needs {.field {missing}} and would otherwise run at a
+     neutral climate modifier, which is not a coarser answer but no climate
+     response at all.",
+    i = "{.fn get_soc_climate_drivers} emits {.field temp_soil_c} only from a
+         run directory: the {.val lpjml-soc-hydrology} pin carries
+         {.field swc_topsoil}, {.field prec_mm} and {.field irrig_mm} and no
+         soil temperature.",
+    i = "Pass {.arg run_dir} to {.fn get_soc_climate_drivers} explicitly --
+         the env var alone does not trigger the read, so that an offline
+         caller is never made to open a raster -- or supply
+         {.code data$climate_modifier} to say you meant neutral."
+  ))
+}
+
+# Refuse a climate that arrived in part.
+#
+# Running at a neutral 1 when NO climate was supplied is the documented
+# behaviour of the five non-LPJmL models, and stays so. Running at a neutral 1
+# when SOME of it was supplied is not a choice anyone made: a driver renamed
+# or dropped upstream (a `mprec.nc` that says `pr` where it said `prec`) takes
+# the whole modifier with it, and every SOC stock then decomposes at its
+# unmodified base rate. Nothing downstream can see it: a modifier of 1 is a
+# legitimate value, the trajectory is finite and non-negative, and its carbon
+# still balances, because mass balance holds at any rate (whep#1034). A
+# time-varying driver being present is what tells the two cases apart; the
+# soil covariates do not, because `clay_pct` is also a texture argument of
+# every model, and a caller passing it for texture has supplied no climate.
+# An explicit `data$climate_modifier` is honoured as before.
+.soc_refuse_partial_drivers <- function(model, drivers, data) {
+  if (!is.null(data$climate_modifier)) {
+    return(invisible(NULL))
+  }
+  climate <- setdiff(drivers, .soc_soil_covariates())
+  if (!any(purrr::map_lgl(climate, \(d) rlang::has_name(data, d)))) {
+    return(invisible(NULL))
+  }
+  missing <- drivers[!purrr::map_lgl(drivers, \(d) rlang::has_name(data, d))]
+  got <- intersect(drivers, names(data))
+  .signal_absent_inputs(
+    missing,
+    "abort",
+    c(
+      i = cli::format_inline(
+        "{.val {model}} got part of its climate drivers ({.field {got}}) and
+         would otherwise run at a neutral climate modifier of 1."
+      ),
+      i = "Supply every driver, or pass {.code data$climate_modifier} to say
+           which modifier you meant."
+    )
+  )
+}
+
+# Per-cell soil constants, not climate: their presence says nothing about
+# whether a climate was supplied.
+.soc_soil_covariates <- function() {
+  c("clay_pct", "soil_cover", "t_field", "t_wilt", "porosity")
 }
 
 .soc_climate_drivers <- function(model) {
@@ -135,6 +216,13 @@ calculate_soc_dynamics <- function(
     rothc = c("temp_c", "water_minus_pet_mm", "clay_pct", "soil_cover"),
     icbm = c("temp_c", "theta", "t_field", "t_wilt", "porosity"),
     amg = c("temp_c", "water_balance_mm"),
-    century = c("temp_c", "precip_mm", "pet_mm")
+    century = c("temp_c", "precip_mm", "pet_mm"),
+    # LPJmL drives its response with SOIL temperature and the soil's degree
+    # of saturation. `get_soc_climate_drivers()` now emits `temp_soil_c` from
+    # a run directory as the depth-weighted 0-30 cm blend of LPJmL layers 1
+    # and 2, matching the carbon pool. Substituting AIR temperature would be a
+    # choice, not a fallback (whep#799), so it is not done; when the driver is
+    # absent the model aborts rather than running neutral.
+    lpjml = c("temp_soil_c", "theta")
   )
 }

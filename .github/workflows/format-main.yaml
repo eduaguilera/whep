@@ -1,7 +1,7 @@
 # Reformat `main` with air after every merge, committing any changes back.
 # Replaces the pre-merge `format-suggest` check: contributors no longer need a
 # green formatting gate, but are still expected to run `air format .` locally
-# (see CLAUDE.md), so this job normally has nothing to commit.
+# (see AGENTS.md), so this job normally has nothing to commit.
 #
 # Pushing to `main` needs an identity that can bypass the "Not push in main"
 # ruleset, which requires a pull request for every change. The default

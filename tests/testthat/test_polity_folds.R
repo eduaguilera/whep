@@ -271,22 +271,35 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
   )
   testthat::expect_setequal(
     unique(folded$fold_kind),
-    c("fabio_rest_of_world", "cbs_reporter_folded", "successor_state")
+    c(
+      "fabio_rest_of_world",
+      "cbs_reporter_folded",
+      "successor_state",
+      "predecessor_bucket"
+    )
   )
 
   # Every fold, by definition: the bucket is not the area's own code.
   testthat::expect_true(all(folded$area_code != folded$polity_area_code))
 
-  # The successor folds are the three deliberate territorial identities. They
-  # are listed BECAUSE they are folds, not because they are wrong: FAOSTAT area
-  # 62 "Ethiopia PDR" is pre-1993 Ethiopia, and 276/277 are the two halves of
-  # 206 "Sudan (former)".
+  # The three deliberate territorial identities. They are listed BECAUSE they
+  # are folds, not because they are wrong: FAOSTAT area 62 "Ethiopia PDR" is
+  # pre-1993 Ethiopia, and 276/277 are the two halves of 206 "Sudan (former)".
+  # The two directions are named apart because only one of them is liftable:
+  # 62 folds into its LIVE successor 238, while 276/277 fold into a bucket
+  # FAOSTAT retired in 2011 (whep#680).
   successor <- folded[folded$fold_kind == "successor_state", ]
-  testthat::expect_setequal(unique(successor$area_code), c(62L, 276L, 277L))
-  testthat::expect_setequal(unique(successor$polity_area_code), c(238L, 206L))
+  testthat::expect_setequal(unique(successor$area_code), 62L)
+  testthat::expect_setequal(unique(successor$polity_area_code), 238L)
+
+  predecessor <- folded[folded$fold_kind == "predecessor_bucket", ]
+  testthat::expect_setequal(unique(predecessor$area_code), c(276L, 277L))
+  testthat::expect_setequal(unique(predecessor$polity_area_code), 206L)
 
   # Everything else lands on one bucket and one polity, and splits in two.
-  row_fold <- folded[folded$fold_kind != "successor_state", ]
+  row_fold <- folded[
+    !folded$fold_kind %in% c("successor_state", "predecessor_bucket"),
+  ]
   testthat::expect_equal(unique(row_fold$polity_area_code), 999L)
   testthat::expect_equal(unique(row_fold$polity_code), "ROW-1850-2025")
   testthat::expect_equal(length(unique(row_fold$area_code)), 61L)
@@ -829,7 +842,9 @@ testthat::test_that("promotion reaches the whole pipeline, silently by default",
     as.data.frame(whep::polity_area_crosswalk)
   ))
   members <- unique(
-    members$area_code[members$fold_kind != "successor_state"]
+    members$area_code[
+      !members$fold_kind %in% c("successor_state", "predecessor_bucket")
+    ]
   )
   promoted <- cw[!is.na(cw$area_code) & cw$area_code %in% members, ]
   testthat::expect_true(all(
@@ -841,12 +856,13 @@ testthat::test_that("promotion reaches the whole pipeline, silently by default",
   testthat::expect_equal(whep:::.iso3c_to_area_code("SYR"), 212L)
   testthat::expect_equal(whep:::.iso3c_to_area_code("FRO"), 64L)
 
-  # And the successor folds are NOT lifted: they are identities, not a FABIO
-  # convention.
+  # And the territorial folds are NOT lifted by this switch: they are
+  # identities, not a FABIO convention. The predecessor bucket has a switch of
+  # its own and it is off by default (whep#680).
   still_folded <- suppressWarnings(whep::folded_reporting_areas())
   testthat::expect_setequal(
     unique(still_folded$fold_kind),
-    "successor_state"
+    c("successor_state", "predecessor_bucket")
   )
 })
 
@@ -877,7 +893,7 @@ testthat::test_that("the unfold switch can lift only the CBS reporters", {
   still_folded <- suppressWarnings(whep::folded_reporting_areas())
   testthat::expect_setequal(
     unique(still_folded$fold_kind),
-    c("fabio_rest_of_world", "successor_state")
+    c("fabio_rest_of_world", "successor_state", "predecessor_bucket")
   )
   testthat::expect_equal(
     length(unique(
@@ -1244,5 +1260,136 @@ test_that(".abort_if_off_window_areas aborts on a created area-year", {
     whep:::.abort_if_off_window_areas(
       tibble::tribble(~area_code, ~year, ~value, 15L, 1990L, 1)
     )
+  )
+})
+
+# -- The predecessor-bucket un-fold (whep#680) ---------------------------------
+
+test_that("the predecessor bucket is derived, not enumerated", {
+  # 206 qualifies and 238 does not, and the difference is a fact about the
+  # upstream reporting windows rather than a list: area 276 reports to 2024
+  # while bucket 206 stopped in 2011, so the bucket is the dead code; area 62
+  # stopped in 1992 while its bucket 238 reports to 2024, so there the fold
+  # points at the LIVE successor and must never be lifted.
+  expect_equal(whep:::.predecessor_bucket_codes(), 206L)
+
+  cw <- whep::polity_area_crosswalk
+  last <- stats::aggregate(
+    map_year_end ~ area_code,
+    data = cw[!is.na(cw$map_year_end), ],
+    FUN = max
+  )
+  expect_gt(
+    last$map_year_end[last$area_code == 276L],
+    last$map_year_end[last$area_code == 206L]
+  )
+  expect_lt(
+    last$map_year_end[last$area_code == 62L],
+    last$map_year_end[last$area_code == 238L]
+  )
+})
+
+test_that("a crosswalk with no map window promotes nothing", {
+  # The predicate is derived from columns a caller-supplied crosswalk need not
+  # carry. Without them there is no evidence of which code is the dead one, so
+  # nothing is promoted rather than something being guessed.
+  cw <- tibble::tribble(
+    ~area_code, ~polity_area_code, ~fabio_code,
+        276L,              206L,        206L,
+        277L,              206L,        206L
+  )
+  expect_length(whep:::.predecessor_bucket_codes(cw), 0L)
+})
+
+test_that("the fold is the default and no crosswalk row moves", {
+  expect_equal(whep:::.predecessor_unfold_mode(), "none")
+
+  cw <- as.data.frame(whep:::.polity_crosswalk())
+  region <- cw[!is.na(cw$area_code) & cw$area_code %in% c(206L, 276L, 277L), ]
+  expect_setequal(unique(region$polity_area_code), 206L)
+
+  # And the ISO3 lookup keeps the uniqueness the fold gives it for free.
+  lookup <- whep:::.iso3c_area_code_lookup()
+  expect_equal(nrow(lookup), length(unique(lookup$iso3c)))
+  expect_equal(whep:::.iso3c_to_area_code(c("SDN", "SSD")), c(206L, 206L))
+})
+
+test_that("the un-fold promotes 276/277, keeps 62 folded, and warns", {
+  skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+
+  expect_equal(whep:::.predecessor_unfold_mode(), "all")
+  expect_warning(
+    whep:::.polity_crosswalk(),
+    "unfold_predecessor_bucket"
+  )
+
+  cw <- as.data.frame(suppressWarnings(whep:::.polity_crosswalk()))
+  promoted <- cw[!is.na(cw$area_code) & cw$area_code %in% c(276L, 277L), ]
+  expect_true(all(promoted$polity_area_code == promoted$area_code))
+
+  # The Ethiopian fold is the other direction and is untouched.
+  ethiopia <- cw[!is.na(cw$area_code) & cw$area_code == 62L, ]
+  expect_setequal(unique(ethiopia$polity_area_code), 238L)
+
+  # Bucket 206 keeps its own rows, including the aggregate that means both
+  # Sudans (whep#860): a row still keyed on 206 covers both territories, so
+  # the label stays true.
+  bucket <- cw[!is.na(cw$area_code) & cw$area_code == 206L, ]
+  expect_true("F206-2011-2025" %in% bucket$polity_code)
+
+  folded <- suppressWarnings(whep::folded_reporting_areas())
+  expect_false("predecessor_bucket" %in% folded$fold_kind)
+})
+
+test_that("the un-fold keeps the ISO3 lookup one row per ISO3", {
+  skip_if_not_installed("withr")
+  before <- whep:::.iso3c_area_code_lookup()
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+  after <- suppressWarnings(whep:::.iso3c_area_code_lookup())
+
+  # The fold made SDN unique by construction; the promotion gives it two codes
+  # and the tie-break has to re-establish it. Both halves are asserted: the
+  # count must not grow, and it must not SHRINK either -- filtering the whole
+  # lookup on a joined reporting year silently dropped the 15 areas the
+  # upstream map gives no window at all.
+  expect_equal(nrow(after), nrow(before))
+  expect_equal(nrow(after), length(unique(after$iso3c)))
+  expect_setequal(after$iso3c, before$iso3c)
+
+  # And it resolves to the LIVE area, not the retired predecessor whose code
+  # the ISO3 is shared with.
+  expect_equal(
+    suppressWarnings(whep:::.iso3c_to_area_code(c("SDN", "SSD"))),
+    c(276L, 277L)
+  )
+  # Every other ISO3 is untouched by the promotion.
+  moved <- merge(before, after, by = "iso3c")
+  moved <- moved[moved$area_code.x != moved$area_code.y, ]
+  expect_setequal(moved$iso3c, c("SDN", "SSD"))
+})
+
+test_that("a tie in the ISO3 tie-break aborts instead of picking a winner", {
+  # Two codes for one ISO3 with the same last reporting year leaves no fact to
+  # decide on, so it must stop rather than resolve by row order.
+  tied <- tibble::tibble(
+    iso3c = c("XXX", "XXX"),
+    area_code = c(276L, 277L)
+  )
+  expect_error(
+    whep:::.iso3c_keep_live_area(tied),
+    "more than one"
+  )
+  # An ISO3 with a single code never reaches the rule.
+  single <- tibble::tibble(iso3c = "XXX", area_code = 276L)
+  expect_equal(whep:::.iso3c_keep_live_area(single), single)
+})
+
+test_that("an unrecognised predecessor-bucket mode aborts", {
+  skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_predecessor_bucket = "sudan")
+  expect_error(
+    whep:::.predecessor_unfold_mode(),
+    "must be"
   )
 })

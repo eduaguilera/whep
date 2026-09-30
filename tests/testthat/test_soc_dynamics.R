@@ -29,7 +29,7 @@ test_that("all five models return exactly the same columns", {
   # columns, so every caller had to branch on the model. The selector now
   # reshapes whichever model ran to one long schema.
   testthat::skip_if_not_installed("deSolve")
-  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   runs <- purrr::map(
     models,
     \(m) {
@@ -39,7 +39,11 @@ test_that("all five models return exactly the same columns", {
           initial_soc_mgc_ha = 50,
           c_input_mgc_ha_yr = 2,
           years = 5,
-          clay_pct = 20
+          clay_pct = 20,
+          # Structural test: it is about the schema, not the climate. "lpjml"
+          # now refuses to run without its drivers, and saying `1` explicitly
+          # is how a caller declares it meant neutral (whep#1006).
+          climate_modifier = 1
         )
       )
     }
@@ -57,7 +61,7 @@ test_that("all five models return exactly the same columns", {
 
 test_that("soc_total is the year's pool sum for every model", {
   testthat::skip_if_not_installed("deSolve")
-  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   purrr::walk(models, \(m) {
     out <- whep::calculate_soc_dynamics(
       model = m,
@@ -65,7 +69,8 @@ test_that("soc_total is the year's pool sum for every model", {
         initial_soc_mgc_ha = 50,
         c_input_mgc_ha_yr = 2,
         years = 5,
-        clay_pct = 20
+        clay_pct = 20,
+        climate_modifier = 1
       )
     )
     per_year <- out |>
@@ -245,4 +250,143 @@ test_that("an already-supplied climate_modifier is honoured when raw drivers are
     utils::tail(no_mod$soc_total, 1),
     tolerance = 1e-9
   )
+})
+
+testthat::test_that("model = 'lpjml' refuses to run at a neutral modifier", {
+  # whep#1006: LPJmL's decomposition IS its temperature and moisture response,
+  # so a missing driver resolving to 1 does not give a coarser answer, it
+  # deletes the climate response, silently, on every production path.
+  base <- list(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 3,
+    clay_pct = 20
+  )
+  testthat::expect_error(
+    whep::calculate_soc_dynamics(model = "lpjml", data = base),
+    "neutral climate modifier"
+  )
+  # It names what is still missing when only one driver is supplied.
+  testthat::expect_error(
+    whep::calculate_soc_dynamics(
+      model = "lpjml",
+      data = c(base, list(theta = 0.4))
+    ),
+    "temp_soil_c"
+  )
+})
+
+testthat::test_that("an explicit climate_modifier is still honoured for lpjml", {
+  # Supplying one says you meant it, so the refusal must not fire.
+  out <- whep::calculate_soc_dynamics(
+    model = "lpjml",
+    data = list(
+      initial_soc_mgc_ha = 50,
+      c_input_mgc_ha_yr = 2,
+      years = 3,
+      clay_pct = 20,
+      climate_modifier = 0.5
+    )
+  )
+  testthat::expect_s3_class(out, "data.frame")
+  testthat::expect_equal(unique(out$soc_total[out$year == 0]), 50)
+})
+
+testthat::test_that("the other models keep the permissive neutral default", {
+  # The refusal is deliberately lpjml-only: for the others the modifier is a
+  # refinement on a rate that stands without it, so a missing driver must
+  # still give an answer.
+  for (m in c("hsoc", "rothc", "icbm", "amg")) {
+    out <- whep::calculate_soc_dynamics(
+      model = m,
+      data = list(
+        initial_soc_mgc_ha = 50,
+        c_input_mgc_ha_yr = 2,
+        years = 3,
+        clay_pct = 20
+      )
+    )
+    testthat::expect_equal(
+      unique(out$soc_total[out$year == 0]),
+      50,
+      label = m
+    )
+  }
+})
+
+# whep#1034: a climate that arrives in part is not "no climate". A dropped or
+# renamed driver used to take the whole modifier with it, and the run came back
+# identical to one nobody gave a climate at all -- a legitimate-looking,
+# finite, non-negative trajectory.
+.socd_base <- function() {
+  list(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 10,
+    clay_pct = 20
+  )
+}
+
+.socd_partial_rothc <- function() {
+  # temp_c and soil_cover arrived; water_minus_pet_mm did not.
+  c(.socd_base(), list(temp_c = c(5, 15, 25), soil_cover = 0))
+}
+
+.socd_unguarded <- function(model, data) {
+  testthat::with_mocked_bindings(
+    whep::calculate_soc_dynamics(model = model, data = data),
+    .soc_refuse_partial_drivers = function(model, drivers, data) NULL
+  )
+}
+
+testthat::test_that("a partly supplied climate is refused, not run neutral", {
+  neutral <- whep::calculate_soc_dynamics(model = "hsoc", data = .socd_base())
+  unguarded <- .socd_unguarded("hsoc", .socd_partial_rothc())
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(unguarded, neutral)),
+    guard = whep::calculate_soc_dynamics(
+      model = "hsoc",
+      data = .socd_partial_rothc()
+    )
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soc_dynamics(model = "rothc", data = .socd_partial_rothc()),
+    class = "whep_absent_input"
+  )
+  testthat::expect_equal(err$absent, "water_minus_pet_mm")
+})
+
+testthat::test_that("a partial ICBM climate names every missing driver", {
+  partial <- c(.socd_base(), list(temp_c = c(5, 15, 25), theta = 0.25))
+  err <- testthat::expect_error(
+    whep::calculate_soc_dynamics(model = "icbm", data = partial),
+    class = "whep_absent_input"
+  )
+  testthat::expect_setequal(err$absent, c("t_field", "t_wilt", "porosity"))
+})
+
+testthat::test_that("soil covariates alone are not a partial climate", {
+  # clay_pct is a texture argument of every model and the ICBM references are
+  # soil constants: supplying them says nothing about a climate.
+  soil_only <- c(
+    .socd_base(),
+    list(soil_cover = 0.5, t_field = 0.3, t_wilt = 0.1, porosity = 0.45)
+  )
+  for (m in c("hsoc", "rothc", "icbm")) {
+    testthat::expect_no_error(
+      whep::calculate_soc_dynamics(model = m, data = soil_only)
+    )
+  }
+})
+
+testthat::test_that("an explicit modifier is honoured over a partial climate", {
+  out <- whep::calculate_soc_dynamics(
+    model = "rothc",
+    data = c(.socd_partial_rothc(), list(climate_modifier = 0.5))
+  )
+  honoured <- whep::calculate_soc_dynamics(
+    model = "rothc",
+    data = c(.socd_base(), list(climate_modifier = 0.5))
+  )
+  testthat::expect_equal(out, honoured)
 })

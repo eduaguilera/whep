@@ -271,6 +271,122 @@
 #' - `Calcium_mg_kgFM`: Calcium content in mg per kg fresh matter.
 #' - `VitaminA_microg_kgFM`: Vitamin A content in micrograms per kg fresh
 #'   matter.
+#'
+#' `N_kgN_kgFM` is the food-composition nitrogen density of the edible part,
+#' and is what [build_food_supply()] turns into protein. Its provenance is
+#' weak and worth knowing before trusting a row. Upstream it sits under the
+#' `NUTRIENTS IN EDIBLE PART` group header with the four columns above, but
+#' the workbook's `Sources` sheet has **no column for any of the five**: its
+#' columns run from `kg_residue_kg_product_FM` straight to
+#' `Product_kgN_kgDM`, so the whole nutrition block is undocumented at source
+#' (#500 section 6, #1074). Most rows are a `VLOOKUP` into the workbook's
+#' food-composition sheet `Conversores_Dieta`, the same sheet that fills the
+#' four columns above; that sheet derives its own nitrogen column as
+#' `Proteinas / (6.25 * 1000)`. The derivation is missing for exactly its five
+#' **cereal** rows -- `Wheat`, `Oats`, `Rye`, `Maize` and `Rice` -- which carry
+#' a `Proteinas` value but no nitrogen, so for those five the lookup was
+#' replaced by the agronomic `Product_kgN_kgDM * Product_kgDM_kgFM`. Other
+#' rows, `Vegetables, other`, `Olive` and `Honey` among them, hold a bare
+#' literal. Those eight are the ones #1096 tracks; what became of each is
+#' below.
+#'
+#' `Wheat` was the largest consequence. It carried 0.018951324393104405 kg N
+#' per kg, 118.45 g of protein per kg at N x 6.25, which is exactly
+#' `Product_kgN_kgDM * Product_kgDM_kgFM` -- the agronomic whole-grain
+#' nitrogen the `Sources` sheet attributes to FEDNA 2016, a *feed* table.
+#' Applied to a commodity-balance `food` quantity that is the wheat-grain
+#' equivalent of the milled products people eat, that counts the bran and germ
+#' protein milling diverts away from food.
+#'
+#' It now carries **0.01488 kg N per kg, i.e. 93 g of protein per kg: the
+#' flour basis**. The value is read from the workbook cell, not recalled:
+#' `Biomass_coefs.xlsx`, sheet `Conversores_Dieta`, row 4, labelled
+#' `Harina de Trigo` (wheat flour) and keyed to `Name_biomass = "Wheat"`,
+#' column `Proteinas` = 93 g/kg. That row is where this table already takes
+#' the wheat lipids (12 g/kg), carbohydrates (800 g/kg), calcium (150 mg/kg)
+#' and vitamin A (0) from -- all four ship today -- so the wheat nutrition
+#' block was flour composition everywhere except protein, and the change makes
+#' the row internally consistent rather than importing a foreign number.
+#'
+#' **Neither 118.45 nor 93 has a `Sources` entry**, so 93 is corroborated, not
+#' cited upstream. What "flour basis" means numerically is protein per kg of
+#' *grain equivalent*, which is flour protein times the milling extraction
+#' rate, so the published tables were read on that basis:
+#'
+#' - FAO, *Food composition tables for international use*, 2nd ed., Rome,
+#'   1953, <https://www.fao.org/4/x5557e/x5557e04.htm> (FAO flags it as
+#'   historical). Medium wheat: whole meal 12.2 g/100 g at 100% extraction,
+#'   flour 11.7 at 85%, 10.9 at 72% -- so 99.4 and 78.5 g per kg of grain
+#'   equivalent, which bracket 93.
+#' - USDA FoodData Central 168894 (SR Legacy), "Wheat flour, white,
+#'   all-purpose, enriched, bleached": protein 10.33 g/100 g, so 103.3 g per
+#'   kg of flour, 72-88 g per kg of grain equivalent at 70-85% extraction.
+#' - FAO, *Technical conversion factors for agricultural commodities*, Rome,
+#'   <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>
+#'   -- its per-country `Flour of Wheat` extraction rates run 70-97% with a
+#'   median of 75%, which is why no single flour figure maps to one
+#'   grain-equivalent density.
+#'
+#' The oracle is FAOSTAT FBS itself, which builds its protein the same way:
+#' composition factors on the products eaten, over the standardised
+#' primary-equivalent quantity that WHEP's `food_t` also is (FAO, *Food
+#' balance sheets: a handbook*, section III,
+#' <https://www.fao.org/4/X9892E/X9892e03.htm>). For item 2511 its **World
+#' row (area 5000)** implies 91.71-93.15 g/kg over 2010-2023, 92.99 in 2010;
+#' summed instead over the 171 countries reporting both elements it is
+#' 94.96-96.90, 96.60 in 2010. So 93 lands within 0.02% of the World row and
+#' 3.7% below the country sum, where 118.45 was above both: 27.4% above the
+#' World row and 22.6% above the country sum (whep#796).
+#'
+#' One global coefficient cannot carry the extraction pattern country by
+#' country: FBS's own per-country implied density for 2511 in 2010 spans
+#' 41-115 g/kg (q10 69, median 81, q90 90), so 93 is the mass-weighted world
+#' point of that distribution and leaves the median country high. The previous
+#' value stays selectable as
+#' `build_food_supply(protein_basis = "product_nitrogen")`, which reads the
+#' agronomic route directly and returns exactly 0.11844577745690253 kg protein
+#' per kg; the choice is recorded per row in `method_protein_basis`.
+#'
+#' The other seven rows were settled one by one (#1096), by the same test as
+#' wheat: does the row's own `Conversores_Dieta` entry, the one that already
+#' fills its other nutrients, carry a protein value, and does following it
+#' agree with the FBS oracle? The oracle ratios below are WHEP world food
+#' protein over the FBS World row (area 5000), 2010, on a real build.
+#'
+#' - `Olive` now carries **0.00128** (8 g protein/kg), from row 39
+#'   `Aceituna de mesa` (table olive), whose lipids 200, carbohydrates 10,
+#'   calcium 630, vitamin A 220 and edible portion 0.8 are the values already
+#'   shipped. The bare literal 0.0038 it replaces put olive protein at 3.23x
+#'   FBS; at 0.00128 it is 1.09x.
+#' - `Rye` now carries **0.016** (100 g/kg), from row 6 `Harina de Centeno`
+#'   (rye flour), whose lipids 19.3, carbohydrates 597 and calcium 270 are
+#'   already shipped -- the wheat case exactly, flour basis. The agronomic
+#'   0.01367 it replaces was 0.90x FBS; 0.016 is 1.06x.
+#' - `Honey` now carries **0.0008** (5 g/kg), carbohydrates **780 g/kg** and
+#'   calcium **50 mg/kg**, from row 36 `Miel`. Its block had been a
+#'   hand-typed placeholder (protein 0, carbohydrate 1000 g/kg, calcium 0)
+#'   that matched no row and put 1000 g of carbohydrate in 785 g of dry
+#'   matter; protein and carbohydrate from `Miel` sum to exactly that dry
+#'   matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
+#'   protein moves a computed number: nothing in the package reads the
+#'   carbohydrate or calcium columns.
+#' - `Oats` and `Maize` are **unchanged**, on the agronomic value. Their rows,
+#'   5 `Avena grano` 117 g/kg and 7 `Harina de Maiz` 87 g/kg, move *away* from
+#'   the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
+#'   83.8 and 78.0 are closer, so following the row would be consistency at
+#'   the cost of accuracy. Open for an expert.
+#' - `Rice` is **unchanged**: its basis was settled in #751/#755.
+#' - `Vegetables, other` is **unchanged** and moves no food number: no
+#'   `item_cbs_code` bridges to it (`Vegetables, Other` 2605 reaches
+#'   `Artichoke` through `items_full`). Its row 113 would give 33.3 g/kg
+#'   against the literal's 14.0, and neither is checked.
+#'
+#' All three new values are the workbook's own composition figures, which,
+#' like the rest of this block, have no `Sources` entry: they are corroborated
+#' by the FBS oracle, not cited upstream. The workbook copy read was
+#' `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still carries the old
+#' values in `Coefs` and should follow.
+#'
 #' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
 #' every row**, upstream in the source workbook as well as here, so no
 #' edible/non-edible nutrient split can be read from them (#361). Use
@@ -293,6 +409,24 @@
 #'   Empty.
 #' - `Product_kgN_kgDM`: Nitrogen content of product in kg N per kg dry
 #'   matter.
+#'
+#' The synthetic feed-additive rows take this column from the FEDNA feed
+#' tables as crude protein divided by 6.25, the same way `Threonine`,
+#' `Tryptophan`, `Valine` and `Urea` still do. `Methionine` carried 0.1143
+#' instead, which is 21.7% above the most nitrogen the molecule can hold:
+#' methionine is C5H11NO2S with one nitrogen atom, so its mass fraction is
+#' 14.007 over 149.208, or 0.0939 kg N per kg. It is now FEDNA's DL-Metionina
+#' entry, 58.5% crude protein and better than 99% purity, giving 0.0936
+#' (whep#931; <https://fundacionfedna.org/ingredientes-para-piensos>).
+#' The alternative is the other commercial methionine source,
+#' the hydroxy analogue FEDNA lists as HIDROXI-ANAL MET, which is C5H10O3S
+#' and holds no nitrogen at all; it is the value the retired pin carried.
+#' That `items_full$FEDNA` names HIDROXI-ANAL MET for this item is not
+#' evidence for the analogue: that column is a feed-table stand-in, not a
+#' product identity (see [items_full], whep#1131). `Lysine` at
+#' 0.2015 is the other hand-entered override and is still 5.2% above the free
+#' base's own 0.1916; FEDNA's L-Lisina HCl would give 0.1512.
+#'
 #' - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry
 #'   matter.
 #' - `Product_kgK_kgDM`: Potassium content of product in kg K per kg dry
@@ -300,6 +434,44 @@
 #' - `Product_kgC_kgDM`: Carbon content of product in kg C per kg dry matter.
 #' - `Residue_kgN_kgDM`: Nitrogen content of residue in kg N per kg dry
 #'   matter.
+#'
+#' For the wood and forest rows this column prices two physically different
+#' quantities through one cell. [create_n_prov_destiny()] sends the harvested
+#' `Wood` item to `Average wood`, and also relabels the residue production of
+#' forest and shrubland land as `Firewood`, which resolves to the same row.
+#' Harvested wood is stemwood; forest residue is branches, bark and foliage.
+#'
+#' **The shipped value is assumed, unverified.** No value the upstream
+#' workbook has carried for these rows has a citation that can be opened: the
+#' beech anchor's source cell begins `ChatGPT.`, the conifer anchor's two
+#' citations do not resolve as written, and the holm-oak anchor's cell is
+#' blank (whep#932). The anchors can still be placed against an independent
+#' compilation. Thurner et al. (2025) pool 1048 stem, 599 branch, 267 root and
+#' 5944 leaf nitrogen measurements for boreal and temperate trees -- the woody
+#' ones almost entirely from 192 literature studies -- and report medians, in
+#' kg N per kg dry matter, of 0.0010 in stem sapwood, 0.0035 in branches,
+#' 0.0060 in roots and 0.0167 in leaves. Against
+#' those, `Average wood`'s 0.0030 is 0.86 of the branch median and 3.0 times
+#' the stem median -- a branch concentration -- while the retired pin's
+#' 0.00095 is 0.95 of the stem median, a stemwood one.
+#'
+#' So the gap whep#932 records is not two estimates of one quantity in
+#' disagreement; it is the 3.5-fold gap between stem and branch tissue, and
+#' whichever single number the cell carries is wrong by about that factor for
+#' one of its two uses. The same ordering appears in the trembling-aspen
+#' budget of Morrison and Foster (1979, reproduced in Hacker 2005, "Effects of
+#' Logging Residue Removal on Forest Sites"), where stemwood holds 84 kg N in
+#' 119 t of dry matter, 0.00071 kg N per kg, against 0.0042 for bark, 0.0049
+#' for branches and 0.024 for foliage. Splitting the row, not picking a side,
+#' is what whep#932 needs, so the value must not be moved before that is
+#' settled. `tests/testthat/test_biomass_coefs_wood_provenance.R` holds the
+#' comparison and fails if either side of it drifts.
+#'
+#' Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang, Z.,
+#' and Hickler, T. (2025). Nitrogen concentrations in boreal and temperate
+#' tree tissues vary with tree age/size, growth rate, and climate.
+#' *Biogeosciences* 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.
+#'
 #' - `Residue_kgP_kgDM`: Phosphorus content of residue in kg P per kg dry
 #'   matter.
 #' - `Residue_kgK_kgDM`: Potassium content of residue in kg K per kg dry
@@ -415,6 +587,11 @@
 #' categories, enabling aggregation of bilateral trade data into the CBS
 #' framework.
 #'
+#' Only single commodities are mapped. The FAOSTAT trade totals also carry
+#' group rows (codes from 1719 up, such as 1895 "Beverages" or 1896
+#' "Tobacco") that sum the items listed here, so mapping a group would count
+#' its members twice (whep#960).
+#'
 #' @format
 #' A tibble where each row corresponds to one trade item. It contains the
 #' following columns:
@@ -478,12 +655,42 @@
 #'   `"Other processing residues"`).
 #' - `Cat_1`: Primary category label used in material flow accounting.
 #' - `Name_biomass`: Corresponding item name in `biomass_coefs`, enabling
-#'   joins with the biomass coefficient table.
+#'   joins with the biomass coefficient table. `NA` for the 22 live-animal
+#'   items, which are heads rather than biomass and have no coefficient row by
+#'   design. Three rows instead carry the literal string `"0"`, an upstream
+#'   placeholder that matches no `biomass_coefs` row: 2775 Aquatic Plants,
+#'   4000 Animal draught and 2899 Miscellaneous. Every other value resolves.
+#'   Draught is measured in work hours and Miscellaneous is a residual
+#'   aggregate, so neither has a biomass counterpart; Aquatic Plants is a real
+#'   commodity whose coefficient row does not exist yet, so its CBS feed and
+#'   food mass carries no dry matter, protein or energy (whep#970).
 #' - `dbMFA_items`: Item identifier used in the material flow analysis
 #'   database.
-#' - `FEDNA`: Item name used in FEDNA feed composition tables.
+#' - `FEDNA`: Name of the FEDNA feed-composition table entry
+#'   (<https://fundacionfedna.org/ingredientes-para-piensos>) paired with
+#'   the item. It is a **stand-in, not a product identity**: it says which
+#'   feed-table row the item was given, not which substance the item is, and
+#'   must not be read as evidence of what a row represents (whep#1131). Why
+#'   each entry was chosen is not recorded upstream. On the 28 `Additives`
+#'   rows, 4008 Enzimes and 4016 Phytase share PROTEINA DE PATATA (potato
+#'   protein), 4005 Calcium carbonate and 4013 Minerals share CARBONATO
+#'   CALCICO, and several name a different substance outright: 4018
+#'   Potassium carbonate is CARBONATO SODIO, 4027 Vitamins AC. CITRICO,
+#'   4015 Pesticides AC. FORMICO, 4017 Pigment AC. COLZA, 4009 Flavours
+#'   PROPIONATO SODICO, 4003 Anionic salts MET HIDROXI SAL CALCICA and 4011
+#'   Methionine HIDROXI-ANAL MET, a nitrogen-free analogue. Nor does the
+#'   named entry fix the `biomass_coefs` nitrogen: Methionine and Lysine
+#'   carry more than their entries imply and Ammonium chloride and Choline
+#'   chloride carry zero although their entries hold nitrogen. No WHEP
+#'   function reads this column.
 #' - `default_destiny`: Default CBS use category for this item. One of
-#'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`.
+#'   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`. It is
+#'   where the final balance books the domestic supply a row's reported
+#'   destinies leave unexplained. The values come from the `items_full` sheet
+#'   of afsetools' `Codes_coefs.xlsx`, which records no derivation for them.
+#'   All nine oilseed cakes (`comm_group == "Oil cakes"`) are `"Feed"`: five
+#'   of them (2591, 2592, 2594, 2595, 2596) were `"Food"` until whep#1066,
+#'   unlike the other four.
 #' @source Derived from [FAOSTAT data](https://www.fao.org/faostat/en/#data/FBS)
 #'   and internal commodity classification work.
 #'

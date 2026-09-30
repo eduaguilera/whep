@@ -121,3 +121,178 @@ testthat::test_that("build_footprint validates its inputs", {
     "fd_labels"
   )
 })
+
+# Issue whep#1034: every sector an extension does not reach is zero-filled, so
+# an extension whose upstream label vanished becomes a zero vector, and every
+# conservation check the footprint machinery owns is satisfied by it.
+
+testthat::test_that("a zero footprint passes the conservation invariants", {
+  io <- .fp_io()
+  labels <- io$labels[[1]]
+  zero_footprint <- whep::compute_footprint(
+    z_mat = io$Z[[1]],
+    x_vec = io$X[[1]],
+    y_mat = io$Y[[1]],
+    extensions = c(0, 0),
+    labels = labels,
+    fd_labels = io$fd_labels[[1]]
+  )
+
+  # This is what the checks report about a footprint of nothing at all.
+  testthat::expect_equal(nrow(zero_footprint), 0L)
+  status <- whep::check_footprint_conservation(
+    zero_footprint,
+    extensions = c(0, 0),
+    labels = labels,
+    x_vec = io$X[[1]]
+  )
+  testthat::expect_true(all(status$status == "ok"))
+  testthat::expect_true(all(status$discrepancy == 0))
+  summary <- whep::assert_footprint_invariants(
+    zero_footprint,
+    extensions = c(0, 0),
+    labels = labels,
+    x_vec = io$X[[1]]
+  )
+  testthat::expect_equal(summary$n_flagged, 0L)
+  testthat::expect_equal(summary$n_ok, 2L)
+})
+
+testthat::test_that("an extension that reaches no sector at all is refused", {
+  io <- .fp_io()
+  # Keys built on a vocabulary the model does not share -- whep#1016's shape.
+  stranded <- tibble::tibble(
+    year = 2000L,
+    area_code = 999L,
+    item_cbs_code = c(10L, 20L),
+    impact_u = c(50, 30)
+  )
+
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      whep::align_extension(stranded, io$labels[[1]], 2000L),
+      c(0, 0)
+    )),
+    guard = whep::build_footprint(stranded, io = io)
+  )
+})
+
+testthat::test_that("an extension of literal zeros is refused before the model", {
+  io <- .fp_io()
+  zeroed <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = c(10L, 20L),
+    impact_u = c(0, 0)
+  )
+  condition <- tryCatch(
+    whep::build_footprint(zeroed, io = io),
+    whep_absent_input = function(e) e
+  )
+  testthat::expect_identical(condition$absent, "extension magnitude")
+})
+
+testthat::test_that("an extension shorter than the model warns and names years", {
+  io <- dplyr::bind_rows(.fp_io(), dplyr::mutate(.fp_io(), year = 2001L))
+  extension <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = c(10L, 20L),
+    impact_u = c(50, 30)
+  )
+
+  testthat::expect_warning(
+    result <- whep::build_footprint(extension, io = io),
+    class = "whep_absent_input"
+  )
+  # The run completes: 2001 contributes nothing, and says so rather than
+  # quietly reporting a zero footprint for that year.
+  testthat::expect_setequal(unique(result$year), 2000L)
+  condition <- tryCatch(
+    whep::build_footprint(extension, io = io),
+    whep_absent_input = function(w) w
+  )
+  testthat::expect_identical(condition$absent, "2001")
+})
+
+testthat::test_that("an extension that reaches every year is silent", {
+  io <- .fp_io()
+  extension <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = c(10L, 20L),
+    impact_u = c(50, 30)
+  )
+  testthat::expect_no_warning(whep::build_footprint(extension, io = io))
+})
+
+# whep#181: a row whose year, area or item code is NA matches no sector label,
+# so align_extension() used to drop it, and its magnitude, with no message.
+
+testthat::test_that("a NA-coded extension row used to vanish from the vector", {
+  # The mechanism the guard closes, on the unguarded join: 40 of 45 units
+  # carry a NA code and match nothing, so only 5 reach the model.
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2000L, 1L,         10L,            5,
+    2000L, NA,         10L,            25,
+    2000L, 1L,         NA,             15
+  )
+  reached <- extension |>
+    dplyr::summarise(
+      value = sum(impact_u),
+      .by = c(area_code, item_cbs_code)
+    ) |>
+    dplyr::right_join(.fp_labels(), by = c("area_code", "item_cbs_code"))
+  testthat::expect_equal(sum(reached$value, na.rm = TRUE), 5)
+})
+
+testthat::test_that("align_extension refuses NA year, area or item codes", {
+  good <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = 10L,
+    impact_u = 5
+  )
+  purrr::walk(c("year", "area_code", "item_cbs_code"), function(col) {
+    bad <- dplyr::bind_rows(good, dplyr::mutate(good, "{col}" := NA))
+    testthat::expect_error(
+      whep::align_extension(bad, .fp_labels(), 2000L),
+      class = "whep_error_schema_violation"
+    )
+    testthat::expect_error(
+      whep::build_footprint(bad, io = .fp_io()),
+      class = "whep_error_schema_violation"
+    )
+  })
+})
+
+testthat::test_that("align_extension still accepts a NA magnitude", {
+  # A NA value is an absent-input question (whep#1034), not a key defect.
+  extension <- tibble::tibble(
+    year = 2000L,
+    area_code = 1L,
+    item_cbs_code = c(10L, 10L),
+    impact_u = c(5, NA)
+  )
+  testthat::expect_equal(
+    whep::align_extension(extension, .fp_labels(), 2000L),
+    c(5, 0)
+  )
+})
+
+testthat::test_that("align_extension's column checks carry the schema class", {
+  extension <- tibble::tibble(year = 2000L, area_code = 1L, impact_u = 5)
+  testthat::expect_error(
+    whep::align_extension(extension, .fp_labels(), 2000L),
+    class = "whep_error_schema_violation"
+  )
+  testthat::expect_error(
+    whep::align_extension(
+      dplyr::mutate(extension, item_cbs_code = 10L),
+      dplyr::select(.fp_labels(), -index),
+      2000L
+    ),
+    class = "whep_error_schema_violation"
+  )
+})

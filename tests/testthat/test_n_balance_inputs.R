@@ -321,6 +321,9 @@
     nhx = .nbi_nhx(),
     noy = .nbi_noy(),
     urban_population = .nbi_urban_population(),
+    # Named, because the default basis is the total population: the pinned
+    # inputs below were measured on the urban basis.
+    human_n_population_basis = "urban",
     cropland_ha = .nbi_cropland_ha(),
     cell_polity = .nbi_cell_polity(),
     carbon_balance = .nbi_carbon_balance(),
@@ -344,7 +347,7 @@ testthat::test_that("all seven implemented fert_type values are present", {
     "manure_liquid",
     "excreta",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization",
     "synthetic"
   )
@@ -394,10 +397,10 @@ testthat::test_that("SOM mineralization is allocated across cropland crops", {
   testthat::expect_equal(sum(som$n_input_t), 0.6)
 })
 
-testthat::test_that("deposition and urban use agricultural item support", {
+testthat::test_that("deposition and human N use agricultural item support", {
   out <- whep::build_n_inputs(data = .nbi_full_data())
   dep <- out[out$fert_type == "deposition", ]
-  urb <- out[out$fert_type == "urban", ]
+  urb <- out[out$fert_type == "human", ]
   testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
   testthat::expect_setequal(urb$item_cbs_code, c(2511L, 2807L))
   testthat::expect_false(anyNA(dep$item_cbs_code))
@@ -464,11 +467,11 @@ testthat::test_that("the manure engine resolution is never overwritten", {
   )
 })
 
-testthat::test_that("the urban area_code is never a silent NA", {
+testthat::test_that("the human-N area_code is never a silent NA", {
   # The property this has always been about: no urban row leaves here with an
   # NA area_code. It used to be enforced by bridging an ISO3 through
   # .manure_territory_to_area_code() (#463), which resolved "ESP" to 203 with
-  # a deprecation warning. build_urban_n() now refuses a non-numeric
+  # a deprecation warning. build_human_n() now refuses a non-numeric
   # area_code outright (#597): unlike the manure path it manufactures its own
   # territory key from a column its docs call `area_code`, and an ISO3 would
   # resolve to a polity_area_code aggregation bucket that is not every
@@ -477,13 +480,13 @@ testthat::test_that("the urban area_code is never a silent NA", {
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
   testthat::expect_error(
-    whep:::.n_inputs_urban(data),
-    class = "whep_urban_area_code_unresolved"
+    whep:::.n_inputs_human(data),
+    class = "whep_human_n_area_code_unresolved"
   )
 
   # The numeric vocabulary the driver actually supplies passes through with no
   # NA, and no warning.
-  out <- testthat::expect_no_warning(whep:::.n_inputs_urban(.nbi_full_data()))
+  out <- testthat::expect_no_warning(whep:::.n_inputs_human(.nbi_full_data()))
   testthat::expect_false(anyNA(out$area_code))
   testthat::expect_true(is.integer(out$area_code))
 })
@@ -594,7 +597,7 @@ testthat::test_that("example fixture is schema-complete", {
     "bnf",
     "synthetic",
     "deposition",
-    "urban",
+    "human",
     "som_mineralization"
   )
   testthat::expect_true(all(expected_present %in% out$fert_type))
@@ -864,6 +867,339 @@ testthat::test_that("unattributed Cropland manure stays on cropland support", {
   )
 })
 
+# Two non-item streams, one of them on a cell the support does not cover, so
+# the allocation loses mass and the guard fires. whep#792 reached that abort
+# knowing only the total, which is why the stream decomposition is asserted.
+.nbi_unallocatable_inputs <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~fert_type, ~n_input_t,
+      0.25, 50.25, 10L, 2010L, "deposition", 4,
+      0.75, 50.25, 10L, 2010L, "som_mineralization", 1400,
+      0.75, 50.75, 10L, 2010L, "som_mineralization", 9
+    ) |>
+      dplyr::mutate(
+        item_cbs_code = NA_integer_,
+        method_recycling_n = NA_character_,
+        method_synthetic = NA_character_
+      )
+  )
+}
+
+# The carbon balance is marched over a spin-up (whep#798) and handed to
+# build_n_inputs() whole, while the land support is built for the driven year
+# only. Every spin-up year of SOM mineralization therefore has no support at
+# all, so it must be dropped before the allocation rather than after it.
+.nbi_spinup_carbon_balance <- function() {
+  dplyr::bind_rows(
+    .nbi_carbon_balance(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~son_change_kgn_ha,
+      0.25, 50.25, 10L, "Cropland", 2009L, 50, 4000,
+      0.25, 50.25, 10L, "Cropland", 2008L, 50, 4000
+    )
+  )
+}
+
+testthat::test_that("a marched carbon balance does not reach the allocation", {
+  data <- .nbi_full_data()
+  data$carbon_balance <- .nbi_spinup_carbon_balance()
+
+  out <- whep::build_n_inputs(years = 2010L, data = data)
+
+  som <- out[out$fert_type == "som_mineralization", ]
+  testthat::expect_setequal(out$year, 2010L)
+  # Only the driven year's 12 kg N/ha over 50 ha survives; the two spin-up
+  # years are neither allocated nor counted against the support.
+  testthat::expect_equal(sum(som$n_input_t), 0.6, tolerance = 1e-8)
+})
+
+testthat::test_that("the abort names years the support does not cover", {
+  data <- .nbi_full_data()
+  data$carbon_balance <- .nbi_spinup_carbon_balance()
+
+  err <- testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_n_unallocated_non_item"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(err, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_match(message, "outside the support's span entirely")
+  testthat::expect_match(message, "2008")
+  testthat::expect_match(message, "2009")
+})
+
+testthat::test_that("unallocatable non-item nitrogen names its streams", {
+  err <- testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unallocatable_inputs(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(err, prefix = FALSE),
+    collapse = " "
+  ))
+
+  # The stream carrying the implausible mass, and how much of it went nowhere.
+  testthat::expect_match(message, "som_mineralization 1409 t N")
+  testthat::expect_match(message, "Unallocated by stream")
+  testthat::expect_match(message, "unallocated: 1409 t N")
+  # Deposition allocated in full, so it must not appear as unallocated.
+  testthat::expect_match(message, "deposition 4 t N")
+  testthat::expect_match(message, "2 source rows sit on a cell-year with no")
+})
+
+# Non-item nitrogen stranded on a cell with no cropland support, in a polity
+# that HAS cropland support elsewhere. That is the shape a real 2010 run takes:
+# build_human_n() carries the urban nitrogen its transport step could not
+# deliver back to the source cell, and 1985 of those cells hold no cropland, so
+# the allocation join drops 38,425 t of 4.02 Mt (whep#446).
+.nbi_stranded_inputs <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~fert_type, ~n_input_t,
+      0.25, 50.25, 10L, 2010L, "human", 10,
+      0.75, 50.25, 10L, 2010L, "human", 4
+    ) |>
+      dplyr::mutate(
+        item_cbs_code = NA_integer_,
+        method_recycling_n = NA_character_,
+        method_synthetic = NA_character_
+      )
+  )
+}
+
+testthat::test_that("stranded non-item nitrogen still aborts by default", {
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+})
+
+testthat::test_that("reallocate places stranded nitrogen and conserves mass", {
+  out <- whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(ag_land_support = .nbi_ag_land_support()),
+    method_unsupported = "reallocate"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+  # Both rows land on the polity's only cropland cell, split 700/300 by area.
+  testthat::expect_setequal(out$lon, 0.25)
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 2511L]),
+    14 * 0.7
+  )
+  testthat::expect_true(all(out$method_unsupported == "reallocate"))
+})
+
+testthat::test_that("drop discards stranded nitrogen and says how much", {
+  testthat::expect_warning(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "drop"
+    ),
+    "4 t N"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 10)
+  testthat::expect_true(all(out$method_unsupported == "drop"))
+})
+
+testthat::test_that("reallocate still aborts when the polity has no cropland", {
+  inputs <- dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.25,
+      area_code = 99L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      fert_type = "human",
+      n_input_t = 4,
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_
+    )
+  )
+
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      inputs,
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "reallocate"
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+})
+
+# Two stranded rows: one in a polity that has cropland elsewhere, one in a
+# polity with no cropland support at all. That is the shape of the real 2010
+# run, where reallocation placed 1934 of 1985 stranded rows and 51 (834 t N,
+# 0.021% of urban N) were in polities with no cropland anywhere.
+testthat::test_that("reallocate_drop places what it can and drops the rest", {
+  inputs <- dplyr::bind_rows(
+    .nbi_stranded_inputs(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.75,
+      area_code = 99L,
+      item_cbs_code = NA_integer_,
+      year = 2010L,
+      fert_type = "human",
+      n_input_t = 2,
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_
+    )
+  )
+
+  testthat::expect_warning(
+    out <- whep:::.ni_allocate_unattributed(
+      inputs,
+      list(ag_land_support = .nbi_ag_land_support()),
+      method_unsupported = "reallocate_drop"
+    ),
+    "2 t N"
+  )
+
+  # 10 + 4 placed, the 2 t in polity 99 dropped.
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_true(all(out$method_unsupported == "reallocate_drop"))
+})
+
+# whep#1191: `unattributed_method` and `method_unsupported` share one support.
+# These pin the coupled semantics so a future split is a visible choice.
+testthat::test_that("the agricultural policy widens the stranded rescue", {
+  run <- function(policy) {
+    suppressMessages(whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = policy
+      ),
+      method_unsupported = "reallocate"
+    ))
+  }
+  narrow <- run("cropland_area")
+  wide <- run("agricultural_area")
+  grass <- function(x) sum(x$n_input_t[x$item_cbs_code == 3000L])
+
+  testthat::expect_equal(sum(narrow$n_input_t), 14)
+  testthat::expect_equal(sum(wide$n_input_t), 14)
+  testthat::expect_equal(grass(narrow), 0)
+  # Both the locally placed 10 t and the rescued 4 t see 500 of 1500 ha grass.
+  testthat::expect_equal(grass(wide), 14 * 500 / 1500, tolerance = 1e-8)
+})
+
+testthat::test_that("a grassland-only cell is stranded only under cropland", {
+  support <- dplyr::bind_rows(
+    .nbi_ag_land_support(),
+    tibble::tibble(
+      lon = 0.75,
+      lat = 50.25,
+      area_code = 10L,
+      item_cbs_code = 3000L,
+      year = 2010L,
+      land_use = "grassland",
+      area_ha = 200
+    )
+  )
+
+  testthat::expect_error(
+    suppressMessages(whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(ag_land_support = support)
+    )),
+    class = "whep_n_unallocated_non_item"
+  )
+  wide <- suppressMessages(whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(ag_land_support = support, unattributed_method = "agricultural_area")
+  ))
+  # Not stranded, so the default "abort" never fires: the 4 t stay local.
+  testthat::expect_equal(sum(wide$n_input_t), 14)
+  testthat::expect_equal(sum(wide$n_input_t[wide$lon == 0.75]), 4)
+})
+
+testthat::test_that("the rescue message names the land it spread over", {
+  messages <- character()
+  withCallingHandlers(
+    whep:::.ni_allocate_unattributed(
+      .nbi_stranded_inputs(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "agricultural_area"
+      ),
+      method_unsupported = "reallocate"
+    ),
+    message = function(m) {
+      messages <<- c(messages, cli::ansi_strip(conditionMessage(m)))
+      invokeRestart("muffleMessage")
+    }
+  )
+  rescue <- stringr::str_subset(messages, "Reallocated")
+
+  testthat::expect_length(rescue, 1L)
+  testthat::expect_match(rescue, "cropland and grassland cells", fixed = TRUE)
+})
+
+testthat::test_that("excluding leaves nothing for the stranded rule to see", {
+  out <- suppressWarnings(whep:::.ni_allocate_unattributed(
+    .nbi_stranded_inputs(),
+    list(
+      ag_land_support = .nbi_ag_land_support(),
+      unattributed_method = "exclude"
+    ),
+    method_unsupported = "abort"
+  ))
+
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_true(all(out$method_unsupported == "abort"))
+})
+
+testthat::test_that("build_n_inputs refuses an unknown unsupported rule", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      method_unsupported = "smear",
+      data = .nbi_full_data()
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("build_n_inputs stamps the unsupported rule it used", {
+  out <- whep::build_n_inputs(years = 2010L, data = .nbi_full_data())
+
+  testthat::expect_true("method_unsupported" %in% names(out))
+  testthat::expect_true(all(out$method_unsupported == "abort"))
+})
+
+testthat::test_that("every placed non-item tonne survives the allocation", {
+  inputs <- dplyr::filter(
+    .nbi_unallocatable_inputs(),
+    is.na(.data$lon) | .data$lon == 0.25
+  )
+
+  out <- whep:::.ni_allocate_unattributed(
+    inputs,
+    list(ag_land_support = .nbi_ag_land_support())
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 4)
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+})
+
 testthat::test_that("transported manure is retained as an unattributed agricultural input", {
   applied <- tibble::tibble(
     year = 2010L,
@@ -881,6 +1217,182 @@ testthat::test_that("transported manure is retained as an unattributed agricultu
   testthat::expect_equal(out$fert_type, "manure_liquid")
   testthat::expect_equal(out$n_input_t, 7)
   testthat::expect_true(is.na(out$item_cbs_code))
+})
+
+# whep#532: where nitrogen with no item_cbs_code goes is a choice, so it is
+# selectable, reported and stamped. The manure row here is the shape the issue
+# found in the gridded surplus: real mass, on agricultural land, with no crop.
+.nbi_unattributed_manure <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      area_code = 10L,
+      item_cbs_code = c(2511L, NA_integer_),
+      year = 2010L,
+      fert_type = c("manure_solid", "manure_liquid"),
+      n_input_t = c(3, 20),
+      method_recycling_n = NA_character_,
+      method_synthetic = NA_character_,
+      method_deposition_scope = NA_character_
+    )
+  )
+}
+
+testthat::test_that("the unattributed-nitrogen policy is stamped on every row", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep::build_n_inputs(data = .nbi_full_data()),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  testthat::expect_true(rlang::has_name(out, "method_unattributed"))
+  testthat::expect_setequal(out$method_unattributed, "cropland_area")
+})
+
+testthat::test_that("the excluded policy is still readable from the table", {
+  out <- NULL
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(
+      data = .nbi_full_data(),
+      unattributed_method = "exclude"
+    ),
+    class = "whep_n_unattributed_excluded"
+  )
+
+  # Under "exclude" no reallocated row survives, so a per-row stamp would make
+  # the choice that removed the nitrogen invisible.
+  testthat::expect_setequal(out$method_unattributed, "exclude")
+  testthat::expect_false(any(is.na(out$item_cbs_code)))
+})
+
+# whep#532 asks for the tonnage a missing-item filter removes to be reported,
+# not inferred. This ties the reported figure to the mass that actually left,
+# so a message that drifts from the arithmetic fails here.
+testthat::test_that("the excluded tonnage is the mass that actually left", {
+  data <- .nbi_full_data()
+  kept <- suppressMessages(whep::build_n_inputs(data = data))
+
+  reported <- NULL
+  dropped <- withCallingHandlers(
+    whep::build_n_inputs(data = data, unattributed_method = "exclude"),
+    whep_n_unattributed_excluded = function(cnd) {
+      reported <<- cnd
+      rlang::cnd_muffle(cnd)
+    }
+  )
+
+  lost <- sum(kept$n_input_t) - sum(dropped$n_input_t)
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(reported, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_gt(lost, 0)
+  testthat::expect_match(
+    message,
+    paste(signif(lost, 6), "t N"),
+    fixed = TRUE
+  )
+  # Every surviving row is crop-attributed, which is what made the loss
+  # invisible: the table still looks complete.
+  testthat::expect_false(any(is.na(dropped$item_cbs_code)))
+})
+
+testthat::test_that("the exclusion names the tonnage it drops", {
+  w <- testthat::expect_warning(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "exclude"
+      )
+    ),
+    class = "whep_n_unattributed_excluded"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(w, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_match(message, "20 t N")
+  testthat::expect_match(message, "manure_liquid 20 t N")
+})
+
+testthat::test_that("excluding drops the no-crop manure and keeps the rest", {
+  out <- suppressWarnings(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "exclude"
+      )
+    )
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 3)
+  testthat::expect_setequal(out$item_cbs_code, 2511L)
+})
+
+testthat::test_that("the cropland default keeps every no-crop tonne on crops", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 23)
+  testthat::expect_false(3000L %in% out$item_cbs_code)
+  # 700/1000 and 300/1000 of the 20 t, plus the crop-attributed 3 t on 2511.
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 2807L]),
+    6,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("the agricultural policy offers grassland the same nitrogen", {
+  out <- NULL
+  testthat::expect_message(
+    out <- whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "agricultural_area"
+      )
+    ),
+    class = "whep_n_unattributed_allocated"
+  )
+
+  # Same mass, a different landing: 500 of the support's 1500 ha are grass.
+  testthat::expect_equal(sum(out$n_input_t), 23)
+  testthat::expect_equal(
+    sum(out$n_input_t[out$item_cbs_code == 3000L]),
+    20 * 500 / 1500,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("an unknown unattributed_method is refused", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      data = .nbi_full_data(),
+      unattributed_method = "spread_it_around"
+    )
+  )
+  testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unattributed_manure(),
+      list(
+        ag_land_support = .nbi_ag_land_support(),
+        unattributed_method = "spread_it_around"
+      )
+    )
+  )
 })
 
 # Synthetic fertiliser: Coello rate-weighted crop split (Task 1.4) ------------
@@ -1190,6 +1702,7 @@ testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
     area_category = categories,
     deposition_kgn_ha = 1000,
     deposition_n_t = c(600, 300, 100)[seq_along(categories)],
+    method_deposition = "hani",
     method_area_split = method
   )
 }
@@ -1257,6 +1770,54 @@ testthat::test_that("C3b: the scope is recorded, and only on deposition rows", {
   testthat::expect_true(all(
     polity$method_deposition_scope[polity$fert_type == "deposition"] ==
       "territory"
+  ))
+})
+
+testthat::test_that("the deposition field's provenance reaches the ledger", {
+  # #1105. `method_deposition_scope` says which territory the term was
+  # credited with; `method_deposition` says which PRODUCT it came from, and
+  # that is the axis a corrected field moves along. Injecting one through
+  # `data$nhx`/`data$noy` is exactly the documented route (#1097), so a run on
+  # a corrected field and a run on plain HaNi must not be indistinguishable
+  # once they reach the ledger.
+  data <- .nbi_full_data()
+  out <- whep::build_n_inputs(data = data)
+  dep <- out$fert_type == "deposition"
+
+  testthat::expect_true(rlang::has_name(out, "method_deposition"))
+  testthat::expect_true(all(out$method_deposition[dep] == "supplied"))
+  testthat::expect_true(all(is.na(out$method_deposition[!dep])))
+
+  corrected <- data
+  corrected$nhx <- dplyr::mutate(
+    .nbi_nhx(),
+    method_deposition = "hani_emep_corrected"
+  )
+  corrected$noy <- dplyr::mutate(
+    .nbi_noy(),
+    method_deposition = "hani_emep_corrected"
+  )
+  fixed <- whep::build_n_inputs(data = corrected)
+  fixed_dep <- fixed$fert_type == "deposition"
+
+  testthat::expect_true(
+    all(fixed$method_deposition[fixed_dep] == "hani_emep_corrected")
+  )
+  # The label is a label: the same field under a different name moves no
+  # tonne, so this column can be added to a published schema without moving
+  # a published number.
+  testthat::expect_equal(
+    sum(fixed$n_input_t[fixed_dep]),
+    sum(out$n_input_t[dep])
+  )
+
+  # And it survives the polity aggregation, where a method column that is not
+  # a grouping key would collapse two products into one row.
+  polity <- whep::build_n_inputs(data = corrected, resolution = "polity")
+  testthat::expect_true(rlang::has_name(polity, "method_deposition"))
+  testthat::expect_true(all(
+    polity$method_deposition[polity$fert_type == "deposition"] ==
+      "hani_emep_corrected"
   ))
 })
 
@@ -1383,10 +1944,10 @@ testthat::test_that("polity_validity reaches all four gridded builders", {
       "deposition",
       whep::build_n_deposition
     ),
-    build_urban_n = .nbi_validity_recorder(
+    build_human_n = .nbi_validity_recorder(
       seen,
-      "urban",
-      whep::build_urban_n
+      "human",
+      whep::build_human_n
     ),
     spatialize_country_n_to_crops = .nbi_validity_recorder(
       seen,
@@ -1402,7 +1963,7 @@ testthat::test_that("polity_validity reaches all four gridded builders", {
 
   testthat::expect_equal(seen$ag_land_support, "flag")
   testthat::expect_equal(seen$deposition, "flag")
-  testthat::expect_equal(seen$urban, "flag")
+  testthat::expect_equal(seen$human, "flag")
   testthat::expect_equal(seen$spatialize, "flag")
   testthat::expect_true(nrow(out) > 0L)
 })
@@ -1478,5 +2039,290 @@ testthat::test_that("the manure_type bridge maps its whole vocabulary", {
   testthat::expect_error(
     whep:::.ni_manure_fert_type(NA_character_),
     "Unexpected"
+  )
+})
+
+# ---- Every requested stream must have arrived (whep#1034) --------------
+
+# The seven streams, assembled exactly as build_n_inputs() assembles them but
+# without the guard, so a test can hand the same frame to both the mass check
+# the package already ships and the new one.
+.nbi_assemble_streams <- function(data) {
+  data$resolution <- whep:::.ni_manure_resolution(data, "grid")
+  dplyr::bind_rows(
+    whep:::.n_inputs_bnf(data),
+    whep:::.n_inputs_recycling(data),
+    whep:::.n_inputs_manure(data),
+    whep:::.n_inputs_deposition(data),
+    whep:::.n_inputs_human(data),
+    whep:::.n_inputs_som(data),
+    whep:::.n_inputs_synthetic(data)
+  )
+}
+
+testthat::test_that("the allocation mass check cannot see a lost stream", {
+  # .ni_check_unallocated() -- the only reconciliation in this assembly --
+  # compares the assembled rows against themselves, so it is satisfied
+  # exactly by an assembly the synthetic term never reached. That is the
+  # state the guard has to catch instead.
+  data <- .nbi_full_data()
+  data[["fertilizer"]][["Area Code"]] <- 5000L
+  assembled <- .nbi_assemble_streams(data)
+
+  testthat::expect_false("synthetic" %in% assembled$fert_type)
+  expect_supplied_guard(
+    identity = is.data.frame(whep:::.ni_allocate_unattributed(assembled, data)),
+    guard = whep:::.ni_check_streams(assembled, data)
+  )
+})
+
+testthat::test_that("a supplied fertiliser table that lands nowhere is refused", {
+  data <- .nbi_full_data()
+  data[["fertilizer"]][["Area Code"]] <- 5000L
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_absent_input"
+  )
+})
+
+testthat::test_that("deposition fields off the support's span are refused", {
+  data <- .nbi_full_data()
+  data$nhx <- dplyr::mutate(data$nhx, year = 1999L)
+  data$noy <- dplyr::mutate(data$noy, year = 1999L)
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "deposition"
+  )
+})
+
+testthat::test_that("a relabelled carbon balance warns rather than aborting", {
+  # som_mineralization is the one stream defined by a sign filter
+  # (son_change_kgn_ha > 0), so an empty stream there can be an observation
+  # as well as a symptom. Every other stream aborts.
+  data <- .nbi_full_data()
+  data$carbon_balance <- dplyr::mutate(data$carbon_balance, land_use = "Arable")
+
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(data = data),
+    class = "whep_absent_input"
+  )
+  testthat::expect_false("som_mineralization" %in% out$fert_type)
+})
+
+testthat::test_that("a stream whose inputs were never supplied stays legal", {
+  # Leaving bnf_input out is how a caller says it does not want that term.
+  data <- .nbi_full_data()
+  data$bnf_input <- NULL
+
+  out <- whep::build_n_inputs(data = data)
+
+  testthat::expect_false("bnf" %in% out$fert_type)
+  testthat::expect_true("synthetic" %in% out$fert_type)
+})
+
+testthat::test_that("the requested set follows the inputs that were supplied", {
+  data <- .nbi_full_data()
+
+  testthat::expect_setequal(
+    whep:::.ni_requested_streams(data),
+    names(whep:::.ni_stream_inputs())
+  )
+  testthat::expect_setequal(
+    whep:::.ni_requested_streams(list()),
+    character()
+  )
+  # build_nitrogen_balance() hands the NPP result in as `.npp_cache`, and
+  # that asks for the recycling term just as `npp_n_input` does.
+  testthat::expect_equal(
+    whep:::.ni_requested_streams(list(.npp_cache = data$npp_n_input)),
+    "recycling"
+  )
+})
+
+testthat::test_that("every stream key maps to a fert_type this file emits", {
+  testthat::expect_setequal(
+    names(whep:::.ni_stream_inputs()),
+    names(whep:::.ni_stream_fert_types())
+  )
+  testthat::expect_setequal(
+    unlist(whep:::.ni_stream_fert_types(), use.names = FALSE),
+    whep::build_n_inputs(data = .nbi_full_data())$fert_type |> unique()
+  )
+})
+
+testthat::test_that("gridded_pasture is never read as gridded (#1214)", {
+  # R's `$` partially matches list names: without a `gridded` entry,
+  # `data$gridded` returned `gridded_pasture` (an entry this same list
+  # documents) and handed it to the manure allocation as its land layer.
+  seen <- "not called"
+  testthat::local_mocked_bindings(
+    build_livestock_nutrient_flows = function(intake, ..., gridded = NULL) {
+      seen <<- gridded
+      list(applied = NULL)
+    },
+    .manure_to_n_inputs = function(applied) NULL
+  )
+  whep:::.n_inputs_manure(list(
+    livestock_intake = .nbi_livestock_intake(),
+    gridded_pasture = .nbi_gridded()$grass
+  ))
+  testthat::expect_null(seen)
+})
+
+testthat::test_that("the human-N population basis is recorded, only on its rows", {
+  # The human term's population basis is a choice (build_human_n()'s
+  # population_basis), and its two stamps have to travel with the rows, or a
+  # per-urban-inhabitant ledger and a per-total-inhabitant one are
+  # indistinguishable after the fact.
+  data <- .nbi_full_data()
+  out <- whep::build_n_inputs(data = data)
+  urban <- out$fert_type == "human"
+  testthat::expect_true(any(urban))
+  testthat::expect_true(all(
+    out$method_human_population[urban] == "urban_population"
+  ))
+  testthat::expect_true(all(
+    out$method_human_kgn_cap[urban] == "kg_n_per_urban_inhabitant"
+  ))
+  testthat::expect_true(all(is.na(out$method_human_population[!urban])))
+
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$human_n_population_basis <- "total"
+  total <- whep::build_n_inputs(data = data)
+  urban_total <- total$fert_type == "human"
+  testthat::expect_true(all(
+    total$method_human_population[urban_total] == "total_population"
+  ))
+  testthat::expect_true(all(
+    total$method_human_kgn_cap[urban_total] == "kg_n_per_total_inhabitant"
+  ))
+  # Same people, a smaller per-capita rate: the stamp is not decorative.
+  testthat::expect_lt(
+    sum(total$n_input_t[urban_total]),
+    sum(out$n_input_t[urban])
+  )
+  # The total population is the default basis.
+  data$human_n_population_basis <- NULL
+  testthat::expect_identical(whep::build_n_inputs(data = data), total)
+  # It survives the polity aggregation as a grouping key.
+  polity <- whep::build_n_inputs(data = data, resolution = "polity")
+  testthat::expect_true(all(
+    polity$method_human_population[polity$fert_type == "human"] ==
+      "total_population"
+  ))
+})
+
+testthat::test_that("an unknown human-N population basis is refused", {
+  data <- .nbi_full_data()
+  data$human_n_population_basis <- "rural"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "human_n_population_basis"
+  )
+})
+
+testthat::test_that("a basis whose population was not supplied is refused", {
+  data <- .nbi_full_data()
+  data$human_n_population_basis <- "total"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_human_n_population_basis_mismatch"
+  )
+})
+
+testthat::test_that("stranded human-N rows keep their basis stamps when pooled", {
+  stranded <- tibble::tibble(
+    area_code = 10L,
+    year = 2010L,
+    fert_type = "human",
+    method_recycling_n = NA_character_,
+    method_synthetic = NA_character_,
+    method_deposition_scope = NA_character_,
+    method_human_population = "total_population",
+    method_human_kgn_cap = "kg_n_per_total_inhabitant",
+    n_input_t = c(1, 2),
+    .source_row = 1:2
+  )
+  pooled <- whep:::.ni_pool_stranded(stranded)
+  testthat::expect_equal(nrow(pooled), 1L)
+  testthat::expect_equal(pooled$method_human_population, "total_population")
+  testthat::expect_equal(
+    pooled$method_human_kgn_cap,
+    "kg_n_per_total_inhabitant"
+  )
+})
+
+testthat::test_that("a total population under the urban basis is refused by name", {
+  # Every population slot is read by exact name, so no slot can partially
+  # match another `data` entry and hand a string on as the population; the
+  # mismatch is named instead.
+  data <- .nbi_full_data()
+  data$urban_population <- NULL
+  data$total_population <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    population = 30898536
+  )
+  data$human_n_population_basis <- "urban"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_human_n_population_basis_mismatch"
+  )
+})
+
+# Manure source option (whep#1197) --------------------------------------------
+
+# The golden outputs were written by the code BEFORE the manure-source option
+# existed (whep main at 5421973b), from these same fixtures. The default source
+# must reproduce them exactly; the only change is the added method_manure
+# column, which names the engine on the manure rows.
+#
+# Regenerated once when the human-N rename (whep#1301) was merged in: the
+# former "urban" rows are labelled "human" and gain the method_human_population
+# and method_human_kgn_cap stamps. The fixtures pin the urban basis, so every
+# value, and every non-human row, is bit-identical to the 5421973b output.
+testthat::test_that("the default manure source reproduces the pre-option output", {
+  golden <- readRDS(testthat::test_path(
+    "fixtures",
+    "n_inputs_default_golden.rds"
+  ))
+  manure <- c("excreta", "manure_solid", "manure_liquid")
+  for (resolution in c("grid", "polity")) {
+    out <- suppressMessages(
+      whep::build_n_inputs(data = .nbi_full_data(), resolution = resolution)
+    )
+    testthat::expect_identical(
+      dplyr::select(out, -"method_manure"),
+      golden[[paste0("inputs_", resolution)]]
+    )
+    testthat::expect_true(all(
+      out$method_manure[out$fert_type %in% manure] == "livestock_intake"
+    ))
+    testthat::expect_true(all(
+      is.na(out$method_manure[!out$fert_type %in% manure])
+    ))
+  }
+})
+
+testthat::test_that("naming the default manure source changes nothing", {
+  testthat::expect_identical(
+    suppressMessages(
+      whep::build_n_inputs(
+        data = .nbi_full_data(),
+        manure_method = "livestock_intake"
+      )
+    ),
+    suppressMessages(whep::build_n_inputs(data = .nbi_full_data()))
   )
 })

@@ -39,6 +39,8 @@ prepare_livestock_emissions <- function(
   system_shares = NULL
 ) {
   .validate_production_input(data)
+  .check_head_unit(data)
+  data <- .as_livestock_tibble(data)
 
   animals <- animals_codes
   excluded <- .excluded_livestock_codes()
@@ -96,6 +98,33 @@ prepare_livestock_emissions <- function(
 
 # Private helpers ----
 
+#' Take an exported livestock entry point's input onto the package's tibble
+#' contract.
+#'
+#' `get_primary_production(years = ...)` returns a `data.table` --
+#' `.filter_years()` converts -- and dplyr carries that class through every
+#' verb, so the emission engines used to receive one. Two of them abort on it,
+#' and on the class alone rather than on the data:
+#' `.ensure_production_cols()` adds its optional columns with
+#' `data[missing] <- NA_real_`, which `[<-.data.table` refuses, and
+#' `ensure_columns()` requires a tibble by contract. Converting once, at each
+#' exported boundary, is what AGENTS.md asks for -- `data.table` stays an
+#' internal detail of private helpers (whep#1136).
+#'
+#' `as.data.frame()` first, and the attribute dropped afterwards, because
+#' `as_tibble()` on a `data.table` carries its `.internal.selfref` pointer out
+#' as an attribute; a frame that still has one compares unequal to a plain
+#' tibble and can trigger data.table's shallow-copy warning downstream.
+#' @noRd
+.as_livestock_tibble <- function(data) {
+  if (tibble::is_tibble(data) && is.null(attr(data, ".internal.selfref"))) {
+    return(data)
+  }
+  out <- tibble::as_tibble(as.data.frame(data))
+  attr(out, ".internal.selfref") <- NULL
+  out
+}
+
 #' @noRd
 .validate_production_input <- function(data) {
   required <- c("item_cbs_code", "unit", "value")
@@ -105,6 +134,24 @@ prepare_livestock_emissions <- function(
       "Missing required column{?s}: {.field {missing}}."
     )
   }
+}
+
+# Herds are selected by `unit == "heads"`. A production table in another unit
+# vocabulary matches no row, and every emission engine downstream then receives
+# no animals: enteric and manure CH4 and manure N2O come back as an empty frame,
+# which a GHG extension distributes to nothing while every conservation check
+# passes (whep#1034). So the label is asserted before the filter.
+#' @noRd
+.check_head_unit <- function(data) {
+  check_labels_supplied(
+    data,
+    "unit",
+    "heads",
+    details = c(
+      i = "Livestock numbers are read from the {.val heads} rows of
+           {.fn get_primary_production}."
+    )
+  )
 }
 
 #' @noRd
@@ -164,6 +211,7 @@ prepare_livestock_emissions <- function(
   }
 
   tagged <- .tag_yields_to_animal_product(yield_rows, product_map)
+  .check_yields_tagged(tagged)
 
   if (is.null(tagged) || nrow(tagged) == 0) {
     return(NULL)
@@ -214,6 +262,27 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
   yields
+}
+
+# Yield rows were supplied (the caller only gets here with `t_head` rows that
+# carry a `live_anim_code`), so a tagging that matches none of them is a key
+# that moved -- a product code in another vocabulary or type -- not an absent
+# yield. Unguarded, `.extract_production_yields()` returns NULL, no milk yield
+# or weight gain is joined, and `estimate_energy_demand()` silently gives every
+# country its species' global `livestock_production_defaults` yield instead of
+# the realised one (whep#1034). Measured on the 2010 primary production: 1,342
+# of 4,584 `t_head` rows tag, the rest being non-designated co-products, so a
+# partial match is the normal state and only a match of none is refused.
+.check_yields_tagged <- function(tagged) {
+  check_inputs_supplied(
+    tibble::tibble(tagged_yield_rows = nrow(tagged)),
+    c(designated_product_yield = "tagged_yield_rows"),
+    details = c(
+      i = "No {.val t_head} row matches an animal's designated product
+           ({.field Item_Code_product} in {.code animals_codes}) on
+           {.field live_anim_code} and {.field item_prod_code}."
+    )
+  )
 }
 
 # Convert `meat_yield_t_head` (FAOSTAT carcass weight per head, tonnes) to

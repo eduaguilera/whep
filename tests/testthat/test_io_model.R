@@ -234,7 +234,89 @@ testthat::test_that("build_io_model validates missing columns", {
   bad_su <- dplyr::select(f$su, -value)
   testthat::expect_error(
     build_io_model(bad_su, f$btd, f$cbs),
-    "missing column"
+    class = "whep_error_schema_violation"
+  )
+})
+
+# whep#181: boundary contracts at the build_io_model seam. Each malformed
+# input below used to build a model -- silently short of mass or of a whole
+# demand category -- rather than stop.
+
+testthat::test_that("build_io_model refuses a cbs without a final-demand column", {
+  f <- io_two_country_fixture()
+  purrr::walk(c("food", "other_uses"), function(col) {
+    testthat::expect_error(
+      build_io_model(f$su, f$btd, dplyr::select(f$cbs, -dplyr::all_of(col))),
+      class = "whep_error_schema_violation"
+    )
+  })
+})
+
+testthat::test_that("the dropped final-demand column used to vanish from Y", {
+  # What the guard prevents, shown on the unguarded internals: without `food`
+  # the detected final demand simply has no food category.
+  f <- io_two_country_fixture()
+  fd_cols <- .detect_fd_columns(dplyr::select(f$cbs, -food))
+  testthat::expect_false("food" %in% fd_cols)
+})
+
+testthat::test_that("build_io_model refuses NA area or item codes", {
+  f <- io_two_country_fixture()
+  na_item_su <- dplyr::mutate(
+    f$su,
+    item_cbs_code = dplyr::if_else(dplyr::row_number() == 3L, NA, item_cbs_code)
+  )
+  na_area_cbs <- dplyr::mutate(
+    f$cbs,
+    area_code = dplyr::if_else(dplyr::row_number() == 1L, NA, area_code)
+  )
+  testthat::expect_error(
+    build_io_model(na_item_su, f$btd, f$cbs),
+    class = "whep_error_schema_violation"
+  )
+  testthat::expect_error(
+    build_io_model(f$su, f$btd, na_area_cbs),
+    class = "whep_error_schema_violation"
+  )
+})
+
+testthat::test_that("a NA item code used to leave the model with its mass", {
+  # The mechanism the NA guard closes: the item axis drops NA, and the
+  # matrix builder filters the unplaceable row out, so 40 t of supply
+  # disappears from the supply matrix without a message.
+  f <- io_single_country_fixture()
+  su <- dplyr::mutate(
+    f$su,
+    item_cbs_code = dplyr::if_else(dplyr::row_number() == 3L, NA, item_cbs_code)
+  )
+  dims <- .get_io_dims(su, f$cbs)
+  supply <- .build_mr_supply(su, dims)
+  full <- .build_mr_supply(f$su, .get_io_dims(f$su, f$cbs))
+  testthat::expect_equal(sum(full) - sum(supply), 40)
+})
+
+testthat::test_that("endogenize_losses = TRUE without losses warns", {
+  f <- io_two_country_fixture()
+  testthat::expect_warning(
+    with_losses <- build_io_model(
+      f$su,
+      f$btd,
+      f$cbs,
+      endogenize_losses = TRUE
+    ),
+    class = "whep_endogenize_losses_unmet"
+  )
+  without <- build_io_model(f$su, f$btd, f$cbs)
+  testthat::expect_equal(with_losses$Z, without$Z)
+  testthat::expect_equal(with_losses$Y, without$Y)
+})
+
+testthat::test_that("endogenize_losses = TRUE with losses does not warn", {
+  f <- io_two_country_fixture()
+  cbs <- dplyr::mutate(f$cbs, losses = 1)
+  testthat::expect_no_warning(
+    build_io_model(f$su, f$btd, cbs, endogenize_losses = TRUE),
+    class = "whep_endogenize_losses_unmet"
   )
 })
 
@@ -280,12 +362,6 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
   testthat::expect_equal(.build_years(c(2001, 1999)), 1999:2001)
   testthat::expect_true(.io_years_are_contiguous(c(2001, 1999, 2000)))
   testthat::expect_false(.io_years_are_contiguous(c(2001, 1999)))
-  testthat::expect_null(.context_years(NULL))
-  # Without a margin the two rules are visible on their own: a window clear of
-  # the FBS overlap is unchanged, one reaching 2013 reaches back to 2011.
-  testthat::expect_equal(.context_years(2001:2005, margin = 0L), 2001:2005)
-  testthat::expect_equal(.context_years(2013, margin = 0L), 2011:2013)
-  testthat::expect_equal(.context_years(2016:2020, margin = 0L), 2011:2020)
   testthat::expect_equal(
     .cache_key("primary_prod", NULL),
     "primary_prod"
@@ -491,25 +567,41 @@ testthat::test_that(".endogenize_losses conserves X across source blocks", {
   testthat::expect_equal(ncol(endo$Y), 2L)
 })
 
-testthat::test_that("the context margin widens a scoped window on both sides", {
-  # The trade and stock imputation reads neighbouring years, so a bare window
-  # leaves stock_addition and import visibly off (9.2e-03 at 2010 against the
-  # full-range build, versus 3.8e-04 with the default margin). See
-  # .context_years() for the measured margin sweep.
-  testthat::expect_equal(.context_years(2000, margin = 5L), 1995:2005)
-  testthat::expect_equal(.context_years(2000:2002, margin = 3L), 1997:2005)
+testthat::test_that("build_io_model passes trade_recovery to the chain", {
+  # whep#762: without this the IO model always builds the CBS under the
+  # default method, so a recovered CBS handed in as `cbs` would sit beside
+  # supply-use tables and processing coefficients derived from a different
+  # one -- the silent drift the shared chain exists to prevent.
+  testthat::expect_true(
+    "trade_recovery" %in% names(formals(whep::build_io_model))
+  )
 
-  # The margin composes with the FBS splice rule rather than replacing it:
-  # widening to 2015 crosses 2013, so the start still reaches back to 2011.
-  testthat::expect_equal(.context_years(2010, margin = 5L), 2005:2015)
-  testthat::expect_equal(.context_years(2014, margin = 1L), 2011:2015)
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery = "none") {
+      seen <<- trade_recovery
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
 
-  # A wider window keeps whichever start is earlier.
-  testthat::expect_equal(min(.context_years(2016:2020, margin = 5L)), 2011L)
+  testthat::expect_error(
+    whep::build_io_model(years = 2010, trade_recovery = "net_import"),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, "net_import")
 })
 
-testthat::test_that("the context margin never precedes the first year", {
-  # Widening must not ask a build for years before the series starts.
-  testthat::expect_equal(min(.context_years(1850, margin = 5L)), 1850L)
-  testthat::expect_equal(min(.context_years(1852:1860, margin = 5L)), 1850L)
+# whep#181: `import` is not part of the cbs contract of the IO step itself; it
+# is read only by get_bilateral_trade() when bilateral_trade is built
+# internally. With bilateral_trade supplied, a cbs without it builds the same
+# model.
+testthat::test_that("build_io_model does not read import when trade is given", {
+  f <- io_two_country_fixture()
+  testthat::expect_true(rlang::has_name(f$cbs, "import"))
+  with_import <- build_io_model(f$su, f$btd, f$cbs)
+  without_import <- build_io_model(f$su, f$btd, dplyr::select(f$cbs, -import))
+  testthat::expect_equal(without_import$Z, with_import$Z)
+  testthat::expect_equal(without_import$X, with_import$X)
+  testthat::expect_equal(without_import$Y, with_import$Y)
 })

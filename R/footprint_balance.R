@@ -195,6 +195,20 @@ melt_bilateral_trade <- function(bilateral_trade) {
 #' multi-regional input-output footprint via
 #' [compare_footprint_methods()].
 #'
+#' The crop side is [build_fao_arable_fallow_extension()] with
+#' `unsupported_target = "unallocated"`, pinned explicitly: FAO land that no
+#' crop can be named for arrives on an `item_cbs_code` of `NA`, which the
+#' balance cannot route, so it is reported by the orphan-land warning rather
+#' than folded into a crop (whep#1026).
+#'
+#' Its temporary-grassland netting basis is pinned explicitly too, to
+#' `temp_grassland_basis = "modelled"`: modelled CBS 3002 covers 26 EU polities
+#' over 2001-2019 only, so for any other country, and for every country from
+#' 2020, nothing is netted and the arable land keeps FAO's temporary meadows
+#' (whep#937). The balance output does not carry that provenance per row; read
+#' `temp_grassland_source` in [build_fao_arable_fallow_extension()]'s output,
+#' or [check_arable_composition()], to see which country-years were netted.
+#'
 #' Grass items (`item_cbs_code` 3000 and 3002) are barely traded, so
 #' their land stays with the producing country: the balance, unlike
 #' the input-output model, does not route grass through the
@@ -359,7 +373,21 @@ build_land_balance_footprint <- function(
     source = "luh2",
     grassland_metric = "occupation"
   )
-  crop <- build_fao_arable_fallow_extension(temporary_grassland = grass_full) |>
+  # The unsupported-target treatment is pinned explicitly for the same reason
+  # as the grassland source: it is the crop extension's own default, but it
+  # decides the fate of FAO land no crop can be named for, so a future default
+  # change upstream must not silently move this footprint (whep#1026). The
+  # NA-item rows it emits carry that land; the balance cannot route an item it
+  # has no production or trade for, so they are dropped with a warning by
+  # .warn_orphan_land() rather than folded into a crop.
+  # The netting basis is pinned for the same reason: modelled CBS 3002 exists
+  # for 26 EU polities over 2001-2019 only, and choosing another basis is an
+  # open decision that must not arrive through a default change (whep#937).
+  crop <- build_fao_arable_fallow_extension(
+    temporary_grassland = grass_full,
+    temp_grassland_basis = "modelled",
+    unsupported_target = "unallocated"
+  ) |>
     dplyr::filter(year == .env$year) |>
     dplyr::select(area_code, item_cbs_code, value = impact_u)
   grass <- grass_full |>
@@ -428,7 +456,11 @@ build_land_balance_footprint <- function(
   if (nrow(orphan) == 0) {
     return(invisible())
   }
-  items <- sort(unique(orphan$item_cbs_code))
+  # `sort()` would drop an NA item, and NA is exactly the unallocated land
+  # build_fao_arable_fallow_extension() carries when no crop can be named for
+  # it (whep#1026), so keep it in the list rather than losing it here.
+  items <- unique(orphan$item_cbs_code)
+  items <- c(sort(items[!is.na(items)]), items[is.na(items)])
   cli::cli_warn(c(
     "!" = "Dropped {nrow(orphan)} extension land record{?s} \\
            ({round(sum(orphan$value))} units total) with no production \\

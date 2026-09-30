@@ -396,3 +396,31 @@ test_that(".clip_run_years drops out-of-coverage years with a warning", {
   )
   expect_equal(keep, c(1950L, 2000L))
 })
+
+testthat::test_that(".read_lpjml_pin does not relabel a year wiring error", {
+  # The previous version caught `whep_year_filter_error` in a SIBLING handler
+  # and re-signalled it, which does not work: the enclosing tryCatch's own
+  # `error` handler is still established while a sibling runs, so the condition
+  # was caught again and rewritten as a missing-pin/network failure. The commit
+  # that introduced it claimed the opposite, and nothing tested it.
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      cli::cli_abort("no year column", class = "whep_year_filter_error")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep:::.read_lpjml_pin("some-alias", years = 2010L),
+    class = "whep_year_filter_error"
+  )
+  # And a genuine read failure still gets the helpful two-route message.
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) stop("board unreachable"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep:::.read_lpjml_pin("some-alias", years = 2010L),
+    "Could not read the pinned"
+  )
+})

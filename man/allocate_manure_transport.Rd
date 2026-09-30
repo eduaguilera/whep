@@ -33,10 +33,10 @@ still have room, on the 0.5-degree grid. Each source offers its surplus to its
 single-ring (king-move) neighbours in proportion to their remaining room; a
 sink that is over-subscribed by several sources is filled only to its room and
 the rejected manure returns to the sources as residual. This is the
-resolution-robust, mass-conserving analogue of Spain's room-weighted first-ring
-redistribution (\code{Calc_OA_redistribution}); cross-polity transport is not
-allowed. Carbon and volatile solids ride along with each nitrogen flow at the
-source cell's bundle ratio.
+resolution-robust, mass-conserving analogue of the room-weighted first-ring
+redistribution of an earlier regional historical reconstruction; cross-polity
+transport is not allowed. Carbon and volatile solids ride along with each
+nitrogen flow at the source cell's bundle ratio.
 }
 \examples{
 source_cells <- tibble::tribble(

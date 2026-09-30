@@ -8,6 +8,7 @@ read_population(
   years = NULL,
   data = list(),
   population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 )
 }
@@ -26,13 +27,52 @@ thousands), \code{wpp_population} (a \code{\link[=read_wpp_population]{read_wpp_
 not cover from UN WPP, or \code{"pin_wpp_fbs_fallback"}, which then fills what
 neither reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}.}
 
+\item{territory_overlap}{Which row survives when two area codes describe
+overlapping territory in the same year, as a dissolved federation and its
+successor states do. Overlaps are found from the polities database's
+\code{successor} relation, transitively.
+\itemize{
+\item \code{"federation"} (default) keeps the federation's row and drops the
+successor states' rows in the years the federation reports. WHEP's own
+numerator sits on the federation code in exactly those years — the
+commodity balances carry area 228 for 1961–1991 and Russia only from
+1992, area 51 to 1992 and Czechia only from 1993, area 15 to 1999 and
+Belgium only from 2000 — so this is the row a per-capita divide can
+actually use, and the sum over areas is the territory counted once.
+\item \code{"successors"} keeps the successor states and drops the federation. It
+is the finer grain, and it does not reproduce the federation's own
+figure: on \code{"pin_wpp_fbs_fallback"} the successor sum falls 1.6\% short of
+the USSR at 1961 and runs 2.0\% over it at 1991, and falls 14.8\% (1961) to
+17.5\% (1991) short of the Yugoslav SFR — the Kosovo gap of #863. Before
+1950 no source has the successors at all, so the federation's population
+is lost rather than redistributed. It also removes three areas from the
+table outright, because they exist only in the overlapping years:
+51 Czechoslovakia, and — undoing exactly what the FBS fill is for —
+186 Serbia and Montenegro (#862) and 151 Netherlands Antilles (#787).
+\item \code{"none"} composes the sources exactly as before and \strong{warns}. Any sum
+over areas then double counts; use it only to reproduce a number
+published before this argument existed.
+}
+
+The default answers "whose is the USSR's 1961?" the same way
+\code{\link[=resolve_polity_lineage]{resolve_polity_lineage()}} does on the spatial side (#1004, #1114): its
+default \code{basis = "historical_polity"} places a 1961 row keyed on area 185
+Russia onto \code{F228-1945-1991}, the polity the grid support carries that
+year, and its alternative \code{"constant_territory"} keeps the modern
+reporter, exactly as \code{"successors"} does here. The two are complementary,
+not competing: that function says which polity's \strong{cells} a row belongs
+on and moves no value, while this one says which of two \strong{rows} for one
+territory survives. The package therefore has one convention, stated in
+both places and selectable in both.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{year}, \code{area_code}, \code{population} (persons) and
-\code{source_pop}, one row per area code and year, sorted by year then area
-code, plus the polity columns below. \code{source_pop} carries the pin's own
+A tibble with \code{year}, \code{area_code}, \code{population} (persons),
+\code{source_pop} and \code{method_territory_overlap}, one row per area code and
+year, sorted by year then area code, plus the polity columns below.
+\code{source_pop} carries the pin's own
 vocabulary (\code{"Original"}, \code{"Linear interpolation"}, \code{"First value carried backwards"}), joined with \code{" + "} when a bucket sums ISO3 codes of
 differing provenance, or \code{"UN WPP 2024"} for a fallback-filled row. A row
 is one country in the common case, but \code{area_code} is
@@ -103,6 +143,17 @@ WPP 2024 territorial sum for the same ground (\code{SRB + MNE + XKX}) gives
 reach today gives 8,311,000, 23\% lower, because WPP publishes Kosovo
 separately and it carries no WHEP area code (#863). Which of the three a
 dissolved federation should be given is an open decision.
+
+Neither fill can overwrite a key the previous source already has, but an
+anti-join on \verb{(year, area_code)} cannot see two \strong{different} codes naming
+the same ground in the same year, and all three sources produce such pairs:
+the pin reports \code{167} Czechia inside \code{51} Czechoslovakia for 1850–1992, the
+UN WPP fill adds the Soviet, Yugoslav and Belgium-Luxembourg successor states
+in the federation's own years, and the FBS fill adds \code{186} Serbia and
+Montenegro beside the \code{272}/\code{273} rows the WPP fill has already added.
+\code{territory_overlap} decides which row survives; the overlaps are found from
+the polities database's \code{successor} relation, so the answer follows upstream
+rather than a list kept here (#939).
 
 Neither ISO3-keyed source can reach an area whose territory no longer exists,
 because both are keyed on a present-day ISO3 code. \code{\link[=population_source_reach]{population_source_reach()}}

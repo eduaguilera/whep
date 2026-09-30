@@ -101,6 +101,91 @@ testthat::test_that("NEl increases with milk yield", {
   testthat::expect_gt(high_milk, low_milk)
 })
 
+# Lactation method (whep#217) --------------------------------------------------
+
+.small_ruminant_milk_fixture <- function() {
+  tibble::tibble(
+    species = c("Sheep", "Goats"),
+    cohort = "Adult Female",
+    weight = c(60, 50),
+    milk_yield_kg_day = 2,
+    diet_quality = "Medium",
+    heads = 1
+  )
+}
+
+testthat::test_that("ipcc2019 lactation uses the Eq 10.9 default EVmilk", {
+  # IPCC 2019 Refinement Vol 4 Ch 10, Eq 10.9/10.10: EVmilk 4.6 MJ/kg for
+  # sheep (7% fat) and 3 MJ/kg for goats (3.8% fat).
+  result <- .small_ruminant_milk_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, c(2 * 4.6, 2 * 3.0))
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "ipcc2019_eq10_9_default_ev"
+    )
+})
+
+testthat::test_that("ipcc2019 lactation uses Eq 10.8 for cattle", {
+  result <- dairy_tier2_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, 20 * (1.47 + 0.40 * 4.0))
+  testthat::expect_equal(result$method_lactation, "ipcc2019_eq10_8")
+})
+
+testthat::test_that("the default lactation method is the milk composition", {
+  # Sheep default composition: 7% fat, 5.5% protein, 4.8% lactose.
+  # Goats: 4% fat, 3.5% protein, 4.5% lactose.
+  result <- .small_ruminant_milk_fixture() |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(
+    result$ne_lactation,
+    2 *
+      c(
+        0.389 * 7 + 0.229 * 5.5 + 0.165 * 4.8,
+        0.389 * 4 + 0.229 * 3.5 + 0.165 * 4.5
+      )
+  )
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "nrc2001_milk_composition"
+    )
+})
+
+testthat::test_that("composition without protein falls back to Eq 10.9", {
+  result <- .small_ruminant_milk_fixture() |>
+    dplyr::mutate(protein_percent = 0) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(result$ne_lactation, c(2 * 4.6, 2 * 3.0))
+  result |>
+    pointblank::expect_col_vals_equal(
+      method_lactation,
+      "ipcc2019_eq10_9_default_ev"
+    )
+})
+
+testthat::test_that("non-lactating rows are labelled with no lactation", {
+  result <- beef_tier2_fixture() |>
+    estimate_energy_demand(lactation_method = "ipcc2019")
+
+  testthat::expect_equal(result$ne_lactation, 0)
+  testthat::expect_equal(result$method_lactation, "none")
+})
+
+testthat::test_that("an unknown lactation method aborts", {
+  testthat::expect_error(
+    dairy_tier2_fixture() |>
+      estimate_energy_demand(lactation_method = "afrc"),
+    class = "rlang_error"
+  )
+})
+
 # .calc_energy_growth -----------------------------------------------------------
 
 testthat::test_that("NEg is zero when weight_gain is zero", {
@@ -362,4 +447,133 @@ testthat::test_that("the helper column does not leak into the output", {
     rlang::has_name(result, "work_hours_set_by_caller")
   )
   testthat::expect_false(rlang::has_name(result, "cw_effective"))
+})
+
+# .join_temperature_adjustment: fail closed on NA -----------------------------
+
+testthat::test_that("a missing temperature is assumed and stamped", {
+  # The absent-column case already assumes 15 C and stamps it. A hole inside a
+  # supplied column is the same absence: refusing it would drop the row's
+  # animals out of the energy balance, which is what this guard was written to
+  # prevent in the first place.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = c(100, 100),
+    method_energy = "IPCC_2019_Tier2",
+    temperature_c = c(-10, NA_real_)
+  )
+
+  testthat::expect_warning(
+    result <- whep:::.join_temperature_adjustment(data),
+    "temperature_c"
+  )
+
+  # 15 C is thermoneutral, so the assumed row takes no adjustment at all.
+  testthat::expect_equal(result$temp_adjustment, c(0.2, 0))
+  testthat::expect_equal(
+    grepl("temp_assumed_15C", result$method_energy),
+    c(FALSE, TRUE)
+  )
+})
+
+testthat::test_that("a fully populated temperature never warns", {
+  # Ported from PR #979, which fixed the same defect: the assumption has to be
+  # announced only where it is actually made. Nothing else here asserts the
+  # silence, so a warning that fired unconditionally would still pass.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = 100,
+    method_energy = "IPCC_2019_Tier2",
+    temperature_c = 10
+  )
+
+  testthat::expect_no_warning(whep:::.join_temperature_adjustment(data))
+})
+
+testthat::test_that("an absent temperature column keeps its declared 15 C", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = 100,
+    method_energy = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.join_temperature_adjustment(data)
+
+  testthat::expect_equal(result$temperature_c, 15)
+  testthat::expect_match(result$method_energy, "temp_assumed_15C")
+})
+
+testthat::test_that("a missing temperature keeps its row in the balance", {
+  # The failure this replaces: the bins span the whole real line, so an NA
+  # matched none of them and the row left the energy balance without a trace.
+  # It must now solve, with the assumption on the row.
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Dairy Cattle"),
+    cohort = "Adult Female",
+    heads = c(100, 100),
+    weight = 600,
+    diet_quality = "Medium",
+    temperature_c = c(15, NA_real_)
+  )
+
+  testthat::expect_warning(
+    result <- whep::estimate_energy_demand(data),
+    "temperature_c"
+  )
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_false(anyNA(result$gross_energy))
+  # Both rows solve to the same energy: the assumed 15 C is the measured 15 C.
+  testthat::expect_equal(result$gross_energy[1], result$gross_energy[2])
+  testthat::expect_equal(
+    grepl("temp_assumed_15C", result$method_energy),
+    c(FALSE, TRUE)
+  )
+})
+
+testthat::test_that("no row is lost to the temperature bin lookup", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    cohort = "Adult Female",
+    heads = 100,
+    weight = 600,
+    diet_quality = "Medium",
+    temperature_c = c(-40, 4.9, 5, 24.9, 25, 45)
+  )
+
+  result <- whep::estimate_energy_demand(data)
+
+  testthat::expect_equal(nrow(result), 6L)
+  testthat::expect_false(anyNA(result$temp_adjustment))
+})
+
+testthat::test_that("the bins keep their IPCC half-open bounds", {
+  testthat::expect_equal(
+    whep:::.temp_adjustment_of(c(-Inf, 4.999, 5, 24.999, 25, 100)),
+    c(0.2, 0.2, 0.0, 0.0, 0.1, 0.1)
+  )
+})
+
+# whep#1136: the real chain reaches this function with a data.table, because
+# `get_primary_production(years = ...)` returns one and the livestock bridge
+# used to carry that class through. `.ensure_production_cols()` added its
+# optional columns with `data[missing] <- NA_real_`, a form `[<-.data.table`
+# refuses whatever `missing` holds, so Tier 2 aborted before computing
+# anything. Every fixture above is a tibble, which takes that line happily --
+# only a data.table can fail here.
+testthat::test_that("a data.table input solves the same energy balance", {
+  input <- dairy_tier2_fixture()
+
+  from_tibble <- whep::estimate_energy_demand(input)
+  from_dt <- whep::estimate_energy_demand(data.table::as.data.table(input))
+
+  testthat::expect_true(tibble::is_tibble(from_dt))
+  testthat::expect_false(data.table::is.data.table(from_dt))
+  testthat::expect_equal(
+    as.data.frame(from_dt),
+    as.data.frame(from_tibble)
+  )
 })
