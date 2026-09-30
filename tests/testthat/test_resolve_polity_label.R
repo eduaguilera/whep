@@ -329,10 +329,9 @@ test_that("the published alias map keeps the contract this package reads", {
       "confidence",
       "observed_rows",
       "disposition",
-      # whep-polities #703's indicator scope. `data-raw/table_mappings.R`
-      # declares it and adds it as NA for an older map, so every rebuild
-      # carries it; the snapshot this test was written against simply
-      # predated the rebuild.
+      # The indicator scope from whep-polities 703. The mapping builder
+      # declares it and fills it with NA for an older map, so every rebuild
+      # carries it; the snapshot this test was written against was older.
       "indicator"
     )
   )
