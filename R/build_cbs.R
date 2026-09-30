@@ -131,8 +131,8 @@
 #'   `"historical_fill_negative_supply"` under `"report"`); and any negative
 #'   mass that reaches the published balance, from this or any other cause,
 #'   is reported by a separate warning of class `whep_negative_cbs_value`.
-#' @param hist_trade_scale One of `"report"` (default), `"drop"`,
-#'   `"abort"` or `"correct"`, selecting what happens when a pre-1961 row of the
+#' @param hist_trade_scale One of `"correct"` (default), `"report"`,
+#'   `"drop"` or `"abort"`, selecting what happens when a pre-1961 row of the
 #'   `historical-trade-*` pins carries a quantity no mass unit can express
 #'   (whep#1085). The screen bounds a single reporter's flow by the largest
 #'   **world** flow FAOSTAT records for the same trade item, summed over
@@ -158,7 +158,8 @@
 #'   clamp: the defect is in the pin's producer and no conversion factor
 #'   recovers the true value, so a clamped tonnage would be a fabricated one.
 #'
-#'   `"correct"` judges each flagged row on its own evidence from the two
+#'   `"correct"`, the default (a maintainer decision), judges each flagged
+#'   row on its own evidence from the two
 #'   pins and repairs only a proven ten-fold slip (whep#1117): a row is
 #'   divided by 10 when that brings it within the world bound, when as
 #'   published it exceeds the whole partner side of the pins (the opposite
@@ -427,7 +428,7 @@ build_commodity_balances <- function(
          supplied."
       )
     }
-    if (hist_trade_scale != "report") {
+    if (hist_trade_scale != "correct") {
       cli::cli_warn(
         "{.arg hist_trade_scale} is ignored when {.arg .fixed_data} is \
          supplied."
@@ -1606,7 +1607,7 @@ build_processing_coefs <- function(
 # physical. See `.screen_hist_trade_scale()` for the bound and whep#1085 for
 # the measurement.
 .hist_trade_scale_choices <- function() {
-  c("report", "drop", "abort", "correct")
+  c("correct", "report", "drop", "abort")
 }
 
 # The bound the historical trade screen measures against: for each

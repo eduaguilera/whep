@@ -157,8 +157,8 @@ estimated for such a key carry the \code{source}
 mass that reaches the published balance, from this or any other cause,
 is reported by a separate warning of class \code{whep_negative_cbs_value}.}
 
-\item{hist_trade_scale}{One of \code{"report"} (default), \code{"drop"},
-\code{"abort"} or \code{"correct"}, selecting what happens when a pre-1961 row of the
+\item{hist_trade_scale}{One of \code{"correct"} (default), \code{"report"},
+\code{"drop"} or \code{"abort"}, selecting what happens when a pre-1961 row of the
 \verb{historical-trade-*} pins carries a quantity no mass unit can express
 (whep#1085). The screen bounds a single reporter's flow by the largest
 \strong{world} flow FAOSTAT records for the same trade item, summed over
@@ -184,7 +184,8 @@ the impossible pre-1962 exports behind whep#1065's negative
 clamp: the defect is in the pin's producer and no conversion factor
 recovers the true value, so a clamped tonnage would be a fabricated one.
 
-\code{"correct"} judges each flagged row on its own evidence from the two
+\code{"correct"}, the default (a maintainer decision), judges each flagged
+row on its own evidence from the two
 pins and repairs only a proven ten-fold slip (whep#1117): a row is
 divided by 10 when that brings it within the world bound, when as
 published it exceeds the whole partner side of the pins (the opposite

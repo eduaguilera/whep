@@ -254,3 +254,11 @@ test_that(".read_historical_trade reads wider and trims back for correct", {
   log <- attr(out, "hist_trade_scale_log")
   expect_equal(log$hist_trade_scale_action, "divided_by_10")
 })
+
+test_that("\"correct\" is the default hist_trade_scale", {
+  expect_identical(whep:::.hist_trade_scale_choices()[[1]], "correct")
+  expect_identical(
+    eval(formals(whep::build_commodity_balances)$hist_trade_scale)[[1]],
+    "correct"
+  )
+})
