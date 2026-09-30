@@ -10,7 +10,8 @@ build_human_n(
   population_basis = c("total", "urban"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
-  example = FALSE
+  example = FALSE,
+  method_residual = c("nearest", "polity", "keep", "drop")
 )
 
 build_urban_n(...)
@@ -68,6 +69,46 @@ is not every territory's own code (\code{"SSD"} would become 206, Sudan
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 
+\item{method_residual}{What happens to human N that the transport step
+cannot deliver and that sits on a source cell with \strong{no cropland} (the
+residual on a source cell that has cropland is applied there under every
+method). On the 2010 global grid, under the default \code{"total"} basis,
+this is 13,198 cells and 47,365 t N, 0.700\% of the 6.77 Mt of human N;
+under \code{"nearest"} 2,145 t of it stays stranded, in the three polities
+with no cropland cell that year (Qatar, Iceland, Samoa).
+\itemize{
+\item \code{"nearest"} (default): run the transport step's own rule again with a
+growing radius. Each such cell offers its nitrogen to the same-polity
+cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
+steps, wrapped at the antimeridian) that still has room, in proportion
+to that room; a cell's room is its 170 kg N/ha ceiling minus the human
+N already on it, and an over-subscribed cell is filled only to its
+room. The radius grows one ring at a time until the nitrogen is placed
+or the polity has no room left. Conserves mass and keeps the nitrogen
+as close to the people who produced it as the room allows. No distance
+cap or transport coefficient is applied.
+\item \code{"polity"}: pool it per polity-year and spread it over all of that
+polity-year's cropland in proportion to cropland room (area), the rule
+\code{\link[=build_n_inputs]{build_n_inputs()}} applies under \code{method_unsupported = "reallocate"}.
+Conserves mass, but places the nitrogen anywhere in the polity.
+\item \code{"keep"}: leave it on its source cell, as before this argument
+existed, flagged in \code{human_n_stranded_t}. \code{\link[=build_n_inputs]{build_n_inputs()}}'s
+\code{method_unsupported} then decides its fate (by default, it aborts).
+\item \code{"drop"}: discard it. Loses the mass, biased towards dense,
+cropland-free cells.
+}
+
+\code{"nearest"} and \code{"polity"} never cross a polity, like the transport step
+itself, so a polity-year with population and no cropland anywhere keeps
+its nitrogen on the source cell under either, flagged in
+\code{human_n_stranded_t}; \code{"nearest"} does the same with whatever its polity
+has no room left for. Whenever any cell is undelivered, the count, the
+tonnes and the share of human N are reported (a warning, class
+\code{whep_human_n_undelivered}, when any nitrogen is dropped or left
+stranded; otherwise a message of the same class), and the per-year
+figures are attached as \code{attr(x, "human_n_undelivered")}. Recorded in
+the \code{method_human_residual} output column.}
+
 \item{...}{For \code{build_urban_n()}, arguments passed on to \code{build_human_n()}.
 \code{population_basis} defaults to \code{"urban"} here if omitted, matching this
 function's historical behaviour, unlike \code{build_human_n()}'s own
@@ -75,11 +116,18 @@ function's historical behaviour, unlike \code{build_human_n()}'s own
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{human_n_t},
+\code{human_n_relocated_t} (the part of \code{human_n_t} placed on the cell by
+\code{method_residual}), \code{human_n_stranded_t} (the part sitting on a cell with
+no cropland, which no downstream cropland allocation can place),
 \code{method_human}, \code{method_human_population} (\code{"total_population"} or
-\code{"urban_population"}) and \code{method_human_kgn_cap}
-(\code{"kg_n_per_total_inhabitant"} or \code{"kg_n_per_urban_inhabitant"}), plus
-the polity columns below, plus \code{reporting_polity_out_of_span} when
-\code{polity_validity = "flag"}.
+\code{"urban_population"}), \code{method_human_kgn_cap}
+(\code{"kg_n_per_total_inhabitant"} or \code{"kg_n_per_urban_inhabitant"}) and
+\code{method_human_residual}, plus the polity columns below, plus
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}. The
+attribute \code{"human_n_undelivered"} is a tibble with one row per year:
+\code{year}, \code{human_n_t}, \code{n_cells} (undelivered source cells),
+\code{undelivered_t}, \code{relocated_t}, \code{stranded_t}, \code{dropped_t},
+\code{undelivered_share} (of \code{human_n_t}) and \code{method_human_residual}.
 }
 \description{
 Estimates the nitrogen the human population returns to agricultural land

@@ -202,6 +202,10 @@
 #'     `"urban"` (`urban_population` with the per-urban-inhabitant rate).
 #'     Supplying only the other basis's population aborts. Recorded in
 #'     `method_human_population` and `method_human_kgn_cap`.
+#'   * `human_n_method_residual`: [build_human_n()]'s `method_residual`
+#'     (`"nearest"` default, `"polity"`, `"keep"` or `"drop"`), for human N
+#'     the transport step leaves on a source cell with no cropland. Only what
+#'     that rule leaves stranded reaches `method_unsupported`.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -1145,6 +1149,7 @@ build_n_inputs <- function(
   build_human_n(
     population_basis = .ni_human_population_basis(data),
     polity_validity = .ni_polity_validity(data),
+    method_residual = data[["human_n_method_residual"]] %||% "nearest",
     data = list(
       urban_population = data[["urban_population"]],
       total_population = data[["total_population"]],
@@ -1422,7 +1427,11 @@ build_n_inputs <- function(
 # The condition is real, not hypothetical: build_human_n() hands back the
 # nitrogen its transport step could not deliver, at the SOURCE cell, and on a
 # 2010 global run (urban basis) 1985 of those cells hold no cropland --
-# 38,425 t of 4.02 Mt, which took the whole balance down (whep#446).
+# 38,425 t of 4.02 Mt, which took the whole balance down (whep#446). Since
+# whep#1171 the human-N builder places that nitrogen itself, under its
+# method_residual rule (default "nearest"), so what still reaches this rule
+# from human N is the part in a polity with no cropland at all: 70 cells and
+# 2,145 t N at 2010 on the total basis (Qatar, Iceland, Samoa).
 #
 # "abort" (the default) leaves those rows unplaced so .ni_check_unallocated()
 # names them and stops: no published number moves, and a real gap stays loud.

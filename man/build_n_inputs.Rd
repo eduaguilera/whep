@@ -164,6 +164,10 @@ support).
 \code{"urban"} (\code{urban_population} with the per-urban-inhabitant rate).
 Supplying only the other basis's population aborts. Recorded in
 \code{method_human_population} and \code{method_human_kgn_cap}.
+\item \code{human_n_method_residual}: \code{\link[=build_human_n]{build_human_n()}}'s \code{method_residual}
+(\code{"nearest"} default, \code{"polity"}, \code{"keep"} or \code{"drop"}), for human N
+the transport step leaves on a source cell with no cropland. Only what
+that rule leaves stranded reaches \code{method_unsupported}.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it
