@@ -45,6 +45,12 @@
   )
 }
 
+# These tests place the crops on the static `crop_patterns` fixture; the
+# spatialized weights are exercised at the end of the file.
+.fod_static <- function(...) {
+  whep::build_soil_carbon_inputs(..., method_crop_weights = "static")
+}
+
 .fod_mass <- function(data) {
   sum(data$npp$residue_soil_c_t) +
     sum(data$npp$root_c_t) +
@@ -54,7 +60,7 @@
 
 .fod_run <- function(method, data = .fod_data()) {
   suppressWarnings(suppressMessages(
-    whep::build_soil_carbon_inputs(
+    .fod_static(
       resolution = "grid",
       data = data,
       method_unspatialized = method
@@ -115,7 +121,7 @@ testthat::test_that("fodder_pattern conserves every polity's carbon mass", {
 
 testthat::test_that("the carbon placed on the fodder layer is reported", {
   testthat::expect_message(
-    suppressWarnings(whep::build_soil_carbon_inputs(
+    suppressWarnings(.fod_static(
       resolution = "grid",
       data = .fod_data(),
       method_unspatialized = "fodder_pattern"
@@ -185,7 +191,7 @@ testthat::test_that("the default reads the fodder layer from the pin", {
   data <- .fod_data()
   data$fodder_patterns <- NULL
   out <- suppressWarnings(suppressMessages(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data)
+    .fod_static(resolution = "grid", data = data)
   ))
   testthat::expect_true(all(out$method_unspatialized == "fodder_pattern"))
   testthat::expect_setequal(
@@ -240,7 +246,7 @@ testthat::test_that("a wrong WHEP_MONFREDA_DIR aborts, never falls back", {
   data <- .fod_data()
   data$fodder_patterns <- NULL
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(data = data),
+    .fod_static(data = data),
     class = "whep_missing_monfreda"
   )
   testthat::expect_false("spatialize-fodder-patterns" %in% read$aliases)
@@ -262,7 +268,7 @@ testthat::test_that("an empty or all-zero fodder layer is refused", {
   zeroed$fodder_patterns$crop_area_ha <- 0
   vacuous <- .fod_data()
   vacuous$fodder_patterns <- NULL
-  kept <- suppressWarnings(whep::build_soil_carbon_inputs(
+  kept <- suppressWarnings(.fod_static(
     resolution = "grid",
     data = vacuous,
     method_unspatialized = "reallocate"
@@ -363,5 +369,35 @@ testthat::test_that("the raster reader pools the 16 forage layers per cell", {
   testthat::expect_equal(
     unique(round(out$harvest_fraction, 10)),
     round(sum(seq_len(16)) / 1000, 10)
+  )
+})
+
+testthat::test_that("the fodder layer also fills the spatialized weights", {
+  # The engine layer carries crop 15 only (30 ha in cell A, 10 in cell B), as
+  # the static fixture does, so alfalfa must still come from the fodder layer,
+  # and the fodder layer's crop-15 row must still not override the engine.
+  data <- .fod_data()
+  data$crop_patterns <- NULL
+  data$gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~year, ~rainfed_ha, ~irrigated_ha,
+    0.25, 0.25, 1L,         15L,             2020L, 20,          10,
+    0.75, 0.25, 1L,         15L,             2020L, 10,          0
+  )
+  out <- suppressWarnings(suppressMessages(
+    whep::build_soil_carbon_inputs(resolution = "grid", data = data)
+  ))
+  testthat::expect_true(all(out$method_crop_weights == "spatialized"))
+  testthat::expect_true(all(out$method_unspatialized == "fodder_pattern"))
+  testthat::expect_equal(.fod_cell_mass(out, "641"), 60)
+  crop15 <- .fod_cell_mass(out, "15")
+  testthat::expect_equal(crop15[[1]] / sum(crop15), 0.75)
+  total <- sum(out$total_c_input_mgc_ha_yr * out$crop_area_ha)
+  testthat::expect_equal(total, .fod_mass(data))
+  testthat::expect_message(
+    suppressWarnings(whep::build_soil_carbon_inputs(
+      resolution = "grid",
+      data = data
+    )),
+    "60 Mg C.*fodder layer"
   )
 })

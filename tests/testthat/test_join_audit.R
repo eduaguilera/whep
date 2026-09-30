@@ -413,7 +413,11 @@ test_that("every year-free territorial grouping is classified", {
   #
   # 104 with whep#1118: the fodder layer's `distinct()` pairs, one
   # time-invariant and two diagnostic. Re-derived by running the audit.
-  expect_lte(sum(full$n), 104L)
+  #
+  # 106 with whep#1002: `.sci_spatialized_weights()` renormalises and sums one
+  # year's engine output per (area, crop), both `single_year`. Re-derived by
+  # RUNNING `sum(.territorial_grouping_baseline()$n)` on the merged tree.
+  expect_lte(sum(full$n), 106L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
