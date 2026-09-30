@@ -92,9 +92,9 @@
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
 #'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
-#'   `method_unspatialized` and `method_input_cn` (both `NA` on the grassland
-#'   and natural classes, which are neither spatialized from polity-crop
-#'   totals nor collapsed from crops), for `land_use` in
+#'   `method_unspatialized`, `method_input_cn` and `method_crop_weights` (all
+#'   `NA` on the grassland and natural classes, which are neither spatialized
+#'   from polity-crop totals nor collapsed from crops), for `land_use` in
 #'   `"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
 #'   below.
 #' @inheritSection whep_polity_columns Polity columns
@@ -113,6 +113,7 @@ build_carbon_inputs <- function(
   method_grazing = c("whep", "lpjml"),
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   method_input_cn = c("known_crops", "require_all"),
+  method_crop_weights = c("spatialized", "static"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -120,6 +121,7 @@ build_carbon_inputs <- function(
   method_grazing <- rlang::arg_match(method_grazing)
   method_unspatialized <- rlang::arg_match(method_unspatialized)
   method_input_cn <- rlang::arg_match(method_input_cn)
+  method_crop_weights <- rlang::arg_match(method_crop_weights)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
@@ -130,7 +132,7 @@ build_carbon_inputs <- function(
     cfg,
     density_basis,
     method_grazing,
-    method_unspatialized,
+    list(unspatialized = method_unspatialized, weights = method_crop_weights),
     method_input_cn
   )
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
@@ -146,7 +148,7 @@ build_carbon_inputs <- function(
   cfg = .ci_group_config(),
   density_basis = "renormalised",
   method_grazing = "whep",
-  method_unspatialized = "fodder_pattern",
+  spatial = list(unspatialized = "fodder_pattern", weights = "spatialized"),
   method_input_cn = "known_crops"
 ) {
   # The static weights are only read when they are the basis; the
@@ -161,7 +163,7 @@ build_carbon_inputs <- function(
       crop_area,
       cfg,
       density_basis,
-      method_unspatialized,
+      spatial,
       method_input_cn
     ),
     crop_area = crop_area,
@@ -202,7 +204,7 @@ build_carbon_inputs <- function(
   crop_area,
   cfg,
   basis = "renormalised",
-  method_unspatialized = "fodder_pattern",
+  spatial = list(unspatialized = "fodder_pattern", weights = "spatialized"),
   method_input_cn = "known_crops"
 ) {
   collapse <- function(cropland) {
@@ -217,7 +219,8 @@ build_carbon_inputs <- function(
     data,
     years,
     reduce = collapse,
-    method = method_unspatialized
+    method = spatial$unspatialized,
+    weights = spatial$weights
   )
 }
 
@@ -244,7 +247,10 @@ build_carbon_inputs <- function(
     ensure_columns(tibble::tibble(input_cn = numeric())) |>
     # A hand-supplied per-crop layer need not carry the rule that produced
     # it; NA then says "not recorded", never "dropped".
-    ensure_columns(tibble::tibble(method_unspatialized = character())) |>
+    ensure_columns(tibble::tibble(
+      method_unspatialized = character(),
+      method_crop_weights = character()
+    )) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
     ) |>
@@ -270,6 +276,7 @@ build_carbon_inputs <- function(
       method_area_basis = basis,
       method_input_cn = .env$method_input_cn,
       method_unspatialized = .data$method_unspatialized[1],
+      method_crop_weights = .data$method_crop_weights[1],
       .by = c("lon", "lat", "area_code", "year", "land_use")
     )
 }
@@ -476,22 +483,11 @@ build_carbon_inputs <- function(
 # `country_grid.parquet`: that file is the centroid crosswalk with no polity
 # share, which `build_gridded_landuse()` refuses (S-A5), and using a second
 # crosswalk here would key the regime split on different polycells than the
-# carbon it splits.
+# carbon it splits. The engine call is `.sci_engine_crops()`, the one the
+# `"spatialized"` crop weights of build_soil_carbon_inputs() make, so the crop
+# geography and its irrigated split come from the same allocation (whep#1002).
 .ci_spatialized_regime_share <- function(years, country_grid) {
-  aliases <- .spatial_input_aliases()
-  read <- function(key, file) {
-    .read_spatial_input(NULL, file, aliases[[key]])
-  }
-  support <- .normalize_carbon_support(country_grid) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
-  gridded <- build_gridded_landuse(
-    country_areas = read("country_areas", "country_areas.parquet"),
-    crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
-    gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
-    country_grid = support,
-    config = list(years = years)
-  )
-  gridded |>
+  .sci_engine_crops(years, country_grid) |>
     dplyr::mutate(
       total = .data$rainfed_ha + .data$irrigated_ha,
       irrigated_share = dplyr::if_else(
@@ -555,7 +551,8 @@ build_carbon_inputs <- function(
     x,
     tibble::tibble(
       method_unspatialized = character(),
-      method_input_cn = character()
+      method_input_cn = character(),
+      method_crop_weights = character()
     )
   )
   drop_cols <- c("class_area_ha")
@@ -588,7 +585,8 @@ build_carbon_inputs <- function(
           "method_c_input",
           "method_area_basis",
           "method_input_cn",
-          "method_unspatialized"
+          "method_unspatialized",
+          "method_crop_weights"
         )),
         \(x) x[1]
       ),
