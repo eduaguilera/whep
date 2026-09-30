@@ -204,6 +204,24 @@ test_that(".create_land_surplus_df counts population_food_inedible as output", {
   expect_equal(out$data, 60)
 })
 
+test_that(".create_land_surplus_df counts aquaculture as output (#379)", {
+  # aquaculture is a known, tracked destiny (unlike processing_losses
+  # below), so it belongs in output even though it has no arrow of its
+  # own in the GRAFS diagram.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "aquaculture", 10
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - (30 + 10) output = 60, not 70.
+  expect_equal(out$data, 60)
+})
+
 test_that(".create_land_surplus_df leaves processing_losses in surplus", {
   # Per .compute_processing_losses() (n_prov_destiny.R), processing_losses
   # is deliberately NOT a tracked output: it falls into surplus rather than
@@ -295,9 +313,9 @@ test_that(".create_land_df aggregates area from n_balance and N from destiny dat
   # contributes zero and the PERiN/NPErN totals below come only from the
   # matching Cropland rows.
   prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~MgN,
-    "Huesca", 2000, "Olives (including preserved)", "Irrigated", "Cropland", 40,
-    "Huesca", 2000, "Wheat and products", "Rainfed", "Cropland", 60
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Olives (including preserved)", "Irrigated", "Cropland", "export", 40,
+    "Huesca", 2000, "Wheat and products", "Rainfed", "Cropland", "export", 60
   )
 
   out <- dplyr::filter(.create_land_df(prov_destiny_df), province == "Huesca")
@@ -359,8 +377,8 @@ test_that(".create_crop_type_n_df folds horticulture into non-permanent", {
     GrazedWeeds_MgN = numeric()
   )
   prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~MgN,
-    "Huesca", 2000, "Tomatoes and products", "Irrigated", "Cropland", 70
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Tomatoes and products", "Irrigated", "Cropland", "export", 70
   )
 
   out <- .create_crop_type_n_df(prov_destiny_df, crop_lookup, n_balance)
@@ -408,8 +426,8 @@ test_that(".create_crop_type_n_df remaps a processed byproduct to its parent cro
     "Huesca", 2000, "Cropland", "Soyabeans", "Rainfed", 0, 0, 0
   )
   prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~MgN,
-    "Huesca", 2000, "Soyabean Cake", NA_character_, "Cropland", 20
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Soyabean Cake", NA_character_, "Cropland", "export", 20
   )
 
   out <- .create_crop_type_n_df(prov_destiny_df, crop_lookup, n_balance)

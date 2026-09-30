@@ -136,7 +136,6 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
-    "{CROPS_TO_AQUACULTURE}",
     "{CRP_PROCLOSS}"
   )
 
@@ -864,7 +863,12 @@ create_grafs_plot_df <- function(example = FALSE) {
   processing_shares <- .processing_item_shares(item_lookup, residue_items)
 
   cropland_raw <- prov_destiny_df |>
-    dplyr::filter(Origin == "Cropland") |>
+    # Destiny == "aquaculture" is excluded the same way {CRPLNDTOTN}
+    # (.create_cropland_total_df()) excludes it: it has no arrow of its own
+    # in the GRAFS diagram (#379), so it is left out of every GRAFS number
+    # rather than only some -- it still exists as its own row in
+    # .create_n_flow_df()'s output for anyone reading the underlying data.
+    dplyr::filter(Origin == "Cropland", Destiny != "aquaculture") |>
     dplyr::left_join(item_lookup, by = "Item") |>
     dplyr::mutate(
       is_primary_crop = Name_biomass %in%
@@ -946,6 +950,7 @@ create_grafs_plot_df <- function(example = FALSE) {
   residue_total <- prov_destiny_df |>
     dplyr::filter(
       Origin == "Cropland",
+      Destiny != "aquaculture",
       Item %in% residue_items,
       !(Irrig_cat %in% "Greenhouse")
     ) |>
@@ -1268,6 +1273,13 @@ create_grafs_plot_df <- function(example = FALSE) {
   # exactly like the edible fraction did, so it belongs in the same output
   # total or the surplus would overstate what is still in the system.
   #
+  # aquaculture is a known, tracked destiny too (#379) -- unlike
+  # processing_losses below, we know exactly where this N went, so it
+  # belongs here even though it has no arrow of its own in the GRAFS
+  # diagram (it is deliberately excluded from {CRPLNDTOTN} instead,
+  # .create_cropland_total_df(), since that total is meant to reconcile
+  # with the diagram's drawn arrows).
+  #
   # processing_losses is deliberately NOT in this list: per
   # .compute_processing_losses() (n_prov_destiny.R), that destiny is meant
   # to fall into surplus rather than count as a tracked output, pending
@@ -1279,6 +1291,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     "population_other_uses",
     "livestock_rum",
     "livestock_mono",
+    "aquaculture",
     "export"
   )
 
