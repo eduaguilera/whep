@@ -2304,6 +2304,70 @@ utils::globalVariables(
     "human_n_t",
     "method_human",
     "human",
+    # arable_permanent_land.R (#937) -- which source supplied the temporary
+    # grassland netted out of each country-year's arable target
+    "temp_grassland_source",
+    # gridded_livestock_emissions.R (issue 1126) -- the national species mix
+    # that splits an aggregate spatializer group into its IPCC species
+    "species_share",
+    "share_key",
+    "heads_item",
+    # livestock_cohorts.R (issue 1194) -- per-row provenance of the production
+    # system split: reported by the commodity, assumed default, or supplied
+    "method_system_share",
+    # livestock_manure.R (issue 1137) -- the Bo an MCF row is published with
+    # and the per-stream split of the Tier 2 Bo x MCF product it feeds
+    "paired_bo_m3_kg_vs",
+    "paired_bo",
+    "published_pair",
+    "unpaired_mcf",
+    "paired_bo_mcf",
+    "has_pair",
+    # commodity_balance_sheet.R (issue 1237) -- the live animal a dairy /
+    # layer cull is folded onto, and the cull method column
+    "meat_code",
+    "method_cull",
+    # R/bilateral_trade.R (whep#1031): the CBS margin unit each trade matrix
+    # is seeded and labelled in, and the anchoring flag it is labelled by
+    "margin_unit",
+    "has_cbs_totals",
+    # silk_mass_basis.R (issue 1251) -- per area-year terms of the silk chain
+    "processed",
+    "raw_use",
+    "raw_prod",
+    "has_raw_use",
+    "has_processed",
+    # redistribute_feed.R / feed_intake_redistribute.R (issue 1218) -- feed
+    # eligibility: the barred-category key partitioning availability, the
+    # leftover a barred category may not eat, and the granivore flag
+    "part_key",
+    "barred_leftover",
+    "granivore",
+    # production.R + residue_dry_matter.R (issue 1215) -- each crop's residue
+    # dry-matter content, and the fresh vs dry residue feed summed per polity
+    "residue_kgdm_kgfm",
+    "value_dm",
+    "feed_fm_t",
+    "feed_true_dm_t",
+    # hist_trade_scale.R (whep#1085) -- per-row evidence of the "correct"
+    # historical trade screen
+    "flagged",
+    "mirror",
+    "neighbour",
+    "hist_trade_class",
+    "near_year",
+    "near",
+    "i.near",
+    "i.own",
+    "i.total",
+    # consolidate_sources.R (issue 393) -- the scope-key match that resolves a
+    # (source, category)-keyed priority entry to a rank, and the continuity
+    # exemption mask that keeps a deliberately sparse source's anchors
+    ".cs_row",
+    ".rank",
+    ".specificity",
+    ".n_rank",
+    ".cs_exempt",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

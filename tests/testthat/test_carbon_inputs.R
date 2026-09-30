@@ -415,3 +415,81 @@ testthat::test_that("density_basis is validated and threaded from the builder", 
     "renormalised"
   )
 })
+
+# -- An unknown crop C:N inside a class (#1123) -------------------------------
+
+# Two crops in one cell, the second with no input C:N of its own. The class
+# carbon masses are 3.25 x 100 and 2.75 x 300, so crop 15 carries 325 of the
+# 1150 Mg C the class receives.
+.ci_cn_cropland <- function(cn = c(30, NA)) {
+  x <- .db_cropland(TRUE)
+  x$input_cn <- cn
+  x
+}
+
+testthat::test_that("one unknown crop C:N no longer voids the whole class", {
+  out <- whep:::.ci_cropland_class(
+    .ci_cn_cropland(),
+    crop_area = NULL,
+    basis = "renormalised"
+  )
+  # Formed from the crop that HAS a ratio, together with the carbon that
+  # matched it -- the rule `.sci_sum_components()` applies one level down.
+  testthat::expect_equal(out$input_cn, 30)
+  testthat::expect_identical(out$method_input_cn, "known_crops")
+})
+
+testthat::test_that("both known crops weight the class C:N by carbon", {
+  out <- whep:::.ci_cropland_class(
+    .ci_cn_cropland(c(30, 10)),
+    crop_area = NULL,
+    basis = "renormalised"
+  )
+  mass <- c(3.25 * 100, 2.75 * 300)
+  testthat::expect_equal(out$input_cn, sum(c(30, 10) * mass) / sum(mass))
+})
+
+testthat::test_that("method_input_cn = 'require_all' voids the class", {
+  out <- whep:::.ci_cropland_class(
+    .ci_cn_cropland(),
+    crop_area = NULL,
+    basis = "renormalised",
+    method_input_cn = "require_all"
+  )
+  testthat::expect_true(is.na(out$input_cn))
+  testthat::expect_identical(out$method_input_cn, "require_all")
+})
+
+testthat::test_that("a class with no known crop C:N stays unknown", {
+  out <- whep:::.ci_cropland_class(
+    .ci_cn_cropland(c(NA, NA)),
+    crop_area = NULL,
+    basis = "renormalised"
+  )
+  testthat::expect_true(is.na(out$input_cn))
+})
+
+testthat::test_that("method_input_cn is validated and reaches the output", {
+  testthat::expect_error(
+    whep::build_carbon_inputs(method_input_cn = "class_mean", example = TRUE),
+    class = "rlang_error"
+  )
+  out <- .ci_single(data = .ci_test_data())
+  testthat::expect_true("method_input_cn" %in% names(out))
+  testthat::expect_identical(
+    unique(out$method_input_cn[out$land_use == "cropland"]),
+    "known_crops"
+  )
+  # Grassland and natural are not collapsed from crops, so they carry none.
+  testthat::expect_true(all(is.na(out$method_input_cn[
+    out$land_use != "cropland"
+  ])))
+})
+
+testthat::test_that("method_input_cn survives the polity resolution", {
+  pol <- .ci_single(resolution = "polity", data = .ci_test_data())
+  testthat::expect_identical(
+    pol$method_input_cn[pol$land_use == "cropland"],
+    "known_crops"
+  )
+})

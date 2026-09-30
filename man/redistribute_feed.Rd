@@ -32,12 +32,24 @@ result as the \code{grass_deficit_diagnosis} attribute. Set
 \code{distribute_surplus = FALSE} to suppress the surplus-distribution pass that
 pushes leftover CBS availability onto variable-demand livestock (correct for
 historical analyses where the CBS feed element is the realised consumption;
-keep \code{TRUE}, the default, for unconstrained scenario projections).}
+keep \code{TRUE}, the default, for unconstrained scenario projections).
+Supply \code{feed_exclusions} (a tibble with \code{livestock_category} and
+\code{item_cbs_code}) to bar those items from those categories at every
+allocation level, including the substitute pool, the surplus pass, the
+grass-deficit substitute and the \code{max_intake_share} reroute. A barred item
+is offered first to the categories allowed to eat it, then the
+unrestricted items are shared among everyone. Demand that no allowed item
+can fill stays unmet (\code{scaling_factor < 1}) rather than being filled with
+a barred item. \code{feed_eligibility} names the rule the exclusions come from
+and is recorded in the \code{method_feed_eligibility} column (default
+\code{"custom"} when \code{feed_exclusions} is supplied, \code{"none"} otherwise).}
 }
 \value{
-A tibble of realised intake per demand row. When \code{maintenance_share}
-is supplied alongside \code{grass_availability}, a \code{grass_deficit_diagnosis}
-attribute lists demand rows underfed below maintenance.
+A tibble of realised intake per demand row, with a
+\code{method_feed_eligibility} column naming the eligibility rule applied. When
+\code{maintenance_share} is supplied alongside \code{grass_availability}, a
+\code{grass_deficit_diagnosis} attribute lists demand rows underfed below
+maintenance.
 }
 \description{
 Matches livestock feed demand to available feed items through a

@@ -388,6 +388,106 @@ test_that(".combine_fodder labels EU AgriDB numbers as EuropeAgriDB (#1027)", {
 })
 
 
+# -- EU AgriDB area split across a shared Eurostat label (#654) ----------------
+
+# One EU AgriDB area is reported per Eurostat label, and several FAOSTAT fodder
+# items can share a label (seven share "Other plants harvested green from
+# arable land"). The area has to be divided among them, never copied onto each:
+# Portugal 2015 carried the same 349,940 ha on four items (#654).
+# EU AgriDB reports the label at 1000 ha in every year, as the real source does
+# for every year the FAO fodder series covers.
+.fodder_split_fixture <- function(i_fodder) {
+  fodder_euadb <- tidyr::expand_grid(
+    year = 2008:2010,
+    tibble::tribble(
+      ~Label, ~Unit, ~value,
+      "Harvested area", "Mha", 0.001,
+      "Yield", "kg N / ha", 100
+    )
+  ) |>
+    dplyr::mutate(
+      area = "Foo",
+      area_code = 100L,
+      Name_Eurostat = "Green n.e.c."
+    )
+  list(
+    i_fodder = i_fodder,
+    fodder_euadb = fodder_euadb,
+    dm_yield = tibble::tibble(year = 2008:2010, area_code = 100L, yield_dm = 4),
+    items_prod = tibble::tribble(
+      ~item_prod                 , ~item_prod_code, ~Name_biomass   , ~Name_Eurostat,
+      "Cabbage for fodder"       , "637"          , "Fodder biomass", "Green n.e.c.",
+      "Forage products"          , "651"          , "Fodder biomass", "Green n.e.c.",
+      "Forage and silage, maize" , "636"          , "Fodder biomass", "Green maize"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+      "Fodder biomass", 0.2, 0.03
+    )
+  )
+}
+
+# The 2010 area of the two items sharing the EU AgriDB label.
+.fodder_split_run <- function(fx, ...) {
+  whep:::.combine_fodder(
+    fx$i_fodder,
+    fx$fodder_euadb,
+    fx$dm_yield,
+    fx$items_prod,
+    fx$biomass,
+    ...
+  ) |>
+    dplyr::filter(unit == "ha", year == 2010L, item_prod_code != "636") |>
+    dplyr::arrange(item_prod_code)
+}
+
+test_that("an EU AgriDB area with no FAO item mix is split, not copied", {
+  # FAO reports fodder for the country, but none for the two items sharing the
+  # label -- the branch that set `ha_share = 1` on every item.
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2010L, "Foo", 100L, "Forage and silage, maize", "636", 100
+  ))
+
+  result <- .fodder_split_run(fx)
+
+  expect_equal(sum(result$value), 1000)
+  expect_equal(result$value, c(500, 500))
+})
+
+test_that("item shares carried from different years still sum to one", {
+  # Each item is the only one FAO reports in its year, so each carries a share
+  # of 1 into 2010, when only EU AgriDB reports.
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2008L, "Foo", 100L, "Cabbage for fodder", "637", 100,
+    2009L, "Foo", 100L, "Forage products", "651", 300
+  ))
+
+  result <- .fodder_split_run(fx)
+
+  expect_equal(sum(result$value), 1000)
+})
+
+test_that("fodder_split chooses between the FAO item mix and an even split", {
+  fx <- .fodder_split_fixture(tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    2010L, "Foo", 100L, "Cabbage for fodder", "637", 100,
+    2010L, "Foo", 100L, "Forage products", "651", 300
+  ))
+
+  fao_mix <- .fodder_split_run(fx)
+  equal <- .fodder_split_run(fx, fodder_split = "equal")
+
+  expect_equal(fao_mix$value, c(250, 750))
+  expect_equal(equal$value, c(500, 500))
+  expect_error(
+    .fodder_split_run(fx, fodder_split = "copy"),
+    class = "rlang_error"
+  )
+})
+
+
 # -- EU AgriDB region crosswalk ------------------------------------------------
 
 # `.read_fodder_euadb()` resolves the source's `Region` through
@@ -1750,6 +1850,72 @@ test_that(".fodder_crop_liv ignores NA years when comparing spans", {
     whep:::.fodder_crop_liv(spanning, i_fodder),
     spanning
   )
+})
+
+# -- Year-scoped yield chain (whep#834) ----------------------------------------
+
+test_that("a scoped build ships the full-range yield for a shared year", {
+  # whep#834: the shared t_LU and t_head rows of a 2010 build differed from
+  # the full-range build by up to 79%, because the yield chain only saw
+  # 2007-2013 and its fills reach anchors decades away.
+  full <- .run_stubbed_read_production(1850, 2023)
+  scoped <- .run_stubbed_read_production(2010, 2010)
+
+  expect_equal(unique(scoped$out$year), 2010L)
+  expect_equal(
+    scoped$out$yield_c,
+    full$out |> dplyr::filter(year == 2010L) |> dplyr::pull(yield_c)
+  )
+  # 1995 -> 2020 is 1 -> 4 over 25 years; 2010 sits 15 years in.
+  expect_equal(scoped$out$yield_c, 1 + 3 * 15 / 25)
+})
+
+test_that("a scoped build reads the yield chain over the full-range span", {
+  seen <- .run_stubbed_read_production(2010, 2010)$seen
+
+  expect_equal(seen$cbs_chain, 1850L:2023L)
+  expect_equal(seen$cbs_elements, "production")
+  expect_equal(seen$fao, 1850L:2023L)
+  expect_equal(seen$fodder, 1850L:2023L)
+  expect_equal(seen$stocks, 1850L:2023L)
+  # Only the chain widens: what leaves it is back on the read window
+  # (2010 plus the +-3 margin), and slaughter counts stay scoped.
+  expect_equal(seen$assembled, 2007L:2013L)
+  expect_equal(seen$stocks_assembled, 2007L:2013L)
+  expect_equal(seen$slaughter, 2007L:2013L)
+})
+
+test_that("a scoped build hands the CBS only its own window of extracts", {
+  scoped <- .run_stubbed_read_production(2010, 2010)
+  extracts <- attr(scoped$out, ".cb_extracts")
+
+  expect_equal(scoped$seen$cbs_window, 2007L:2013L)
+  expect_equal(sort(unique(extracts$fbs_new$year)), 2007L:2013L)
+})
+
+test_that("a full-range build reads the CBS once, with every element", {
+  seen <- .run_stubbed_read_production(1850, 2023)$seen
+
+  expect_equal(seen$cbs_window, 1850L:2023L)
+  expect_null(seen$cbs_chain)
+})
+
+test_that(".yield_chain_years is the default span for any window inside it", {
+  expect_identical(whep:::.yield_chain_years(1850, 2023), 1850L:2023L)
+  expect_identical(whep:::.yield_chain_years(2010, 2010), 1850L:2023L)
+  expect_identical(whep:::.yield_chain_years(1900, 1950), 1850L:2023L)
+  # A request outside the default span still reads what it asks for.
+  expect_identical(whep:::.yield_chain_years(1800, 2025), 1800L:2025L)
+})
+
+test_that(".trim_yield_chain passes a full-range table through untouched", {
+  df <- tibble::tibble(year = c(2009L, 2010L, 2011L), value = 1:3)
+
+  expect_identical(whep:::.trim_yield_chain(df, 1850L:2023L, 1850L:2023L), df)
+
+  trimmed <- whep:::.trim_yield_chain(df, 1850L:2023L, 2010L)
+  expect_s3_class(trimmed, "tbl_df")
+  expect_equal(trimmed$year, 2010L)
 })
 
 test_that(".split_stock_share keys on the code, so a shared label cannot dilute", {

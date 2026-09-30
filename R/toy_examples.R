@@ -51,7 +51,9 @@
   ) |>
     dplyr::mutate(
       has_cbs_totals = TRUE,
-      method_items_not_in_cbs = "drop"
+      method_items_not_in_cbs = "drop",
+      unit = "tonnes",
+      method_seed_unit = "target"
     )
 }
 
@@ -144,7 +146,8 @@
     dplyr::mutate(
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
-      method_unspatialized = "reallocate"
+      method_unspatialized = "fodder_pattern",
+      method_crop_weights = "spatialized"
     ) |>
     .add_reporting_polity_columns()
 }
@@ -168,17 +171,17 @@
 
 .example_get_primary_residues <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
-    2010, 174, 2611, 2107, 46260.,
-    1975, 54, 2511, 2105, 569199.,
-    1988, 53, 2561, 2106, 8213.,
-    2020, 178, 2513, 2105, 161992.,
-    1972, 131, 2514, 2105, 38845.,
-    2011, 4, 2611, 2107, 238808.,
-    1965, 144, 2517, 2105, 33688.,
-    2018, 167, 2549, 2105, 13578.,
-    1994, 109, 2605, 2105, 5597.,
-    1982, 194, 2605, 2106, 280552.
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value, ~value_dm,
+    2010, 174, 2611, 2107, 46260., 28912.6,
+    1975, 54, 2511, 2105, 569199., 493211.1,
+    1988, 53, 2561, 2106, 8213., 7904.6,
+    2020, 178, 2513, 2105, 161992., 139960.9,
+    1972, 131, 2514, 2105, 38845., 34222.6,
+    2011, 4, 2611, 2107, 238808., 149255.2,
+    1965, 144, 2517, 2105, 33688., 30318.8,
+    2018, 167, 2549, 2105, 13578., 12191.5,
+    1994, 109, 2605, 2105, 5597., 5035.7,
+    1982, 194, 2605, 2106, 280552., 58261.3
   ) |>
     .add_reporting_polity_columns()
 }
@@ -921,7 +924,7 @@
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
     ~method_unspatialized,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
-    "reallocate",
+    "fodder_pattern",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467,
     "lpjml_npp_minus_harvest", NA,
     0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325,
@@ -1875,25 +1878,34 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    4.7876219, 1.24019956, 0.0600324493,
-    1, 0.86828055, 1,
+    4.7876219, 1.23463301, 0.0600324493,
+    1, 0.86768667, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    3.1917479, 0.55453570, 0.0400216329,
-    1, 0.86828055, 1,
+    3.1917479, 0.55082466, 0.0400216329,
+    1, 0.86768667, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.56307504, 0.0422466683,
+    2.8982329, 0.56374899, 0.0422466683,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(
       enteric_ch4_national_kt = enteric_ch4_kt / divergence_enteric_ch4,
       manure_ch4_national_kt = manure_ch4_kt / divergence_manure_ch4,
       manure_n2o_national_kt = manure_n2o_kt / divergence_manure_n2o,
+      species_group = dplyr::if_else(
+        species == "Cattle, dairy",
+        "cattle_dairy",
+        "cattle_non_dairy"
+      ),
+      method_species = "one_to_one",
       method_climate_zone = "cru_ts_annual",
       method_diet = "uniform_medium",
       method_enteric = "IPCC_2019_Tier2",
-      method_manure_ch4 = "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019",
+      method_manure_ch4 = paste(
+        "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019;",
+        "pasture_bo_paired"
+      ),
       method_manure_n2o = "IPCC_2019_Tier2"
     ) |>
     .add_reporting_polity_columns()

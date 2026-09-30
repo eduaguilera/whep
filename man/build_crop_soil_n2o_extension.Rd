@@ -60,8 +60,9 @@ national total is preserved), or by harvested-area share when
 country total, allocated to crops by harvested area (Coello is a
 synthetic-N rate basis only).
 \item \strong{Crop residues} (F_CR): the dry matter of above-ground residues returned
-to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed fraction) times
-the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
+to soil (\code{value_dm} from \code{\link[=get_primary_residues]{get_primary_residues()}}, net of the removed
+fraction) times the crop's residue nitrogen content (IPCC 2019 Table
+11.1a).
 }
 
 Both country totals are read under raw FAOSTAT \verb{Area Code} values and

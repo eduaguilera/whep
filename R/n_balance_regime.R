@@ -207,7 +207,7 @@
     return(NULL)
   }
   areas <- data$regime_areas %||%
-    .spatialized_regime_areas(
+    .sci_engine_crops(
       sort(unique(npp$year)),
       data$country_grid %||% .sci_read_country_grid()
     )

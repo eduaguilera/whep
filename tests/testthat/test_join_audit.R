@@ -265,9 +265,14 @@ test_that("the enumerated baseline can only shrink", {
   # that population silently, as the inner join on lon/lat does for the urban
   # basis.
   #
-  # 90 with both the regime yield ratio's joins and the ones above, measured
-  # by running the audit on the merged tree.
-  expect_lte(sum(baseline$n), 90L)
+  # 87 with whep#1118: `.sci_add_fodder_weights()` fills the polity-crops the
+  # single-vintage crop pattern cannot place from the circa-2000 fodder layer,
+  # and `.sci_inform_fodder_placed()` reports them (two diagnostic joins).
+  # Re-derived by running the audit on the merged tree.
+  #
+  # 93 with the regime yield ratio's joins (whep#1233) and the N balance's
+  # rainfed/irrigated split, measured by running the audit on the merged tree.
+  expect_lte(sum(baseline$n), 93L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -435,9 +440,16 @@ test_that("every year-free territorial grouping is classified", {
   # interval (`year_axis`). Measured by running the audit, not by adding four
   # to the previous cap.
   #
-  # 106 with both the regime yield ratio's groupings and the ones above,
-  # measured by running the audit on the merged tree.
-  expect_lte(sum(full$n), 106L)
+  # 104 with whep#1118: the fodder layer's `distinct()` pairs, one
+  # time-invariant and two diagnostic. Re-derived by running the audit.
+  #
+  # 106 with whep#1002: `.sci_spatialized_weights()` renormalises and sums one
+  # year's engine output per (area, crop), both `single_year`. Re-derived by
+  # RUNNING `sum(.territorial_grouping_baseline()$n)` on the merged tree.
+  #
+  # 111 with the regime yield ratio's groupings (whep#1233), measured by
+  # running the audit on the merged tree.
+  expect_lte(sum(full$n), 111L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

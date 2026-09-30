@@ -52,6 +52,15 @@
 #'     resolved to in that year. It moves published pre-1962 values, needs
 #'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
 #'     is minutes of extra work.
+#' @param fodder_split Character. How an EU AgriDB fodder area is divided
+#'   among the FAOSTAT items that share its Eurostat label (seven items share
+#'   "Other plants harvested green from arable land", four "Other root crops
+#'   n.e.c."). Either way the items together get exactly the reported area;
+#'   until whep#654 each item could get all of it.
+#'   * `"fao_mix"` (default) splits it in proportion to FAOSTAT's own item
+#'     areas in that year, or in the nearest years that report them. A label
+#'     FAOSTAT never gives an item area for in that country is split evenly.
+#'   * `"equal"` gives every item sharing the label the same share.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -120,6 +129,7 @@ build_primary_production <- function(
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
+  fodder_split = c("fao_mix", "equal"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -127,6 +137,7 @@ build_primary_production <- function(
   }
   federation_land <- rlang::arg_match(federation_land)
   land_method <- rlang::arg_match(land_method)
+  fodder_split <- rlang::arg_match(fodder_split)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -134,7 +145,8 @@ build_primary_production <- function(
       end_year,
       historical_data,
       federation_land = federation_land,
-      land_method = land_method
+      land_method = land_method,
+      fodder_split = fodder_split
     )
   } else {
     if (!is.null(historical_data)) {
@@ -242,12 +254,43 @@ build_primary_production <- function(
 # full-range request takes the historical branch and is unaffected.
 .yield_year_margin <- 3L
 
+# The span the yield chain (steps 1-7 of `.read_production()`) reads: the
+# full-range build's own span, whatever window was requested.
+#
+# The chain cannot be scoped to a window and stay exact (whep#834, #1082).
+# Three `fill_linear()` calls in it -- `yield_c` per country, `yield_glo` per
+# item, `prod_cbs_ratio` per country and CBS item -- interpolate or carry a
+# value from the nearest year that has one, and that year can be decades away:
+# with no anchor inside a 2010 +-3-year window, Singapore duck meat (1091) fell
+# through to the global yield -- itself a ratio of sums over whichever areas the
+# window holds -- and shipped 0.508 t_LU against the full build's 0.107. Shared
+# `t_LU`/`t_head` rows differed by up to 79% at 2010 and 97% at 1995, while the
+# totals agreed to 3e-04. No finite margin is safe, because the
+# look-back is data-dependent and unbounded, so the chain reads the whole span
+# and only its output is trimmed. `max()`/`min()` keep a request outside the
+# default span reading at least what it asks for.
+.yield_chain_years <- function(start_year, end_year) {
+  min(start_year, 1850L):max(end_year, 2023L)
+}
+
+# Trim a yield-chain table back to the window the rest of the build reads. A
+# full-range build reads the same span in both places and gets its input back
+# untouched, so its output cannot move.
+.trim_yield_chain <- function(df, chain_years, years) {
+  if (identical(chain_years, years)) {
+    return(df)
+  }
+  out <- .filter_years(df, years)
+  if (tibble::is_tibble(df)) tibble::as_tibble(out) else out
+}
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
   historical_data = NULL,
   federation_land = "none",
-  land_method = "present_day"
+  land_method = "present_day",
+  fodder_split = "fao_mix"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -257,11 +300,10 @@ build_primary_production <- function(
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
   #
-  # A requested window is also widened by a margin either side, for the same
-  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
-  # window with no neighbouring years cannot reconstruct a yield the full-range
-  # build reconstructs, and the row is dropped instead (#666). A full-range
-  # request takes the historical branch and is therefore unaffected.
+  # A requested window is also widened by a margin either side (#666). The
+  # yield chain no longer reads `years` at all (see `.yield_chain_years()`), so
+  # the margin now only widens the land-area and historical-yield reads. A
+  # full-range request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
@@ -269,14 +311,28 @@ build_primary_production <- function(
     max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
-  # 1. Read commodity balances (for gap-filling)
+  # 1-7 are the yield chain. It reads its own span, not `years`: see
+  # `.yield_chain_years()`. Only the yield table leaves it, trimmed to `years`.
+  chain_years <- .yield_chain_years(start_year, end_year)
+
+  # 1. Read commodity balances (for gap-filling). The CBS build reuses the
+  # extracts, so they stay on the window; the chain reads only `production`
+  # over its own span, which costs a tenth of the full extraction.
   cbs_prod_raw <- .read_cbs_production(years = years)
+  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+  if (!identical(chain_years, years)) {
+    cbs_prod_raw <- .read_cbs_production(chain_years, elements = "production")
+  }
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(years = years)
+  fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years)
+  fodder <- .build_fodder(
+    fao_crop_liv,
+    years = chain_years,
+    fodder_split = fodder_split
+  )
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -284,11 +340,13 @@ build_primary_production <- function(
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    years = years
+    years = chain_years
   )
 
-  # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(fao_combined)
+  # 5b. Livestock slaughter counts (read counts, no year-axis fill: scoped)
+  fao_slaughter <- .build_livestock_slaughter(
+    .trim_yield_chain(fao_combined, chain_years, years)
+  )
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -297,10 +355,14 @@ build_primary_production <- function(
   yield_all <- .compute_yields(
     primary_raw,
     cbs_prod_raw
-  )
+  ) |>
+    .trim_yield_chain(chain_years, years)
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
-  primary_raw2 <- .assemble_production_raw(yield_all, primary_raw)
+  primary_raw2 <- .assemble_production_raw(
+    yield_all,
+    .trim_yield_chain(primary_raw, chain_years, years)
+  )
 
   historical_rows <- .prepare_historical_production(
     historical_data,
@@ -327,8 +389,6 @@ build_primary_production <- function(
 
   # 10. Add grassland + historical yields
   grassland <- .build_grassland(land_areas)
-
-  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
 
   prod_long <- primary_ext |>
     dplyr::bind_rows(grassland)
@@ -455,18 +515,12 @@ build_primary_production <- function(
 
 # -- Input reading helpers -----------------------------------------------------
 
-.read_cbs_production <- function(years = NULL) {
+.read_cbs_production <- function(years = NULL, elements = NULL) {
   cli::cli_progress_step("Reading CBS production")
-  fbs_new <- .extract_cb("faostat-fbs-new", years = years)
-  fbs_old <- .extract_cb("faostat-fbs-old", years = years)
-  cbs_anim <- .extract_cb(
-    "faostat-cbs-old-animal",
-    years = years
-  )
-  cbs_crops <- .extract_cb(
-    "faostat-cbs-old-crops",
-    years = years
-  )
+  fbs_new <- .extract_cb("faostat-fbs-new", years, elements)
+  fbs_old <- .extract_cb("faostat-fbs-old", years, elements)
+  cbs_anim <- .extract_cb("faostat-cbs-old-animal", years, elements)
+  cbs_crops <- .extract_cb("faostat-cbs-old-crops", years, elements)
 
   dt <- data.table::rbindlist(
     list(
@@ -803,7 +857,11 @@ build_primary_production <- function(
 # so a window narrower than the fodder sources both starts from a smaller group
 # universe and has no anchors to interpolate from -- which silently drops every
 # forage item (#623). Run the whole chain over the full span and trim at the end.
-.build_fodder <- function(fao_crop_liv, years = NULL) {
+.build_fodder <- function(
+  fao_crop_liv,
+  years = NULL,
+  fodder_split = "fao_mix"
+) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
   items <- whep::items_full
@@ -829,7 +887,8 @@ build_primary_production <- function(
     fodder_euadb,
     dm_yield,
     items_prod,
-    biomass
+    biomass,
+    fodder_split = fodder_split
   ) |>
     .filter_years(years)
 }
@@ -990,8 +1049,10 @@ build_primary_production <- function(
   fodder_euadb,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = c("fao_mix", "equal")
 ) {
+  fodder_split <- rlang::arg_match(fodder_split)
   crops_dm <- items_prod |>
     dplyr::left_join(
       biomass |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
@@ -1031,7 +1092,7 @@ build_primary_production <- function(
       ha = t_dm / yield_dm
     ) |>
     .merge_euadb_fodder(fodder_euadb, items_prod) |>
-    .fill_fodder_gaps(dm_yield, items_prod, biomass)
+    .fill_fodder_gaps(dm_yield, items_prod, biomass, fodder_split)
 
   fodder_all |>
     .attach_fodder_area(source_labels) |>
@@ -1134,12 +1195,15 @@ build_primary_production <- function(
       ha_tot = sum(ha, na.rm = TRUE),
       .by = c(year, area_code)
     ) |>
+    # A label FAO gives no item area for has no item mix in that year: `NA`,
+    # so `.fill_fodder_gaps()` takes the mix from the nearest years that have
+    # one. It used to be 1 for every item, copying the area onto each (#654).
     dplyr::mutate(
       sum_ha = sum(ha, na.rm = TRUE),
       ha_share = dplyr::if_else(
-        ha_tot == 0,
+        ha_tot == 0 | sum_ha == 0,
         NA_real_,
-        dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
+        ha / sum_ha
       ),
       .by = c(year, area_code, Name_Eurostat)
     )
@@ -1149,7 +1213,8 @@ build_primary_production <- function(
   fodder,
   dm_yield,
   items_prod,
-  biomass
+  biomass,
+  fodder_split = "fao_mix"
 ) {
   grp_cols <- c(
     "area_code",
@@ -1202,6 +1267,7 @@ build_primary_production <- function(
     .by = grp_cols,
     .copy = FALSE
   )
+  dt <- .split_euadb_area(dt, fodder_split)
   dt[, ha := data.table::fifelse(is.na(ha_euadb), ha, ha_euadb * ha_share)]
   dt <- fill_linear(dt, ha, time_col = year, .by = grp_cols, .copy = FALSE)
 
@@ -1247,7 +1313,38 @@ build_primary_production <- function(
   dt[, source := .fodder_row_source(t, t_euadb, source_ha)]
   dt[, source_ha := NULL]
 
-  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
+  # A zero share is an item FAOSTAT never reports under that label: it has no
+  # area to carry, so it is left out rather than written as a zero row.
+  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2) & !(ha_share %in% 0)])
+}
+
+# EU AgriDB reports one area per Eurostat label, and up to seven FAOSTAT items
+# share a label, so the area is divided among them: the item shares of each
+# `(year, area_code, Name_Eurostat)` that reports an area are made to sum to
+# one. Interpolated shares need it too -- each item's share is carried along
+# the year axis on its own, from whichever year last reported that item, so
+# they did not sum to one either (#654).
+#
+# * `"fao_mix"`: FAOSTAT's own item mix, from the same year or carried from the
+#   nearest years that report one. A label FAOSTAT never gives an item area for
+#   has no mix to use and is split evenly.
+# * `"equal"`: every item sharing the label gets the same share.
+.split_euadb_area <- function(dt, fodder_split) {
+  by <- c("year", "area_code", "Name_Eurostat")
+  if (identical(fodder_split, "equal")) {
+    dt[!is.na(ha_euadb), ha_share := 1 / .N, by = by]
+    return(dt)
+  }
+  dt[!is.na(ha_euadb), ha_share := .normalise_shares(ha_share), by = by]
+  dt
+}
+
+.normalise_shares <- function(share) {
+  total <- sum(share, na.rm = TRUE)
+  if (total > 0) {
+    return(data.table::fcoalesce(share, 0) / total)
+  }
+  rep(1 / length(share), length(share))
 }
 
 # Provenance of a fodder row's numbers (#1027). An area `fill_linear()` held
@@ -1306,12 +1403,9 @@ build_primary_production <- function(
   # 2010, Italy, Kazakhstan and Latvia have no duck stock row of their own that
   # year, so a scoped read never formed the combination at all.
   #
-  # This is a partial improvement, not a fix for #666. It does now form the
-  # combination -- the rows appear -- but a scoped build still derives `LU` as NA
-  # where a full build derives 0, so the duck-product rows are still lost at 2010
-  # and 1995 and only half recovered at 2015. `LU` = heads * LU_head via a join
-  # on `Animal_class`, which the completion's `nesting()` does not carry; why the
-  # full build nonetheless lands on 0 is the open question. See #666.
+  # This alone did not recover #666's duck-product rows: the rest of the yield
+  # chain still ran on the window. Since whep#834 the whole chain reads the full
+  # span (see `.yield_chain_years()`), and those rows match the full build.
   #
   # Trimmed back below, so only the read widens: full-range output is unchanged.
   fao_stocks <- .read_livestock_stocks(years = NULL)

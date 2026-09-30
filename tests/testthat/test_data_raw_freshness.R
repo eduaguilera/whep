@@ -56,6 +56,7 @@
   c(
     "balance_coefficients.R",
     "cft_mapping.R",
+    "europe_fao_spain_trade.R",
     "feed_coefficients.R",
     "harmonization_tables.R",
     "nitrogen_refs.R",

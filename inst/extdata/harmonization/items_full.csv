@@ -33,11 +33,11 @@ Beer,2656.0,p2656,p081,Beer production,tonnes,Crop products,crops,crops,Alcohol,
 "Beverages, Fermented",2657.0,p2657,p082,"Beverages production, Fermented",tonnes,Crop products,crops,crops,Alcohol,Alcohol,"Beverages, fermented","Beverages, others",,Food
 "Alcohol, Non-Food",2659.0,p2659,p084,"Alcohol production, Non-Food",tonnes,Crop products,crops,crops,Ethanol,Alcohol,"Alcohol, non-food","Beverages, others",,Other_uses
 Ethanol,,#N/A,#N/A,#N/A,tonnes,Crop products,crops,crops,Ethanol,Alcohol,Ethanol,"Beverages, others",,Other_uses
-Groundnut Cake,2591.0,p2591,p068,Groundnut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Peanut cake,Cakes,HNA.CACAHUETE 52,Food
-Sunflowerseed Cake,2592.0,p2592,p069,Sunflowerseed Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Sunflowerseed cake,Cakes,HNA.GIRASOL 32,Food
-Copra Cake,2596.0,p2596,p074,Coconut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Copra cake,Cakes,HNA. COPRA SOLVENTE,Food
-Palmkernel Cake,2595.0,p2595,p072,Palmkernel Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Palmkernel cake,Cakes,TORTA PALMISTE PRESION,Food
-Cottonseed Cake,2594.0,p2594,p071,Cottonseed Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Cottonseed cake,Cakes,HARINA DE ALGODON 38,Food
+Groundnut Cake,2591.0,p2591,p068,Groundnut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Peanut cake,Cakes,HNA.CACAHUETE 52,Feed
+Sunflowerseed Cake,2592.0,p2592,p069,Sunflowerseed Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Sunflowerseed cake,Cakes,HNA.GIRASOL 32,Feed
+Copra Cake,2596.0,p2596,p074,Coconut Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Copra cake,Cakes,HNA. COPRA SOLVENTE,Feed
+Palmkernel Cake,2595.0,p2595,p072,Palmkernel Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Palmkernel cake,Cakes,TORTA PALMISTE PRESION,Feed
+Cottonseed Cake,2594.0,p2594,p071,Cottonseed Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Cottonseed cake,Cakes,HARINA DE ALGODON 38,Feed
 "Oilseed Cakes, Other",2598.0,p2598,p078,Maize Germ Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Cakes,Cakes,TORTA LINO PRESION,Feed
 Soyabean Cake,2590.0,p2590,p067,Soyabean Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Soyabean Cake,Cakes,CONC.PROTEINA SOJA-EXTR.,Feed
 Rape and Mustard Cake,2593.0,p2593,p070,Rape and Mustard Oil extraction,tonnes,Crop products,crops,crops,Oil cakes,Cakes,Rapeseed cake,Cakes,HNA COLZA PROMEDIO,Feed

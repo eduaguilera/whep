@@ -1514,12 +1514,172 @@ test_that(".cbs_redistribute_notprocessed keeps matched processing (#757)", {
 
   # Negative control: with no pathway the processing is split onto the other
   # destinies and the processing row disappears. This is the #757 mechanism,
-  # and the reason the dairy pathway above has to exist.
+  # and the reason the dairy pathway above has to exist. It is now the
+  # opt-in "redistribute" treatment (#781).
   unmatched <- matched[0L, ]
-  split <- whep:::.cbs_redistribute_notprocessed(cbs, unmatched)
+  split <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    unmatched,
+    unmatched_processing = "redistribute"
+  )
 
   expect_equal(nrow(dplyr::filter(split, .data$element == "processing")), 0L)
   expect_gt(dplyr::filter(split, .data$element == "food")$value, 500)
+})
+
+# -- Processing with no pathway (#781) -----------------------------------------
+
+# A `processing` destiny whose item has no pathway in `cb_processing` (raw
+# sugar, coconut oil, animal fats, ...) used to be split pro rata onto food,
+# feed, other_uses and export, inflating FAOSTAT's food by up to 58% (coconut
+# oil, 2010). The default now books it on `other_uses`, the destiny the
+# `.cbs_reclassify_processing()` shortfall valve already uses.
+
+.make_unmatched_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "processing", 200,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "food", 500,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "feed", 60,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "other_uses", 40,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "export", 200,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "production", 1000,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "domestic_supply", 800
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+}
+
+.elem_value <- function(df, elem) {
+  df |>
+    dplyr::filter(.data$element == elem) |>
+    dplyr::pull(value) |>
+    sum()
+}
+
+test_that("unmatched processing goes to other_uses by default (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(cbs, no_pathway)
+
+  expect_equal(nrow(dplyr::filter(out, .data$element == "processing")), 0L)
+  expect_equal(.elem_value(out, "other_uses"), 240)
+  # Food, feed and export are what FAOSTAT reported, untouched.
+  expect_equal(.elem_value(out, "food"), 500)
+  expect_equal(.elem_value(out, "feed"), 60)
+  expect_equal(.elem_value(out, "export"), 200)
+  # No mass leaves the domestic uses: supply is unchanged.
+  expect_equal(.elem_value(out, "domestic_supply"), 800)
+})
+
+test_that("unmatched processing keeps its row under 'processing' (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    no_pathway,
+    unmatched_processing = "processing"
+  )
+
+  expect_equal(.elem_value(out, "processing"), 200)
+  expect_equal(.elem_value(out, "other_uses"), 40)
+  expect_equal(.elem_value(out, "food"), 500)
+  expect_equal(.elem_value(out, "domestic_supply"), 800)
+})
+
+test_that("'redistribute' splits unmatched processing pro rata (#781)", {
+  cbs <- .make_unmatched_cbs()
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(
+    cbs,
+    no_pathway,
+    unmatched_processing = "redistribute"
+  )
+
+  # Shares over food + feed + other_uses + export = 800.
+  expect_equal(.elem_value(out, "food"), 500 + 200 * 500 / 800)
+  expect_equal(.elem_value(out, "export"), 200 + 200 * 200 / 800)
+  expect_equal(.elem_value(out, "other_uses"), 40 + 200 * 40 / 800)
+  expect_equal(.elem_value(out, "processing"), 0)
+})
+
+test_that("unmatched processing with no other destiny keeps its mass (#781)", {
+  # Under "redistribute" an item whose only destiny is processing has no
+  # share to split on, and the processing mass vanished outright.
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "processing", 300,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "production", 300,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "domestic_supply", 300
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+
+  out <- whep:::.cbs_redistribute_notprocessed(cbs, no_pathway)
+
+  expect_equal(.elem_value(out, "other_uses"), 300)
+  expect_equal(.elem_value(out, "domestic_supply"), 300)
+})
+
+test_that("build_commodity_balances validates unmatched_processing", {
+  expect_error(
+    build_commodity_balances(example = TRUE, unmatched_processing = "food"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      unmatched_processing = "redistribute"
+    ),
+    "ignored"
+  )
+})
+
+test_that("unmatched_processing rejects an unknown choice (#781)", {
+  expect_error(
+    whep:::.cbs_redistribute_notprocessed(
+      .make_unmatched_cbs(),
+      tibble::tibble(
+        year = integer(),
+        area = character(),
+        area_code = integer(),
+        processed_item = character()
+      ),
+      unmatched_processing = "food"
+    ),
+    class = "rlang_error"
+  )
 })
 
 
@@ -2624,9 +2784,10 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
 # `.cbs_final_balance()` repairs a `default_prone` row -- one whose supply side
 # already agrees with `domestic_supply`, so only the destiny split is out of
 # balance -- by booking the gap on the item's `default_destiny`. Palmkernel
-# Cake (2595) defaults to `Food`, so a row that already spends its whole
-# domestic supply on `feed` used to end up with `food` AND `feed` each holding
-# the full supply: `use` came out at 2x `supply`.
+# Cake (2595) defaulted to `Food` when this was found, so a row that already
+# spent its whole domestic supply on `feed` ended up with `food` AND `feed`
+# each holding the full supply: `use` came out at 2x `supply`. It defaults to
+# `Feed` since whep#1066, so these fixtures now book the residual on `feed`.
 .default_prone_cbs <- function(destinies) {
   tibble::tibble(
     element = c("import", "domestic_supply", names(destinies)),
@@ -2690,12 +2851,12 @@ test_that("the default destiny does not book domestic supply twice", {
 
 test_that("the default destiny keeps the split the row reported", {
   # Which column the supply lands on: the residual goes to the item's default
-  # destiny and the observed split stays. Clearing the other destinies instead
-  # would move the whole 1000 t from `feed` to human `food`.
+  # destiny (`feed`) and the observed split stays. Clearing the other
+  # destinies instead would drop the 5 t of `food` the row reported.
   result <- .default_prone_wide(c(feed = 1000, food = 5))
 
-  expect_equal(result$feed, 1000)
-  expect_equal(result$food, 0)
+  expect_equal(result$feed, 995)
+  expect_equal(result$food, 5)
 })
 
 test_that("a row with no destiny still gets the whole domestic supply", {
@@ -2703,8 +2864,37 @@ test_that("a row with no destiny still gets the whole domestic supply", {
   # booked, the default destiny still takes all of `domestic_supply`.
   result <- .default_prone_wide(c(food = 0))
 
-  expect_equal(result$food, 1000)
+  expect_equal(result$feed, 1000)
+  expect_equal(result$food, 0)
   expect_true(all(whep::check_supply_use_balance(result)$balanced))
+})
+
+test_that("an oilseed cake with no destiny is booked as feed (whep#1066)", {
+  # Five oilseed cakes used to default to `Food`, so a row reporting no
+  # destiny put its whole domestic supply into human food.
+  cakes <- tibble::tribble(
+    ~item_cbs,            ~item_cbs_code,
+    "Groundnut Cake",     2591L,
+    "Sunflowerseed Cake", 2592L,
+    "Cottonseed Cake",    2594L,
+    "Palmkernel Cake",    2595L,
+    "Copra Cake",         2596L
+  )
+  cbs <- cakes |>
+    dplyr::mutate(
+      rows = purrr::map2(item_cbs, item_cbs_code, \(name, code) {
+        .default_prone_cbs(c(food = 0)) |>
+          dplyr::mutate(item_cbs = name, item_cbs_code = code)
+      })
+    ) |>
+    dplyr::pull(rows) |>
+    dplyr::bind_rows()
+
+  result <- .cbs_final_wide(cbs)
+
+  expect_setequal(result$item_cbs_code, cakes$item_cbs_code)
+  expect_equal(result$feed, rep(1000, 5))
+  expect_equal(result$food, rep(0, 5))
 })
 
 
@@ -2744,7 +2934,8 @@ test_that("a last-bit supply residue still counts as agreement", {
   # The invariant, not a hand-picked number: supply must equal use. Before the
   # fix the repair did not fire and 1000 t of domestic supply went unbooked.
   expect_true(all(whep::check_supply_use_balance(result)$balanced))
-  expect_equal(result$food, ds)
+  # Palmkernel Cake's default destiny is `feed` (whep#1066).
+  expect_equal(result$feed, ds)
 })
 
 .agrees_supply <- function(production, stock_variation, domestic_supply) {
@@ -3317,6 +3508,42 @@ test_that(".mass_only_trade aborts on a frame with no unit", {
     whep:::.mass_only_trade(unitless, "faostat-trade-totals"),
     "has no"
   )
+})
+
+
+# -- FAOSTAT group rows are not a commodity (#960) -----------------------------
+
+# The `faostat-trade-totals` pin carries FAOSTAT's group totals alongside the
+# items they sum. Group 1895 "Beverages" (beer, wine, spirits, soft drinks,
+# waters, juices) was mapped onto CBS 2657 "Beverages, Fermented", so every
+# member of the group was added a second time to the item: 62.5 Mt of world
+# export at 2010 against 0.73 Mt from 2657's own members. The shape here is
+# Italy at 2010 on the real pin: beer of maize (66) is a 2657 member, the
+# group row is not.
+.trade_group_rows <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~unit, ~element, ~item_trade, ~item_code_trade, ~value,
+    2010, 106L, "t", "export", "Beer of maize", 66, 120,
+    2010, 106L, "t", "export", "Beverages", 1895, 9620567,
+    2010, 106L, "t", "export", "Alcoholic Beverages", 1907, 2500000,
+    2010, 106L, "t", "export", "Tobacco, unmanufactured", 826, 300,
+    2010, 106L, "t", "export", "Tobacco", 1896, 300
+  ) |>
+    data.table::as.data.table()
+}
+
+.group_rows_value <- function(result, code) {
+  result$value[result$item_cbs_code == code]
+}
+
+test_that(".aggregate_fao_trade_to_cbs does not add a group to its members", {
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_group_rows())
+
+  expect_equal(.group_rows_value(result, 2657), 120)
+  expect_equal(.group_rows_value(result, 2671), 300)
+  # Alcoholic Beverages has no member in the fixture, so the group must yield
+  # no row at all rather than its own total.
+  expect_length(.group_rows_value(result, 2658), 0L)
 })
 
 
@@ -4284,10 +4511,45 @@ test_that("an observed negative domestic supply is not reported", {
   expect_equal(nrow(reported), 0L)
 })
 
-test_that("the default passes the negative destinies through", {
-  # The published behaviour, pinned so the reporting default cannot quietly
-  # start moving numbers. Asserted on the SIGN, because the balance identity
-  # cannot see this: the same negative sits on both sides of it.
+test_that("the default floors the reconstruction", {
+  # whep#1065: the default leaves no negative destiny. Pinned so that
+  # switching back to passing negatives through is a visible change.
+  a <- .negative_supply_args()
+  out <- suppressWarnings(
+    whep:::.fill_historical_destinies(
+      .negative_supply_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    )
+  )
+
+  expect_equal(out, suppressWarnings(.run_negative_supply("floor")))
+  expect_equal(nrow(whep:::.negative_cbs_values(out)), 0L)
+})
+
+test_that("the default still warns about a negative reconstruction", {
+  # Flooring rebooks the mass; it must not do so in silence.
+  a <- .negative_supply_args()
+  expect_warning(
+    whep:::.fill_historical_destinies(
+      .negative_supply_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    ),
+    regexp = "stock withdrawal",
+    class = "whep_negative_supply"
+  )
+})
+
+test_that("report passes the negative destinies through", {
+  # The pre-whep#1065-default behaviour, pinned so `"report"` stays a faithful
+  # sensitivity run against the old numbers. Asserted on the SIGN, because
+  # the balance identity cannot see this: the same negative sits on both
+  # sides of it.
   out <- suppressWarnings(.run_negative_supply("report"))
 
   supply <- out |>
@@ -4405,6 +4667,140 @@ test_that("a frame with no negative reconstruction is silent", {
       whep::items_full,
       negative_supply = "report"
     )
+  )
+})
+
+# -- negative values reaching the published balance (#1065) --------------------
+
+# The reconstruction report above names ONE cause of a negative use. The
+# published balance can carry one from others -- the processed-products round
+# books `production - export`, and user-supplied `historical_data` bypasses the
+# observed-value clamp -- so the guard sits on the output, whatever the cause.
+# Every element of the long balance is a non-negative mass except
+# `stock_variation`, which is signed by definition.
+.negative_output_frame <- function() {
+  tibble::tribble(
+    ~year, ~element,          ~value,
+    1950L, "production",         100,
+    1950L, "export",             400,
+    1950L, "domestic_supply",      0,
+    1950L, "other_uses",        -240,
+    1950L, "food",               -60,
+    1950L, "stock_variation",    -300,
+    1962L, "production",         100,
+    1962L, "domestic_supply",    100,
+    1962L, "food",               100
+  ) |>
+    dplyr::mutate(
+      area = "United States",
+      area_code = 231L,
+      item_cbs = "Tobacco",
+      item_cbs_code = 2671L,
+      source = "historical_fill"
+    )
+}
+
+test_that("a negative use in the published balance is reported", {
+  expect_warning(
+    build_commodity_balances(.fixed_data = .negative_output_frame()),
+    class = "whep_negative_cbs_value"
+  )
+})
+
+test_that("the report names every negative non-stock row and nothing else", {
+  negative <- .negative_output_frame() |>
+    whep:::.negative_cbs_values()
+
+  expect_setequal(negative$element, c("other_uses", "food"))
+  expect_true(all(negative$value < 0))
+  expect_false("stock_variation" %in% negative$element)
+})
+
+test_that("a negative stock variation alone is not reported", {
+  # A stock draw is what `stock_variation < 0` means; it is not a defect.
+  frame <- .negative_output_frame() |>
+    dplyr::filter(!element %in% c("other_uses", "food"))
+
+  expect_no_warning(
+    build_commodity_balances(.fixed_data = frame),
+    class = "whep_negative_cbs_value"
+  )
+})
+
+test_that("the reported values are published unchanged", {
+  # The guard reports; it does not alter. `negative_supply` is where the
+  # treatment is chosen.
+  out <- suppressWarnings(
+    build_commodity_balances(.fixed_data = .negative_output_frame())
+  )
+
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1950L, element == "other_uses") |>
+      dplyr::pull(value),
+    -240
+  )
+})
+
+test_that("the report states which negative_supply produced it", {
+  # The treatment is recorded in the message, so a log shows under which
+  # setting a published negative was produced.
+  expect_warning(
+    whep:::.report_negative_cbs_values(
+      .negative_output_frame(),
+      negative_supply = "floor"
+    ),
+    "floor"
+  )
+})
+
+test_that("a key with a negative reconstruction is stamped on its rows", {
+  # The published row must carry its own provenance, not only the build log:
+  # the 1950 key reconstructs -300, the observed 1951 key does not.
+  out <- suppressWarnings(.run_negative_supply("report"))
+
+  expect_true(all(out$supply_negative[out$year == 1950L]))
+  expect_false(any(out$supply_negative[out$year == 1951L]))
+})
+
+test_that("the stamp becomes a source label naming the treatment", {
+  flag <- c(TRUE, FALSE, NA)
+
+  expect_equal(
+    whep:::.historical_fill_source(flag, "report"),
+    c("historical_fill_negative_supply", "historical_fill", "historical_fill")
+  )
+  expect_equal(
+    whep:::.historical_fill_source(flag, "floor"),
+    c("historical_fill_floored_supply", "historical_fill", "historical_fill")
+  )
+})
+
+test_that("the negative-supply labels rank as historical rows", {
+  # They are assigned after every ranking runs, but if one ever met
+  # `.cbs_source_rank()` it must rank where the plain back-cast does.
+  labels <- c(
+    "historical_fill_negative_supply",
+    "historical_fill_floored_supply"
+  )
+
+  expect_equal(
+    whep:::.cbs_source_rank(labels, 1950L),
+    whep:::.cbs_source_rank(c("historical_fill", "historical_fill"), 1950L)
+  )
+})
+
+test_that("flooring leaves nothing for the output guard to report", {
+  # The invariant, end to end on the reconstruction fixture: under `"floor"`
+  # no non-stock element of any row is negative.
+  out <- suppressWarnings(.run_negative_supply("floor"))
+
+  expect_equal(nrow(whep:::.negative_cbs_values(out)), 0L)
+  expect_gt(
+    nrow(whep:::.negative_cbs_values(
+      suppressWarnings(.run_negative_supply("report"))
+    )),
+    0L
   )
 })
 
@@ -4778,6 +5174,156 @@ test_that("a product with a world destiny split still gets its destinies", {
 
 test_that("the new processed balance returns no share column", {
   expect_false("dest_share" %in% names(.run_no_destiny()))
+})
+
+# -- Export share denominator (whep#1143) -------------------------------------
+
+# The second processed round apportions a new country's processed production
+# into export and domestic supply by the WORLD export share. The step-4
+# snapshot (`proc_result$cbs_glob`) predates the processed production that
+# `.cbs_add_processed()` creates at step 5, so for a processed product it is
+# world export over world import alone. Here the balance the round actually
+# runs on (`cbs_raw5`) carries 1,000 t of Brazilian Soyabean Oil production
+# that the snapshot lacks: the snapshot share is 300 / 200 = 1.5, the current
+# one 300 / (1,000 + 200) = 0.25. Argentina is the new processor.
+.soy_oil_code <- function() {
+  whep::items_full |>
+    dplyr::filter(.data$item_cbs == "Soyabean Oil") |>
+    dplyr::pull(.data$item_cbs_code) |>
+    unique()
+}
+
+.basis_cbs_raw5 <- function() {
+  tibble::tribble(
+    ~year, ~area,    ~area_code, ~item_cbs,      ~element,     ~value,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "production",   1000,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "export",        300,
+    1965L, "Brazil", 21L,        "Soyabean Oil", "food",          700,
+    1965L, "USA",    231L,       "Soyabean Oil", "import",        200,
+    1965L, "USA",    231L,       "Soyabean Oil", "food",          200
+  ) |>
+    dplyr::mutate(item_cbs_code = .soy_oil_code(), source = "Processed")
+}
+
+.basis_proc_result <- function() {
+  list(
+    cb_processing_glo = NULL,
+    cbs_glob = tibble::tribble(
+      ~year, ~item_cbs,      ~element, ~value,
+      1965L, "Soyabean Oil", "export",    300,
+      1965L, "Soyabean Oil", "import",    200,
+      1965L, "Soyabean Oil", "food",      900
+    ),
+    # Step 5: the processed production exists, the step-7 trade does not.
+    cbs_glob_processed = tibble::tribble(
+      ~year, ~item_cbs,      ~element,     ~value,
+      1965L, "Soyabean Oil", "production",   1000,
+      1965L, "Soyabean Oil", "export",        300,
+      1965L, "Soyabean Oil", "import",        100
+    ),
+    processed_agg = tibble::tribble(
+      ~year, ~area,    ~area_code, ~item_cbs,      ~value,
+      1965L, "Brazil", 21L,        "Soyabean Oil",   1000
+    ),
+    no_data_products = character()
+  )
+}
+
+.run_basis_round <- function(...) {
+  testthat::local_mocked_bindings(
+    .processed_raw = function(...) tibble::tibble(),
+    .correct_processed = function(...) {
+      tibble::tribble(
+        ~year, ~area,       ~area_code, ~item_cbs,      ~element,
+        1965L, "Argentina", 9L,         "Soyabean Oil", "production"
+      ) |>
+        dplyr::mutate(
+          value_proc = 400,
+          scaling_raw = NA_real_,
+          source_scaling_raw = NA_character_
+        )
+    },
+    .package = "whep"
+  )
+  whep:::.cbs_second_processed_round(
+    .basis_cbs_raw5(),
+    .basis_proc_result(),
+    ...
+  )
+}
+
+.argentina_value <- function(out, el) {
+  out |>
+    dplyr::filter(.data$area_code == 9L, .data$element == el) |>
+    dplyr::pull(.data$value)
+}
+
+test_that("the export share divides by the balance the round runs on", {
+  # Called the way `.fix_cbs()` calls it by default.
+  out <- .run_basis_round()
+
+  expect_equal(.argentina_value(out, "production"), 400)
+  expect_equal(.argentina_value(out, "export"), 400 * 300 / 1200)
+  expect_equal(.argentina_value(out, "domestic_supply"), 400 * 900 / 1200)
+})
+
+test_that("a balanced current sheet yields no export share above one", {
+  # The invariant: every area of `cbs_raw5` exports no more than it produces
+  # and imports, so neither does the world, and the round can book no
+  # negative domestic supply. The snapshot basis breaks it on this fixture.
+  expect_no_warning(out <- .run_basis_round())
+  ds <- out |> dplyr::filter(.data$element == "domestic_supply")
+  expect_true(all(ds$value >= 0))
+})
+
+test_that("export_share_basis = 'snapshot' keeps the step-4 world sheet", {
+  expect_warning(
+    out <- .run_basis_round(export_share_basis = "snapshot"),
+    class = "whep_export_share_overflow"
+  )
+  expect_equal(.argentina_value(out, "export"), 400 * 1.5)
+  expect_equal(.argentina_value(out, "domestic_supply"), 400 - 600)
+})
+
+test_that("export_share_basis = 'processed' reads the step-5 world sheet", {
+  expect_no_warning(
+    out <- .run_basis_round(export_share_basis = "processed")
+  )
+  expect_equal(.argentina_value(out, "export"), 400 * 300 / 1100)
+})
+
+test_that("the 'processed' basis refuses a result with no step-5 sheet", {
+  pr <- .basis_proc_result()
+  pr$cbs_glob_processed <- NULL
+  expect_error(
+    whep:::.export_share_world(.basis_cbs_raw5(), pr, "processed"),
+    "step-5 world sheet"
+  )
+})
+
+test_that("every export share basis emits the same production", {
+  # The basis moves the export / domestic supply split, never the tonnage
+  # being split.
+  prod <- c("current", "processed", "snapshot") |>
+    purrr::map_dbl(\(b) {
+      suppressWarnings(.run_basis_round(export_share_basis = b)) |>
+        .argentina_value("production")
+    })
+  expect_equal(prod, rep(400, 3))
+})
+
+test_that("export_share_basis rejects an unknown basis", {
+  expect_error(
+    .run_basis_round(export_share_basis = "world"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances validates export_share_basis", {
+  expect_error(
+    build_commodity_balances(example = TRUE, export_share_basis = "world"),
+    class = "rlang_error"
+  )
 })
 
 # -- reporter-level bound on the historical trade screen -----------------------

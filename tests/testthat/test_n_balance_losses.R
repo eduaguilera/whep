@@ -23,7 +23,10 @@ testthat::test_that("calculate_nh3(method = \"manner\") aborts when a driver col
     ~n_input_t, ~fert_type, ~manner_fertiliser,
     10, "Synthetic", "Urea"
   )
-  testthat::expect_error(whep::calculate_nh3(x, method = "manner"))
+  testthat::expect_error(
+    whep::calculate_nh3(x, method = "manner"),
+    class = "whep_error_nh3_missing_driver"
+  )
 })
 
 testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner_nh3 directly", {
@@ -117,7 +120,27 @@ testthat::test_that("calculate_nh3(method = \"manner_default\") aborts when a dr
     ~n_input_t, ~fert_type, ~manner_fertiliser,
     10, "Solid", "cattle_slurry"
   )
-  testthat::expect_error(whep::calculate_nh3(x, method = "manner_default"))
+  testthat::expect_error(
+    whep::calculate_nh3(x, method = "manner_default"),
+    class = "whep_error_nh3_missing_driver"
+  )
+})
+
+testthat::test_that("a missing windspeed_ms names the one reader that supplies it", {
+  # whep#1078: the LPJmL wind reader is the only in-package source of the
+  # driver and nothing wires it in, so the abort is where a user learns of it.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~manner_fertiliser, ~rainfall_mm, ~irrigated,
+    ~system, ~temp_c, ~species,
+    10, "Solid", "cattle_slurry", 40, FALSE, "Arable", 15, "Cattle"
+  )
+  err <- rlang::catch_cnd(
+    whep::calculate_nh3(x, method = "manner_default"),
+    classes = "whep_error_nh3_missing_driver"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "windspeed_ms", fixed = TRUE)
+  testthat::expect_match(msg, "read_lpjml_wind", fixed = TRUE)
 })
 
 testthat::test_that("calculate_nh3(method = \"manner_default\") dispatches without technique/incorporation_delay_h columns", {

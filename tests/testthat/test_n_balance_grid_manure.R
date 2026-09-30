@@ -7,6 +7,13 @@
   region$area_code[region$region_bouwman %in% bouwman_regions][1]
 }
 
+# The residue crop mix that converts CBS residue feed to dry matter
+# (whep#1215) is read inside the local run context; stub it so the suite
+# never reaches the pins board.
+.gm_residues <- function(...) {
+  whep:::.example_get_primary_residues()
+}
+
 .gm_production <- function(area) {
   tibble::tribble(
     ~year  , ~area_code , ~item_cbs_code , ~live_anim_code , ~item_prod_code , ~unit   , ~value ,
@@ -95,7 +102,8 @@ test_that("grid intake is the local grain, placed on the support passed in", {
   support <- .gm_support(area)
   seen <- new.env()
   testthat::local_mocked_bindings(
-    .local_spatial_inputs = .gm_spatial(area, seen)
+    .local_spatial_inputs = .gm_spatial(area, seen),
+    get_primary_residues = .gm_residues
   )
 
   intake <- whep:::.n_livestock_intake(
@@ -113,7 +121,8 @@ test_that("grid intake is the local grain, placed on the support passed in", {
 test_that("grid intake runs the engine with its own border allowance", {
   area <- .gm_area()
   testthat::local_mocked_bindings(
-    .local_spatial_inputs = .gm_spatial(area, new.env())
+    .local_spatial_inputs = .gm_spatial(area, new.env()),
+    get_primary_residues = .gm_residues
   )
   allowance <- NULL
   engine <- whep:::.run_redistribute_local
@@ -124,12 +133,12 @@ test_that("grid intake runs the engine with its own border allowance", {
       demand_tier,
       spatial,
       data,
-      distribute_surplus
+      run
     ) {
       allowance <<- spatial$grass_border_allowance
-      expect_false(distribute_surplus)
+      expect_false(run$distribute_surplus)
       expect_identical(demand_tier, "ipcc")
-      engine(production, cbs, demand_tier, spatial, data, distribute_surplus)
+      engine(production, cbs, demand_tier, spatial, data, run)
     }
   )
 
@@ -208,7 +217,8 @@ test_that("grid n_inputs carries every manure term on cells", {
   area <- .gm_area()
   support <- .gm_support(area)
   testthat::local_mocked_bindings(
-    .local_spatial_inputs = .gm_spatial(area, new.env())
+    .local_spatial_inputs = .gm_spatial(area, new.env()),
+    get_primary_residues = .gm_residues
   )
   intake <- whep:::.n_livestock_intake(
     "grid",

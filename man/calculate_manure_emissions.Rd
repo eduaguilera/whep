@@ -15,12 +15,15 @@ select regional emission factors.}
 \item{tier}{Integer 1 or 2. If \code{NULL} (default),
 auto-selects based on data completeness.}
 
-\item{options}{A named list of manure-engine options. All but two defaults
-reproduce the behaviour in force before whep#949. The exceptions are
-\code{mcf_source}, which moved from the shipped table to the 2019 Refinement
-in whep#1022 and does move Tier 2 manure CH4, and \code{mms_shares}, which
-moved from the unsourced placeholder table to the GLEAM 2.0 ingest in
-whep#958 and does move both tiers' manure N2O.
+\item{options}{A named list of manure-engine options. All but four
+defaults reproduce the behaviour in force before whep#949. The exceptions
+are \code{mcf_source}, which moved from the shipped table to the 2019
+Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
+which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
+in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
+since whep#1137 pairs the 2019 pasture MCF with its published \code{Bo} and
+moves Tier 2 manure CH4, and \code{tier2_uncovered}, which since whep#1028
+gives species with no Tier 2 method their Tier 1 values instead of \code{NA}.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
@@ -66,10 +69,26 @@ every system, so both as-published tables apply a stated collapse rule;
 see \link{climate_mcf_ipcc}. Both rules are WHEP's, not the IPCC's, and the
 default makes them live. \code{method_manure_ch4} records the table used.
 
-The default carries one known incompleteness: the Refinement pairs its
-single 0.47 percent pasture MCF with a mandatory \code{Bo} of 0.19, and this
-engine applies one per-species \code{Bo} to every stream, so the pair cannot be
-honoured here. See the corresponding section of \link{climate_mcf_ipcc}.
+\code{pasture_bo} selects the methane potential (\code{Bo}) the Tier 2 manure CH4
+prices the pasture/range/paddock stream at. The 2019 Refinement publishes
+its single 0.47 percent pasture MCF as half of a pair that "must always be
+used in conjunction with a B0 value of 0.19" (Vol 4, Ch 10, Table 10.17
+(Updated) footnote 2, p. 10.70; Section 10.4.2, p. 10.66); the pair is
+the \code{paired_bo_m3_kg_vs} column of \link{climate_mcf_ipcc} (whep#1137).
+\itemize{
+\item \code{"paired"} (default): a stream whose MCF row carries a paired \code{Bo} is
+priced at it, every other stream at the animal-category \code{Bo} of
+\link{ipcc_tier2_bo_values}. Only \code{mcf_source = "ipcc_2019"} publishes a
+pair, so under the other two sources this changes nothing.
+\item \code{"species"}: every stream takes the animal-category \code{Bo}, the
+behaviour before whep#1137. Under \code{"ipcc_2019"} that is the hybrid the
+Refinement rejects; kept so the earlier figures stay reproducible and
+the sensitivity to the pairing stays measurable.
+}
+
+\code{method_manure_ch4} records per row which applied (\code{pasture_bo_paired} or
+\code{pasture_bo_species}) wherever the row has manure on a stream that
+carries a published pair.
 
 \code{climate_source} selects where the climate zone the methane conversion
 factors in the MCF table are read at comes from. A \code{climate_zone} a row
@@ -85,7 +104,30 @@ supplied column or a wholly absent column.
 \code{"Temperate"} (default) or \code{"Warm"}. It is an assumption, not a
 measurement; \code{method_manure_ch4} records per row which of the sources
 applied, and this argument exists so the sensitivity to the assumption can
-be measured (whep#949).}
+be measured (whep#949).
+
+\code{tier2_uncovered} says what the Tier 2 path does with a species WHEP has
+no Tier 2 method for. The energy balance needs the maintenance and
+activity coefficients of Tables 10.4 and 10.5, which
+\link{ipcc_tier2_energy_coefs} ships for cattle, buffalo, sheep and goats
+only; the 2019 Refinement itself suggests Tier 1 for camels, horses,
+mules and asses and swine and has no enteric method for poultry (Vol. 4
+Ch. 10, Table 10.9 (Updated)), and its Tier 2 manure equations for swine
+and poultry need a country-specific dry-matter intake (Equation 10.32A)
+that WHEP does not hold. Although it sits among the manure-engine
+options, it governs the enteric path too.
+\itemize{
+\item \code{"tier1"} (default): those species take the Tier 1 enteric CH4, manure
+CH4 and manure N2O, written into the Tier 2 output columns and stamped
+\code{"IPCC_2019_Tier1"} in \code{method_enteric}, \code{method_manure_ch4} and
+\code{method_manure_n2o}, with a message naming them. This is the IPCC's
+own suggested method for them, so a Tier 2 inventory keeps the whole
+herd rather than silently covering fewer animals than Tier 1.
+\item \code{"leave_na"}: they keep \code{NA} emissions, the behaviour before
+whep#1028, with a warning naming them. Kept so a ruminant-only Tier 2
+figure stays reproducible.
+\item \code{"abort"}: any such species aborts, naming it.
+}}
 }
 \value{
 Dataframe with all input columns preserved, plus:

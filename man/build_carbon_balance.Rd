@@ -24,6 +24,7 @@ build_carbon_balance(
   density_basis = c("renormalised", "static"),
   method_grazing = c("whep", "lpjml"),
   method_som_cn = c("justes_2009", "nicolardot_2001", "century"),
+  method_input_cn = c("known_crops", "require_all"),
   block_years = 10L,
   example = FALSE
 )
@@ -176,6 +177,14 @@ Recorded per row in \code{method_som_cn}, which instead reads
 \code{"land_use_default"} on a row whose input C:N is unknown and
 \code{"directional_ipcc_range"} when no input C:N is carried at all.}
 
+\item{method_input_cn}{What a crop of unknown input C:N does to the C:N of
+the cropland class it sits in, and so to the C:N of the organic matter
+that input forms; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{"known_crops"} (default)
+forms the class ratio from the crops that have one; \code{"require_all"}
+leaves it \code{NA}, which sends the class to the land-use default C:N.
+Only read when the carbon inputs are built here rather than supplied
+through \code{data$c_inputs}.}
+
 \item{block_years}{How many consecutive years are built at a time. The
 climate drivers and the land-use areas are read, the class table and its
 equilibria built, the stocks marched and the output tail run one block of
@@ -202,6 +211,7 @@ with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
 \code{method_area_basis}, \code{method_grazing},
 \code{method_som_cn} and
+\code{method_input_cn} and
 \code{method_crop_groups}. All of them survive the \code{"polity"}
 roll-up, which additionally carries \code{input_land_ha} (the land the
 land-use input gave that polity-year) and \code{modelled_land_frac}
