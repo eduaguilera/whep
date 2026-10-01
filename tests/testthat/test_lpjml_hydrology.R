@@ -773,3 +773,31 @@ testthat::test_that("an unknown partial_year policy is rejected", {
     class = "rlang_error"
   )
 })
+
+testthat::test_that("fill-valued ocean cells are dropped, as in the CRU reader", {
+  cube <- .lpjml_hydro_fixture_cube()
+  path <- file.path(cube$dir, cube$file)
+  nc <- ncdf4::nc_open(path, write = TRUE)
+  # Cell (lon 2, lat 2) is ocean at every month: LPJmL's fill value.
+  ncdf4::ncvar_put(
+    nc,
+    "seepage",
+    rep(-9999, 12),
+    start = c(2, 2, 1),
+    count = c(1, 1, 12)
+  )
+  # Cell (lon 1, lat 1) is missing in one month only: still land.
+  ncdf4::ncvar_put(nc, "seepage", -9999, start = c(1, 1, 1), count = c(1, 1, 1))
+  ncdf4::nc_close(nc)
+
+  result <- whep::read_lpjml_hydrology(
+    "drainage",
+    run_dir = cube$dir,
+    years = 1901L,
+    first_year = 1901L,
+    monthly = TRUE
+  )
+
+  testthat::expect_equal(nrow(dplyr::distinct(result, lon, lat)), 3L)
+  testthat::expect_false(any(result$lon == -179.25 & result$lat == 0.75))
+})
