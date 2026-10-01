@@ -212,8 +212,20 @@
   )
 }
 
+# Many tests build the same cells against the same fixture (#1349). A build is
+# a pure function of `cells` here, since `data` is always `.ryr_data()` and
+# nothing in this file mocks a binding, so each distinct `cells` is built once
+# per file and the result shared. The data itself is shared too. The last test
+# asserts nothing changed either.
 .ryr_build <- function(cells) {
-  whep::build_regime_yield_ratio(cells, data = .ryr_data())
+  memo_fixture(
+    paste0("ryr_build_", rlang::hash(cells)),
+    \() whep::build_regime_yield_ratio(cells, data = .ryr_shared_data())
+  )
+}
+
+.ryr_shared_data <- function() {
+  memo_fixture("ryr_data", .ryr_data)
 }
 
 .ryr_one <- function(area_code, item, year) {
@@ -1003,4 +1015,9 @@ testthat::test_that("the example returns the documented schema", {
   pointblank::expect_col_vals_lte(out, "ratio_long_term", 10, na_pass = TRUE)
   testthat::expect_type(out$item_prod_code, "integer")
   testthat::expect_type(out$area_code, "integer")
+})
+
+testthat::test_that("the shared builds and their data were never mutated", {
+  expect_memo_fixtures_untouched("ryr_")
+  testthat::expect_identical(.ryr_shared_data(), .ryr_data())
 })

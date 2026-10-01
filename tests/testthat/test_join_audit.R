@@ -12,9 +12,23 @@
 #
 # The audit reads the NAMESPACE, not `R/`, because `R/` is not shipped to where
 # tests run under `R CMD check` while the parsed bodies always are.
+#
+# One scan of the whole namespace takes about 1.7 s, and the gates below read
+# it six times. Each detector therefore walks the FULL namespace once per file
+# and the gates share that table (#1349); the fixture tests further down still
+# run the detectors on their own environments. The last test asserts nothing
+# changed the shared tables.
+
+.ja_joins <- function() {
+  memo_fixture("ja_joins", \() whep:::.territorial_joins())
+}
+
+.ja_groupings <- function() {
+  memo_fixture("ja_groupings", \() whep:::.territorial_groupings())
+}
 
 test_that("every year-free territorial join is classified", {
-  audit <- whep:::.territorial_joins()
+  audit <- .ja_joins()
   found <- audit |>
     dplyr::filter(!.data$has_year) |>
     dplyr::count(.data$owner, .data$join_fn, .data$key, name = "n")
@@ -354,7 +368,7 @@ test_that("every year-free territorial grouping is classified", {
   # Before this test all 71 were unclassified -- a `.by = c(area_code,
   # item_cbs_code)` that collapses 1961 into 2023 was indistinguishable from
   # one sitting inside a per-year scope.
-  audit <- whep:::.territorial_groupings()
+  audit <- .ja_groupings()
   found <- audit |>
     dplyr::filter(!.data$has_year) |>
     dplyr::count(.data$owner, .data$group_fn, .data$key, name = "n")
@@ -611,7 +625,7 @@ test_that("a year-free grouping label always comes with its code", {
   # groups on `area_key`, a column whose NAME is chosen by its caller, and
   # `.fill_pre_faostat()` still falls back to `"area"` when the LUH2 land table
   # carries no `area_code` (whep#584). A SECOND one fails here.
-  offenders <- whep:::.territorial_groupings() |>
+  offenders <- .ja_groupings() |>
     dplyr::filter(!.data$has_year, .data$has_label, !.data$has_code) |>
     dplyr::pull(.data$owner) |>
     sort()
@@ -624,7 +638,7 @@ test_that("no year-free join keys on the area LABEL at all", {
   # removed the load-bearing one and whep#691 the last redundant one
   # (`.interpolate_destiny_shares`), so the set is now EMPTY and a new one
   # cannot be classified into existence -- it has to be keyed on the code.
-  labelled <- whep:::.territorial_joins() |>
+  labelled <- .ja_joins() |>
     dplyr::filter(!.data$has_year, .data$has_label) |>
     dplyr::pull(.data$owner) |>
     sort()
@@ -760,12 +774,12 @@ test_that("the allocation key is audited in both the grains it can take", {
     paste(unit, collapse = ", ")
   ))
 
-  joins <- whep:::.territorial_joins()
+  joins <- .ja_joins()
   expect_equal(
     sort(unique(joins$key[joins$owner == ".spatialize_year"])),
     want
   )
-  groupings <- whep:::.territorial_groupings()
+  groupings <- .ja_groupings()
   purrr::walk(
     c(
       ".spatialize_year",
@@ -779,4 +793,8 @@ test_that("the allocation key is audited in both the grains it can take", {
       )
     }
   )
+})
+
+test_that("the shared namespace scans were never mutated", {
+  expect_memo_fixtures_untouched("ja_")
 })
