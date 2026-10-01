@@ -36,6 +36,14 @@
 #' factors, `"urban"` maps to the FYM manure class, as the source coefficient
 #' table does, including the 0.4 Org_ef correction.
 #'
+#' The synthetic path's temperature factor (Misselbrook et al. 2004,
+#' doi:10.1079/SUM2004280) is an exponential scaled on UK monthly
+#' temperatures. It is capped at 1, as the UK ammonia inventory that runs
+#' this model caps it (Misselbrook et al. 2015, Inventory of Ammonia
+#' Emissions from UK Agriculture 2014). Without the cap, warm application
+#' months returned emission factors above 1. With it, `ef` never exceeds the
+#' fertiliser's `max_nh3` in [manner_params].
+#'
 #' @param n_applied_t Numeric, nitrogen applied (t).
 #' @param fertiliser One of `"Urea"`, `"AN"`, `"CAN"`, `"AS"` (synthetic
 #'   path) or `"cattle_slurry"`, `"pig_slurry"`, `"FYM"`,
@@ -240,12 +248,22 @@ calculate_manner_nh3_default <- function(
 
 # Temperature factor: Urea/AN use an absolute reference (8.625 deg C);
 # CAN/AS use an anomaly against the cell/region annual mean temperature.
+# Capped at 1 (whep#1333): the exponential was scaled on UK monthly
+# temperatures (Misselbrook et al. 2004, doi:10.1079/SUM2004280) and grows
+# without bound outside them, returning ef above 1 at warm temperatures. The
+# UK ammonia inventory, which runs this model, applies the modifier "with the
+# maximum value constrained to 1" (Misselbrook et al. 2015, "Inventory of
+# Ammonia Emissions from UK Agriculture 2014", Defra contract SCF0102,
+# notes to Table A11, https://uk-air.defra.gov.uk/reports/cat07/1605231002_nh3inv2014_Final_20112015.pdf).
+# With every other synthetic factor at or below 1, ef stays at or below
+# max_nh3.
 .manner_synth_temp_factor <- function(fertiliser, drivers) {
-  if (fertiliser %in% c("Urea", "AN")) {
+  raw <- if (fertiliser %in% c("Urea", "AN")) {
     exp(0.1386 * (drivers$temp_c - 8.625)) / 3
   } else {
     exp(0.2197225 * (drivers$temp_c - drivers$temp_c_annual_mean)) / 3
   }
+  pmin(1, raw)
 }
 
 # ---- Private helpers: organic-manure path ------------------------------

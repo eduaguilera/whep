@@ -37,6 +37,63 @@ testthat::test_that("calculate_manner_nh3 matches a hand-computed synthetic ef",
   testthat::expect_equal(out$method_manner, "manner_synthetic_Urea")
 })
 
+testthat::test_that("synthetic ef never exceeds max_nh3 at warm temperatures", {
+  # whep#1333: the synthetic temperature factor was an unbounded exponential,
+  # so warm application months returned ef above 1 (more NH3-N than N
+  # applied). Sweep temp_c over 0-45 deg C against every pH, rate and rain
+  # class, with cold and warm annual means for the anomaly form.
+  grid <- tidyr::expand_grid(
+    fertiliser = c("Urea", "AN", "CAN", "AS"),
+    soil_ph = c(6, 7.8),
+    rate_kg_ha = c(20, 50, 100, 250),
+    rainfall_mm = c(0, 40, 200),
+    temp_c = seq(0, 45, by = 5),
+    temp_c_annual_mean = c(0, 10, 25)
+  )
+  ef <- purrr::pmap_dbl(grid, .manner_grid_ef)
+  max_nh3 <- whep::manner_params |>
+    dplyr::filter(.data$category == "max_nh3") |>
+    dplyr::select(fertiliser = "key", max_nh3 = "factor")
+  out <- grid |>
+    dplyr::mutate(ef = .env$ef) |>
+    dplyr::left_join(max_nh3, by = "fertiliser")
+
+  pointblank::expect_col_vals_not_null(out, "ef")
+  pointblank::expect_col_vals_lte(out, "ef", pointblank::vars(max_nh3))
+})
+
+testthat::test_that("synthetic temperature factor is capped at 1", {
+  drivers <- list(soil_ph = 6, rate_kg_ha = 250, rainfall_mm = 0)
+  # Absolute form at 30 deg C: exp(0.1386 * (30 - 8.625)) / 3 = 6.4 raw.
+  testthat::expect_equal(
+    whep:::.manner_synth_temp_factor("Urea", c(drivers, temp_c = 30)),
+    1
+  )
+  # Anomaly form at a 20 deg C anomaly: exp(0.2197225 * 20) / 3 = 27 raw.
+  testthat::expect_equal(
+    whep:::.manner_synth_temp_factor(
+      "CAN",
+      c(drivers, temp_c = 30, temp_c_annual_mean = 10)
+    ),
+    1
+  )
+})
+
+testthat::test_that("synthetic temperature factor is unchanged below the cap", {
+  # Inside the UK-calibrated range the cap must not move anything.
+  testthat::expect_equal(
+    whep:::.manner_synth_temp_factor("Urea", list(temp_c = 15)),
+    exp(0.1386 * (15 - 8.625)) / 3
+  )
+  testthat::expect_equal(
+    whep:::.manner_synth_temp_factor(
+      "AS",
+      list(temp_c = 12, temp_c_annual_mean = 8)
+    ),
+    exp(0.2197225 * 4) / 3
+  )
+})
+
 testthat::test_that("calculate_manner_nh3 dispatches every fertiliser/manure to the right path", {
   synthetic_drivers <- list(
     soil_ph = 7.5,
