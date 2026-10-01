@@ -621,12 +621,24 @@ read_lpjml_hydrology <- function(
     ),
     value = as.vector(slab)
   )
+  dt <- dt[rep(.hydro_land_cells(slab), times = n_layer * n_time)]
   dt[, year := first_year + (time_index - 1L) %/% steps_per_year]
   if (steps_per_year == 1L) {
     return(.hydro_select_long(dt, has_layer, monthly = FALSE))
   }
   dt[, month := ((time_index - 1L) %% steps_per_year) + 1L]
   .hydro_select_long(dt, has_layer, monthly = TRUE)
+}
+
+# Which (lon, lat) cells hold any value. ncdf4 turns the file's
+# missing_value/_FillValue (-1e32 in LPJmL output, which is *finite*) into NA,
+# so a cell that is NA at every time step and layer is ocean or ice. Dropping
+# them gives the same land-only cell population read_cru_climate() returns,
+# instead of ~140k fill-valued ocean cells that downstream joins count as
+# missing climate (#1305). Cells with only some NA steps are kept.
+.hydro_land_cells <- function(slab) {
+  n_cell <- dim(slab)[1] * dim(slab)[2]
+  rowSums(!is.na(matrix(slab, nrow = n_cell))) > 0L
 }
 
 # Select the long-form output columns, keeping `layer` only for cubes that have
