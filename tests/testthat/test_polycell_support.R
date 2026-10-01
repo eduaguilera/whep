@@ -2634,6 +2634,32 @@ testthat::test_that("a short or sloping edge is not flagged", {
   testthat::expect_true(all(edges$bulge_deg > 0))
 })
 
+testthat::test_that("ring keys are the row-wise paste of the ring index", {
+  # `.pcs_ring_keys()` pastes once per run of equal rows instead of once per
+  # vertex (#1349). The keys, and so the split order of the rings, must be the
+  # strings the row-wise paste gives -- including a ring index that recurs
+  # after another one, a single row and no rows at all.
+  ring_index <- cbind(
+    L1 = c(1, 1, 2, 2, 2, 1, 10, 10),
+    L2 = c(1, 1, 1, 1, 1, 1, 1, 2),
+    L3 = c(3, 3, 3, 3, 3, 3, 3, 3)
+  )
+  row_wise <- \(m) apply(m, 1L, paste, collapse = "-")
+
+  testthat::expect_identical(
+    whep:::.pcs_ring_keys(ring_index),
+    row_wise(ring_index)
+  )
+  testthat::expect_identical(
+    whep:::.pcs_ring_keys(ring_index[1L, , drop = FALSE]),
+    "1-1-3"
+  )
+  testthat::expect_identical(
+    whep:::.pcs_ring_keys(ring_index[0L, , drop = FALSE]),
+    character()
+  )
+})
+
 testthat::test_that("long edges ride as a diagnostic and change no area", {
   testthat::skip_if_not_installed("sf")
 

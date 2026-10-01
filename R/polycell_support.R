@@ -1911,13 +1911,32 @@ expand_polycell_years <- function(support, years) {
 # geometry type needs, so they are pasted rather than named individually.
 .pcs_ring_edges <- function(xy, min_span_deg, max_drift_deg) {
   ring_cols <- grep("^L[0-9]+$", colnames(xy), value = TRUE)
-  rings <- apply(xy[, ring_cols, drop = FALSE], 1L, paste, collapse = "-")
+  rings <- .pcs_ring_keys(xy[, ring_cols, drop = FALSE])
   split(seq_len(nrow(xy)), rings) |>
     purrr::keep(\(i) length(i) > 1L) |>
     purrr::map(\(i) {
       .pcs_edges_of_ring(xy[i, , drop = FALSE], min_span_deg, max_drift_deg)
     }) |>
     purrr::list_rbind()
+}
+
+# One "L1-L2-..." key per vertex, the string `paste(row, collapse = "-")`
+# gives. A ring's vertices share one key, so it is pasted once per run of equal
+# rows and repeated: a paste per vertex, row by row, was most of the cost of
+# the long-edge census over the shipped snapshot (#1349).
+.pcs_ring_keys <- function(ring_index) {
+  if (nrow(ring_index) == 0L) {
+    return(character())
+  }
+  n <- nrow(ring_index)
+  changed <- ring_index[-1L, , drop = FALSE] != ring_index[-n, , drop = FALSE]
+  starts <- c(TRUE, rowSums(changed) > 0)
+  ring_index[starts, , drop = FALSE] |>
+    as.data.frame() |>
+    unname() |>
+    c(sep = "-") |>
+    do.call(what = paste) |>
+    rep(times = diff(c(which(starts), length(starts) + 1L)))
 }
 
 .pcs_edges_of_ring <- function(m, min_span_deg, max_drift_deg) {
