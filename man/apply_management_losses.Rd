@@ -13,13 +13,19 @@ apply_management_losses(split, options = list())
 \item{options}{A named list. \code{method} selects the loss method
 (\code{"ipcc_2019_tier2"}). \code{bedding_c_loss} selects how bedding carbon is
 treated in storage: \code{"same_as_excreta"} (default) or \code{"none"}; see the
-Bedding section.}
+Bedding section. \code{indirect_n2o_source} selects the edition of
+\link{indirect_n2o_ef} the EF4 and EF5 of the indirect N2O are read from:
+\code{"ipcc_2019"} (default; EF5 0.011, Vol 4, Ch 11, Table 11.3 (Updated),
+p. 11.26 of the 2019 Refinement) or \code{"ipcc_2006"} (EF5 0.0075, Table 11.3,
+p. 11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
+is 0.010 in both, so only the leached share of \code{n2o_indirect_n} moves,
+by a factor of 1.467; \code{applied_n} does not.}
 }
 \value{
 The input rows with \code{manure_type}, \code{applied_n}, \code{applied_c},
 \code{applied_vs}, \code{n_volatilized}, \code{n_leached}, \code{n2o_direct_n}, \code{n2_n},
 \code{n2o_indirect_n}, \code{c_lost}, \code{vs_destroyed}, \code{n_bedding}, \code{c_bedding},
-\code{method_losses} and \code{method_bedding_c}.
+\code{method_losses}, \code{method_bedding_c} and \code{method_indirect_n2o}.
 }
 \description{
 Nets the nitrogen surviving manure management onto the field, applying the

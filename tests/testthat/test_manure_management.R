@@ -355,7 +355,7 @@ test_that("grazing keeps full N, collected loses N, N2 = 3x N2O-N", {
   expect_equal(res$n2_n, 3 * res$n2o_direct_n)
   expect_equal(
     res$n2o_indirect_n,
-    res$n_volatilized * 0.010 + res$n_leached * 0.0075
+    res$n_volatilized * 0.010 + res$n_leached * 0.011
   )
   expect_true(all(res$method_losses == "ipcc_2019_tier2"))
 })
@@ -620,4 +620,31 @@ testthat::test_that("a species with no published value takes the table's fallbac
   )
   got <- whep:::.attach_storage_c_loss(out)
   testthat::expect_equal(got$c_loss_fraction, c(0.110, 0.128, 0.110))
+})
+
+test_that("apply_management_losses reads the selected Table 11.3 edition", {
+  # whep#1245: EF5 is 0.011 in the 2019 Refinement (Table 11.3 (Updated),
+  # p. 11.26) and 0.0075 in the 2006 Guidelines (Table 11.3, p. 11.24); EF4 is
+  # 0.010 in both. Only the indirect N2O moves; applied N is untouched because
+  # indirect N2O is a sub-flux of the volatilised and leached N.
+  split <- whep::split_manure_management(.toy_excretion())
+  ref2019 <- whep::apply_management_losses(split)
+  gl2006 <- whep::apply_management_losses(
+    split,
+    options = list(indirect_n2o_source = "ipcc_2006")
+  )
+  expect_equal(
+    gl2006$n2o_indirect_n,
+    gl2006$n_volatilized * 0.010 + gl2006$n_leached * 0.0075
+  )
+  expect_equal(gl2006$applied_n, ref2019$applied_n)
+  expect_true(all(ref2019$method_indirect_n2o == "ipcc_2019"))
+  expect_true(all(gl2006$method_indirect_n2o == "ipcc_2006"))
+  expect_error(
+    whep::apply_management_losses(
+      split,
+      options = list(indirect_n2o_source = "ipcc_1996")
+    ),
+    "indirect_n2o_source"
+  )
 })

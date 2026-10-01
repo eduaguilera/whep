@@ -2523,18 +2523,33 @@ generate_ipcc_tier2_params <- function() {
       "Heat Stress",     25,     Inf,         0.10
     ),
 
-    # Indirect N2O Emission Factors.
-    # Source: IPCC 2019, Vol 4, Ch 10, Table 10.22 and
-    # Vol 4, Ch 11, Table 11.3.
+    # Indirect N2O Emission Factors, one block per IPCC edition (#1245).
+    # EF4, EF5 and FracLEACH-(H): Vol 4, Ch 11, Table 11.3 (Updated),
+    # p. 11.26, of the 2019 Refinement, and Table 11.3, p. 11.24, of the
+    # 2006 Guidelines. Before #1245 this table cited 2019 but held the 2006
+    # EF5 (0.0075) and FracLEACH-(H) (0.30).
+    # FracGasMS 0.20 is the same in both blocks and is assumed, unverified:
+    # Table 10.22 of either edition publishes FracGasMS per animal category
+    # and system, not one number, and 0.20 is the 2006 FracGASM of
+    # Table 11.3 (the 2019 FracGASM is 0.21).
     indirect_n2o_ef = tibble::tribble(
-      ~parameter,      ~value, ~description,
-      "ef4_volatilization", 0.010,
+      ~edition,    ~parameter,           ~value,
+        ~description,
+      "ipcc_2019", "ef4_volatilization", 0.010,
         "EF4: N2O-N per kg NH3-N + NOx-N volatilized",
-      "ef5_leaching",       0.0075,
+      "ipcc_2019", "ef5_leaching",       0.011,
         "EF5: N2O-N per kg N leached/runoff",
-      "frac_gasms",         0.20,
+      "ipcc_2019", "frac_gasms",         0.20,
         "FracGasMS: fraction N lost as NH3+NOx from MMS",
-      "frac_leach",         0.30,
+      "ipcc_2019", "frac_leach",         0.24,
+        "FracLeach: fraction N lost via leaching/runoff",
+      "ipcc_2006", "ef4_volatilization", 0.010,
+        "EF4: N2O-N per kg NH3-N + NOx-N volatilized",
+      "ipcc_2006", "ef5_leaching",       0.0075,
+        "EF5: N2O-N per kg N leached/runoff",
+      "ipcc_2006", "frac_gasms",         0.20,
+        "FracGasMS: fraction N lost as NH3+NOx from MMS",
+      "ipcc_2006", "frac_leach",         0.30,
         "FracLeach: fraction N lost via leaching/runoff"
     ),
 

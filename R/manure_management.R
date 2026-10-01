@@ -300,12 +300,18 @@ split_manure_management <- function(excretion, options = list()) {
 #' @param options A named list. `method` selects the loss method
 #'   (`"ipcc_2019_tier2"`). `bedding_c_loss` selects how bedding carbon is
 #'   treated in storage: `"same_as_excreta"` (default) or `"none"`; see the
-#'   Bedding section.
+#'   Bedding section. `indirect_n2o_source` selects the edition of
+#'   [indirect_n2o_ef] the EF4 and EF5 of the indirect N2O are read from:
+#'   `"ipcc_2019"` (default; EF5 0.011, Vol 4, Ch 11, Table 11.3 (Updated),
+#'   p. 11.26 of the 2019 Refinement) or `"ipcc_2006"` (EF5 0.0075, Table 11.3,
+#'   p. 11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
+#'   is 0.010 in both, so only the leached share of `n2o_indirect_n` moves,
+#'   by a factor of 1.467; `applied_n` does not.
 #'
 #' @return The input rows with `manure_type`, `applied_n`, `applied_c`,
 #'   `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
 #'   `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
-#'   `method_losses` and `method_bedding_c`.
+#'   `method_losses`, `method_bedding_c` and `method_indirect_n2o`.
 #' @export
 #' @examples
 #' excretion <- tibble::tribble(
@@ -316,7 +322,11 @@ split_manure_management <- function(excretion, options = list()) {
 #' apply_management_losses(split_manure_management(excretion))
 apply_management_losses <- function(split, options = list()) {
   opt <- utils::modifyList(
-    list(method = "ipcc_2019_tier2", bedding_c_loss = "same_as_excreta"),
+    list(
+      method = "ipcc_2019_tier2",
+      bedding_c_loss = "same_as_excreta",
+      indirect_n2o_source = "ipcc_2019"
+    ),
     options
   )
   if (!identical(opt$method, "ipcc_2019_tier2")) {
@@ -327,11 +337,15 @@ apply_management_losses <- function(split, options = list()) {
     bedding_c_loss,
     c("same_as_excreta", "none")
   )
+  indirect_n2o_source <- opt$indirect_n2o_source
+  opt$indirect_n2o_source <- rlang::arg_match(
+    indirect_n2o_source,
+    c("ipcc_2019", "ipcc_2006")
+  )
   .check_split_cols(split)
 
-  ind <- whep::indirect_n2o_ef
-  ef4 <- ind$value[ind$parameter == "ef4_volatilization"]
-  ef5 <- ind$value[ind$parameter == "ef5_leaching"]
+  ef4 <- .get_indirect_param("ef4_volatilization", opt$indirect_n2o_source)
+  ef5 <- .get_indirect_param("ef5_leaching", opt$indirect_n2o_source)
   n2_ratio <- .n2_to_n2o_ratio()
 
   out <- split |>
@@ -408,7 +422,8 @@ apply_management_losses <- function(split, options = list()) {
       ),
       vs_destroyed = .data$vs_stream - .data$applied_vs,
       method_losses = opt$method,
-      method_bedding_c = opt$bedding_c_loss
+      method_bedding_c = opt$bedding_c_loss,
+      method_indirect_n2o = opt$indirect_n2o_source
     ) |>
     dplyr::select(
       "year",
@@ -432,7 +447,8 @@ apply_management_losses <- function(split, options = list()) {
       "n_bedding",
       "c_bedding",
       "method_losses",
-      "method_bedding_c"
+      "method_bedding_c",
+      "method_indirect_n2o"
     )
 }
 

@@ -4,7 +4,7 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but four
+#' @param options A named list of manure-engine options. All but five
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
 #'   are `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
@@ -12,7 +12,25 @@
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
 #'   since whep#1137 pairs the 2019 pasture MCF with its published `Bo` and
 #'   moves Tier 2 manure CH4, and `tier2_uncovered`, which since whep#1028
-#'   gives species with no Tier 2 method their Tier 1 values instead of `NA`.
+#'   gives species with no Tier 2 method their Tier 1 values instead of `NA`,
+#'   and `indirect_n2o_source`, which since whep#1245 reads the 2019
+#'   Refinement's leaching factors and moves both tiers' indirect manure N2O.
+#'
+#'   `indirect_n2o_source` selects the edition of [indirect_n2o_ef] the
+#'   indirect manure N2O reads:
+#'   * `"ipcc_2019"` (default): EF5 0.011 and FracLEACH-(H) 0.24, from Vol 4,
+#'     Ch 11, Table 11.3 (Updated), p. 11.26 of the 2019 Refinement, the
+#'     current IPCC guidance and the EF5 the nitrogen balance already uses.
+#'   * `"ipcc_2006"`: EF5 0.0075 and FracLEACH-(H) 0.30, from Table 11.3,
+#'     p. 11.24 of the 2006 Guidelines. These are the values WHEP shipped
+#'     before whep#1245 under a 2019 citation, kept selectable so earlier
+#'     figures stay reproducible.
+#'
+#'   EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
+#'   `"ipcc_2006"` the default raises the leaching term by
+#'   `0.24 * 0.011 / (0.30 * 0.0075) = 1.173` and leaves the volatilisation
+#'   term alone. `method_manure_n2o` records the edition used
+#'   (`indirect_ipcc_2019` or `indirect_ipcc_2006`).
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -144,7 +162,7 @@ NULL
     dplyr::mutate(method_manure_n2o = "IPCC_2019_Tier1") |>
     .join_n_excretion_tier1() |>
     .calc_direct_n2o(options) |>
-    .calc_indirect_n2o()
+    .calc_indirect_n2o(options)
   data |>
     dplyr::mutate(
       manure_n2o_total = manure_n2o_direct + manure_n2o_indirect
@@ -282,7 +300,7 @@ NULL
 
   data <- .calc_n_excretion(data)
   data <- .calc_direct_n2o(data, options)
-  data <- .calc_indirect_n2o(data)
+  data <- .calc_indirect_n2o(data, options)
 
   data |>
     dplyr::mutate(
@@ -1109,16 +1127,20 @@ NULL
 }
 
 #' Calculate indirect N2O (volatilization + leaching).
-#' Uses `indirect_n2o_ef` table - no hardcoded values.
+#'
+#' Reads the `indirect_n2o_source` edition rows of `indirect_n2o_ef` -- no
+#' hardcoded values -- and stamps the edition into `method_manure_n2o`
+#' (whep#1245).
 #' @noRd
-.calc_indirect_n2o <- function(data) {
+.calc_indirect_n2o <- function(data, options = list()) {
+  opt <- .manure_options(options)
   n2o_to_n <- 44 / 28
+  edition <- opt$indirect_n2o_source
 
-  # Read all parameters from the table
-  ef4 <- .get_indirect_param("ef4_volatilization")
-  ef5 <- .get_indirect_param("ef5_leaching")
-  frac_gas <- .get_indirect_param("frac_gasms")
-  frac_leach <- .get_indirect_param("frac_leach")
+  ef4 <- .get_indirect_param("ef4_volatilization", edition)
+  ef5 <- .get_indirect_param("ef5_leaching", edition)
+  frac_gas <- .get_indirect_param("frac_gasms", edition)
+  frac_leach <- .get_indirect_param("frac_leach", edition)
 
   n_animals <- .animal_count(data)
   data |>
@@ -1128,15 +1150,27 @@ NULL
       manure_n2o_indirect = n2o_volatilization +
         n2o_leaching
     ) |>
-    dplyr::select(-n2o_volatilization, -n2o_leaching)
+    dplyr::select(-n2o_volatilization, -n2o_leaching) |>
+    .stamp_assumption("method_manure_n2o", paste0("indirect_", edition), TRUE)
 }
 
-#' Get a parameter value from the indirect_n2o_ef table.
+#' Get one edition's parameter value from the indirect_n2o_ef table.
+#'
+#' Aborts unless exactly one row matches, so a parameter an edition lacks
+#' cannot silently become a zero-length factor.
 #' @noRd
-.get_indirect_param <- function(param_name) {
-  indirect_n2o_ef$value[
-    indirect_n2o_ef$parameter == param_name
+.get_indirect_param <- function(param_name, edition) {
+  value <- indirect_n2o_ef$value[
+    indirect_n2o_ef$parameter == param_name &
+      indirect_n2o_ef$edition == edition
   ]
+  if (length(value) != 1L) {
+    cli::cli_abort(
+      "{.val {param_name}} has {length(value)} {.val {edition}} row{?s} in
+       {.field indirect_n2o_ef}; expected 1."
+    )
+  }
+  value
 }
 
 #' Join EF table handling subcategories by aggregation.
@@ -1189,12 +1223,14 @@ NULL
 #' The `mms_region` and climate defaults reproduce the behaviour in force
 #' before whep#949 exactly: the `region == "Global"` MMS split on any frame
 #' that does not already carry a `region` column, and an assumed Temperate
-#' climate zone. Four defaults do not: whep#1022 moved `mcf_source` off the
+#' climate zone. Five defaults do not: whep#1022 moved `mcf_source` off the
 #' shipped MCF table onto the 2019 Refinement, whep#958 moved `mms_shares`
 #' off the unsourced placeholder table onto the GLEAM 2.0 ingest,
 #' whep#1137 made `pasture_bo` honour the Bo the Refinement pairs with its
 #' pasture MCF, and whep#1028 made `tier2_uncovered` fill species with no
-#' Tier 2 method from Tier 1 instead of leaving them `NA`.
+#' Tier 2 method from Tier 1 instead of leaving them `NA`, and whep#1245 made
+#' `indirect_n2o_source` read the 2019 Table 11.3 EF5 and FracLEACH-(H) that
+#' the shipped table had cited while holding the 2006 values.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1204,7 +1240,8 @@ NULL
     climate_source = "assumed",
     assumed_climate_zone = "Temperate",
     tier2_uncovered = "tier1",
-    pasture_bo = "paired"
+    pasture_bo = "paired",
+    indirect_n2o_source = "ipcc_2019"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1223,6 +1260,7 @@ NULL
   assumed_climate_zone <- opt$assumed_climate_zone
   tier2_uncovered <- opt$tier2_uncovered
   pasture_bo <- opt$pasture_bo
+  indirect_n2o_source <- opt$indirect_n2o_source
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1245,7 +1283,11 @@ NULL
       tier2_uncovered,
       c("tier1", "leave_na", "abort")
     ),
-    pasture_bo = rlang::arg_match(pasture_bo, c("paired", "species"))
+    pasture_bo = rlang::arg_match(pasture_bo, c("paired", "species")),
+    indirect_n2o_source = rlang::arg_match(
+      indirect_n2o_source,
+      c("ipcc_2019", "ipcc_2006")
+    )
   )
 }
 
