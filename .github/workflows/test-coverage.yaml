@@ -1,9 +1,13 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+# Runs on main only, not on pull requests. Coverage on a PR was a third full
+# run of the suite (~22 min) whose result gated nothing: the Codecov upload
+# only fails the job off the PR path. Per-PR coverage numbers are the price
+# (#1347); main's run still records every merge.
 on:
   push:
     branches: [main, master]
-  pull_request:
+  workflow_dispatch:
 
 name: test-coverage.yaml
 
