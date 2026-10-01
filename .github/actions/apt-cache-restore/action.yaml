@@ -39,6 +39,16 @@ runs:
         sudo rm -f /etc/apt/apt.conf.d/docker-clean
         echo 'APT::Keep-Downloaded-Packages "true";' |
           sudo tee /etc/apt/apt.conf.d/99-keep-downloaded-debs > /dev/null
+        # Abandon a stalled connection fast and retry. The mirror's stalls
+        # show as 2-5 minute gaps between two consecutive small downloads --
+        # apt sitting out its default 120 s timeout, sometimes twice. This
+        # also covers what the cache cannot: setup-r's own apt packages, a
+        # cold cache, and a package whose version just changed.
+        printf '%s\n' \
+          'Acquire::http::Timeout "15";' \
+          'Acquire::https::Timeout "15";' \
+          'Acquire::Retries "5";' |
+          sudo tee /etc/apt/apt.conf.d/99-fast-retry > /dev/null
         # Let the cache action, which runs as the runner user, write here.
         sudo chmod a+rwx /var/cache/apt/archives
 
