@@ -35,8 +35,12 @@ polity whose cells the row belongs on, \code{lineage_polity_name}, and
 \code{method_polity_lineage}, one of \code{"anchor"} (the reporting polity is
 itself carried at that year), \code{"predecessor"} (a predecessor is),
 \code{"sibling_interval"} (a different interval of the polity the walk landed
-on is -- the support and \code{polities} disagree about the interval),
-\code{"constant_territory"}, or \code{"unresolved"}. An unresolved row keeps \code{NA}
+on is -- the support and \code{polities} disagree about the interval; an
+interval that succeeded the polity the walk reached is a different
+country and is never taken), \code{"aggregate"} (an aggregate reporting union
+whose \code{successor} list names a polity on the walk is, e.g.
+Belgium-Luxembourg for Belgium before 2000), \code{"constant_territory"}, or
+\code{"unresolved"}. An unresolved row keeps \code{NA}
 rather than being dropped, so the gap stays visible, and is warned about
 with condition class \code{whep_lineage_unresolved}.
 }

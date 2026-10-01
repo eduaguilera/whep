@@ -240,13 +240,6 @@
     "Attaches the polity's display name once, at the output stage, after the
      lineage has been decided on codes. A polity code already names its own
      period (`RUS-1991-2014`), so the name cannot vary within it.",
-    ".lineage_expand", "inner_join", "code, polity_code", 1L,
-    "identity_lookup",
-    "The `predecessor` edge is a property of the polity PERIOD, not of a
-     calendar year -- the same reason `.land_in_polygons` reads a polygon on
-     `polity_code` alone. The year is the walk's stop condition and is applied
-     in `.lineage_carried()`, against the support's own interval, on every
-     candidate this join produces.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -896,7 +889,12 @@
      `start_year`/`end_year` ARE the time dimension here; the year the caller
      asks about is compared against them on the very next line, which is what
      makes a candidate carried or not.",
-    ".lineage_expand", "distinct", "polity_code, predecessor", 1L,
+    ".lineage_aggregate_edges", "distinct", "polity_code, successor", 1L,
+    "identity_lookup",
+    "An aggregate's successor list, deduped to one row per (period, successor
+     list) before it is inverted into walk edges. An edge has no calendar year
+     of its own -- both of its endpoints carry their own periods.",
+    ".lineage_edges", "distinct", "polity_code, predecessor", 1L,
     "identity_lookup",
     "The succession edge list, deduped to one row per (period, predecessor). An
      edge has no calendar year of its own -- both of its endpoints carry their
