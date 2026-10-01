@@ -40,11 +40,33 @@ gate_seams <- function(
 # The T28 back-cast of the 1890 helper: three units, observed from 1900,
 # back-cast over 1890:1899.
 gate_backcast_1890 <- function(seam = NULL) {
+  if (is.null(seam)) {
+    return(gate_backcast_1890_shared())
+  }
+  gate_backcast_1890_build(seam)
+}
+
+gate_backcast_1890_build <- function(seam = NULL) {
   whep:::backcast_admin_shares(
     .seam1890_shares(),
     .seam1890_extent(),
     seam = seam
   )$shares
+}
+
+# The default back-cast is built ONCE per file and handed out to the ~35 tests
+# that read it (whep#1349): each build is ~0.15 s of dplyr overhead on 63 rows.
+# Sharing cannot leak a mutation between tests: the value is a plain tibble,
+# not a data.table, so a test that edits it edits its own copy. The last test
+# in this file rebuilds it and asserts the shared copy is still identical.
+gate_cache <- new.env(parent = emptyenv())
+gate_cache$trend <- list()
+
+gate_backcast_1890_shared <- function() {
+  if (is.null(gate_cache$backcast_1890)) {
+    gate_cache$backcast_1890 <- gate_backcast_1890_build()
+  }
+  gate_cache$backcast_1890
 }
 
 # A wide reduction fixture: `units` units over `years`, extents on a
@@ -141,9 +163,19 @@ gate_noisy_observed <- function(extent, t0 = 1900L, log_sd = 0.15, seed = 1L) {
     )
 }
 
-# The back-cast of that panel under one of the two proxies.
+# The back-cast of that panel under one of the two proxies. The hold-out
+# tests rebuild the same right/wrong pair, so each distinct pair of inputs is
+# back-cast once per file: keyed on the inputs' content hash, a call with any
+# different extent or observation still runs the back-cast afresh.
 gate_trend_backcast <- function(extent, observed) {
-  whep:::backcast_admin_shares(observed, extent)$shares
+  key <- rlang::hash(list(extent, observed))
+  if (is.null(gate_cache$trend[[key]])) {
+    gate_cache$trend[[key]] <- whep:::backcast_admin_shares(
+      observed,
+      extent
+    )$shares
+  }
+  gate_cache$trend[[key]]
 }
 
 # Push every odd unit's pre-seam share down by `factor` and renormalise,
@@ -1484,4 +1516,29 @@ test_that("no seam year is hardcoded anywhere in the gate", {
   # Nothing that could be a year at all: the gate's only literals are
   # tolerances, quantiles and small counts.
   expect_equal(unlist(regmatches(code, gregexpr(any_year, code))), character(0))
+})
+
+test_that("the shared 1890 back-cast is the one a fresh build gives", {
+  # Guard for the once-per-file fixture at the top: every test that read the
+  # shared copy has run by now, so a test that mutated it in place, or a
+  # cache that went stale, fails here rather than passing silently.
+  shared <- gate_backcast_1890()
+  expect_false(is.null(gate_cache$backcast_1890))
+  expect_identical(shared, gate_backcast_1890_build())
+  expect_s3_class(shared, "tbl_df")
+  expect_false(data.table::is.data.table(shared))
+
+  # The same for the two-history back-casts the hold-out tests share.
+  right <- gate_trend_extent(1)
+  wrong <- gate_trend_extent(-1)
+  observed <- gate_noisy_observed(right)
+  expect_identical(
+    gate_trend_backcast(right, observed),
+    whep:::backcast_admin_shares(observed, right)$shares
+  )
+  expect_identical(
+    gate_trend_backcast(wrong, observed),
+    whep:::backcast_admin_shares(observed, wrong)$shares
+  )
+  expect_gte(length(gate_cache$trend), 2L)
 })
