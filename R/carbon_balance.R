@@ -4019,13 +4019,14 @@ build_carbon_balance <- function(
   if (nrow(hit) == 0L) {
     return(invisible(NULL))
   }
-  land <- round(sum(hit$land_area_ha * hit$duplicate_frac) / 1e6, 2)
+  land <- signif(sum(hit$land_area_ha * hit$duplicate_frac) / 1e6, 4)
   n_hit <- nrow(hit)
   epochs <- rlang::has_name(hit, "start_year") &&
     dplyr::n_distinct(hit$start_year) > 1L
   cli::cli_inform(c(
-    i = "{cli::qty(n_hit)}{n_hit} polycell{?s} with no {.field area_code} lie
-         under other claims in cells holding more territory than their area.",
+    i = "{cli::qty(n_hit)}{n_hit} polycell{?s} with no {.field area_code}
+         {?lies/lie} under other claims in cells holding more territory than
+         their area.",
     i = "{land} Mha of their land{if (epochs) ', summed over epochs,' else ''}
          is counted twice and leaves the share denominator; the rest stays in
          it, attributed to nobody."

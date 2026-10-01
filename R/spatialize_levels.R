@@ -995,11 +995,11 @@ admin_coverage_prototype <- function() {
   pairs <- keyed |>
     dplyr::distinct(.data$polity_code, .data$area_code) |>
     dplyr::arrange(.data$polity_code)
-  cli::cli_inform(
-    "{cli::qty(n_rows)}{n_rows} polycell{?s} with no reporting code keyed by
-     {.file polity_cell_support_map.csv}:
-     {.val {paste(pairs$polity_code, pairs$area_code, sep = ' -> ')}}."
-  )
+  cli::cli_inform(c(
+    i = "{cli::qty(n_rows)}{n_rows} polycell{?s} with no reporting code keyed
+         by {.file polity_cell_support_map.csv}:
+         {.val {paste(pairs$polity_code, pairs$area_code, sep = ' -> ')}}."
+  ))
 }
 
 # The per-epoch denominator is looked up by interval-START year, which is exact
