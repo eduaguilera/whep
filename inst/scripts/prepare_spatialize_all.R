@@ -924,10 +924,25 @@ cft_to_pft <- c(
 # alone: a cache written under an older area model must be rebuilt loudly
 # rather than silently reused (whep#657). The logic lives in
 # `whep:::.prod_cache_*()` so it is covered by the test suite.
-.load_or_cache_production <- function(output_dir, year_range) {
-  prod_cache <- file.path(output_dir, ".prod_cache.parquet")
-  meta_path <- file.path(output_dir, ".prod_cache.meta.rds")
-  fingerprint <- whep:::.prod_cache_fingerprint()
+#
+# `unfold_predecessor` is `options(whep.unfold_predecessor_bucket)` for the
+# build, set here rather than inherited so a session-wide option cannot leak
+# into a cache that does not record it. Each mode has its own cache file, and
+# a non-default mode enters the fingerprint as well.
+.load_or_cache_production <- function(
+  output_dir,
+  year_range,
+  unfold_predecessor = "none"
+) {
+  suffix <- if (identical(unfold_predecessor, "none")) {
+    ""
+  } else {
+    paste0("_unfold_", unfold_predecessor)
+  }
+  prod_cache <- file.path(output_dir, paste0(".prod_cache", suffix, ".parquet"))
+  meta_path <- file.path(output_dir, paste0(".prod_cache", suffix, ".meta.rds"))
+  withr::local_options(whep.unfold_predecessor_bucket = unfold_predecessor)
+  fingerprint <- .prod_cache_mode_fingerprint(unfold_predecessor)
   if (file.exists(prod_cache)) {
     cached <- nanoparquet::read_parquet(prod_cache)
     meta <- if (file.exists(meta_path)) readRDS(meta_path) else NULL
@@ -954,6 +969,16 @@ cft_to_pft <- c(
   saveRDS(whep:::.prod_cache_meta(prod, fingerprint), meta_path)
   cli::cli_alert_info("Cached production data for reuse")
   prod
+}
+
+# The default mode keeps the fingerprint it always had, so no existing cache
+# is invalidated by this argument existing.
+.prod_cache_mode_fingerprint <- function(unfold_predecessor) {
+  digests <- whep:::.whep_data_digests()
+  if (!identical(unfold_predecessor, "none")) {
+    digests <- c(digests, unfold_predecessor_bucket = unfold_predecessor)
+  }
+  whep:::.prod_cache_fingerprint(digests)
 }
 
 
@@ -4055,51 +4080,239 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 }
 
 
-prepare_livestock_inputs <- function(
-  l_files_dir,
-  output_dir,
-  year_range,
-  target_res,
-  prod = NULL,
-  nex_source = NULL
+# FAOSTAT live-animal items that production reports in heads and that
+# `livestock_mapping.csv` leaves out on purpose, each with its reason. Any
+# other unmapped head item aborts `.livestock_country_stocks()`, because an
+# item the mapping does not know is dropped from the pin without a word: that
+# is how the 94 M breeding swine (1051) that whep#1153 restored to production
+# would have stayed off the grid (whep#1274).
+.livestock_unspatialized_items <- function() {
+  tibble::tribble(
+    ~item_code, ~reason,
+    # A beehive is a colony count, not a herd: there is no grazing fraction,
+    # no excretion rate and no FAOSTAT emission item for it, and no spatial
+    # proxy the livestock engine could place it on.
+    1181L, "Beehives"
+  )
+}
+
+# The livestock table is keyed on the REPORTING code, because the year-aware
+# country grid `run_spatialize()` allocates on is: it holds Sudan (former) 206
+# up to 2011 and Sudan 276 / South Sudan 277 from then on, and the lineage
+# re-key in `.level0_reconcile_vintage()` resolves a 206 row after 2011 to no
+# polity at all, so the herd would find no cell (whep#1274). Production
+# publishes the fold instead -- 276 + 277 summed into 206 in every year -- so
+# Section 8 reads it under `options(whep.unfold_predecessor_bucket = "all")`.
+#
+# That mode also carries the retired bucket forward: the livestock fill
+# completes every area over every year and holds 206's 2011 herd flat through
+# 2023 (`fill_linear`, 176.0 M head a year) beside the successors that now
+# report it. Those rows are dropped here, which is what keeps the table's
+# heads equal to the sum the default fold publishes.
+#
+# Whether the herd should be folded instead, to match the 206-keyed carbon
+# cell support, is issue whep#1312's open choice; this keeps the keying the
+# registered pin has always had.
+.livestock_reporting_areas <- function(
+  prod,
+  buckets = .livestock_predecessor_buckets()
 ) {
-  cli::cli_h2("Section 8: Livestock inputs")
-
-  outputs_dir <- file.path(l_files_dir, "whep", "outputs")
-  if (!dir.exists(outputs_dir)) {
-    dir.create(outputs_dir, recursive = TRUE)
+  .check_livestock_unfolded(prod, buckets)
+  keep <- !.livestock_after_bucket_end(prod, buckets)
+  n_dropped <- sum(!keep & prod$unit == "heads")
+  if (n_dropped > 0L) {
+    cli::cli_alert_info(
+      "Dropped {n_dropped} head row{?s} of a retired predecessor bucket
+       after its last reporting year."
+    )
   }
+  prod[keep, , drop = FALSE]
+}
 
-  mapping_path <- .find_extdata_file("livestock_mapping.csv")
-  livestock_mapping <- readr::read_csv(mapping_path, show_col_types = FALSE)
+# TRUE for a row of a predecessor bucket in a year after the bucket's own
+# area last reported.
+.livestock_after_bucket_end <- function(prod, buckets) {
+  ends <- dplyr::distinct(buckets, .data$bucket, .data$last_year)
+  last <- ends$last_year[match(as.integer(prod$area_code), ends$bucket)]
+  !is.na(last) & as.integer(prod$year) > last
+}
 
-  # --- Stocks from build_primary_production ---
-  if (is.null(prod)) {
-    prod <- .load_or_cache_production(output_dir, year_range)
+# A table built under the default fold has the bucket after its end year and
+# none of its successors. That table cannot be split back, so it is refused.
+.check_livestock_unfolded <- function(prod, buckets) {
+  after <- .livestock_after_bucket_end(prod, buckets)
+  folded <- unique(as.integer(prod$area_code[after]))
+  members <- buckets$member[buckets$bucket %in% folded]
+  if (length(folded) == 0L || any(prod$area_code %in% members)) {
+    return(invisible(NULL))
   }
+  cli::cli_abort(
+    c(
+      "The production table carries predecessor
+       {cli::qty(length(folded))}bucket{?s} {.val {folded}} after
+       {cli::qty(length(folded))}{?its/their} last reporting year and none
+       of the successor areas {.val {members}}.",
+      i = "It was built under the default fold. Build it with
+           {.code options(whep.unfold_predecessor_bucket = \"all\")}, which
+           is what {.fn .load_or_cache_production} does for Section 8."
+    ),
+    class = "whep_livestock_folded_production"
+  )
+}
 
-  stocks <- prod |>
-    filter(
-      .data$unit == "heads",
-      as.integer(.data$item_prod_code) %in% livestock_mapping$item_code
+# Each predecessor bucket (`whep:::.predecessor_bucket_codes()`), the last year
+# its own area reported, and the successor areas folded into it.
+.livestock_predecessor_buckets <- function(
+  crosswalk = whep::polity_area_crosswalk
+) {
+  cw <- tibble::as_tibble(crosswalk)
+  codes <- whep:::.predecessor_bucket_codes(cw)
+  last <- cw |>
+    dplyr::filter(.data$area_code %in% codes, !is.na(.data$map_year_end)) |>
+    dplyr::summarise(
+      last_year = as.integer(max(.data$map_year_end)),
+      .by = "area_code"
     ) |>
-    transmute(
+    dplyr::transmute(bucket = as.integer(.data$area_code), .data$last_year)
+  members <- cw |>
+    dplyr::filter(
+      .data$polity_area_code %in% codes,
+      !is.na(.data$area_code),
+      .data$area_code != .data$polity_area_code
+    ) |>
+    dplyr::distinct(
+      bucket = as.integer(.data$polity_area_code),
+      member = as.integer(.data$area_code)
+    )
+  dplyr::inner_join(last, members, by = "bucket")
+}
+
+# National head counts per species group, from the production table's
+# "heads" rows. Every head item is either mapped to a group or declared in
+# `.livestock_unspatialized_items()`; anything else aborts.
+.livestock_country_stocks <- function(prod, livestock_mapping) {
+  heads <- .livestock_production_heads(prod)
+  .check_livestock_items_mapped(heads, livestock_mapping)
+  heads |>
+    dplyr::inner_join(
+      dplyr::select(livestock_mapping, item_code, species_group),
+      by = "item_code"
+    ) |>
+    dplyr::summarise(
+      heads = sum(heads),
+      .by = c(year, area_code, species_group)
+    )
+}
+
+.livestock_production_heads <- function(prod) {
+  prod |>
+    dplyr::filter(.data$unit == "heads") |>
+    dplyr::transmute(
       area_code = as.integer(.data$area_code),
       item_code = as.integer(.data$item_prod_code),
       year = as.integer(.data$year),
       heads = .data$value
     ) |>
-    filter(!is.na(.data$area_code), .data$heads > 0) |>
-    inner_join(
-      select(livestock_mapping, item_code, species_group),
-      by = "item_code"
-    )
+    dplyr::filter(!is.na(.data$area_code), .data$heads > 0)
+}
 
-  stocks_grouped <- stocks |>
-    summarise(
-      heads = sum(heads, na.rm = TRUE),
-      .by = c(year, area_code, species_group)
+.check_livestock_items_mapped <- function(heads, livestock_mapping) {
+  known <- c(
+    livestock_mapping$item_code,
+    .livestock_unspatialized_items()$item_code
+  )
+  unmapped <- heads |>
+    dplyr::filter(!.data$item_code %in% known) |>
+    dplyr::summarise(heads = sum(.data$heads), .by = "item_code") |>
+    dplyr::arrange(.data$item_code)
+  if (nrow(unmapped) == 0L) {
+    return(invisible(NULL))
+  }
+  labels <- paste0(
+    unmapped$item_code,
+    " (",
+    format(unmapped$heads, big.mark = ",", scientific = FALSE, trim = TRUE),
+    " head-years)"
+  )
+  cli::cli_abort(
+    c(
+      "{cli::qty(nrow(unmapped))}Production reports head counts for
+       {nrow(unmapped)} live-animal item{?s} that
+       {.file livestock_mapping.csv} maps to no species group.",
+      x = "{.val {labels}}.",
+      i = "Map each one to a group, or declare it in
+           {.fn .livestock_unspatialized_items} with its reason. Leaving it
+           out drops the herd from the pin silently (whep#1274)."
+    ),
+    class = "whep_livestock_unmapped_item"
+  )
+}
+
+# The pin's heads per year and species group, against the production table it
+# was built from. `.livestock_country_stocks()` sums them by construction, so
+# what this guards is everything after it -- the excretion and emission joins,
+# which would duplicate a row on a repeated key or drop one on a filter. It is
+# recomputed from `prod` rather than from the grouped stocks so it does not
+# share their code path.
+.check_livestock_heads_conserved <- function(
+  livestock_out,
+  prod,
+  livestock_mapping,
+  tolerance = 1e-9
+) {
+  expected <- .livestock_production_heads(prod) |>
+    dplyr::inner_join(
+      dplyr::select(livestock_mapping, item_code, species_group),
+      by = "item_code"
+    ) |>
+    dplyr::summarise(
+      expected = sum(.data$heads),
+      .by = c("year", "species_group")
     )
+  actual <- livestock_out |>
+    dplyr::summarise(
+      actual = sum(.data$heads),
+      .by = c("year", "species_group")
+    )
+  off <- dplyr::full_join(expected, actual, by = c("year", "species_group")) |>
+    dplyr::mutate(
+      expected = dplyr::coalesce(.data$expected, 0),
+      actual = dplyr::coalesce(.data$actual, 0),
+      rel = abs(.data$actual - .data$expected) / pmax(.data$expected, 1)
+    ) |>
+    dplyr::filter(.data$rel > tolerance)
+  if (nrow(off) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- dplyr::slice_max(off, .data$rel, n = 1L, with_ties = FALSE)
+  cli::cli_abort(
+    c(
+      "{cli::qty(nrow(off))}The livestock country table does not carry the
+       production head count in {nrow(off)} year-group pair{?s}.",
+      x = "Worst: {.val {worst$species_group}} in {worst$year},
+           {format(worst$actual, big.mark = ',', scientific = FALSE)} head
+           against {format(worst$expected, big.mark = ',',
+           scientific = FALSE)} in production.",
+      i = "A join after the grouping dropped or duplicated rows."
+    ),
+    class = "whep_livestock_heads_not_conserved"
+  )
+}
+
+
+# The `livestock_country_data` table: national heads per species group with
+# their N excretion and FAOSTAT emissions. Writes `n_excretion` to
+# `outputs_dir` as a side output. Separate from `prepare_livestock_inputs()`
+# so the pin can be rebuilt from a production table without the LUH2 pasture
+# step that follows it there.
+.build_livestock_country_data <- function(
+  prod,
+  livestock_mapping,
+  outputs_dir,
+  nex_source = NULL
+) {
+  prod <- .livestock_reporting_areas(prod)
+  stocks_grouped <- .livestock_country_stocks(prod, livestock_mapping)
 
   # --- N excretion (separate WHEP output, materialised to outputs/) ---
   nex_tbl <- .resolve_n_excretion(
@@ -4142,6 +4355,47 @@ prepare_livestock_inputs <- function(
       manure_n2o_kt,
       manure_n_mg
     )
+  .check_livestock_heads_conserved(livestock_out, prod, livestock_mapping)
+  livestock_out
+}
+
+
+prepare_livestock_inputs <- function(
+  l_files_dir,
+  output_dir,
+  year_range,
+  target_res,
+  prod = NULL,
+  nex_source = NULL
+) {
+  cli::cli_h2("Section 8: Livestock inputs")
+
+  outputs_dir <- file.path(l_files_dir, "whep", "outputs")
+  if (!dir.exists(outputs_dir)) {
+    dir.create(outputs_dir, recursive = TRUE)
+  }
+
+  mapping_path <- .find_extdata_file("livestock_mapping.csv")
+  livestock_mapping <- readr::read_csv(mapping_path, show_col_types = FALSE)
+
+  # --- Stocks from build_primary_production ---
+  # In the reporting vocabulary, not the published fold: see
+  # `.livestock_reporting_areas()`. A `prod` passed in must be built the same
+  # way, and one that was not is refused there.
+  if (is.null(prod)) {
+    prod <- .load_or_cache_production(
+      output_dir,
+      year_range,
+      unfold_predecessor = "all"
+    )
+  }
+
+  livestock_out <- .build_livestock_country_data(
+    prod,
+    livestock_mapping,
+    outputs_dir,
+    nex_source
+  )
   .save_parquet(livestock_out, output_dir, "livestock_country_data")
 
   # --- Gridded pasture from LUH2 ---
@@ -7459,13 +7713,14 @@ prepare_spatialize_all <- function(
     grass_share_route = grass_share_route
   )
 
-  # Section 8: Livestock inputs
+  # Section 8: Livestock inputs. Not handed `prod`: it reads production in
+  # the reporting vocabulary the year-aware grid carries, a second cache
+  # (see `.livestock_reporting_areas()`).
   prepare_livestock_inputs(
     l_files_dir,
     output_dir,
     year_range,
-    target_res,
-    prod = prod
+    target_res
   )
 
   # Section 9: Hydrology + Soil — write NC directly, no intermediary parquets
