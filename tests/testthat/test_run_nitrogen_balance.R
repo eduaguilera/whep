@@ -80,3 +80,27 @@ testthat::test_that("a failed livestock_intake is a blocker, not a gap", {
     "som_mineralization"
   )
 })
+
+testthat::test_that("year_aware places every input on cell_polity (#1320)", {
+  cell_polity <- tibble::tibble(lon = 30.25, lat = 55.25, area_code = 228L)
+  support <- whep:::.nbd_placement_support(
+    "year_aware",
+    cell_polity,
+    fixed = function() cli::cli_abort("the fixed support must not be read")
+  )
+  testthat::expect_identical(support, cell_polity)
+})
+
+testthat::test_that("constant places every input on the fixed support", {
+  fixed <- tibble::tibble(lon = 30.25, lat = 55.25, area_code = 185L)
+  support <- whep:::.nbd_placement_support(
+    "constant",
+    tibble::tibble(lon = 30.25, lat = 55.25, area_code = 228L),
+    fixed = function() fixed
+  )
+  testthat::expect_identical(support, fixed)
+  testthat::expect_error(
+    whep:::.nbd_placement_support("fixed_year", fixed),
+    "must be one of"
+  )
+})
