@@ -25,6 +25,16 @@ test_that("items_full has correct default_destiny for non-food items", {
   expect_true(all(wool$default_destiny == "Other_uses", na.rm = TRUE))
 })
 
+test_that("hides and skins and silk default to Other_uses (whep#1207)", {
+  # Hides and skins are a leather commodity, not human food; they used to
+  # default to `Food`, booking unexplained supply as food. Wool and silk are
+  # the precedent.
+  items <- whep::items_full |>
+    dplyr::filter(item_cbs_code %in% c(2746, 2747, 2748))
+  expect_equal(nrow(items), 3)
+  expect_true(all(items$default_destiny == "Other_uses"))
+})
+
 test_that("every oilseed cake defaults to Feed (whep#1066)", {
   # Oilseed cake is the solid residue of oil extraction and is traded as
   # feed. Five of the nine used to default to `Food`.
