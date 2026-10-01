@@ -52,9 +52,16 @@ jobs:
         with:
           use-public-rspm: true
 
+      # lintr is PINNED. 3.3.0-1 and 3.4.0 stall on R/utils.R, the ~1,700-name
+      # globalVariables() list: object_name_linter and object_length_linter
+      # alone take >20 s each there, and lint("R/utils.R") >300 s, against
+      # 0.5 s on 3.2.0. Every PR appends to that file, so with `any::lintr` a
+      # PR's lint ran 25-30 min and hit the 30-min cap (#1346). Whole package
+      # on 3.2.0: 2 min 16 s, 0 lints. Unpin once the stall is fixed upstream
+      # and a newer lintr lints R/utils.R in seconds.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::lintr, local::.
+          extra-packages: lintr@3.2.0, local::.
           needs: lint
 
       - name: Collect the R files this PR touches
