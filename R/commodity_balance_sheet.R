@@ -358,11 +358,13 @@ get_livestock_cbs <- function(
 # `faostat-trade-totals`; surfaced by #1054).
 #
 # `.normalise_trade_units()` is what now makes the `unit == "heads"` filter
-# below cover the whole live-animal record. The pin
-# `20250714T123347Z-2c392` still carries `tonnes` and `Head` only, because
-# its producer applied the same filter, so this changes no published number
-# until that pin is rebuilt from `build_detailed_trade()`; it is the filter,
-# not the pin, that has to stop dropping them first.
+# below cover the whole live-animal record. The pin is now built by
+# `build_detailed_trade()`, which rescales those rows itself (whep#1122), so
+# here the call finds `heads` already and is the guard for a pin built some
+# other way. The 2025-07-14 pin it replaced carried `tonnes` and `Head` only:
+# through this function, 1,977,373,126 head imported over 1986-2021 against
+# 41,857,960,678 from the regenerated pin, and 62,946,485 against
+# 1,544,369,485 in 2010.
 .get_livestock_trade_totals <- function(
   livestock_items,
   method_head_units = "convert"
