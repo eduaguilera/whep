@@ -530,6 +530,23 @@ test_that(".sci_harvested_area keeps crop ha rows and drops grass/livestock", {
   )
 }
 
+test_that(".sci_crop_prod_wide aborts, classed, when no crop rows exist", {
+  no_crops <- .sci_primary_prod_fixture() |>
+    dplyr::filter(.data$item_prod_code %in% c(866, 3000))
+  testthat::expect_error(
+    whep:::.sci_crop_prod_wide(no_crops, years = 1931:1942),
+    class = "whep_sci_no_crop_production"
+  )
+  testthat::expect_error(
+    whep:::.sci_crop_prod_wide(no_crops[0, ]),
+    class = "whep_sci_no_crop_production"
+  )
+  # Rows with a unit but zero crop rows after filtering must not slip through.
+  testthat::expect_no_error(
+    whep:::.sci_crop_prod_wide(.sci_primary_prod_fixture())
+  )
+})
+
 test_that(".sci_npp_from_primary_prod runs the crop chain to soil carbon", {
   out <- suppressWarnings(
     whep:::.sci_npp_from_primary_prod(.sci_primary_prod_fixture())
