@@ -298,7 +298,7 @@ get_soc_climate_drivers <- function(
   # applies to the four monthly source series .socd_monthly_climate() holds
   # internally; reclaiming here releases those too.
   rm(pin)
-  invisible(gc(full = TRUE))
+  .socd_collect_garbage()
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
@@ -308,6 +308,14 @@ get_soc_climate_drivers <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The full collection after the pin is released. It changes no value, only how
+# much memory .assemble_soc_drivers() starts from; it is its own function so
+# that tests, which build drivers for a few cells many times over, can mock it
+# away (as .cb_collect_garbage() is in the carbon tests).
+.socd_collect_garbage <- function() {
+  invisible(gc(full = TRUE))
+}
 
 # Allowed members per method, with the default (first element) the most
 # rigorous. Members the caller omits take their default; bad values abort.
