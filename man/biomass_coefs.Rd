@@ -239,10 +239,12 @@ one of its two uses. The same ordering appears in the trembling-aspen
 budget of Morrison and Foster (1979, reproduced in Hacker 2005, "Effects of
 Logging Residue Removal on Forest Sites"), where stemwood holds 84 kg N in
 119 t of dry matter, 0.00071 kg N per kg, against 0.0042 for bark, 0.0049
-for branches and 0.024 for foliage. Splitting the row, not picking a side,
-is what whep#932 needs, so the value must not be moved before that is
-settled. \code{tests/testthat/test_biomass_coefs_wood_provenance.R} holds the
-comparison and fails if either side of it drifts.
+for branches and 0.024 for foliage. So this cell is left as published and
+\code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}} does not read it for wood by default: with
+\code{wood_n_method = "tissue"} it prices \code{Wood} at the stem median 0.0010 and
+\code{Firewood} at the branch median 0.0035 (whep#932); \code{"single"} reads this
+cell for both. \code{tests/testthat/test_biomass_coefs_wood_provenance.R} holds
+the comparison and fails if either side of it drifts.
 
 Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang, Z.,
 and Hickler, T. (2025). Nitrogen concentrations in boreal and temperate
