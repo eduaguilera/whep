@@ -965,8 +965,9 @@ cft_to_pft <- c(
 # area_code column in the polity restructure, which silently broke both
 # rasterisation sections against the current schema (#381); this is the
 # canonical replacement, shared so the country grid and the cell x polity
-# crosswalk stay consistent. Verified to reproduce the existing 58,795-cell
-# country_grid pin cell-for-cell with identical codes.
+# crosswalk stay consistent. Verified to reproduce the 58,795-cell
+# country_grid pin cell-for-cell with identical codes before the Natural Earth
+# aliases of `.natural_earth_iso3c_aliases()` were added (whep#1297).
 .spatialize_area_lookup <- function() {
   path <- system.file("extdata", "regions.csv", package = "whep")
   regions <- utils::read.csv(path, stringsAsFactors = FALSE)
@@ -975,6 +976,65 @@ cft_to_pft <- c(
     c("iso3c", "area_code")
   ]
   lookup[!duplicated(lookup$iso3c), ]
+}
+
+# The iso3c a Natural Earth admin-0 feature is looked up under: ISO_A3, then
+# ISO_A3_EH, then ADM0_A3, then the polity-registry aliases below. Shared by
+# the country grid and the cell x polity crosswalk so the two cannot resolve a
+# feature differently -- the crosswalk is restricted to the country grid's
+# cells, so a feature only one of them resolved would still vanish.
+.natural_earth_iso3c <- function(countries) {
+  iso_raw <- as.character(countries$ISO_A3)
+  iso_eh <- as.character(countries$ISO_A3_EH)
+  iso_adm <- as.character(countries$ADM0_A3)
+  iso3c <- dplyr::if_else(
+    iso_raw != "-99",
+    iso_raw,
+    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
+  )
+  aliases <- .natural_earth_iso3c_aliases()
+  aliased <- aliases$iso3c[match(iso3c, aliases$ne_iso3c)]
+  dplyr::coalesce(aliased, iso3c)
+}
+
+# NATURAL EARTH CODES THAT ARE NOT ISO3, MAPPED TO THE POLITY THAT HOLDS THEM.
+#
+# Natural Earth gives de facto entities and disputed patches their own ADM0_A3
+# with no ISO3 code, and regions.csv cannot match a code that is not ISO3, so
+# the feature contributed no cell to either grid and its land vanished from
+# every gridded build. Somaliland (`SOL`) is the large one: 55 cells and
+# 10.5 Mha of IMAGE 2010 agricultural land in northern Somalia (whep#1297).
+#
+# The targets are not chosen here; they are read off the polity registry. Each
+# feature was intersected with the present-day (2020) national polities of
+# `whep::polities`, and is aliased only when one polity holds at least half of
+# the feature's area and at least 90% of the part any polity covers, and that
+# polity has a regions.csv code. `overlap` is that polity's share of the
+# feature's area; the rest lies outside every polity (a coastline-resolution
+# difference -- a third of Aland), except 4.3% of the Patagonian ice field,
+# which the registry puts in Chile. This keeps the fractional crosswalk on the
+# same territory the year-aware polycell support assigns from those geometries.
+#
+# Deliberately NOT aliased, because the registry does not settle them:
+#   * Western Sahara (`ESH`): 98% inside `ESH-1975-2025` and 99.5% inside
+#     `MAR-1979-2025` at once, and `ESH` has no regions.csv row;
+#   * Kosovo (`KOS`): its own polity, `KOS-2008-2025`, with no area_code
+#     (whep#933); `SRB-2008-2025` covers 1.4% of it;
+#   * Vatican, Monaco, Andorra, Liechtenstein, San Marino: their own polities;
+#   * Akrotiri (`WSB`, 30% inside Cyprus) and Guantanamo Bay (`USG`, 16%
+#     inside Cuba): below the coverage threshold.
+.natural_earth_iso3c_aliases <- function() {
+  tibble::tribble(
+    ~ne_iso3c, ~iso3c, ~polity_code,    ~overlap, ~ne_admin,
+    "SOL",     "SOM",  "SOM-1960-2025", 0.991,    "Somaliland",
+    "CYN",     "CYP",  "CYP-1879-2025", 0.940,    "Northern Cyprus",
+    "CNM",     "CYP",  "CYP-1879-2025", 0.996,    "Cyprus No Mans Area",
+    "ESB",     "CYP",  "CYP-1879-2025", 0.992,    "Dhekelia Sovereign Base",
+    "ALA",     "FIN",  "FIN-1940-2025", 0.677,    "Aland",
+    "KAS",     "PAK",  "PAK-1971-2025", 0.994,    "Siachen Glacier",
+    "BRT",     "SDN",  "SDN-2011-2025", 1.000,    "Bir Tawil",
+    "SPI",     "ARG",  "ARG-1800-2025", 0.959,    "S. Patagonian Ice Field"
+  )
 }
 
 # Resolve a reference dataset's own country labels to the grid's `area_code`.
@@ -1136,14 +1196,7 @@ prepare_country_grid <- function(l_files_dir, target_res) {
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  iso_raw <- as.character(countries$ISO_A3)
-  iso_eh <- as.character(countries$ISO_A3_EH)
-  iso_adm <- as.character(countries$ADM0_A3)
-  iso3c <- dplyr::if_else(
-    iso_raw != "-99",
-    iso_raw,
-    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
-  )
+  iso3c <- .natural_earth_iso3c(countries)
 
   countries$area_code <- dplyr::left_join(
     tibble::tibble(iso3c = iso3c),
@@ -1198,14 +1251,7 @@ build_cell_polity_fraction <- function(
     "ne_10m_admin_0_countries.shp"
   )
   countries <- terra::vect(shp_path)
-  iso_raw <- as.character(countries$ISO_A3)
-  iso_eh <- as.character(countries$ISO_A3_EH)
-  iso_adm <- as.character(countries$ADM0_A3)
-  iso3c <- dplyr::if_else(
-    iso_raw != "-99",
-    iso_raw,
-    dplyr::if_else(iso_eh != "-99", iso_eh, iso_adm)
-  )
+  iso3c <- .natural_earth_iso3c(countries)
   # Same iso3c -> area_code lookup as the country grid (regions.csv), so the
   # crosswalk covers exactly the same countries as the simulated grid.
   matched <- dplyr::left_join(
