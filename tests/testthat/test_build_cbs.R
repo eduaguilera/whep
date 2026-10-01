@@ -4459,6 +4459,16 @@ test_that(".select_best_source aborts on a frame with no unit column", {
   )
 }
 
+# The same run, warning muffled, built once per method and shared by the tests
+# that read its values (#1349). Tests that assert the warning or the abort
+# still call `.run_negative_supply()` themselves.
+.negative_supply_quiet <- function(method) {
+  memo_fixture(
+    paste0("cbs_negative_supply_", method),
+    \() suppressWarnings(.run_negative_supply(method))
+  )
+}
+
 .destiny_elements <- function() {
   c("food", "feed", "other_uses", "processing", "processing_primary", "seed")
 }
@@ -4550,7 +4560,7 @@ test_that("report passes the negative destinies through", {
   # sensitivity run against the old numbers. Asserted on the SIGN, because
   # the balance identity cannot see this: the same negative sits on both
   # sides of it.
-  out <- suppressWarnings(.run_negative_supply("report"))
+  out <- .negative_supply_quiet("report")
 
   supply <- out |>
     dplyr::filter(year == 1950L, element == "domestic_supply") |>
@@ -4567,7 +4577,7 @@ test_that("the balance identity holds while a destiny is negative", {
   # Why a balance check cannot be the test for whep#1065: reconcile the row
   # and it reconciles, because `sum(destinies) == domestic_supply` is true of
   # a negative supply too. The sign is the only thing that shows the defect.
-  out <- suppressWarnings(.run_negative_supply("report"))
+  out <- .negative_supply_quiet("report")
 
   row <- out |>
     dplyr::filter(year == 1950L) |>
@@ -4583,7 +4593,7 @@ test_that("the balance identity holds while a destiny is negative", {
 test_that("flooring leaves no negative destiny", {
   # The invariant, not a hand-picked expectation: no use of any item in any
   # year may be negative.
-  out <- suppressWarnings(.run_negative_supply("floor"))
+  out <- .negative_supply_quiet("floor")
   destinies <- dplyr::filter(out, element %in% .destiny_elements())
 
   expect_gt(nrow(destinies), 0L)
@@ -4597,7 +4607,7 @@ test_that("flooring leaves no negative destiny", {
 })
 
 test_that("flooring leaves an observed supply and its destinies alone", {
-  out <- suppressWarnings(.run_negative_supply("floor"))
+  out <- .negative_supply_quiet("floor")
 
   expect_equal(
     out |>
@@ -4625,7 +4635,7 @@ test_that("flooring keeps the exported mass as a stock withdrawal", {
   # `production + import - export - domestic_supply` residual that
   # `.reestimate_domestic_supply()` computes and `.pivot_cbs_wide()` splits
   # into `stock_withdrawal`. Nothing is silently discarded.
-  out <- suppressWarnings(.run_negative_supply("floor"))
+  out <- .negative_supply_quiet("floor")
   row <- out |>
     dplyr::filter(year == 1950L) |>
     tidyr::pivot_wider(names_from = element, values_from = value)
@@ -4757,7 +4767,7 @@ test_that("the report states which negative_supply produced it", {
 test_that("a key with a negative reconstruction is stamped on its rows", {
   # The published row must carry its own provenance, not only the build log:
   # the 1950 key reconstructs -300, the observed 1951 key does not.
-  out <- suppressWarnings(.run_negative_supply("report"))
+  out <- .negative_supply_quiet("report")
 
   expect_true(all(out$supply_negative[out$year == 1950L]))
   expect_false(any(out$supply_negative[out$year == 1951L]))
@@ -4793,7 +4803,7 @@ test_that("the negative-supply labels rank as historical rows", {
 test_that("flooring leaves nothing for the output guard to report", {
   # The invariant, end to end on the reconstruction fixture: under `"floor"`
   # no non-stock element of any row is negative.
-  out <- suppressWarnings(.run_negative_supply("floor"))
+  out <- .negative_supply_quiet("floor")
 
   expect_equal(nrow(whep:::.negative_cbs_values(out)), 0L)
   expect_gt(
@@ -4997,6 +5007,14 @@ test_that(".read_historical_trade screens against the reference given", {
   )
 }
 
+# Shared like `.negative_supply_quiet()`: only for tests reading values.
+.export_overflow_quiet <- function(method) {
+  memo_fixture(
+    paste0("cbs_export_overflow_", method),
+    \() suppressWarnings(.run_export_overflow(method))
+  )
+}
+
 .npb_value <- function(out, el, yr) {
   out |>
     dplyr::filter(.data$element == el, .data$year == yr) |>
@@ -5042,14 +5060,14 @@ test_that("an export share above one is reported by the pipeline default", {
 })
 
 test_that("export_share_overflow = 'report' leaves every value where it was", {
-  out <- suppressWarnings(.run_export_overflow("report"))
+  out <- .export_overflow_quiet("report")
 
   expect_equal(.npb_value(out, "export", 1956L), 443000)
   expect_equal(.npb_value(out, "domestic_supply", 1956L), -442000)
 })
 
 test_that("export_share_overflow = 'drop' books no export on the key", {
-  out <- suppressWarnings(.run_export_overflow("drop"))
+  out <- .export_overflow_quiet("drop")
 
   expect_equal(.npb_value(out, "export", 1956L), 0)
   expect_equal(.npb_value(out, "domestic_supply", 1956L), 1000)
@@ -5057,7 +5075,7 @@ test_that("export_share_overflow = 'drop' books no export on the key", {
 })
 
 test_that("export_share_overflow = 'drop' leaves a compliant key alone", {
-  out <- suppressWarnings(.run_export_overflow("drop"))
+  out <- .export_overflow_quiet("drop")
 
   expect_equal(.npb_value(out, "export", 1965L), 5000 * 20000 / 110000)
   expect_equal(
@@ -5138,17 +5156,21 @@ test_that("build_commodity_balances validates export_share_overflow", {
   )
 }
 
+.no_destiny_shared <- function() {
+  memo_fixture("cbs_no_destiny", .run_no_destiny)
+}
+
 test_that("the new processed balance emits no row without an element", {
   # The invariant, not the five item names: every row this function returns is
   # a balance row, so it names an element and carries a finite value.
-  out <- .run_no_destiny()
+  out <- .no_destiny_shared()
 
   expect_false(any(is.na(out$element)))
   expect_true(all(is.finite(out$value)))
 })
 
 test_that("a product with no world destiny split keeps its supply side", {
-  out <- .run_no_destiny() |>
+  out <- .no_destiny_shared() |>
     dplyr::filter(.data$item_cbs == "DDGS")
 
   expect_setequal(
@@ -5160,7 +5182,7 @@ test_that("a product with no world destiny split keeps its supply side", {
 })
 
 test_that("a product with a world destiny split still gets its destinies", {
-  out <- .run_no_destiny() |>
+  out <- .no_destiny_shared() |>
     dplyr::filter(.data$item_cbs == "Wine")
 
   # The world sheet books the whole of Wine on `food`, so the single destiny
@@ -5565,4 +5587,8 @@ test_that("the seed back-cast names its method and its blocked rows", {
 
   expect_message(no_area_1951(), "booked as zero")
   expect_equal(.seed_at(suppressMessages(no_area_1951()), 1951L), 0)
+})
+
+test_that("the shared CBS runs were never mutated", {
+  expect_memo_fixtures_untouched("cbs_")
 })
