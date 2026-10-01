@@ -202,6 +202,14 @@
   value_col,
   quantity
 ) {
+  if (.guard_is_year_aware(national, country_grid)) {
+    return(.warn_grid_missing_pairs(
+      national,
+      country_grid,
+      value_col,
+      quantity
+    ))
+  }
   codes <- sort(setdiff(
     unique(as.integer(national$area_code)),
     unique(as.integer(country_grid$area_code))
@@ -228,6 +236,62 @@
     "i" = "Their whole national total is dropped. A jump here between two
        {.arg country_grid} tables means the grids disagree about which
        reporting codes exist, not that the allocation improved."
+  ))
+}
+
+# A grid with validity intervals and a national table with a year can only be
+# compared per year: a code present in ANY epoch is not present in every year.
+.guard_is_year_aware <- function(national, country_grid) {
+  rlang::has_name(national, "year") &&
+    all(rlang::has_name(country_grid, c("start_year", "end_year")))
+}
+
+# Per-(area_code, year) version of the guard, for a grid with validity
+# intervals. Uses the same `start <= year < end` convention as
+# `.level0_unmatched_pairs()`.
+.warn_grid_missing_pairs <- function(
+  national,
+  country_grid,
+  value_col,
+  quantity
+) {
+  pairs <- .level0_unmatched_pairs(national, country_grid)
+  if (nrow(pairs) == 0L) {
+    return(invisible(NULL))
+  }
+  lost <- national |>
+    dplyr::mutate(
+      area_code = as.integer(.data$area_code),
+      year = as.integer(.data$year)
+    ) |>
+    dplyr::semi_join(pairs, by = c("area_code", "year"))
+  stake <- if (rlang::has_name(lost, value_col)) {
+    lost |>
+      dplyr::summarise(
+        stake = sum(.data[[value_col]], na.rm = TRUE),
+        .by = c("area_code", "year")
+      )
+  } else {
+    dplyr::mutate(pairs, stake = NA_real_)
+  }
+  stake <- dplyr::arrange(stake, .data$year, .data$area_code)
+  n_pairs <- nrow(stake)
+  detail <- paste0(
+    stake$area_code,
+    " in ",
+    stake$year,
+    ifelse(is.na(stake$stake), "", paste0(" (", round(stake$stake), ")"))
+  )
+  cli::cli_warn(c(
+    paste0(
+      "{n_pairs} (area_code, year) pair{?s} in the national table have no ",
+      "cell in {.arg country_grid} in that year (",
+      quantity,
+      "):"
+    ),
+    "x" = "{.val {detail}}.",
+    "i" = "Their national total for that year is dropped. The code exists
+       in another epoch of the grid, so a code-only comparison cannot see it."
   ))
 }
 
