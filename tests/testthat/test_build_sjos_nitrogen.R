@@ -130,8 +130,26 @@
   )
 }
 
+# The two default builds most tests only read from, built once per run through
+# helper_n_balance.R's memo (#1349). Tests that mock a reader, change an option
+# or assert a condition raised by the build still call the driver themselves;
+# the last test checks no test mutated the shared copies.
+.sjos_example <- function() {
+  memo_n_fixture(
+    "sjos_example",
+    \() whep::build_sjos_nitrogen(example = TRUE)
+  )
+}
+
+.sjos_injected <- function() {
+  memo_n_fixture(
+    "sjos_injected",
+    \() whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  )
+}
+
 testthat::test_that("build_sjos_nitrogen(example = TRUE) returns every table", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   testthat::expect_named(
     out,
     c(
@@ -152,7 +170,7 @@ testthat::test_that("build_sjos_nitrogen(example = TRUE) returns every table", {
 })
 
 testthat::test_that("the footprint carries the consumer's nourishment class", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   expected <- out$nourishment |>
     dplyr::select("year", target_area = "area_code", expected = "nourish")
   for (tbl in c("fp_all", "fp_food")) {
@@ -174,7 +192,7 @@ testthat::test_that("the footprint carries the consumer's nourishment class", {
 })
 
 testthat::test_that("the consumer join leaves the producer columns unchanged", {
-  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  out <- .sjos_injected()
   data <- .sjos_nitrogen_test_data()
   producer_only <- whep::build_sjos_n_footprint(
     exceedance = out$boundary_surplus$country,
@@ -195,7 +213,7 @@ testthat::test_that("the consumer join leaves the producer columns unchanged", {
 })
 
 testthat::test_that("every SJOS-N output table is non-empty", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   tables <- .sjos_nitrogen_tables(out)
   for (nm in names(tables)) {
     testthat::expect_s3_class(tables[[nm]], "tbl_df")
@@ -204,7 +222,7 @@ testthat::test_that("every SJOS-N output table is non-empty", {
 })
 
 testthat::test_that("per-crop item_cbs_code survives through the chain", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   pointblank::expect_col_exists(out$surplus, "item_cbs_code")
   pointblank::expect_col_exists(out$boundary_surplus$grid, "item_cbs_code")
   pointblank::expect_col_exists(out$sjos_class, "item_cbs_code")
@@ -213,14 +231,14 @@ testthat::test_that("per-crop item_cbs_code survives through the chain", {
 })
 
 testthat::test_that("the scatter carries both normalized axes", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   pointblank::expect_col_exists(out$scatter, c("nourish_norm", "boundary_norm"))
   testthat::expect_true(all(is.finite(out$scatter$nourish_norm)))
   testthat::expect_true(all(is.finite(out$scatter$boundary_norm)))
 })
 
 testthat::test_that("the footprint conserves the country exceedance total", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   country_total <- sum(out$boundary_surplus$country$exceedance_n_t)
   footprint_total <- sum(out$footprint$fp_all$impact_u)
   testthat::expect_gt(country_total, 0)
@@ -228,7 +246,7 @@ testthat::test_that("the footprint conserves the country exceedance total", {
 })
 
 testthat::test_that("sjos_class values are valid sjos_levels", {
-  out <- whep::build_sjos_nitrogen(example = TRUE)
+  out <- .sjos_example()
   testthat::expect_s3_class(out$sjos_class$sjos_class, "factor")
   testthat::expect_true(all(!is.na(out$sjos_class$sjos_class)))
   testthat::expect_true(all(
@@ -242,7 +260,7 @@ testthat::test_that("sjos_class values are valid sjos_levels", {
 })
 
 testthat::test_that("an injected coherent data fixture composes cleanly", {
-  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  out <- .sjos_injected()
   tables <- .sjos_nitrogen_tables(out)
   for (nm in names(tables)) {
     testthat::expect_gt(nrow(tables[[nm]]), 0)
@@ -309,7 +327,7 @@ testthat::test_that("the INJECTED path needs no network either", {
 })
 
 testthat::test_that("the flat band stays selectable for sensitivity", {
-  composed <- whep::build_sjos_nitrogen(example = TRUE)
+  composed <- .sjos_example()
   flat <- whep::build_sjos_nitrogen(
     example = TRUE,
     nourishment_thresholds = "flat"
@@ -333,7 +351,7 @@ testthat::test_that("the quality tier is selectable from the driver", {
   # Tier 1a is the default; 1b and none stay reachable end to end, not only on
   # build_protein_quality(). Selecting one has to move the classification, or
   # the argument is decorative.
-  tier_1a <- whep::build_sjos_nitrogen(example = TRUE)
+  tier_1a <- .sjos_example()
   tier_1b <- whep::build_sjos_nitrogen(
     example = TRUE,
     nourishment_band = list(quality_method = "digestibility_share")
@@ -361,7 +379,7 @@ testthat::test_that("the quality tier is selectable from the driver", {
 testthat::test_that("the ceiling knob the band asks callers to sweep works", {
   # The band's own docs call `share` WHEP's own criterion and ask for a
   # sensitivity across it. That is only possible if the driver forwards it.
-  base <- whep::build_sjos_nitrogen(example = TRUE)
+  base <- .sjos_example()
   strict <- whep::build_sjos_nitrogen(
     example = TRUE,
     nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
@@ -641,7 +659,7 @@ testthat::test_that("country_table adds the country-year table and nothing else"
   quiet <- \(...) {
     suppressMessages(suppressWarnings(whep::build_sjos_nitrogen(...)))
   }
-  base <- quiet(example = TRUE)
+  base <- .sjos_example()
   out <- quiet(example = TRUE, country_table = TRUE)
 
   # Off by default: the same elements as before the option existed.
@@ -695,4 +713,10 @@ testthat::test_that("country_table adds the country-year table and nothing else"
     low$country_table$country$beyond_share_cut,
     c(0.2, 0.2)
   )
+})
+
+testthat::test_that("the shared SJOS-N fixtures were never mutated", {
+  .sjos_example()
+  .sjos_injected()
+  expect_n_fixtures_unchanged("sjos_")
 })

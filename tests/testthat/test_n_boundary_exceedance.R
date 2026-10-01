@@ -471,12 +471,26 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
 # fixture numbers, in t N unless stated.
 
 .gs_split <- function(resolution = "cell", metric = "surplus", ...) {
-  suppressMessages(.gs_run(
-    resolution,
-    metric = metric,
-    grassland = .gs_grassland(metric = metric),
-    ...
-  ))
+  build <- \() {
+    suppressMessages(.gs_run(
+      resolution,
+      metric = metric,
+      grassland = .gs_grassland(metric = metric),
+      ...
+    ))
+  }
+  .gs_shared(build, "split", resolution, metric, ...)
+}
+
+# A default build (no extra arguments) is made once per run through
+# helper_n_balance.R's memo and shared by the tests that only read it (#1349);
+# a call with any extra argument builds afresh. The last test checks no test
+# mutated a shared copy.
+.gs_shared <- function(build, mode, resolution, metric, ...) {
+  if (...length() > 0L) {
+    return(build())
+  }
+  memo_n_fixture(paste("nbx", mode, resolution, metric, sep = "_"), build)
 }
 
 .gs_cell <- function(out, cell) {
@@ -530,7 +544,8 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
 }
 
 .gs_none <- function(resolution, ...) {
-  .gs_run(resolution, grassland_split = "none", ...)
+  build <- \() .gs_run(resolution, grassland_split = "none", ...)
+  .gs_shared(build, "none", resolution, "surplus", ...)
 }
 
 testthat::test_that("grassland_split = 'none' reproduces the unsplit output", {
@@ -1021,8 +1036,12 @@ testthat::test_that("an all-missing extensive budget is an absent input", {
   b <- .gs_cell(cells, "B")
   testthat::expect_equal(b[[paste0(component, "_actual_n_t")]], 0)
   testthat::expect_gt(b[[paste0(component, "_critical_n_t")]], 0)
-  purrr::walk(c("grid", "country", "image_region"), \(resolution) {
-    out <- run(resolution)
+  # Each resolution is built once; the grid result is read again below.
+  outs <- purrr::map(
+    rlang::set_names(c("grid", "country", "image_region")),
+    run
+  )
+  purrr::iwalk(outs, \(out, resolution) {
     testthat::expect_equal(
       sum(out$actual_n_t),
       sum(cells$cell_actual_n_t),
@@ -1045,7 +1064,7 @@ testthat::test_that("an all-missing extensive budget is an absent input", {
       label = paste(resolution, "overshoot")
     )
   })
-  grid <- run("grid")
+  grid <- outs$grid
   residual <- dplyr::filter(
     grid,
     .data$cell_id == .gs_cell_id("B"),
@@ -1445,4 +1464,10 @@ testthat::test_that("rainfed and irrigated rows are summed before the exceedance
   testthat::expect_equal(out$area_ha, c(100, NA))
   unsplit <- dplyr::select(x[1, ], -"water_regime")
   testthat::expect_identical(whep:::.nbx_collapse_regimes(unsplit), unsplit)
+})
+
+testthat::test_that("the shared split fixtures were never mutated", {
+  .gs_split("cell")
+  .gs_none("cell")
+  expect_n_fixtures_unchanged("nbx_")
 })
