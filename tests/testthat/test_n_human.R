@@ -20,13 +20,16 @@ testthat::test_that("build_human_n converts population to a nitrogen load", {
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
     -0.25, -0.25, 203L, 2000L, 1000
   )
-  out <- whep::build_human_n(
-    population_basis = "urban",
-    data = list(
-      urban_population = urban_population,
-      cell_polity = .example_cell_polity_human(),
-      cropland_ha = cropland_ha
-    )
+  testthat::expect_warning(
+    out <- whep::build_human_n(
+      population_basis = "urban",
+      data = list(
+        urban_population = urban_population,
+        cell_polity = .example_cell_polity_human(),
+        cropland_ha = cropland_ha
+      )
+    ),
+    class = "whep_human_n_undelivered"
   )
 
   pointblank::expect_col_exists(
@@ -37,13 +40,18 @@ testthat::test_that("build_human_n converts population to a nitrogen load", {
   # population generates urban_pop * human_kgn_cap / 1000 t N. This is a
   # single-cell scenario with no same-polity neighbour, so
   # allocate_manure_transport() cannot move anything: the generated load
-  # lands entirely on its own cell as residual, regardless of that cell's
-  # own room (a cell's own room only bounds what its NEIGHBOURS can send it,
-  # not its own locally generated load; see test below for the transport
-  # case). 0.9410902 is the real HYDE-derived 2000 rate, weighted by
-  # polity_frac (see data-raw/build_human_kgn_cap.R).
+  # lands entirely on its own cell as residual. Only 170 t of it fits the
+  # cell's room; the polity has no other cropland, so the rest stays there,
+  # flagged as stranded and warned about (#1336). 0.9410902 is the real
+  # HYDE-derived 2000 rate, weighted by polity_frac (see
+  # data-raw/build_human_kgn_cap.R).
   expected_n_t <- 30898536 * 0.9410902351391244 / 1000
   testthat::expect_equal(out$human_n_t, expected_n_t, tolerance = 1e-6)
+  testthat::expect_equal(
+    out$human_n_stranded_t,
+    expected_n_t - 170,
+    tolerance = 1e-6
+  )
   testthat::expect_equal(out$method_human, "calibration_rate|room_weighted")
 })
 
@@ -200,8 +208,11 @@ testthat::test_that("build_human_n interpolates the per-capita rate between benc
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
     -0.25, -0.25, 203L, 2004L, 1000
   )
+  # One cell over its room with nowhere to send the excess; this pins the
+  # rate, so the room cap (pinned in the #1336 block) is switched off.
   out <- whep::build_human_n(
     population_basis = "urban",
+    method_local_residual = "uncapped",
     data = list(
       urban_population = urban_population,
       cell_polity = .example_cell_polity_human(),
@@ -224,8 +235,11 @@ testthat::test_that("build_human_n holds the rate constant outside the benchmark
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
     -0.25, -0.25, 203L, 1800L, 1000
   )
+  # One cell over its room with nowhere to send the excess; this pins the
+  # rate, so the room cap (pinned in the #1336 block) is switched off.
   out <- whep::build_human_n(
     population_basis = "urban",
+    method_local_residual = "uncapped",
     data = list(
       urban_population = urban_population,
       cell_polity = .example_cell_polity_human(),
@@ -340,8 +354,11 @@ testthat::test_that("build_human_n example fixture is schema-complete", {
   urban_population = .human_c0_population(),
   cell_polity = .human_c0_cell_polity()
 ) {
+  # Every C0 cell is over its 170 t room with no same-polity neighbour; these
+  # tests pin generation and conservation, so the room cap is switched off.
   whep::build_human_n(
     population_basis = "urban",
+    method_local_residual = "uncapped",
     data = list(
       urban_population = urban_population,
       cell_polity = cell_polity,
@@ -650,6 +667,7 @@ testthat::test_that("build_human_n accepts integer and double area_code alike", 
   build <- function(code) {
     whep::build_human_n(
       population_basis = "urban",
+      method_local_residual = "uncapped",
       data = list(
         urban_population = urban_population,
         cell_polity = tibble::tibble(
@@ -1577,6 +1595,213 @@ testthat::test_that("build_n_inputs forwards human_n_method_residual", {
   testthat::expect_equal(
     sum(nearest$n_input_t),
     .human_undelivered_load(1500),
+    tolerance = 1e-9
+  )
+})
+
+# ---- residual beyond a cropland cell's own room (#1336) -------------------
+#
+# A source cell that HAS cropland used to keep its whole residual, with no room
+# check, so a city cell with a sliver of cropland carried the city's load on
+# that sliver. On the 2010 global grid (total basis) 1,327 such cells held
+# 24,346 t N above their 170 kg N/ha room. Under the default
+# `method_local_residual = "room_cap"` a cell keeps only what fits in the room
+# the transport step left it; the rest is undelivered N for `method_residual`.
+#
+# Polity 203: source S (lon 0.25) has 1 ha of cropland (0.17 t of room) and no
+# ring-1 neighbour with cropland, so its whole load is residual on itself;
+# cropland with room sits at ring 2 (lon 1.25, 1000 ha; lon -0.75, 3000 ha).
+.human_sliver_data <- function(load_t = 100, sliver_ha = 1) {
+  data <- .human_undelivered_data()
+  data$urban_population <- tibble::tibble(
+    lon = 0.25,
+    lat = -0.25,
+    year = 2000L,
+    urban_pop = load_t * 1000 / .human_c0_rate_2000()
+  )
+  data$cropland_ha$cropland_ha[data$cropland_ha$lon == 0.25] <- sliver_ha
+  data
+}
+
+.human_ceiling_t <- function(cropland) {
+  cropland |>
+    dplyr::transmute(
+      .data$lon,
+      .data$lat,
+      ceiling_t = 0.170 * .data$cropland_ha
+    )
+}
+
+testthat::test_that("a sliver of cropland keeps only its own room", {
+  testthat::expect_message(
+    out <- whep::build_human_n(
+      population_basis = "urban",
+      data = .human_sliver_data()
+    ),
+    class = "whep_human_n_undelivered"
+  )
+  testthat::expect_equal(.human_n_at(out, 0.25), 0.17, tolerance = 1e-9)
+  testthat::expect_equal(
+    .human_n_at(out, 1.25, "human_n_relocated_t"),
+    0.25 * 99.83,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    .human_n_at(out, -0.75),
+    0.75 * 99.83,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(sum(out$human_n_t), 100, tolerance = 1e-9)
+  pointblank::expect_col_vals_in_set(
+    out,
+    "method_human_local_residual",
+    "room_cap"
+  )
+  summary <- attr(out, "human_n_undelivered")
+  testthat::expect_equal(summary$n_cells, 1L)
+  testthat::expect_equal(summary$undelivered_t, 99.83, tolerance = 1e-9)
+  testthat::expect_equal(summary$over_room_t, 99.83, tolerance = 1e-9)
+  testthat::expect_equal(summary$relocated_t, 99.83, tolerance = 1e-9)
+})
+
+testthat::test_that("no cropland cell ends above its room while the polity has room", {
+  data <- .human_sliver_data(load_t = 500, sliver_ha = 0.001)
+  out <- suppressMessages(
+    whep::build_human_n(population_basis = "urban", data = data)
+  )
+  over <- out |>
+    dplyr::inner_join(
+      .human_ceiling_t(data$cropland_ha),
+      by = c("lon", "lat")
+    ) |>
+    dplyr::filter(.data$human_n_t > .data$ceiling_t * (1 + 1e-9))
+  testthat::expect_equal(nrow(over), 0L)
+  testthat::expect_equal(sum(out$human_n_t), 500, tolerance = 1e-9)
+})
+
+testthat::test_that("uncapped keeps the whole residual on the sliver, as before", {
+  data <- .human_sliver_data()
+  out <- testthat::expect_no_message(
+    whep::build_human_n(
+      population_basis = "urban",
+      data = data,
+      method_local_residual = "uncapped"
+    )
+  )
+  testthat::expect_equal(.human_n_at(out, 0.25), 100, tolerance = 1e-9)
+  testthat::expect_equal(sum(out$human_n_relocated_t), 0)
+  testthat::expect_equal(attr(out, "human_n_undelivered")$n_cells, 0L)
+  testthat::expect_equal(attr(out, "human_n_undelivered")$over_room_t, 0)
+  pointblank::expect_col_vals_in_set(
+    out,
+    "method_human_local_residual",
+    "uncapped"
+  )
+})
+
+testthat::test_that("the room cap counts N the transport step already landed", {
+  # S has 100 ha (17 t of room). Source E, north of S with no cropland of its
+  # own and no other cropland in its ring, sends all 10 t of its load to S, so
+  # S's own 20 t residual finds 7 t of room: 13 t goes on to ring 2, 1 : 3.
+  data <- .human_sliver_data(load_t = 20, sliver_ha = 100)
+  rate <- .human_c0_rate_2000()
+  data$urban_population <- dplyr::bind_rows(
+    data$urban_population,
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      year = 2000L,
+      urban_pop = 10 * 1000 / rate
+    )
+  )
+  data$cell_polity <- dplyr::bind_rows(
+    data$cell_polity,
+    tibble::tibble(lon = 0.25, lat = 0.25, area_code = 203L)
+  )
+  out <- suppressMessages(
+    whep::build_human_n(population_basis = "urban", data = data)
+  )
+  s_n <- sum(out$human_n_t[out$lon == 0.25 & out$lat == -0.25])
+  testthat::expect_equal(s_n, 17, tolerance = 1e-9)
+  testthat::expect_equal(.human_n_at(out, 1.25), 3.25, tolerance = 1e-9)
+  testthat::expect_equal(.human_n_at(out, -0.75), 9.75, tolerance = 1e-9)
+  testthat::expect_equal(sum(out$human_n_t), 30, tolerance = 1e-9)
+})
+
+testthat::test_that("a polity with no room left strands the excess on its cell", {
+  # Polity 68 has one cell, 1 ha of cropland and a 1 t load: 0.17 t fits and
+  # 0.83 t has nowhere to go. It stays on the cell, flagged, with a warning.
+  data <- list(
+    urban_population = tibble::tibble(
+      lon = 10.25,
+      lat = -0.25,
+      year = 2000L,
+      urban_pop = 1000 / .human_c0_rate_2000()
+    ),
+    cell_polity = tibble::tibble(lon = 10.25, lat = -0.25, area_code = 68L),
+    cropland_ha = tibble::tibble(
+      lon = 10.25,
+      lat = -0.25,
+      area_code = 68L,
+      year = 2000L,
+      cropland_ha = 1
+    )
+  )
+  testthat::expect_warning(
+    out <- whep::build_human_n(population_basis = "urban", data = data),
+    class = "whep_human_n_undelivered"
+  )
+  testthat::expect_equal(out$human_n_t, 1, tolerance = 1e-9)
+  testthat::expect_equal(out$human_n_stranded_t, 0.83, tolerance = 1e-9)
+  testthat::expect_equal(
+    attr(out, "human_n_undelivered")$stranded_t,
+    0.83,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("drop under the room cap discards only the excess", {
+  out <- suppressWarnings(
+    whep::build_human_n(
+      population_basis = "urban",
+      data = .human_sliver_data(),
+      method_residual = "drop"
+    )
+  )
+  testthat::expect_equal(sum(out$human_n_t), 0.17, tolerance = 1e-9)
+  testthat::expect_equal(
+    attr(out, "human_n_undelivered")$dropped_t,
+    99.83,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("method_local_residual is validated", {
+  testthat::expect_error(
+    whep::build_human_n(
+      population_basis = "urban",
+      data = .human_sliver_data(),
+      method_local_residual = "threshold"
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("build_n_inputs forwards human_n_method_local_residual", {
+  data <- .human_sliver_data()
+  data$human_n_population_basis <- "urban"
+  data$human_n_method_local_residual <- "uncapped"
+  uncapped <- whep:::.n_inputs_human(data)
+  testthat::expect_equal(
+    sum(uncapped$n_input_t[uncapped$lon == 0.25]),
+    100,
+    tolerance = 1e-9
+  )
+  data$human_n_method_local_residual <- NULL
+  capped <- suppressMessages(whep:::.n_inputs_human(data))
+  testthat::expect_equal(
+    sum(capped$n_input_t[capped$lon == 0.25]),
+    0.17,
     tolerance = 1e-9
   )
 })
