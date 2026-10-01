@@ -3833,12 +3833,15 @@ build_carbon_balance <- function(
     "country_grid"
   )
   support <- .carbon_rekey_area_code(support) |>
-    .carbon_fold_to_bucket()
+    .carbon_fold_to_bucket() |>
+    .carbon_discount_duplicates(by = c("lon", "lat"))
   # The share denominator is the cell's WHOLE measured land, taken before any
   # row is dropped. Taking it after would renormalise the survivors over a
   # smaller cell, handing an unkeyable polity's hectares to its neighbour --
   # the absorption S-A11 exists to forbid, and invisible because the shares
-  # would still sum to 1.
+  # would still sum to 1. The one exception is land the cell's own area
+  # proves is counted twice, which `.carbon_discount_duplicates()` has already
+  # taken out (whep#1318).
   cell_land <- support |>
     dplyr::summarise(
       cell_land_ha = sum(.data$land_area_ha, na.rm = TRUE),
@@ -3937,6 +3940,95 @@ build_carbon_balance <- function(
          onto the matrix bucket the national carbon tables are keyed on.",
     i = "{cli::qty(n_from)}Reporting {.field area_code}{?s} folded:
          {.val {from}} onto {.val {sort(unique(codes))}}."
+  ))
+}
+
+# Take out of an unkeyed claim the land its cell proves is counted twice
+# (whep#1318).
+#
+# The support is documented as a partition, but some cells carry a polity on
+# top of the ones that partition them: a federation over its colonies (French
+# West Africa), a country over its own halves (Germany over the East and West
+# German polities). Where that layer has no `area_code` it is dropped below,
+# and its land left in the share denominator halved every member's share --
+# on the `20260907T111653Z-e654d` support, 1,296 Mha of unkeyed land lies in
+# such cells at 1950. The nitrogen path's year-aware support removes the layer
+# from its denominators (`.cpy_mark_removed()`); this removes it only as far
+# as the cell's own area proves. A cell cannot hold more territory than it
+# has, so what it claims beyond `cell_area_ha` is counted twice, and no more
+# of the unkeyed claim than that leaves. Removing the whole claim would hand
+# the rest of it to the neighbours, the absorption the denominator is taken
+# before the drop to prevent: at 2015 the one such cell is Kosovo's at
+# (20.25, 42.75), 117 kha claimed against an excess of 90 ha.
+#
+# The proof is one-sided -- a coastal cell can hide a second count under its
+# own area, and such a layer stays in the denominator as before -- and keyed
+# claims are never touched: two claimants that both report keep their halves.
+# The overlap is measured on `polity_area_ha`, the territory the cell's area
+# bounds; a support without it cannot be measured, and the read says so.
+#
+# `by` is the cell, or the cell-epoch on the year-aware fold, whose intervals
+# inside one cell coincide or are disjoint (`.level0_check_epochs()`).
+.carbon_discount_duplicates <- function(support, by) {
+  if (!anyNA(support$area_code)) {
+    return(support)
+  }
+  if (!rlang::has_name(support, "polity_area_ha")) {
+    cli::cli_inform(c(
+      i = "The support carries no {.field polity_area_ha}, so an unkeyed
+           claim counted twice in its cell cannot be measured.",
+      i = "Every claim with no {.field area_code} stays in its cell's share
+           denominator."
+    ))
+    return(support)
+  }
+  out <- support |>
+    dplyr::mutate(
+      duplicate_frac = .carbon_duplicate_frac(
+        .data$polity_area_ha,
+        .data$cell_area_ha,
+        is.na(.data$area_code)
+      ),
+      .by = dplyr::all_of(by)
+    )
+  .carbon_inform_duplicates(out)
+  # A claim counted twice in full holds no land of its own: it leaves the
+  # table here rather than entering a fold or the unkeyed report at zero.
+  out |>
+    dplyr::filter(.data$duplicate_frac < 1) |>
+    dplyr::mutate(
+      land_area_ha = .data$land_area_ha * (1 - .data$duplicate_frac)
+    ) |>
+    dplyr::select(-"duplicate_frac")
+}
+
+# One cell's rows: the share of each unkeyed claim that is counted twice, the
+# same share for every unkeyed row of the cell, and 0 for a keyed one.
+.carbon_duplicate_frac <- function(polity_area_ha, cell_area_ha, unkeyed) {
+  claimed <- sum(polity_area_ha[unkeyed])
+  overlaps <- isTRUE(.cpy_cell_overlaps(polity_area_ha, cell_area_ha))
+  if (!overlaps || !isTRUE(claimed > 0)) {
+    return(rep(0, length(unkeyed)))
+  }
+  excess <- sum(polity_area_ha) - dplyr::first(cell_area_ha)
+  dplyr::if_else(unkeyed, min(1, excess / claimed), 0)
+}
+
+.carbon_inform_duplicates <- function(rows) {
+  hit <- dplyr::filter(rows, .data$duplicate_frac > 0)
+  if (nrow(hit) == 0L) {
+    return(invisible(NULL))
+  }
+  land <- round(sum(hit$land_area_ha * hit$duplicate_frac) / 1e6, 2)
+  n_hit <- nrow(hit)
+  epochs <- rlang::has_name(hit, "start_year") &&
+    dplyr::n_distinct(hit$start_year) > 1L
+  cli::cli_inform(c(
+    i = "{cli::qty(n_hit)}{n_hit} polycell{?s} with no {.field area_code} lie
+         under other claims in cells holding more territory than their area.",
+    i = "{land} Mha of their land{if (epochs) ', summed over epochs,' else ''}
+         is counted twice and leaves the share denominator; the rest stays in
+         it, attributed to nobody."
   ))
 }
 
