@@ -407,9 +407,9 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
   # no MCF table, so `mms_shares` and `indirect_n2o_source` are the flips that
-  # reach it; the Tier 2 default is locked in the test below. Against
-  # `indirect_n2o_source = "ipcc_2006"` (1887669000, 1472445000, 910771875)
-  # the 2019 leaching factors raise the sector totals by 0.355, 0.682 and
+  # reach it; the Tier 2 default is locked in the test below. Against the
+  # 2006 indirect N2O edition, whose totals are 1887669000, 1472445000 and
+  # 910771875, the 2019 leaching factors raise the sector totals by 0.355, 0.682 and
   # 0.276 percent (whep#1245).
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
@@ -499,8 +499,8 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # unchanged.
   #
   # Since whep#1245 indirect manure N2O reads the 2019 Table 11.3 EF5 (0.011)
-  # and FracLEACH-(H) (0.24). Against `indirect_n2o_source = "ipcc_2006"`
-  # (2221967275.00, 1576986611.56, 483461873.99) the sector totals rise by
+  # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
+  # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
   # 0.402, 0.405 and 0.340 percent.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
