@@ -774,8 +774,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         # Forest and shrubland residue outside cropland becomes `Firewood`,
         # which `codes_coefs_items_full` resolves to `Average wood` -- the
         # same row the harvested `Wood` item reads. Physically this side is
-        # branches and bark and the other is stemwood; one coefficient cannot
-        # be right for both (whep#932).
+        # branches and bark and the other is stemwood, so
+        # `.apply_wood_tissue_n()` prices the two apart (whep#932).
         prod_type == "Residue" &
           Box != "Cropland" &
           Name_biomass %in%
