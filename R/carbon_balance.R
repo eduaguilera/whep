@@ -612,8 +612,15 @@ build_carbon_balance <- function(
     cli::cli_progress_done()
   }
   rm(inputs, built)
-  invisible(gc(full = TRUE))
+  .cb_collect_garbage()
   run
+}
+
+# The full collection after each block. It changes no value, only how much
+# memory the next read starts from; it is its own function so that tests,
+# which build spans of a few cells many times over, can mock it away.
+.cb_collect_garbage <- function() {
+  invisible(gc(full = TRUE))
 }
 
 .cb_block_step <- function(opts, block, what) {
