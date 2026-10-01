@@ -565,6 +565,31 @@ test_that("gridded_fallow_weights uses the cell's agro-climatic zone", {
   expect_equal(w$weight, 100 * 1.0 + 100 * 0.05) # 105
 })
 
+test_that("gridded_fallow_weights default reads the grid-aez pin", {
+  gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 50.25, 1L, 2511L, 100
+  )
+  asked <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(alias, ...) {
+      asked <<- c(asked, alias)
+      tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 0.25, 50.25, 60, 7L)
+    }
+  )
+  propensity <- tibble::tribble(
+    ~item_cbs_code, ~zone, ~fallow_propensity,
+    2511L, "arid", 0.5
+  )
+  w <- whep::gridded_fallow_weights(gridded_crops, propensity = propensity)
+  expect_equal(asked, "grid-aez")
+  expect_equal(w$weight, 50)
+})
+
+test_that("the grid-aez pin is registered", {
+  expect_true("grid-aez" %in% whep::whep_inputs$alias)
+})
+
 # --- FAO fallow-inclusive arable / permanent land base ------------------------
 
 # Minimal FAOSTAT RL land-use fixture in the raw pin schema, using real

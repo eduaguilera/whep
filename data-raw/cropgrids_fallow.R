@@ -12,9 +12,8 @@
 # build_cropgrids_land_extension(source = "cropgrids_fallow") then applies the
 # resulting physical/harvested ratio to WHEP harvested area in every year.
 #
-# Inputs: the cropgrids-land pin and shipped fallow_propensity.csv; grid_aez.csv
-# (NOT shipped -- run data-raw/grid_aez.R first to generate it under
-# inst/extdata/, where gridded_fallow_weights() reads it); the spatialization
+# Inputs: the cropgrids-land pin and shipped fallow_propensity.csv; the grid-aez
+# pin (built by data-raw/grid_aez.R, read by gridded_fallow_weights()); the spatialization
 # inputs (<l_files>/whep/inputs via WHEP_LFILES_INPUT_DIR); and the
 # faostat-landuse pin (FAOSTAT Land Use RL domain), via whep_read_file().
 

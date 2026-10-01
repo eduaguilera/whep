@@ -691,8 +691,8 @@ attribute_fallow_to_crops <- function(cropgrids, fallow_total, alloc_weight) {
 #' @param gridded_crops Tibble keyed by grid cell and `item_cbs_code` with
 #'   columns `lon`, `lat`, `area_code`, `rainfed_ha`.
 #' @param grid_aez Tibble of `lon`, `lat`, `lgp` (length of growing period in
-#'   days), `thermal` (GAEZ thermal-climate class). If `NULL`, the packaged
-#'   `grid_aez.csv` is used.
+#'   days), `thermal` (GAEZ thermal-climate class). If `NULL`, the `grid-aez`
+#'   pin is read via [whep_read_file()] (built by `data-raw/grid_aez.R`).
 #' @param propensity Tibble of `item_cbs_code`, `zone`, `fallow_propensity`. If
 #'   `NULL`, the packaged `fallow_propensity.csv` is used.
 #'
@@ -780,18 +780,8 @@ gridded_fallow_weights <- function(
 }
 
 .read_grid_aez <- function() {
-  path <- system.file("extdata", "grid_aez.csv", package = "whep")
-  if (!nzchar(path)) {
-    cli::cli_abort(
-      c(
-        "{.file grid_aez.csv} not found.",
-        "i" = "It is a build-time-only GAEZ-derived grid (not shipped). \\
-               Generate it with {.code Rscript data-raw/grid_aez.R}, or pass \\
-               {.arg grid_aez} explicitly to {.fn gridded_fallow_weights}."
-      )
-    )
-  }
-  readr::read_csv(path, show_col_types = FALSE)
+  whep_read_file("grid-aez") |>
+    tibble::as_tibble()
 }
 
 .read_fallow_propensity <- function() {
