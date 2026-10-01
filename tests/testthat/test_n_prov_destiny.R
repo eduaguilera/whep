@@ -1859,3 +1859,104 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
     ))
   )
 })
+
+
+# Wood residue nitrogen by tissue (whep#932) ----------------------------------
+
+# One shared `Average wood` cell, as the shipped table has it: both wood items
+# map to it and it carries a single residue concentration.
+.wood_split_codes <- function() {
+  tibble::tribble(
+    ~item,      ~Name_biomass,
+    "Wood",     "Average wood",
+    "Firewood", "Average wood"
+  )
+}
+
+.wood_split_coefs <- function() {
+  tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
+    "Average wood", 0.75, 0.01, 0.75, 0.0030
+  )
+}
+
+test_that(".convert_to_items_n prices Wood as stem and Firewood as branch", {
+  combined <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Wood", "semi_natural_agroecosystems", NA, 0, 0, 100, 0,
+    2000, "A", "Firewood", "semi_natural_agroecosystems", NA, 0, 0, 100, 0
+  )
+
+  tissue <- .convert_to_items_n(
+    combined,
+    .wood_split_codes(),
+    .wood_split_coefs()
+  )
+  single <- .convert_to_items_n(
+    combined,
+    .wood_split_codes(),
+    .wood_split_coefs(),
+    wood_n_method = "single"
+  )
+
+  # Thurner et al. (2025) stem sapwood and branch medians.
+  expect_equal(
+    tissue$other_uses[tissue$Item == "Wood"],
+    100 * 0.75 * 0.0010
+  )
+  expect_equal(
+    tissue$other_uses[tissue$Item == "Firewood"],
+    100 * 0.75 * 0.0035
+  )
+  # The single-cell method is today's behaviour: one value for both.
+  expect_equal(single$other_uses, rep(100 * 0.75 * 0.0030, 2))
+})
+
+test_that(".convert_fm_dm_n prices Firewood residue at the branch value", {
+  merged <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", "Firewood", "semi_natural_agroecosystems", "Forest_high", NA, "Residue", 1000, "Average wood", "Average wood",
+    2000, "A", "Wheat", "Cropland", "Cropland", "irrig", "Product", 1000, "Wheat", "Wheat"
+  )
+  coefs <- dplyr::bind_rows(
+    .wood_split_coefs(),
+    tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
+      "Wheat", 0.88, 0.85, 0.02, 0.005
+    )
+  )
+
+  tissue <- .convert_fm_dm_n(merged, coefs)
+  single <- .convert_fm_dm_n(merged, coefs, wood_n_method = "single")
+
+  expect_equal(
+    tissue$production_n[tissue$Item == "Firewood"],
+    1000 * 0.75 * 0.0035
+  )
+  expect_equal(
+    single$production_n[single$Item == "Firewood"],
+    1000 * 0.75 * 0.0030
+  )
+  # Nothing outside the two wood items moves.
+  expect_equal(
+    tissue$production_n[tissue$Item == "Wheat"],
+    single$production_n[single$Item == "Wheat"]
+  )
+})
+
+test_that(".wood_tissue_n carries the two sourced medians and no others", {
+  tissue <- .wood_tissue_n()
+  expect_setequal(tissue$Item, c("Wood", "Firewood"))
+  expect_equal(tissue$wood_tissue_kgN_kgDM[tissue$Item == "Wood"], 0.0010)
+  expect_equal(
+    tissue$wood_tissue_kgN_kgDM[tissue$Item == "Firewood"],
+    0.0035
+  )
+})
+
+test_that("create_n_prov_destiny rejects an unknown wood_n_method", {
+  expect_error(
+    create_n_prov_destiny(wood_n_method = "bark"),
+    class = "rlang_error"
+  )
+})
