@@ -1,4 +1,4 @@
-# Build inst/extdata/grid_aez.csv: per 0.5-degree cell agro-climatic indicators
+# Build the `grid-aez` pin source (grid_aez.csv): per 0.5-degree cell agro-climatic indicators
 # used by gridded_fallow_weights()/.aez_zone() to classify each grid cell.
 #
 # Source: GAEZ v4 (FAO/IIASA, open access CC BY 4.0) theme layers, 5 arc-min,
@@ -41,4 +41,12 @@ grid_aez <- cells[, .(
   thermal = as.integer(terra::extract(tc5, pts)[, 2])
 )][!is.na(lgp) | !is.na(thermal)]
 
-write_csv(grid_aez, "inst/extdata/grid_aez.csv")
+out <- file.path(tempdir(), "grid_aez.csv")
+write_csv(grid_aez, out)
+message(
+  "Wrote ",
+  out,
+  "\nUpload it as the `grid-aez` pin with ",
+  "whep_inputs' upload_input(out, \"grid-aez\", type = \"tabular\"), then ",
+  "register the new version in inst/extdata/whep_inputs.csv."
+)

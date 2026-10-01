@@ -11,8 +11,8 @@ gridded_fallow_weights(gridded_crops, grid_aez = NULL, propensity = NULL)
 columns \code{lon}, \code{lat}, \code{area_code}, \code{rainfed_ha}.}
 
 \item{grid_aez}{Tibble of \code{lon}, \code{lat}, \code{lgp} (length of growing period in
-days), \code{thermal} (GAEZ thermal-climate class). If \code{NULL}, the packaged
-\code{grid_aez.csv} is used.}
+days), \code{thermal} (GAEZ thermal-climate class). If \code{NULL}, the \code{grid-aez}
+pin is read via \code{\link[=whep_read_file]{whep_read_file()}} (built by \code{data-raw/grid_aez.R}).}
 
 \item{propensity}{Tibble of \code{item_cbs_code}, \code{zone}, \code{fallow_propensity}. If
 \code{NULL}, the packaged \code{fallow_propensity.csv} is used.}
