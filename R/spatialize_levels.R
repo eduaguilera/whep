@@ -626,13 +626,13 @@ admin_coverage_prototype <- function() {
   )
 }
 
-# A container is swapped out whole, over every interval it has, not only where
-# a member is valid. Where the members start later than their container
-# (Chilean regions from 1976 inside `CHL-1902-2025`) the earlier years carry no
-# row for that country at all, so a neighbouring province's share of a border
-# cell is taken over less land than the cell holds in those years. No depth row
-# is emitted for the swapped country then either, so this moves a neighbour's
-# border share and nothing else.
+# A container is swapped out only over the years its members cover. Where the
+# members start later than their container (Chilean regions from 1976 inside
+# `CHL-1902-2025`) the container's world rows are kept for the earlier years, so
+# a neighbouring province's share of a border cell is taken over all the land
+# the cell holds. A world row spanning the edge of the covered years is split at
+# it; the other columns are carried unchanged. Members are read off the
+# provinces' own rows, since those are the years that actually get added.
 .level_compose_support <- function(world, provinces, edges) {
   .check_columns(provinces, c("polity_code", "land_area_ha"), "provinces")
   present <- unique(provinces$polity_code)
@@ -641,10 +641,68 @@ admin_coverage_prototype <- function() {
     "Depth support: {length(swapped)} container{?s} replaced by
      {length(present)} member polit{?y/ies} from the subnational pin."
   )
-  world |>
-    tibble::as_tibble() |>
-    dplyr::filter(!(.data$polity_code %in% swapped)) |>
-    dplyr::bind_rows(tibble::as_tibble(provinces))
+  covered <- .level_member_years(provinces, edges)
+  world <- tibble::as_tibble(world)
+  kept <- dplyr::filter(world, !(.data$polity_code %in% swapped))
+  clipped <- world |>
+    dplyr::filter(.data$polity_code %in% swapped) |>
+    .level_clip_to_gaps(covered)
+  dplyr::bind_rows(kept, clipped, tibble::as_tibble(provinces))
+}
+
+# The merged year intervals each container's members cover, from the provinces'
+# own validity rows.
+.level_member_years <- function(provinces, edges) {
+  provinces |>
+    dplyr::distinct(.data$polity_code, .data$start_year, .data$end_year) |>
+    dplyr::inner_join(
+      dplyr::distinct(edges, .data$member_code, .data$container_code),
+      by = c("polity_code" = "member_code")
+    ) |>
+    dplyr::arrange(.data$container_code, .data$start_year) |>
+    dplyr::mutate(
+      new_run = .data$start_year >
+        dplyr::lag(as.numeric(cummax(.data$end_year)), default = -Inf) + 1,
+      run = cumsum(.data$new_run),
+      .by = "container_code"
+    ) |>
+    dplyr::summarise(
+      cover_start = min(.data$start_year),
+      cover_end = max(.data$end_year),
+      .by = c("container_code", "run")
+    ) |>
+    dplyr::select(-"run")
+}
+
+# The part of each world row that no member covers: the complement of the
+# container's covered intervals, intersected with the row's own interval.
+.level_clip_to_gaps <- function(rows, covered) {
+  gaps <- covered |>
+    dplyr::arrange(.data$container_code, .data$cover_start) |>
+    dplyr::mutate(
+      gap_start = as.numeric(.data$cover_end) + 1,
+      gap_end = dplyr::lead(as.numeric(.data$cover_start), default = Inf) - 1,
+      .by = "container_code"
+    ) |>
+    dplyr::select("container_code", "gap_start", "gap_end")
+  first_gap <- covered |>
+    dplyr::summarise(
+      gap_start = -Inf,
+      gap_end = as.numeric(min(.data$cover_start)) - 1,
+      .by = "container_code"
+    )
+  rows |>
+    dplyr::inner_join(
+      dplyr::bind_rows(first_gap, gaps),
+      by = c("polity_code" = "container_code"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      start_year = as.integer(pmax(.data$start_year, .data$gap_start)),
+      end_year = as.integer(pmin(.data$end_year, .data$gap_end))
+    ) |>
+    dplyr::filter(.data$start_year <= .data$end_year) |>
+    dplyr::select(-"gap_start", -"gap_end")
 }
 
 # --- Level 0, at either vintage ----------------------------------------------

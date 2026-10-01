@@ -217,6 +217,17 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
+    ".level_clip_to_gaps", "inner_join", "polity_code, container_code", 1L,
+    "identity_lookup",
+    "Pairs a container's world rows with the gaps in its members' coverage;
+     the interval intersection on the next lines (`pmax(start_year, ...)`,
+     `pmin(end_year, ...)`, then `start_year <= end_year`) disposes of the
+     years. A polity code already names its own period.",
+    ".level_member_years", "inner_join", "polity_code, member_code", 1L,
+    "identity_lookup",
+    "Attaches each member's container through the containment edge; the
+     member's own validity rows carry the years, which are merged into
+     covered intervals right after (whep#1342).",
     ".level_support_units", "inner_join", "polity_code, member_code", 1L,
     "identity_lookup",
     "The containment edge join proposes which containers a polity sat inside;
@@ -846,6 +857,11 @@
      `.filter_country_grid_year(support, yr)`, so the support is already one
      year when it is summed, and `start_year = yr` is stamped on the result
      afterwards.",
+    ".level_member_years", "distinct", "polity_code, start_year, end_year", 1L,
+    "identity_lookup",
+    "Deduplicates the provinces' validity rows per polity period before they
+     are merged into covered intervals; the years are in the key list, and the
+     merge reads them on the next lines (whep#1342).",
     ".level_polity_types", "distinct", "polity_code, polity_type", 1L,
     "identity_lookup",
     "A polity code already names its own period (`JPN-1952-2025`), and its
