@@ -316,7 +316,12 @@
 # assembled n_inputs, so the join in build_nitrogen_balance() never drops a
 # row for a driver mismatch (the tests use method = "ipcc"/"ipcc2019"/
 # "ipcc_fracleach", the simplest methods, to keep driver requirements small).
+# Built once per run (helper_n_balance.R): it is the same list every time.
 .nb_data_with_drivers <- function() {
+  memo_n_fixture("nb_data_with_drivers", .nb_build_data_with_drivers)
+}
+
+.nb_build_data_with_drivers <- function() {
   data <- .nb_full_data()
   n_inputs <- whep::build_n_inputs(data = data)
   item_codes <- unique(n_inputs$item_cbs_code)
@@ -357,7 +362,20 @@
   data
 }
 
-.nb_run <- function(data = .nb_data_with_drivers(), resolution = "grid") {
+# With no `data`, the default balance is built once per run and shared: many
+# tests read one property each off that same balance. Passing `data` always
+# builds afresh, so a test that changes an input really runs the builder.
+.nb_run <- function(data = NULL, resolution = "grid") {
+  if (is.null(data)) {
+    return(memo_n_fixture(
+      paste0("nb_run_", resolution),
+      function() .nb_build(.nb_data_with_drivers(), resolution)
+    ))
+  }
+  .nb_build(data, resolution)
+}
+
+.nb_build <- function(data, resolution) {
   whep::build_nitrogen_balance(
     methods = list(
       nh3 = "ipcc",
@@ -367,6 +385,14 @@
     ),
     resolution = resolution,
     data = data
+  )
+}
+
+# build_n_inputs() on the unchanged driver fixture, built once per run.
+.nb_inputs_with_drivers <- function() {
+  memo_n_fixture(
+    "nb_inputs_with_drivers",
+    function() whep::build_n_inputs(data = .nb_data_with_drivers())
   )
 }
 
@@ -613,9 +639,8 @@ testthat::test_that("build_nitrogen_balance emits per-crop area_ha on the grid k
 })
 
 testthat::test_that("resolution = \"polity\" sums area_ha per key over cells", {
-  data <- .nb_data_with_drivers()
-  grid <- .nb_run(data, resolution = "grid")
-  polity <- .nb_run(data, resolution = "polity")
+  grid <- .nb_run(resolution = "grid")
+  polity <- .nb_run(resolution = "polity")
   pointblank::expect_col_exists(polity, "area_ha")
   # Single grid cell, so physical crop area is conserved across resolutions.
   testthat::expect_equal(
@@ -697,9 +722,8 @@ testthat::test_that("the N-limitation SOM cap engages and recomputes every downs
 })
 
 testthat::test_that("resolution = \"polity\" re-aggregates resolution = \"grid\"", {
-  data <- .nb_data_with_drivers()
-  grid <- .nb_run(data, resolution = "grid")
-  polity <- .nb_run(data, resolution = "polity")
+  grid <- .nb_run(resolution = "grid")
+  polity <- .nb_run(resolution = "polity")
 
   testthat::expect_true(nrow(polity) > 0)
   # Mass-conserving input/output totals must match exactly between
@@ -1023,6 +1047,8 @@ testthat::test_that("the balance names the deposition product it used", {
 # polity_validity threading (whep#727) ----------------------------------------
 
 testthat::test_that("build_nitrogen_balance forwards polity_validity down", {
+  # Prepared before mocking, so the shared fixture is never built under it.
+  data <- .nb_data_with_drivers()
   seen <- new.env(parent = emptyenv())
   real_n_inputs <- whep::build_n_inputs
   testthat::local_mocked_bindings(
@@ -1040,7 +1066,7 @@ testthat::test_that("build_nitrogen_balance forwards polity_validity down", {
       regime = "none"
     ),
     polity_validity = "flag",
-    data = .nb_data_with_drivers()
+    data = data
   )
   testthat::expect_equal(seen$n_inputs, "flag")
   pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
@@ -1120,7 +1146,7 @@ testthat::test_that("a grid balance refuses an incomplete input key", {
   # the INPUT side of a gridded balance, so the manufactured rows above are
   # the only ones there are.
   data <- .nb_data_with_drivers()
-  inputs <- whep::build_n_inputs(data = data)
+  inputs <- .nb_inputs_with_drivers()
   data$n_inputs <- dplyr::bind_rows(
     inputs,
     dplyr::mutate(
@@ -1254,11 +1280,31 @@ testthat::test_that("residue destinies no N coefficient joins are refused", {
     )
 }
 
+# The unsplit balance, the share fixture built on it, and the yield split it
+# feeds are the same in every regime test, so each is built once per run.
+# regime = "none" on the default data is exactly the call .nb_run() makes.
+.nb_regime_unsplit <- function() {
+  .nb_run()
+}
+
+.nb_regime_split_data <- function() {
+  memo_n_fixture("nb_regime_split_data", function() {
+    data <- .nb_data_with_drivers()
+    data$regime_shares <- .nb_regime_share_fixture(.nb_regime_unsplit())
+    data
+  })
+}
+
+.nb_regime_yield_split <- function() {
+  memo_n_fixture(
+    "nb_regime_yield_split",
+    function() .nb_run_regime("yield_split", data = .nb_regime_split_data())
+  )
+}
+
 testthat::test_that("the regime split conserves the unsplit balance", {
-  unsplit <- .nb_run_regime("none")
-  data <- .nb_data_with_drivers()
-  data$regime_shares <- .nb_regime_share_fixture(unsplit)
-  split <- .nb_run_regime("yield_split", data = data)
+  unsplit <- .nb_regime_unsplit()
+  split <- .nb_regime_yield_split()
   key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
   additive <- c(
     "n_input_full_t",
@@ -1296,10 +1342,8 @@ testthat::test_that("the regime split conserves the unsplit balance", {
 })
 
 testthat::test_that("the regime split weights production by the yield share", {
-  unsplit <- .nb_run_regime("none")
-  data <- .nb_data_with_drivers()
-  data$regime_shares <- .nb_regime_share_fixture(unsplit)
-  split <- .nb_run_regime("yield_split", data = data)
+  unsplit <- .nb_regime_unsplit()
+  split <- .nb_regime_yield_split()
   irrigated <- dplyr::filter(split, .data$water_regime == "irrigated")
   base <- unsplit |>
     dplyr::select("lon", "lat", "item_cbs_code", "prod_n_t", "area_ha") |>
@@ -1314,10 +1358,8 @@ testthat::test_that("the regime split weights production by the yield share", {
 })
 
 testthat::test_that("area_split replaces the yield share by the area share", {
-  unsplit <- .nb_run_regime("none")
-  data <- .nb_data_with_drivers()
-  data$regime_shares <- .nb_regime_share_fixture(unsplit)
-  split <- .nb_run_regime("area_split", data = data)
+  unsplit <- .nb_regime_unsplit()
+  split <- .nb_run_regime("area_split", data = .nb_regime_split_data())
   irrigated <- dplyr::filter(split, .data$water_regime == "irrigated")
   total <- sum(unsplit$prod_n_t)
   testthat::expect_equal(sum(irrigated$prod_n_t), 0.3 * total)
@@ -1379,8 +1421,8 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
   # skipped by the loss filter, so its nitrogen would leave the balance
   # silently; it is translated instead, with a deprecation warning.
   data <- .nb_data_with_drivers()
-  current <- .nb_run(data)
-  inputs <- whep::build_n_inputs(data = data)
+  current <- .nb_run()
+  inputs <- .nb_inputs_with_drivers()
   legacy <- data
   legacy$n_inputs <- inputs |>
     dplyr::mutate(
@@ -1508,4 +1550,10 @@ testthat::test_that("the entry check lets complete drivers and the IPCC method t
     ),
     class = "nb_test_assembly_reached"
   )
+})
+
+# Runs last: every fixture the tests above shared must still be exactly what
+# a fresh build produces, so no test's edits leaked into another's input.
+testthat::test_that("the shared balance fixtures were never mutated", {
+  expect_n_fixtures_untouched("nb_")
 })

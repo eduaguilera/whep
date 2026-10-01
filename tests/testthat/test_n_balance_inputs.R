@@ -335,10 +335,22 @@
   )
 }
 
+# build_n_inputs() on the unchanged fixture, built once per run and shared
+# (helper_n_balance.R): many tests read one property each off that same
+# table. A test that changes an input still calls build_n_inputs() itself.
+.nbi_inputs <- function(resolution = "grid") {
+  memo_n_fixture(
+    paste0("nbi_inputs_", resolution),
+    function() {
+      whep::build_n_inputs(data = .nbi_full_data(), resolution = resolution)
+    }
+  )
+}
+
 # Tests ------------------------------------------------------------------------
 
 testthat::test_that("all seven implemented fert_type values are present", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
 
   expected <- c(
     "bnf",
@@ -355,7 +367,7 @@ testthat::test_that("all seven implemented fert_type values are present", {
 })
 
 testthat::test_that("schema is complete at grid resolution", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   pointblank::expect_col_exists(
     out,
     c(
@@ -371,17 +383,14 @@ testthat::test_that("schema is complete at grid resolution", {
 })
 
 testthat::test_that("synthetic gridded output re-aggregates to the polity total", {
-  out <- whep::build_n_inputs(
-    data = .nbi_full_data(),
-    resolution = "grid"
-  )
+  out <- .nbi_inputs("grid")
   synthetic <- out[out$fert_type == "synthetic", ]
   testthat::expect_true(nrow(synthetic) > 0)
   testthat::expect_equal(sum(synthetic$n_input_t), 100, tolerance = 1e-6)
 })
 
 testthat::test_that("SOM term clamps negative son_change_kgn_ha out", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   som <- out[out$fert_type == "som_mineralization", ]
   testthat::expect_true(nrow(som) > 0)
   testthat::expect_true(all(som$n_input_t > 0))
@@ -391,14 +400,14 @@ testthat::test_that("SOM term clamps negative son_change_kgn_ha out", {
 })
 
 testthat::test_that("SOM mineralization is allocated across cropland crops", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   som <- out[out$fert_type == "som_mineralization", ]
   testthat::expect_setequal(som$item_cbs_code, c(2511L, 2807L))
   testthat::expect_equal(sum(som$n_input_t), 0.6)
 })
 
 testthat::test_that("deposition and human N use agricultural item support", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   dep <- out[out$fert_type == "deposition", ]
   urb <- out[out$fert_type == "human", ]
   testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
@@ -408,7 +417,7 @@ testthat::test_that("deposition and human N use agricultural item support", {
 })
 
 testthat::test_that("deposition excludes forest and natural land mass", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   dep <- dplyr::filter(out, .data$fert_type == "deposition")
   # 3e9 g N over a 3000 ha cell = 1000 kg N/ha. Agricultural support is
   # 1000 ha cropland + 500 ha grassland; the other 1500 ha is not charged.
@@ -492,8 +501,8 @@ testthat::test_that("the human-N area_code is never a silent NA", {
 })
 
 testthat::test_that("polity resolution is the cell-summed aggregate of grid", {
-  grid <- whep::build_n_inputs(data = .nbi_full_data(), resolution = "grid")
-  polity <- whep::build_n_inputs(data = .nbi_full_data(), resolution = "polity")
+  grid <- .nbi_inputs("grid")
+  polity <- .nbi_inputs("polity")
 
   expected <- grid |>
     dplyr::summarise(
@@ -523,7 +532,7 @@ testthat::test_that("polity resolution is the cell-summed aggregate of grid", {
 })
 
 testthat::test_that("manure_type maps to manure_solid/manure_liquid/excreta", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   manure <- out[
     out$fert_type %in% c("manure_solid", "manure_liquid", "excreta"),
   ]
@@ -613,7 +622,7 @@ testthat::test_that("resolution argument is validated", {
 testthat::test_that("recycling stamps the total-residue basis when no soil col", {
   # .nbi_npp_input() supplies residue_dm_t but not residue_soil_dm_t, so the
   # recycling term must fall back to gross residue N and say so.
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   rec <- out[out$fert_type == "recycling", ]
   testthat::expect_true(nrow(rec) > 0)
   testthat::expect_true(all(rec$method_recycling_n == "total_residue"))
@@ -632,7 +641,7 @@ testthat::test_that("recycling stamps the soil-returned basis when supplied", {
 })
 
 testthat::test_that("recycling basis switch changes n_input_t and is stamped", {
-  total_basis <- whep::build_n_inputs(data = .nbi_full_data())
+  total_basis <- .nbi_inputs()
   soil_data <- .nbi_full_data()
   soil_data$npp_n_input <- dplyr::mutate(
     soil_data$npp_n_input,
@@ -658,7 +667,7 @@ testthat::test_that("recycling basis switch changes n_input_t and is stamped", {
 })
 
 testthat::test_that("method_recycling_n is NA for non-recycling fert_types", {
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   non_rec <- out[out$fert_type != "recycling", ]
   testthat::expect_true(all(is.na(non_rec$method_recycling_n)))
 })
@@ -678,7 +687,7 @@ testthat::test_that("an unmapped Cropland crop name aborts rather than NA", {
 testthat::test_that("a code-keyed Cropland crop resolves without NA", {
   # The default fixture crop is "44" (Barley's item_prod_code); its manure rows
   # must carry a real item_cbs_code, never NA_integer_.
-  out <- whep::build_n_inputs(data = .nbi_full_data())
+  out <- .nbi_inputs()
   cropland_manure <- out[
     out$fert_type %in%
       c("manure_solid", "manure_liquid") &
@@ -1686,8 +1695,22 @@ testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
   data <- .nbi_full_data()
   data$cell_polity <- cell_polity
   whep::build_n_inputs(data = data) |>
+    .nbi_deposition_only()
+}
+
+.nbi_deposition_only <- function(inputs) {
+  inputs |>
     dplyr::filter(.data$fert_type == "deposition") |>
     dplyr::arrange(.data$item_cbs_code)
+}
+
+# The whole input table on the decomposed support, read by three tests.
+.nbi_decomposed_inputs <- function() {
+  memo_n_fixture("nbi_decomposed_inputs", function() {
+    data <- .nbi_full_data()
+    data$cell_polity <- .nbi_decomposed_cell_polity()
+    whep::build_n_inputs(data = data)
+  })
 }
 
 # A build_n_deposition() slice as .ni_deposition_in_scope() receives it: one
@@ -1708,7 +1731,7 @@ testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
 }
 
 testthat::test_that("C3b: the default scope moves no ledger value", {
-  decomposed <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+  decomposed <- .nbi_deposition_only(.nbi_decomposed_inputs())
   undecomposed <- .nbi_deposition_rows(.nbi_undecomposed_cell_polity())
 
   # Bit-identical, not merely close. DA-14 was decided on 2026-08-06 in
@@ -1739,7 +1762,7 @@ testthat::test_that("C3b: the land scope is selectable and takes the land share"
   data$deposition_scope <- "land"
   land <- whep::build_n_inputs(data = data) |>
     dplyr::filter(.data$fert_type == "deposition")
-  territory <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+  territory <- .nbi_deposition_only(.nbi_decomposed_inputs())
 
   testthat::expect_equal(sum(land$n_input_t), 900)
   testthat::expect_equal(sum(land$n_input_t) / sum(territory$n_input_t), 0.6)
@@ -1749,7 +1772,7 @@ testthat::test_that("C3b: the land scope is selectable and takes the land share"
 testthat::test_that("C3b: the scope is recorded, and only on deposition rows", {
   data <- .nbi_full_data()
   data$cell_polity <- .nbi_decomposed_cell_polity()
-  out <- whep::build_n_inputs(data = data)
+  out <- .nbi_decomposed_inputs()
   land <- whep::build_n_inputs(
     data = c(data, list(deposition_scope = "land"))
   )
@@ -1781,7 +1804,7 @@ testthat::test_that("the deposition field's provenance reaches the ledger", {
   # a corrected field and a run on plain HaNi must not be indistinguishable
   # once they reach the ledger.
   data <- .nbi_full_data()
-  out <- whep::build_n_inputs(data = data)
+  out <- .nbi_inputs()
   dep <- out$fert_type == "deposition"
 
   testthat::expect_true(rlang::has_name(out, "method_deposition"))
@@ -1995,7 +2018,7 @@ testthat::test_that("polity_validity = flag adds the per-row flag column", {
   pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
   testthat::expect_type(out$reporting_polity_out_of_span, "logical")
   testthat::expect_false(anyNA(out$reporting_polity_out_of_span))
-  kept <- whep::build_n_inputs(data = .nbi_full_data())
+  kept <- .nbi_inputs()
   testthat::expect_false(
     "reporting_polity_out_of_span" %in% names(kept)
   )
@@ -2148,7 +2171,7 @@ testthat::test_that("every stream key maps to a fert_type this file emits", {
   )
   testthat::expect_setequal(
     unlist(whep:::.ni_stream_fert_types(), use.names = FALSE),
-    whep::build_n_inputs(data = .nbi_full_data())$fert_type |> unique()
+    .nbi_inputs()$fert_type |> unique()
   )
 })
 
@@ -2177,7 +2200,7 @@ testthat::test_that("the human-N population basis is recorded, only on its rows"
   # per-urban-inhabitant ledger and a per-total-inhabitant one are
   # indistinguishable after the fact.
   data <- .nbi_full_data()
-  out <- whep::build_n_inputs(data = data)
+  out <- .nbi_inputs()
   urban <- out$fert_type == "human"
   testthat::expect_true(any(urban))
   testthat::expect_true(all(
@@ -2299,9 +2322,7 @@ testthat::test_that("the default manure source reproduces the pre-option output"
   ))
   manure <- c("excreta", "manure_solid", "manure_liquid")
   for (resolution in c("grid", "polity")) {
-    out <- suppressMessages(
-      whep::build_n_inputs(data = .nbi_full_data(), resolution = resolution)
-    )
+    out <- suppressMessages(.nbi_inputs(resolution))
     testthat::expect_identical(
       dplyr::select(out, -"method_manure"),
       golden[[paste0("inputs_", resolution)]]
@@ -2323,6 +2344,12 @@ testthat::test_that("naming the default manure source changes nothing", {
         manure_method = "livestock_intake"
       )
     ),
-    suppressMessages(whep::build_n_inputs(data = .nbi_full_data()))
+    suppressMessages(.nbi_inputs())
   )
+})
+
+# Runs last: every fixture the tests above shared must still be exactly what
+# a fresh build produces, so no test's edits leaked into another's input.
+testthat::test_that("the shared input fixtures were never mutated", {
+  expect_n_fixtures_untouched("nbi_")
 })
