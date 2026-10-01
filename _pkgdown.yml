@@ -426,6 +426,8 @@ reference:
   - whep_inputs
   - whep_list_file_versions
   - whep_clear_cache
+  - whep_data_access_status
+  - whep_assert_publishable
 
 - title: Code namings
   desc: >
