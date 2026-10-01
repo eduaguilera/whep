@@ -345,7 +345,10 @@ test_that("the enumerated baseline can only shrink", {
   # 108 on the second 2026-09-30 merge: the branch's 102 plus main's six
   # (87 -> 93), over 102 signatures. Re-derived by running
   # `sum(.territorial_join_baseline()$n)` on the merged tree.
-  expect_lte(sum(baseline$n), 108L)
+  # 109 with whep#1318: `.cpy_recorded_code()` looks up the code the recorded
+  # cell-support mapping gives an unkeyable polity, and the year-window
+  # predicate after the join is what scopes it. Measured by running the audit.
+  expect_lte(sum(baseline$n), 109L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -597,7 +600,10 @@ test_that("every year-free territorial grouping is classified", {
   # 111 on main with the regime yield ratio's groupings (whep#1233).
   # 136 on the second 2026-09-30 merge: the branch's 131 plus main's five
   # (106 -> 111), over 131 signatures. Re-derived by running the audit.
-  expect_lte(sum(full$n), 136L)
+  # 137 with whep#1318: `.level0_inform_recorded()` names the polities the
+  # recorded mapping keyed, for its message (`diagnostic`). Measured by running
+  # the audit.
+  expect_lte(sum(full$n), 137L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
