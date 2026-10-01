@@ -122,3 +122,68 @@ test_that("the conservation check fires on a dropped group", {
     "equines"
   )
 })
+
+# Sudan in the two vocabularies, two years either side of the 2011 secession.
+# Under the un-fold the retired bucket 206 is carried forward beside its
+# successors; under the default fold it is their sum and they are absent.
+.sudan_buckets <- function() {
+  tibble::tribble(
+    ~bucket, ~last_year, ~member,
+    206L,    2011L,      276L,
+    206L,    2011L,      277L
+  )
+}
+
+.sudan_prod_unfolded <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit,   ~value,
+    2011L,      206L,           "960", "heads",     10,
+    2012L,      206L,           "960", "heads",     10,
+    2012L,      206L,           "960", "LU",         7,
+    2012L,      276L,           "960", "heads",      8,
+    2012L,      277L,           "960", "heads",      3
+  )
+}
+
+test_that("the bucket table names Sudan's successors and its last year", {
+  .need_spatialize_helper(".livestock_predecessor_buckets")
+  buckets <- .livestock_predecessor_buckets()
+  sudan <- dplyr::filter(buckets, bucket == 206L)
+  expect_setequal(sudan$member, c(276L, 277L))
+  expect_equal(unique(sudan$last_year), 2011L)
+})
+
+test_that("a retired bucket carried past its end is dropped", {
+  .need_spatialize_helper(".livestock_reporting_areas")
+  expect_message(
+    out <- .livestock_reporting_areas(
+      .sudan_prod_unfolded(),
+      .sudan_buckets()
+    ),
+    "retired predecessor bucket"
+  )
+  # 2011 keeps 206; 2012 keeps only the successors, in every unit.
+  expect_equal(out$area_code[out$year == 2011L], 206L)
+  expect_setequal(out$area_code[out$year == 2012L], c(276L, 277L))
+  expect_equal(sum(out$value[out$unit == "heads" & out$year == 2012L]), 11)
+})
+
+test_that("a production table in the default fold is refused", {
+  .need_spatialize_helper(".livestock_reporting_areas")
+  folded <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit,   ~value,
+    2011L,      206L,           "960", "heads",     10,
+    2012L,      206L,           "960", "heads",     11
+  )
+  # Dropping 206 after 2011 here would delete Sudan outright.
+  expect_error(
+    .livestock_reporting_areas(folded, .sudan_buckets()),
+    class = "whep_livestock_folded_production"
+  )
+})
+
+test_that("a table that never reaches the bucket's end is untouched", {
+  .need_spatialize_helper(".livestock_reporting_areas")
+  prod <- .stock_prod()
+  expect_identical(.livestock_reporting_areas(prod, .sudan_buckets()), prod)
+})
