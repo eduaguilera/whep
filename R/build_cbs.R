@@ -436,7 +436,8 @@ build_commodity_balances <- function(
         export_share_overflow = export_share_overflow,
         unmatched_processing = unmatched_processing,
         export_share_basis = export_share_basis
-      )
+      ) |>
+      .attach_polity_identity(attr(raw, ".polity_identity"))
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
@@ -577,7 +578,12 @@ build_commodity_balances <- function(
 # The wide CBS dataset as users consume it. It lives beside the long build so
 # the two formats of one dataset cannot drift apart.
 .cbs_long_to_wide <- function(cbs_long, primary_all, years) {
+  # The pivot keeps only its key, so the identity the long CBS and production
+  # already publish is parked around it rather than resolved a third time
+  # (whep#707).
+  polity_identity <- .park_polity_identity(list(cbs_long, primary_all))
   wide <- .cbs_wide_core(cbs_long, primary_all, years) |>
+    .attach_polity_identity(polity_identity) |>
     .add_reporting_polity_columns()
 
   .qc_supply_use_balance(wide)
@@ -608,6 +614,11 @@ build_commodity_balances <- function(
   )
 
   has_flag <- "fao_flag" %in% names(df)
+  # `sel_cols` and the grouped sum below keep only the key, so the identity the
+  # input carries is lifted out first and written back after the sum, never
+  # added to `by_cols` (whep#707). It is a function of `(area_code, year)`,
+  # both of which the sum keeps.
+  polity_identity <- .park_polity_identity(list(df))
 
   sel_cols <- c(
     "year",
@@ -667,6 +678,7 @@ build_commodity_balances <- function(
   # value-keyed dedup.
   tibble::as_tibble(as.data.frame(dt)) |>
     dplyr::mutate(value = .round_reproducible(.data$value, 7)) |>
+    .attach_polity_identity(polity_identity) |>
     .add_reporting_polity_columns()
 }
 
@@ -786,6 +798,20 @@ build_commodity_balances <- function(
     inputs$trade_hist,
     "hist_trade_scale_log"
   )
+  # The reporting identity the folds emitted, parked for the tail: none of the
+  # balancing steps carries it (whep#707). `primary_all` holds the one the
+  # production build published, the extracts the one their folds emitted.
+  # Historical trade is left out on purpose: it is resolved under its own
+  # year's borders, not the 1961 back-cast anchor the tail resolves at.
+  attr(cbs_raw, ".polity_identity") <- .park_polity_identity(list(
+    primary_all,
+    inputs$fbs_new,
+    inputs$fbs_old,
+    inputs$cbs_crops,
+    inputs$cbs_animals,
+    inputs$cbs_new,
+    inputs$fao_trade
+  ))
 
   # Aggregate FAOSTAT + FishStat trade to CBS item level for imputation
   # Both aggregates are reduced to their mass rows first: this attribute is the
@@ -873,6 +899,7 @@ build_commodity_balances <- function(
   # Strip attributes to avoid carrying large objects downstream
   attr(cbs_raw, ".years") <- NULL
   attr(cbs_raw, ".fao_trade") <- NULL
+  attr(cbs_raw, ".polity_identity") <- NULL
 
   # 4. Processing coefficients (global calibration)
   cli::cli_progress_step("Calibrating processing coefficients")

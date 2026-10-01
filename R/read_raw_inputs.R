@@ -478,9 +478,10 @@
 # totals: mass is conserved whichever grain is used, it merely spreads over
 # more rows, so a totals diff reads as success. That is how whep#561/#563
 # shipped a bucket that stopped summing without one value moving. The identity
-# emitted here is dropped again by the output reductions (whep#707) --
-# `carried: 0 rows` in a real build -- which is why downstream code still keys
-# on the bucket.
+# emitted here is parked around the reductions that follow and written back by
+# `(area_code, year)` before each build's tail, which keeps it rather than
+# resolving again (whep#707, `R/polity_identity_carry.R`). It is not threaded
+# through their `by =`, for the reason above.
 .aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
