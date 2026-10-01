@@ -112,9 +112,9 @@ Default \code{1e-12}, argued from EarthStat's own float32 precision in
 behaviour of whep#1070, in which a (country, crop) whose whole
 pattern is underflow is placed proportional to that underflow instead
 of uniformly.
-\item \code{expansion_threshold}: Iteration number after which crops are
-allowed to expand into cells without an existing pattern.
-Default: \code{100L}.
+\item \code{expansion_threshold}: defunct. It was accepted but never changed the
+allocation, and is dropped with a warning (whep#1001). LandInG's
+expansion step is not implemented.
 \item \code{area_key}: Which area code the output is keyed on, \code{"grid"}
 (default) or \code{"polity_area"}. See \emph{Which area code the output is
 keyed on}.
