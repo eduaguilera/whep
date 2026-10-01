@@ -1064,8 +1064,9 @@ read_hwsd_topsoil_soc <- function(
   agg_factor <- .hwsd_agg_factor(target_res, terra::res(sub)[1])
   if (reduce == "counts") {
     out <- .hwsd_band_counts(sub, rcls[[1]], out_cols, agg_factor)
+    n_cells <- terra::ncell(sub)
     rm(sub)
-    invisible(gc(full = TRUE))
+    .hwsd_release_band(n_cells)
     return(out)
   }
   # Collected per COLUMN, not once per band: `classified` is a
@@ -1077,9 +1078,35 @@ read_hwsd_topsoil_soc <- function(
     rcls,
     \(rcl, out_col) .hwsd_band_column(sub, rcl, out_col, agg_factor)
   )
+  n_cells <- terra::ncell(sub)
   rm(sub)
-  invisible(gc(full = TRUE))
+  .hwsd_release_band(n_cells)
   purrr::reduce(parts, dplyr::inner_join, by = c("lon", "lat"))
+}
+
+# Collect the garbage a band's full-resolution intermediates left behind, but
+# only when the band was large enough for that to matter. terra keeps a
+# raster's pixels outside R's heap and frees them only when R finalises the
+# SpatRaster, so an explicit full collection is what keeps a global pass near
+# the peak `.hwsd_band_rows()` was chosen against. That collection costs the
+# same ~0.3 s whatever the band's size -- it walks the whole session heap --
+# so on a small band it buys nothing and only spends time: a 144-pixel test
+# fixture paid ~4 s of collections per aggregation, one per texture class.
+# Collecting or not never changes a value, only when memory is returned.
+# `collect` is an argument only so a test can see whether it ran.
+.hwsd_release_band <- function(n_cells, collect = \() gc(full = TRUE)) {
+  if (n_cells >= .hwsd_release_min_cells()) {
+    collect()
+  }
+  invisible(NULL)
+}
+
+# Native pixels at or above which a band's intermediates are collected
+# explicitly. One million doubles is 8 MB per layer. A real 0.5-degree band of
+# the global HWSD raster is 32 x 60 rows by 43,200 columns, 82.9 million
+# pixels, so every band of a real pass is still collected, as before.
+.hwsd_release_min_cells <- function() {
+  1e6
 }
 
 # Count, per aggregated cell, how many native HWSD pixels fall in each USDA
@@ -1103,7 +1130,7 @@ read_hwsd_topsoil_soc <- function(
       values <- terra::as.data.frame(coarse, xy = TRUE, na.rm = FALSE)
       names(values) <- c("lon", "lat", nm)
       rm(coarse)
-      invisible(gc(full = TRUE))
+      .hwsd_release_band(terra::ncell(classified))
       dplyr::mutate(
         values,
         lon = round(.data$lon, 2),
@@ -1111,8 +1138,9 @@ read_hwsd_topsoil_soc <- function(
       )
     }
   )
+  n_cells <- terra::ncell(classified)
   rm(classified)
-  invisible(gc(full = TRUE))
+  .hwsd_release_band(n_cells)
   out <- purrr::reduce(parts, dplyr::full_join, by = c("lon", "lat"))
   # A cell with no classified pixel at all carries no texture and would divide
   # by zero downstream, so it is dropped here rather than travelling as zeros.
@@ -1133,8 +1161,9 @@ read_hwsd_topsoil_soc <- function(
   )
   values <- terra::as.data.frame(coarse, xy = TRUE, na.rm = TRUE)
   names(values) <- c("lon", "lat", out_col)
+  n_cells <- terra::ncell(classified)
   rm(classified, coarse)
-  invisible(gc(full = TRUE))
+  .hwsd_release_band(n_cells)
   values |>
     dplyr::mutate(
       lon = round(.data$lon, 2),

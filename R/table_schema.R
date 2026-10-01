@@ -288,15 +288,22 @@ empty_table_from_schema <- function(schema) {
 
 .schema_ordered_types <- c("integer", "double", "Date")
 
+# Built once, at package build time, and handed out as a value. Every rule that
+# finds nothing returns it, so a check builds it ~5 times per declared column:
+# constructing a fresh tibble each time was half the cost of validating a
+# clean table. Sharing it is safe because R copies a tibble on modification,
+# so no caller can change the one the others receive.
+.schema_diagnostics_empty <- tibble::tibble(
+  row = integer(),
+  column = character(),
+  rule = character(),
+  value = character(),
+  severity = character(),
+  detail = character()
+)
+
 .schema_diagnostics_prototype <- function() {
-  tibble::tibble(
-    row = integer(),
-    column = character(),
-    rule = character(),
-    value = character(),
-    severity = character(),
-    detail = character()
-  )
+  .schema_diagnostics_empty
 }
 
 .schema_type_prototype <- function(type) {
@@ -691,14 +698,20 @@ empty_table_from_schema <- function(schema) {
   if (nrow(mismatch) > 0) {
     return(mismatch)
   }
-  dplyr::bind_rows(
+  found <- dplyr::bind_rows(
     .schema_missing_value_rows(values, column),
     .schema_bound_rows(values, column, "min"),
     .schema_bound_rows(values, column, "max"),
     .schema_allowed_rows(values, column),
     .schema_unique_rows(values, column)
-  ) |>
-    dplyr::arrange(row, rule)
+  )
+  # Nothing to order in an empty or single-row result, and a clean column --
+  # the common case -- is empty: skipping the no-op sort is most of the
+  # remaining cost of a check.
+  if (nrow(found) < 2L) {
+    return(found)
+  }
+  dplyr::arrange(found, row, rule)
 }
 
 .schema_missing_diagnostic <- function(column) {
@@ -793,6 +806,9 @@ empty_table_from_schema <- function(schema) {
 
 .schema_flagged_rows <- function(flagged, values, column, rule, detail) {
   rows <- which(flagged)
+  if (length(rows) == 0L) {
+    return(.schema_diagnostics_prototype())
+  }
   .schema_diagnostic(
     rule = rule,
     detail = detail,

@@ -207,6 +207,32 @@ test_that("diagnostics follow schema column order, not input order", {
   )
 })
 
+test_that("diagnostics within a column are ordered by row, then rule", {
+  # The rules are evaluated missing-value first, so an unsorted result would
+  # list row 3's missing value before row 1's bound violation. Single-row and
+  # empty results skip the sort, which must not leak into this case.
+  schema <- list(
+    columns = list(
+      list(
+        name = "value",
+        type = "double",
+        allow_missing = FALSE,
+        min = 0,
+        max = 10
+      )
+    )
+  )
+  data <- tibble::tibble(value = c(-1, 5, NA, 20))
+
+  diagnostics <- whep::check_table_schema(data, schema)
+
+  expect_equal(diagnostics$row, c(1L, 3L, 4L))
+  expect_equal(
+    diagnostics$rule,
+    c("below_min", "missing_value", "above_max")
+  )
+})
+
 test_that("every documented rule is reachable", {
   documented <- c(
     "empty_table",
