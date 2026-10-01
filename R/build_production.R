@@ -1806,17 +1806,13 @@ build_primary_production <- function(
 
 .build_livestock_slaughter <- function(fao_combined) {
   cli::cli_progress_step("Building livestock slaughter counts")
-  items <- whep::items_cbs
+  items <- .slaughter_item_names()
   smap <- .build_slaughter_map()
   raw <- .read_slaughter_raw(fao_combined, smap)
   result <- .split_slaughter_by_shares(raw)
 
   result |>
-    dplyr::left_join(
-      items |>
-        dplyr::select(item_cbs_code, item_cbs_name),
-      by = "item_cbs_code"
-    ) |>
+    dplyr::left_join(items, by = "item_cbs_code") |>
     dplyr::mutate(
       item_prod = item_cbs_name,
       item_prod_code = as.character(item_cbs_code),
@@ -1840,6 +1836,20 @@ build_primary_production <- function(
       value,
       source
     )
+}
+
+# Names for the slaughter rows. `items_cbs` is authoritative, but it has no row
+# for stock sub-items that are not supply-use sectors (1051 "Hogs", breeding
+# swine; whep#1149), so those take the name `animals_codes` gives them. Adding
+# them to `items_cbs` instead would create a new husbandry sector in
+# `build_supply_use()`.
+.slaughter_item_names <- function() {
+  named <- whep::items_cbs |>
+    dplyr::select(item_cbs_code, item_cbs_name)
+  whep::animals_codes |>
+    dplyr::distinct(item_cbs_code, item_cbs_name = item_cbs) |>
+    dplyr::filter(!item_cbs_code %in% named$item_cbs_code) |>
+    dplyr::bind_rows(named)
 }
 
 # -- Primary combination & yields ---------------------------------------------

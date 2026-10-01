@@ -2469,3 +2469,12 @@ test_that("breeding swine reach production now that 1051 is named", {
   expect_equal(restored$item_prod, "Hogs")
   expect_equal(restored$unit, "heads")
 })
+
+test_that("slaughter item names cover breeding swine 1051 (whep#1149)", {
+  nm <- whep:::.slaughter_item_names()
+  expect_false(anyNA(nm$item_cbs_name))
+  expect_false(anyDuplicated(nm$item_cbs_code) > 0)
+  expect_equal(nm$item_cbs_name[nm$item_cbs_code == 1051], "Hogs")
+  expect_equal(nm$item_cbs_name[nm$item_cbs_code == 1049], "Pigs")
+  expect_false(1051 %in% whep::items_cbs$item_cbs_code)
+})
