@@ -206,6 +206,10 @@
 #'     (`"nearest"` default, `"polity"`, `"keep"` or `"drop"`), for human N
 #'     the transport step leaves on a source cell with no cropland. Only what
 #'     that rule leaves stranded reaches `method_unsupported`.
+#'   * `human_n_method_local_residual`: [build_human_n()]'s
+#'     `method_local_residual` (`"room_cap"` default or `"uncapped"`), for the
+#'     residual a source cell WITH cropland gets back: capped at the cell's own
+#'     room, the excess placed by `human_n_method_residual`, or kept whole.
 #'   * `carbon_balance`: [build_carbon_balance()]'s `"grid"`-resolution
 #'     output (`lon`, `lat`, `area_code`, `land_use`, `year`, `area_ha`,
 #'     `son_change_kgn_ha`); this driver requires it supplied directly, it
@@ -1150,6 +1154,8 @@ build_n_inputs <- function(
     population_basis = .ni_human_population_basis(data),
     polity_validity = .ni_polity_validity(data),
     method_residual = data[["human_n_method_residual"]] %||% "nearest",
+    method_local_residual = data[["human_n_method_local_residual"]] %||%
+      "room_cap",
     data = list(
       urban_population = data[["urban_population"]],
       total_population = data[["total_population"]],
