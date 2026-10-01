@@ -1942,15 +1942,15 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    4.7876219, 1.23463301, 0.0600324493,
+    4.7876219, 1.23463301, 0.0621237946,
     1, 0.86768667, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    3.1917479, 0.55082466, 0.0400216329,
+    3.1917479, 0.55082466, 0.0414158631,
     1, 0.86768667, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.56374899, 0.0422466683,
+    2.8982329, 0.56374899, 0.0437184119,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(
@@ -1970,7 +1970,7 @@
         "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019;",
         "pasture_bo_paired"
       ),
-      method_manure_n2o = "IPCC_2019_Tier2"
+      method_manure_n2o = "IPCC_2019_Tier2; indirect_ipcc_2019"
     ) |>
     .add_reporting_polity_columns()
 }
