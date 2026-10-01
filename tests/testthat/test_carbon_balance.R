@@ -3,6 +3,13 @@
 # transfer and the derived soil-organic-nitrogen change. Analytical and
 # conservation targets are stated inline.
 
+# Every build ends its block in a full garbage collection, which on these
+# fixtures costs more than the build itself and changes no value (whep#1349).
+testthat::local_mocked_bindings(
+  .cb_collect_garbage = function() invisible(NULL),
+  .package = "whep"
+)
+
 # -- Fixtures -----------------------------------------------------------------
 
 # A two-class, single-cell land-use table over three years. Class A shrinks and

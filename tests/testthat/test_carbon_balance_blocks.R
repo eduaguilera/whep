@@ -4,13 +4,31 @@
 # identical to building the span in one pass. Offline throughout; the fixture
 # is in helper_carbon_blocks.R.
 
+# Every block ends in a full garbage collection, which on this fixture costs
+# more than the block itself and changes no value (whep#1349).
+testthat::local_mocked_bindings(
+  .cb_collect_garbage = function() invisible(NULL),
+  .package = "whep"
+)
+
 # One build, recording its conditions. Progress output is off under testthat.
 .cbb_build <- function(block_years, ...) {
   .cbb_record(whep::build_carbon_balance(..., block_years = block_years))
 }
 
+# The same build, run once per file: several tests make exactly this call on
+# exactly these inputs, and a build is deterministic, so they share it. The
+# key is the call's arguments, by name.
+.cbb_shared <- new.env(parent = emptyenv())
+
+.cbb_build_shared <- function(block_years, ...) {
+  args <- list(...)
+  key <- rlang::hash(list(block_years, args[order(names(args))]))
+  rlang::env_cache(.cbb_shared, key, .cbb_build(block_years, ...))
+}
+
 testthat::test_that("the fixture reaches every term a block boundary can break", {
-  one <- .cbb_build(Inf, data = .cbb_data())
+  one <- .cbb_build_shared(Inf, data = .cbb_data())
   out <- one$value
   # A crop group and a natural row vanish at a block boundary (2009 is the
   # first year of the second block at block_years = 2) and are carried at
@@ -52,10 +70,10 @@ testthat::test_that("the fixture reaches every term a block boundary can break",
 })
 
 testthat::test_that("a blocked build is identical to one pass", {
-  one <- .cbb_build(Inf, data = .cbb_data())
+  one <- .cbb_build_shared(Inf, data = .cbb_data())
   for (size in c(1, 2, 3, 4, 7, 100)) {
     testthat::expect_identical(
-      .cbb_build(size, data = .cbb_data()),
+      .cbb_build_shared(size, data = .cbb_data()),
       one,
       info = paste("block_years =", size)
     )
@@ -103,13 +121,12 @@ testthat::test_that("a blocked build is identical to one pass", {
 
 testthat::test_that("a blocked build is the unblocked pipeline", {
   quiet <- \(x) suppressWarnings(suppressMessages(x))
+  # The first two leave `resolution` (and the first everything) at the default
+  # -- grid, own equilibrium, keep, which `.cbb_unblocked()` spells out -- so
+  # they are the very calls the tests around this one make, and share them.
   cases <- list(
-    list(
-      resolution = "grid",
-      init = "own_equilibrium",
-      polity_validity = "keep"
-    ),
-    list(resolution = "grid", init = "cell_average", polity_validity = "flag"),
+    list(),
+    list(init = "cell_average", polity_validity = "flag"),
     list(
       resolution = "polity",
       init = "own_equilibrium",
@@ -119,13 +136,14 @@ testthat::test_that("a blocked build is the unblocked pipeline", {
   for (case in cases) {
     reference <- quiet(do.call(.cbb_unblocked, c(list(.cbb_data()), case)))
     for (size in c(Inf, 2)) {
+      built <- do.call(
+        .cbb_build_shared,
+        c(list(block_years = size, data = .cbb_data()), case)
+      )
       testthat::expect_identical(
-        quiet(do.call(
-          whep::build_carbon_balance,
-          c(list(data = .cbb_data(), block_years = size), case)
-        )),
+        built$value,
         reference,
-        info = paste(case$resolution, case$init, "at block_years =", size)
+        info = paste(c(unlist(case), "at block_years =", size), collapse = " ")
       )
     }
   }
@@ -187,10 +205,13 @@ testthat::test_that("blocking is identical across openings, models and grain", {
     precomputed_modifier = list(data = precomputed)
   )
   for (name in names(cases)) {
-    one <- do.call(.cbb_build, c(list(block_years = Inf), cases[[name]]))
+    one <- do.call(
+      .cbb_build_shared,
+      c(list(block_years = Inf), cases[[name]])
+    )
     for (size in c(2, 3)) {
       testthat::expect_identical(
-        do.call(.cbb_build, c(list(block_years = size), cases[[name]])),
+        do.call(.cbb_build_shared, c(list(block_years = size), cases[[name]])),
         one,
         info = paste(name, "at block_years =", size)
       )
