@@ -70,8 +70,9 @@
 #'   summed over 1961-2023. A country with neither product takes the world's
 #'   dominant product and its global ratio. The four products are read from
 #'   the raw `faostat-production` pin (`method_dominance`
-#'   `"dominance_raw_faostat"`), because WHEP's primary production has no flax
-#'   fibre (#1302).
+#'   `"dominance_raw_faostat"`), the same item codes WHEP's primary production
+#'   books them on, so ranking two products needs no 1961-2023 production
+#'   build.
 #'
 #' A country with no irrigated or no rainfed yield for the crop in SPAM takes
 #' the crop's global ratio (the ratio of the world's sums). Countries are
@@ -431,10 +432,9 @@ split_regime_yield <- function(
 # hempseed in `ooil`, flax and true hemp in `ofib`).
 #
 # The codes are FAOSTAT QCL item codes, read from the raw
-# `faostat-production` pin. WHEP's primary production has no row for flax
-# fibre (#1302): FAOSTAT's current QCL books it as 771 "Flax, raw or retted"
-# (France 2010: 372,100 t), where primary_double.csv still names 773. Remove
-# this raw read, and go back to WHEP's production, when #1302 is fixed.
+# `faostat-production` pin. FAOSTAT's current QCL books flax fibre as 771
+# "Flax, raw or retted" (France 2010: 372,100 t), and primary_double.csv names
+# the same code since whep#1302; earlier vintages called it 773.
 .ryr_dominance_products <- function() {
   tibble::tribble(
     ~item_prod_code, ~seed_code, ~fibre_code,
@@ -613,7 +613,7 @@ split_regime_yield <- function(
     parts$composite <- .ryr_anchor_composite(pairs[kind == "composite", ], spam)
   }
   if (any(kind == "dominance")) {
-    # Remove when #1302 is fixed (read WHEP's production instead).
+    # The raw pin, not WHEP's production: see `.ryr_dominance_tonnes()`.
     production <- data$faostat_production %||%
       whep_read_file("faostat-production")
     parts$dominance <- .ryr_anchor_dominance(
@@ -864,9 +864,11 @@ split_regime_yield <- function(
 }
 
 # FAOSTAT tonnes of the seed and fibre products per polity bucket, 1961-2023,
-# read from the raw `faostat-production` pin (remove when #1302 is
-# fixed). Reporting areas are summed onto their bucket; aggregates with no
-# bucket (World, regions, the China 351 aggregate) are dropped.
+# read from the raw `faostat-production` pin, whose item codes are the ones
+# primary_double.csv consolidates (whep#1302): reading WHEP's production
+# instead would take a full 1961-2023 build to rank two products. Reporting
+# areas are summed onto their bucket; aggregates with no bucket (World,
+# regions, the China 351 aggregate) are dropped.
 .ryr_dominance_tonnes <- function(production) {
   .ryr_require_cols(
     production,

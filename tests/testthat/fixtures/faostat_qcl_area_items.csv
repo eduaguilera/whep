@@ -1,0 +1,170 @@
+item_code,item
+15,Wheat
+27,Rice
+44,Barley
+56,Maize (corn)
+71,Rye
+75,Oats
+79,Millet
+83,Sorghum
+89,Buckwheat
+92,Quinoa
+94,Fonio
+97,Triticale
+101,Canary seed
+103,Mixed grain
+108,Cereals n.e.c.
+116,Potatoes
+122,Sweet potatoes
+125,"Cassava, fresh"
+135,Yautia
+136,Taro
+137,Yams
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh"
+156,Sugar cane
+157,Sugar beet
+161,Other sugar crops n.e.c.
+176,"Beans, dry"
+181,"Broad beans and horse beans, dry"
+187,"Peas, dry"
+191,"Chick peas, dry"
+195,"Cow peas, dry"
+197,"Pigeon peas, dry"
+201,"Lentils, dry"
+203,"Bambara beans, dry"
+205,Vetches
+210,Lupins
+211,Other pulses n.e.c.
+217,"Cashew nuts, in shell"
+220,"Chestnuts, in shell"
+221,"Almonds, in shell"
+222,"Walnuts, in shell"
+223,"Pistachios, in shell"
+224,Kola nuts
+225,"Hazelnuts, in shell"
+226,Areca nuts
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c."
+236,Soya beans
+242,"Groundnuts, excluding shelled"
+249,"Coconuts, in shell"
+254,Oil palm fruit
+260,Olives
+263,Karite nuts (sheanuts)
+265,Castor oil seeds
+267,Sunflower seed
+270,Rape or colza seed
+275,Tung nuts
+277,Jojoba seeds
+280,Safflower seed
+289,Sesame seed
+292,Mustard seed
+296,Poppy seed
+299,Melonseed
+305,Tallowtree seeds
+310,Kapok fruit
+328,"Seed cotton, unginned"
+333,Linseed
+336,Hempseed
+339,"Other oil seeds, n.e.c."
+358,Cabbages
+366,Artichokes
+367,Asparagus
+372,Lettuce and chicory
+373,Spinach
+378,Cassava leaves
+388,Tomatoes
+393,Cauliflowers and broccoli
+394,"Pumpkins, squash and gourds"
+397,Cucumbers and gherkins
+399,Eggplants (aubergines)
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)"
+402,"Onions and shallots, green"
+403,"Onions and shallots, dry (excluding dehydrated)"
+406,Green garlic
+407,Leeks and other alliaceous vegetables
+414,"Other beans, green"
+417,"Peas, green"
+420,"Broad beans and horse beans, green"
+423,String beans
+426,Carrots and turnips
+430,Okra
+446,Green corn (maize)
+459,Chicory roots
+461,Locust beans (carobs)
+463,"Other vegetables, fresh n.e.c."
+486,Bananas
+489,Plantains and cooking bananas
+490,Oranges
+495,"Tangerines, mandarins, clementines"
+497,Lemons and limes
+507,Pomelos and grapefruits
+512,"Other citrus fruit, n.e.c."
+515,Apples
+521,Pears
+523,Quinces
+526,Apricots
+530,Sour cherries
+531,Cherries
+534,Peaches and nectarines
+536,Plums and sloes
+541,Other stone fruits
+542,Other pome fruits
+544,Strawberries
+547,Raspberries
+549,Gooseberries
+550,Currants
+552,Blueberries
+554,Cranberries
+558,Other berries and fruits of the genus vaccinium n.e.c.
+560,Grapes
+567,Watermelons
+568,Cantaloupes and other melons
+569,Figs
+571,"Mangoes, guavas and mangosteens"
+572,Avocados
+574,Pineapples
+577,Dates
+587,Persimmons
+591,Cashewapple
+592,Kiwi fruit
+600,Papayas
+603,"Other tropical fruits, n.e.c."
+619,"Other fruits, n.e.c."
+656,"Coffee, green"
+661,Cocoa beans
+667,Tea leaves
+671,Maté leaves
+677,Hop cones
+687,"Pepper (Piper spp.), raw"
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw"
+692,"Vanilla, raw"
+693,"Cinnamon and cinnamon-tree flowers, raw"
+698,"Cloves (whole stems), raw"
+702,"Nutmeg, mace, cardamoms, raw"
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw"
+720,"Ginger, raw"
+723,"Other stimulant, spice and aromatic crops, n.e.c."
+748,"Peppermint, spearmint"
+754,"Pyrethrum, dried flowers"
+771,"Flax, raw or retted"
+777,"True hemp, raw or retted"
+780,"Jute, raw or retted"
+782,"Kenaf, and other textile bast fibres, raw or retted"
+788,"Ramie, raw or retted"
+789,"Sisal, raw"
+800,"Agave fibres, raw, n.e.c."
+809,"Abaca, manila hemp, raw"
+821,"Other fibre crops, raw, n.e.c."
+826,Unmanufactured tobacco
+836,Natural rubber in primary forms
+1717,"Cereals, primary"
+1720,"Roots and Tubers, Total"
+1723,Sugar Crops Primary
+1726,"Pulses, Total"
+1729,"Treenuts, Total"
+1732,"Oilcrops, Oil Equivalent"
+1735,Vegetables Primary
+1738,Fruit Primary
+1804,"Citrus Fruit, Total"
+1841,"Oilcrops, Cake Equivalent"
+17530,"Fibre Crops, Fibre Equivalent"
