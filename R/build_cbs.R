@@ -2983,14 +2983,22 @@ build_processing_coefs <- function(
 # link, and closes the aggregated balance: supply (primary production plus
 # both links' net trade and stock change) then equals the last link's uses.
 #
+# Tobacco 828/829/831 (cigarettes, cigars, other manufactured tobacco,
+# whep#1276) are listed on a different ground: the chain reports no
+# `Processed`, so the link is not confirmed by a ratio, but the products are
+# not a crop. Primary tobacco production is the unmanufactured leaf (826), the
+# only tobacco item FAOSTAT_prod carries, and the products are made from leaf
+# already in the balance as 826 production or import. Over the years read
+# here (2014+) the pin gives them production in 5 areas, up to 261 kt a year
+# (2014); the Netherlands 2019 has 54.3 kt of 831 and no 826 production.
+# Their trade is still booked, in product mass.
+#
 # Deliberately NOT listed, though the shape is the same: wool 987 -> 988
 # (greasy -> degreased, ~0.6 t/t) and silk 1185 -> 1186/1187 (cocoons -> raw
 # silk, ~0.14 t/t, whep#1251) change mass basis along the chain, so which
-# link's production to keep is a basis decision, not a dedup; tobacco 826 ->
-# 828/829/831 (manufactured products) reports no `Processed` at all, so the
-# link is unconfirmed.
+# link's production to keep is a basis decision, not a dedup.
 .cb_chain_downstream_codes <- function() {
-  837L
+  c(837L, 828L, 829L, 831L)
 }
 
 .assemble_cbs_sources <- function(

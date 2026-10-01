@@ -4330,6 +4330,61 @@ test_that(".get_fiber_tobacco counts chain production once, at the first link", 
   )
 })
 
+# whep#1276. FAOSTAT's CB reports tobacco as unmanufactured leaf (826) and
+# three manufactured products (828 cigarettes, 829 cigars, 831 other), all
+# mapped onto CBS Tobacco. Only the leaf is a crop; the products are made from
+# leaf that is already in the balance as 826 production or import. Summing
+# their production booked the Netherlands 2019 -- no 826 production, 54.3 kt
+# of 831 -- as a tobacco producer.
+test_that(".get_fiber_tobacco books tobacco production from the leaf only", {
+  cbs_new <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~element,     ~value,
+    150L,       826L,           "import",     94,
+    150L,       826L,           "export",     28,
+    150L,       826L,           "other_uses", 66,
+    150L,       831L,           "production", 54,
+    150L,       831L,           "export",     64,
+    230L,       826L,           "production", 2,
+    230L,       828L,           "production", 55,
+    230L,       829L,           "production", 1.5
+  ) |>
+    dplyr::mutate(
+      year = 2019L,
+      area = as.character(area_code),
+      item_cbs = "Tobacco",
+      unit = "TRUE"
+    ) |>
+    data.table::as.data.table()
+
+  booked <- whep:::.get_fiber_tobacco(
+    cbs_new,
+    tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      826L,             "Tobacco",
+      828L,             "Tobacco",
+      829L,             "Tobacco",
+      831L,             "Tobacco"
+    ),
+    tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Tobacco", 2671L
+    )
+  )
+  production <- booked |>
+    dplyr::filter(element == "production") |>
+    dplyr::arrange(area_code)
+
+  expect_equal(production$area_code, 230L)
+  expect_equal(production$value, 2)
+  # Trade in the manufactured products is still booked.
+  expect_equal(
+    booked |>
+      dplyr::filter(area_code == 150L, element == "export") |>
+      dplyr::pull(value),
+    92
+  )
+})
+
 test_that(".select_best_source aborts when one key carries two units", {
   # `key_cols` excludes `unit`, and everything after it reads `value` with the
   # unit already gone: `fun.aggregate` sums a duplicated (key, source) pair and
