@@ -32,7 +32,7 @@
 # an item that loses its row fails here, and one that gains a row has to be
 # removed from the list.
 .cft_excluded_ha_items <- function() {
-  fodder <- "Fodder crop: not gridded as cropland; scope decision (whep#1292)"
+  fodder <- "Fodder crop: not gridded as cropland, pending whep#1372"
   missing <- "Crop not yet mapped to a CFT (whep#1364)"
   tibble::tribble(
     ~item_prod_code, ~why,
