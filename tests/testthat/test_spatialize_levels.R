@@ -517,6 +517,132 @@ testthat::test_that("year-aware level 0 refuses overlapping epochs in a cell", {
     )
   )
 })
+
+# --- unkeyable claims in an overlapping cell (whep#1318) ---------------------
+
+# Three 1,000-ha cells whose territory is all land, so the land a claim holds
+# and the territory it claims are the same number:
+#
+#   (0.25, 50.25) areas 1 and 2 under an unkeyable federation covering both:
+#                 2,000 ha claimed in 1,000, so the federation is the layer
+#                 the cell's own area proves is counted twice
+#   (0.75, 50.25) area 1 beside an unkeyable piece, 1,000 ha claimed in 1,000:
+#                 a partition, so nothing is counted twice
+#   (1.25, 50.25) areas 1 and 2 beside an unkeyable claim of 510 ha, 1,010 ha
+#                 claimed: only 10 ha of the 510 can be a second count
+#
+# No `polity_code`, so `.carbon_rekey_area_code()` is a no-op.
+.lv_overlap_support <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~land_area_ha,
+    0.25, 50.25,          1L,           500,
+    0.25, 50.25,          2L,           500,
+    0.25, 50.25, NA_integer_,          1000,
+    0.75, 50.25,          1L,           600,
+    0.75, 50.25, NA_integer_,           400,
+    1.25, 50.25,          1L,           300,
+    1.25, 50.25,          2L,           200,
+    1.25, 50.25, NA_integer_,           510
+  ) |>
+    dplyr::mutate(
+      polity_area_ha = .data$land_area_ha,
+      cell_area_ha = 1000,
+      start_year = 1900L,
+      end_year = 2100L
+    )
+}
+
+.lv_frac <- function(grid, lon) {
+  cell <- dplyr::arrange(dplyr::filter(grid, .data$lon == .env$lon), area_code)
+  cell$cell_area_frac
+}
+
+testthat::test_that("an unkeyable layer counted twice leaves the share", {
+  # Germany over the unkeyable East and West German polities, French West
+  # Africa over its keyed colonies: the members hold the cell, and the
+  # federation's land in the denominator halved their shares. Measured on the
+  # shipped support at 1950, 1,296 Mha of unkeyable land lies in such cells.
+  grid <- .lv_epoch_grid(.lv_overlap_support())
+  testthat::expect_equal(.lv_frac(grid, 0.25), c(0.5, 0.5))
+  # A partition keeps the unkeyable piece in the denominator: its hectares
+  # are attributed to nobody rather than absorbed by area 1.
+  testthat::expect_equal(.lv_frac(grid, 0.75), 0.6)
+})
+
+testthat::test_that("only the land a cell proves counted twice leaves", {
+  # The 10 ha a cell claims beyond its area are all that can be a second
+  # count; the other 500 ha of the unkeyable claim stay in the denominator.
+  # Removing the whole claim, as the overlap test alone would, hands those
+  # 500 ha to areas 1 and 2 (0.6 and 0.4). Measured on the shipped support at
+  # 2015, the one such cell is Kosovo's at (20.25, 42.75): 117 kha claimed
+  # against an excess of 90 ha.
+  grid <- .lv_epoch_grid(.lv_overlap_support())
+  testthat::expect_equal(.lv_frac(grid, 1.25), c(0.3, 0.2))
+})
+
+testthat::test_that("the snapshot takes the same denominator at 2015", {
+  # The two vintages must still agree row for row in the year both read, so
+  # the carbon snapshot applies the rule the year-aware fold applies.
+  support <- .lv_overlap_support()
+  snapshot <- suppressWarnings(
+    tibble::as_tibble(whep:::.carbon_cell_support(support))
+  )
+  aware <- whep:::.filter_country_grid_year(.lv_epoch_grid(support), 2015L)
+  testthat::expect_equal(
+    aware |>
+      dplyr::select(dplyr::all_of(names(snapshot))) |>
+      dplyr::arrange(lon, lat, area_code),
+    dplyr::arrange(snapshot, lon, lat, area_code)
+  )
+  testthat::expect_equal(.lv_frac(snapshot, 0.25), c(0.5, 0.5))
+})
+
+testthat::test_that("an overlap is not measured without polity_area_ha", {
+  # Territory is what a cell's area bounds; land is not. Without it the read
+  # keeps every unkeyable claim in the denominator, as before, and says so.
+  testthat::expect_message(
+    .lv_epoch_grid(dplyr::select(.lv_overlap_support(), -"polity_area_ha")),
+    "polity_area_ha"
+  )
+  grid <- suppressMessages(
+    .lv_epoch_grid(dplyr::select(.lv_overlap_support(), -"polity_area_ha"))
+  )
+  testthat::expect_equal(.lv_frac(grid, 0.25), c(0.25, 0.25))
+})
+
+# North and South Vietnam, which the reporting vocabulary cannot key, in two
+# cells: one alone, one beside Cambodia (115). Their recorded rows file them
+# under Viet Nam (237) for 1961-1974.
+.lv_recorded_support <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,   ~polity_code,    ~area_code, ~land_area_ha,
+    105.75, 21.25, "DRV-1954-1975", NA_integer_,           900,
+    106.25, 10.25, "RVN-1954-1975", NA_integer_,           700,
+    106.25, 10.25, "KHM-1953-2025",         115L,           300
+  ) |>
+    dplyr::mutate(
+      polity_area_ha = .data$land_area_ha,
+      cell_area_ha = 1000,
+      start_year = 1954L,
+      end_year = 1975L
+    )
+}
+
+testthat::test_that("a recorded row keys an unkeyable polity in its years", {
+  # FAOSTAT reports Viet Nam (237) for 1961-1974 and the national tables carry
+  # it, but the year-aware grid held no 237 cell: 6.28 Mha of 1961 harvested
+  # area had nowhere to land.
+  grid <- suppressMessages(.lv_epoch_grid(.lv_recorded_support()))
+  at <- function(yr) whep:::.filter_country_grid_year(grid, yr)
+
+  testthat::expect_equal(.lv_frac(at(1961L), 105.75), 1)
+  testthat::expect_equal(.lv_frac(at(1961L), 106.25), c(0.3, 0.7))
+  testthat::expect_setequal(at(1974L)$area_code, c(115L, 237L))
+  # Before 1961 the mapping records nothing and the polities stay unkeyed;
+  # Cambodia's share of the shared cell is the same in both pieces.
+  testthat::expect_identical(at(1955L)$area_code, 115L)
+  testthat::expect_equal(.lv_frac(at(1955L), 106.25), 0.3)
+})
 testthat::test_that(".check_grid_level refuses a non-depth", {
   fn <- whep:::.check_grid_level
   testthat::expect_identical(fn(NULL), 0L)
@@ -4685,6 +4811,31 @@ testthat::test_that("an unresolved row keeps its own code rather than NA", {
 
   testthat::expect_equal(out$area_code, 9999L)
   testthat::expect_equal(out$method_polity_lineage, "unresolved")
+})
+
+testthat::test_that("an unkeyable lineage polity takes its recorded code", {
+  # whep#1318. Azerbaijan's lineage resolves exactly as intended -- to the
+  # Azerbaijan SSR the support carries in 1961 -- but that polity has no
+  # reporting code, so the row kept 52, which no cell carries in 1961, and
+  # 1.31 Mha of harvested area was dropped. The recorded mapping
+  # (`polity_cell_support_map.csv`) files the SSR inside the USSR (228) for
+  # 1961-1990; before 1961 it records nothing, and the row keeps its own code.
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year, ~area_code,
+    "AZE-SSR-1920-1991", 1920L, 1991L, NA_integer_,
+    "F228-1945-1991", 1945L, 1991L, 228L
+  )
+  national <- tibble::tribble(
+    ~area_code, ~year, ~harvested_area_ha,
+    52L, 1961L, 1000,
+    52L, 1955L, 900
+  )
+
+  out <- suppressWarnings(whep:::.level0_lineage_rekey(national, support))
+
+  testthat::expect_equal(out$lineage_polity_code, rep("AZE-SSR-1920-1991", 2))
+  testthat::expect_equal(out$area_code, c(228L, 52L))
+  testthat::expect_equal(out$harvested_area_ha, c(1000, 900))
 })
 # --- the vintage reconciler --------------------------------------------------
 
