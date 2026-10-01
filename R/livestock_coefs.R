@@ -1390,13 +1390,33 @@
 #' @description
 #' Parameters for indirect N2O emissions from manure
 #' management: EF4 (volatilization), EF5 (leaching),
-#' FracGasMS, FracLeach.
+#' FracGasMS, FracLeach, one block per IPCC edition. The manure engine reads
+#' the block its `indirect_n2o_source` option names (see
+#' [apply_management_losses()]); the default is `"ipcc_2019"`.
 #'
-#' @format A tibble with `parameter`, `value`,
-#'   `description`.
+#' Verified against both editions of Vol 4, Ch 11, Table 11.3 (whep#1245):
+#' - `ef4_volatilization` 0.010 in both (aggregated value).
+#' - `ef5_leaching` 0.011 in the 2019 Refinement, 0.0075 in the 2006
+#'   Guidelines.
+#' - `frac_leach` is FracLEACH-(H): 0.24 in the 2019 Refinement, 0.30 in the
+#'   2006 Guidelines. Both editions apply it only where leaching occurs (wet
+#'   climates in 2019; where the soil water-holding capacity is exceeded in
+#'   2006) and take it as zero elsewhere; WHEP applies it everywhere.
 #'
-#' @source IPCC 2019, Vol 4, Ch 10, Table 10.22;
-#'   Vol 4, Ch 11, Table 11.3.
+#' Until whep#1245 the table cited 2019 while holding the 2006 EF5 and
+#' FracLEACH-(H).
+#'
+#' `frac_gasms` 0.20 is the same in both blocks and is **assumed,
+#' unverified**: Table 10.22 of either edition publishes FracGasMS per animal
+#' category and manure system, not one number, and 0.20 equals the 2006
+#' FracGASM of Table 11.3 (the 2019 FracGASM is 0.21).
+#'
+#' @format A tibble with `edition` (`"ipcc_2019"` or `"ipcc_2006"`),
+#'   `parameter`, `value`, `description`.
+#'
+#' @source IPCC 2019 Refinement, Vol 4, Ch 11, Table 11.3 (Updated),
+#'   p. 11.26; IPCC 2006 Guidelines, Vol 4, Ch 11, Table 11.3, p. 11.24;
+#'   Vol 4, Ch 10, Table 10.22 of either edition for FracGasMS.
 #'
 #' @examples
 #' indirect_n2o_ef

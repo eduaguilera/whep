@@ -191,6 +191,7 @@ build_livestock_nutrient_flows <- function(
       method_mms = split$method_mms[1],
       method_losses = losses$method_losses[1],
       method_bedding_c = losses$method_bedding_c[1],
+      method_indirect_n2o = losses$method_indirect_n2o[1],
       method_bedding_mms = split$method_bedding_mms[1] %||% NA_character_,
       method_allocation = alloc_opt$method,
       method_cap = alloc_opt$cap_method,
