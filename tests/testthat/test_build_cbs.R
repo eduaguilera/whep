@@ -1643,6 +1643,44 @@ test_that("unmatched processing with no other destiny keeps its mass (#781)", {
   expect_equal(.elem_value(out, "domestic_supply"), 300)
 })
 
+test_that("'redistribute' keeps mass when destiny shares are unusable (#179)", {
+  no_pathway <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    processed_item = character()
+  )
+  base <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "processing", 300,
+    2010L, "Spain", 203L, "Coconut Oil", 2578L, "production", 300
+  )
+  zero_dest <- dplyr::bind_rows(
+    base,
+    tibble::tribble(
+      ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+      2010L, "Spain", 203L, "Coconut Oil", 2578L, "food", 0,
+      2010L, "Spain", 203L, "Coconut Oil", 2578L, "export", 0
+    )
+  )
+  none_dest <- base
+
+  for (cbs in list(zero_dest, none_dest)) {
+    cbs$source <- "FAOSTAT_FBS_New"
+    out <- whep:::.cbs_redistribute_notprocessed(
+      cbs,
+      no_pathway,
+      unmatched_processing = "redistribute"
+    )
+    destinies <- c("food", "feed", "other_uses", "export")
+    expect_equal(
+      sum(out$value[out$element %in% destinies]),
+      300
+    )
+    expect_false(anyNA(out$value))
+  }
+})
+
 test_that("build_commodity_balances validates unmatched_processing", {
   expect_error(
     build_commodity_balances(example = TRUE, unmatched_processing = "food"),
