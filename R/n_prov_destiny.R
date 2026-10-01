@@ -16,6 +16,21 @@
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param wood_n_method How the nitrogen concentration of the two wood items
+#'   is chosen. Both harvested `Wood` and the forest and shrubland residue
+#'   booked as `Firewood` map to the single `Average wood` row of
+#'   [biomass_coefs], although one is stemwood and the other branches and
+#'   bark. One of:
+#'   - `"tissue"` (default): price each by its own tissue, using the pooled
+#'     medians of Thurner et al. (2025), 0.0010 kg N per kg dry matter for
+#'     stem sapwood (`Wood`) and 0.0035 for branches (`Firewood`).
+#'   - `"single"`: use the shared `Average wood` cell for both, 0.0030, which
+#'     is a branch concentration and carries `Wood` about 3 times too high.
+#'
+#'   Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang,
+#'   Z., and Hickler, T. (2025). Nitrogen concentrations in boreal and
+#'   temperate tree tissues vary with tree age/size, growth rate, and climate.
+#'   *Biogeosciences* 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.
 #'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
@@ -40,7 +55,11 @@
 #'
 #' @examples
 #' create_n_prov_destiny(example = TRUE)
-create_n_prov_destiny <- function(example = FALSE) {
+create_n_prov_destiny <- function(
+  example = FALSE,
+  wood_n_method = c("tissue", "single")
+) {
+  wood_n_method <- rlang::arg_match(wood_n_method)
   if (example) {
     return(.example_create_n_prov_destiny())
   }
@@ -118,9 +137,13 @@ create_n_prov_destiny <- function(example = FALSE) {
       processed$processed_items,
       codes_coefs_items_full
     ) |>
-    .convert_fm_dm_n(biomass_coefs) |>
+    .convert_fm_dm_n(biomass_coefs, wood_n_method) |>
     .combine_destinies(add_feed_output$feed_intake, food_and_other_uses) |>
-    .convert_to_items_n(codes_coefs_items_full, biomass_coefs) |>
+    .convert_to_items_n(
+      codes_coefs_items_full,
+      biomass_coefs,
+      wood_n_method
+    ) |>
     .calculate_trade() |>
     .finalize_prod_destiny(
       codes_coefs_items_full,
@@ -1682,7 +1705,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .convert_fm_dm_n <- function(
   added_grass_wood_merged,
-  biomass_coefs
+  biomass_coefs,
+  wood_n_method = "tissue"
 ) {
   grazed_no_seeds_primary <- added_grass_wood_merged |>
     dplyr::mutate(
@@ -1705,6 +1729,7 @@ create_n_nat_destiny <- function(example = FALSE) {
         ),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
+    .apply_wood_tissue_n(wood_n_method) |>
     dplyr::mutate(
       # Some residues (e.g. Straw) can miss residue-specific coefficients.
       # In that case, fall back to product coefficients to avoid dropping
@@ -2049,7 +2074,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 .convert_to_items_n <- function(
   grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
-  biomass_coefs = whep::biomass_coefs
+  biomass_coefs = whep::biomass_coefs,
+  wood_n_method = "tissue"
 ) {
   grafs_prod_item_combined |>
     dplyr::left_join(
@@ -2062,12 +2088,9 @@ create_n_nat_destiny <- function(example = FALSE) {
         Name_biomass %in% c("Grass", "Fallow") ~ "Grass",
         # Both wood items -- harvested `Wood` and the forest/shrubland residue
         # that `.add_grass_wood()` relabels `Firewood` -- map to
-        # `Average wood`, so this line prices stemwood and branch-and-bark
-        # residue with the same cell. Its 0.0030 kg N/kg DM is a branch
-        # concentration (Thurner et al. 2025 branch median 0.0035, stem
-        # sapwood median 0.0010), so harvested wood is carried about 3x too
-        # high here. The coefficient is assumed, unverified upstream; see
-        # `Residue_kgN_kgDM` in [biomass_coefs] and whep#932.
+        # `Average wood`, so the table prices stemwood and branch-and-bark
+        # residue with the same cell. `.apply_wood_tissue_n()` below
+        # replaces it per item unless `wood_n_method = "single"` (whep#932).
         Name_biomass == "Average wood" ~ "Residue",
         TRUE ~ "Product"
       )
@@ -2088,6 +2111,7 @@ create_n_nat_destiny <- function(example = FALSE) {
         ),
       by = "Name_biomass"
     ) |>
+    .apply_wood_tissue_n(wood_n_method) |>
     dplyr::mutate(
       n_value = dplyr::case_when(
         prod_type %in% c("Residue", "Grass") ~
@@ -2532,4 +2556,55 @@ create_n_nat_destiny <- function(example = FALSE) {
   required <- c("ruminant", "monogastric", "pets")
   missing <- setdiff(required, names(df))
   dplyr::mutate(df, !!!purrr::map(rlang::set_names(missing), ~0))
+}
+
+#' @title Nitrogen concentration of the two wood items by tissue
+#' @description Pooled medians of Thurner et al. (2025), *Biogeosciences*
+#' 22(5), 1475-1493, doi:10.5194/bg-22-1475-2025, Sect. 3, p. 1480: stem
+#' sapwood 0.0010 kg N per kg dry matter (n = 1048) and branch 0.0035
+#' (n = 599). Harvested `Wood` (FAO roundwood) is stemwood; `Firewood` is what
+#' `.add_grass_wood()` relabels from forest and shrubland residue, i.e.
+#' branches and bark. The compilation is boreal and temperate and does not
+#' include *Quercus ilex*, so for Spain's holm-oak forest these are the
+#' nearest sourced values, not a species measurement (whep#932).
+#'
+#' @return A tibble with `Item`, `wood_tissue` and `wood_tissue_kgN_kgDM`.
+#' @keywords internal
+#' @noRd
+.wood_tissue_n <- function() {
+  tibble::tribble(
+    ~Item,      ~wood_tissue, ~wood_tissue_kgN_kgDM,
+    "Wood",     "stem",       0.0010,
+    "Firewood", "branch",     0.0035
+  )
+}
+
+#' @title Replace the shared wood residue nitrogen cell by tissue
+#' @description For `wood_n_method = "tissue"`, overwrite `Residue_kgN_kgDM`
+#' on `Wood` and `Firewood` rows with [.wood_tissue_n()]; `"single"` leaves
+#' the shared `Average wood` cell of [biomass_coefs] in place.
+#'
+#' @param df A tibble with `Item` and `Residue_kgN_kgDM` columns.
+#' @param wood_n_method `"tissue"` or `"single"`.
+#'
+#' @return `df` with `Residue_kgN_kgDM` replaced on the two wood items.
+#' @keywords internal
+#' @noRd
+.apply_wood_tissue_n <- function(df, wood_n_method) {
+  wood_n_method <- rlang::arg_match(wood_n_method, c("tissue", "single"))
+  if (wood_n_method == "single") {
+    return(df)
+  }
+  df |>
+    dplyr::left_join(
+      .wood_tissue_n() |> dplyr::select(Item, wood_tissue_kgN_kgDM),
+      by = "Item"
+    ) |>
+    dplyr::mutate(
+      Residue_kgN_kgDM = dplyr::coalesce(
+        wood_tissue_kgN_kgDM,
+        Residue_kgN_kgDM
+      )
+    ) |>
+    dplyr::select(-wood_tissue_kgN_kgDM)
 }
