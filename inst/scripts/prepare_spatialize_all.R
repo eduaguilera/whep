@@ -4055,6 +4055,135 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 }
 
 
+# FAOSTAT live-animal items that production reports in heads and that
+# `livestock_mapping.csv` leaves out on purpose, each with its reason. Any
+# other unmapped head item aborts `.livestock_country_stocks()`, because an
+# item the mapping does not know is dropped from the pin without a word: that
+# is how the 94 M breeding swine (1051) that whep#1153 restored to production
+# would have stayed off the grid (whep#1274).
+.livestock_unspatialized_items <- function() {
+  tibble::tribble(
+    ~item_code, ~reason,
+    # A beehive is a colony count, not a herd: there is no grazing fraction,
+    # no excretion rate and no FAOSTAT emission item for it, and no spatial
+    # proxy the livestock engine could place it on.
+    1181L, "Beehives"
+  )
+}
+
+# National head counts per species group, from the production table's
+# "heads" rows. Every head item is either mapped to a group or declared in
+# `.livestock_unspatialized_items()`; anything else aborts.
+.livestock_country_stocks <- function(prod, livestock_mapping) {
+  heads <- .livestock_production_heads(prod)
+  .check_livestock_items_mapped(heads, livestock_mapping)
+  heads |>
+    dplyr::inner_join(
+      dplyr::select(livestock_mapping, item_code, species_group),
+      by = "item_code"
+    ) |>
+    dplyr::summarise(
+      heads = sum(heads),
+      .by = c(year, area_code, species_group)
+    )
+}
+
+.livestock_production_heads <- function(prod) {
+  prod |>
+    dplyr::filter(.data$unit == "heads") |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_code = as.integer(.data$item_prod_code),
+      year = as.integer(.data$year),
+      heads = .data$value
+    ) |>
+    dplyr::filter(!is.na(.data$area_code), .data$heads > 0)
+}
+
+.check_livestock_items_mapped <- function(heads, livestock_mapping) {
+  known <- c(
+    livestock_mapping$item_code,
+    .livestock_unspatialized_items()$item_code
+  )
+  unmapped <- heads |>
+    dplyr::filter(!.data$item_code %in% known) |>
+    dplyr::summarise(heads = sum(.data$heads), .by = "item_code") |>
+    dplyr::arrange(.data$item_code)
+  if (nrow(unmapped) == 0L) {
+    return(invisible(NULL))
+  }
+  labels <- paste0(
+    unmapped$item_code,
+    " (",
+    format(unmapped$heads, big.mark = ",", scientific = FALSE, trim = TRUE),
+    " head-years)"
+  )
+  cli::cli_abort(
+    c(
+      "{cli::qty(nrow(unmapped))}Production reports head counts for
+       {nrow(unmapped)} live-animal item{?s} that
+       {.file livestock_mapping.csv} maps to no species group.",
+      x = "{.val {labels}}.",
+      i = "Map each one to a group, or declare it in
+           {.fn .livestock_unspatialized_items} with its reason. Leaving it
+           out drops the herd from the pin silently (whep#1274)."
+    ),
+    class = "whep_livestock_unmapped_item"
+  )
+}
+
+# The pin's heads per year and species group, against the production table it
+# was built from. `.livestock_country_stocks()` sums them by construction, so
+# what this guards is everything after it -- the excretion and emission joins,
+# which would duplicate a row on a repeated key or drop one on a filter. It is
+# recomputed from `prod` rather than from the grouped stocks so it does not
+# share their code path.
+.check_livestock_heads_conserved <- function(
+  livestock_out,
+  prod,
+  livestock_mapping,
+  tolerance = 1e-9
+) {
+  expected <- .livestock_production_heads(prod) |>
+    dplyr::inner_join(
+      dplyr::select(livestock_mapping, item_code, species_group),
+      by = "item_code"
+    ) |>
+    dplyr::summarise(
+      expected = sum(.data$heads),
+      .by = c("year", "species_group")
+    )
+  actual <- livestock_out |>
+    dplyr::summarise(
+      actual = sum(.data$heads),
+      .by = c("year", "species_group")
+    )
+  off <- dplyr::full_join(expected, actual, by = c("year", "species_group")) |>
+    dplyr::mutate(
+      expected = dplyr::coalesce(.data$expected, 0),
+      actual = dplyr::coalesce(.data$actual, 0),
+      rel = abs(.data$actual - .data$expected) / pmax(.data$expected, 1)
+    ) |>
+    dplyr::filter(.data$rel > tolerance)
+  if (nrow(off) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- dplyr::slice_max(off, .data$rel, n = 1L, with_ties = FALSE)
+  cli::cli_abort(
+    c(
+      "{cli::qty(nrow(off))}The livestock country table does not carry the
+       production head count in {nrow(off)} year-group pair{?s}.",
+      x = "Worst: {.val {worst$species_group}} in {worst$year},
+           {format(worst$actual, big.mark = ',', scientific = FALSE)} head
+           against {format(worst$expected, big.mark = ',',
+           scientific = FALSE)} in production.",
+      i = "A join after the grouping dropped or duplicated rows."
+    ),
+    class = "whep_livestock_heads_not_conserved"
+  )
+}
+
+
 prepare_livestock_inputs <- function(
   l_files_dir,
   output_dir,
@@ -4078,28 +4207,7 @@ prepare_livestock_inputs <- function(
     prod <- .load_or_cache_production(output_dir, year_range)
   }
 
-  stocks <- prod |>
-    filter(
-      .data$unit == "heads",
-      as.integer(.data$item_prod_code) %in% livestock_mapping$item_code
-    ) |>
-    transmute(
-      area_code = as.integer(.data$area_code),
-      item_code = as.integer(.data$item_prod_code),
-      year = as.integer(.data$year),
-      heads = .data$value
-    ) |>
-    filter(!is.na(.data$area_code), .data$heads > 0) |>
-    inner_join(
-      select(livestock_mapping, item_code, species_group),
-      by = "item_code"
-    )
-
-  stocks_grouped <- stocks |>
-    summarise(
-      heads = sum(heads, na.rm = TRUE),
-      .by = c(year, area_code, species_group)
-    )
+  stocks_grouped <- .livestock_country_stocks(prod, livestock_mapping)
 
   # --- N excretion (separate WHEP output, materialised to outputs/) ---
   nex_tbl <- .resolve_n_excretion(
@@ -4142,6 +4250,7 @@ prepare_livestock_inputs <- function(
       manure_n2o_kt,
       manure_n_mg
     )
+  .check_livestock_heads_conserved(livestock_out, prod, livestock_mapping)
   .save_parquet(livestock_out, output_dir, "livestock_country_data")
 
   # --- Gridded pasture from LUH2 ---
