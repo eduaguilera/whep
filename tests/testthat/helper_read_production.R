@@ -5,7 +5,14 @@
 # chain window-dependent: it fills a yield from the nearest year that has one,
 # however far away. Its only anchors are 1995 and 2020, both well outside a
 # 2010 window plus the read margin.
-.run_stubbed_read_production <- function(start_year, end_year) {
+#
+# `fao_rows` builds the rows the stubbed FAOSTAT read returns, so a test can
+# hand the chain rows that carry the fold's identity (whep#707).
+.run_stubbed_read_production <- function(
+  start_year,
+  end_year,
+  fao_rows = .stub_fao_rows
+) {
   seen <- new.env()
   testthat::local_mocked_bindings(
     .read_cbs_production = function(years = NULL, elements = NULL) {
@@ -21,7 +28,7 @@
     },
     .read_fao_crop_liv = function(years = NULL) {
       seen$fao <- years
-      .stub_fao_rows(years)
+      fao_rows(years)
     },
     .build_fodder = function(fao_crop_liv, years = NULL, fodder_split = NULL) {
       seen$fodder <- years

@@ -2658,6 +2658,9 @@ utils::globalVariables(
     ".specificity",
     ".n_rank",
     ".cs_exempt",
+    # polity_identity_carry.R (whep#707) -- marks the rows that carry no
+    # reporting identity, so the write-back fills them and nothing else
+    ".polity_hole",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

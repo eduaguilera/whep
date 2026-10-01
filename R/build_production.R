@@ -195,7 +195,12 @@ build_primary_production <- function(
       # though the flag reached the CBS -- which is what hid whep#1044. The
       # column is now guaranteed upstream by `.ensure_fao_flag()`, so a future
       # rename should stop the build rather than empty the column.
-      dplyr::all_of("fao_flag")
+      dplyr::all_of("fao_flag"),
+      # `any_of()` here on purpose, unlike the flag: a frame without the
+      # identity is resolved by the tail exactly as before, so its absence
+      # costs a resolution and no value. `.read_production()` carries it
+      # (whep#707); a `.raw_data` frame need not.
+      dplyr::any_of(.reporting_polity_cols())
     ) |>
     .add_reporting_polity_columns()
 
@@ -326,6 +331,9 @@ build_primary_production <- function(
 
   # 2. Read and process FAOSTAT crop/livestock production
   fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
+  # The reporting identity the folds emitted, parked before the reductions
+  # below drop it and written back at the end (whep#707).
+  polity_identity <- .park_polity_identity(c(list(fao_crop_liv), cb_extracts))
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
   fodder <- .build_fodder(
@@ -399,7 +407,8 @@ build_primary_production <- function(
     .finalise_primary() |>
     .attach_production_flags(fao_flags) |>
     dplyr::bind_rows(fao_slaughter) |>
-    .filter_years(output_years)
+    .filter_years(output_years) |>
+    .attach_polity_identity(polity_identity)
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
