@@ -452,15 +452,31 @@ testthat::test_that("invalid inputs abort", {
   list(cells = cells, ratio = sample(c(0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3), 1))
 }
 
+# The 300 random cases as ONE classification: case `k` becomes country `k`
+# with its cell ids offset by `k * 1000`, which keeps the cell-id tie-break
+# order within the case (whep#1349). The engine ranks and targets per country,
+# so each case's answer must be the one it gets alone; a country leaking into
+# another one now also fails the scan.
+.gi_batch_cases <- function(cases) {
+  cells <- purrr::list_rbind(purrr::map(cases, "cells"))
+  case_of <- rep(seq_along(cases), purrr::map_int(cases, \(x) nrow(x$cells)))
+  cells$cell_id <- cells$cell_id + case_of * 1000L
+  cells$country_2010 <- case_of
+  ratios <- .gi_ratios(cells, 0)
+  ratios$density_ratio <- purrr::map_dbl(cases, "ratio")[case_of]
+  list(cells = cells, ratios = ratios)
+}
+
 testthat::test_that("the step rule matches a brute-force prefix scan", {
   cases <- purrr::map(1:300, .gi_random_case)
-  agree <- purrr::map_lgl(cases, \(case) {
-    out <- whep:::.classify_grassland_cells(
-      case$cells,
-      .gi_ratios(case$cells, case$ratio)
-    )
-    got <- sort(out$cell_id[out$grassland_class == "intensive"])
-    identical(got, .gi_reference(case$cells, case$ratio))
+  batch <- .gi_batch_cases(cases)
+  out <- whep:::.classify_grassland_cells(batch$cells, batch$ratios)
+  by_case <- split(out, factor(out$country_2010, levels = seq_along(cases)))
+  agree <- purrr::map2_lgl(cases, seq_along(cases), \(case, k) {
+    mine <- by_case[[k]]
+    got <- sort(mine$cell_id[mine$grassland_class == "intensive"]) - k * 1000L
+    identical(nrow(mine), nrow(case$cells)) &&
+      identical(got, .gi_reference(case$cells, case$ratio))
   })
   testthat::expect_true(all(agree))
 })
@@ -895,12 +911,25 @@ testthat::test_that("the antimeridian is treated as near, not far", {
   )
 }
 
+# The default fixture run, built once per file: seven tests read different
+# properties of the very same build (whep#1349). It is a tibble, which R copies
+# on modification, so no test can change what another reads. Tests that need a
+# different year set or different data still call `.gic_fx_run()` themselves.
+.gic_shared_env <- new.env(parent = emptyenv())
+
+.gic_fx_default <- function() {
+  if (is.null(.gic_shared_env$out)) {
+    .gic_shared_env$out <- .gic_fx_run()
+  }
+  .gic_shared_env$out
+}
+
 .gic_row <- function(out, cell, yr) {
   dplyr::filter(out, .data$cell_id == cell, .data$year == yr)
 }
 
 testthat::test_that("the builder returns the documented columns", {
-  out <- .gic_fx_run()
+  out <- .gic_fx_default()
   testthat::expect_named(
     out,
     names(whep::build_grassland_intensity_classes(example = TRUE))
@@ -912,7 +941,7 @@ testthat::test_that("the builder returns the documented columns", {
 })
 
 testthat::test_that("2010 classes equal the IMAGE map", {
-  out <- .gic_fx_run() |>
+  out <- .gic_fx_default() |>
     dplyr::filter(.data$year == 2010L, !is.na(.data$image_class_2010))
   testthat::expect_equal(out$grassland_class, out$image_class_2010)
   ranked <- dplyr::filter(out, .data$country_2010 != 21L)
@@ -920,7 +949,7 @@ testthat::test_that("2010 classes equal the IMAGE map", {
 })
 
 testthat::test_that("a USSR-reported year uses the USSR's density", {
-  out <- .gic_fx_run()
+  out <- .gic_fx_default()
   russia <- dplyr::filter(out, .data$country_2010 == 185L, .data$year == 1961L)
   # Russia's own level (0.2 in 1992) moved by the USSR's trend
   # (0.15 / 0.25), over Russia's 2010 density (0.25).
@@ -939,7 +968,7 @@ testthat::test_that("a USSR-reported year uses the USSR's density", {
 })
 
 testthat::test_that("a lower earlier density demotes the lowest-manure cell", {
-  out <- .gic_fx_run()
+  out <- .gic_fx_default()
   testthat::expect_equal(
     .gic_row(out, 50121L, 1961L)$grassland_class,
     "intensive"
@@ -959,7 +988,7 @@ testthat::test_that("a lower earlier density demotes the lowest-manure cell", {
 })
 
 testthat::test_that("WHEP grassland without IMAGE grassland is extensive", {
-  row <- .gic_row(.gic_fx_run(), 179522L, 1961L)
+  row <- .gic_row(.gic_fx_default(), 179522L, 1961L)
   testthat::expect_equal(row$grassland_class, "extensive")
   testthat::expect_equal(row$method_grassland_split, "no_image_grassland")
   testthat::expect_true(is.na(row$image_class_2010))
@@ -970,7 +999,7 @@ testthat::test_that("WHEP grassland without IMAGE grassland is extensive", {
 })
 
 testthat::test_that("every in-scope cell appears once per year", {
-  out <- .gic_fx_run()
+  out <- .gic_fx_default()
   testthat::expect_equal(nrow(out), 8L * 2L)
   testthat::expect_false(anyDuplicated(out[c("cell_id", "year")]) > 0)
   testthat::expect_setequal(out$cell_id, .gic_fx_layers()$cell_id)
@@ -990,7 +1019,7 @@ testthat::test_that("a cell with no grassland anywhere is out of scope", {
 })
 
 testthat::test_that("zero 2010 grazing keeps the IMAGE class", {
-  out <- .gic_fx_run()
+  out <- .gic_fx_default()
   brazil <- dplyr::filter(out, .data$country_2010 == 21L)
   testthat::expect_true(all(is.na(brazil$density_ratio)))
   testthat::expect_equal(brazil$grassland_class, brazil$image_class_2010)

@@ -1,3 +1,45 @@
+# Every SOC driver build releases the hydrology pin with a full garbage
+# collection, which on these few-cell fixtures costs more than the build itself
+# and changes no value (whep#1349). The guard test below checks that the
+# package still collects once per build.
+.socd_real_collect_garbage <- whep:::.socd_collect_garbage
+testthat::local_mocked_bindings(
+  .socd_collect_garbage = function() invisible(NULL),
+  .package = "whep"
+)
+
+# Several tests build exactly the same fixture with exactly the same arguments
+# and then check a different property of it (whep#1349). `.wb_shared()` runs
+# each distinct call once per file. It records the warnings that call raised
+# and signals the same condition objects again, in the same order, on every
+# use, so `expect_warning()` and `expect_no_warning()` see what the builder
+# said. The key is the builder's name plus every argument, so a call that
+# differs in anything is built on its own. Results are tibbles, which R copies
+# on modification, so a test cannot change what the next one reads.
+.wb_shared_env <- new.env(parent = emptyenv())
+
+.wb_shared <- function(builder, ...) {
+  key <- rlang::hash(list(builder, ...))
+  if (!exists(key, envir = .wb_shared_env, inherits = FALSE)) {
+    assign(key, .wb_record(builder, ...), envir = .wb_shared_env)
+  }
+  hit <- get(key, envir = .wb_shared_env, inherits = FALSE)
+  purrr::walk(hit$warnings, warning)
+  hit$value
+}
+
+.wb_record <- function(builder, ...) {
+  warnings <- list()
+  value <- withCallingHandlers(
+    getExportedValue("whep", builder)(...),
+    warning = \(w) {
+      warnings <<- c(warnings, list(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(value = value, warnings = warnings)
+}
+
 testthat::test_that("build_water_balance closes the water budget exactly", {
   wb <- whep::build_water_balance(example = TRUE)
 
@@ -116,7 +158,7 @@ testthat::test_that("get_soc_climate_drivers returns monthly climate drivers", {
 }
 
 testthat::test_that("get_soc_climate_drivers wires CRU temp + prec+irrig-PET", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   pointblank::expect_col_exists(
     drv,
     c(
@@ -211,7 +253,7 @@ testthat::test_that("SOC years filter also applies to injected inputs", {
 })
 
 testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
   cm <- whep::soc_rate_modifier_rothc(
     temp_c = one$temp_c,
@@ -225,7 +267,7 @@ testthat::test_that("SOC drivers feed a plausible HSOC modifier", {
 })
 
 testthat::test_that("SOC drivers emit the Century and AMG climate columns", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   pointblank::expect_col_exists(
     drv,
     c("precip_mm", "pet_mm", "water_balance_mm")
@@ -246,7 +288,7 @@ testthat::test_that("SOC drivers emit the Century and AMG climate columns", {
 })
 
 testthat::test_that("SOC drivers drive non-neutral Century and AMG modifiers", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
   century <- whep::soc_rate_modifier_century(
     temp_c = one$temp_c,
@@ -266,7 +308,7 @@ testthat::test_that("SOC drivers drive non-neutral Century and AMG modifiers", {
 })
 
 testthat::test_that("SOC drivers emit the ICBM moisture columns", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   pointblank::expect_col_exists(
     drv,
     c("theta", "t_field", "t_wilt", "porosity")
@@ -308,7 +350,7 @@ testthat::test_that("the texture-class hydraulic table is physically ordered", {
 })
 
 testthat::test_that("SOC drivers drive a non-neutral ICBM modifier end-to-end", {
-  drv <- whep::get_soc_climate_drivers(data = .socd_synthetic())
+  drv <- .wb_shared("get_soc_climate_drivers", data = .socd_synthetic())
   one <- dplyr::filter(drv, area_code == 11L) |> dplyr::arrange(month)
   # The all-present check in .soc_climate_drivers("icbm") now succeeds, so the
   # ICBM moisture response actually runs instead of the neutral-1 fallback.
@@ -988,7 +1030,8 @@ testthat::test_that("the pin error names both ways out", {
 # blue_green is pinned to irrig_share so the per-CFT fallback warning does not
 # compete with the validity warning these tests are about.
 .wb_validity_call <- function(...) {
-  whep::build_water_balance(
+  .wb_shared(
+    "build_water_balance",
     data = .wb_validity_inputs(),
     method = list(blue_green = "irrig_share"),
     ...
@@ -1872,4 +1915,43 @@ testthat::test_that("NA water on a non-land cell is not an unmatched band", {
     out <- whep:::.wb_cell_consump(cube, "blue_mm", frac)
   )
   testthat::expect_true(is.na(out$blue_mm))
+})
+
+testthat::test_that("a SOC driver build still collects garbage once", {
+  # The file mocks the collection away for speed; this pins that the package
+  # still makes it, once per build, after the pin is released.
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    .socd_collect_garbage = function() {
+      calls <<- calls + 1L
+      invisible(NULL)
+    },
+    .package = "whep"
+  )
+  whep::get_soc_climate_drivers(data = .socd_synthetic())
+  testthat::expect_identical(calls, 1L)
+  testthat::expect_match(
+    paste(deparse(body(.socd_real_collect_garbage)), collapse = " "),
+    "gc(full = TRUE)",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("a shared build replays what a fresh build raises", {
+  # .wb_shared() stands in for repeated identical builds above; it must hand
+  # back the same value and the same warnings as calling the builder afresh.
+  fresh_warnings <- testthat::capture_warnings(
+    fresh <- whep::build_water_balance(
+      data = .wb_validity_inputs(),
+      method = list(blue_green = "irrig_share"),
+      resolution = "polity"
+    )
+  )
+  suppressWarnings(.wb_validity_call(resolution = "polity"))
+  replayed <- testthat::capture_warnings(
+    shared <- .wb_validity_call(resolution = "polity")
+  )
+  testthat::expect_identical(shared, fresh)
+  testthat::expect_identical(replayed, fresh_warnings)
+  testthat::expect_length(fresh_warnings, 1L)
 })
