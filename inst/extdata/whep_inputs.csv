@@ -8,7 +8,7 @@ crop_residues,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20
 read_example,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20250721T152756Z-f00da
 faostat-production,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T111448Z-4fffe
 faostat-production-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113330Z-572c9
-faostat-landuse,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260624T095700Z-5c591
+faostat-landuse,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20261001T134612Z-fc64a
 cropgrids-land,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260624T115603Z-e31de
 cropgrids-fallow-land,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260624T115609Z-f784a
 eu-agridb-fodder,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113350Z-145f3
@@ -24,7 +24,7 @@ historical-trade-exports,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQM
 historical-trade-imports,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T121523Z-72a63
 gdp-population,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T085548Z-ec5a9
 faostat-production-processed,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113346Z-5637e
-faostat-fbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260818T183718Z-8a68a
+faostat-fbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20261001T134331Z-841e9
 faostat-fbs-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T114920Z-874a4
 faostat-cbs-old-animal,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T115537Z-9e898
 faostat-cbs-old-crops,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T120222Z-3d77b

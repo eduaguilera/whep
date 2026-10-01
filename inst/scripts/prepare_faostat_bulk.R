@@ -40,12 +40,12 @@ FAOSTAT_BULK_ROOT <- "https://bulks-faostat.fao.org/production/"
 #' tonnes, and the faostat-cbs-new pin holds TRUE in the Unit column of all
 #' 127,558 rows of its 2026-06-15 release (whep#1025). The same guess turns an
 #' all-empty Note column into a logical, which is why the faostat-fbs-new and
-#' faostat-landuse pins carry a boolean Note until they are next regenerated
-#' through this spec (whep#1178). Both pinned columns are all NA, Note is
-#' empty in every row of the FAO bulk CSVs checked (the RL file the landuse
-#' pin was cut from, and an FBS release from January 2025), and no reader in
-#' R/ selects it -- so nothing is known to be lost. It is still read as
-#' character here, so a release that does populate Note keeps its text.
+#' faostat-landuse pins carried a boolean Note until they were re-cut through
+#' this spec (whep#1178: faostat-fbs-new 20261001T134331Z-841e9,
+#' faostat-landuse 20261001T134612Z-fc64a). Note is empty in every row of both
+#' pinned CSVs and no reader in R/ selects it -- so nothing was lost. It is
+#' read as character here, so a release that does populate Note keeps its
+#' text.
 #'
 #' `.default` covers the columns that differ between domains -- Note, and the
 #' `Item Code (CPC)` / `Item Code (FBS)` / `Area Code (M49)` code columns,
@@ -82,7 +82,7 @@ faostat_bulk_col_types <- function() {
 #
 # `faostat-landuse` (RL) is here for the same reason: it is a verbatim bulk
 # CSV, but it had no producer, so nothing applied faostat_bulk_col_types() to
-# it and its registered pin carries a logical Note (whep#1178). It is not in
+# it and its earlier pin carried a logical Note (whep#1178). It is not in
 # download_faostat_bulk()'s default set, because re-cutting it is a data
 # update, not a label repair: the pinned 2026-06-24 cut has 413,211 rows,
 # while FAO's catalogue lists 421,859 for its 2026-07-17 RL release.
