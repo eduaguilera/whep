@@ -35,6 +35,7 @@
 # which on current main is 15 more names -- `.century_rhs()`'s state and
 # parameter list -- none of which is a defect or is meant to be declared.
 .package_usage_messages <- function() {
+  .local_first_src_info_only()
   found <- character()
   codetools::checkUsageEnv(
     asNamespace("whep"),
@@ -49,6 +50,7 @@
 
 # The same scan over a single function, for the guard-the-guard probe.
 .probe_usage_messages <- function(probe) {
+  .local_first_src_info_only()
   found <- character()
   codetools::checkUsage(
     probe,
@@ -60,6 +62,56 @@
     suppressUndefined = .suppressed_global_names()
   )
   unique(found)
+}
+
+# Speed, not coverage (#1349). For every use of every local variable, codetools
+# appends one row to a per-variable `srcinfo` data frame with `rbind()`, and the
+# only reader, `checkUsageFinishLocals()`, ever looks at row 1 -- the location
+# printed after a local-variable message. Over the whole namespace that rbind
+# was ~40% of an 18 s scan. Recording the first row and skipping the rest gives
+# the same messages, locations included: measured on main, all 468 messages of
+# the scan with local-variable checks switched ON are identical with and
+# without it. The test below re-proves that on a probe. Should codetools drop
+# or rename the internal, the mock aborts rather than letting the scan pass.
+.local_first_src_info_only <- function(env = rlang::caller_env()) {
+  testthat::local_mocked_bindings(
+    incLocalSrcInfo = .record_first_src_info,
+    .package = "codetools",
+    .env = env
+  )
+}
+
+# What `codetools:::incLocalSrcInfo()` builds for the first use. The object is
+# `identical()` to its `as.data.frame(stringsAsFactors = FALSE)`, built without
+# that call, which is itself about a fifth of the remaining scan.
+.record_first_src_info <- function(vn, w) {
+  usage_entry <- utils::getFromNamespace("getLocalUsageEntry", "codetools")
+  entry <- usage_entry(vn, w)
+  if (!is.null(get("srcinfo", entry, inherits = FALSE))) {
+    return(invisible())
+  }
+  first <- structure(
+    list(
+      srcfile = if (is.null(w$srcfile)) NA_character_ else w$srcfile,
+      frow = if (is.null(w$frow)) NA_integer_ else w$frow,
+      lrow = if (is.null(w$lrow)) NA_integer_ else w$lrow
+    ),
+    class = "data.frame",
+    row.names = c(NA_integer_, -1L)
+  )
+  assign("srcinfo", first, entry)
+}
+
+# Local-variable messages switched on, so the stored location is printed.
+.located_local_messages <- function(probe) {
+  found <- character()
+  codetools::checkUsage(
+    probe,
+    name = "probe",
+    report = function(msg) found <<- c(found, msg),
+    suppressLocalUnused = FALSE
+  )
+  found
 }
 
 # Sources ----------------------------------------------------------------
@@ -104,6 +156,36 @@ testthat::test_that("the scan reports a symbol that is not declared", {
     "no visible binding for global variable",
     all = FALSE
   )
+})
+
+testthat::test_that("the first-use shortcut reports what codetools reports", {
+  # Guards the speed-up: the mocked source-info recorder must leave every
+  # message, and the location printed with it, exactly as codetools has them.
+  # `y` is assigned three times and never read, so codetools keeps three
+  # source rows and reports the first; the probe carries real srcrefs.
+  testthat::skip_if_not_installed("codetools")
+  lines <- c(
+    "function(x) {",
+    "  y <- 1",
+    "  y <- x",
+    "  y <- 2",
+    "  x",
+    "}"
+  )
+  probe <- eval(parse(
+    text = lines,
+    keep.source = TRUE,
+    srcfile = srcfilecopy("probe.R", lines)
+  ))
+
+  plain <- .located_local_messages(probe)
+  shortcut <- local({
+    .local_first_src_info_only()
+    .located_local_messages(probe)
+  })
+
+  testthat::expect_match(plain, "probe.R:2", fixed = TRUE)
+  testthat::expect_identical(shortcut, plain)
 })
 
 testthat::test_that("R/utils.R holds nothing but the globalVariables() call", {
