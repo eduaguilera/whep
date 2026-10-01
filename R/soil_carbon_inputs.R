@@ -1336,9 +1336,9 @@ build_soil_carbon_inputs <- function(
   cli::cli_abort(
     c(
       "No crop production rows (tonnes or ha) for {span}.",
-      "i" = "WHEP crop production starts in 1961; earlier spans are empty.",
+      "i" = "A span wholly before 1961 reads no crop production.",
       "i" = "See issue #369 (pre-1961 drivers) and #1093 (pre-1961 stock).",
-      "x" = "Request years from 1961 on, or supply crop production."
+      "x" = "Extend the span to reach 1961, or supply crop production."
     ),
     class = "whep_sci_no_crop_production"
   )
