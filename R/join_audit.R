@@ -143,6 +143,12 @@
      ONE year: `.cell_polity_year_support()` filters the support to the
      interval covering `year` and the mapping to its rows active in `year`
      before the join, and `polity_code` carries its own period.",
+    ".cpy_recorded_code", "inner_join", "polity_code", 1L, "identity_lookup",
+    "Looks up the code the recorded cell-support mapping gives a polity the
+     reporting vocabulary cannot key (whep#1318). The join proposes the
+     polity's recorded windows and the year predicate that follows disposes
+     of them -- a row keeps a code only where one window covers its whole
+     span -- and `polity_code` carries its own period.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",
     "Keyed on the polity, which is the year-scoped identity itself.",
     ".dependency_sovereign_iso3", "merge", "legacy_polity_prefix", 1L,
@@ -822,6 +828,11 @@
      into several epoch rows (`F228-1945-1991` arrives as 1945-1959 and
      1959-1991) has one dissolution year, and `max(end_year)` is it. A year in
      the key would return one row per epoch and answer nothing.",
+    ".level0_inform_recorded", "distinct", "polity_code, area_code", 1L,
+    "diagnostic",
+    "Names the polities the recorded cell-support mapping keyed in the
+     year-aware level-0 grid, and the code each took (whep#1318), for the
+     message. It reaches no value.",
     ".level0_fold_epochs", "summarise",
     "lon, lat, area_code, start_year, end_year", 1L, "single_year",
     "`.carbon_fold_area_code()`'s DA-23 fold with the epoch in the key
