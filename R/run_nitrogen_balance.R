@@ -60,3 +60,29 @@
   )
   unname(terms[intersect(inputs, names(terms))])
 }
+
+# The cell support every country-keyed input of the gridded balance is placed
+# on: the crop NPP, and the livestock chain's heads, grass ceiling and the crop
+# layer its manure is spread over (whep#1320). One table for all of them, so a
+# polity that has cells for its fertiliser also has cells for its animals, and
+# a border cell is split between polities the same way for both.
+#
+# `year_aware` is `cell_polity` itself, the support read at the driven year
+# (.nbd_cell_polity() in the driver). Its `cell_area_frac` and `polity_frac`
+# are the same value, the polity's share of the cell's measured land, which is
+# the share the carbon support carries as `cell_area_frac`; so every consumer
+# (.normalize_country_grid(), .sci_cell_crop_area()) reads the right share
+# whichever column it looks for first. `constant` is the carbon path's fixed
+# 2015 snapshot (.sci_read_country_grid()), which has no cell for any
+# dissolved union -- read only when it is the one selected.
+.nbd_placement_support <- function(
+  mode,
+  cell_polity,
+  fixed = .sci_read_country_grid
+) {
+  mode <- rlang::arg_match0(mode, c("year_aware", "constant"))
+  if (mode == "year_aware") {
+    return(cell_polity)
+  }
+  fixed()
+}

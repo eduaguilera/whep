@@ -301,3 +301,110 @@ test_that("polity resolution keeps the national grain unchanged", {
     whep:::.sci_manure_crop_layer(production)
   )
 })
+
+# The year-aware support the driver now places the livestock chain on
+# (whep#1320), built from a polycell support with REAL polity codes: cell A is
+# the USSR alone in 1970, cell B a border cell it shares 0.6 / 0.4 with China.
+# In 1991 Russia takes over the USSR's land. The fixed-year support reads the
+# same polycells at a present-day year, as `.carbon_cell_support()` does.
+.gm_polycells <- function() {
+  polycell <- function(lon, polity, start, end, land) {
+    tibble::tibble(
+      lon = lon,
+      lat = 50.25,
+      polity_code = polity,
+      area_code = NA_integer_,
+      start_year = as.integer(start),
+      end_year = as.integer(end),
+      cell_area_ha = 100,
+      polity_area_ha = land,
+      land_area_ha = land
+    )
+  }
+  dplyr::bind_rows(
+    polycell(30.25, "F228-1945-1991", 1945, 1991, 100),
+    polycell(30.25, "RUS-1991-2014", 1991, 2014, 100),
+    polycell(30.75, "F228-1945-1991", 1945, 1991, 60),
+    polycell(30.75, "RUS-1991-2014", 1991, 2014, 60),
+    polycell(30.75, "CHN-1950-2025", 1950, 2025, 40)
+  )
+}
+
+.gm_year_aware <- function() {
+  suppressMessages(whep:::.cell_polity_year_support(
+    .gm_polycells(),
+    1970L,
+    reporting_areas = c(228L, 41L),
+    area_key = "polity_area"
+  ))
+}
+
+.gm_heads <- function(country_grid) {
+  cells <- tibble::tibble(lon = c(30.25, 30.75), lat = 50.25, year = 1970L)
+  suppressWarnings(build_gridded_livestock(
+    livestock_data = tibble::tibble(
+      year = 1970L,
+      area_code = 228L,
+      species_group = "cattle",
+      heads = 1000
+    ),
+    gridded_pasture = dplyr::mutate(cells, pasture_ha = 50, rangeland_ha = 0),
+    gridded_cropland = dplyr::mutate(cells, cropland_ha = 0),
+    country_grid = country_grid
+  ))
+}
+
+test_that("the year-aware support's two share columns are one share", {
+  support <- .gm_year_aware()
+
+  expect_equal(support$cell_area_frac, support$polity_frac)
+  expect_equal(
+    whep:::.normalize_country_grid(support)$cell_area_frac,
+    support$polity_frac
+  )
+  border <- dplyr::filter(support, .data$lon == 30.75)
+  expect_equal(border$cell_area_frac[border$area_code == 228L], 0.6)
+  expect_equal(sum(border$cell_area_frac), 1)
+})
+
+test_that("a dissolved union's heads are placed on the year-aware support", {
+  heads <- .gm_heads(.gm_year_aware())
+  ussr <- dplyr::filter(heads, .data$area_code == 228L)
+
+  # Conserved: the national herd is all on cells, and the border cell holds
+  # the USSR's 0.6 of its pasture, so 30 of every 80 pasture-weighted heads.
+  expect_equal(sum(ussr$heads), 1000)
+  expect_equal(ussr$heads[ussr$lon == 30.75], 1000 * 30 / 80)
+
+  # The fixed present-day snapshot has no cell for 228, so the same herd has
+  # nowhere to go -- the gap the driver used to leave in 1961-1991.
+  fixed <- whep:::.carbon_cell_support(.gm_polycells(), 2010L)
+  expect_false(228L %in% fixed$area_code)
+  placed <- dplyr::filter(.gm_heads(fixed), .data$area_code == 228L)
+  expect_equal(sum(placed$heads), 0)
+})
+
+test_that("a dissolved union's crop area is placed on the year-aware support", {
+  production <- tibble::tribble(
+    ~year , ~area_code , ~item_cbs_code , ~live_anim_code , ~item_prod_code , ~unit , ~value ,
+    1970L ,       228L ,          2511L , NA_character_   , "15"            , "ha"  ,    2e4
+  )
+  patterns <- tibble::tribble(
+    ~lon  , ~lat  , ~item_prod_code , ~crop_area_ha ,
+    30.25 , 50.25 , "15"            ,         30000 ,
+    30.75 , 50.25 , "15"            ,         10000
+  )
+
+  crops <- whep:::.n_manure_crop_layer(
+    "grid",
+    production,
+    .gm_year_aware(),
+    crop_patterns = patterns
+  )
+
+  expect_equal(sum(crops$crop_area_ha), 2e4)
+  expect_equal(
+    crops$crop_area_ha[crops$sub_territory == whep:::.cell_id(30.75, 50.25)],
+    2e4 * 6000 / (30000 + 6000)
+  )
+})
