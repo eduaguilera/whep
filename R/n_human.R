@@ -129,7 +129,7 @@
 #'   cropland source cell's residual that exceeds its own room. On the 2010
 #'   global grid, under the default `"total"` basis, the first is 13,198 cells
 #'   and 47,365 t N, 0.700% of the 6.77 Mt of human N, and the second adds
-#'   24,346 t on 1,327 cells; see `method_local_residual` for what `"nearest"`
+#'   24,346 t on 1,424 cells; see `method_local_residual` for what `"nearest"`
 #'   leaves stranded.
 #'   * `"nearest"` (default): run the transport step's own rule again with a
 #'     growing radius. Each such cell offers its nitrogen to the same-polity
@@ -146,8 +146,10 @@
 #'     [build_n_inputs()] applies under `method_unsupported = "reallocate"`.
 #'     Conserves mass, but places the nitrogen anywhere in the polity.
 #'   * `"keep"`: leave it on its source cell, as before this argument
-#'     existed, flagged in `human_n_stranded_t`. [build_n_inputs()]'s
-#'     `method_unsupported` then decides its fate (by default, it aborts).
+#'     existed, flagged in `human_n_stranded_t`. On a cell with no cropland,
+#'     [build_n_inputs()]'s `method_unsupported` then decides its fate (by
+#'     default, it aborts); an over-room excess is applied on its own cell's
+#'     cropland, as `"uncapped"` would.
 #'   * `"drop"`: discard it. Loses the mass, biased towards dense,
 #'     cropland-free cells.
 #'
@@ -170,16 +172,16 @@
 #'     already landed on it -- the room the transport step and `"nearest"`
 #'     respect everywhere else. The excess is undelivered N, placed by
 #'     `method_residual` like the residual of a cell with no cropland. On the
-#'     2010 global grid (`"total"` basis) that is 24,346 t on 1,327 of the
-#'     2,180 cropland source cells left with a residual; under
-#'     `"nearest"`, 7,509 t of it stays stranded on its own cell in the
-#'     polities with no room left (Hong Kong 6,700 t, Kuwait 362 t, the
-#'     Bahamas 200 t, among others), alongside the 2,145 t on cells with no
-#'     cropland (Qatar, Iceland, Samoa).
+#'     2010 global grid (`"total"` basis) that is 24,346 t on 1,424 of the
+#'     2,180 cropland source cells left with a residual. Under `"nearest"`,
+#'     17,083 t of it is moved and 7,263 t stays stranded on its own cell, in
+#'     the three polities with no room left anywhere (Hong Kong 6,701 t,
+#'     Kuwait 363 t, the Bahamas 200 t), alongside the 2,145 t on cells with
+#'     no cropland (Qatar, Iceland, Samoa).
 #'   * `"uncapped"`: the cell keeps its whole residual, as before this
-#'     argument existed, whatever its cropland area. On the same grid 1,423 of
-#'     those 2,180 cells then end above 170 kg N/ha, 902 of them with under
-#'     1 ha of cropland, and the largest load is booked on 3.6e-7 ha.
+#'     argument existed, whatever its cropland area. On the same grid 1,417
+#'     cropland cells then end above 170 kg N/ha, holding 24,346 t above it,
+#'     and the largest load is booked on 3.6e-7 ha.
 #'
 #'   No minimum-cropland threshold is offered: the room cap already moves a
 #'   sliver's whole residual, and a threshold would be a new, unsourced number
