@@ -1,0 +1,175 @@
+item_prod_code,item_prod_name,harvested_area_ha,n_areas
+15,Wheat,216705029,122
+27,Rice,160482986,114
+44,Barley,46914305,102
+56,Maize (corn),165257542,160
+71,Rye,5021434,61
+75,Oats,8956991,74
+79,Millet,35699893,85
+83,Sorghum,42007536,107
+89,Buckwheat,1911267,27
+92,Quinoa,95979,3
+94,Fonio,553666,10
+97,Triticale,4003559,38
+101,Canary seed,266591,11
+103,Mixed grain,1371176,25
+108,Cereals n.e.c.,4574543,57
+116,Potatoes,18174142,155
+122,Sweet potatoes,7924124,109
+125,"Cassava, fresh",21441539,95
+135,Yautia,46457,14
+136,Taro,1372849,48
+137,Yams,4828613,53
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh",568546,68
+156,Sugar cane,23554532,95
+157,Sugar beet,4693567,53
+161,Other sugar crops n.e.c.,107045,3
+176,"Beans, dry",30362661,122
+181,"Broad beans and horse beans, dry",2556438,62
+187,"Peas, dry",6650993,96
+191,"Chick peas, dry",12011683,53
+195,"Cow peas, dry",11733970,37
+197,"Pigeon peas, dry",5747506,25
+201,"Lentils, dry",4375018,51
+203,"Bambara beans, dry",215557,8
+205,Vetches,504893,37
+210,Lupins,1084333,26
+211,Other pulses n.e.c.,2936785,102
+217,"Cashew nuts, in shell",5132490,34
+220,"Chestnuts, in shell",523040,26
+221,"Almonds, in shell",1738911,47
+222,"Walnuts, in shell",958779,55
+223,"Pistachios, in shell",520406,21
+224,Kola nuts,559325,6
+225,"Hazelnuts, in shell",842853,30
+226,Areca nuts,707087,11
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",590903,65
+236,Soya beans,102902374,95
+242,"Groundnuts, excluding shelled",26134760,112
+248,Coconuts,11583849,85
+254,Oil palm fruit,16878356,44
+260,Olives,9976309,40
+263,Karite nuts (sheanuts),489535,7
+265,Castor oil seeds,1528237,31
+267,Sunflower seed,23368030,71
+270,Rape or colza seed,32498311,63
+275,Tung nuts,173106,6
+277,Jojoba seeds,311,1
+280,Safflower seed,834834,21
+289,Sesame seed,8299694,72
+292,Mustard seed,790592,24
+296,Poppy seed,149149,15
+299,Melonseed,855932,14
+305,Tallowtree seed,397964,1
+310,Kapok fruit,197587,2
+328,"Seed cotton, unginned",31674220,86
+339,"Other oil seeds, n.e.c.",2690946,52
+358,Cabbages,2249480,145
+366,Artichokes,125709,28
+367,Asparagus,1426731,43
+372,Lettuce and chicory,1144488,100
+373,Spinach,845277,61
+388,Tomatoes,4477439,165
+393,Cauliflowers and broccoli,1149430,95
+394,"Pumpkins, squash and gourds",1493803,113
+397,Cucumbers and gherkins,2031425,132
+399,Eggplants (aubergines),1764696,88
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",1915896,121
+402,"Onions and shallots, green",231657,53
+403,"Onions and shallots, dry (excluding dehydrated)",4742640,138
+406,Green garlic,1336703,98
+407,Leeks and other alliaceous vegetables,127266,54
+414,"Other beans, green",1384441,103
+417,"Peas, green",2159824,86
+420,"Broad beans and horse beans, green",250021,58
+423,String beans,223682,19
+426,Carrots and turnips,1189844,125
+430,Okra,1140262,50
+446,Green corn (maize),1122892,50
+459,Chicory roots,21049,16
+461,Locust beans (carobs),43580,14
+463,"Other vegetables, fresh n.e.c.",18371559,188
+486,Bananas,5958125,117
+489,Plantains and cooking bananas,4080891,46
+490,Oranges,3748951,115
+495,"Tangerines, mandarins, clementines",2625926,72
+497,Lemons and limes,1038078,103
+507,Pomelos and grapefruits,321693,75
+512,"Other citrus fruit, n.e.c.",1336263,64
+515,Apples,4868073,94
+521,Pears,1540166,86
+523,Quinces,63572,49
+526,Apricots,563985,68
+530,Sour cherries,215760,34
+531,Cherries,391551,67
+534,Peaches and nectarines,1517620,80
+536,Plums and sloes,2365467,87
+541,Other stone fruits,65782,29
+542,Other pome fruits,10400,2
+544,Strawberries,301059,75
+547,Raspberries,108327,44
+549,Gooseberries,30675,20
+550,Currants,124079,34
+552,Blueberries,84721,25
+554,Cranberries,23486,10
+558,Other berries and fruits of the genus vaccinium n.e.c.,107143,58
+560,Grapes,6983915,91
+567,Watermelons,3236881,117
+568,Cantaloupes and other melons,1126279,90
+569,Figs,308199,50
+571,"Mangoes, guavas and mangosteens",5184491,96
+572,Avocados,452283,63
+574,Pineapples,944598,82
+577,Dates,1274619,38
+587,Persimmons,818646,19
+591,Cashewapple,832106,4
+592,Kiwi fruit,172353,24
+600,Papayas,406497,64
+603,"Other tropical fruits, n.e.c.",2646709,70
+619,"Other fruits, n.e.c.",4752554,154
+636,"Forage and silage, maize",13913677,56
+637,"Forage and silage, sorghum",675109,15
+638,"Forage and silage, rye grass",498025,10
+639,"Forage and silage, grasses nes",8903450,38
+640,"Forage and silage, clover",2426863,34
+641,"Forage and silage, alfalfa",10146037,49
+642,"Forage and silage, green oilseeds",459304,6
+643,"Forage and silage, legumes",840881,16
+644,Cabbage for fodder,17916,10
+645,Mixed Grasses and Legumes,32560035,40
+646,Turnips for fodder,34602,18
+647,Beets for fodder,122527,31
+648,Carrots for fodder,11072,11
+649,Swedes for fodder,17553,10
+651,Forage products,11627458,54
+655,Vegetables and roots fodder,656563,31
+656,"Coffee, green",10483828,75
+661,Cocoa beans,9592212,57
+667,Tea leaves,3149807,47
+671,Mate leaves,290703,3
+677,Hop cones,77459,28
+687,"Pepper (Piper spp.), raw",563943,40
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw",1629765,62
+692,"Vanilla, raw",86598,13
+693,"Cinnamon and cinnamon-tree flowers, raw",229036,10
+698,"Cloves (whole stems), raw",391727,9
+702,"Nutmeg, mace, cardamoms, raw",297568,21
+711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",1179704,39
+720,"Ginger, raw",264530,38
+723,"Other stimulant, spice and aromatic crops, n.e.c.",1291583,64
+748,"Peppermint, spearmint",3136,5
+754,"Pyrethrum, dried flowers",17170,7
+772,Linum,2030551,51
+776,Hemp,50946,18
+780,"Jute, raw or retted",1228852,17
+782,"Kenaf, and other textile bast fibres, raw or retted",173433,23
+788,"Ramie, raw or retted",98824,4
+789,"Sisal, raw",419609,23
+800,"Agave fibres, raw, n.e.c.",56320,8
+809,"Abaca, manila hemp, raw",162968,6
+821,"Other fibre crops, raw, n.e.c.",455888,20
+826,Unmanufactured tobacco,3948005,126
+836,Natural rubber in primary forms,9322840,29
+996,Temporary grassland,9233894,26
+3001,Pasture,769202595,182
+3002,range,2456183548,193

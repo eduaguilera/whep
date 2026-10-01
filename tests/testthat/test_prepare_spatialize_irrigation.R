@@ -48,3 +48,28 @@ test_that(".cap_national_irrigation caps each country-year independently", {
   expect_equal(unname(by_country[["1"]]), 1000, tolerance = 1e-9)
   expect_equal(unname(by_country[["2"]]), 100, tolerance = 1e-9)
 })
+
+test_that(".check_mirca_covers_mapping aborts on a code MIRCA never saw", {
+  .need_spatialize_helper(".check_mirca_covers_mapping")
+  # A MIRCA table built before 248 Coconuts was mapped (whep#1292).
+  mirca <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~irrig_frac,
+    1L, 249L, 0.1,
+    1L, 27L, 0.5
+  )
+  stale <- tibble::tibble(item_prod_code = c(27L, 248L))
+  expect_error(.check_mirca_covers_mapping(mirca, stale), "248")
+})
+
+test_that(".check_mirca_covers_mapping passes a code absent in some countries", {
+  .need_spatialize_helper(".check_mirca_covers_mapping")
+  # Country 2 has no row for 27: a coverage gap the fallback is for.
+  mirca <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~irrig_frac,
+    1L, 248L, 0.1,
+    1L, 27L, 0.5,
+    2L, 248L, 0.2
+  )
+  current <- tibble::tibble(item_prod_code = c(27L, 248L))
+  expect_identical(.check_mirca_covers_mapping(mirca, current), mirca)
+})

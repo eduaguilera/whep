@@ -459,7 +459,8 @@ testthat::test_that("barley, green corn and hempseed are in the crosswalk", {
     ~earthstat_name, ~item_prod_code,
     "barley",        44L,
     "greencorn",     446L,
-    "hempseed",      336L
+    # On Hemp (776), where the area of hempseed (336) is booked (#1292).
+    "hempseed",      776L
   )
 
   found <- earthstat |>
@@ -500,15 +501,38 @@ testthat::test_that("each EarthStat raster appears once in the crosswalk", {
 
 # ---- pattern groups: one plant, several FAOSTAT items ------------------------
 
-testthat::test_that("hemp and hempseed share a pattern group, keep their codes", {
+testthat::test_that("co-product rasters feed the code that holds the area", {
   earthstat <- .read_extdata_csv("earthstat_mapping.csv")
+  pooled <- tibble::tribble(
+    ~earthstat_name, ~item_prod_code,
+    "coconut",       248L,
+    "flax",          772L,
+    "hemp",          776L,
+    "hempseed",      776L,
+    "kapokfiber",    310L,
+    "linseed",       772L
+  )
+
+  found <- earthstat |>
+    dplyr::filter(earthstat_name %in% pooled$earthstat_name) |>
+    dplyr::select(earthstat_name, item_prod_code) |>
+    dplyr::arrange(earthstat_name) |>
+    dplyr::mutate(item_prod_code = as.integer(item_prod_code))
+  testthat::expect_equal(found, pooled)
+
+  # `build_primary_production()` books a co-product's area on its area code
+  # (`primary_double.csv`), so a raster on a co-product code would be a
+  # pattern for an item that never has an area to place (#1292).
+  products <- whep::primary_double |>
+    dplyr::filter(.data$Multi_type %in% c("Multi", "Primary")) |>
+    dplyr::pull("item_prod_code")
+  testthat::expect_false(any(earthstat$item_prod_code %in% products))
+  # Two rasters on one code are summed by `prepare_crop_patterns()`, so hemp
+  # and hempseed share one footprint without a pattern group.
   hemp <- earthstat[earthstat$earthstat_name %in% c("hemp", "hempseed"), ]
-  testthat::expect_identical(nrow(hemp), 2L)
-  testthat::expect_setequal(hemp$pattern_group, "hemp")
-  # Both items stay spatializable on their own FAOSTAT areas.
-  testthat::expect_setequal(hemp$item_prod_code, c(336L, 777L))
+  testthat::expect_true(all(is.na(hemp$pattern_group)))
   # Green corn is a distinct FAOSTAT item (446, Vegetables) from maize grain
-  # (56), so it is NOT grouped; checked against FAOSTAT on 2026-09-01.
+  # (56), so it is NOT pooled; checked against FAOSTAT on 2026-09-01.
   gc <- earthstat[earthstat$earthstat_name == "greencorn", ]
   testthat::expect_true(is.na(gc$pattern_group))
   testthat::expect_equal(gc$item_prod_code, 446)
