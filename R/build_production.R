@@ -1675,6 +1675,7 @@ build_primary_production <- function(
   supplement <- tibble::tribble(
     ~meat_prod_code, ~item_cbs_code,
     947, 946,
+    1069, 1068,
     1073, 1072,
     1080, 1079,
     1141, 1140,
