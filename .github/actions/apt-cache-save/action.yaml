@@ -1,0 +1,22 @@
+# Save the .deb files apt downloaded, under the key apt-cache-restore
+# computed. Skipped when that exact key was already restored, so a warm cache
+# is not re-uploaded on every run. See apt-cache-restore for the why.
+name: Save apt package cache
+description: Save downloaded .deb files after system requirements are installed.
+inputs:
+  key:
+    description: The `key` output of apt-cache-restore.
+    required: true
+  cache-hit:
+    description: The `cache-hit` output of apt-cache-restore.
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Save .deb files
+      if: runner.os == 'Linux' && inputs.key != '' && inputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: /var/cache/apt/archives/*.deb
+        key: ${{ inputs.key }}

@@ -1,0 +1,70 @@
+# Restore the Ubuntu .deb files a job's system requirements download (#1347).
+#
+# Every Linux job installs ~170 system packages (the geo stack, pandoc, cmake,
+# boost, ...) through apt from azure.archive.ubuntu.com, and that mirror
+# stalls: single downloads of 2-5 minutes, one install measured at 29 minutes
+# for a job whose own check took 7. The R packages were already cached; the
+# system libraries were downloaded again on every run.
+#
+# This keeps the downloaded .debs in the Actions cache. apt then installs from
+# /var/cache/apt/archives and only downloads a package whose version changed.
+# Nothing about WHAT is installed changes -- pak still decides that and still
+# runs `apt-get install`; only where the bytes come from does.
+#
+# The key carries the month, so the set is refreshed as Ubuntu publishes
+# updates instead of drifting further from the index every week; the
+# restore-keys fallback means a new month starts from last month's files and
+# downloads only what changed. No-op on macOS and Windows.
+name: Restore apt package cache
+description: Restore cached .deb files before system requirements are installed.
+inputs:
+  name:
+    description: Short name of the job, so jobs needing different packages keep separate caches.
+    required: true
+outputs:
+  key:
+    description: The primary cache key, for apt-cache-save.
+    value: ${{ steps.key.outputs.key }}
+  cache-hit:
+    description: Whether the primary key was restored exactly.
+    value: ${{ steps.restore.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Keep downloaded .deb files
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # A docker-clean hook would delete the archives after every install.
+        sudo rm -f /etc/apt/apt.conf.d/docker-clean
+        echo 'APT::Keep-Downloaded-Packages "true";' |
+          sudo tee /etc/apt/apt.conf.d/99-keep-downloaded-debs > /dev/null
+        # Abandon a stalled connection fast and retry. The mirror's stalls
+        # show as 2-5 minute gaps between two consecutive small downloads --
+        # apt sitting out its default 120 s timeout, sometimes twice. This
+        # also covers what the cache cannot: setup-r's own apt packages, a
+        # cold cache, and a package whose version just changed.
+        printf '%s\n' \
+          'Acquire::http::Timeout "15";' \
+          'Acquire::https::Timeout "15";' \
+          'Acquire::Retries "5";' |
+          sudo tee /etc/apt/apt.conf.d/99-fast-retry > /dev/null
+        # Let the cache action, which runs as the runner user, write here.
+        sudo chmod a+rwx /var/cache/apt/archives
+
+    - name: Compute the cache key
+      id: key
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "key=apt-v1-${ImageOS}-${{ inputs.name }}-$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+        echo "prefix=apt-v1-${ImageOS}-${{ inputs.name }}-" >> "$GITHUB_OUTPUT"
+
+    - name: Restore .deb files
+      id: restore
+      if: runner.os == 'Linux'
+      uses: actions/cache/restore@v4
+      with:
+        path: /var/cache/apt/archives/*.deb
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
