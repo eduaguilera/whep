@@ -1156,9 +1156,9 @@ testthat::test_that("successors and aggregates reach their reporting polity", {
   )$map |>
     dplyr::arrange(.data$area_code)
   # Russia walks its predecessor edge to the USSR. Estonia's predecessor
-  # chain is its own pre-1940 polities, and Belgium's reaches the
-  # Netherlands' family; both are placed by the successor walk instead:
-  # Estonia on the USSR, Belgium and Luxembourg on Belgium-Luxembourg.
+  # chain is its own pre-1940 polities, so the successor walk places it on
+  # the USSR. Belgium and Luxembourg reach Belgium-Luxembourg through the
+  # aggregate's successor list in the lineage itself (whep#1298).
   testthat::expect_equal(
     map$polity_code,
     c(
@@ -1175,8 +1175,8 @@ testthat::test_that("successors and aggregates reach their reporting polity", {
       "successor_walk",
       "anchor",
       "predecessor",
-      "successor_walk",
-      "successor_walk"
+      "aggregate",
+      "aggregate"
     )
   )
 })

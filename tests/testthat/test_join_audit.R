@@ -583,7 +583,9 @@ test_that("every year-free territorial grouping is classified", {
   # 111 on main with the regime yield ratio's groupings (whep#1233).
   # 136 on the second 2026-09-30 merge: the branch's 131 plus main's five
   # (106 -> 111), over 131 signatures. Re-derived by running the audit.
-  expect_lte(sum(full$n), 136L)
+  # 137 with whep#1298: the lineage's aggregate successor edges. Re-derived
+  # by running the audit.
+  expect_lte(sum(full$n), 137L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
