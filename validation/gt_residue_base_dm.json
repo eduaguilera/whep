@@ -1,0 +1,423 @@
+{
+  "_about": "Published cereal-residue production, dry matter, that WHEP's crop_residues pin is checked against by validation/residue_base_dm.R (whep#1330). Transcribed, not computed: per-crop and per-method values are the printed outputs of cell 47 of 1_crop_residue_dataset_creator.ipynb ('<crop> residue production in <year> (<method>) = <x> Tg-DM'); country rows are validation_production.tsv, both from Smerald, Rahimi & Scheer, Zenodo doi:10.5281/zenodo.7843730 (code for Sci. Data 10:685, doi:10.1038/s41597-023-02587-0). Residue there is grain x RPR x Dry_matter, so dry matter. Cereals = wheat, rice (paddy), maize, barley, millet, sorghum, other cereals.",
+  "source": {
+    "zenodo": "10.5281/zenodo.7843730",
+    "article": "10.1038/s41597-023-02587-0"
+  },
+  "world_tg_dm": [
+    {
+      "year": 1997,
+      "RPR": 2518.95,
+      "bentsen": 3046.27,
+      "fischer": 3234.1
+    },
+    {
+      "year": 1998,
+      "RPR": 2507.78,
+      "bentsen": 2990.88,
+      "fischer": 3151.84
+    },
+    {
+      "year": 1999,
+      "RPR": 2511.97,
+      "bentsen": 3006.65,
+      "fischer": 3149.47
+    },
+    {
+      "year": 2000,
+      "RPR": 2489.38,
+      "bentsen": 2978.37,
+      "fischer": 3127.52
+    },
+    {
+      "year": 2001,
+      "RPR": 2549.88,
+      "bentsen": 3033.86,
+      "fischer": 3201.93
+    },
+    {
+      "year": 2002,
+      "RPR": 2496.85,
+      "bentsen": 2967.33,
+      "fischer": 3126.48
+    },
+    {
+      "year": 2003,
+      "RPR": 2546.96,
+      "bentsen": 3005.04,
+      "fischer": 3174.8
+    },
+    {
+      "year": 2004,
+      "RPR": 2762.64,
+      "bentsen": 3155.0,
+      "fischer": 3290.14
+    },
+    {
+      "year": 2005,
+      "RPR": 2770.64,
+      "bentsen": 3189.93,
+      "fischer": 3327.26
+    },
+    {
+      "year": 2006,
+      "RPR": 2781.86,
+      "bentsen": 3203.12,
+      "fischer": 3344.91
+    },
+    {
+      "year": 2007,
+      "RPR": 2878.71,
+      "bentsen": 3294.24,
+      "fischer": 3419.1
+    },
+    {
+      "year": 2008,
+      "RPR": 3110.66,
+      "bentsen": 3466.1,
+      "fischer": 3600.63
+    },
+    {
+      "year": 2009,
+      "RPR": 3054.39,
+      "bentsen": 3411.74,
+      "fischer": 3506.9
+    },
+    {
+      "year": 2010,
+      "RPR": 3071.83,
+      "bentsen": 3422.06,
+      "fischer": 3509.54
+    },
+    {
+      "year": 2011,
+      "RPR": 3221.82,
+      "bentsen": 3568.77,
+      "fischer": 3654.78
+    },
+    {
+      "year": 2012,
+      "RPR": 3216.42,
+      "bentsen": 3585.02,
+      "fischer": 3665.04
+    },
+    {
+      "year": 2013,
+      "RPR": 3446.93,
+      "bentsen": 3720.52,
+      "fischer": 3793.89
+    },
+    {
+      "year": 2014,
+      "RPR": 3535.0,
+      "bentsen": 3734.91,
+      "fischer": 3782.18
+    },
+    {
+      "year": 2015,
+      "RPR": 3552.94,
+      "bentsen": 3770.83,
+      "fischer": 3806.41
+    },
+    {
+      "year": 2016,
+      "RPR": 3627.67,
+      "bentsen": 3809.97,
+      "fischer": 3827.41
+    },
+    {
+      "year": 2017,
+      "RPR": 3761.93,
+      "bentsen": 3878.9,
+      "fischer": 3904.35
+    },
+    {
+      "year": 2018,
+      "RPR": 3687.84,
+      "bentsen": 3844.17,
+      "fischer": 3869.54
+    },
+    {
+      "year": 2019,
+      "RPR": 3751.94,
+      "bentsen": 3857.66,
+      "fischer": 3887.59
+    },
+    {
+      "year": 2020,
+      "RPR": 3842.07,
+      "bentsen": 3923.83,
+      "fischer": 3945.55
+    },
+    {
+      "year": 2021,
+      "RPR": 3915.5,
+      "bentsen": 3993.06,
+      "fischer": 3984.02
+    }
+  ],
+  "world_mean_1997_2021_tg_dm": 3357.39,
+  "world_mean_1997_2021_note": "Sum of the four destinies (left on field 1455.25, animal 1109.65, other 581.69, burnt 210.80 Tg/yr), notebook 3_crop_residue_results.ipynb cell 35, 'mean' scheme.",
+  "per_crop_tg_dm": [
+    {
+      "year": 2010,
+      "crop": "Barley",
+      "RPR": 128.32,
+      "bentsen": 135.71,
+      "fischer": 219.43
+    },
+    {
+      "year": 2010,
+      "crop": "Maize",
+      "RPR": 1227.97,
+      "bentsen": 1125.33,
+      "fischer": 1064.15
+    },
+    {
+      "year": 2010,
+      "crop": "Millet",
+      "RPR": 43.3,
+      "bentsen": 45.86,
+      "fischer": 103.24
+    },
+    {
+      "year": 2010,
+      "crop": "Other cereals",
+      "RPR": 48.54,
+      "bentsen": 38.23,
+      "fischer": 79.74
+    },
+    {
+      "year": 2010,
+      "crop": "Rice",
+      "RPR": 771.7,
+      "bentsen": 1111.52,
+      "fischer": 977.41
+    },
+    {
+      "year": 2010,
+      "crop": "Sorghum",
+      "RPR": 157.39,
+      "bentsen": 105.96,
+      "fischer": 177.64
+    },
+    {
+      "year": 2010,
+      "crop": "Wheat",
+      "RPR": 694.61,
+      "bentsen": 859.45,
+      "fischer": 887.93
+    },
+    {
+      "year": 2020,
+      "crop": "Barley",
+      "RPR": 166.91,
+      "bentsen": 162.17,
+      "fischer": 262.47
+    },
+    {
+      "year": 2020,
+      "crop": "Maize",
+      "RPR": 1731.94,
+      "bentsen": 1435.16,
+      "fischer": 1337.12
+    },
+    {
+      "year": 2020,
+      "crop": "Millet",
+      "RPR": 40.69,
+      "bentsen": 40.35,
+      "fischer": 85.26
+    },
+    {
+      "year": 2020,
+      "crop": "Other cereals",
+      "RPR": 64.27,
+      "bentsen": 44.1,
+      "fischer": 99.78
+    },
+    {
+      "year": 2020,
+      "crop": "Rice",
+      "RPR": 859.3,
+      "bentsen": 1185.3,
+      "fischer": 1000.28
+    },
+    {
+      "year": 2020,
+      "crop": "Sorghum",
+      "RPR": 155.49,
+      "bentsen": 102.72,
+      "fischer": 165.07
+    },
+    {
+      "year": 2020,
+      "crop": "Wheat",
+      "RPR": 823.47,
+      "bentsen": 954.03,
+      "fischer": 995.57
+    }
+  ],
+  "countries": [
+    {
+      "iso3": "USA",
+      "year": 2001,
+      "author": "Lal",
+      "literature_tg_dm": 367.0,
+      "smerald_tg_dm": 360.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "IND",
+      "year": 1997,
+      "author": "Ravindranath",
+      "literature_tg_dm": 331.0,
+      "smerald_tg_dm": 370.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "CHN",
+      "year": 2000,
+      "author": "Cao06",
+      "literature_tg_dm": 461.0,
+      "smerald_tg_dm": 515.0,
+      "scope": "rice, wheat and maize"
+    },
+    {
+      "iso3": "CHN",
+      "year": 2012,
+      "author": "Li16",
+      "literature_tg_dm": 532.0,
+      "smerald_tg_dm": 645.0,
+      "scope": "assume cereal 76% of total"
+    },
+    {
+      "iso3": "CHN",
+      "year": 2009,
+      "author": "Jiang11",
+      "literature_tg_dm": 649.0,
+      "smerald_tg_dm": 590.0,
+      "scope": "maize, rice and wheat"
+    },
+    {
+      "iso3": "CHN",
+      "year": 2019,
+      "author": "Li20",
+      "literature_tg_dm": 720.0,
+      "smerald_tg_dm": 713.0,
+      "scope": "maize, rice and wheat"
+    },
+    {
+      "iso3": "GBR",
+      "year": 2007,
+      "author": "Copeland",
+      "literature_tg_dm": 15.7,
+      "smerald_tg_dm": 17.9,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "AFG",
+      "year": 2017,
+      "author": "SAARC",
+      "literature_tg_dm": 9.4,
+      "smerald_tg_dm": 8.7,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "BGD",
+      "year": 2017,
+      "author": "SAARC",
+      "literature_tg_dm": 72.0,
+      "smerald_tg_dm": 85.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "IND",
+      "year": 2017,
+      "author": "SAARC",
+      "literature_tg_dm": 516.0,
+      "smerald_tg_dm": 472.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "PAK",
+      "year": 2017,
+      "author": "SAARC",
+      "literature_tg_dm": 77.0,
+      "smerald_tg_dm": 64.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "LKA",
+      "year": 2017,
+      "author": "SAARC",
+      "literature_tg_dm": 4.5,
+      "smerald_tg_dm": 4.3,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "BRA",
+      "year": 2003,
+      "author": "cherubin",
+      "literature_tg_dm": 77.0,
+      "smerald_tg_dm": 107.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "BRA",
+      "year": 2013,
+      "author": "cherubin",
+      "literature_tg_dm": 111.0,
+      "smerald_tg_dm": 143.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "CAN",
+      "year": 2013,
+      "author": "li12",
+      "literature_tg_dm": 62.0,
+      "smerald_tg_dm": 65.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "CHN",
+      "year": 2011,
+      "author": "Zhang17",
+      "literature_tg_dm": 591.0,
+      "smerald_tg_dm": 626.0,
+      "scope": "assume cereal 76% of total"
+    },
+    {
+      "iso3": "DNK",
+      "year": 2014,
+      "author": "IEA",
+      "literature_tg_dm": 6.2,
+      "smerald_tg_dm": 8.8,
+      "scope": "assume all cereal"
+    },
+    {
+      "iso3": "NGA",
+      "year": 2009,
+      "author": "Ayodele17",
+      "literature_tg_dm": 36.0,
+      "smerald_tg_dm": 52.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "NGA",
+      "year": 2014,
+      "author": "Ayodele17",
+      "literature_tg_dm": 41.0,
+      "smerald_tg_dm": 66.0,
+      "scope": "cereals"
+    },
+    {
+      "iso3": "DEU",
+      "year": 2003,
+      "author": "Weiser",
+      "literature_tg_dm": 30.0,
+      "smerald_tg_dm": 38.0,
+      "scope": "major cereals"
+    }
+  ]
+}
