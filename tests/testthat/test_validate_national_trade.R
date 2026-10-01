@@ -138,9 +138,50 @@ test_that(".convert_trade_fm_to_n falls back to product coefficients when residu
     2000, "Firewood", "Export", 1000
   )
 
-  out <- .convert_trade_fm_to_n(trade, items, biomass)
+  # The fallback is a property of the single shared cell; the tissue split
+  # replaces that cell for wood, so it is exercised under "single".
+  out <- .convert_trade_fm_to_n(
+    trade,
+    items,
+    biomass,
+    wood_n_method = "single"
+  )
 
   expect_equal(out$value_n, 1000 * 0.5 * 0.004)
+})
+
+test_that(".convert_trade_fm_to_n prices traded Wood at the stem value", {
+  items <- tibble::tribble(
+    ~item, ~Name_biomass, ~group,
+    "Wood", "Average wood", "Forestry",
+    "Firewood", "Average wood", "Crop residues"
+  )
+  biomass <- tibble::tribble(
+    ~Name_biomass,
+    ~Product_kgDM_kgFM,
+    ~Product_kgN_kgDM,
+    ~Residue_kgDM_kgFM,
+    ~Residue_kgN_kgDM,
+    "Average wood", 0.75, 0.01, 0.75, 0.0030
+  )
+  trade <- tibble::tribble(
+    ~Year, ~Item, ~Element, ~value_fm,
+    2000, "Wood", "Export", 1000,
+    2000, "Firewood", "Export", 1000
+  )
+
+  tissue <- .convert_trade_fm_to_n(trade, items, biomass)
+  single <- .convert_trade_fm_to_n(
+    trade,
+    items,
+    biomass,
+    wood_n_method = "single"
+  )
+
+  # Same split as create_n_prov_destiny(), so the raw FAO side of the
+  # comparison is priced like the model side.
+  expect_equal(tissue$value_n, 1000 * 0.75 * c(0.0010, 0.0035))
+  expect_equal(single$value_n, rep(1000 * 0.75 * 0.0030, 2))
 })
 
 
