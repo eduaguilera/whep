@@ -1136,6 +1136,32 @@ test_that("C7: polycells with no area_code are reported, never folded", {
   testthat::expect_equal(shared$cell_area_frac, 0.75)
 })
 
+test_that("C7: an unkeyed layer the cell proves counted twice leaves", {
+  # whep#1318. A federation with no area_code laid over the two polities
+  # that partition the cell: 200,000 ha of territory claimed in a 100,000-ha
+  # cell. Its 80,000 ha of land are a second count of theirs, so they leave
+  # the denominator instead of halving both shares to 0.125 and 0.375.
+  support <- .c7_support_fixture() |>
+    dplyr::mutate(polity_area_ha = c(25000, 75000, 100000)) |>
+    dplyr::bind_rows(tibble::tibble(
+      lon = 0.25,
+      lat = 40.25,
+      polity_code = "FED-1900-2025",
+      area_code = NA_integer_,
+      cell_area_ha = 100000,
+      land_area_ha = 80000,
+      polity_area_ha = 100000,
+      start_year = 1900L,
+      end_year = 2025L
+    ))
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2000L)
+  ))
+  shared <- dplyr::arrange(dplyr::filter(out, lon == 0.25), area_code)
+  testthat::expect_equal(shared$cell_area_frac, c(0.25, 0.75))
+  testthat::expect_equal(shared$land_area_ha, c(20000, 60000))
+})
+
 test_that("C7: two polity codes on one area_code are summed and reported", {
   support <- dplyr::mutate(.c7_support_fixture(), area_code = c(206L, 206L, 1L))
   testthat::expect_warning(

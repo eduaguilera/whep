@@ -45,6 +45,14 @@
 # at 2010 against 30,858 over 1e-9).
 .cpy_overlap_tolerance <- function() 1e-4
 
+# Does one cell, handed all its rows, hold more territory than its area? The
+# year-aware fold and the carbon snapshot ask the same question of an unkeyed
+# claim (`.carbon_discount_duplicates()`), on this threshold.
+.cpy_cell_overlaps <- function(polity_area_ha, cell_area_ha) {
+  sum(polity_area_ha) >
+    dplyr::first(cell_area_ha) * (1 + .cpy_overlap_tolerance())
+}
+
 .cpy_rules <- function() {
   c("aggregate_member", "contained_fold", "constant_territory")
 }
@@ -84,6 +92,48 @@
     ))
   }
   map
+}
+
+# The code a recorded row gives each polity over the years `[from, to)`, or NA
+# where no row covers the whole span. The level-0 spatialization reads it for
+# polities the reporting vocabulary cannot key (whep#1318), on its grid and on
+# its national side, so both sides land on the same code.
+.cpy_recorded_code <- function(
+  polity_code,
+  from,
+  to,
+  map = .cell_polity_support_map()
+) {
+  hits <- tibble::tibble(
+    row = seq_along(polity_code),
+    polity_code = polity_code,
+    from = as.integer(from),
+    to = as.integer(to)
+  ) |>
+    dplyr::inner_join(
+      dplyr::select(
+        map,
+        "polity_code",
+        map_start = "start_year",
+        map_end = "end_year",
+        map_code = "area_code"
+      ),
+      by = "polity_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(
+      .data$from >= .data$map_start,
+      .data$to <= .data$map_end
+    )
+  if (anyDuplicated(hits$row) > 0L) {
+    cli::cli_abort(
+      "Two rows of {.file polity_cell_support_map.csv} cover
+       {.val {hits$polity_code[duplicated(hits$row)][1]}} in the same year."
+    )
+  }
+  code <- rep(NA_integer_, length(polity_code))
+  code[hits$row] <- hits$map_code
+  code
 }
 
 # Validate the year-aware arguments, then build. `reporting_areas` is required:
@@ -221,15 +271,13 @@
        non-missing."
     )
   }
-  tolerance <- .cpy_overlap_tolerance()
   rows |>
     dplyr::mutate(
       no_data = is.na(.data$area_code) |
         !.data$area_code %in% reporting_areas
     ) |>
     dplyr::mutate(
-      overlap = sum(.data$polity_area_ha) >
-        dplyr::first(.data$cell_area_ha) * (1 + tolerance),
+      overlap = .cpy_cell_overlaps(.data$polity_area_ha, .data$cell_area_ha),
       container = .data$polity_rule == "contained_fold" &
         .data$area_code %in%
           .data$area_code[
