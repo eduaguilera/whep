@@ -406,6 +406,8 @@
     2012L, 100L, 4L, "import", 2570L, "tonnes", 98000., 0.31,
     2012L, 100L, 79L, "import", 2570L, "tonnes", 54000., 0.17
   ) |>
+    add_item_cbs_name(name_column = "item_cbs") |>
+    dplyr::relocate(item_cbs, .before = item_cbs_code) |>
     .add_trade_polity_columns() |>
     dplyr::mutate(
       method_unbacked_quantity = "drop",

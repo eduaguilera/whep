@@ -73,9 +73,16 @@
 #'
 #' `"tonnes"` also returns 5 more 2016 matrices, all zero: chickens,
 #' turkeys, rabbits, geese and rodents, whose CBS head margins are zero
-#' because the pin carries their `1000 Head` rows nowhere (whep#1092). An
+#' because that pin carries their `1000 Head` rows nowhere (whep#1092). An
 #' all-zero matrix carries no partner structure either, so `"target"` drops
 #' them as seedless (with a warning) and nothing observed is lost.
+#'
+#' The pin registered since whep#1122, `20261001T135651Z-ca7b3`, carries
+#' those rows. Against a 2009--2011 [get_livestock_cbs()], `"target"` then
+#' returns 14 head-count matrices for 2010 instead of 9, holding 1,544,369,485
+#' head instead of 62,946,485: the five added are chickens (1,385,753,000),
+#' turkeys (76,646,000), ducks (13,015,000), rabbits (4,791,000) and geese
+#' (1,218,000), and the nine already there are unchanged.
 #'
 #' The seed is not only a structure. `.fill_missing_trade()` fills each
 #' unreported cell from the margins, capped by the gap between an exporter's
@@ -144,16 +151,18 @@
 #' 5001 a CBS row and the earlier, `"keep"`-only refusal let the whole
 #' 12.40 Gt through on the default method, silently.
 #'
-#' No published number moves. Measured on the live `bilateral_trade` pin
-#' `20250714T123347Z-2c392`, item 5001 carries 12.40 Gt of `tonnes` over
+#' No published number moves. Measured on the 2025-07-14 `bilateral_trade`
+#' pin `20250714T123347Z-2c392`, item 5001 carries 12.40 Gt of `tonnes` over
 #' 277,201 rows - 8.9% of 1986-2003, **49.4% of 2004-2013** and 3.9% of
 #' 2014-2021 - and no commodity balance sheet carries item 5001, so
 #' `"drop"` removes all of it exactly as before.
 #'
 #' A caller who wants a trade matrix that carries item 5001 has to obtain
 #' a mass for it first. [build_detailed_trade()] screens the same rows at
-#' the producer, where the fix belongs; that screen is latent until the
-#' `bilateral_trade` pin is regenerated from it, which whep#1122 tracks.
+#' the producer, where the fix belongs, and the `bilateral_trade` pin has
+#' been regenerated from it (whep#1122): the registered version carries no
+#' item 5001 row at all, so this refusal is now a guard against a pin built
+#' some other way.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -256,7 +265,7 @@
 #'    ). The target sums for rows and columns are respectively the balanced
 #'    exports and imports computed from the commodity balance sheet.
 #'
-#' @inheritSection whep_read_file The two batch pins on the build path
+#' @inheritSection whep_read_file The batch pin on the build path
 #'
 #' @export
 #'
@@ -291,12 +300,10 @@ get_bilateral_trade <- function(
     )
 
   cli::cli_progress_step("Reading raw bilateral trade data")
-  # The `bilateral_trade` pin shares the predecessor pipeline's 2025-07-14
-  # timestamp but not its provenance: every value it holds is the FAOSTAT
-  # Detailed Trade Matrix, matching the raw `faostat-trade-bilateral` pin
-  # exactly. What it adds is the CBS item aggregation and a fold of 18 areas
-  # into code 999; what it drops is FAOSTAT's `1000 Head` and `No` rows. See
-  # the pin-batch section above for the figures (#1054).
+  # The `bilateral_trade` pin is `build_detailed_trade()`'s own output, run on
+  # the raw `faostat-trade-bilateral` pin (whep#1122). See the pin-batch
+  # section of `whep_read_file()` for what the 2025-07-14 version it replaced
+  # held and dropped (#1054).
   btd <- "bilateral_trade" |>
     whep_read_file() |>
     .clean_bilateral_trade()
@@ -404,13 +411,14 @@ get_bilateral_trade <- function(
 # The alias has been published in two schemas that share exactly one column
 # name, `area_code` (whep#1122):
 #
-# - the live pin `20250714T123347Z-2c392`, the predecessor pipeline's:
+# - the 2025-07-14 pin `20250714T123347Z-2c392`, the predecessor pipeline's:
 #   `Year, area_code, area_code_p, Element, item, Unit, Value, area, area_p,
 #   Country_share` -- the partner keyed as `area_code_p`, the item carried as
 #   a CBS item *name*, `Element` capitalised;
-# - what `build_detailed_trade()`, this package's own producer, emits: the
-#   partner as `area_code_partner`, the item already resolved to
-#   `item_cbs_code`, `element` lower case, plus the polity columns.
+# - what `build_detailed_trade()`, this package's own producer, emits, and so
+#   the registered pin since whep#1122: the partner as `area_code_partner`,
+#   the item already resolved to `item_cbs_code`, `element` lower case, plus
+#   the polity columns.
 #
 # So the three columns that differ are resolved by what is present rather
 # than by a pin version, and a frame carrying neither spelling aborts naming

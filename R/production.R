@@ -115,7 +115,7 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' (tomato) to 1.0 (rapeseed) (whep#1215). Use `value_dm` wherever a quantity
 #' is defined per unit of dry matter, such as a residue nitrogen content.
 #'
-#' @inheritSection whep_read_file The two batch pins on the build path
+#' @inheritSection whep_read_file The batch pin on the build path
 #'
 #' @export
 #'

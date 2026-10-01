@@ -172,9 +172,17 @@
 #'
 #' @returns A tibble with columns:
 #'   - `year`: Integer year.
-#'   - `area_code`: Numeric polity code of the reporter country.
+#'   - `area_code`: Numeric polity code of the reporter country, the
+#'     `polity_area_code` its FAOSTAT area resolves to in that year.
+#'   - `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
+#'     `reporting_polity_has_geometry`: the reporter's polity columns, see
+#'     the *Polity columns* section.
 #'   - `area_code_partner`: Numeric polity code of the partner country.
+#'   - `partner_polity_code`, `partner_polity_name`,
+#'     `partner_polity_has_geometry`, `partner_polity_area_code`: the same
+#'     polity columns for the partner.
 #'   - `element`: Either `"import"` or `"export"`.
+#'   - `item_cbs`: CBS item name.
 #'   - `item_cbs_code`: Numeric CBS item code.
 #'   - `unit`: Measurement unit (`"tonnes"` or `"heads"`).
 #'   - `value`: Trade quantity.
@@ -186,6 +194,8 @@
 #'     rows, recorded for the same reason.
 #'   - `method_time_coverage`: the coverage rule of the time extension, or
 #'     `NA` when `extend_time = FALSE`.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -227,6 +237,8 @@ build_detailed_trade <- function(
   dtm |>
     tibble::as_tibble() |>
     dplyr::mutate(
+      # FAOSTAT's `Year` arrives as a double; the contract above is integer.
+      year = as.integer(year),
       method_unbacked_quantity = method,
       method_head_units = head_method,
       method_time_coverage = coverage_method
