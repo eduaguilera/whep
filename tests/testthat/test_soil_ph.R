@@ -415,6 +415,25 @@ testthat::test_that(".hwsd_band_extents handles an extent shorter than one band"
   testthat::expect_equal(unname(bands[[1]]$ymax), 1)
 })
 
+# A full collection costs the same whatever the band's size, so it is spent
+# only where the band's rasters are big enough to be worth returning -- and
+# never skipped on a band of the real archive.
+testthat::test_that(".hwsd_release_band collects only a large band", {
+  calls <- 0L
+  count <- function() calls <<- calls + 1L
+  threshold <- whep:::.hwsd_release_min_cells()
+
+  testthat::expect_null(whep:::.hwsd_release_band(144, collect = count))
+  testthat::expect_equal(calls, 0L)
+  whep:::.hwsd_release_band(threshold, collect = count)
+  testthat::expect_equal(calls, 1L)
+
+  # One band of the global 30-arc-second raster at 0.5 degrees: 32 target
+  # rows of 60 native rows each, by 43,200 native columns.
+  real_band <- 32 * 60 * 43200
+  testthat::expect_gte(real_band, threshold)
+})
+
 # ---- .hwsd_agg_factor() (whep#1043) -------------------------------------
 
 # The two resolutions that decide the aggregation, as doubles rather than as
