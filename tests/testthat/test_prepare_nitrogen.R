@@ -108,6 +108,31 @@ test_that(".smil_synth_pre_1961 backcasts country synth using shares", {
 })
 
 
+test_that(".smil_synth_pre_1961 meets the Smil 1960 anchor (#1303)", {
+  .need_spatialize_helper(".smil_synth_pre_1961")
+  # FAOSTAT that equals the Smil series year by year over 1961-1965 must give
+  # shares summing to 1 and a back-cast that reproduces the 1960 anchor. The
+  # window has only one anchor (1965) of its own, so a divisor interpolated
+  # over the window alone is the 1965 value, and the shares sum to 0.82 here.
+  smil <- .smil_global_yearly(first_year = 1913L, last_year = 1965L)
+  window <- dplyr::filter(smil, year >= 1961L)
+  expect_equal(window$global_mg_n[window$year == 1961L], 12.2e6)
+  synth_faostat <- tibble::tibble(
+    area_code = rep(c(1L, 2L), each = 5),
+    area_name = rep(c("A", "B"), each = 5),
+    year = rep(window$year, 2),
+    mg_n = c(window$global_mg_n * 0.7, window$global_mg_n * 0.3)
+  )
+  shares <- .smil_country_share(synth_faostat)
+  expect_equal(sum(shares$country_share), 1, tolerance = 1e-12)
+  out <- .smil_synth_pre_1961(synth_faostat)
+  smil_1960 <- whep::smil_2001_synthetic_n_global |>
+    dplyr::filter(year == 1960L) |>
+    dplyr::pull(global_kt_n)
+  expect_equal(sum(out$mg_n[out$year == 1960L]), smil_1960 * 1000)
+})
+
+
 test_that(".faostat_manure_shares_const averages shares over 1961-65", {
   .need_spatialize_helper(".faostat_manure_shares_const")
   manure_long <- tibble::tribble(
