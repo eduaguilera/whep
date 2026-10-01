@@ -906,12 +906,100 @@ admin_coverage_prototype <- function() {
   )
   support <- .carbon_rekey_area_code(support)
   .level0_check_epochs(support)
+  support <- support |>
+    .carbon_discount_duplicates(
+      by = c("lon", "lat", "start_year", "end_year")
+    ) |>
+    .level0_key_recorded()
   cell_land <- .level_cell_land(support, unique(support$start_year))
   support |>
     .carbon_drop_unkeyed() |>
     .level0_fold_epochs() |>
     dplyr::left_join(cell_land, by = c("lon", "lat", "start_year")) |>
     .level0_attach_share()
+}
+
+# Key a polity the reporting vocabulary cannot express on the code the
+# recorded mapping gives it, in the years it gives it (whep#1318).
+#
+# `inst/extdata/polity_cell_support_map.csv` holds the rules decided with the
+# maintainer on whep#1196 for the nitrogen path's year-aware support. Five of
+# its polities have no reporting code: North and South Vietnam (237,
+# 1961-1974), the Mutawakkilite Kingdom and Aden (249, 1961) and the
+# Azerbaijan SSR (the USSR, 228, 1961-1990). The national tables carry 237 and
+# 249 in those years, and on the `20260907T111653Z-e654d` support the grid held
+# no cell for either: 6.28 Mha of Viet Nam's and 1.31 Mha of Yemen's 1961
+# harvested area had nowhere to land. `.level0_lineage_rekey()` reads the same
+# rows on the national side.
+#
+# Only an UNKEYED polity takes a recorded code here. The nitrogen path also
+# re-keys polities that have one -- Belgium and Luxembourg onto 15, the Baltic
+# SSRs onto the USSR -- because its national tables follow FAOSTAT's reporting
+# units; the spatialization's crop table is on constant territory and reports
+# 255, 256 and 63 in those years, so re-keying them would take the cells those
+# rows need. The Azerbaijan SSR lies over the USSR's own claim, so its doubled
+# land has already left through `.carbon_discount_duplicates()`; only what is
+# left of it is keyed here.
+#
+# A recorded window can open inside an epoch -- DRV-1954-1975 is keyed from
+# 1961 only -- so every row of a cell the mapping touches is cut at the
+# windows' bounds. Cutting all of them keeps the cell's intervals coinciding or
+# disjoint, which the per-epoch denominator relies on, and the pieces carry the
+# row's values unchanged, so no year moves except where a code is supplied.
+.level0_key_recorded <- function(support, map = .cell_polity_support_map()) {
+  if (!rlang::has_name(support, "polity_code")) {
+    return(support)
+  }
+  unkeyed <- unique(support$polity_code[is.na(support$area_code)])
+  map <- dplyr::filter(map, .data$polity_code %in% unkeyed)
+  if (nrow(map) == 0L) {
+    return(support)
+  }
+  cell <- paste(support$lon, support$lat)
+  touched <- cell %in% cell[support$polity_code %in% map$polity_code]
+  rows <- .level0_cut_intervals(
+    support[touched, , drop = FALSE],
+    c(map$start_year, map$end_year)
+  )
+  code <- .cpy_recorded_code(
+    rows$polity_code,
+    rows$start_year,
+    rows$end_year,
+    map
+  )
+  keyed <- is.na(rows$area_code) & !is.na(code)
+  rows$area_code[keyed] <- code[keyed]
+  .level0_inform_recorded(rows[keyed, , drop = FALSE])
+  dplyr::bind_rows(support[!touched, , drop = FALSE], rows)
+}
+
+# Cut each row's interval at every break strictly inside it.
+.level0_cut_intervals <- function(rows, breaks) {
+  breaks <- sort(unique(as.integer(breaks)))
+  bounds <- purrr::map2(
+    rows$start_year,
+    rows$end_year,
+    \(from, to) c(from, breaks[breaks > from & breaks < to], to)
+  )
+  out <- rows[rep(seq_len(nrow(rows)), lengths(bounds) - 1L), , drop = FALSE]
+  out$start_year <- unlist(purrr::map(bounds, \(b) b[-length(b)]))
+  out$end_year <- unlist(purrr::map(bounds, \(b) b[-1L]))
+  out
+}
+
+.level0_inform_recorded <- function(keyed) {
+  if (nrow(keyed) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(keyed)
+  pairs <- keyed |>
+    dplyr::distinct(.data$polity_code, .data$area_code) |>
+    dplyr::arrange(.data$polity_code)
+  cli::cli_inform(
+    "{cli::qty(n_rows)}{n_rows} polycell{?s} with no reporting code keyed by
+     {.file polity_cell_support_map.csv}:
+     {.val {paste(pairs$polity_code, pairs$area_code, sep = ' -> ')}}."
+  )
 }
 
 # The per-epoch denominator is looked up by interval-START year, which is exact
@@ -4210,6 +4298,16 @@ build_level_crop_targets <- function(
       .polity_reporting_area_code(resolved$lineage_polity_code[known])
     )
   }
+  # A polity the vocabulary cannot key takes the code the recorded mapping
+  # gives it that year -- the code `.level0_key_recorded()` puts on its cells.
+  # Azerbaijan resolves to the Azerbaijan SSR in 1961-1990, which is filed
+  # inside the USSR (228); before this it kept 52, which no cell carries, and
+  # 1.31 Mha of its 1961 harvested area was dropped (whep#1318).
+  year <- as.integer(resolved$year)
+  mapped <- dplyr::coalesce(
+    mapped,
+    .cpy_recorded_code(resolved$lineage_polity_code, year, year + 1L)
+  )
   # An unresolved row keeps its own code rather than taking NA: keying on NA
   # would drop it silently, which is the failure this step exists to remove.
   # It stays visible through `.warn_grid_missing_reporters()`, as before.
