@@ -2265,8 +2265,25 @@ resolve_polity_label <- function(
     cand$polity_code[1]
   }
 
+  # Each element's answer depends on nothing but these per-element values and
+  # the tables above, so the routes run once per DISTINCT combination and the
+  # answer is mapped back to every row carrying it. A panel repeats each
+  # label-year many times over -- `crops_manure_n`'s 31,648 rows hold far
+  # fewer distinct ones -- and the per-row loop below is the resolver's cost
+  # (whep#1349). First occurrences are visited in row order, so an abort
+  # names the same first offending row it always did.
+  row_key <- vctrs::data_frame(
+    label = label,
+    source = source,
+    year = year,
+    indicator = indicator,
+    country = country,
+    relabelled = corrected$relabelled,
+    unrouted = corrected$unrouted
+  )
+  row_group <- vctrs::vec_group_id(row_key)
   resolved <- vapply(
-    seq_len(n),
+    vctrs::vec_unique_loc(row_key),
     function(i) {
       # An UNROUTED rule's rows belong to no polity: a wrong territory with no
       # right one to land on. Upstream says to drop them rather than resolve
@@ -2349,7 +2366,7 @@ resolve_polity_label <- function(
       cand$polity_code[ord[1]]
     },
     character(1)
-  )
+  )[row_group]
   .warn_ambiguous_polity_names(
     label[
       is.na(resolved) &

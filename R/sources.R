@@ -75,29 +75,26 @@ expand_trade_sources <- function(trade_sources) {
   if (!all(c("Reporter", "Year") %in% names(x))) {
     return(no_polity(x))
   }
-  labels <- unique(as.character(x$Reporter))
   years <- unique(stats::na.omit(as.integer(x$Year)))
   # Nothing to resolve the reporter IN, so nothing to resolve it to.
   if (length(years) == 0L) {
     return(no_polity(x))
   }
-  key <- do.call(
-    rbind,
-    lapply(years, function(y) {
-      data.frame(
-        .yr = y,
-        .lbl = labels,
-        reporting_polity_code = resolve_polity_label(
-          labels,
-          source = "trade-sources",
-          year = y
-        ),
-        stringsAsFactors = FALSE
-      )
-    })
-  )
   x$.yr <- as.integer(x$Year)
   x$.lbl <- as.character(x$Reporter)
+  # ONE vectorised call over the reporter-year pairs the table holds. The
+  # resolver answers each element from that element's label and year alone, so
+  # this is the same answer as one call per year; but every call rebuilds the
+  # polity indices first, and one call per year spent ~14 s on the shipped
+  # trade_sources.csv's 206 years doing exactly that (whep#1349). A row with no
+  # year joins no key, as before.
+  key <- unique(data.frame(.yr = x$.yr, .lbl = x$.lbl))
+  key <- key[!is.na(key$.yr), , drop = FALSE]
+  key$reporting_polity_code <- resolve_polity_label(
+    key$.lbl,
+    source = "trade-sources",
+    year = key$.yr
+  )
   out <- dplyr::left_join(x, key, by = c(".yr", ".lbl"))
   dplyr::select(out, -".yr", -".lbl")
 }
