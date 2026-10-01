@@ -81,15 +81,18 @@ world <- cereals |>
   ) |>
   dplyr::arrange(.data$year)
 
-print(dplyr::select(
-  world,
-  "year",
-  "whep_fresh_tg",
-  "whep_dm_tg",
-  "band_low",
-  "band_high",
-  "ratio_to_mean"
-), n = Inf)
+print(
+  dplyr::select(
+    world,
+    "year",
+    "whep_fresh_tg",
+    "whep_dm_tg",
+    "band_low",
+    "band_high",
+    "ratio_to_mean"
+  ),
+  n = Inf
+)
 
 mean_dm <- mean(world$whep_dm_tg)
 cli::cli_inform(c(
@@ -147,17 +150,21 @@ countries <- cereals |>
     ratio_to_smerald = .data$whep_dm_tg / .data$smerald_tg_dm,
     ratio_to_literature = .data$whep_dm_tg / .data$literature_tg_dm
   )
-print(dplyr::select(
-  countries,
-  "iso3",
-  "year",
-  "author",
-  "whep_dm_tg",
-  "smerald_tg_dm",
-  "literature_tg_dm",
-  "ratio_to_smerald",
-  "ratio_to_literature"
-), n = Inf, width = Inf)
+print(
+  dplyr::select(
+    countries,
+    "iso3",
+    "year",
+    "author",
+    "whep_dm_tg",
+    "smerald_tg_dm",
+    "literature_tg_dm",
+    "ratio_to_smerald",
+    "ratio_to_literature"
+  ),
+  n = Inf,
+  width = Inf
+)
 
 # #1132's all-crop yardstick, reported only ---------------------------------
 all_2020 <- dplyr::filter(residues, .data$year == 2020)

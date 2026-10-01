@@ -117,17 +117,20 @@
 #'   assumed rate. `source_recovery_wirsenius` labels each.
 #'
 #' `"wirsenius"` is the only variant in which every rate is traceable to the
-#' cited source, but it is **not** the default yet. The gross residue base
-#' these rates multiply is itself thought to be about 36% too high
-#' (whep#1330, step 2 of whep#1132), so raising the rate before that base is
-#' corrected would move recovered residue further from the literature, not
-#' closer. The switch of default is deferred to whep#1330; until then
-#' `"legacy"` keeps every published value where it was.
+#' cited source, but it is **not** the default yet. Its switch waited on the
+#' gross residue base these rates multiply, once thought to be about 36% too
+#' high (step 2 of whep#1132). In dry matter that excess is not there: the
+#' 36% compared the pin's fresh weight with dry-matter literature, and the
+#' pin's cereal residue in dry matter lies inside the three-method band of
+#' Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0}, in
+#' every year 1997--2021, its 1997--2021 mean 4.8% below theirs
+#' (`validation/residue_base_dm.R`, whep#1330). Until the default is
+#' switched, `"legacy"` keeps every published value where it was.
 #'
-#' Measured on the `crop_residues` pin as read by [get_primary_residues()]
-#' (after its per-crop fresh-to-dry-matter conversion, whep#1255),
+#' Measured on the `crop_residues` pin as read by [get_primary_residues()],
+#' on its fresh `value` (the commodity balance's basis, whep#1330),
 #' `"wirsenius"` against `"legacy"` in 2010 raises recovered residue from
-#' 6341 to 6463 Mt DM (+1.9%), the feed destiny from 1852 to 1891 Mt
+#' 6341 to 6463 Mt fresh matter (+1.9%), the feed destiny from 1852 to 1891 Mt
 #' (+2.1%) and the burned/other-use destiny from 4489 to 4572 Mt (+1.8%),
 #' and lowers the soil destiny from 1294 to 1172 Mt (-9.4%); over 1961--1965
 #' the same moves are +3.5%, +3.4%, +3.6% and -15.2%. Roots and tubers,
@@ -147,10 +150,10 @@
 #' the "some 33 percent of the amount generated" Wirsenius reports for cereals
 #' straw and stover fed to animals (p. 177), and under the livestock share of
 #' Smerald, Rahimi & Scheer (2023), *Scientific Data* **10**:685,
-#' \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is **not** done here on
-#' purpose: the gross residue base it multiplies is itself too high, so the
-#' two errors partly cancel and fixing one alone would land further from the
-#' truth (whep#1132, whep#1041).
+#' \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is **not** done here:
+#' it was held back because the gross residue base it multiplies was thought
+#' too high (whep#1132, whep#1041), which in dry matter it is not for
+#' cereals (whep#1330), so that re-anchoring is now a choice of its own.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
