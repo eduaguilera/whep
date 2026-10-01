@@ -2137,3 +2137,28 @@ testthat::test_that("polity_support is a live config key", {
     whep:::.resolve_landuse_config(list(polity_support = NULL))
   )
 })
+
+testthat::test_that("the missing-reporter guard is year-aware (whep#1319)", {
+  fn <- whep:::.warn_grid_missing_reporters
+  grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~start_year, ~end_year,
+    10.25, 50.25, 228L, 1945L, 1991L
+  )
+  national <- tibble::tribble(
+    ~area_code, ~year, ~heads,
+    228L, 1990L, 1e9,
+    228L, 1991L, 1.5e9
+  )
+  # The code-only comparison holds: 228 is in the grid in some epoch.
+  expect_supplied_guard(
+    identity = length(setdiff(national$area_code, grid$area_code)) == 0L,
+    guard = fn(national, grid, "heads", "head"),
+    class = "rlang_warning",
+    condition = "warning"
+  )
+  warnings <- testthat::capture_warnings(fn(national, grid, "heads", "head"))
+  testthat::expect_match(warnings, "228 in 1991", all = FALSE)
+  testthat::expect_match(warnings, "1.5e\\+09|1500000000", all = FALSE)
+  testthat::expect_no_match(warnings, "228 in 1990")
+  testthat::expect_no_warning(fn(national[1, ], grid, "heads", "head"))
+})
