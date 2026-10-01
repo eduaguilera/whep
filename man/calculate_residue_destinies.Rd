@@ -9,7 +9,7 @@ calculate_residue_destinies(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("legacy", "wirsenius")
+  recovery = c("wirsenius", "legacy")
 )
 }
 \arguments{
@@ -38,10 +38,10 @@ with the row count and tonnage, \code{"abort"} refuses to continue. Ignored by
 the \code{"shares"} method.}
 
 \item{recovery}{Which recovery-rate variant the \code{recovery_regional}
-method reads: \code{"legacy"} (default, the table as shipped before
-whep#1163) or \code{"wirsenius"} (every rate Wirsenius 2000 states, at the
-value it states; the default switch is deferred to whep#1330). See the
-Two recovery variants section. Ignored by the \code{"shares"} method.}
+method reads: \code{"wirsenius"} (default since whep#1330, every rate
+Wirsenius 2000 states, at the value it states) or \code{"legacy"} (the table
+as shipped before whep#1163). See the Two recovery variants section.
+Ignored by the \code{"shares"} method.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
@@ -135,26 +135,28 @@ The p. 94 default does not reach them, so the source is silent on them
 \verb{recovery =} selects the rate column, and \code{method_residue_recovery}
 records which one was used:
 \itemize{
-\item \code{"legacy"} (default) reads \code{recovery_rates}, the table as shipped
-before whep#1163, whose departures from the source are all downward.
-\item \code{"wirsenius"} reads \code{recovery_rates_wirsenius}: every rate the thesis
-states, at the value it states. The three below-source categories take
-0.90, the three p. 94 categories take 1.00 -- "close to 100 percent"
-read as 1.00, which is a reading of the text and not a number it prints
--- and the five categories the source is silent on keep the legacy
-assumed rate. \code{source_recovery_wirsenius} labels each.
+\item \code{"wirsenius"} (default) reads \code{recovery_rates_wirsenius}: every rate the
+thesis states, at the value it states. The three below-source
+categories take 0.90, the three p. 94 categories take 1.00 -- "close to
+100 percent" read as 1.00, which is a reading of the text and not a
+number it prints -- and the five categories the source is silent on keep
+the legacy assumed rate. \code{source_recovery_wirsenius} labels each.
+\item \code{"legacy"} reads \code{recovery_rates}, the table as shipped before
+whep#1163, whose departures from the source are all downward.
 }
 
 \code{"wirsenius"} is the only variant in which every rate is traceable to the
-cited source, but it is \strong{not} the default yet. Its switch waited on the
-gross residue base these rates multiply, once thought to be about 36\% too
-high (step 2 of whep#1132). In dry matter that excess is not there: the
-36\% compared the pin's fresh weight with dry-matter literature, and the
-pin's cereal residue in dry matter lies inside the three-method band of
-Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0}, in
+cited source, and it is the default since whep#1330. Its switch waited on
+the gross residue base these rates multiply, once thought to be about 36\%
+too high (step 2 of whep#1132). In dry matter that excess is not there:
+the 36\% compared the pin's fresh weight with dry-matter literature, and
+the pin's cereal residue in dry matter lies inside the three-method band
+of Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0}, in
 every year 1997--2021, its 1997--2021 mean 4.8\% below theirs
-(\code{validation/residue_base_dm.R}, whep#1330). Until the default is
-switched, \code{"legacy"} keeps every published value where it was.
+(\code{validation/residue_base_dm.R}, whep#1330). That check covers cereals
+only, and the rates the switch moves are all non-cereal; no published
+global total for the non-cereal residue base was found to check it
+against.
 
 Measured on the \code{crop_residues} pin as read by \code{\link[=get_primary_residues]{get_primary_residues()}},
 on its fresh \code{value} (the commodity balance's basis, whep#1330),

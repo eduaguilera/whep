@@ -279,9 +279,10 @@ test_that("recovery = selects the rate column and is recorded (whep#1163)", {
     region_krausmann = "West Europe",
     region_un_sub = "Western Europe"
   )
-  # The default stays "legacy" until whep#1330 corrects the gross base.
-  legacy <- whep::calculate_residue_destinies(beet)
-  wirsenius <- whep::calculate_residue_destinies(beet, recovery = "wirsenius")
+  # The default is "wirsenius" since whep#1330 found the gross base inside
+  # the dry-matter literature band; "legacy" stays selectable.
+  wirsenius <- whep::calculate_residue_destinies(beet)
+  legacy <- whep::calculate_residue_destinies(beet, recovery = "legacy")
   testthat::expect_equal(legacy$method_residue_recovery, "legacy")
   testthat::expect_equal(wirsenius$method_residue_recovery, "wirsenius")
   testthat::expect_equal(wirsenius$residue_soil_dm_t, 10)
