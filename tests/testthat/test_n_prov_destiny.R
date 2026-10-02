@@ -556,12 +556,64 @@ test_that(".expand_processed_items multiplies processed mass by cf", {
     2000, "Grapes", "Wine", 0.5
   )
 
-  out <- .expand_processed_items(with_share, spain_coefs)
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Wine", "Crop products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
 
   expect_equal(out$Item, "Wine")
   expect_equal(out$production_fm, 20)
   expect_equal(out$Box, "Cropland")
   expect_equal(out$prod_type, "Product")
+})
+
+test_that(".expand_processed_items boxes a non-cropland output by its own group instead of defaulting to Cropland", {
+  # Regression test: a Cropland input's processing coefficient can point to
+  # an output item that is not itself a crop product (e.g. a stray "Butter,
+  # Ghee" coefficient in the shared processing table). The output's own
+  # group must win over the Cropland-input default.
+  with_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "Coconut", "Coconuts - Incl Copra", 40
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~cf,
+    2000, "Coconuts - Incl Copra", "Butter, Ghee", 0.1
+  )
+
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Butter, Ghee", "Livestock products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
+
+  expect_equal(out$Item, "Butter, Ghee")
+  expect_equal(out$Box, "Livestock")
+})
+
+test_that(".expand_processed_items falls back to Cropland when the output item is unclassified", {
+  with_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "Grape", "Grapes", 40
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~cf,
+    2000, "Grapes", "Wine", 0.5
+  )
+
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Some other item", "Livestock products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
+
+  expect_equal(out$Box, "Cropland")
 })
 
 
@@ -719,14 +771,14 @@ test_that(".forwardfill_population does nothing when data already ends at last_y
 .test_processing_coefs <- function() {
   list(
     items = tibble::tribble(
-      ~item, ~Name_biomass,
-      "Grapes", "grape_bm",
-      "Wine", "wine_bm",
-      "Juice", "juice_bm",
-      "Sunflower seed", "sunflower_bm",
-      "Sunflower Cake", "cake_bm",
-      "Sunflower Oil", "oil_bm",
-      "Beef", "beef_bm"
+      ~item, ~Name_biomass, ~group,
+      "Grapes", "grape_bm", "Crop products",
+      "Wine", "wine_bm", "Crop products",
+      "Juice", "juice_bm", "Crop products",
+      "Sunflower seed", "sunflower_bm", "Crop products",
+      "Sunflower Cake", "cake_bm", "Crop products",
+      "Sunflower Oil", "oil_bm", "Crop products",
+      "Beef", "beef_bm", "Livestock products"
     ),
     biomass = tibble::tribble(
       ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~N_kgN_kgFM,

@@ -1385,7 +1385,7 @@ build_food_protein_destiny <- function(
       processed_fm = production_fm * share_processing
     )
 
-  outputs <- .expand_processed_items(candidate, spain_coefs)
+  outputs <- .expand_processed_items(candidate, spain_coefs, coefs$items)
   scaling <- .processing_n_scaling(candidate, outputs, coefs)
 
   list(
@@ -1411,13 +1411,39 @@ build_food_protein_destiny <- function(
 #' @param candidate Production rows joined with share_processing and
 #' processed_fm, as built by `.calculate_processed_amounts()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param codes_coefs_items_full Item-to-group lookup (`coefs$items`), used to
+#' assign each processed output its own Box instead of assuming every
+#' processed item is Cropland -- the processing coefficient table
+#' occasionally carries a stray coefficient mapping a Cropland input to a
+#' non-cropland output (e.g. a tiny, spurious "Butter, Ghee" conversion),
+#' which previously booked that output as Cropland production too.
 #'
 #' @return A dataframe with Year, Province_name, Name_biomass, Item, Box,
 #' production_fm, prod_type and the primary Item it came from (`from_item`) —
 #' one row per processed item, per province.
 #' @keywords internal
 #' @noRd
-.expand_processed_items <- function(candidate, spain_coefs) {
+.expand_processed_items <- function(
+  candidate,
+  spain_coefs,
+  codes_coefs_items_full
+) {
+  # Cropland is the default Box for a processed output (flour, oil, wine,
+  # ...), since that is what this function is meant to represent. It is
+  # overridden only when the output item's own classification is
+  # unambiguously something else -- Crop products/Primary crops/crop residue
+  # already map to Cropland, so they are left out of this lookup on purpose.
+  processed_item_box <- codes_coefs_items_full |>
+    dplyr::mutate(
+      group = dplyr::recode(group, "Additives" = "Agro-industry"),
+      item_box = dplyr::case_when(
+        group %in% c("Livestock products", "Livestock") ~ "Livestock",
+        group %in% c("Agro-industry", "Fish") ~ group,
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::select(item, item_box)
+
   candidate |>
     dplyr::summarise(
       processed_fm = sum(processed_fm, na.rm = TRUE),
@@ -1429,11 +1455,15 @@ build_food_protein_destiny <- function(
       relationship = "many-to-many"
     ) |>
     dplyr::filter(!is.na(ProcessedItem)) |>
+    dplyr::left_join(
+      processed_item_box,
+      by = c("ProcessedItem" = "item")
+    ) |>
     dplyr::mutate(
       production_fm = processed_fm * cf,
       from_item = Item,
       Item = ProcessedItem,
-      Box = "Cropland",
+      Box = dplyr::coalesce(item_box, "Cropland"),
       prod_type = "Product"
     ) |>
     dplyr::select(
