@@ -30,8 +30,13 @@
 #'   Semi-natural agroecosystems, Livestock (manure), People (waste water),
 #'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
 #'   `box` values, not origins; their nitrogen enters as Outside.
-#'   - `destiny`: The destiny category of N: population_food,
-#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   - `destiny`: The destiny category of N: population_food (edible-basis;
+#'   see `.split_food_inedible_loss()`), population_food_inedible (the
+#'   inedible fraction of the same food, split out of population_food so
+#'   nothing is silently discarded from the total), population_other_uses,
+#'   livestock_mono, livestock_rum (feed), aquaculture (feed too, but into
+#'   the Fish box rather than Livestock -- aquaculture has no land-based
+#'   production of its own, see issue #379), export,
 #'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
@@ -44,6 +49,24 @@ create_n_prov_destiny <- function(example = FALSE) {
   if (example) {
     return(.example_create_n_prov_destiny())
   }
+  .build_n_prov_destiny_raw() |>
+    # Aquaculture feed intake (intake_ygiac, #379) has no per-province
+    # breakdown in the source data -- it is reported as Province_name ==
+    # "National" instead of a real province. Left in, it would show up as a
+    # phantom 51st "province" that cannot be mapped to any real one.
+    # create_n_nat_destiny() still sees it (it calls .build_n_prov_destiny_raw()
+    # itself, unfiltered), so the amount is not lost -- it belongs to Spain's
+    # national total, not to any province.
+    dplyr::filter(province_name != "National") |>
+    .split_food_inedible_loss()
+}
+
+# The body of create_n_prov_destiny() before the Edible_portion split,
+# extracted so create_n_nat_destiny() can aggregate the whole-commodity
+# provincial data first and apply its own split afterwards -- see
+# .split_food_inedible_loss() for why the split cannot run before either
+# pipeline's internal trade/demand balance.
+.build_n_prov_destiny_raw <- function() {
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep::biomass_coefs
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
@@ -91,11 +114,24 @@ create_n_prov_destiny <- function(example = FALSE) {
   ) |>
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
-  .calculate_processing_excess(spain_coefs_observed, national_production) |>
+  # The excess is only surfaced as a warning (#1014), not booked anywhere:
+  # crediting it to processed_fm as well as to the primary item's own
+  # import both attribute the same N twice. The generic local/import trade
+  # split below (.calculate_trade()) already books the processed item's
+  # own resulting shortfall as that item's import.
+  .calculate_processing_excess(
+    spain_coefs_observed,
+    national_production
+  ) |>
     .warn_processing_excess()
 
   prod_combined_boxes_no_seeds <- biomass_item_merged |>
     .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
+
+  food_and_other_uses <- population_yg |>
+    .forwardfill_population(last_year) |>
+    .calculate_population_share() |>
+    .calculate_food_and_other_uses(pie_full_destinies_fm)
 
   processed <- .calculate_processed_amounts(
     prod_combined_boxes_no_seeds,
@@ -106,11 +142,6 @@ create_n_prov_destiny <- function(example = FALSE) {
       biomass = biomass_coefs
     )
   )
-
-  food_and_other_uses <- population_yg |>
-    .forwardfill_population(last_year) |>
-    .calculate_population_share() |>
-    .calculate_food_and_other_uses(pie_full_destinies_fm)
 
   grafs_prod_item_trade <- processed$non_processed |>
     .add_grass_wood(biomass_coefs) |>
@@ -166,8 +197,13 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'   Semi-natural agroecosystems, Livestock (manure), People (waste water),
 #'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
 #'   `box` values, not origins; their nitrogen enters as Outside.
-#'   - `destiny`: The destiny category of N: population_food,
-#'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   - `destiny`: The destiny category of N: population_food (edible-basis;
+#'   see `.split_food_inedible_loss()`), population_food_inedible (the
+#'   inedible fraction of the same food, split out of population_food so
+#'   nothing is silently discarded from the total), population_other_uses,
+#'   livestock_mono, livestock_rum (feed), aquaculture (feed too, but into
+#'   the Fish box rather than Livestock -- aquaculture has no land-based
+#'   production of its own, see issue #379), export,
 #'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
@@ -181,7 +217,8 @@ create_n_nat_destiny <- function(example = FALSE) {
   if (example) {
     return(.example_create_n_nat_destiny())
   }
-  .assemble_n_nat_destiny(create_n_prov_destiny())
+  .assemble_n_nat_destiny(.build_n_prov_destiny_raw()) |>
+    .split_food_inedible_loss()
 }
 
 #' @title Aggregate provincial N destiny flows to the national level ---------
@@ -237,7 +274,8 @@ create_n_nat_destiny <- function(example = FALSE) {
           "population_food",
           "population_other_uses",
           "livestock_rum",
-          "livestock_mono"
+          "livestock_mono",
+          "aquaculture"
         )
     ) |>
     dplyr::group_by(Year, Item, Destiny) |>
@@ -279,7 +317,8 @@ create_n_nat_destiny <- function(example = FALSE) {
       other = dplyr::coalesce(population_other_uses, 0),
       feed_rum = dplyr::coalesce(livestock_rum, 0),
       feed_mono = dplyr::coalesce(livestock_mono, 0),
-      feed = feed_rum + feed_mono,
+      feed_aqua = dplyr::coalesce(aquaculture, 0),
+      feed = feed_rum + feed_mono + feed_aqua,
 
       demand = food + other + feed,
       local = pmin(production, demand),
@@ -300,9 +339,11 @@ create_n_nat_destiny <- function(example = FALSE) {
 
       share_rum = dplyr::if_else(feed > 0, feed_rum / feed, 0),
       share_mono = dplyr::if_else(feed > 0, feed_mono / feed, 0),
+      share_aqua = dplyr::if_else(feed > 0, feed_aqua / feed, 0),
 
       share_feed_rum = share_feed * share_rum,
-      share_feed_mono = share_feed * share_mono
+      share_feed_mono = share_feed * share_mono,
+      share_feed_aqua = share_feed * share_aqua
     ) |>
     dplyr::select(
       Year,
@@ -310,14 +351,16 @@ create_n_nat_destiny <- function(example = FALSE) {
       share_food,
       share_other,
       share_feed_rum,
-      share_feed_mono
+      share_feed_mono,
+      share_feed_aqua
     ) |>
     tidyr::pivot_longer(
       cols = c(
         share_food,
         share_other,
         share_feed_rum,
-        share_feed_mono
+        share_feed_mono,
+        share_feed_aqua
       ),
       names_to = "Destiny",
       values_to = "share"
@@ -328,7 +371,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         share_food = "population_food",
         share_other = "population_other_uses",
         share_feed_rum = "livestock_rum",
-        share_feed_mono = "livestock_mono"
+        share_feed_mono = "livestock_mono",
+        share_feed_aqua = "aquaculture"
       )
     ) |>
     dplyr::ungroup()
@@ -460,6 +504,127 @@ create_n_nat_destiny <- function(example = FALSE) {
     )
 }
 
+
+# Splits each `population_food` row into its edible-portion-scaled nitrogen
+# (kept as `population_food`) and the inedible remainder, tagged as its own
+# `population_food_inedible` destiny so the total stays conserved -- see
+# .build_n_prov_destiny_raw()'s roxygen note for why this runs last, after
+# .calculate_trade() and every other step that needs the whole-commodity
+# total. Downstream consumers that filter destiny == "population_food" (the
+# GRAFS plot's {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN}, build_food_protein_destiny())
+# get the edible figure automatically and consistently; a consumer that needs
+# the full consumption total for its own balance (grafs_plot_df.R's
+# {WASTEWATER} input, {CRPLNDTOTN}) must add population_food_inedible back in
+# itself. A missing Edible_portion counts as 1, so no inedible row is created
+# for that item.
+.split_food_inedible_loss <- function(
+  destiny_df,
+  codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
+  biomass_coefs = whep::biomass_coefs
+) {
+  item_lookup <- codes_coefs_items_full |>
+    dplyr::select(item, Name_biomass) |>
+    dplyr::distinct(item, .keep_all = TRUE)
+
+  edible_lookup <- biomass_coefs |>
+    dplyr::select(Name_biomass, Edible_portion) |>
+    dplyr::distinct(Name_biomass, .keep_all = TRUE)
+
+  food_rows <- destiny_df |>
+    dplyr::filter(destiny == "population_food") |>
+    dplyr::left_join(item_lookup, by = "item") |>
+    dplyr::left_join(edible_lookup, by = "Name_biomass") |>
+    dplyr::mutate(edible_fraction = dplyr::coalesce(Edible_portion, 1))
+
+  edible_part <- food_rows |>
+    dplyr::mutate(mg_n = mg_n * edible_fraction) |>
+    dplyr::select(-Name_biomass, -Edible_portion, -edible_fraction)
+
+  inedible_part <- food_rows |>
+    dplyr::mutate(mg_n = mg_n * (1 - edible_fraction)) |>
+    dplyr::filter(mg_n > 0) |>
+    dplyr::mutate(destiny = "population_food_inedible") |>
+    dplyr::select(-Name_biomass, -Edible_portion, -edible_fraction)
+
+  destiny_df |>
+    dplyr::filter(destiny != "population_food") |>
+    dplyr::bind_rows(edible_part, inedible_part)
+}
+
+#' @title Per-capita food protein from the Spain N destiny flows
+#'
+#' @description
+#' Converts the `population_food` nitrogen from `create_n_prov_destiny()` /
+#' `create_n_nat_destiny()` into per-capita protein supply (nitrogen times
+#' 6.25), for comparison against FAOSTAT (`build_food_supply()`).
+#'
+#' `population_food` is already edible-basis: `.split_food_inedible_loss()`
+#' (applied inside both builders) moves the inedible fraction of every food
+#' item into its own `population_food_inedible` destiny, so the two bases
+#' this function offers are a plain choice of which destinies to sum, not a
+#' second application of `Edible_portion`. Applying `Edible_portion` again
+#' here would double-discount.
+#'
+#' @param destiny_df Output of `create_n_prov_destiny()` (per province) or
+#'   `create_n_nat_destiny()` (national, `province_name` is `"Spain"`).
+#' @param population A tibble with `year`, `province_name`, `population`
+#'   (head count) -- e.g. `whep_read_file("population_yg")` renamed from
+#'   `Year`, `Province_name`, `Pop_Mpeop_yg` (which is in millions, so needs
+#'   `* 1e6`), or `read_population()` filtered to Spain for the national
+#'   case.
+#' @param protein_basis `"edible_portion"` (default) sums only
+#'   `population_food`, matching `build_food_supply()`'s default and its best
+#'   agreement with FAOSTAT. `"whole_commodity"` adds
+#'   `population_food_inedible` back in, reconstructing the pre-split total.
+#'
+#' @return A tibble keyed by `year`, `province_name` with
+#'   `protein_g_cap_day` and `method_protein_basis`.
+#' @export
+#'
+#' @examples
+#' # The head count is a round illustrative value, not a historical figure;
+#' # the year and province are picked to match the toy destiny fixture.
+#' population <- tibble::tibble(
+#'   year = 1862,
+#'   province_name = "Huesca",
+#'   population = 250000
+#' )
+#' build_food_protein_destiny(
+#'   create_n_prov_destiny(example = TRUE),
+#'   population
+#' )
+#' build_food_protein_destiny(
+#'   create_n_prov_destiny(example = TRUE),
+#'   population,
+#'   protein_basis = "whole_commodity"
+#' )
+build_food_protein_destiny <- function(
+  destiny_df,
+  population,
+  protein_basis = c("edible_portion", "whole_commodity")
+) {
+  protein_basis <- rlang::arg_match(protein_basis)
+
+  destinies <- if (protein_basis == "edible_portion") {
+    "population_food"
+  } else {
+    c("population_food", "population_food_inedible")
+  }
+
+  destiny_df |>
+    dplyr::filter(destiny %in% destinies) |>
+    dplyr::summarise(
+      protein_t = sum(mg_n * 6.25, na.rm = TRUE),
+      .by = c(year, province_name)
+    ) |>
+    dplyr::inner_join(population, by = c("year", "province_name")) |>
+    dplyr::transmute(
+      year,
+      province_name,
+      protein_g_cap_day = protein_t * 1e6 / population / 365,
+      method_protein_basis = protein_basis
+    )
+}
 
 #' @title Production of Cropland, Livestock, and Semi-natural agroecosystems
 #' @description Merge items with biomasses.
@@ -758,6 +923,7 @@ create_n_nat_destiny <- function(example = FALSE) {
           Name_biomass %in%
             c(
               "Holm oak forest",
+              "Holm oak",
               "Conifers",
               "Mediterranean shrubland"
             ) ~
@@ -889,20 +1055,16 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::select(Year, Item, share_processing)
 }
 
-#' @title Processing volume the share cap leaves out (#1014) -----------------
-#' @description `.calculate_processing_shares()` caps the processed share of
-#' an item's domestic production at 1. Where the builder's processing volume
-#' (`value_to_process`) is larger than what Spain grows -- the soybean crush
-#' runs almost entirely on imported beans -- the part above domestic
-#' production is not processed in this pipeline at all: the processed
-#' outputs it would have yielded are met by imports of the outputs
-#' themselves (cake, oil) in `.calculate_trade()`, and the primary item shows
-#' no import for it. This returns that excluded volume so it can be reported
-#' instead of vanishing without trace.
-#'
-#' Whether the excess should instead be processed as imported feedstock, and
-#' how its outputs and losses would then be booked, is an open science
-#' decision (#1014); nothing here changes the flows.
+#' @title Processing amount that exceeds domestic production -----------------
+#' @description `.calculate_processing_shares()` caps the domestic-production
+#' share of processing at 1, so an item whose true processing volume
+#' (`value_to_process`) exceeds what the country grows itself -- Spain's
+#' soybean crush runs almost entirely on imported beans -- silently drops
+#' the excess instead of counting it as a raw-material import. This computes
+#' that dropped amount instead of discarding it, so
+#' `.calculate_processed_amounts()` can add it back as processing volume fed
+#' by imports rather than domestic supply. `.warn_processing_excess()` also
+#' surfaces it (#1014), so a caller who has read the warning can muffle it.
 #'
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param national_production Output of `.national_item_production()`.
@@ -1182,6 +1344,20 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' booked as `"processing_losses"`. See `.processing_n_scaling()` for why that
 #' needs enforcing and what it costs.
 #'
+#' Processing volume above domestic production
+#' (`.calculate_processing_shares()`'s `share_processing` cap) is left out
+#' of `processed_fm` here, not added back in: Spain's soybean crush runs
+#' almost entirely on imported beans, and crediting that processed volume
+#' to Cropland while also booking the same beans as the primary item's own
+#' import (as an earlier version of this function did, #1014) double-counts
+#' the N once as domestic cake production and once as an imported raw
+#' material. The generic local/import trade split
+#' (`.split_local_consumption()`/`.split_import_consumption()`) already
+#' books the resulting shortfall in the *processed* item's own supply as
+#' that item's import, correctly and without a second booking.
+#' `.warn_processing_excess()` still surfaces the dropped volume so it is
+#' never silently invisible.
+#'
 #' @param prod_combined_boxes Dataframe with production_fm by province.
 #' @param processing_shares Output of `.calculate_processing_shares()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
@@ -1209,7 +1385,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       processed_fm = production_fm * share_processing
     )
 
-  outputs <- .expand_processed_items(candidate, spain_coefs)
+  outputs <- .expand_processed_items(candidate, spain_coefs, coefs$items)
   scaling <- .processing_n_scaling(candidate, outputs, coefs)
 
   list(
@@ -1218,6 +1394,7 @@ create_n_nat_destiny <- function(example = FALSE) {
     processing_losses = .compute_processing_losses(candidate, scaling)
   )
 }
+
 
 #' @title Expand processed input mass into processed item quantities -----------
 #' @description Aggregates the processed input mass per item and converts it
@@ -1234,13 +1411,39 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param candidate Production rows joined with share_processing and
 #' processed_fm, as built by `.calculate_processed_amounts()`.
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
+#' @param codes_coefs_items_full Item-to-group lookup (`coefs$items`), used to
+#' assign each processed output its own Box instead of assuming every
+#' processed item is Cropland -- the processing coefficient table
+#' occasionally carries a stray coefficient mapping a Cropland input to a
+#' non-cropland output (e.g. a tiny, spurious "Butter, Ghee" conversion),
+#' which previously booked that output as Cropland production too.
 #'
 #' @return A dataframe with Year, Province_name, Name_biomass, Item, Box,
 #' production_fm, prod_type and the primary Item it came from (`from_item`) —
 #' one row per processed item, per province.
 #' @keywords internal
 #' @noRd
-.expand_processed_items <- function(candidate, spain_coefs) {
+.expand_processed_items <- function(
+  candidate,
+  spain_coefs,
+  codes_coefs_items_full
+) {
+  # Cropland is the default Box for a processed output (flour, oil, wine,
+  # ...), since that is what this function is meant to represent. It is
+  # overridden only when the output item's own classification is
+  # unambiguously something else -- Crop products/Primary crops/crop residue
+  # already map to Cropland, so they are left out of this lookup on purpose.
+  processed_item_box <- codes_coefs_items_full |>
+    dplyr::mutate(
+      group = dplyr::recode(group, "Additives" = "Agro-industry"),
+      item_box = dplyr::case_when(
+        group %in% c("Livestock products", "Livestock") ~ "Livestock",
+        group %in% c("Agro-industry", "Fish") ~ group,
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::select("item", "item_box")
+
   candidate |>
     dplyr::summarise(
       processed_fm = sum(processed_fm, na.rm = TRUE),
@@ -1252,11 +1455,15 @@ create_n_nat_destiny <- function(example = FALSE) {
       relationship = "many-to-many"
     ) |>
     dplyr::filter(!is.na(ProcessedItem)) |>
+    dplyr::left_join(
+      processed_item_box,
+      by = c("ProcessedItem" = "item")
+    ) |>
     dplyr::mutate(
       production_fm = processed_fm * cf,
       from_item = Item,
       Item = ProcessedItem,
-      Box = "Cropland",
+      Box = dplyr::coalesce(.data$item_box, "Cropland"),
       prod_type = "Product"
     ) |>
     dplyr::select(
@@ -1379,17 +1586,28 @@ create_n_nat_destiny <- function(example = FALSE) {
         dplyr::select(
           Name_biomass,
           Product_kgDM_kgFM,
-          Product_kgN_kgDM
+          Product_kgN_kgDM,
+          N_kgN_kgFM
         ) |>
         dplyr::distinct(),
       by = c("biomass_match" = "Name_biomass")
     ) |>
-    dplyr::mutate(n_per_fm = Product_kgDM_kgFM * Product_kgN_kgDM) |>
+    dplyr::mutate(
+      # Same coefficient priority as .convert_fm_dm_n() and
+      # .convert_to_items_n(): a directly tabulated N_kgN_kgFM wins over the
+      # Product_kgN_kgDM * Product_kgDM_kgFM derivation when both exist. Must
+      # stay in sync with .convert_fm_dm_n() -- see this function's roxygen.
+      n_per_fm = dplyr::coalesce(
+        N_kgN_kgFM,
+        Product_kgDM_kgFM * Product_kgN_kgDM
+      )
+    ) |>
     dplyr::select(
       -item_biomass,
       -biomass_match,
       -Product_kgDM_kgFM,
-      -Product_kgN_kgDM
+      -Product_kgN_kgDM,
+      -N_kgN_kgFM
     )
 }
 
@@ -1478,8 +1696,13 @@ create_n_nat_destiny <- function(example = FALSE) {
       by = c("Year", "Province_name", "Name_biomass", "Item")
     ) |>
     dplyr::mutate(
-      production_fm = production_fm -
-        processed_fm * dplyr::coalesce(remove_mass, 0)
+      # share_processing is capped at 1 (.calculate_processing_shares()), so
+      # processed_fm never exceeds this row's own production_fm; the pmax(0)
+      # is a defensive floor, not a live case.
+      production_fm = pmax(
+        production_fm - processed_fm * dplyr::coalesce(remove_mass, 0),
+        0
+      )
     ) |>
     dplyr::select(-share_processing, -processed_fm, -remove_mass)
 }
@@ -1656,7 +1879,8 @@ create_n_nat_destiny <- function(example = FALSE) {
           Product_kgDM_kgFM,
           Product_kgN_kgDM,
           Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
+          Residue_kgN_kgDM,
+          N_kgN_kgFM
         ),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
@@ -1672,25 +1896,17 @@ create_n_nat_destiny <- function(example = FALSE) {
         Residue_kgN_kgDM,
         Product_kgN_kgDM
       ),
-      conversion_dm = dplyr::if_else(
-        prod_type %in%
-          c(
-            "Residue",
-            "Grass"
-          ),
-        Residue_kgDM_kgFM,
-        Product_kgDM_kgFM
-      ),
-      conversion_n_dm = dplyr::if_else(
-        prod_type %in%
-          c(
-            "Residue",
-            "Grass"
-          ),
-        Residue_kgN_kgDM,
-        Product_kgN_kgDM
-      ),
-      production_n = production_fm * conversion_dm * conversion_n_dm
+      # A directly tabulated N_kgN_kgFM wins over the Product_kgN_kgDM *
+      # Product_kgDM_kgFM derivation when both exist (same priority
+      # build_food_supply() documents; must stay in sync with
+      # .add_product_n_per_fm(), which replicates this choice). No
+      # fresh-matter-direct equivalent exists for Residue/Grass rows.
+      production_n = dplyr::case_when(
+        prod_type %in% c("Residue", "Grass") ~
+          production_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
+        .default = production_fm *
+          dplyr::coalesce(N_kgN_kgFM, Product_kgDM_kgFM * Product_kgN_kgDM)
+      )
     ) |>
     dplyr::select(-Name_biomass) |>
     dplyr::select(
@@ -1772,6 +1988,7 @@ create_n_nat_destiny <- function(example = FALSE) {
           ) ~
           "monogastric",
         Livestock_cat == "Pets" ~ "pets",
+        Livestock_cat == "Aquaculture" ~ "aquaculture",
         TRUE ~ NA_character_
       )
     ) |>
@@ -1789,7 +2006,8 @@ create_n_nat_destiny <- function(example = FALSE) {
       ruminant = dplyr::coalesce(ruminant, 0),
       monogastric = dplyr::coalesce(monogastric, 0),
       pets = dplyr::coalesce(pets, 0),
-      feed = ruminant + monogastric,
+      aquaculture = dplyr::coalesce(aquaculture, 0),
+      feed = ruminant + monogastric + aquaculture,
       food_pets = pets
     )
 
@@ -1797,7 +2015,12 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::mutate(
       feed_total = feed,
       share_rum = dplyr::if_else(feed_total > 0, ruminant / feed_total, 0),
-      share_mono = dplyr::if_else(feed_total > 0, monogastric / feed_total, 0)
+      share_mono = dplyr::if_else(feed_total > 0, monogastric / feed_total, 0),
+      share_aqua = dplyr::if_else(
+        feed_total > 0,
+        aquaculture / feed_total,
+        0
+      )
     )
 
   list(
@@ -1806,7 +2029,14 @@ create_n_nat_destiny <- function(example = FALSE) {
       dplyr::select(Year, Province_name, Item, feed, food_pets),
     feed_share_rum_mono = feed_share_rum_mono |>
       dplyr::rename(Item = item_cbs) |>
-      dplyr::select(Year, Province_name, Item, share_rum, share_mono)
+      dplyr::select(
+        Year,
+        Province_name,
+        Item,
+        share_rum,
+        share_mono,
+        share_aqua
+      )
   )
 }
 
@@ -2039,16 +2269,41 @@ create_n_nat_destiny <- function(example = FALSE) {
           Product_kgDM_kgFM,
           Product_kgN_kgDM,
           Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
+          Residue_kgN_kgDM,
+          N_kgN_kgFM
         ),
       by = "Name_biomass"
     ) |>
     dplyr::mutate(
+      # N_kgN_kgFM is a directly tabulated fresh-matter nitrogen density and
+      # is preferred over the Product_kgN_kgDM * Product_kgDM_kgFM route
+      # derived from separate dry-matter coefficients, matching the priority
+      # build_food_supply() documents ("N_kgN_kgFM where available, otherwise
+      # Product_kgN_kgDM * Product_kgDM_kgFM"). The two do not always agree --
+      # for cow milk the Product route reads ~30% high -- and this function
+      # used to always take the Product route regardless.
+      #
+      # Edible_portion is deliberately NOT applied here (unlike
+      # build_food_supply()): this whole-commodity nitrogen still has to feed
+      # .calculate_trade()'s demand total and the crop/livestock surplus
+      # calculations below, which need the full, unsplit total to stay
+      # conservation-correct and consistent with every other consumer of
+      # this pipeline (NUE, the typology indicators, the GRAFS plot). The
+      # split happens once, at the very end of the pipeline --
+      # .split_food_inedible_loss() -- which turns the finished
+      # population_food row into an edible population_food row and a
+      # population_food_inedible remainder. Applying Edible_portion here
+      # instead would make the inedible fraction vanish from the accounting
+      # before any of that downstream math runs.
       n_value = dplyr::case_when(
         prod_type %in% c("Residue", "Grass") ~
           value_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
         prod_type == "Product" ~
-          value_fm * Product_kgDM_kgFM * Product_kgN_kgDM,
+          value_fm *
+          dplyr::coalesce(
+            N_kgN_kgFM,
+            Product_kgDM_kgFM * Product_kgN_kgDM
+          ),
         TRUE ~ NA_real_
       )
     ) |>
@@ -2197,13 +2452,13 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Split local consumption
 #' @description Splits local consumption into population food, other uses,
-#' and livestock. Livestock feed is split into livestock_rum (ruminants)
-#' and livestock_mono (monogastric).
+#' and livestock. Livestock feed is split into livestock_rum (ruminants),
+#' livestock_mono (monogastric) and aquaculture.
 #' @param local_vs_import A dataset containing local and imported consumption.
-#' @param feed_share_rum_mono A dataset with feed shares between ruminants
-#' and monogastric animals.
+#' @param feed_share_rum_mono A dataset with feed shares between ruminants,
+#' monogastric animals and aquaculture.
 #' @return A dataset with consumption split into population_food,
-#' livestock_rum, livestock_mono, and population_other_uses.
+#' livestock_rum, livestock_mono, aquaculture, and population_other_uses.
 #' @keywords internal
 #' @noRd
 .split_local_consumption <- function(local_vs_import, feed_share_rum_mono) {
@@ -2215,9 +2470,11 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::mutate(
       share_rum = dplyr::coalesce(share_rum, 0),
       share_mono = dplyr::coalesce(share_mono, 0),
-      share_total = share_rum + share_mono,
+      share_aqua = dplyr::coalesce(share_aqua, 0),
+      share_total = share_rum + share_mono + share_aqua,
       share_rum = dplyr::if_else(is.na(share_rum), 0, share_rum),
       share_mono = dplyr::if_else(is.na(share_mono), 0, share_mono),
+      share_aqua = dplyr::if_else(is.na(share_aqua), 0, share_aqua),
 
       local_food_raw = local_consumption * food_share,
       local_other_raw = local_consumption * other_uses_share,
@@ -2239,6 +2496,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       population_other_uses = local_other_uses,
       livestock_rum = local_feed * share_rum,
       livestock_mono = local_feed * share_mono,
+      aquaculture = local_feed * share_aqua,
 
       Origin = Box
     ) |>
@@ -2258,7 +2516,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         population_food,
         population_other_uses,
         livestock_rum,
-        livestock_mono
+        livestock_mono,
+        aquaculture
       ),
       names_to = "Destiny",
       values_to = "MgN"
@@ -2268,8 +2527,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Split imported consumption
 #' @description Splits imports by consumption and assigns origins.
-#' Livestock feed is split into livestock_rum (ruminants) and livestock_mono
-#' (monogastric).
+#' Livestock feed is split into livestock_rum (ruminants), livestock_mono
+#' (monogastric) and aquaculture.
 #' COMMENT: pmin prevents imported N for food and other uses from becoming
 #' unrealistically high.
 #' For human consumption, imports usually replace local supply instead of
@@ -2278,10 +2537,10 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' imports can exceed local production. Fish and Agro-industry are excluded in
 #' pmin because all of these values are considered as imports.
 #' @param local_vs_import A dataset containing local and import consumption.
-#' @param feed_share_rum_mono A dataset with feed shares split into ruminants
-#' and monogastric animals.
+#' @param feed_share_rum_mono A dataset with feed shares split into ruminants,
+#' monogastric animals and aquaculture.
 #' @return A dataset with imported consumption, split into population_food,
-#' livestock_rum, livestock_mono, and population_other_uses.
+#' livestock_rum, livestock_mono, aquaculture, and population_other_uses.
 #' @keywords internal
 #' @noRd
 .split_import_consumption <- function(
@@ -2296,6 +2555,7 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::mutate(
       share_rum = dplyr::coalesce(share_rum, 0),
       share_mono = dplyr::coalesce(share_mono, 0),
+      share_aqua = dplyr::coalesce(share_aqua, 0),
 
       food_local = local_consumption * food_share,
       other_local = local_consumption * other_uses_share,
@@ -2317,6 +2577,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
       livestock_rum = import_feed * share_rum,
       livestock_mono = import_feed * share_mono,
+      aquaculture = import_feed * share_aqua,
 
       Origin = "Outside",
       Irrig_cat = NA_character_
@@ -2339,6 +2600,7 @@ create_n_nat_destiny <- function(example = FALSE) {
       population_other_uses = sum(population_other_uses, na.rm = TRUE),
       livestock_rum = sum(livestock_rum, na.rm = TRUE),
       livestock_mono = sum(livestock_mono, na.rm = TRUE),
+      aquaculture = sum(aquaculture, na.rm = TRUE),
       .by = c("Year", "Province_name", "Item", "Box", "Origin", "Irrig_cat")
     ) |>
     tidyr::pivot_longer(
@@ -2346,7 +2608,8 @@ create_n_nat_destiny <- function(example = FALSE) {
         population_food,
         population_other_uses,
         livestock_rum,
-        livestock_mono
+        livestock_mono,
+        aquaculture
       ),
       names_to = "Destiny",
       values_to = "MgN"
@@ -2484,7 +2747,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 .ensure_livestock_cols <- function(df) {
-  required <- c("ruminant", "monogastric", "pets")
+  required <- c("ruminant", "monogastric", "pets", "aquaculture")
   missing <- setdiff(required, names(df))
   dplyr::mutate(df, !!!purrr::map(rlang::set_names(missing), ~0))
 }

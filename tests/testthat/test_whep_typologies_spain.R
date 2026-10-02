@@ -109,6 +109,31 @@ test_that("create_typologies_whep computes the decision variables", {
   expect_equal(grass$crop_prod, 5)
 })
 
+test_that("create_typologies_whep excludes population_food_inedible from food_consumption", {
+  # food_consumption is deliberately edible-basis only, matching
+  # {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot -- unlike
+  # `production`, which correctly includes population_food_inedible.
+  flows <- tibble::tribble(
+    ~province_name, ~item, ~destiny, ~mg_n,
+    "Urban", "Wheat", "population_food", 80,
+    "Urban", "Wheat", "population_food_inedible", 20
+  ) |>
+    dplyr::mutate(year = 2020, box = "Cropland", origin = "Cropland")
+  prod <- tibble::tribble(
+    ~province_name, ~box, ~production_n,
+    "Urban", "Cropland", 200
+  ) |>
+    dplyr::mutate(year = 2020)
+
+  out <- whep::create_typologies_whep(
+    prod_destiny = flows,
+    prod_n = prod,
+    years = 2020
+  )
+
+  expect_equal(out$food_consumption, 80)
+})
+
 test_that("create_typologies_whep ranks imported feed above cropland", {
   # "Import" has crop_prod 100 against an animal ingestion of 10, so the
   # cropland branch would fire; the import branch comes first in the tree.

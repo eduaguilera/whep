@@ -33,9 +33,9 @@ decompose_manure_losses(
 
 \item{by_period}{If \code{TRUE}, compares each reference period (each
 averaged across its ten years) against the immediately preceding
-one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 extra transition spanning the full analysis window, 1860-1870
-straight to 2010-2020 (the total change) — instead of chaining year
+straight to 2013-2023 (the total change) — instead of chaining year
 on year.}
 
 \item{example}{If \code{TRUE}, return a small hardcoded output without

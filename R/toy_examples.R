@@ -228,7 +228,8 @@
     1929, "Tarragona", "Olives (including preserved)", "Irrigated", "Cropland", "Cropland", "export", 6.92e+1,
     1955, "Albacete", "Wheat and products", "Rainfed", NA, "Synthetic", "Cropland", 6.16e+2,
     1957, "Gipuzkoa", "Wheat and products", NA, "Cropland", "Outside", "population_food", 8.17e-1,
-    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food", 9.39e-2,
+    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food", 8.451e-2,
+    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food_inedible", 9.39e-3,
     1980, "Lleida", "Wheat and products", "Irrigated", NA, "Fixation", "Cropland", 1.71e+2,
     1863, "A_Coruna", "Millet and products", "Rainfed", NA, "Fixation", "Cropland", 9.95e-3,
     1987, "Lugo", "Tomatoes and products", "Irrigated", "Cropland", "Cropland", "livestock_mono", 1.29e-3,
@@ -329,7 +330,13 @@
     1993, "Oats", "Irrigated", NA, "People", "Cropland", 5.65, "Spain",
     1874, "Fodder mix", "Rainfed", "Cropland", "Cropland", "livestock_rum", 605., "Spain",
     1983, "Oranges, Mandarines", "Irrigated", NA, "Livestock", "Cropland", 5290., "Spain",
-    1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain"
+    1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain",
+    # Every other row's destiny/origin is Cropland-only; these two add the
+    # semi_natural_agroecosystems box on both sides (input and output), so
+    # plot_input_output(system = "semi_natural_agroecosystems", example =
+    # TRUE) has data to plot instead of an empty series.
+    1958, "Grasses, Other", NA, NA, "Fixation", "semi_natural_agroecosystems", 812., "Spain",
+    1958, "Grasses, Other", NA, "semi_natural_agroecosystems", "semi_natural_agroecosystems", "livestock_rum", 1340., "Spain"
   )
 }
 

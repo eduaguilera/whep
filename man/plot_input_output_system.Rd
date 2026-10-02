@@ -20,8 +20,7 @@ A \code{ggplot} object.
 \description{
 Builds a stacked-area plot of Spanish national nitrogen inputs (soil inputs
 and imports, as negative values) against uses (feed, food, other uses,
-exports) and surplus over time. A nitrogen "Accumulation" term is added
-when the \code{n_balance_ygpit_all} pin is available.
+exports) and surplus over time.
 }
 \examples{
 plot_input_output_system(example = TRUE)

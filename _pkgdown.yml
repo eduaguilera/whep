@@ -413,10 +413,14 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - build_food_protein_destiny
   - create_grafs_plot_df
   - plot_input_output
   - plot_input_output_livestock
   - plot_input_output_system
+  - plot_input_output_land_panel
+  - plot_input_output_total_panel
+  - plot_input_output_four_panel
 
 - title: Download large input datasets
   desc: >
@@ -525,6 +529,7 @@ reference:
   - calculate_system_nue
   - create_n_nat_destiny
   - run_typology_sensitivity
+  - run_typology_area_sensitivity
   - plot_typology_indicators_panel
   - plot_typology_periods_panel
 

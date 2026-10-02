@@ -21,9 +21,9 @@ decompose_semi_natural_surplus(
 
 \item{by_period}{If \code{TRUE}, compares each reference period (each
 averaged across its ten years) against the immediately preceding
-one — 1860-1870 -> 1920-1930 -> 1960-1970 -> 2010-2020 — plus one
+one — 1860-1870 -> 1925-1935 -> 1960-1970 -> 2013-2023 — plus one
 extra transition spanning the full analysis window, 1860-1870
-straight to 2010-2020 (the total change) — instead of chaining year
+straight to 2013-2023 (the total change) — instead of chaining year
 on year.}
 
 \item{example}{If \code{TRUE}, return a small hardcoded output without
@@ -64,6 +64,15 @@ LMDI relies on logarithms and cannot handle a series that changes sign
 between two compared years; this function warns when that occurs
 instead of silently returning \code{NA}, but does not implement the
 Shapley/Sun alternative required for those cases.
+
+Still built from \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}, for the same reason as
+\code{\link[=decompose_cropland_surplus]{decompose_cropland_surplus()}}: no destiny breakdown is reported, so
+every destiny (including \code{"export"}) sums into the same national
+surplus regardless of whether it is correctly classified, and the one
+thing provincial data cannot carry -- aquaculture feed, reported
+nationally only (#379) -- is small enough that reworking the shared
+area-allocation machinery (\code{\link[=decompose_specialization_cov]{decompose_specialization_cov()}} also uses
+it and needs real provinces) is not worth it.
 }
 \examples{
 decompose_semi_natural_surplus(example = TRUE)

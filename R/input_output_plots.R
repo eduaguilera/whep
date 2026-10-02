@@ -3,9 +3,7 @@
 #' @description
 #' Builds a stacked-area plot of Spanish national nitrogen inputs (as negative
 #' values), production, residues, and surplus over time for either cropland or
-#' semi-natural agroecosystems. For the semi-natural system a nitrogen
-#' "Accumulation" term (net soil/biomass N accumulation) is added when the
-#' `n_balance_ygpit_all` pin is available.
+#' semi-natural agroecosystems.
 #'
 #' @param system Character. One of `"Cropland"` or
 #'   `"semi_natural_agroecosystems"`.
@@ -30,11 +28,7 @@ plot_input_output <- function(
   df_system <- .load_nat_destiny(example) |>
     dplyr::filter(Province_name != "Sea")
 
-  n_balance <- .load_n_balance(
-    example,
-    needed = per_ha || system == "semi_natural_agroecosystems"
-  )
-  accum <- .accum_for_system(n_balance, system)
+  n_balance <- .load_n_balance(example, needed = per_ha)
   lu_area <- .national_area(
     n_balance,
     per_ha,
@@ -43,7 +37,7 @@ plot_input_output <- function(
   per_ha <- per_ha && !is.null(lu_area)
 
   inputs <- .system_inputs(df_system, system)
-  outputs <- dplyr::bind_rows(.system_production(df_system, system), accum)
+  outputs <- .system_production(df_system, system)
   surplus <- .surplus_from_totals(inputs, outputs, positive_only = TRUE)
 
   input_types <- c(
@@ -53,7 +47,6 @@ plot_input_output <- function(
     "Deposition",
     "Urban"
   )
-  accum_level <- if (nrow(accum) > 0) "Accumulation" else character()
   plot_df <- .stack_plot_df(
     inputs,
     outputs,
@@ -62,7 +55,6 @@ plot_input_output <- function(
     type_levels = c(
       input_types,
       "Surplus",
-      accum_level,
       "Production",
       "Residues"
     ),
@@ -72,7 +64,6 @@ plot_input_output <- function(
 
   .stacked_area_plot(
     plot_df,
-    title = paste("Spanish nitrogen inputs and outputs -", system),
     fill_values = c(
       "Synthetic_fertilizer" = "red4",
       "Manure" = "darkorange3",
@@ -80,13 +71,11 @@ plot_input_output <- function(
       "Fixation" = "olivedrab4",
       "Deposition" = "gray40",
       "Surplus" = "slategray",
-      "Accumulation" = "steelblue4",
       "Residues" = "goldenrod3",
       "Production" = "orange3"
     ),
     breaks = c(
       "Surplus",
-      "Accumulation",
       "Production",
       "Residues",
       "Urban",
@@ -97,7 +86,6 @@ plot_input_output <- function(
     ),
     labels = c(
       "Surplus",
-      "Accumulation",
       "Production",
       "Residues",
       "Urban",
@@ -152,8 +140,7 @@ plot_input_output_livestock <- function(per_ha = FALSE, example = FALSE) {
 #' @description
 #' Builds a stacked-area plot of Spanish national nitrogen inputs (soil inputs
 #' and imports, as negative values) against uses (feed, food, other uses,
-#' exports) and surplus over time. A nitrogen "Accumulation" term is added
-#' when the `n_balance_ygpit_all` pin is available.
+#' exports) and surplus over time.
 #'
 #' @param per_ha Logical. If `TRUE`, express nitrogen flows per hectare of
 #'   agricultural land (kg N/ha) instead of national totals (Gg N). Requires
@@ -171,17 +158,12 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   df <- .load_nat_destiny(example) |>
     dplyr::filter(Province_name != "Sea")
 
-  n_balance <- .load_n_balance(example, needed = TRUE)
-  accum <- if (is.null(n_balance)) {
-    .empty_accum()
-  } else {
-    .calculate_n_accum(n_balance)
-  }
+  n_balance <- .load_n_balance(example, needed = per_ha)
   lu_area <- .national_area(n_balance, per_ha)
   per_ha <- per_ha && !is.null(lu_area)
 
   inputs <- .system_level_inputs(df)
-  uses_core <- dplyr::bind_rows(.system_level_uses(df), accum)
+  uses_core <- .system_level_uses(df)
   surplus <- .surplus_from_totals(inputs, uses_core, positive_only = TRUE)
 
   input_types <- c(
@@ -191,7 +173,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     "Feed_import",
     "Food_import"
   )
-  accum_level <- if (nrow(accum) > 0) "Accumulation" else character()
   plot_df <- .stack_plot_df(
     inputs,
     uses_core,
@@ -200,7 +181,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     type_levels = c(
       input_types,
       "Surplus",
-      accum_level,
       "Feed",
       "Food",
       "Other_uses",
@@ -212,14 +192,12 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
   .stacked_area_plot(
     plot_df,
-    title = "Spanish nitrogen inputs and outputs - Agro-food system",
     fill_values = c(
       "Synthetic_fertilizer" = "red4",
       "Fixation" = "olivedrab4",
       "Deposition" = "gray40",
       "Feed_import" = "#1b9e77",
       "Food_import" = "darkolivegreen3",
-      "Accumulation" = "steelblue4",
       "Feed" = "darkorange3",
       "Food" = "darkorange4",
       "Other_uses" = "sandybrown",
@@ -228,7 +206,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     ),
     breaks = c(
       "Surplus",
-      "Accumulation",
       "Feed",
       "Food",
       "Other_uses",
@@ -241,7 +218,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     ),
     labels = c(
       "Surplus",
-      "Accumulation",
       "Feed",
       "Food",
       "Other uses",
@@ -255,6 +231,143 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     annotate_label = "Agro-food system",
     y_lab = if (per_ha) "kg N/ha" else "Gg N"
   )
+}
+
+#' Plot cropland and semi-natural input-output panels side by side
+#'
+#' @description
+#' Combines [plot_input_output()] for `"Cropland"` and
+#' `"semi_natural_agroecosystems"` into a single two-panel figure. When
+#' `per_ha = TRUE`, each panel is normalized by its own land-use area
+#' (cropland area for the left panel, semi-natural agroecosystem area for
+#' the right) -- unlike [plot_input_output_total_panel()], whose two panels
+#' share the same total agricultural area. The y-axis label and caption
+#' only mention per-hectare units when normalization actually took effect
+#' (it silently falls back to national totals if the area data could not
+#' be loaded), so the figure never claims a unit it did not use.
+#'
+#' @param per_ha Logical. If `TRUE`, express nitrogen flows per hectare of
+#'   each panel's own land-use area (kg N/ha) instead of national totals
+#'   (Gg N). Requires remote data, so it is ignored in example mode.
+#'   Default is `FALSE`.
+#' @param example If `TRUE`, build both panels from a small example dataset
+#'   without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_land_panel(example = TRUE)
+#' }
+plot_input_output_land_panel <- function(per_ha = FALSE, example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output land panel."
+  )
+  p_cropland <- plot_input_output("Cropland", per_ha, example)
+  p_seminat <- plot_input_output(
+    "semi_natural_agroecosystems",
+    per_ha,
+    example
+  )
+  .input_output_two_panel(
+    p_cropland,
+    p_seminat,
+    area_labels = c("cropland", "semi-natural"),
+    caption = "Each panel per hectare of its own land-use area."
+  )
+}
+
+#' Plot livestock and agro-food system input-output panels side by side
+#'
+#' @description
+#' Combines [plot_input_output_livestock()] and [plot_input_output_system()]
+#' into a single two-panel figure. When `per_ha = TRUE`, both panels are
+#' normalized by the same total national agricultural area -- unlike
+#' [plot_input_output_land_panel()], whose two panels each use a different,
+#' smaller land-use area. The y-axis label and caption only mention
+#' per-hectare units when normalization actually took effect (it silently
+#' falls back to national totals if the area data could not be loaded), so
+#' the figure never claims a unit it did not use.
+#'
+#' @param per_ha Logical. If `TRUE`, express nitrogen flows per hectare of
+#'   total national agricultural land (kg N/ha) instead of national totals
+#'   (Gg N). Requires remote data, so it is ignored in example mode.
+#'   Default is `FALSE`.
+#' @param example If `TRUE`, build both panels from a small example dataset
+#'   without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_total_panel(example = TRUE)
+#' }
+plot_input_output_total_panel <- function(per_ha = FALSE, example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output total-area panel."
+  )
+  p_livestock <- plot_input_output_livestock(per_ha, example)
+  p_system <- plot_input_output_system(per_ha, example)
+  .input_output_two_panel(
+    p_livestock,
+    p_system,
+    area_labels = c("total agri. land", "total agri. land"),
+    caption = "Both panels per hectare of total national agricultural land."
+  )
+}
+
+#' Plot all four input-output panels together
+#'
+#' @description
+#' Combines [plot_input_output()] for `"Cropland"` and
+#' `"semi_natural_agroecosystems"`, [plot_input_output_livestock()], and
+#' [plot_input_output_system()] into a single four-panel (2x2) figure of
+#' national nitrogen totals (Gg N). There is no `per_ha` argument: per
+#' hectare, the four systems do not share one area basis (Cropland and
+#' semi-natural agroecosystems each use their own land-use area; Livestock
+#' and the agro-food system use total agricultural area -- see
+#' [plot_input_output_land_panel()] and [plot_input_output_total_panel()]),
+#' so folding all four normalized panels into one grid would silently mix
+#' two different denominators. Use those two functions for the per-hectare
+#' view instead, kept as two separate figures for that reason.
+#'
+#' @param example If `TRUE`, build all four panels from a small example
+#'   dataset without downloading remote data. Default is `FALSE`.
+#'
+#' @return A patchwork ggplot object.
+#' @export
+#'
+#' @examples
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   plot_input_output_four_panel(example = TRUE)
+#' }
+plot_input_output_four_panel <- function(example = FALSE) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the input-output four panel."
+  )
+  p_cropland <- plot_input_output("Cropland", example = example)
+  p_seminat <- plot_input_output(
+    "semi_natural_agroecosystems",
+    example = example
+  )
+  p_livestock <- plot_input_output_livestock(example = example)
+  p_system <- plot_input_output_system(example = example)
+
+  .input_output_four_panel_cross(p_cropland, p_seminat, p_livestock, p_system)
 }
 
 # Private helpers --------------------------------------------------------------
@@ -293,6 +406,10 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          # The inedible remainder .split_food_inedible_loss() split out of
+          # population_food (n_prov_destiny.R) still left the system as
+          # production, so it belongs in this total too.
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -327,6 +444,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export",
           "livestock_rum",
@@ -354,7 +472,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
   .stacked_area_plot(
     plot_df,
-    title = "Spanish nitrogen inputs and outputs - Livestock system",
     fill_values = c(
       "Feed_ruminants" = "darkolivegreen3",
       "Feed_monogastric" = "#1b9e77",
@@ -404,7 +521,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
   .stacked_area_plot(
     plot_df,
-    title = "Spanish nitrogen inputs and outputs - Livestock system",
     fill_values = c(
       "Grass_local" = "darkolivegreen3",
       "Crops_local" = "#1b9e77",
@@ -494,6 +610,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export",
           "livestock_rum",
@@ -525,12 +642,15 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
   feed_import <- .import_use(
     df,
-    c("livestock_rum", "livestock_mono"),
+    c("livestock_rum", "livestock_mono", "aquaculture"),
     "Feed_import"
   )
   food_import <- .import_use(
     df,
-    c("population_food", "population_other_uses"),
+    # population_food_inedible is the remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food; it still entered the
+    # system as an import, so it belongs in this total too.
+    c("population_food", "population_food_inedible", "population_other_uses"),
     "Food_import"
   )
 
@@ -552,20 +672,31 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 .system_level_uses <- function(df) {
   livestock_ingestion <- df |>
     dplyr::filter(
-      Destiny %in% c("livestock_rum", "livestock_mono"),
+      Destiny %in% c("livestock_rum", "livestock_mono", "aquaculture"),
       Origin %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
     dplyr::group_by(Year) |>
     dplyr::summarise(MgN = sum(MgN), .groups = "drop") |>
     dplyr::mutate(Type = "Feed")
 
+  # "Food" is deliberately edible-basis only here, matching {CROPS_TO_POP} /
+  # {LIVESTOCK_TO_HUMAN} in the GRAFS plot: population_food_inedible
+  # (.split_food_inedible_loss(), n_prov_destiny.R) is excluded, not added.
+  # Surplus is a residual of the same national inputs total this Food figure
+  # is subtracted from, so leaving it out of Food makes it surface as Surplus
+  # automatically -- the same outcome {WASTEWATER} reaches in the GRAFS plot,
+  # just via this function's own residual instead of an explicit add-back.
   human_ingestion <- df |>
     dplyr::filter(
       Destiny %in% c("population_food", "population_other_uses"),
       Origin %in% c("Cropland", "semi_natural_agroecosystems", "Livestock")
     ) |>
     dplyr::mutate(
-      Type = dplyr::if_else(Destiny == "population_food", "Food", "Other_uses")
+      Type = dplyr::if_else(
+        Destiny == "population_food",
+        "Food",
+        "Other_uses"
+      )
     ) |>
     dplyr::group_by(Year, Type) |>
     dplyr::summarise(MgN = sum(MgN), .groups = "drop")
@@ -622,20 +753,26 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
 .stacked_area_plot <- function(
   plot_df,
-  title,
   fill_values,
   breaks = NULL,
   labels = NULL,
   annotate_label = NULL,
   y_lab = "Gg N"
 ) {
+  year_breaks <- seq(
+    floor(min(plot_df$Year) / 20) * 20,
+    ceiling(max(plot_df$Year) / 20) * 20,
+    by = 20
+  )
+
   plot <- ggplot2::ggplot(
     plot_df,
     ggplot2::aes(x = Year, y = MgN, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-    ggplot2::labs(title = title, x = "Year", y = y_lab, fill = "") +
+    ggplot2::labs(x = NULL, y = y_lab, fill = "") +
+    ggplot2::scale_x_continuous(breaks = year_breaks) +
     ggplot2::scale_fill_manual(
       breaks = breaks,
       labels = labels,
@@ -645,7 +782,8 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     ggplot2::theme(
       legend.text = ggplot2::element_text(size = 15),
       legend.key.size = ggplot2::unit(1.2, "cm"),
-      axis.text = ggplot2::element_text(size = 13)
+      axis.text = ggplot2::element_text(size = 13),
+      axis.title = ggplot2::element_text(size = 16)
     )
 
   if (!is.null(annotate_label)) {
@@ -665,6 +803,75 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   plot
 }
 
+# Detects whether per-hectare normalization actually took effect by
+# reading each panel's own y-axis label -- set to the literal "kg N/ha" by
+# .stacked_area_plot() -- rather than trusting the caller's `per_ha`
+# request, since plot_input_output()/plot_input_output_livestock()/
+# plot_input_output_system() silently fall back to national totals when
+# the area data could not be loaded. Only then does it substitute the
+# area-specific label; otherwise both panels are returned unchanged, still
+# in Gg N.
+.label_input_output_panels <- function(p1, p2, area_labels) {
+  applied <- identical(p1$labels$y, "kg N/ha") &&
+    identical(p2$labels$y, "kg N/ha")
+  if (applied) {
+    p1 <- p1 + ggplot2::labs(y = paste("kg N / ha", area_labels[1]))
+    p2 <- p2 + ggplot2::labs(y = paste("kg N / ha", area_labels[2]))
+  }
+  list(p1 = p1, p2 = p2, applied = applied)
+}
+
+# Combines two already-built input-output panels (from plot_input_output(),
+# plot_input_output_livestock() or plot_input_output_system()) side by
+# side, adding the caption only when .label_input_output_panels() found
+# that per-hectare normalization actually applied to both -- so the
+# caption never claims a unit the panels do not use.
+.input_output_two_panel <- function(p1, p2, area_labels, caption) {
+  labeled <- .label_input_output_panels(p1, p2, area_labels)
+  patchwork::wrap_plots(labeled$p1, labeled$p2, nrow = 1) +
+    patchwork::plot_annotation(
+      caption = if (labeled$applied) caption else NULL
+    )
+}
+
+# A thin grey rectangle used as the cross-shaped divider between the four
+# panels in .input_output_four_panel_cross().
+.input_output_divider <- function() {
+  ggplot2::ggplot() +
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      plot.background = ggplot2::element_rect(fill = "grey40", color = NA)
+    )
+}
+
+# Composes the four input-output panels (top-left, top-right, bottom-left,
+# bottom-right) into a 2x2 grid divided by a thin grey cross, matching
+# plot_typology_periods_panel()'s .panel_periods_cross() layout.
+.input_output_four_panel_cross <- function(p_tl, p_tr, p_bl, p_br) {
+  divider <- .input_output_divider()
+  design <- "
+    AAAVBBB
+    AAAVBBB
+    AAAVBBB
+    LLLVRRR
+    CCCVDDD
+    CCCVDDD
+    CCCVDDD
+  "
+  patchwork::wrap_plots(
+    A = p_tl,
+    B = p_tr,
+    C = p_bl,
+    D = p_br,
+    V = divider,
+    L = divider,
+    R = divider,
+    design = design,
+    widths = c(1, 1, 1, 0.015, 1, 1, 1),
+    heights = c(1, 1, 1, 0.015, 1, 1, 1)
+  )
+}
+
 .load_n_balance <- function(example, needed) {
   if (example || !needed) {
     return(NULL)
@@ -677,18 +884,6 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     return("Cropland")
   }
   unique(n_balance$LandUse[n_balance$LandUse != "Cropland"])
-}
-
-.accum_for_system <- function(n_balance, system) {
-  if (system != "semi_natural_agroecosystems" || is.null(n_balance)) {
-    return(.empty_accum())
-  }
-  landuse <- unique(n_balance$LandUse[n_balance$LandUse != "Cropland"])
-  .calculate_n_accum(n_balance, landuse)
-}
-
-.empty_accum <- function() {
-  tibble::tibble(Year = integer(), MgN = numeric(), Type = character())
 }
 
 .national_area <- function(n_balance, per_ha, landuse = NULL) {
@@ -720,18 +915,4 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   } else {
     dplyr::mutate(df, MgN = MgN / 1000)
   }
-}
-
-.calculate_n_accum <- function(n_balance, landuse = NULL) {
-  df <- n_balance
-  if (!is.null(landuse)) {
-    df <- dplyr::filter(df, LandUse %in% landuse)
-  }
-  df |>
-    dplyr::mutate(
-      Accum_net = Accum_gain_AG_MgN + Accum_gain_BG_MgN - Accum_loss
-    ) |>
-    dplyr::group_by(Year) |>
-    dplyr::summarise(MgN = sum(Accum_net, na.rm = TRUE), .groups = "drop") |>
-    dplyr::mutate(Type = "Accumulation")
 }

@@ -35,43 +35,43 @@ test_that("period averaging keeps only reference years and averages within them"
     1860, "A", 10,
     1870, "A", 20,
     1900, "A", 999, # outside all four reference periods, dropped
-    1920, "A", 100
+    1930, "A", 100
   )
 
   out <- .period_average_panel(panel, "province_name")
 
-  expect_equal(sort(out$year), c(1860, 1920))
+  expect_equal(sort(out$year), c(1860, 1925))
   expect_equal(out$value[out$year == 1860], mean(c(10, 20)))
-  expect_equal(out$value[out$year == 1920], 100)
+  expect_equal(out$value[out$year == 1925], 100)
 })
 
 # .reference_period_pairs
 test_that("reference period pairs chain each period against the previous one", {
   out <- .reference_period_pairs()
 
-  expect_equal(out$t0, c(1860, 1920, 1960, 1860))
-  expect_equal(out$t_t, c(1920, 1960, 2010, 2010))
+  expect_equal(out$t0, c(1860, 1925, 1960, 1860))
+  expect_equal(out$t_t, c(1925, 1960, 2013, 2013))
 })
 
 # .relabel_period_transitions
 test_that("transition labels are replaced with the mean-year comparison", {
   df <- tibble::tribble(
     ~period, ~value,
-    "1860-1920", 1,
-    "1920-1960", 2,
-    "1960-2010", 3,
-    "1860-2010", 4
+    "1860-1925", 1,
+    "1925-1960", 2,
+    "1960-2013", 3,
+    "1860-2013", 4
   )
 
   out <- .relabel_period_transitions(df)
 
   expect_equal(
     as.character(out$period),
-    c("1865-1925", "1925-1965", "1965-2015", "Total (1865-2015)")
+    c("1865-1930", "1930-1965", "1965-2018", "Total (1865-2018)")
   )
   expect_equal(
     levels(out$period),
-    c("1865-1925", "1925-1965", "1965-2015", "Total (1865-2015)")
+    c("1865-1930", "1930-1965", "1965-2018", "Total (1865-2018)")
   )
 })
 
@@ -79,34 +79,34 @@ test_that("transition labels are replaced with the mean-year comparison", {
 test_that("period series sums contributions per transition without cumulating", {
   detail <- tibble::tribble(
     ~period, ~compartment, ~component_type, ~additive, ~period_years,
-    "1860-1920", "cropland", "target", 10, 60,
-    "1860-1920", "manure", "target", -4, 60,
-    "1920-1960", "cropland", "target", 25, 40
+    "1860-1925", "cropland", "target", 10, 60,
+    "1860-1925", "manure", "target", -4, 60,
+    "1925-1960", "cropland", "target", 25, 40
   )
 
   out <- .aggregate_period_series(detail, "compartment", target_only = TRUE)
 
   expect_equal(
     out$contribution_mgn[
-      out$period == "1865-1925" & out$compartment == "cropland"
+      out$period == "1865-1930" & out$compartment == "cropland"
     ],
     10
   )
   expect_equal(
     out$contribution_per_yr_mgn[
-      out$period == "1865-1925" & out$compartment == "cropland"
+      out$period == "1865-1930" & out$compartment == "cropland"
     ],
     10 / 60
   )
   expect_equal(
     out$contribution_mgn[
-      out$period == "1865-1925" & out$compartment == "manure"
+      out$period == "1865-1930" & out$compartment == "manure"
     ],
     -4
   )
   expect_equal(
     out$contribution_mgn[
-      out$period == "1925-1965" & out$compartment == "cropland"
+      out$period == "1930-1965" & out$compartment == "cropland"
     ],
     25
   )
@@ -126,6 +126,10 @@ test_that(".destiny_group maps raw destinies to the four buckets", {
     out,
     c("domestic_food", "non_food", "feed", "feed", "exported")
   )
+})
+
+test_that(".destiny_group maps population_food_inedible to domestic_food too", {
+  expect_equal(.destiny_group("population_food_inedible"), "domestic_food")
 })
 
 # Tests for .crop_output_by_destiny and .crop_item_destiny_shares
@@ -153,6 +157,22 @@ test_that("crop destiny shares are computed proportionally per item", {
   expect_equal(wheat_food, 0.6)
   expect_equal(wheat_feed, 0.4)
   expect_equal(barley_export, 1)
+})
+
+test_that(".crop_output_by_destiny groups population_food_inedible with domestic_food", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~item, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 60,
+    2000, "A", "Wheat", "Cropland", "population_food_inedible", 15,
+    2000, "A", "Wheat", "Cropland", "livestock_rum", 40
+  )
+
+  out <- .crop_output_by_destiny(n_prov_destiny)
+
+  domestic_food <- out |>
+    dplyr::filter(item == "Wheat", destiny_grp == "domestic_food") |>
+    dplyr::pull(output_mg)
+  expect_equal(domestic_food, 75)
 })
 
 # .allocate_by_destiny_share
@@ -362,6 +382,24 @@ test_that("semi-natural panel computes surplus and national total area", {
   expect_equal(panel$surplus[panel$province_name == "A"], 50 - 20)
   expect_equal(panel$surplus[panel$province_name == "B"], 30 - 0)
   expect_equal(unique(panel$total_area), 150)
+})
+
+test_that(".build_semi_natural_panel counts population_food_inedible as output", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "semi_natural_agroecosystems", "population_food", 20,
+    2000, "A", "semi_natural_agroecosystems", "population_food_inedible", 5,
+    2000, "A", "Deposition", "semi_natural_agroecosystems", 50
+  )
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Dehesa", 100
+  )
+
+  panel <- .build_semi_natural_panel(n_prov_destiny, npp_ygpit)
+
+  expect_equal(panel$outputs, 25)
+  expect_equal(panel$surplus, 50 - 25)
 })
 
 # .national_livestock_lu
@@ -603,6 +641,63 @@ test_that("contributions are cumulated over time within each group", {
   expect_equal(semi_nat$cumulative_mgn, c(-2, 1))
 })
 
+# .net_rolling_series
+test_that("net rolling series sums rolling_mgn across groups per year", {
+  df <- tibble::tribble(
+    ~t0, ~group, ~rolling_mgn,
+    1861, "a", 10,
+    1861, "b", -4,
+    1862, "a", 8,
+    1862, "b", NA_real_
+  )
+
+  out <- .net_rolling_series(df)
+
+  expect_equal(out$t0, 1861)
+  expect_equal(out$net_mgn, 6)
+})
+
+# .plot_rolling_stack / .plot_compartment_rolling_bar net line
+test_that("rolling stack plots overlay a black net line over the bars", {
+  skip_if_not_installed("ggplot2")
+
+  df <- tibble::tribble(
+    ~t0, ~compartment, ~rolling_mgn,
+    1861, "cropland", 12000,
+    1861, "urban", -2000,
+    1862, "cropland", 8000,
+    1862, "urban", -1000
+  )
+
+  plot <- .plot_rolling_stack(df, compartment, "Title")
+  geoms <- vapply(plot$layers, \(l) class(l$geom)[1], character(1))
+
+  expect_true("GeomLine" %in% geoms)
+  expect_true("GeomPoint" %in% geoms)
+  line_layer <- plot$layers[[which(geoms == "GeomLine")]]
+  expect_equal(line_layer$aes_params$colour, "black")
+  expect_equal(
+    line_layer$data$net_mgn[order(line_layer$data$t0)],
+    c(10000, 7000)
+  )
+})
+
+test_that("compartment rolling bar overlays a black net line over the bars", {
+  skip_if_not_installed("ggplot2")
+
+  plot_data <- tibble::tribble(
+    ~t0, ~factor_label, ~rolling_mgn,
+    1861, "Size", 12000,
+    1861, "Intensity", -2000
+  )
+
+  plot <- .plot_compartment_rolling_bar(plot_data, "Title")
+  geoms <- vapply(plot$layers, \(l) class(l$geom)[1], character(1))
+
+  expect_true("GeomLine" %in% geoms)
+  expect_true("GeomPoint" %in% geoms)
+})
+
 
 # --- patchwork panel composition ---------------------------------------------
 # The four exported panel plots return patchwork objects. patchwork is a
@@ -630,17 +725,17 @@ test_that("contributions are cumulated over time within each group", {
   list(
     by_compartment = tibble::tribble(
       ~period, ~compartment, ~contribution_per_yr_mgn,
-      "1865-1925", "cropland", 120,
-      "1925-1965", "cropland", 260,
-      "1865-1925", "urban", 15,
-      "1925-1965", "urban", 35
+      "1865-1930", "cropland", 120,
+      "1930-1965", "cropland", 260,
+      "1865-1930", "urban", 15,
+      "1930-1965", "urban", 35
     ),
     by_mechanism = tibble::tribble(
       ~period, ~mechanism, ~contribution_per_yr_mgn,
-      "1865-1925", "Size", 90,
-      "1925-1965", "Size", 150,
-      "1865-1925", "Intensification", 45,
-      "1925-1965", "Intensification", 145
+      "1865-1930", "Size", 90,
+      "1930-1965", "Size", 150,
+      "1865-1930", "Intensification", 45,
+      "1930-1965", "Intensification", 145
     )
   )
 }
@@ -660,12 +755,12 @@ test_that("contributions are cumulated over time within each group", {
 .periods_lmdi_fixture <- function() {
   tibble::tribble(
     ~period, ~period_years, ~factor_label, ~component_type, ~additive,
-    "1865-1925", 60, "Size", "factor", 5400,
-    "1865-1925", 60, "Intensity", "factor", 3600,
-    "1865-1925", 60, "Inefficiency", "factor", -1200,
-    "1925-1965", 40, "Size", "factor", 4000,
-    "1925-1965", 40, "Intensity", "factor", 9200,
-    "1925-1965", 40, "Inefficiency", "factor", 2800
+    "1865-1930", 65, "Size", "factor", 5400,
+    "1865-1930", 65, "Intensity", "factor", 3600,
+    "1865-1930", 65, "Inefficiency", "factor", -1200,
+    "1930-1965", 35, "Size", "factor", 4000,
+    "1930-1965", 35, "Intensity", "factor", 9200,
+    "1930-1965", 35, "Inefficiency", "factor", 2800
   )
 }
 
