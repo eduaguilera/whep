@@ -910,3 +910,170 @@ test_that("a map with no indicator column reads as all-blank", {
     "BRA-TOCANTINS-1988-2025"
   )
 })
+
+# whep-polities' label-qualifier fix: a SOURCE label keeps its bracketed
+# qualifier, because the qualifier is part of the territory it names. The
+# rules below are copied from that fix (the whep-normalize `british india`
+# chain and its new `(excl burma)` rule, the blank-source FAO long name for
+# Iran); the polities are the targets they need plus `Australia`, which
+# `australia (excl victoria)` used to reach.
+.qualifier_polities <- function() {
+  tibble::tribble(
+    ~polity_code, ~polity_name, ~start_year, ~end_year, ~iso3_code,
+    ~wiki_status, ~predecessor, ~successor, ~polity_type,
+    "AUS-1901-2025", "Australia", 1901L, 2025L, "AUS", "reviewed", NA, NA,
+    "national",
+    "IND-1914-1937", "India (1914-1937)", 1914L, 1937L, "IND", "draft", NA,
+    "IND-1937-1947", "national",
+    "IND-1937-1947", "India (1937-1947)", 1937L, 1947L, "IND", "draft",
+    "IND-1914-1937", NA, "national",
+    "IRN-1828-2025", "Iran", 1828L, 2025L, "IRN", "draft", NA, NA, "national",
+    "SUD-1956-2011", "Sudan (1956-2011)", 1956L, 2011L, "SDN", "draft", NA,
+    NA, "national"
+  ) |>
+    dplyr::bind_rows(.contract_polities())
+}
+
+.qualifier_aliases <- function(label_key = "qualifiers_kept") {
+  aliases <- tibble::tribble(
+    ~source_label, ~source, ~year_start, ~year_end, ~polity_code,
+    ~disposition,
+    "british india", "whep-normalize", 1914L, 1936L, "IND-1914-1937", NA,
+    "british india", "whep-normalize", 1937L, 1946L, "IND-1937-1947", NA,
+    "british india (excl burma)", "whep-normalize", 1926L, 1936L,
+    "IND-1937-1947", "back_cast",
+    "british india (excl burma)", "whep-normalize", 1937L, 1946L,
+    "IND-1937-1947", NA,
+    "Iran (Islamic Republic of)", NA, 1828L, 2025L, "IRN-1828-2025", NA
+  ) |>
+    dplyr::bind_rows(.contract_aliases())
+  attr(aliases, "label_key") <- label_key
+  aliases
+}
+
+.resolve_on_qualifiers <- function(
+  label,
+  ...,
+  label_key = "qualifiers_kept",
+  aliases = .qualifier_aliases(label_key)
+) {
+  whep:::.resolve_polity_label(
+    label,
+    query = list(...),
+    back_cast = TRUE,
+    tables = list(
+      aliases = aliases,
+      polities = .qualifier_polities(),
+      corrections = NULL
+    )
+  )
+}
+
+test_that("a source label keeps its bracketed qualifier in its key", {
+  expect_equal(
+    whep:::.norm_polity_label("The British India (excl. Burma)"),
+    "british india excl burma"
+  )
+  # The POLITY-NAME side still drops a name's own qualifier, so an unqualified
+  # label reaches it.
+  expect_equal(whep:::.norm_polity_name("Zimbabwe (1900-1953)"), "zimbabwe")
+  expect_equal(
+    whep:::.norm_polity_label("Cote d'Ivoire"),
+    whep:::.norm_polity_name("Cote d'Ivoire")
+  )
+})
+
+test_that("a qualified label is its own label, not its base label's", {
+  # Keyed without its qualifier, "british india (excl burma)" shared the
+  # `british india` rules and landed on IND-1914-1937, which includes Burma.
+  expect_equal(
+    .resolve_on_qualifiers(
+      c("british india (excl burma)", "british india"),
+      source = "whep-normalize",
+      year = 1931L
+    ),
+    c("IND-1937-1947", "IND-1914-1937")
+  )
+  # And no rule of the base label reaches a qualifier nobody wrote one for.
+  expect_true(is.na(
+    .resolve_on_qualifiers(
+      "british india (excl aden)",
+      source = "whep-normalize",
+      year = 1931L
+    )
+  ))
+})
+
+test_that("a qualified label never falls back to the bare polity name", {
+  resolved <- .resolve_on_qualifiers(
+    c(
+      "australia (excl victoria)",
+      "australia (former)",
+      "Australia",
+      "Sudan",
+      "Sudan (1956-2011)",
+      "Iran  (Islamic Republic of)"
+    ),
+    year = 1990L
+  )
+  expect_equal(
+    resolved,
+    c(
+      NA,
+      NA,
+      "AUS-1901-2025",
+      # A polity name's own qualifier is dropped for an unqualified label...
+      "SUD-1956-2011",
+      # ...and a label carrying exactly that qualifier matches the full name.
+      "SUD-1956-2011",
+      # A qualified synonym resolves through the rule written for it.
+      "IRN-1828-2025"
+    )
+  )
+})
+
+test_that("the cross-country refusal holds under the qualifier key", {
+  # #1294's guard: a bare subnational name two countries carry is refused.
+  expect_warning(
+    bare <- .resolve_on_qualifiers("Santa Cruz", year = 1920L),
+    class = "whep_warn_ambiguous_polity_name"
+  )
+  expect_true(is.na(bare))
+  # The full name is one country's unit, so it is not ambiguous.
+  expect_no_warning(
+    full <- .resolve_on_qualifiers(
+      "Santa Cruz (department of Bolivia)",
+      year = 1920L
+    )
+  )
+  expect_equal(full, "BOL-SZ-1825-2025")
+})
+
+test_that("a snapshot published before the qualifier key keeps its old key", {
+  # The shipped snapshot predates whep-polities' fix: its rules were written
+  # for the stripped key, so it is read with that key until the next re-sync.
+  # On such a revision's rules (no `(excl burma)` row yet) the qualified label
+  # still shares its base label's rule, exactly as upstream resolved it then.
+  expect_null(attr(whep::polity_label_aliases, "label_key", exact = TRUE))
+  old <- .qualifier_aliases(NULL)
+  old <- old[old$source_label != "british india (excl burma)", ]
+  attr(old, "label_key") <- NULL
+  expect_equal(
+    .resolve_on_qualifiers(
+      c("british india (excl burma)", "australia (excl victoria)"),
+      source = "whep-normalize",
+      year = 1931L,
+      aliases = old
+    ),
+    c("IND-1914-1937", "AUS-1901-2025")
+  )
+  # The FAO long names the shipped tables carry resolve as before.
+  expect_equal(
+    resolve_polity_label(
+      c("Iran  (Islamic Republic of)", "Sudan (former)"),
+      source = c(NA, "lassaletta-grassland-share"),
+      year = 2000L
+    ),
+    c("IRN-1828-2025", "SUD-1956-2011")
+  )
+})
