@@ -1825,23 +1825,64 @@ get_polity_geometries <- function(polity_codes = NULL) {
   )
 }
 
-# Normalisation of a country label, mirroring `matchlib.norm` in whep-polities.
-# It must match EXACTLY or the two sides resolve the same input differently.
-# Lowercasing and whitespace squishing alone are not enough: upstream also folds
-# accents, DROPS parenthesised qualifiers and strips a leading "the".
+# Normalisation of a SOURCE label, mirroring `matchlib.label_key` in
+# whep-polities. It must match EXACTLY or the two sides resolve the same input
+# differently: case, accents, punctuation and a leading "the" fold away, and
+# BRACKETED QUALIFIERS ARE KEPT (their brackets become spaces).
 #
-# The parenthetical rule is the consequential one. Upstream reduces
-# "Sudan (former)" to "sudan", which merges it into the `sudan` rule set and
-# decides which alias wins; treating it as a separate label picks a different
-# polity for 2011. Each step below mirrors one line of matchlib.norm.
+# A label's qualifier is part of the territory it names. Until whep-polities'
+# label-qualifier fix both sides dropped it, so "australia (excl victoria)"
+# shared every rule and name of "australia", and "british india (excl burma)"
+# landed on the whole of British India. The alias route, the item corrections
+# and the admin-share alias route key labels on this for every alias map
+# published under that key (see `.alias_label_key()`).
 .norm_polity_label <- function(x) {
   x <- tolower(trimws(x))
   # NFKD + drop non-ASCII: "Reunion" and "Turkiye" lose their diacritics.
   x <- stringi::stri_trans_general(x, "Latin-ASCII")
-  x <- gsub("\\s*\\(.*?\\)\\s*", " ", x)
   x <- sub("^the\\s+", "", x)
   x <- gsub("[^a-z0-9 ]", " ", x)
   trimws(gsub("\\s+", " ", x))
+}
+
+# Normalisation of a POLITY NAME, mirroring `matchlib.norm`: the label key with
+# parenthesised qualifiers DROPPED. A polity's name carries its own
+# disambiguation -- "Zimbabwe (1900-1953)", "Santa Cruz (department of
+# Bolivia)" -- and an unqualified label must still reach it. Never applied to
+# a source label.
+.norm_polity_name <- function(x) {
+  x <- tolower(trimws(x))
+  x <- stringi::stri_trans_general(x, "Latin-ASCII")
+  .norm_polity_label(gsub("\\s*\\(.*?\\)\\s*", " ", x))
+}
+
+# The label key an alias snapshot was PUBLISHED under, as a function. A map
+# from a whep-polities revision whose manifest states `label_key_why` was
+# written against labels that keep their qualifiers, and
+# data-raw/table_mappings.R records that on the table as the `label_key`
+# attribute. A snapshot built before that carries no attribute: its rules were
+# written against the stripped key -- some name the qualified label of a
+# relabel, others rely on a qualified label sharing its base label's rules --
+# so it is read with the key it was written for, and nothing it resolves moves
+# until the next re-sync brings the rules written for full labels.
+.alias_keeps_qualifiers <- function(aliases) {
+  identical(attr(aliases, "label_key", exact = TRUE), "qualifiers_kept")
+}
+
+.alias_label_key <- function(aliases) {
+  if (.alias_keeps_qualifiers(aliases)) {
+    .norm_polity_label
+  } else {
+    .norm_polity_name
+  }
+}
+
+# Whether a source label carries a bracketed qualifier (a truncated one too).
+# Such a label may match a polity NAME only when the name carries the same
+# qualifier: "(excl ...)", "(incl ...)" and "(former)" name a different
+# territory from the bare name.
+.has_label_qualifier <- function(x) {
+  grepl("[([]", x)
 }
 
 # Labels the canonical-name route must refuse, derived from the crosswalk rather
@@ -1852,7 +1893,8 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # problem again. Today that is exactly one area: FAOSTAT 351 "China", the
 # aggregate of mainland (41), Hong Kong (96), Macao (128) and Taiwan (214), each
 # of which reports separately. The name route resolved it anyway, because
-# normalisation drops parenthesised qualifiers -- the rule that lets
+# polity-name normalisation drops a NAME's parenthesised qualifier -- the rule
+# that lets
 # "Zimbabwe (1900-1953)" answer to "zimbabwe" also folds CHN-1950-2025
 # "China (PRC)" onto "china" -- which attributes aggregate rows to the mainland
 # polity and double-counts them against 41 + 96 + 128 + 214.
@@ -1862,10 +1904,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 .refused_polity_label_names <- function() {
   cw <- polity_area_crosswalk
   unmapped <- cw[!is.na(cw$mapping_status) & cw$mapping_status == "unmapped", ]
-  unique(stats::na.omit(.norm_polity_label(c(
-    unmapped$area_name,
-    unmapped$legacy_polity_name
-  ))))
+  names <- c(unmapped$area_name, unmapped$legacy_polity_name)
+  # Both keys: the label key refuses the area's own label verbatim, the name
+  # key the bare form an unqualified label meets on the name route.
+  unique(stats::na.omit(c(.norm_polity_label(names), .norm_polity_name(names))))
 }
 
 #' Resolve a source's country label to a polity
@@ -1925,6 +1967,20 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' - An alias covering that year outranks both, whatever its source, and a label
 #'   naming an area the crosswalk leaves unmapped is refused outright.
 #'
+#' **A label's bracketed qualifier is part of the label.** `"british india
+#' (excl burma)"` and `"australia (excl victoria)"` are not spellings of
+#' `"british india"` and `"australia"`: no alias written for the bare label
+#' applies to them, and the name route matches them only to a polity name that
+#' carries the same qualifier, so a part or a remainder is never resolved to its
+#' whole. Such a label resolves through an alias written for it, or not at all.
+#' A polity name's own qualifier is still dropped for an unqualified label, so
+#' `"zimbabwe"` reaches `"Zimbabwe (1900-1953)"`. This is the key
+#' `whep-polities` builds (`matchlib.label_key`), and its manifest states it
+#' (`label_alias_map$label_key_why`). It applies to an alias map published
+#' under that key, which the build records on [polity_label_aliases]; a
+#' snapshot built from an earlier revision keeps the stripped key its rules
+#' were written against.
+#'
 #' Returns `NA` when neither route resolves, which is a real answer rather than a
 #' failure. Some labels are aggregates a source keeps reporting after the
 #' territory stopped existing -- `"FSU"` runs to 2009 though nothing has held
@@ -1961,8 +2017,9 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #'   otherwise match but whose scoped value is missing is an error of class
 #'   `whep_error_unscoped_label_item_correction`, not a silent miss.
 #' - **`country`: the reporting country, as an ISO3 code.** The name route
-#'   compares normalised names, and normalisation drops parenthesised
-#'   qualifiers, so a bare subnational name meets another country's unit:
+#'   compares normalised names, and a polity name's own parenthesised
+#'   qualifier is dropped, so a bare subnational name meets another country's
+#'   unit:
 #'   `"Santa Cruz (department of Bolivia)"` normalises to `"santa cruz"`, and so
 #'   does Argentina's province. Given `country`, the name and ISO3 routes only
 #'   consider polities whose `iso3_code` (its code prefix where that is
@@ -2095,6 +2152,9 @@ resolve_polity_label <- function(
   indicator <- recycle(query$indicator, "indicator")
   country <- toupper(trimws(as.character(recycle(query$country, "country"))))
 
+  # Read before any subsetting, which would drop the attribute.
+  label_key_of <- .alias_label_key(tables$aliases)
+  keeps_qualifiers <- .alias_keeps_qualifiers(tables$aliases)
   corrected <- .apply_label_item_corrections(
     label,
     source,
@@ -2102,7 +2162,8 @@ resolve_polity_label <- function(
     year,
     tables$corrections,
     unit = unit,
-    indicator = indicator
+    indicator = indicator,
+    key = label_key_of
   )
   label <- corrected$label
   # The caller's `country` came WITH the misfiled label -- the reporter the
@@ -2115,8 +2176,8 @@ resolve_polity_label <- function(
   periods <- tables$polities
 
   # Normalise both sides once: each route below needs the same key for a label.
-  alias_key <- .norm_polity_label(aliases$source_label)
-  label_key <- .norm_polity_label(label)
+  alias_key <- label_key_of(aliases$source_label)
+  label_key <- label_key_of(label)
 
   # Identity fallbacks, tried only after the alias route misses.
   #
@@ -2169,7 +2230,11 @@ resolve_polity_label <- function(
     NA_integer_,
     pol$polity_code %in% .open_polity_codes(periods)
   )
-  name_key <- .norm_polity_label(periods$polity_name[alive])
+  # Two keys per polity name: without its own qualifier, for an unqualified
+  # label, and with it, for a label that carries one (`by_name()` below).
+  name_key <- .norm_polity_name(periods$polity_name[alive])
+  name_full_key <- .norm_polity_label(periods$polity_name[alive])
+  qualified <- keeps_qualifiers & .has_label_qualifier(label)
   # The ISO3 index is what makes this usable for the datasets that motivated it.
   # The alias map is keyed on the labels curators had to decide about, so a label
   # that is simply a current ISO3 code is not in it: without this route,
@@ -2196,7 +2261,14 @@ resolve_polity_label <- function(
     if (is.na(country[i]) && label_key[i] %in% shared_names) {
       return(NA_character_)
     }
-    hit <- which(name_key == label_key[i])
+    # A QUALIFIED LABEL NEVER FALLS BACK TO ITS BARE NAME. "australia (excl
+    # victoria)" is not Australia: it may match a polity name only when the
+    # name carries the same qualifier, and otherwise needs an alias of its own.
+    hit <- if (qualified[i]) {
+      which(name_full_key == label_key[i])
+    } else {
+      which(name_key == label_key[i])
+    }
     # An ISO3 code is only ever three letters, so trying the ISO3 index for
     # anything longer cannot match and would only widen the failure surface.
     # Not for a relabelled row: its corrected label is a territory's NAME, and
@@ -2404,7 +2476,8 @@ resolve_polity_label <- function(
   year,
   rules,
   unit = NULL,
-  indicator = NULL
+  indicator = NULL,
+  key = .norm_polity_label
 ) {
   n <- length(label)
   none <- rep(FALSE, n)
@@ -2412,8 +2485,8 @@ resolve_polity_label <- function(
   if (is.null(rules) || nrow(rules) == 0L || all(is.na(item))) {
     return(unchanged)
   }
-  original <- .norm_polity_label(label)
-  rule_key <- .norm_polity_label(rules$source_label)
+  original <- key(label)
+  rule_key <- key(rules$source_label)
   year <- suppressWarnings(as.integer(year))
   scope <- function(x) {
     if (is.null(x)) rep(NA_character_, n) else rep_len(as.character(x), n)
@@ -2580,11 +2653,16 @@ resolve_polity_label <- function(
 .cross_country_polity_names <- function(pol, polity_name, polity_type) {
   qualifier <- stringr::str_match(polity_name, "\\(([^)]*)\\)")[, 2]
   qualifier[is.na(polity_type) | polity_type != "subnational"] <- NA
+  # The names an unqualified label meets (stripped, and the subnational
+  # qualifier on its own) and the full names a qualified label meets.
   named <- tibble::tibble(
-    key = .norm_polity_label(c(polity_name, qualifier)),
-    country = rep(pol$country, 2L),
-    start = rep(pol$start_year, 2L),
-    end = rep(pol$join_end_year, 2L)
+    key = c(
+      .norm_polity_name(c(polity_name, qualifier)),
+      .norm_polity_label(polity_name)
+    ),
+    country = rep(pol$country, 3L),
+    start = rep(pol$start_year, 3L),
+    end = rep(pol$join_end_year, 3L)
   ) |>
     dplyr::filter(!is.na(.data$key), .data$key != "", !is.na(.data$country)) |>
     dplyr::filter(dplyr::n_distinct(.data$country) > 1L, .by = "key")
