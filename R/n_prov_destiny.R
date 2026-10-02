@@ -1442,7 +1442,7 @@ build_food_protein_destiny <- function(
         TRUE ~ NA_character_
       )
     ) |>
-    dplyr::select(item, item_box)
+    dplyr::select("item", "item_box")
 
   candidate |>
     dplyr::summarise(
@@ -1463,7 +1463,7 @@ build_food_protein_destiny <- function(
       production_fm = processed_fm * cf,
       from_item = Item,
       Item = ProcessedItem,
-      Box = dplyr::coalesce(item_box, "Cropland"),
+      Box = dplyr::coalesce(.data$item_box, "Cropland"),
       prod_type = "Product"
     ) |>
     dplyr::select(
