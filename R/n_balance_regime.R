@@ -144,6 +144,18 @@
 # output) and `regime_production` (get_primary_production() output, for the
 # yield bounds).
 .nb_regime_shares <- function(data, key) {
+  items <- .nb_regime_items(data)
+  if (is.null(items)) {
+    return(NULL)
+  }
+  .nb_regime_shares_by_key(items, key)
+}
+
+# The regime split at the production-item grain, through the item split the
+# carbon chain shares (`.ryr_item_split()`): one row per cell and production
+# item, with the bounded `ratio` and the regime yields where it applies.
+# NULL when there is no NPP table or the regime layer covers none of it.
+.nb_regime_items <- function(data) {
   cells <- .nb_regime_cells(data)
   if (is.null(cells)) {
     return(NULL)
@@ -168,18 +180,11 @@
   # cannot express in fresh weight keeps its area and falls back to the area
   # share for its yield share.
   with_production <- !is.na(covered$production_t) & covered$production_t >= 0
-  ratio <- data$regime_ratio %||%
-    build_regime_yield_ratio(cells = covered[with_production, ])
-  split <- covered[with_production, ] |>
-    dplyr::left_join(
-      dplyr::select(
-        ratio,
-        dplyr::all_of(c(.nb_regime_item_key(), "ratio_unbounded"))
-      ),
-      by = .nb_regime_item_key(),
-      relationship = "many-to-one"
-    ) |>
-    split_regime_yield(production = data$regime_production)
+  split <- .ryr_item_split(
+    covered[with_production, ],
+    data$regime_ratio,
+    data$regime_production
+  )
   dplyr::bind_rows(
     dplyr::mutate(split, covered_row = TRUE),
     dplyr::mutate(
@@ -189,8 +194,7 @@
       covered_row = TRUE
     ),
     uncovered
-  ) |>
-    .nb_regime_shares_by_key(key)
+  )
 }
 
 # The production-item grain the regime layer is keyed on.

@@ -2061,3 +2061,32 @@ split_regime_yield <- function(
     .default = names[1]
   )
 }
+
+# -- The item-grain split both balance chains apply ---------------------------
+
+# The regime split of a cell-crop-year, shared by the nitrogen chain
+# (`.nb_regime_items()`) and the carbon chain (`.ci_regime_items()`), so the
+# two weight the same cell-crop-year by the same ratio: the bounded `ratio`
+# split_regime_yield() returns after the irrigated-yield ceiling and the
+# rainfed-yield floor, never `ratio_unbounded`.
+#
+# `cells` carries the item key (`lon`, `lat`, `area_code`, `item_prod_code`,
+# `year`, typed as build_regime_yield_ratio() types it), `production_t`,
+# `rainfed_ha` and `irrigated_ha`. `ratio` is a build_regime_yield_ratio()
+# table, built on `cells` when NULL: its country normaliser pools the cells
+# of `cells`, so two callers read the same ratio when they pass the same
+# table, or build it on the same cells. `production` is the
+# get_primary_production() table the yield bounds are pooled from, read
+# when NULL. The bounded ratio depends on a cell-crop's production and areas
+# only through its mean yield and irrigated share.
+.ryr_item_split <- function(cells, ratio = NULL, production = NULL) {
+  key <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  ratio <- ratio %||% build_regime_yield_ratio(cells = cells)
+  cells |>
+    dplyr::left_join(
+      dplyr::select(ratio, dplyr::all_of(c(key, "ratio_unbounded"))),
+      by = key,
+      relationship = "many-to-one"
+    ) |>
+    split_regime_yield(production = production)
+}
