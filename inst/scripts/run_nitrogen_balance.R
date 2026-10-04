@@ -688,6 +688,11 @@ unsupported_fertilizer_n <- fertilizer_support$removed
 cli::cli_h2("3. Crop NPP -> carbon/nitrogen -> BNF -> residue destinies")
 
 crops <- nbd_stage("crops", .nbd_crops_table(primary_prod, year))
+# No residue destinies here: the balance applies them itself, to
+# `npp_n_input` for the recycled residue (only the residue left on the field
+# returns to the soil) and to `residue_destiny_input` for the used, bedding
+# and burnt residue outputs, both with the one argument set given in
+# `nbd_data` below.
 npp_national <- nbd_stage(
   "npp_n_input (national)",
   crops |> calculate_crop_npp() |> calculate_npp_carbon_nitrogen()
@@ -943,7 +948,18 @@ if (nrow(blockers) > 0L) {
     # source; by default the manure terms come from `livestock_intake`
     # (#1197).
     manure_method = manure_method,
+    # The residue of `npp` is split once into what stays on the field (the
+    # recycled residue N) and what leaves it (used, bedding and burnt
+    # residue N), both with these arguments; they are the package defaults,
+    # written out so a run states them. The rainfed/irrigated split
+    # re-evaluates each part's residue and root at the part's yield from
+    # split_regime_yield(), never from `npp`'s `yield_dm_t_ha`, which
+    # .nbd_grid_npp() scales by the cell weight with the extensive columns.
     npp_n_input = npp,
+    recycling_residue_basis = "residue_soil_returned",
+    residue_destiny_method = "recovery_regional",
+    residue_destiny_recovery = "legacy",
+    residue_bedding_fraction = 0,
     bnf_input = .nbd_bnf_input(npp),
     residue_destiny_input = npp,
     carbon_balance = carbon_balance,

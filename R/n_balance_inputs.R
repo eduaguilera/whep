@@ -142,9 +142,18 @@
 #'     tibble (`lon`, `lat`, `area_code`, `year`, `item_prod_code`,
 #'     `item_cbs_code`, `product_dm_t`, `residue_dm_t`, `root_dm_t`,
 #'     optionally `residue_soil_dm_t`). The `"recycling"` term's
-#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
-#'     [calculate_npp_carbon_nitrogen()]'s output, or plus `residue_n_t` when
-#'     `residue_soil_n_t` is absent (see `method_recycling_n`).
+#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t`, the residue N left
+#'     on the field, from [calculate_npp_carbon_nitrogen()]'s output. When
+#'     the input does not carry `residue_soil_dm_t`,
+#'     [calculate_residue_destinies()] is applied to it first, with
+#'     `residue_destiny_method`, `residue_destiny_recovery` and
+#'     `residue_bedding_fraction` (see [build_nitrogen_balance()]; the same
+#'     arguments split the residue removal outputs there) and the polity's
+#'     `region_krausmann` and `region_un_sub` taken from `area_code` when the
+#'     input does not carry them.
+#'   * `recycling_residue_basis`: `"residue_soil_returned"` (default) or
+#'     `"total_residue"`, which recycles the gross residue N (`residue_n_t`),
+#'     removed residue included. Recorded in `method_recycling_n`.
 #'   * `livestock_intake`: [build_livestock_nutrient_flows()]'s `intake`
 #'     argument (the [redistribute_feed()] realised-intake contract), plus
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
@@ -288,10 +297,10 @@
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
-#'   used: `"residue_soil_returned"` when the upstream NPP input supplied
-#'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-#'   `"total_residue"` when only gross residue N was available; it is `NA` for
-#'   every other `fert_type`. `method_synthetic` records the synthetic
+#'   used: `"residue_soil_returned"` (residue N net of removal for feed,
+#'   bedding and burning) or `"total_residue"` (the gross residue N, only on
+#'   request through `data$recycling_residue_basis`); it is `NA` for every
+#'   other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
 #'   is `NA` for every other `fert_type`. `method_deposition` records which
 #'   deposition product the `"deposition"` term's field came from, read off
@@ -681,7 +690,7 @@ build_n_inputs <- function(
   if (is.null(npp)) {
     return(.ni_empty())
   }
-  basis <- .ni_recycling_basis(npp)
+  basis <- .ni_recycling_basis(npp, data)
   dplyr::transmute(
     npp,
     lon = .data$lon,
@@ -690,26 +699,47 @@ build_n_inputs <- function(
     item_cbs_code = .data$item_cbs_code,
     year = .data$year,
     fert_type = "recycling",
-    n_input_t = .data$root_n_t + .data[[basis$column]],
-    method_recycling_n = basis$method
+    n_input_t = .data$root_n_t + .data[[basis]],
+    method_recycling_n = .ni_recycling_residue(data)
   )
 }
 
-# The recycling term's residue-N basis depends on whether the upstream NPP
-# input carried `residue_soil_dm_t` (so calculate_npp_carbon_nitrogen() emitted
-# `residue_soil_n_t`, the residue N actually returned to soil after removal for
-# feed/fuel/burning). When it did not, only gross `residue_n_t` (the FULL
-# residue N) is available and is used instead, overstating the soil return.
-# This basis switch is not a silent fallback: it is stamped in
-# `method_recycling_n` so downstream consumers can tell the two apart.
-.ni_recycling_basis <- function(npp) {
-  if (rlang::has_name(npp, "residue_soil_n_t")) {
-    return(list(
-      column = "residue_soil_n_t",
-      method = "residue_soil_returned"
-    ))
+# Which residue N the recycling term returns to the soil, from
+# `data$recycling_residue_basis`. "residue_soil_returned" (default) is the
+# residue left on the field: the residue that is fed, used as bedding or
+# burned leaves it, and the balance books that residue as an output instead
+# (`.nb_add_residue_destiny()`). "total_residue" recycles the gross residue,
+# removed residue included, and is there only for a caller who asks for it.
+# The value is stamped in `method_recycling_n`.
+.ni_recycling_residue <- function(data) {
+  rlang::arg_match0(
+    data$recycling_residue_basis %||% "residue_soil_returned",
+    c("residue_soil_returned", "total_residue"),
+    arg_nm = "data$recycling_residue_basis"
+  )
+}
+
+# The NPP column of the recycled residue N. The soil-returned residue N is
+# `residue_soil_n_t`, which .n_balance_npp() produces by applying the residue
+# destinies; an NPP result handed in pre-computed (`data$.npp_cache`) without
+# it cannot be split any more, and is refused rather than recycled gross.
+.ni_recycling_basis <- function(npp, data) {
+  if (.ni_recycling_residue(data) == "total_residue") {
+    return("residue_n_t")
   }
-  list(column = "residue_n_t", method = "total_residue")
+  if (!rlang::has_name(npp, "residue_soil_n_t")) {
+    cli::cli_abort(
+      c(
+        "The NPP-N table has no soil-returned residue N
+         ({.field residue_soil_n_t}).",
+        i = "Supply {.code data$npp_n_input}, to which the residue destinies
+             are applied, or ask for the gross residue with
+             {.code data$recycling_residue_basis = \"total_residue\"}."
+      ),
+      class = "whep_recycling_basis_missing"
+    )
+  }
+  "residue_soil_n_t"
 }
 
 # Shared NPP-N computation: build_nitrogen_balance() (Task C7) needs the SAME
@@ -724,6 +754,12 @@ build_n_inputs <- function(
 # build_n_inputs()'s "recycling" term and its own prod_n_t term) compute it
 # ONCE and short-circuit every subsequent call, rather than re-running
 # calculate_npp_carbon_nitrogen() per call site.
+#
+# The recycling term returns only the residue left on the field, so the
+# residue destinies are applied to the NPP input before its N partition when
+# it does not already carry them (`residue_soil_dm_t`), with the same
+# arguments the residue removal outputs are split with
+# (.nb_residue_destinies()).
 .n_balance_npp <- function(data) {
   if (!is.null(data$.npp_cache)) {
     return(data$.npp_cache)
@@ -731,7 +767,12 @@ build_n_inputs <- function(
   if (is.null(data$npp_n_input)) {
     return(NULL)
   }
-  calculate_npp_carbon_nitrogen(data$npp_n_input)
+  npp <- data$npp_n_input
+  soil_returned <- .ni_recycling_residue(data) == "residue_soil_returned"
+  if (soil_returned && !rlang::has_name(npp, "residue_soil_dm_t")) {
+    npp <- .nb_residue_destinies(npp, data)
+  }
+  calculate_npp_carbon_nitrogen(npp)
 }
 
 # item_cbs_code from item_prod_code via the same crosswalk used elsewhere
@@ -776,7 +817,8 @@ build_n_inputs <- function(
 # The bedding straw build_nitrogen_balance() books as leaving the field
 # (bedding_residue_n_t) is mixed into the housed manure and comes back to the
 # land with it (whep#1445). It is read from the same residue-destiny split,
-# .nb_residue_destinies(), so the two terms cannot disagree.
+# .nb_residue_destinies() on `data$residue_destiny_input` with the balance's
+# one argument set, so the two terms cannot disagree.
 #
 # The supply is national (year x territory), even at grid resolution: the
 # straw is booked in the cell where it grew, the manure in the cell where the
@@ -792,7 +834,7 @@ build_n_inputs <- function(
   if (is.null(data$residue_destiny_input)) {
     return(NULL)
   }
-  destiny <- .nb_residue_destinies(data)
+  destiny <- .nb_residue_destinies(data$residue_destiny_input, data)
   if (!any(destiny$residue_bedding_dm_t > 0, na.rm = TRUE)) {
     return(NULL)
   }
@@ -1851,7 +1893,7 @@ build_n_inputs <- function(
     dplyr::mutate(
       method_recycling_n = dplyr::if_else(
         .data$fert_type == "recycling",
-        "total_residue",
+        "residue_soil_returned",
         NA_character_
       ),
       method_synthetic = dplyr::if_else(

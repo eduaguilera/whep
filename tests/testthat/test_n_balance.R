@@ -575,6 +575,58 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
   testthat::expect_identical(supply$territory, "10")
 })
 
+testthat::test_that("recycling and the residue removals read one destiny argument set", {
+  # The residue left on the field (recycled) and the residue that leaves it
+  # (used, bedding, burnt) are the two halves of one destiny split, so both
+  # paths must call it with the same method, recovery variant and bedding
+  # fraction.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  residue <- dplyr::mutate(
+    .nb_npp_input(),
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+  data <- list(
+    npp_n_input = residue,
+    residue_destiny_input = residue,
+    residue_destiny_recovery = "wirsenius",
+    residue_bedding_fraction = 0.3
+  )
+  calls <- list()
+  real <- whep::calculate_residue_destinies
+  testthat::local_mocked_bindings(
+    calculate_residue_destinies = function(x, ...) {
+      calls[[length(calls) + 1L]] <<- list(...)
+      real(x, ...)
+    },
+    .package = "whep"
+  )
+  npp <- whep:::.n_balance_npp(data)
+  row <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  out <- whep:::.nb_add_residue_destiny(row, data, key)
+  testthat::expect_length(calls, 2L)
+  testthat::expect_identical(calls[[1]], calls[[2]])
+  testthat::expect_identical(calls[[1]]$recovery, "wirsenius")
+  testthat::expect_identical(calls[[1]]$bedding_fraction, 0.3)
+  testthat::expect_identical(calls[[1]]$method, "recovery_regional")
+  # What stays plus what leaves is the whole residue nitrogen.
+  testthat::expect_equal(
+    npp$residue_soil_n_t +
+      out$used_residue_n_t +
+      out$bedding_residue_n_t +
+      out$burnt_residue_n_t,
+    npp$residue_n_t
+  )
+  testthat::expect_gt(out$bedding_residue_n_t, 0)
+})
+
 testthat::test_that("bedding residue N is an output of the full balance", {
   aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
     prod_n_t = 10,
@@ -1513,11 +1565,16 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
 testthat::test_that("the default manure source reproduces the pre-option balance", {
   # Written by the code before the manure-source option existed (whep main at
   # 5421973b), relabelled for the human-N rename; see test_n_balance_inputs.R.
+  # That code recycled the gross residue N; the recycling default is now the
+  # soil-returned residue, so the gross basis is asked for to keep this
+  # test's subject the manure source.
   golden <- readRDS(testthat::test_path(
     "fixtures",
     "n_inputs_default_golden.rds"
   ))
-  out <- suppressMessages(.nb_run())
+  data <- .nb_data_with_drivers()
+  data$recycling_residue_basis <- "total_residue"
+  out <- suppressMessages(.nb_run(data))
   testthat::expect_identical(
     dplyr::select(out, -"method_manure"),
     golden$balance_grid

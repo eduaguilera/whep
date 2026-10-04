@@ -85,13 +85,34 @@
 #'     carries.
 #'   * `residue_destiny_input`: [calculate_residue_destinies()]'s required
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
-#'     `residue_destiny_method` needs), for `used_residue_n_t`/
-#'     `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
-#'     selects the method (default `"recovery_regional"`) and
-#'     `residue_bedding_fraction` the share of the recovered non-feed residue
-#'     used as bedding (default `0`; see [calculate_residue_destinies()]).
-#'     The bedded straw also comes back as a manure input, through
-#'     [build_n_inputs()].
+#'     `residue_destiny_method` needs; the polity's `region_krausmann` and
+#'     `region_un_sub` are taken from `area_code` when absent), for
+#'     `used_residue_n_t`/`bedding_residue_n_t`/`burnt_residue_n_t`.
+#'     `residue_destiny_method` selects the method (default
+#'     `"recovery_regional"`), `residue_destiny_recovery` its recovery-rate
+#'     variant (default `"legacy"`) and `residue_bedding_fraction` the share
+#'     of the recovered non-feed residue used as bedding (default `0`; see
+#'     [calculate_residue_destinies()]). The same three arguments split the
+#'     residue of `npp_n_input` for the `"recycling"` input of
+#'     [build_n_inputs()], which returns to the soil only the residue left on
+#'     the field (`recycling_residue_basis`, default
+#'     `"residue_soil_returned"`; `"total_residue"` recycles the gross
+#'     residue and is recorded in `method_recycling_n`). The bedded straw
+#'     also comes back as a manure input, through [build_n_inputs()], read
+#'     from the same split.
+#'   * `regime_areas`, `regime_ratio`, `regime_production`, `regime_shares`:
+#'     the rainfed/irrigated split's inputs (see Details), each read or built
+#'     when absent: the rainfed and irrigated hectares per cell and
+#'     production item (`lon`, `lat`, `area_code`, `item_prod_code`, `year`,
+#'     `rainfed_ha`, `irrigated_ha`; built with [build_gridded_landuse()]),
+#'     the [build_regime_yield_ratio()] table (built on the NPP rows; pass
+#'     the table [build_carbon_inputs()] reads to make both chains apply one
+#'     ratio), and the [get_primary_production()] table the yield bounds of
+#'     [split_regime_yield()] are pooled from. `regime_shares` replaces all
+#'     three with pre-built shares per grid key (`lon`, `lat`, `area_code`,
+#'     `item_cbs_code`, `year`, `irrigated_area_share`,
+#'     `irrigated_yield_share`), which carry no production item: the residue
+#'     terms then follow the production share.
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -149,7 +170,15 @@
 #'   expressed in fresh weight and the area share was used for everything;
 #'   `"regime_shares"` for shares supplied as `data$regime_shares`; or
 #'   `"no_regime_share"` for a row booked wholly rainfed because the regime
-#'   layer does not cover it), plus the polity columns below. When the
+#'   layer does not cover it), and `method_residue_regime`, how the row's
+#'   residue terms were split, the rules of its production items joined by
+#'   `"|"`: `"part_yield"` (re-evaluated at a rainfed part's yield),
+#'   `"part_yield_irrigation_terms"` (re-evaluated at an irrigated part's
+#'   yield, with the model's irrigation terms), `"crop_density"` (the item's
+#'   per-hectare values on the part's area: no part yield, or
+#'   `"area_split"`) or `"yield_share"` (the production share, for shares
+#'   supplied without production items), `NA` on a row with no residue
+#'   term, plus the polity columns below. When the
 #'   supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
@@ -166,17 +195,27 @@
 #' the irrigated share of the crop's cell area, from the spatialization
 #' chain's rainfed/irrigated hectares ([build_gridded_landuse()]), and the
 #' irrigated share of its production, from [split_regime_yield()] on the
-#' ratio of [build_regime_yield_ratio()]. Synthetic N, production N and the
-#' residue destinies (used, bedding, burnt) split by the production share,
-#' on the assumption that N availability per unit of yield is the same in
-#' both regimes; every other input, the harvested area, grazed weeds and SOM
-#' sequestration split by the area share. Summing the two parts reproduces
-#' the unsplit balance for every additive column. `"area_split"` uses the
-#' area share for everything and `"none"` returns the unsplit balance. The
-#' shares can be supplied as `data$regime_shares` (`lon`, `lat`,
-#' `area_code`, `item_cbs_code`, `year`, `irrigated_area_share`,
-#' `irrigated_yield_share`). Loss-driver tables without a `water_regime`
-#' column apply to both parts.
+#' ratio of [build_regime_yield_ratio()]. Synthetic N and production N split
+#' by the production share, on the assumption that N availability per unit
+#' of yield is the same in both regimes; every other input, the harvested
+#' area, grazed weeds and SOM sequestration split by the area share. The
+#' residue terms -- the residue and root N returned to soil
+#' (`"recycling"`) and the used, bedding and burnt residue N -- are
+#' evaluated per part: for each production item of the row, the parts'
+#' yields keep its production (`Y_r = Y / (1 + s (R - 1))`, `Y_i = R Y_r`),
+#' and each part carries the item's residue and root N per hectare times
+#' the response of [calculate_crop_residues()] and [calculate_crop_roots()]
+#' from the item's mean yield to the part's yield, in the part's water
+#' regime, so the model's irrigation terms (a lower residue ratio for the
+#' crop groups that respond, a lower root:shoot ratio) apply to the
+#' irrigated part. Residue and root are affine in yield, so a high-yield
+#' hectare carries less than its yield share. Summing the two parts
+#' reproduces the unsplit balance for every additive column except the
+#' residue terms and the totals that contain them, which sum to the parts'
+#' evaluation instead: with the irrigation terms, the residue and root N of
+#' irrigated land fall. `"area_split"` uses the area share for everything,
+#' residue terms included, and `"none"` returns the unsplit balance.
+#' Loss-driver tables without a `water_regime` column apply to both parts.
 #'
 #' `polity_validity` is forwarded to [build_n_inputs()] -- which forwards it in
 #' turn to [build_ag_land_support()], [build_n_deposition()], [build_human_n()]
@@ -513,13 +552,21 @@ build_nitrogen_balance <- function(
       burnt_residue_n_t = 0
     ))
   }
+  .nb_merge_output_term(x, .nb_residue_destiny_n(data, key), key)
+}
+
+# The used, bedding and burnt residue N of `data$residue_destiny_input`,
+# summed by `by` (the balance key, or the production-item grain the regime
+# split re-evaluates parts at).
+.nb_residue_destiny_n <- function(data, by) {
   n_kgdm <- whep::whep_coef_table("bio_coefs") |>
     dplyr::transmute(
       item_prod_code = as.character(.data$item_prod_code),
       residue_n_kgdm = .data$residue_n_kgdm
     )
-  destiny <- data |>
-    .nb_residue_destinies() |>
+  data$residue_destiny_input |>
+    .nb_residue_destinies(data) |>
+    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>
     .nb_check_residue_n_joined() |>
     dplyr::summarise(
@@ -535,21 +582,59 @@ build_nitrogen_balance <- function(
         .data$residue_burn_dm_t * .data$residue_n_kgdm,
         na.rm = TRUE
       ),
-      .by = dplyr::all_of(key)
+      .by = dplyr::all_of(by)
     )
-  .nb_merge_output_term(x, destiny, key)
 }
 
-# The one residue-destiny split of a balance. The manure input reads the same
-# split (.ni_manure_bedding(), R/n_balance_inputs.R), so the bedding booked
-# here as leaving the field is the bedding that comes back as manure.
-.nb_residue_destinies <- function(data) {
-  data$residue_destiny_input |>
+# The one residue-destiny split of a balance, applied by all of its residue
+# paths: the residue removal outputs above, the soil-returned residue N of
+# the recycling input (.n_balance_npp()) and the bedding that comes back as
+# manure (.ni_manure_bedding(), R/n_balance_inputs.R). What leaves the field,
+# what stays and what returns through the yard are parts of one split, so
+# all three read this one set of arguments: `data$residue_destiny_method` (default
+# "recovery_regional"), `data$residue_destiny_recovery` (default "legacy")
+# and `data$residue_bedding_fraction` (default 0). A residue table without
+# the polity's regions takes them from its `area_code`
+# (.nb_with_residue_regions()).
+.nb_residue_destinies <- function(x, data) {
+  args <- .nb_residue_destiny_args(data)
+  x |>
+    .nb_with_residue_regions() |>
     calculate_residue_destinies(
-      method = data$residue_destiny_method %||% "recovery_regional",
-      bedding_fraction = data$residue_bedding_fraction %||% 0
+      method = args$method,
+      bedding_fraction = args$bedding_fraction,
+      recovery = args$recovery
+    )
+}
+
+.nb_residue_destiny_args <- function(data) {
+  list(
+    method = data$residue_destiny_method %||% "recovery_regional",
+    bedding_fraction = data$residue_bedding_fraction %||% 0,
+    recovery = data$residue_destiny_recovery %||% "legacy"
+  )
+}
+
+# calculate_residue_destinies() reads the polity's Krausmann region (recovery
+# rate) and UN M49 sub-region (feed-use fraction). A residue table that does
+# not carry them takes them from its `area_code` through the crosswalk the
+# crop-NPP chain attaches them with (.sci_crop_regions()); one that does
+# keeps its own.
+.nb_with_residue_regions <- function(x) {
+  missing <- setdiff(c("region_krausmann", "region_un_sub"), names(x))
+  if (length(missing) == 0L) {
+    return(x)
+  }
+  regions <- .sci_crop_regions() |>
+    dplyr::select(".region_area_code" = "area_code", dplyr::all_of(missing))
+  x |>
+    dplyr::mutate(.region_area_code = as.integer(.data$area_code)) |>
+    dplyr::left_join(
+      regions,
+      by = ".region_area_code",
+      relationship = "many-to-one"
     ) |>
-    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code))
+    dplyr::select(-".region_area_code")
 }
 
 # The N content is joined on item_prod_code, and a key that does not match
@@ -970,7 +1055,10 @@ build_nitrogen_balance <- function(
     "method_nh3",
     "method_soil_n2o",
     "method_leaching",
-    intersect(c("method_regime", "method_regime_split"), names(x)),
+    intersect(
+      c("method_regime", "method_regime_split", "method_residue_regime"),
+      names(x)
+    ),
     intersect(.nb_input_method_cols(), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
