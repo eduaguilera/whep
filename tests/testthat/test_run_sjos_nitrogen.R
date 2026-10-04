@@ -439,36 +439,46 @@ testthat::test_that("the country table carries the chain's own population", {
   manifest <- jsonlite::read_json(run$manifest)
   testthat::expect_equal(manifest$population$population_source, "pin")
   testthat::expect_equal(
-    manifest$input_march_manifest$subnational,
+    manifest$input_march_manifest$allocation$recorded,
     "not recorded in the balance manifest"
   )
 })
 
-testthat::test_that("the subnational record is copied, never chosen", {
+testthat::test_that("the allocation record is copied and a grant refused", {
   manifest <- list(
     whep_commit = "x",
     input_overrides = list(WHEP_POLYCELL_SUBNATIONAL_PATH = "<unset>"),
     driver_report = list(
-      "2010" = list(
-        cell_support = list(subnational_countries = list(76L, 840L))
-      )
+      "2010" = list(spatialize = list(granted_containers = list()))
     )
   )
-  hits <- whep:::.sjr_subnational(manifest)
+  allocation <- whep:::.sjr_allocation(manifest)
+  testthat::expect_equal(allocation$expected, "national (no subnational grant)")
   testthat::expect_named(
-    hits,
+    allocation$recorded,
     c(
       "input_overrides.WHEP_POLYCELL_SUBNATIONAL_PATH",
-      "driver_report.2010.cell_support.subnational_countries"
+      "driver_report.2010.spatialize.granted_containers"
     )
   )
   testthat::expect_equal(
-    hits[["driver_report.2010.cell_support.subnational_countries"]],
-    list(76L, 840L)
-  )
-  testthat::expect_equal(
-    whep:::.sjr_subnational(list(whep_commit = "x")),
+    whep:::.sjr_allocation(list(whep_commit = "x"))$recorded,
     "not recorded in the balance manifest"
+  )
+  manifest$driver_report[["2010"]]$spatialize$granted_containers <- list(76L)
+  testthat::expect_error(
+    whep:::.sjr_allocation(manifest),
+    class = "whep_sjr_subnational_granted"
+  )
+  balance <- tibble::tibble(year = 2010L, level_polity_code = c(NA, NA))
+  testthat::expect_identical(
+    whep:::.sjr_check_national(balance, 2010L),
+    balance
+  )
+  balance$level_polity_code[[2]] <- 7L
+  testthat::expect_error(
+    whep:::.sjr_check_national(balance, 2010L),
+    class = "whep_sjr_subnational_granted"
   )
 })
 

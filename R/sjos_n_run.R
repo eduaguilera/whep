@@ -342,20 +342,64 @@
     schema_version = manifest$schema_version %||% NA_integer_,
     grid = rows,
     driver_report = manifest$driver_report %||% list(),
-    subnational = .sjr_subnational(manifest)
+    allocation = .sjr_allocation(manifest)
   )
 }
 
-# Whatever the balance manifest records about the subnational refinement of
-# crop area (granted per country, off by default): every field whose name
-# mentions "subnational", copied with its path. The driver applies nothing
-# itself; it only carries the record into its own manifest.
-.sjr_subnational <- function(manifest) {
-  hits <- .sjr_find_named(manifest, "subnational")
-  if (length(hits) == 0L) {
-    return("not recorded in the balance manifest")
+# The production run uses the national crop-area allocation: no country is
+# granted the subnational refinement (whep#1033), which is off by default and
+# granted per country. The driver copies whatever the balance manifest records
+# about it (every field whose name mentions "subnational" or "granted", with
+# its path) and aborts when a "granted" field names any container, rather than
+# warning: a granted balance is a different construction, and its outputs must
+# not reach the national series. A manifest that records nothing is taken as
+# the default, national.
+.sjr_allocation <- function(manifest) {
+  hits <- .sjr_find_named(manifest, "subnational|granted")
+  granted <- hits[grepl("granted", names(hits), ignore.case = TRUE)]
+  named <- purrr::keep(granted, .sjr_names_any)
+  if (length(named) > 0L) {
+    cli::cli_abort(
+      c(
+        "The balance run granted a subnational allocation depth; this driver
+         runs the national allocation only.",
+        x = "{.field {names(named)}} in the balance manifest."
+      ),
+      class = "whep_sjr_subnational_granted"
+    )
   }
-  hits
+  list(
+    expected = "national (no subnational grant)",
+    recorded = if (length(hits) == 0L) {
+      "not recorded in the balance manifest"
+    } else {
+      hits
+    }
+  )
+}
+
+# Whether a recorded grant names anything: a non-empty value other than an
+# unset marker.
+.sjr_names_any <- function(value) {
+  values <- unlist(value, use.names = FALSE)
+  values <- values[!is.na(values)]
+  any(!values %in% c("", "<unset>", "none", "FALSE", FALSE, 0))
+}
+
+# A granted depth leaves unit-grain rows keyed by `level_polity_code`; a
+# national balance has none.
+.sjr_check_national <- function(balance, year) {
+  if (
+    rlang::has_name(balance, "level_polity_code") &&
+      any(!is.na(balance$level_polity_code))
+  ) {
+    cli::cli_abort(
+      "The {year} grid balance carries subnational ({.field level_polity_code})
+       rows; this driver runs the national allocation only.",
+      class = "whep_sjr_subnational_granted"
+    )
+  }
+  invisible(balance)
 }
 
 .sjr_find_named <- function(x, pattern, path = character()) {
@@ -753,7 +797,7 @@
       hash = "sha256 of the manifest file's bytes",
       whep_commit = march$whep_commit,
       schema_version = march$schema_version,
-      subnational = march$subnational
+      allocation = march$allocation
     ),
     options = options,
     resolved_defaults = .sjr_resolved_defaults(options),
@@ -977,7 +1021,8 @@
 
 .sjr_run_year <- function(year, run) {
   expected <- run$march$grid$rows[run$march$grid$year == year]
-  balance <- .sjr_read_balance(run$march_root, year, expected)
+  balance <- .sjr_read_balance(run$march_root, year, expected) |>
+    .sjr_check_national(year)
   data <- c(
     list(
       balance = balance,
