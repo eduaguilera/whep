@@ -41,7 +41,16 @@ derived when absent. It is the same support \code{\link[=build_soil_carbon_input
 reads, so the weights and the carbon they weight can never come from two
 different crosswalks. When
 \code{cropland} or \code{grass_natural} are absent the respective builder is called
-with the remaining members of \code{data}.}
+with the remaining members of \code{data}. The yield split of
+\code{crop_groups$regime} reads three more, each built when absent:
+\code{regime_ratio} (\code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}} output; built on the crop
+rows that carry a share and a national yield, so pass the table
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} used to make both chains read one ratio);
+\code{regime_production} (\code{\link[=get_primary_production]{get_primary_production()}} output, for each crop's
+national yield and the yield bounds; read for \code{years} and for 1961-2023
+when absent); and \code{residue_humification} (defaults to
+\link{residue_humification}), whose residue and root coefficients re-weight
+each part's humified fraction.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover. Threaded into the default
@@ -64,7 +73,28 @@ from. \code{"spatialized"} (default) uses \code{\link[=build_gridded_landuse]{bu
 pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts
 every crop in its rainfed group. Recorded in \code{method_c_input}. A
 pre-built share layer can be supplied as \code{data$crop_regime_share} (\code{lon},
-\code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).}
+\code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).
+\code{regime}: how a crop's carbon per hectare differs between its rainfed
+and irrigated parts. \code{"yield_split"} (default) re-evaluates each part's
+residue and root at the part's own yield. The parts' yields keep the
+crop's production, with the irrigated:rainfed yield ratio \code{R} of the
+cell-crop-year that \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} splits synthetic
+nitrogen with (the bounded \code{ratio} of \code{\link[=split_regime_yield]{split_regime_yield()}} on
+\code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}): with irrigated share \code{s} and mean yield
+\code{Y}, \code{Y_r = Y / (1 + s (R - 1))} and \verb{Y_i = R Y_r}. Each part carries
+the crop's residue and root carbon per hectare times the response of
+\code{\link[=calculate_crop_residues]{calculate_crop_residues()}} and \code{\link[=calculate_crop_roots]{calculate_crop_roots()}} from the
+crop's mean yield to the part's yield, evaluated in the part's water
+regime, so the model's irrigation terms (a lower residue ratio for the
+crop groups that respond, a lower root:shoot ratio) apply to the
+irrigated part. Residue and root are affine in yield, so a high-yield
+hectare carries less than its yield share, and with the irrigation
+terms the crop's residue and root carbon fall on irrigated land rather
+than being kept. A crop wholly in one regime is re-evaluated at its
+mean yield in that regime. Weed and manure carbon keep the crop's
+density on both parts. \code{"area_split"} keeps the crop's densities on
+both parts, the rule before the yield split. Recorded per class in
+\code{method_regime}.}
 
 \item{density_basis}{Which crop area weights the per-crop densities when
 they collapse to a class. \code{"renormalised"} (default) uses the yearly cell
@@ -159,7 +189,34 @@ resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
 \code{NA} on the grassland and natural classes, which are neither spatialized
 from polity-crop totals nor collapsed from crops), for \code{land_use} in
 \code{"cropland"}, \code{"grassland"} and \code{"natural"}, plus the polity columns
-below.
+below. Cropland groups also carry the regime split, \code{NA} on the single
+\code{"cropland"} class and on grassland and natural:
+\itemize{
+\item \code{method_regime}: the \code{crop_groups$regime} rule, \code{"yield_split"} or
+\code{"area_split"}.
+\item \code{method_regime_split}: the split rules of the class's crop parts,
+sorted and joined by \code{"|"}: \code{"yield_ratio"} (part yields from the
+regime yield ratio), \code{"trivial_rainfed_only"} and
+\code{"trivial_irrigated_only"} (the crop has one regime in the cell),
+\code{"no_ratio"} (no ratio for the cell-crop-year),
+\code{"area_no_production"} (no national yield), \code{"area_no_components"}
+(the per-crop layer has no residue and root densities),
+\code{"area_split"} (asked for) and \code{"no_regime_share"} (no irrigated
+share; booked rainfed). The last five keep the crop's own densities
+on both parts.
+\item \code{method_residue_regime}: how the parts' residue and root were set,
+joined the same way: \code{"part_yield"} (re-evaluated at a rainfed
+part's yield), \code{"part_yield_irrigation_terms"} (re-evaluated at an
+irrigated part's yield, with the model's irrigation terms) or
+\code{"crop_density"} (the crop's own density).
+\item \code{yield_split_c_share}: the share of the class's carbon input from crop
+parts re-evaluated at the part yields of the regime yield ratio (rule
+\code{"yield_ratio"}).
+\item \code{method_regime_cn}: how the parts' input C:N was formed, joined the
+same way: \code{"part_input_cn"} (from the part's own components' carbon
+and nitrogen) or \code{"crop_input_cn"} (the crop's, where the per-crop
+layer carries no component nitrogen).
+}
 }
 \description{
 Build the carbon-input layer \code{\link[=build_carbon_balance]{build_carbon_balance()}} consumes, keyed by

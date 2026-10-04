@@ -110,7 +110,14 @@ reader behind them -- \code{excreta} is a livestock-pipeline output, not a
 readable input -- so under the default \code{method_grazing = "whep"} a
 call that omits either is refused straight away, before any input is read.
 Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
-own grazing and need neither.}
+own grazing and need neither. Two optional entries are forwarded to
+\code{\link{build_carbon_inputs}} for the rainfed/irrigated yield split
+of crop groups, also only when \code{c_inputs} is not supplied:
+\code{regime_ratio} (the \code{\link{build_regime_yield_ratio}} table;
+pass the one \code{\link{build_nitrogen_balance}} used so both chains
+apply one ratio) and \code{regime_production} (the
+\code{\link{get_primary_production}} table the national yields and the
+yield bounds come from). Each is built when absent.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover, but reading the full LUH2 range
