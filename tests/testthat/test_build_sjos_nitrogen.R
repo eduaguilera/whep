@@ -715,6 +715,55 @@ testthat::test_that("country_table adds the country-year table and nothing else"
   )
 })
 
+testthat::test_that("optional elements can be left out with their inputs", {
+  base <- .sjos_injected()
+  data <- .sjos_nitrogen_test_data()
+  data[c("critical_loads", "n_inputs", "fp_flows")] <- NULL
+  core <- whep::build_sjos_nitrogen(data = data, include = character())
+  testthat::expect_named(
+    core,
+    c("surplus", "boundary_surplus", "nourishment", "sjos_class")
+  )
+  testthat::expect_identical(core, base[names(core)])
+
+  # Each element is left out on its own, and only it.
+  for (element in c("pathway", "scatter", "footprint")) {
+    kept <- setdiff(c("pathway", "scatter", "footprint"), element)
+    out <- whep::build_sjos_nitrogen(
+      data = .sjos_nitrogen_test_data(),
+      include = kept
+    )
+    dropped <- c(
+      pathway = "boundary_pathway",
+      scatter = "scatter",
+      footprint = "footprint"
+    )[[element]]
+    testthat::expect_identical(out, base[setdiff(names(base), dropped)])
+  }
+
+  # The default includes all three, and a misspelt element aborts.
+  testthat::expect_identical(
+    names(base),
+    c(
+      "surplus",
+      "boundary_surplus",
+      "boundary_pathway",
+      "nourishment",
+      "scatter",
+      "sjos_class",
+      "footprint"
+    )
+  )
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data, include = "pathways")
+  )
+  # Left out, the footprint no longer needs an IO model or traced flows.
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(data = data, include = "footprint"),
+    "IO model or pre-traced flows"
+  )
+})
+
 testthat::test_that("the shared SJOS-N fixtures were never mutated", {
   .sjos_example()
   .sjos_injected()

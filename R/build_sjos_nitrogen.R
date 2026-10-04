@@ -127,6 +127,14 @@
 #' @param beyond_share_cut Share of a country's positive surplus above which it
 #'   is on the `"Exceedance"` side, passed to [build_n_boundary_country()]; used
 #'   only when `country_table = TRUE`. Defaults to `0.5`, a WHEP criterion.
+#' @param include Which of the three optional elements to build: any of
+#'   `"pathway"` (`boundary_pathway`), `"scatter"` and `"footprint"`. Defaults
+#'   to all three. An element left out is absent from the result and its
+#'   inputs are not needed: without `"pathway"` no `data$critical_loads`, without
+#'   `"scatter"` no `data$n_inputs`, and without `"footprint"` no `data$io` or
+#'   `data$fp_flows`. The surplus boundary, the nourishment axis and the
+#'   classification are always built, and are the same whichever elements are
+#'   included.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -143,7 +151,7 @@
 #'   `sjos_class` and both footprint tables carry `negative_critical`. With
 #'   `country_table = TRUE` the list also holds `country_table`, the
 #'   [build_n_boundary_country()] result (a list with the `country` and
-#'   `diagnostics` tables).
+#'   `diagnostics` tables). Elements left out of `include` are absent.
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -159,11 +167,13 @@ build_sjos_nitrogen <- function(
   negative_critical = c("keep", "clamp"),
   country_table = FALSE,
   beyond_share_cut = 0.5,
+  include = c("pathway", "scatter", "footprint"),
   example = FALSE
 ) {
   grassland_split <- rlang::arg_match(grassland_split)
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
   negative_critical <- rlang::arg_match(negative_critical)
+  include <- rlang::arg_match(include, multiple = TRUE)
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   # `[[` not `$`: `data$population` partially matches `data$population_age`
   # when the caller left `population` out, and would divide by the age table.
@@ -190,29 +200,43 @@ build_sjos_nitrogen <- function(
   boundary <- .sjos_boundary_surplus(surplus, data, opts)
   nourishment <- .sjos_nourishment(data, opts)
   sjos_class <- classify_sjos_n(boundary$country, nourishment)
+  # Each optional element is built only when included, so its inputs are only
+  # needed then; the order of the result stays the same either way.
   out <- list(
     surplus = surplus,
     boundary_surplus = boundary,
-    boundary_pathway = .sjos_boundary_pathway(data, opts),
+    boundary_pathway = if ("pathway" %in% include) {
+      .sjos_boundary_pathway(data, opts)
+    },
     nourishment = dplyr::mutate(
       nourishment,
       method_population = .env$method_population
     ),
-    scatter = .sjos_scatter(data, nourishment) |>
-      dplyr::mutate(method_population = .env$method_population),
+    scatter = if ("scatter" %in% include) {
+      .sjos_scatter(data, nourishment) |>
+        dplyr::mutate(method_population = .env$method_population)
+    },
     sjos_class = .sjos_stamp_critical(sjos_class, opts),
-    footprint = .sjos_footprint(
-      boundary$country,
-      data,
-      opts,
-      sjos_class,
-      nourishment
-    ) |>
-      purrr::modify_at(
-        c("fp_all", "fp_food"),
-        \(x) .sjos_stamp_critical(x, opts)
-      )
+    footprint = if ("footprint" %in% include) {
+      .sjos_footprint(
+        boundary$country,
+        data,
+        opts,
+        sjos_class,
+        nourishment
+      ) |>
+        purrr::modify_at(
+          c("fp_all", "fp_food"),
+          \(x) .sjos_stamp_critical(x, opts)
+        )
+    }
   )
+  excluded <- c(
+    pathway = "boundary_pathway",
+    scatter = "scatter",
+    footprint = "footprint"
+  )
+  out <- out[setdiff(names(out), excluded[setdiff(names(excluded), include)])]
   if (!opts$country_table) {
     return(out)
   }
