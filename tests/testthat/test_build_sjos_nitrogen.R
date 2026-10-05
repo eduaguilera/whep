@@ -764,6 +764,64 @@ testthat::test_that("optional elements can be left out with their inputs", {
   )
 })
 
+testthat::test_that("the composed band is returned only when asked for", {
+  base <- .sjos_injected()
+  data <- .sjos_nitrogen_test_data()
+  with_band <- whep::build_sjos_nitrogen(
+    data = data,
+    include = c("pathway", "scatter", "footprint", "band")
+  )
+  # Asking for the band adds it and changes nothing else.
+  testthat::expect_identical(
+    names(with_band),
+    append(names(base), "nourishment_band", after = 4L)
+  )
+  testthat::expect_identical(with_band[names(base)], base)
+  # It is the band the nourishment axis was classified against: its floor and
+  # ceiling put each country-year in the class the axis reports.
+  band <- with_band$nourishment_band
+  testthat::expect_true(all(
+    c(
+      "floor_g_cap_day",
+      "ceiling_g_cap_day",
+      "prevalence_protein_deficit",
+      "prevalence_protein_excess",
+      "people_under",
+      "people_over"
+    ) %in%
+      names(band)
+  ))
+  axis <- dplyr::inner_join(
+    base$nourishment,
+    band,
+    by = c("year", "area_code"),
+    suffix = c("", ".band")
+  )
+  testthat::expect_equal(nrow(axis), nrow(base$nourishment))
+  testthat::expect_equal(
+    axis$value_norm,
+    whep:::.nourish_normalize(
+      axis$protein_g_cap_day,
+      axis$floor_g_cap_day,
+      axis$ceiling_g_cap_day
+    )
+  )
+  # Rebuilt from the same four terms, it is build_nourishment_band() itself.
+  supply <- whep::build_food_supply(method = "whep_native", data = data)
+  testthat::expect_identical(
+    band,
+    whep:::.sjos_band(data, supply, list())
+  )
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(
+      data = data,
+      nourishment_thresholds = "flat",
+      include = "band"
+    ),
+    "flat pair has"
+  )
+})
+
 testthat::test_that("the shared SJOS-N fixtures were never mutated", {
   .sjos_example()
   .sjos_injected()
