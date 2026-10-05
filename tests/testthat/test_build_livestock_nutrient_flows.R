@@ -90,6 +90,17 @@ test_that("national run chains the pipeline and conserves the N balance", {
   expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
 })
 
+test_that("a run without bedding raises no warning (whep#1313)", {
+  expect_no_warning(
+    res <- whep::build_livestock_nutrient_flows(
+      .toy_intake_nat(),
+      resolution = "national",
+      gridded = .toy_gridded_nat()
+    )
+  )
+  expect_true(all(is.na(res$applied$method_bedding_mms)))
+})
+
 test_that("applied output carries provenance for every stage", {
   res <- whep::build_livestock_nutrient_flows(
     .toy_intake_nat(),
