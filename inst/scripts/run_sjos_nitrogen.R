@@ -15,6 +15,9 @@
 #   <root>/whep_sjos_n_class/year=<Y>/part.parquet    per-crop classification
 #   <root>/whep_sjos_n_nourishment/year=<Y>/part.parquet
 #   <root>/whep_sjos_n_diag/year=<Y>/part.parquet     one row per year
+#   <root>/whep_sjos_n_band/year=<Y>/part.parquet     nourishment band with
+#                                                     its headcounts (composed
+#                                                     band only)
 #   <root>/whep_sjos_n_critical_binding/part.parquet  2010 per-threshold
 #                                                     critical surpluses
 #   <root>/whep_sjos_n_run_manifest.json
@@ -24,9 +27,12 @@
 # composed nourishment band, cut 0.5) and
 # `<out-root>/whep_sjos_n_arms/<arm id>/` for any other. Every year is
 # reconciled before it is written and the run aborts on a breach. The
-# manifest records the WHEP commit, the SHA-256 of the balance manifest, every
-# option and, per year, the reconciliation and the share of the grid's input
-# nitrogen spread uniformly for want of a crop-pattern cell (issue #533).
+# manifest records the WHEP commit, the SHA-256 of the balance manifest and of
+# each balance partition read, every option and, per year, the reconciliation,
+# the state of the WHEP tree and the share of the grid's input nitrogen spread
+# uniformly for want of a crop-pattern cell (issue #533). A WHEP tree with
+# uncommitted changes under R/ or inst/scripts/ is refused unless
+# --allow-dirty is given.
 # The logic is in R/sjos_n_run.R.
 #
 # Usage (from the repository root):
@@ -43,6 +49,10 @@
 #   --beyond-share-cut=0.5   country boundary-side cut (default 0.5)
 #   --boundary-mode=surplus  pathway mode is not supported yet (issue #359)
 #   --force                  rebuild years this run's options already wrote
+#   --allow-dirty            run from a tree with uncommitted changes under R/
+#                            or inst/scripts/, as a development run: it needs
+#                            an --out-root other than the balance root and
+#                            holding no clean run's outputs
 #
 # A year takes the commodity balances, the critical-N archive and the land
 # and population readers; the whole span is a long, memory-heavy job.
@@ -60,6 +70,7 @@ manifest <- whep:::.sjr_run(
   march_root = march_root,
   out_root = args$out_root %||% march_root,
   options = args$options,
-  force = args$force
+  force = args$force,
+  allow_dirty = args$allow_dirty
 )
 cli::cli_alert_success("Run manifest: {.file {manifest}}")

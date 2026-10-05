@@ -2,8 +2,9 @@
 # build_sjos_nitrogen() one year at a time over the year-partitioned gridded
 # nitrogen balance (`whep_n_balance_grid/year=<Y>/part.parquet` and its run
 # manifest `whep_n_balance_run_manifest.json`) and writes the surplus-mode
-# boundary, the country-year table, the classification and the nourishment
-# axis as year partitions, with one run manifest per option set.
+# boundary, the country-year table, the classification, the nourishment axis
+# and the nourishment band with its headcounts as year partitions, with one run
+# manifest per option set.
 #
 # The logic lives here rather than in the script, as R/nbd_stage.R does for
 # run_nitrogen_balance.R, so that it can be tested on fixtures: the script only
@@ -13,17 +14,25 @@
 # unattended run needs and that must fail closed:
 # * every year is reconciled before anything of it is written: the country
 #   sums plus the exceedance left unallocated on residual records equal the
-#   summed cell exceedance, and the grid, country, country-table and
-#   classification tables agree with one another;
+#   summed cell exceedance, the grid, country, country-table and
+#   classification tables agree with one another, and the band's headcounts
+#   are its prevalences times the country table's population and never exceed
+#   it;
 # * the input balance is tied to its manifest (row counts per year and the
-#   SHA-256 of the manifest's bytes), so outputs cannot be read against a
+#   SHA-256 of the manifest's bytes) and each grid partition read is recorded
+#   by its own SHA-256, so outputs cannot be read against, or extended from, a
 #   different balance than the one they were built from;
 # * one output root holds one option set: a second option set writes under its
 #   own arm directory, and outputs written under other options, another WHEP
-#   commit or another balance manifest are refused rather than mixed;
+#   commit, another balance manifest or changed balance partitions are refused
+#   rather than mixed;
+# * a WHEP tree with uncommitted changes to R/ or inst/scripts/ is refused
+#   unless the run is explicitly a development run, which then writes only to
+#   a root of its own;
 # * the share of the grid's nitrogen input that the balance spread uniformly
 #   over a polity's cropland because its crop had no crop-pattern cell (issue
-#   #533) is reported per year from the balance run's own captured warnings.
+#   #533) is reported per year from the balance run's own captured warnings,
+#   and only when those warnings were captured completely.
 #
 # Pathway mode is not run: the per-cell loss drivers it needs are tracked in
 # issue #359, so pathway mode aborts.
@@ -38,8 +47,19 @@
     country = "whep_sjos_n_country",
     class = "whep_sjos_n_class",
     nourishment = "whep_sjos_n_nourishment",
-    diagnostics = "whep_sjos_n_diag"
+    diagnostics = "whep_sjos_n_diag",
+    band = "whep_sjos_n_band"
   )
+}
+
+# The products one option set writes. The band table exists only under the
+# composed band: the flat pair has no band terms and no headcounts.
+.sjr_run_products <- function(options) {
+  products <- .sjr_products()
+  if (options$nourishment_thresholds == "flat") {
+    return(products[names(products) != "band"])
+  }
+  products
 }
 
 # What each product holds, written into the manifest for its readers.
@@ -63,6 +83,11 @@
     diagnostics = paste(
       "build_n_boundary_country() diagnostics plus the driver's",
       "reconciliation and uniform-spread diagnostics: one row per year"
+    ),
+    band = paste(
+      "build_nourishment_band() as build_sjos_nitrogen() composed it (floor,",
+      "ceiling, prevalences and headcounts), with the country table's",
+      "population: one row per country and year; composed band only"
     )
   )
 }
@@ -79,7 +104,7 @@
 
 .sjr_arms_dir <- function() "whep_sjos_n_arms"
 
-.sjr_schema_version <- function() 1L
+.sjr_schema_version <- function() 2L
 
 .sjr_partition_rel <- function(product, year) {
   file.path(product, sprintf("year=%d", as.integer(year)), "part.parquet")
@@ -124,6 +149,7 @@
     )
   }
   .nbc_check_cut(beyond_share_cut)
+  .sjr_check_cut_label(beyond_share_cut)
   list(
     boundary_mode = rlang::arg_match0(boundary_mode, "surplus"),
     surplus_method = "harvest_removal",
@@ -174,8 +200,32 @@
     "_nourishment-",
     options$nourishment_thresholds,
     "_cut-",
-    format(options$beyond_share_cut)
+    .sjr_cut_label(options$beyond_share_cut)
   )
+}
+
+# The cut as it appears in an arm id: fixed-point at six decimals, so the id
+# never depends on print width or significant digits.
+.sjr_cut_label <- function(cut) {
+  sprintf("%.6f", as.double(cut))
+}
+
+# Two different cuts must never share an arm directory. A cut that its label
+# does not reproduce exactly (0.30000000001 labels as 0.300000, the label of
+# 0.3) is refused, so every accepted cut has a label of its own.
+.sjr_check_cut_label <- function(cut) {
+  label <- .sjr_cut_label(cut)
+  if (as.double(label) != cut) {
+    cli::cli_abort(
+      c(
+        "{.arg beyond_share_cut} {format(cut, digits = 17)} is not exact at six
+         decimals; its arm id would collide with that of {label}.",
+        i = "Give the cut with at most six decimals."
+      ),
+      class = "whep_sjr_arm_collision"
+    )
+  }
+  invisible(cut)
 }
 
 .sjr_arm_root <- function(out_root, options) {
@@ -229,6 +279,7 @@
     march_root = NULL,
     out_root = NULL,
     force = FALSE,
+    allow_dirty = FALSE,
     options = list()
   )
   out <- purrr::reduce(args, .sjr_parse_one, .init = out)
@@ -250,6 +301,10 @@
 .sjr_parse_one <- function(out, arg) {
   if (identical(arg, "--force")) {
     out$force <- TRUE
+    return(out)
+  }
+  if (identical(arg, "--allow-dirty")) {
+    out$allow_dirty <- TRUE
     return(out)
   }
   parts <- regmatches(arg, regexec("^--([a-z-]+)=(.*)$", arg))[[1L]]
@@ -341,29 +396,46 @@
     whep_commit = manifest$whep_commit %||% NA_character_,
     schema_version = manifest$schema_version %||% NA_integer_,
     grid = rows,
-    driver_report = manifest$driver_report %||% list(),
+    driver_report = .sjr_check_driver_report(manifest$driver_report, path),
     allocation = .sjr_allocation(manifest)
   )
+}
+
+# The driver report is an object keyed by year. Any other shape (a bare list,
+# say) would leave every year without a report and report the uniform spread
+# as unrecorded for the whole run, so it aborts instead.
+.sjr_check_driver_report <- function(report, path) {
+  report <- report %||% list()
+  keys <- names(report)
+  if (length(report) > 0L && (is.null(keys) || any(!nzchar(keys)))) {
+    cli::cli_abort(
+      c(
+        "The driver report of {.file {path}} is not keyed by year.",
+        i = "Expected {.code driver_report.<year>} records."
+      ),
+      class = "whep_sjr_report_layout"
+    )
+  }
+  report
 }
 
 # The production run uses the national crop-area allocation: no country is
 # granted the subnational refinement (whep#1033), which is off by default and
 # granted per country. The driver copies whatever the balance manifest records
-# about it (every field whose name mentions "subnational" or "granted", with
-# its path) and aborts when a "granted" field names any container, rather than
-# warning: a granted balance is a different construction, and its outputs must
-# not reach the national series. A manifest that records nothing is taken as
-# the default, national.
+# about it (every field whose name mentions an allocation, "subnational" or a
+# grant, with its path) and aborts, rather than warning, when any record says
+# otherwise: a granted balance is a different construction, and its outputs
+# must not reach the national series. A manifest that records nothing is taken
+# as the default, national.
 .sjr_allocation <- function(manifest) {
-  hits <- .sjr_find_named(manifest, "subnational|granted")
-  granted <- hits[grepl("granted", names(hits), ignore.case = TRUE)]
-  named <- purrr::keep(granted, .sjr_names_any)
-  if (length(named) > 0L) {
+  hits <- .sjr_find_named(manifest, .sjr_allocation_pattern())
+  violations <- .sjr_allocation_violations(manifest)
+  if (length(violations) > 0L) {
     cli::cli_abort(
       c(
-        "The balance run granted a subnational allocation depth; this driver
-         runs the national allocation only.",
-        x = "{.field {names(named)}} in the balance manifest."
+        "The balance run records a subnational allocation; this driver runs
+         the national allocation only.",
+        x = "{.field {violations}} in the balance manifest."
       ),
       class = "whep_sjr_subnational_granted"
     )
@@ -378,37 +450,59 @@
   )
 }
 
+.sjr_allocation_pattern <- function() "allocation|subnational|grant"
+
+# Every field of the manifest that records a subnational allocation, by path:
+# a grant field (any key mentioning "grant", at any depth) that names anything,
+# and a level field (`level`, `*_level`) of 1 or more anywhere under an
+# allocation-like key. The walk descends through every field, matched or not,
+# so a grant nested under a matched key is still seen. A level that is not a
+# number cannot be shown to be national and counts as a violation.
+.sjr_allocation_violations <- function(x, path = character(), inside = FALSE) {
+  if (!is.list(x)) {
+    return(character())
+  }
+  keys <- .sjr_keys(x)
+  found <- purrr::map2(unname(x), keys, \(value, key) {
+    here <- c(path, key)
+    within <- inside ||
+      grepl(.sjr_allocation_pattern(), key, ignore.case = TRUE)
+    grant <- grepl("grant", key, ignore.case = TRUE) && .sjr_names_any(value)
+    level <- within &&
+      grepl("(^|_)levels?$", key, ignore.case = TRUE) &&
+      .sjr_subnational_level(value)
+    c(
+      if (grant || level) paste(here, collapse = "."),
+      .sjr_allocation_violations(value, here, within)
+    )
+  })
+  unlist(found, use.names = FALSE) %||% character()
+}
+
 # Whether a recorded grant names anything: a non-empty value other than an
-# unset marker.
+# unset marker, compared without regard to case.
 .sjr_names_any <- function(value) {
   values <- unlist(value, use.names = FALSE)
   values <- values[!is.na(values)]
-  any(!values %in% c("", "<unset>", "none", "FALSE", FALSE, 0))
+  unset <- c("", "<unset>", "none", "null", "na", "false", "0")
+  any(!tolower(trimws(as.character(values))) %in% unset)
 }
 
-# A granted depth leaves unit-grain rows keyed by `level_polity_code`; a
-# national balance has none.
-.sjr_check_national <- function(balance, year) {
-  if (
-    rlang::has_name(balance, "level_polity_code") &&
-      any(!is.na(balance$level_polity_code))
-  ) {
-    cli::cli_abort(
-      "The {year} grid balance carries subnational ({.field level_polity_code})
-       rows; this driver runs the national allocation only.",
-      class = "whep_sjr_subnational_granted"
-    )
-  }
-  invisible(balance)
+# Whether a recorded allocation level is subnational: any value of 1 or more,
+# or any value that is not a number.
+.sjr_subnational_level <- function(value) {
+  values <- unlist(value, use.names = FALSE)
+  values <- values[!is.na(values)]
+  levels <- suppressWarnings(as.numeric(values))
+  any(is.na(levels) | levels >= 1)
 }
 
+# The outermost fields whose name matches `pattern`, by path, for the record.
 .sjr_find_named <- function(x, pattern, path = character()) {
   if (!is.list(x)) {
     return(list())
   }
-  keys <- names(x) %||% rep("", length(x))
-  keys[keys == ""] <- as.character(which(keys == ""))
-  hits <- purrr::map2(unname(x), keys, \(value, key) {
+  hits <- purrr::map2(unname(x), .sjr_keys(x), \(value, key) {
     here <- c(path, key)
     if (grepl(pattern, key, ignore.case = TRUE)) {
       return(stats::setNames(list(value), paste(here, collapse = ".")))
@@ -416,6 +510,13 @@
     .sjr_find_named(value, pattern, here)
   })
   purrr::list_flatten(hits)
+}
+
+# A list's names, with an element's position standing in for a missing name.
+.sjr_keys <- function(x) {
+  keys <- names(x) %||% rep("", length(x))
+  keys[keys == ""] <- as.character(which(keys == ""))
+  keys
 }
 
 # Default: 1961 to the last grid year the balance manifest lists. A requested
@@ -437,6 +538,8 @@
   years
 }
 
+# The grid balance partition of `year`, checked against the row count its
+# manifest lists, with the SHA-256 of its bytes for the run manifest.
 .sjr_read_balance <- function(march_root, year, expected_rows) {
   path <- .sjr_partition_path(march_root, .sjr_march_product(), year)
   if (!file.exists(path)) {
@@ -445,6 +548,7 @@
       class = "whep_sjr_balance_mismatch"
     )
   }
+  sha256 <- unname(tools::sha256sum(path))
   balance <- tibble::as_tibble(arrow::read_parquet(path))
   if (nrow(balance) != expected_rows || !all(balance$year == year)) {
     cli::cli_abort(
@@ -457,7 +561,14 @@
       class = "whep_sjr_balance_mismatch"
     )
   }
-  balance
+  list(
+    balance = balance,
+    input = list(
+      path = .sjr_partition_rel(.sjr_march_product(), year),
+      rows = nrow(balance),
+      sha256 = sha256
+    )
+  )
 }
 
 # Food tonnes per country and crop from the commodity balances, the
@@ -498,15 +609,23 @@
 # uniformly over the polity's cropland, and the balance says so in a warning
 # (.n_warn_unmatched(), R/n_balance_spatialize.R) that the balance run captures
 # per stage into its manifest's `driver_report.<year>`. The mass those warnings
-# report is summed and set against the grid's standard nitrogen input. A
-# warning of that kind whose numbers cannot be read aborts rather than counting
-# as zero; a year the manifest has no report for is "not_recorded", never zero.
+# report is summed and set against the grid's standard nitrogen input.
+#
+# The sum is reported ("recorded") only when the year's capture is complete:
+# the grid's own stages are in the report and each stage captured exactly as
+# many warning-class conditions as it counted. Otherwise -- no report, no
+# stages, warnings counted but not captured, or a grid built as the balance
+# run's second resolution, whose conditions carry no count -- the year is
+# "not_recorded", never zero. A condition that names the uniform spread but
+# cannot be read as one aborts, whatever the capture.
 .sjr_uniform_spread <- function(driver_report, year, grid_input_std_n_t) {
-  messages <- .sjr_grid_messages(driver_report[[as.character(year)]])
-  if (is.null(messages)) {
+  grid <- .sjr_grid_conditions(driver_report[[as.character(year)]], year)
+  spread <- .sjr_parse_uniform(grid, year)
+  if (!grid$complete) {
     return(tibble::tibble(
       year = as.integer(year),
       uniform_spread_status = "not_recorded",
+      uniform_spread_note = grid$note,
       uniform_spread_n_t = NA_real_,
       uniform_spread_polity_crops = NA_integer_,
       uniform_spread_warnings = NA_integer_,
@@ -514,74 +633,166 @@
       uniform_spread_share_of_input = NA_real_
     ))
   }
-  hits <- messages[grepl(
-    "had no crop-pattern grid cells",
-    messages,
-    fixed = TRUE
-  )]
-  pattern <- paste0(
-    "([0-9]+) polity-crop totals? \\(([-+0-9.eE]+) t N\\) had no",
-    " crop-pattern grid cells;\\s+reallocating\\s+uniformly"
-  )
-  parsed <- regmatches(hits, regexec(pattern, hits))
-  n_t <- suppressWarnings(as.numeric(purrr::map_chr(parsed, \(m) {
-    m[3L] %||% NA
-  })))
-  crops <- suppressWarnings(as.integer(purrr::map_chr(parsed, \(m) {
-    m[2L] %||% NA
-  })))
-  if (anyNA(n_t) || anyNA(crops)) {
-    cli::cli_abort(
-      c(
-        "A uniform-spread warning of the {year} balance run cannot be read.",
-        i = "Expected {.val {pattern}}."
-      ),
-      class = "whep_sjr_uniform_unparsed"
-    )
-  }
-  spread <- sum(n_t)
+  total <- sum(spread$n_t)
   tibble::tibble(
     year = as.integer(year),
     uniform_spread_status = "recorded",
-    uniform_spread_n_t = spread,
-    uniform_spread_polity_crops = sum(crops),
-    uniform_spread_warnings = length(hits),
+    uniform_spread_note = NA_character_,
+    uniform_spread_n_t = total,
+    uniform_spread_polity_crops = sum(spread$crops),
+    uniform_spread_warnings = nrow(spread),
     grid_input_std_n_t = grid_input_std_n_t,
     uniform_spread_share_of_input = dplyr::if_else(
       grid_input_std_n_t > 0,
-      spread / grid_input_std_n_t,
+      total / grid_input_std_n_t,
       NA_real_
     )
   )
 }
 
-# The messages the grid balance raised in one year's report: its own stages
-# when the balance run's primary resolution was the grid, else the conditions
-# it captured while building the grid as its second resolution. NULL when the
-# year has no report.
-.sjr_grid_messages <- function(report) {
-  if (is.null(report)) {
-    return(NULL)
-  }
-  conditions <- if (identical(report$resolution, "grid")) {
-    if (is.null(report$stages)) {
-      return(NULL)
-    }
-    purrr::list_flatten(purrr::map(report$stages, \(s) {
-      s$conditions %||% list()
-    }))
-  } else {
-    grid <- report$second_resolution_conditions$grid
-    if (is.null(grid)) {
-      return(NULL)
-    }
-    grid
-  }
-  messages <- purrr::map_chr(
-    conditions,
-    \(cnd) as.character(cnd$message %||% NA_character_)
+# The words every uniform-spread warning carries. Other conditions that
+# mention the crop pattern (the cropland support's, the soil carbon's, a pin
+# fetch) do not.
+.sjr_uniform_marker <- function() "polity-crop total"
+
+.sjr_uniform_pattern <- function() {
+  paste0(
+    "([0-9]+) polity-crop totals? \\(([-+0-9.eE]+) t N\\) had no",
+    " crop-pattern grid cells; reallocating uniformly"
   )
-  cli::ansi_strip(messages[!is.na(messages)])
+}
+
+# One row per uniform-spread warning, with its polity-crop count and tonnes.
+# Whitespace runs are collapsed first, since the console width decides where
+# the captured text was wrapped.
+.sjr_parse_uniform <- function(grid, year) {
+  texts <- gsub("\\s+", " ", cli::ansi_strip(grid$messages))
+  marked <- grepl(.sjr_uniform_marker(), texts, fixed = TRUE)
+  parsed <- regmatches(
+    texts[marked],
+    regexec(.sjr_uniform_pattern(), texts[marked])
+  )
+  field <- \(i) {
+    purrr::map_chr(parsed, \(m) if (length(m) == 3L) m[[i]] else NA)
+  }
+  n_t <- suppressWarnings(as.numeric(field(3L)))
+  crops <- suppressWarnings(as.integer(field(2L)))
+  classes <- grid$classes[marked]
+  unread <- is.na(n_t) | is.na(crops) | is.na(classes) | classes != "warning"
+  if (any(unread)) {
+    cli::cli_abort(
+      c(
+        "{sum(unread)} uniform-spread condition{?s} of the {year} balance run
+         cannot be read.",
+        x = "{.val {texts[marked][unread][[1]]}}",
+        i = "Expected a warning matching {.val {(.sjr_uniform_pattern())}}."
+      ),
+      class = "whep_sjr_uniform_unparsed"
+    )
+  }
+  tibble::tibble(n_t = n_t, crops = crops)
+}
+
+# The conditions the grid balance raised in one year's report, with whether
+# their capture is complete and, when not, why. The report is the record the
+# balance run writes per year: `resolution`, `stages` (one record per stage,
+# each with its `warnings` count and captured `conditions`) and
+# `second_resolution_conditions`.
+.sjr_grid_conditions <- function(report, year) {
+  incomplete <- \(note, conditions = list()) {
+    c(.sjr_condition_text(conditions), list(complete = FALSE, note = note))
+  }
+  if (is.null(report)) {
+    return(incomplete("no driver report for the year"))
+  }
+  .sjr_check_report_layout(report, year)
+  if (!identical(report$resolution, "grid")) {
+    conditions <- report$second_resolution_conditions$grid
+    if (is.null(conditions)) {
+      return(incomplete("the driver report holds no grid conditions"))
+    }
+    return(incomplete(
+      "grid built as the second resolution; its warnings are not counted",
+      conditions
+    ))
+  }
+  stages <- report$stages
+  if (length(stages) == 0L) {
+    return(incomplete("the driver report records no stages"))
+  }
+  conditions <- purrr::list_flatten(purrr::map(stages, \(s) {
+    s$conditions %||% list()
+  }))
+  counted <- purrr::map_lgl(stages, .sjr_stage_complete)
+  if (!all(counted)) {
+    uncounted <- purrr::map_chr(stages[!counted], \(s) {
+      as.character(s$input %||% "?")
+    })
+    return(incomplete(
+      paste(
+        "warnings counted but not captured in stage",
+        paste(uncounted, collapse = ", ")
+      ),
+      conditions
+    ))
+  }
+  c(
+    .sjr_condition_text(conditions),
+    list(complete = TRUE, note = NA_character_)
+  )
+}
+
+# A stage's capture is complete when its `warnings` count equals the number of
+# warning-class conditions it captured.
+.sjr_stage_complete <- function(stage) {
+  count <- stage$warnings
+  classes <- .sjr_condition_text(stage$conditions %||% list())$classes
+  captured <- sum(classes == "warning", na.rm = TRUE)
+  is.numeric(count) && length(count) == 1L && !is.na(count) && count == captured
+}
+
+# The message and class of each captured condition; a field that is missing
+# or not one string is NA (an empty message).
+.sjr_condition_text <- function(conditions) {
+  text <- \(cnd, field) {
+    value <- if (is.list(cnd)) cnd[[field]] else NULL
+    if (rlang::is_string(value)) value else NA_character_
+  }
+  list(
+    messages = dplyr::coalesce(
+      purrr::map_chr(conditions, \(cnd) text(cnd, "message")),
+      ""
+    ),
+    classes = purrr::map_chr(conditions, \(cnd) text(cnd, "class"))
+  )
+}
+
+# The layout the balance run writes per year. Anything else -- a bare list of
+# stage records among them -- aborts rather than reading as "no report".
+.sjr_check_report_layout <- function(report, year) {
+  keys <- c("resolution", "stages", "second_resolution_conditions")
+  record <- \(x) is.list(x) && length(x) > 0L && !is.null(names(x))
+  same_year <- is.null(report$year) ||
+    identical(as.integer(report$year), as.integer(year))
+  ok <- record(report) &&
+    all(keys %in% names(report)) &&
+    rlang::is_string(report$resolution) &&
+    is.list(report$stages) &&
+    is.null(names(report$stages)) &&
+    all(purrr::map_lgl(report$stages, record)) &&
+    is.list(report$second_resolution_conditions) &&
+    same_year
+  if (!ok) {
+    cli::cli_abort(
+      c(
+        "The {year} driver report of the balance run has an unknown layout.",
+        i = "Expected a record with {.field {keys}}, its stages a list of
+             records."
+      ),
+      class = "whep_sjr_report_layout"
+    )
+  }
+  invisible(report)
 }
 
 # Every identity the year's tables must satisfy before any of them is written.
@@ -648,24 +859,96 @@
   )
 }
 
+# The band's headcounts against the country table, before anything of the year
+# is written. Each headcount must be its prevalence times the band table's
+# population (so the band divided by the same population the country table
+# carries), that population must equal the country table's for every
+# country-year both hold, and the two tails together must not exceed it. A
+# headcount next to a missing population is a breach; a band row whose
+# headcounts are missing (a band term or the supply absent) is counted, not
+# failed. Under the flat pair there is no band and nothing to check.
+.sjr_reconcile_band <- function(band, country, year, tolerance = 1e-8) {
+  if (is.null(band)) {
+    return(tibble::tibble(
+      year = as.integer(year),
+      band_reconciliation_status = "not_applicable",
+      band_max_headcount_excess = NA_real_,
+      band_rows_without_headcount = NA_integer_
+    ))
+  }
+  paired <- dplyr::inner_join(
+    dplyr::select(band, "year", "area_code", band = "population"),
+    dplyr::select(country, "year", "area_code", country = "population"),
+    by = c("year", "area_code"),
+    relationship = "one-to-one"
+  )
+  population_differs <- !(is.na(paired$band) & is.na(paired$country)) &
+    !dplyr::coalesce(paired$band == paired$country, FALSE)
+  scale <- tolerance * pmax(1, band$population)
+  off <- \(people, prevalence) {
+    !is.na(people) &
+      !dplyr::coalesce(
+        abs(people - prevalence * band$population) <= scale,
+        FALSE
+      )
+  }
+  excess <- band$people_under + band$people_over - band$population
+  breaches <- c(
+    population_differs = sum(population_differs),
+    people_under_off = sum(off(
+      band$people_under,
+      band$prevalence_protein_deficit
+    )),
+    people_over_off = sum(off(
+      band$people_over,
+      band$prevalence_protein_excess
+    )),
+    tails_exceed_population = sum(excess > scale, na.rm = TRUE)
+  )
+  if (any(breaches > 0L)) {
+    bad <- breaches[breaches > 0L]
+    cli::cli_abort(
+      c(
+        "The {year} nourishment band does not reconcile with the country
+         table; nothing of {year} was written.",
+        x = "Country-years in breach: {paste0(names(bad), ' ', bad)}."
+      ),
+      class = "whep_sjr_unreconciled"
+    )
+  }
+  tibble::tibble(
+    year = as.integer(year),
+    band_reconciliation_status = "pass",
+    band_max_headcount_excess = if (all(is.na(excess))) {
+      NA_real_
+    } else {
+      max(excess, na.rm = TRUE)
+    },
+    band_rows_without_headcount = sum(
+      is.na(band$people_under) | is.na(band$people_over)
+    )
+  )
+}
+
 # ---- Writing ---------------------------------------------------------------
 
-# The product tables of one year. The nourishment band is stamped on the three
-# tables that depend on it; the boundary tables already carry their own
-# negative_critical, land_use and grassland_split stamps.
-.sjr_tables <- function(out, diagnostics, options) {
-  band <- options$nourishment_thresholds
+# The product tables of one year, in the option set's product list. The
+# nourishment band is stamped on the tables that depend on it; the boundary
+# tables already carry their own negative_critical, land_use and
+# grassland_split stamps.
+.sjr_tables <- function(out, country, band, diagnostics, options) {
+  stamp <- options$nourishment_thresholds
   tables <- list(
     country_crop = out$boundary_surplus$country,
     grid = out$boundary_surplus$grid,
-    country = out$country_table$country |>
-      .sjr_add_population(out$nourishment) |>
-      .sjr_stamp_band(band),
-    class = .sjr_stamp_band(out$sjos_class, band),
-    nourishment = .sjr_stamp_band(out$nourishment, band),
-    diagnostics = diagnostics
+    country = .sjr_stamp_band(country, stamp),
+    class = .sjr_stamp_band(out$sjos_class, stamp),
+    nourishment = .sjr_stamp_band(out$nourishment, stamp),
+    diagnostics = diagnostics,
+    band = band
   )
-  empty <- names(tables)[purrr::map_int(tables, nrow) == 0L]
+  tables <- tables[names(.sjr_run_products(options))]
+  empty <- names(tables)[purrr::map_int(tables, \(x) nrow(x) %||% 0L) == 0L]
   if (length(empty) > 0L) {
     cli::cli_abort(
       "Empty SJOS-N table{?s} {.val {empty}}; nothing was written.",
@@ -673,6 +956,55 @@
     )
   }
   tables
+}
+
+# The band table: build_nourishment_band() as build_sjos_nitrogen() composed it
+# for this year, reduced to the floor, the ceiling, the two prevalences and
+# their headcounts with the band's own polity and method stamps, plus the
+# population and method_population of the nourishment table (the denominator
+# the country table carries; the band drops its own copy). NULL under the flat
+# pair, which has no band.
+.sjr_band_table <- function(out, options) {
+  band <- out$nourishment_band
+  if (is.null(band)) {
+    return(NULL)
+  }
+  population <- dplyr::distinct(
+    out$nourishment,
+    .data$year,
+    .data$area_code,
+    .data$population,
+    .data$method_population
+  )
+  band |>
+    dplyr::select(
+      "year",
+      "area_code",
+      dplyr::any_of(c(
+        .reporting_polity_cols(),
+        .polity_status_cols("reporting_")
+      )),
+      dplyr::all_of(.sjr_band_columns()),
+      dplyr::starts_with("method_")
+    ) |>
+    dplyr::left_join(
+      population,
+      by = c("year", "area_code"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::relocate("population", .after = "people_over") |>
+    .sjr_stamp_band(options$nourishment_thresholds)
+}
+
+.sjr_band_columns <- function() {
+  c(
+    "floor_g_cap_day",
+    "ceiling_g_cap_day",
+    "prevalence_protein_deficit",
+    "prevalence_protein_excess",
+    "people_under",
+    "people_over"
+  )
 }
 
 # Population per country-year from the nourishment table: the denominator
@@ -738,11 +1070,14 @@
 
 # ---- Manifest --------------------------------------------------------------
 
-# The commit of the WHEP checkout the run loaded, and whether its tree was
-# clean. A run that cannot name its commit is refused.
+# The commit of the WHEP checkout the run loaded and whether the code it ran
+# is that commit's: the tree counts as clean when no tracked file under R/ or
+# inst/scripts/ (what pkgload::load_all() and the script execute) differs from
+# HEAD. A dirty tree is described by the paths that differ and the SHA-256 of
+# their diff against HEAD. A run that cannot name its commit, or read its
+# tree, is refused.
 .sjr_whep_state <- function(repo = ".") {
   sha <- .sjr_git(repo, c("rev-parse", "HEAD"))
-  status <- .sjr_git(repo, c("status", "--porcelain"))
   if (
     !is.null(attr(sha, "status")) ||
       length(sha) != 1L ||
@@ -754,9 +1089,97 @@
       class = "whep_sjr_no_sha"
     )
   }
+  scope <- .sjr_code_paths()
+  status <- .sjr_git(
+    repo,
+    c("status", "--porcelain", "--untracked-files=no", "--", scope)
+  )
+  diff <- .sjr_git(repo, c("diff", "HEAD", "--", scope))
+  if (!is.null(attr(status, "status")) || !is.null(attr(diff, "status"))) {
+    cli::cli_abort(
+      "Cannot read the state of the WHEP tree at {.file {repo}}.",
+      class = "whep_sjr_no_sha"
+    )
+  }
+  clean <- length(status) == 0L
   list(
     sha = sha,
-    clean = is.null(attr(status, "status")) && length(status) == 0L
+    clean = clean,
+    dirty_paths = substring(status, 4L),
+    diff_sha256 = if (clean) NA_character_ else .sjr_text_sha256(diff)
+  )
+}
+
+# The code a run executes from the WHEP tree.
+.sjr_code_paths <- function() c("R", "inst/scripts")
+
+.sjr_text_sha256 <- function(lines) {
+  path <- tempfile("sjr_diff_")
+  on.exit(unlink(path), add = TRUE)
+  writeLines(lines, path, useBytes = TRUE)
+  unname(tools::sha256sum(path))
+}
+
+# A dirty tree runs only when asked for (--allow-dirty), and then only as a
+# development run: never into the balance root, and never into a root, or an
+# arm under it, that holds outputs of a clean tree. A clean run likewise
+# refuses a root holding a development run's outputs, so the two never share
+# directories.
+.sjr_check_tree <- function(whep, allow_dirty, out_root, march_root) {
+  if (!whep$clean && !isTRUE(allow_dirty)) {
+    cli::cli_abort(
+      c(
+        "The WHEP tree has uncommitted changes to tracked files under
+         {.path R/} or {.path inst/scripts/}.",
+        x = "{.file {whep$dirty_paths %||% character()}}",
+        i = "Commit them, or pass {.code --allow-dirty} to write a development
+             run to an output root of its own."
+      ),
+      class = "whep_sjr_dirty_tree"
+    )
+  }
+  if (!whep$clean && .sjr_same_path(out_root, march_root)) {
+    cli::cli_abort(
+      c(
+        "A development run from an uncommitted tree cannot write into the
+         balance root {.file {march_root}}.",
+        i = "Pass {.code --out-root} with a root of its own."
+      ),
+      class = "whep_sjr_dirty_root"
+    )
+  }
+  manifests <- c(
+    file.path(out_root, .sjr_manifest_name()),
+    Sys.glob(file.path(out_root, .sjr_arms_dir(), "*", .sjr_manifest_name()))
+  )
+  manifests <- manifests[file.exists(manifests)]
+  other <- purrr::keep(manifests, \(path) {
+    clean <- jsonlite::read_json(path, simplifyVector = FALSE)$whep_tree_clean
+    !identical(isTRUE(clean), isTRUE(whep$clean))
+  })
+  if (length(other) > 0L) {
+    held <- if (whep$clean) {
+      "a development run from an uncommitted tree"
+    } else {
+      "a run from a clean tree"
+    }
+    cli::cli_abort(
+      c(
+        "{.file {out_root}} holds outputs of {held}.",
+        x = "{.file {other}}",
+        i = "Clean and development outputs never share a root; choose another
+             output root."
+      ),
+      class = "whep_sjr_dirty_root"
+    )
+  }
+  invisible(whep)
+}
+
+.sjr_same_path <- function(a, b) {
+  identical(
+    normalizePath(a, winslash = "/", mustWork = FALSE),
+    normalizePath(b, winslash = "/", mustWork = FALSE)
   )
 }
 
@@ -778,6 +1201,7 @@
   list(
     schema_version = manifest$schema_version,
     whep_sha = manifest$whep_sha,
+    whep_tree_clean = manifest$whep_tree_clean,
     input_march_manifest_hash = manifest$input_march_manifest_hash,
     options = manifest$options
   )
@@ -789,12 +1213,21 @@
     generator = "inst/scripts/run_sjos_nitrogen.R",
     whep_sha = whep$sha,
     whep_tree_clean = whep$clean,
+    whep_tree_scope = paste(
+      "tracked files under",
+      paste0(.sjr_code_paths(), "/", collapse = " and "),
+      "against HEAD; recorded per year in the diagnostics"
+    ),
     whep_version = as.character(utils::packageVersion("whep")),
     r_version = R.version.string,
     input_march_manifest_hash = march$sha256,
     input_march_manifest = list(
       path = march$path,
       hash = "sha256 of the manifest file's bytes",
+      partitions = paste(
+        "input_balance.<year>: the grid partition each year read, with its",
+        "row count and the sha256 of its bytes"
+      ),
       whep_commit = march$whep_commit,
       schema_version = march$schema_version,
       allocation = march$allocation
@@ -802,7 +1235,10 @@
     options = options,
     resolved_defaults = .sjr_resolved_defaults(options),
     population = list(
-      column = "population in whep_sjos_n_country and whep_sjos_n_nourishment",
+      column = paste(
+        "population in whep_sjos_n_country, whep_sjos_n_nourishment and",
+        "whep_sjos_n_band"
+      ),
       source = paste(
         "the nourishment denominator of build_sjos_nitrogen(): read_population()",
         "at its default composition (method_population = read_population)"
@@ -829,7 +1265,7 @@
       primary = .sjr_is_primary(options),
       id = .sjr_arm_id(options)
     ),
-    products = purrr::imap(.sjr_products(), \(dir, key) {
+    products = purrr::imap(.sjr_run_products(options), \(dir, key) {
       list(
         dir = dir,
         partition = "year=<YYYY>/part.parquet",
@@ -841,10 +1277,12 @@
 }
 
 # The manifest already at `root`, checked against this run. A manifest written
-# under other options, another commit or another balance aborts, and so do
-# product partitions with no manifest at all: adding years to either would mix
-# two constructions under one set of directories.
-.sjr_previous_manifest <- function(root, header) {
+# under other options, another commit, a tree of the other cleanliness or
+# another balance manifest aborts; so does one whose recorded balance
+# partitions no longer hash to what they were read as, and so do product
+# partitions with no manifest at all: adding years to any of them would mix two
+# constructions under one set of directories.
+.sjr_previous_manifest <- function(root, header, march_root) {
   path <- file.path(root, .sjr_manifest_name())
   if (!file.exists(path)) {
     stray <- unlist(purrr::map(
@@ -884,13 +1322,37 @@
       class = "whep_sjr_incompatible_output"
     )
   }
+  .sjr_check_inputs(previous$input_balance, march_root, path)
   previous
 }
 
-.sjr_year_done <- function(state, root, year) {
+# Every balance partition an earlier run of this root read must still be the
+# same bytes: the balance manifest vouches for row counts only, so a partition
+# rewritten in place under an unchanged manifest is caught here.
+.sjr_check_inputs <- function(inputs, march_root, path) {
+  changed <- purrr::keep(inputs %||% list(), \(input) {
+    file <- file.path(march_root, input$path)
+    !file.exists(file) ||
+      !identical(unname(tools::sha256sum(file)), input$sha256)
+  })
+  if (length(changed) > 0L) {
+    cli::cli_abort(
+      c(
+        "{.file {path}} was built from balance partitions that have changed
+         or gone since.",
+        x = "{.file {purrr::map_chr(changed, 'path')}}",
+        i = "Choose another output root, or remove the old outputs first."
+      ),
+      class = "whep_sjr_incompatible_output"
+    )
+  }
+  invisible(inputs)
+}
+
+.sjr_year_done <- function(state, root, year, products) {
   recorded <- purrr::keep(state$partitions, \(p) identical(p$year, year))
   done <- unlist(purrr::map(recorded, "product"))
-  all(.sjr_products() %in% done) &&
+  all(products %in% done) &&
     all(file.exists(file.path(root, unlist(purrr::map(recorded, "path")))))
 }
 
@@ -905,6 +1367,8 @@
   )]
   state$diagnostics[[as.character(year)]] <- year_record$diagnostics
   state$diagnostics <- state$diagnostics[order(names(state$diagnostics))]
+  state$input_balance[[as.character(year)]] <- year_record$input
+  state$input_balance <- state$input_balance[order(names(state$input_balance))]
   state$years <- as.integer(names(state$diagnostics))
   state
 }
@@ -963,6 +1427,8 @@
 #'   under `whep_sjos_n_arms/<arm id>/`.
 #' @param options A `.sjr_options()` list.
 #' @param force Rebuild years already written by a compatible run.
+#' @param allow_dirty Run from a WHEP tree with uncommitted changes under `R/`
+#'   or `inst/scripts/`, as a development run into a root of its own.
 #' @param context A list with `readers` (a `.sjr_readers()` list) and `whep`
 #'   (a `.sjr_whep_state()` list, or `NULL` to read it).
 #' @return Invisibly, the path of the run manifest.
@@ -973,15 +1439,25 @@
   out_root = march_root,
   options = .sjr_options(),
   force = FALSE,
+  allow_dirty = FALSE,
   context = list(readers = .sjr_readers(), whep = NULL)
 ) {
   march <- .sjr_read_march(march_root)
   years <- .sjr_years(years, march)
   root <- .sjr_arm_root(out_root, options)
   whep <- context$whep %||% .sjr_whep_state()
+  .sjr_check_tree(whep, allow_dirty, out_root, march_root)
   header <- .sjr_manifest_header(whep, march, options)
-  state <- .sjr_previous_manifest(root, header) %||%
-    c(header, list(partitions = list(), diagnostics = list(), years = list()))
+  state <- .sjr_previous_manifest(root, header, march_root) %||%
+    c(
+      header,
+      list(
+        partitions = list(),
+        diagnostics = list(),
+        input_balance = list(),
+        years = list()
+      )
+    )
   readers <- context$readers
   binding <- readers$binding(options)
   state$static <- list(critical_binding = .sjr_write_binding(binding, root))
@@ -993,6 +1469,8 @@
     critical = readers$critical(options),
     binding = binding,
     options = options,
+    products = .sjr_run_products(options),
+    whep = whep,
     readers = readers,
     force = force
   )
@@ -1008,7 +1486,7 @@
 # built, reconciled, written and recorded in the manifest before the next year
 # starts, so an interrupted run keeps every finished year.
 .sjr_step <- function(state, year, run) {
-  if (!run$force && .sjr_year_done(state, run$root, year)) {
+  if (!run$force && .sjr_year_done(state, run$root, year, run$products)) {
     cli::cli_inform("skip {year}: already written with these options")
     return(state)
   }
@@ -1021,11 +1499,10 @@
 
 .sjr_run_year <- function(year, run) {
   expected <- run$march$grid$rows[run$march$grid$year == year]
-  balance <- .sjr_read_balance(run$march_root, year, expected) |>
-    .sjr_check_national(year)
+  input <- .sjr_read_balance(run$march_root, year, expected)
   data <- c(
     list(
-      balance = balance,
+      balance = input$balance,
       critical = run$critical,
       critical_binding = run$binding,
       cbs_food = run$readers$cbs_food(year)
@@ -1043,21 +1520,26 @@
     negative_critical = options$negative_critical,
     country_table = TRUE,
     beyond_share_cut = options$beyond_share_cut,
-    include = character()
+    include = if ("band" %in% names(run$products)) "band" else character()
   )
-  diagnostics <- .sjr_diagnostics(out, year, run, balance)
-  tables <- .sjr_tables(out, diagnostics, options)
+  country <- .sjr_add_population(out$country_table$country, out$nourishment)
+  band <- .sjr_band_table(out, options)
+  band_check <- .sjr_reconcile_band(band, country, year)
+  diagnostics <- .sjr_diagnostics(out, year, run, input$balance, band_check)
+  tables <- .sjr_tables(out, country, band, diagnostics, options)
   list(
     year = as.integer(year),
     partitions = .sjr_write_year(tables, run$root, year),
-    diagnostics = as.list(diagnostics)
+    diagnostics = as.list(diagnostics),
+    input = input$input
   )
 }
 
-# The country table's world diagnostics with the run's reconciliation (which
-# aborts on a breach, before anything is written), the uniform-spread share
-# and the option stamps, one row per year.
-.sjr_diagnostics <- function(out, year, run, balance) {
+# The country table's world diagnostics with the run's reconciliations (which
+# abort on a breach, before anything is written), the uniform-spread share, the
+# state of the WHEP tree the year ran from and the option stamps, one row per
+# year.
+.sjr_diagnostics <- function(out, year, run, balance, band_check) {
   reconciliation <- .sjr_reconcile(out, year)
   uniform <- .sjr_uniform_spread(
     run$march$driver_report,
@@ -1070,8 +1552,12 @@
       by = "year",
       relationship = "one-to-one"
     ) |>
+    dplyr::left_join(band_check, by = "year", relationship = "one-to-one") |>
     dplyr::left_join(uniform, by = "year", relationship = "one-to-one") |>
     dplyr::mutate(
+      whep_sha = run$whep$sha,
+      whep_tree_clean = run$whep$clean,
+      whep_dirty_diff_sha256 = run$whep$diff_sha256 %||% NA_character_,
       negative_critical = run$options$negative_critical,
       land_use = run$options$land_use,
       grassland_split = run$options$grassland_split,

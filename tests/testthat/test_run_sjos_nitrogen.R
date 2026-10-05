@@ -150,23 +150,77 @@
   dir
 }
 
-.sjr_report <- function(messages, resolution = "grid") {
-  conditions <- purrr::map(messages, \(m) list(class = "warning", message = m))
-  if (resolution == "grid") {
+# Captured conditions as the balance run records them, `class` and `message`.
+.sjr_conditions <- function(messages, class = "warning") {
+  purrr::map2(
+    messages,
+    rep_len(class, length(messages)),
+    \(m, cl) list(class = cl, message = m)
+  )
+}
+
+# One stage record of the balance run's driver report: its counts and the
+# conditions it captured. `warnings` defaults to the warning-class conditions
+# captured, i.e. a complete capture.
+.sjr_stage <- function(input, conditions = list(), warnings = NULL) {
+  classes <- purrr::map_chr(conditions, "class")
+  list(
+    input = input,
+    status = "ok",
+    seconds = 1.5,
+    rows = 10L,
+    detail = NA_character_,
+    warnings = warnings %||% sum(classes == "warning"),
+    messages = sum(classes == "message"),
+    conditions = conditions
+  )
+}
+
+# The per-year record the balance run writes: `resolution`, `stages` and
+# `second_resolution_conditions` (layout 8 of its manifest). A grid-primary
+# run carries the warnings in its own stages; a polity-primary run carries the
+# grid's conditions, uncounted, under `second_resolution_conditions$grid`.
+.sjr_report <- function(messages, resolution = "grid", year = NULL) {
+  conditions <- .sjr_conditions(messages)
+  none <- stats::setNames(list(), character())
+  record <- if (resolution == "grid") {
     list(
       resolution = "grid",
       stages = list(
-        list(input = "cell_polity", conditions = list()),
-        list(input = "n_inputs", conditions = conditions)
-      )
+        .sjr_stage("cell_polity"),
+        .sjr_stage("n_inputs", conditions)
+      ),
+      second_resolution_conditions = none
     )
   } else {
     list(
       resolution = resolution,
-      stages = list(list(input = "n_inputs", conditions = list())),
+      stages = list(.sjr_stage("n_inputs")),
       second_resolution_conditions = list(grid = conditions)
     )
   }
+  c(if (!is.null(year)) list(year = as.integer(year)), record)
+}
+
+# A driver report as it reads back from the balance manifest's JSON.
+.sjr_json <- function(x) {
+  path <- withr::local_tempfile(fileext = ".json")
+  jsonlite::write_json(x, path, auto_unbox = TRUE, digits = NA, null = "null")
+  jsonlite::read_json(path, simplifyVector = FALSE)
+}
+
+# The uniform-spread warning exactly as .nbd_capture_conditions() captures it
+# from the balance (.n_warn_unmatched()) at console width `width`.
+.sjr_captured_uniform <- function(crops, n_t, width = 80L) {
+  withr::local_options(cli.width = width, width = width)
+  unmatched <- tibble::tibble(
+    n_t = rep(n_t / crops, crops),
+    item_cbs_code = 2500L + seq_len(crops)
+  )
+  captured <- whep:::.nbd_capture_conditions(
+    whep:::.n_warn_unmatched(unmatched)
+  )
+  captured$conditions$message
 }
 
 .sjr_uniform_message <- function(crops, n_t) {
@@ -403,7 +457,14 @@ testthat::test_that("the manifest names the WHEP commit and the balance hash", {
     manifest$input_march_manifest$whep_commit,
     strrep("b", 40)
   )
-  testthat::expect_equal(manifest$schema_version, 1L)
+  testthat::expect_equal(manifest$schema_version, 2L)
+  # Each balance partition read is recorded by the SHA-256 of its bytes.
+  for (year in .sjr_test_years) {
+    input <- manifest$input_balance[[as.character(year)]]
+    path <- file.path(run$march, input$path)
+    testthat::expect_equal(input$sha256, unname(tools::sha256sum(path)))
+    testthat::expect_equal(input$rows, nrow(arrow::read_parquet(path)))
+  }
   testthat::expect_equal(
     sort(purrr::map_chr(manifest$products, "dir")),
     sort(unname(whep:::.sjr_products()))
@@ -470,16 +531,57 @@ testthat::test_that("the allocation record is copied and a grant refused", {
     whep:::.sjr_allocation(manifest),
     class = "whep_sjr_subnational_granted"
   )
-  balance <- tibble::tibble(year = 2010L, level_polity_code = c(NA, NA))
-  testthat::expect_identical(
-    whep:::.sjr_check_national(balance, 2010L),
-    balance
+})
+
+testthat::test_that("a subnational record is refused at any depth", {
+  # The per-year allocation record of the balance run, national.
+  national <- list(
+    grid = "national",
+    level = 0L,
+    granted_containers = list(),
+    subnational_calls = 0L,
+    guarded = list("run_spatialize"),
+    basis = "national"
   )
-  balance$level_polity_code[[2]] <- 7L
-  testthat::expect_error(
-    whep:::.sjr_check_national(balance, 2010L),
-    class = "whep_sjr_subnational_granted"
+  manifest <- \(allocation) {
+    .sjr_json(list(
+      whep_commit = "x",
+      driver_report = list("2015" = list(allocation = allocation))
+    ))
+  }
+  passes <- list(
+    national = national,
+    granted_null = list(granted_containers = NULL),
+    granted_false = list(subnational_granted = FALSE),
+    granted_none = list(granted_containers = "None"),
+    level_zero_text = list(level = "0")
   )
+  for (allocation in passes) {
+    testthat::expect_no_error(whep:::.sjr_allocation(manifest(allocation)))
+  }
+  testthat::expect_named(
+    whep:::.sjr_allocation(manifest(national))$recorded,
+    "driver_report.2015.allocation"
+  )
+  refused <- list(
+    # A grant nested under a key that already matched.
+    nested_grant = list(subnational = list(granted = list(392L))),
+    grant_key = list(subnational_grant = list("JPN")),
+    level_one = utils::modifyList(national, list(level = 1L)),
+    level_deep = list(grid = list(depth = list(admin_level = 2L))),
+    level_text = list(level = "subnational"),
+    granted_true = list(subnational_granted = TRUE)
+  )
+  for (allocation in refused) {
+    testthat::expect_error(
+      whep:::.sjr_allocation(manifest(allocation)),
+      class = "whep_sjr_subnational_granted"
+    )
+  }
+  # A level outside any allocation record is not an allocation level.
+  testthat::expect_no_error(whep:::.sjr_allocation(list(
+    driver_report = list("2015" = list(log = list(level = 3L)))
+  )))
 })
 
 testthat::test_that("the uniform-spread share is reported per year (#533)", {
@@ -496,6 +598,10 @@ testthat::test_that("the uniform-spread share is reported per year (#533)", {
     diag$uniform_spread_status,
     c("recorded", "not_recorded")
   )
+  testthat::expect_equal(
+    diag$uniform_spread_note,
+    c(NA, "no driver report for the year")
+  )
   testthat::expect_equal(diag$uniform_spread_n_t, c(12.5, NA))
   testthat::expect_equal(diag$uniform_spread_polity_crops, c(2L, NA))
   testthat::expect_equal(diag$grid_input_std_n_t, input)
@@ -506,45 +612,237 @@ testthat::test_that("the uniform-spread share is reported per year (#533)", {
   testthat::expect_true(all(c("valid_input_fraction") %in% names(diag)))
 })
 
-testthat::test_that("uniform-spread warnings are summed, missing or unreadable", {
+testthat::test_that("uniform-spread warnings are summed when fully captured", {
   messages <- c(
     .sjr_uniform_message(2, "10.25"),
     "some other warning",
     .sjr_uniform_message(1, "1.5e+3")
   )
-  report <- list("2010" = .sjr_report(messages))
+  report <- .sjr_json(list("2010" = .sjr_report(messages, year = 2010L)))
   out <- whep:::.sjr_uniform_spread(report, 2010L, 2000)
+  testthat::expect_equal(out$uniform_spread_status, "recorded")
   testthat::expect_equal(out$uniform_spread_n_t, 1510.25)
   testthat::expect_equal(out$uniform_spread_polity_crops, 3L)
   testthat::expect_equal(out$uniform_spread_warnings, 2L)
   testthat::expect_equal(out$uniform_spread_share_of_input, 1510.25 / 2000)
 
-  # A grid built as the balance run's second resolution.
-  second <- list("2010" = .sjr_report(messages, resolution = "polity"))
+  # The same warning in two stages is two spreads.
+  twice <- .sjr_report(character())
+  uniform <- .sjr_conditions(.sjr_uniform_message(3, "4"))
+  twice$stages <- list(
+    .sjr_stage("n_inputs", uniform),
+    .sjr_stage("balance", uniform)
+  )
   testthat::expect_equal(
-    whep:::.sjr_uniform_spread(second, 2010L, 2000)$uniform_spread_n_t,
-    1510.25
+    whep:::.sjr_uniform_spread(
+      list("2010" = twice),
+      2010L,
+      100
+    )$uniform_spread_n_t,
+    8
   )
 
-  # No warning in a recorded year is zero; no report is not zero.
+  # No uniform warning in a completely captured year is zero.
   none <- list("2010" = .sjr_report("some other warning"))
-  testthat::expect_equal(
-    whep:::.sjr_uniform_spread(none, 2010L, 2000)$uniform_spread_n_t,
-    0
-  )
-  missing <- whep:::.sjr_uniform_spread(none, 2011L, 2000)
-  testthat::expect_equal(missing$uniform_spread_status, "not_recorded")
-  testthat::expect_true(is.na(missing$uniform_spread_n_t))
+  zero <- whep:::.sjr_uniform_spread(none, 2010L, 2000)
+  testthat::expect_equal(zero$uniform_spread_status, "recorded")
+  testthat::expect_equal(zero$uniform_spread_n_t, 0)
+})
 
-  garbled <- list(
-    "2010" = .sjr_report(
-      "! many polity-crop totals (lots t N) had no crop-pattern grid cells; x"
+testthat::test_that("the uniform spread is read at any console width", {
+  # .n_warn_unmatched() wraps at the console width, so the break can fall
+  # anywhere in the text; 250 crops and 1234567.891 t wrap differently at each
+  # of these widths.
+  for (width in c(30L, 40L, 60L, 80L, 200L)) {
+    message <- .sjr_captured_uniform(250L, 1234567.891, width)
+    report <- .sjr_json(list("2000" = .sjr_report(message)))
+    out <- whep:::.sjr_uniform_spread(report, 2000L, 1e8)
+    testthat::expect_equal(out$uniform_spread_n_t, 1234567.891)
+    testthat::expect_equal(out$uniform_spread_polity_crops, 250L)
+  }
+  # Very small and very large masses, and one polity-crop.
+  for (case in list(c(1, 12.5), c(3, 1e-5), c(1000, 98765432.1), c(12, 4e-4))) {
+    message <- .sjr_captured_uniform(case[[1]], case[[2]])
+    out <- whep:::.sjr_uniform_spread(
+      list("2000" = .sjr_report(message)),
+      2000L,
+      1e8
+    )
+    testthat::expect_equal(out$uniform_spread_n_t, round(case[[2]], 3))
+    testthat::expect_equal(out$uniform_spread_polity_crops, case[[1]])
+  }
+  # A message the balance run truncated at 2000 characters keeps its numbers.
+  long <- paste0(.sjr_uniform_message(3, "3"), strrep(" padding", 400))
+  truncated <- paste0(substr(long, 1L, 2000L), " [truncated]")
+  testthat::expect_equal(
+    whep:::.sjr_uniform_spread(
+      list("2000" = .sjr_report(truncated)),
+      2000L,
+      100
+    )$uniform_spread_n_t,
+    3
+  )
+})
+
+testthat::test_that("other crop-pattern conditions are not counted", {
+  # Captured in the same 2010 balance run as the uniform-spread warning: the
+  # cropland support's and the pin fetch's mention the crop pattern but are
+  # not uniform spreads, and the soil carbon's is carbon, not nitrogen.
+  others <- c(
+    paste(
+      "! 8251 cell-years (12118155.7 ha) have cropland but no crop-pattern\n ",
+      "composition; they carry no cropland support."
+    ),
+    "ℹ Fetching files for spatialize-crop-patterns...",
+    paste(
+      "! 3 polity-crop carbon components (12.5 Mg C) had no crop-pattern",
+      "cells; reallocating uniformly across the polity's cropland cells."
     )
   )
+  report <- .sjr_report(c(others, .sjr_uniform_message(650, "9331451.681")))
+  report$stages[[2]]$conditions[[2]]$class <- "message"
+  report$stages[[2]]$warnings <- 3L
+  out <- whep:::.sjr_uniform_spread(list("2010" = report), 2010L, 1e8)
+  testthat::expect_equal(out$uniform_spread_status, "recorded")
+  testthat::expect_equal(out$uniform_spread_n_t, 9331451.681)
+  testthat::expect_equal(out$uniform_spread_warnings, 1L)
+})
+
+testthat::test_that("an incomplete capture is not recorded, never zero", {
+  expect_not_recorded <- \(report, note) {
+    out <- whep:::.sjr_uniform_spread(report, 2010L, 2000)
+    testthat::expect_equal(out$uniform_spread_status, "not_recorded")
+    testthat::expect_match(out$uniform_spread_note, note)
+    testthat::expect_true(is.na(out$uniform_spread_n_t))
+    testthat::expect_true(is.na(out$uniform_spread_share_of_input))
+  }
+  # No report for the year.
+  expect_not_recorded(list("2011" = .sjr_report(character())), "no driver")
+  expect_not_recorded(list(), "no driver")
+  # Warnings counted but not captured: zero captured is not zero spread.
+  counted <- .sjr_report("some other warning")
+  counted$stages[[2]]$warnings <- 5L
+  expect_not_recorded(list("2010" = counted), "not captured in stage n_inputs")
+  # ... and a partial capture is not the total either.
+  partial <- .sjr_report(.sjr_uniform_message(2, "12.5"))
+  partial$stages[[2]]$warnings <- 2L
+  expect_not_recorded(list("2010" = partial), "not captured")
+  # A stage without a count.
+  uncounted <- .sjr_report(character())
+  uncounted$stages[[1]]$warnings <- NULL
+  expect_not_recorded(list("2010" = uncounted), "cell_polity")
+  # No stages.
+  empty <- .sjr_report(character())
+  empty$stages <- list()
+  expect_not_recorded(.sjr_json(list("2010" = empty)), "no stages")
+  # A grid built as the balance run's second resolution: its conditions carry
+  # no count, so even a readable spread is not a complete total.
+  second <- .sjr_json(list(
+    "2010" = .sjr_report(.sjr_uniform_message(2, "12.5"), "polity")
+  ))
+  expect_not_recorded(second, "second resolution")
+  no_grid <- .sjr_report(character(), "polity")
+  no_grid$second_resolution_conditions <- stats::setNames(list(), character())
+  expect_not_recorded(list("2010" = no_grid), "no grid conditions")
+})
+
+testthat::test_that("an unreadable uniform-spread condition aborts", {
+  abort <- \(report) {
+    testthat::expect_error(
+      whep:::.sjr_uniform_spread(list("2010" = report), 2010L, 2000),
+      class = "whep_sjr_uniform_unparsed"
+    )
+  }
+  abort(.sjr_report(
+    "! many polity-crop totals (lots t N) had no crop-pattern grid cells; x"
+  ))
+  abort(.sjr_report("! 2 polity-crop totals (12.5 t N) were spread somehow."))
+  # Even when the capture is incomplete.
+  incomplete <- .sjr_report("! 2 polity-crop totals were dropped")
+  incomplete$stages[[2]]$warnings <- 4L
+  abort(incomplete)
+  # A uniform spread reported other than as a warning.
+  message_class <- .sjr_report(.sjr_uniform_message(2, "12.5"))
+  message_class$stages[[2]]$conditions[[1]]$class <- "message"
+  message_class$stages[[2]]$warnings <- 0L
+  abort(message_class)
+})
+
+testthat::test_that("a driver report in another layout aborts", {
+  abort <- \(report) {
+    testthat::expect_error(
+      whep:::.sjr_uniform_spread(report, 2010L, 2000),
+      class = "whep_sjr_report_layout"
+    )
+  }
+  stages <- .sjr_report(.sjr_uniform_message(2, "12.5"))$stages
+  # A bare list of stage records, without the per-year wrapper.
+  abort(.sjr_json(list("2010" = stages)))
+  # The wrapper without its stages, or without the second-resolution record.
+  wrapper <- .sjr_report(.sjr_uniform_message(2, "12.5"))
+  abort(list("2010" = wrapper[c("resolution", "second_resolution_conditions")]))
+  abort(list("2010" = wrapper[c("resolution", "stages")]))
+  # Stages keyed by name rather than listed, or a stage that is not a record.
+  keyed <- wrapper
+  keyed$stages <- list(n_inputs = wrapper$stages[[2]])
+  abort(list("2010" = keyed))
+  scalar <- wrapper
+  scalar$stages <- list("n_inputs")
+  abort(list("2010" = scalar))
+  # A record that says it is another year.
+  abort(list("2010" = .sjr_report(character(), year = 2011L)))
+  # A driver report that is not keyed by year at all.
+  dir <- withr::local_tempdir()
+  march <- .sjr_gs_march(file.path(dir, "march"), years = 2015L)
+  manifest_path <- file.path(march, "whep_n_balance_run_manifest.json")
+  manifest <- jsonlite::read_json(manifest_path, simplifyVector = FALSE)
+  manifest$driver_report <- unname(manifest$driver_report)
+  jsonlite::write_json(manifest, manifest_path, auto_unbox = TRUE)
   testthat::expect_error(
-    whep:::.sjr_uniform_spread(garbled, 2010L, 2000),
-    class = "whep_sjr_uniform_unparsed"
+    whep:::.sjr_read_march(march),
+    class = "whep_sjr_report_layout"
   )
+})
+
+testthat::test_that("the real layout-8 driver report reads as recorded", {
+  # The stage counts of the 2010 smoke run of the balance (layout 8): every
+  # stage's `warnings` equals its captured warning-class conditions, messages
+  # are captured too, and the uniform spread sits in n_inputs.
+  counts <- tibble::tribble(
+    ~input, ~warnings, ~messages,
+    "primary_prod", 12L, 98L,
+    "ag_land_support", 1L, 0L,
+    "npp_n_input", 0L, 2L,
+    "carbon_balance", 300L, 904L,
+    "n_inputs", 3L, 2L
+  )
+  stages <- purrr::pmap(counts, \(input, warnings, messages) {
+    conditions <- c(
+      .sjr_conditions(rep("a warning", warnings)),
+      .sjr_conditions(rep("a message", messages), "message")
+    )
+    if (input == "n_inputs") {
+      conditions[[1]]$message <- .sjr_uniform_message(650, "9331451.681")
+    }
+    .sjr_stage(input, conditions)
+  })
+  report <- list(
+    year = 2010L,
+    resolution = "grid",
+    human_n_population_basis = "total",
+    stages = stages,
+    second_resolution_conditions = list(
+      polity = .sjr_conditions(.sjr_uniform_message(650, "9331451.681"))
+    )
+  )
+  out <- whep:::.sjr_uniform_spread(
+    .sjr_json(list("2010" = report)),
+    2010L,
+    1e8
+  )
+  testthat::expect_equal(out$uniform_spread_status, "recorded")
+  testthat::expect_equal(out$uniform_spread_n_t, 9331451.681)
+  testthat::expect_equal(out$uniform_spread_polity_crops, 650L)
 })
 
 # A cell netting to zero surplus (country 1 +5 t, country 2 -5 t) against a
@@ -828,6 +1126,399 @@ testthat::test_that("food comes from the tonnes rows of the balances only", {
     whep:::.sjr_cbs_food(2015L, cbs),
     class = "whep_sjr_food_units"
   )
+})
+
+testthat::test_that("arm ids carry the cut at fixed precision", {
+  arm <- \(cut) whep:::.sjr_arm_id(whep:::.sjr_options(beyond_share_cut = cut))
+  testthat::expect_match(arm(0.3), "_cut-0\\.300000$")
+  testthat::expect_match(arm(0), "_cut-0\\.000000$")
+  testthat::expect_match(arm(0.123456), "_cut-0\\.123456$")
+  # Distinct cuts that one label would share are refused, so no two accepted
+  # cuts can write to the same arm.
+  for (cut in c(0.30000000001, 0.1234567, 1 / 3)) {
+    testthat::expect_error(
+      whep:::.sjr_options(beyond_share_cut = cut),
+      class = "whep_sjr_arm_collision"
+    )
+  }
+  testthat::expect_error(
+    whep:::.sjr_parse_args("--beyond-share-cut=0.30000000001"),
+    class = "whep_sjr_arm_collision"
+  )
+  cuts <- c(0, 0.05, 0.1, 0.25, 0.3, 0.333333, 0.4, 0.6, 0.75, 0.999999)
+  testthat::expect_false(anyDuplicated(purrr::map_chr(cuts, arm)) > 0L)
+})
+
+# A WHEP state as .sjr_whep_state() returns it for an uncommitted tree.
+.sjr_dirty <- function() {
+  list(
+    sha = strrep("a", 40),
+    clean = FALSE,
+    dirty_paths = "R/sjos_n_run.R",
+    diff_sha256 = strrep("d", 64)
+  )
+}
+
+testthat::test_that("a dirty tree is refused unless asked for", {
+  dir <- withr::local_tempdir()
+  march <- .sjr_gs_march(file.path(dir, "march"), years = 2015L)
+  run <- \(out, whep, allow_dirty = FALSE) {
+    .sjr_quiet(whep:::.sjr_run(
+      years = 2015L,
+      march_root = march,
+      out_root = out,
+      allow_dirty = allow_dirty,
+      context = .sjr_context(whep)
+    ))
+  }
+  testthat::expect_error(
+    run(file.path(dir, "dev"), .sjr_dirty()),
+    class = "whep_sjr_dirty_tree"
+  )
+  # Asked for, it still never writes into the balance root ...
+  testthat::expect_error(
+    run(march, .sjr_dirty(), allow_dirty = TRUE),
+    class = "whep_sjr_dirty_root"
+  )
+  # ... nor beside a clean run's outputs, at the root or in an arm under it.
+  clean <- file.path(dir, "clean")
+  run(clean, .sjr_sha())
+  testthat::expect_error(
+    run(clean, .sjr_dirty(), allow_dirty = TRUE),
+    class = "whep_sjr_dirty_root"
+  )
+  .sjr_quiet(whep:::.sjr_run(
+    years = 2015L,
+    march_root = march,
+    out_root = file.path(dir, "arm_only"),
+    options = whep:::.sjr_options(negative_critical = "keep"),
+    context = .sjr_context()
+  ))
+  testthat::expect_error(
+    run(file.path(dir, "arm_only"), .sjr_dirty(), allow_dirty = TRUE),
+    class = "whep_sjr_dirty_root"
+  )
+  testthat::expect_false(dir.exists(file.path(dir, "dev")))
+  testthat::expect_false(file.exists(file.path(
+    march,
+    "whep_sjos_n_run_manifest.json"
+  )))
+
+  # Into a root of its own, the run records the tree's state per year.
+  dev <- file.path(dir, "dev")
+  manifest <- run(dev, .sjr_dirty(), allow_dirty = TRUE)
+  testthat::expect_true(.sjr_in_tempdir(manifest, dir))
+  record <- jsonlite::read_json(manifest)
+  testthat::expect_false(record$whep_tree_clean)
+  testthat::expect_false(record$diagnostics[["2015"]]$whep_tree_clean)
+  testthat::expect_equal(
+    record$diagnostics[["2015"]]$whep_dirty_diff_sha256,
+    strrep("d", 64)
+  )
+  diag <- .sjr_read(dev, "whep_sjos_n_diag", 2015L)
+  testthat::expect_false(diag$whep_tree_clean)
+  # A clean run refuses the development root in turn.
+  testthat::expect_error(
+    run(dev, .sjr_sha()),
+    class = "whep_sjr_dirty_root"
+  )
+  clean_diag <- .sjr_read(clean, "whep_sjos_n_diag", 2015L)
+  testthat::expect_true(clean_diag$whep_tree_clean)
+  testthat::expect_true(is.na(clean_diag$whep_dirty_diff_sha256))
+  testthat::expect_true(whep:::.sjr_parse_args("--allow-dirty")$allow_dirty)
+  testthat::expect_false(whep:::.sjr_parse_args(character())$allow_dirty)
+})
+
+testthat::test_that("the tree state counts tracked code changes only", {
+  testthat::skip_if(Sys.which("git") == "", "git is not available")
+  repo <- withr::local_tempdir()
+  git <- \(...) {
+    system2("git", c("-C", shQuote(repo), ...), stdout = TRUE, stderr = TRUE)
+  }
+  git("init", "-q")
+  git("config", "user.email", "t@example.org")
+  git("config", "user.name", "t")
+  dir.create(file.path(repo, "R"))
+  dir.create(file.path(repo, "inst", "scripts"), recursive = TRUE)
+  writeLines("x <- 1", file.path(repo, "R", "a.R"))
+  writeLines("y <- 1", file.path(repo, "inst", "scripts", "s.R"))
+  writeLines("notes", file.path(repo, "NEWS.md"))
+  git("add", "-A")
+  git("commit", "-q", "-m", "init")
+  state <- whep:::.sjr_whep_state(repo)
+  testthat::expect_match(state$sha, "^[0-9a-f]{40}$")
+  testthat::expect_true(state$clean)
+  testthat::expect_true(is.na(state$diff_sha256))
+  # Outside R/ and inst/scripts/, or untracked: still the commit's code.
+  writeLines("changed", file.path(repo, "NEWS.md"))
+  writeLines("z <- 1", file.path(repo, "R", "untracked.R"))
+  testthat::expect_true(whep:::.sjr_whep_state(repo)$clean)
+  # A tracked R file changed.
+  writeLines("x <- 2", file.path(repo, "R", "a.R"))
+  dirty <- whep:::.sjr_whep_state(repo)
+  testthat::expect_false(dirty$clean)
+  testthat::expect_equal(dirty$dirty_paths, "R/a.R")
+  testthat::expect_match(dirty$diff_sha256, "^[0-9a-f]{64}$")
+  # A tracked script changed.
+  git("checkout", "--", "R/a.R")
+  writeLines("y <- 2", file.path(repo, "inst", "scripts", "s.R"))
+  testthat::expect_equal(
+    whep:::.sjr_whep_state(repo)$dirty_paths,
+    "inst/scripts/s.R"
+  )
+  testthat::expect_error(
+    whep:::.sjr_whep_state(file.path(repo, "nowhere")),
+    class = "whep_sjr_no_sha"
+  )
+})
+
+testthat::test_that("a balance partition changed since it was read is refused", {
+  dir <- withr::local_tempdir()
+  march <- .sjr_gs_march(file.path(dir, "march"))
+  out <- file.path(dir, "out")
+  run <- \(years) {
+    .sjr_quiet(whep:::.sjr_run(
+      years = years,
+      march_root = march,
+      out_root = out,
+      context = .sjr_context()
+    ))
+  }
+  run(2015L)
+  gc()
+  # Same rows, so the balance manifest still vouches for it, but other values.
+  path <- file.path(march, "whep_n_balance_grid", "year=2015", "part.parquet")
+  changed <- .sjr_gs_balance(2015L) |>
+    dplyr::mutate(prod_n_t = .data$prod_n_t * 2)
+  arrow::write_parquet(changed, path)
+  # Adding another year to the root is refused, not only re-running 2015.
+  testthat::expect_error(run(2016L), class = "whep_sjr_incompatible_output")
+  # A recorded partition that is gone is refused too.
+  unlink(path)
+  testthat::expect_error(
+    whep:::.sjr_check_inputs(
+      list("2015" = list(path = "whep_n_balance_grid/year=2015/part.parquet")),
+      march,
+      "manifest"
+    ),
+    class = "whep_sjr_incompatible_output"
+  )
+  testthat::expect_false(dir.exists(file.path(out, "whep_sjos_n", "year=2016")))
+})
+
+testthat::test_that("the band table carries the chain's band and headcounts", {
+  run <- .sjr_primary_run()
+  year <- 2016L
+  band <- .sjr_read(run$out, "whep_sjos_n_band", year)
+  testthat::expect_named(
+    band,
+    c(
+      "year",
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
+      "floor_g_cap_day",
+      "ceiling_g_cap_day",
+      "prevalence_protein_deficit",
+      "prevalence_protein_excess",
+      "people_under",
+      "people_over",
+      "population",
+      "method_quality",
+      "method_shortfall",
+      "method_ceiling",
+      "method_population",
+      "nourishment_thresholds"
+    )
+  )
+  # The values are build_nourishment_band()'s as build_sjos_nitrogen()
+  # composed it, not recomputed.
+  readers <- .sjr_gs_readers()
+  options <- whep:::.sjr_options()
+  direct <- .sjr_quiet(whep::build_sjos_nitrogen(
+    data = c(
+      list(
+        balance = .sjr_gs_balance(year),
+        critical = readers$critical(options),
+        critical_binding = readers$binding(options),
+        cbs_food = readers$cbs_food(year)
+      ),
+      readers$extra(year)
+    ),
+    boundary_land_use = "all",
+    negative_critical = "clamp",
+    country_table = TRUE,
+    include = "band"
+  ))$nourishment_band
+  shared <- intersect(names(band), names(direct))
+  testthat::expect_equal(
+    as.data.frame(band[shared]),
+    as.data.frame(direct[shared]),
+    ignore_attr = TRUE
+  )
+  testthat::expect_equal(nrow(band), 2L)
+  testthat::expect_equal(unique(band$nourishment_thresholds), "composed")
+  # Population is the country table's, and the headcounts are its shares.
+  country <- .sjr_read(run$out, "whep_sjos_n_country", year)
+  joined <- dplyr::inner_join(
+    dplyr::select(band, "area_code", "population"),
+    dplyr::select(country, "area_code", expected = "population"),
+    by = "area_code"
+  )
+  testthat::expect_equal(nrow(joined), nrow(country))
+  testthat::expect_identical(joined$population, joined$expected)
+  testthat::expect_equal(
+    band$people_under,
+    band$prevalence_protein_deficit * band$population
+  )
+  testthat::expect_equal(
+    band$people_over,
+    band$prevalence_protein_excess * band$population
+  )
+  testthat::expect_true(all(
+    band$people_under + band$people_over <= band$population
+  ))
+  testthat::expect_true(all(band$people_under > 0 & band$people_over > 0))
+  diag <- .sjr_read(run$out, "whep_sjos_n_diag", year)
+  testthat::expect_equal(diag$band_reconciliation_status, "pass")
+  testthat::expect_equal(diag$band_rows_without_headcount, 0L)
+  testthat::expect_lt(diag$band_max_headcount_excess, 0)
+  manifest <- jsonlite::read_json(run$manifest)
+  testthat::expect_true(
+    "whep_sjos_n_band" %in% purrr::map_chr(manifest$products, "dir")
+  )
+})
+
+testthat::test_that("a band that does not reconcile aborts", {
+  band <- tibble::tibble(
+    year = 2015L,
+    area_code = c(1L, 2L),
+    prevalence_protein_deficit = c(0.1, 0.2),
+    prevalence_protein_excess = c(0.3, 0.4),
+    people_under = c(10, 40),
+    people_over = c(30, 80),
+    population = c(100, 200)
+  )
+  country <- dplyr::select(band, "year", "area_code", "population")
+  check <- whep:::.sjr_reconcile_band(band, country, 2015L)
+  testthat::expect_equal(check$band_reconciliation_status, "pass")
+  testthat::expect_equal(check$band_max_headcount_excess, -60)
+  breaches <- list(
+    # The country table divides by another population.
+    list(band = band, country = dplyr::mutate(country, population = 101)),
+    # A headcount that is not its prevalence times the population.
+    list(
+      band = dplyr::mutate(band, people_under = c(11, 40)),
+      country = country
+    ),
+    list(
+      band = dplyr::mutate(band, people_over = c(30, 81)),
+      country = country
+    ),
+    # Both tails together above the population.
+    list(
+      band = dplyr::mutate(
+        band,
+        prevalence_protein_excess = c(0.95, 0.4),
+        people_over = c(95, 80)
+      ),
+      country = country
+    ),
+    # A headcount next to a missing population.
+    list(
+      band = dplyr::mutate(band, population = c(NA, 200)),
+      country = dplyr::mutate(country, population = c(NA, 200))
+    )
+  )
+  for (case in breaches) {
+    testthat::expect_error(
+      whep:::.sjr_reconcile_band(case$band, case$country, 2015L),
+      class = "whep_sjr_unreconciled"
+    )
+  }
+  # A band row without headcounts is counted, not failed.
+  gap <- dplyr::mutate(
+    band,
+    people_under = c(NA, 40),
+    prevalence_protein_deficit = c(NA, 0.2)
+  )
+  testthat::expect_equal(
+    whep:::.sjr_reconcile_band(gap, country, 2015L)$band_rows_without_headcount,
+    1L
+  )
+  testthat::expect_equal(
+    whep:::.sjr_reconcile_band(NULL, country, 2015L)$band_reconciliation_status,
+    "not_applicable"
+  )
+})
+
+testthat::test_that("a band breach in the run writes nothing for that year", {
+  dir <- withr::local_tempdir()
+  march <- .sjr_gs_march(file.path(dir, "march"), years = 2015L)
+  out <- file.path(dir, "out")
+  real <- whep::build_sjos_nitrogen
+  testthat::local_mocked_bindings(
+    build_sjos_nitrogen = function(...) {
+      x <- real(...)
+      x$nourishment_band$people_over <- x$nourishment_band$people_over * 2
+      x
+    }
+  )
+  testthat::expect_error(
+    .sjr_quiet(whep:::.sjr_run(
+      years = 2015L,
+      march_root = march,
+      out_root = out,
+      context = .sjr_context()
+    )),
+    class = "whep_sjr_unreconciled"
+  )
+  parts <- Sys.glob(file.path(out, "whep_sjos_n*", "year=*", "part.parquet"))
+  testthat::expect_length(parts, 0L)
+})
+
+testthat::test_that("the flat pair writes no band table", {
+  dir <- withr::local_tempdir()
+  march <- .sjr_gs_march(file.path(dir, "march"), years = 2015L)
+  options <- whep:::.sjr_options(nourishment_thresholds = "flat")
+  manifest <- .sjr_quiet(whep:::.sjr_run(
+    years = 2015L,
+    march_root = march,
+    out_root = file.path(dir, "out"),
+    options = options,
+    context = .sjr_context()
+  ))
+  arm <- dirname(manifest)
+  testthat::expect_true(.sjr_in_tempdir(manifest, dir))
+  testthat::expect_false(dir.exists(file.path(arm, "whep_sjos_n_band")))
+  record <- jsonlite::read_json(manifest)
+  testthat::expect_false(
+    "whep_sjos_n_band" %in% purrr::map_chr(record$products, "dir")
+  )
+  testthat::expect_length(record$partitions, 6L)
+  testthat::expect_equal(
+    .sjr_read(arm, "whep_sjos_n_diag", 2015L)$band_reconciliation_status,
+    "not_applicable"
+  )
+  # Resuming the flat arm skips the finished year without a band table.
+  calls <- 0L
+  real <- whep::build_sjos_nitrogen
+  testthat::local_mocked_bindings(
+    build_sjos_nitrogen = function(...) {
+      calls <<- calls + 1L
+      real(...)
+    }
+  )
+  .sjr_quiet(whep:::.sjr_run(
+    years = 2015L,
+    march_root = march,
+    out_root = file.path(dir, "out"),
+    options = options,
+    context = .sjr_context()
+  ))
+  testthat::expect_equal(calls, 0L)
 })
 
 testthat::test_that("the shared driver fixtures were never mutated", {
