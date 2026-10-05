@@ -115,11 +115,6 @@ gridded <- list(
   )
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
-#> Warning: There was 1 warning in `dplyr::mutate()`.
-#> ℹ In argument: `method_bedding_mms = split$method_bedding_mms[1] %||%
-#>   NA_character_`.
-#> Caused by warning:
-#> ! Unknown or uninitialised column: `method_bedding_mms`.
 #> $applied
 #> # A tibble: 5 × 26
 #>    year territory sub_territory land_use  crop  source_stream manure_type

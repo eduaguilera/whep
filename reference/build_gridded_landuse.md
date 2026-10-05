@@ -157,9 +157,9 @@ build_gridded_landuse(
     pattern is underflow is placed proportional to that underflow
     instead of uniformly.
 
-  - `expansion_threshold`: Iteration number after which crops are
-    allowed to expand into cells without an existing pattern. Default:
-    `100L`.
+  - `expansion_threshold`: defunct. It was accepted but never changed
+    the allocation, and is dropped with a warning (whep#1001). LandInG's
+    expansion step is not implemented.
 
   - `area_key`: Which area code the output is keyed on, `"grid"`
     (default) or `"polity_area"`. See *Which area code the output is
