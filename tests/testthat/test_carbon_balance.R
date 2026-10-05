@@ -2877,3 +2877,29 @@ testthat::test_that("the month guard keys on the columns the table carries", {
     tibble::tibble(lon = 0.25, lat = 0.25, year = 2001L, month = 12L)
   )
 })
+
+testthat::test_that("the unkeyed-land warning reports land per epoch year", {
+  support <- tibble::tribble(
+    ~lon , ~lat , ~area_code , ~polity_code , ~land_area_ha , ~start_year , ~end_year ,
+    0.25 , 0.25 , NA         , "AOF"        ,          6e6 ,        1895 ,      1960 ,
+    0.25 , 0.25 , NA         , "SUD"        ,          2e6 ,        1899 ,      1934 ,
+    0.75 , 0.25 , 1L         , "FRA"        ,          1e6 ,        1895 ,      1960
+  )
+  warned <- testthat::capture_warnings(
+    kept <- whep:::.carbon_drop_unkeyed(support)
+  )
+  testthat::expect_equal(nrow(kept), 1L)
+  testthat::expect_match(warned, "Per year, the dropped land", fixed = TRUE)
+  testthat::expect_match(warned, "6 to 8 Mha", fixed = TRUE)
+  testthat::expect_match(warned, "largest is 1899", fixed = TRUE)
+})
+
+testthat::test_that("the unkeyed-land warning works without epoch columns", {
+  support <- tibble::tribble(
+    ~lon , ~lat , ~area_code , ~land_area_ha ,
+    0.25 , 0.25 , NA         ,           1e6 ,
+    0.75 , 0.25 , 1L         ,           1e6
+  )
+  warned <- testthat::capture_warnings(whep:::.carbon_drop_unkeyed(support))
+  testthat::expect_no_match(warned, "Per year")
+})

@@ -3972,8 +3972,54 @@ build_carbon_balance <- function(
     "!" = "{nrow(lost)} polycell{?s} ({round(land / 1e6, 2)} Mha of land) carry
            no {.field area_code} and are outside the carbon ledger.",
     i = "Largest: {.val {codes}}. The reporting vocabulary has no bucket for
-         them; they are dropped here rather than folded into one."
+         them; they are dropped here rather than folded into one.",
+    .carbon_unkeyed_by_year(lost)
   ))
+}
+
+# The summed figure above adds epochs that overlap in time, so it can exceed
+# the Earth's land. Where the support carries epochs, report the land dropped
+# at each epoch's start year instead: that is what a single year loses.
+.carbon_unkeyed_by_year <- function(lost) {
+  if (!all(rlang::has_name(lost, c("start_year", "end_year")))) {
+    return(character())
+  }
+  years <- sort(unique(lost$start_year[!is.na(lost$start_year)]))
+  per_year <- vapply(
+    years,
+    function(y) {
+      covered <- lost$start_year <= y & lost$end_year >= y
+      sum(lost$land_area_ha[covered], na.rm = TRUE) / 1e6
+    },
+    numeric(1)
+  )
+  if (length(years) == 0L) {
+    return(character())
+  }
+  worst <- which.max(per_year)
+  c(
+    i = paste0(
+      "Per year, the dropped land ranges ",
+      round(min(per_year), 2),
+      " to ",
+      round(max(per_year), 2),
+      " Mha across ",
+      length(years),
+      " epoch start year(s) (",
+      min(years),
+      "-",
+      max(years),
+      "); the largest is ",
+      years[worst],
+      " (",
+      round(per_year[worst], 2),
+      " Mha)."
+    ),
+    i = paste(
+      "Rows of these polities are missing from the year-aware grid for those",
+      "years, not only once."
+    )
+  )
 }
 
 # Sum the land of polycells sharing an `area_code` in one cell (DA-23's fold),
