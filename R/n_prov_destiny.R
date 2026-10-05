@@ -1478,6 +1478,8 @@ create_n_nat_destiny <- function(example = FALSE) {
       by = c("Year", "Province_name", "Name_biomass", "Item")
     ) |>
     dplyr::mutate(
+      # Structural zero: `scaling` holds every key with positive processed
+      # mass, so a missing remove_mass marks a row nothing was processed from.
       production_fm = production_fm -
         processed_fm * dplyr::coalesce(remove_mass, 0)
     ) |>
@@ -1546,11 +1548,19 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param outputs Output of `.expand_processed_items()`.
 #' @param scaling Output of `.processing_n_scaling()`.
 #'
+#' Every output must find its scaling row. `.processing_n_scaling()` builds
+#' `scaling` from a full join that keeps every output key, so a missing row
+#' means the two tables came from different inputs: a broken contract, not
+#' an absent quantity. It aborts rather than scale that output to zero,
+#' which would delete the output's whole processed production while the N
+#' balance still closed (#1034).
+#'
 #' @return `outputs` with production_fm scaled and `from_item` dropped.
 #' @keywords internal
 #' @noRd
 .scale_processed_items <- function(outputs, scaling) {
   outputs |>
+    .check_processing_scale_rows(scaling) |>
     dplyr::left_join(
       scaling |>
         dplyr::select(
@@ -1568,9 +1578,44 @@ create_n_nat_destiny <- function(example = FALSE) {
       )
     ) |>
     dplyr::mutate(
-      production_fm = production_fm * dplyr::coalesce(output_scale, 0)
+      production_fm = production_fm * output_scale
     ) |>
     dplyr::select(-from_item, -output_scale)
+}
+
+#' @title Abort on processed outputs with no scaling row ----------------------
+#' @description Guard for `.scale_processed_items()`: every output's
+#' primary-item key must occur in `scaling`.
+#'
+#' @param outputs Output of `.expand_processed_items()`.
+#' @param scaling Output of `.processing_n_scaling()`.
+#'
+#' @return `outputs`, unchanged.
+#' @keywords internal
+#' @noRd
+.check_processing_scale_rows <- function(outputs, scaling) {
+  unscaled <- outputs |>
+    dplyr::anti_join(
+      scaling,
+      by = c("Year", "Province_name", "Name_biomass", "from_item" = "Item")
+    ) |>
+    dplyr::distinct(from_item) |>
+    dplyr::pull(from_item)
+
+  if (length(unscaled) > 0) {
+    cli::cli_abort(
+      c(
+        "{length(unscaled)} primary item{?s} ha{?s/ve} processed outputs
+         with no N scaling row.",
+        i = "Item{?s}: {.val {unscaled}}.",
+        i = "{.arg outputs} and {.arg scaling} must come from the same
+             {.fn .calculate_processed_amounts} call."
+      ),
+      class = "whep_processing_scale_missing"
+    )
+  }
+
+  outputs
 }
 
 #' @title Match structure of grafs_prod_combined_no_seeds ----------------------

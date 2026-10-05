@@ -835,6 +835,48 @@ test_that(".processing_n_scaling leaves an exactly balanced substitution alone",
 })
 
 
+# .scale_processed_items -------------------------------------------------------
+
+test_that(".scale_processed_items aborts on an output with no scaling row", {
+  # Built together by .calculate_processed_amounts(), every output has a
+  # scaling row. One without is a contract break, not an absent quantity:
+  # zero-filling it deleted the output's whole processed production while
+  # the N balance still closed, since zero satisfies a sum (#1034).
+  outputs <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~from_item, ~Box, ~production_fm, ~prod_type,
+    2000, "A", "grape_bm", "Juice", "Grapes", "Cropland", 200, "Product",
+    2000, "A", "olive_bm", "Oil", "Olives", "Cropland", 50, "Product"
+  )
+  scaling <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~output_scale, ~remove_mass, ~processing_loss_n,
+    2000, "A", "grape_bm", "Grapes", 0.5, 1, 0
+  )
+
+  expect_error(
+    .scale_processed_items(outputs, scaling),
+    class = "whep_processing_scale_missing"
+  )
+})
+
+test_that(".scale_processed_items applies a supplied scale, including zero", {
+  outputs <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~from_item, ~Box, ~production_fm, ~prod_type,
+    2000, "A", "grape_bm", "Juice", "Grapes", "Cropland", 200, "Product",
+    2000, "A", "olive_bm", "Oil", "Olives", "Cropland", 50, "Product"
+  )
+  scaling <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~output_scale, ~remove_mass, ~processing_loss_n,
+    2000, "A", "grape_bm", "Grapes", 0.5, 1, 0,
+    2000, "A", "olive_bm", "Olives", 0, 0, 0
+  )
+
+  out <- .scale_processed_items(outputs, scaling)
+
+  expect_equal(out$production_fm, c(100, 0))
+  expect_false("from_item" %in% names(out))
+})
+
+
 # .prepare_prod_data -----------------------------------------------------------
 
 test_that(".prepare_prod_data merges biomass names from codes", {
