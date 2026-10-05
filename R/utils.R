@@ -2690,6 +2690,14 @@ utils::globalVariables(
     "live",
     "rank_key",
     "live_first",
+    # moisture_regime.R (issue 359) -- IPCC 2019 wet/dry classifier inputs,
+    # its window-mean water terms and the internal stamp fields
+    "mat_c",
+    "frost_days",
+    "water_mm",
+    "moisture_ratio",
+    ".unclassified",
+    ".method",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
