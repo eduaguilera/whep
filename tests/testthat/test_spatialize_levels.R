@@ -4944,3 +4944,52 @@ test_that("the subnational reader returns a supplied local table", {
     c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
   )
 })
+
+test_that("a container is swapped out only over its members' years", {
+  # Members start in 1976, inside a container that stands from 1952: the
+  # container's world rows must survive 1952-1975, so a neighbour's share of
+  # a border cell is taken over the land the cell holds, not over less.
+  provinces <- .lv_province_support() |>
+    dplyr::mutate(start_year = 1976L)
+  composed <- .level_compose_support(
+    .lv_world_support(),
+    provinces,
+    .lv_containment()
+  ) |>
+    suppressMessages()
+
+  early <- dplyr::filter(composed, polity_code == "JPN-1952-2025")
+  expect_setequal(early$cell_id, c(1L, 2L))
+  expect_true(all(early$start_year == 1952L))
+  expect_true(all(early$end_year == 1975L))
+  # In every year the shared cell's land is whole: no gap, no overlap.
+  for (yr in c(1960L, 1975L, 1976L, 2000L)) {
+    cell2 <- dplyr::filter(
+      composed,
+      cell_id == 2L,
+      start_year <= yr,
+      end_year >= yr
+    )
+    expect_equal(sum(cell2$land_area_ha), 4000)
+  }
+  expect_false(
+    any(composed$polity_code == "JPN-1952-2025" & composed$end_year >= 1976L)
+  )
+})
+
+test_that("a container covered only in the middle keeps both ends", {
+  provinces <- .lv_province_support() |>
+    dplyr::mutate(start_year = 1970L, end_year = 1990L)
+  composed <- .level_compose_support(
+    .lv_world_support(),
+    provinces,
+    .lv_containment()
+  ) |>
+    suppressMessages()
+
+  jpn <- composed |>
+    dplyr::filter(polity_code == "JPN-1952-2025", cell_id == 1L) |>
+    dplyr::arrange(start_year)
+  expect_equal(jpn$start_year, c(1952L, 1991L))
+  expect_equal(jpn$end_year, c(1969L, 2025L))
+})
