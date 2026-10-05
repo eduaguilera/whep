@@ -1220,7 +1220,7 @@ build_soil_carbon_inputs <- function(
 # residue fraction) -> calculate_npp_carbon_nitrogen() (the carbon partition,
 # including residue_soil_c_t, root_c_t and weed_npp_c_t).
 .sci_read_npp <- function(years = NULL) {
-  .sci_npp_from_primary_prod(get_primary_production(years = years))
+  .sci_npp_from_primary_prod(get_primary_production(years = years), years)
 }
 
 # FAOSTAT national harvested area (ha) per (area_code, item_prod_code, year),
@@ -1257,9 +1257,9 @@ build_soil_carbon_inputs <- function(
 
 # Run the crop-NPP carbon chain on a get_primary_production() table and keep the
 # soil-carbon input columns build_soil_carbon_inputs() consumes.
-.sci_npp_from_primary_prod <- function(primary_prod) {
+.sci_npp_from_primary_prod <- function(primary_prod, years = NULL) {
   primary_prod |>
-    .sci_crop_prod_wide() |>
+    .sci_crop_prod_wide(years) |>
     calculate_crop_npp() |>
     calculate_residue_destinies(method = "recovery_regional") |>
     calculate_npp_carbon_nitrogen() |>
@@ -1293,15 +1293,17 @@ build_soil_carbon_inputs <- function(
 # production tonnage and harvested area, plus the regional groupings the
 # residue-destiny split needs. Grassland and livestock rows are dropped; only
 # crop production (tonnes) and area (ha) are kept.
-.sci_crop_prod_wide <- function(primary_prod) {
+.sci_crop_prod_wide <- function(primary_prod, years = NULL) {
   grass <- c(3000L, 3002L, 3003L)
-  wide <- primary_prod |>
+  crop_rows <- primary_prod |>
     dplyr::filter(
       .data$unit %in% c("tonnes", "ha"),
       !is.na(.data$item_prod_code),
       is.na(.data$live_anim_code),
       !.data$item_cbs_code %in% grass
-    ) |>
+    )
+  .check_crop_rows(crop_rows, years)
+  wide <- crop_rows |>
     dplyr::mutate(
       unit = dplyr::if_else(.data$unit == "tonnes", "production_t", "area_ha")
     ) |>
@@ -1318,6 +1320,28 @@ build_soil_carbon_inputs <- function(
     dplyr::filter(.data$production_t > 0, .data$area_ha > 0) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
     dplyr::left_join(.sci_crop_regions(), by = "area_code")
+}
+
+# Refuse an empty crop-production table: the pivot would create neither a
+# production_t nor an area_ha column and fail later with an internal error.
+.check_crop_rows <- function(crop_rows, years = NULL) {
+  if (nrow(crop_rows) > 0L) {
+    return(invisible(crop_rows))
+  }
+  span <- if (is.null(years)) {
+    "the requested years"
+  } else {
+    paste(range(years), collapse = "-")
+  }
+  cli::cli_abort(
+    c(
+      "No crop production rows (tonnes or ha) for {span}.",
+      "i" = "A span wholly before 1961 reads no crop production.",
+      "i" = "See issue #369 (pre-1961 drivers) and #1093 (pre-1961 stock).",
+      "x" = "Extend the span to reach 1961, or supply crop production."
+    ),
+    class = "whep_sci_no_crop_production"
+  )
 }
 
 # The regional groupings the crop-NPP chain keys coefficients by, per polity,
