@@ -13,12 +13,20 @@ expected name when trying to get the dataset with \code{whep_read_file()}.
 \item \code{board_url}: The public static URL where the data is found, following
 the concept of a \emph{board} from the
 \href{https://pins.rstudio.com/index.html}{\code{pins}} package, which is what we
-use for storing these input datasets.
+use for storing these input datasets. For a restricted row it is a path
+relative to the restricted board, \verb{restricted:<folder>/_pins.yaml}, so
+no personal address enters the registry.
 \item \code{version}: The specific version of the dataset, as defined by the \code{pins}
 package. The version is a string similar to \code{"20250714T123343Z-114b5"}.
 This version is the one used by default if no \code{version} is specified when
 calling \code{whep_read_file()}. If you want to use a different one, you can
 find the available versions of a file by using \code{whep_list_file_versions()}.
+\item \code{access}: \code{"public"}, or \code{"restricted"} for licensed or confidential
+data read from a private board with per-user credentials. See
+\code{\link[=whep_data_access_status]{whep_data_access_status()}}.
+\item \code{public_alternative}: for a restricted row, the public alias suggested
+instead when restricted access is unavailable, or \code{NA}. It is advice in
+error messages only; nothing is ever read in its place.
 }
 }
 \source{

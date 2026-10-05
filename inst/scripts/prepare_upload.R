@@ -3,6 +3,9 @@
 # of the script, fill with your data, run and follow printed instructions.
 
 create_version <- function(data, board, name, ...) {
+  # Restricted inputs must never be republished as a public pin (#1386).
+  whep::whep_assert_publishable(data)
+
   paths <- file.path(
     tempdir(),
     c(

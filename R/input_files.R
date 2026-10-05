@@ -125,8 +125,13 @@
 #' two shapes share exactly one column name, `area_code`.
 #' `.clean_bilateral_trade()` reads either.
 #'
+#' @inheritSection whep_data_access_status Restricted access
+#'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the `alias` column of the [`whep_inputs`] dataset.
+#'   An alias whose `access` is `"restricted"` needs restricted access
+#'   `r .restricted_label()`: it is read from the restricted board or the
+#'   call aborts, and the result carries `data_access = "restricted"`.
 #' @param type The extension of the file that must be read. Possible values:
 #'   - `parquet`: This is the default value for code efficiency reasons.
 #'   - `csv`: Mainly available for those who want a more human-readable option.
@@ -189,27 +194,12 @@ whep_read_file <- function(
 ) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
-  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
   .warn_legacy_reference(file_alias)
-  version <- .choose_version(file_info$version, version)
-
-  paths <- tryCatch(
-    .get_local_board() |>
-      pins::pin_download(file_alias, version = version),
-    error = function(e) {
-      tryCatch(
-        file_info |>
-          .get_remote_board() |>
-          pins::pin_download(file_alias, version = version),
-        error = function(e) {
-          .get_cache_paths(file_info, file_alias, version, e)
-        }
-      )
-    }
-  )
+  paths <- .download_input(file_alias, version)
 
   paths |>
-    .read_file(type, years, year_col)
+    .read_file(type, years, year_col) |>
+    .mark_access(attr(paths, "data_access"))
 }
 
 #' Input file versions
@@ -228,16 +218,64 @@ whep_read_file <- function(
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias) {
-  board <- if (file_alias == "read_example") {
-    .get_local_board()
-  } else {
-    file_alias |>
-      .fetch_file_info(whep::whep_inputs) |>
-      .get_remote_board()
+  if (file_alias == "read_example") {
+    return(pins::pin_versions(.get_local_board(), file_alias))
   }
 
+  access <- file_alias |>
+    .fetch_file_info(.whep_registry()) |>
+    .resolve_access()
+  board <- access$board %||% .get_remote_board(access$file_info)
+
   board |>
-    pins::pin_versions(file_alias)
+    pins::pin_versions(access$file_info$alias)
+}
+
+# The registry every reader resolves aliases against. A function rather than a
+# direct `whep::whep_inputs` so tests can point the readers at a fixture row.
+.whep_registry <- function() {
+  whep::whep_inputs
+}
+
+# Local paths of an input's files, downloading them if needed. A restricted
+# input is read from the restricted board or not at all (#1386), and its paths
+# carry `data_access = "restricted"` as an attribute.
+.download_input <- function(file_alias, version = NULL) {
+  access <- file_alias |>
+    .fetch_file_info(.whep_registry()) |>
+    .resolve_access()
+  file_info <- access$file_info
+  version <- .choose_version(file_info$version, version)
+
+  paths <- if (is.null(access$board)) {
+    .download_public(file_info, version)
+  } else {
+    pins::pin_download(access$board, file_info$alias, version = version)
+  }
+
+  attr(paths, "data_access") <- access$data_access
+  paths
+}
+
+# The public path: the packaged example board, then the remote board, then
+# the local pins cache.
+.download_public <- function(file_info, version) {
+  file_alias <- file_info$alias
+
+  tryCatch(
+    .get_local_board() |>
+      pins::pin_download(file_alias, version = version),
+    error = function(e) {
+      tryCatch(
+        file_info |>
+          .get_remote_board() |>
+          pins::pin_download(file_alias, version = version),
+        error = function(e) {
+          .get_cache_paths(file_info, file_alias, version, e)
+        }
+      )
+    }
+  )
 }
 
 # The 2025-07-14 pin batch carries output of the predecessor R-script pipeline,
@@ -658,8 +696,8 @@ whep_list_file_versions <- function(file_alias) {
   c(file_info)
 }
 
-.build_board_with_progress <- function(board_url) {
-  board <- pins::board_url(board_url)
+.build_board_with_progress <- function(board_url, headers = NULL) {
+  board <- pins::board_url(board_url, headers = headers)
   # Make our own pin_fetch method to include progress bar
   # https://github.com/rstudio/pins-r/issues/873
   class(board) <- c("pins_with_progress", class(board))
