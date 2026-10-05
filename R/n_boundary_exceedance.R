@@ -1344,7 +1344,11 @@ build_n_boundary_exceedance <- function(
 }
 
 # Crop rows are managed land. A grassland row goes wholly to its cell's class,
-# so the two components partition the cell's pressure exactly.
+# so the two components partition the cell's pressure exactly. A grassland row
+# with no area in a cell the class table does not carry is not grassland the
+# table missed: no map has grassland there. Its pressure (on the 2010 balance,
+# soil mineralisation of 2.5 kt N in 1086 cells) joins the managed component,
+# as it joins the cell in the unsplit comparison.
 .nbx_assign_components <- function(actual, classes) {
   x <- dplyr::left_join(
     actual,
@@ -1356,7 +1360,8 @@ build_n_boundary_exceedance <- function(
   carries <- is.na(x$actual_n_t) |
     x$actual_n_t != 0 |
     (!is.na(x$area_ha) & x$area_ha > 0)
-  uncovered <- grass & is.na(x$grassland_class) & carries
+  no_area <- !is.na(x$area_ha) & x$area_ha == 0
+  uncovered <- grass & is.na(x$grassland_class) & carries & !no_area
   if (any(uncovered)) {
     n_cells <- dplyr::n_distinct(x$cell_id[uncovered])
     cli::cli_abort(
@@ -1377,9 +1382,8 @@ build_n_boundary_exceedance <- function(
         # IMAGE-intensive grassland the published igl surface has no value
         # for: excluded from the managed comparison, never lent a rate.
         .data$igl_unrated ~ "igl_unrated",
-        # Intensive grassland; and a grassland row with no area and no
-        # pressure in a cell the class table does not carry, which is a
-        # structural zero wherever it is booked.
+        # Intensive grassland; and a grassland row the class table does not
+        # carry that has no area, or no area recorded and no pressure.
         .default = "managed"
       )
     ) |>
