@@ -181,6 +181,229 @@ testthat::test_that("the example fixture matches the documented contract", {
   )
 })
 
+# build_cell_climate_zone, reading NetCDF -------------------------------------
+
+# Three land cells, 1901-1904, whose monthly temperatures are a constant plus a
+# month offset that sums to zero over the year plus a 0.2 degC/year trend, so
+# each cell's annual mean is known without running the reader: cell 2 = 5 degC
+# (Cool), cell 3 = 14 degC (Temperate), cell 4 = 22 degC (Warm), each plus
+# 0.2 * (year - 1901). Cell 1 is ocean.
+.golden_tmp <- function(cell, year, month) {
+  c(NA, 5, 14, 22)[cell] + (month - 6.5) + 0.2 * (year - 1901)
+}
+
+testthat::test_that("the NetCDF path returns the golden zone table", {
+  cube <- .cru_annual_cube("tmp", .golden_tmp)
+
+  result <- whep::build_cell_climate_zone(
+    years = c(1899L, 1902L, 2010L),
+    cru_dir = cube$dir
+  )
+
+  expected <- tibble::tribble(
+    ~lon,     ~lat,   ~year, ~mean_annual_temp_c, ~climate_zone, ~method_climate_zone,
+    -179.75, -89.25, 1899L,               14.3,  "Temperate", "climatology_1901_1904",
+    -179.25, -89.75, 1899L,                5.3,       "Cool", "climatology_1901_1904",
+    -179.25, -89.25, 1899L,               22.3,       "Warm", "climatology_1901_1904",
+    -179.75, -89.25, 1902L,               14.2,  "Temperate",         "cru_ts_annual",
+    -179.25, -89.75, 1902L,                5.2,       "Cool",         "cru_ts_annual",
+    -179.25, -89.25, 1902L,               22.2,       "Warm",         "cru_ts_annual",
+    -179.75, -89.25, 2010L,               14.3,  "Temperate", "climatology_1901_1904",
+    -179.25, -89.75, 2010L,                5.3,       "Cool", "climatology_1901_1904",
+    -179.25, -89.25, 2010L,               22.3,       "Warm", "climatology_1901_1904"
+  )
+  # NetCDF stores single precision, so values are compared to 1e-6.
+  testthat::expect_equal(result, expected, tolerance = 1e-6)
+})
+
+testthat::test_that("a cell short of twelve months is dropped with a warning", {
+  holes <- tibble::tibble(cell = 4L, year = 1902L, month = 1L)
+  cube <- .cru_annual_cube("tmp", .golden_tmp, holes = holes)
+
+  testthat::expect_warning(
+    result <- whep::build_cell_climate_zone(years = 1902L, cru_dir = cube$dir),
+    "Dropping 1 cell with fewer than 12 CRU months in 1902"
+  )
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_setequal(result$climate_zone, c("Temperate", "Cool"))
+})
+
+# .cru_annual -----------------------------------------------------------------
+
+# Days per month, written out here rather than taken from the package so the
+# conversions below are checked against an independent calendar.
+.days_common <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+.days_leap <- c(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+testthat::test_that("tmp reduces to the mean of the twelve monthly values", {
+  cube <- .cru_annual_cube("tmp", .golden_tmp)
+
+  result <- whep:::.cru_annual(cube$dir, c(1901L, 1903L), "tmp") |>
+    dplyr::arrange(year, lon, lat)
+
+  testthat::expect_named(
+    result,
+    c("lon", "lat", "year", "mean_annual_temp_c")
+  )
+  # Cell order by (year, lon, lat): cell 3, cell 2, cell 4.
+  testthat::expect_equal(
+    result$mean_annual_temp_c,
+    rep(c(14, 5, 22), 2) + rep(c(0, 0.4), each = 3),
+    tolerance = 1e-6
+  )
+})
+
+testthat::test_that("pre is summed over the year, not averaged", {
+  # mm/month: 10 * cell + month, plus 1 mm per month per year after 1901.
+  cube <- .cru_annual_cube(
+    "pre",
+    \(cell, year, month) 10 * cell + month + (year - 1901)
+  )
+
+  result <- whep:::.cru_annual(cube$dir, 1902L, "pre") |>
+    dplyr::arrange(lon, lat)
+
+  testthat::expect_named(result, c("lon", "lat", "year", "annual_precip_mm"))
+  # Cell 3, cell 2, cell 4: 12 * 10 * cell + (1 + ... + 12) + 12 * 1.
+  testthat::expect_equal(
+    result$annual_precip_mm,
+    120 * c(3, 2, 4) + 78 + 12
+  )
+})
+
+testthat::test_that("pet is a daily rate scaled by the days of each month", {
+  # mm/day: cell * month, so neither a plain sum nor mean * 365 reproduces it.
+  cube <- .cru_annual_cube(
+    "pet",
+    \(cell, year, month) cell * month,
+    years = 1903:1904
+  )
+
+  result <- whep:::.cru_annual(cube$dir, c(1903L, 1904L), "pet") |>
+    dplyr::filter(lon == -179.25, lat == -89.75)
+
+  testthat::expect_named(result, c("lon", "lat", "year", "annual_pet_mm"))
+  # Cell 2 at (lon[2], lat[1]). 1903 is a common year, 1904 a leap year.
+  testthat::expect_equal(
+    result$annual_pet_mm,
+    c(2 * sum(1:12 * .days_common), 2 * sum(1:12 * .days_leap))
+  )
+})
+
+testthat::test_that("frs is the sum of monthly frost days and keeps zeros", {
+  monthly <- c(20, 15, 10, 5, 0, 0, 0, 0, 0, 5, 10, 15)
+  cube <- .cru_annual_cube(
+    "frs",
+    \(cell, year, month) c(NA, 1, 0, 2)[cell] * monthly[month]
+  )
+
+  result <- whep:::.cru_annual(cube$dir, 1902L, "frs") |>
+    dplyr::arrange(lon, lat)
+
+  testthat::expect_named(result, c("lon", "lat", "year", "annual_frost_days"))
+  # Cell 3 has no frost at all: a measured zero, not a dropped or NA cell.
+  testthat::expect_equal(result$annual_frost_days, c(0, 80, 160))
+  testthat::expect_false(anyNA(result$annual_frost_days))
+})
+
+testthat::test_that("an unknown CRU variable aborts before any file is read", {
+  cube <- .cru_annual_cube("tmp", .golden_tmp)
+
+  testthat::expect_error(
+    whep:::.cru_annual(cube$dir, 1902L, "tmx"),
+    "must be one of"
+  )
+  testthat::expect_error(
+    whep:::.cru_annual(cube$dir, 1902L, "wet"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a variable file without the requested year aborts", {
+  dir <- withr::local_tempdir()
+  .cru_annual_cube("tmp", .golden_tmp, years = 1901:1904, dir = dir)
+  .cru_annual_cube(
+    "pre",
+    \(cell, year, month) cell,
+    years = 1901:1903,
+    dir = dir
+  )
+
+  testthat::expect_equal(whep:::.cru_covered_years(dir, "pre"), 1901:1903)
+  testthat::expect_error(
+    whep:::.cru_annual(dir, 1904L, "pre"),
+    "no time steps"
+  )
+})
+
+testthat::test_that("only the requested years' slabs are read", {
+  cube <- .cru_annual_cube("pre", \(cell, year, month) cell)
+  reads <- new.env()
+  reads$n <- 0L
+  slice <- whep:::.cru_slice_to_long
+  testthat::local_mocked_bindings(
+    .cru_slice_to_long = function(...) {
+      reads$n <- reads$n + 1L
+      slice(...)
+    }
+  )
+
+  whep:::.cru_annual(cube$dir, 1902L, "pre")
+
+  testthat::expect_equal(reads$n, 12L)
+})
+
+# The climatology fill, for the variables other than temperature --------------
+
+testthat::test_that("held climatologies carry every annual variable", {
+  dir <- withr::local_tempdir()
+  .cru_annual_cube(
+    "pre",
+    \(cell, year, month) 10 * cell + (year - 1901),
+    dir = dir
+  )
+  .cru_annual_cube("frs", \(cell, year, month) cell * (year - 1900), dir = dir)
+  covered <- whep:::.cru_covered_years(dir, "pre")
+  plan <- whep:::.climate_year_plan(c(1850L, 1902L), covered)
+  annual <- dplyr::inner_join(
+    whep:::.cru_annual(dir, plan$read_years, "pre"),
+    whep:::.cru_annual(dir, plan$read_years, "frs"),
+    by = c("lon", "lat", "year")
+  )
+
+  result <- whep:::.assemble_cell_climate(annual, plan) |>
+    dplyr::filter(lon == -179.25, lat == -89.75)
+
+  testthat::expect_named(
+    result,
+    c(
+      "lon",
+      "lat",
+      "year",
+      "annual_precip_mm",
+      "annual_frost_days",
+      "climate_record"
+    )
+  )
+  testthat::expect_equal(result$year, c(1850L, 1902L))
+  testthat::expect_equal(
+    result$climate_record,
+    c("climatology_1901_1904", "cru_ts_annual")
+  )
+  # Cell 2. Precipitation sums 12 months of 20 + (year - 1901) per year; frost
+  # days sum 12 months of 2 * (year - 1900). The held row is the mean of the
+  # four annual values, the measured row is 1902 itself.
+  testthat::expect_equal(
+    result$annual_precip_mm,
+    c(mean(12 * (20 + 0:3)), 12 * (20 + 1))
+  )
+  testthat::expect_equal(
+    result$annual_frost_days,
+    c(mean(12 * 2 * (1:4)), 12 * 2 * 2)
+  )
+})
+
 # .climate_zone_from_mat ------------------------------------------------------
 
 testthat::test_that("the shared zone helper is reused, not forked", {

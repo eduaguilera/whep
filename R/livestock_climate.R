@@ -10,9 +10,22 @@
 #   called from here, never forked.
 # - `climate_mcf` carries three zones (Cool / Temperate / Warm) plus "All".
 #   whep does NOT ship the ten-zone IPCC MCF table; do not build against one.
-# - Monthly CRU is never materialised: each year is reduced to a mean annual
-#   temperature inside the read loop. Annual MAT is ~67k land cells x 122
-#   years; the monthly table is twelve times that and is the memory cliff.
+# - Monthly CRU is never materialised: each year is reduced to its annual
+#   quantity inside the read loop. Annual MAT is ~67k land cells x 122 years;
+#   the monthly table is twelve times that and is the memory cliff.
+# - `.cru_annual()` reduces four CRU variables to one annual value per cell.
+#   The monthly units were read from the `units` attribute of each variable in
+#   cru_ts4.09.1901.2024.<var>.dat.nc, and the reduction follows from them:
+#     tmp  "degrees Celsius"  mean of the 12 monthly means -> MAT (degC);
+#     pre  "mm/month"         sum of the 12 monthly totals   -> mm per year;
+#     pet  "mm/day"           each month's mean daily rate times the days in
+#                             that month (leap-aware), then summed -> mm per
+#                             year, as `get_soc_climate_drivers()` does monthly;
+#     frs  "days"             days of ground frost in the month; the 12 months
+#                             are summed -> frost days per year.
+#   `frs` is synthetic: CRU derives it from the gridded minimum temperature
+#   (global attribute `source` of the frs file), so it is a modelled count,
+#   not a station record.
 
 #' Build the per-cell IPCC climate zone from CRU mean annual temperature.
 #'
@@ -76,7 +89,7 @@ build_cell_climate_zone <- function(
     dir <- .resolve_cru_dir(cru_dir)
     covered <- .cru_covered_years(dir)
     plan <- .climate_year_plan(.resolve_climate_years(years, covered), covered)
-    annual <- .cru_annual_mat(dir, plan$read_years)
+    annual <- .cru_annual(dir, plan$read_years, "tmp")
   } else {
     annual <- .check_supplied_mat(data)
     covered <- sort(unique(annual$year))
@@ -89,11 +102,11 @@ build_cell_climate_zone <- function(
 
 # Private helpers ----
 
-# Calendar years present on the CRU `tmp` time axis. Metadata only: the file is
-# opened and closed without reading a single data slab.
-.cru_covered_years <- function(cru_dir) {
+# Calendar years present on a CRU variable's time axis (`tmp` unless named).
+# Metadata only: the file is opened and closed without reading a data slab.
+.cru_covered_years <- function(cru_dir, var = "tmp") {
   rlang::check_installed("ncdf4")
-  nc <- ncdf4::nc_open(.cru_file("tmp", cru_dir))
+  nc <- ncdf4::nc_open(.cru_file(var, cru_dir))
   on.exit(ncdf4::nc_close(nc))
   sort(unique(.cru_time_stamps(nc)$year))
 }
@@ -144,38 +157,64 @@ build_cell_climate_zone <- function(
   )
 }
 
-# Mean annual temperature per land cell for each requested year, reduced inside
-# the read loop so only one year of monthly slabs is ever in memory.
-.cru_annual_mat <- function(cru_dir, years) {
+# How one CRU variable reduces to a single annual value per cell: the output
+# column, the function that collapses the twelve monthly values, and whether
+# those values are a daily rate that must first become a monthly total. The
+# units behind each entry are stated in the header comment of this file.
+.cru_annual_spec <- function(var) {
+  switch(
+    var,
+    tmp = list(column = "mean_annual_temp_c", combine = mean, per_day = FALSE),
+    pre = list(column = "annual_precip_mm", combine = sum, per_day = FALSE),
+    pet = list(column = "annual_pet_mm", combine = sum, per_day = TRUE),
+    frs = list(column = "annual_frost_days", combine = sum, per_day = FALSE)
+  )
+}
+
+# One CRU variable reduced to an annual value per land cell for each requested
+# year, inside the read loop so only one year of monthly slabs is ever in
+# memory. The value column is named by `.cru_annual_spec()`, so the four
+# variables join on lon, lat and year without suffixes.
+.cru_annual <- function(cru_dir, years, var = c("tmp", "pre", "pet", "frs")) {
+  var <- rlang::arg_match(var)
   rlang::check_installed("ncdf4")
-  nc <- ncdf4::nc_open(.cru_file("tmp", cru_dir))
+  nc <- ncdf4::nc_open(.cru_file(var, cru_dir))
   on.exit(ncdf4::nc_close(nc))
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
   stamps <- .cru_time_stamps(nc)
+  spec <- .cru_annual_spec(var)
   purrr::map(
     years,
-    \(yr) .cru_year_mean(nc, lon, lat, stamps, yr),
+    \(yr) .cru_year_annual(nc, var, spec, lon, lat, stamps, yr),
     .progress = length(years) > 5L
   ) |>
     data.table::rbindlist() |>
+    data.table::setnames("value", spec$column) |>
     tibble::as_tibble()
 }
 
-# One year: read its twelve monthly slabs, average them per cell, and keep only
+# One year: read its twelve monthly slabs, reduce them per cell, and keep only
 # cells with a complete year. A partial cell would carry a seasonal bias into
-# the annual mean and hence into the zone cut.
-.cru_year_mean <- function(nc, lon, lat, stamps, yr) {
+# the annual value (and hence into any cut taken on it). A daily rate is
+# multiplied by the days of its own month first, so a leap February counts 29.
+.cru_year_annual <- function(nc, var, spec, lon, lat, stamps, yr) {
   idx <- which(stamps$year == yr)
+  if (length(idx) == 0L) {
+    cli::cli_abort(
+      "The CRU {.val {var}} file has no time steps for {.val {yr}}."
+    )
+  }
   months <- purrr::map(
     idx,
-    \(ti) .cru_slice_to_long(nc, "tmp", lon, lat, ti, yr, stamps$month[ti])
+    \(ti) .cru_slice_to_long(nc, var, lon, lat, ti, yr, stamps$month[ti])
   )
   dt <- data.table::rbindlist(months)
-  out <- dt[,
-    list(mean_annual_temp_c = mean(value), n_months = .N),
-    by = list(lon, lat)
-  ]
+  if (spec$per_day) {
+    dt[, value := value * .days_in_month(yr, month)]
+  }
+  combine <- spec$combine
+  out <- dt[, list(value = combine(value), n_months = .N), by = list(lon, lat)]
   .drop_partial_cru_years(out, yr)
 }
 
@@ -187,20 +226,18 @@ build_cell_climate_zone <- function(
       "Dropping {partial} cell{?s} with fewer than 12 CRU months in {yr}."
     )
   }
-  annual[annual$n_months == 12L, ][, list(
-    lon,
-    lat,
-    year = yr,
-    mean_annual_temp_c
-  )]
+  annual[annual$n_months == 12L, ][, list(lon, lat, year = yr, value)]
 }
 
-# Stitch the measured years together with the held climatologies.
+# Stitch the measured years together with the held climatologies. Every column
+# other than lon, lat and year is a per-cell annual quantity and is held the
+# same way, so the same fill serves temperature, precipitation, PET and frost
+# days. `climate_record` says which rows were measured and which were held.
 .assemble_cell_climate <- function(annual, plan) {
   parts <- list(
     annual |>
       dplyr::filter(year %in% plan$measured) |>
-      dplyr::mutate(method_climate_zone = "cru_ts_annual"),
+      dplyr::mutate(climate_record = "cru_ts_annual"),
     .held_climatology(annual, plan$back_window, plan$back),
     .held_climatology(annual, plan$forward_window, plan$forward)
   )
@@ -219,16 +256,17 @@ build_cell_climate_zone <- function(
   annual |>
     dplyr::filter(year %in% window) |>
     dplyr::summarise(
-      mean_annual_temp_c = mean(mean_annual_temp_c),
+      dplyr::across(-"year", mean),
       .by = c(lon, lat)
     ) |>
     dplyr::cross_join(tibble::tibble(year = years)) |>
-    dplyr::mutate(method_climate_zone = label)
+    dplyr::mutate(climate_record = label)
 }
 
 # Attach the IPCC zone, reusing the verified cuts rather than restating them.
 .stamp_climate_zone <- function(cells) {
   cells |>
+    dplyr::rename(method_climate_zone = "climate_record") |>
     dplyr::mutate(climate_zone = .climate_zone_from_mat(mean_annual_temp_c)) |>
     dplyr::select(
       lon,
