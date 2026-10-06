@@ -8,6 +8,7 @@ build_gridded_livestock_emissions(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   method_species = c("national_head_share", "refuse"),
+  method_climate_gap = c("nearest_cell", "drop", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -62,6 +63,24 @@ example Sudan and South Sudan, reported together as polity 206), and
 }
 
 The rung used is recorded per row in \code{method_species}.}
+
+\item{method_climate_gap}{What happens to a cell that has no row in the
+climate table, which is where the climate land mask disagrees with the
+livestock grid (coastlines, reclaimed land, small islands):
+\itemize{
+\item \code{"nearest_cell"} (default): the cell takes the mean annual temperature
+of its nearest climate cell in the same year (great-circle distance
+between cell centres; equidistant cells are averaged), and its zone is
+classified from that. \code{method_climate_zone} reads
+\code{"nearest_cell; <the donor's method>"}. Only cells up to three grid
+steps away are searched; a gap with none that close aborts, because it
+means the climate table does not cover the herd.
+\item \code{"drop"}: such rows are removed, with a warning naming their head
+count. Their emissions are then absent from every total.
+\item \code{"refuse"}: abort, the behaviour before whep#1126.
+}
+
+No option gives a gap cell a default zone.}
 
 \item{tier}{IPCC tier, \code{2} (default) or \code{1}. Tier 2 is the default here
 because the per-cell drivers only enter the Tier 2 energy and
@@ -239,7 +258,10 @@ per-cell drivers.
 \code{"one_to_one"} (the group is a single species), \code{"national_head_share"},
 \code{"polity_bucket_head_share"} or \code{"unsplit_no_national_mix"} (emissions
 \code{NA}, see \code{method_species}).
-\item \code{method_climate_zone}, \code{method_diet}, \code{method_enteric},
+\item \code{method_climate_zone}: How the cell's climate zone was resolved, from
+\code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}}, prefixed \code{"nearest_cell; "} when it was
+taken from the nearest climate cell (see \code{method_climate_gap}).
+\item \code{method_diet}, \code{method_enteric},
 \code{method_manure_ch4}, \code{method_manure_n2o}: Method tracking.
 }
 

@@ -87,6 +87,21 @@
 #'   - `"refuse"`: abort on any aggregate group, the behaviour before whep#1126.
 #'
 #'   The rung used is recorded per row in `method_species`.
+#' @param method_climate_gap What happens to a cell that has no row in the
+#'   climate table, which is where the climate land mask disagrees with the
+#'   livestock grid (coastlines, reclaimed land, small islands):
+#'   - `"nearest_cell"` (default): the cell takes the mean annual temperature
+#'     of its nearest climate cell in the same year (great-circle distance
+#'     between cell centres; equidistant cells are averaged), and its zone is
+#'     classified from that. `method_climate_zone` reads
+#'     `"nearest_cell; <the donor's method>"`. Only cells up to three grid
+#'     steps away are searched; a gap with none that close aborts, because it
+#'     means the climate table does not cover the herd.
+#'   - `"drop"`: such rows are removed, with a warning naming their head
+#'     count. Their emissions are then absent from every total.
+#'   - `"refuse"`: abort, the behaviour before whep#1126.
+#'
+#'   No option gives a gap cell a default zone.
 #' @param tier IPCC tier, `2` (default) or `1`. Tier 2 is the default here
 #'   because the per-cell drivers only enter the Tier 2 energy and
 #'   manure-management equations; Tier 1 emission factors carry no climate,
@@ -126,7 +141,10 @@
 #'   `"one_to_one"` (the group is a single species), `"national_head_share"`,
 #'   `"polity_bucket_head_share"` or `"unsplit_no_national_mix"` (emissions
 #'   `NA`, see `method_species`).
-#' - `method_climate_zone`, `method_diet`, `method_enteric`,
+#' - `method_climate_zone`: How the cell's climate zone was resolved, from
+#'   [build_cell_climate_zone()], prefixed `"nearest_cell; "` when it was
+#'   taken from the nearest climate cell (see `method_climate_gap`).
+#' - `method_diet`, `method_enteric`,
 #'   `method_manure_ch4`, `method_manure_n2o`: Method tracking.
 #'
 #' plus the polity columns below.
@@ -141,6 +159,7 @@ build_gridded_livestock_emissions <- function(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   method_species = c("national_head_share", "refuse"),
+  method_climate_gap = c("nearest_cell", "drop", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -151,6 +170,7 @@ build_gridded_livestock_emissions <- function(
   }
   method_diet <- rlang::arg_match(method_diet)
   method_species <- rlang::arg_match(method_species)
+  method_climate_gap <- rlang::arg_match(method_climate_gap)
   tier <- .check_ghg_tier(tier)
   # Validated here so an unknown option aborts before the climate join, not
   # minutes later inside the manure engine.
@@ -160,7 +180,7 @@ build_gridded_livestock_emissions <- function(
     .resolve_gridded_species(method_species, data$species_heads)
   cells <- herd |>
     dplyr::filter(!is.na(species)) |>
-    .join_cell_climate(data$cell_climate) |>
+    .join_cell_climate(data$cell_climate, method_climate_gap) |>
     dplyr::mutate(sub_territory = .cell_id(lon, lat)) |>
     .resolve_diet_quality(method_diet, data$feed_intake)
 
@@ -525,36 +545,175 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
 
 # Attach the per-cell climate zone and the ambient temperature the Tier 2 energy
 # model needs. A cell with no climate row is an unresolved cell, not a
-# temperate one, so it aborts.
-.join_cell_climate <- function(cells, cell_climate) {
-  climate <- cell_climate %||%
-    build_cell_climate_zone(years = sort(unique(cells$year)))
-  joined <- cells |>
-    dplyr::left_join(
-      dplyr::select(
-        tibble::as_tibble(climate),
-        lon,
-        lat,
-        year,
-        mean_annual_temp_c,
-        climate_zone,
-        method_climate_zone
-      ),
-      by = c("lon", "lat", "year")
+# temperate one: it is filled from its nearest climate cell (stamped), dropped,
+# or refused, as `method_climate_gap` says. Never given a default zone.
+.join_cell_climate <- function(
+  cells,
+  cell_climate,
+  method_climate_gap = "nearest_cell"
+) {
+  climate <- (cell_climate %||%
+    build_cell_climate_zone(years = sort(unique(cells$year)))) |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      lon,
+      lat,
+      year,
+      mean_annual_temp_c,
+      climate_zone,
+      method_climate_zone
     )
-  n_missing <- sum(is.na(joined$climate_zone))
-  if (n_missing > 0L) {
-    cli::cli_abort(c(
-      "{n_missing} gridded livestock row{?s} {?has/have} no climate zone.",
-      i = "Every cell needs a mean annual temperature: an unresolved cell
-           would silently take the hardcoded {.val Temperate} zone and its
-           animals would be booked against the wrong methane conversion
-           factor.",
-      i = "Check that {.arg cell_climate} covers the same cells and years as
-           {.arg gridded_livestock}."
-    ))
+  joined <- dplyr::left_join(cells, climate, by = c("lon", "lat", "year"))
+  gap <- is.na(joined$climate_zone)
+  if (any(gap)) {
+    joined <- .resolve_climate_gaps(
+      joined[!gap, ],
+      dplyr::select(joined[gap, ], -dplyr::all_of(.climate_cols())),
+      climate,
+      method_climate_gap
+    )
   }
   dplyr::mutate(joined, temperature_c = mean_annual_temp_c)
+}
+
+.climate_cols <- function() {
+  c("mean_annual_temp_c", "climate_zone", "method_climate_zone")
+}
+
+# Rows whose cell has no climate row: refuse them, drop them with a warning, or
+# give them their nearest climate cell's temperature.
+.resolve_climate_gaps <- function(resolved, gap, climate, method) {
+  if (method == "refuse") {
+    .abort_climate_gap(gap, "refuse")
+  }
+  n_cells <- nrow(dplyr::distinct(gap, lon, lat))
+  n_heads <- round(sum(gap$heads))
+  if (method == "drop") {
+    cli::cli_warn(c(
+      "!" = "Dropping {nrow(gap)} gridded livestock row{?s} in
+        {n_cells} cell{?s} with no climate zone, carrying
+        {.val {n_heads}} head.",
+      i = "{.code method_climate_gap = \"drop\"}: their emissions are
+           absent from every total."
+    ))
+    return(resolved)
+  }
+  filled <- .fill_climate_gaps(gap, climate)
+  cli::cli_inform(c(
+    i = "{n_cells} gridded livestock cell{?s} ha{?s/ve} no climate cell
+         of {?its/their} own, carrying {.val {n_heads}} head; each takes its nearest climate
+         cell's temperature, stamped {.val nearest_cell} in
+         {.field method_climate_zone}."
+  ))
+  dplyr::bind_rows(resolved, filled)
+}
+
+# Give each gap row the mean annual temperature of its nearest climate cell in
+# the same year, by great-circle distance between cell centres, and classify
+# the zone from that temperature. Equidistant nearest cells are averaged, so
+# the result does not depend on row order. Only cells within
+# `.climate_gap_max_ring()` grid steps are searched: a coastline or island the
+# climate land mask misses sits a cell or two from a climate cell, while a gap
+# with nothing that close means the climate table does not cover the herd
+# (another grid, region or year), which is an input error and aborts.
+.fill_climate_gaps <- function(gap, climate) {
+  donors <- gap |>
+    dplyr::distinct(lon, lat, year) |>
+    .climate_gap_candidates(climate) |>
+    dplyr::slice_min(distance_km, n = 1L, by = c(lon, lat, year)) |>
+    dplyr::summarise(
+      mean_annual_temp_c = mean(mean_annual_temp_c),
+      method_climate_zone = paste0(
+        "nearest_cell; ",
+        dplyr::first(method_climate_zone)
+      ),
+      .by = c(lon, lat, year)
+    ) |>
+    dplyr::mutate(
+      climate_zone = .climate_zone_from_mat(mean_annual_temp_c)
+    )
+  unfilled <- dplyr::anti_join(gap, donors, by = c("lon", "lat", "year"))
+  if (nrow(unfilled) > 0L) {
+    .abort_climate_gap(unfilled, "nearest_cell")
+  }
+  dplyr::left_join(gap, donors, by = c("lon", "lat", "year"))
+}
+
+# Climate cells within the search window of each gap cell, with their distance.
+# Longitude wraps at the antimeridian. Distances are rounded to a millimetre so
+# that geometrically equal distances tie, as `.nearest_donor_id()` does.
+.climate_gap_candidates <- function(gap_cells, climate) {
+  steps <- seq(-.climate_gap_max_ring(), .climate_gap_max_ring()) * 0.5
+  offsets <- tidyr::expand_grid(d_lon = steps, d_lat = steps)
+  gap_cells |>
+    dplyr::rename(gap_lon = lon, gap_lat = lat) |>
+    dplyr::cross_join(offsets) |>
+    dplyr::mutate(
+      lon = round((gap_lon + d_lon + 180) %% 360 - 180, 2),
+      lat = round(gap_lat + d_lat, 2)
+    ) |>
+    dplyr::inner_join(
+      dplyr::mutate(climate, lon = round(lon, 2), lat = round(lat, 2)),
+      by = c("lon", "lat", "year")
+    ) |>
+    dplyr::mutate(
+      distance_km = round(
+        .haversine_km_pairs(gap_lon, gap_lat, lon, lat),
+        6
+      )
+    ) |>
+    dplyr::select(
+      lon = gap_lon,
+      lat = gap_lat,
+      year,
+      distance_km,
+      mean_annual_temp_c,
+      method_climate_zone
+    )
+}
+
+# Grid steps (0.5 degrees each) searched around a cell with no climate row.
+# This bound only decides between filling and aborting; it never sets a value.
+# Three steps reach every gap on the 2020 polycell grid against CRU TS 4.09:
+# the farthest, in the Nicobar Islands, is 176 km from its nearest CRU cell
+# (whep#1126).
+.climate_gap_max_ring <- function() {
+  3L
+}
+
+# Great-circle distance (km) between paired points, element by element.
+# Earth radius 6371 km, as `.haversine_km_matrix()`.
+.haversine_km_pairs <- function(lon1, lat1, lon2, lat2) {
+  to_rad <- pi / 180
+  hav <- sin((lat2 - lat1) * to_rad / 2)^2 +
+    cos(lat1 * to_rad) *
+      cos(lat2 * to_rad) *
+      sin((lon2 - lon1) * to_rad / 2)^2
+  2 * 6371 * asin(sqrt(pmin(1, pmax(0, hav))))
+}
+
+.abort_climate_gap <- function(gap, method) {
+  cells <- dplyr::distinct(gap, lon, lat, year)
+  max_ring <- .climate_gap_max_ring()
+  reason <- if (method == "refuse") {
+    "{.code method_climate_gap = \"refuse\"} does not fill them."
+  } else {
+    "None has a climate cell within {max_ring} grid steps
+     in the same year, so the climate table does not cover the herd."
+  }
+  cli::cli_abort(
+    c(
+      "{nrow(gap)} gridded livestock row{?s} in {nrow(cells)} cell{?s}
+       {?has/have} no climate zone.",
+      i = reason,
+      i = "An unresolved cell would otherwise take the hardcoded
+           {.val Temperate} zone and its animals would be booked against
+           the wrong methane conversion factor.",
+      i = "Check that {.arg cell_climate} covers the same cells and years as
+           {.arg gridded_livestock}."
+    ),
+    class = "whep_cell_climate_missing"
+  )
 }
 
 # Time and space columns the two rungs of the diet ladder group on. The
