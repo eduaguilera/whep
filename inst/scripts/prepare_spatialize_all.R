@@ -1460,6 +1460,7 @@ prepare_country_areas <- function(
     cli::cli_alert_info("Using MIRCA2000 crop-specific irrigation fractions")
     mirca <- nanoparquet::read_parquet(mirca_file) |>
       dplyr::select("area_code", "item_prod_code", "irrig_frac")
+    .check_mirca_covers_mapping(mirca, cft_mapping)
 
     luh2_total_irrig <- luh2_totals |>
       dplyr::summarize(
@@ -1554,6 +1555,30 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# `mirca_irrigation_country.parquet` is keyed on the `cft_mapping.csv` codes
+# that `prepare_mirca_irrigation()` read when it was built. A code mapped since
+# then has no MIRCA row in ANY country, so every row of it takes the
+# LUH2-proportional fallback below. That fallback shares a LUH2 type's whole
+# national irrigation among the fallback crops alone, and
+# `.cap_national_irrigation()` then shrinks every other crop to make room. When
+# whep#1292 moved coconut, linum, hemp and kapok onto their area-carrying codes
+# against the old table, 2010 irrigated area fell from 254.1 to 173.1 Mha and
+# Linum came out 96% irrigated. A code absent from the whole table is a stale
+# table, not a country MIRCA does not cover, so it aborts here.
+.check_mirca_covers_mapping <- function(mirca, cft_mapping) {
+  absent <- setdiff(cft_mapping$item_prod_code, mirca$item_prod_code)
+  if (length(absent) > 0L) {
+    cli::cli_abort(c(
+      "{.file mirca_irrigation_country.parquet} has no row for
+       {cli::qty(length(absent))}{?this/these} {.file cft_mapping.csv}
+       code{?s}: {.val {absent}}.",
+      i = "It predates the mapping. Re-run
+           {.fn prepare_mirca_irrigation} (Section 5) first."
+    ))
+  }
+  invisible(mirca)
 }
 
 # Cap summed irrigated area per country-year at the LUH2 national total. MIRCA

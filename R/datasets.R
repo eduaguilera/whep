@@ -521,6 +521,16 @@
 #' [build_gridded_landuse()] and [run_spatialize()] to aggregate
 #' spatialized crop-level output into named crop functional types.
 #'
+#' Only the items listed here reach the grid, so each crop is listed on the
+#' code that carries its harvested area. Where [build_primary_production()]
+#' books the area of several co-products on one item ([primary_double]),
+#' that item is the one listed: Coconuts (248), not coconuts in shell (249);
+#' Linum (772), not linseed (333) or flax (773); Hemp (776), not hempseed
+#' (336) or true hemp (777); Kapok fruit (310), not kapok fibre (778). Linum
+#' takes linseed's `cft_name` and Hemp takes true hemp's, after the product
+#' with the larger FAOSTAT harvested area (2010: linseed 2.35 Mha against
+#' flax 0.22 Mha; true hemp 0.051 Mha against hempseed 0.005 Mha).
+#'
 #' @format
 #' A tibble with one row per mapped FAOSTAT item. Columns:
 #' - `item_prod_code`: Integer FAOSTAT item code.

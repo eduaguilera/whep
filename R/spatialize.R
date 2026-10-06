@@ -1741,15 +1741,20 @@ build_gridded_landuse <- function(
 
 # Give every code in a `pattern_group` the SUM of the group's patterns.
 #
-# FAOSTAT splits one plant into several items where EarthStat publishes one
-# raster per item: hemp is 336 Hempseed and 777 True hemp fibre, both from
-# the same fields. Left separate, each item is spatialized on its own
-# raster, so a country reporting hempseed area is placed only where the
-# hempseed raster has cells, and vice versa. Pooling gives both items the
-# plant's footprint. Each item KEEPS its own code -- and so its own FAOSTAT
+# FAOSTAT can split one plant into several items where EarthStat publishes
+# one raster per item. Left separate, each item is spatialized on its own
+# raster, so a country reporting one item's area is placed only where that
+# raster has cells. Pooling gives every item in the group the plant's
+# footprint, while each item KEEPS its own code -- and so its own FAOSTAT
 # area -- because a code with no pattern loses its whole world total
-# silently (the barley failure, whep#877). Decision 2026-09-01 (Edu):
-# "hempseed mix with hemp".
+# silently (the barley failure, whep#877).
+#
+# Where WHEP books the co-products' area on one code instead
+# (`primary_double.csv`), no group is needed: the rasters map to that code
+# and `prepare_crop_patterns()` sums them. Hemp and hempseed are pooled that
+# way, on Hemp (776), which keeps the decision of 2026-09-01 (Edu):
+# "hempseed mix with hemp" (whep#1292). The fodder layers still use a group
+# (`R/soil_carbon_fodder.R`).
 .share_pattern_groups <- function(patterns, xwalk) {
   groups <- xwalk |>
     dplyr::filter(!is.na(.data$pattern_group), !is.na(.data$item_prod_code)) |>
