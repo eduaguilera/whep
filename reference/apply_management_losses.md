@@ -51,13 +51,21 @@ apply_management_losses(split, options = list())
   A named list. `method` selects the loss method (`"ipcc_2019_tier2"`).
   `bedding_c_loss` selects how bedding carbon is treated in storage:
   `"same_as_excreta"` (default) or `"none"`; see the Bedding section.
+  `indirect_n2o_source` selects the edition of
+  [indirect_n2o_ef](https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.md)
+  the EF4 and EF5 of the indirect N2O are read from: `"ipcc_2019"`
+  (default; EF5 0.011, Vol 4, Ch 11, Table 11.3 (Updated), p. 11.26 of
+  the 2019 Refinement) or `"ipcc_2006"` (EF5 0.0075, Table 11.3, p.
+  11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
+  is 0.010 in both, so only the leached share of `n2o_indirect_n` moves,
+  by a factor of 1.467; `applied_n` does not.
 
 ## Value
 
 The input rows with `manure_type`, `applied_n`, `applied_c`,
 `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
 `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
-`method_losses` and `method_bedding_c`.
+`method_losses`, `method_bedding_c` and `method_indirect_n2o`.
 
 ## Bedding
 
@@ -106,7 +114,7 @@ excretion <- tibble::tribble(
   2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
-#> # A tibble: 5 × 22
+#> # A tibble: 5 × 23
 #>    year territory sub_territory livestock_category species_gen mms_type         
 #>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>            
 #> 1  2020 203       NA            Cattle_milk        Cattle      Anaerobic Lagoon 
@@ -114,9 +122,9 @@ apply_management_losses(split_manure_management(excretion))
 #> 3  2020 203       NA            Cattle_milk        Cattle      Liquid/Slurry    
 #> 4  2020 203       NA            Cattle_milk        Cattle      Pasture/Range/Pa…
 #> 5  2020 203       NA            Cattle_milk        Cattle      Solid Storage    
-#> # ℹ 16 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
+#> # ℹ 17 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
 #> #   applied_c <dbl>, applied_vs <dbl>, n_volatilized <dbl>, n_leached <dbl>,
 #> #   n2o_direct_n <dbl>, n2_n <dbl>, n2o_indirect_n <dbl>, c_lost <dbl>,
 #> #   vs_destroyed <dbl>, n_bedding <dbl>, c_bedding <dbl>, method_losses <chr>,
-#> #   method_bedding_c <chr>
+#> #   method_bedding_c <chr>, method_indirect_n2o <chr>
 ```

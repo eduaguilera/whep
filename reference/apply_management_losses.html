@@ -129,7 +129,13 @@ cattle solid storage fell from 40.3% to 6.9% with no coefficient changing.</p>
 <dd><p>A named list. <code>method</code> selects the loss method
 (<code>"ipcc_2019_tier2"</code>). <code>bedding_c_loss</code> selects how bedding carbon is
 treated in storage: <code>"same_as_excreta"</code> (default) or <code>"none"</code>; see the
-Bedding section.</p></dd>
+Bedding section. <code>indirect_n2o_source</code> selects the edition of
+<a href="indirect_n2o_ef.html">indirect_n2o_ef</a> the EF4 and EF5 of the indirect N2O are read from:
+<code>"ipcc_2019"</code> (default; EF5 0.011, Vol 4, Ch 11, Table 11.3 (Updated),
+p. 11.26 of the 2019 Refinement) or <code>"ipcc_2006"</code> (EF5 0.0075, Table 11.3,
+p. 11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
+is 0.010 in both, so only the leached share of <code>n2o_indirect_n</code> moves,
+by a factor of 1.467; <code>applied_n</code> does not.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -137,7 +143,7 @@ Bedding section.</p></dd>
     <p>The input rows with <code>manure_type</code>, <code>applied_n</code>, <code>applied_c</code>,
 <code>applied_vs</code>, <code>n_volatilized</code>, <code>n_leached</code>, <code>n2o_direct_n</code>, <code>n2_n</code>,
 <code>n2o_indirect_n</code>, <code>c_lost</code>, <code>vs_destroyed</code>, <code>n_bedding</code>, <code>c_bedding</code>,
-<code>method_losses</code> and <code>method_bedding_c</code>.</p>
+<code>method_losses</code>, <code>method_bedding_c</code> and <code>method_indirect_n2o</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="bedding">Bedding<a class="anchor" aria-label="anchor" href="#bedding"></a></h2>
@@ -184,7 +190,7 @@ here.</p>
 <span class="r-in"><span>  <span class="fl">2020L</span>, <span class="st">"203"</span>, <span class="cn">NA</span>, <span class="st">"Cattle_milk"</span>, <span class="fl">100</span>, <span class="fl">1900</span>, <span class="fl">60</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">apply_management_losses</span><span class="op">(</span><span class="fu"><a href="split_manure_management.html">split_manure_management</a></span><span class="op">(</span><span class="va">excretion</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 22</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 23</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category species_gen mms_type         </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Anaerobic Lagoon </span>
@@ -192,11 +198,11 @@ here.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Liquid/Slurry    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Pasture/Range/Pa…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cattle_milk        Cattle      Solid Storage    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 16 more variables: manure_type &lt;chr&gt;, stream &lt;chr&gt;, applied_n &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 17 more variables: manure_type &lt;chr&gt;, stream &lt;chr&gt;, applied_n &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;, n_volatilized &lt;dbl&gt;, n_leached &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n2o_direct_n &lt;dbl&gt;, n2_n &lt;dbl&gt;, n2o_indirect_n &lt;dbl&gt;, c_lost &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   vs_destroyed &lt;dbl&gt;, n_bedding &lt;dbl&gt;, c_bedding &lt;dbl&gt;, method_losses &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;, method_indirect_n2o &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

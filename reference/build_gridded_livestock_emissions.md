@@ -108,7 +108,7 @@ build_gridded_livestock_emissions(
 
 - options:
 
-  A named list of manure-engine options. All but four defaults reproduce
+  A named list of manure-engine options. All but five defaults reproduce
   the behaviour in force before whep#949. The exceptions are
   `mcf_source`, which moved from the shipped table to the 2019
   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
@@ -117,7 +117,28 @@ build_gridded_livestock_emissions(
   which since whep#1137 pairs the 2019 pasture MCF with its published
   `Bo` and moves Tier 2 manure CH4, and `tier2_uncovered`, which since
   whep#1028 gives species with no Tier 2 method their Tier 1 values
-  instead of `NA`.
+  instead of `NA`, and `indirect_n2o_source`, which since whep#1245
+  reads the 2019 Refinement's leaching factors and moves both tiers'
+  indirect manure N2O.
+
+  `indirect_n2o_source` selects the edition of
+  [indirect_n2o_ef](https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.md)
+  the indirect manure N2O reads:
+
+  - `"ipcc_2019"` (default): EF5 0.011 and FracLEACH-(H) 0.24, from Vol
+    4, Ch 11, Table 11.3 (Updated), p. 11.26 of the 2019 Refinement, the
+    current IPCC guidance and the EF5 the nitrogen balance already uses.
+
+  - `"ipcc_2006"`: EF5 0.0075 and FracLEACH-(H) 0.30, from Table
+    11.3, p. 11.24 of the 2006 Guidelines. These are the values WHEP
+    shipped before whep#1245 under a 2019 citation, kept selectable so
+    earlier figures stay reproducible.
+
+  EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
+  `"ipcc_2006"` the default raises the leaching term by
+  `0.24 * 0.011 / (0.30 * 0.0075) = 1.173` and leaves the volatilisation
+  term alone. `method_manure_n2o` records the edition used
+  (`indirect_ipcc_2019` or `indirect_ipcc_2006`).
 
   `mms_shares` selects which half of
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
