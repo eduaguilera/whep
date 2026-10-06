@@ -2668,6 +2668,14 @@ utils::globalVariables(
     "is_aggregate",
     # n_prov_destiny.R (whep#932) -- per-tissue wood residue nitrogen
     "wood_tissue_kgN_kgDM",
+    # livestock_manure.R (whep#1365) -- per-MMS indirect manure N2O fractions
+    "animal_category",
+    "frac_gas",
+    "frac_gas_ms",
+    "frac_leach",
+    "frac_leach_ms",
+    "loss_category",
+    "row_id_indirect",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
