@@ -347,6 +347,12 @@ test_that("the enumerated baseline can only shrink", {
   # `sum(.territorial_join_baseline()$n)` on the merged tree.
   # 110 with whep#1342: the depth support's member-years merge and its
   # clip to gaps, each an inner join resolved by an interval intersection.
+  # 109 with whep#1318: `.cpy_recorded_code()` looks up the code the recorded
+  # cell-support mapping gives an unkeyable polity, and the year-window
+  # predicate after the join is what scopes it. Measured by running the audit.
+  # 110 on the 2026-10-06 merge of whep#1318 onto whep#1342's 110.
+  # Re-derived by running `sum(.territorial_join_baseline()$n)` on the merged
+  # tree.
   expect_lte(sum(baseline$n), 110L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
@@ -603,7 +609,12 @@ test_that("every year-free territorial grouping is classified", {
   # audit.
   # 138 with whep#1298: the lineage's aggregate successor edges, on top of
   # whep#1342's 137. Re-derived by running the audit.
-  expect_lte(sum(full$n), 138L)
+  # 137 with whep#1318: `.level0_inform_recorded()` names the polities the
+  # recorded mapping keyed, for its message (`diagnostic`). Measured by running
+  # the audit.
+  # 139 on the 2026-10-06 merge of whep#1318 onto main's 138. Re-derived by
+  # running the audit on the merged tree.
+  expect_lte(sum(full$n), 139L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
