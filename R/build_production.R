@@ -605,6 +605,7 @@ build_primary_production <- function(
       class = "whep_warn_missing_prod_flag"
     )
   }
+  dt <- .flax_to_fibre_basis(dt)
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(
     dt,
@@ -867,6 +868,124 @@ build_primary_production <- function(
   ]
   dt <- dt[!is.nan(yield)]
   dt
+}
+
+# -- Flax fibre basis (whep#1351) ---------------------------------------------
+
+# FAOSTAT's current QCL books flax fibre as 771 "Flax, raw or retted". For most
+# country-years that is the former 773 "Flax fibre and tow" series under a new
+# code: 1,052 of the 1,177 country-years both pins report agree within 1%. The
+# spans below do not. There 771 is 4-8x the 773 fibre tonnes FAOSTAT itself
+# itself published for the same country-year: a straw basis, not fibre (France
+# 2010: 372,100 t of 771 on 55,164 ha, 6.7 t/ha, against 66,970 t of 773).
+#
+# Inside a span, the fibre figure is FAO's own 773 tonnage wherever the old pin
+# has one (to 2013). Past it, the 771 straw is scaled by the country's median
+# 773/771 ratio over the span's overlap -- France 0.180, with 2009-2013 at
+# 0.180 to within 0.2%, so FAO's own late-overlap 773 is 771 x 0.18. That
+# ratio is FAO's, not a literature extraction rate; the industry figure it can
+# be checked against (Alliance for European Flax-Linen & Hemp, 2024 harvest:
+# 6.6 t straw and 1.3 t long fibre per ha, 0.197) agrees. The decision is
+# recorded on whep#1351.
+#
+# Romania is straw-basis in 1991-1995 and 2004-2005 and on fibre in between;
+# the span is 1991-2011 as decided on the issue, which is harmless where the two
+# agree. From 2012 Romania's 771 matches 773 again, so its span is closed.
+.flax_straw_spans <- function() {
+  tibble::tribble(
+    ~area_code, ~year_from, ~year_to,
+    68,         1991,       Inf,
+    183,        1991,       2011
+  )
+}
+
+.flax_to_fibre_basis <- function(dt) {
+  in_span <- .flax_straw_rows(dt)
+  if (!any(in_span)) {
+    return(dt)
+  }
+  straw <- dt[in_span, .(area_code, year, value)]
+  fibre <- .flax_fibre_values(straw, .read_flax_fibre_old())
+  changed <- fibre != dt$value[in_span]
+  cli::cli_inform(
+    "Putting {sum(changed)} straw-basis flax 771 row{?s} on a fibre basis
+     (whep#1351)."
+  )
+  dt[in_span, value := fibre]
+  if ("fao_flag" %in% names(dt)) {
+    # The fibre figure is not what FAOSTAT publishes under 771 (whep#1044).
+    dt[which(in_span)[changed], fao_flag := NA_character_]
+  }
+  dt
+}
+
+.flax_straw_rows <- function(dt) {
+  spans <- .flax_straw_spans()
+  span <- match(dt$area_code, spans$area_code)
+  dt$item_prod_code == 771 &
+    dt$element == "Production" &
+    !is.na(span) &
+    dt$year >= spans$year_from[span] &
+    dt$year <= spans$year_to[span]
+}
+
+# The fibre tonnes for each straw row, in `straw`'s row order: FAO's own 773
+# figure where the old pin has it, otherwise the straw scaled by the country's
+# overlap ratio. A row with neither aborts -- passing it through would book
+# stems as fibre, which is the defect itself.
+.flax_fibre_values <- function(straw, fibre_old) {
+  fibre_old <- data.table::as.data.table(fibre_old)
+  out <- merge(
+    data.table::copy(straw)[, row_id := .I],
+    fibre_old,
+    by = c("area_code", "year"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  ratios <- out[
+    value > 0 & fibre_t > 0,
+    .(fibre_ratio = stats::median(fibre_t / value)),
+    by = "area_code"
+  ]
+  out <- merge(out, ratios, by = "area_code", all.x = TRUE, sort = FALSE)
+  out[,
+    fibre_t := data.table::fifelse(
+      is.na(fibre_t),
+      value * fibre_ratio,
+      fibre_t
+    )
+  ]
+  .abort_flax_without_ratio(out)
+  out[order(row_id), fibre_t]
+}
+
+.abort_flax_without_ratio <- function(out) {
+  codes <- as.character(unique(out[is.na(fibre_t), area_code]))
+  if (length(codes) == 0L) {
+    return(invisible(out))
+  }
+  cli::cli_abort(
+    c(
+      "Flax 771 straw tonnes have no fibre ratio to convert them with.",
+      "x" = "Area code{?s} {.val {codes}} report{?s/}
+             no {.field 773} fibre in {.field faostat-production-old} for the
+             straw-basis years.",
+      "i" = "See {.fn .flax_straw_spans} and whep#1351."
+    ),
+    class = "whep_absent_input"
+  )
+}
+
+# FAO's former 773 "Flax fibre and tow" production, tonnes, for the countries
+# whose 771 is on a straw basis. Read over the whole pin: the overlap ratio is
+# needed for years outside a scoped build's window.
+.read_flax_fibre_old <- function() {
+  spans <- .flax_straw_spans()
+  dt <- .read_input("faostat-production-old")
+  dt[
+    ItemCode == 773 & ElementCode == 5510 & AreaCode %in% spans$area_code,
+    .(area_code = AreaCode, year = Year, fibre_t = Value)
+  ]
 }
 
 # -- Fodder --------------------------------------------------------------------

@@ -2820,3 +2820,145 @@ test_that("flax fibre 771 reaches assembled production with a CBS item", {
   expect_equal(flax$value, 50)
   expect_equal(flax$item_cbs_code, 2664)
 })
+
+# -- Flax fibre on a straw basis (whep#1351) -----------------------------------
+
+.flax_raw_fixture <- function() {
+  tibble::tribble(
+    ~`Item Code`, ~Item,               ~`Area Code`, ~Unit, ~Element,         ~Year, ~Value,   ~Flag,
+    771,          "Flax, raw or retted", 68,         "t",   "Production",     1990L, 77000,    "E",
+    771,          "Flax, raw or retted", 68,         "t",   "Production",     2010L, 372099.5, "A",
+    771,          "Flax, raw or retted", 68,         "t",   "Production",     2012L, 470543.6, "A",
+    771,          "Flax, raw or retted", 68,         "t",   "Production",     2020L, 744300,   "A",
+    771,          "Flax, raw or retted", 68,         "ha",  "Area harvested", 2020L, 120000,   "A",
+    771,          "Flax, raw or retted", 183,        "t",   "Production",     1995L, 7246,     "A",
+    771,          "Flax, raw or retted", 183,        "t",   "Production",     2020L, 40,       "A",
+    771,          "Flax, raw or retted", 57,         "t",   "Production",     2010L, 42000,    "A",
+    15,           "Wheat",               68,         "t",   "Production",     2010L, 3.8e7,    "A"
+  )
+}
+
+.flax_fibre_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~year, ~fibre_t,
+    68,         1990L, 77000,
+    68,         2010L, 66970,
+    68,         2012L, 84700,
+    183,        1995L, 1728,
+    57,         2010L, 41000
+  )
+}
+
+.flax_basis <- function(
+  raw = .flax_raw_fixture(),
+  fibre = .flax_fibre_fixture()
+) {
+  dt <- data.table::as.data.table(raw)
+  data.table::setnames(
+    dt,
+    c(
+      "Item Code",
+      "Item",
+      "Area Code",
+      "Unit",
+      "Element",
+      "Year",
+      "Value",
+      "Flag"
+    ),
+    c(
+      "item_prod_code",
+      "item_prod",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value",
+      "fao_flag"
+    )
+  )
+  testthat::local_mocked_bindings(
+    .read_flax_fibre_old = function() data.table::as.data.table(fibre),
+    .env = parent.frame()
+  )
+  suppressMessages(whep:::.flax_to_fibre_basis(dt)) |>
+    tibble::as_tibble()
+}
+
+.flax_value <- function(out, area, yr, unit_ = "t") {
+  out |>
+    dplyr::filter(
+      area_code == area,
+      year == yr,
+      unit == unit_,
+      item_prod_code == 771
+    ) |>
+    dplyr::pull(value)
+}
+
+test_that(".flax_to_fibre_basis takes FAO's 773 fibre tonnes where it has one", {
+  out <- .flax_basis()
+  # France 2010: FAOSTAT 771 reports 372,100 t of straw; the old 773 series
+  # reports 66,970 t of fibre for the same country-year.
+  expect_equal(.flax_value(out, 68, 2010L), 66970)
+  expect_equal(.flax_value(out, 68, 2012L), 84700)
+  expect_equal(.flax_value(out, 183, 1995L), 1728)
+  # The converted value is not the figure FAOSTAT published under 771.
+  expect_true(is.na(
+    out |>
+      dplyr::filter(
+        item_prod_code == 771,
+        area_code == 68,
+        year == 2010L,
+        unit == "t"
+      ) |>
+      dplyr::pull(fao_flag)
+  ))
+})
+
+test_that(".flax_to_fibre_basis scales post-overlap straw by the overlap ratio", {
+  out <- .flax_basis()
+  ratio <- stats::median(c(66970 / 372099.5, 84700 / 470543.6))
+  expect_equal(.flax_value(out, 68, 2020L), 744300 * ratio)
+  expect_lt(.flax_value(out, 68, 2020L), 744300 * 0.25)
+})
+
+test_that(".flax_to_fibre_basis leaves rows outside the straw spans alone", {
+  out <- .flax_basis()
+  # France before 1991, Romania after 2011, every other country, every other
+  # item and the harvested area are already on their own basis.
+  expect_equal(.flax_value(out, 68, 1990L), 77000)
+  expect_equal(.flax_value(out, 183, 2020L), 40)
+  expect_equal(.flax_value(out, 57, 2010L), 42000)
+  expect_equal(.flax_value(out, 68, 2020L, "ha"), 120000)
+  expect_equal(
+    out |> dplyr::filter(item_prod_code == 15) |> dplyr::pull(value),
+    3.8e7
+  )
+  expect_equal(nrow(out), nrow(.flax_raw_fixture()))
+})
+
+test_that(".flax_to_fibre_basis does not read the old pin without flax", {
+  raw <- dplyr::filter(.flax_raw_fixture(), `Item Code` != 771)
+  testthat::local_mocked_bindings(
+    .read_flax_fibre_old = function() stop("old pin read")
+  )
+  dt <- data.table::as.data.table(raw)
+  data.table::setnames(
+    dt,
+    c("Item Code", "Area Code", "Unit", "Element", "Year", "Value"),
+    c("item_prod_code", "area_code", "unit", "element", "year", "value")
+  )
+  expect_equal(nrow(whep:::.flax_to_fibre_basis(dt)), 1L)
+})
+
+test_that(".flax_to_fibre_basis refuses straw it has no fibre ratio for", {
+  # With no 773 overlap for France, the 2020 straw tonnes have nothing to be
+  # converted with. Passing them through would put stems back into fibre.
+  fibre <- dplyr::filter(.flax_fibre_fixture(), area_code != 68)
+  expect_supplied_guard(
+    # The old pin is supplied and non-zero; only France's overlap is absent.
+    identity = all(fibre$fibre_t > 0),
+    guard = .flax_basis(fibre = fibre)
+  )
+})
