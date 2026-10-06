@@ -588,17 +588,18 @@ cell_polity <- nbd_stage(
   .nbd_cell_polity(cell_support_mode, year, primary_prod, fertilizer)
 )
 cell_support_report <- .nbd_cell_support_report(cell_polity, cell_support_mode)
-# The cell support the livestock chain is placed on: the heads, the grass
-# ceiling, and the crop layer the manure is spread over (whep#1300). One table
-# for all three, so a border cell's animals and the hectares their manure lands
-# on cannot be split between polities differently. It is the carbon path's
-# polycell support, which is also what the local feed grain reads by default.
-# It is NOT yet the year-aware support above: under `year_aware` the crop NPP
-# follows cell_polity while livestock stays on this fixed-year support, so a
-# polity with no cell on it (the USSR in 1961) has no cells for its animals.
-# Moving the livestock chain onto cell_polity is a follow-up, not a merge
-# resolution: the two tables carry their cell share in different columns.
-cell_support <- nbd_stage("cell_support", whep:::.sci_read_country_grid())
+# The cell support the crop NPP and the livestock chain are placed on: the
+# heads, the grass ceiling, and the crop layer the manure is spread over
+# (whep#1300). One table for all of them, so a polity with cells for its
+# fertiliser has cells for its animals (the USSR in 1961), and a border cell's
+# animals and the hectares their manure lands on cannot be split between
+# polities differently. Under `year_aware` it is cell_polity above; under
+# `constant`, the carbon path's fixed 2015 polycell snapshot, as before
+# (.nbd_placement_support(), R/run_nitrogen_balance.R; whep#1320).
+cell_support <- nbd_stage(
+  "cell_support",
+  whep:::.nbd_placement_support(cell_support_mode, cell_polity)
+)
 ag_land_support <- nbd_stage(
   "ag_land_support",
   build_ag_land_support(years = year, data = list(cell_polity = cell_polity))
@@ -634,10 +635,7 @@ npp_national <- nbd_stage(
 )
 npp <- nbd_stage(
   "npp_n_input",
-  .nbd_grid_npp(
-    npp_national,
-    if (cell_support_mode == "constant") cell_support else cell_polity
-  )
+  .nbd_grid_npp(npp_national, cell_support)
 )
 # Reported here, not inside the stage: this compares npp_national and npp
 # AFTER both stages finish, so it can never be a condition either stage raises
