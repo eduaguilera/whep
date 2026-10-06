@@ -169,11 +169,13 @@ calculate_residue_destinies <- function(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  feed_share = c("legacy", "wirsenius")
 ) {
   method <- rlang::arg_match(method)
   unmatched_recovery <- rlang::arg_match(unmatched_recovery)
   recovery <- rlang::arg_match(recovery)
+  feed_share <- rlang::arg_match(feed_share)
   .check_bedding_fraction(bedding_fraction)
   .crop_npp_validate(
     x,
@@ -185,9 +187,14 @@ calculate_residue_destinies <- function(
     recovery_regional = .residue_destiny_recovery(
       x,
       unmatched_recovery,
-      recovery
+      recovery,
+      feed_share
     ),
-    shares = .residue_destiny_shares(x)
+    shares = dplyr::mutate(
+      .residue_destiny_shares(x),
+      # The shares table carries its own use share; neither feed table is read.
+      method_residue_feed = NA_character_
+    )
   )
   out |>
     .residue_carve_bedding(bedding_fraction) |>
@@ -342,7 +349,8 @@ build_residue_feed_avail <- function(
 .residue_destiny_recovery <- function(
   x,
   unmatched_recovery = "report",
-  recovery = "wirsenius"
+  recovery = "wirsenius",
+  feed_share = "legacy"
 ) {
   if (!all(c("region_krausmann", "region_un_sub") %in% names(x))) {
     cli::cli_abort(
@@ -356,9 +364,6 @@ build_residue_feed_avail <- function(
       cat_krausmann = Cat_Krausmann
     )
   recovery <- .residue_recovery_rates(recovery)
-  feed <- whep::whep_coef_table("residue_feed_fraction") |>
-    dplyr::select(region_un_sub, feed_use_fraction)
-  global_feed <- feed$feed_use_fraction[feed$region_un_sub == "Global"]
   joined <- x |>
     dplyr::mutate(
       item_prod_code = as.character(item_prod_code),
@@ -366,7 +371,7 @@ build_residue_feed_avail <- function(
     ) |>
     dplyr::left_join(cat_map, by = "item_prod_code") |>
     dplyr::left_join(recovery, by = c("cat_krausmann", "region_krausmann")) |>
-    dplyr::left_join(feed, by = "region_un_sub") |>
+    .residue_feed_use_fraction(feed_share) |>
     dplyr::mutate(
       # A rate the table GIVES as zero -- 18 of its 160 rows, e.g. fodder crops
       # in West Europe -- and a zero standing in for a rate the join never
@@ -377,7 +382,6 @@ build_residue_feed_avail <- function(
       # BEFORE the substitution makes the two indistinguishable.
       residue_recovery_matched = !is.na(recovery_rates),
       recovery_rates = tidyr::replace_na(recovery_rates, 0),
-      feed_use_fraction = tidyr::replace_na(feed_use_fraction, global_feed),
       residue_feed_dm_t = residue_dm_t * recovery_rates * feed_use_fraction,
       residue_burn_dm_t = residue_dm_t *
         recovery_rates *
@@ -440,6 +444,88 @@ build_residue_feed_avail <- function(
       region_krausmann,
       recovery_rates = .data[[rate_col]]
     )
+}
+
+# The feed-use fraction a `feed_share =` variant reads, attached per row as
+# `feed_use_fraction` (share of the RECOVERED residue fed) with the variant
+# that priced the row in `method_residue_feed` (whep#1398).
+#
+# `"wirsenius"` reads Wirsenius (2000) Table 3.20 on the recovery table's own
+# key, (crop category, HANPP region). The categories that table has no row for
+# keep the legacy UN-sub-region fraction, and their rows say `"legacy"`, so a
+# coefficient the source does not give is never passed off as one it does.
+.residue_feed_use_fraction <- function(joined, feed_share) {
+  legacy <- whep::whep_coef_table("residue_feed_fraction") |>
+    dplyr::select(region_un_sub, legacy_fraction = feed_use_fraction)
+  global_feed <- legacy$legacy_fraction[legacy$region_un_sub == "Global"]
+  out <- joined |>
+    dplyr::left_join(legacy, by = "region_un_sub") |>
+    dplyr::mutate(
+      legacy_fraction = tidyr::replace_na(.data$legacy_fraction, global_feed)
+    )
+  if (feed_share == "legacy") {
+    return(
+      out |>
+        dplyr::mutate(
+          feed_use_fraction = .data$legacy_fraction,
+          method_residue_feed = "legacy"
+        ) |>
+        dplyr::select(-"legacy_fraction")
+    )
+  }
+  assignment <- whep::whep_coef_table("residue_feed_assignment") |>
+    dplyr::select(cat_krausmann, region_wirsenius, feed_use_fraction)
+  out |>
+    dplyr::mutate(
+      region_wirsenius = .residue_wirsenius_region(
+        .data$region_krausmann,
+        .data$region_un_sub
+      )
+    ) |>
+    dplyr::left_join(
+      assignment,
+      by = c("cat_krausmann", "region_wirsenius")
+    ) |>
+    dplyr::mutate(
+      method_residue_feed = dplyr::if_else(
+        is.na(.data$feed_use_fraction),
+        "legacy",
+        "wirsenius"
+      ),
+      feed_use_fraction = dplyr::coalesce(
+        .data$feed_use_fraction,
+        .data$legacy_fraction
+      )
+    ) |>
+    dplyr::select(-"legacy_fraction", -"region_wirsenius")
+}
+
+# Wirsenius's own region for a row, from its HANPP region and UN M49
+# sub-region (whep#1398). The HANPP labels carry Wirsenius's eight region
+# NAMES but not his membership (Table 3.1, p. 58): HANPP files Southeast Asia,
+# Russia and Belarus, and the Caucasus under South and Central Asia, where
+# Wirsenius has them in East Asia, East Europe and North Africa & West Asia.
+# His feed shares differ by up to eightfold between those regions, so the
+# feed lookup is keyed on his membership. `residue_feed_regions.csv` lists the
+# (HANPP, sub-region) pairs that differ; every other pair keeps its HANPP label.
+#
+# Not separable on these two labels, and so left on the HANPP label: Greece,
+# Serbia and Montenegro, which Wirsenius has in East Europe (Yugoslavia) and
+# HANPP in West Europe, and which share their pair with Italy, Spain and
+# Portugal.
+.residue_wirsenius_region <- function(region_hanpp, region_un_sub) {
+  overrides <- whep::whep_coef_table("residue_feed_regions") |>
+    dplyr::select(region_hanpp, region_un_sub, region_wirsenius)
+  # A NA sub-region is a key here (the USSR row), and dplyr joins NA to NA.
+  tibble::tibble(region_hanpp, region_un_sub) |>
+    dplyr::left_join(overrides, by = c("region_hanpp", "region_un_sub")) |>
+    dplyr::mutate(
+      region_wirsenius = dplyr::coalesce(
+        .data$region_wirsenius,
+        .data$region_hanpp
+      )
+    ) |>
+    dplyr::pull("region_wirsenius")
 }
 
 .residue_recovery_region <- function(region) {
