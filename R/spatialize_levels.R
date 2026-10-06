@@ -926,12 +926,16 @@ admin_coverage_prototype <- function() {
 # `inst/extdata/polity_cell_support_map.csv` holds the rules decided with the
 # maintainer on whep#1196 for the nitrogen path's year-aware support. Five of
 # its polities have no reporting code: North and South Vietnam (237,
-# 1961-1974), the Mutawakkilite Kingdom and Aden (249, 1961) and the
+# 1954-1974), the Mutawakkilite Kingdom and Aden (249, 1918-1961) and the
 # Azerbaijan SSR (the USSR, 228, 1961-1990). The national tables carry 237 and
 # 249 in those years, and on the `20260907T111653Z-e654d` support the grid held
 # no cell for either: 6.28 Mha of Viet Nam's and 1.31 Mha of Yemen's 1961
-# harvested area had nowhere to land. `.level0_lineage_rekey()` reads the same
-# rows on the national side.
+# harvested area had nowhere to land. The windows first opened at 1961, where
+# FAOSTAT starts; the national tables reach back further, and 5.05-6.28 Mha of
+# Viet Nam's 1954-1960 and 1.27-1.43 Mha of Yemen's 1918-1960 harvested area a
+# year stayed without a cell until they were widened to the members' own
+# starts (whep#1317). `.level0_lineage_rekey()` reads the same rows on the
+# national side.
 #
 # Only an UNKEYED polity takes a recorded code here. The nitrogen path also
 # re-keys polities that have one -- Belgium and Luxembourg onto 15, the Baltic
@@ -942,8 +946,8 @@ admin_coverage_prototype <- function() {
 # land has already left through `.carbon_discount_duplicates()`; only what is
 # left of it is keyed here.
 #
-# A recorded window can open inside an epoch -- DRV-1954-1975 is keyed from
-# 1961 only -- so every row of a cell the mapping touches is cut at the
+# A recorded window can open inside an epoch -- ADE-1839-1963 is keyed from
+# 1918 only -- so every row of a cell the mapping touches is cut at the
 # windows' bounds. Cutting all of them keeps the cell's intervals coinciding or
 # disjoint, which the per-epoch denominator relies on, and the pieces carry the
 # row's values unchanged, so no year moves except where a code is supplied.
@@ -981,7 +985,7 @@ admin_coverage_prototype <- function() {
 # ended, Aden ends in 1963, and North and South Yemen have no geometry, so
 # `inst/extdata/polity_cell_support_map.csv` records `constant_territory`
 # onto YEM-1990-2025 for 1962-1989 -- a decision taken with the maintainer on
-# whep#1196 and applied by the nitrogen path (`.cpy_rows_at_year()`). Without
+# whep#1196 and applied by the nitrogen path in `.cpy_rows_at_year`. Without
 # it the level-0 grid had no 249 cell in those years, and 1.02-1.45 Mha of
 # harvested area a year was dropped (`20260907T111653Z-e654d` support).
 #

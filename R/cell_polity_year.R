@@ -17,7 +17,8 @@
 #   aggregate_member    An aggregate FAOSTAT reports whose members the support
 #                       carries separately: its cells are the union of its
 #                       members' cells in its reporting years (Belgium-
-#                       Luxembourg 15; Viet Nam 237 to 1974; Yemen 249 in 1961).
+#                       Luxembourg 15; Viet Nam 237 in 1954-1974; Yemen 249
+#                       in 1918-1961).
 #   contained_fold      A polity with no FAOSTAT row that year folds into the
 #                       reporting unit containing it (the Baltic and
 #                       Azerbaijan SSRs into the USSR to 1990; the fifteen USSR

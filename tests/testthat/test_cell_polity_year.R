@@ -86,6 +86,35 @@ testthat::test_that("every mapping row names a real polity and a live code", {
   testthat::expect_false(anyDuplicated(map$polity_code) > 0)
 })
 
+testthat::test_that("Viet Nam and Yemen are placed without a gap", {
+  # whep#1317: 237 and 249 report as aggregates (F237-1954-1975,
+  # F249-1918-1990) that hold no cell, so the recorded rows are all that
+  # places them until the modern polity starts. The windows must tile the
+  # span from the aggregate's start to the modern polity's start; a window
+  # opening at 1961 left 1954-1960 and 1918-1960 with no cell at all.
+  map <- whep:::.cell_polity_support_map()
+  starts <- stats::setNames(
+    as.integer(whep::polities$start_year),
+    whep::polities$polity_code
+  )
+  span <- function(code) unname(starts[[code]])
+  windows <- function(area) {
+    map |>
+      dplyr::filter(.data$area_code == area) |>
+      dplyr::distinct(.data$start_year, .data$end_year) |>
+      dplyr::arrange(.data$start_year)
+  }
+  for (case in list(
+    list(area = 237L, from = "F237-1954-1975", to = "VNM-1975-2025"),
+    list(area = 249L, from = "F249-1918-1990", to = "YEM-1990-2025")
+  )) {
+    w <- windows(case$area)
+    testthat::expect_identical(w$start_year[[1]], span(case$from))
+    testthat::expect_identical(utils::tail(w$end_year, 1), span(case$to))
+    testthat::expect_identical(w$start_year[-1], w$end_year[-nrow(w)])
+  }
+})
+
 testthat::test_that("a union's cells carry the union in its years", {
   out <- .cpy_build(1970L)
   testthat::expect_equal(.cpy_cell(out, 30.25, 55.25)$area_code, 228L)
