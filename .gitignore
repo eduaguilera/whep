@@ -31,7 +31,6 @@ data/*.rda.bak
 
 # Build-time-only GAEZ/FAOSTAT-derived grids: regenerable from data-raw, not
 # read at package runtime, so not committed (kept out of the shipped package).
-inst/extdata/grid_aez.csv
 inst/extdata/faostat_cropland.csv
 
 # CROPGRIDS land tables: read at runtime from the cropgrids-land /
