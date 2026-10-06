@@ -716,3 +716,30 @@ test_that("a moved item code in the landuse pin is refused", {
     class = "whep_absent_label"
   )
 })
+
+testthat::test_that("the pasture trend read refuses a moved state label", {
+  # A read that fails is still skipped (no trend, no backcast), but a pin
+  # whose `pastr`/`range` labels moved is a contract break, not a failed
+  # read: it must not be swallowed into "no pre-1961 pasture" (whep#1034).
+  renamed <- tibble::tribble(
+    ~ISO3, ~Year, ~Land_Use, ~Area_Mha,
+    "ESP", 1950L, "Pasture", 5,
+    "ESP", 1950L, "c3ann",   8
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(...) renamed,
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep:::.plu_luh2_grassland(),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("a failed pasture trend read still yields no trend", {
+  testthat::local_mocked_bindings(
+    .read_input = function(...) cli::cli_abort("pin board unreachable"),
+    .package = "whep"
+  )
+  testthat::expect_null(whep:::.plu_luh2_grassland())
+})
