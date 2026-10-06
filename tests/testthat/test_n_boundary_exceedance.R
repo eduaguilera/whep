@@ -1007,6 +1007,56 @@ testthat::test_that("the split refuses inputs it cannot interpret", {
   )
 })
 
+testthat::test_that("zero-area grassland in an unclassified cell is managed", {
+  # A grassland row with no area but non-zero pressure in G, which the class
+  # table does not carry: soil mineralisation the balance books where no
+  # grassland map has grassland (2010 real data: 1086 cells, 2.5 kt N input,
+  # all of it from soil organic matter). It joins the managed component, as
+  # it joins the cell in the unsplit comparison.
+  surplus <- dplyr::bind_rows(
+    .gs_surplus(),
+    tibble::tibble(
+      area_code = 1L,
+      item_cbs_code = 3000L,
+      area_ha = 0,
+      surplus_n_t = 2,
+      lon = .gs_lon()[["G"]],
+      lat = 0.25,
+      year = 2015L,
+      n_input_std_t = 2
+    )
+  )
+  run <- \(surplus, ...) {
+    suppressMessages(whep::build_n_boundary_exceedance(
+      surplus = surplus,
+      critical = .gs_critical(),
+      land_use = "all",
+      resolution = "cell",
+      actual_year = 2015L,
+      critical_reference_year = 2010L,
+      ...
+    ))
+  }
+  split <- .gs_cell(run(surplus, grassland = .gs_grassland()), "G")
+  none <- .gs_cell(run(surplus, grassland_split = "none"), "G")
+  # Managed: 9 t cropland + 2 t zero-area grassland against 70 kg/ha on its
+  # 100 ha of cropland (7 t), so 4 t overshoot, as without the split.
+  testthat::expect_equal(split$managed_actual_n_t, 11)
+  testthat::expect_equal(split$managed_critical_n_t, 7)
+  testthat::expect_equal(split$extensive_actual_n_t, 0)
+  testthat::expect_equal(split$cell_positive_overshoot_n_t, 4)
+  testthat::expect_equal(
+    split$cell_positive_overshoot_n_t,
+    none$cell_positive_overshoot_n_t
+  )
+  # The same row with area is grassland the class table misses: still refused.
+  surplus$area_ha[nrow(surplus)] <- 5
+  testthat::expect_error(
+    run(surplus, grassland = .gs_grassland()),
+    class = "whep_nbx_grassland_uncovered"
+  )
+})
+
 testthat::test_that("an all-missing extensive budget is an absent input", {
   vacuous <- dplyr::mutate(.gs_budget(), ext_surplus_kgn_ha = NA_real_)
   expect_supplied_guard(
