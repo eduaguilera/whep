@@ -44,6 +44,14 @@
 #' variable, else a local cache that is populated by downloading the archive
 #' from Zenodo on first use (see `dir`).
 #'
+#' `method = "reproduced"` returns the same layer recomputed from the
+#' archive's own 2010 inputs with the source's equations by
+#' [calculate_critical_n()], instead of the deposited raster. It covers the
+#' critical surplus, the critical input and the surplus exceedance, matches
+#' the deposited layers closely but not exactly (see
+#' [calculate_critical_n()]), and is stamped in `method_critical_n` and
+#' `critical_source` so it is never read as the deposited surface.
+#'
 #' @param var Which critical-nitrogen layer to read: one of
 #'   `"critical_n_surplus"`, `"critical_n_input"`, `"exceedance"`,
 #'   `"crit_nh3_emission"`, `"crit_leaching_gw"`, `"crit_load_sw"` or
@@ -78,13 +86,19 @@
 #'   selected critical raster and its source-area/IMAGE support rasters against
 #'   the package's versioned content manifest before parsing. Ignored for
 #'   `data` and `example` injection.
+#' @param method Where the layer comes from: `"archive"` (default) reads the
+#'   deposited raster; `"reproduced"` recomputes it with
+#'   [calculate_critical_n()] from the archive's 2010 inputs. `"reproduced"`
+#'   supports `var = "critical_n_surplus"`, `"critical_n_input"` and
+#'   `"exceedance"` and aborts for the other layers.
 #' @return A tibble with `lon`, `lat` (0.5-degree cell centres), `value`
 #'   (kg N per hectare per year; a categorical impact code for
 #'   `threshold_exceedance`) and retained layer provenance: `critical_var`,
 #'   `critical_threshold`, `critical_land_use`, `critical_year` and
 #'   `critical_source`, canonical integer `cell_id`/row/column keys, deposited
-#'   `source_area_ha`, IMAGE-region membership, DOI/version and archive checksum.
-#'   NODATA cells are dropped.
+#'   `source_area_ha`, IMAGE-region membership, DOI/version, archive checksum
+#'   and `method_critical_n` (`"archive"` or `"reproduced"`). NODATA cells are
+#'   dropped.
 #' @export
 #' @examples
 #' read_critical_n(example = TRUE)
@@ -104,16 +118,22 @@ read_critical_n <- function(
   dir = NULL,
   data = NULL,
   example = FALSE,
-  verify_source = TRUE
+  verify_source = TRUE,
+  method = c("archive", "reproduced")
 ) {
   var <- .critn_resolve_var(rlang::arg_match(var))
   threshold <- rlang::arg_match(threshold)
   land_use <- rlang::arg_match(land_use)
+  method <- rlang::arg_match(method)
+  .critn_check_method(method, var)
   resolved_dir <- NULL
   grid <- if (isTRUE(example)) {
     .example_critical_n()
   } else if (!is.null(data)) {
     data
+  } else if (method == "reproduced") {
+    resolved_dir <- .resolve_critical_n_dir(dir)
+    .critn_reproduced_layer(resolved_dir, var, threshold, land_use)
   } else {
     resolved_dir <- .resolve_critical_n_dir(dir)
     if (
@@ -131,7 +151,7 @@ read_critical_n <- function(
   ) {
     grid <- .critical_n_attach_support(grid, resolved_dir, land_use)
   }
-  .critical_n_finalize(grid, var, threshold, land_use)
+  .critical_n_finalize(grid, var, threshold, land_use, method)
 }
 
 #' Derive the binding critical-nitrogen threshold per cell.
@@ -251,6 +271,45 @@ build_critical_n_binding <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The reproduction computes allowances; the deposited loss and
+# threshold-exceedance maps have no reproduced counterpart here.
+.critn_check_method <- function(method, var) {
+  supported <- c("critical_n_surplus", "critical_n_input", "exceedance")
+  if (method == "reproduced" && !var %in% supported) {
+    cli::cli_abort(
+      c(
+        "{.code method = \"reproduced\"} does not cover {.val {var}}.",
+        i = "It recomputes {.val {supported}}; read {.val {var}} with
+             {.code method = \"archive\"}."
+      ),
+      class = "whep_critn_method_unsupported"
+    )
+  }
+  invisible(TRUE)
+}
+
+# One layer of calculate_critical_n() in the deposited layer's lon/lat/value
+# form. "exceedance" is the surplus exceedance, current minus critical, as
+# in the archive's "Exeedance of critical N surpluses" folder.
+.critn_reproduced_layer <- function(dir, var, threshold, land_use) {
+  calculate_critical_n(dir = dir) |>
+    dplyr::filter(
+      .data$critical_threshold == .env$threshold,
+      .data$critical_land_use == .env$land_use
+    ) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      value = switch(
+        var,
+        critical_n_surplus = .data$critical_n_surplus_kgn_ha,
+        critical_n_input = .data$critical_n_input_kgn_ha,
+        exceedance = .data$current_n_surplus_kgn_ha -
+          .data$critical_n_surplus_kgn_ha
+      )
+    )
+}
 
 # "binding_threshold" named the threshold-exceedance map, which records the
 # thresholds a cell EXCEEDS, not the one that binds. The old name keeps working
@@ -537,13 +596,20 @@ build_critical_n_binding <- function(
 }
 
 .critn_verify_selected <- function(dir, var, threshold, land_use) {
-  wanted <- .critn_selected_paths(var, threshold, land_use)
+  .critn_verify_paths(
+    .critn_root_path(dir),
+    .critn_selected_paths(var, threshold, land_use)
+  )
+}
+
+# Verify archive files, given relative to the archive root, against the
+# versioned content manifest.
+.critn_verify_paths <- function(root, wanted) {
   manifest <- .critn_manifest()
   expected <- dplyr::filter(manifest, .data$relative_path %in% .env$wanted)
   if (!setequal(expected$relative_path, wanted)) {
     cli::cli_abort("The critical-N source manifest is incomplete.")
   }
-  root <- .critn_root_path(dir)
   purrr::pwalk(
     list(expected$relative_path, expected$bytes, expected$md5, expected$sha256),
     \(relative_path, bytes, md5, sha256) {
@@ -867,7 +933,13 @@ build_critical_n_binding <- function(
 # selectors that identify the physical layer. Dropping these fields permits a
 # critical-input/arable grid to be silently relabelled as surplus/all
 # downstream.
-.critical_n_finalize <- function(grid, var, threshold, land_use) {
+.critical_n_finalize <- function(
+  grid,
+  var,
+  threshold,
+  land_use,
+  method = "archive"
+) {
   if (!all(rlang::has_name(grid, c("lon", "lat", "value")))) {
     cli::cli_abort(
       "Critical-nitrogen grid needs columns {.field lon}, {.field lat} and
@@ -906,7 +978,7 @@ build_critical_n_binding <- function(
         NA_character_
       ),
       critical_year = 2010L,
-      critical_source = "Schulte-Uebbing et al. (2022)",
+      critical_source = .critn_source_label(method),
       cell_id = .data$cell_id,
       source_row = .data$source_row,
       source_col = .data$source_col,
@@ -914,9 +986,17 @@ build_critical_n_binding <- function(
       image_region = as.integer(.data$image_region),
       critical_source_doi = .critn_source_doi(),
       critical_source_version = .critn_source_version(),
-      archive_md5 = .critn_archive_md5()
+      archive_md5 = .critn_archive_md5(),
+      method_critical_n = method
     ) |>
     tibble::as_tibble()
+}
+
+.critn_source_label <- function(method) {
+  if (method == "reproduced") {
+    return("Schulte-Uebbing et al. (2022) method, recomputed by WHEP")
+  }
+  "Schulte-Uebbing et al. (2022)"
 }
 
 # ---- IMAGE 2010 extensive-grassland N budget ---------------------------

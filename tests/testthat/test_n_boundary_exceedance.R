@@ -1521,3 +1521,41 @@ testthat::test_that("the shared split fixtures were never mutated", {
   .gs_none("cell")
   expect_n_fixtures_unchanged("nbx_")
 })
+
+testthat::test_that("a recomputed allowance is stamped apart from the deposit", {
+  archive <- .nbx_run(c(4, 4))
+  testthat::expect_true(all(archive$method_boundary == "schulte_uebbing_grid"))
+  boundary <- .nbx_boundary()
+  boundary$method_critical_n <- "reproduced"
+  reproduced <- .nbx_run(c(4, 4), boundary = boundary)
+  testthat::expect_true(all(
+    reproduced$method_boundary == "schulte_uebbing_grid_reproduced"
+  ))
+  # Same numbers: only the provenance differs.
+  testthat::expect_equal(
+    reproduced$exceedance_n_t,
+    archive$exceedance_n_t
+  )
+})
+
+testthat::test_that("grassland-split layers must share the critical method", {
+  critical <- tibble::tibble(method_critical_n = "reproduced")
+  grassland <- list(
+    critical_ara = tibble::tibble(method_critical_n = "reproduced"),
+    critical_igl = tibble::tibble(method_critical_n = "archive")
+  )
+  testthat::expect_error(
+    whep:::.nbx_critical_method(critical, grassland, split = TRUE),
+    class = "whep_nbx_mixed_critical_method"
+  )
+  # Without the split the grassland layers are not compared, and a layer
+  # that predates the stamp counts as the deposit.
+  testthat::expect_equal(
+    whep:::.nbx_critical_method(critical, grassland, split = FALSE),
+    "reproduced"
+  )
+  testthat::expect_equal(
+    whep:::.nbx_critical_method(tibble::tibble(x = 1), list(), FALSE),
+    "archive"
+  )
+})

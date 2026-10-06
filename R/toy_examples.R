@@ -1218,6 +1218,65 @@
   )
 }
 
+# Four cells of the Schulte-Uebbing et al. (2022) archive's 2010 Input_files
+# (Zenodo doi:10.5281/zenodo.6395016), as .critn_read_inputs() returns them,
+# rounded to six significant digits: arable land only (India), arable land
+# with extensive grassland (USA), arable land with intensive grassland
+# (China) and intensive grassland only (Western Europe). Run through
+# calculate_critical_n(), they reach every rule: an environmental threshold,
+# the non-agricultural floor and the yield-potential cut-off.
+.example_critical_n_inputs <- function() {
+  tibble::tibble(
+    cell_id = c(89786L, 61368L, 59642L, 61591L),
+    lon = c(72.75, -96.25, 120.75, 15.25),
+    lat = c(27.75, 47.25, 48.75, 47.25),
+    area_total_ha = c(274200, 210316, 204288, 210316),
+    area_arable_ha = c(45604.3, 49086.4, 28095, 0),
+    area_intensive_ha = c(0, 0, 118959, 59438.1),
+    area_extensive_ha = c(0, 2997.87, 0, 0),
+    area_natural_ha = c(228596, 158232, 57234.3, 150878),
+    biome = c(16L, 12L, 10L, 12L),
+    image_region = c(18L, 2L, 20L, 11L),
+    runoff_l = c(2664790000, 120163000000, 467349000000, 1069320000000),
+    fertilizer_net_arable_kg = c(4508190, 2500680, 3340920, 0),
+    fertilizer_net_grass_kg = c(0, 0, 0, 896432),
+    manure_net_arable_kg = c(788521, 1167740, 367744, 0),
+    manure_net_intensive_kg = c(0, 0, 1674720, 3821920),
+    manure_net_extensive_kg = c(0, 297675, 0, 0),
+    nh3_fertilizer_arable_kg = c(1092290, 256617, 387930, 0),
+    nh3_fertilizer_intensive_kg = c(0, 0, 0, 49204.5),
+    nh3_fertilizer_extensive_kg = c(0, 0, 0, 0),
+    nh3_spreading_arable_kg = c(158038, 233480, 36408, 0),
+    nh3_spreading_intensive_kg = c(0, 0, 2844.12, 269293),
+    nh3_spreading_extensive_kg = c(0, 66364.2, 0, 0),
+    nh3_grazing_intensive_kg = c(0, 0, 197319, 213038),
+    nh3_grazing_extensive_kg = c(0, 10695.2, 0, 0),
+    nh3_storage_kg = c(191682, 461704, 189442, 459987),
+    deposition_kg = c(2593710, 1644710, 1207620, 3410680),
+    fixation_arable_kg = c(228022, 2421170, 684146, 0.415817),
+    fixation_intensive_kg = c(0, 0, 594794, 297191),
+    fixation_extensive_kg = c(0, 14989.4, 0, 0),
+    fixation_natural_kg = c(1102830, 1036100, 89612.3, 916355),
+    uptake_arable_kg = c(2545950, 5113530, 2098860, 0),
+    uptake_intensive_kg = c(0, 0, 2080900, 4185610),
+    uptake_extensive_kg = c(0, 235275, 0, 0),
+    surface_runoff_ag_kg = c(13666.2, 43534.2, 365922, 204315),
+    surface_runoff_natural_kg = c(0, 1879.37, 3631.64, 52317.8),
+    leaching_ag_kg = c(864734, 853014, 1495280, 518478),
+    leaching_natural_kg = c(0, 387870, 125560, 899268),
+    groundwater_ag_kg = c(0, 653062, 1138490, 466509),
+    groundwater_natural_kg = c(0, 296951, 95600.1, 809131),
+    groundwater_recent_ag = c(0.000461625, 0.0271388, 0.108666, 0.241506),
+    groundwater_recent_natural = c(0.000461625, 0.0271388, 0.108666, 0.241506),
+    erosion_ag_kg = c(6197.16, 89285.9, 345584, 83771.6),
+    erosion_natural_kg = c(668.69, 6148.44, 11482.2, 57408.1),
+    wastewater_kg = c(0, 0, 0, 483317),
+    allochthonous_kg = c(531.493, 8.16156, 22.3819, 0),
+    aquaculture_kg = c(0, 0, 0, 5650.56),
+    deposition_water_kg = c(321.869, 786.276, 476.68, 14978.6)
+  )
+}
+
 # Five cells run through the real build_critical_n_binding(): one per single
 # binding threshold and two with all three surfaces equal, one of each source
 # rule. The yield-potential-cap cell exceeds no threshold (negative

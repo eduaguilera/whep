@@ -100,6 +100,9 @@
 #'   inputs are read from the archive's `Input_files`.
 #' @param dir Optional archive directory, resolved as in [read_critical_n()].
 #'   Ignored when `inputs` is supplied.
+#' @param verify_source If `TRUE` (default), the archive's input rasters are
+#'   checked against the package's content manifest before they are read.
+#'   Ignored when `inputs` is supplied.
 #' @param example If `TRUE`, return the result for a small fixture of four
 #'   cells instead of reading data. Defaults to `FALSE`.
 #' @return A tibble with one row per cell, threshold and land-use scope:
@@ -116,12 +119,21 @@
 #' @export
 #' @examples
 #' calculate_critical_n(example = TRUE)
-calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
+calculate_critical_n <- function(
+  inputs = NULL,
+  dir = NULL,
+  verify_source = TRUE,
+  example = FALSE
+) {
   if (isTRUE(example)) {
     inputs <- .example_critical_n_inputs()
   }
   if (is.null(inputs)) {
-    inputs <- .critn_read_inputs(.critn_root_path(.resolve_critical_n_dir(dir)))
+    root <- .critn_root_path(.resolve_critical_n_dir(dir))
+    if (isTRUE(verify_source)) {
+      .critn_verify_paths(root, .critn_input_paths())
+    }
+    inputs <- .critn_read_inputs(root)
   }
   .critn_check_inputs(inputs)
   prep <- .critn_prepare(inputs)
@@ -283,14 +295,18 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
 
 # ---- Reading the archive inputs -----------------------------------------
 
+.critn_input_paths <- function() {
+  file.path("Input_files", paste0(.critn_input_specs()$file, ".asc"))
+}
+
 # One row per cell with a total area. Each raster is read as a full 720 x 360
 # vector, so the canonical cell id is the vector index (row 1 = north); a
 # raster off that grid aborts. NODATA becomes NA.
 .critn_read_inputs <- function(root) {
   specs <- .critn_input_specs()
   values <- purrr::map(
-    rlang::set_names(specs$file, specs$column),
-    \(file) .critn_read_vector(file.path(root, "Input_files", paste0(file, ".asc")))
+    rlang::set_names(.critn_input_paths(), specs$column),
+    \(path) .critn_read_vector(file.path(root, path))
   )
   tibble::as_tibble(values) |>
     dplyr::mutate(
@@ -364,6 +380,10 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
 
 # ---- Current state and fractions -----------------------------------------
 
+# Adds the per-cell terms of SI Supplementary Table 4. Intermediate columns
+# are named after the SI symbols they hold (fsro_ag is f_sro,ag, fnup_ara is
+# fN_up,ara, ...); `x_*` is fertiliser plus manure and `c_*` the NH3 it emits
+# per kg.
 .critn_prepare <- function(inputs) {
   inputs |>
     .critn_gross_inputs() |>
@@ -553,7 +573,11 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
   water <- (1 - prep$fsro_ag) * prep$runoff_l * .critn_conc_groundwater()
   prep |>
     dplyr::left_join(
-      dplyr::select(.critn_biome_rates(), "biome", "critical_deposition_kgn_ha"),
+      dplyr::select(
+        .critn_biome_rates(),
+        "biome",
+        "critical_deposition_kgn_ha"
+      ),
       by = "biome",
       relationship = "many-to-one"
     ) |>
@@ -577,7 +601,8 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
   egl <- p$input_egl_fixed + p$fixation_extensive_kg + p$f_egl * emission
   ag <- ara + igl + egl
   runoff <- p$fsro_ag * ag
-  uptake <- (1 - p$fsro_ag) * (p$fnup_ara * ara + p$fnup_igl * igl) +
+  uptake <- (1 - p$fsro_ag) *
+    (p$fnup_ara * ara + p$fnup_igl * igl) +
     p$uptake_extensive_kg
   leaching <- p$fle_ag * (ag - uptake - runoff)
   nat <- p$fixation_natural_kg + p$f_nat * emission
@@ -620,21 +645,19 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
 # fall further keeps that value, and the other is solved again with the
 # deposition of the first one's critical emission.
 .critn_env_groundwater <- function(p) {
-  solo_ara <- \(other) .critn_solve_leaching(p, "ara", other)
-  solo_igl <- \(other) .critn_solve_leaching(p, "igl", other)
-  first_ara <- solo_ara(p$c_igl * p$x_igl)
-  first_igl <- solo_igl(p$c_ara * p$x_ara)
+  first_ara <- .critn_solve_leaching(p, "ara", p$c_igl * p$x_igl)
+  first_igl <- .critn_solve_leaching(p, "igl", p$c_ara * p$x_ara)
   ara_first <- first_ara / p$x_ara <= first_igl / p$x_igl
   ara_first[is.na(ara_first)] <- TRUE
   list(
     x_ara = dplyr::if_else(
       ara_first,
       first_ara,
-      solo_ara(p$c_igl * pmax(first_igl, 0))
+      .critn_solve_leaching(p, "ara", p$c_igl * pmax(first_igl, 0))
     ),
     x_igl = dplyr::if_else(
       ara_first,
-      solo_igl(p$c_ara * pmax(first_ara, 0)),
+      .critn_solve_leaching(p, "igl", p$c_ara * pmax(first_ara, 0)),
       first_igl
     )
   )
@@ -644,13 +667,11 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
 # limit, given `other` kg of NH3 emitted by the other reducible land use.
 .critn_solve_leaching <- function(p, land_use, other) {
   f <- p[[paste0("f_", land_use)]]
-  c <- p[[paste0("c_", land_use)]]
-  fix <- p[[c(ara = "fixation_arable_kg", igl = "fixation_intensive_kg")[[
-    land_use
-  ]]]]
+  nh3 <- p[[paste0("c_", land_use)]]
+  fix <- p[[.critn_land_use_col(land_use, "fixation")]]
   per_input <- p$fle_ag * (1 - p$fsro_ag) * (1 - p[[paste0("fnup_", land_use)]])
   input <- p[[paste0("limit_gw_", land_use)]] / per_input
-  (input - fix - f * (p$emission_fixed + other)) / (1 + f * c)
+  (input - fix - f * (p$emission_fixed + other)) / (1 + f * nh3)
 }
 
 # SI Eqs. 31-32: the lowest critical fertiliser plus manure of the three
@@ -681,37 +702,54 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
   final_igl <- dplyr::if_else(cut_igl, p$x_max_igl, floor_igl)
   emission <- p$emission_fixed + p$c_ara * final_ara + p$c_igl * final_igl
   pre_cut <- p$emission_fixed + p$c_ara * floor_ara + p$c_igl * floor_igl
-  ara <- .critn_land_use_result(p, "ara", final_ara, cut_ara, emission, pre_cut)
-  igl <- .critn_land_use_result(p, "igl", final_igl, cut_igl, emission, pre_cut)
-  rule <- \(floor, cut) {
-    dplyr::case_when(
-      cut ~ "yield_potential_cap",
-      floor <= 0 ~ "non_agricultural_floor",
-      .default = "environmental_threshold"
-    )
-  }
-  ara$rule <- rule(floor_ara, cut_ara)
-  igl$rule <- rule(floor_igl, cut_igl)
+  deposition <- list(final = emission, pre_cut = pre_cut)
+  ara <- .critn_land_use_result(p, "ara", final_ara, cut_ara, deposition)
+  igl <- .critn_land_use_result(p, "igl", final_igl, cut_igl, deposition)
+  ara$rule <- .critn_rule(floor_ara, cut_ara)
+  igl$rule <- .critn_rule(floor_igl, cut_igl)
   .critn_long(p, ara, igl, threshold)
 }
 
-.critn_land_use_result <- function(p, land_use, x, cut, emission, pre_cut) {
+.critn_rule <- function(floor, cut) {
+  dplyr::case_when(
+    cut ~ "yield_potential_cap",
+    floor <= 0 ~ "non_agricultural_floor",
+    .default = "environmental_threshold"
+  )
+}
+
+# The input column holding a reducible land use's own quantity.
+.critn_land_use_col <- function(land_use, quantity) {
+  cols <- list(
+    ara = c(
+      fixation = "fixation_arable_kg",
+      uptake = "uptake_arable_kg",
+      area = "area_arable_ha"
+    ),
+    igl = c(
+      fixation = "fixation_intensive_kg",
+      uptake = "uptake_intensive_kg",
+      area = "area_intensive_ha"
+    )
+  )
+  cols[[land_use]][[quantity]]
+}
+
+# `deposition` holds the cell's final emission and its emission before any
+# cut-off (see .critn_finish()).
+.critn_land_use_result <- function(p, land_use, x, cut, deposition) {
   f <- p[[paste0("f_", land_use)]]
-  fix <- p[[c(ara = "fixation_arable_kg", igl = "fixation_intensive_kg")[[
-    land_use
-  ]]]]
+  fix <- p[[.critn_land_use_col(land_use, "fixation")]]
   nue <- p[[paste0("nue_", land_use)]]
-  input <- x + fix + f * emission
+  input <- x + fix + f * deposition$final
   uptake <- dplyr::if_else(
     cut,
     p[[paste0("uptake_max_", land_use)]],
-    nue * (x + fix + f * pre_cut)
+    nue * (x + fix + f * deposition$pre_cut)
   )
   current <- p[[paste0("input_", land_use)]]
-  current_uptake <- p[[c(ara = "uptake_arable_kg", igl = "uptake_intensive_kg")[[
-    land_use
-  ]]]]
-  area <- p[[c(ara = "area_arable_ha", igl = "area_intensive_ha")[[land_use]]]]
+  current_uptake <- p[[.critn_land_use_col(land_use, "uptake")]]
+  area <- p[[.critn_land_use_col(land_use, "area")]]
   defined <- area > 0 &
     p[[paste0("x_", land_use)]] > 0 &
     current_uptake > 0 &
@@ -756,21 +794,25 @@ calculate_critical_n <- function(inputs = NULL, dir = NULL, example = FALSE) {
 }
 
 .critn_all_scope <- function(ara, igl) {
-  add <- \(a, b) dplyr::coalesce(a, 0) + dplyr::coalesce(b, 0)
-  defined <- ara$defined | igl$defined
-  area <- add(
+  area <- .critn_add(
     dplyr::if_else(ara$defined, ara$area, NA_real_),
     dplyr::if_else(igl$defined, igl$area, NA_real_)
   )
   list(
-    defined = defined,
+    defined = ara$defined | igl$defined,
     area = area,
-    input = add(ara$input, igl$input),
-    uptake = add(ara$uptake, igl$uptake),
-    current = add(ara$current, igl$current),
-    current_uptake = add(ara$current_uptake, igl$current_uptake),
+    input = .critn_add(ara$input, igl$input),
+    uptake = .critn_add(ara$uptake, igl$uptake),
+    current = .critn_add(ara$current, igl$current),
+    current_uptake = .critn_add(ara$current_uptake, igl$current_uptake),
     rule = NA_character_
   )
+}
+
+# The sum over the two land uses of a quantity undefined where a land use
+# has no critical value, which then contributes nothing.
+.critn_add <- function(a, b) {
+  dplyr::coalesce(a, 0) + dplyr::coalesce(b, 0)
 }
 
 # A land use absent from a cell receives nothing and is never cut off, so its
