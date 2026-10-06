@@ -2672,6 +2672,12 @@ utils::globalVariables(
     "method_residue_n",
     # tobacco_leaf_use.R (whep#1390) -- product production netted off leaf use
     "manufactured",
+    # gridded_livestock_emissions.R (whep#1126) -- nearest climate cell
+    "d_lat",
+    "d_lon",
+    "distance_km",
+    "gap_lat",
+    "gap_lon",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
