@@ -793,6 +793,11 @@
     ".feed_region_lookup", "distinct", "area_code", 1L, "time_invariant",
     "Bouwman region membership, one row per area; the published table has no
      year and the FCRs it leads to are joined on (year, region).",
+    ".flax_fibre_values", "[", "area_code", 1L, "year_axis",
+    "A straw-basis country's median 773/771 ratio over its overlap years
+     (whep#1351): the reduction over the year axis is the coefficient. The
+     rows are already inside one country's straw span (France, Romania; one
+     polity each from 1991), so the code means one territory throughout.",
     ".hist_trade_reporter_reference", "[",
     "iso3c, item_code_trade, element", 1L, "year_axis",
     "`max(value)` over the FAOSTAT years IS the reduction: the largest flow a

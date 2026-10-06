@@ -942,12 +942,11 @@ build_primary_production <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  ratios <- out[
-    value > 0 & fibre_t > 0,
-    .(fibre_ratio = stats::median(fibre_t / value)),
+  # Each country's own overlap ratio: a reduction over the year axis by design.
+  out[,
+    fibre_ratio := .flax_overlap_ratio(fibre_t, value),
     by = "area_code"
   ]
-  out <- merge(out, ratios, by = "area_code", all.x = TRUE, sort = FALSE)
   out[,
     fibre_t := data.table::fifelse(
       is.na(fibre_t),
@@ -957,6 +956,13 @@ build_primary_production <- function(
   ]
   .abort_flax_without_ratio(out)
   out[order(row_id), fibre_t]
+}
+
+# Median fibre/straw over the years both are reported and positive. A year
+# with no 773 figure is not part of the overlap.
+.flax_overlap_ratio <- function(fibre, straw) {
+  overlap <- which(straw > 0 & fibre > 0)
+  stats::median(fibre[overlap] / straw[overlap])
 }
 
 .abort_flax_without_ratio <- function(out) {
