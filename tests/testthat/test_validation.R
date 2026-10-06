@@ -23,10 +23,6 @@ test_that("estimation functions require their columns", {
     "missing required"
   )
   testthat::expect_error(
-    whep::build_residue_feed_avail(bad),
-    "missing required"
-  )
-  testthat::expect_error(
     whep::calculate_crop_npp_components(bad),
     "missing required"
   )

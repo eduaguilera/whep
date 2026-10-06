@@ -119,8 +119,8 @@ test_that("the fix moves the feed:burn split only, not the soil return", {
   # So the removed total and the soil-returned total are identical for two
   # different feed fractions, and everything downstream of residue_soil_dm_t
   # (build_soil_carbon_inputs()'s residue carbon) is untouched. What moves is
-  # feed versus burn, hence build_residue_feed_avail() and the two residue-N
-  # destiny columns of the nitrogen balance.
+  # feed versus burn, hence the commodity balance's residue feed and the two
+  # residue-N destiny columns of the nitrogen balance.
   split_for <- function(region) {
     whep::calculate_residue_destinies(tibble::tibble(
       item_prod_code = "15",
