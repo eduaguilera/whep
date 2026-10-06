@@ -10,7 +10,7 @@ calculate_residue_destinies(
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
   recovery = c("wirsenius", "legacy"),
-  feed_share = c("legacy", "wirsenius")
+  feed_share = c("wirsenius", "legacy")
 )
 }
 \arguments{
@@ -45,11 +45,11 @@ as shipped before whep#1163). See the Two recovery variants section.
 Ignored by the \code{"shares"} method.}
 
 \item{feed_share}{Which feed-use fraction the \code{recovery_regional} method
-reads: \code{"legacy"} (default, \code{residue_feed_fraction.csv}, one fraction per
-UN M49 sub-region for every crop) or \code{"wirsenius"} (Wirsenius 2000 Table
-3.20, per crop by-product and Wirsenius region, the feed half of the
-recovery rates). See the Two feed-share variants section. Ignored by the
-\code{"shares"} method.}
+reads: \code{"wirsenius"} (default since whep#1398, Wirsenius 2000 Table 3.20,
+per crop by-product and Wirsenius region, the feed half of the recovery
+rates) or \code{"legacy"} (\code{residue_feed_fraction.csv}, one fraction per UN
+M49 sub-region for every crop). See the Two feed-share variants section.
+Ignored by the \code{"shares"} method.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
@@ -190,11 +190,7 @@ production item, and no \verb{Fodder crops} item reaches the residue pin.
 feed (the rest is the burned / other-use destiny), and
 \code{method_residue_feed} records, per row, which table priced it:
 \itemize{
-\item \code{"legacy"} (default) reads \code{residue_feed_fraction.csv} (Smil 1999, Lal
-2005, Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN
-M49 sub-region, 0.05 to 0.45 around a 0.20 global default, the same for
-every crop. It is not paired with the recovery rates.
-\item \code{"wirsenius"} reads \code{residue_feed_assignment.csv}: Wirsenius (2000)
+\item \code{"wirsenius"} (default) reads \code{residue_feed_assignment.csv}: Wirsenius (2000)
 Table 3.20 (p. 102), the "Assignm." rows for crop by-products, which the
 thesis coordinates directly with the Table 3.17 recovery rates --
 "assumptions on recovery rates were directly coordinated with those on
@@ -204,6 +200,11 @@ cassava leaves, potato tops (read for all roots and tubers), sugar cane
 tops, sugar beet tops, groundnut stalks and the other oil crops. The seven
 categories it has no row for keep the legacy fraction, and their rows say
 \code{"legacy"}.
+\item \code{"legacy"} reads \code{residue_feed_fraction.csv} (Smil 1999, Lal 2005,
+Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN M49
+sub-region, 0.05 to 0.45 around a 0.20 global default, the same for every
+crop. It is not paired with the recovery rates, and was the only feed
+share before whep#1398.
 }
 
 Table 3.20 is a share of the amount \strong{distributed}, which is not the
@@ -232,7 +233,14 @@ Smerald, Rahimi & Scheer (2023), \emph{Scientific Data} \strong{10}:685,
 residue the commodity balance books as feed (Straw and Other crop
 residues) rises from 1047 to 1516 Tg of dry matter in 2010 (+45\%) and
 from 1313 to 1910 Tg in 2020 (+45\%); recovered and soil-returned residue
-do not move.
+do not move. In the 2010 national feed allocation (\code{\link[=get_feed_intake]{get_feed_intake()}}),
+residue intake rises from 1586 to 1996 Tg of dry matter and grass intake
+falls from 2769 to 2477 Tg (-10.6\%), the residue displacing grazing.
+
+The default is \code{"wirsenius"} because it is the half of a matched pair whose
+other half, the recovery rates, is already the default, every value it
+reads is traceable to the source, and it lands on both published
+anchors above where the legacy table falls a quarter short of them.
 }
 
 \examples{

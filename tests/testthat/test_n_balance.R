@@ -1460,11 +1460,15 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
 testthat::test_that("the default manure source reproduces the pre-option balance", {
   # Written by the code before the manure-source option existed (whep main at
   # 5421973b), relabelled for the human-N rename; see test_n_balance_inputs.R.
+  # The golden predates the Wirsenius residue feed share (whep#1398), so it is
+  # reproduced on the legacy share the code then used.
   golden <- readRDS(testthat::test_path(
     "fixtures",
     "n_inputs_default_golden.rds"
   ))
-  out <- suppressMessages(.nb_run())
+  data <- .nb_data_with_drivers()
+  data$residue_feed_share <- "legacy"
+  out <- suppressMessages(.nb_build(data, "grid"))
   testthat::expect_identical(
     dplyr::select(out, -"method_manure"),
     golden$balance_grid
@@ -1473,6 +1477,36 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   testthat::expect_identical(
     unique(stats::na.omit(out$method_manure)),
     "livestock_intake"
+  )
+})
+
+testthat::test_that("the residue feed share moves only the residue split", {
+  # whep#1398: switching the feed share moves recovered residue N between the
+  # fed and the burned destinies. Everything else in the balance, the
+  # surplus included, is identical.
+  data <- .nb_data_with_drivers()
+  data$residue_feed_share <- "legacy"
+  legacy <- suppressMessages(.nb_build(data, "grid"))
+  current <- suppressMessages(.nb_run())
+  split <- c(
+    "used_residue_n_t",
+    "burnt_residue_n_t",
+    "n_output_residues_t",
+    "n_output_useful_t",
+    "nue_residues",
+    "nue_useful"
+  )
+  testthat::expect_identical(
+    dplyr::select(current, -dplyr::all_of(split)),
+    dplyr::select(legacy, -dplyr::all_of(split))
+  )
+  testthat::expect_false(identical(
+    current$used_residue_n_t,
+    legacy$used_residue_n_t
+  ))
+  testthat::expect_equal(
+    current$used_residue_n_t + current$burnt_residue_n_t,
+    legacy$used_residue_n_t + legacy$burnt_residue_n_t
   )
 })
 

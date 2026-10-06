@@ -11,6 +11,9 @@
 # replace_na() leaves an unmatched region indistinguishable from a matched one,
 # mass still conserves, and no column is ever NA, so nothing could see it.
 #
+# They test the legacy table, so they ask for it: the default feed share is
+# Wirsenius 2000 Table 3.20 since whep#1398.
+#
 # These tests are the measurement that was missing. Run against the pre-fix code
 # they report 8 failures over 4 of the 5 blocks below; they also fail if
 # regions_full and the file ever drift apart again, in either direction.
@@ -65,7 +68,7 @@ test_that("the feed-fraction join is live across regions_full sub-regions", {
 
   out <- regions |>
     dplyr::mutate(item_prod_code = "15", residue_dm_t = 100) |>
-    whep::calculate_residue_destinies()
+    whep::calculate_residue_destinies(feed_share = "legacy")
 
   # The implied feed fraction recovered from the split: feed and burn together
   # are residue_dm_t * recovery_rates, so their ratio is feed_use_fraction
@@ -100,7 +103,7 @@ test_that("each sub-region receives its published feed-use fraction", {
     region_krausmann = "West Europe",
     region_un_sub = probes
   ) |>
-    whep::calculate_residue_destinies()
+    whep::calculate_residue_destinies(feed_share = "legacy")
 
   testthat::expect_equal(
     out$residue_feed_dm_t / (out$residue_feed_dm_t + out$residue_burn_dm_t),
@@ -122,12 +125,15 @@ test_that("the fix moves the feed:burn split only, not the soil return", {
   # feed versus burn, hence build_residue_feed_avail() and the two residue-N
   # destiny columns of the nitrogen balance.
   split_for <- function(region) {
-    whep::calculate_residue_destinies(tibble::tibble(
-      item_prod_code = "15",
-      residue_dm_t = 100,
-      region_krausmann = "West Europe",
-      region_un_sub = region
-    ))
+    whep::calculate_residue_destinies(
+      tibble::tibble(
+        item_prod_code = "15",
+        residue_dm_t = 100,
+        region_krausmann = "West Europe",
+        region_un_sub = region
+      ),
+      feed_share = "legacy"
+    )
   }
   low <- split_for("Northern America")
   high <- split_for("Southern Asia")

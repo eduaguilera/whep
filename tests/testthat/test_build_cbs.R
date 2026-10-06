@@ -3682,14 +3682,15 @@ test_that("binding an off-window recovered row aborts", {
 }
 
 testthat::test_that("the residue balance closes on the recovered mass", {
-  # Spain: wheat recovery 0.7 (Western Europe), feed-use fraction 0.20
-  # (Southern Europe), so 1000 t of straw leaves 700 t in the balance, of
-  # which 140 t is feed.
+  # Spain: wheat recovery 0.7 (West Europe), feed share 0.05 of the
+  # distributed straw (Wirsenius 2000 Table 3.20, West Europe), which is
+  # 0.045 of the recovered straw (whep#1398). So 1000 t of straw leaves 700 t
+  # in the balance, of which 31.5 t is feed.
   out <- whep:::.residue_cbs_elements(.rcr_row())
   value_of <- function(el) out$value[out$element == el]
   testthat::expect_equal(value_of("production"), 700)
-  testthat::expect_equal(value_of("feed"), 140)
-  testthat::expect_equal(value_of("other_uses"), 560)
+  testthat::expect_equal(value_of("feed"), 31.5)
+  testthat::expect_equal(value_of("other_uses"), 668.5)
   testthat::expect_equal(
     value_of("production"),
     value_of("feed") + value_of("other_uses")

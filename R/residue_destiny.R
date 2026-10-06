@@ -60,11 +60,11 @@
 #'   as shipped before whep#1163). See the Two recovery variants section.
 #'   Ignored by the `"shares"` method.
 #' @param feed_share Which feed-use fraction the `recovery_regional` method
-#'   reads: `"legacy"` (default, `residue_feed_fraction.csv`, one fraction per
-#'   UN M49 sub-region for every crop) or `"wirsenius"` (Wirsenius 2000 Table
-#'   3.20, per crop by-product and Wirsenius region, the feed half of the
-#'   recovery rates). See the Two feed-share variants section. Ignored by the
-#'   `"shares"` method.
+#'   reads: `"wirsenius"` (default since whep#1398, Wirsenius 2000 Table 3.20,
+#'   per crop by-product and Wirsenius region, the feed half of the recovery
+#'   rates) or `"legacy"` (`residue_feed_fraction.csv`, one fraction per UN
+#'   M49 sub-region for every crop). See the Two feed-share variants section.
+#'   Ignored by the `"shares"` method.
 #' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 #'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
 #'   `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
@@ -156,11 +156,7 @@
 #' feed (the rest is the burned / other-use destiny), and
 #' `method_residue_feed` records, per row, which table priced it:
 #'
-#' * `"legacy"` (default) reads `residue_feed_fraction.csv` (Smil 1999, Lal
-#'   2005, Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN
-#'   M49 sub-region, 0.05 to 0.45 around a 0.20 global default, the same for
-#'   every crop. It is not paired with the recovery rates.
-#' * `"wirsenius"` reads `residue_feed_assignment.csv`: Wirsenius (2000)
+#' * `"wirsenius"` (default) reads `residue_feed_assignment.csv`: Wirsenius (2000)
 #'   Table 3.20 (p. 102), the "Assignm." rows for crop by-products, which the
 #'   thesis coordinates directly with the Table 3.17 recovery rates --
 #'   "assumptions on recovery rates were directly coordinated with those on
@@ -170,6 +166,11 @@
 #'   tops, sugar beet tops, groundnut stalks and the other oil crops. The seven
 #'   categories it has no row for keep the legacy fraction, and their rows say
 #'   `"legacy"`.
+#' * `"legacy"` reads `residue_feed_fraction.csv` (Smil 1999, Lal 2005,
+#'   Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN M49
+#'   sub-region, 0.05 to 0.45 around a 0.20 global default, the same for every
+#'   crop. It is not paired with the recovery rates, and was the only feed
+#'   share before whep#1398.
 #'
 #' Table 3.20 is a share of the amount **distributed**, which is not the
 #' amount recovered: Wirsenius sets the distribution and storage losses of
@@ -197,7 +198,14 @@
 #' residue the commodity balance books as feed (Straw and Other crop
 #' residues) rises from 1047 to 1516 Tg of dry matter in 2010 (+45%) and
 #' from 1313 to 1910 Tg in 2020 (+45%); recovered and soil-returned residue
-#' do not move.
+#' do not move. In the 2010 national feed allocation ([get_feed_intake()]),
+#' residue intake rises from 1586 to 1996 Tg of dry matter and grass intake
+#' falls from 2769 to 2477 Tg (-10.6%), the residue displacing grazing.
+#'
+#' The default is `"wirsenius"` because it is the half of a matched pair whose
+#' other half, the recovery rates, is already the default, every value it
+#' reads is traceable to the source, and it lands on both published
+#' anchors above where the legacy table falls a quarter short of them.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
@@ -212,7 +220,7 @@ calculate_residue_destinies <- function(
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
   recovery = c("wirsenius", "legacy"),
-  feed_share = c("legacy", "wirsenius")
+  feed_share = c("wirsenius", "legacy")
 ) {
   method <- rlang::arg_match(method)
   unmatched_recovery <- rlang::arg_match(unmatched_recovery)
@@ -393,7 +401,7 @@ build_residue_feed_avail <- function(
   x,
   unmatched_recovery = "report",
   recovery = "wirsenius",
-  feed_share = "legacy"
+  feed_share = "wirsenius"
 ) {
   if (!all(c("region_krausmann", "region_un_sub") %in% names(x))) {
     cli::cli_abort(
