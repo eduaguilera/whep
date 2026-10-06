@@ -995,6 +995,12 @@ row_promotion_status <- function(crosswalk = NULL) {
 # so that it can be measured rather than argued, and neither is a fallback for
 # the other.
 #
+# Since whep#1229 the stock chain reads the full span, and its completion carried
+# bucket 206's 2011 herd flat beside 276/277 under `"all"` (176.0 M head a year
+# from 2012) until `.retired_predecessor_buckets()` dropped it (whep#1404).
+# Re-measured on `build_primary_production(2009, 2013)` with that drop, heads
+# and livestock units again equal the fold in every year.
+#
 # What `"all"` withdraws, measured on `build_primary_production(2015, 2015)`, is
 # ONE series: item 651 Forage products, 1,432,940 t (-4.22% of the region's
 # tonnage) and 208,350 ha (-0.25%). Heads, livestock units and slaughtered heads

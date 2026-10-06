@@ -110,7 +110,7 @@ test_that("the un-fold drops bucket 206's stock rows after it retires", {
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "all")
   result <- suppressWarnings(
-    whep:::.drop_retired_predecessor_buckets(.sudan_stock_rows())
+    whep:::.drop_retired_buckets(.sudan_stock_rows())
   )
 
   expect_false(any(result$area_code == 206L & result$year > 2011L))
@@ -130,7 +130,7 @@ test_that("the fold keeps bucket 206 live after 2011", {
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "none")
   df <- .sudan_stock_rows()
-  expect_equal(whep:::.drop_retired_predecessor_buckets(df), df)
+  expect_equal(whep:::.drop_retired_buckets(df), df)
   expect_equal(nrow(whep:::.retired_predecessor_buckets()), 0L)
 })
 

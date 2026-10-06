@@ -1426,7 +1426,7 @@ build_primary_production <- function(
     fao_stocks,
     animals
   ) |>
-    .drop_retired_predecessor_buckets()
+    .drop_retired_buckets()
 
   .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
     .filter_years(years)
@@ -1581,7 +1581,7 @@ build_primary_production <- function(
 # purpose: under the un-fold LUH2 grassland still keys north Sudan's pasture on
 # 206 in every year, and those rows are land no other row carries. The list of
 # buckets is derived from the crosswalk and is empty under the fold.
-.drop_retired_predecessor_buckets <- function(df) {
+.drop_retired_buckets <- function(df) {
   retired <- .retired_predecessor_buckets()
   if (nrow(retired) == 0L) {
     return(df)
