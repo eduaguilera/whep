@@ -64,9 +64,9 @@ Ricebran Oil,2581.0,p2581,p077,Ricebran Oil extraction,tonnes,Crop products,crop
 Groundnut Oil,2572.0,p2572,p068,Groundnut Oil extraction,tonnes,Crop products,crops,crops,Vegetable oils,Oil,Peanut oil,Oils,AC. SOJA,Food
 Sunflowerseed Oil,2573.0,p2573,p069,Sunflowerseed Oil extraction,tonnes,Crop products,crops,crops,Vegetable oils,Oil,Sunflowerseed oil,Oils,AC. GIRASOL,Food
 Rape and Mustard Oil,2574.0,p2574,p070,Rape and Mustard Oil extraction,tonnes,Crop products,crops,crops,Vegetable oils,Fruits,"Oilcrops oil, other",Oils,AC. SOJA,Food
-Straw,2105.0,#N/A,#N/A,#N/A,tonnes,Crop residues,,residues,Herbaceous crop residues,Straw,Straw,Foragge,PAJA DE CEREALES,Food
-Other crop residues,2106.0,#N/A,#N/A,#N/A,tonnes,Crop residues,residues,residues,Herbaceous crop residues,Other crop residues,Other crop residues,Foragge,PAJA DE CEREALES,Food
-Firewood,2107.0,p2107,p131,Forestry,tonnes,Crop residues,,,Woody crop residues,Firewood,Average wood,Fuelwood and charcoal,0,Food
+Straw,2105.0,#N/A,#N/A,#N/A,tonnes,Crop residues,,residues,Herbaceous crop residues,Straw,Straw,Foragge,PAJA DE CEREALES,Other_uses
+Other crop residues,2106.0,#N/A,#N/A,#N/A,tonnes,Crop residues,residues,residues,Herbaceous crop residues,Other crop residues,Other crop residues,Foragge,PAJA DE CEREALES,Other_uses
+Firewood,2107.0,p2107,p131,Forestry,tonnes,Crop residues,,,Woody crop residues,Firewood,Average wood,Fuelwood and charcoal,0,Other_uses
 Animal draught,4000.0,p4000,p092,Asses husbandry,,Draught,,,,Draught,0,0,0,Feed
 Fish meal,2790.0,p2790,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,Fish Meal,Fish,PESCADO PROMEDIO,Feed
 "Molluscs, Other",2767.0,p2767,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,"Molluscs, Other",Fish,PESCADO PROMEDIO,Feed

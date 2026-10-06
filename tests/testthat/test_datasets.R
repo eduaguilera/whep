@@ -25,6 +25,18 @@ test_that("items_full has correct default_destiny for non-food items", {
   expect_true(all(wool$default_destiny == "Other_uses", na.rm = TRUE))
 })
 
+test_that("no crop residue defaults to Food (whep#1134)", {
+  # Straw, other crop residues and firewood are never eaten by people. The
+  # residue rows `.residue_cbs_elements()` builds book whatever is not fed on
+  # `other_uses`, so the default destiny of the unexplained residual must be
+  # the same column, not `food`.
+  residues <- whep::items_full |>
+    dplyr::filter(group == "Crop residues")
+
+  expect_setequal(residues$item_cbs_code, c(2105, 2106, 2107))
+  expect_equal(unique(residues$default_destiny), "Other_uses")
+})
+
 test_that("every oilseed cake defaults to Feed (whep#1066)", {
   # Oilseed cake is the solid residue of oil extraction and is traded as
   # feed. Five of the nine used to default to `Food`.
