@@ -89,6 +89,51 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
 })
 
 
+test_that(".filter_dissolved_countries drops a promoted bucket after it retires", {
+  # Under the un-fold, bucket 206 "Sudan (former)" stops being the key 276/277
+  # report under, so a 206 row after 2011 (FAOSTAT's last year for the area)
+  # can only be the stock chain carrying 206's last herd forward beside the
+  # successors that report the same animals (whep#1404).
+  skip_if_not_installed("withr")
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~value,
+    2011L, "Sudan (former)", 206L, 100,
+    2012L, "Sudan (former)", 206L, 100,
+    2015L, "Sudan (former)", 206L, 100,
+    2012L, "Sudan", 276L, 70,
+    2012L, "South Sudan", 277L, 30,
+    2012L, "Ethiopia", 238L, 50
+  )
+
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+  result <- suppressWarnings(whep:::.filter_dissolved_countries(df))
+  expect_false(any(result$area_code == 206L & result$year > 2011L))
+  expect_true(any(result$area_code == 206L & result$year == 2011L))
+  expect_setequal(
+    result$area_code[result$year == 2012L],
+    c(276L, 277L, 238L)
+  )
+  # Heads conserved against the fold: what 2012 carries is the successors only.
+  expect_equal(
+    sum(result$value[result$year == 2012L & result$area_code != 238L]),
+    100
+  )
+})
+
+test_that(".filter_dissolved_countries keeps bucket 206 live under the fold", {
+  # Folded (the published mode) bucket 206 IS Sudan + South Sudan after 2011,
+  # and carries the region's fodder series; nothing of it may go.
+  skip_if_not_installed("withr")
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~value,
+    2011L, "Sudan (former)", 206L, 100,
+    2012L, "Sudan and South Sudan", 206L, 100,
+    2023L, "Sudan and South Sudan", 206L, 100
+  )
+  withr::local_options(whep.unfold_predecessor_bucket = "none")
+  expect_equal(whep:::.filter_dissolved_countries(df), df)
+})
+
 # -- add_historical_yields (pre-1962 yield proxy) ------------------------------
 
 test_that(".add_historical_yields back-casts a periodized-name country", {

@@ -1133,6 +1133,32 @@ row_promotion_status <- function(crosswalk = NULL) {
   crosswalk
 }
 
+# The promoted buckets whose OWN area has stopped reporting, with the last year
+# it did: 206 and 2011 under `"all"`, nothing under the published fold. Once
+# promoted, no successor sums into 206 any more, so a 206 row after 2011 cannot
+# be reported data. The livestock stock chain makes such rows all the same: it
+# completes every area over every year and carries a long series' last value
+# forward, so 206's 2011 herd ran flat to 2023 beside the 276/277 herds that
+# report the same animals, 176.0 M head in 2015 (whep#1404). Under the fold this
+# returns nothing, because there bucket 206 after 2011 IS the successors' sum
+# and carries the region's fodder series.
+.retired_predecessor_buckets <- function() {
+  empty <- tibble::tibble(area_code = integer(0), last_year = integer(0))
+  if (.predecessor_unfold_mode() == "none") {
+    return(empty)
+  }
+  codes <- .predecessor_bucket_codes()
+  if (length(codes) == 0L) {
+    return(empty)
+  }
+  tibble::as_tibble(.area_reporting_windows()) |>
+    dplyr::filter(.data$area_code %in% codes) |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      last_year = as.integer(.data$window_end)
+    )
+}
+
 # `regions_full` states the fold a second time, keyed on `code`.
 .unfold_predecessor_regions <- function(regions) {
   mode <- .predecessor_unfold_mode()

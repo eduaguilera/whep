@@ -3076,7 +3076,21 @@ build_primary_production <- function(
       !(area_code == 15L & year > 1999),
       # Belgium (255) and Luxembourg (256) before 2000
       !(area_code %in% c(255L, 256L) & year < 2000)
-    )
+    ) |>
+    .drop_retired_predecessor_buckets()
+}
+
+# Under `options(whep.unfold_predecessor_bucket = "all")` only: a promoted
+# predecessor bucket (206 "Sudan (former)") after its own area last reported,
+# see `.retired_predecessor_buckets()`. The list is derived from the crosswalk,
+# not hand-listed like the dissolutions above, and is empty under the fold.
+.drop_retired_predecessor_buckets <- function(df) {
+  retired <- .retired_predecessor_buckets()
+  if (nrow(retired) == 0L) {
+    return(df)
+  }
+  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
+  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
 }
 
 # -- Post-processing corrections (used by .fix_production) --------------------
