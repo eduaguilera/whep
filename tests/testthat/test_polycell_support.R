@@ -1010,7 +1010,27 @@ testthat::test_that("subnational polities are excluded unless asked for", {
   testthat::expect_equal(unique(provinces$support_role), "partition")
 })
 
-testthat::test_that("the shipped vocabulary prepares no subnational polity", {
+testthat::test_that("a subnational polity that is a reporting area stays", {
+  testthat::skip_if_not_installed("sf")
+
+  # Burundi (29) inside Ruanda-Urundi, 1922-1962: FAOSTAT reports Burundi in
+  # 1961, so dropping the polity drops its national total's every cell.
+  geometries <- pcs_subnational_fixture()
+  geometries$area_code <- c(NA_integer_, 29L)
+
+  world <- whep::build_polycell_support(years = 2015L, geometries = geometries)
+
+  testthat::expect_setequal(
+    world$polity_code,
+    c("NAT-2000-2020", "NAT-PRV-2000-2020")
+  )
+  testthat::expect_equal(
+    world$area_code[world$polity_code == "NAT-PRV-2000-2020"],
+    29L
+  )
+})
+
+testthat::test_that("the shipped vocabulary prepares no province", {
   testthat::skip_if_not_installed("sf")
 
   # The vintage warning compares the pin against this set, so a province in it
@@ -1021,8 +1041,17 @@ testthat::test_that("the shipped vocabulary prepares no subnational polity", {
     match(prepared$polity_code, types$polity_code)
   ]
 
-  testthat::expect_true(any(types$polity_type %in% "subnational"))
-  testthat::expect_false(any(prepared_types %in% "subnational"))
+  kept <- prepared$polity_code[prepared_types %in% "subnational"]
+
+  testthat::expect_gt(sum(types$polity_type %in% "subnational"), 400L)
+  # Only the three that are reporting areas in their own right.
+  testthat::expect_setequal(
+    kept,
+    c("BDI-1922-1962", "RWA-1922-1962", "SGP-1963-1965")
+  )
+  testthat::expect_false(anyNA(prepared$area_code[
+    prepared_types %in% "subnational"
+  ]))
   testthat::expect_true(any(prepared_types %in% "aggregate"))
 })
 
