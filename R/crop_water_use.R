@@ -167,6 +167,19 @@ build_crop_water_use <- function(
     c("lon", "lat", "year", "band_name", "value"),
     "data$stand_frac"
   )
+  # The inner join below drops every irrigation row whose year has no stand
+  # fraction, with no NA and no warning. Years are few, so this is a plain
+  # key-set assertion (whep#1073): the stand fractions must cover every year
+  # of the cube being weighted.
+  check_keys_complete(
+    stand_frac,
+    list(year = unique(airrig$year)),
+    details = c(
+      i = "Applied irrigation is weighted by stand fraction through an inner
+           join, so a year without stand fractions would vanish from the
+           output rather than fail."
+    )
+  )
   airrig |>
     dplyr::filter(is.finite(.data$value)) |>
     dplyr::rename(airrig_stand_mm = "value") |>

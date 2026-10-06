@@ -186,3 +186,31 @@ testthat::test_that("stand fractions are read only for the cube's own years", {
   testthat::expect_equal(whep:::.cwu_years(NULL, 1990L), 1990L)
   testthat::expect_null(whep:::.cwu_years(NULL, NULL))
 })
+
+testthat::test_that("a year with no stand fractions aborts, not vanishes", {
+  data <- .cwu_data()
+  data$airrig_month <- dplyr::bind_rows(
+    data$airrig_month,
+    dplyr::mutate(data$airrig_month, year = 2011L)
+  )
+  # The join silently drops 2011, so the output is well-formed without it.
+  expect_lattice_guard(
+    well_formed = nrow(
+      dplyr::inner_join(
+        data$airrig_month,
+        data$stand_frac,
+        by = c("lon", "lat", "year", "band_name")
+      )
+    ) >
+      0L,
+    guard = whep::build_crop_water_use(data = data)
+  )
+  data$stand_frac <- dplyr::bind_rows(
+    data$stand_frac,
+    dplyr::mutate(data$stand_frac, year = 2011L)
+  )
+  testthat::expect_equal(
+    sort(unique(whep::build_crop_water_use(data = data)$year)),
+    c(2010L, 2011L)
+  )
+})
