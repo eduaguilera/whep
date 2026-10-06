@@ -875,7 +875,7 @@ build_primary_production <- function(
 # FAOSTAT's current QCL books flax fibre as 771 "Flax, raw or retted". For most
 # country-years that is the former 773 "Flax fibre and tow" series under a new
 # code: 1,052 of the 1,177 country-years both pins report agree within 1%. The
-# spans below do not. There 771 is 4-8x the 773 fibre tonnes FAOSTAT itself
+# spans below do not. There 771 is 3.4-7.8x the 773 fibre tonnes FAOSTAT
 # itself published for the same country-year: a straw basis, not fibre (France
 # 2010: 372,100 t of 771 on 55,164 ha, 6.7 t/ha, against 66,970 t of 773).
 #
