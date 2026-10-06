@@ -2698,6 +2698,14 @@ utils::globalVariables(
     "productivity",
     # residue_destiny.R (whep#1398) -- Wirsenius Table 3.1 region key
     "region_wirsenius",
+    # livestock_manure.R (whep#1365) -- per-MMS indirect manure N2O fractions
+    "animal_category",
+    "frac_gas",
+    "frac_gas_ms",
+    "frac_leach",
+    "frac_leach_ms",
+    "loss_category",
+    "row_id_indirect",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
