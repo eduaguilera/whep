@@ -907,6 +907,7 @@ admin_coverage_prototype <- function() {
   support <- .carbon_rekey_area_code(support)
   .level0_check_epochs(support)
   support <- support |>
+    .level0_constant_territory() |>
     .carbon_discount_duplicates(
       by = c("lon", "lat", "start_year", "end_year")
     ) |>
@@ -971,6 +972,78 @@ admin_coverage_prototype <- function() {
   rows$area_code[keyed] <- code[keyed]
   .level0_inform_recorded(rows[keyed, , drop = FALSE])
   dplyr::bind_rows(support[!touched, , drop = FALSE], rows)
+}
+
+# Place a reporting area on its modern territory's cells in the years the
+# recorded mapping says the support carries no predecessor for it (whep#1317).
+#
+# Yemen (249) is the one such row: from 1962 the Mutawakkilite Kingdom has
+# ended, Aden ends in 1963, and North and South Yemen have no geometry, so
+# `inst/extdata/polity_cell_support_map.csv` records `constant_territory`
+# onto YEM-1990-2025 for 1962-1989 -- a decision taken with the maintainer on
+# whep#1196 and applied by the nitrogen path (`.cpy_rows_at_year()`). Without
+# it the level-0 grid had no 249 cell in those years, and 1.02-1.45 Mha of
+# harvested area a year was dropped (`20260907T111653Z-e654d` support).
+#
+# The polity is read at its own first year, as `.cpy_rows_at_year()` does: the
+# support splits a polycell at every breakpoint a neighbour introduces, and
+# taking every piece would inject such a polycell once per piece. The window
+# ends where the polity itself starts, so no year holds it twice. Every row of
+# a touched cell is then cut at all the bounds in those cells, which keeps the
+# intervals coinciding or disjoint for the per-epoch denominator; a claim
+# still standing in the window (Aden in 1962) is then a second count of the
+# same ground and leaves through `.carbon_discount_duplicates()`.
+.level0_constant_territory <- function(
+  support,
+  map = .cell_polity_support_map()
+) {
+  if (!rlang::has_name(support, "polity_code")) {
+    return(support)
+  }
+  map <- dplyr::filter(
+    map,
+    .data$rule == "constant_territory",
+    .data$polity_code %in% support$polity_code
+  )
+  if (nrow(map) == 0L) {
+    return(support)
+  }
+  injected <- .level0_injected_rows(support, map)
+  if (nrow(injected) == 0L) {
+    return(support)
+  }
+  cell <- paste(support$lon, support$lat)
+  touched <- cell %in% paste(injected$lon, injected$lat)
+  rows <- dplyr::bind_rows(support[touched, , drop = FALSE], injected)
+  rows <- .level0_cut_intervals(rows, c(rows$start_year, rows$end_year))
+  pairs <- unique(paste(map$polity_code, map$area_code, sep = " -> "))
+  cli::cli_inform(c(
+    i = "{.file polity_cell_support_map.csv} places
+         {cli::qty(length(pairs))}{?a reporting area/reporting areas} on
+         {?its/their} modern cells: {.val {pairs}}."
+  ))
+  dplyr::bind_rows(support[!touched, , drop = FALSE], rows)
+}
+
+# The constant_territory polity's first-year polycells, re-dated to each
+# recorded window and keyed on the window's code.
+.level0_injected_rows <- function(support, map) {
+  support |>
+    dplyr::filter(.data$polity_code %in% map$polity_code) |>
+    dplyr::filter(
+      .data$start_year == min(.data$start_year),
+      .by = "polity_code"
+    ) |>
+    dplyr::mutate(own_start = .data$start_year) |>
+    dplyr::select(-"start_year", -"end_year", -"area_code") |>
+    dplyr::inner_join(
+      dplyr::select(map, "polity_code", "area_code", "start_year", "end_year"),
+      by = "polity_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(end_year = pmin(.data$end_year, .data$own_start)) |>
+    dplyr::filter(.data$start_year < .data$end_year) |>
+    dplyr::select(-"own_start")
 }
 
 # Cut each row's interval at every break strictly inside it.

@@ -638,10 +638,67 @@ testthat::test_that("a recorded row keys an unkeyable polity in its years", {
   testthat::expect_equal(.lv_frac(at(1961L), 105.75), 1)
   testthat::expect_equal(.lv_frac(at(1961L), 106.25), c(0.3, 0.7))
   testthat::expect_setequal(at(1974L)$area_code, c(115L, 237L))
-  # Before 1961 the mapping records nothing and the polities stay unkeyed;
-  # Cambodia's share of the shared cell is the same in both pieces.
-  testthat::expect_identical(at(1955L)$area_code, 115L)
-  testthat::expect_equal(.lv_frac(at(1955L), 106.25), 0.3)
+})
+
+testthat::test_that("Viet Nam keeps its cells from partition (whep#1317)", {
+  # The national tables carry Viet Nam (237) from 1954 too, as F237-1954-1975
+  # does: 5.05-6.28 Mha a year of 1954-1960 harvested area had no cell. The
+  # recorded rows now start where the two members do.
+  grid <- suppressMessages(.lv_epoch_grid(.lv_recorded_support()))
+  at <- function(yr) whep:::.filter_country_grid_year(grid, yr)
+  testthat::expect_equal(.lv_frac(at(1954L), 105.75), 1)
+  testthat::expect_equal(.lv_frac(at(1955L), 106.25), c(0.3, 0.7))
+  testthat::expect_setequal(at(1960L)$area_code, c(115L, 237L))
+})
+
+# Yemen across its three support regimes: the Mutawakkilite Kingdom (one
+# cell) and Aden (another) to 1962 and 1963, nothing of North or South Yemen,
+# then YEM-1990-2025 on both cells -- one of which the support splits at 1993.
+.lv_yemen_support <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~polity_code,    ~area_code, ~start_year, ~end_year,
+    44.25, 15.25, "MKY-1918-1962", NA_integer_,      1918L,     1962L,
+    45.25, 13.25, "ADE-1839-1963", NA_integer_,      1839L,     1963L,
+    44.25, 15.25, "YEM-1990-2025",        249L,      1990L,     1993L,
+    44.25, 15.25, "YEM-1990-2025",        249L,      1993L,     2025L,
+    45.25, 13.25, "YEM-1990-2025",        249L,      1990L,     2025L
+  ) |>
+    dplyr::mutate(
+      land_area_ha = 1000,
+      polity_area_ha = 1000,
+      cell_area_ha = 1000
+    )
+}
+
+testthat::test_that("Yemen has cells in every year from 1918 (whep#1317)", {
+  # Measured on the `20260907T111653Z-e654d` support, 249 had no cell in any
+  # year but 1961 and 1990-2025: 1.31-1.45 Mha of harvested area a year was
+  # dropped in 1918-1960 and 1.02-1.45 Mha in 1962-1989.
+  grid <- suppressMessages(.lv_epoch_grid(.lv_yemen_support()))
+  at <- function(yr) whep:::.filter_country_grid_year(grid, yr)
+  # 1918-1961: the union of its two predecessors (aggregate_member).
+  testthat::expect_equal(.lv_frac(at(1930L), 44.25), 1)
+  testthat::expect_equal(.lv_frac(at(1930L), 45.25), 1)
+  testthat::expect_identical(unique(at(1930L)$area_code), 249L)
+  # 1962-1989: modern Yemen's cells (constant_territory). In 1962 Aden still
+  # holds its cell; the injected claim duplicates it, so the cell is 249's
+  # once, not twice.
+  for (yr in c(1962L, 1965L, 1989L)) {
+    testthat::expect_equal(.lv_frac(at(yr), 44.25), 1)
+    testthat::expect_equal(.lv_frac(at(yr), 45.25), 1)
+  }
+  # From 1990 the polity is valid on its own and nothing is injected.
+  testthat::expect_equal(.lv_frac(at(1995L), 44.25), 1)
+  # Before 1918 there is no recorded rule: Aden stays unkeyed.
+  testthat::expect_identical(nrow(at(1900L)), 0L)
+})
+
+testthat::test_that("a constant_territory claim never doubles its own cells", {
+  # The polity's split at 1993 must not be injected once per piece.
+  grid <- suppressMessages(.lv_epoch_grid(.lv_yemen_support()))
+  at_1970 <- whep:::.filter_country_grid_year(grid, 1970L)
+  testthat::expect_identical(nrow(at_1970), 2L)
+  testthat::expect_equal(sum(at_1970$cell_area_frac), 2)
 })
 
 # whep#1008. Territories the reporting vocabulary has no code for at ANY
