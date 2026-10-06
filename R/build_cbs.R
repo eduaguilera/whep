@@ -5018,9 +5018,14 @@ build_processing_coefs <- function(
   if (unmatched_processing == "other_uses") {
     return(np[, element := "other_uses"])
   }
-  shares <- dt[element %in% c("food", "feed", "other_uses", "export")]
+  # A destiny row with an NA value carries no share; keeping it would give it
+  # an NA share that the fallback below turns into a second full copy of the
+  # mass, on top of the shares of its siblings.
+  shares <- dt[
+    element %in% c("food", "feed", "other_uses", "export") & !is.na(value)
+  ]
   shares[,
-    total := sum(value, na.rm = TRUE),
+    total := sum(value),
     by = .(year, area, area_code, item_cbs)
   ]
   shares <- shares[is.finite(total) & total > 0]
