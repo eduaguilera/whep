@@ -1633,6 +1633,7 @@ build_processing_coefs <- function(
   dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
+  dt <- .drop_hist_live_animals(dt)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
@@ -1667,6 +1668,29 @@ build_processing_coefs <- function(
   out <- dt[!is.na(polity_code)]
   data.table::setattr(out, "hist_trade_scale_log", scale_log)
   out
+}
+
+# The pins only label a measurement, so every row read as mass is stamped
+# "tonnes". A live-animal item (denominated in head counts in the CBS) that a
+# pin reports in a mass measurement would enter the mass-only long CBS as
+# tonnes of live animals next to head counts for the same item from 1961 on
+# (whep#1409, same mechanism as whep#865). Drop them, naming item and years.
+.drop_hist_live_animals <- function(dt) {
+  live <- !is.na(dt$item_cbs_code) &
+    dt$item_cbs_code %in% .live_animal_cbs_codes()
+  if (any(live)) {
+    dropped <- dt[live]
+    items <- sort(unique(dropped$item_cbs))
+    yrs <- range(dropped$year)
+    cli::cli_inform(c(
+      "i" = "Dropped {nrow(dropped)} historical trade row{?s} of \\
+             live-animal item{cli::qty(length(items))}{?s} {.val {items}}, \\
+             years {yrs[1]}-{yrs[2]}.",
+      "i" = "The pins report them in a mass measurement but the CBS holds \\
+             them in head counts."
+    ))
+  }
+  dt[!live]
 }
 
 # The years `.read_historical_trade()` reads the pins over: the build's own,
