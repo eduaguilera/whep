@@ -56,6 +56,7 @@ build_sjos_nitrogen(
   negative_critical = c("keep", "clamp"),
   country_table = FALSE,
   beyond_share_cut = 0.5,
+  include = c("pathway", "scatter", "footprint"),
   example = FALSE
 )
 ```
@@ -192,6 +193,20 @@ build_sjos_nitrogen(
   used only when `country_table = TRUE`. Defaults to `0.5`, a WHEP
   criterion.
 
+- include:
+
+  Which optional elements to return: any of `"pathway"`
+  (`boundary_pathway`), `"scatter"`, `"footprint"` and `"band"`
+  (`nourishment_band`). Defaults to the first three. An element left out
+  is absent from the result, and for the first three its inputs are not
+  needed: without `"pathway"` no `data$critical_loads`, without
+  `"scatter"` no `data$n_inputs`, and without `"footprint"` no `data$io`
+  or `data$fp_flows`. `"band"` returns the composed band the nourishment
+  axis was classified against, which is built either way, and needs
+  `nourishment_thresholds = "composed"`. The surplus boundary, the
+  nourishment axis and the classification are always built, and are the
+  same whichever elements are included.
+
 - example:
 
   If `TRUE`, drive the whole chain from the coherent fixture set instead
@@ -214,7 +229,12 @@ tables, `sjos_class` and both footprint tables carry
 `negative_critical`. With `country_table = TRUE` the list also holds
 `country_table`, the
 [`build_n_boundary_country()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_country.md)
-result (a list with the `country` and `diagnostics` tables).
+result (a list with the `country` and `diagnostics` tables). With
+`"band"` in `include` it holds `nourishment_band`, the
+[`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)
+table the nourishment axis used (floor, ceiling, prevalences and the
+`people_under` and `people_over` headcounts per country and year).
+Elements left out of `include` are absent.
 
 ## Examples
 
