@@ -28,7 +28,7 @@
 #' @param aggregates What to do with `polity_type == "aggregate"` rows, which
 #'   cannot join the partition because an aggregate's polygon covers its
 #'   members'. `"exclude"` (default) drops them, which is what every
-#'   published polycell table held before `20261006T174835Z-d34b2`.
+#'   published polycell table held before `20261006T184535Z-78592`.
 #'   `"overlap_layer"` clips them too and emits them
 #'   alongside the partition marked `support_role == "overlap"` -- see
 #'   *The aggregate overlap layer* below.
@@ -534,7 +534,7 @@ expand_polycell_years <- function(support, years) {
 # `.pcs_prepare_polities()` keeps no aggregate, so the live aggregates absent
 # from the crosswalk (whep#875) emit no polycell to carry an NA. Under
 # `"overlap_layer"` they do, on `support_role == "overlap"` rows only: on the
-# `20261006T174835Z-d34b2` pin that is 7 of the 19 aggregates (AOI, CODRU,
+# `20261006T184535Z-78592` pin that is 7 of the 19 aggregates (AOI, CODRU,
 # EGYSUD, GCT, MASG, PAPNG, SYL), reachable from no reporting area by design.
 # "Dead and aggregate rows receive no data and no land" in
 # `test_polycell_support.R` pins the default.
