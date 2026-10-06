@@ -55,7 +55,7 @@ fuel, and left on the field for soil incorporation.</p>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"recovery_regional"</span>, <span class="st">"shares"</span><span class="op">)</span>,</span>
 <span>  bedding_fraction <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  unmatched_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"report"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
-<span>  recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"legacy"</span>, <span class="st">"wirsenius"</span><span class="op">)</span></span>
+<span>  recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"wirsenius"</span>, <span class="st">"legacy"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -97,10 +97,10 @@ the <code>"shares"</code> method.</p></dd>
 
 <dt id="arg-recovery">recovery<a class="anchor" aria-label="anchor" href="#arg-recovery"></a></dt>
 <dd><p>Which recovery-rate variant the <code>recovery_regional</code>
-method reads: <code>"legacy"</code> (default, the table as shipped before
-whep#1163) or <code>"wirsenius"</code> (every rate Wirsenius 2000 states, at the
-value it states; the default switch is deferred to whep#1330). See the
-Two recovery variants section. Ignored by the <code>"shares"</code> method.</p></dd>
+method reads: <code>"wirsenius"</code> (default since whep#1330, every rate
+Wirsenius 2000 states, at the value it states) or <code>"legacy"</code> (the table
+as shipped before whep#1163). See the Two recovery variants section.
+Ignored by the <code>"shares"</code> method.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -185,25 +185,31 @@ The p. 94 default does not reach them, so the source is silent on them
 
 
 <p><code>recovery =</code> selects the rate column, and <code>method_residue_recovery</code>
-records which one was used:</p><ul><li><p><code>"legacy"</code> (default) reads <code>recovery_rates</code>, the table as shipped
-before whep#1163, whose departures from the source are all downward.</p></li>
-<li><p><code>"wirsenius"</code> reads <code>recovery_rates_wirsenius</code>: every rate the thesis
-states, at the value it states. The three below-source categories take
-0.90, the three p. 94 categories take 1.00 – "close to 100 percent"
-read as 1.00, which is a reading of the text and not a number it prints
-– and the five categories the source is silent on keep the legacy
-assumed rate. <code>source_recovery_wirsenius</code> labels each.</p></li>
+records which one was used:</p><ul><li><p><code>"wirsenius"</code> (default) reads <code>recovery_rates_wirsenius</code>: every rate the
+thesis states, at the value it states. The three below-source
+categories take 0.90, the three p. 94 categories take 1.00 – "close to
+100 percent" read as 1.00, which is a reading of the text and not a
+number it prints – and the five categories the source is silent on keep
+the legacy assumed rate. <code>source_recovery_wirsenius</code> labels each.</p></li>
+<li><p><code>"legacy"</code> reads <code>recovery_rates</code>, the table as shipped before
+whep#1163, whose departures from the source are all downward.</p></li>
 </ul><p><code>"wirsenius"</code> is the only variant in which every rate is traceable to the
-cited source, but it is <strong>not</strong> the default yet. The gross residue base
-these rates multiply is itself thought to be about 36% too high
-(whep#1330, step 2 of whep#1132), so raising the rate before that base is
-corrected would move recovered residue further from the literature, not
-closer. The switch of default is deferred to whep#1330; until then
-<code>"legacy"</code> keeps every published value where it was.</p>
-<p>Measured on the <code>crop_residues</code> pin as read by <code><a href="get_primary_residues.html">get_primary_residues()</a></code>
-(after its per-crop fresh-to-dry-matter conversion, whep#1255),
+cited source, and it is the default since whep#1330. Its switch waited on
+the gross residue base these rates multiply, once thought to be about 36%
+too high (step 2 of whep#1132). In dry matter that excess is not there:
+the 36% compared the pin's fresh weight with dry-matter literature, and
+the pin's cereal residue in dry matter lies inside the three-method band
+of Smerald, Rahimi &amp; Scheer (2023), <a href="https://doi.org/10.1038/s41597-023-02587-0" class="external-link">doi:10.1038/s41597-023-02587-0</a>
+, in
+every year 1997–2021, its 1997–2021 mean 4.8% below theirs
+(<code>validation/residue_base_dm.R</code>, whep#1330). That check covers cereals
+only, and the rates the switch moves are all non-cereal; no published
+global total for the non-cereal residue base was found to check it
+against.</p>
+<p>Measured on the <code>crop_residues</code> pin as read by <code><a href="get_primary_residues.html">get_primary_residues()</a></code>,
+on its fresh <code>value</code> (the commodity balance's basis, whep#1330),
 <code>"wirsenius"</code> against <code>"legacy"</code> in 2010 raises recovered residue from
-6341 to 6463 Mt DM (+1.9%), the feed destiny from 1852 to 1891 Mt
+6341 to 6463 Mt fresh matter (+1.9%), the feed destiny from 1852 to 1891 Mt
 (+2.1%) and the burned/other-use destiny from 4489 to 4572 Mt (+1.8%),
 and lowers the soil destiny from 1294 to 1172 Mt (-9.4%); over 1961–1965
 the same moves are +3.5%, +3.4%, +3.6% and -15.2%. Roots and tubers,
@@ -227,10 +233,10 @@ the "some 33 percent of the amount generated" Wirsenius reports for cereals
 straw and stover fed to animals (p. 177), and under the livestock share of
 Smerald, Rahimi &amp; Scheer (2023), <em>Scientific Data</em> <strong>10</strong>:685,
 <a href="https://doi.org/10.1038/s41597-023-02587-0" class="external-link">doi:10.1038/s41597-023-02587-0</a>
-. Re-anchoring it is <strong>not</strong> done here on
-purpose: the gross residue base it multiplies is itself too high, so the
-two errors partly cancel and fixing one alone would land further from the
-truth (whep#1132, whep#1041).</p>
+. Re-anchoring it is <strong>not</strong> done here:
+it was held back because the gross residue base it multiplies was thought
+too high (whep#1132, whep#1041), which in dry matter it is not for
+cereals (whep#1330), so that re-anchoring is now a choice of its own.</p>
     </div>
 
     <div class="section level2">

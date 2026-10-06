@@ -220,7 +220,7 @@ out <- allocate_level_crops(
   allocation_layer = layer,
   admin_shares = shares
 )
-#> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)
+#> →   Year 2000: 2 rows (alloc 0.02s, cap 0.01s)
 out$targets[c("level_polity_code", "target_ha", "method_crop_alloc")]
 #> # A tibble: 2 × 3
 #>   level_polity_code target_ha method_crop_alloc
