@@ -2138,6 +2138,57 @@ testthat::test_that("polity_support is a live config key", {
   )
 })
 
+testthat::test_that("successors folded onto one polity keep their sum", {
+  # whep#1367. `country_areas` reports successors on a constant-territory
+  # basis -- Russia and Ukraine in 1961, Sudan and South Sudan in 2010 -- and
+  # the lineage step keys every one of them onto the polity the year-aware
+  # support holds that year (the USSR, Sudan 1956-2011). Left as separate
+  # rows, each (area, crop) row was joined to the polity's cells once per
+  # duplicate, so the share denominators doubled and each row placed half
+  # its area: 2010 Sudan placed 5.74 of its 11.49 Mha. With fifteen USSR
+  # successors the join outgrew data.table's cartesian limit and aborted.
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha, ~irrigated_area_ha,
+    1961L, 185L, 15L, 1000, 100,
+    1961L, 230L, 15L, 500, 50
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    40.25, 55.25, 15L, 0.6,
+    30.25, 50.25, 15L, 0.4
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha, ~irrigated_ha,
+    40.25, 55.25, 1961L, 2000, 200,
+    30.25, 50.25, 1961L, 2000, 200
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac, ~start_year, ~end_year,
+    40.25, 55.25, 228L, 1, 1945L, 1992L,
+    30.25, 50.25, 228L, 1, 1945L, 1992L
+  )
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year, ~area_code,
+    "F228-1945-1991", 1945L, 1992L, 228L
+  )
+
+  result <- suppressWarnings(suppressMessages(build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid,
+    config = list(polity_support = support)
+  )))
+
+  testthat::expect_equal(
+    sum(result$rainfed_ha + result$irrigated_ha),
+    1500,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(sum(result$irrigated_ha), 150, tolerance = 1e-9)
+  testthat::expect_setequal(unique(result$area_code), 228L)
+})
+
 testthat::test_that("the missing-reporter guard is year-aware (whep#1319)", {
   fn <- whep:::.warn_grid_missing_reporters
   grid <- tibble::tribble(

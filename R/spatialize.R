@@ -350,7 +350,7 @@ build_gridded_landuse <- function(
     country_grid,
     config$polity_support
   )
-  country_areas <- reconciled$national
+  country_areas <- .sum_rekeyed_national(reconciled$national)
   country_grid <- reconciled$grid
 
   .warn_grid_missing_reporters(
@@ -1005,6 +1005,44 @@ build_gridded_landuse <- function(
     )
   }
   country_areas
+}
+
+# Sum the national rows the vintage reconciliation folded onto one key.
+#
+# `country_areas` reports successors on a constant-territory basis, and
+# `.level0_lineage_rekey()` keys each of them onto the polity the year-aware
+# support holds that year: Russia, Ukraine and the other USSR successors onto
+# 228 for 1961-1991, Sudan 276 and South Sudan 277 onto 206 up to 2011. The
+# engine joins every national row to its (area, crop) cells, so a key that
+# appears twice is joined twice, its share denominators double and each row
+# places half its area -- 2010 Sudan placed 5.74 of its 11.49 Mha -- and with
+# fifteen successors the join outgrows data.table's cartesian limit and aborts
+# (whep#1367). The successors' areas are parts of the polity's, so the
+# polity's row is their sum. A table with no repeated key is returned as is.
+.sum_rekeyed_national <- function(country_areas) {
+  unit_keyed <- rlang::has_name(country_areas, "level_polity_code")
+  keys <- c(
+    "year",
+    "area_code",
+    if (unit_keyed) "level_polity_code",
+    "item_prod_code"
+  )
+  if (!anyDuplicated(country_areas[keys])) {
+    return(country_areas)
+  }
+  values <- c("harvested_area_ha", "irrigated_area_ha")
+  if (unit_keyed) {
+    return(dplyr::summarise(
+      country_areas,
+      dplyr::across(dplyr::all_of(values), sum),
+      .by = c(year, area_code, level_polity_code, item_prod_code)
+    ))
+  }
+  dplyr::summarise(
+    country_areas,
+    dplyr::across(dplyr::all_of(values), sum),
+    .by = c(year, area_code, item_prod_code)
+  )
 }
 
 #' Ensure gridded irrigation column exists.
