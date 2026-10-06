@@ -4891,8 +4891,9 @@ build_processing_coefs <- function(
 # * `"redistribute"` is the pre-whep#781 behaviour: the mass is split pro
 #   rata over food, feed, other_uses and export. It inflates FAOSTAT's food
 #   tonnage (coconut oil +58%, ricebran oil +45% at 2010), moves the export
-#   share out of domestic supply, and loses the mass outright where the item
-#   books none of those four destinies.
+#   share out of domestic supply. An item that books none of those four
+#   destinies (or only zeros) has no share to split on, so its mass goes to
+#   `other_uses` instead of vanishing (whep#179).
 .cbs_unmatched_proc_choices <- function() {
   c("other_uses", "processing", "redistribute")
 }
@@ -5017,12 +5018,19 @@ build_processing_coefs <- function(
   if (unmatched_processing == "other_uses") {
     return(np[, element := "other_uses"])
   }
-  shares <- dt[element %in% c("food", "feed", "other_uses", "export")]
+  # A destiny row with an NA value carries no share; keeping it would give it
+  # an NA share that the fallback below turns into a second full copy of the
+  # mass, on top of the shares of its siblings.
+  shares <- dt[
+    element %in% c("food", "feed", "other_uses", "export") & !is.na(value)
+  ]
   shares[,
-    share := value / sum(value),
+    total := sum(value),
     by = .(year, area, area_code, item_cbs)
   ]
-  shares[, value := NULL]
+  shares <- shares[is.finite(total) & total > 0]
+  shares[, share := value / total]
+  shares[, c("value", "total") := NULL]
 
   np <- merge(
     np,
@@ -5031,6 +5039,10 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+  # Declared assumption (#179): an item whose four destinies are absent or
+  # sum to zero has no share to split on. Its mass goes to `other_uses`, the
+  # default treatment's destiny, rather than vanishing through an NA share.
+  np[is.na(share) | is.na(element), `:=`(share = 1, element = "other_uses")]
   np[, value := value * share]
   np[, share := NULL]
   np
