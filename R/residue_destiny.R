@@ -194,7 +194,10 @@
 #' `"legacy"`, 0.342 and 0.344 under `"wirsenius"`. Wirsenius reports "some
 #' 33 percent of the amount generated" for the early 1990s (p. 177), and
 #' Smerald, Rahimi & Scheer (2023), *Scientific Data* **10**:685,
-#' \doi{10.1038/s41597-023-02587-0}, a livestock share of 0.331. The
+#' \doi{10.1038/s41597-023-02587-0}, a share of 0.331 of the residue produced
+#' going to livestock. That figure is read from the authors' Zenodo notebook
+#' (whep#1132), not printed in the article, and their livestock category is
+#' "animal feed or bedding", so it is an upper bound for feed alone. The
 #' residue the commodity balance books as feed (Straw and Other crop
 #' residues) rises from 1047 to 1516 Tg of dry matter in 2010 (+45%) and
 #' from 1313 to 1910 Tg in 2020 (+45%); recovered and soil-returned residue
@@ -205,7 +208,7 @@
 #' The default is `"wirsenius"` because it is the half of a matched pair whose
 #' other half, the recovery rates, is already the default, every value it
 #' reads is traceable to the source, and it lands on both published
-#' anchors above where the legacy table falls a quarter short of them.
+#' anchors above, where the legacy table falls about a quarter short.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
