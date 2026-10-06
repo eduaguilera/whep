@@ -419,5 +419,74 @@
       "smerald_tg_dm": 38.0,
       "scope": "major cereals"
     }
-  ]
+  ],
+  "non_cereal": {
+    "_about": "Published non-cereal residue benchmarks for validation/residue_base_dm.R (whep#1399). Every value was read in the source named next to it; none is computed or assumed except where a field says so. No published global non-cereal series in dry matter, by crop, was found that could be opened (Bentsen, Felby & Thorsen 2014, doi:10.1016/j.pecs.2013.09.003, is closed and was not read), so the checks are per crop, each against the best source that could be read.",
+    "ipcc_2006_table_11_2": {
+      "source": "IPCC (2006) Guidelines for National Greenhouse Gas Inventories, Vol. 4, Ch. 11, Table 11.2 (p. 11.17): AGDM (Mg/ha) = Crop/1000 * slope + intercept, Crop = harvested dry matter yield (kg/ha) = fresh yield * DRY. https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/4_Volume4/V4_11_Ch11_N2O&CO2.pdf",
+      "crops": [
+        {
+          "crop": "Soyabean",
+          "item_cbs_code_crop": 2555,
+          "dry": 0.91,
+          "slope": 0.93,
+          "slope_2sd_pct": 31,
+          "intercept": 1.35,
+          "intercept_2sd_pct": 49,
+          "note": "footnote f: average above-ground residue:grain ratio of the data 1.9"
+        },
+        {
+          "crop": "Peanut (w/pod)",
+          "item_cbs_code_crop": 2552,
+          "dry": 0.94,
+          "slope": 1.07,
+          "slope_2sd_pct": 19,
+          "intercept": 1.54,
+          "intercept_2sd_pct": 41,
+          "note": "footnote i: mean above-ground residue:pod yield 1.80; WHEP's groundnut item is FAOSTAT 'Groundnuts, excluding shelled', i.e. with pod"
+        },
+        {
+          "crop": "Potato",
+          "item_cbs_code_crop": 2531,
+          "dry": 0.22,
+          "slope": 0.1,
+          "slope_2sd_pct": 69,
+          "intercept": 1.06,
+          "intercept_2sd_pct": 70,
+          "note": "footnote h: mean above-ground residue:tuber ratio 0.27"
+        }
+      ]
+    },
+    "sugarcane_trash": {
+      "t_dm_per_t_cane": 0.14,
+      "source": "Hassuani, da Silva & Neves (2005) Sugarcane trash recovery alternatives for power generation. Proc. ISSCT 25: 'the average amount of trash in the field per metric tonne of cane stalk as 140 kg of dry matter' (field experiments, Brazil, Copersucar). Read from the SASRI archive copy."
+    },
+    "oil_palm_fronds": {
+      "t_dm_per_ha_yr": 11,
+      "source": "Heuze, Tran, Sauvant & Lebas (2015) Oil palm fronds and oil palm crop residues. Feedipedia (INRAE, CIRAD, AFZ, FAO), https://www.feedipedia.org/node/6916: 'an annual production figure of 11 t DM/ha (Husin et al., 1986 cited by Lim et al., 2000)'. Fronds only, so a lower bound for all field residue; the primary source was not read."
+    },
+    "malaysia_oil_palm_solid_biomass": {
+      "source": "Agensi Inovasi Malaysia (2013) National Biomass Strategy 2020: New wealth creation for Malaysia's biomass industry, Version 2.0, pp. 5 and 10 (FAOLEX mal228571). Dry tonnes of fronds, trunks, empty fruit bunches, mesocarp fibre and kernel shells; POME excluded; 'fronds and trunks account for about 75 percent'. Includes mill residues, so an upper bound for field residue. 2020 is the strategy's projection, not a measurement.",
+      "values": [
+        {
+          "year": 2012,
+          "low_mt_dm": 83,
+          "high_mt_dm": 83,
+          "kind": "estimate ('over 83 million dry tonnes')"
+        },
+        {
+          "year": 2020,
+          "low_mt_dm": 85,
+          "high_mt_dm": 110,
+          "kind": "projection"
+        }
+      ]
+    },
+    "lal_2005": {
+      "cereals_mt": 2802,
+      "cereals_legumes_17_mt": 3107,
+      "food_crops_27_mt": 3758,
+      "source": "Lal (2005) World crop residues production and implications of its use as a biofuel. Environ. Int. 31:575-584, doi:10.1016/j.envint.2004.09.005. Abstract only (PubMed 15788197); the full text was not read, so the reference year and the mass basis (dry or fresh) are assumed, unverified. Reported as a cereal share, not as a total."
+    }
+  }
 }
