@@ -2478,3 +2478,20 @@ test_that("slaughter item names cover breeding swine 1051 (whep#1149)", {
   expect_equal(nm$item_cbs_name[nm$item_cbs_code == 1049], "Pigs")
   expect_false(1051 %in% whep::items_cbs$item_cbs_code)
 })
+
+test_that("slaughter map covers every poultry species (#1381)", {
+  smap <- whep:::.build_slaughter_map()
+  pairs <- tibble::tribble(
+    ~meat_prod_code, ~item_cbs_code,
+    1069,            1068,
+    1073,            1072,
+    1080,            1079
+  )
+  matched <- dplyr::inner_join(
+    pairs,
+    smap,
+    by = c("meat_prod_code", "item_cbs_code")
+  )
+  expect_equal(nrow(matched), nrow(pairs))
+  expect_equal(anyDuplicated(smap), 0L)
+})
