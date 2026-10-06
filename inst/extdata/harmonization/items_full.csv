@@ -109,7 +109,7 @@ Geese,1072.0,p1072,p111,Other birds farming,1000 Head,Livestock,,,Live animals,L
 "Fats, Animals, Raw",2737.0,p2737,p086,Buffaloes husbandry,tonnes,Livestock products,animals,animals,Animal fats,Animal fats,"Fats, animals, raw",Animal Fats,GRASA MEZCLA 5/9,Food
 Eggs,2744.0,p2744,p110,Layers chickens farming,tonnes,Livestock products,animals,animals,Eggs,Eggs,Eggs,Eggs,HARINA HUEVO,Food
 Wool (Clean Eq.),2746.0,p2746,p087,Sheep husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Wool,Wool,0,Other_uses
-Hides and skins,2748.0,p2748,p086,Buffaloes husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Hides and skins,Skins,0,Food
+Hides and skins,2748.0,p2748,p086,Buffaloes husbandry,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Hides and skins,Skins,0,Other_uses
 Silk,2747.0,p2747,p115,Silkworm breeding,tonnes,Livestock products,animals,animals,"Hides, skins, wool",Other animal products,Silk,Wool,0,Other_uses
 Honey,2745.0,p2745,p114,Beekeeping,tonnes,Livestock products,animals,animals,Honey,Other animal products,Honey,Processed Food,0,Food
 Mutton & Goat Meat,2732.0,p2732,p088,Goats husbandry,tonnes,Livestock products,animals,animals,Meat,Meat,Goat meat,Meat,CARNE PROMEDIO,Feed
