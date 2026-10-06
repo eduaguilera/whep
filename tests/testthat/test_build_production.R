@@ -2495,3 +2495,98 @@ test_that("slaughter map covers every poultry species (#1381)", {
   expect_equal(nrow(matched), nrow(pairs))
   expect_equal(anyDuplicated(smap), 0L)
 })
+
+# -- FAOSTAT item vocabulary (whep#1302) ---------------------------------------
+
+# Every item code that carries "Area harvested" in the pinned
+# `faostat-production` (version 20260325T111448Z-4fffe), with FAOSTAT's own
+# item name. A code that is in neither `items_prod_full` nor the deliberate
+# exclusions below matches no WHEP item, so all of its rows are dropped without
+# a message: that is how flax fibre (771) went missing (whep#1302).
+.faostat_qcl_area_items <- function() {
+  testthat::test_path("fixtures", "faostat_qcl_area_items.csv") |>
+    readr::read_csv(show_col_types = FALSE, col_types = "ic")
+}
+
+# FAOSTAT aggregates of items that are mapped one by one. Mapping one would
+# count its members twice.
+.faostat_qcl_excluded_items <- function() {
+  tibble::tribble(
+    ~item_code, ~reason,
+    17530L,     "Fibre Crops, Fibre Equivalent: aggregate of fibre items"
+  )
+}
+
+test_that("every FAOSTAT item with harvested area is mapped or excluded", {
+  area_items <- .faostat_qcl_area_items()
+  known <- c(
+    whep::items_prod_full$item_prod_code,
+    as.character(.faostat_qcl_excluded_items()$item_code)
+  )
+
+  unmapped <- area_items |>
+    dplyr::filter(!as.character(.data$item_code) %in% known)
+
+  expect_equal(nrow(unmapped), 0L, info = paste(unmapped$item, collapse = "; "))
+  # An exclusion that no longer carries area is stale, not harmless.
+  expect_true(all(
+    .faostat_qcl_excluded_items()$item_code %in% area_items$item_code
+  ))
+})
+
+test_that("flax fibre 771 maps to the CBS item 773 mapped to", {
+  items <- whep::items_prod_full
+  flax <- items |> dplyr::filter(.data$item_prod_code %in% c("771", "773"))
+
+  expect_equal(nrow(flax), 2L)
+  expect_equal(
+    flax$item_prod[flax$item_prod_code == "771"],
+    "Flax, raw or retted"
+  )
+  expect_equal(dplyr::n_distinct(flax$item_cbs_code), 1L)
+  expect_equal(unique(flax$item_cbs_code), 2664)
+  expect_equal(dplyr::n_distinct(flax$Name_biomass), 1L)
+})
+
+test_that("flax fibre 771 area is consolidated onto Linum with linseed", {
+  # whep#1302: FAOSTAT books flax fibre on 771 "Flax, raw or retted", while
+  # primary_double.csv named 773, which the current pin does not report. Linum
+  # (772) then carried linseed's area alone.
+  yield_raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit,
+    ~yield_c, ~fu, ~t, ~source,
+    2010L, "France", 68L, "Linseed", "333", "t_ha",
+    0.8, 100, 80, "FAOSTAT_prod",
+    2010L, "France", 68L, "Flax, raw or retted", "771", "t_ha",
+    2.5, 20, 50, "FAOSTAT_prod"
+  )
+
+  out <- whep:::.handle_double_products(yield_raw, whep::primary_double)
+
+  linum <- out |> dplyr::filter(.data$item_prod_code == "772")
+  expect_equal(nrow(linum), 1L)
+  expect_equal(linum$fu, 120)
+  expect_equal(linum$t, 130)
+  flax <- out |> dplyr::filter(.data$item_prod_code == "771")
+  expect_equal(nrow(flax), 1L)
+  expect_equal(flax$t, 50)
+  # The product keeps its tonnes; its area is Linum's.
+  expect_true(is.na(flax$fu))
+})
+
+test_that("flax fibre 771 reaches assembled production with a CBS item", {
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2010L, "France", 68L, "Flax, raw or retted", "771", NA_character_,
+    NA_character_,
+    "t_ha", "FAOSTAT_prod", NA, 50, NA
+  )
+
+  result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
+
+  flax <- result |> dplyr::filter(.data$unit == "tonnes")
+  expect_equal(nrow(flax), 1L)
+  expect_equal(flax$value, 50)
+  expect_equal(flax$item_cbs_code, 2664)
+})

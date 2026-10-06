@@ -171,8 +171,9 @@ seed production (linseed 333, hempseed 336) exceeds its fibre production
 summed over 1961-2023. A country with neither product takes the world's
 dominant product and its global ratio. The four products are read from
 the raw \code{faostat-production} pin (\code{method_dominance}
-\code{"dominance_raw_faostat"}), because WHEP's primary production has no flax
-fibre (#1302).
+\code{"dominance_raw_faostat"}), the same item codes WHEP's primary production
+books them on, so ranking two products needs no 1961-2023 production
+build.
 }
 
 A country with no irrigated or no rainfed yield for the crop in SPAM takes
