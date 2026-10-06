@@ -3666,8 +3666,9 @@ test_that("binding an off-window recovered row aborts", {
 # ---- Crop residues enter the balance at their recovered mass ---------------
 # Before this, .read_crop_residues() copied the whole residue PRODUCTION row
 # and relabelled the copy as a use, so 100% of Straw and Other crop residue
-# production was booked as feed: 7.21 Pg DM at 2020 against the ~1.3 Pg the
-# package's own recovery rates and regional feed-use fractions give.
+# production was booked as feed: 7.21 Pg at 2020 (fresh matter, whep#1330)
+# against the ~1.3 Pg the package's own recovery rates and regional feed-use
+# fractions give.
 # The CBS now carries only what leaves the field.
 
 .rcr_row <- function(crop = 2511L, residue = 2105L, value = 1000, area = 203L) {
@@ -3693,6 +3694,24 @@ testthat::test_that("the residue balance closes on the recovered mass", {
     value_of("production"),
     value_of("feed") + value_of("other_uses")
   )
+})
+
+testthat::test_that("the residue balance stays in fresh matter", {
+  # whep#1330: the CBS carries every item in fresh matter, residues included,
+  # and `get_primary_residues()` now hands over `value_dm` as well. The
+  # balance must be built from the fresh `value`; dry matter is for the
+  # consumers that need it (feed, soil N), never the balance itself.
+  fresh <- whep:::.residue_cbs_elements(.rcr_row())
+  both <- whep:::.residue_cbs_elements(
+    dplyr::mutate(.rcr_row(), value_dm = 500)
+  )
+  value_of <- function(out, el) out$value[out$element == el]
+  testthat::expect_equal(value_of(both, "production"), 700)
+  testthat::expect_equal(
+    value_of(both, "production"),
+    value_of(fresh, "production")
+  )
+  testthat::expect_equal(value_of(both, "feed"), value_of(fresh, "feed"))
 })
 
 testthat::test_that("a bedding destiny stays inside the CBS balance", {

@@ -55,10 +55,10 @@
 #'   with the row count and tonnage, `"abort"` refuses to continue. Ignored by
 #'   the `"shares"` method.
 #' @param recovery Which recovery-rate variant the `recovery_regional`
-#'   method reads: `"legacy"` (default, the table as shipped before
-#'   whep#1163) or `"wirsenius"` (every rate Wirsenius 2000 states, at the
-#'   value it states; the default switch is deferred to whep#1330). See the
-#'   Two recovery variants section. Ignored by the `"shares"` method.
+#'   method reads: `"wirsenius"` (default since whep#1330, every rate
+#'   Wirsenius 2000 states, at the value it states) or `"legacy"` (the table
+#'   as shipped before whep#1163). See the Two recovery variants section.
+#'   Ignored by the `"shares"` method.
 #' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 #'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
 #'   `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
@@ -107,27 +107,32 @@
 #' `recovery =` selects the rate column, and `method_residue_recovery`
 #' records which one was used:
 #'
-#' * `"legacy"` (default) reads `recovery_rates`, the table as shipped
-#'   before whep#1163, whose departures from the source are all downward.
-#' * `"wirsenius"` reads `recovery_rates_wirsenius`: every rate the thesis
-#'   states, at the value it states. The three below-source categories take
-#'   0.90, the three p. 94 categories take 1.00 -- "close to 100 percent"
-#'   read as 1.00, which is a reading of the text and not a number it prints
-#'   -- and the five categories the source is silent on keep the legacy
-#'   assumed rate. `source_recovery_wirsenius` labels each.
+#' * `"wirsenius"` (default) reads `recovery_rates_wirsenius`: every rate the
+#'   thesis states, at the value it states. The three below-source
+#'   categories take 0.90, the three p. 94 categories take 1.00 -- "close to
+#'   100 percent" read as 1.00, which is a reading of the text and not a
+#'   number it prints -- and the five categories the source is silent on keep
+#'   the legacy assumed rate. `source_recovery_wirsenius` labels each.
+#' * `"legacy"` reads `recovery_rates`, the table as shipped before
+#'   whep#1163, whose departures from the source are all downward.
 #'
 #' `"wirsenius"` is the only variant in which every rate is traceable to the
-#' cited source, but it is **not** the default yet. The gross residue base
-#' these rates multiply is itself thought to be about 36% too high
-#' (whep#1330, step 2 of whep#1132), so raising the rate before that base is
-#' corrected would move recovered residue further from the literature, not
-#' closer. The switch of default is deferred to whep#1330; until then
-#' `"legacy"` keeps every published value where it was.
+#' cited source, and it is the default since whep#1330. Its switch waited on
+#' the gross residue base these rates multiply, once thought to be about 36%
+#' too high (step 2 of whep#1132). In dry matter that excess is not there:
+#' the 36% compared the pin's fresh weight with dry-matter literature, and
+#' the pin's cereal residue in dry matter lies inside the three-method band
+#' of Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0}, in
+#' every year 1997--2021, its 1997--2021 mean 4.8% below theirs
+#' (`validation/residue_base_dm.R`, whep#1330). That check covers cereals
+#' only, and the rates the switch moves are all non-cereal; no published
+#' global total for the non-cereal residue base was found to check it
+#' against.
 #'
-#' Measured on the `crop_residues` pin as read by [get_primary_residues()]
-#' (after its per-crop fresh-to-dry-matter conversion, whep#1255),
+#' Measured on the `crop_residues` pin as read by [get_primary_residues()],
+#' on its fresh `value` (the commodity balance's basis, whep#1330),
 #' `"wirsenius"` against `"legacy"` in 2010 raises recovered residue from
-#' 6341 to 6463 Mt DM (+1.9%), the feed destiny from 1852 to 1891 Mt
+#' 6341 to 6463 Mt fresh matter (+1.9%), the feed destiny from 1852 to 1891 Mt
 #' (+2.1%) and the burned/other-use destiny from 4489 to 4572 Mt (+1.8%),
 #' and lowers the soil destiny from 1294 to 1172 Mt (-9.4%); over 1961--1965
 #' the same moves are +3.5%, +3.4%, +3.6% and -15.2%. Roots and tubers,
@@ -147,10 +152,10 @@
 #' the "some 33 percent of the amount generated" Wirsenius reports for cereals
 #' straw and stover fed to animals (p. 177), and under the livestock share of
 #' Smerald, Rahimi & Scheer (2023), *Scientific Data* **10**:685,
-#' \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is **not** done here on
-#' purpose: the gross residue base it multiplies is itself too high, so the
-#' two errors partly cancel and fixing one alone would land further from the
-#' truth (whep#1132, whep#1041).
+#' \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is **not** done here:
+#' it was held back because the gross residue base it multiplies was thought
+#' too high (whep#1132, whep#1041), which in dry matter it is not for
+#' cereals (whep#1330), so that re-anchoring is now a choice of its own.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
@@ -164,7 +169,7 @@ calculate_residue_destinies <- function(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("legacy", "wirsenius")
+  recovery = c("wirsenius", "legacy")
 ) {
   method <- rlang::arg_match(method)
   unmatched_recovery <- rlang::arg_match(unmatched_recovery)
@@ -337,7 +342,7 @@ build_residue_feed_avail <- function(
 .residue_destiny_recovery <- function(
   x,
   unmatched_recovery = "report",
-  recovery = "legacy"
+  recovery = "wirsenius"
 ) {
   if (!all(c("region_krausmann", "region_un_sub") %in% names(x))) {
     cli::cli_abort(

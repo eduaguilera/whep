@@ -2445,8 +2445,9 @@ build_processing_coefs <- function(
 # This used to copy the whole residue PRODUCTION row and relabel the copy as a
 # use: `feed` for Straw and Other crop residues, `other_uses` for Firewood. So
 # 100% of residue production was booked as eaten or burned, with no recovery
-# rate and no feed-use fraction -- 7.21 Pg DM of residue feed at 2020, against
-# the ~1.3 Pg the package's own coefficients give, and 5.74 Pg of it reaching
+# rate and no feed-use fraction -- 7.21 Pg of residue feed at 2020 (fresh
+# matter, first reported as dry, whep#1330), against the ~1.3 Pg the
+# package's own coefficients give, and 5.74 Pg of it reaching
 # feed availability, where it displaced pasture: grass demand was met as grass
 # only 37% of the time while residues ran at 202% of theirs.
 #
