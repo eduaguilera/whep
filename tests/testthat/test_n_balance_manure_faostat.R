@@ -507,7 +507,8 @@ testthat::test_that("the manure stream is requested by its source's inputs", {
 
 testthat::test_that("every FAOSTAT pasture leaf in the pin maps or is named", {
   # The leaves the 2010 pin carries (measured): each either maps to a species
-  # group of livestock_mapping.csv or is one of the two the mapping lacks.
+  # group of livestock_mapping.csv or is the one the mapping lacks. 1051
+  # breeding swine joined pigs with whep#1274.
   leaves <- c(
     946L,
     960L,
@@ -529,7 +530,7 @@ testthat::test_that("every FAOSTAT pasture leaf in the pin maps or is named", {
   mapping <- whep:::.ni_livestock_mapping(list())
   testthat::expect_setequal(
     setdiff(leaves, mapping$item_code),
-    c(1051L, 1177L)
+    1177L
   )
   testthat::expect_length(
     intersect(whep:::.ni_faostat_aggregate_items(), mapping$item_code),
