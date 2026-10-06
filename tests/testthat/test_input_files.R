@@ -574,8 +574,8 @@ testthat::test_that("the predecessor flag skips aliases code reads", {
     ~ testthat::expect_warning(.warn_legacy_reference(.x), "predecessor")
   )
   # Aliases current code reads on its default build path must stay silent,
-  # `crop_residues` and `bilateral_trade` included even though they come from
-  # the same 2025-07-14 batch.
+  # `crop_residues` included even though it comes from the same 2025-07-14
+  # batch, and `bilateral_trade`, which did until #1122 regenerated it.
   purrr::walk(
     c("faostat-production", "bilateral_trade", "crop_residues", "luh2-areas"),
     ~ testthat::expect_no_warning(.warn_legacy_reference(.x))
@@ -612,17 +612,28 @@ testthat::test_that("the predecessor batch census matches the registry", {
 })
 
 testthat::test_that("the build-path subset is part of the batch", {
-  # These two are why the issue existed: they are read by package functions
-  # rather than only by `inst/scripts/compare_global_whep.R`, so each one's
-  # provenance had to be established separately. `crop_residues` turned out to
-  # be predecessor output and `bilateral_trade` a FAOSTAT harmonisation.
+  # `crop_residues` is why the issue existed: it is read by package functions
+  # rather than only by `inst/scripts/compare_global_whep.R`, so its
+  # provenance had to be established separately, and it turned out to be
+  # predecessor output. `bilateral_trade` was the second such alias until it
+  # was regenerated from `build_detailed_trade()` (#1122).
   testthat::expect_true(
     all(.predecessor_batch_build_path() %in% .predecessor_batch_aliases())
   )
-  testthat::expect_setequal(
-    .predecessor_batch_build_path(),
-    c("bilateral_trade", "crop_residues")
-  )
+  testthat::expect_setequal(.predecessor_batch_build_path(), "crop_residues")
+})
+
+testthat::test_that("bilateral_trade is registered at a package-built pin", {
+  # #1122: the 2025-07-14 version is the predecessor pipeline's, which dropped
+  # FAOSTAT's `1000 Head` rows -- 76.1 bn head of live poultry and rabbit
+  # trade. Re-registering it would silently undo the regeneration.
+  version <- whep::whep_inputs |>
+    dplyr::filter(alias == "bilateral_trade") |>
+    dplyr::pull(version)
+
+  testthat::expect_length(version, 1L)
+  testthat::expect_false(stringr::str_starts(version, "20250714"))
+  testthat::expect_false("bilateral_trade" %in% .predecessor_batch_aliases())
 })
 
 testthat::test_that("the documented readers read the documented aliases", {
@@ -643,5 +654,8 @@ testthat::test_that("the documented readers read the documented aliases", {
     class = "whep_test_stub"
   )
 
-  testthat::expect_setequal(seen, .predecessor_batch_build_path())
+  testthat::expect_setequal(
+    seen,
+    c(.predecessor_batch_build_path(), "bilateral_trade")
+  )
 })

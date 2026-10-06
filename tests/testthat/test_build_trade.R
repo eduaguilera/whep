@@ -58,6 +58,18 @@ testthat::test_that("build_detailed_trade works with raw_trade input", {
   testthat::expect_true(all(result$country_share == 1))
 })
 
+testthat::test_that("build_detailed_trade returns an integer year", {
+  # The FAOSTAT pin stores `Year` as a double; the documented contract, and
+  # the `bilateral_trade` pin built from this output, are integer.
+  raw <- .fake_bilateral_trade()
+  raw[, Year := as.double(Year)]
+
+  result <- build_detailed_trade(raw_trade = raw)
+
+  testthat::expect_type(result$year, "integer")
+  testthat::expect_setequal(result$year, c(2020L, 2021L))
+})
+
 testthat::test_that("build_detailed_trade computes correct shares", {
   # Two partners exporting to the same reporter
   raw <- data.table::data.table(
@@ -871,6 +883,7 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
       "partner_polity_has_geometry",
       "partner_polity_area_code",
       "element",
+      "item_cbs",
       "item_cbs_code",
       "unit",
       "value",
@@ -881,6 +894,8 @@ testthat::test_that("build_detailed_trade example returns expected structure", {
     )
   )
   testthat::expect_equal(nrow(result), 10)
+  testthat::expect_type(result$year, "integer")
+  testthat::expect_false(anyNA(result$item_cbs))
 })
 
 testthat::test_that("build_detailed_trade example has valid content", {
