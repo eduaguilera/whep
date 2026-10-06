@@ -51,7 +51,7 @@ appended to it.}
 \item{aggregates}{What to do with \code{polity_type == "aggregate"} rows, which
 cannot join the partition because an aggregate's polygon covers its
 members'. \code{"exclude"} (default) drops them, which is what every
-published polycell table held before \verb{20261006T174835Z-d34b2}.
+published polycell table held before \verb{20261006T184535Z-78592}.
 \code{"overlap_layer"} clips them too and emits them
 alongside the partition marked \code{support_role == "overlap"} -- see
 \emph{The aggregate overlap layer} below.}
