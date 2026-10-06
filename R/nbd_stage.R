@@ -20,25 +20,41 @@
 # @param expr An expression to evaluate.
 # @return A list with `value` (the result, or -- mirroring
 #   `tryCatch(expr, error = function(e) e)` -- a condition of class `"error"`
-#   if `expr` aborted; check with `inherits(value, "error")`) and
+#   if `expr` aborted; check with `inherits(value, "error")`),
 #   `conditions`, a tibble with one row per captured warning or message, in
 #   the order raised: `class` (`"warning"` or `"message"`) and `message` (its
-#   text, trimmed of the trailing newline `message()` conditions carry).
+#   text, trimmed of the trailing newline `message()` conditions carry), and
+#   `warnings` / `messages`, the number of each the handlers saw.
+#
+# The two counts are kept apart from the capture on purpose (whep#1411): each
+# handler counts its condition BEFORE trying to record it, so a capture that
+# loses a condition leaves `warnings` larger than the warning rows of
+# `conditions`. A reader of the balance manifest (.sjr_stage_complete(),
+# R/sjos_n_run.R) treats exactly that disagreement as an incomplete capture;
+# a count derived from the captured rows could never disagree with them.
 .nbd_capture_conditions <- function(expr) {
   log <- new.env(parent = emptyenv())
   log$conditions <- list()
+  log$counts <- c(warning = 0L, message = 0L)
   value <- withCallingHandlers(
     tryCatch(force(expr), error = function(e) e),
     warning = function(cnd) .nbd_log_condition(log, cnd, "warning"),
     message = function(cnd) .nbd_log_condition(log, cnd, "message")
   )
-  list(value = value, conditions = .nbd_bind_conditions(log$conditions))
+  list(
+    value = value,
+    conditions = .nbd_bind_conditions(log$conditions),
+    warnings = log$counts[["warning"]],
+    messages = log$counts[["message"]]
+  )
 }
 
-# Append one condition to `log$conditions` and muffle it, so it is recorded
-# rather than printed. `log` is an environment, so the append is visible to
-# .nbd_capture_conditions() without a superassignment.
+# Count one condition, append it to `log$conditions` and muffle it, so it is
+# recorded rather than printed. `log` is an environment, so the count and the
+# append are visible to .nbd_capture_conditions() without a superassignment.
+# The count comes first, so it stands even if recording the condition fails.
 .nbd_log_condition <- function(log, cnd, class) {
+  log$counts[[class]] <- log$counts[[class]] + 1L
   log$conditions[[length(log$conditions) + 1L]] <- tibble::tibble(
     class = class,
     message = trimws(conditionMessage(cnd))
@@ -69,16 +85,30 @@
 # @param detail Error message or skip reason, or `NA_character_`.
 # @param conditions A tibble from `.nbd_capture_conditions()` (`class`,
 #   `message`), or `NULL` for a stage that never ran (a skip).
+# @param counts The `warnings` and `messages` counts of
+#   `.nbd_capture_conditions()`, as a list. `NULL` for a stage that never ran,
+#   which raised nothing, so both are zero. A stage that ran but passes no
+#   counts gets `NA`: an uncounted stage, which the balance manifest's reader
+#   takes as an incomplete capture rather than as a clean one.
 # @return A one-row tibble: `input`, `status`, `seconds`, `rows`, `detail`,
-#   and `conditions` (a list-column holding that tibble).
+#   `warnings`, `messages` and `conditions` (a list-column holding that
+#   tibble).
 .nbd_stage_row <- function(
   label,
   status,
   seconds,
   rows,
   detail,
-  conditions = NULL
+  conditions = NULL,
+  counts = NULL
 ) {
+  if (is.null(counts)) {
+    counts <- if (is.null(conditions)) {
+      list(warnings = 0L, messages = 0L)
+    } else {
+      list(warnings = NA_integer_, messages = NA_integer_)
+    }
+  }
   if (is.null(conditions)) {
     conditions <- tibble::tibble(class = character(), message = character())
   }
@@ -92,6 +122,8 @@
     } else {
       substr(gsub("\\s+", " ", detail), 1, 1200)
     },
+    warnings = as.integer(counts$warnings),
+    messages = as.integer(counts$messages),
     conditions = list(conditions)
   )
 }

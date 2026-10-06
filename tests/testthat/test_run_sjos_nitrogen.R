@@ -1521,6 +1521,78 @@ testthat::test_that("the flat pair writes no band table", {
   testthat::expect_equal(calls, 0L)
 })
 
+# The balance root as the balance run itself writes it (R/nbd_march.R), not as
+# a fixture hand-builds its JSON (whep#1411): each year's stages are captured
+# by .nbd_capture_conditions() and recorded by .nbd_stage_row(), so the
+# warning counts the driver checks are the handler's own.
+.sjr_written_march <- function(dir, stages_by_year) {
+  identity <- .nbd_march_test_identity()
+  purrr::iwalk(stages_by_year, \(stages, year) {
+    whep:::.nbd_write_march_year(
+      dir,
+      as.integer(year),
+      .sjr_gs_balance(as.integer(year)),
+      .nbd_march_test_report(stages),
+      identity
+    )
+  })
+  dir
+}
+
+testthat::test_that("a balance root the balance run wrote reads back (#1411)", {
+  dir <- withr::local_tempdir()
+  march <- .sjr_written_march(
+    file.path(dir, "march"),
+    list(
+      "2015" = list(
+        cell_polity = rlang::quo(1),
+        n_inputs = rlang::quo({
+          message("Reallocated 3 rows (120 t N).")
+          .nbd_warn_uniform(2, 12.5)
+          .nbd_warn_uniform(3, 7.5)
+          2
+        })
+      ),
+      # A lossy capture: one warning counted but never recorded.
+      "2016" = list(
+        n_inputs = rlang::quo({
+          .nbd_warn_uniform(2, 12.5)
+          .nbd_unreadable_warning()
+          2
+        })
+      )
+    )
+  )
+  read <- whep:::.sjr_read_march(march)
+  testthat::expect_equal(read$grid$year, .sjr_test_years)
+  testthat::expect_equal(
+    read$grid$rows,
+    purrr::map_int(.sjr_test_years, \(y) nrow(.sjr_gs_balance(y)))
+  )
+  testthat::expect_equal(read$whep_commit, strrep("c", 40))
+  out <- file.path(dir, "out")
+  .sjr_quiet(whep:::.sjr_run(
+    years = .sjr_test_years,
+    march_root = march,
+    out_root = out,
+    context = .sjr_context()
+  ))
+  diag <- dplyr::bind_rows(
+    .sjr_read(out, "whep_sjos_n_diag", 2015L),
+    .sjr_read(out, "whep_sjos_n_diag", 2016L)
+  )
+  testthat::expect_equal(
+    diag$uniform_spread_status,
+    c("recorded", "not_recorded")
+  )
+  testthat::expect_equal(diag$uniform_spread_n_t, c(20, NA))
+  testthat::expect_equal(diag$uniform_spread_polity_crops, c(5L, NA))
+  testthat::expect_match(
+    diag$uniform_spread_note[[2]],
+    "not captured in stage n_inputs"
+  )
+})
+
 testthat::test_that("the shared driver fixtures were never mutated", {
   .sjr_primary_run()
   expect_memo_fixtures_untouched("sjr_")
