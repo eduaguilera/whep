@@ -137,7 +137,8 @@ it: <code>urban_n_t</code> is now <code>human_n_t</code>, and <code>method_urban
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  method_residual <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nearest"</span>, <span class="st">"polity"</span>, <span class="st">"keep"</span>, <span class="st">"drop"</span><span class="op">)</span></span>
+<span>  method_residual <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nearest"</span>, <span class="st">"polity"</span>, <span class="st">"keep"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  method_local_residual <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"room_cap"</span>, <span class="st">"uncapped"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">build_urban_n</span><span class="op">(</span><span class="va">...</span><span class="op">)</span></span></code></pre></div>
@@ -211,12 +212,13 @@ Defaults to <code>FALSE</code>.</p></dd>
 
 <dt id="arg-method-residual">method_residual<a class="anchor" aria-label="anchor" href="#arg-method-residual"></a></dt>
 <dd><p>What happens to human N that the transport step
-cannot deliver and that sits on a source cell with <strong>no cropland</strong> (the
-residual on a source cell that has cropland is applied there under every
-method). On the 2010 global grid, under the default <code>"total"</code> basis,
-this is 13,198 cells and 47,365 t N, 0.700% of the 6.77 Mt of human N;
-under <code>"nearest"</code> 2,145 t of it stays stranded, in the three polities
-with no cropland cell that year (Qatar, Iceland, Samoa).</p><ul><li><p><code>"nearest"</code> (default): run the transport step's own rule again with a
+cannot deliver: the residual on a source cell with <strong>no cropland</strong>, plus,
+under the default <code>method_local_residual = "room_cap"</code>, the part of a
+cropland source cell's residual that exceeds its own room. On the 2010
+global grid, under the default <code>"total"</code> basis, the first is 13,198 cells
+and 47,365 t N, 0.700% of the 6.77 Mt of human N, and the second adds
+24,346 t on 1,424 cells; see <code>method_local_residual</code> for what <code>"nearest"</code>
+leaves stranded.</p><ul><li><p><code>"nearest"</code> (default): run the transport step's own rule again with a
 growing radius. Each such cell offers its nitrogen to the same-polity
 cropland cells in its nearest ring (Chebyshev distance in 0.5-degree
 steps, wrapped at the antimeridian) that still has room, in proportion
@@ -231,8 +233,10 @@ polity-year's cropland in proportion to cropland room (area), the rule
 <code><a href="build_n_inputs.html">build_n_inputs()</a></code> applies under <code>method_unsupported = "reallocate"</code>.
 Conserves mass, but places the nitrogen anywhere in the polity.</p></li>
 <li><p><code>"keep"</code>: leave it on its source cell, as before this argument
-existed, flagged in <code>human_n_stranded_t</code>. <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s
-<code>method_unsupported</code> then decides its fate (by default, it aborts).</p></li>
+existed, flagged in <code>human_n_stranded_t</code>. On a cell with no cropland,
+<code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s <code>method_unsupported</code> then decides its fate (by
+default, it aborts); an over-room excess is applied on its own cell's
+cropland, as <code>"uncapped"</code> would.</p></li>
 <li><p><code>"drop"</code>: discard it. Loses the mass, biased towards dense,
 cropland-free cells.</p></li>
 </ul><p><code>"nearest"</code> and <code>"polity"</code> never cross a polity, like the transport step
@@ -247,6 +251,33 @@ figures are attached as <code>attr(x, "human_n_undelivered")</code>. Recorded in
 the <code>method_human_residual</code> output column.</p></dd>
 
 
+<dt id="arg-method-local-residual">method_local_residual<a class="anchor" aria-label="anchor" href="#arg-method-local-residual"></a></dt>
+<dd><p>What happens to the residual the transport
+step hands back to a source cell that <strong>has</strong> cropland. The transport step
+offers a cell's load to its ring-1 neighbours only, so a dense cell with
+little cropland gets back most of its own load, on that little cropland.</p><ul><li><p><code>"room_cap"</code> (default): the cell keeps only what fits in its own room,
+170 kg N/ha times its cropland minus the human N the transport step
+already landed on it – the room the transport step and <code>"nearest"</code>
+respect everywhere else. The excess is undelivered N, placed by
+<code>method_residual</code> like the residual of a cell with no cropland. On the
+2010 global grid (<code>"total"</code> basis) that is 24,346 t on 1,424 of the
+2,180 cropland source cells left with a residual. Under <code>"nearest"</code>,
+17,083 t of it is moved and 7,263 t stays stranded on its own cell, in
+the three polities with no room left anywhere (Hong Kong 6,701 t,
+Kuwait 363 t, the Bahamas 200 t), alongside the 2,145 t on cells with
+no cropland (Qatar, Iceland, Samoa).</p></li>
+<li><p><code>"uncapped"</code>: the cell keeps its whole residual, as before this
+argument existed, whatever its cropland area. On the same grid 1,417
+cropland cells then end above 170 kg N/ha, holding 24,346 t above it,
+and the largest load is booked on 3.6e-7 ha.</p></li>
+</ul><p>No minimum-cropland threshold is offered: the room cap already moves a
+sliver's whole residual, and a threshold would be a new, unsourced number
+that misses the excess on larger cells (15,202 t of the 24,346 t sits on
+cells with at least 1 ha). Recorded in the <code>method_human_local_residual</code>
+output column; the part of <code>undelivered_t</code> it adds is the summary's
+<code>over_room_t</code>.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>For <code>build_urban_n()</code>, arguments passed on to <code>build_human_n()</code>.
 <code>population_basis</code> defaults to <code>"urban"</code> here if omitted, matching this
@@ -258,17 +289,22 @@ function's historical behaviour, unlike <code>build_human_n()</code>'s own
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>human_n_t</code>,
 <code>human_n_relocated_t</code> (the part of <code>human_n_t</code> placed on the cell by
-<code>method_residual</code>), <code>human_n_stranded_t</code> (the part sitting on a cell with
-no cropland, which no downstream cropland allocation can place),
+<code>method_residual</code>), <code>human_n_stranded_t</code> (the undelivered part no rule
+could place: on a cell with no cropland, which no downstream cropland
+allocation can place, or above the room of the cell's own cropland, which
+<code><a href="build_n_inputs.html">build_n_inputs()</a></code> then applies there, over the ceiling),
 <code>method_human</code>, <code>method_human_population</code> (<code>"total_population"</code> or
 <code>"urban_population"</code>), <code>method_human_kgn_cap</code>
 (<code>"kg_n_per_total_inhabitant"</code> or <code>"kg_n_per_urban_inhabitant"</code>) and
-<code>method_human_residual</code>, plus the polity columns below, plus
+<code>method_human_residual</code> and <code>method_human_local_residual</code>, plus the
+polity columns below, plus
 <code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>. The
 attribute <code>"human_n_undelivered"</code> is a tibble with one row per year:
 <code>year</code>, <code>human_n_t</code>, <code>n_cells</code> (undelivered source cells),
-<code>undelivered_t</code>, <code>relocated_t</code>, <code>stranded_t</code>, <code>dropped_t</code>,
-<code>undelivered_share</code> (of <code>human_n_t</code>) and <code>method_human_residual</code>.</p>
+<code>undelivered_t</code>, <code>over_room_t</code> (the part of <code>undelivered_t</code> that exceeded
+the room of its own cell's cropland), <code>relocated_t</code>, <code>stranded_t</code>,
+<code>dropped_t</code>, <code>undelivered_share</code> (of <code>human_n_t</code>),
+<code>method_human_residual</code> and <code>method_human_local_residual</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -324,15 +360,15 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_human_n</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 15</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 16</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020       203              203 ESP-1800-2025         Spain                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 11 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, human_n_t &lt;dbl&gt;, human_n_relocated_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   human_n_stranded_t &lt;dbl&gt;, method_human &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_human_population &lt;chr&gt;, method_human_kgn_cap &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_human_residual &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_human_residual &lt;chr&gt;, method_human_local_residual &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

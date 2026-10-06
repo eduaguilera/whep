@@ -303,8 +303,11 @@ trembling-aspen budget of Morrison and Foster (1979, reproduced in
 Hacker 2005, "Effects of Logging Residue Removal on Forest Sites"),
 where stemwood holds 84 kg N in 119 t of dry matter, 0.00071 kg N per
 kg, against 0.0042 for bark, 0.0049 for branches and 0.024 for foliage.
-Splitting the row, not picking a side, is what whep#932 needs, so the
-value must not be moved before that is settled.
+So this cell is left as published and
+[`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+does not read it for wood by default: with `wood_n_method = "tissue"` it
+prices `Wood` at the stem median 0.0010 and `Firewood` at the branch
+median 0.0035 (whep#932); `"single"` reads this cell for both.
 `tests/testthat/test_biomass_coefs_wood_provenance.R` holds the
 comparison and fails if either side of it drifts.
 

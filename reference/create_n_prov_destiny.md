@@ -13,7 +13,7 @@ account.
 ## Usage
 
 ``` r
-create_n_prov_destiny(example = FALSE)
+create_n_prov_destiny(example = FALSE, wood_n_method = c("tissue", "single"))
 ```
 
 ## Arguments
@@ -22,6 +22,29 @@ create_n_prov_destiny(example = FALSE)
 
   If `TRUE`, return a small example output without downloading remote
   data. Default is `FALSE`.
+
+- wood_n_method:
+
+  How the nitrogen concentration of the two wood items is chosen. Both
+  harvested `Wood` and the forest and shrubland residue booked as
+  `Firewood` map to the single `Average wood` row of
+  [biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md),
+  although one is stemwood and the other branches and bark. One of:
+
+  - `"tissue"` (default): price each by its own tissue, using the pooled
+    medians of Thurner et al. (2025), 0.0010 kg N per kg dry matter for
+    stem sapwood (`Wood`) and 0.0035 for branches (`Firewood`).
+
+  - `"single"`: use the shared `Average wood` cell for both, 0.0030,
+    which is a branch concentration and carries `Wood` about 3 times too
+    high.
+
+  Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A.,
+  Wang, Z., and Hickler, T. (2025). Nitrogen concentrations in boreal
+  and temperate tree tissues vary with tree age/size, growth rate, and
+  climate. *Biogeosciences* 22(5), 1475-1493.
+  [doi:10.5194/bg-22-1475-2025](https://doi.org/10.5194/bg-22-1475-2025)
+  .
 
 ## Value
 

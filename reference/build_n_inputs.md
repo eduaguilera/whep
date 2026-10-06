@@ -256,6 +256,13 @@ build_n_inputs(
     with no cropland. Only what that rule leaves stranded reaches
     `method_unsupported`.
 
+  - `human_n_method_local_residual`:
+    [`build_human_n()`](https://eduaguilera.github.io/whep/reference/build_human_n.md)'s
+    `method_local_residual` (`"room_cap"` default or `"uncapped"`), for
+    the residual a source cell WITH cropland gets back: capped at the
+    cell's own room, the excess placed by `human_n_method_residual`, or
+    kept whole.
+
   - `carbon_balance`:
     [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)'s
     `"grid"`-resolution output (`lon`, `lat`, `area_code`, `land_use`,
