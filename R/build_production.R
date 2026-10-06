@@ -1419,11 +1419,14 @@ build_primary_production <- function(
   # Trimmed back below, so only the read widens: full-range output is unchanged.
   fao_stocks <- .read_livestock_stocks(years = NULL)
 
+  # The completion inside `.combine_livestock()` is what invents the rows the
+  # drop removes, so the drop sits right after it (whep#1404).
   fao_liv_raw <- .combine_livestock(
     fao_combined,
     fao_stocks,
     animals
-  )
+  ) |>
+    .drop_retired_predecessor_buckets()
 
   .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
     .filter_years(years)
@@ -1567,6 +1570,24 @@ build_primary_production <- function(
         "Livestock_name"
       )
     )
+}
+
+# Under `options(whep.unfold_predecessor_bucket = "all")` only: drop the stock
+# rows of a promoted predecessor bucket (206 "Sudan (former)") after its own
+# area last reported, see `.retired_predecessor_buckets()`. `.combine_livestock()`
+# completes every area over every year and `fill_linear()` carries a series
+# longer than 40 years forward, so 206's 2011 herd ran flat to 2023 beside the
+# 276/277 herds that report the same animals. Scoped to the stock chain on
+# purpose: under the un-fold LUH2 grassland still keys north Sudan's pasture on
+# 206 in every year, and those rows are land no other row carries. The list of
+# buckets is derived from the crosswalk and is empty under the fold.
+.drop_retired_predecessor_buckets <- function(df) {
+  retired <- .retired_predecessor_buckets()
+  if (nrow(retired) == 0L) {
+    return(df)
+  }
+  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
+  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
 }
 
 # Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
@@ -3076,21 +3097,7 @@ build_primary_production <- function(
       !(area_code == 15L & year > 1999),
       # Belgium (255) and Luxembourg (256) before 2000
       !(area_code %in% c(255L, 256L) & year < 2000)
-    ) |>
-    .drop_retired_predecessor_buckets()
-}
-
-# Under `options(whep.unfold_predecessor_bucket = "all")` only: a promoted
-# predecessor bucket (206 "Sudan (former)") after its own area last reported,
-# see `.retired_predecessor_buckets()`. The list is derived from the crosswalk,
-# not hand-listed like the dissolutions above, and is empty under the fold.
-.drop_retired_predecessor_buckets <- function(df) {
-  retired <- .retired_predecessor_buckets()
-  if (nrow(retired) == 0L) {
-    return(df)
-  }
-  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
-  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
+    )
 }
 
 # -- Post-processing corrections (used by .fix_production) --------------------

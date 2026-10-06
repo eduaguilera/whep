@@ -89,49 +89,70 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
 })
 
 
-test_that(".filter_dissolved_countries drops a promoted bucket after it retires", {
-  # Under the un-fold, bucket 206 "Sudan (former)" stops being the key 276/277
-  # report under, so a 206 row after 2011 (FAOSTAT's last year for the area)
-  # can only be the stock chain carrying 206's last herd forward beside the
-  # successors that report the same animals (whep#1404).
+# -- drop_retired_predecessor_buckets (whep#1404) -----------------------------
+
+.sudan_stock_rows <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~value,
+    2011L, "Sudan (former)", 206L, "Cattle", 100,
+    2012L, "Sudan (former)", 206L, "Cattle", 100,
+    2015L, "Sudan (former)", 206L, "Cattle", 100,
+    2012L, "Sudan", 276L, "Cattle", 70,
+    2012L, "South Sudan", 277L, "Cattle", 30,
+    2012L, "Ethiopia", 238L, "Cattle", 50
+  )
+}
+
+test_that("the un-fold drops bucket 206's stock rows after it retires", {
+  # Under the un-fold, 276/277 no longer sum into 206, so a 206 stock row after
+  # 2011 (FAOSTAT's last year for the area) can only be the completion carrying
+  # 206's last herd forward beside the successors reporting the same animals.
   skip_if_not_installed("withr")
-  df <- tibble::tribble(
-    ~year, ~area, ~area_code, ~value,
-    2011L, "Sudan (former)", 206L, 100,
-    2012L, "Sudan (former)", 206L, 100,
-    2015L, "Sudan (former)", 206L, 100,
-    2012L, "Sudan", 276L, 70,
-    2012L, "South Sudan", 277L, 30,
-    2012L, "Ethiopia", 238L, 50
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+  result <- suppressWarnings(
+    whep:::.drop_retired_predecessor_buckets(.sudan_stock_rows())
   )
 
-  withr::local_options(whep.unfold_predecessor_bucket = "all")
-  result <- suppressWarnings(whep:::.filter_dissolved_countries(df))
   expect_false(any(result$area_code == 206L & result$year > 2011L))
   expect_true(any(result$area_code == 206L & result$year == 2011L))
   expect_setequal(
     result$area_code[result$year == 2012L],
     c(276L, 277L, 238L)
   )
-  # Heads conserved against the fold: what 2012 carries is the successors only.
+  # Heads in the region now equal what the successors report, as under the fold.
+  sudan_2012 <- result$year == 2012L & result$area_code != 238L
+  expect_equal(sum(result$value[sudan_2012]), 100)
+})
+
+test_that("the fold keeps bucket 206 live after 2011", {
+  # Folded (the published mode) bucket 206 IS Sudan + South Sudan after 2011,
+  # and carries the region's fodder series: nothing of it may go.
+  skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_predecessor_bucket = "none")
+  df <- .sudan_stock_rows()
+  expect_equal(whep:::.drop_retired_predecessor_buckets(df), df)
+  expect_equal(nrow(whep:::.retired_predecessor_buckets()), 0L)
+})
+
+test_that("the retired bucket and its last year come from the crosswalk", {
+  skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
   expect_equal(
-    sum(result$value[result$year == 2012L & result$area_code != 238L]),
-    100
+    suppressWarnings(whep:::.retired_predecessor_buckets()),
+    tibble::tibble(area_code = 206L, last_year = 2011L)
   )
 })
 
-test_that(".filter_dissolved_countries keeps bucket 206 live under the fold", {
-  # Folded (the published mode) bucket 206 IS Sudan + South Sudan after 2011,
-  # and carries the region's fodder series; nothing of it may go.
+test_that(".build_livestock_stocks applies the drop after the completion", {
   skip_if_not_installed("withr")
-  df <- tibble::tribble(
-    ~year, ~area, ~area_code, ~value,
-    2011L, "Sudan (former)", 206L, 100,
-    2012L, "Sudan and South Sudan", 206L, 100,
-    2023L, "Sudan and South Sudan", 206L, 100
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+  local_mocked_bindings(
+    .read_livestock_stocks = function(years = NULL) NULL,
+    .combine_livestock = function(...) .sudan_stock_rows(),
+    .finalise_livestock = function(fao_liv_raw, ...) fao_liv_raw
   )
-  withr::local_options(whep.unfold_predecessor_bucket = "none")
-  expect_equal(whep:::.filter_dissolved_countries(df), df)
+  result <- suppressWarnings(whep:::.build_livestock_stocks(NULL))
+  expect_false(any(result$area_code == 206L & result$year > 2011L))
 })
 
 # -- add_historical_yields (pre-1962 yield proxy) ------------------------------

@@ -1151,12 +1151,12 @@ row_promotion_status <- function(crosswalk = NULL) {
   if (length(codes) == 0L) {
     return(empty)
   }
-  tibble::as_tibble(.area_reporting_windows()) |>
-    dplyr::filter(.data$area_code %in% codes) |>
-    dplyr::transmute(
-      area_code = as.integer(.data$area_code),
-      last_year = as.integer(.data$window_end)
-    )
+  windows <- .area_reporting_windows()
+  windows <- windows[windows$area_code %in% codes, ]
+  tibble::tibble(
+    area_code = as.integer(windows$area_code),
+    last_year = as.integer(windows$window_end)
+  )
 }
 
 # `regions_full` states the fold a second time, keyed on `code`.
