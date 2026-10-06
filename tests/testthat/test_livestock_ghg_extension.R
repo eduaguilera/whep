@@ -382,8 +382,9 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # both pinned back the 6c8bf0d2 figures are unchanged, which is what #1029
   # was about -- the passthrough itself moves nothing. whep#1245 moved a third,
   # `indirect_n2o_source`, onto the 2019 Table 11.3 leaching factors, so it is
-  # pinned back to `"ipcc_2006"` here too. The shipped defaults are locked
-  # beside them.
+  # pinned back to `"ipcc_2006"` here too, and whep#1365 a fourth,
+  # `indirect_n2o_fractions`, onto the Table 10.22 per-MMS fractions, so it is
+  # pinned back to `"single"`. The shipped defaults are locked beside them.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -410,17 +411,21 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # reach it; the Tier 2 default is locked in the test below. Against the
   # 2006 indirect N2O edition, whose totals are 1887669000, 1472445000 and
   # 910771875, the 2019 leaching factors raise the sector totals by 0.355, 0.682 and
-  # 0.276 percent (whep#1245).
+  # 0.276 percent (whep#1245). Against the single-fraction form, whose totals
+  # are 1894361400, 1482483600 and 913281525, the Table 10.22 per-MMS
+  # fractions move the sector totals by +0.044, +0.174 and -0.706 percent
+  # (whep#1365).
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1894361400,
-    10L, 976L, 1482483600,
-    100L, 960L, 913281525
+    10L, 961L, 1895198808,
+    10L, 976L, 1485057600,
+    100L, 960L, 906833655
   )
 
   placeholder <- list(
     mms_shares = "placeholder",
-    indirect_n2o_source = "ipcc_2006"
+    indirect_n2o_source = "ipcc_2006",
+    indirect_n2o_fractions = "single"
   )
   tier1 <- whep::build_livestock_ghg_extension(
     options = placeholder,
@@ -502,11 +507,17 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
   # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
   # 0.402, 0.405 and 0.340 percent.
+  #
+  # Since whep#1365 indirect manure N2O weights the Table 10.22 FracGasMS and
+  # FracLeachMS over each species' manure-management split, with pasture N at
+  # the Ch 11 FracGASM 0.21. Against the single-fraction form, whose totals
+  # are 2230894782.40, 1583378815.26 and 485105249.78, the sector totals move
+  # by +0.041, -0.996 and -0.548 percent.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2230894782.3991766,
-    10L, 976L, 1583378815.2593365,
-    100L, 960L, 485105249.77573824
+    10L, 961L, 2231808888.2,
+    10L, 976L, 1567604823.4,
+    100L, 960L, 482448512.4
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(

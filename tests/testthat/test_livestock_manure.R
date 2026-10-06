@@ -1591,7 +1591,8 @@ testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
   stopifnot(!anyNA(fracs$gas))
   heads *
     nex *
-    (sum(fracs$fraction * fracs$gas) * 0.010 +
+    (sum(fracs$fraction * fracs$gas) *
+      0.010 +
       sum(fracs$fraction * fracs$leach) * 0.011) *
     44 /
     28

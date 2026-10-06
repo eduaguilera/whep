@@ -1406,10 +1406,17 @@
 #' Until whep#1245 the table cited 2019 while holding the 2006 EF5 and
 #' FracLEACH-(H).
 #'
+#' - `frac_gasm` is FracGASM, the volatilised fraction of organic N applied
+#'   and of dung and urine deposited by grazing animals: 0.21 in the 2019
+#'   Refinement, 0.20 in the 2006 Guidelines (whep#1365). The default
+#'   per-MMS indirect manure N2O prices pasture N at it.
+#'
 #' `frac_gasms` 0.20 is the same in both blocks and is **assumed,
 #' unverified**: Table 10.22 of either edition publishes FracGasMS per animal
 #' category and manure system, not one number, and 0.20 equals the 2006
-#' FracGASM of Table 11.3 (the 2019 FracGASM is 0.21).
+#' FracGASM of Table 11.3 (the 2019 FracGASM is 0.21). Since whep#1365 only
+#' the `indirect_n2o_fractions = "single"` form reads it; the default reads
+#' the per-system Table 10.22 values instead.
 #'
 #' @format A tibble with `edition` (`"ipcc_2019"` or `"ipcc_2006"`),
 #'   `parameter`, `value`, `description`.

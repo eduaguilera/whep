@@ -107,7 +107,8 @@ testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
     tier1$manure_n2o_total[uncovered]
   )
   testthat::expect_true(all(
-    tier2$method_manure_n2o[uncovered] == "IPCC_2019_Tier1; indirect_ipcc_2019"
+    tier2$method_manure_n2o[uncovered] ==
+      "IPCC_2019_Tier1; indirect_ipcc_2019_per_mms"
   ))
   # The covered species is untouched by the split.
   testthat::expect_equal(
