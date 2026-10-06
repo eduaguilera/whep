@@ -1167,3 +1167,204 @@ test_that(".livestock_proxy_method labels the regime, not the cell", {
   expect_identical(fn("luh2", "cropland", grass), "luh2_area")
   expect_identical(fn("luh2", "mixed", grass), "luh2_area")
 })
+
+# -- A national code the grid keys on its bucket (whep#1312) ---------------
+#
+# The livestock country pin keys Sudan on its reporting codes, 276 and 277,
+# from 2012 (whep#1274), while a bucket-keyed support -- the carbon path's
+# 2015 snapshot, or `build_cell_polity(area_key = "polity_area")`, which the
+# gridded nitrogen balance places its animals on -- holds that ground only as
+# the matrix bucket 206. The two sides named the same ground differently and
+# the whole herd matched no cell: 235.8 M head and 3.37 Tg N in 2015.
+
+sudan_bucket_fixture <- function() {
+  list(
+    livestock_data = tibble::tribble(
+      ~year, ~area_code, ~species_group, ~heads, ~manure_n_mg,
+      2000L,       276L,       "cattle",   6000,          30,
+      2000L,       277L,       "cattle",   2000,          10,
+      2000L,        68L,       "cattle",   4000,          20
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,       206L,               1,
+      0.75, 50.25,       206L,               1,
+      1.25, 50.25,        68L,               1
+    )
+  )
+}
+
+test_that("a herd keyed on reporting codes reaches a bucket-keyed grid", {
+  fix <- sudan_bucket_fixture()
+
+  # Before whep#1312 this warned "2 reporting areas ... have no cell" and the
+  # 8000 Sudanese head were dropped while every placed country conserved.
+  expect_no_warning(
+    result <- suppressMessages(whep::build_gridded_livestock(
+      fix$livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      fix$country_grid,
+      years = 2000L
+    ))
+  )
+
+  expect_equal(sum(result$heads), sum(fix$livestock_data$heads))
+  expect_equal(sum(result$manure_n_mg), sum(fix$livestock_data$manure_n_mg))
+  sudan <- dplyr::filter(result, area_code == 206L)
+  expect_equal(sum(sudan$heads), 8000)
+  expect_setequal(result$area_code, c(206L, 68L))
+  # Keyed on the grid's own code: a code the grid does not carry never
+  # reaches the output.
+  expect_false(any(c(276L, 277L) %in% result$area_code))
+})
+
+test_that("folding a herd onto its bucket is said out loud", {
+  fix <- sudan_bucket_fixture()
+
+  expect_message(
+    whep:::.fold_national_to_grid_bucket(
+      fix$livestock_data,
+      fix$country_grid
+    ),
+    "276.*277.*206"
+  )
+})
+
+test_that("a code the grid carries is never folded onto its bucket", {
+  # The guard that keeps this a vocabulary repair and not an absorption: a
+  # reporting area with cells of its own keeps them even where its bucket is
+  # also on the grid.
+  fix <- sudan_bucket_fixture()
+  grid <- dplyr::bind_rows(
+    fix$country_grid,
+    tibble::tibble(
+      lon = 1.75,
+      lat = 50.25,
+      area_code = 276L,
+      cell_area_frac = 1
+    )
+  )
+
+  out <- whep:::.fold_national_to_grid_bucket(fix$livestock_data, grid)
+
+  expect_equal(
+    dplyr::filter(out, area_code == 276L)$heads,
+    6000
+  )
+  expect_equal(dplyr::filter(out, area_code == 206L)$heads, 2000)
+})
+
+test_that("a code whose bucket has no cell either is left to the warning", {
+  # Folding is only a relabelling onto ground the grid holds. With no 206 cell
+  # there is nothing to fold onto, so the herd stays visible as dropped rather
+  # than being handed to some other code.
+  fix <- sudan_bucket_fixture()
+  grid <- dplyr::filter(fix$country_grid, area_code == 68L)
+
+  out <- whep:::.fold_national_to_grid_bucket(fix$livestock_data, grid)
+  expect_identical(out, fix$livestock_data)
+
+  warnings <- testthat::capture_warnings(
+    result <- whep::build_gridded_livestock(
+      fix$livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      grid,
+      years = 2000L
+    )
+  )
+  expect_match(warnings, "8000 head", all = FALSE)
+  expect_setequal(result$area_code, 68L)
+})
+
+test_that("the bucket fold is judged per year on a year-aware grid", {
+  # Sudan's reporting codes have their own cells from 2011, so a year-aware
+  # reporting-code grid is left alone there; in a year the grid still holds
+  # only the bucket, the same codes fold.
+  national <- tibble::tribble(
+    ~year, ~area_code, ~species_group, ~heads,
+    2009L,       276L,       "cattle",     60,
+    2009L,       277L,       "cattle",     20,
+    2015L,       276L,       "cattle",     70,
+    2015L,       277L,       "cattle",     30
+  )
+  grid <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~cell_area_frac, ~start_year, ~end_year,
+    0.25, 50.25,       206L,               1,       1956L,     2011L,
+    0.25, 50.25,       276L,               1,       2011L,     2025L,
+    0.75, 50.25,       277L,               1,       2011L,     2025L
+  )
+
+  out <- suppressMessages(
+    whep:::.fold_national_to_grid_bucket(national, grid)
+  )
+
+  expect_equal(
+    dplyr::filter(out, year == 2009L)$area_code,
+    206L
+  )
+  expect_equal(dplyr::filter(out, year == 2009L)$heads, 80)
+  expect_identical(
+    dplyr::filter(out, year == 2015L) |> dplyr::arrange(area_code),
+    dplyr::filter(national, year == 2015L)
+  )
+})
+
+test_that("rows the fold does not reach are returned unchanged", {
+  # No published row may move where both sides already agree: a table whose
+  # every code has a cell comes back identical.
+  expect_identical(
+    whep:::.fold_national_to_grid_bucket(livestock_data, country_grid),
+    livestock_data
+  )
+})
+
+test_that("Sudan (former)'s final-year herd finds its cells year-aware", {
+  # FAOSTAT books 2011 to Sudan (former), 206, while the year-aware support's
+  # `SUD-1956-2011` holds cells through 2010 only; from 2011 the grid carries
+  # 276 and 277. Without the unfolded support the 2011 herd matched nothing
+  # -- 175.9 M head on the registered pin. With it, the reconciler hands the
+  # successors' cells back to 206 for that one year (whep#1312).
+  national <- tibble::tribble(
+    ~year, ~area_code, ~species_group, ~heads, ~manure_n_mg,
+    2011L,       206L,       "cattle",   9000,          45
+  )
+  grid <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~cell_area_frac, ~start_year, ~end_year,
+    0.25, 50.25,       206L,               1,       1956L,     2011L,
+    0.75, 50.25,       206L,               1,       1956L,     2011L,
+    0.25, 50.25,       276L,               1,       2011L,     2025L,
+    0.75, 50.25,       277L,               1,       2011L,     2025L
+  )
+  support <- tibble::tribble(
+    ~polity_code,     ~start_year, ~end_year,
+    "SUD-1956-2011",        1956L,     2011L,
+    "SDN-2011-2025",        2011L,     2025L,
+    "SSD-2011-2025",        2011L,     2025L
+  )
+  pasture <- dplyr::mutate(
+    dplyr::filter(gridded_pasture, year == 2000L),
+    year = 2011L
+  )
+  cropland <- dplyr::mutate(
+    dplyr::filter(gridded_cropland, year == 2000L),
+    year = 2011L
+  )
+
+  dropped <- suppressMessages(testthat::capture_warnings(
+    whep::build_gridded_livestock(national, pasture, cropland, grid)
+  ))
+  expect_match(dropped, "9000", all = FALSE)
+
+  result <- suppressWarnings(suppressMessages(whep::build_gridded_livestock(
+    national,
+    pasture,
+    cropland,
+    grid,
+    polity_support = support
+  )))
+  expect_equal(sum(result$heads), 9000)
+  expect_equal(sum(result$manure_n_mg), 45)
+  expect_setequal(result$area_code, 206L)
+})

@@ -382,6 +382,14 @@ build_feed_demand <- function(
 # (.load_country_grid(), the polycell support by default). The heads and the
 # grass ceiling are both placed on whichever one is used, so a caller that
 # places other inputs on its own support can put the animals on the same one.
+#
+# The unfolded polity support is passed on as `run_spatialize()` passes it, so
+# the herd a national table still books to a dissolving polity in its final
+# year finds that polity's cells on a year-aware grid (whep#1312). Without it
+# the default grid dropped Sudan (former)'s whole 2011 herd, 175.9 M head, and
+# the USSR's 1991 herd, 1.62 G head. The reconciliation is a no-op on a grid
+# with no validity intervals, which is what every caller-supplied support
+# today is.
 .local_spatial_inputs <- function(years, paths, country_grid = NULL) {
   input_dir <- if (.has_path(paths$input_dir)) paths$input_dir else NULL
   run_dir <- if (.has_path(paths$run_dir)) paths$run_dir else NULL
@@ -396,7 +404,8 @@ build_feed_demand <- function(
     country_grid = ls_inputs$country_grid,
     species_proxy = ls_inputs$species_proxy,
     manure_pattern = ls_inputs$manure_pattern,
-    years = years
+    years = years,
+    polity_support = ls_inputs$polity_support
   )
   grass <- build_grass_availability(
     method = "lpjml",

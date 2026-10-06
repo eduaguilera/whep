@@ -2040,3 +2040,41 @@ test_that("national engine never feeds straw to pigs under feed_table", {
   expect_gt(straw_to(open, "Pigs"), 0)
   expect_equal(unique(open$method_feed_eligibility), "none")
 })
+
+test_that("the local grain hands the heads the unfolded polity support", {
+  # run_spatialize() passes `polity_support` to build_gridded_livestock() and
+  # the local grain did not, so on the default year-aware grid the herd a
+  # national table books to a dissolving polity in its final year matched no
+  # cell: Sudan (former) in 2011 and the USSR in 1991 (whep#1312).
+  seen <- new.env()
+  support <- tibble::tibble(
+    polity_code = "SUD-1956-2011",
+    start_year = 1956L,
+    end_year = 2011L
+  )
+  testthat::local_mocked_bindings(
+    .load_livestock_inputs = function(input_dir, config = list()) {
+      list(
+        livestock_data = "livestock",
+        gridded_pasture = "pasture",
+        gridded_cropland = "cropland",
+        country_grid = "grid",
+        polity_support = support,
+        species_proxy = NULL,
+        manure_pattern = NULL
+      )
+    },
+    build_gridded_livestock = function(...) {
+      seen$args <- list(...)
+      "heads"
+    },
+    build_grass_availability = function(...) "grass",
+    .heads_to_cell_shares = function(x) x,
+    .grass_to_cells = function(grass, grid) grass
+  )
+
+  whep:::.local_spatial_inputs(2011L, whep:::.local_paths())
+
+  expect_identical(seen$args$polity_support, support)
+  expect_identical(seen$args$country_grid, "grid")
+})
