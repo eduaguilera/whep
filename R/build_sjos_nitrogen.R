@@ -127,6 +127,17 @@
 #' @param beyond_share_cut Share of a country's positive surplus above which it
 #'   is on the `"Exceedance"` side, passed to [build_n_boundary_country()]; used
 #'   only when `country_table = TRUE`. Defaults to `0.5`, a WHEP criterion.
+#' @param include Which optional elements to return: any of `"pathway"`
+#'   (`boundary_pathway`), `"scatter"`, `"footprint"` and `"band"`
+#'   (`nourishment_band`). Defaults to the first three. An element left out is
+#'   absent from the result, and for the first three its inputs are not needed:
+#'   without `"pathway"` no `data$critical_loads`, without `"scatter"` no
+#'   `data$n_inputs`, and without `"footprint"` no `data$io` or
+#'   `data$fp_flows`. `"band"` returns the composed band the nourishment axis
+#'   was classified against, which is built either way, and needs
+#'   `nourishment_thresholds = "composed"`. The surplus boundary, the
+#'   nourishment axis and the classification are always built, and are the
+#'   same whichever elements are included.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -143,7 +154,11 @@
 #'   `sjos_class` and both footprint tables carry `negative_critical`. With
 #'   `country_table = TRUE` the list also holds `country_table`, the
 #'   [build_n_boundary_country()] result (a list with the `country` and
-#'   `diagnostics` tables).
+#'   `diagnostics` tables). With `"band"` in `include` it holds
+#'   `nourishment_band`, the [build_nourishment_band()] table the nourishment
+#'   axis used (floor, ceiling, prevalences and the `people_under` and
+#'   `people_over` headcounts per country and year). Elements left out of
+#'   `include` are absent.
 #' @export
 #' @examples
 #' build_sjos_nitrogen(example = TRUE)
@@ -159,11 +174,23 @@ build_sjos_nitrogen <- function(
   negative_critical = c("keep", "clamp"),
   country_table = FALSE,
   beyond_share_cut = 0.5,
+  include = c("pathway", "scatter", "footprint"),
   example = FALSE
 ) {
   grassland_split <- rlang::arg_match(grassland_split)
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
   negative_critical <- rlang::arg_match(negative_critical)
+  include <- rlang::arg_match(
+    include,
+    c("pathway", "scatter", "footprint", "band"),
+    multiple = TRUE
+  )
+  if ("band" %in% include && nourishment_thresholds == "flat") {
+    cli::cli_abort(
+      "{.code include = \"band\"} needs the composed band; the flat pair has
+       no band to return."
+    )
+  }
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   # `[[` not `$`: `data$population` partially matches `data$population_age`
   # when the caller left `population` out, and would divide by the age table.
@@ -188,31 +215,48 @@ build_sjos_nitrogen <- function(
   )
   surplus <- calculate_n_surplus(data$balance, method = opts$surplus_method)
   boundary <- .sjos_boundary_surplus(surplus, data, opts)
-  nourishment <- .sjos_nourishment(data, opts)
+  axis <- .sjos_nourishment(data, opts)
+  nourishment <- axis$table
   sjos_class <- classify_sjos_n(boundary$country, nourishment)
+  # Each optional element is built only when included, so its inputs are only
+  # needed then; the order of the result stays the same either way.
   out <- list(
     surplus = surplus,
     boundary_surplus = boundary,
-    boundary_pathway = .sjos_boundary_pathway(data, opts),
+    boundary_pathway = if ("pathway" %in% include) {
+      .sjos_boundary_pathway(data, opts)
+    },
     nourishment = dplyr::mutate(
       nourishment,
       method_population = .env$method_population
     ),
-    scatter = .sjos_scatter(data, nourishment) |>
-      dplyr::mutate(method_population = .env$method_population),
+    nourishment_band = if ("band" %in% include) axis$band,
+    scatter = if ("scatter" %in% include) {
+      .sjos_scatter(data, nourishment) |>
+        dplyr::mutate(method_population = .env$method_population)
+    },
     sjos_class = .sjos_stamp_critical(sjos_class, opts),
-    footprint = .sjos_footprint(
-      boundary$country,
-      data,
-      opts,
-      sjos_class,
-      nourishment
-    ) |>
-      purrr::modify_at(
-        c("fp_all", "fp_food"),
-        \(x) .sjos_stamp_critical(x, opts)
-      )
+    footprint = if ("footprint" %in% include) {
+      .sjos_footprint(
+        boundary$country,
+        data,
+        opts,
+        sjos_class,
+        nourishment
+      ) |>
+        purrr::modify_at(
+          c("fp_all", "fp_food"),
+          \(x) .sjos_stamp_critical(x, opts)
+        )
+    }
   )
+  excluded <- c(
+    pathway = "boundary_pathway",
+    scatter = "scatter",
+    footprint = "footprint",
+    band = "nourishment_band"
+  )
+  out <- out[setdiff(names(out), excluded[setdiff(names(excluded), include)])]
   if (!opts$country_table) {
     return(out)
   }
@@ -408,15 +452,19 @@ build_sjos_nitrogen <- function(
 # Building the band needs three inputs beyond the supply itself, and each falls
 # back to its own reader when not injected, so a caller that has them can stay
 # offline and a caller that does not still gets a band.
+#
+# Returns the normalized axis as `table` and the band it was classified
+# against as `band` (NULL under the flat pair).
 .sjos_nourishment <- function(data, opts) {
   supply <- build_food_supply(method = "whep_native", data = data)
   if (opts$nourishment_thresholds == "flat") {
     .sjos_warn_band_ignored(opts$nourishment_band)
-    return(normalize_nourishment(supply))
+    return(list(table = normalize_nourishment(supply), band = NULL))
   }
-  normalize_nourishment(
-    supply,
-    thresholds = .sjos_band(data, supply, opts$nourishment_band)
+  band <- .sjos_band(data, supply, opts$nourishment_band)
+  list(
+    table = normalize_nourishment(supply, thresholds = band),
+    band = band
   )
 }
 

@@ -16,6 +16,7 @@ build_sjos_nitrogen(
   negative_critical = c("keep", "clamp"),
   country_table = FALSE,
   beyond_share_cut = 0.5,
+  include = c("pathway", "scatter", "footprint"),
   example = FALSE
 )
 }
@@ -109,6 +110,18 @@ with \code{\link[=build_ag_land_support]{build_ag_land_support()}} for the years
 is on the \code{"Exceedance"} side, passed to \code{\link[=build_n_boundary_country]{build_n_boundary_country()}}; used
 only when \code{country_table = TRUE}. Defaults to \code{0.5}, a WHEP criterion.}
 
+\item{include}{Which optional elements to return: any of \code{"pathway"}
+(\code{boundary_pathway}), \code{"scatter"}, \code{"footprint"} and \code{"band"}
+(\code{nourishment_band}). Defaults to the first three. An element left out is
+absent from the result, and for the first three its inputs are not needed:
+without \code{"pathway"} no \code{data$critical_loads}, without \code{"scatter"} no
+\code{data$n_inputs}, and without \code{"footprint"} no \code{data$io} or
+\code{data$fp_flows}. \code{"band"} returns the composed band the nourishment axis
+was classified against, which is built either way, and needs
+\code{nourishment_thresholds = "composed"}. The surplus boundary, the
+nourishment axis and the classification are always built, and are the
+same whichever elements are included.}
+
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}
 }
@@ -127,7 +140,11 @@ country-year has no nourishment class). The boundary tables,
 \code{sjos_class} and both footprint tables carry \code{negative_critical}. With
 \code{country_table = TRUE} the list also holds \code{country_table}, the
 \code{\link[=build_n_boundary_country]{build_n_boundary_country()}} result (a list with the \code{country} and
-\code{diagnostics} tables).
+\code{diagnostics} tables). With \code{"band"} in \code{include} it holds
+\code{nourishment_band}, the \code{\link[=build_nourishment_band]{build_nourishment_band()}} table the nourishment
+axis used (floor, ceiling, prevalences and the \code{people_under} and
+\code{people_over} headcounts per country and year). Elements left out of
+\code{include} are absent.
 }
 \description{
 Composes the Safe and Just Operating Space for nitrogen (SJOS-N) modules into
