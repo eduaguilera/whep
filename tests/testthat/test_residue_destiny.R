@@ -338,7 +338,11 @@ test_that("feed_share = 'wirsenius' reads Table 3.20 on Wirsenius's regions", {
   wheat <- tibble::tibble(
     item_prod_code = "15",
     residue_dm_t = 100,
-    region_krausmann = c("Southeastern Asia", "Southern Asia", "Western Europe"),
+    region_krausmann = c(
+      "Southeastern Asia",
+      "Southern Asia",
+      "Western Europe"
+    ),
     region_un_sub = c("South-eastern Asia", "Southern Asia", "Western Europe")
   )
   out <- whep::calculate_residue_destinies(wheat, feed_share = "wirsenius")

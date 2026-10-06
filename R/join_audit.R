@@ -332,8 +332,10 @@
     "Attaches the residue recovery region and the UN M49 sub-region a crop
      residue's destiny coefficients are published for. Neither table has a time
      dimension: `residue_recovery.csv` is keyed on (crop category, HANPP
-     region) and `residue_feed_fraction.csv` on the sub-region alone (Smil
-     1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992). Keying the
+     region), `residue_feed_fraction.csv` on the sub-region alone (Smil
+     1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992) and
+     `residue_feed_assignment.csv` on (crop category, Wirsenius region), the
+     region read off the same two labels (whep#1398). Keying the
      lookup on the year would be the defect rather than the fix, exactly as for
      Gustavsson's Annex 1: it would leave every successor area without the
      region its own coefficients come from. It reads the SAME two vocabularies
