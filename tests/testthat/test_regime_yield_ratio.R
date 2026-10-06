@@ -988,9 +988,12 @@ testthat::test_that("the Linum and Hemp products match primary_double.csv", {
   products <- whep:::.ryr_dominance_products()
   linum <- double$item_prod_code[double$Item_area == "Linum"]
   hemp <- double$item_prod_code[double$Item_area == "Hemp"]
-  # Flax fibre is 773 in primary_double.csv but 771 in the raw FAOSTAT pin
-  # the dominance reads (#1302); the other three codes agree.
-  testthat::expect_setequal(linum, c(products$seed_code[1], 773L))
+  # Flax fibre is 771 both in primary_double.csv and in the raw FAOSTAT pin
+  # the dominance reads; primary_double.csv named 773 until whep#1302.
+  testthat::expect_setequal(
+    linum,
+    unlist(products[1, c("seed_code", "fibre_code")])
+  )
   testthat::expect_identical(products$fibre_code[1], 771L)
   testthat::expect_setequal(
     hemp,
@@ -998,8 +1001,10 @@ testthat::test_that("the Linum and Hemp products match primary_double.csv", {
   )
   mapping <- whep::regime_yield_crop_mapping
   testthat::expect_identical(
-    mapping$spam_crop[match(c(333L, 773L, 336L, 777L), mapping$item_prod_code)],
-    c("ooil", "ofib", "ooil", "ofib")
+    mapping$spam_crop[
+      match(c(333L, 771L, 773L, 336L, 777L), mapping$item_prod_code)
+    ],
+    c("ooil", "ofib", "ofib", "ooil", "ofib")
   )
 })
 

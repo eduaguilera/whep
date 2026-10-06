@@ -92,6 +92,7 @@ item_prod_code,item_prod_name,item_type
 17530,"Fibre Crops, Fibre Equivalent",other
 569,Figs,crop_product
 773,"Flax, processed but not spun",crop_product
+771,"Flax, raw or retted",crop_product
 2108,Flowers,other
 94,Fonio,crop_product
 641,"Forage and silage, alfalfa",crop_product
