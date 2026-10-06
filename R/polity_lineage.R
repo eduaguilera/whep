@@ -76,8 +76,12 @@
 #'   `method_polity_lineage`, one of `"anchor"` (the reporting polity is
 #'   itself carried at that year), `"predecessor"` (a predecessor is),
 #'   `"sibling_interval"` (a different interval of the polity the walk landed
-#'   on is -- the support and `polities` disagree about the interval),
-#'   `"constant_territory"`, or `"unresolved"`. An unresolved row keeps `NA`
+#'   on is -- the support and `polities` disagree about the interval; an
+#'   interval that succeeded the polity the walk reached is a different
+#'   country and is never taken), `"aggregate"` (an aggregate reporting union
+#'   whose `successor` list names a polity on the walk is, e.g.
+#'   Belgium-Luxembourg for Belgium before 2000), `"constant_territory"`, or
+#'   `"unresolved"`. An unresolved row keeps `NA`
 #'   rather than being dropped, so the gap stays visible, and is warned about
 #'   with condition class `whep_lineage_unresolved`.
 #'
@@ -264,14 +268,20 @@ resolve_polity_lineage <- function(
     year,
     code,
     depth = 0L,
-    path = "0"
+    path = "0",
+    via_aggregate = FALSE
   )
   hits <- .lineage_empty_hits()
+  descendants <- .lineage_descendants(polities)
+  edges <- .lineage_edges(polities)
   depth <- 0L
   while (nrow(frontier) > 0L && depth <= .lineage_max_depth()) {
-    step <- .lineage_resolve_frontier(frontier, support)
+    # At depth 0 the candidate is the row's own polity, and a later interval
+    # of it is that same country continued, so nothing is excluded there.
+    excluded <- if (depth > 0L) descendants
+    step <- .lineage_resolve_frontier(frontier, support, excluded)
     hits <- dplyr::bind_rows(hits, step$hits)
-    frontier <- .lineage_expand(step$pending, polities)
+    frontier <- .lineage_expand(step$pending, edges)
     depth <- depth + 1L
   }
   .lineage_pick(hits, pairs)
@@ -289,8 +299,8 @@ resolve_polity_lineage <- function(
 
 # Split one depth's frontier into the candidates the support carries and those
 # it does not.
-.lineage_resolve_frontier <- function(frontier, support) {
-  carried <- .lineage_carried(frontier, support)
+.lineage_resolve_frontier <- function(frontier, support, descendants) {
+  carried <- .lineage_carried(frontier, support, descendants)
   hit <- !is.na(carried$code)
   hits <- frontier[hit, , drop = FALSE] |>
     dplyr::transmute(
@@ -298,7 +308,8 @@ resolve_polity_lineage <- function(
       lineage_polity_code = carried$code[hit],
       method_polity_lineage = .lineage_method(
         depth,
-        carried$is_sibling[hit]
+        carried$is_sibling[hit],
+        via_aggregate
       ),
       depth,
       path
@@ -309,10 +320,12 @@ resolve_polity_lineage <- function(
 # `"sibling_interval"` takes precedence over `"predecessor"` because it is the
 # surprising answer: the support and `polities` disagree about which interval
 # of one polity exists, and a reader must see that rather than a plain
-# succession.
-.lineage_method <- function(depth, is_sibling) {
+# succession. `"aggregate"` comes next for the same reason: the row lands on a
+# reporting union that contains its territory, not on an entity it succeeded.
+.lineage_method <- function(depth, is_sibling, via_aggregate) {
   dplyr::case_when(
     is_sibling ~ "sibling_interval",
+    via_aggregate ~ "aggregate",
     depth == 0L ~ "anchor",
     .default = "predecessor"
   )
@@ -320,8 +333,14 @@ resolve_polity_lineage <- function(
 
 # For each candidate `(code, year)`, the polity code the support carries at
 # that year: the candidate itself, or -- when the support holds a different
-# interval of the same polity family -- that interval instead.
-.lineage_carried <- function(candidates, support) {
+# interval of the same polity family -- that interval instead. A family
+# interval that descends from the candidate is not a sibling of it but a
+# co-successor of the row's own polity (whep#1298): present-day Belgium walks
+# to NLD-1800-1830, the United Kingdom of the Netherlands, whose family also
+# holds NLD-1830-2025 -- the Netherlands, a different country that coexists
+# with Belgium. `descendants` lists those (code, live_code) pairs, or is
+# `NULL` when nothing is excluded.
+.lineage_carried <- function(candidates, support, descendants) {
   live <- support |>
     dplyr::distinct(polity_code, start_year, end_year) |>
     dplyr::mutate(
@@ -333,7 +352,8 @@ resolve_polity_lineage <- function(
     dplyr::mutate(candidates, family = .lineage_family(code)),
     live,
     "family",
-    "family"
+    "family",
+    exclude = descendants
   )
   tibble::tibble(
     code = dplyr::coalesce(self, sibling),
@@ -351,8 +371,15 @@ resolve_polity_lineage <- function(
 
 # The lowest-sorting live polity code matching `candidates` on `key`, per
 # candidate row. Deterministic by code so the answer cannot depend on row
-# order, and `NA` where nothing matches.
-.lineage_match <- function(candidates, live, live_key, cand_key) {
+# order, and `NA` where nothing matches. `exclude` holds (code, live_code)
+# pairs that may not match.
+.lineage_match <- function(
+  candidates,
+  live,
+  live_key,
+  cand_key,
+  exclude = NULL
+) {
   by <- rlang::set_names(live_key, cand_key)
   matched <- candidates |>
     dplyr::mutate(.lineage_row = dplyr::row_number()) |>
@@ -365,7 +392,15 @@ resolve_polity_lineage <- function(
       !is.na(live_code),
       start_year <= year,
       end_year > year
-    ) |>
+    )
+  if (!is.null(exclude)) {
+    matched <- dplyr::anti_join(
+      matched,
+      exclude,
+      by = c("code", "live_code")
+    )
+  }
+  matched <- matched |>
     dplyr::arrange(.lineage_row, live_code) |>
     dplyr::distinct(.lineage_row, .keep_all = TRUE)
   out <- rep(NA_character_, nrow(candidates))
@@ -373,28 +408,110 @@ resolve_polity_lineage <- function(
   out
 }
 
+# The (code, live_code) pairs in which `live_code` directly succeeds `code`,
+# read from both directions of the edges: `live_code` names `code` as a
+# predecessor, or `code` names `live_code` as a successor. Both are read
+# because `polities` does not keep them symmetric.
+.lineage_descendants <- function(polities) {
+  from_predecessor <- polities |>
+    dplyr::filter(!is.na(predecessor)) |>
+    dplyr::transmute(
+      live_code = polity_code,
+      code = stringr::str_split(predecessor, ";")
+    ) |>
+    tidyr::unnest_longer(code)
+  from_successor <- if (rlang::has_name(polities, "successor")) {
+    polities |>
+      dplyr::filter(!is.na(successor)) |>
+      dplyr::transmute(
+        code = polity_code,
+        live_code = stringr::str_split(successor, ";")
+      ) |>
+      tidyr::unnest_longer(live_code)
+  }
+  dplyr::bind_rows(from_predecessor, from_successor) |>
+    dplyr::transmute(
+      code = stringr::str_trim(code),
+      live_code = stringr::str_trim(live_code)
+    ) |>
+    dplyr::filter(code != "", live_code != "") |>
+    dplyr::distinct()
+}
+
 # One depth step: replace each pending candidate by its predecessors. A polity
 # with several predecessors expands to one candidate each, ranked by the order
 # the edge lists them, so the pick below is deterministic.
-.lineage_expand <- function(pending, polities) {
+.lineage_expand <- function(pending, edges) {
   if (nrow(pending) == 0L) {
     return(pending)
   }
-  edges <- polities |>
-    dplyr::distinct(polity_code, predecessor) |>
-    dplyr::filter(!is.na(predecessor))
   pending |>
-    dplyr::inner_join(edges, by = c("code" = "polity_code")) |>
-    dplyr::mutate(code = stringr::str_split(predecessor, ";")) |>
-    tidyr::unnest_longer(code, indices_to = "edge_rank") |>
+    dplyr::inner_join(edges, by = "code", relationship = "many-to-many") |>
     dplyr::transmute(
       pair_id,
       year,
-      code = stringr::str_trim(code),
+      code = predecessor,
       depth = depth + 1L,
-      path = paste0(path, "-", .lineage_pad(edge_rank))
+      path = paste0(path, "-", .lineage_pad(edge_rank)),
+      via_aggregate = via_aggregate | is_aggregate
+    )
+}
+
+# The edges the walk follows, one row per (code, predecessor): the
+# `predecessor` a polity lists, ranked in the order it lists them, and then
+# every aggregate whose `successor` lists the polity (whep#1298). An aggregate
+# reporting union -- Belgium-Luxembourg, Syria-Lebanon -- names its members as
+# successors, but no member names it as a predecessor, so the walk could not
+# reach the entity that reported for the member's territory. Only aggregates'
+# successor lists are read: a national polity's successors are already linked
+# back by their own predecessor edges where the succession is real, and
+# reading them all inverts edges such as Norway's onto Sweden.
+.lineage_edges <- function(polities) {
+  own <- polities |>
+    dplyr::distinct(polity_code, predecessor) |>
+    dplyr::filter(!is.na(predecessor)) |>
+    dplyr::transmute(
+      code = polity_code,
+      predecessor = stringr::str_split(predecessor, ";")
     ) |>
-    dplyr::filter(!is.na(code), code != "")
+    tidyr::unnest_longer(predecessor, indices_to = "edge_rank") |>
+    dplyr::mutate(
+      predecessor = stringr::str_trim(predecessor),
+      is_aggregate = FALSE
+    )
+  aggregate <- .lineage_aggregate_edges(polities) |>
+    dplyr::anti_join(own, by = c("code", "predecessor")) |>
+    dplyr::arrange(code, predecessor) |>
+    dplyr::mutate(
+      edge_rank = .lineage_aggregate_rank() + dplyr::row_number(),
+      is_aggregate = TRUE,
+      .by = code
+    )
+  dplyr::bind_rows(own, aggregate) |>
+    dplyr::filter(!is.na(predecessor), predecessor != "")
+}
+
+# Aggregate edges rank after every edge a polity lists itself, so a real
+# predecessor at the same depth is preferred to the union containing it.
+.lineage_aggregate_rank <- function() 500L
+
+# (code, predecessor) pairs read from the `successor` list of every polity
+# whose `polity_type` is `"aggregate"`; none when `polities` has no such
+# columns.
+.lineage_aggregate_edges <- function(polities) {
+  if (!all(rlang::has_name(polities, c("polity_type", "successor")))) {
+    return(tibble::tibble(code = character(0), predecessor = character(0)))
+  }
+  polities |>
+    dplyr::filter(polity_type == "aggregate", !is.na(successor)) |>
+    dplyr::distinct(polity_code, successor) |>
+    dplyr::transmute(
+      predecessor = polity_code,
+      code = stringr::str_split(successor, ";")
+    ) |>
+    tidyr::unnest_longer(code) |>
+    dplyr::mutate(code = stringr::str_trim(code)) |>
+    dplyr::filter(code != "")
 }
 
 # Zero-padded so `path` sorts as a lexicographic path rather than a string in

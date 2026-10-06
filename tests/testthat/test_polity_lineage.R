@@ -303,3 +303,131 @@ test_that("the walk never compares polity geometries, even with sf loaded", {
   out <- whep::resolve_polity_lineage(national, support)
   expect_equal(out$lineage_polity_code, c("F228-1945-1991", "RUS-2014-2025"))
 })
+
+test_that("a sibling of a predecessor that succeeded it is not an answer", {
+  # whep#1298: present-day Belgium walks to NLD-1800-1830 (the United Kingdom
+  # of the Netherlands), whose family also holds NLD-1830-2025. That interval
+  # is the Netherlands -- a co-successor that coexists with Belgium -- not an
+  # earlier interval of the polity the walk reached.
+  national <- tibble::tibble(area_code = c(255L, 256L), year = 1961L)
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "BLX-1850-1999",      1850L,     1999L,
+    "BLX-1921-1999",      1921L,     1999L,
+    "NLD-1830-2025",      1830L,     2025L
+  )
+  out <- whep::resolve_polity_lineage(national, support)
+  expect_false(any(out$lineage_polity_code %in% "NLD-1830-2025"))
+  expect_false(any(out$method_polity_lineage == "sibling_interval"))
+})
+
+test_that("a member reaches the aggregate union that reported for it", {
+  # whep#1298: Belgium-Luxembourg reported for both countries in 1961. It lists
+  # them as successors, but neither names it as a predecessor.
+  national <- tibble::tibble(area_code = c(255L, 256L), year = 1961L)
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "BLX-1850-1999",      1850L,     1999L,
+    "BLX-1921-1999",      1921L,     1999L,
+    "NLD-1830-2025",      1830L,     2025L
+  )
+  out <- whep::resolve_polity_lineage(national, support)
+  expect_equal(out$lineage_polity_code, rep("BLX-1850-1999", 2))
+  expect_equal(out$method_polity_lineage, rep("aggregate", 2))
+})
+
+test_that("a listed predecessor is preferred to an aggregate union", {
+  polities <- tibble::tribble(
+    ~polity_code, ~polity_name, ~polity_type, ~start_year, ~end_year,
+    ~predecessor, ~successor,
+    "AAA-1900-2025", "A", "national", 1900L, 2025L, "OLD-1800-1950", NA,
+    "OLD-1800-1950", "Old", "national", 1800L, 1950L, NA, NA,
+    "UNI-1800-1999", "Union", "aggregate", 1800L, 1999L, NA, "AAA-1900-2025"
+  )
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "OLD-1800-1950",      1800L,     1950L,
+    "UNI-1800-1999",      1800L,     1999L
+  )
+  testthat::local_mocked_bindings(
+    .lineage_anchor_pairs = function(national) {
+      tibble::tibble(
+        pair_id = 1:2,
+        area_code = 1L,
+        year = c(1940L, 1961L),
+        code = "AAA-1900-2025"
+      )
+    }
+  )
+  out <- whep::resolve_polity_lineage(
+    tibble::tibble(area_code = 1L, year = c(1940L, 1961L)),
+    support,
+    polities = polities
+  )
+  expect_equal(out$lineage_polity_code, c("OLD-1800-1950", "UNI-1800-1999"))
+  expect_equal(out$method_polity_lineage, c("predecessor", "aggregate"))
+})
+
+test_that("a row's own later interval still answers as a sibling", {
+  # The exclusion of whep#1298 applies past the anchor only: at depth 0 the
+  # family interval that succeeds the row's polity is the same country.
+  polities <- tibble::tribble(
+    ~polity_code, ~polity_name, ~start_year, ~end_year, ~predecessor,
+    "AAA-1900-1950", "A (old)",       1900L,     1950L, NA,
+    "AAA-1950-2025", "A",             1950L,     2025L, "AAA-1900-1950"
+  )
+  national <- tibble::tibble(area_code = 1L, year = 1961L)
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "AAA-1950-2025",      1950L,     2025L
+  )
+  testthat::local_mocked_bindings(
+    .lineage_anchor_pairs = function(national) {
+      tibble::tibble(
+        pair_id = 1L,
+        area_code = 1L,
+        year = 1961L,
+        code = "AAA-1900-1950"
+      )
+    }
+  )
+  out <- whep::resolve_polity_lineage(national, support, polities = polities)
+  expect_equal(out$lineage_polity_code, "AAA-1950-2025")
+  expect_equal(out$method_polity_lineage, "sibling_interval")
+})
+
+test_that("a co-successor reached through a successor edge is refused", {
+  # `polities` does not keep the edges symmetric, so a successor listed only
+  # on the predecessor's own row must be refused as well.
+  polities <- tibble::tribble(
+    ~polity_code, ~polity_name, ~start_year, ~end_year, ~predecessor,
+    ~successor,
+    "BBB-1800-1900", "B union", 1800L, 1900L, NA, "BBB-1900-2025",
+    "BBB-1900-2025", "B",       1900L, 2025L, NA, NA,
+    "CCC-1900-2025", "C",       1900L, 2025L, "BBB-1800-1900", NA
+  )
+  national <- tibble::tibble(area_code = 1L, year = 1961L)
+  support <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "BBB-1900-2025",      1900L,     2025L
+  )
+  testthat::local_mocked_bindings(
+    .lineage_anchor_pairs = function(national) {
+      tibble::tibble(
+        pair_id = 1L,
+        area_code = 1L,
+        year = 1961L,
+        code = "CCC-1900-2025"
+      )
+    }
+  )
+  expect_warning(
+    out <- whep::resolve_polity_lineage(
+      national,
+      support,
+      polities = polities
+    ),
+    class = "whep_lineage_unresolved"
+  )
+  expect_true(is.na(out$lineage_polity_code))
+})

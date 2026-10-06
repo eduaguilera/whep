@@ -2661,6 +2661,11 @@ utils::globalVariables(
     # polity_identity_carry.R (whep#707) -- marks the rows that carry no
     # reporting identity, so the write-back fills them and nothing else
     ".polity_hole",
+    # polity_lineage.R (issue 1298) -- the successor edges the sibling rule
+    # reads to refuse a co-successor, and the aggregate edges the walk follows
+    "successor",
+    "via_aggregate",
+    "is_aggregate",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

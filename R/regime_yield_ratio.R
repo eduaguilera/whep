@@ -189,7 +189,8 @@
 #'     `"spam_dominance_world"` or `"spam_none"` (no SPAM ratio at all).
 #'   - `method_ratio_trend`: where `n_t` came from: `"faostat"` or
 #'     `"smil_backcast"` (the country's own), either suffixed
-#'     `"_predecessor"`, `"_sibling_interval"` or `"_shared_polity"` (from
+#'     `"_predecessor"`, `"_sibling_interval"`, `"_aggregate"` or
+#'     `"_shared_polity"` (from
 #'     the polity reporting for it, by the lineage step that found it); or
 #'     `"pre_synthetic_n"`, `"no_n_reported_pre1961"`, `"n_2010_zero"`,
 #'     `"no_n_t"`, `"no_cropland"` (a reporting polity was found but its

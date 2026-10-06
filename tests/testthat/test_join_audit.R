@@ -601,7 +601,9 @@ test_that("every year-free territorial grouping is classified", {
   # (106 -> 111), over 131 signatures. Re-derived by running the audit.
   # 137 with whep#1342: the member-years dedup. Re-derived by running the
   # audit.
-  expect_lte(sum(full$n), 137L)
+  # 138 with whep#1298: the lineage's aggregate successor edges, on top of
+  # whep#1342's 137. Re-derived by running the audit.
+  expect_lte(sum(full$n), 138L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

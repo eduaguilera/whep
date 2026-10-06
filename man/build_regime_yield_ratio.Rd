@@ -74,7 +74,8 @@ and Hemp, the product chosen for the country).
 \code{"spam_dominance_world"} or \code{"spam_none"} (no SPAM ratio at all).
 \item \code{method_ratio_trend}: where \code{n_t} came from: \code{"faostat"} or
 \code{"smil_backcast"} (the country's own), either suffixed
-\code{"_predecessor"}, \code{"_sibling_interval"} or \code{"_shared_polity"} (from
+\code{"_predecessor"}, \code{"_sibling_interval"}, \code{"_aggregate"} or
+\code{"_shared_polity"} (from
 the polity reporting for it, by the lineage step that found it); or
 \code{"pre_synthetic_n"}, \code{"no_n_reported_pre1961"}, \code{"n_2010_zero"},
 \code{"no_n_t"}, \code{"no_cropland"} (a reporting polity was found but its
