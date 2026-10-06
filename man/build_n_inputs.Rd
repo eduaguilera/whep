@@ -168,6 +168,10 @@ Supplying only the other basis's population aborts. Recorded in
 (\code{"nearest"} default, \code{"polity"}, \code{"keep"} or \code{"drop"}), for human N
 the transport step leaves on a source cell with no cropland. Only what
 that rule leaves stranded reaches \code{method_unsupported}.
+\item \code{human_n_method_local_residual}: \code{\link[=build_human_n]{build_human_n()}}'s
+\code{method_local_residual} (\code{"room_cap"} default or \code{"uncapped"}), for the
+residual a source cell WITH cropland gets back: capped at the cell's own
+room, the excess placed by \code{human_n_method_residual}, or kept whole.
 \item \code{carbon_balance}: \code{\link[=build_carbon_balance]{build_carbon_balance()}}'s \code{"grid"}-resolution
 output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, \code{area_ha},
 \code{son_change_kgn_ha}); this driver requires it supplied directly, it

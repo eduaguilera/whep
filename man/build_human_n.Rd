@@ -11,7 +11,8 @@ build_human_n(
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE,
-  method_residual = c("nearest", "polity", "keep", "drop")
+  method_residual = c("nearest", "polity", "keep", "drop"),
+  method_local_residual = c("room_cap", "uncapped")
 )
 
 build_urban_n(...)
@@ -70,12 +71,13 @@ is not every territory's own code (\code{"SSD"} would become 206, Sudan
 Defaults to \code{FALSE}.}
 
 \item{method_residual}{What happens to human N that the transport step
-cannot deliver and that sits on a source cell with \strong{no cropland} (the
-residual on a source cell that has cropland is applied there under every
-method). On the 2010 global grid, under the default \code{"total"} basis,
-this is 13,198 cells and 47,365 t N, 0.700\% of the 6.77 Mt of human N;
-under \code{"nearest"} 2,145 t of it stays stranded, in the three polities
-with no cropland cell that year (Qatar, Iceland, Samoa).
+cannot deliver: the residual on a source cell with \strong{no cropland}, plus,
+under the default \code{method_local_residual = "room_cap"}, the part of a
+cropland source cell's residual that exceeds its own room. On the 2010
+global grid, under the default \code{"total"} basis, the first is 13,198 cells
+and 47,365 t N, 0.700\% of the 6.77 Mt of human N, and the second adds
+24,346 t on 1,424 cells; see \code{method_local_residual} for what \code{"nearest"}
+leaves stranded.
 \itemize{
 \item \code{"nearest"} (default): run the transport step's own rule again with a
 growing radius. Each such cell offers its nitrogen to the same-polity
@@ -92,8 +94,10 @@ polity-year's cropland in proportion to cropland room (area), the rule
 \code{\link[=build_n_inputs]{build_n_inputs()}} applies under \code{method_unsupported = "reallocate"}.
 Conserves mass, but places the nitrogen anywhere in the polity.
 \item \code{"keep"}: leave it on its source cell, as before this argument
-existed, flagged in \code{human_n_stranded_t}. \code{\link[=build_n_inputs]{build_n_inputs()}}'s
-\code{method_unsupported} then decides its fate (by default, it aborts).
+existed, flagged in \code{human_n_stranded_t}. On a cell with no cropland,
+\code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{method_unsupported} then decides its fate (by
+default, it aborts); an over-room excess is applied on its own cell's
+cropland, as \code{"uncapped"} would.
 \item \code{"drop"}: discard it. Loses the mass, biased towards dense,
 cropland-free cells.
 }
@@ -109,6 +113,35 @@ stranded; otherwise a message of the same class), and the per-year
 figures are attached as \code{attr(x, "human_n_undelivered")}. Recorded in
 the \code{method_human_residual} output column.}
 
+\item{method_local_residual}{What happens to the residual the transport
+step hands back to a source cell that \strong{has} cropland. The transport step
+offers a cell's load to its ring-1 neighbours only, so a dense cell with
+little cropland gets back most of its own load, on that little cropland.
+\itemize{
+\item \code{"room_cap"} (default): the cell keeps only what fits in its own room,
+170 kg N/ha times its cropland minus the human N the transport step
+already landed on it -- the room the transport step and \code{"nearest"}
+respect everywhere else. The excess is undelivered N, placed by
+\code{method_residual} like the residual of a cell with no cropland. On the
+2010 global grid (\code{"total"} basis) that is 24,346 t on 1,424 of the
+2,180 cropland source cells left with a residual. Under \code{"nearest"},
+17,083 t of it is moved and 7,263 t stays stranded on its own cell, in
+the three polities with no room left anywhere (Hong Kong 6,701 t,
+Kuwait 363 t, the Bahamas 200 t), alongside the 2,145 t on cells with
+no cropland (Qatar, Iceland, Samoa).
+\item \code{"uncapped"}: the cell keeps its whole residual, as before this
+argument existed, whatever its cropland area. On the same grid 1,417
+cropland cells then end above 170 kg N/ha, holding 24,346 t above it,
+and the largest load is booked on 3.6e-7 ha.
+}
+
+No minimum-cropland threshold is offered: the room cap already moves a
+sliver's whole residual, and a threshold would be a new, unsourced number
+that misses the excess on larger cells (15,202 t of the 24,346 t sits on
+cells with at least 1 ha). Recorded in the \code{method_human_local_residual}
+output column; the part of \code{undelivered_t} it adds is the summary's
+\code{over_room_t}.}
+
 \item{...}{For \code{build_urban_n()}, arguments passed on to \code{build_human_n()}.
 \code{population_basis} defaults to \code{"urban"} here if omitted, matching this
 function's historical behaviour, unlike \code{build_human_n()}'s own
@@ -117,17 +150,22 @@ function's historical behaviour, unlike \code{build_human_n()}'s own
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{human_n_t},
 \code{human_n_relocated_t} (the part of \code{human_n_t} placed on the cell by
-\code{method_residual}), \code{human_n_stranded_t} (the part sitting on a cell with
-no cropland, which no downstream cropland allocation can place),
+\code{method_residual}), \code{human_n_stranded_t} (the undelivered part no rule
+could place: on a cell with no cropland, which no downstream cropland
+allocation can place, or above the room of the cell's own cropland, which
+\code{\link[=build_n_inputs]{build_n_inputs()}} then applies there, over the ceiling),
 \code{method_human}, \code{method_human_population} (\code{"total_population"} or
 \code{"urban_population"}), \code{method_human_kgn_cap}
 (\code{"kg_n_per_total_inhabitant"} or \code{"kg_n_per_urban_inhabitant"}) and
-\code{method_human_residual}, plus the polity columns below, plus
+\code{method_human_residual} and \code{method_human_local_residual}, plus the
+polity columns below, plus
 \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}. The
 attribute \code{"human_n_undelivered"} is a tibble with one row per year:
 \code{year}, \code{human_n_t}, \code{n_cells} (undelivered source cells),
-\code{undelivered_t}, \code{relocated_t}, \code{stranded_t}, \code{dropped_t},
-\code{undelivered_share} (of \code{human_n_t}) and \code{method_human_residual}.
+\code{undelivered_t}, \code{over_room_t} (the part of \code{undelivered_t} that exceeded
+the room of its own cell's cropland), \code{relocated_t}, \code{stranded_t},
+\code{dropped_t}, \code{undelivered_share} (of \code{human_n_t}),
+\code{method_human_residual} and \code{method_human_local_residual}.
 }
 \description{
 Estimates the nitrogen the human population returns to agricultural land

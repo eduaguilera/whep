@@ -324,6 +324,11 @@
     # Named, because the default basis is the total population: the pinned
     # inputs below were measured on the urban basis.
     human_n_population_basis = "urban",
+    # The fixture's one human-N cell carries ~39 kt N on 1,000 ha, far above
+    # its 170 t room, with no other cropland in its polity: the room cap
+    # (#1336) would leave every tonne where it is and warn on every build.
+    # These tests pin the balance, not the cap, which test_n_human.R pins.
+    human_n_method_local_residual = "uncapped",
     cropland_ha = .nbi_cropland_ha(),
     cell_polity = .nbi_cell_polity(),
     carbon_balance = .nbi_carbon_balance(),
