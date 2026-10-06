@@ -299,3 +299,21 @@ testthat::test_that("per head demand is conversion tonnes DM per head", {
   testthat::expect_equal(out$live_anim_code, c(1096L, 1126L))
   testthat::expect_equal(out$demand_aft, per_head * c(1, 250))
 })
+
+testthat::test_that(".normalise_feed_cbs aborts on feed carried in non-tonnes rows", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~feed,
+    2000L, 1L, 2514L, "tonnes", 10,
+    2000L, 1L, 866L, "heads", 0,
+    2000L, 1L, 867L, NA, 5
+  )
+  # Heads rows with zero feed and unlabelled rows are the normal shape: no
+  # change to the output.
+  out <- whep:::.normalise_feed_cbs(cbs)
+  testthat::expect_equal(out$feed, c(10, 0, 5))
+  cbs$feed[[2]] <- 3
+  testthat::expect_error(
+    whep:::.normalise_feed_cbs(cbs),
+    class = "whep_feed_cbs_units"
+  )
+})
