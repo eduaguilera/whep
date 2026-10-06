@@ -83,9 +83,8 @@
 #' pin) from 1961, back-cast to 1913 with the Smil (2001) global series scaled
 #' by the country's 1961-1965 share ([smil_2001_synthetic_n_global]), and zero
 #' before 1913, when there was no synthetic nitrogen. The share's divisor is
-#' the Smil series interpolated over 1961-1965 (15.6 Mt), the fix proposed in
-#' issue #1303 for the spatialization scripts' `prepare_nitrogen_inputs()`,
-#' whose back-cast differs from this one until that issue is fixed. The
+#' the Smil series interpolated over 1961-1965 (15.6 Mt), the same divisor the
+#' spatialization scripts' `prepare_nitrogen_inputs()` uses (issue #1303). The
 #' cropland is [get_arable_permanent_land()] (FAOSTAT from 1961, LUH2
 #' back-cast before).
 #'
@@ -1362,14 +1361,9 @@ split_regime_yield <- function(
 # (inst/scripts/prepare_spatialize_all.R, `.smil_synth_pre_1961()`): the Smil
 # (2001) global series, linearly interpolated between its anchor years, times
 # the country's mean 1961-1965 FAOSTAT N over the Smil global mean of the same
-# years. One difference, deliberate: that script interpolates the 1961-1965
-# global mean on a frame holding only those five years, where the only anchor
-# is 1965, so its divisor is the 1965 value (19.0 Mt) rather than the mean of
-# the interpolated years (15.6 Mt), and its back-cast steps down by that
-# factor at 1960/1961. Here the mean is taken from the series interpolated
-# over 1913-1965, so the back-cast meets FAOSTAT without the step. This
-# divisor matches the fix proposed in issue #1303; the
-# script path differs from this one until #1303 is fixed.
+# years. The mean is taken from the series interpolated over 1913-1965, so
+# the 1960 anchor enters it (15.6 Mt, not the 1965 value of 19.0 Mt); the
+# script uses the same divisor since issue #1303.
 .ryr_smil_backcast <- function(faostat) {
   window <- .ryr_smil_share_window()
   global <- tibble::tibble(

@@ -2326,11 +2326,19 @@ prepare_yield_inputs <- function(
   synth_country_faostat,
   share_window = 1961L:1965L
 ) {
-  smil_anchor <- .smil_global_yearly(
-    first_year = min(share_window),
+  # Interpolate from the first Smil anchor, not from the window's first year:
+  # 1961-1965 holds only the 1965 anchor, so a frame of those years alone
+  # back-fills 19.0 Mt across them, against an interpolated mean of 15.6 Mt
+  # with the 1960 anchor, and the back-cast stepped up 1.40x at 1960/61
+  # (whep#1303). Same divisor as `.ryr_smil_backcast()` in
+  # R/regime_yield_ratio.R.
+  smil_window_avg <- .smil_global_yearly(
+    first_year = min(whep::smil_2001_synthetic_n_global$year),
     last_year = max(share_window)
-  )
-  smil_window_avg <- mean(smil_anchor$global_mg_n, na.rm = TRUE)
+  ) |>
+    dplyr::filter(year %in% share_window) |>
+    dplyr::pull(global_mg_n) |>
+    mean()
   synth_country_faostat |>
     dplyr::filter(year %in% share_window, mg_n > 0) |>
     dplyr::summarise(
