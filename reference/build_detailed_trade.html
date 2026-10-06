@@ -145,9 +145,17 @@ without downloading remote data. Default <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns:</p><ul><li><p><code>year</code>: Integer year.</p></li>
-<li><p><code>area_code</code>: Numeric polity code of the reporter country.</p></li>
+<li><p><code>area_code</code>: Numeric polity code of the reporter country, the
+<code>polity_area_code</code> its FAOSTAT area resolves to in that year.</p></li>
+<li><p><code>polity_area_code</code>, <code>reporting_polity_code</code>, <code>reporting_polity_name</code>,
+<code>reporting_polity_has_geometry</code>: the reporter's polity columns, see
+the <em>Polity columns</em> section.</p></li>
 <li><p><code>area_code_partner</code>: Numeric polity code of the partner country.</p></li>
+<li><p><code>partner_polity_code</code>, <code>partner_polity_name</code>,
+<code>partner_polity_has_geometry</code>, <code>partner_polity_area_code</code>: the same
+polity columns for the partner.</p></li>
 <li><p><code>element</code>: Either <code>"import"</code> or <code>"export"</code>.</p></li>
+<li><p><code>item_cbs</code>: CBS item name.</p></li>
 <li><p><code>item_cbs_code</code>: Numeric CBS item code.</p></li>
 <li><p><code>unit</code>: Measurement unit (<code>"tonnes"</code> or <code>"heads"</code>).</p></li>
 <li><p><code>value</code>: Trade quantity.</p></li>
@@ -272,11 +280,49 @@ FAOSTAT trade item 1181, which <code><a href="cbs_trade_codes.html">whep::cbs_tr
 insects, packages or colonies - is not established by the source. They
 are dropped, with the warning every unrecognised label now raises.</p>
     </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning. Where that polity is not live in the
+row's own year – 41.5% of the pre-1961 <code>(area, year)</code> cells –
+<code><a href="add_polity_code.html">add_polity_code()</a></code> says so as <code>mapping_status == "backcast_anchor"</code>, and
+<code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code> reports it as <code>gap_kind == "backcast_anchor"</code>.
+These columns do not say so either way.</p>
+<p>A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so <code>reporting_polity_code</code> can name a polity that did
+not exist in that row's year – FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after <code>SUD-1956-2011</code> ends, and its post-2011 rows carry that code.
+These columns do not say so: <code><a href="add_polity_code.html">add_polity_code()</a></code> reports such a row as
+<code>mapping_status == "out_of_span"</code>, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+<code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code> reports the stand-in rows of a built table, and
+<code>options(whep.polity_mapping_status = "flag")</code> (or <code>"status"</code>) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_detailed_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 19</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 20</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>010         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
@@ -289,11 +335,11 @@ are dropped, with the warning every unrecognised label now raises.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>005         4                4 DZA-1962-2025         Algeria (1962-2025)  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>012       100              100 IND-1949-2025         India                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 15 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_code_partner &lt;int&gt;, partner_polity_code &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_name &lt;chr&gt;, partner_polity_has_geometry &lt;lgl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_area_code &lt;int&gt;, element &lt;chr&gt;, item_cbs_code &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   partner_polity_area_code &lt;int&gt;, element &lt;chr&gt;, item_cbs &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;dbl&gt;, unit &lt;chr&gt;, value &lt;dbl&gt;, country_share &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unbacked_quantity &lt;chr&gt;, method_head_units &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_time_coverage &lt;chr&gt;</span></span>
 </code></pre></div>
