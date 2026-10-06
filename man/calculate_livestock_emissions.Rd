@@ -14,7 +14,7 @@ For Tier 2, also needs \code{cohort}, \code{weight} (or \code{iso3}),
 \item{tier}{Integer 1 or 2. If \code{NULL} (default), auto-selects
 based on data completeness.}
 
-\item{options}{A named list of manure-engine options. All but four
+\item{options}{A named list of manure-engine options. All but five
 defaults reproduce the behaviour in force before whep#949. The exceptions
 are \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
@@ -22,7 +22,27 @@ which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
 since whep#1137 pairs the 2019 pasture MCF with its published \code{Bo} and
 moves Tier 2 manure CH4, and \code{tier2_uncovered}, which since whep#1028
-gives species with no Tier 2 method their Tier 1 values instead of \code{NA}.
+gives species with no Tier 2 method their Tier 1 values instead of \code{NA},
+and \code{indirect_n2o_source}, which since whep#1245 reads the 2019
+Refinement's leaching factors and moves both tiers' indirect manure N2O.
+
+\code{indirect_n2o_source} selects the edition of \link{indirect_n2o_ef} the
+indirect manure N2O reads:
+\itemize{
+\item \code{"ipcc_2019"} (default): EF5 0.011 and FracLEACH-(H) 0.24, from Vol 4,
+Ch 11, Table 11.3 (Updated), p. 11.26 of the 2019 Refinement, the
+current IPCC guidance and the EF5 the nitrogen balance already uses.
+\item \code{"ipcc_2006"}: EF5 0.0075 and FracLEACH-(H) 0.30, from Table 11.3,
+p. 11.24 of the 2006 Guidelines. These are the values WHEP shipped
+before whep#1245 under a 2019 citation, kept selectable so earlier
+figures stay reproducible.
+}
+
+EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
+\code{"ipcc_2006"} the default raises the leaching term by
+\code{0.24 * 0.011 / (0.30 * 0.0075) = 1.173} and leaves the volatilisation
+term alone. \code{method_manure_n2o} records the edition used
+(\code{indirect_ipcc_2019} or \code{indirect_ipcc_2006}).
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

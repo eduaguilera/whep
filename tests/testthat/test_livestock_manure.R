@@ -1461,3 +1461,78 @@ testthat::test_that("an unknown pasture_bo value aborts", {
     "pasture_bo"
   )
 })
+
+testthat::test_that("indirect_n2o_source selects the Table 11.3 edition", {
+  # whep#1245. Until then `indirect_n2o_ef` cited IPCC 2019 Table 11.3 while
+  # holding the 2006 EF5 (0.0075) and FracLEACH-(H) (0.30). 100 head at
+  # 50 kg N each is 5000 kg N; FracGasMS 0.20 and EF4 0.010 are the same under
+  # both editions, so only the leaching term moves:
+  #   2019: 5000 * (0.20 * 0.010 + 0.24 * 0.011)  * 44 / 28 = 36.4571 kg N2O.
+  #   2006: 5000 * (0.20 * 0.010 + 0.30 * 0.0075) * 44 / 28 = 33.3929 kg N2O.
+  data <- tibble::tribble(
+    ~heads, ~n_excretion, ~method_manure_n2o,
+    100,    50,           "IPCC_2019_Tier2"
+  )
+  indirect <- function(src) {
+    whep:::.calc_indirect_n2o(data, options = list(indirect_n2o_source = src))
+  }
+  ref2019 <- indirect("ipcc_2019")
+  gl2006 <- indirect("ipcc_2006")
+
+  testthat::expect_equal(
+    ref2019$manure_n2o_indirect,
+    5000 * (0.20 * 0.010 + 0.24 * 0.011) * 44 / 28,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    gl2006$manure_n2o_indirect,
+    5000 * (0.20 * 0.010 + 0.30 * 0.0075) * 44 / 28,
+    tolerance = 1e-12
+  )
+  testthat::expect_match(ref2019$method_manure_n2o, "indirect_ipcc_2019")
+  testthat::expect_match(gl2006$method_manure_n2o, "indirect_ipcc_2006")
+
+  # The default is the 2019 Refinement, and an unasked-for call says so.
+  default <- whep:::.calc_indirect_n2o(data)
+  testthat::expect_equal(
+    default$manure_n2o_indirect,
+    ref2019$manure_n2o_indirect
+  )
+  testthat::expect_match(default$method_manure_n2o, "indirect_ipcc_2019")
+
+  testthat::expect_error(
+    whep:::.calc_indirect_n2o(
+      data,
+      options = list(indirect_n2o_source = "ipcc_1996")
+    ),
+    "indirect_n2o_source"
+  )
+})
+
+testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
+  # Read off the two PDFs: 2019 Refinement Vol 4 Ch 11 Table 11.3 (Updated),
+  # p. 11.26; 2006 Guidelines Vol 4 Ch 11 Table 11.3, p. 11.24.
+  published <- tibble::tribble(
+    ~edition,    ~parameter,           ~value,
+    "ipcc_2019", "ef4_volatilization", 0.010,
+    "ipcc_2019", "ef5_leaching",       0.011,
+    "ipcc_2019", "frac_leach",         0.24,
+    "ipcc_2006", "ef4_volatilization", 0.010,
+    "ipcc_2006", "ef5_leaching",       0.0075,
+    "ipcc_2006", "frac_leach",         0.30
+  )
+  shipped <- whep::indirect_n2o_ef |>
+    dplyr::select(edition, parameter, value)
+  testthat::expect_equal(
+    dplyr::semi_join(shipped, published, by = c("edition", "parameter")) |>
+      dplyr::arrange(edition, parameter),
+    dplyr::arrange(published, edition, parameter)
+  )
+  # Each edition carries every parameter the engine reads, exactly once.
+  counts <- dplyr::count(whep::indirect_n2o_ef, edition, parameter)
+  testthat::expect_true(all(counts$n == 1L))
+  testthat::expect_setequal(
+    counts$parameter[counts$edition == "ipcc_2019"],
+    counts$parameter[counts$edition == "ipcc_2006"]
+  )
+})

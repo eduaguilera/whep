@@ -380,8 +380,10 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # whep#1022 moved `mcf_source` onto the 2019 Refinement, and whep#958 moved
   # `mms_shares` off the unsourced placeholder onto the GLEAM 2.0 ingest. With
   # both pinned back the 6c8bf0d2 figures are unchanged, which is what #1029
-  # was about -- the passthrough itself moves nothing. The shipped defaults
-  # are locked beside them.
+  # was about -- the passthrough itself moves nothing. whep#1245 moved a third,
+  # `indirect_n2o_source`, onto the 2019 Table 11.3 leaching factors, so it is
+  # pinned back to `"ipcc_2006"` here too. The shipped defaults are locked
+  # beside them.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -404,16 +406,22 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     100L, 960L, 492717625.4361503
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
-  # no MCF table, so `mms_shares` is the only flip that reaches it; the Tier 2
-  # default is locked in the test below.
+  # no MCF table, so `mms_shares` and `indirect_n2o_source` are the flips that
+  # reach it; the Tier 2 default is locked in the test below. Against the
+  # 2006 indirect N2O edition, whose totals are 1887669000, 1472445000 and
+  # 910771875, the 2019 leaching factors raise the sector totals by 0.355, 0.682 and
+  # 0.276 percent (whep#1245).
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1887669000,
-    10L, 976L, 1472445000,
-    100L, 960L, 910771875
+    10L, 961L, 1894361400,
+    10L, 976L, 1482483600,
+    100L, 960L, 913281525
   )
 
-  placeholder <- list(mms_shares = "placeholder")
+  placeholder <- list(
+    mms_shares = "placeholder",
+    indirect_n2o_source = "ipcc_2006"
+  )
   tier1 <- whep::build_livestock_ghg_extension(
     options = placeholder,
     data = list(primary_prod = .ghg_prod_fixture())
@@ -489,11 +497,16 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # that moves cattle 961 +0.018 percent (2221562951.73), cattle 960
   # -0.089 percent (483894485.80) and leaves sheep 976, already at Bo 0.19,
   # unchanged.
+  #
+  # Since whep#1245 indirect manure N2O reads the 2019 Table 11.3 EF5 (0.011)
+  # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
+  # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
+  # 0.402, 0.405 and 0.340 percent.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2221967275.0028458,
-    10L, 976L, 1576986611.5624502,
-    100L, 960L, 483461873.99136716
+    10L, 961L, 2230894782.3991766,
+    10L, 976L, 1583378815.2593365,
+    100L, 960L, 485105249.77573824
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
