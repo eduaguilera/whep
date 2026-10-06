@@ -79,6 +79,15 @@ source implementation. For the AG availability and incorporation
 factors, `"urban"` maps to the FYM manure class, as the source
 coefficient table does, including the 0.4 Org_ef correction.
 
+The synthetic path's temperature factor (Misselbrook et al. 2004,
+doi:10.1079/SUM2004280) is an exponential scaled on UK monthly
+temperatures. It is capped at 1, as the UK ammonia inventory that runs
+this model caps it (Misselbrook et al. 2015, Inventory of Ammonia
+Emissions from UK Agriculture 2014). Without the cap, warm application
+months returned emission factors above 1. With it, `ef` never exceeds
+the fertiliser's `max_nh3` in
+[manner_params](https://eduaguilera.github.io/whep/reference/manner_params.md).
+
 ## Examples
 
 ``` r

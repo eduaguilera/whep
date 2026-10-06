@@ -25,8 +25,10 @@ gridded_fallow_weights(gridded_crops, grid_aez = NULL, propensity = NULL)
 - grid_aez:
 
   Tibble of `lon`, `lat`, `lgp` (length of growing period in days),
-  `thermal` (GAEZ thermal-climate class). If `NULL`, the packaged
-  `grid_aez.csv` is used.
+  `thermal` (GAEZ thermal-climate class). If `NULL`, the `grid-aez` pin
+  is read via
+  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md)
+  (built by `data-raw/grid_aez.R`).
 
 - propensity:
 

@@ -80,10 +80,14 @@ whose cells the row belongs on, `lineage_polity_name`, and
 `method_polity_lineage`, one of `"anchor"` (the reporting polity is
 itself carried at that year), `"predecessor"` (a predecessor is),
 `"sibling_interval"` (a different interval of the polity the walk landed
-on is – the support and `polities` disagree about the interval),
-`"constant_territory"`, or `"unresolved"`. An unresolved row keeps `NA`
-rather than being dropped, so the gap stays visible, and is warned about
-with condition class `whep_lineage_unresolved`.
+on is – the support and `polities` disagree about the interval; an
+interval that succeeded the polity the walk reached is a different
+country and is never taken), `"aggregate"` (an aggregate reporting union
+whose `successor` list names a polity on the walk is, e.g.
+Belgium-Luxembourg for Belgium before 2000), `"constant_territory"`, or
+`"unresolved"`. An unresolved row keeps `NA` rather than being dropped,
+so the gap stays visible, and is warned about with condition class
+`whep_lineage_unresolved`.
 
 ## Which vintage binds is a choice, not a fact
 

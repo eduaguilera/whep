@@ -151,11 +151,12 @@ A tibble with one row per cell-crop-year of `cells`:
 
 - `method_ratio_trend`: where `n_t` came from: `"faostat"` or
   `"smil_backcast"` (the country's own), either suffixed
-  `"_predecessor"`, `"_sibling_interval"` or `"_shared_polity"` (from
-  the polity reporting for it, by the lineage step that found it); or
-  `"pre_synthetic_n"`, `"no_n_reported_pre1961"`, `"n_2010_zero"`,
-  `"no_n_t"`, `"no_cropland"` (a reporting polity was found but its
-  cropland is missing) or `"no_n_2010"`.
+  `"_predecessor"`, `"_sibling_interval"`, `"_aggregate"` or
+  `"_shared_polity"` (from the polity reporting for it, by the lineage
+  step that found it); or `"pre_synthetic_n"`,
+  `"no_n_reported_pre1961"`, `"n_2010_zero"`, `"no_n_t"`,
+  `"no_cropland"` (a reporting polity was found but its cropland is
+  missing) or `"no_n_2010"`.
 
 - `method_ratio_n_2010`: `"own"`, `"successors"`, `"none"` or
   `"not_needed"` (before 1913).
@@ -226,8 +227,9 @@ How `spam_crop` is read is fixed by `spam_basis` in
   otherwise `ofib`, both summed over 1961-2023. A country with neither
   product takes the world's dominant product and its global ratio. The
   four products are read from the raw `faostat-production` pin
-  (`method_dominance` `"dominance_raw_faostat"`), because WHEP's primary
-  production has no flax fibre (#1302).
+  (`method_dominance` `"dominance_raw_faostat"`), the same item codes
+  WHEP's primary production books them on, so ranking two products needs
+  no 1961-2023 production build.
 
 A country with no irrigated or no rainfed yield for the crop in SPAM
 takes the crop's global ratio (the ratio of the world's sums). Countries
@@ -242,9 +244,8 @@ the Smil (2001) global series scaled by the country's 1961-1965 share
 ([smil_2001_synthetic_n_global](https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.md)),
 and zero before 1913, when there was no synthetic nitrogen. The share's
 divisor is the Smil series interpolated over 1961-1965 (15.6 Mt), the
-fix proposed in issue \#1303 for the spatialization scripts'
-`prepare_nitrogen_inputs()`, whose back-cast differs from this one until
-that issue is fixed. The cropland is
+same divisor the spatialization scripts' `prepare_nitrogen_inputs()`
+uses (issue \#1303). The cropland is
 [`get_arable_permanent_land()`](https://eduaguilera.github.io/whep/reference/get_arable_permanent_land.md)
 (FAOSTAT from 1961, LUH2 back-cast before).
 

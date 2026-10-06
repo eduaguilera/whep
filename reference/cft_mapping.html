@@ -76,6 +76,18 @@ LPJmL v6 named crop CFTs or <code>"others"</code>.</p></li>
 <code>crop_types_FAOSTAT_LPJmL_default.csv</code> (Ostberg et al. 2023)
 with WHEP granular extensions.</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Only the items listed here reach the grid, so each crop is listed on the
+code that carries its harvested area. Where <code><a href="build_primary_production.html">build_primary_production()</a></code>
+books the area of several co-products on one item (<a href="primary_double.html">primary_double</a>),
+that item is the one listed: Coconuts (248), not coconuts in shell (249);
+Linum (772), not linseed (333) or flax (773); Hemp (776), not hempseed
+(336) or true hemp (777); Kapok fruit (310), not kapok fibre (778). Linum
+takes linseed's <code>cft_name</code> and Hemp takes true hemp's, after the product
+with the larger FAOSTAT harvested area (2010: linseed 2.35 Mha against
+flax 0.22 Mha; true hemp 0.051 Mha against hempseed 0.005 Mha).</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
