@@ -4,11 +4,29 @@
 \alias{create_n_prov_destiny}
 \title{GRAFS Nitrogen (N) flows}
 \usage{
-create_n_prov_destiny(example = FALSE)
+create_n_prov_destiny(example = FALSE, wood_n_method = c("tissue", "single"))
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{wood_n_method}{How the nitrogen concentration of the two wood items
+is chosen. Both harvested \code{Wood} and the forest and shrubland residue
+booked as \code{Firewood} map to the single \verb{Average wood} row of
+\link{biomass_coefs}, although one is stemwood and the other branches and
+bark. One of:
+\itemize{
+\item \code{"tissue"} (default): price each by its own tissue, using the pooled
+medians of Thurner et al. (2025), 0.0010 kg N per kg dry matter for
+stem sapwood (\code{Wood}) and 0.0035 for branches (\code{Firewood}).
+\item \code{"single"}: use the shared \verb{Average wood} cell for both, 0.0030, which
+is a branch concentration and carries \code{Wood} about 3 times too high.
+}
+
+Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang,
+Z., and Hickler, T. (2025). Nitrogen concentrations in boreal and
+temperate tree tissues vary with tree age/size, growth rate, and climate.
+\emph{Biogeosciences} 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.}
 }
 \value{
 A final tibble containing N flow data by origin and destiny.

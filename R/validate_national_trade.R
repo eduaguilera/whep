@@ -438,7 +438,8 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
 .convert_trade_fm_to_n <- function(
   trade_fm,
   codes_coefs_items_full,
-  biomass_coefs
+  biomass_coefs,
+  wood_n_method = "tissue"
 ) {
   trade_fm |>
     dplyr::left_join(
@@ -456,6 +457,8 @@ plot_national_trade_flows_raw <- function(trade_flows = NULL) {
         ),
       by = "Name_biomass"
     ) |>
+    # Same per-tissue wood pricing as create_n_prov_destiny() (whep#932).
+    .apply_wood_tissue_n(wood_n_method) |>
     dplyr::mutate(
       prod_type = dplyr::case_when(
         Name_biomass %in% c("Grass", "Fallow") ~ "Grass",

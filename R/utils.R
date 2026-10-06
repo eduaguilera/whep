@@ -2666,6 +2666,8 @@ utils::globalVariables(
     "successor",
     "via_aggregate",
     "is_aggregate",
+    # n_prov_destiny.R (whep#932) -- per-tissue wood residue nitrogen
+    "wood_tissue_kgN_kgDM",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
