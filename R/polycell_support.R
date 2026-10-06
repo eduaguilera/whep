@@ -31,6 +31,13 @@
 #'   polycell table holds. `"overlap_layer"` clips them too and emits them
 #'   alongside the partition marked `support_role == "overlap"` -- see
 #'   *The aggregate overlap layer* below.
+#' @param subnational What to do with `polity_type == "subnational"` rows, the
+#'   provinces and historical sub-units that [polity_containment] places inside
+#'   a national polity. `"exclude"` (default) drops them, because their polygons
+#'   lie inside their container's and the world support is a partition of
+#'   national polities. `"include"` keeps them in the partition, for a build
+#'   whose `geometries` already leave the containers out, as the
+#'   `polycell_support_subnational` pin's build does.
 #' @param geometries An `sf` table of polity geometries with at least
 #'   `polity_code`, `start_year` and `end_year`; defaults to
 #'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
@@ -264,16 +271,18 @@ build_polycell_support <- function(
   water = NULL,
   ice = NULL,
   data = list(),
-  aggregates = c("exclude", "overlap_layer")
+  aggregates = c("exclude", "overlap_layer"),
+  subnational = c("exclude", "include")
 ) {
   rlang::check_installed("sf")
   aggregates <- rlang::arg_match(aggregates)
+  subnational <- rlang::arg_match(subnational)
   old_s2 <- sf::sf_use_s2()
   withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
   suppressMessages(sf::sf_use_s2(TRUE))
 
   geometries <- geometries %||% get_polity_geometries()
-  polities <- .pcs_prepare_polities(geometries, aggregates)
+  polities <- .pcs_prepare_polities(geometries, aggregates, subnational)
   ice_union <- .pcs_prepare_ice(ice)
   layers <- .pcs_layers_supplied(water, ice_union)
   support <- polities |>
@@ -414,11 +423,24 @@ expand_polycell_years <- function(support, years) {
 # a row whose `polity_type` is NA is not evidence of an aggregate, so it stays
 # in the PARTITION under either setting rather than being swept into a layer
 # whose whole contract is that it double-counts.
+#
+# Subnational rows are dropped by the same positive-evidence rule (whep#1013).
+# Every one of the 461 in `whep::polities` (1,231 rows, 2026-10) has a
+# `polity_containment` edge to a national container, and measured on an
+# equal-area projection the container's polygon covers a median 99.7% of the
+# member's (322 of 455 measurable members above 99%), so a province beside its
+# container claims its ground twice. The 11 historical sub-units the
+# `20260907T111653Z-e654d` pin carried this way did exactly that: Alaska
+# (`ALK-1867-1959`) over-filled 1,141 of its 1,450 cells beside
+# `USA-1867-1959`. The provinces are the `polycell_support_subnational` pin,
+# built with `subnational = "include"` on geometries without their containers.
 .pcs_prepare_polities <- function(
   geometries,
-  aggregates = c("exclude", "overlap_layer")
+  aggregates = c("exclude", "overlap_layer"),
+  subnational = c("exclude", "include")
 ) {
   aggregates <- rlang::arg_match(aggregates)
+  subnational <- rlang::arg_match(subnational)
   if (!inherits(geometries, "sf")) {
     cli::cli_abort("{.arg geometries} must be an {.cls sf} table.")
   }
@@ -429,7 +451,9 @@ expand_polycell_years <- function(support, years) {
   )
   attrs <- sf::st_drop_geometry(geometries)
   usable <- .pcs_usable_geometry(sf::st_geometry(geometries))
-  is_aggregate <- .pcs_col(attrs, "polity_type", NA_character_) %in% "aggregate"
+  polity_type <- .pcs_col(attrs, "polity_type", NA_character_)
+  is_aggregate <- polity_type %in% "aggregate"
+  is_subnational <- polity_type %in% "subnational"
   out <- sf::st_sf(
     polity_code = as.character(attrs$polity_code),
     start_year = as.integer(attrs$start_year),
@@ -443,7 +467,8 @@ expand_polycell_years <- function(support, years) {
   # `.polity_is_live()` is the package's one reading of which rows are dead, so
   # the producer's filter and `.active_polities()`'s tie-break cannot drift.
   live <- .polity_is_live(.pcs_col(attrs, "wiki_status", NA_character_)) &
-    (identical(aggregates, "overlap_layer") | !is_aggregate)
+    (identical(aggregates, "overlap_layer") | !is_aggregate) &
+    (identical(subnational, "include") | !is_subnational)
   out[live, ]
 }
 

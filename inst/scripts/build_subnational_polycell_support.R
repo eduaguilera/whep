@@ -106,7 +106,8 @@
   support <- whep::build_polycell_support(
     geometries = polities[attrs$polity_code %in% c(provinces, neighbours), ],
     water = whep::read_glwd_water(input_dir),
-    ice = whep::read_glaciated_areas(ne_dir)
+    ice = whep::read_glaciated_areas(ne_dir),
+    subnational = "include"
   )
   kept <- sf::st_drop_geometry(support)
   kept <- tibble::as_tibble(kept[kept$polity_code %in% provinces, ])

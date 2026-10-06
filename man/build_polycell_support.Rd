@@ -10,7 +10,8 @@ build_polycell_support(
   water = NULL,
   ice = NULL,
   data = list(),
-  aggregates = c("exclude", "overlap_layer")
+  aggregates = c("exclude", "overlap_layer"),
+  subnational = c("exclude", "include")
 )
 }
 \arguments{
@@ -53,6 +54,14 @@ members'. \code{"exclude"} (default) drops them, which is what every published
 polycell table holds. \code{"overlap_layer"} clips them too and emits them
 alongside the partition marked \code{support_role == "overlap"} -- see
 \emph{The aggregate overlap layer} below.}
+
+\item{subnational}{What to do with \code{polity_type == "subnational"} rows, the
+provinces and historical sub-units that \link{polity_containment} places inside
+a national polity. \code{"exclude"} (default) drops them, because their polygons
+lie inside their container's and the world support is a partition of
+national polities. \code{"include"} keeps them in the partition, for a build
+whose \code{geometries} already leave the containers out, as the
+\code{polycell_support_subnational} pin's build does.}
 }
 \value{
 A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
