@@ -382,8 +382,9 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # both pinned back the 6c8bf0d2 figures are unchanged, which is what #1029
   # was about -- the passthrough itself moves nothing. whep#1245 moved a third,
   # `indirect_n2o_source`, onto the 2019 Table 11.3 leaching factors, so it is
-  # pinned back to `"ipcc_2006"` here too. The shipped defaults are locked
-  # beside them.
+  # pinned back to `"ipcc_2006"` here too, and whep#1365 a fourth,
+  # `indirect_n2o_fractions`, onto the Table 10.22 per-MMS fractions, so it is
+  # pinned back to `"single"`. The shipped defaults are locked beside them.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -406,31 +407,32 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     100L, 960L, 492717625.4361503
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
-  # no MCF table, so `mms_shares`, `indirect_n2o_source`, `enteric_ef_source`
-  # and `ef3_source` are the flips that reach it; the Tier 2 default is locked
-  # in the test below. Against the 2006 indirect N2O edition, whose totals are
-  # 1887669000, 1472445000 and 910771875, the 2019 leaching factors raised the
-  # sector totals by 0.355, 0.682 and 0.276 percent (whep#1245), to
-  # 1894361400, 1482483600 and 913281525 -- which `shipped_tier1` below still
+  # no MCF table, so `mms_shares`, `indirect_n2o_source`,
+  # `indirect_n2o_fractions`, `enteric_ef_source` and `ef3_source` are the
+  # flips that reach it; the Tier 2 default is locked in the test below.
+  # Against the 2006 indirect N2O edition, whose totals are 1887669000,
+  # 1472445000 and 910771875, the 2019 leaching factors raised the sector
+  # totals by 0.355, 0.682 and 0.276 percent (whep#1245), to 1894361400,
+  # 1482483600 and 913281525. Against that single-fraction form, the Table
+  # 10.22 per-MMS fractions moved the sector totals by +0.044, +0.174 and
+  # -0.706 percent (whep#1365), to the totals `shipped_tier1` below
   # reproduces with the two whep#601 options pinned back to `"as_shipped"`.
-  # whep#601 then moved Tier 1 enteric CH4 and EF3 onto the 2019 Refinement:
-  # against those totals cattle 961 -1.064, sheep 976 -3.048 and dairy cattle
-  # 960 +5.826 percent. Area 10 is Australia (Oceania, high productivity):
-  # its other cattle go 60 -> 63 and its sheep 8 -> 9 kg CH4/head/yr, and
-  # area 100 is India, whose dairy cattle go 68 -> 73. The enteric flip alone
-  # gives 1975361400, 1617483600 and 953781525; the EF3 flip then lowers all
-  # three, chiefly through pasture 0.010 -> 0.004 (cattle) and 0.003 (sheep).
+  # whep#601 then moved Tier 1 enteric CH4 and EF3 onto the 2019 Refinement.
+  # Area 10 is Australia (Oceania, high productivity): its other cattle go
+  # 60 -> 63 and its sheep 8 -> 9 kg CH4/head/yr, and area 100 is India,
+  # whose dairy cattle go 68 -> 73. The EF3 flip lowers all three, chiefly
+  # through pasture 0.010 -> 0.004 (cattle) and 0.003 (sheep).
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1874203200,
-    10L, 976L, 1437303600,
-    100L, 960L, 966490650
+    10L, 961L, 1875040608,
+    10L, 976L, 1439877600,
+    100L, 960L, 960042780
   )
   shipped_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1894361400,
-    10L, 976L, 1482483600,
-    100L, 960L, 913281525
+    10L, 961L, 1895198808,
+    10L, 976L, 1485057600,
+    100L, 960L, 906833655
   )
   as_shipped <- list(
     enteric_ef_source = "as_shipped",
@@ -438,7 +440,11 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   )
 
   placeholder <- c(
-    list(mms_shares = "placeholder", indirect_n2o_source = "ipcc_2006"),
+    list(
+      mms_shares = "placeholder",
+      indirect_n2o_source = "ipcc_2006",
+      indirect_n2o_fractions = "single"
+    ),
     as_shipped
   )
   tier1 <- whep::build_livestock_ghg_extension(
@@ -535,17 +541,22 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # 0.402, 0.405 and 0.340 percent, to 2230894782.40, 1583378815.26 and
   # 485105249.78.
   #
+  # Since whep#1365 indirect manure N2O weights the Table 10.22 FracGasMS and
+  # FracLeachMS over each species' manure-management split, with pasture N at
+  # the Ch 11 FracGASM 0.21. Against the single-fraction form the sector
+  # totals moved by +0.041, -0.996 and -0.548 percent.
+  #
   # Since whep#601 direct manure N2O reads the 2019 Table 10.21 (Updated) EF3
   # (pasture from Ch 11 Table 11.1 (Updated); liquid slurry half crusted,
   # 0.0025). Tier 2 enteric CH4 reads no Tier 1 factor for these three
   # species, so `enteric_ef_source` does not reach them; against
-  # `ef3_source = "as_shipped"` the sector totals move -0.503, -3.271 and
-  # -0.426 percent.
+  # `ef3_source = "as_shipped"` the sector totals move -0.503, -3.304 and
+  # -0.428 percent.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2219675054.4238868,
-    10L, 976L, 1531585575.0486674,
-    100L, 960L, 483039921.96997237
+    10L, 961L, 2220589160.232016,
+    10L, 976L, 1515811583.1566586,
+    100L, 960L, 480383184.58307832
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(

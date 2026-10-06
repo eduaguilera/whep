@@ -2004,15 +2004,15 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    7.153483153, 1.8447418416, 0.08889588615,
+    7.153483153, 1.8447418416, 0.08384421336,
     1, 0.86768667, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    4.768988769, 0.8230213320, 0.0592639241,
+    4.768988769, 0.8230213320, 0.05589614224,
     1, 0.86768667, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.56374899, 0.04186878443,
+    2.8982329, 0.56374899, 0.04201947928,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(
@@ -2034,7 +2034,7 @@
       ),
       method_manure_n2o = paste(
         "IPCC_2019_Tier2; ef3_ipcc_2019; slurry_crust_half;",
-        "indirect_ipcc_2019"
+        "indirect_ipcc_2019_per_mms"
       )
     ) |>
     .add_reporting_polity_columns()

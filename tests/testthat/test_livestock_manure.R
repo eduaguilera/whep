@@ -1651,6 +1651,8 @@ testthat::test_that("slurry_crust sets the liquid/slurry EF3 crust share", {
   testthat::expect_error(
     whep:::.calc_direct_n2o(data, list(slurry_crust = "most")),
     class = "rlang_error"
+  )
+})
 
 # Per-MMS indirect manure N2O (whep#1365) ------------------------------------
 
@@ -1692,7 +1694,8 @@ testthat::test_that("slurry_crust sets the liquid/slurry EF3 crust share", {
   stopifnot(!anyNA(fracs$gas))
   heads *
     nex *
-    (sum(fracs$fraction * fracs$gas) * 0.010 +
+    (sum(fracs$fraction * fracs$gas) *
+      0.010 +
       sum(fracs$fraction * fracs$leach) * 0.011) *
     44 /
     28
