@@ -22,8 +22,12 @@ optional \code{year} plus \code{region_hanpp} enable the modern-variety adjustme
 default 0.5), used only when \code{method = "ensemble"}.}
 }
 \value{
-The input tibble with \code{product_dm_t}, \code{yield_dm_t_ha}, \code{residue_dm_t}
-and \code{method_residue}.
+The input tibble with \code{product_dm_t}, \code{yield_dm_t_ha}, \code{residue_dm_t},
+\code{method_residue} and \code{method_residue_group}. The latter is \code{"ipcc_group"}
+for an item with an IPCC crop group, and \code{"unmapped_uncorrected"} for one
+without: that item gets no irrigation or modern-variety residue correction
+(both are keyed on the crop group), which is not the same as a correction
+that was computed and found to be 1.
 }
 \description{
 Estimates crop residue dry matter from production and area using an ensemble
