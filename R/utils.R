@@ -2708,6 +2708,8 @@ utils::globalVariables(
     "row_id_indirect",
     # livestock_energy.R (whep#1440) -- growth and pregnancy by cohort stage
     "cohort_life_stage",
+    # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
+    "milk_herd",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
