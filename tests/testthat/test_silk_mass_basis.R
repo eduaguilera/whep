@@ -225,3 +225,128 @@ test_that("build_commodity_balances validates silk_basis", {
     "silk_basis"
   )
 })
+
+# One cocoon country-year in the shape of China mainland 2020 in the pinned
+# `faostat-cbs-new` (whep#1281): the cocoons are booked whole as `Processed`
+# and again whole as `Other uses`, and FAO's own `Residuals` is minus that
+# amount. `processed`, `other_uses` and `residual` set the three elements.
+.local_duplicate_extract <- function(
+  processed,
+  other_uses,
+  residual,
+  env = parent.frame()
+) {
+  fixture <- tibble::tribble(
+    ~`Item Code`, ~Item,                   ~Element,                ~Value,     ~Year,
+    1185L,        "Silk-worm cocoons",     "Production",            1000,       2020L,
+    1185L,        "Silk-worm cocoons",     "Import quantity",       0,          2020L,
+    1185L,        "Silk-worm cocoons",     "Export quantity",       0,          2020L,
+    1185L,        "Silk-worm cocoons",     "Processed",             processed,  2020L,
+    1185L,        "Silk-worm cocoons",     "Other uses (non-food)", other_uses, 2020L,
+    1185L,        "Silk-worm cocoons",     "Residuals",             residual,   2020L,
+    1186L,        "Raw silk (not thrown)", "Production",            160,        2020L,
+    1186L,        "Raw silk (not thrown)", "Other uses (non-food)", 160,        2020L,
+    1186L,        "Raw silk (not thrown)", "Residuals",             0,          2020L
+  ) |>
+    dplyr::mutate(
+      `Area Code` = 203L,
+      Area = "Testland",
+      Unit = "t",
+      Flag = "A"
+    ) |>
+    data.table::as.data.table()
+  crosswalk <- data.table::data.table(
+    area_code = 203L,
+    area_name = "Testland",
+    area_iso3c = "TST",
+    polity_area_code = 203L,
+    polity_code = "TST-1900-2025",
+    polity_name = "Testland",
+    polity_start_year = 1900L,
+    polity_end_year = 2025L,
+    polity_type = "national",
+    mapping_status = "matched",
+    has_geometry = TRUE
+  )
+  testthat::local_mocked_bindings(
+    .polity_crosswalk = function(include_unmapped = TRUE) {
+      data.table::copy(crosswalk)
+    },
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    },
+    .env = env
+  )
+  whep:::.extract_fao(
+    "faostat-cbs-new",
+    keep_elements = c("Processed", "Residuals")
+  )
+}
+
+test_that("cocoons booked as both Processed and Other uses count once", {
+  # Every cocoon is reeled (1000 t processed) and the same 1000 t are booked
+  # again as other uses; FAO's residual of -1000 t says its balance does not
+  # close. Kept, the duplicate is a 1000 t stock withdrawal (whep#1281).
+  extracted <- .local_duplicate_extract(1000, 1000, -1000)
+
+  purrr::walk(whep:::.silk_basis_choices(), \(method) {
+    balance <- whep:::.cbs_silk_mass_basis(extracted, method) |>
+      .silk_balance()
+    expect_equal(balance$unbooked, 0, tolerance = 1e-9, label = method)
+  })
+  kept <- whep:::.cbs_silk_mass_basis(
+    extracted,
+    "cocoon",
+    drop_duplicate_use = FALSE
+  ) |>
+    .silk_balance()
+  expect_equal(kept$unbooked, -1000)
+})
+
+test_that("the duplicate guard needs FAO's own residual to agree", {
+  # Equal elements on a balance that closes are two genuine uses: 2000 t of
+  # cocoons, half reeled and half used as such (FAO's residual is 0).
+  closes <- .local_duplicate_extract(1000, 1000, 0) |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        item_cbs_code == 1185 & element == "production",
+        2000,
+        value
+      )
+    )
+  out <- whep:::.cbs_silk_mass_basis(closes, "mixed") |>
+    dplyr::filter(item_cbs_code == 1185, element == "other_uses")
+  expect_equal(sort(out$value), c(1000, 1000))
+})
+
+test_that("an imbalance with two different elements is left as published", {
+  # Viet Nam 2014 in the pin: Processed far above production, other uses
+  # equal to it. Which element is wrong is not decidable from the record.
+  extracted <- .local_duplicate_extract(6000, 1000, -6000)
+  balance <- whep:::.cbs_silk_mass_basis(extracted, "mixed") |>
+    .silk_balance()
+  expect_equal(balance$unbooked, -6000)
+})
+
+test_that("no Residuals row survives any basis", {
+  extracted <- .local_duplicate_extract(1000, 1000, -1000)
+  expect_true("Residuals" %in% extracted$element)
+
+  purrr::walk(whep:::.silk_basis_choices(), \(method) {
+    out <- whep:::.cbs_silk_mass_basis(extracted, method)
+    expect_false("Residuals" %in% out$element, label = method)
+  })
+})
+
+test_that("the duplicate match allows for FAO's whole-tonne residual", {
+  rounded <- .local_duplicate_extract(1000.24, 1000.24, -1000) |>
+    whep:::.cbs_silk_mass_basis("mixed") |>
+    dplyr::filter(item_cbs_code == 1185, element == "other_uses")
+  expect_equal(rounded$value, 1000.24)
+
+  # Two tonnes apart is two different numbers, not a rounding.
+  apart <- .local_duplicate_extract(1000, 998, -1000) |>
+    whep:::.cbs_silk_mass_basis("mixed") |>
+    dplyr::filter(item_cbs_code == 1185, element == "other_uses")
+  expect_equal(sort(apart$value), c(998, 1000))
+})

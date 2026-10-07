@@ -1245,12 +1245,13 @@ build_processing_coefs <- function(
     cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
     cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
   }
-  # "Processed" is read only for the silk chain and removed again by
-  # `.cbs_silk_mass_basis()`, whatever the method (whep#1251).
+  # "Processed" and "Residuals" are read only for the silk chain and removed
+  # again by `.cbs_silk_mass_basis()`, whatever the method (whep#1251,
+  # whep#1281).
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
     years = years,
-    keep_elements = "Processed"
+    keep_elements = c("Processed", "Residuals")
   ) |>
     .cbs_silk_mass_basis(silk_basis) |>
     .cbs_tobacco_leaf_use(tobacco_leaf_use)
