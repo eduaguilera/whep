@@ -1644,6 +1644,163 @@ generate_ipcc_2019_tables <- function() {
   )
 }
 
+# IPCC Tier 1 coefficients by edition (whep#601) ----
+
+# The as-published 2019 Refinement Tier 1 factors that the `ipcc_2019_*`
+# tables above were meant to hold, read off the published PDFs (re-downloaded
+# from `ipcc-nggip.iges.or.jp` and checksummed 2026-10-07):
+#   2019 Refinement, Vol 4, Ch 10 (md5 c1784e747af9bb307e93f4170c12679a):
+#     Table 10.10 (Updated), p. 10.38; Table 10.11 (Updated), pp. 10.40-10.43;
+#     Table 10.21 (Updated), pp. 10.91-10.93.
+#   2019 Refinement, Vol 4, Ch 11 (md5 06c11d4f5a2b729564f8b3bd1ba11824):
+#     Table 11.1 (Updated), p. 11.13.
+# Every number below is a transcription; the only steps that are not are the
+# two rules stated at the point of use (the liquid/slurry crust and the
+# pasture animal class), and the mapping of the engine's six MMS labels.
+generate_ipcc_tier1_editions <- function(table_10_21) {
+  list(
+    ipcc_enteric_ef_tier1 = ipcc_2019_enteric_ef_tier1(),
+    ipcc_manure_ef3 = dplyr::bind_rows(
+      ipcc_2019_manure_ef3(),
+      as_shipped_manure_ef3(table_10_21)
+    )
+  )
+}
+
+# Table 10.11 (Updated) Tier 1 cattle and buffalo factors, and Table 10.10
+# (Updated) for the other species. Only the Tier 1 column is carried: the
+# high/low productivity rows Table 10.11 adds for five regions are Tier 1a,
+# which needs the head count split by productivity system that WHEP does not
+# hold. North America and Oceania publish no buffalo factor ("no buffalo
+# herds"). Table 10.10 splits sheep, goats and swine by productivity system;
+# its footnote 1 says that "for all regions other than North America, Europe
+# and Oceania the Tier 1 default values are the low productivity EFs", which
+# is the rule `.join_enteric_ef_ipcc_2019()` applies. Poultry is "insufficient
+# data for calculation" and "other (e.g. bison)" is "to be determined", so
+# neither has a row.
+ipcc_2019_enteric_ef_tier1 <- function() {
+  regional <- tibble::tribble(
+    ~region,               ~category,       ~ef_kg_head_yr,
+    "North America",       "Dairy Cattle",  138,
+    "North America",       "Other Cattle",   64,
+    "Western Europe",      "Dairy Cattle",  126,
+    "Western Europe",      "Other Cattle",   52,
+    "Western Europe",      "Buffalo",        78,
+    "Eastern Europe",      "Dairy Cattle",   93,
+    "Eastern Europe",      "Other Cattle",   58,
+    "Eastern Europe",      "Buffalo",        68,
+    "Oceania",             "Dairy Cattle",   93,
+    "Oceania",             "Other Cattle",   63,
+    "Latin America",       "Dairy Cattle",   87,
+    "Latin America",       "Other Cattle",   56,
+    "Latin America",       "Buffalo",        68,
+    "Asia",                "Dairy Cattle",   78,
+    "Asia",                "Other Cattle",   54,
+    "Asia",                "Buffalo",        68,
+    "Africa",              "Dairy Cattle",   76,
+    "Africa",              "Other Cattle",   52,
+    "Africa",              "Buffalo",        81,
+    "Middle East",         "Dairy Cattle",   76,
+    "Middle East",         "Other Cattle",   60,
+    "Middle East",         "Buffalo",        67,
+    "Indian Subcontinent", "Dairy Cattle",   73,
+    "Indian Subcontinent", "Other Cattle",   46,
+    "Indian Subcontinent", "Buffalo",        85
+  ) |>
+    dplyr::mutate(productivity = "All", ipcc_table = "10.11 (Updated)")
+  species <- tibble::tribble(
+    ~category,            ~productivity, ~ef_kg_head_yr,
+    "Sheep",              "High",          9,
+    "Sheep",              "Low",           5,
+    "Swine",              "High",          1.5,
+    "Swine",              "Low",           1,
+    "Goats",              "High",          9,
+    "Goats",              "Low",           5,
+    "Horses",             "All",          18,
+    "Camels",             "All",          46,
+    "Mules and Asses",    "All",          10,
+    "Deer",               "All",          20,
+    "Ostrich",            "All",           5,
+    "Llamas and Alpacas", "All",           8
+  ) |>
+    dplyr::mutate(region = "All", ipcc_table = "10.10 (Updated)")
+  dplyr::bind_rows(regional, species) |>
+    dplyr::mutate(edition = "ipcc_2019") |>
+    dplyr::select(
+      "edition",
+      "region",
+      "category",
+      "productivity",
+      "ef_kg_head_yr",
+      "ipcc_table"
+    )
+}
+
+# EF3 for the six MMS labels the manure engine carries (see CHOICE 4 of 4 in
+# the GLEAM 2.0 crosswalk below), read off Table 10.21 (Updated), except
+# pasture/range/paddock, which that table defers to Ch 11: Table 11.1
+# (Updated) gives the aggregated EF3PRP 0.004 for "cattle (dairy, non-dairy
+# and buffalo), poultry and pigs" and 0.003 for "sheep and 'other animals'",
+# which Ch 11 lists as goats, horses, mules, donkeys, camels, reindeer and
+# camelids. The disaggregated wet/dry pair (0.006 / 0.002) needs a moisture
+# regime per row and is not carried.
+# Liquid/slurry is published as three rows: natural crust 0.005, no natural
+# crust 0, and covered 0.005. The engine has one "Liquid/Slurry" label; it
+# takes the no-crust row, the same rule `climate_mcf_ipcc` applies to the MCF
+# of that label and the reading the as-shipped 0.002 was documented under.
+# "Solid Storage" also absorbs GLEAM's drylot shares, which Table 10.21 prices
+# at 0.02 rather than 0.010 (see CHOICE 4 of 4).
+ipcc_2019_manure_ef3 <- function() {
+  tibble::tribble(
+    ~mms_type,               ~animal_class,          ~ef3,
+    ~ipcc_system,
+    "Pasture/Range/Paddock", "cattle_poultry_pigs",  0.004,
+    "EF3PRP,CPP (Ch 11 Table 11.1 (Updated))",
+    "Pasture/Range/Paddock", "sheep_other",          0.003,
+    "EF3PRP,SO (Ch 11 Table 11.1 (Updated))",
+    "Daily Spread",          "all",                  0,
+    "Daily spread",
+    "Solid Storage",         "all",                  0.010,
+    "Solid storage",
+    "Liquid/Slurry",         "all",                  0,
+    "Liquid/Slurry, without natural crust cover",
+    "Anaerobic Lagoon",      "all",                  0,
+    "Uncovered anaerobic lagoon",
+    "Poultry Manure",        "all",                  0.001,
+    "Poultry manure with litter"
+  ) |>
+    dplyr::mutate(edition = "ipcc_2019", .before = 1)
+}
+
+# The EF3 the engine read before whep#601, kept selectable so earlier figures
+# stay reproducible: the six-label crosswalk onto `ipcc_2019_n2o_ef_direct`
+# that `.manure_ef3()` used to apply in code. See `?ipcc_2019_n2o_ef_direct`
+# for which of those values match which edition.
+as_shipped_manure_ef3 <- function(table_10_21) {
+  crosswalk <- tibble::tribble(
+    ~mms_type,               ~ipcc_system,
+    "Pasture/Range/Paddock", "Pasture/Range/Paddock",
+    "Daily Spread",          "Daily Spread",
+    "Solid Storage",         "Solid Storage",
+    "Liquid/Slurry",         "Liquid/Slurry",
+    "Anaerobic Lagoon",      "Uncovered Anaerobic Lagoon",
+    "Poultry Manure",        "Poultry Manure - Deep Litter"
+  )
+  crosswalk |>
+    dplyr::left_join(
+      dplyr::rename(table_10_21, ipcc_system = "system"),
+      by = "ipcc_system",
+      relationship = "one-to-one"
+    ) |>
+    dplyr::transmute(
+      edition = "as_shipped",
+      .data$mms_type,
+      animal_class = "all",
+      ef3 = .data$ef_kg_n2o_n_per_kg_n,
+      .data$ipcc_system
+    )
+}
+
 # IPCC 2006 Tables ----
 
 generate_ipcc_2006_tables <- function() {
@@ -2699,6 +2856,9 @@ main <- function() {
     ipcc_2019_cfi = ipcc_raw$table_10_4
   )
 
+  # IPCC Tier 1 coefficients by edition (whep#601)
+  ipcc_tier1_editions <- generate_ipcc_tier1_editions(ipcc_raw$table_10_21)
+
   # IPCC 2006 tables
   message("\nGenerating IPCC 2006 tables...")
   ipcc_2006 <- generate_ipcc_2006_tables()
@@ -2761,6 +2921,7 @@ main <- function() {
     gleam_excel_tables,
     gleam_pdf_tables,
     ipcc_2019,
+    ipcc_tier1_editions,
     ipcc_2006,
     ipcc_tier2,
     list(livestock_constants = livestock_constants)
