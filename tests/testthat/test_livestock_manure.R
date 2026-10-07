@@ -359,14 +359,15 @@ testthat::test_that("Global poultry direct N2O uses the litter EF3 (#950)", {
     ~species_gen, ~n_excretion, ~heads, ~region,
     "Poultry",    1,            1,      "Global"
   ) |>
-    whep:::.calc_direct_n2o()
+    whep:::.calc_direct_n2o(list(ef3_source = "as_shipped"))
 
   # ipcc_2019_n2o_ef_direct carries no "Poultry Manure" row, so the label-only
   # join left the poultry-manure share of the split on the 0.005 "Other"
   # coalesce default and the weighted EF3 came out a flat 0.005. Resolved
   # through .manure_ef3() the deep-litter row applies instead. Under the GLEAM
   # 2.0 Global poultry split (Tab. 4.11, layer / broiler / backyard averaged)
-  # that gives a weighted EF3 of 0.004526.
+  # that gives a weighted EF3 of 0.004526 on the as-shipped EF3 (the 2019
+  # edition is locked in the tests of `ef3_source` below).
   testthat::expect_equal(
     result$manure_n2o_direct,
     0.004526109375 * (44 / 28),
@@ -524,10 +525,12 @@ testthat::test_that("mms_shares selects the table half the engine weights", {
   )
   testthat::expect_equal(old$weighted_mcf, 0.0731)
 
-  gleam_n2o <- whep:::.calc_direct_n2o(data)$manure_n2o_direct
+  # EF3 held at the as-shipped edition, so only the MMS split moves.
+  shipped_ef3 <- list(ef3_source = "as_shipped")
+  gleam_n2o <- whep:::.calc_direct_n2o(data, shipped_ef3)$manure_n2o_direct
   old_n2o <- whep:::.calc_direct_n2o(
     data,
-    options = list(mms_shares = "placeholder")
+    options = c(shipped_ef3, list(mms_shares = "placeholder"))
   )$manure_n2o_direct
   testthat::expect_equal(
     gleam_n2o,
@@ -1272,9 +1275,9 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
     method_manure_n2o = "IPCC_2019_Tier2"
   )
 
-  result <- whep:::.calc_direct_n2o(data)
+  result <- whep:::.calc_direct_n2o(data, list(ef3_source = "as_shipped"))
 
-  # GLEAM 2.0 Global cattle split x .manure_ef3():
+  # GLEAM 2.0 Global cattle split x the as-shipped .manure_ef3():
   #   0.016000000*0.001 + 0.009000000*0.010 + 0.084530612*0.002 +
   #   0.443522579*0.010 + 0.446946808*0.005 = 0.00694502106.
   testthat::expect_equal(
@@ -1287,7 +1290,7 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
   testthat::expect_equal(
     whep:::.calc_direct_n2o(
       data,
-      list(mms_shares = "placeholder")
+      list(mms_shares = "placeholder", ef3_source = "as_shipped")
     )$manure_n2o_direct,
     10 * 100 * 0.0073 * (44 / 28)
   )

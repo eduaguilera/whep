@@ -86,9 +86,9 @@ testthat::test_that("Tier 1 uses regional EF when iso3 is supplied", {
     whep:::.calc_enteric_ch4_tier1()
 
   efs <- result |> dplyr::pull(enteric_ef_kgch4)
-  # DEU -> Western Europe (IPCC Table 10.10): Other Cattle 57, Dairy 117.
-  # The Global fallback would instead give 47 and 80.
-  testthat::expect_equal(efs, c(57, 117))
+  # DEU -> Western Europe, IPCC 2019 Table 10.11 (Updated): Other Cattle 52,
+  # Dairy 126. The Global fallback would instead give 47 and 80.
+  testthat::expect_equal(efs, c(52, 126))
   testthat::expect_false("region" %in% names(result))
 })
 
@@ -150,11 +150,11 @@ testthat::test_that("dissolved states get a real region, not the Global EF", {
   result <- areas |>
     whep:::.calc_enteric_ch4_tier1()
 
-  # IPCC Table 10.10 dairy: Western Europe 117, Eastern Europe 99,
-  # Latin America 72. None of them is the Global 80.
+  # IPCC 2019 Table 10.11 (Updated) dairy: Western Europe 126, Eastern Europe
+  # 93, Latin America 87. None of them is the Global 80.
   testthat::expect_equal(
     result$enteric_ef_kgch4,
-    c(117, 99, 72, 117, 99, 117)
+    c(126, 93, 87, 126, 93, 126)
   )
 })
 
@@ -203,9 +203,9 @@ testthat::test_that("a plain country resolves from area_code alone", {
     dplyr::mutate(heads = 1) |>
     whep:::.calc_enteric_ch4_tier1()
 
-  # IPCC Table 10.10 dairy: Western Europe 117, North America 128,
-  # Latin America 72. None of them is the Global 80.
-  testthat::expect_equal(result$enteric_ef_kgch4, c(117, 128, 72, 117))
+  # IPCC 2019 Table 10.11 (Updated) dairy: Western Europe 126, North America
+  # 138, Latin America 87. None of them is the Global 80.
+  testthat::expect_equal(result$enteric_ef_kgch4, c(126, 138, 87, 126))
 })
 
 testthat::test_that("area_code and iso3 keys resolve to the same region", {

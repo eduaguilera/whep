@@ -89,9 +89,16 @@ testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
     pointblank::expect_col_vals_not_null("enteric_ch4_tier2") |>
     pointblank::expect_col_vals_not_null("manure_ch4_tier2") |>
     pointblank::expect_col_vals_not_null("manure_n2o_total")
+  # Horses take the 2019 Table 10.10 (Updated) factor; pigs with no region
+  # cannot be assigned a productivity system and poultry have no published
+  # factor, so both keep the as-shipped one and say so (whep#601).
   testthat::expect_equal(
     tier2$method_enteric,
-    c("IPCC_2019_Tier1", "IPCC_2019_Tier2", rep("IPCC_2019_Tier1", 2))
+    c(
+      "IPCC_2019_Tier1; enteric_ef_ipcc_2019",
+      "IPCC_2019_Tier2",
+      rep("IPCC_2019_Tier1; enteric_ef_as_shipped_fallback", 2)
+    )
   )
   uncovered <- c(1, 3, 4)
   testthat::expect_equal(
@@ -107,7 +114,8 @@ testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
     tier1$manure_n2o_total[uncovered]
   )
   testthat::expect_true(all(
-    tier2$method_manure_n2o[uncovered] == "IPCC_2019_Tier1; indirect_ipcc_2019"
+    tier2$method_manure_n2o[uncovered] ==
+      "IPCC_2019_Tier1; ef3_ipcc_2019; indirect_ipcc_2019"
   ))
   # The covered species is untouched by the split.
   testthat::expect_equal(
@@ -131,7 +139,9 @@ testthat::test_that("an all-uncovered herd needs no Tier 2 chain at all", {
   result <- suppressMessages(
     whep::calculate_livestock_emissions(data, tier = 2)
   )
-  testthat::expect_true(all(result$method_enteric == "IPCC_2019_Tier1"))
+  testthat::expect_true(all(
+    startsWith(result$method_enteric, "IPCC_2019_Tier1;")
+  ))
   testthat::expect_true(all(result$enteric_ch4_tier2 > 0))
 })
 
