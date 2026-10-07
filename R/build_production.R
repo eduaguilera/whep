@@ -40,6 +40,9 @@
 #'     its successor states' LUH2 land, resolved from the `successor` relation
 #'     published in [polities]. This back-casts 14.3% more of the 1961-62
 #'     production tonnage and therefore moves published pre-1962 values.
+#'     Under `land_method = "historical_polity"` it reaches only the
+#'     federations the historical table has no polygon for, and their rows
+#'     keep the `LUH2_*` source label, not `LUH2_polity_*`.
 #' @param land_method Character. Which borders the pre-1962 `ha` half of
 #'   `tonnes = ha * t_ha` is measured on. The yield half is historical either
 #'   way and is untouched by this argument.
@@ -3217,7 +3220,7 @@ build_primary_production <- function(
   # "LUH2_agriland"). A parallel `method_land` column would say the same thing
   # while changing the schema of the default, unchanged path.
   land_label <- if (is.null(land_wide)) "LUH2" else "LUH2_polity"
-  land_wide <- land_wide %||%
+  land_wide <- if (is.null(land_wide)) {
     .land_wide_from_areas(
       .add_federation_land_rows(
         land_areas,
@@ -3226,6 +3229,14 @@ build_primary_production <- function(
       ),
       area_key = area_key
     )
+  } else {
+    .add_federation_land_wide(
+      land_wide,
+      land_areas,
+      area_key = area_key,
+      federation_land = federation_land
+    )
+  }
 
   primary_raw2 |>
     dplyr::mutate(
@@ -3296,6 +3307,37 @@ build_primary_production <- function(
   .warn_stale_hist_land(land, back_cast)
   land |>
     dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
+}
+
+# `federation_land` under a historical land table (whep#102). The historical
+# table measures each bucket inside its own polity polygon and wins wherever it
+# has a row; a federation it lacks (15 Belgium-Luxembourg has no polygon of its
+# own) is reached through its successors' present-day LUH2 land exactly as
+# under `land_method = "present_day"`. Without this the argument was silently
+# ignored whenever the historical table was in use. The bridged rows keep the
+# plain `LUH2` label, because their land is not measured on historical borders.
+.add_federation_land_wide <- function(
+  land_wide,
+  land_areas,
+  area_key = "area_code",
+  federation_land = "none"
+) {
+  if (federation_land == "none") {
+    return(land_wide)
+  }
+  covered <- unique(c(land_wide[[area_key]], land_areas[[area_key]]))
+  bridged <- .add_federation_land_rows(
+    land_areas,
+    area_key = area_key,
+    federation_land = federation_land
+  ) |>
+    .land_wide_from_areas(area_key = area_key) |>
+    dplyr::filter(!(.data[[area_key]] %in% covered)) |>
+    dplyr::mutate(.land_label = "LUH2")
+  dplyr::bind_rows(
+    dplyr::mutate(tibble::as_tibble(land_wide), .land_label = "LUH2_polity"),
+    dplyr::select(bridged, dplyr::any_of(names(land_wide)), ".land_label")
+  )
 }
 
 # Collapse the long LUH2 land table into the (year, area, Cropland, Pasture,
@@ -3535,7 +3577,15 @@ build_primary_production <- function(
       verbose = FALSE
     )
 
-  pre <- dplyr::bind_rows(pre_liv, pre_crop, pre_agri) |>
+  pre <- dplyr::bind_rows(pre_liv, pre_crop, pre_agri)
+  # A land table can mix two borders (`.add_federation_land_wide()`) and then
+  # says per row which one it is; otherwise one label covers the whole table.
+  row_label <- if (rlang::has_name(pre, ".land_label")) {
+    dplyr::coalesce(pre$.land_label, land_label)
+  } else {
+    land_label
+  }
+  pre <- pre |>
     dplyr::mutate(
       value = dplyr::case_when(
         land_use == "Cropland" ~ value_cropland,
@@ -3546,21 +3596,22 @@ build_primary_production <- function(
         .data$.observed_value %in% TRUE & !is.na(.data$.observed_source) ~
           .data$.observed_source,
         .data$.historical_anchor %in% TRUE & land_use == "Cropland" ~
-          paste0("historical_", land_label, "_cropland"),
+          paste0("historical_", row_label, "_cropland"),
         .data$.historical_anchor %in% TRUE & unit %in% livestock_units ~
           "historical_fill_linear",
         .data$.historical_anchor %in% TRUE ~
-          paste0("historical_", land_label, "_agriland"),
-        land_use == "Cropland" ~ paste0(land_label, "_cropland"),
+          paste0("historical_", row_label, "_agriland"),
+        land_use == "Cropland" ~ paste0(row_label, "_cropland"),
         unit %in% livestock_units ~ "fill_linear_historical",
-        TRUE ~ paste0(land_label, "_agriland")
+        TRUE ~ paste0(row_label, "_agriland")
       )
     ) |>
     dplyr::select(
       -dplyr::any_of(c(
         ".observed_value",
         ".observed_source",
-        ".historical_anchor"
+        ".historical_anchor",
+        ".land_label"
       ))
     )
 
