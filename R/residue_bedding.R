@@ -34,16 +34,18 @@ build_residue_bedding_supply <- function(x) {
   }
   # A bedding supply built from an identically-zero bedding column is
   # indistinguishable downstream from a build with no bedding at all, and it is
-  # exactly what a caller gets who forgot to set `bedding_fraction`. So the
+  # exactly what a caller gets under `bedding = "fraction"` with the fraction
+  # left at zero, or from residue with no cereal straw. So the
   # absence is refused here, where it is still visible, rather than travelling
   # on as a zero (see "Absent inputs must not become zeros" in AGENTS.md).
   check_inputs_supplied(
     x,
     "residue_bedding_dm_t",
     details = c(
-      i = "Set {.arg bedding_fraction} in {.fun calculate_residue_destinies};
-           it defaults to zero because no bedding share of crop residue could
-           be sourced (whep#1005)."
+      i = "{.fun calculate_residue_destinies} beds only cereal straw under
+           its default {.code bedding = \"wirsenius\"}, and nothing under
+           {.code bedding = \"fraction\"} with {.arg bedding_fraction} at
+           zero (whep#1005)."
     )
   )
   keys <- intersect(c("year", "territory", "sub_territory"), names(x))

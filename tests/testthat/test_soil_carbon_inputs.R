@@ -668,7 +668,9 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
     ~unit, ~value,
     1970L, area, 960L, NA_character_, "960", "heads", 1e6,
     1970L, area, 2511L, NA_character_, "15", "ha", 40,
+    1970L, area, 2511L, NA_character_, "15", "tonnes", 100,
     1970L, area, 2807L, NA_character_, "27", "ha", 20,
+    1970L, area, 2807L, NA_character_, "27", "tonnes", 50,
     # Grassland: dropped by the crop layer, never a manure crop.
     1970L, area, 3000L, NA_character_, "3000", "ha", 999
   )
@@ -700,6 +702,43 @@ test_that(".sci_read_manure wires the turnkey chain to cropland applied_c", {
   # Manure lands only on the two crops the crop layer emitted, keyed by
   # item_prod_code -- never on the grassland row.
   testthat::expect_setequal(unique(cropland$crop), c("15", "27"))
+})
+
+test_that(".sci_bedding_supply traces the cereal straw bedding (whep#1005)", {
+  prod <- .sci_primary_prod_fixture()
+  destinies <- suppressWarnings(
+    prod |>
+      whep:::.sci_crop_prod_wide() |>
+      whep::calculate_crop_npp() |>
+      whep::calculate_residue_destinies(method = "recovery_regional")
+  )
+  out <- suppressWarnings(whep:::.sci_bedding_supply(prod))
+  testthat::expect_identical(out$territory, "203")
+  testthat::expect_identical(out$year, 2000L)
+  # Every tonne of bedding the residue split carves arrives in the supply.
+  testthat::expect_equal(
+    out$bedding_dm_t,
+    sum(destinies$residue_bedding_dm_t)
+  )
+  testthat::expect_gt(out$bedding_dm_t, 0)
+})
+
+test_that(".sci_read_manure beds the housed manure by default", {
+  area <- .sci_manure_turnkey_area()
+  testthat::local_mocked_bindings(
+    get_primary_production = function(...) .sci_manure_turnkey_prod(area),
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+  )
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    add_manure_bedding = function(split, bedding, options = list()) {
+      seen <<- bedding
+      split
+    }
+  )
+  suppressWarnings(suppressMessages(whep:::.sci_read_manure(years = 1970L)))
+  testthat::expect_false(is.null(seen))
+  testthat::expect_gt(sum(seen$bedding_dm_t), 0)
 })
 
 # The unspatialized-carbon warning used to abort instead of warning once more
