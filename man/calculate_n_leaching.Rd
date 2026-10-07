@@ -3,6 +3,11 @@
 \name{calculate_n_leaching}
 \alias{calculate_n_leaching}
 \title{Estimate nitrate leaching, topsoil denitrification and indirect N2O.}
+\source{
+IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
+p. 11.25 (\code{FracLEACH-(H)}) and Table 11.3 (Updated), p. 11.26 (\code{EF5}).
+}
 \usage{
 calculate_n_leaching(
   x,
@@ -12,9 +17,12 @@ calculate_n_leaching(
 )
 }
 \arguments{
-\item{x}{A tibble with \code{n_surplus_t}, \code{fert_type}, \code{climate},
-\code{irrig_cat}, \code{land_use}, \code{cn_input} (may be \code{NA}), \code{tillage} (checked
-only for synthetic rows) and \code{som_share}.}
+\item{x}{A tibble with \code{n_surplus_t}. \code{method = "meisinger_drainage"}
+requires \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input}
+(may be \code{NA}), \code{tillage} (checked only for synthetic rows) and
+\code{som_share}; \code{method = "ipcc_fracleach"} requires \code{moisture_regime}
+(\code{"wet"} or \code{"dry"}) and, on dry rows, \code{water_regime} (\code{"rainfed"} or
+\code{"irrigated"}).}
 
 \item{drainage_mm}{A numeric vector aligned to \code{x}'s rows giving annual
 drainage (mm), or a single string naming a column of \code{x} to use
@@ -40,9 +48,18 @@ from \link{meisinger_denitrification}, applies subsoil NO3 reduction
 (\link{subsoil_no3_reduction}) and a carbon-to-nitrogen leaching attenuation,
 then re-derives \code{denitrification_n_t} as the residual of \code{n_surplus_t}
 minus the computed \code{no3_n_t} (the raw denitrification share is only an
-intermediate; see Details). \code{"ipcc_fracleach"} is a much simpler global
-fallback using the flat \code{FracLEACH = 0.24} constant already documented
-in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}.
+intermediate; see Details). \code{"ipcc_fracleach"} is the IPCC 2019 Tier 1
+leached fraction, keyed on \code{moisture_regime} and \code{water_regime}, with
+every factor read from \link{ipcc_2019_soil_n_ef}: \code{FracLEACH-(H)} is 0.24 on
+wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
+Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
+or in dry climate regions where irrigation (other than drip irrigation)
+is used"), and \code{EF5} is 0.011 (Table 11.3 (Updated) p. 11.26). All
+irrigation is treated as non-drip, since no layer says which is drip:
+an upper-bound assumption for dry irrigated land. The rest of the surplus
+is booked as \code{denitrification_n_t}, as in the Meisinger cascade. Each row
+is stamped \code{"ipcc_fracleach_wet"}, \code{"ipcc_fracleach_dry_irrigated"} or
+\code{"ipcc_fracleach_dry_rainfed"}.
 }
 \details{
 For \code{method = "meisinger_drainage"}, \code{denitrification_n_t} is computed
@@ -62,6 +79,14 @@ other than \code{"Synthetic"}) always join the Meisinger table's
 \code{tillage == "Not_specified"} row regardless of \code{x$tillage}. Synthetic
 rows join on \code{x$tillage}, but only \code{"Tillage"} exists in the source's
 synthetic block: a synthetic row with \code{tillage == "No_tillage"} aborts.
+
+For \code{method = "ipcc_fracleach"}, a missing or invalid \code{moisture_regime}
+aborts as in \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, and a dry row without a
+\code{water_regime} aborts (\code{whep_missing_water_regime} for an absent column,
+\code{whep_water_regime_value} for a missing or unknown value, naming the
+count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
+surplus, so a dry row of unknown regime has no defensible fraction. Wet
+rows need no \code{water_regime}.
 }
 \examples{
 calculate_n_leaching(example = TRUE)

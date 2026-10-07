@@ -31,14 +31,15 @@
 # subsoil_no3_reduction) are keyed on a DIFFERENT Title-case vocabulary
 # ("Synthetic", "Solid", "Liquid", "Recycling", "Excreta_cattle_monog",
 # "Excreta_other", "SOM", "Human", "Deposition", "BNF") that additionally
-# splits excreta by species. build_n_inputs()'s manure term aggregates
-# species away entirely (see .manure_to_n_inputs()), so a faithful
-# cattle/monogastric split is not recoverable at this stage without
-# re-deriving it from a different upstream source -- this is a genuine
-# methodological choice, not a mechanical rename, surfaced here for review
-# rather than silently picked. .nb_loss_fert_type() maps "excreta" to the
-# generic "Excreta_other" (the conservative choice that does not assume a
-# cattle-heavy herd); every other term is a direct 1:1 rename.
+# splits excreta by species. build_n_inputs() pools a cell's excreta into one
+# row and carries its species mix beside it as `excreta_cpp_share`, the share
+# of its N deposited by cattle, poultry and pigs (R/excreta_species_mix.R).
+# .nb_loss_fert_type() therefore maps "excreta" to "Excreta", a label for
+# excreta whose species are in that share rather than in the label, and
+# .nb_loss_rows() carries the share (N-weighted) to the loss rows. The loss
+# methods price it there: IPCC 2019 as the EF3PRP,CPP/EF3PRP,SO blend, and
+# aguilera as the share-weighted blend of the Excreta_cattle_monog and
+# Excreta_other modifiers. Every other term is a direct 1:1 rename.
 # N_input_for_N2O_MgN's rows (Excreta, Liquid, Solid, SOM, Synthetic, Human,
 # Recycling) are exactly the fert_types that resolve to a real
 # fertiliser_n2o_modifiers row; "bnf" and "deposition" are excluded from
@@ -61,11 +62,17 @@
 #'
 #' @param methods A named list of method choices: `nh3` (forwarded to
 #'   [calculate_nh3()], default `"manner"`), `n2o` (forwarded to
-#'   [calculate_soil_n2o()], default `"ipcc2019"`, the globally applicable
-#'   IPCC 2019 Tier 1 method), `leaching` (forwarded to
-#'   [calculate_n_leaching()], default `"meisinger_drainage"`) and `regime`,
-#'   how each grid row is split into a rainfed and an irrigated part (see
-#'   Details): `"yield_split"` (default), `"area_split"` or `"none"`.
+#'   [calculate_soil_n2o()], default `"ipcc2019"`, the IPCC 2019 Tier 1
+#'   wet/dry factors of Table 11.1 (Updated) p. 11.13; `"ipcc2019_atl_med"`,
+#'   `"aguilera"` and `"ipcc2006"` are selectable), `n2o_indirect`
+#'   (forwarded to [calculate_indirect_n2o_nh3()], default `"ipcc2019"`, the
+#'   wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or `"ipcc2019_atl_med"`),
+#'   `leaching` (forwarded to [calculate_n_leaching()], default
+#'   `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
+#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and `regime`, how each grid
+#'   row is split into a rainfed and an irrigated part (see Details):
+#'   `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
+#'   wet/dry methods read `moisture_regime` from the driver tables in `data`.
 #' @param resolution `"grid"` (default) or `"polity"`, as in
 #'   [build_n_inputs()]; `"polity"` sums every term (and re-derives every
 #'   indicator) over cells.
@@ -100,15 +107,17 @@
 #'   * `n_balance_drivers`: additional per-`(key, fert_type)` driver
 #'     columns [calculate_nh3()]/[calculate_soil_n2o()]/
 #'     [calculate_indirect_n2o_nh3()] need beyond `n_input_t`/`fert_type`
-#'     (`climate`, `irrig_type`, plus every MANNER driver column when
-#'     `methods$nh3 == "manner"`), joined by the balance key AND
-#'     `fert_type` (the Title-case vocabulary from [calculate_nh3()]'s own
-#'     documentation, e.g. `"Synthetic"`, `"Solid"`, `"Excreta_other"`; see
-#'     the file-level "fert_type vocabulary bridge" note for the exact
-#'     mapping from [build_n_inputs()]'s lowercase values). A second set of
-#'     balance-key-only driver columns (`fert_type`, `climate`, `irrig_cat`,
-#'     `tillage`, `som_share`, `cn_input`, `land_use`) for
-#'     [calculate_n_leaching()] is read from
+#'     (`moisture_regime` for the IPCC 2019 wet/dry methods, `climate` and
+#'     `irrig_type` for the ATL/MED ones, plus every MANNER driver column
+#'     when `methods$nh3 == "manner"`), joined by the balance key AND
+#'     `fert_type` (the Title-case vocabulary of the loss functions:
+#'     `"Synthetic"`, `"Solid"`, `"Liquid"`, `"Excreta"`, `"Human"`,
+#'     `"Recycling"`, `"SOM"`). The excreta rows' species mix,
+#'     `excreta_cpp_share`, comes from [build_n_inputs()], N-weighted over
+#'     the rows pooled into each loss row. A second set of
+#'     balance-key-only driver columns (`moisture_regime`, `fert_type`,
+#'     `climate`, `irrig_cat`, `tillage`, `som_share`, `cn_input`,
+#'     `land_use`) for [calculate_n_leaching()] is read from
 #'     `n_balance_leaching_drivers`, which must hold at most one row per
 #'     balance key (a many-to-one join aborts on duplicate keys rather than
 #'     fanning the rows out and misaligning `drainage_mm`). Missing required
@@ -143,7 +152,10 @@
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-#'   `method_soil_n2o`/`method_leaching` provenance columns, `method_regime`
+#'   `method_soil_n2o`/`method_n2o_indirect_nh3`/`method_leaching`
+#'   provenance columns (the per-row stamps of the loss functions; a balance
+#'   row pooling loss rows priced differently lists them joined by `"|"`),
+#'   `method_regime`
 #'   and `method_regime_split` when the split ran (`"yield_ratio"`;
 #'   `"area_no_production"` where the crop's production could not be
 #'   expressed in fresh weight and the area share was used for everything;
@@ -193,6 +205,7 @@ build_nitrogen_balance <- function(
   methods = list(
     nh3 = "manner",
     n2o = "ipcc2019",
+    n2o_indirect = "ipcc2019",
     leaching = "meisinger_drainage"
   ),
   resolution = c("grid", "polity"),
@@ -252,7 +265,7 @@ build_nitrogen_balance <- function(
 # ---- Private helpers: method validation ----------------------------------
 
 .nb_methods <- function(methods) {
-  valid_names <- c("nh3", "n2o", "leaching", "regime")
+  valid_names <- c("nh3", "n2o", "n2o_indirect", "leaching", "regime")
   unknown <- setdiff(names(methods), valid_names)
   if (length(unknown) > 0L) {
     # qty() pinned: the marker sat ahead of both interpolations, so cli had to
@@ -266,11 +279,19 @@ build_nitrogen_balance <- function(
   }
   nh3 <- methods$nh3 %||% "manner"
   n2o <- methods$n2o %||% "ipcc2019"
+  n2o_indirect <- methods$n2o_indirect %||% "ipcc2019"
   leaching <- methods$leaching %||% "meisinger_drainage"
   regime <- methods$regime %||% "yield_split"
   list(
     nh3 = rlang::arg_match(nh3, c("manner", "ipcc", "manner_default")),
-    n2o = rlang::arg_match(n2o, c("ipcc2019", "aguilera", "ipcc2006")),
+    n2o = rlang::arg_match(
+      n2o,
+      c("ipcc2019", "ipcc2019_atl_med", "aguilera", "ipcc2006")
+    ),
+    n2o_indirect = rlang::arg_match(
+      n2o_indirect,
+      c("ipcc2019", "ipcc2019_atl_med")
+    ),
     leaching = rlang::arg_match(
       leaching,
       c("meisinger_drainage", "ipcc_fracleach")
@@ -713,7 +734,8 @@ build_nitrogen_balance <- function(
       n2o_direct_n_t = 0,
       n2o_indirect_nh3_n_t = 0,
       method_nh3 = m$nh3,
-      method_soil_n2o = m$n2o
+      method_soil_n2o = m$n2o,
+      method_n2o_indirect_nh3 = m$n2o_indirect
     ))
   }
   no_volat <- c("Recycling", "SOM")
@@ -725,16 +747,24 @@ build_nitrogen_balance <- function(
       dplyr::filter(.data$fert_type %in% no_volat) |>
       dplyr::mutate(nh3_n_t = 0, method_nh3 = m$nh3)
   )
+  # The soil-N2O and indirect stamps name the factor each loss row took, so
+  # a balance row pooling several of them lists every one ("|"-joined).
   losses <- with_nh3 |>
     calculate_soil_n2o(method = m$n2o) |>
-    calculate_indirect_n2o_nh3() |>
+    calculate_indirect_n2o_nh3(method = m$n2o_indirect) |>
     dplyr::summarise(
       nh3_n_t = sum(.data$nh3_n_t, na.rm = TRUE),
       n2o_direct_n_t = sum(.data$n2o_direct_n_t, na.rm = TRUE),
       n2o_indirect_nh3_n_t = sum(.data$n2o_indirect_nh3_n_t, na.rm = TRUE),
+      method_soil_n2o = .nb_method_stamp(.data$method_soil_n2o),
+      method_n2o_indirect_nh3 = .nb_method_stamp(
+        .data$method_n2o_indirect_nh3
+      ),
       .by = dplyr::all_of(key)
     ) |>
-    dplyr::mutate(method_nh3 = m$nh3, method_soil_n2o = m$n2o)
+    dplyr::mutate(method_nh3 = m$nh3)
+  # A balance row with no loss row (no N2O-relevant input) emits nothing;
+  # its zeros are structural, and it is stamped with the method chosen.
   x |>
     dplyr::left_join(losses, by = key) |>
     dplyr::mutate(
@@ -745,15 +775,20 @@ build_nitrogen_balance <- function(
         0
       ),
       method_nh3 = tidyr::replace_na(.data$method_nh3, m$nh3),
-      method_soil_n2o = tidyr::replace_na(.data$method_soil_n2o, m$n2o)
+      method_soil_n2o = tidyr::replace_na(.data$method_soil_n2o, m$n2o),
+      method_n2o_indirect_nh3 = tidyr::replace_na(
+        .data$method_n2o_indirect_nh3,
+        m$n2o_indirect
+      )
     )
 }
 
 # N_input_for_N2O_MgN's own fert_types (Excreta, Liquid, Solid, SOM,
 # Synthetic, Human, Recycling), mapped to the loss cascade's Title-case
 # vocabulary (see file header) and joined against data$n_balance_drivers on
-# (key, fert_type) for the climate/irrig_type/MANNER driver columns; never
-# invents driver values, missing columns abort inside calculate_*().
+# (key, fert_type) for the moisture_regime/climate/irrig_type/MANNER driver
+# columns; never invents driver values, missing columns abort inside
+# calculate_*().
 .nb_loss_rows <- function(n_inputs, key, data) {
   n2o_fert_types <- c(
     "excreta",
@@ -766,10 +801,7 @@ build_nitrogen_balance <- function(
   )
   rows <- n_inputs |>
     dplyr::filter(.data$fert_type %in% n2o_fert_types) |>
-    dplyr::summarise(
-      n_input_t = sum(.data$n_input_t, na.rm = TRUE),
-      .by = dplyr::all_of(c(key, "fert_type"))
-    ) |>
+    .nb_pool_loss_rows(key) |>
     dplyr::mutate(fert_type = .nb_loss_fert_type(.data$fert_type))
   if (is.null(data$n_balance_drivers)) {
     return(rows)
@@ -779,6 +811,40 @@ build_nitrogen_balance <- function(
     data$n_balance_drivers,
     by = c(.nb_driver_key(key, data$n_balance_drivers), "fert_type"),
     relationship = "many-to-one"
+  )
+}
+
+# Sum the N of the rows sharing a (key, fert_type). The excreta species mix
+# travels with it: the share is the N-weighted mean of the pooled rows, and
+# undefined (NA) when any pooled row carrying N has none, so a row of
+# unknown species is never priced as though it had the mix of the rest
+# (.excreta_weighted_share()). The share is computed before n_input_t is
+# replaced by its sum.
+.nb_pool_loss_rows <- function(rows, key) {
+  by <- c(key, "fert_type")
+  if (!rlang::has_name(rows, "excreta_cpp_share")) {
+    return(dplyr::summarise(
+      rows,
+      n_input_t = sum(.data$n_input_t, na.rm = TRUE),
+      .by = dplyr::all_of(by)
+    ))
+  }
+  if (!rlang::has_name(rows, "method_excreta_species")) {
+    rows$method_excreta_species <- NA_character_
+  }
+  dplyr::summarise(
+    rows,
+    method_excreta_species = .excreta_method_stamp(
+      .data$method_excreta_species,
+      .data$excreta_cpp_share,
+      .data$n_input_t
+    ),
+    excreta_cpp_share = .excreta_weighted_share(
+      .data$excreta_cpp_share,
+      .data$n_input_t
+    ),
+    n_input_t = sum(.data$n_input_t, na.rm = TRUE),
+    .by = dplyr::all_of(by)
   )
 }
 
@@ -866,8 +932,9 @@ build_nitrogen_balance <- function(
   } else {
     data$drainage_mm
   }
-  calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching) |>
-    dplyr::mutate(method_leaching = m$leaching)
+  # calculate_n_leaching() stamps each row with the fraction it took (for
+  # ipcc_fracleach, wet, dry irrigated or dry rainfed), so the stamp is kept.
+  calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching)
 }
 
 # n_balance_leaching_drivers is caller-supplied and documented as one row per
@@ -969,6 +1036,7 @@ build_nitrogen_balance <- function(
     "total_gwp_co2e_kg",
     "method_nh3",
     "method_soil_n2o",
+    "method_n2o_indirect_nh3",
     "method_leaching",
     intersect(c("method_regime", "method_regime_split"), names(x)),
     intersect(.nb_input_method_cols(), names(x))
@@ -1027,7 +1095,7 @@ build_nitrogen_balance <- function(
     fert_type == "recycling" ~ "Recycling",
     fert_type == "manure_solid" ~ "Solid",
     fert_type == "manure_liquid" ~ "Liquid",
-    fert_type == "excreta" ~ "Excreta_other",
+    fert_type == "excreta" ~ "Excreta",
     fert_type == "deposition" ~ "Deposition",
     fert_type == "human" ~ "Human",
     fert_type == "som_mineralization" ~ "SOM",
@@ -1080,6 +1148,7 @@ build_nitrogen_balance <- function(
     ~total_gwp_co2e_kg,
     ~method_nh3,
     ~method_soil_n2o,
+    ~method_n2o_indirect_nh3,
     ~method_leaching,
     10L,
     2511L,
@@ -1117,7 +1186,8 @@ build_nitrogen_balance <- function(
     100 / 99,
     (1.5 + 0.49 + 0.132) * (44 / 28) * 273 * 1000,
     "manner",
-    "ipcc2019",
+    "ipcc2019_wet_dry",
+    "ipcc2019_wet_dry",
     "meisinger_drainage"
   ) |>
     .add_reporting_polity_columns()

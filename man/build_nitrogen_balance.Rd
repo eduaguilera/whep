@@ -5,7 +5,8 @@
 \title{Build the full nitrogen balance: inputs, outputs, losses and NUE.}
 \usage{
 build_nitrogen_balance(
-  methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
+  methods = list(nh3 = "manner", n2o = "ipcc2019", n2o_indirect = "ipcc2019", leaching =
+    "meisinger_drainage"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
@@ -16,11 +17,17 @@ build_nitrogen_balance(
 \arguments{
 \item{methods}{A named list of method choices: \code{nh3} (forwarded to
 \code{\link[=calculate_nh3]{calculate_nh3()}}, default \code{"manner"}), \code{n2o} (forwarded to
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the globally applicable
-IPCC 2019 Tier 1 method), \code{leaching} (forwarded to
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}) and \code{regime},
-how each grid row is split into a rainfed and an irrigated part (see
-Details): \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}.}
+\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the IPCC 2019 Tier 1
+wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
+\code{"aguilera"} and \code{"ipcc2006"} are selectable), \code{n2o_indirect}
+(forwarded to \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}, default \code{"ipcc2019"}, the
+wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
+\code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
+\code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and \code{regime}, how each grid
+row is split into a rainfed and an irrigated part (see Details):
+\code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
+wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
 
 \item{resolution}{\code{"grid"} (default) or \code{"polity"}, as in
 \code{\link[=build_n_inputs]{build_n_inputs()}}; \code{"polity"} sums every term (and re-derives every
@@ -66,15 +73,17 @@ its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{n_balance_drivers}: additional per-\verb{(key, fert_type)} driver
 columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}/
 \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}} need beyond \code{n_input_t}/\code{fert_type}
-(\code{climate}, \code{irrig_type}, plus every MANNER driver column when
-\code{methods$nh3 == "manner"}), joined by the balance key AND
-\code{fert_type} (the Title-case vocabulary from \code{\link[=calculate_nh3]{calculate_nh3()}}'s own
-documentation, e.g. \code{"Synthetic"}, \code{"Solid"}, \code{"Excreta_other"}; see
-the file-level "fert_type vocabulary bridge" note for the exact
-mapping from \code{\link[=build_n_inputs]{build_n_inputs()}}'s lowercase values). A second set of
-balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_cat},
-\code{tillage}, \code{som_share}, \code{cn_input}, \code{land_use}) for
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
+(\code{moisture_regime} for the IPCC 2019 wet/dry methods, \code{climate} and
+\code{irrig_type} for the ATL/MED ones, plus every MANNER driver column
+when \code{methods$nh3 == "manner"}), joined by the balance key AND
+\code{fert_type} (the Title-case vocabulary of the loss functions:
+\code{"Synthetic"}, \code{"Solid"}, \code{"Liquid"}, \code{"Excreta"}, \code{"Human"},
+\code{"Recycling"}, \code{"SOM"}). The excreta rows' species mix,
+\code{excreta_cpp_share}, comes from \code{\link[=build_n_inputs]{build_n_inputs()}}, N-weighted over
+the rows pooled into each loss row. A second set of
+balance-key-only driver columns (\code{moisture_regime}, \code{fert_type},
+\code{climate}, \code{irrig_cat}, \code{tillage}, \code{som_share}, \code{cn_input},
+\code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
 \code{n_balance_leaching_drivers}, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
@@ -114,7 +123,10 @@ per-hectare rate), the input aggregates
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
-\code{method_soil_n2o}/\code{method_leaching} provenance columns, \code{method_regime}
+\code{method_soil_n2o}/\code{method_n2o_indirect_nh3}/\code{method_leaching}
+provenance columns (the per-row stamps of the loss functions; a balance
+row pooling loss rows priced differently lists them joined by \code{"|"}),
+\code{method_regime}
 and \code{method_regime_split} when the split ran (\code{"yield_ratio"};
 \code{"area_no_production"} where the crop's production could not be
 expressed in fresh weight and the area share was used for everything;

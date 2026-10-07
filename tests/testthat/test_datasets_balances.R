@@ -683,7 +683,9 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
     c(0.40, 0.65, 0.70, 0.75)
   )
   # Every fert_type build_nitrogen_balance() sends to the direct-N2O lookup
-  # resolves to a modifier in both climates.
+  # resolves to a modifier in both climates. "Excreta" carries its species
+  # as a share and is priced as the blend of the two species rows, so those
+  # are the rows it needs.
   sent <- whep:::.nb_loss_fert_type(c(
     "excreta",
     "manure_liquid",
@@ -693,7 +695,19 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
     "human",
     "recycling"
   ))
-  grid <- tidyr::crossing(fert_type = sent, climate = c("MED", "ATL"))
+  testthat::expect_true("Excreta" %in% sent)
+  looked_up <- c(
+    setdiff(sent, "Excreta"),
+    "Excreta_cattle_monog",
+    "Excreta_other"
+  )
+  grid <- tidyr::crossing(fert_type = looked_up, climate = c("MED", "ATL"))
   joined <- dplyr::left_join(grid, mf, by = c("fert_type", "climate"))
   testthat::expect_false(anyNA(joined$mf))
+  blend <- whep:::.soil_n2o_ef_mf_aguilera(tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
+    1, "Excreta", "MED", "Rainfed", 0.5,
+    1, "Excreta", "ATL", "Tier_1", 0.5
+  ))
+  testthat::expect_false(anyNA(blend))
 })

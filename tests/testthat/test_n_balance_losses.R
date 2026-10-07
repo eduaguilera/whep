@@ -213,17 +213,265 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") matches a hand-co
   testthat::expect_equal(out$method_soil_n2o, "aguilera")
 })
 
-testthat::test_that("calculate_soil_n2o defaults to the IPCC 2019 Tier 1 method", {
-  # The default is the globally applicable IPCC 2019 Tier 1 climate-only EF1
-  # (needing only climate), not the Mediterranean-calibrated aguilera.
+testthat::test_that("aguilera blends the excreta modifier by the species share", {
+  # MED / Drip: ef 0.0051, mf 0.20 (cattle/monogastric) and 0.30 (other), so
+  # a 0.4 CPP share gives 0.4 * 0.20 + 0.6 * 0.30 = 0.26. ATL / Tier_1: ef
+  # 0.010, mf 0.60 and 0.30, so 0.4 * 0.60 + 0.6 * 0.30 = 0.42. A row already
+  # labelled by species keeps its own modifier and needs no share.
   x <- tibble::tribble(
-    ~n_input_t, ~climate,
-    10, "MED"
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
+    10, "Excreta", "MED", "Drip", 0.4,
+    10, "Excreta", "ATL", "Tier_1", 0.4,
+    10, "Excreta_other", "MED", "Drip", NA
+  )
+  out <- whep::calculate_soil_n2o(x, method = "aguilera")
+
+  testthat::expect_equal(
+    out$n2o_direct_n_t,
+    c(10 * 0.0051 * 0.26, 10 * 0.010 * 0.42, 10 * 0.0051 * 0.30),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$method_soil_n2o,
+    c("aguilera_excreta_blend", "aguilera_excreta_blend", "aguilera")
+  )
+})
+
+testthat::test_that("aguilera refuses blended excreta with no species share", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
+    10, "Excreta", "MED", "Drip", NA
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "aguilera"),
+    class = "whep_excreta_share_missing"
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(
+      dplyr::select(x, -"excreta_cpp_share"),
+      method = "aguilera"
+    ),
+    class = "whep_excreta_share_missing"
+  )
+})
+
+testthat::test_that("calculate_soil_n2o defaults to the IPCC 2019 wet/dry method", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "Synthetic", 2511L, "dry"
   )
   out <- whep::calculate_soil_n2o(x)
-  testthat::expect_equal(out$method_soil_n2o, "ipcc2019")
-  # IPCC 2019 Tier 1 dry-climate EF1 is 0.005 (ten tonnes at 0.005).
-  testthat::expect_equal(out$n2o_direct_n_t, 10 * 0.005, tolerance = 1e-9)
+  testthat::expect_equal(out$method_soil_n2o, "ipcc2019_wet_dry")
+  # IPCC 2019 Table 11.1 dry-climate EF1 is 0.005 for all N inputs.
+  testthat::expect_equal(out$n2o_direct_n_t, 10 * 0.005, tolerance = 1e-12)
+})
+
+testthat::test_that("ipcc2019 splits EF1 into synthetic and other N in wet climates only", {
+  # Table 11.1 (Updated), p. 11.13: wet 0.016 synthetic, 0.006 other N
+  # inputs; dry 0.005 for all N inputs.
+  other <- c("Solid", "Liquid", "Human", "Recycling", "SOM")
+  x <- tidyr::expand_grid(
+    moisture_regime = c("wet", "dry"),
+    fert_type = c("Synthetic", other)
+  ) |>
+    dplyr::mutate(n_input_t = 10, item_cbs_code = 2511L)
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  ef <- out$n2o_direct_n_t / out$n_input_t
+  wet <- out$moisture_regime == "wet"
+  testthat::expect_equal(ef[wet & out$fert_type == "Synthetic"], 0.016)
+  testthat::expect_equal(
+    ef[wet & out$fert_type != "Synthetic"],
+    rep(0.006, length(other))
+  )
+  testthat::expect_equal(ef[!wet], rep(0.005, length(other) + 1L))
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_wet_dry"))
+})
+
+testthat::test_that("ipcc2019 prices every rice row with EF1FR in both regimes", {
+  # Table 11.1: EF1FR 0.004 (aggregated). Rice is every CBS item of the
+  # production items classed `Crop_irrig == "Rice"`: 2807, rice and products.
+  testthat::expect_identical(whep:::.n_rice_item_cbs_codes(), 2807L)
+  x <- tidyr::expand_grid(
+    moisture_regime = c("wet", "dry"),
+    water_regime = c("rainfed", "irrigated"),
+    fert_type = c("Synthetic", "Solid", "Recycling")
+  ) |>
+    dplyr::mutate(n_input_t = 10, item_cbs_code = 2807L)
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_equal(out$n2o_direct_n_t, rep(10 * 0.004, nrow(x)))
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_ef1fr"))
+})
+
+testthat::test_that("ipcc2019 blends EF3PRP by the CPP share, worked by hand", {
+  # Table 11.1: EF3PRP,CPP 0.006 wet, 0.002 dry; EF3PRP,SO 0.003.
+  # Row 1, wet, share 0.25: 0.25 * 0.006 + 0.75 * 0.003 = 0.00375.
+  # Row 2, dry, share 0.8: 0.8 * 0.002 + 0.2 * 0.003 = 0.0022.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,
+            40, "Excreta",         3000L,             "wet",               0.25,
+            20, "Excreta",         3000L,             "dry",                0.8
+  )
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_equal(
+    out$n2o_direct_n_t,
+    c(40 * 0.00375, 20 * 0.0022),
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_ef3prp_blend"))
+})
+
+testthat::test_that("ipcc2019 keeps excreta on EF3PRP even on a rice row", {
+  # Equation 11.1 prices F_PRP with EF3PRP whatever the crop; EF1FR covers
+  # the N applied to flooded rice (synthetic, organic, residue, SOM).
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,
+            10, "Excreta",         2807L,             "wet",                  1
+  )
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_equal(out$n2o_direct_n_t, 10 * 0.006, tolerance = 1e-12)
+  testthat::expect_equal(out$method_soil_n2o, "ipcc2019_ef3prp_blend")
+})
+
+testthat::test_that("ipcc2019 refuses excreta N with no species share", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,
+            10, "Excreta",         3000L,             "wet",                 NA,
+             5, "Synthetic",       2511L,             "wet",                 NA
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_excreta_share_missing"
+  )
+  testthat::expect_s3_class(err, "whep_absent_input")
+  testthat::expect_match(cli::ansi_strip(conditionMessage(err)), "1 excreta")
+  testthat::expect_error(
+    whep::calculate_soil_n2o(
+      dplyr::select(x, -"excreta_cpp_share"),
+      method = "ipcc2019"
+    ),
+    class = "whep_excreta_share_missing"
+  )
+})
+
+testthat::test_that("ipcc2019 refuses an excreta share outside [0, 1]", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,
+            10, "Excreta",         3000L,             "wet",                1.2
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_excreta_share_invalid"
+  )
+})
+
+testthat::test_that("ipcc2019 emits nothing from an excreta row with no N", {
+  # A row with no excreta N has no mix to know (method_excreta_species
+  # "no_excreta_n"), and zero N emits zero whatever the mix.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,
+             0, "Excreta",         3000L,             "dry",                 NA
+  )
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_identical(out$n2o_direct_n_t, 0)
+})
+
+testthat::test_that("ipcc2019 refuses an absent moisture regime", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code,
+    10, "Synthetic", 2511L
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_missing_moisture_regime"
+  )
+  testthat::expect_s3_class(err, "whep_absent_input")
+  # The abort names the ATL/MED variant, which needs no moisture regime.
+  testthat::expect_match(conditionMessage(err), "ipcc2019_atl_med")
+})
+
+testthat::test_that("ipcc2019 names the count of rows with no moisture regime", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "Synthetic", 2511L, NA,
+    10, "Solid", 2511L, NA,
+    10, "Solid", 2511L, "wet"
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_moisture_regime_na"
+  )
+  testthat::expect_s3_class(err, "whep_absent_input")
+  testthat::expect_match(cli::ansi_strip(conditionMessage(err)), "2 rows")
+})
+
+testthat::test_that("ipcc2019 refuses a moisture regime outside wet/dry", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "Synthetic", 2511L, "humid"
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_moisture_regime_value"
+  )
+})
+
+testthat::test_that("ipcc2019 refuses an input it has no direct factor for", {
+  # BNF and deposition are not direct N2O sources in Equation 11.1.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "BNF", 2511L, "wet"
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_soil_n2o_fert_type"
+  )
+  testthat::expect_error(
+    whep::calculate_soil_n2o(
+      dplyr::select(x, -"item_cbs_code"),
+      method = "ipcc2019"
+    ),
+    class = "whep_soil_n2o_columns"
+  )
+})
+
+testthat::test_that("ipcc2019_atl_med reproduces the former ipcc2019 output", {
+  # Golden values from `calculate_soil_n2o(method = "ipcc2019")` at commit
+  # bb604f8b, before the wet/dry method took the name: ATL 0.010, MED 0.005.
+  x <- tidyr::expand_grid(
+    climate = c("ATL", "MED"),
+    fert_type = c(
+      "Synthetic",
+      "Solid",
+      "Liquid",
+      "Excreta_other",
+      "Human",
+      "Recycling",
+      "SOM"
+    )
+  ) |>
+    dplyr::mutate(
+      n_input_t = seq_len(dplyr::n()) * 3.7,
+      irrig_type = dplyr::if_else(.data$climate == "ATL", "Tier_1", "Drip")
+    )
+  golden <- c(
+    0.037000000000000005,
+    0.07400000000000001,
+    0.11100000000000002,
+    0.14800000000000002,
+    0.185,
+    0.22200000000000003,
+    0.25900000000000001,
+    0.14800000000000002,
+    0.16650000000000004,
+    0.185,
+    0.20350000000000001,
+    0.22200000000000003,
+    0.24050000000000002,
+    0.25900000000000001
+  )
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med")
+  testthat::expect_identical(out$n2o_direct_n_t, golden)
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
 })
 
 testthat::test_that("calculate_soil_n2o(method = \"aguilera\") aborts on unsupported ATL irrig_type", {
@@ -277,34 +525,37 @@ testthat::test_that("calculate_soil_n2o(method = \"aguilera\") never returns a s
   }
 })
 
-testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") uses the climate-level rows regardless of irrig_type", {
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2019_atl_med\") uses the climate-level rows regardless of irrig_type", {
   x <- tibble::tribble(
     ~n_input_t, ~climate, ~irrig_type,
     10, "MED", "Drip",
     10, "MED", "Flooded",
     10, "ATL", "Tier_1"
   )
-  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med")
 
   testthat::expect_equal(out$n2o_direct_n_t[1], 10 * 0.005)
   testthat::expect_equal(out$n2o_direct_n_t[2], 10 * 0.005)
   testthat::expect_equal(out$n2o_direct_n_t[3], 10 * 0.01)
-  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019"))
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
 
   # The ATL value must equal build_crop_soil_n2o_extension()'s documented
   # EF1 = 0.010 literal (same underlying n2o_efs_disaggregated Tier_1 row).
   testthat::expect_equal(out$n2o_direct_n_t[3] / 10, 0.010)
 })
 
-testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") rejects an unknown climate", {
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2019_atl_med\") rejects an unknown climate", {
   x <- tibble::tibble(n_input_t = 10, climate = "MDE")
-  testthat::expect_error(whep::calculate_soil_n2o(x), "climate")
+  testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med"),
+    "climate"
+  )
 })
 
-testthat::test_that("calculate_soil_n2o(method = \"ipcc2019\") aborts on a missing climate column", {
+testthat::test_that("calculate_soil_n2o(method = \"ipcc2019_atl_med\") aborts on a missing climate column", {
   x <- tibble::tibble(n_input_t = 10)
   testthat::expect_error(
-    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med"),
     class = "whep_missing_climate"
   )
 })
@@ -334,8 +585,18 @@ testthat::test_that("calculate_soil_n2o example fixture is schema-complete", {
   out <- whep::calculate_soil_n2o(example = TRUE)
   pointblank::expect_col_exists(
     out,
-    c("n_input_t", "climate", "irrig_type", "n2o_direct_n_t", "method_soil_n2o")
+    c(
+      "n_input_t",
+      "fert_type",
+      "item_cbs_code",
+      "moisture_regime",
+      "n2o_direct_n_t",
+      "method_soil_n2o"
+    )
   )
+  # The fixture is what the default method returns for its own inputs.
+  inputs <- dplyr::select(out, -"n2o_direct_n_t", -"method_soil_n2o")
+  testthat::expect_equal(whep::calculate_soil_n2o(inputs), out)
 })
 
 # ---- calculate_n_leaching ------------------------------------------------
@@ -557,27 +818,84 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exac
   )
 })
 
-testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") uses the 0.24 FracLEACH constant", {
-  x <- tibble::tribble(~n_surplus_t, 100)
+testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies FracLEACH-(H) by wet/dry class", {
+  # Section 11.2.2.2, p. 11.25: FracLEACH-(H) 0.24 in wet climates and in
+  # dry climates under irrigation other than drip (all irrigation counts as
+  # non-drip), zero in dry climates otherwise. EF5 0.011 (Table 11.3).
+  x <- tibble::tribble(
+    ~n_surplus_t, ~moisture_regime, ~water_regime,
+    100, "wet", "rainfed",
+    100, "wet", "irrigated",
+    100, "dry", "irrigated",
+    100, "dry", "rainfed"
+  )
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
 
-  testthat::expect_equal(out$no3_n_t, 100 * 0.24, tolerance = 1e-9)
+  testthat::expect_equal(out$no3_n_t, c(24, 24, 24, 0), tolerance = 1e-12)
   testthat::expect_equal(
     out$denitrification_n_t,
-    100 - 100 * 0.24,
-    tolerance = 1e-9
+    c(76, 76, 76, 100),
+    tolerance = 1e-12
   )
   testthat::expect_equal(
     out$no3_n_t + out$denitrification_n_t,
     out$n_surplus_t,
-    tolerance = 1e-9
+    tolerance = 1e-12
   )
   testthat::expect_equal(
     out$n2o_indirect_no3_n_t,
-    100 * 0.24 * 0.011,
-    tolerance = 1e-9
+    c(24, 24, 24, 0) * 0.011,
+    tolerance = 1e-12
   )
-  testthat::expect_equal(out$method_leaching, "ipcc_fracleach")
+  testthat::expect_equal(
+    out$method_leaching,
+    c(
+      "ipcc_fracleach_wet",
+      "ipcc_fracleach_wet",
+      "ipcc_fracleach_dry_irrigated",
+      "ipcc_fracleach_dry_rainfed"
+    )
+  )
+})
+
+testthat::test_that("ipcc_fracleach needs no water regime on wet rows", {
+  x <- tibble::tribble(~n_surplus_t, ~moisture_regime, 100, "wet")
+  out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
+  testthat::expect_equal(out$no3_n_t, 24, tolerance = 1e-12)
+})
+
+testthat::test_that("ipcc_fracleach refuses a dry row whose water regime is unknown", {
+  # Dry irrigated and dry rainfed land leach 0.24 and 0 of their surplus, so
+  # a dry row without a water regime has no defensible fraction.
+  x <- tibble::tribble(~n_surplus_t, ~moisture_regime, 100, "dry")
+  err <- testthat::expect_error(
+    whep::calculate_n_leaching(x, method = "ipcc_fracleach"),
+    class = "whep_missing_water_regime"
+  )
+  testthat::expect_s3_class(err, "whep_absent_input")
+  x_na <- tibble::tribble(
+    ~n_surplus_t, ~moisture_regime, ~water_regime,
+    100, "dry", NA,
+    100, "wet", NA
+  )
+  err_na <- testthat::expect_error(
+    whep::calculate_n_leaching(x_na, method = "ipcc_fracleach"),
+    class = "whep_water_regime_value"
+  )
+  testthat::expect_match(cli::ansi_strip(conditionMessage(err_na)), "1 dry")
+})
+
+testthat::test_that("ipcc_fracleach refuses an absent or incomplete moisture regime", {
+  x <- tibble::tribble(~n_surplus_t, 100)
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, method = "ipcc_fracleach"),
+    class = "whep_missing_moisture_regime"
+  )
+  x_na <- tibble::tribble(~n_surplus_t, ~moisture_regime, 100, NA)
+  testthat::expect_error(
+    whep::calculate_n_leaching(x_na, method = "ipcc_fracleach"),
+    class = "whep_moisture_regime_na"
+  )
 })
 
 testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
@@ -592,16 +910,83 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
       "method_leaching"
     )
   )
+  inputs <- dplyr::select(out, "n_surplus_t", "moisture_regime")
+  testthat::expect_equal(
+    whep::calculate_n_leaching(inputs, method = "ipcc_fracleach"),
+    out
+  )
 })
 
 # ---- calculate_indirect_n2o_nh3 ------------------------------------------
+
+testthat::test_that("calculate_indirect_n2o_nh3 defaults to EF4 by wet/dry class", {
+  # Table 11.3 (Updated), p. 11.26: EF4 0.014 wet, 0.005 dry.
+  x <- tibble::tribble(
+    ~nh3_n_t, ~moisture_regime,
+    2, "wet",
+    3, "dry"
+  )
+  out <- whep::calculate_indirect_n2o_nh3(x)
+  testthat::expect_equal(
+    out$n2o_indirect_nh3_n_t,
+    c(2 * 0.014, 3 * 0.005),
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_wet_dry"))
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 refuses an absent or incomplete moisture regime", {
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(tibble::tibble(nh3_n_t = 1)),
+    class = "whep_missing_moisture_regime"
+  )
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(
+      tibble::tibble(nh3_n_t = 1, moisture_regime = NA_character_)
+    ),
+    class = "whep_moisture_regime_na"
+  )
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(tibble::tibble(nh3_n_t = 1), method = "x")
+  )
+})
+
+testthat::test_that("calculate_indirect_n2o_nh3 ipcc2019_atl_med reproduces the former output", {
+  # Golden values from `calculate_indirect_n2o_nh3()` at commit bb604f8b,
+  # before the method argument existed: ATL flat EF4 0.014, MED the
+  # n2o_efs_disaggregated ef on irrig_type.
+  x <- tibble::tribble(
+    ~nh3_n_t, ~climate, ~irrig_type,
+         1.3,    "ATL",    "Tier_1",
+         2.9,    "ATL",          NA,
+         4.1,    "MED",   "Rainfed",
+         5.3,    "MED", "Traditional",
+         6.7,    "MED",      "Drip",
+         7.9,    "MED", "Sprinkler",
+         8.3,    "MED",   "Flooded",
+         9.7,    "MED", "Med_average"
+  )
+  golden <- c(
+    0.018200000000000001,
+    0.040599999999999997,
+    0.01107,
+    0.024910000000000002,
+    0.034170000000000006,
+    0.071890000000000009,
+    0.015770000000000003,
+    0.048499999999999995
+  )
+  out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
+  testthat::expect_identical(out$n2o_indirect_nh3_n_t, golden)
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
+})
 
 testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows", {
   x <- tibble::tribble(
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
     1, "ATL", "Solid", "Tier_1"
   )
-  out <- whep::calculate_indirect_n2o_nh3(x)
+  out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
 
   testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
 })
@@ -613,7 +998,7 @@ testthat::test_that("calculate_indirect_n2o_nh3 applies EF4 for Atlantic rows wi
     ~nh3_n_t, ~climate, ~fert_type,
     1, "ATL", "Solid"
   )
-  out <- whep::calculate_indirect_n2o_nh3(x)
+  out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
 
   testthat::expect_equal(out$n2o_indirect_nh3_n_t, 1 * 0.014, tolerance = 1e-9)
 })
@@ -627,7 +1012,7 @@ testthat::test_that("calculate_indirect_n2o_nh3 uses the disaggregated ef (no mf
     ~nh3_n_t, ~climate, ~fert_type, ~irrig_type,
     1, "MED", "Solid", "Drip"
   )
-  out <- whep::calculate_indirect_n2o_nh3(x)
+  out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
 
   testthat::expect_equal(
     out$n2o_indirect_nh3_n_t,
@@ -641,18 +1026,23 @@ testthat::test_that("calculate_indirect_n2o_nh3 aborts on an unsupported MED irr
     ~nh3_n_t, ~climate, ~irrig_type,
     1, "MED", "not_a_real_irrigation_type"
   )
-  testthat::expect_error(whep::calculate_indirect_n2o_nh3(x))
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
+  )
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 rejects an unknown climate", {
   x <- tibble::tibble(nh3_n_t = 1, climate = "MDE")
-  testthat::expect_error(whep::calculate_indirect_n2o_nh3(x), "climate")
+  testthat::expect_error(
+    whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med"),
+    "climate"
+  )
 })
 
 testthat::test_that("calculate_indirect_n2o_nh3 aborts on a missing climate column", {
   x <- tibble::tibble(nh3_n_t = 1)
   testthat::expect_error(
-    whep::calculate_indirect_n2o_nh3(x),
+    whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med"),
     class = "whep_missing_climate"
   )
 })
@@ -661,8 +1051,15 @@ testthat::test_that("calculate_indirect_n2o_nh3 example fixture is schema-comple
   out <- whep::calculate_indirect_n2o_nh3(example = TRUE)
   pointblank::expect_col_exists(
     out,
-    c("nh3_n_t", "climate", "n2o_indirect_nh3_n_t")
+    c(
+      "nh3_n_t",
+      "moisture_regime",
+      "n2o_indirect_nh3_n_t",
+      "method_n2o_indirect_nh3"
+    )
   )
+  inputs <- dplyr::select(out, "nh3_n_t", "moisture_regime")
+  testthat::expect_equal(whep::calculate_indirect_n2o_nh3(inputs), out)
 })
 
 testthat::test_that("the former Urban key gets the Human coefficients, with a warning", {
