@@ -454,7 +454,8 @@
     relationship = "many-to-one"
   ) |>
     .nb_fill_missing_share() |>
-    .nb_join_residue_weights(residue$weights, key)
+    .nb_join_residue_weights(residue$weights, key) |>
+    .nb_check_residue_weights(residue, key)
   dplyr::bind_rows(
     .nb_regime_part(joined, "rainfed", area_cols, yield_cols, residue),
     .nb_regime_part(joined, "irrigated", area_cols, yield_cols, residue)
@@ -557,13 +558,61 @@
     )
 }
 
+# A residue column that is non-zero at a key the part weights do not cover
+# has no part evaluation behind it. The weights and the balance's residue
+# columns are built from the same NPP-N table and residue-destiny input, so
+# on consistent inputs every non-zero residue value has a weight: a missing
+# one means the two disagree (a caller-supplied `n_inputs` or a residue
+# table keyed differently), a contract breach rather than a quantity, and no
+# share is a defensible stand-in for the part evaluation. Without weights at
+# all (shares supplied as `data$regime_shares`, or "area_split") the columns
+# follow the production share by rule, and nothing is checked.
+.nb_check_residue_weights <- function(joined, residue, key) {
+  if (is.null(residue$weights) || length(residue$cols) == 0L) {
+    return(joined)
+  }
+  unweighted <- purrr::imap(residue$cols, \(term, col) {
+    weight_cols <- paste0(".rw_", term, "_", c("rainfed", "irrigated"))
+    no_weight <- purrr::map(
+      weight_cols,
+      \(w) is.na(joined[[w]] %||% rep(NA_real_, nrow(joined)))
+    ) |>
+      purrr::reduce(`|`)
+    no_weight & (joined[[col]] != 0) %in% TRUE
+  }) |>
+    purrr::reduce(`|`)
+  if (any(unweighted)) {
+    .nb_abort_residue_weight(joined[unweighted, ], residue, key)
+  }
+  joined
+}
+
+.nb_abort_residue_weight <- function(rows, residue, key) {
+  examples <- rows |>
+    dplyr::select(dplyr::all_of(key)) |>
+    utils::head(3L) |>
+    purrr::pmap_chr(\(...) paste(c(...), collapse = "/"))
+  cli::cli_abort(
+    c(
+      "{nrow(rows)} row{?s} carr{?ies/y} residue N the part weights do not
+       cover.",
+      i = "The balance's residue columns ({.field {names(residue$cols)}})
+           and the per-item residue evaluation (the NPP-N table and the
+           residue-destiny input) disagree there.",
+      i = "Keys as {paste(key, collapse = \"/\")}, first three:
+           {.val {examples}}."
+    ),
+    class = "whep_regime_residue_weight"
+  )
+}
+
 # One regime's part of the residue columns: each times its part weight
-# (the part evaluation over the unsplit value at the row's key). A row whose
-# key has no weight for a column -- no residue term in the item evaluation,
-# which leaves the column at zero on every row built from the same inputs --
-# takes the production share for it, and a non-zero value split that way is
-# stamped "yield_share". `method_residue_regime` is the union of the key's
-# part stamps, NA on a row with no residue term at all.
+# (the part evaluation over the unsplit value at the row's key, checked
+# present wherever the value is non-zero by .nb_check_residue_weights()). A
+# key with no weight for a column holds zero there, which stays zero.
+# Without weights the columns take the production share, stamped
+# `residue$stamp`. `method_residue_regime` is the union of the key's part
+# stamps, NA on a row with no residue term at all.
 .nb_residue_part <- function(joined, residue, regime, yield_w) {
   cols <- residue$cols
   if (length(cols) == 0L) {
@@ -574,36 +623,22 @@
     na.rm = TRUE
   ) >
     0
-  fallback <- rep(FALSE, nrow(joined))
-  for (col in names(cols)) {
-    w <- joined[[paste0(".rw_", cols[[col]], "_", regime)]] %||%
+  scaled <- purrr::imap(cols, \(term, col) {
+    w <- joined[[paste0(".rw_", term, "_", regime)]] %||%
       rep(NA_real_, nrow(joined))
-    fallback <- fallback | (is.na(w) & joined[[col]] != 0) %in% TRUE
-    joined[[col]] <- joined[[col]] * dplyr::coalesce(w, yield_w)
-  }
+    joined[[col]] * dplyr::coalesce(w, yield_w)
+  })
+  joined <- dplyr::mutate(joined, !!!scaled)
   if (is.null(residue$stamp)) {
     return(joined)
   }
-  if (is.null(residue$weights)) {
-    joined$method_residue_regime <- dplyr::if_else(
-      has_residue,
-      residue$stamp,
-      NA_character_
-    )
-    return(joined)
+  stamp <- if (is.null(residue$weights)) {
+    dplyr::if_else(has_residue, residue$stamp, NA_character_)
+  } else {
+    joined[[paste0(".rw_stamp_", regime)]] %||%
+      rep(NA_character_, nrow(joined))
   }
-  stamp <- joined[[paste0(".rw_stamp_", regime)]] %||%
-    rep(NA_character_, nrow(joined))
-  stamp[fallback] <- .nb_stamp_union(stamp[fallback], residue$stamp)
-  joined$method_residue_regime <- stamp
-  joined
-}
-
-# The union of two "|"-joined stamp vectors, element by element.
-.nb_stamp_union <- function(a, b) {
-  purrr::map2_chr(a, b, \(x, y) {
-    .nb_method_stamp(unlist(stringr::str_split(c(x, y), stringr::fixed("|"))))
-  })
+  dplyr::mutate(joined, method_residue_regime = .env$stamp)
 }
 
 # ---- Residue terms re-evaluated per part ------------------------------------
@@ -660,10 +695,11 @@
     suffix = c("", ".unsplit"),
     relationship = "many-to-one"
   )
-  for (col in cols) {
+  ratios <- purrr::map(rlang::set_names(cols), \(col) {
     total <- joined[[paste0(col, ".unsplit")]]
-    joined[[col]] <- dplyr::if_else(total != 0, joined[[col]] / total, NA_real_)
-  }
+    dplyr::if_else(total != 0, joined[[col]] / total, NA_real_)
+  })
+  joined <- dplyr::mutate(joined, !!!ratios)
   dplyr::full_join(
     .nb_regime_weight_cols(joined, "rainfed", key, cols),
     .nb_regime_weight_cols(joined, "irrigated", key, cols),

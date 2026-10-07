@@ -662,18 +662,19 @@ testthat::test_that("with the irrigation terms neutral, the parts' residue N sum
   )
 })
 
-testthat::test_that("a residue term with no part weight takes the production share, stamped", {
-  # Weights for the first key only: the second key's recycling has no part
-  # evaluation behind it, so it follows the production share and says so.
-  weights <- tibble::tribble(
+# Part weights for the first key of .regime_wide() only.
+.regime_first_key_weights <- function() {
+  tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~year,
     ~.rw_recycling_rainfed, ~.rw_recycling_irrigated,
     ~.rw_stamp_rainfed, ~.rw_stamp_irrigated,
     0.25, 40.25, 203, 2511, 2010, 0.4, 0.5,
     "part_yield", "part_yield_irrigation_terms"
   )
-  x <- dplyr::select(.regime_wide(), dplyr::all_of(.regime_key), "recycling")
-  out <- whep:::.nb_split_regime(
+}
+
+.regime_split_recycling <- function(x, weights) {
+  whep:::.nb_split_regime(
     x,
     .regime_shares(),
     .regime_key,
@@ -684,6 +685,28 @@ testthat::test_that("a residue term with no part weight takes the production sha
       stamp = "yield_share"
     )
   )
+}
+
+testthat::test_that("a non-zero residue term with no part weight aborts", {
+  # The second key recycles 20 t N but the part weights stop at the first:
+  # the two tables the weights and the balance are built from disagree, and
+  # no share stands in for the missing part evaluation.
+  x <- dplyr::select(.regime_wide(), dplyr::all_of(.regime_key), "recycling")
+  testthat::expect_identical(x$recycling[x$lon == 0.75], 20)
+  err <- testthat::expect_error(
+    .regime_split_recycling(x, .regime_first_key_weights()),
+    class = "whep_regime_residue_weight"
+  )
+  # The message names the count and the key.
+  msg <- gsub("\\s+", " ", conditionMessage(err))
+  testthat::expect_match(msg, "1 row carries residue N", fixed = TRUE)
+  testthat::expect_match(msg, "0.75/40.25/203/2511/2010", fixed = TRUE)
+})
+
+testthat::test_that("a zero residue term with no part weight stays zero and passes", {
+  x <- dplyr::select(.regime_wide(), dplyr::all_of(.regime_key), "recycling")
+  x$recycling[x$lon == 0.75] <- 0
+  out <- .regime_split_recycling(x, .regime_first_key_weights())
   first <- out[out$lon == 0.25, ]
   testthat::expect_equal(
     first$recycling[order(first$water_regime)],
@@ -693,16 +716,9 @@ testthat::test_that("a residue term with no part weight takes the production sha
     first$method_residue_regime[order(first$water_regime)],
     c("part_yield_irrigation_terms", "part_yield")
   )
-  # The second key: yield share 0, so wholly rainfed, and stamped.
   second <- out[out$lon == 0.75, ]
-  testthat::expect_equal(
-    second$recycling[order(second$water_regime)],
-    c(0, 20)
-  )
-  testthat::expect_identical(
-    second$method_residue_regime,
-    c("yield_share", "yield_share")
-  )
+  testthat::expect_identical(second$recycling, c(0, 0))
+  testthat::expect_true(all(is.na(second$method_residue_regime)))
   testthat::expect_false(any(startsWith(names(out), ".rw_")))
 })
 
