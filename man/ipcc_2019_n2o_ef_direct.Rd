@@ -34,7 +34,9 @@ value), \code{"Solid Storage and Dry Lot"} 0.005 (the 2006 solid-storage
 value, while dry lot is 0.02 in both editions), \code{"Burned for Fuel"} 0
 (both editions give no EF3 here and report those emissions under fuel
 combustion or waste incineration instead) and \code{"Other"} 0.005.
-\strong{Assumed, unverified.} Tracked in whep#601.
+\strong{Assumed, unverified.} Since whep#601 the manure engine reads the
+as-published 2019 EF3 in \link{ipcc_manure_ef3} by default; this table backs
+only that dataset's \code{"as_shipped"} edition.
 }
 }
 \usage{

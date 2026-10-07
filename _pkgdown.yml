@@ -797,6 +797,8 @@ reference:
   - ipcc_2019_mcf_manure
   - ipcc_2019_n_excretion
   - ipcc_2019_n2o_ef_direct
+  - ipcc_enteric_ef_tier1
+  - ipcc_manure_ef3
   - ipcc_2019_ym
   - ipcc_2019_bo
   - ipcc_2019_cfi

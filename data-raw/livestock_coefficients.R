@@ -1272,8 +1272,9 @@ generate_ipcc_2019_tables <- function() {
     # North America and 126/52 for Western Europe. Oceania dairy 90, Middle
     # East dairy 63 and Indian Subcontinent 68/47 match neither edition, and
     # the Global fallback row 80/47 is in no IPCC table (assumed,
-    # unverified). Per-cell detail in `?ipcc_2019_enteric_ef_cattle`;
-    # the revalue decision is #601.
+    # unverified). Per-cell detail in `?ipcc_2019_enteric_ef_cattle`.
+    # Kept as the `enteric_ef_source = "as_shipped"` edition; the 2019 values
+    # are `ipcc_enteric_ef_tier1` below (#601).
     table_10_11_cattle = tibble::tribble(
       ~region, ~category, ~ef_kg_head_yr,
       "North America",        "Dairy Cattle",  128,
@@ -1305,7 +1306,8 @@ generate_ipcc_2019_tables <- function() {
     # 10.10 (Updated) splits sheep 9/5, goats 9/5 and swine 1.5/1.0 by
     # productivity system and moves buffalo into the regional Table 10.11.
     # Poultry 0 is a project choice; both editions say "insufficient data
-    # for calculation". See `?ipcc_2019_enteric_ef_other` and #601.
+    # for calculation". See `?ipcc_2019_enteric_ef_other` and #601; the 2019
+    # values are `ipcc_enteric_ef_tier1` below.
     table_10_10_other = tibble::tribble(
       ~category,             ~ef_kg_head_yr,
       "Buffalo",              55,
@@ -1597,7 +1599,8 @@ generate_ipcc_2019_tables <- function() {
     # Liquid/Slurry 0.002, Solid Storage and Dry Lot 0.005, Burned for Fuel
     # 0 and Other 0.005 are WHEP composite or fallback labels with no
     # counterpart system in either edition (assumed, unverified).
-    # See `?ipcc_2019_n2o_ef_direct` and #601.
+    # See `?ipcc_2019_n2o_ef_direct` and #601. Backs only the "as_shipped"
+    # edition of `ipcc_manure_ef3`; the 2019 EF3 is read off the PDF below.
     table_10_21 = tibble::tribble(
       ~system,                          ~ef_kg_n2o_n_per_kg_n,
       "Uncovered Anaerobic Lagoon",      0.001,
