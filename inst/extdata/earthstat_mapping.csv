@@ -1,7 +1,7 @@
 "earthstat_name","item_prod_code","item_prod_name","unmapped_reason","in_raster_archive","pattern_group"
 "abaca",809,"Abaca, manila hemp, raw",,TRUE,
 "agave",800,"Agave fibres, raw, n.e.c.",,TRUE,
-"alfalfa",,,"no_fao_crop_name",TRUE,
+"alfalfa",641,"Forage and silage, alfalfa",,TRUE,"fodder"
 "almond",221,"Almonds, in shell",,TRUE,
 "aniseetc",711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",,TRUE,
 "apple",515,"Apples",,TRUE,
@@ -14,18 +14,18 @@
 "banana",486,"Bananas",,TRUE,
 "barley",44,"Barley",,TRUE,
 "bean",176,"Beans, dry",,TRUE,
-"beetfor",,,"no_fao_crop_name",TRUE,
+"beetfor",647,"Beets for fodder",,TRUE,"fodder"
 "berrynes",558,"Other berries and fruits of the genus vaccinium n.e.c.",,TRUE,
 "blueberry",552,"Blueberries",,TRUE,
 "brazil",216,"Brazil nuts, in shell",,TRUE,
 "broadbean",181,"Broad beans and horse beans, dry",,TRUE,
 "buckwheat",89,"Buckwheat",,TRUE,
 "cabbage",358,"Cabbages",,TRUE,
-"cabbagefor",,,"no_fao_crop_name",TRUE,
+"cabbagefor",644,"Cabbage for fodder",,TRUE,"fodder"
 "canaryseed",101,"Canary seed",,TRUE,
 "carob",461,"Locust beans (carobs)",,TRUE,
 "carrot",426,"Carrots and turnips",,TRUE,
-"carrotfor",,,"no_fao_crop_name",TRUE,
+"carrotfor",648,"Carrots for fodder",,TRUE,"fodder"
 "cashew",217,"Cashew nuts, in shell",,TRUE,
 "cashewapple",591,"Cashewapple",,TRUE,
 "cassava",125,"Cassava, fresh",,TRUE,
@@ -40,7 +40,7 @@
 "cinnamon",693,"Cinnamon and cinnamon-tree flowers, raw",,TRUE,
 "citrusnes",512,"Other citrus fruit, n.e.c.",,TRUE,
 "clove",698,"Cloves (whole stems), raw",,TRUE,
-"clover",,,"no_fao_crop_name",TRUE,
+"clover",640,"Forage and silage, clover",,TRUE,"fodder"
 "cocoa",661,"Cocoa beans",,TRUE,
 "coconut",248,"Coconuts",,TRUE,
 "coffee",656,"Coffee, green",,TRUE,
@@ -56,14 +56,14 @@
 "fig",569,"Figs",,TRUE,
 "flax",772,"Linum",,TRUE,
 "fonio",94,"Fonio",,TRUE,
-"fornes",,,"no_fao_crop_name",TRUE,
+"fornes",651,"Forage products",,TRUE,"fodder"
 "fruitnes",619,"Other fruits, n.e.c.",,TRUE,
 "garlic",406,"Green garlic",,TRUE,
 "ginger",720,"Ginger, raw",,TRUE,
 "gooseberry",549,"Gooseberries",,TRUE,
 "grape",560,"Grapes",,TRUE,
 "grapefruitetc",507,"Pomelos and grapefruits",,TRUE,
-"grassnes",,,"no_fao_crop_name",TRUE,
+"grassnes",639,"Forage and silage, grasses nes",,TRUE,"fodder"
 "greenbean",414,"Other beans, green",,TRUE,
 "greenbroadbean",420,"Broad beans and horse beans, green",,TRUE,
 "greencorn",446,"Green corn (maize)",,TRUE,
@@ -82,28 +82,28 @@
 "karite",263,"Karite nuts (sheanuts)",,TRUE,
 "kiwi",592,"Kiwi fruit",,TRUE,
 "kolanut",224,"Kola nuts",,TRUE,
-"legumenes",463,"Other vegetables, fresh n.e.c.",,TRUE,
+"legumenes",643,"Forage and silage, legumes",,TRUE,"fodder"
 "lemonlime",497,"Lemons and limes",,TRUE,
 "lentil",201,"Lentils, dry",,TRUE,
 "lettuce",372,"Lettuce and chicory",,TRUE,
 "linseed",772,"Linum",,TRUE,
 "lupin",210,"Lupins",,TRUE,
 "maize",56,"Maize (corn)",,TRUE,
-"maizefor",,,"no_fao_crop_name",TRUE,
+"maizefor",636,"Forage and silage, maize",,TRUE,"fodder"
 "mango",571,"Mangoes, guavas and mangosteens",,TRUE,
 "mate",671,"Mate leaves",,TRUE,
 "melonetc",568,"Cantaloupes and other melons",,TRUE,
 "melonseed",299,"Melonseed",,TRUE,
 "millet",79,"Millet",,TRUE,
 "mixedgrain",103,"Mixed grain",,TRUE,
-"mixedgrass",,,"no_fao_crop_name",TRUE,
+"mixedgrass",645,"Mixed Grasses and Legumes",,TRUE,"fodder"
 "mushroom",449,"Mushrooms and truffles",,TRUE,
 "mustard",292,"Mustard seed",,TRUE,
 "nutmeg",702,"Nutmeg, mace, cardamoms, raw",,TRUE,
 "nutnes",234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",,TRUE,
 "oats",75,"Oats",,TRUE,
 "oilpalm",254,"Oil palm fruit",,TRUE,
-"oilseedfor",,,"no_fao_crop_name",TRUE,
+"oilseedfor",642,"Forage and silage, green oilseeds",,TRUE,"fodder"
 "oilseednes",339,"Other oil seeds, n.e.c.",,TRUE,
 "okra",430,"Okra",,TRUE,
 "olive",260,"Olives",,TRUE,
@@ -137,12 +137,12 @@
 "rootnes",149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh",,TRUE,
 "rubber",836,"Natural rubber in primary forms",,TRUE,
 "rye",71,"Rye",,TRUE,
-"ryefor",,,"no_fao_crop_name",TRUE,
+"ryefor",638,"Forage and silage, rye grass",,TRUE,"fodder"
 "safflower",280,"Safflower seed",,TRUE,
 "sesame",289,"Sesame seed",,TRUE,
 "sisal",789,"Sisal, raw",,TRUE,
 "sorghum",83,"Sorghum",,TRUE,
-"sorghumfor",,,"no_fao_crop_name",TRUE,
+"sorghumfor",637,"Forage and silage, sorghum",,TRUE,"fodder"
 "sourcherry",530,"Sour cherries",,TRUE,
 "soybean",236,"Soya beans",,TRUE,
 "spicenes",723,"Other stimulant, spice and aromatic crops, n.e.c.",,TRUE,
@@ -154,7 +154,7 @@
 "sugarcane",156,"Sugar cane",,TRUE,
 "sugarnes",161,"Other sugar crops n.e.c.",,TRUE,
 "sunflower",267,"Sunflower seed",,TRUE,
-"swedefor",,,"no_fao_crop_name",TRUE,
+"swedefor",649,"Swedes for fodder",,TRUE,"fodder"
 "sweetpotato",122,"Sweet potatoes",,TRUE,
 "tangetc",495,"Tangerines, mandarins, clementines",,TRUE,
 "taro",136,"Taro",,TRUE,
@@ -164,10 +164,10 @@
 "triticale",97,"Triticale",,TRUE,
 "tropicalnes",603,"Other tropical fruits, n.e.c.",,TRUE,
 "tung",275,"Tung nuts",,TRUE,
-"turnipfor",,,"no_fao_crop_name",TRUE,
+"turnipfor",646,"Turnips for fodder",,TRUE,"fodder"
 "vanilla",692,"Vanilla, raw",,TRUE,
 "vegetablenes",463,"Other vegetables, fresh n.e.c.",,TRUE,
-"vegfor",,,"no_fao_crop_name",TRUE,
+"vegfor",655,"Vegetables and roots fodder",,TRUE,"fodder"
 "vetch",205,"Vetches",,TRUE,
 "walnut",222,"Walnuts, in shell",,TRUE,
 "watermelon",567,"Watermelons",,TRUE,
