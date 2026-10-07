@@ -419,10 +419,18 @@ cft_to_pft <- c(
 #
 #   no_fao_crop_name  the archive's own metadata table gives no FAO crop
 #                     name for the layer, repeating the EarthStat code in
-#                     its Cropname_FAO column instead. The 15 fodder
-#                     layers (alfalfa, clover, maizefor, grassnes, ...).
+#                     its Cropname_FAO column instead. No row uses it now:
+#                     the 16 layers it once covered are the archive's
+#                     "Forage" group, and they map one to one to WHEP's
+#                     forage items 636-649, 651 and 655 (whep#1271).
 #   unmapped          the archive names an FAO crop but WHEP has not
 #                     chosen an item code for it.
+#
+# `pattern_group` pools layers: every code in a group gets the summed
+# pattern of the whole group (`.share_pattern_groups()`). The forage layers
+# are one group, `"fodder"`, as in `R/soil_carbon_fodder.R`, because the
+# per-item layers keep the circa-2000 reporting vocabulary: the United
+# States' `grassnes` sits only on its Mexican border.
 #
 # The distinction is the point. Before it, a layer WHEP had simply never
 # been told about looked exactly like one deliberately left out, and

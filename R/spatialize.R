@@ -1791,8 +1791,9 @@ build_gridded_landuse <- function(
 # (`primary_double.csv`), no group is needed: the rasters map to that code
 # and `prepare_crop_patterns()` sums them. Hemp and hempseed are pooled that
 # way, on Hemp (776), which keeps the decision of 2026-09-01 (Edu):
-# "hempseed mix with hemp" (whep#1292). The fodder layers still use a group
-# (`R/soil_carbon_fodder.R`).
+# "hempseed mix with hemp" (whep#1292). The 16 forage layers do use a group,
+# `"fodder"`, in `earthstat_mapping.csv` and in `R/soil_carbon_fodder.R`
+# (whep#1271).
 .share_pattern_groups <- function(patterns, xwalk) {
   groups <- xwalk |>
     dplyr::filter(!is.na(.data$pattern_group), !is.na(.data$item_prod_code)) |>
