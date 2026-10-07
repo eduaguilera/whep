@@ -29,8 +29,39 @@
     )
   }
 
+  .abort_if_feed_not_tonnes(cbs)
   cbs |>
     dplyr::select(year, area_code, item_cbs_code, feed)
+}
+
+# The wide CBS mixes tonnes with head counts (get_livestock_cbs()), and the
+# feed column is summed over items downstream in dry-matter tonnes. A head row
+# carrying feed would be added to tonnes (whep#865, whep#962 shape), and the
+# `unit` column is dropped by the select above, so refuse here. Rows with a
+# missing unit are tolerated (tonnes by construction, see
+# `.abort_if_units_mixed()`); a frame with no `unit` column is the raw long
+# CBS pin, which is mass-only.
+.abort_if_feed_not_tonnes <- function(cbs) {
+  if (!rlang::has_name(cbs, "unit")) {
+    return(invisible(cbs))
+  }
+  bad <- dplyr::filter(
+    cbs,
+    !is.na(.data$unit),
+    .data$unit != "tonnes",
+    dplyr::coalesce(.data$feed, 0) != 0
+  )
+  if (nrow(bad) > 0L) {
+    cli::cli_abort(
+      c(
+        "{nrow(bad)} commodity-balance row{?s} not in tonnes carr{?ies/y} feed.",
+        "i" = "Feed in other units ({.val {unique(bad$unit)}}) cannot be \
+               added to tonnes."
+      ),
+      class = "whep_feed_cbs_units"
+    )
+  }
+  invisible(cbs)
 }
 
 .normalise_feed_primary <- function(primary_prod) {
