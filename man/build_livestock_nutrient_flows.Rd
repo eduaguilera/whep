@@ -45,9 +45,10 @@ deprecated and warns.}
 \code{\link[=build_residue_bedding_supply]{build_residue_bedding_supply()}}. When given, \code{\link[=add_manure_bedding]{add_manure_bedding()}} places
 it on the litter-using housed streams before the management losses, so the
 manure reaching the field is bedded farmyard manure rather than excreta
-alone. \code{NULL} (default) leaves every number excreta-only; the share of crop
-residue used as bedding is unset in this package pending a source
-(whep#1005), so a caller has to build the supply deliberately.}
+alone. \code{NULL} (default) leaves every number excreta-only. Build the
+supply from \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}, whose default bedding share
+is Wirsenius (2000) Table 3.21 (whep#1005); the turnkey soil-carbon
+reader of \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} does so.}
 }
 \value{
 A named list with \code{applied} (manure applied per
