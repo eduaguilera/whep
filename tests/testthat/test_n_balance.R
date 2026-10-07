@@ -1550,9 +1550,20 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
   testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
   testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+  # Added after the golden: the retained-in-profile term (zero on wet rows),
+  # the drivers' provenance and the class the leaching drivers carry.
+  testthat::expect_true(all(out$retained_profile_n_t == 0))
+  testthat::expect_true(all(out$method_drivers == "supplied"))
+  testthat::expect_true(all(out$moisture_regime == "wet"))
   testthat::expect_identical(
     out |>
-      dplyr::select(-"method_manure", -"method_n2o_indirect_nh3") |>
+      dplyr::select(
+        -"method_manure",
+        -"method_n2o_indirect_nh3",
+        -"retained_profile_n_t",
+        -"method_drivers",
+        -"moisture_regime"
+      ) |>
       dplyr::mutate(
         method_soil_n2o = "ipcc2019",
         method_leaching = "ipcc_fracleach"
@@ -1634,13 +1645,20 @@ testthat::test_that("the entry check lets complete drivers and the IPCC method t
     "Synthetic", "Urea", 6, 50, 0, FALSE, 8.6, 8.6,
     "Recycling", NA, NA, NA, NA, NA, NA, NA
   )
+  # The default Meisinger leaching reads its own driver table, which the
+  # caller supplies too: build_n_loss_drivers() has no Meisinger drivers yet.
   testthat::expect_error(
-    whep::build_nitrogen_balance(data = list(n_balance_drivers = drivers)),
+    whep::build_nitrogen_balance(
+      data = list(
+        n_balance_drivers = drivers,
+        n_balance_leaching_drivers = tibble::tibble(fert_type = "Synthetic")
+      )
+    ),
     class = "nb_test_assembly_reached"
   )
   testthat::expect_error(
     whep::build_nitrogen_balance(
-      methods = list(nh3 = "ipcc"),
+      methods = list(nh3 = "ipcc", leaching = "ipcc_fracleach"),
       data = list()
     ),
     class = "nb_test_assembly_reached"
@@ -1901,6 +1919,203 @@ testthat::test_that("the balance example carries the method columns a build retu
   testthat::expect_true(all(method_cols %in% names(built)))
   testthat::expect_true("method_n2o_indirect_nh3" %in% method_cols)
   testthat::expect_identical(example$method_soil_n2o, "ipcc2019_wet_dry")
+})
+
+# ---- WHEP-built loss drivers ------------------------------------------------
+
+.nb_ipcc_methods <- function(...) {
+  utils::modifyList(
+    list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "ipcc_fracleach",
+      regime = "yield_split"
+    ),
+    list(...)
+  )
+}
+
+# The split fixture without its driver tables, and the layers the builder
+# reads in their place: the fixture cell's own wet/dry classes for its crop
+# (2511 wet irrigated, dry rainfed) and a dry 30-year climate for the cell,
+# which classes every row without a crop of its own.
+.nb_built_driver_data <- function() {
+  data <- .nb_regime_split_data()
+  data$n_balance_drivers <- NULL
+  data$n_balance_leaching_drivers <- NULL
+  data$drainage_mm <- NULL
+  classes <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~water_regime, ~year,
+    ~moisture_regime, ~method_moisture_regime,
+    0.25, 50.25, 10L, 2511L, "irrigated", 2010L, "wet",
+    "ipcc2019_wet_dry;trailing_30;precip_irrig",
+    0.25, 50.25, 10L, 2511L, "rainfed", 2010L, "dry",
+    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+  ) |>
+    dplyr::mutate(climate_fill_km = NA_real_)
+  climate <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    year = 1981:2010,
+    mean_annual_temp_c = 10,
+    annual_precip_mm = 500,
+    annual_pet_mm = 900,
+    annual_frost_days = 60
+  )
+  data$n_loss_driver_inputs <- list(
+    moisture_regime = classes,
+    climate = climate
+  )
+  data
+}
+
+.nb_built_balance <- function() {
+  memo_n_fixture("nb_built_balance", function() {
+    suppressMessages(whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      data = .nb_built_driver_data()
+    ))
+  })
+}
+
+testthat::test_that("a grid balance without drivers builds them and says so", {
+  testthat::skip_if_not_installed("pointblank")
+  out <- .nb_built_balance()
+  out |>
+    pointblank::expect_col_vals_in_set("method_drivers", "whep_built") |>
+    pointblank::expect_col_vals_in_set("moisture_regime", c("wet", "dry")) |>
+    pointblank::expect_col_vals_not_null("method_moisture_regime")
+  crop <- out[out$item_cbs_code %in% 2511L, ]
+  testthat::expect_identical(
+    crop$moisture_regime[crop$water_regime == "irrigated"],
+    "wet"
+  )
+  no_item <- out[is.na(out$item_cbs_code), ]
+  testthat::expect_gt(nrow(no_item), 0L)
+  testthat::expect_true(all(stringr::str_detect(
+    no_item$method_moisture_regime,
+    "cell_rainfed_class=no_crop_item"
+  )))
+  # The soil N2O of the irrigated (wet) crop part is priced on wet factors.
+  testthat::expect_true(all(
+    crop$method_leaching[crop$water_regime == "irrigated"] ==
+      "ipcc_fracleach_wet"
+  ))
+})
+
+testthat::test_that("built drivers give the balance the supplied drivers' result", {
+  # The tables the build makes, supplied back, give the same balance.
+  data <- .nb_built_driver_data()
+  real <- whep::build_n_loss_drivers
+  tables <- NULL
+  built <- testthat::with_mocked_bindings(
+    suppressMessages(whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      data = data
+    )),
+    build_n_loss_drivers = function(...) {
+      tables <<- real(...)
+      tables
+    },
+    .package = "whep"
+  )
+  testthat::expect_named(
+    tables,
+    c("n_balance_drivers", "n_balance_leaching_drivers")
+  )
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(),
+    data = c(data, tables)
+  ))
+  testthat::expect_true(all(out$method_drivers == "supplied"))
+  testthat::expect_true(all(built$method_drivers == "whep_built"))
+  testthat::expect_identical(
+    dplyr::select(out, -"method_drivers"),
+    dplyr::select(built, -"method_drivers")
+  )
+})
+
+testthat::test_that("one supplied driver table is kept and the other built", {
+  data <- .nb_built_driver_data()
+  data$n_balance_drivers <- .nb_data_with_drivers()$n_balance_drivers
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(),
+    data = data
+  ))
+  testthat::expect_true(all(out$method_drivers == "supplied|whep_built"))
+})
+
+testthat::test_that("dry rainfed surplus is retained, and the partition holds", {
+  out <- .nb_built_balance()
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$surplus_t,
+    tolerance = 1e-9
+  )
+  dry_rainfed <- out$moisture_regime == "dry" & out$water_regime == "rainfed"
+  testthat::expect_true(any(dry_rainfed & out$surplus_t > 0))
+  testthat::expect_true(all(out$denitrification_n_t[dry_rainfed] == 0))
+  testthat::expect_equal(
+    out$retained_profile_n_t[dry_rainfed],
+    out$surplus_t[dry_rainfed],
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(
+    out$method_leaching[dry_rainfed] == "ipcc_fracleach_dry_rainfed_retained"
+  ))
+  testthat::expect_true(all(out$retained_profile_n_t[!dry_rainfed] == 0))
+})
+
+testthat::test_that("a polity balance without drivers is refused before assembly", {
+  .nb_stub_assembly()
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      resolution = "polity",
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_polity"
+  )
+  testthat::expect_match(
+    cli::ansi_strip(conditionMessage(err)),
+    "n_balance_leaching_drivers",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("an unsplit grid balance cannot build its drivers", {
+  .nb_stub_assembly()
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(regime = "none"),
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_regime"
+  )
+})
+
+testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
+  .nb_stub_assembly()
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(leaching = "meisinger_drainage"),
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_unsupported"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  for (col in c("drainage_mm", "som_share", "irrig_cat", "tillage")) {
+    testthat::expect_match(msg, col, fixed = TRUE)
+  }
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(data = list()),
+    class = "whep_error_nh3_drivers_absent"
+  )
+  testthat::expect_match(
+    cli::ansi_strip(conditionMessage(err)),
+    "build_n_loss_drivers",
+    fixed = TRUE
+  )
 })
 
 # Runs last: every fixture the tests above shared must still be exactly what

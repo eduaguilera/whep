@@ -104,6 +104,20 @@
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
 #'     mineralization"` term; its `son_change_kgn_ha` drives `som_
 #'     sequestration_n_t`.
+#'   * `n_balance_drivers` and `n_balance_leaching_drivers`: the loss
+#'     drivers. At grid resolution each one left `NULL` is built by
+#'     [build_n_loss_drivers()] on the split balance's own rows (the IPCC 2019
+#'     wet/dry class and the ATL/MED drivers mapped from it; see its table of
+#'     which methods it supplies), and `method_drivers` says so. That needs
+#'     the rainfed/irrigated split (`methods$regime` other than `"none"`);
+#'     `leaching = "meisinger_drainage"` and the MANNER `nh3` methods read
+#'     drivers it does not supply and are refused before any input is
+#'     assembled unless their table is supplied. At polity resolution both
+#'     must be supplied.
+#'   * `n_loss_driver_inputs`: optional list passed as `data` to
+#'     [build_n_loss_drivers()] when it runs (`climate`, `crop_depth`,
+#'     `lpjml_years`, `lpjml_grid`, `regime_areas`, `moisture_regime`); the
+#'     balance's own `country_grid` is shared with it.
 #'   * `n_balance_drivers`: additional per-`(key, fert_type)` driver
 #'     columns [calculate_nh3()]/[calculate_soil_n2o()]/
 #'     [calculate_indirect_n2o_nh3()] need beyond `n_input_t`/`fert_type`
@@ -235,6 +249,7 @@ build_nitrogen_balance <- function(
     data$n_balance_drivers,
     "data$n_balance_drivers"
   )
+  .nb_check_driver_sources(data, m, resolution)
   key <- .nb_key(resolution)
 
   # Compute calculate_npp_carbon_nitrogen() once and cache it on data, so
@@ -259,13 +274,130 @@ build_nitrogen_balance <- function(
   .nb_validate_input_grain(n_inputs, resolution)
 
   split <- .nb_split_balance(n_inputs, data, key, resolution, m$regime)
+  drivers <- .nb_resolve_drivers(data, split)
+  data[names(drivers$tables)] <- drivers$tables
   split$x |>
     .nb_losses(split$n_inputs, split$key, m, data) |>
     .nb_indicators_pass1() |>
     .nb_cap_som() |>
     .nb_indicators_pass2(m, data, split$key, gwp) |>
+    dplyr::mutate(method_drivers = drivers$stamp) |>
     .nb_finalise() |>
     .resolve_polity_validity(polity_validity)
+}
+
+# ---- Private helpers: loss drivers ----------------------------------------
+
+# The two driver tables the loss cascade joins.
+.nb_driver_tables <- function() {
+  c("n_balance_drivers", "n_balance_leaching_drivers")
+}
+
+.nb_drivers_to_build <- function(data) {
+  .nb_driver_tables()[purrr::map_lgl(
+    .nb_driver_tables(),
+    \(name) is.null(data[[name]])
+  )]
+}
+
+# Refused before any input is assembled: drivers the balance would have to
+# build but cannot. build_n_loss_drivers() works on the grid key per water
+# regime, and supplies no Meisinger driver yet.
+.nb_check_driver_sources <- function(data, m, resolution) {
+  absent <- .nb_drivers_to_build(data)
+  if (length(absent) == 0L) {
+    return(invisible(NULL))
+  }
+  if (resolution == "polity") {
+    cli::cli_abort(
+      c(
+        "A polity balance needs its loss drivers supplied:
+         {.code data${absent}} {?is/are} missing.",
+        i = "{.fn build_n_loss_drivers} builds them on the grid key only.
+             Build the balance at grid resolution, or supply driver tables
+             keyed by {.field area_code}, {.field item_cbs_code} and
+             {.field year}."
+      ),
+      class = "whep_n_loss_drivers_polity"
+    )
+  }
+  if (m$regime == "none") {
+    cli::cli_abort(
+      c(
+        "WHEP-built loss drivers are per water regime, and
+         {.code methods$regime = \"none\"} leaves the rows unsplit.",
+        i = "Use {.val yield_split} or {.val area_split}, or supply
+             {.code data${absent}}."
+      ),
+      class = "whep_n_loss_drivers_regime"
+    )
+  }
+  if ("n_balance_leaching_drivers" %in% absent) {
+    .nb_check_leaching_buildable(m$leaching)
+  }
+  invisible(NULL)
+}
+
+.nb_check_leaching_buildable <- function(leaching) {
+  if (leaching != "meisinger_drainage") {
+    return(invisible(NULL))
+  }
+  needed <- c(
+    "fert_type",
+    "climate",
+    "irrig_cat",
+    "land_use",
+    "cn_input",
+    "tillage",
+    "som_share",
+    "drainage_mm"
+  )
+  cli::cli_abort(
+    c(
+      "{.code leaching = \"meisinger_drainage\"} reads driver columns
+       {.fn build_n_loss_drivers} does not supply: {.field {needed}}.",
+      i = "Supply them in {.code data$n_balance_leaching_drivers}, or use
+           {.code leaching = \"ipcc_fracleach\"}, whose
+           {.field moisture_regime} and {.field water_regime} the builder
+           supplies."
+    ),
+    class = "whep_n_loss_drivers_unsupported"
+  )
+}
+
+# Builds the driver tables the caller did not supply, from the split
+# balance's own keys, and says where the drivers came from: "whep_built",
+# "supplied", or "supplied|whep_built" when one table was supplied and the
+# other built. The builder reads `data$n_loss_driver_inputs` and shares the
+# balance's cell support (`country_grid`).
+.nb_resolve_drivers <- function(data, split) {
+  absent <- .nb_drivers_to_build(data)
+  if (length(absent) == 0L) {
+    return(list(tables = list(), stamp = "supplied"))
+  }
+  inputs <- data$n_loss_driver_inputs %||% list()
+  inputs$country_grid <- inputs$country_grid %||% data$country_grid
+  tables <- build_n_loss_drivers(.nb_driver_rows(split), data = inputs)
+  stamp <- if (length(absent) == length(.nb_driver_tables())) {
+    "whep_built"
+  } else {
+    "supplied|whep_built"
+  }
+  list(tables = tables[absent], stamp = stamp)
+}
+
+# The balance keys the drivers must cover: every balance row (for leaching)
+# and, with its loss fert_type, every loss row .nb_loss_rows() forms.
+.nb_driver_rows <- function(split) {
+  key <- split$key
+  loss <- split$n_inputs |>
+    dplyr::filter(.data$fert_type %in% .nb_n2o_fert_types()) |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(key, "fert_type")))) |>
+    dplyr::mutate(fert_type = .nb_loss_fert_type(.data$fert_type))
+  balance <- split$x |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(key))) |>
+    dplyr::mutate(fert_type = NA_character_)
+  dplyr::bind_rows(loss, balance)
 }
 
 # ---- Private helpers: method validation ----------------------------------
@@ -1055,10 +1187,18 @@ build_nitrogen_balance <- function(
     "method_soil_n2o",
     "method_n2o_indirect_nh3",
     "method_leaching",
+    "method_drivers",
+    intersect(.nb_driver_cols(), names(x)),
     intersect(c("method_regime", "method_regime_split"), names(x)),
     intersect(.nb_input_method_cols(), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
+}
+
+# The wet/dry class each balance row was priced on and how it was obtained,
+# kept when the leaching drivers carry them (build_n_loss_drivers() does).
+.nb_driver_cols <- function() {
+  c("moisture_regime", "method_moisture_regime", "climate_fill_km")
 }
 
 # The method columns build_n_inputs() stamps on its rows, carried through to
@@ -1168,6 +1308,7 @@ build_nitrogen_balance <- function(
     ~method_soil_n2o,
     ~method_n2o_indirect_nh3,
     ~method_leaching,
+    ~method_drivers,
     10L,
     2511L,
     2020L,
@@ -1207,7 +1348,8 @@ build_nitrogen_balance <- function(
     "manner",
     "ipcc2019_wet_dry",
     "ipcc2019_wet_dry",
-    "meisinger_drainage"
+    "meisinger_drainage",
+    "supplied"
   ) |>
     .add_reporting_polity_columns()
 }

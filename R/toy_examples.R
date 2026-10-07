@@ -2513,3 +2513,49 @@
     .add_reporting_polity_columns() |>
     tibble::as_tibble()
 }
+
+# Five balance keys of build_n_loss_drivers() on the offline three-cell
+# fixture of its tests (2010, annual window): irrigated maize in a dry cell,
+# a row with no crop, grass and rice rows with no regime land, and maize in a
+# cell off CRU's land mask that took its nearest CRU cell's climate. The loss
+# table carries each key with its synthetic N row.
+.example_n_loss_drivers <- function() {
+  leaching <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime,
+    ~moisture_regime, ~method_moisture_regime, ~climate_fill_km,
+    9.25, 47.75, 79L, 2514L, 2010L, "irrigated", "dry",
+    "ipcc2019_wet_dry;annual;precip_irrig", NA,
+    9.25, 47.75, 79L, NA, 2010L, "rainfed", "dry",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_crop_item", NA,
+    9.75, 47.75, 79L, 3000L, 2010L, "rainfed", "wet",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
+    9.75, 47.75, 79L, 2807L, 2010L, "irrigated", "wet",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
+    10.25, 47.75, 79L, 2514L, 2010L, "rainfed", "wet",
+    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell", 37.38188
+  ) |>
+    dplyr::mutate(climate_fill_km = as.numeric(.data$climate_fill_km))
+  loss <- leaching |>
+    dplyr::mutate(
+      fert_type = "Synthetic",
+      climate = c("MED", "MED", "ATL", "ATL", "ATL"),
+      irrig_type = c("Med_average", "Rainfed", "Tier_1", "Flooded", "Tier_1"),
+      method_climate = "from_moisture_regime"
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "item_cbs_code",
+      "year",
+      "water_regime",
+      "fert_type",
+      "moisture_regime",
+      "climate",
+      "irrig_type",
+      "method_moisture_regime",
+      "method_climate",
+      "climate_fill_km"
+    )
+  list(n_balance_drivers = loss, n_balance_leaching_drivers = leaching)
+}

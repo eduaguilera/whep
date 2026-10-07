@@ -283,6 +283,7 @@ reference:
   - spatialize_country_n_to_crops
   - build_ag_land_support
   - build_n_inputs
+  - build_n_loss_drivers
   - build_nitrogen_balance
   - calculate_n_surplus
 

@@ -70,6 +70,20 @@ The bedded straw also comes back as a manure input, through
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
+\item \code{n_balance_drivers} and \code{n_balance_leaching_drivers}: the loss
+drivers. At grid resolution each one left \code{NULL} is built by
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} on the split balance's own rows (the IPCC 2019
+wet/dry class and the ATL/MED drivers mapped from it; see its table of
+which methods it supplies), and \code{method_drivers} says so. That needs
+the rainfed/irrigated split (\code{methods$regime} other than \code{"none"});
+\code{leaching = "meisinger_drainage"} and the MANNER \code{nh3} methods read
+drivers it does not supply and are refused before any input is
+assembled unless their table is supplied. At polity resolution both
+must be supplied.
+\item \code{n_loss_driver_inputs}: optional list passed as \code{data} to
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} when it runs (\code{climate}, \code{crop_depth},
+\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}); the
+balance's own \code{country_grid} is shared with it.
 \item \code{n_balance_drivers}: additional per-\verb{(key, fert_type)} driver
 columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}/
 \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}} need beyond \code{n_input_t}/\code{fert_type}
@@ -119,13 +133,19 @@ per-hectare rate), the input aggregates
 (\code{n_output_residues_t}, \code{n_output_som_t}, \code{n_output_useful_t},
 \code{n_output_std_t}, \code{n_output_full_t}), the loss terms (\code{nh3_n_t},
 \code{n2o_direct_n_t}, \code{no3_n_t}, \code{denitrification_n_t},
-\code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t}), the (post-cap)
+\code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t};
+\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus,
+see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_n2o_indirect_nh3}/\code{method_leaching}
 provenance columns (the per-row stamps of the loss functions; a balance
 row pooling loss rows priced differently lists them joined by \code{"|"}),
+\code{method_drivers} (\code{"whep_built"}, \code{"supplied"} or
+\code{"supplied|whep_built"}), and, when the leaching drivers carry them (as
+built ones do), the row's wet/dry \code{moisture_regime}, how it was obtained
+(\code{method_moisture_regime}) and \code{climate_fill_km},
 \code{method_regime}
 and \code{method_regime_split} when the split ran (\code{"yield_ratio"};
 \code{"area_no_production"} where the crop's production could not be

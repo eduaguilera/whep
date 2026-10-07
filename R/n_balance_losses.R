@@ -397,6 +397,8 @@ calculate_indirect_n2o_nh3 <- function(
          {.fn read_lpjml_wind} (monthly, 0.5-degree, needs
          {.envvar WHEP_WIND_DIR}); no function supplies the other MANNER
          drivers.",
+    i = "{.fn build_n_loss_drivers} supplies the wet/dry and ATL/MED
+         drivers, not these.",
     i = "Supply them yourself, or use the IPCC Tier 1 method,
          {.code method = \"ipcc\"}, which needs only {.field fert_type}."
   )
