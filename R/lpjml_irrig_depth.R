@@ -322,14 +322,35 @@
 
 # Methods from most to least direct. A commodity balance item pooling crops of
 # different standing carries the least direct of them, so a proxy is never
-# relabelled as the crop's own depth.
+# relabelled as the crop's own depth, nor a filled depth as a computed one.
 .lid_method_rank <- function() {
-  c(.lid_lpjml_methods(), "no_irrigated_stand", "no_band")
+  c(
+    .lid_lpjml_methods(),
+    .lid_stand_fill_methods(),
+    "no_irrigated_stand",
+    "no_band"
+  )
 }
 
 # The methods whose depth LPJmL computed.
 .lid_lpjml_methods <- function() {
   c("lpjml_airrig_stand", "lpjml_crop_proxy", "lpjml_others_proxy")
+}
+
+# The depths build_cell_moisture_regime() fills where WHEP irrigates a crop
+# the LPJmL run has no irrigated stand of in the cell, in a year the run
+# covers: the crop's LPJmL depth averaged over the polity's cells that have
+# the stand, else over the world's. `lpjml_landuse_vintage` is a cell on the
+# LPJmL grid (the run's land-use forcing differs from WHEP's current land
+# use there), `no_lpjml_cell` a cell outside it. This layer itself never
+# fills; its rows keep "no_irrigated_stand".
+.lid_stand_fill_methods <- function() {
+  c(
+    "lpjml_landuse_vintage",
+    "no_lpjml_cell",
+    "lpjml_landuse_vintage_world_mean",
+    "no_lpjml_cell_world_mean"
+  )
 }
 
 # Each production item's commodity balance item.

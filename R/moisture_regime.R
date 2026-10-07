@@ -26,7 +26,11 @@
 #    lie outside the climate record and took the held climatology of years
 #    first-last (the first 30 years of the record before it, the last 30
 #    after it), the rule `build_cell_climate_zone()` follows.
-# 5. Optional, only on an unclassified row (`moisture_regime` is NA):
+# 5. Optional, only on an irrigated row classified from a separate irrigation
+#    record: `irrig_years_<n>of<m>`, meaning the row's land was irrigated in
+#    n of the window's m years, and its irrigation is the mean of those n
+#    years. Climate is still the mean of all m.
+# 6. Optional, only on an unclassified row (`moisture_regime` is NA):
 #    `missing=<col>[+<col>...]`, the inputs whose window mean is unavailable
 #    because at least one window year has no value or no row; and/or
 #    `pet_not_positive`, a window-mean PET of zero, for which the ratio is
@@ -57,6 +61,9 @@
 #'     `lpjml_version`, `lpjml_git_hash`, `lpjml_run`).
 #'   - `lpjml_years`: the years the LPJmL run covers (default: the years of
 #'     `crop_depth`).
+#'   - `lpjml_grid`: the cells (`lon`, `lat`) the LPJmL run's output covers.
+#'     Needed with `crop_depth` when an irrigated row's crop has no
+#'     irrigated LPJmL stand in its cell; otherwise read from the run.
 #'   - `regime_areas`: WHEP's rainfed and irrigated hectares (`lon`, `lat`,
 #'     `area_code`, `item_prod_code`, `year`, `rainfed_ha`, `irrigated_ha`).
 #'   - `country_grid`: the cell support the regime areas are built on when
@@ -76,6 +83,20 @@
 #'   `method_irrig_depth`, `lpjml_crop` and the LPJmL vintage columns
 #'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`, plus the polity
 #'   columns below.
+#'
+#'   An irrigated row's irrigation is averaged over the window years in which
+#'   WHEP irrigates that land, its climate over the whole window; a row
+#'   irrigated in fewer than all of them carries `irrig_years_<n>of<m>` in
+#'   `method_moisture_regime`. Where WHEP irrigates a crop the LPJmL run has
+#'   no irrigated stand of in the cell, in a year the run covers, the depth
+#'   is the crop's LPJmL depth averaged over the polity's cells that have the
+#'   stand, weighted by WHEP's irrigated hectares, and `method_irrig_depth`
+#'   says why: `lpjml_landuse_vintage` for a cell on the LPJmL grid (the
+#'   run's land-use forcing differs from WHEP's there) or `no_lpjml_cell`
+#'   for one outside it, with the suffix `_world_mean` where the polity has
+#'   no such stand and the world's mean is used. A message of class
+#'   `whep_moisture_regime_stand_gap` counts these rows and hectares by
+#'   cause; its `diagnosis` field lists every case.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
@@ -142,7 +163,11 @@ build_cell_moisture_regime <- function(
 # from a model run that covers every window year, years before the climate
 # record included. `data` then carries no `irrig_mm`, and the irrigation
 # window mean takes each window year's own depth: no climatology is held for
-# it. A window year the table lacks still gives a missing mean.
+# it. The record holds a row for each year the series' land was irrigated, so
+# a window year it lacks is a year that land was not irrigated: it has no
+# irrigation to average, and the mean is taken over the years it does hold,
+# their count stamped. A row it holds with a missing depth still gives a
+# missing mean. Climate is averaged over the whole window regardless.
 #
 # Returns one row per series (`lon`, `lat` and the optional `area_code`,
 # `item_cbs_code`, `water_regime`) and requested year, carrying the
@@ -454,8 +479,8 @@ build_cell_moisture_regime <- function(
 # definition, so its irrigation term is a structural zero of the regime split
 # WHEP defines, not a filled absence.
 #
-# A separate `irrigation` record is averaged over each window year's own
-# depth, so its plan measures every year the windows need.
+# A separate `irrigation` record is averaged over the window years in which
+# the series' land was irrigated, the years it holds a row for.
 .join_window_irrigation <- function(rows, inputs, frame, water, irrigation) {
   force(rows)
   if (water == "precip") {
@@ -464,25 +489,60 @@ build_cell_moisture_regime <- function(
   key <- .moisture_series_key(inputs)
   has_regime <- rlang::has_name(inputs, "water_regime")
   source <- irrigation %||% inputs
-  if (!is.null(irrigation)) {
-    frame$plan <- .climate_year_plan(frame$needed, frame$needed)
-  }
   irrigated <- if (has_regime) source[water_regime == "irrigated"] else source
   if (nrow(irrigated) == 0L) {
     # Every row is rainfed, so every irrigation term is the structural zero.
     return(rows[, irrig_mm := 0])
   }
-  means <- .moisture_window_means(
-    irrigated[, c(key, "year", "irrig_mm"), with = FALSE],
-    key,
-    "irrig_mm",
-    frame
-  )
+  values <- irrigated[, c(key, "year", "irrig_mm"), with = FALSE]
+  means <- if (is.null(irrigation)) {
+    .moisture_window_means(values, key, "irrig_mm", frame)
+  } else {
+    .irrigated_years_means(values, key, frame)
+  }
   out <- means[rows, on = c(key, "year")]
   if (has_regime) {
     out[water_regime == "rainfed", irrig_mm := 0]
   }
   out
+}
+
+# Per series and requested year: the mean depth over the window years the
+# record holds (the years the land was irrigated) and, where that is fewer
+# than the window's years, `.irrig_years`, the stamp's count. Every window
+# year is measured, none held. A year the record lacks enters as zero depth
+# and zero weight, so the window sums divide to the mean of the irrigated
+# years exactly; a held year with a missing depth keeps the sum missing.
+.irrigated_years_means <- function(values, key, frame) {
+  frame$plan <- .climate_year_plan(frame$needed, frame$needed)
+  values[, irrigated_year := 1]
+  panel <- .complete_panel(values, key, frame$needed)
+  panel[is.na(irrigated_year), `:=`(irrig_mm = 0, irrigated_year = 0)]
+  n_window <- length(
+    .moisture_window_years(frame$years[[1L]], frame$window, frame$period)
+  )
+  means <- .apply_moisture_window(
+    panel,
+    key,
+    c("irrig_mm", "irrigated_year"),
+    frame
+  )
+  means[, n_irrigated := as.integer(round(irrigated_year * n_window))]
+  means[,
+    irrig_mm := data.table::fifelse(
+      n_irrigated > 0L,
+      irrig_mm / irrigated_year,
+      NA_real_
+    )
+  ]
+  means[,
+    .irrig_years := data.table::fifelse(
+      n_irrigated < n_window,
+      paste0("irrig_years_", n_irrigated, "of", n_window),
+      NA_character_
+    )
+  ]
+  means[, c(key, "year", "irrig_mm", ".irrig_years"), with = FALSE]
 }
 
 # Window means of `cols` per `by_cols` group for each requested year. A window
@@ -630,8 +690,14 @@ build_cell_moisture_regime <- function(
     if (water == "precip_irrig") "irrig_mm"
   )
   rows |>
+    ensure_columns(tibble::tibble(.irrig_years = character())) |>
     dplyr::left_join(.moisture_year_labels(frame, water), by = "year") |>
     dplyr::mutate(
+      .method = dplyr::if_else(
+        is.na(.irrig_years),
+        .method,
+        paste(.method, .irrig_years, sep = ";")
+      ),
       method_moisture_regime = dplyr::if_else(
         is.na(.unclassified),
         .method,
@@ -722,9 +788,16 @@ build_cell_moisture_regime <- function(
 #   record of its own: LPJmL runs before 1901 too, on recycled 1901-1930
 #   weather, and those depths are used as the model computed them, labelled.
 # - Structural stand check: LPJmL is run on WHEP's own crop land use, so an
-#   irrigated WHEP row whose crop has no irrigated LPJmL stand is a defect,
-#   not a gap. A year outside the run is the one cause that is filled; an
-#   unmapped item or any other mismatch aborts.
+#   irrigated WHEP row whose crop has no irrigated LPJmL stand is a mismatch
+#   between the two, counted by cause. An item with no LPJmL crop band is a
+#   mapping defect and aborts. A year outside the run takes the series'
+#   window mean. In a year the run covers, the row takes its crop's LPJmL
+#   depth averaged over the polity's cells that have the stand, weighted by
+#   WHEP's irrigated hectares (else over the world's), stamped by whether
+#   the cell is on the LPJmL grid; with no stand anywhere it aborts.
+# - Window: an irrigated series' irrigation is averaged over the window
+#   years its land was irrigated (WHEP irrigated hectares above zero),
+#   stamped with their count; its climate over the whole window.
 # Classification is cell-independent, so it runs in blocks of cells.
 
 # The series a row belongs to (one cell, polity and balance item), and the
@@ -852,15 +925,18 @@ build_cell_moisture_regime <- function(
   if (nrow(series) == 0L) {
     return(NULL)
   }
-  items <- areas |>
-    dplyr::filter(.data$irrigated_ha > 0) |>
-    dplyr::semi_join(series, by = key)
-  lpjml <- .cmr_crop_depth(sort(unique(items$year)), data, spec$config)
-  depth <- .lid_item_depth(items, lpjml$crop)
-  .cmr_check_stands(depth, lpjml)
+  irrigated <- dplyr::filter(areas, .data$irrigated_ha > 0)
+  lpjml <- .cmr_crop_depth(sort(unique(irrigated$year)), data, spec$config)
+  # Every irrigated row of the window years gets a depth: the country and
+  # world means of a stand-gap fill average over all of them, the series'
+  # own rows are the ones classified.
+  every <- .lid_item_depth(irrigated, lpjml$crop)
+  depth <- dplyr::semi_join(every, series, by = key) |>
+    .cmr_fill_stand_gaps(every, lpjml, data, spec$config)
   in_run <- depth$year %in% lpjml$run_years
   list(
-    cbs = .cmr_cbs_depth(depth[in_run, ]),
+    cbs = .cmr_cbs_depth(depth[in_run, ]) |>
+      .cmr_absent_area_years(series, areas, spec$needed),
     outside = dplyr::summarise(
       depth[!in_run, ],
       irrigated_ha = sum(.data$irrigated_ha),
@@ -909,6 +985,18 @@ build_cell_moisture_regime <- function(
     dplyr::left_join(weights, by = key, relationship = "one-to-one")
 }
 
+# A window year the regime areas hold no rows for at all says nothing about
+# whether a series' land was irrigated, so it is not read as a year without
+# irrigation: every irrigated series carries it as a missing depth, which
+# leaves the series' window mean missing.
+.cmr_absent_area_years <- function(cbs, series, areas, needed) {
+  absent <- setdiff(needed, unique(areas$year))
+  if (length(absent) == 0L) {
+    return(cbs)
+  }
+  dplyr::bind_rows(cbs, tidyr::expand_grid(series, year = as.integer(absent)))
+}
+
 .cmr_vintage <- function(crop) {
   if (nrow(crop) == 0L) {
     return(tibble::tibble(
@@ -922,12 +1010,30 @@ build_cell_moisture_regime <- function(
 
 # -- Structural stand check ---------------------------------------------------
 
+# The series' production item rows with every stand gap in a year the run
+# covers filled (see the section header), after the mapping check. `every`
+# is every irrigated row of the window years, the rows the means average.
+.cmr_fill_stand_gaps <- function(depth, every, lpjml, data, config) {
+  gaps <- .cmr_check_stands(depth, lpjml)
+  if (is.null(gaps)) {
+    return(depth)
+  }
+  diagnosis <- .cmr_stand_diagnosis(
+    gaps,
+    lpjml$crop,
+    .cmr_lpjml_grid(data, config)
+  )
+  filled <- .cmr_apply_stand_means(depth, diagnosis$cases, every)
+  .cmr_inform_stand_gaps(diagnosis, filled)
+  filled
+}
+
 # Every irrigated production item row without an LPJmL depth, by cause:
 # - "outside_run": the year lies outside the LPJmL run; filled later;
 # - "mapping": the item has no LPJmL crop band; aborts;
-# - "unexplained": anything else, the item's crop has no irrigated stand in
-#   the cell although the run covers the year; aborts. The diagnosis says
-#   whether LPJmL has any crop in the cell and a rainfed stand of the crop.
+# - "stand_gap": the item's crop has no irrigated stand in the cell although
+#   the run covers the year; returned, to be filled.
+# NULL when there is no stand gap.
 .cmr_check_stands <- function(depth, lpjml) {
   defects <- depth |>
     dplyr::filter(!.data$method_irrig_depth %in% .lid_lpjml_methods()) |>
@@ -935,18 +1041,23 @@ build_cell_moisture_regime <- function(
       cause = dplyr::case_when(
         .data$method_irrig_depth == "no_band" ~ "mapping",
         !.data$year %in% lpjml$run_years ~ "outside_run",
-        .default = "unexplained"
+        .default = "stand_gap"
       )
     )
-  if (!any(defects$cause %in% c("mapping", "unexplained"))) {
-    return(invisible(defects))
+  .cmr_abort_mapping(defects)
+  gaps <- dplyr::filter(defects, .data$cause == "stand_gap")
+  if (nrow(gaps) == 0L) {
+    return(NULL)
   }
-  diagnosis <- .cmr_stand_diagnosis(defects, lpjml$crop)
-  .cmr_abort_mapping(diagnosis)
-  .cmr_abort_mismatch(diagnosis, .cmr_vintage(lpjml$crop))
+  gaps
 }
 
-.cmr_stand_diagnosis <- function(defects, crop) {
+# Per stand gap, why LPJmL has no irrigated stand of the crop, and the fill
+# stamp that follows: `detail` says whether the cell is on the LPJmL grid,
+# whether LPJmL has any crop stand in it and whether it has a rainfed stand
+# of the crop; `fill` is `no_lpjml_cell` off the grid, else
+# `lpjml_landuse_vintage`. `summary` counts rows and hectares by both.
+.cmr_stand_diagnosis <- function(gaps, crop, grid) {
   cells <- crop |>
     dplyr::distinct(.data$lon, .data$lat, .data$year) |>
     dplyr::mutate(cell_has_crops = TRUE)
@@ -957,15 +1068,25 @@ build_cell_moisture_regime <- function(
     ) |>
     dplyr::distinct(.data$lon, .data$lat, .data$year, .data$lpjml_crop) |>
     dplyr::mutate(crop_rainfed = TRUE)
-  cases <- defects |>
+  cases <- gaps |>
+    dplyr::left_join(
+      grid,
+      by = c("lon", "lat"),
+      relationship = "many-to-one"
+    ) |>
     dplyr::left_join(cells, by = c("lon", "lat", "year")) |>
     dplyr::left_join(rainfed, by = c("lon", "lat", "year", "lpjml_crop")) |>
     dplyr::mutate(
       detail = dplyr::case_when(
-        .data$cause != "unexplained" ~ .data$cause,
+        is.na(.data$in_lpjml) ~ "outside_lpjml_grid",
         is.na(.data$cell_has_crops) ~ "no_lpjml_crop_stand_in_cell",
         .data$crop_rainfed %in% TRUE ~ "lpjml_crop_rainfed_only",
         .default = "lpjml_crop_absent_from_cell"
+      ),
+      fill = dplyr::if_else(
+        is.na(.data$in_lpjml),
+        "no_lpjml_cell",
+        "lpjml_landuse_vintage"
       )
     ) |>
     dplyr::select(
@@ -977,28 +1098,194 @@ build_cell_moisture_regime <- function(
       "year",
       "irrigated_ha",
       "lpjml_crop",
-      "cause",
-      "detail"
+      "detail",
+      "fill"
     ) |>
     dplyr::arrange(dplyr::desc(.data$irrigated_ha))
-  summary <- cases |>
+  list(summary = .cmr_stand_summary(cases, c("fill", "detail")), cases = cases)
+}
+
+.cmr_stand_summary <- function(cases, by) {
+  cases |>
     dplyr::summarise(
       n_rows = dplyr::n(),
       irrigated_ha = sum(.data$irrigated_ha),
-      .by = c("cause", "detail")
+      .by = dplyr::all_of(by)
     ) |>
-    dplyr::arrange(.data$cause, dplyr::desc(.data$irrigated_ha))
-  list(summary = summary, cases = cases)
+    dplyr::arrange(.data[[by[[1L]]]], dplyr::desc(.data$irrigated_ha))
 }
 
-.cmr_abort_mapping <- function(diagnosis) {
-  cases <- diagnosis$cases[diagnosis$cases$cause == "mapping", ]
+# The cells the LPJmL run covers at all (any band): the supplied grid, else
+# the run's (or, with no run, the pinned layer's), the grid the regime yield
+# ratio reads. Supplied crop depths come with their own grid, never the
+# run's.
+.cmr_lpjml_grid <- function(data, config) {
+  if (!is.null(data$lpjml_grid)) {
+    return(.ryr_lpjml_grid(data$lpjml_grid))
+  }
+  if (!is.null(data$crop_depth)) {
+    cli::cli_abort(
+      c(
+        "{.code data$crop_depth} has stand gaps, so the LPJmL grid it was
+         computed on is needed too.",
+        i = "Supply {.code data$lpjml_grid}, the cells ({.field lon},
+             {.field lat}) the run's output covers."
+      ),
+      class = "whep_moisture_regime_lpjml_grid"
+    )
+  }
+  .ryr_lpjml_grid(.ryr_read_lpjml_grid(config$run_dir))
+}
+
+# The crop's LPJmL depth for each stand gap: the mean over the polity's
+# production item rows that LPJmL computed a depth for that year, weighted
+# by WHEP's irrigated hectares, else the same over the world. A crop with no
+# irrigated stand anywhere that year has no depth to give: that aborts.
+.cmr_apply_stand_means <- function(depth, cases, every) {
+  row_key <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  means <- .cmr_stand_means(every)
+  out <- depth |>
+    dplyr::left_join(
+      dplyr::select(cases, dplyr::all_of(row_key), "fill"),
+      by = row_key,
+      relationship = "one-to-one"
+    ) |>
+    dplyr::left_join(
+      means$country,
+      by = c("area_code", "lpjml_crop", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::left_join(
+      means$world,
+      by = c("lpjml_crop", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      irrig_mm = dplyr::case_when(
+        is.na(.data$fill) ~ .data$irrig_mm,
+        !is.na(.data$country_mm) ~ .data$country_mm,
+        .default = .data$world_mm
+      ),
+      method_irrig_depth = dplyr::case_when(
+        is.na(.data$fill) ~ .data$method_irrig_depth,
+        !is.na(.data$country_mm) ~ .data$fill,
+        .default = paste0(.data$fill, "_world_mean")
+      )
+    )
+  .cmr_check_stand_means(out)
+  dplyr::select(out, -"fill", -"country_mm", -"world_mm")
+}
+
+.cmr_stand_means <- function(every) {
+  known <- dplyr::filter(
+    every,
+    .data$method_irrig_depth %in% .lid_lpjml_methods()
+  )
+  list(
+    country = .cmr_weighted_depth(known, "country_mm", c("area_code")),
+    world = .cmr_weighted_depth(known, "world_mm", character())
+  )
+}
+
+.cmr_weighted_depth <- function(known, name, by) {
+  dplyr::summarise(
+    known,
+    "{name}" := sum(.data$irrig_mm * .data$irrigated_ha) /
+      sum(.data$irrigated_ha),
+    .by = dplyr::all_of(c(by, "lpjml_crop", "year"))
+  )
+}
+
+.cmr_check_stand_means <- function(filled) {
+  bare <- filled[!is.na(filled$fill) & is.na(filled$irrig_mm), ]
+  if (nrow(bare) == 0L) {
+    return(invisible(NULL))
+  }
+  crops <- sort(unique(paste0(bare$lpjml_crop, " (", bare$year, ")")))
+  n_rows <- nrow(bare)
+  cli::cli_abort(
+    c(
+      "{n_rows} irrigated row{?s} of WHEP's land use lack an irrigated LPJmL
+       stand of their crop, and the run has none of it anywhere that year.",
+      i = "Crops (years): {crops}.",
+      x = "There is no LPJmL depth of the crop to stand in."
+    ),
+    class = "whep_moisture_regime_stand_no_mean"
+  )
+}
+
+# Say how many rows were filled, how many hectares, and why: the condition's
+# `diagnosis` holds every case.
+.cmr_inform_stand_gaps <- function(diagnosis, filled) {
+  row_key <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  cases <- diagnosis$cases |>
+    dplyr::select(-"fill") |>
+    dplyr::left_join(
+      dplyr::select(
+        filled,
+        dplyr::all_of(row_key),
+        fill = "method_irrig_depth"
+      ),
+      by = row_key,
+      relationship = "one-to-one"
+    )
+  diagnosis <- list(
+    summary = .cmr_stand_summary(cases, c("fill", "detail")),
+    cases = cases
+  )
+  details <- diagnosis$summary
+  bullets <- rlang::set_names(
+    paste0(
+      details$fill,
+      ", ",
+      details$detail,
+      ": ",
+      details$n_rows,
+      " rows, ",
+      .cmr_format_ha(details$irrigated_ha),
+      " ha"
+    ),
+    rep("*", nrow(details))
+  )
+  n_rows <- nrow(cases)
+  hectares <- .cmr_format_ha(sum(cases$irrigated_ha))
+  cli::cli_inform(
+    c(
+      "{n_rows} irrigated row{?s} of WHEP's land use ({hectares} ha), in years
+       the LPJmL run covers, have no irrigated LPJmL stand of their crop; each
+       takes its crop's mean LPJmL depth, stamped in
+       {.field method_irrig_depth}.",
+      bullets,
+      i = "The condition's {.field diagnosis} holds every case."
+    ),
+    class = "whep_moisture_regime_stand_gap",
+    diagnosis = diagnosis
+  )
+}
+
+.cmr_abort_mapping <- function(defects) {
+  cases <- defects[defects$cause == "mapping", ]
   if (nrow(cases) == 0L) {
     return(invisible(NULL))
   }
   n_rows <- nrow(cases)
   hectares <- .cmr_format_ha(sum(cases$irrigated_ha))
   largest <- .cmr_largest(cases, "item_prod_code")
+  cases <- dplyr::select(
+    cases,
+    "lon",
+    "lat",
+    "area_code",
+    "item_prod_code",
+    "item_cbs_code",
+    "year",
+    "irrigated_ha",
+    "cause"
+  )
+  diagnosis <- list(
+    summary = .cmr_stand_summary(cases, "cause"),
+    cases = dplyr::arrange(cases, dplyr::desc(.data$irrigated_ha))
+  )
   cli::cli_abort(
     c(
       "{n_rows} irrigated row{?s} of WHEP's land use ({hectares} ha) belong to
@@ -1010,45 +1297,6 @@ build_cell_moisture_regime <- function(
            {.field diagnosis} holds every case."
     ),
     class = "whep_moisture_regime_stand_mapping",
-    diagnosis = diagnosis
-  )
-}
-
-.cmr_abort_mismatch <- function(diagnosis, vintage) {
-  cases <- diagnosis$cases[diagnosis$cases$cause == "unexplained", ]
-  if (nrow(cases) == 0L) {
-    return(invisible(NULL))
-  }
-  n_rows <- nrow(cases)
-  hectares <- .cmr_format_ha(sum(cases$irrigated_ha))
-  details <- diagnosis$summary[diagnosis$summary$cause == "unexplained", ]
-  bullets <- rlang::set_names(
-    paste0(
-      details$detail,
-      ": ",
-      details$n_rows,
-      " rows, ",
-      .cmr_format_ha(details$irrigated_ha),
-      " ha"
-    ),
-    rep("*", nrow(details))
-  )
-  largest_items <- .cmr_largest(cases, "item_prod_code")
-  largest_cells <- .cmr_largest(cases, c("lon", "lat"))
-  cli::cli_abort(
-    c(
-      "{n_rows} irrigated row{?s} of WHEP's land use ({hectares} ha), in years
-       the LPJmL run covers, have no irrigated LPJmL stand of their crop.",
-      x = "LPJmL is run on WHEP's own crop land use, so the two must agree.
-           The likeliest cause is a land-use vintage mismatch between the
-           run's forcing and the current WHEP land use.",
-      bullets,
-      i = "Largest items: {largest_items}.",
-      i = "Largest cells (lon/lat): {largest_cells}.",
-      i = "LPJmL run: {vintage$lpjml_run}. The condition's {.field diagnosis}
-           holds every case."
-    ),
-    class = "whep_moisture_regime_stand_mismatch",
     diagnosis = diagnosis
   )
 }
@@ -1405,7 +1653,8 @@ build_cell_moisture_regime <- function(
     dplyr::mutate(
       method = .lid_method_rank()[dplyr::na_if(.data$rank, 0L)],
       method = dplyr::if_else(
-        .data$recycled & .data$method %in% .lid_lpjml_methods(),
+        .data$recycled &
+          .data$method %in% c(.lid_lpjml_methods(), .lid_stand_fill_methods()),
         paste0(.data$method, "_recycled_climate"),
         .data$method
       ),

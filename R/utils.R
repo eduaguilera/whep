@@ -2698,6 +2698,11 @@ utils::globalVariables(
     "moisture_ratio",
     ".unclassified",
     ".method",
+    # moisture_regime.R -- the irrigated-years window mean of a separate
+    # irrigation record and its stamp field
+    "irrigated_year",
+    "n_irrigated",
+    ".irrig_years",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

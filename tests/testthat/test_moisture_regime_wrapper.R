@@ -198,25 +198,64 @@ testthat::test_that("a trailing window averages each year's own inputs", {
   )
 })
 
-testthat::test_that("a window year with no WHEP irrigation is left missing", {
-  # Maize is irrigated in A only from 2000 on, so 1981-1999 have no
-  # irrigated row and no depth; the window mean is not taken over fewer years.
+testthat::test_that("irrigation averages the years the land was irrigated", {
+  # Maize is irrigated in A for polity 79 only in 1999-2010, 12 of the 30
+  # window years. Its LPJmL depth is the year less 1900 mm, and A's
+  # precipitation rises 10 mm a year from 600 in 1981.
   d <- .cmw_data(1981:2010)
-  early <- d$regime_areas$year < 2000L & d$regime_areas$item_prod_code == 56L
-  d$regime_areas$irrigated_ha[early & d$regime_areas$area_code == 79L] <- 0
+  early <- d$regime_areas$year < 1999L &
+    d$regime_areas$item_prod_code == 56L &
+    d$regime_areas$area_code == 79L
+  d$regime_areas$irrigated_ha[early] <- 0
+  maize_depth <- d$crop_depth$lpjml_crop == "maize" &
+    d$crop_depth$lon == 9.25
+  d$crop_depth$irrig_mm_irrigated[maize_depth] <-
+    d$crop_depth$year[maize_depth] - 1900
+  in_a <- d$climate$lon == 9.25
+  d$climate$annual_precip_mm[in_a] <- 600 + 10 * (d$climate$year[in_a] - 1981)
+
+  out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
+
+  # Irrigation: the mean of 1999-2010 alone, not a 30-year mean.
+  testthat::expect_equal(maize$irrig_mm, mean(99:110))
+  # Climate: still the mean of all 30 years (the 1999-2010 mean is 835).
+  testthat::expect_equal(maize$prec_mm, 600 + 10 * mean(0:29))
+  testthat::expect_equal(maize$water_mm, 745 + 104.5)
+  testthat::expect_identical(maize$moisture_regime, "dry")
+  testthat::expect_identical(
+    maize$method_moisture_regime,
+    "ipcc2019_wet_dry;trailing_30;precip_irrig;irrig_years_12of30"
+  )
+  testthat::expect_identical(maize$method_irrig_depth, "lpjml_airrig_stand")
+  # Vegetables, irrigated every year, carry no count; nothing is unclassified.
+  testthat::expect_identical(
+    .cmw_row(out, 9.25, 79L, 2605L)$method_moisture_regime,
+    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+  )
+  testthat::expect_false(anyNA(out$moisture_regime))
+})
+
+testthat::test_that("a window year the regime areas lack stays missing", {
+  # No regime areas at all for 1985: whether the land was irrigated then is
+  # unknown, which is not the same as not irrigated.
+  d <- .cmw_data(1981:2010)
+  d$regime_areas <- d$regime_areas[d$regime_areas$year != 1985L, ]
   testthat::expect_message(
-    out <- whep::build_cell_moisture_regime(years = 2010L, data = d),
+    testthat::expect_message(
+      out <- whep::build_cell_moisture_regime(years = 2010L, data = d),
+      class = "whep_moisture_regime_area_years"
+    ),
     class = "whep_moisture_regime_unclassified"
   )
-  maize <- .cmw_row(out, 9.25, 79L, 2514L)
-  testthat::expect_true(is.na(maize$moisture_regime))
-  testthat::expect_true(is.na(maize$irrig_mm))
-  testthat::expect_match(maize$method_moisture_regime, "missing=irrig_mm$")
-  # Rainfed rows are untouched.
-  testthat::expect_identical(
-    .cmw_row(out, 9.25, 79L, 2514L, "rainfed")$moisture_regime,
-    "dry"
-  )
+  irrigated <- out[out$water_regime == "irrigated", ]
+  testthat::expect_true(all(is.na(irrigated$moisture_regime)))
+  testthat::expect_true(all(
+    stringr::str_ends(irrigated$method_moisture_regime, "missing=irrig_mm")
+  ))
+  testthat::expect_false(anyNA(out$moisture_regime[
+    out$water_regime == "rainfed"
+  ]))
 })
 
 testthat::test_that("LPJmL's own pre-1901 depths are used, labelled", {
@@ -323,45 +362,198 @@ testthat::test_that("an irrigated item with no LPJmL band aborts", {
   testthat::expect_equal(summary$irrigated_ha, 7)
 })
 
-testthat::test_that("any other missing stand aborts with its diagnosis", {
-  d <- .cmw_data(2010L)
-  # Cabbages lose their "others" stand, and a third cell with no LPJmL crop
-  # at all and irrigated rice in cell B join them.
-  d$crop_depth <- d$crop_depth[d$crop_depth$lpjml_crop != "others", ]
+# Stand gaps, 2010. Cell C (10.25) of polity 79 has irrigated maize at 300 mm
+# and "others" at 200 mm, where WHEP irrigates 20 ha of maize and 30 of
+# cabbages. The gaps: in B (on the grid, rainfed maize only) 3 ha of
+# irrigated maize and 2 ha of cabbages; in G (12.25, on the grid, no crop
+# stand) 4 ha of maize; in E (11.25, off the grid) 5 ha of maize; in F
+# (6.25, polity 68, rainfed maize only) 6 ha of cabbages, a polity with no
+# "others" stand anywhere.
+.cmw_gap_data <- function(extra = NULL, years = 2010L) {
+  d <- .cmw_data(years)
+  lpjml <- tibble::tribble(
+    ~lon,  ~lat,  ~lpjml_crop, ~irrig_mm_irrigated, ~stand_frac_irrigated,
+    ~stand_frac_rainfed,
+    10.25, 47.75, "maize",     300,                 0.2,
+    0.1,
+    10.25, 47.75, "others",    200,                 0.1,
+    0,
+    6.25,  47.75, "maize",     NA,                  NA,
+    0.2
+  ) |>
+    tidyr::expand_grid(year = as.integer(years)) |>
+    dplyr::mutate(
+      irrig_mm_rainfed = 0,
+      lpjml_version = "LPJmL C Version 6.1.1",
+      lpjml_git_hash = "e6e6c42b88354f4a0df945e55f2ccf3c4a3cb605",
+      lpjml_run = "fixture/scenario_1"
+    )
+  d$crop_depth <- dplyr::bind_rows(d$crop_depth, lpjml)
+  areas <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    10.25, 47.75, 79L,        56L,             0,           20,
+    10.25, 47.75, 79L,        358L,            0,           30,
+    9.75,  47.75, 79L,        56L,             0,           3,
+    9.75,  47.75, 79L,        358L,            0,           2,
+    12.25, 47.75, 79L,        56L,             0,           4,
+    11.25, 47.75, 79L,        56L,             0,           5,
+    6.25,  47.75, 68L,        358L,            0,           6
+  )
   d$regime_areas <- dplyr::bind_rows(
     d$regime_areas,
-    tibble::tribble(
-      ~lon, ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
-      ~year,
-      10.25, 47.75, 79L,        56L,             0,           4,
-      2010L,
-      9.75, 47.75, 79L,        56L,             0,           3,
-      2010L
+    tidyr::expand_grid(
+      dplyr::bind_rows(areas, extra),
+      year = as.integer(years)
     )
   )
   d$climate <- dplyr::bind_rows(
     d$climate,
-    dplyr::mutate(d$climate[1, ], lon = 10.25)
+    purrr::map(c(10.25, 12.25, 11.25, 6.25), \(x) {
+      dplyr::mutate(d$climate[d$climate$lon == 9.25, ], lon = x)
+    })
   )
-  err <- testthat::expect_error(
-    whep::build_cell_moisture_regime(
-      years = 2010L,
-      window = "annual",
-      data = d
-    ),
-    class = "whep_moisture_regime_stand_mismatch"
+  d$lpjml_grid <- tibble::tibble(
+    lon = c(9.25, 9.75, 10.25, 12.25, 6.25),
+    lat = 47.75
   )
-  summary <- err$diagnosis$summary
-  testthat::expect_setequal(
-    summary$detail,
+  d
+}
+
+.cmw_gap_run <- function(d = .cmw_gap_data()) {
+  whep::build_cell_moisture_regime(2010L, window = "annual", data = d)
+}
+
+testthat::test_that("a stand gap on the grid takes the polity's crop mean", {
+  testthat::expect_message(
+    out <- .cmw_gap_run(),
+    class = "whep_moisture_regime_stand_gap"
+  )
+  # Maize in polity 79: A's 50 + 10 ha at 120 mm and C's 20 ha at 300 mm,
+  # weighted by WHEP's hectares (the cell mean would be 210).
+  maize_mean <- (60 * 120 + 20 * 300) / 80
+  rainfed_only <- .cmw_row(out, 9.75, 79L, 2514L)
+  testthat::expect_equal(rainfed_only$irrig_mm, maize_mean)
+  testthat::expect_identical(
+    rainfed_only$method_irrig_depth,
+    "lpjml_landuse_vintage"
+  )
+  no_stand <- .cmw_row(out, 12.25, 79L, 2514L)
+  testthat::expect_equal(no_stand$irrig_mm, maize_mean)
+  testthat::expect_identical(
+    no_stand$method_irrig_depth,
+    "lpjml_landuse_vintage"
+  )
+  # Cabbages in B: "others" in polity 79 is A's 90 ha at 360 mm and C's 30
+  # ha at 200 mm.
+  absent <- .cmw_row(out, 9.75, 79L, 2605L)
+  testthat::expect_equal(absent$irrig_mm, (90 * 360 + 30 * 200) / 120)
+  testthat::expect_identical(absent$method_irrig_depth, "lpjml_landuse_vintage")
+  # Every filled row is classified; rows with their own stand are untouched.
+  testthat::expect_false(anyNA(out$moisture_regime))
+  testthat::expect_equal(.cmw_row(out, 10.25, 79L, 2514L)$irrig_mm, 300)
+  testthat::expect_identical(
+    .cmw_row(out, 9.25, 79L, 2514L)$method_irrig_depth,
+    "lpjml_airrig_stand"
+  )
+})
+
+testthat::test_that("a stand gap off the LPJmL grid is stamped no_lpjml_cell", {
+  out <- suppressMessages(.cmw_gap_run())
+  off_grid <- .cmw_row(out, 11.25, 79L, 2514L)
+  testthat::expect_equal(off_grid$irrig_mm, (60 * 120 + 20 * 300) / 80)
+  testthat::expect_identical(off_grid$method_irrig_depth, "no_lpjml_cell")
+  testthat::expect_false(is.na(off_grid$moisture_regime))
+})
+
+testthat::test_that("a polity without the stand takes the world's mean", {
+  out <- suppressMessages(.cmw_gap_run())
+  world <- .cmw_row(out, 6.25, 68L, 2605L)
+  # "others" over the world: only polity 79's A and C have the stand.
+  testthat::expect_equal(world$irrig_mm, (90 * 360 + 30 * 200) / 120)
+  testthat::expect_identical(
+    world$method_irrig_depth,
+    "lpjml_landuse_vintage_world_mean"
+  )
+  testthat::expect_false(is.na(world$moisture_regime))
+})
+
+testthat::test_that("the stand-gap message counts rows and hectares by cause", {
+  msg <- testthat::expect_message(
+    .cmw_gap_run(),
+    class = "whep_moisture_regime_stand_gap"
+  )
+  summary <- msg$diagnosis$summary
+  by_cause <- stats::setNames(
+    summary$irrigated_ha,
+    paste(summary$fill, summary$detail)
+  )
+  testthat::expect_equal(
+    by_cause[sort(names(by_cause))],
     c(
-      "lpjml_crop_absent_from_cell",
-      "lpjml_crop_rainfed_only",
-      "no_lpjml_crop_stand_in_cell"
+      "lpjml_landuse_vintage lpjml_crop_absent_from_cell" = 2,
+      "lpjml_landuse_vintage lpjml_crop_rainfed_only" = 3,
+      "lpjml_landuse_vintage no_lpjml_crop_stand_in_cell" = 4,
+      "lpjml_landuse_vintage_world_mean lpjml_crop_absent_from_cell" = 6,
+      "no_lpjml_cell outside_lpjml_grid" = 5
     )
   )
-  testthat::expect_equal(sum(summary$irrigated_ha), 90 + 3 + 4)
-  testthat::expect_true(all(err$diagnosis$cases$cause == "unexplained"))
+  testthat::expect_identical(sum(summary$n_rows), 5L)
+  testthat::expect_identical(nrow(msg$diagnosis$cases), 5L)
+})
+
+testthat::test_that("a crop with no irrigated stand anywhere aborts", {
+  # Irrigated rice in A: the run has no rice stand in any cell that year.
+  extra <- tibble::tibble(
+    lon = 9.25,
+    lat = 47.75,
+    area_code = 79L,
+    item_prod_code = 27L,
+    rainfed_ha = 0,
+    irrigated_ha = 8
+  )
+  testthat::expect_error(
+    .cmw_gap_run(.cmw_gap_data(extra)),
+    class = "whep_moisture_regime_stand_no_mean"
+  )
+})
+
+testthat::test_that("supplied crop depths need their own LPJmL grid", {
+  d <- .cmw_gap_data()
+  d$lpjml_grid <- NULL
+  testthat::expect_error(
+    .cmw_gap_run(d),
+    class = "whep_moisture_regime_lpjml_grid"
+  )
+  # Without a stand gap, no grid is needed.
+  testthat::expect_no_error(
+    whep::build_cell_moisture_regime(
+      2010L,
+      window = "annual",
+      data = .cmw_data(2010L)
+    )
+  )
+})
+
+testthat::test_that("a filled depth before 1901 says its climate is recycled", {
+  d <- .cmw_gap_data()
+  d$crop_depth$year <- 1880L
+  d$regime_areas$year <- 1880L
+  d$climate <- tidyr::expand_grid(
+    dplyr::distinct(d$climate, lon, lat, annual_precip_mm),
+    year = 1901:1930
+  ) |>
+    dplyr::mutate(
+      mean_annual_temp_c = 12,
+      annual_pet_mm = 1000,
+      annual_frost_days = 40
+    )
+  out <- suppressMessages(
+    whep::build_cell_moisture_regime(1880L, window = "annual", data = d)
+  )
+  testthat::expect_identical(
+    .cmw_row(out, 9.75, 79L, 2514L)$method_irrig_depth,
+    "lpjml_landuse_vintage_recycled_climate"
+  )
 })
 
 testthat::test_that("blocks of cells give the unblocked result exactly", {
@@ -385,6 +577,36 @@ testthat::test_that("blocks of cells give the unblocked result exactly", {
     )),
     2L
   )
+})
+
+testthat::test_that("blocks give the unblocked result with fills and gaps", {
+  # Stand gaps in 2010 and maize irrigated in A only from 1999, over two
+  # requested years.
+  d <- .cmw_gap_data(years = 1980:2010)
+  early <- d$regime_areas$year < 1999L &
+    d$regime_areas$item_prod_code == 56L &
+    d$regime_areas$area_code == 79L &
+    d$regime_areas$lon == 9.25
+  d$regime_areas$irrigated_ha[early] <- 0
+  whole <- suppressMessages(whep::build_cell_moisture_regime(
+    years = 2009:2010,
+    data = d,
+    config = list(max_rows = 1e9)
+  ))
+  blocked <- suppressMessages(whep::build_cell_moisture_regime(
+    years = 2009:2010,
+    data = d,
+    config = list(max_rows = 1)
+  ))
+  testthat::expect_identical(blocked, whole)
+  # The fixture reaches both new paths.
+  testthat::expect_true(any(stringr::str_detect(
+    whole$method_moisture_regime,
+    "irrig_years_"
+  )))
+  testthat::expect_true(any(
+    whole$method_irrig_depth %in% "lpjml_landuse_vintage"
+  ))
 })
 
 testthat::test_that("precipitation alone gives every row its cell's class", {

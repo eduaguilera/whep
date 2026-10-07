@@ -653,6 +653,92 @@ testthat::test_that("irrigation is averaged per crop and regime", {
   testthat::expect_equal(result$moisture_regime, c("dry", "wet"))
 })
 
+testthat::test_that("a separate record averages only the irrigated years", {
+  # The record holds irrigated wheat in 12 of the 30 window years, 1989-2000,
+  # at 10 mm a year more each year; precipitation rises by 20 mm a year.
+  climate <- .mr_panel(years = 1971:2000, prec = 300 + 20 * (0:29)) |>
+    dplyr::mutate(item_cbs_code = 2511L, water_regime = "irrigated")
+  record <- tibble::tibble(
+    lon = 0.25,
+    lat = 45.25,
+    item_cbs_code = 2511L,
+    water_regime = "irrigated",
+    year = 1989:2000,
+    irrig_mm = 100 + 10 * (0:11)
+  )
+
+  result <- .mr_classify(
+    climate,
+    years = 2000L,
+    water = "precip_irrig",
+    irrigation = record
+  )
+
+  testthat::expect_equal(result$irrig_mm, mean(100 + 10 * (0:11)))
+  # Climate stays the 30-year mean, not the mean of the irrigated years.
+  testthat::expect_equal(result$prec_mm, mean(300 + 20 * (0:29)))
+  testthat::expect_equal(result$moisture_ratio, (590 + 155) / 1000)
+  testthat::expect_identical(result$moisture_regime, "dry")
+  testthat::expect_identical(
+    result$method_moisture_regime,
+    "ipcc2019_wet_dry;trailing_30;precip_irrig;irrig_years_12of30"
+  )
+
+  # A full record carries no count, and an annual window counts 1 of 1.
+  full <- dplyr::mutate(
+    tidyr::expand_grid(record[1, -5], year = 1971:2000),
+    irrig_mm = 100
+  )
+  testthat::expect_identical(
+    .mr_classify(
+      climate,
+      years = 2000L,
+      irrigation = full
+    )$method_moisture_regime,
+    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+  )
+})
+
+testthat::test_that("a held record year with no depth still fails closed", {
+  climate <- .mr_panel(years = 1971:2000) |>
+    dplyr::mutate(item_cbs_code = 2511L, water_regime = "irrigated")
+  record <- tibble::tibble(
+    lon = 0.25,
+    lat = 45.25,
+    item_cbs_code = 2511L,
+    water_regime = "irrigated",
+    year = 1989:2000,
+    irrig_mm = c(NA, rep(700, 11))
+  )
+
+  testthat::expect_message(
+    result <- .mr_classify(climate, years = 2000L, irrigation = record),
+    class = "whep_moisture_regime_unclassified"
+  )
+  testthat::expect_true(is.na(result$moisture_regime))
+  testthat::expect_true(is.na(result$irrig_mm))
+  testthat::expect_match(result$method_moisture_regime, "missing=irrig_mm$")
+
+  # A missing climate year is not excused by the irrigation rule.
+  holed <- dplyr::mutate(
+    climate,
+    prec_mm = dplyr::if_else(year == 1975L, NA_real_, prec_mm)
+  )
+  testthat::expect_message(
+    holed_result <- .mr_classify(
+      holed,
+      years = 2000L,
+      irrigation = dplyr::mutate(record, irrig_mm = 700)
+    ),
+    class = "whep_moisture_regime_unclassified"
+  )
+  testthat::expect_true(is.na(holed_result$moisture_regime))
+  testthat::expect_match(
+    holed_result$method_moisture_regime,
+    "irrig_years_12of30;missing=prec_mm$"
+  )
+})
+
 testthat::test_that("a zero PET leaves the row unclassified, never Inf", {
   fixture <- tibble::tribble(
     ~lon,  ~lat, ~year, ~mat_c, ~frost_days, ~prec_mm, ~pet_mm,

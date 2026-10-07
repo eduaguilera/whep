@@ -35,6 +35,9 @@ the climate record.
 \code{lpjml_version}, \code{lpjml_git_hash}, \code{lpjml_run}).
 \item \code{lpjml_years}: the years the LPJmL run covers (default: the years of
 \code{crop_depth}).
+\item \code{lpjml_grid}: the cells (\code{lon}, \code{lat}) the LPJmL run's output covers.
+Needed with \code{crop_depth} when an irrigated row's crop has no
+irrigated LPJmL stand in its cell; otherwise read from the run.
 \item \code{regime_areas}: WHEP's rainfed and irrigated hectares (\code{lon}, \code{lat},
 \code{area_code}, \code{item_prod_code}, \code{year}, \code{rainfed_ha}, \code{irrigated_ha}).
 \item \code{country_grid}: the cell support the regime areas are built on when
@@ -58,6 +61,20 @@ that regime, carrying the window-mean \code{mat_c}, \code{frost_days}, \code{pre
 \code{method_irrig_depth}, \code{lpjml_crop} and the LPJmL vintage columns
 \code{lpjml_version}, \code{lpjml_git_hash} and \code{lpjml_run}, plus the polity
 columns below.
+
+An irrigated row's irrigation is averaged over the window years in which
+WHEP irrigates that land, its climate over the whole window; a row
+irrigated in fewer than all of them carries \verb{irrig_years_<n>of<m>} in
+\code{method_moisture_regime}. Where WHEP irrigates a crop the LPJmL run has
+no irrigated stand of in the cell, in a year the run covers, the depth
+is the crop's LPJmL depth averaged over the polity's cells that have the
+stand, weighted by WHEP's irrigated hectares, and \code{method_irrig_depth}
+says why: \code{lpjml_landuse_vintage} for a cell on the LPJmL grid (the
+run's land-use forcing differs from WHEP's there) or \code{no_lpjml_cell}
+for one outside it, with the suffix \verb{_world_mean} where the polity has
+no such stand and the world's mean is used. A message of class
+\code{whep_moisture_regime_stand_gap} counts these rows and hectares by
+cause; its \code{diagnosis} field lists every case.
 }
 \description{
 Classify each cell, polity, commodity balance item, water regime and year
