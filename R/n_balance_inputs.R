@@ -150,7 +150,12 @@
 #'     `residue_bedding_fraction` (see [build_nitrogen_balance()]; the same
 #'     arguments split the residue removal outputs there) and the polity's
 #'     `region_krausmann` and `region_un_sub` taken from `area_code` when the
-#'     input does not carry them.
+#'     input does not carry them. An input that already carries
+#'     `residue_soil_dm_t` is recycled on the caller's destinies, while
+#'     [build_nitrogen_balance()] books its residue removals from
+#'     `residue_destiny_input` with the arguments above: the soil-returned
+#'     and the removed residue add up to the gross residue only when both
+#'     come from the package's own destiny split.
 #'   * `recycling_residue_basis`: `"residue_soil_returned"` (default) or
 #'     `"total_residue"`, which recycles the gross residue N (`residue_n_t`),
 #'     removed residue included. Recorded in `method_recycling_n`.

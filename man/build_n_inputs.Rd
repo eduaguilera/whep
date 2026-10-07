@@ -112,7 +112,12 @@ the input does not carry \code{residue_soil_dm_t},
 \code{residue_bedding_fraction} (see \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}; the same
 arguments split the residue removal outputs there) and the polity's
 \code{region_krausmann} and \code{region_un_sub} taken from \code{area_code} when the
-input does not carry them.
+input does not carry them. An input that already carries
+\code{residue_soil_dm_t} is recycled on the caller's destinies, while
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} books its residue removals from
+\code{residue_destiny_input} with the arguments above: the soil-returned
+and the removed residue add up to the gross residue only when both
+come from the package's own destiny split.
 \item \code{recycling_residue_basis}: \code{"residue_soil_returned"} (default) or
 \code{"total_residue"}, which recycles the gross residue N (\code{residue_n_t}),
 removed residue included. Recorded in \code{method_recycling_n}.

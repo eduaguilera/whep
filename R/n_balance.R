@@ -97,9 +97,15 @@
 #'     [build_n_inputs()], which returns to the soil only the residue left on
 #'     the field (`recycling_residue_basis`, default
 #'     `"residue_soil_returned"`; `"total_residue"` recycles the gross
-#'     residue and is recorded in `method_recycling_n`). The bedded straw
-#'     also comes back as a manure input, through [build_n_inputs()], read
-#'     from the same split.
+#'     residue and is recorded in `method_recycling_n`). An `npp_n_input`
+#'     that already carries `residue_soil_dm_t` keeps it: the recycling then
+#'     uses the caller's destinies while the removal outputs use
+#'     `residue_destiny_input` and these three arguments, so the
+#'     soil-returned and removed residue add up to the gross residue only
+#'     when both come from the package's own destiny split.
+#'     The bedded straw also comes back as a manure input, through
+#'     [build_n_inputs()], read from the same split as
+#'     `bedding_residue_n_t`.
 #'   * `regime_areas`, `regime_ratio`, `regime_production`, `regime_shares`:
 #'     the rainfed/irrigated split's inputs (see Details), each read or built
 #'     when absent: the rainfed and irrigated hectares per cell and
@@ -208,12 +214,19 @@
 #' from the item's mean yield to the part's yield, in the part's water
 #' regime, so the model's irrigation terms (a lower residue ratio for the
 #' crop groups that respond, a lower root:shoot ratio) apply to the
-#' irrigated part. Residue and root are affine in yield, so a high-yield
-#' hectare carries less than its yield share. Summing the two parts
+#' irrigated part. On the default chains, whose NPP input is built with the
+#' polity's `region_hanpp` and without `n_input_kg_ha`, the item's residue
+#' and root per hectare are the model's at its mean yield, so each part's
+#' are the model's at the part's own yield; with any other NPP input they
+#' are the item's own density scaled by the model's response. Residue and
+#' root are affine in yield, so a high-yield hectare carries less than its
+#' yield share. Summing the two parts
 #' reproduces the unsplit balance for every additive column except the
 #' residue terms and the totals that contain them, which sum to the parts'
 #' evaluation instead: with the irrigation terms, the residue and root N of
-#' irrigated land fall. `"area_split"` uses the area share for everything,
+#' irrigated land fall. A non-zero residue term at a key the per-item
+#' evaluation does not cover means the balance's inputs and the NPP-N table
+#' disagree, and aborts. `"area_split"` uses the area share for everything,
 #' residue terms included, and `"none"` returns the unsplit balance.
 #' Loss-driver tables without a `water_regime` column apply to both parts.
 #'
