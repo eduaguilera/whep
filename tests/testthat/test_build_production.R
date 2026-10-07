@@ -761,6 +761,56 @@ test_that(".collapse_cbs_ratio_rows aggregates duplicate ratio rows", {
   expect_equal(result$Multi_type, "Primary")
 })
 
+test_that(".collapse_cbs_ratio_rows keeps an all-missing tonnage missing", {
+  # `.impute_missing_values()` keys every imputation on `is.na(t)` and
+  # `is.na(fu)`. Summing with `na.rm = TRUE` turned a missing tonnage into 0,
+  # so the imputation never ran and the row was dropped as `t2 == 0`
+  # (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t,  ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~prod_cbs_count, ~sumprod_cbs_ratio, ~source,        ~Multi_type,
+    2010L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA,  4,   NA,       2,          20,     NA,              1,               NA,                 "FAOSTAT_prod", NA_character_,
+    2010L, "Spain", 203L,       "Barley",   44L,             "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", 6,   NA,  NA,       2,          20,     0.3,             1,               0.3,                "FAOSTAT_prod", NA_character_,
+    2010L, "Spain", 203L,       "Barley",   44L,             "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", 4,   NA,  NA,       2,          20,     0.2,             1,               0.2,                "FAOSTAT_prod", NA_character_
+  )
+
+  result <- whep:::.collapse_cbs_ratio_rows(df)
+  wheat <- result |> dplyr::filter(item_prod_code == 15L)
+  barley <- result |> dplyr::filter(item_prod_code == 44L)
+
+  expect_true(is.na(wheat$t))
+  expect_equal(wheat$fu, 4)
+  expect_equal(barley$t, 10)
+  expect_true(is.na(barley$fu))
+})
+
+test_that("a crop with hectares but no tonnage is imputed, not dropped", {
+  # Reported hectares and tonnage in 2010 and 2012, hectares only in 2011.
+  # The 2011 tonnage is WHEP's estimate (fu * interpolated yield), so it must
+  # neither be dropped nor keep the `FAOSTAT_prod` label its hectares carried
+  # (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t,  ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source,        ~Multi_type,   ~source_yield_c,
+    2010L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", 20,  10,  2,        2,          20,     "FAOSTAT_prod", NA_character_, "Original",
+    2011L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA,  10,  3,        3,          30,     "FAOSTAT_prod", NA_character_, "Original",
+    2012L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", 40,  10,  4,        4,          40,     "FAOSTAT_prod", NA_character_, "Original"
+  )
+
+  result <- df |>
+    whep:::.compute_cbs_ratios() |>
+    whep:::.impute_missing_values() |>
+    tibble::as_tibble()
+  imputed <- result |> dplyr::filter(year == 2011L)
+
+  expect_equal(sort(result$year), c(2010L, 2011L, 2012L))
+  expect_equal(imputed$t2, 30)
+  expect_equal(imputed$fu2, 10)
+  expect_equal(imputed$source, "imputed_yield")
+  expect_equal(
+    result |> dplyr::filter(year != 2011L) |> dplyr::pull(source),
+    c("FAOSTAT_prod", "FAOSTAT_prod")
+  )
+})
+
 test_that(".compute_cbs_ratios handles duplicate year rows without warning", {
   df <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~group, ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source, ~Multi_type,
