@@ -105,7 +105,8 @@ polity_mapping_provenance <- function(
     code_col = "area_code",
     year_col = if (rlang::has_name(keys, "year")) "year" else NULL,
     include_unmapped = TRUE,
-    backcast_anchor = backcast_anchor
+    backcast_anchor = backcast_anchor,
+    backcast_polity = .backcast_polity_mode()
   ) |>
     tibble::as_tibble()
   if (!rlang::has_name(resolved, "year")) {

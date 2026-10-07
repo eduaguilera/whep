@@ -1135,6 +1135,178 @@ testthat::test_that("the stand-in option rejects a value it cannot honour", {
   )
 })
 
+# ---- which territory a back-cast row is labelled with (whep#748) ------------
+
+testthat::test_that("present_day labels a back-cast row with today's polity", {
+  # A pre-1961 row is the 1961 value walked back along LUH2 land keyed on
+  # present-day ISO3. `"anchor"` names the territory of that level,
+  # `"present_day"` the territory of that movement. Area 238 is the documented
+  # case: its level includes Eritrea (`ETH-1952-1993`), its movement does not
+  # (`ETH-1993-2025`).
+  eth <- tibble::tibble(
+    area_code = 238L,
+    year = c(1850L, 1960L, 1961L, 2000L)
+  )
+  anchored <- whep::add_polity_code(eth)
+  present <- whep::add_polity_code(eth, backcast_polity = "present_day")
+
+  testthat::expect_equal(
+    anchored$polity_code,
+    c("ETH-1952-1993", "ETH-1952-1993", "ETH-1952-1993", "ETH-1993-2025")
+  )
+  testthat::expect_equal(
+    present$polity_code,
+    c("ETH-1993-2025", "ETH-1993-2025", "ETH-1952-1993", "ETH-1993-2025")
+  )
+  # Still a back-cast resolution, to a polity that began 143 years later, and
+  # the status says so rather than claiming the year was inside the period.
+  testthat::expect_equal(
+    present$mapping_status[1:2],
+    c("backcast_anchor", "backcast_anchor")
+  )
+  # From the anchor year on every row is resolved at its own year either way.
+  testthat::expect_identical(present[3:4, ], anchored[3:4, ])
+})
+
+testthat::test_that("the anchor stays the default back-cast polity", {
+  grid <- .backcast_grid()
+  default <- whep::add_polity_code(grid)
+
+  testthat::expect_identical(
+    whep::add_polity_code(grid, backcast_polity = "anchor"),
+    default
+  )
+  withr::local_options(whep.backcast_polity = "anchor")
+  testthat::expect_identical(whep::add_polity_code(grid), default)
+})
+
+testthat::test_that("present_day moves exactly the pairs anchor drift reports", {
+  # One question asked twice: `polity_anchor_drift()` says which back-cast
+  # labels describe a different territory from their growth proxy, and
+  # `"present_day"` is the convention that relabels them. A pair moves if and
+  # only if it drifts onto a reference polity that is live at the reference
+  # year, and it moves onto exactly the polity the diagnostic names.
+  grid <- .backcast_grid()
+  anchored <- whep::add_polity_code(grid)
+  present <- whep::add_polity_code(grid, backcast_polity = "present_day")
+  moved <- dplyr::coalesce(
+    anchored$polity_code != present$polity_code,
+    is.na(anchored$polity_code) != is.na(present$polity_code)
+  )
+
+  drift <- whep::polity_anchor_drift(grid)
+  reference <- whep::add_polity_code(
+    tibble::tibble(area_code = drift$area_code, year = 2023L),
+    backcast_anchor = -Inf
+  )
+  live <- reference$mapping_status %in% c("matched", "manual")
+  expected <- drift[live, ]
+
+  testthat::expect_gt(nrow(expected), 0L)
+  testthat::expect_equal(sum(moved), nrow(expected))
+  relabelled <- tibble::tibble(
+    area_code = present$area_code[moved],
+    year = present$year[moved],
+    polity_code = present$polity_code[moved]
+  ) |>
+    dplyr::arrange(.data$area_code, .data$year)
+  testthat::expect_equal(relabelled$area_code, expected$area_code)
+  testthat::expect_equal(relabelled$year, expected$year)
+  testthat::expect_equal(
+    relabelled$polity_code,
+    expected$reference_polity_code
+  )
+  # No row moves bucket: the label changes, the aggregation key does not.
+  testthat::expect_identical(
+    present$polity_area_code,
+    anchored$polity_area_code
+  )
+})
+
+testthat::test_that("present_day keeps the anchor where today has no polity", {
+  # Area 15 Belgium-Luxembourg resolves to nothing in 2023 and area 248
+  # Yugoslav SFR only to an out-of-span stand-in. There is no single
+  # present-day polity to name, so the anchor is kept rather than a stand-in
+  # being published as though it were the territory the row was grown on.
+  dissolved <- tibble::tibble(area_code = c(15L, 248L), year = 1900L)
+  testthat::expect_identical(
+    whep::add_polity_code(dissolved, backcast_polity = "present_day"),
+    whep::add_polity_code(dissolved)
+  )
+  testthat::expect_equal(
+    whep::add_polity_code(dissolved)$polity_code,
+    c("BLX-1850-1999", "F248-1947-1991")
+  )
+})
+
+testthat::test_that("whep.backcast_polity switches the published labels", {
+  # One switch for every published output, as with the other polity options:
+  # ~100 outputs disagreeing about which territory a back-cast row names would
+  # be worse than either convention.
+  row <- tibble::tibble(area_code = 238L, year = 1850L, value = 1)
+  partner <- tibble::tibble(area_code_partner = 238L, year = 1850L, value = 1)
+  testthat::expect_equal(
+    whep:::.add_reporting_polity_columns(row)$reporting_polity_code,
+    "ETH-1952-1993"
+  )
+
+  withr::local_options(whep.backcast_polity = "present_day")
+  testthat::expect_equal(
+    whep:::.add_reporting_polity_columns(row)$reporting_polity_code,
+    "ETH-1993-2025"
+  )
+  testthat::expect_equal(
+    whep:::.add_partner_polity_columns(partner)$partner_polity_code,
+    "ETH-1993-2025"
+  )
+  testthat::expect_equal(
+    whep::add_polity_code(row)$polity_code,
+    "ETH-1993-2025"
+  )
+  gaps <- whep::polity_coverage_gaps(row)
+  testthat::expect_equal(gaps$polity_code, "ETH-1993-2025")
+  testthat::expect_equal(gaps$gap_kind, "backcast_anchor")
+})
+
+testthat::test_that("a carried anchor label is re-resolved under present_day", {
+  # `.aggregate_to_polities()` emits the identity it resolved and the tail
+  # keeps it when re-resolving agrees. Under the other convention it cannot
+  # agree, and that is a change of convention rather than a re-keyed frame, so
+  # it is re-resolved without the contradiction warning.
+  carried <- whep:::.add_reporting_polity_columns(
+    tibble::tibble(area_code = 238L, year = 1850L, value = 1)
+  )
+  withr::local_options(whep.backcast_polity = "present_day")
+  testthat::expect_no_warning(
+    relabelled <- whep:::.add_reporting_polity_columns(carried)
+  )
+  testthat::expect_equal(relabelled$reporting_polity_code, "ETH-1993-2025")
+})
+
+testthat::test_that("polity_anchor_drift measures against the anchor always", {
+  # The diagnostic compares the anchor with the reference, so it must not
+  # follow the labelling switch: under `"present_day"` it would compare the
+  # reference with itself and report no drift for a table that has plenty.
+  table <- tibble::tibble(area_code = c(238L, 181L), year = 1900L)
+  default <- whep::polity_anchor_drift(table)
+  withr::local_options(whep.backcast_polity = "present_day")
+  testthat::expect_identical(whep::polity_anchor_drift(table), default)
+  testthat::expect_equal(nrow(default), 2L)
+})
+
+testthat::test_that("the back-cast polity rejects a value it cannot honour", {
+  row <- tibble::tibble(area_code = 238L, year = 1850L)
+  testthat::expect_error(
+    whep::add_polity_code(row, backcast_polity = "today"),
+    class = "rlang_error"
+  )
+  withr::local_options(whep.backcast_polity = "today")
+  testthat::expect_error(
+    whep::add_polity_code(row),
+    "whep.backcast_polity"
+  )
+})
+
 testthat::test_that("polity_coverage_gaps needs the area column", {
   testthat::expect_error(
     whep::polity_coverage_gaps(tibble::tibble(year = 2015L)),
