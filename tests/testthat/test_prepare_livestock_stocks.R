@@ -12,14 +12,10 @@
 .source_prepare_spatialize()
 
 .stock_mapping <- function() {
+  # system.file(), not a path relative to tests/: covr and R CMD check run
+  # the tests against the installed package, where ../../inst does not exist.
   readr::read_csv(
-    testthat::test_path(
-      "..",
-      "..",
-      "inst",
-      "extdata",
-      "livestock_mapping.csv"
-    ),
+    system.file("extdata", "livestock_mapping.csv", package = "whep"),
     show_col_types = FALSE
   )
 }
