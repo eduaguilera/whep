@@ -4,7 +4,11 @@
 \alias{calculate_cohorts_systems}
 \title{Calculate cohort and production system distribution.}
 \usage{
-calculate_cohorts_systems(data, system_shares = NULL)
+calculate_cohorts_systems(
+  data,
+  system_shares = NULL,
+  method_cohorts = c("milk_animals", "uniform")
+)
 }
 \arguments{
 \item{data}{Dataframe with \code{species}, \code{heads}, and
@@ -15,13 +19,28 @@ optionally \code{iso3} or \code{region}.}
 a production system goes wholly to it, and every other herd uses WHEP's
 assumed, unverified default shares. Supplying this overrides both, so the
 supplied shares are used verbatim.}
+
+\item{method_cohorts}{How heads are split across the cohorts of a system:
+\itemize{
+\item \code{"milk_animals"} (default): a dairy-cattle herd (\code{"Cattle, dairy"}, the
+FAOSTAT Milk Animals count) goes wholly to the dairy system's
+\code{"Adult Female"} cohort; every other herd is split equally across its
+system's cohorts.
+\item \code{"uniform"}: every herd, dairy cattle included, is split equally across
+its system's cohorts, the behaviour before whep#1127. It books five
+sixths of the milking cows as bulls, heifers and calves, and is kept for
+sensitivity analysis.
+}}
 }
 \value{
 Dataframe expanded to cohort level with
 \code{cohort}, \code{system}, \code{cohort_heads}, and
 \code{cohort_fraction} columns, plus \code{method_system_share}: \code{"reported"} when
 the commodity itself names the system, \code{"assumed"} when WHEP's unsourced
-default split was applied, or \code{"supplied"} when \code{system_shares} was given.
+default split was applied, or \code{"supplied"} when \code{system_shares} was given,
+and \code{method_cohort_share}: \code{"milk_animals"} for a dairy-cattle herd routed
+to its milking cows, \code{"uniform"} for an equal split across cohorts, or
+\code{NA} for a species with no cohorts.
 }
 \description{
 Distributes national herd totals across GLEAM-defined
@@ -43,6 +62,18 @@ sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
 poultry label) is split by WHEP's default shares, which are \strong{assumed,
 unverified} placeholders with no source. The \code{method_system_share} column
 says which of the two applied to each row.
+
+Within a system, \code{method_cohorts} says how the heads reach cohorts. A
+\code{"Cattle, dairy"} head is a cow producing milk: FAOSTAT's dairy cattle are
+the Milk Animals element of cow milk, and its non-dairy cattle are the rest
+of the herd, "cattle minus dairy cattle" (Tubiello et al. 2015, \emph{Estimating
+Greenhouse Gas Emissions in Agriculture}, FAO, ISBN 978-92-5-108674-2,
+pp. 45-46). So by default those heads all go to the dairy system's
+\code{"Adult Female"} cohort, and the dairy herd's bulls, heifers and calves are
+counted where FAOSTAT counts them, in the non-dairy herd (whep#1127). Every
+other herd is split equally across its system's cohorts, which is \strong{assumed,
+unverified}: GLEAM supplies no cohort shares. The \code{method_cohort_share}
+column says which applied to each row.
 }
 \examples{
 tibble::tibble(
