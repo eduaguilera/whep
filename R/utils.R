@@ -2678,6 +2678,9 @@ utils::globalVariables(
     "distance_km",
     "gap_lat",
     "gap_lon",
+    # silk_mass_basis.R (whep#1281) -- FAO's own residual of a cocoon row,
+    # which confirms a duplicated use
+    "residual",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
