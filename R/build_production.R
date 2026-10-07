@@ -331,6 +331,10 @@ build_primary_production <- function(
 
   # 2. Read and process FAOSTAT crop/livestock production
   fao_crop_liv <- .read_fao_crop_liv(years = chain_years)
+  # The one place both member records meet before the sums travel on: say
+  # where a balance-sheet source covers a bucket partially (whep#588).
+  .warn_partial_source_coverage(fao_crop_liv, cb_extracts)
+  .strip_bucket_members(c(list(fao_crop_liv), cb_extracts))
   # The reporting identity the folds emitted, parked before the reductions
   # below drop it and written back at the end (whep#707).
   polity_identity <- .park_polity_identity(c(list(fao_crop_liv), cb_extracts))
@@ -526,10 +530,12 @@ build_primary_production <- function(
 
 .read_cbs_production <- function(years = NULL, elements = NULL) {
   cli::cli_progress_step("Reading CBS production")
-  fbs_new <- .extract_cb("faostat-fbs-new", years, elements)
-  fbs_old <- .extract_cb("faostat-fbs-old", years, elements)
-  cbs_anim <- .extract_cb("faostat-cbs-old-animal", years, elements)
-  cbs_crops <- .extract_cb("faostat-cbs-old-crops", years, elements)
+  # Each extract records its bucket members for the coverage guard in
+  # `.read_production()`, which strips the record once read (whep#588).
+  fbs_new <- .extract_cb("faostat-fbs-new", years, elements, TRUE)
+  fbs_old <- .extract_cb("faostat-fbs-old", years, elements, TRUE)
+  cbs_anim <- .extract_cb("faostat-cbs-old-animal", years, elements, TRUE)
+  cbs_crops <- .extract_cb("faostat-cbs-old-crops", years, elements, TRUE)
 
   dt <- data.table::rbindlist(
     list(
@@ -601,7 +607,8 @@ build_primary_production <- function(
     dt,
     item_prod_code,
     item_prod,
-    source_label = "faostat-production"
+    source_label = "faostat-production",
+    keep_members = TRUE
   )
   data.table::setorderv(
     dt,

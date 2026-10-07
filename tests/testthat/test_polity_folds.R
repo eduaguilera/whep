@@ -1393,3 +1393,161 @@ test_that("an unrecognised predecessor-bucket mode aborts", {
     "must be"
   )
 })
+
+# -- A bucket summed from different members by different sources (whep#588) --
+#
+# Bucket 960 folds 960 and 961. Production reports both; the balance-sheet
+# source reports 961 only. The CBS then takes the bucket's supply from two
+# territories and its uses from one, so the other territory's food, feed and
+# seed are missing from a balance that still books its production. That is what
+# moved global seed non-monotonically under the Rest-of-World sensitivity modes
+# (Eswatini alone answering for the bucket's old food-balance rows) and what
+# bucket 206 does under the default in 2012-2013 (Sudan alone, South Sudan's
+# production included).
+
+.coverage_fixture_rows <- function(area_code, value = 1) {
+  data.table::data.table(
+    area_code = area_code,
+    year = 2015L,
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    value = value
+  )
+}
+
+testthat::test_that("the guard fires when a source covers part of a bucket", {
+  .local_fold_crosswalk()
+  production <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(c(960L, 961L)),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  partial <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(961L),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  # The identity the bug hides behind: every row the source reported is in
+  # the bucket, so the source's own total reconciles with its members.
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      sum(partial$value),
+      sum(.coverage_fixture_rows(961L)$value)
+    )),
+    guard = whep:::.warn_partial_source_coverage(
+      production,
+      list(fbs = partial)
+    ),
+    class = "whep_warn_partial_source_coverage",
+    condition = "warning"
+  )
+  flagged <- suppressWarnings(
+    whep:::.warn_partial_source_coverage(production, list(fbs = partial))
+  )
+  testthat::expect_equal(flagged$polity_area_code, 960L)
+  testthat::expect_equal(flagged$source, "fbs")
+  testthat::expect_equal(flagged$covered, "961")
+  testthat::expect_equal(flagged$missing, "960")
+})
+
+testthat::test_that("the guard is silent on full or absent coverage", {
+  .local_fold_crosswalk()
+  production <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(c(960L, 961L)),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  full <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(c(960L, 961L)),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  # A source with no row for the bucket leaves the whole bucket to the
+  # estimated balance, which is consistent, so there is nothing to report.
+  absent <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(970L),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  testthat::expect_no_warning(
+    flagged <- whep:::.warn_partial_source_coverage(
+      production,
+      list(full = full, absent = absent)
+    )
+  )
+  testthat::expect_equal(nrow(flagged), 0L)
+})
+
+testthat::test_that("a member whose rows are all zero or NA is not a member", {
+  # A row count is not a report: an area whose every value is missing or zero
+  # contributes nothing to the bucket and must not be named as uncovered.
+  .local_fold_crosswalk()
+  production <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(c(960L, 961L), value = c(0, 5)),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  partial <- suppressWarnings(whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(961L),
+    item_prod_code,
+    keep_members = TRUE
+  ))
+  testthat::expect_no_warning(
+    whep:::.warn_partial_source_coverage(production, list(fbs = partial))
+  )
+})
+
+testthat::test_that("the guard is silenced with the fold-diagnostics option", {
+  .local_fold_crosswalk()
+  withr::local_options(whep.warn_polity_folds = FALSE)
+  production <- whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(c(960L, 961L)),
+    item_prod_code,
+    keep_members = TRUE
+  )
+  partial <- whep:::.aggregate_to_polities(
+    .coverage_fixture_rows(961L),
+    item_prod_code,
+    keep_members = TRUE
+  )
+  testthat::expect_no_warning(
+    whep:::.warn_partial_source_coverage(production, list(fbs = partial))
+  )
+})
+
+testthat::test_that(".extract_cb() keeps the member record of its source", {
+  # The record is written by `.aggregate_to_polities()`, and `.extract_cb()`
+  # merges the items bridge onto the result afterwards. A merge drops custom
+  # attributes, which would leave the guard with no members to compare.
+  .local_fold_crosswalk()
+  raw <- data.table::data.table(
+    `Item Code` = 2511,
+    Item = "Wheat and products",
+    Area = c("R", "R2"),
+    `Area Code` = c(960L, 961L),
+    Unit = "1000 t",
+    Element = "Production",
+    Year = 2015L,
+    Value = c(1, 2)
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(...) data.table::copy(raw)
+  )
+  out <- suppressWarnings(
+    whep:::.extract_cb("faostat-fbs-old", years = 2015L, keep_members = TRUE)
+  )
+  members <- attr(out, "bucket_members")
+  testthat::expect_setequal(members$area_code, c(960L, 961L))
+  testthat::expect_true(all(members$polity_area_code == 960L))
+
+  # Opt-in: the default leaves the frame exactly as it was, and stripping
+  # removes the record by reference once the guard has read it.
+  plain <- suppressWarnings(whep:::.extract_cb(
+    "faostat-fbs-old",
+    years = 2015L
+  ))
+  testthat::expect_null(attr(plain, "bucket_members"))
+  whep:::.strip_bucket_members(list(out))
+  testthat::expect_null(attr(out, "bucket_members"))
+})
