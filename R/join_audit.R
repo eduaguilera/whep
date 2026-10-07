@@ -136,6 +136,10 @@
      disagrees, so a year predicate cannot change the answer.",
     ".cells_to_polity_area", "left_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, as above.",
+    ".cmr_fill_outside_run", "left_join", "area_code, item_cbs_code", 1L,
+    "single_year",
+    "Runs once per requested year: the country table is the mean depth over
+     that one year's window, so the window stands for the year in the key.",
     ".compute_su_used", "full_join", "area_code, item_cbs_code", 1L,
     "single_year", "Both sides are one year's supply-use.",
     ".cpy_key", "left_join", "polity_code", 1L, "single_year",
@@ -723,6 +727,11 @@
     ".cells_to_polity_area", "distinct", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, one row per code; same crosswalk, same
      absence of a year.",
+    ".cmr_fill_outside_run", "summarise", "area_code, item_cbs_code", 1L,
+    "year_axis",
+    "The country's mean depth over the run years of ONE requested year's
+     window: the reduction over the year axis is the fill itself, and a year
+     in the key would return one value per window year.",
     ".chain_link_land", "[", "area_code, land_use", 2L, "year_axis",
     "The chain-link: after `setorder(area_code, land_use, year)` the group is
      the SERIES and the operation runs along it -- a log ratio between

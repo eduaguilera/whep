@@ -74,7 +74,10 @@
 #'   `pet_mm` and `irrig_mm`, `water_mm`, `moisture_ratio`, `tropical`,
 #'   `moisture_regime` (`"wet"`, `"dry"` or `NA`), `method_moisture_regime`,
 #'   `method_irrig_depth`, `lpjml_crop` and the LPJmL vintage columns
-#'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`.
+#'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`, plus the polity
+#'   columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #'
 #' @examples
@@ -113,6 +116,8 @@ build_cell_moisture_regime <- function(
     dplyr::bind_rows() |>
     ensure_columns(.cmr_prototype(), extra = "drop") |>
     dplyr::arrange(dplyr::pick(dplyr::all_of(c("year", .cmr_row_key())))) |>
+    .add_reporting_polity_columns() |>
+    tibble::as_tibble() |>
     .cmr_report_unclassified()
 }
 

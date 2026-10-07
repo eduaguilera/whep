@@ -2,14 +2,14 @@
 # LPJmL irrigation depth and WHEP's regime areas for the wet/dry classifier.
 # Offline throughout: every input is injected through `data`.
 
-# Cell A (0.25, 45.25) is shared by polities 1 and 2; cell B (0.75, 45.25)
-# is polity 1's. A is dry on precipitation alone (600 / 1000), B wet
+# Cell A (9.25, 47.75) is shared by polities 79 and 211; cell B (9.75, 47.75)
+# is polity 79's. A is dry on precipitation alone (600 / 1000), B wet
 # (1200 / 1000); both are temperate (12 degC, 40 frost days).
 .cmw_climate <- function(years = 1981:2010) {
   tidyr::expand_grid(
     tibble::tibble(
-      lon = c(0.25, 0.75),
-      lat = 45.25,
+      lon = c(9.25, 9.75),
+      lat = 47.75,
       annual_precip_mm = c(600, 1200)
     ),
     year = as.integer(years)
@@ -27,9 +27,9 @@
 .cmw_crop <- function(years = 1981:2010) {
   stands <- tibble::tribble(
     ~lon, ~lat,  ~lpjml_crop, ~irrig_mm_irrigated, ~stand_frac_irrigated,
-    0.25, 45.25, "maize",     120,                 0.4,
-    0.25, 45.25, "others",    360,                 0.05,
-    0.75, 45.25, "maize",     NA,                  NA
+    9.25, 47.75, "maize",     120,                 0.4,
+    9.25, 47.75, "others",    360,                 0.05,
+    9.75, 47.75, "maize",     NA,                  NA
   ) |>
     dplyr::mutate(
       irrig_mm_rainfed = 0,
@@ -43,18 +43,18 @@
     )
 }
 
-# WHEP's regime areas. Maize (56 -> 2514) is irrigated in A for polity 1.
+# WHEP's regime areas. Maize (56 -> 2514) is irrigated in A for polity 79.
 # Vegetables, Other (2605) pools green corn (446, on LPJmL maize) and
-# cabbages (358, on "others"), both irrigated in A. Polity 2 and cell B grow
+# cabbages (358, on "others"), both irrigated in A. Polity 211 and cell B grow
 # rainfed maize only.
 .cmw_areas <- function(years = 1981:2010, extra = NULL) {
   base <- tibble::tribble(
     ~lon, ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
-    0.25, 45.25, 1L,         56L,             30,          50,
-    0.25, 45.25, 1L,         446L,            0,           10,
-    0.25, 45.25, 1L,         358L,            5,           90,
-    0.25, 45.25, 2L,         56L,             20,          0,
-    0.75, 45.25, 1L,         56L,             40,          0
+    9.25, 47.75, 79L,        56L,             30,          50,
+    9.25, 47.75, 79L,        446L,            0,           10,
+    9.25, 47.75, 79L,        358L,            5,           90,
+    9.25, 47.75, 211L,       56L,             20,          0,
+    9.75, 47.75, 79L,        56L,             40,          0
   )
   tidyr::expand_grid(dplyr::bind_rows(base, extra), year = as.integer(years))
 }
@@ -85,7 +85,7 @@ testthat::test_that("the output carries the documented columns", {
   )
   out |>
     pointblank::expect_col_exists(
-      names(whep:::.cmr_prototype())
+      c(names(whep:::.cmr_prototype()), "reporting_polity_code")
     )
   out |>
     pointblank::expect_col_vals_in_set("moisture_regime", c("wet", "dry"))
@@ -105,7 +105,7 @@ testthat::test_that("CRU's columns reach the classifier under its names", {
     window = "annual",
     data = .cmw_data(2010L)
   )
-  b <- .cmw_row(out, 0.75, 1L, 2514L, "rainfed")
+  b <- .cmw_row(out, 9.75, 79L, 2514L, "rainfed")
   testthat::expect_equal(b$mat_c, 12)
   testthat::expect_equal(b$prec_mm, 1200)
   testthat::expect_equal(b$pet_mm, 1000)
@@ -129,8 +129,8 @@ testthat::test_that("rainfed rows take the cell's precipitation alone", {
   testthat::expect_true(all(rainfed$irrig_mm == 0))
   testthat::expect_true(all(rainfed$method_irrig_depth == "rainfed_regime"))
   # Both polities of cell A share its climate, and so its class.
-  a <- rainfed[rainfed$lon == 0.25, ]
-  testthat::expect_setequal(a$area_code, c(1L, 2L))
+  a <- rainfed[rainfed$lon == 9.25, ]
+  testthat::expect_setequal(a$area_code, c(79L, 211L))
   testthat::expect_true(all(a$water_mm == 600))
   testthat::expect_true(all(a$moisture_regime == "dry"))
   testthat::expect_true(all(is.na(rainfed$lpjml_run)))
@@ -142,7 +142,7 @@ testthat::test_that("irrigated rows add their crop's LPJmL depth", {
     window = "annual",
     data = .cmw_data(2010L)
   )
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_equal(maize$irrig_mm, 120)
   testthat::expect_equal(maize$water_mm, 720)
   testthat::expect_identical(maize$method_irrig_depth, "lpjml_airrig_stand")
@@ -160,7 +160,7 @@ testthat::test_that("pooled items weight by WHEP hectares, not LPJmL stands", {
     window = "annual",
     data = .cmw_data(2010L)
   )
-  veg <- .cmw_row(out, 0.25, 1L, 2605L)
+  veg <- .cmw_row(out, 9.25, 79L, 2605L)
   # Green corn (10 ha irrigated, LPJmL maize 120 mm) and cabbages (90 ha,
   # "others" 360 mm). LPJmL's 0.4 maize stand against its 0.05 "others"
   # stand would give (0.4 * 120 + 0.05 * 360) / 0.45 = 146.7 mm, with the
@@ -175,7 +175,7 @@ testthat::test_that("pooling without WHEP hectares aborts", {
   items <- tibble::tribble(
     ~lon, ~lat,  ~year, ~area_code, ~item_cbs_code, ~irrig_mm,
     ~method_irrig_depth, ~lpjml_crop,
-    0.25, 45.25, 2010L, 1L,         2605L,          120,
+    9.25, 47.75, 2010L, 1L,         2605L,          120,
     "lpjml_airrig_stand", "maize"
   )
   testthat::expect_error(
@@ -190,7 +190,7 @@ testthat::test_that("a trailing window averages each year's own inputs", {
     d$crop_depth$lpjml_crop == "maize" & d$crop_depth$year == 2010L
   ] <- 420
   out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_equal(maize$irrig_mm, (29 * 120 + 420) / 30)
   testthat::expect_identical(
     maize$method_moisture_regime,
@@ -203,18 +203,18 @@ testthat::test_that("a window year with no WHEP irrigation is left missing", {
   # irrigated row and no depth; the window mean is not taken over fewer years.
   d <- .cmw_data(1981:2010)
   early <- d$regime_areas$year < 2000L & d$regime_areas$item_prod_code == 56L
-  d$regime_areas$irrigated_ha[early & d$regime_areas$area_code == 1L] <- 0
+  d$regime_areas$irrigated_ha[early & d$regime_areas$area_code == 79L] <- 0
   testthat::expect_message(
     out <- whep::build_cell_moisture_regime(years = 2010L, data = d),
     class = "whep_moisture_regime_unclassified"
   )
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_true(is.na(maize$moisture_regime))
   testthat::expect_true(is.na(maize$irrig_mm))
   testthat::expect_match(maize$method_moisture_regime, "missing=irrig_mm$")
   # Rainfed rows are untouched.
   testthat::expect_identical(
-    .cmw_row(out, 0.25, 1L, 2514L, "rainfed")$moisture_regime,
+    .cmw_row(out, 9.25, 79L, 2514L, "rainfed")$moisture_regime,
     "dry"
   )
 })
@@ -237,7 +237,7 @@ testthat::test_that("LPJmL's own pre-1901 depths are used, labelled", {
     window = "annual",
     data = d
   )
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   # Climate is the held 1901-1930 climatology; irrigation is LPJmL's 1880.
   testthat::expect_equal(maize$irrig_mm, 900)
   testthat::expect_equal(maize$prec_mm, 600)
@@ -257,7 +257,7 @@ testthat::test_that("years outside the LPJmL run take the window's mean", {
   d$crop_depth <- d$crop_depth[d$crop_depth$year <= 2008L, ]
   d$lpjml_years <- 1950:2008
   out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_equal(maize$irrig_mm, 120)
   testthat::expect_identical(
     maize$method_irrig_depth,
@@ -270,12 +270,12 @@ testthat::test_that("an outside-run fill falls back to the country mean", {
   key <- c("lon", "lat", "area_code", "item_cbs_code")
   depth <- tibble::tribble(
     ~lon, ~lat,  ~area_code, ~item_cbs_code, ~year, ~irrig_mm, ~irrigated_ha,
-    0.25, 45.25, 1L,         2514L,          2008L, 100,       30,
-    0.75, 45.25, 1L,         2514L,          2008L, 200,       10
+    9.25, 47.75, 79L,        2514L,          2008L, 100,       30,
+    9.75, 47.75, 79L,        2514L,          2008L, 200,       10
   )
   outside <- tibble::tribble(
     ~lon, ~lat,  ~area_code, ~item_cbs_code, ~year, ~irrigated_ha,
-    1.25, 45.25, 1L,         2514L,          2009L, 5
+    10.25, 47.75, 79L,        2514L,          2009L, 5
   )
   fills <- whep:::.cmr_fill_outside_run(
     depth,
@@ -302,9 +302,9 @@ testthat::test_that("an outside-run fill falls back to the country mean", {
 testthat::test_that("an irrigated item with no LPJmL band aborts", {
   # 51 has a commodity balance item but no LPJmL crop.
   extra <- tibble::tibble(
-    lon = 0.25,
-    lat = 45.25,
-    area_code = 1L,
+    lon = 9.25,
+    lat = 47.75,
+    area_code = 79L,
     item_prod_code = 51L,
     rainfed_ha = 0,
     irrigated_ha = 7
@@ -333,15 +333,15 @@ testthat::test_that("any other missing stand aborts with its diagnosis", {
     tibble::tribble(
       ~lon, ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
       ~year,
-      1.25, 45.25, 1L,         56L,             0,           4,
+      10.25, 47.75, 79L,        56L,             0,           4,
       2010L,
-      0.75, 45.25, 1L,         56L,             0,           3,
+      9.75, 47.75, 79L,        56L,             0,           3,
       2010L
     )
   )
   d$climate <- dplyr::bind_rows(
     d$climate,
-    dplyr::mutate(d$climate[1, ], lon = 1.25)
+    dplyr::mutate(d$climate[1, ], lon = 10.25)
   )
   err <- testthat::expect_error(
     whep::build_cell_moisture_regime(
@@ -394,7 +394,7 @@ testthat::test_that("precipitation alone gives every row its cell's class", {
     water = "precip",
     data = .cmw_data(2010L)
   )
-  maize <- .cmw_row(out, 0.25, 1L, 2514L)
+  maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_true(is.na(maize$irrig_mm))
   testthat::expect_equal(maize$water_mm, 600)
   testthat::expect_identical(
@@ -421,12 +421,12 @@ testthat::test_that("years and config are checked", {
 testthat::test_that("the example runs and matches the output schema", {
   out <- whep::build_cell_moisture_regime(example = TRUE)
   testthat::expect_gt(nrow(out), 0L)
-  testthat::expect_identical(names(out), names(whep:::.cmr_prototype()))
   # The fixture is the real function's output on the test fixture.
   real <- whep::build_cell_moisture_regime(
     years = 2009:2010,
     data = .cmw_data(1980:2010)
   )
+  testthat::expect_identical(names(out), names(real))
   testthat::expect_equal(
     dplyr::semi_join(real, out, by = c(whep:::.cmr_row_key(), "year")),
     out

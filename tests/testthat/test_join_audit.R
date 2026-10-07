@@ -362,7 +362,11 @@ test_that("the enumerated baseline can only shrink", {
   # 114 with whep#1195, on top of whep#1317's 112: the residue pin's legacy
   # recovery rate, attached per (crop, area) and keyed on the area's year-free
   # HANPP region. Re-derived by running the audit on the merged tree.
-  expect_lte(sum(baseline$n), 114L)
+  # 115 with build_cell_moisture_regime(), on top of whep#1195's 114: the
+  # outside-run depth fill joins a country's mean over one requested
+  # year's window (`single_year`). Re-derived by running the audit on the
+  # merged tree.
+  expect_lte(sum(baseline$n), 115L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -644,7 +648,10 @@ test_that("every year-free territorial grouping is classified", {
   # 146 with whep#1195, on top of whep#1414's 144: the residue pin's
   # recovery-rate lookup, one row per area and one per (crop, area) pair.
   # Re-derived by running the audit on the merged tree.
-  expect_lte(sum(full$n), 146L)
+  # 147 with build_cell_moisture_regime(), on top of whep#1195's 146: that
+  # country mean is a reduction over the window's years (`year_axis`).
+  # Re-derived by running the audit on the merged tree.
+  expect_lte(sum(full$n), 147L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

@@ -2462,29 +2462,29 @@
   tibble::tribble(
     ~lon, ~area_code, ~item_cbs_code, ~water_regime, ~year, ~prec_mm,
     ~irrig_mm, ~moisture_regime, ~method_irrig_depth, ~lpjml_crop,
-    0.25, 1L, 2514L, "irrigated", 2009L, 600,
+    9.25, 79L, 2514L, "irrigated", 2009L, 600,
     120, "dry", "lpjml_airrig_stand", "maize",
-    0.25, 1L, 2514L, "rainfed", 2009L, 600,
+    9.25, 79L, 2514L, "rainfed", 2009L, 600,
     0, "dry", "rainfed_regime", NA,
-    0.25, 1L, 2605L, "irrigated", 2009L, 600,
+    9.25, 79L, 2605L, "irrigated", 2009L, 600,
     336, "dry", "lpjml_others_proxy", "maize+others",
-    0.25, 1L, 2605L, "rainfed", 2009L, 600,
+    9.25, 79L, 2605L, "rainfed", 2009L, 600,
     0, "dry", "rainfed_regime", NA,
-    0.25, 2L, 2514L, "rainfed", 2009L, 600,
+    9.25, 211L, 2514L, "rainfed", 2009L, 600,
     0, "dry", "rainfed_regime", NA,
-    0.75, 1L, 2514L, "rainfed", 2009L, 1200,
+    9.75, 79L, 2514L, "rainfed", 2009L, 1200,
     0, "wet", "rainfed_regime", NA,
-    0.25, 1L, 2514L, "irrigated", 2010L, 600,
+    9.25, 79L, 2514L, "irrigated", 2010L, 600,
     120, "dry", "lpjml_airrig_stand", "maize",
-    0.25, 1L, 2514L, "rainfed", 2010L, 600,
+    9.25, 79L, 2514L, "rainfed", 2010L, 600,
     0, "dry", "rainfed_regime", NA,
-    0.25, 1L, 2605L, "irrigated", 2010L, 600,
+    9.25, 79L, 2605L, "irrigated", 2010L, 600,
     336, "dry", "lpjml_others_proxy", "maize+others",
-    0.25, 2L, 2514L, "rainfed", 2010L, 600,
+    9.25, 211L, 2514L, "rainfed", 2010L, 600,
     0, "dry", "rainfed_regime", NA
   ) |>
     dplyr::mutate(
-      lat = 45.25,
+      lat = 47.75,
       mat_c = 12,
       frost_days = 40,
       pet_mm = 1000,
@@ -2509,5 +2509,7 @@
         NA_character_
       )
     ) |>
-    ensure_columns(.cmr_prototype(), extra = "drop")
+    ensure_columns(.cmr_prototype(), extra = "drop") |>
+    .add_reporting_polity_columns() |>
+    tibble::as_tibble()
 }
