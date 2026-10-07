@@ -342,6 +342,17 @@
      alone. The year is applied BEFORE this join, not after: the label is
      resolved per (label, year) by `resolve_polity_label()`, which is what
      keeps pre-union Tanganyika out of the United Republic.",
+    ".residue_gross_from_recovered", "left_join", "item_prod, area_code", 1L,
+    "time_invariant",
+    "Attaches the legacy recovery rate the residue pin was written with
+     (whep#1195). The rate is a property of a region and crop category, given
+     once for all years in `residue_recovery.csv`, so the join cannot be
+     year-keyed; the year stays on the pin rows it divides.",
+    ".residue_pin_recovery_rates", "left_join", "area_code", 1L,
+    "time_invariant",
+    "The area's HANPP region, from `regions_full`, which carries one region
+     per area for all years -- the same year-free membership the predecessor
+     keyed its recovery rate on, which is what makes undoing it exact.",
     ".residue_recovered_split", "left_join", "area_code", 1L,
     "time_invariant",
     "Attaches the residue recovery region and the UN M49 sub-region a crop
@@ -1038,6 +1049,16 @@
      two vocabularies the residue destiny split reads. It is
      `.sci_crop_regions` on the residue side: the same groupings, published
      without a year (see the matching join row), so this cannot be year-keyed.",
+    ".residue_pin_recovery_rates", "distinct",
+    "area_code, region_krausmann, <dynamic>, region_HANPP", 1L,
+    "time_invariant",
+    "One HANPP region per area from `regions_full`, which publishes it without
+     a year (see the matching join row). The key reads `<dynamic>` because the
+     region is renamed inside the `distinct()`.",
+    ".residue_pin_recovery_rates", "distinct", "item_prod, area_code", 1L,
+    "time_invariant",
+    "The (crop, area) pairs the pin carries, so the recovery rate is looked up
+     once per pair rather than once per year; the rate has no year.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
