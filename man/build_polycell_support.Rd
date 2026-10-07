@@ -11,7 +11,8 @@ build_polycell_support(
   ice = NULL,
   data = list(),
   aggregates = c("exclude", "overlap_layer"),
-  subnational = c("exclude", "include")
+  subnational = c("exclude", "include"),
+  claims = c("cede_unkeyed", "keep")
 )
 }
 \arguments{
@@ -66,14 +67,25 @@ Ruanda-Urundi, Singapore inside Malaysia) stays, so its national total
 keeps its cells. \code{"include"} keeps them all in the partition, for a build
 whose \code{geometries} already leave the containers out, as the
 \code{polycell_support_subnational} pin's build does.}
+
+\item{claims}{What to do where a partition polity that answers no
+reporting \code{area_code} claims ground a keyed partition polity also claims
+in the same years -- Germany \code{DEU-1949-1990} over the unkeyed East and
+West German polities, Northern and Southern Rhodesia and Nyasaland under
+the unkeyed Federation, the Australian colonies under \code{AUS-1800-1901}.
+\code{"cede_unkeyed"} (default) cuts that ground out of the unkeyed polity, so
+the cell is handed out once; \code{"keep"} leaves both claims in the partition,
+as every pin before whep#1310 did. See \emph{Unkeyed claims cede to keyed ones}
+below. The choice is recorded on every row in \code{method_claims}.}
 }
 \value{
 A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
 \code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
 \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
 \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
-\code{coverage_status}, \code{support_role}, \code{area_engine}, \code{luh2_vintage} and
-\code{layers_supplied}, plus \code{year} when \code{years} is supplied.
+\code{coverage_status}, \code{support_role}, \code{area_engine}, \code{luh2_vintage},
+\code{layers_supplied} and \code{method_claims}, plus \code{year} when \code{years} is
+supplied.
 \code{layers_supplied} is the provenance stamp described under \emph{Optional layers
 are stamped, not inferred} below. \code{support_role} is \code{"partition"} on every
 row unless \code{aggregates = "overlap_layer"} was asked for. \code{area_engine} is
@@ -92,7 +104,9 @@ bulging great circle), \code{"terra_measured"} (polycells whose area came from
 territory), \code{"water_unmatched"} (cells the water layer and the polycells do
 not share), \code{"footprints"} and \code{"footprint_diff"} (the deployed crosswalk,
 the current producer and the polycell footprint, reconciled at
-\code{data$crosswalk_year}).
+\code{data$crosswalk_year}), and \code{"ceded"} (every unkeyed polity interval
+that gave ground up under \code{claims = "cede_unkeyed"}, the keyed polities it
+gave it to, and how much).
 
 \code{"overlap"}, \code{"terra_measured"}, \code{"water_excess"}, \code{"water_unmatched"} and
 \code{"unassigned"} are \strong{interval-grain}, like the table itself: they carry
@@ -267,6 +281,40 @@ layer -- the one its bucket resolves to that year -- and never sums the
 layer as a whole. That is also why the \code{"overlap"} diagnostic keeps
 measuring the partition only: an over-full cell means something there, and
 in this layer it means nothing.
+}
+
+\section{Unkeyed claims cede to keyed ones}{
+
+The partition is meant to hand each cell out once, but the polity
+vocabulary holds national-type containers beside their members:
+\code{DEU-1949-1990} covers \code{F77-1949-1990} and \code{F78-1949-1990},
+\code{FRN-1953-1964} covers Northern and Southern Rhodesia and Nyasaland,
+\code{RWB-1922-1962} covers Rwanda and Burundi, \code{F228-1945-1991} covers the
+Azerbaijan SSR, and \code{AUS-1800-1901} covers the six colonies. None of them is
+\code{polity_type == "aggregate"}, so \code{aggregates} cannot catch them, and
+\link{polity_containment} holds no edge for any of them. Every consumer turns
+the support into a polity's share of the cell's land, so two claims to the
+same ground give each about half: Germany's 1961 cropland support came out
+at 6.54 Mha instead of 12.5 (whep#1310).
+
+In every one of those pairs one side answers no reporting \code{area_code}, and
+a polity with no reporting code receives no national data in any consumer.
+So with \code{claims = "cede_unkeyed"} the unkeyed polity keeps only the ground
+no keyed partition polity claims in the same years: its polygon minus the
+union of theirs, over each sub-interval in which that set of keyed claims is
+constant. The keyed polity is untouched. This is the rule decided on
+whep#1196 for the consumers ("in an overlapping cell, a polity with no area
+code leaves the denominator"), applied here exactly, with the polygons,
+instead of downstream from the cell's excess alone. Unkeyed ground that no
+keyed polity claims stays where it is, so nothing is handed to a neighbour.
+
+What it does not decide: two keyed polities claiming the same ground
+(Pakistan and Bangladesh to 1971, Saudi Arabia and Yemen, Morocco and
+Western Sahara, the USSR and the Baltic SSRs, neighbours whose borders
+overlap) keep both claims, as decided on whep#1196, and stay visible in the
+\code{"overlap"} diagnostic; so do two unkeyed claims. A province build passes
+\code{claims = "keep"}, because there the provinces are the data carriers and
+have no reporting code by design.
 }
 
 \section{Optional layers are stamped, not inferred}{
