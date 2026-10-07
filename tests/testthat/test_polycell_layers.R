@@ -566,3 +566,57 @@ testthat::test_that("reading a pin behind the vocabulary names the missing polit
     .package = "whep"
   )
 })
+
+# whep#1310. A build that cedes unkeyed claims gives no cell to an unkeyed
+# polity a keyed one claims whole. That is the rule, not a stale pin, so it
+# must not warn -- while an unkeyed polity that is genuinely absent still does.
+testthat::test_that("a polity ceded whole is not reported as missing", {
+  testthat::skip_if_not_installed("sf")
+
+  # The unkeyed polity sits well inside the keyed one: s2 edges are great
+  # circles, so one drawn flush with the keyed polygon's edge pokes out of it.
+  rect <- function(xmin, xmax, ymin = 45.0, ymax = 45.5) {
+    sf::st_polygon(list(cbind(
+      c(xmin, xmax, xmax, xmin, xmin),
+      c(ymin, ymin, ymax, ymax, ymin)
+    )))
+  }
+  prepared <- sf::st_sf(
+    polity_code = c("KEY-1900-2000", "UNK-1900-2000", "LOST-1900-2000"),
+    start_year = 1900L,
+    end_year = 2000L,
+    area_code = c(11L, NA, NA),
+    coverage_status = "has_geometry",
+    support_role = "partition",
+    geometry = sf::st_sfc(
+      rect(10.0, 10.5),
+      rect(10.1, 10.3, 45.1, 45.4),
+      rect(20.0, 20.5),
+      crs = 4326
+    )
+  )
+  pin <- function(claims) {
+    tibble::tibble(
+      polycell_id = 1L,
+      polity_code = "KEY-1900-2000",
+      cell_id = 1L,
+      start_year = 1900L,
+      end_year = 2000L,
+      method_claims = claims
+    )
+  }
+  warned <- function(support) {
+    testthat::with_mocked_bindings(
+      testthat::capture_warnings(whep:::.warn_polycell_vintage(support)),
+      .pcs_prepare_polities = function(...) prepared,
+      .package = "whep"
+    ) |>
+      paste(collapse = "\n")
+  }
+
+  ceded <- warned(pin("cede_unkeyed"))
+  testthat::expect_match(ceded, "LOST-1900-2000")
+  testthat::expect_no_match(ceded, "UNK-1900-2000")
+  # A pin built without the rule kept both claims, so its gap is a real one.
+  testthat::expect_match(warned(pin("keep")), "UNK-1900-2000")
+})
