@@ -21,6 +21,18 @@
 #' unverified** placeholders with no source. The `method_system_share` column
 #' says which of the two applied to each row.
 #'
+#' Within a system, `method_cohorts` says how the heads reach cohorts. A
+#' `"Cattle, dairy"` head is a cow producing milk: FAOSTAT's dairy cattle are
+#' the Milk Animals element of cow milk, and its non-dairy cattle are the rest
+#' of the herd, "cattle minus dairy cattle" (Tubiello et al. 2015, *Estimating
+#' Greenhouse Gas Emissions in Agriculture*, FAO, ISBN 978-92-5-108674-2,
+#' pp. 45-46). So by default those heads all go to the dairy system's
+#' `"Adult Female"` cohort, and the dairy herd's bulls, heifers and calves are
+#' counted where FAOSTAT counts them, in the non-dairy herd (whep#1127). Every
+#' other herd is split equally across its system's cohorts, which is **assumed,
+#' unverified**: GLEAM supplies no cohort shares. The `method_cohort_share`
+#' column says which applied to each row.
+#'
 #' @param data Dataframe with `species`, `heads`, and
 #'   optionally `iso3` or `region`.
 #' @param system_shares Optional dataframe with `species_gen`,
@@ -28,12 +40,24 @@
 #'   a production system goes wholly to it, and every other herd uses WHEP's
 #'   assumed, unverified default shares. Supplying this overrides both, so the
 #'   supplied shares are used verbatim.
+#' @param method_cohorts How heads are split across the cohorts of a system:
+#'   - `"milk_animals"` (default): a dairy-cattle herd (`"Cattle, dairy"`, the
+#'     FAOSTAT Milk Animals count) goes wholly to the dairy system's
+#'     `"Adult Female"` cohort; every other herd is split equally across its
+#'     system's cohorts.
+#'   - `"uniform"`: every herd, dairy cattle included, is split equally across
+#'     its system's cohorts, the behaviour before whep#1127. It books five
+#'     sixths of the milking cows as bulls, heifers and calves, and is kept for
+#'     sensitivity analysis.
 #'
 #' @return Dataframe expanded to cohort level with
 #'   `cohort`, `system`, `cohort_heads`, and
 #'   `cohort_fraction` columns, plus `method_system_share`: `"reported"` when
 #'   the commodity itself names the system, `"assumed"` when WHEP's unsourced
-#'   default split was applied, or `"supplied"` when `system_shares` was given.
+#'   default split was applied, or `"supplied"` when `system_shares` was given,
+#'   and `method_cohort_share`: `"milk_animals"` for a dairy-cattle herd routed
+#'   to its milking cows, `"uniform"` for an equal split across cohorts, or
+#'   `NA` for a species with no cohorts.
 #' @export
 #'
 #' @examples
@@ -42,7 +66,12 @@
 #'   iso3 = "DEU"
 #' ) |>
 #'   calculate_cohorts_systems()
-calculate_cohorts_systems <- function(data, system_shares = NULL) {
+calculate_cohorts_systems <- function(
+  data,
+  system_shares = NULL,
+  method_cohorts = c("milk_animals", "uniform")
+) {
+  method_cohorts <- rlang::arg_match(method_cohorts)
   categories <- gleam_livestock_categories
 
   data <- data |>
@@ -99,6 +128,7 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
       ),
       relationship = "many-to-many"
     ) |>
+    .apply_cohort_method(method_cohorts) |>
     dplyr::mutate(
       cohort_fraction = dplyr::if_else(
         .data$species_gen %in% system_shares$species_gen,
@@ -250,6 +280,33 @@ calculate_cohorts_systems <- function(data, system_shares = NULL) {
   } else {
     data$heads
   }
+}
+
+#' Route a dairy-cattle herd to its milking cows.
+#'
+#' Under `"milk_animals"`, the dairy-system rows of a `"Cattle, dairy"` herd
+#' keep only the `"Adult Female"` cohort at share 1, because that head count
+#' is FAOSTAT's Milk Animals (see [calculate_cohorts_systems()]). Every other
+#' row keeps its equal share. Stamps `method_cohort_share` on each row, `NA`
+#' where the species has no cohorts at all.
+#' @noRd
+.apply_cohort_method <- function(data, method_cohorts) {
+  milk_herd <- method_cohorts == "milk_animals" &
+    data$species_gen == "Cattle" &
+    .is_dairy(data$species) &
+    data$system %in% "Dairy"
+  data |>
+    dplyr::mutate(milk_herd = milk_herd) |>
+    dplyr::filter(!milk_herd | cohort == "Adult Female") |>
+    dplyr::mutate(
+      cohort_share = dplyr::if_else(milk_herd, 1, cohort_share),
+      method_cohort_share = dplyr::case_when(
+        milk_herd ~ "milk_animals",
+        is.na(cohort_share) ~ NA_character_,
+        TRUE ~ "uniform"
+      )
+    ) |>
+    dplyr::select(-milk_herd)
 }
 
 #' Get cohort fractions within each production system.
