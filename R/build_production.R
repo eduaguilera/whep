@@ -292,6 +292,64 @@ build_primary_production <- function(
   if (tibble::is_tibble(df)) tibble::as_tibble(out) else out
 }
 
+# The `area` label of every bucket-year a labelled frame carries (whep#981).
+#
+# `area` is the name of the polity a bucket's code resolves to in that year, so
+# it changes along the year axis wherever the polity does: 42 buckets carry more
+# than one over 1850-2023, e.g. 238 "Ethiopia (1952-1993)" -> "Ethiopia" at
+# 1993. As a key of a year-axis fill or completion it made each label its own
+# series, cut at the change and carried flat over the other label's years as a
+# second row for the same code. The yield chain therefore keys on `area_code`
+# alone and puts the label back from this lookup at its end.
+#
+# That is sound only while each bucket-year has ONE label (whep#563): two would
+# mean two territories share a code, and the code-keyed chain would sum them.
+# So two labels stop the build rather than one being picked.
+.area_label_lookup <- function(df) {
+  labels <- data.table::as.data.table(df)[
+    !is.na(area_code) & !is.na(area) & !is.na(year),
+    .(area_code = as.numeric(area_code), year = as.numeric(year), area)
+  ]
+  labels <- unique(labels)
+  twice <- labels[duplicated(labels, by = c("area_code", "year"))]
+  if (nrow(twice) > 0L) {
+    shown <- utils::head(paste(twice$area_code, "in", twice$year), 5L)
+    cli::cli_abort(
+      c(
+        "{cli::qty(nrow(twice))}{nrow(twice)} bucket-year{?s}
+         carr{?ies/y} more than one {.field area} label.",
+        "x" = "The production yield chain keys on {.field area_code} alone,
+               so it would sum the territories that share the code.",
+        "i" = "First: {.val {shown}}."
+      ),
+      class = "whep_error_bucket_two_labels"
+    )
+  }
+  data.table::setkeyv(labels, c("area_code", "year"))
+  labels[]
+}
+
+# Put the bucket label back on each row: its own bucket-year's, or for a year no
+# source labelled (one the chain completed into), the bucket's nearest labelled
+# year's. Any one label per bucket-year keeps the per-year keys downstream
+# whole. A code no source labels in any year stays `NA`, as it did while the
+# label travelled with the row.
+.attach_area_label <- function(df, labels) {
+  dt <- data.table::as.data.table(df)
+  query <- data.table::data.table(
+    area_code = as.numeric(dt$area_code),
+    year = as.numeric(dt$year)
+  )
+  hit <- labels[
+    query,
+    on = c("area_code", "year"),
+    roll = "nearest",
+    which = TRUE
+  ]
+  dt[, area := labels$area[hit]]
+  if (tibble::is_tibble(df)) tibble::as_tibble(dt) else dt[]
+}
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
@@ -351,6 +409,9 @@ build_primary_production <- function(
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
+  # Steps 5-7 key on `area_code` alone and the label goes back on at the end
+  # of the chain, one per bucket-year (whep#981).
+  area_labels <- .area_label_lookup(fao_combined)
 
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
@@ -371,12 +432,14 @@ build_primary_production <- function(
     primary_raw,
     cbs_prod_raw
   ) |>
-    .trim_yield_chain(chain_years, years)
+    .trim_yield_chain(chain_years, years) |>
+    .attach_area_label(area_labels)
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
   primary_raw2 <- .assemble_production_raw(
     yield_all,
-    .trim_yield_chain(primary_raw, chain_years, years)
+    .trim_yield_chain(primary_raw, chain_years, years) |>
+      .attach_area_label(area_labels)
   )
 
   historical_rows <- .prepare_historical_production(
@@ -1614,7 +1677,6 @@ build_primary_production <- function(
     ) |>
     dplyr::select(
       year,
-      area,
       area_code,
       item_prod_code,
       value
@@ -1668,7 +1730,6 @@ build_primary_production <- function(
     tidyr::complete(
       year,
       tidyr::nesting(
-        area,
         area_code,
         item_cbs,
         item_cbs_code,
@@ -1678,32 +1739,19 @@ build_primary_production <- function(
     fill_linear(
       n,
       time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "Livestock_name"
-      )
+      .by = c("area_code", "item_cbs", "item_cbs_code", "Livestock_name")
     ) |>
     dplyr::mutate(
       value = dplyr::if_else(
         !is.na(value_comb),
         value_comb,
         dplyr::if_else(n > 40, NA_real_, 0)
-      ),
-      .by = c(area, area_code, item_cbs, item_cbs_code, Livestock_name)
+      )
     ) |>
     fill_linear(
       value,
       time_col = year,
-      .by = c(
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "Livestock_name"
-      )
+      .by = c("area_code", "item_cbs", "item_cbs_code", "Livestock_name")
     )
 }
 
@@ -1762,7 +1810,6 @@ build_primary_production <- function(
   fao_liv_raw |>
     dplyr::select(
       year,
-      area,
       area_code,
       item_cbs_code,
       item_cbs,
@@ -1798,7 +1845,6 @@ build_primary_production <- function(
     ) |>
     dplyr::select(
       year,
-      area,
       area_code,
       item_prod_code,
       item_prod,
@@ -2036,7 +2082,6 @@ build_primary_production <- function(
   )
   by_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -2103,7 +2148,7 @@ build_primary_production <- function(
   crop_dt <- data.table::as.data.table(primary_raw)[unit %in% c("ha", "t")]
   crop_yield <- data.table::dcast(
     crop_dt,
-    year + area + area_code + item_prod + item_prod_code ~ unit,
+    year + area_code + item_prod + item_prod_code ~ unit,
     value.var = "value"
   )
   crop_yield[, `:=`(yield_c = t / ha, unit = "t_ha")]
@@ -2119,7 +2164,7 @@ build_primary_production <- function(
   crop_yield <- merge(
     crop_yield,
     .best_source_by_key(crop_dt),
-    by = c("year", "area", "area_code", "item_prod", "item_prod_code"),
+    by = c("year", "area_code", "item_prod", "item_prod_code"),
     all.x = TRUE,
     sort = FALSE
   )
@@ -2146,7 +2191,6 @@ build_primary_production <- function(
     tidyr::complete(
       year,
       tidyr::nesting(
-        area,
         area_code,
         item_prod,
         item_prod_code,
@@ -2161,7 +2205,6 @@ build_primary_production <- function(
           dplyr::rename(live_anim_code = item_prod_code) |>
           dplyr::select(
             year,
-            area,
             area_code,
             live_anim_code,
             unit,
@@ -2172,7 +2215,6 @@ build_primary_production <- function(
           dplyr::rename(live_anim_code = item_prod_code) |>
           dplyr::select(
             year,
-            area,
             area_code,
             live_anim_code,
             unit,
@@ -2181,14 +2223,9 @@ build_primary_production <- function(
       ) |>
         dplyr::summarise(
           value = sum(value, na.rm = TRUE),
-          .by = c(year, area, area_code, live_anim_code, unit)
+          .by = c(year, area_code, live_anim_code, unit)
         ),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "live_anim_code"
-      )
+      by = c("year", "area_code", "live_anim_code")
     ) |>
     dplyr::rename(fu = value) |>
     dplyr::mutate(
@@ -2219,7 +2256,6 @@ build_primary_production <- function(
     tidyr::complete(
       year,
       tidyr::nesting(
-        area,
         area_code,
         item_prod,
         item_prod_code,
@@ -2236,7 +2272,7 @@ build_primary_production <- function(
 # -- so they are arbitrated with `.prod_source_rank()`, the same ranking
 # `.dedup_production()` and `.add_historical_yields()` use.
 .best_source_by_key <- function(crop_dt) {
-  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  key <- c("year", "area_code", "item_prod", "item_prod_code")
   src <- crop_dt[!is.na(source), c(key, "source"), with = FALSE]
   if (nrow(src) == 0L) {
     return(src)
@@ -2262,11 +2298,11 @@ build_primary_production <- function(
 # way -- which is the same fact the value dcast above relies on, so neither
 # needs a `fun.aggregate`.
 .add_crop_yield_flags <- function(crop_yield, crop_dt) {
-  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  key <- c("year", "area_code", "item_prod", "item_prod_code")
   crop_yield[, `:=`(flag_fu = NA_character_, flag_t = NA_character_)]
   flags <- data.table::dcast(
     crop_dt,
-    year + area + area_code + item_prod + item_prod_code ~ unit,
+    year + area_code + item_prod + item_prod_code ~ unit,
     value.var = "fao_flag"
   )
   # A frame carrying only one of the two units still has to come out with both
@@ -2296,7 +2332,6 @@ build_primary_production <- function(
   yield_double_all |>
     dplyr::select(
       year,
-      area,
       area_code,
       item_prod,
       item_prod_code,
@@ -2314,7 +2349,7 @@ build_primary_production <- function(
       check_t = sum(t, na.rm = TRUE),
       check_fu = sum(fu, na.rm = TRUE),
       check = check_t + check_fu,
-      .by = c(area, area_code, item_prod, item_prod_code)
+      .by = c(area_code, item_prod, item_prod_code)
     ) |>
     dplyr::filter(check != 0)
 }
@@ -2365,7 +2400,6 @@ build_primary_production <- function(
         year,
         item_prod,
         item_prod_code,
-        area,
         area_code,
         unit,
         Multi_type
@@ -2398,7 +2432,6 @@ build_primary_production <- function(
       n = dplyr::n(),
       .by = c(
         year,
-        area,
         area_code,
         item_prod,
         item_prod_code,
@@ -2417,7 +2450,6 @@ build_primary_production <- function(
       yield_c,
       time_col = year,
       .by = c(
-        "area",
         "area_code",
         "item_prod",
         "item_prod_code",
@@ -2449,7 +2481,6 @@ build_primary_production <- function(
 
   by_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -2549,7 +2580,7 @@ build_primary_production <- function(
       prod_cbs_count = .N,
       sumprod_cbs_ratio = sum(t, na.rm = TRUE) / t_cbs[1L]
     ),
-    by = c("year", "area", "area_code", "item_cbs_code")
+    by = c("year", "area_code", "item_cbs_code")
   ]
 
   df |>
@@ -2558,7 +2589,6 @@ build_primary_production <- function(
       prod_cbs_ratio,
       time_col = year,
       .by = c(
-        "area",
         "area_code",
         "item_prod",
         "item_prod_code",
@@ -2589,7 +2619,6 @@ build_primary_production <- function(
 
   by_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -3644,8 +3673,9 @@ build_primary_production <- function(
   join_keys = c("year", "area"),
   land_label = "LUH2"
 ) {
+  # `area` is not in the series key: it is a year-varying label, and a key cut
+  # a bucket's back-cast at its polity change (whep#981).
   id_cols <- c(
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -3683,7 +3713,8 @@ build_primary_production <- function(
     pre_base,
     id_cols = id_cols,
     years = pre_years
-  )
+  ) |>
+    .label_completed_rows(id_cols)
 
   pre <- merge(
     data.table::as.data.table(pre),
@@ -3850,6 +3881,22 @@ build_primary_production <- function(
     dplyr::filter(all_zero) |>
     dplyr::pull(area) |>
     unique()
+}
+
+# A row `.complete_year_nesting_dt()` added carries no `area`, now that the
+# label is not in the series key. It takes its series' label from the nearest
+# year that has one, as it had while the label was part of that key.
+.label_completed_rows <- function(pre, id_cols) {
+  key <- c(id_cols, "year")
+  labelled <- unique(pre[!is.na(area), c(key, "area"), with = FALSE], by = key)
+  hit <- labelled[
+    pre[is.na(area), key, with = FALSE],
+    on = key,
+    roll = "nearest",
+    which = TRUE
+  ]
+  pre[is.na(area), area := labelled$area[hit]]
+  pre[]
 }
 
 .complete_year_nesting_dt <- function(df, id_cols, years = NULL) {

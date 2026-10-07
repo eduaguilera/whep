@@ -626,7 +626,10 @@ test_that("every year-free territorial grouping is classified", {
   # 143 with whep#1351, on top of whep#1121's 142: `.flax_fibre_values()` takes
   # a straw-basis country's median fibre ratio over its overlap years
   # (`year_axis`). Re-derived by running the audit on the merged tree.
-  expect_lte(sum(full$n), 143L)
+  # 142 with whep#981, down from whep#1351's 143: `.combine_livestock()`'s
+  # row-wise `mutate()` lost its `.by`, which grouped nothing and named the
+  # `area` label. Re-derived by running the audit on the merged tree.
+  expect_lte(sum(full$n), 142L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

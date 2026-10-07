@@ -709,11 +709,6 @@
      consecutive years, then a suffix sum. `year` in the key would give every
      year a series of one and flatten the reconstruction to today's borders,
      which is the defect whep#761 fixed.",
-    ".combine_livestock", "mutate",
-    "area, area_code, item_cbs, item_cbs_code, Livestock_name", 1L, "row_wise",
-    "`if_else(!is.na(value_comb), value_comb, if_else(n > 40, NA, 0))` is
-     row-wise -- `n` was computed by the grouped `mutate()` above -- so this
-     group aggregates nothing. The label rides beside its code.",
     ".combine_livestock", "mutate", "area_code, item_cbs, item_cbs_code", 1L,
     "year_axis",
     "`n = n()` counts how many YEARS the series has, which is the test the line
@@ -1105,10 +1100,11 @@
      label. `area_name` joins the key only when the frame carries it, which is
      why the third element reads `<dynamic>`.",
     ".suppress_empty_series", "mutate",
-    "area, area_code, item_prod, item_prod_code", 1L, "year_axis",
+    "area_code, item_prod, item_prod_code", 1L, "year_axis",
     "`sum(t) + sum(fu)` over the WHOLE series, to drop series that are zero
      everywhere. A year in the key would test each year separately and delete
-     every legitimate zero year. The label rides beside its code.",
+     every legitimate zero year. Keyed on the code alone: the year-varying
+     `area` label cut a series at its polity change (whep#981).",
     ".trade_matrix", "summarise", "from_code, to_code", 1L, "single_year",
     "`compute_footprint_balance()` runs per item within one year;
      `.land_balance_trade(year)` supplies the rows.",
