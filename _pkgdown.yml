@@ -173,6 +173,7 @@ reference:
   - n2o_efs_ipcc2006
   - som_ranges
   - n_attenuation_constants
+  - ipcc_2019_soil_n_ef
 
 - title: Human-population nitrogen coefficient tables
   desc: >
