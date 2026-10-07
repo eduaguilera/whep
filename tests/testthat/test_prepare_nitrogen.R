@@ -488,7 +488,7 @@ test_that("reading the manure labels in 2000 would move three countries", {
 })
 
 
-test_that("the grassland default route reproduces the name join", {
+test_that("the grassland area_name route reproduces the name join", {
   .need_spatialize_helper(".grass_share_area_code")
   regions <- .regions_full_for_spatialize()
   lass <- whep::lassaletta_grassland_share
@@ -550,6 +550,43 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
   )
   expect_equal(sum(is.na(before) & !is.na(after)), 445L)
   expect_equal(sum(!is.na(before) & is.na(after)), 102L)
+})
+
+
+test_that("both nitrogen entry points default to the alias route (#649)", {
+  .need_spatialize_helper(".grass_share_area_code")
+  default_route <- function(fn) eval(formals(fn)$grass_share_route)[[1]]
+  expect_equal(default_route(prepare_nitrogen_inputs), "alias_map")
+  expect_equal(default_route(prepare_spatialize_all), "alias_map")
+})
+
+
+test_that("the rows the alias route refuses carry no grassland share", {
+  # The default rests on this: every row the name route keeps and the alias
+  # route refuses is either a zero share or a year with no national N total
+  # to split, so dropping it moves nothing -- except Viet Nam 1961-1974,
+  # which loses shares of at most 0.003 (#649).
+  .need_spatialize_helper(".grass_share_area_code")
+  regions <- .regions_full_for_spatialize()
+  lass <- whep::lassaletta_grassland_share
+  year <- as.integer(lass$year)
+  by_name <- .grass_share_area_code(lass$Country, year, regions, "area_name")
+  by_alias <- .grass_share_area_code(lass$Country, year, regions, "alias_map")
+  lost <- lass[!is.na(by_name) & is.na(by_alias), ]
+  zero <- c("South Sudan", "Botswana")
+  expect_true(all(lost$grass_share[lost$Country %in% zero] == 0))
+  # Czechoslovakia and Yugoslav SFR are refused only after they dissolved,
+  # when FAOSTAT books no N total under their area codes (51, 248).
+  expect_gte(min(lost$year[lost$Country == "Czechoslovakia"]), 1993)
+  expect_gte(min(lost$year[lost$Country == "Yugoslav SFR"]), 1992)
+  expect_lte(max(lost$grass_share[lost$Country == "Viet Nam"]), 0.003)
+  # China, the substantive gain, resolves under the alias route only.
+  china <- lass$Country == "China"
+  expect_true(all(is.na(by_name[china])))
+  expect_equal(
+    unique(by_alias[china]),
+    regions$area_code[match("CHN", regions$iso3c)]
+  )
 })
 
 
