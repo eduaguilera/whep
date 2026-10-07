@@ -439,10 +439,11 @@
 # - `"present_day"`: the polity live at `.backcast_reference_year()`, which
 #   names the territory of the movement. An area with no polity live in that
 #   year keeps its anchor polity rather than a stand-in, because there is then
-#   no present-day territory to name. It changes no value and no
-#   `polity_area_code` bucket: over the crosswalk's 1850-1960 grid it relabels
-#   the pairs of 47 areas, and the rows that move are exactly the pairs
-#   `polity_anchor_drift()` reports with a reference polity live in 2023.
+#   no present-day territory to name. It changes no value of the table it
+#   labels and no `polity_area_code` bucket: over the crosswalk's 1850-1960
+#   grid it relabels 5,106 `(area, year)` pairs of 46 areas, exactly the pairs
+#   `polity_anchor_drift()` reports with a reference polity live in 2023. A
+#   consumer that joins on `reporting_polity_code` follows the label.
 #
 # Which one a published row should carry has defensible alternatives and is the
 # maintainer's call, so both are implemented and the default is today's.
@@ -896,10 +897,11 @@
 #'   there is no present-day territory to name.
 #'
 #' Either way the row's `mapping_status` is `"backcast_anchor"` where the polity
-#' named is not live in the row's own year. Neither choice moves a value or a
-#' `polity_area_code` bucket: over the crosswalk's 1850-1960 grid,
-#' `"present_day"` relabels the pairs of 47 areas and leaves every bucket where
-#' it was.
+#' named is not live in the row's own year. Neither choice moves a value of
+#' the table being labelled or a `polity_area_code` bucket: over the
+#' crosswalk's 1850-1960 grid, `"present_day"` relabels 5,106 `(area, year)`
+#' pairs of 46 areas and leaves every bucket where it was. A consumer that
+#' joins on `reporting_polity_code` follows the label it is given.
 #'
 #' Without an explicit argument the session option
 #' `options(whep.backcast_polity = )` decides, and it is the same switch every

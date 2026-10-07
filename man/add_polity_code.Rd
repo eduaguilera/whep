@@ -121,10 +121,11 @@ there is no present-day territory to name.
 }
 
 Either way the row's \code{mapping_status} is \code{"backcast_anchor"} where the polity
-named is not live in the row's own year. Neither choice moves a value or a
-\code{polity_area_code} bucket: over the crosswalk's 1850-1960 grid,
-\code{"present_day"} relabels the pairs of 47 areas and leaves every bucket where
-it was.
+named is not live in the row's own year. Neither choice moves a value of
+the table being labelled or a \code{polity_area_code} bucket: over the
+crosswalk's 1850-1960 grid, \code{"present_day"} relabels 5,106 \verb{(area, year)}
+pairs of 46 areas and leaves every bucket where it was. A consumer that
+joins on \code{reporting_polity_code} follows the label it is given.
 
 Without an explicit argument the session option
 \code{options(whep.backcast_polity = )} decides, and it is the same switch every
