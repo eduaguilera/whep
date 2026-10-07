@@ -35,14 +35,15 @@
 #   under recycled weather, stamped "_recycled_climate".
 # - Run dir from Sys.getenv("WHEP_LPJML_RUN_DIR"); never hardcode a path.
 
-# Annual irrigation depth per cell, commodity balance item, year and water
-# regime: the table the wet/dry classifier adds to precipitation.
+# Annual irrigation depth per cell, polity, commodity balance item, year and
+# water regime: the table the wet/dry classifier adds to precipitation.
 #
-# `keys` (optional): the rows the depth is wanted for, with `lon`, `lat`,
-# `year`, `item_cbs_code` and `water_regime` ("irrigated" or "rainfed"); other
-# columns ride along. Every key gets a row. Without keys, the rows are every
-# cell, item and year where LPJmL grows one of the item's crops, in both
-# regimes.
+# `areas`: WHEP's own regime areas, the hectares the N chain splits
+# (`lon`, `lat`, `area_code`, `item_prod_code`, `year`, `rainfed_ha`,
+# `irrigated_ha`), as `.sci_engine_crops()` builds them. They give the rows
+# (an irrigated row where the item's irrigated hectares are positive, a
+# rainfed row where its rainfed hectares are) and the weights of the pooled
+# items below. `years` defaults to the years `areas` carries.
 #
 # Returns `irrig_mm` (mm/yr per square metre of the irrigated stand; 0 on
 # rainfed rows), `method_irrig_depth`, `lpjml_crop` (the LPJmL crops the depth
@@ -53,40 +54,36 @@
 #   regime_yield_crop_mapping (fodder crops, for example);
 # - "lpjml_others_proxy": the item sits on LPJmL's "others" stand, a
 #   composite of minor crops, so its depth is that composite's;
-# - "no_irrigated_stand": LPJmL has no irrigated stand of the item's crops in
-#   the cell, so there is no depth (`irrig_mm` NA);
-# - "no_band": the item has no LPJmL crop at all (`irrig_mm` NA);
+# - "no_irrigated_stand": a production item irrigated in WHEP has no
+#   irrigated stand of its LPJmL crop in the cell, so there is no depth
+#   (`irrig_mm` NA);
+# - "no_band": an irrigated production item has no LPJmL crop at all
+#   (`irrig_mm` NA);
 # - "rainfed_regime": a rainfed row, 0 by definition.
 # The three LPJmL methods carry the suffix "_recycled_climate" before 1901.
 #
 # Where a commodity balance item pools production items on several LPJmL
-# crops, the depth is the mean of those crops' depths weighted by each crop's
-# irrigated stand area in the cell, every crop counted once.
+# crops, the depth is the mean of their crops' depths weighted by WHEP's own
+# irrigated hectares of each production item in the cell, the rule by which
+# the regime split sums production items to the balance item. LPJmL's stand
+# area is not a weight: it pools a whole LPJmL crop (all maize, say) into
+# whichever minor item shares the crop.
 .lpjml_irrig_depth <- function(
+  areas,
   years = NULL,
   run_dir = NULL,
-  data = NULL,
-  keys = NULL
+  data = NULL
 ) {
-  keys <- .lid_check_keys(keys)
-  years <- years %||% .lid_key_years(keys)
-  if (is.null(years) && is.null(data)) {
-    cli::cli_abort(
-      c(
-        "Reading the irrigation depth needs explicit {.arg years} (or
-         {.arg keys}).",
-        x = "Expanded to items and regimes, the whole LPJmL record does not
-             fit in memory.",
-        i = "Pass {.arg years}, or {.arg keys} carrying the years you want."
-      ),
-      class = "whep_lpjml_irrig_depth_years"
-    )
-  }
+  areas <- .lid_check_areas(areas)
+  years <- years %||% sort(unique(areas$year))
+  areas <- dplyr::filter(areas, .data$year %in% years)
   crop <- .lid_crop_depth(years, run_dir, data)
   vintage <- .lid_vintage_of(crop)
-  crop |>
+  areas |>
+    dplyr::filter(.data$irrigated_ha > 0) |>
+    .lid_item_depth(crop = crop) |>
     .lid_cbs_depth() |>
-    .lid_regime_rows(keys, vintage)
+    .lid_regime_rows(areas = areas, vintage = vintage)
 }
 
 # -- Crop grain ---------------------------------------------------------------
@@ -290,7 +287,7 @@
 
 # Production items -> LPJmL crop and the depth's method, from the mapping the
 # regime yield ratio uses (regime_yield_crop_mapping, `lpjml_cft` and
-# `lpjml_basis`), plus each item's commodity balance code.
+# `lpjml_basis`).
 .lid_item_bands <- function() {
   mapping <- whep::regime_yield_crop_mapping
   odd <- setdiff(mapping$lpjml_basis, .lid_known_basis())
@@ -301,20 +298,12 @@
       class = "whep_lpjml_irrig_depth_items"
     )
   }
-  cbs <- whep::items_prod_full |>
-    dplyr::transmute(
-      item_prod_code = .as_integer_quiet(.data$item_prod_code),
-      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
-    ) |>
-    dplyr::filter(!is.na(.data$item_prod_code)) |>
-    dplyr::distinct()
   mapping |>
     dplyr::transmute(
       item_prod_code = as.integer(.data$item_prod_code),
       lpjml_crop = stringr::str_replace_all(.data$lpjml_cft, "_", " "),
       method_irrig_depth = .lid_item_method(.data$lpjml_crop, .data$lpjml_basis)
-    ) |>
-    dplyr::left_join(cbs, by = "item_prod_code", relationship = "many-to-one")
+    )
 }
 
 .lid_known_basis <- function() {
@@ -343,15 +332,124 @@
   c("lpjml_airrig_stand", "lpjml_crop_proxy", "lpjml_others_proxy")
 }
 
-# Per production item: the irrigated depth of the item's LPJmL crop. The
-# natural grain of the mapping, for a caller that weights the items of one
-# commodity balance item by its own irrigated areas.
-.lid_item_depth <- function(crop) {
-  crop |>
-    dplyr::inner_join(
+# Each production item's commodity balance item.
+.lid_prod_cbs <- function() {
+  whep::items_prod_full |>
+    dplyr::transmute(
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(!is.na(.data$item_prod_code)) |>
+    dplyr::distinct()
+}
+
+# WHEP's regime areas normalised the way the other grid layers key their rows
+# (two-decimal centres, integer codes), summed to one row per cell, polity,
+# production item and year, with each item's commodity balance item. A
+# production item with no balance item (flowers) has no balance row to carry a
+# depth, so it leaves here, counted.
+.lid_check_areas <- function(areas) {
+  .check_columns(areas, .lid_area_cols(), "regime_areas")
+  key <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  out <- tibble::as_tibble(areas) |>
+    dplyr::transmute(
+      lon = round(as.numeric(.data$lon), 2),
+      lat = round(as.numeric(.data$lat), 2),
+      area_code = as.integer(.data$area_code),
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      year = as.integer(.data$year),
+      rainfed_ha = as.numeric(.data$rainfed_ha),
+      irrigated_ha = as.numeric(.data$irrigated_ha)
+    )
+  .lid_check_area_values(out)
+  out |>
+    dplyr::summarise(
+      rainfed_ha = sum(.data$rainfed_ha),
+      irrigated_ha = sum(.data$irrigated_ha),
+      .by = dplyr::all_of(key)
+    ) |>
+    dplyr::left_join(
+      .lid_prod_cbs(),
+      by = "item_prod_code",
+      relationship = "many-to-one"
+    ) |>
+    .lid_drop_unbalanced()
+}
+
+.lid_area_cols <- function() {
+  c(
+    "lon",
+    "lat",
+    "area_code",
+    "item_prod_code",
+    "year",
+    "rainfed_ha",
+    "irrigated_ha"
+  )
+}
+
+# A missing key or hectare cannot be told from an absent crop, and a negative
+# hectare is not an area: the regime areas are both the rows and the weights,
+# so neither is repaired here.
+.lid_check_area_values <- function(areas) {
+  bad <- !stats::complete.cases(areas) |
+    areas$rainfed_ha < 0 |
+    areas$irrigated_ha < 0
+  bad <- bad %in% TRUE
+  if (any(bad)) {
+    cols <- .lid_area_cols()
+    cli::cli_abort(
+      c(
+        "{sum(bad)} row{?s} of the regime areas carr{?ies/y} a missing key, a
+         missing hectare or a negative hectare.",
+        i = "Each row needs {.field {cols}}, with non-negative hectares."
+      ),
+      class = "whep_lpjml_irrig_depth_areas"
+    )
+  }
+}
+
+.lid_drop_unbalanced <- function(areas) {
+  orphan <- is.na(areas$item_cbs_code)
+  if (any(orphan)) {
+    codes <- sort(unique(areas$item_prod_code[orphan]))
+    hectares <- signif(
+      sum(areas$rainfed_ha[orphan] + areas$irrigated_ha[orphan]),
+      3
+    )
+    cli::cli_inform(
+      "Production item{?s} {.val {codes}} ha{?s/ve} no commodity balance item
+       to carry a depth; {.val {hectares}} ha left out.",
+      class = "whep_lpjml_irrig_depth_unbalanced"
+    )
+  }
+  areas[!orphan, ]
+}
+
+# Per production item row of `items` (WHEP's regime areas; other columns ride
+# along): the irrigated depth of the item's LPJmL crop in the cell that year.
+# An item with no LPJmL crop is "no_band" and one whose crop has no irrigated
+# stand in the cell "no_irrigated_stand"; neither has a depth (NA).
+.lid_item_depth <- function(items, crop) {
+  stands <- dplyr::select(
+    crop,
+    "lon",
+    "lat",
+    "year",
+    "lpjml_crop",
+    "irrig_mm_irrigated",
+    "stand_frac_irrigated"
+  )
+  items |>
+    dplyr::left_join(
       .lid_item_bands(),
-      by = "lpjml_crop",
-      relationship = "many-to-many"
+      by = "item_prod_code",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::left_join(
+      stands,
+      by = c("lon", "lat", "year", "lpjml_crop"),
+      relationship = "many-to-one"
     ) |>
     dplyr::mutate(
       watered = .lid_has_irrigated_stand(
@@ -359,23 +457,13 @@
         .data$irrig_mm_irrigated
       ),
       irrig_mm = dplyr::if_else(.data$watered, .data$irrig_mm_irrigated, NA),
-      method_irrig_depth = dplyr::if_else(
-        .data$watered,
-        .data$method_irrig_depth,
-        "no_irrigated_stand"
+      method_irrig_depth = dplyr::case_when(
+        is.na(.data$lpjml_crop) ~ "no_band",
+        !.data$watered ~ "no_irrigated_stand",
+        .default = .data$method_irrig_depth
       )
     ) |>
-    dplyr::select(
-      "lon",
-      "lat",
-      "year",
-      "item_prod_code",
-      "item_cbs_code",
-      "lpjml_crop",
-      "irrig_mm",
-      "stand_frac_irrigated",
-      "method_irrig_depth"
-    )
+    dplyr::select(-"irrig_mm_irrigated", -"watered")
 }
 
 # A crop has an irrigated depth in a cell only where its irrigated stand has
@@ -384,152 +472,106 @@
   is.finite(stand_frac) & stand_frac > 0 & is.finite(irrig_mm)
 }
 
-# Each commodity balance item's LPJmL crops, every crop once, with the least
-# direct method among the production items that put the item on that crop,
-# and how many crops the item pools. A production item with no commodity
-# balance item (flowers, 2108) has no row to carry a depth.
-.lid_cbs_bands <- function() {
-  .lid_item_bands() |>
-    dplyr::filter(!is.na(.data$item_cbs_code)) |>
+# Per cell, polity, commodity balance item and year: the depth of the item's
+# irrigated production items, weighted by WHEP's own irrigated hectares of
+# each. A balance item resting on one LPJmL crop takes that crop's depth
+# unchanged, however many production items share it. One with any irrigated
+# production item lacking a depth gets none (NA), labelled with the least
+# direct method among them, so a missing stand is never averaged away.
+.lid_cbs_depth <- function(items) {
+  .lid_check_weights(items)
+  key <- intersect(
+    c("lon", "lat", "area_code", "item_cbs_code", "year"),
+    names(items)
+  )
+  items |>
+    dplyr::filter(.data$irrigated_ha > 0) |>
     dplyr::mutate(
       rank = match(.data$method_irrig_depth, .lid_method_rank())
     ) |>
+    dplyr::arrange(.data$lpjml_crop) |>
     dplyr::summarise(
+      irrig_mm = sum(.data$irrig_mm * .data$irrigated_ha) /
+        sum(.data$irrigated_ha),
       rank = max(.data$rank),
-      .by = c("item_cbs_code", "lpjml_crop")
+      lpjml_crop = paste(
+        unique(.data$lpjml_crop[!is.na(.data$lpjml_crop)]),
+        collapse = "+"
+      ),
+      .by = dplyr::all_of(key)
     ) |>
     dplyr::mutate(
       method_irrig_depth = .lid_method_rank()[.data$rank],
-      n_crops = dplyr::n(),
-      .by = "item_cbs_code"
+      lpjml_crop = dplyr::na_if(.data$lpjml_crop, "")
     ) |>
     dplyr::select(-"rank")
 }
 
-# Per cell, commodity balance item and year: the depth of the item's crops,
-# weighted by each crop's irrigated stand area in the cell. Crops with no
-# irrigated stand there contribute nothing; an item none of whose crops has
-# one gets NA, stamped "no_irrigated_stand". Most items sit on one crop and
-# take its depth as it is; only the few pooling several crops are averaged.
-.lid_cbs_depth <- function(crop) {
-  rows <- crop |>
-    dplyr::mutate(
-      watered = .lid_has_irrigated_stand(
-        .data$stand_frac_irrigated,
-        .data$irrig_mm_irrigated
-      )
-    ) |>
-    dplyr::select(
-      "lon",
-      "lat",
-      "year",
-      "lpjml_crop",
-      "irrig_mm_irrigated",
-      "stand_frac_irrigated",
-      "watered"
-    ) |>
-    dplyr::inner_join(
-      .lid_cbs_bands(),
-      by = "lpjml_crop",
-      relationship = "many-to-many"
-    )
-  single <- rows$n_crops == 1L
-  dplyr::bind_rows(
-    .lid_cbs_single(rows[single, ]),
-    .lid_cbs_pooled(rows[!single, ])
-  )
-}
-
-.lid_cbs_single <- function(rows) {
-  dplyr::transmute(
-    rows,
-    .data$lon,
-    .data$lat,
-    .data$year,
-    .data$item_cbs_code,
-    irrig_mm = dplyr::if_else(.data$watered, .data$irrig_mm_irrigated, NA),
-    method_irrig_depth = dplyr::if_else(
-      .data$watered,
-      .data$method_irrig_depth,
-      "no_irrigated_stand"
-    ),
-    .data$lpjml_crop
-  )
-}
-
-# Stand-area-weighted mean over the crops with an irrigated stand, carrying
-# the least direct of their methods and naming them. With none, every crop of
-# the item is named, so a missing depth still says where it was looked for.
-.lid_cbs_pooled <- function(rows) {
-  rows |>
-    dplyr::mutate(
-      weight = dplyr::if_else(.data$watered, .data$stand_frac_irrigated, 0),
-      volume = dplyr::if_else(
-        .data$watered,
-        .data$irrig_mm_irrigated * .data$stand_frac_irrigated,
-        0
+# The weights are WHEP's own irrigated hectares per production item; nothing
+# else, LPJmL's stand area included, may stand in for them.
+.lid_check_weights <- function(items) {
+  has_weights <- rlang::has_name(items, "irrigated_ha") &&
+    !anyNA(items$irrigated_ha)
+  if (!has_weights) {
+    cli::cli_abort(
+      c(
+        "Pooling production items into a commodity balance item needs WHEP's
+         irrigated hectares of each, in {.field irrigated_ha}, on every row.",
+        i = "LPJmL's stand area is not a weight: it pools a whole LPJmL crop
+             into whichever minor item shares it."
       ),
-      rank = dplyr::if_else(
-        .data$watered,
-        match(.data$method_irrig_depth, .lid_method_rank()),
-        0L
-      )
-    ) |>
-    dplyr::arrange(.data$lpjml_crop) |>
-    dplyr::summarise(
-      irrig_mm = sum(.data$volume) / sum(.data$weight),
-      rank = max(.data$rank),
-      used = paste(.data$lpjml_crop[.data$watered], collapse = "+"),
-      all = paste(.data$lpjml_crop, collapse = "+"),
-      .by = c("lon", "lat", "year", "item_cbs_code")
-    ) |>
-    dplyr::transmute(
-      .data$lon,
-      .data$lat,
-      .data$year,
-      .data$item_cbs_code,
-      irrig_mm = dplyr::if_else(.data$rank > 0L, .data$irrig_mm, NA),
-      method_irrig_depth = dplyr::if_else(
-        .data$rank > 0L,
-        .lid_method_rank()[pmax(.data$rank, 1L)],
-        "no_irrigated_stand"
-      ),
-      lpjml_crop = dplyr::if_else(.data$rank > 0L, .data$used, .data$all)
+      class = "whep_lpjml_irrig_depth_weights"
     )
+  }
 }
 
 # -- Regimes ------------------------------------------------------------------
 
-# Irrigated rows carry the depth; rainfed rows 0, by definition of the
-# regime. With `keys`, every key gets a row: an item with no LPJmL crop is
-# stamped "no_band", an item whose crops have no irrigated stand in the cell
-# "no_irrigated_stand", and neither is filled.
-.lid_regime_rows <- function(cbs, keys, vintage) {
-  key <- c("lon", "lat", "year", "item_cbs_code")
-  rows <- keys %||%
-    tidyr::expand_grid(
-      dplyr::distinct(cbs, dplyr::across(dplyr::all_of(key))),
-      water_regime = c("irrigated", "rainfed")
-    )
-  rows |>
-    dplyr::left_join(cbs, by = key, relationship = "many-to-one") |>
+# One row per cell, polity, balance item, year and regime of the regime areas:
+# an irrigated row where the balance item's irrigated hectares are positive,
+# carrying the depth; a rainfed row where its rainfed hectares are, carrying 0
+# by definition of the regime.
+.lid_regime_rows <- function(cbs, areas, vintage) {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  keys <- .lid_regime_keys(areas)
+  irrigated <- keys |>
+    dplyr::filter(.data$water_regime == "irrigated") |>
+    dplyr::left_join(cbs, by = key, relationship = "one-to-one") |>
     dplyr::mutate(
-      banded = .data$item_cbs_code %in% .lid_cbs_bands()$item_cbs_code,
-      irrigated = .data$water_regime == "irrigated",
-      irrig_mm = dplyr::if_else(.data$irrigated, .data$irrig_mm, 0),
-      method_irrig_depth = dplyr::case_when(
-        !.data$irrigated ~ "rainfed_regime",
-        !.data$banded ~ "no_band",
-        is.na(.data$method_irrig_depth) ~ "no_irrigated_stand",
-        .default = .data$method_irrig_depth
-      ) |>
-        .lid_climate_stamp(.data$year),
-      lpjml_crop = dplyr::if_else(.data$irrigated, .data$lpjml_crop, NA),
+      method_irrig_depth = .lid_climate_stamp(
+        .data$method_irrig_depth,
+        .data$year
+      )
+    )
+  rainfed <- keys |>
+    dplyr::filter(.data$water_regime == "rainfed") |>
+    dplyr::mutate(irrig_mm = 0, method_irrig_depth = "rainfed_regime")
+  dplyr::bind_rows(irrigated, rainfed) |>
+    dplyr::mutate(
       lpjml_version = vintage$lpjml_version,
       lpjml_git_hash = vintage$lpjml_git_hash,
       lpjml_run = vintage$lpjml_run
     ) |>
-    dplyr::select(-"banded", -"irrigated")
+    dplyr::arrange(.data$year, .data$lon, .data$lat, .data$item_cbs_code)
+}
+
+# The rows of the regime areas at the balance item grain: per cell, polity,
+# balance item and year, one row per regime with positive hectares.
+.lid_regime_keys <- function(areas) {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  areas |>
+    dplyr::summarise(
+      irrigated = sum(.data$irrigated_ha),
+      rainfed = sum(.data$rainfed_ha),
+      .by = dplyr::all_of(key)
+    ) |>
+    tidyr::pivot_longer(
+      c("irrigated", "rainfed"),
+      names_to = "water_regime",
+      values_to = "hectares"
+    ) |>
+    dplyr::filter(.data$hectares > 0) |>
+    dplyr::select(-"hectares")
 }
 
 # A depth LPJmL computed under the recycled 1901-1930 weather says so.
@@ -540,43 +582,6 @@
     paste0(method, "_recycled_climate"),
     method
   )
-}
-
-# Keys normalised the way the other grid layers normalise theirs (two-decimal
-# centres, integer codes), with the regime vocabulary checked.
-.lid_check_keys <- function(keys) {
-  if (is.null(keys)) {
-    return(NULL)
-  }
-  .check_columns(
-    keys,
-    c("lon", "lat", "year", "item_cbs_code", "water_regime"),
-    "keys"
-  )
-  odd <- setdiff(unique(keys$water_regime), c("irrigated", "rainfed"))
-  if (length(odd) > 0L) {
-    cli::cli_abort(
-      c(
-        "{.arg keys} has an unknown {.field water_regime}: {.val {odd}}.",
-        i = "Use {.val irrigated} or {.val rainfed}."
-      ),
-      class = "whep_lpjml_irrig_depth_keys"
-    )
-  }
-  tibble::as_tibble(keys) |>
-    dplyr::mutate(
-      lon = round(as.numeric(.data$lon), 2),
-      lat = round(as.numeric(.data$lat), 2),
-      year = as.integer(.data$year),
-      item_cbs_code = as.integer(.data$item_cbs_code)
-    )
-}
-
-.lid_key_years <- function(keys) {
-  if (is.null(keys)) {
-    return(NULL)
-  }
-  sort(unique(keys$year))
 }
 
 # -- Vintage ------------------------------------------------------------------

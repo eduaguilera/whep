@@ -90,6 +90,22 @@
   )
 }
 
+# WHEP's regime areas in cell A (polity 1): maize, rice, tomatoes ("others"),
+# and Cereals, Other pooling buckwheat (temperate cereals) and fonio (tropical
+# cereals); in cell B, irrigated maize where LPJmL has only a rainfed stand.
+.lid_areas <- function(year = 2010L) {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    0.25, 0.25, 1L,         56L,             30,          20,
+    0.25, 0.25, 1L,         27L,             5,           10,
+    0.25, 0.25, 1L,         388L,            0,           8,
+    0.25, 0.25, 1L,         89L,             0,           30,
+    0.25, 0.25, 1L,         94L,             0,           10,
+    0.75, 0.25, 1L,         56L,             50,          2
+  ) |>
+    dplyr::mutate(year = year)
+}
+
 .lid_row <- function(x, lon, cbs, regime = "irrigated") {
   x[
     x$lon == lon & x$item_cbs_code == cbs & x$water_regime == regime,
@@ -124,7 +140,7 @@ testthat::test_that("the crop grain keeps the paddy water on rainfed rice", {
 })
 
 testthat::test_that("every row carries the run's vintage", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data())
+  out <- whep:::.lpjml_irrig_depth(.lid_areas(), data = .lid_data())
   testthat::skip_if_not_installed("pointblank")
   pointblank::expect_col_vals_in_set(
     out,
@@ -136,7 +152,7 @@ testthat::test_that("every row carries the run's vintage", {
 })
 
 testthat::test_that("items take their crop's depth; others is a proxy", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data())
+  out <- whep:::.lpjml_irrig_depth(.lid_areas(), data = .lid_data())
   maize <- .lid_row(out, 0.25, 2514L)
   testthat::expect_equal(maize$irrig_mm, 120)
   testthat::expect_identical(maize$method_irrig_depth, "lpjml_airrig_stand")
@@ -149,33 +165,34 @@ testthat::test_that("items take their crop's depth; others is a proxy", {
   testthat::expect_identical(tomatoes$lpjml_crop, "others")
 })
 
-testthat::test_that("an item pooling crops weights them by irrigated stand", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data())
-  # Cereals, Other: temperate (180 mm on 0.05) and tropical (60 on 0.15).
+testthat::test_that("an item pooling crops weights them by WHEP hectares", {
+  out <- whep:::.lpjml_irrig_depth(.lid_areas(), data = .lid_data())
+  # Cereals, Other: buckwheat (30 irrigated ha, temperate cereals 180 mm)
+  # and fonio (10 ha, tropical cereals 60 mm). LPJmL's stands (0.05 and
+  # 0.15) would weight them the other way round, giving 90 mm.
   cereals <- .lid_row(out, 0.25, 2520L)
-  testthat::expect_equal(cereals$irrig_mm, (180 * 0.05 + 60 * 0.15) / 0.2)
+  testthat::expect_equal(cereals$irrig_mm, (30 * 180 + 10 * 60) / 40)
   testthat::expect_identical(cereals$method_irrig_depth, "lpjml_airrig_stand")
   testthat::expect_identical(
     cereals$lpjml_crop,
     "temperate cereals+tropical cereals"
   )
-  # Fodder cereals: all three crops stand in by proxy, maize included.
-  fodder <- .lid_row(out, 0.25, 2000L)
+  # Moving WHEP's hectares moves the depth; LPJmL's stand area does not.
+  areas <- .lid_areas()
+  areas$irrigated_ha[areas$item_prod_code == 89L] <- 10
+  areas$irrigated_ha[areas$item_prod_code == 94L] <- 30
+  swapped <- whep:::.lpjml_irrig_depth(areas, data = .lid_data())
   testthat::expect_equal(
-    fodder$irrig_mm,
-    (120 * 0.2 + 180 * 0.05 + 60 * 0.15) / 0.4
+    .lid_row(swapped, 0.25, 2520L)$irrig_mm,
+    (10 * 180 + 30 * 60) / 40
   )
-  testthat::expect_identical(fodder$method_irrig_depth, "lpjml_crop_proxy")
-  # Vegetables, Other: green maize directly, the rest on "others"; the least
-  # direct method labels the row.
-  veg <- .lid_row(out, 0.25, 2605L)
-  testthat::expect_equal(veg$irrig_mm, (120 * 0.2 + 360 * 0.1) / 0.3)
-  testthat::expect_identical(veg$method_irrig_depth, "lpjml_others_proxy")
-  testthat::expect_identical(veg$lpjml_crop, "maize+others")
 })
 
 testthat::test_that("a depth under the recycled pre-1901 weather says so", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data(year = 1890L))
+  out <- whep:::.lpjml_irrig_depth(
+    .lid_areas(1890L),
+    data = .lid_data(year = 1890L)
+  )
   testthat::expect_identical(
     .lid_row(out, 0.25, 2514L)$method_irrig_depth,
     "lpjml_airrig_stand_recycled_climate"
@@ -196,61 +213,52 @@ testthat::test_that("a depth under the recycled pre-1901 weather says so", {
 })
 
 testthat::test_that("rainfed rows are zero by definition, rice included", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data())
+  out <- whep:::.lpjml_irrig_depth(.lid_areas(), data = .lid_data())
   rainfed <- out[out$water_regime == "rainfed", ]
-  irrigated <- out[out$water_regime == "irrigated", ]
-  testthat::expect_identical(nrow(rainfed), nrow(irrigated))
   testthat::expect_true(all(rainfed$irrig_mm == 0))
   testthat::expect_true(all(rainfed$method_irrig_depth == "rainfed_regime"))
   # Rice's rainfed stand received 240 mm of paddy water, but the rainfed
   # regime is unirrigated by definition.
   testthat::expect_equal(.lid_row(out, 0.25, 2807L, "rainfed")$irrig_mm, 0)
+  # Rows follow WHEP's hectares: a regime with none has no row.
+  testthat::expect_identical(nrow(.lid_row(out, 0.25, 2601L, "rainfed")), 0L)
 })
 
 testthat::test_that("no irrigated stand in the cell means no depth, not 0", {
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data())
+  out <- whep:::.lpjml_irrig_depth(.lid_areas(), data = .lid_data())
   maize_b <- .lid_row(out, 0.75, 2514L)
   testthat::expect_true(is.na(maize_b$irrig_mm))
   testthat::expect_identical(maize_b$method_irrig_depth, "no_irrigated_stand")
   testthat::expect_identical(maize_b$lpjml_crop, "maize")
-  # A pooled item none of whose crops is irrigated there names them all.
-  veg_b <- .lid_row(out, 0.75, 2605L)
-  testthat::expect_true(is.na(veg_b$irrig_mm))
-  testthat::expect_identical(veg_b$method_irrig_depth, "no_irrigated_stand")
 })
 
-testthat::test_that("keys: an item with no LPJmL crop is stamped, not filled", {
-  keys <- tibble::tribble(
-    ~lon,  ~lat, ~year, ~item_cbs_code, ~water_regime, ~area_code,
-    0.25,  0.25, 2010,  3003,           "irrigated",   1L,
-    0.25,  0.25, 2010,  3003,           "rainfed",     1L,
-    0.25,  0.25, 2010,  2514,           "irrigated",   1L,
-    20.25, 0.25, 2010,  2514,           "irrigated",   2L
+testthat::test_that("an irrigated item with no LPJmL crop is stamped, not filled", {
+  areas <- dplyr::bind_rows(
+    .lid_areas(),
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      area_code = 1L,
+      item_prod_code = 51L,
+      rainfed_ha = 0,
+      irrigated_ha = 3,
+      year = 2010L
+    )
   )
-  out <- whep:::.lpjml_irrig_depth(data = .lid_data(), keys = keys)
-  testthat::expect_identical(nrow(out), nrow(keys))
-  testthat::expect_identical(out$area_code, keys$area_code)
-  testthat::expect_identical(
-    out$method_irrig_depth,
-    c("no_band", "rainfed_regime", "lpjml_airrig_stand", "no_irrigated_stand")
-  )
-  testthat::expect_equal(out$irrig_mm, c(NA, 0, 120, NA))
+  out <- whep:::.lpjml_irrig_depth(areas, data = .lid_data())
+  beer <- .lid_row(out, 0.25, 2656L)
+  testthat::expect_true(is.na(beer$irrig_mm))
+  testthat::expect_identical(beer$method_irrig_depth, "no_band")
 })
 
-testthat::test_that("keys need a known water regime", {
-  keys <- tibble::tibble(
-    lon = 0.25,
-    lat = 0.25,
-    year = 2010L,
-    item_cbs_code = 2514L,
-    water_regime = "flooded"
-  )
+testthat::test_that("regime areas with a missing hectare abort", {
+  areas <- .lid_areas()
+  areas$irrigated_ha[1] <- NA
   testthat::expect_error(
-    whep:::.lpjml_irrig_depth(data = .lid_data(), keys = keys),
-    class = "whep_lpjml_irrig_depth_keys"
+    whep:::.lpjml_irrig_depth(areas, data = .lid_data()),
+    class = "whep_lpjml_irrig_depth_areas"
   )
 })
-
 testthat::test_that("depth x irrigated stand reproduces the irrigated water", {
   # The reference is build_crop_water_use() on the same cubes: its
   # airrig_cell_mm, summed over the irrigated bands and the months and times
@@ -285,7 +293,10 @@ testthat::test_that("depth x irrigated stand reproduces the irrigated water", {
   testthat::expect_equal(from_depth, reference)
   # Through the item mapping: every item carries its crop's depth unchanged,
   # so each crop's water is still depth x stand, whichever items share it.
-  items <- whep:::.lid_item_depth(crop_a)
+  items <- whep:::.lid_item_depth(
+    dplyr::filter(.lid_areas(), .data$lon == 0.25),
+    crop_a
+  )
   per_crop <- dplyr::distinct(
     items[is.finite(items$irrig_mm), ],
     .data$lpjml_crop,
@@ -369,7 +380,7 @@ testthat::test_that("a run without cft_airrig_month aborts, never falls back", {
   run <- withr::local_tempdir()
   file.create(file.path(run, "cftfrac.nc"))
   testthat::expect_error(
-    whep:::.lpjml_irrig_depth(years = 2010L, run_dir = run),
+    whep:::.lpjml_irrig_depth(.lid_areas(), run_dir = run),
     class = "whep_lpjml_irrig_depth_vintage"
   )
 })
@@ -378,11 +389,11 @@ testthat::test_that("with no run and no published pin, the error names both", {
   withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
   testthat::local_mocked_bindings(.lid_pin_registered = function() FALSE)
   testthat::expect_error(
-    whep:::.lpjml_irrig_depth(years = 2010L),
+    whep:::.lpjml_irrig_depth(.lid_areas()),
     class = "whep_lpjml_irrig_depth_no_pin"
   )
   testthat::expect_error(
-    whep:::.lpjml_irrig_depth(years = 2010L),
+    whep:::.lpjml_irrig_depth(.lid_areas()),
     "run_dir"
   )
 })
@@ -397,15 +408,8 @@ testthat::test_that("the pin is read when published and no run is named", {
       pinned
     }
   )
-  out <- whep:::.lpjml_irrig_depth(years = 2010L)
+  out <- whep:::.lpjml_irrig_depth(.lid_areas())
   testthat::expect_equal(.lid_row(out, 0.25, 2514L)$irrig_mm, 120)
-})
-
-testthat::test_that("reading without years aborts instead of exhausting memory", {
-  testthat::expect_error(
-    whep:::.lpjml_irrig_depth(),
-    class = "whep_lpjml_irrig_depth_years"
-  )
 })
 
 testthat::test_that("supplied cubes need the run they came from", {
