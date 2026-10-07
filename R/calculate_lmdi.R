@@ -940,6 +940,16 @@ calculate_lmdi <- function(
   simple_factors <- factors[!stringr::str_detect(factors, "[/\\[\\]]")]
   is_simple <- length(simple_factors) == length(factors) &&
     all(simple_factors %in% names(data))
+  if (!is_simple && any(affected)) {
+    cli::cli_warn(c(
+      "{.code zero_method = \"small_value\"} cannot keep a ratio identity
+       closed.",
+      "i" = "{sum(affected)} row{?s} had zero or missing values replaced by
+             epsilon, but the target is not re-derived for non-simple
+             factors (ratios or brackets).",
+      "i" = "Use {.code zero_method = \"limit\"} (the default) instead."
+    ))
+  }
   if (is_simple && any(affected)) {
     prod_factors <- data |>
       dplyr::select(dplyr::all_of(simple_factors)) |>
