@@ -101,9 +101,19 @@ residues_pin_fixture <- function() {
   ) |>
     dplyr::mutate(
       Year = 2000L,
+      Item_prod = "Wheat",
       Item_cbs_crop = "Wheat and products",
       Name_biomass = "Wheat"
     )
+}
+
+# The legacy recovery rate the predecessor pipeline multiplied into the pin's
+# residue rows, looked up the way `get_primary_residues()` undoes it (whep#1195).
+pin_recovery_rate <- function(cat, region) {
+  rates <- whep::whep_coef_table("residue_recovery")
+  rates$recovery_rates[
+    rates$cat_krausmann == cat & rates$region_krausmann == region
+  ]
 }
 
 testthat::test_that("get_primary_residues aggregates residues on codes", {
@@ -120,7 +130,10 @@ testthat::test_that("get_primary_residues aggregates residues on codes", {
   # The two Spanish straw rows are summed, the "Product" row (999) is not a
   # residue and the zero-tonne residue row is dropped.
   testthat::expect_equal(nrow(spain), 1)
-  testthat::expect_equal(spain$value, 150)
+  testthat::expect_equal(
+    spain$value,
+    150 / pin_recovery_rate("Wheat, other cereals", "West Europe")
+  )
   testthat::expect_equal(spain$item_cbs_code_crop, 2511)
   testthat::expect_equal(spain$item_cbs_code_residue, 2105)
   testthat::expect_false(any(out$value == 999))
@@ -141,6 +154,7 @@ testthat::test_that("get_primary_residues ignores NA rows within a group", {
     ) |>
       dplyr::mutate(
         Year = 2000L,
+        Item_prod = "Wheat",
         Item_cbs_crop = "Wheat and products",
         Name_biomass = "Wheat"
       )
@@ -151,7 +165,10 @@ testthat::test_that("get_primary_residues ignores NA rows within a group", {
   spain <- out |> dplyr::filter(area_code == 203L)
   # The valid 100-tonne row must survive; only the NA sibling is ignored.
   testthat::expect_equal(nrow(spain), 1)
-  testthat::expect_equal(spain$value, 100)
+  testthat::expect_equal(
+    spain$value,
+    100 / pin_recovery_rate("Wheat, other cereals", "West Europe")
+  )
 })
 
 testthat::test_that("get_primary_residues converts each crop's residue to DM", {
@@ -161,15 +178,15 @@ testthat::test_that("get_primary_residues converts each crop's residue to DM", {
   local_mocked_bindings(whep_read_file = function(name, ...) {
     tibble::tribble(
       ~Area,   ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
-      ~Item_cbs_crop,           ~Name_biomass,
+      ~Item_prod,            ~Item_cbs_crop,          ~Name_biomass,
       "Spain", "Residue",        "Straw",               100,
-      "Wheat and products",     "Wheat",
+      "Wheat",               "Wheat and products",    "Wheat",
       "Spain", "Residue",        "Straw",               NA_real_,
-      "Wheat and products",     "Wheat",
+      "Wheat",               "Wheat and products",    "Wheat",
       "Spain", "Residue",        "Other crop residues", 200,
-      "Tomatoes and products",  "Tomato",
+      "Tomatoes",            "Tomatoes and products", "Tomato",
       "Spain", "Residue",        "Other crop residues", 50,
-      "Tomatoes and products",  "Lettuce"
+      "Lettuce and chicory", "Tomatoes and products", "Lettuce"
     ) |>
       dplyr::mutate(Year = 2000L)
   })
@@ -177,17 +194,19 @@ testthat::test_that("get_primary_residues converts each crop's residue to DM", {
     coefs <- whep::biomass_coefs
     coefs$Residue_kgDM_kgFM[coefs$Name_biomass == nm]
   }
+  straw_rate <- pin_recovery_rate("Wheat, other cereals", "West Europe")
+  other_rate <- pin_recovery_rate("Permanent crops", "West Europe")
 
   out <- whep::get_primary_residues()
 
   straw <- out[out$item_cbs_code_residue == 2105, ]
-  testthat::expect_equal(straw$value, 100)
-  testthat::expect_equal(straw$value_dm, 100 * kgdm("Wheat"))
+  testthat::expect_equal(straw$value, 100 / straw_rate)
+  testthat::expect_equal(straw$value_dm, 100 / straw_rate * kgdm("Wheat"))
   other <- out[out$item_cbs_code_residue == 2106, ]
-  testthat::expect_equal(other$value, 250)
+  testthat::expect_equal(other$value, 250 / other_rate)
   testthat::expect_equal(
     other$value_dm,
-    200 * kgdm("Tomato") + 50 * kgdm("Lettuce")
+    (200 * kgdm("Tomato") + 50 * kgdm("Lettuce")) / other_rate
   )
   # Fresh tomato haulm is mostly water: nowhere near 0.9 kg DM per kg.
   testthat::expect_lt(other$value_dm / other$value, 0.25)
@@ -200,7 +219,11 @@ testthat::test_that("get_primary_residues keeps a missing DM content visible", {
       "Spain", "Residue",        "Straw",   100,            "Wheat",
       "Spain", "Residue",        "Straw",   40,             "Mushrooms"
     ) |>
-      dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+      dplyr::mutate(
+        Year = 2000L,
+        Item_prod = "Wheat",
+        Item_cbs_crop = "Wheat and products"
+      )
   })
 
   testthat::expect_warning(
@@ -209,7 +232,10 @@ testthat::test_that("get_primary_residues keeps a missing DM content visible", {
   )
   # The fresh mass is kept whole; the dry matter is NA, not a silent partial
   # sum that would read as a real, smaller number.
-  testthat::expect_equal(out$value, 140)
+  testthat::expect_equal(
+    out$value,
+    140 / pin_recovery_rate("Wheat, other cereals", "West Europe")
+  )
   testthat::expect_true(is.na(out$value_dm))
 })
 
@@ -232,10 +258,17 @@ testthat::test_that("get_primary_residues keeps unresolved areas visible", {
 
   # The row whose area label did not resolve is reported, not dropped, so the
   # gap stays visible downstream instead of silently shrinking the totals.
+  # It reaches no region either, so the pin's recovery cannot be undone for it
+  # and it keeps the pin's own figure.
   unresolved <- out |> dplyr::filter(is.na(area_code))
   testthat::expect_equal(unresolved$value, 7)
   testthat::expect_true(is.na(unresolved$reporting_polity_code))
-  testthat::expect_equal(sum(out$value), 168)
+  testthat::expect_equal(
+    sum(out$value),
+    150 / pin_recovery_rate("Wheat, other cereals", "West Europe") +
+      11 / pin_recovery_rate("Wheat, other cereals", "Sub-saharan Africa") +
+      7
+  )
 })
 
 testthat::test_that("get_primary_residues resolves a short-form area label", {
@@ -254,7 +287,10 @@ testthat::test_that("get_primary_residues resolves a short-form area label", {
 
   tanzania <- out |> dplyr::filter(area_code == 215L)
   testthat::expect_equal(nrow(tanzania), 1)
-  testthat::expect_equal(tanzania$value, 11)
+  testthat::expect_equal(
+    tanzania$value,
+    11 / pin_recovery_rate("Wheat, other cereals", "Sub-saharan Africa")
+  )
   testthat::expect_equal(tanzania$reporting_polity_code, "TZA-1964-2025")
 })
 
@@ -297,6 +333,89 @@ testthat::test_that(".unique_polity_area refuses a polity many areas share", {
     215L
   )
   testthat::expect_equal(anyDuplicated(map$polity_code), 0L)
+})
+
+testthat::test_that("get_primary_residues undoes the recovery the pin carries", {
+  # whep#1195. The pin's residue rows are not the residue a crop produces but
+  # the share of it the predecessor pipeline RECOVERED: `afsetools::
+  # residue_use()` multiplied each one by the legacy recovery rate of its
+  # region and Krausmann category before the pin was written. Every consumer
+  # reads `value` as the whole residue -- `calculate_residue_destinies()`
+  # multiplies it by a recovery rate, the soil-N2O path takes the unremoved
+  # share -- so the rate was applied twice. Reproduced on the real pin: the
+  # pin divided by this rate equals the predecessor's gross residue on all
+  # 427,584 comparable rows at 1e-6.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    tibble::tribble(
+      ~Area,      ~Item_prod, ~Item_cbs,             ~Prod_ygpit_Mg,
+      ~Item_cbs_crop,          ~Name_biomass,
+      "Spain",    "Wheat",    "Straw",               70,
+      "Wheat and products",    "Wheat",
+      "Tanzania", "Wheat",    "Straw",               9,
+      "Wheat and products",    "Wheat",
+      # West European roots and tubers carry a legacy rate of 0, so the pin
+      # holds 0 for them and their whole residue is beyond recovery here.
+      "Spain",    "Potatoes", "Other crop residues", 0,
+      "Potatoes and products", "Potato"
+    ) |>
+      dplyr::mutate(Year = 2000L, Product_residue = "Residue")
+  })
+
+  out <- suppressMessages(whep::get_primary_residues())
+
+  spain <- out[out$area_code == 203L, ]
+  tanzania <- out[out$area_code == 215L, ]
+  spain_rate <- pin_recovery_rate("Wheat, other cereals", "West Europe")
+  tanzania_rate <- pin_recovery_rate(
+    "Wheat, other cereals",
+    "Sub-saharan Africa"
+  )
+  testthat::expect_equal(spain$value, 70 / spain_rate)
+  testthat::expect_equal(tanzania$value, 9 / tanzania_rate)
+  # The invariant: re-applying the rate gives back exactly what was pinned.
+  testthat::expect_equal(spain$value * spain_rate, 70)
+  testthat::expect_equal(tanzania$value * tanzania_rate, 9)
+  testthat::expect_false(any(out$item_cbs_code_residue == 2106))
+})
+
+testthat::test_that("get_primary_residues refuses a pin row it cannot undo", {
+  pin <- function(item_prod, value) {
+    tibble::tibble(
+      Area = "Spain",
+      Product_residue = "Residue",
+      Item_cbs = "Straw",
+      Prod_ygpit_Mg = value,
+      Item_prod = item_prod,
+      Item_cbs_crop = "Wheat and products",
+      Name_biomass = "Wheat",
+      Year = 2000L
+    )
+  }
+  # A crop with no recovery category: the rate the pin carries is unknown, so
+  # passing the row through would book recovered residue as gross.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    pin("Unobtainium", 10)
+  })
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_pin_recovery"
+  )
+  # A positive residue where the predecessor's rate is 0: the pin cannot have
+  # been written by the rule this reader inverts.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    pin("Potatoes", 10)
+  })
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_pin_recovery"
+  )
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::select(pin("Wheat", 10), -"Item_prod")
+  })
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_pin_recovery"
+  )
 })
 
 testthat::test_that("get_primary_residues(example = TRUE) needs no remote", {
