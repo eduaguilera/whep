@@ -995,6 +995,12 @@ row_promotion_status <- function(crosswalk = NULL) {
 # so that it can be measured rather than argued, and neither is a fallback for
 # the other.
 #
+# Since whep#1229 the stock chain reads the full span, and its completion carried
+# bucket 206's 2011 herd flat beside 276/277 under `"all"` (176.0 M head a year
+# from 2012) until `.retired_predecessor_buckets()` dropped it (whep#1404).
+# Re-measured on `build_primary_production(2009, 2013)` with that drop, heads
+# and livestock units again equal the fold in every year.
+#
 # What `"all"` withdraws, measured on `build_primary_production(2015, 2015)`, is
 # ONE series: item 651 Forage products, 1,432,940 t (-4.22% of the region's
 # tonnage) and 208,350 ha (-0.25%). Heads, livestock units and slaughtered heads
@@ -1131,6 +1137,32 @@ row_promotion_status <- function(crosswalk = NULL) {
   ))
   crosswalk[which(promoted), polity_area_code := area_code]
   crosswalk
+}
+
+# The promoted buckets whose OWN area has stopped reporting, with the last year
+# it did: 206 and 2011 under `"all"`, nothing under the published fold. Once
+# promoted, no successor sums into 206 any more, so a 206 row after 2011 cannot
+# be reported data. The livestock stock chain makes such rows all the same: it
+# completes every area over every year and carries a long series' last value
+# forward, so 206's 2011 herd ran flat to 2023 beside the 276/277 herds that
+# report the same animals, 176.0 M head in 2015 (whep#1404). Under the fold this
+# returns nothing, because there bucket 206 after 2011 IS the successors' sum
+# and carries the region's fodder series.
+.retired_predecessor_buckets <- function() {
+  empty <- tibble::tibble(area_code = integer(0), last_year = integer(0))
+  if (.predecessor_unfold_mode() == "none") {
+    return(empty)
+  }
+  codes <- .predecessor_bucket_codes()
+  if (length(codes) == 0L) {
+    return(empty)
+  }
+  windows <- .area_reporting_windows()
+  windows <- windows[windows$area_code %in% codes, ]
+  tibble::tibble(
+    area_code = as.integer(windows$area_code),
+    last_year = as.integer(windows$window_end)
+  )
 }
 
 # `regions_full` states the fold a second time, keyed on `code`.
