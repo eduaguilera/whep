@@ -356,13 +356,10 @@ get_primary_residues <- function(example = FALSE) {
 #
 # The pin's `Residue` rows are not gross residue. The predecessor pipeline
 # (`Global/R/crop_npp.r`, then `afsetools::residue_use()`) wrote each one as
-#
-#   product * kg_residue_kg_product_FM * HI_changes(region, year)
-#     * residue_dm_product_dm(region, category)
-#     / residue_dm_product_dm("West Europe", category)
-#     * recovery_rates(region, category)
-#
-# -- the last factor being `Use_Share`, the legacy recovery rate. Every
+# the product, times the `kg_residue_kg_product_FM` ratio of `biomass_coefs`,
+# times a harvest-index change factor for the region and year, times the
+# region's `residue_dm_product_dm` over West Europe's for the category, times
+# `Use_Share` -- the legacy recovery rate of the region and category. Every
 # consumer of `value` reads it as the whole residue: `calculate_residue_
 # destinies()` multiplies it by a recovery rate again, and the soil-N2O path
 # takes its unremoved share. So the recovery was applied twice (whep#1195).
