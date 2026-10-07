@@ -701,10 +701,10 @@ expand_polycell_years <- function(support, years) {
   cut <- purrr::map(ceding, \(i) {
     .pcs_cede_polity(polities, i, pairs$keyed[pairs$unkeyed == i])
   })
-  out <- rbind(
-    polities[-ceding, ],
-    do.call(rbind, purrr::map(cut, "rows"))
-  )
+  # A polity claimed whole contributes no row, and `rbind()` of a zero-row
+  # `sf` warns while computing an empty bounding box, so those are left out.
+  rows <- purrr::compact(purrr::map(cut, "rows"))
+  out <- do.call(rbind, c(list(polities[-ceding, ]), rows))
   ceded <- dplyr::bind_rows(purrr::map(cut, "ceded"))
   .pcs_inform_ceded(ceded)
   attr(out, "ceded") <- ceded
@@ -777,7 +777,7 @@ expand_polycell_years <- function(support, years) {
   })
   rows <- purrr::compact(purrr::map(pieces, "row"))
   list(
-    rows = if (length(rows) > 0L) do.call(rbind, rows) else row[0L, ],
+    rows = if (length(rows) > 0L) do.call(rbind, rows),
     ceded = dplyr::bind_rows(purrr::map(pieces, "ceded"))
   )
 }
