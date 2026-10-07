@@ -101,10 +101,12 @@ test_that("no row has an out-of-range Edible_portion", {
   )
 })
 
-test_that("the proximate columns exceed dry matter on a known 71 rows", {
-  # Protein + carbohydrate + lipid + fibre cannot exceed dry matter. 71 of 421
-  # rows do (#752); Honey left the set in #1096. Some are feed additives where a composition block is not
-  # applicable (Urea, Lysine), but ordinary foods are affected too, so the
+test_that("the proximate columns exceed dry matter on a known 69 rows", {
+  # Protein + carbohydrate + lipid + fibre cannot exceed dry matter. 69 of 421
+  # rows do (#752); Honey left the set in #1096. Lysine, Phytase and Enzimes
+  # left it and Ammonium chloride joined it in #1074. Some are feed additives
+  # where a composition block is not applicable (Urea, Ammonium chloride),
+  # but ordinary foods are affected too, so the
   # columns cannot be used to reason about a row's basis. A tripwire, not a
   # target: it fails if a new row joins the set, and it fails when the set is
   # genuinely repaired -- at which point lower the number deliberately.
@@ -121,13 +123,13 @@ test_that("the proximate columns exceed dry matter on a known 71 rows", {
   dry_matter <- coefs$Product_kgDM_kgFM * 1000
   # Compare with a tolerance: three rows (Melon, Strawberry, Duck eggs) close
   # exactly against dry matter and exceed it only by ~1e-14, which is float
-  # noise, not a data defect. Of the 71 that remain, 70 exceed by more than
+  # noise, not a data defect. Of the 69 that remain, 68 exceed by more than
   # 1 g/kg, so the set is not tolerance-sensitive in any other way.
   over <- !is.na(dry_matter) &
     proximate > 0 &
     proximate > dry_matter + 1e-6
 
-  testthat::expect_equal(sum(over), 71L)
+  testthat::expect_equal(sum(over), 69L)
   testthat::expect_true("Barley" %in% coefs$Name_biomass[over])
 })
 

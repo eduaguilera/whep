@@ -102,8 +102,9 @@ testthat::test_that("the nutrition lookup drops the label row even if reached", 
 testthat::test_that("no food carries more than a kilogram per kilogram", {
   # The physically impossible bound: protein + lipid + carbohydrate + fibre
   # cannot exceed 1000 g in 1 kg of fresh matter. Fourteen rows do. Urea and
-  # Lysine are feed additives where nitrogen times 6.25 is not protein at all;
-  # the rest are real coefficient defects, White sugar among them.
+  # Ammonium chloride are feed additives where nitrogen times 6.25 is not
+  # protein at all; the rest are real coefficient defects, White sugar among
+  # them.
   impossible <- .bch_proximate() |>
     dplyr::filter(.data$proximate_g_kgfm > 1000) |>
     dplyr::pull(.data$Name_biomass)
@@ -111,8 +112,8 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
     impossible,
     c(
       "Urea",
+      "Ammonium chloride",
       "Carob",
-      "Lysine",
       "Hemp seed",
       "Barley",
       "Barley old",
@@ -215,7 +216,8 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
   tibble::tribble(
     ~Name_biomass,       ~carbon, ~hydrogen, ~nitrogen, ~oxygen, ~sulfur, ~chlorine,
     "Methionine",        5,       11,        1,         2,       1,       0,
-    "Lysine",            6,       14,        2,         2,       0,       0,
+    # Lysine is booked as L-lysine monohydrochloride, C6H15ClN2O2 (#1074).
+    "Lysine",            6,       15,        2,         2,       0,       1,
     "Threonine",         4,       9,         1,         3,       0,       0,
     "Tryptophan",        11,      12,        2,         2,       0,       0,
     "Valine",            5,       11,        1,         2,       0,       0,
@@ -262,24 +264,32 @@ testthat::test_that("the additive formula table reaches every shipped row", {
 testthat::test_that("no additive holds more nitrogen than its own molecule", {
   # The bound no measurement can cross: a kilogram of dry Methionine cannot
   # hold more nitrogen than a kilogram of pure methionine does. Methionine
-  # shipped 0.1143 against a ceiling of 0.0939 until #931; it now carries
-  # FEDNA's DL-Metionina figure. Lysine is the one remaining breach, 5.2%
-  # over the free base, and is pinned rather than fixed because choosing
-  # between the free base and the hydrochloride moves a published number.
+  # shipped 0.1143 against a ceiling of 0.0939 until #931, and Lysine 0.2015,
+  # above even the free base's 0.1916, until #1074; both now carry the FEDNA
+  # entry for the commercial product.
   over <- .bch_additive_formulas() |>
     dplyr::filter(.data$Product_kgN_kgDM > .data$n_ceiling) |>
     dplyr::pull("Name_biomass")
-  testthat::expect_setequal(over, "Lysine")
+  testthat::expect_length(over, 0L)
   # Not vacuous: the same comparison against a deliberately halved ceiling
   # has to fail, which it can only do if real coefficients are being read.
-  testthat::expect_failure(
-    testthat::expect_setequal(
-      .bch_additive_formulas() |>
-        dplyr::filter(.data$Product_kgN_kgDM > .data$n_ceiling / 2) |>
-        dplyr::pull("Name_biomass"),
-      "Lysine"
-    )
+  testthat::expect_gt(
+    .bch_additive_formulas() |>
+      dplyr::filter(.data$Product_kgN_kgDM > .data$n_ceiling / 2) |>
+      nrow(),
+    0L
   )
+})
+
+testthat::test_that("every additive whose molecule holds nitrogen ships some", {
+  # The opposite failure to the ceiling: Ammonium chloride and Choline
+  # chloride shipped 0 kg N although NH4Cl is 26% nitrogen and choline
+  # chloride 10%, so their nitrogen silently left the balance (#1074). A
+  # commercial grade can dilute the molecule but cannot remove its nitrogen.
+  empty <- .bch_additive_formulas() |>
+    dplyr::filter(!(.data$Product_kgN_kgDM > 0)) |>
+    dplyr::pull("Name_biomass")
+  testthat::expect_length(empty, 0L)
 })
 
 testthat::test_that("Methionine carries the FEDNA DL-Metionina nitrogen", {
@@ -352,5 +362,89 @@ testthat::test_that("the wood residue nitrogen coefficients are pinned", {
   testthat::expect_equal(
     wood$Residue_kgN_kgDM[wood$Name_biomass == "Average wood"],
     0.003
+  )
+})
+
+# The provenance of the 28 feed-additive rows (#1074). The upstream workbook's
+# Sources sheet stops before the additive block, so the record lives here.
+.bch_additive_sources <- function() {
+  system.file(
+    "extdata",
+    "harmonization",
+    "biomass_coefs_additive_sources.csv",
+    package = "whep"
+  ) |>
+    readr::read_csv(show_col_types = FALSE) |>
+    dplyr::left_join(
+      whep::biomass_coefs |>
+        dplyr::select(
+          "Name_biomass",
+          "Product_kgDM_kgFM",
+          "N_kgN_kgFM",
+          shipped_kgN_kgDM = "Product_kgN_kgDM"
+        ),
+      by = "Name_biomass"
+    )
+}
+
+testthat::test_that("every feed-additive row has a provenance entry", {
+  sources <- .bch_additive_sources()
+  additives <- whep::items_full |>
+    dplyr::filter(.data$group == "Additives") |>
+    dplyr::pull("Name_biomass")
+  testthat::expect_length(additives, 28L)
+  testthat::expect_setequal(sources$Name_biomass, additives)
+  testthat::expect_false(anyDuplicated(sources$Name_biomass) > 0)
+  testthat::expect_true(all(
+    sources$status %in%
+      c(
+        "fedna_crude_protein",
+        "fedna_choline",
+        "nitrogen_free",
+        "assumed_unverified"
+      )
+  ))
+  # An assumed value is a declared one: it has to say why.
+  assumed <- sources |>
+    dplyr::filter(.data$status == "assumed_unverified")
+  testthat::expect_false(any(is.na(assumed$note)))
+})
+
+testthat::test_that("the additive rows ship the nitrogen their source gives", {
+  sources <- .bch_additive_sources()
+  testthat::expect_equal(sources$shipped_kgN_kgDM, sources$Product_kgN_kgDM)
+  # FEDNA reports crude protein as Kjeldahl nitrogen times 6.25, and the
+  # block books that as-fed figure as its Product_kgN_kgDM, the convention
+  # Threonine, Tryptophan, Valine, Urea and Yeast came with upstream.
+  protein <- sources |>
+    dplyr::filter(.data$status == "fedna_crude_protein")
+  testthat::expect_gt(nrow(protein), 0L)
+  testthat::expect_equal(
+    protein$shipped_kgN_kgDM,
+    protein$crude_protein_pct / 100 / 6.25
+  )
+  # Choline nitrogen is not protein, so FEDNA books choline chloride's crude
+  # protein as zero and gives its choline content instead. The nitrogen is
+  # the choline cation's, C5H14NO+: 14.007 over 104.173.
+  choline <- sources |>
+    dplyr::filter(.data$status == "fedna_choline")
+  testthat::expect_equal(choline$Name_biomass, "Choline chloride")
+  testthat::expect_equal(
+    choline$shipped_kgN_kgDM,
+    round(choline$choline_pct / 100 * 14.007 / 104.173, 4)
+  )
+  free <- sources |>
+    dplyr::filter(.data$status == "nitrogen_free")
+  testthat::expect_true(all(free$shipped_kgN_kgDM == 0))
+})
+
+testthat::test_that("additive fresh-matter nitrogen is its dry-matter nitrogen", {
+  # The identity the workbook enforces on this block. Phytase and Enzimes
+  # broke it with a fresh-matter 0.16, exactly 1/6.25, against the 0.1154
+  # their own two cells multiply to (#1074).
+  sources <- .bch_additive_sources()
+  testthat::expect_equal(
+    sources$N_kgN_kgFM,
+    sources$shipped_kgN_kgDM * sources$Product_kgDM_kgFM
   )
 })

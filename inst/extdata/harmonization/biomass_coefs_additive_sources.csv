@@ -1,0 +1,29 @@
+Name_biomass,status,source_entry,crude_protein_pct,choline_pct,Product_kgN_kgDM,note
+Acid,nitrogen_free,,,,0,"Organic acids (formic, propionic, citric) hold no nitrogen."
+Ammonium chloride,fedna_crude_protein,CLORURO AMONICO,163.6,,0.26176,"NH4Cl ceiling is 0.2619; was 0 because the workbook's lookup failed (whep#1074)."
+Anionic salts,assumed_unverified,,,,0,"Composition unknown; anionic-salt mixes can contain ammonium chloride, so the zero is not a measurement."
+Bicarbonate,nitrogen_free,BICARBONATO SODICO,0,,0,
+Calcium carbonate,nitrogen_free,CARBONATO CALCICO,0,,0,
+Calcium soap protected fat,nitrogen_free,GRASA MEZCLA 5/9,0,,0,
+Choline chloride,fedna_choline,CLORURO COLINA 60,,52,0.0699,"N = choline content x 14.007/104.173 (choline cation C5H14NO+); FEDNA books its crude protein as 0, which is a nutritional convention, not an absence of nitrogen (whep#1074)."
+Enzimes,assumed_unverified,,,,0.116,"Unsourced. Not the FEDNA PROTEINA DE PATATA it is mapped to (79% crude protein, 0.1264); a commercial enzyme product is mostly carrier."
+Flavours,assumed_unverified,,,,0,"Composition unknown."
+Lysine,fedna_crude_protein,L-LISINA HCL,94.4,,0.15104,"L-lysine monohydrochloride; ceiling 0.1534. Was 0.2015, above the free base's own 0.1916 (whep#1074)."
+Methionine,fedna_crude_protein,DL-METIONINA,58.5,,0.0936,"FEDNA ingredient page as read for whep#931; the 2019 table gives 58.4."
+MgO,nitrogen_free,OXIDO MAGNESIO (magnesita calcinada),0,,0,
+Minerals,nitrogen_free,,,,0,"Mineral premix."
+Olein,nitrogen_free,,,,0,"Fatty acid."
+Pesticides,assumed_unverified,,,,0,"Composition unknown."
+Phytase,assumed_unverified,,,,0.116,"Unsourced. Not the FEDNA PROTEINA DE PATATA it is mapped to (79% crude protein, 0.1264); a commercial enzyme product is mostly carrier."
+Pigment,assumed_unverified,,,,0,"Composition unknown; carotenoid pigments hold no nitrogen."
+Potassium carbonate,nitrogen_free,,,,0,
+Salt,nitrogen_free,CLORURO SODICO MARINO 98,0,,0,
+Sodium butyrate,nitrogen_free,BUTIRATO SODICO,0,,0,
+SSP,nitrogen_free,,,,0,"Single superphosphate."
+Starch,nitrogen_free,ALMIDON 96,0,,0,
+Threonine,fedna_crude_protein,L-TREONINA,72.5,,0.116,
+Tryptophan,fedna_crude_protein,L-TRIPTOFANO,84.5,,0.1352,
+Urea,fedna_crude_protein,UREA,287.5,,0.46,
+Valine,fedna_crude_protein,L-VALINA,72.4,,0.11584,
+Vitamins,assumed_unverified,,,,0,"Vitamin premixes hold some nitrogen (B vitamins, niacin); not quantified."
+Yeast,fedna_crude_protein,LEVADURA CERVEZA,46,,0.0736,

@@ -51,9 +51,11 @@ Potassium carbonate is CARBONATO SODIO, 4027 Vitamins AC. CITRICO,
 PROPIONATO SODICO, 4003 Anionic salts MET HIDROXI SAL CALCICA and 4011
 Methionine HIDROXI-ANAL MET, a nitrogen-free analogue. Nor does the
 named entry fix the \code{biomass_coefs} nitrogen: Methionine and Lysine
-carry more than their entries imply and Ammonium chloride and Choline
-chloride carry zero although their entries hold nitrogen. No WHEP
-function reads this column.
+carry their dry commercial forms (DL-Metionina, L-Lisina HCl), not the
+entries named here, and the FEDNA entry each additive's nitrogen was
+actually read from is recorded in
+\code{inst/extdata/harmonization/biomass_coefs_additive_sources.csv}
+(whep#1074). No WHEP function reads this column.
 \item \code{default_destiny}: Default CBS use category for this item. One of
 \code{"Feed"}, \code{"Food"}, \code{"Other_uses"}, \code{"Processing"}, or \code{NA}. It is
 where the final balance books the domestic supply a row's reported
