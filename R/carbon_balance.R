@@ -3784,7 +3784,44 @@ build_carbon_balance <- function(
 ) {
   (support %||% read_polycell_support()) |>
     .carbon_support_at_year(year) |>
+    .carbon_key_recorded(year) |>
     .carbon_support_to_area_code()
+}
+
+# Key a polity the reporting vocabulary cannot express on the code the
+# recorded mapping (`inst/extdata/polity_cell_support_map.csv`) gives it at
+# `year`, as `.level0_key_recorded()` does for the year-aware grid. Without
+# this the carbon snapshot dropped Kosovo, the Canary Islands, Ceuta and
+# Melilla, Guam, Bonaire and Sint Maarten -- 48 polycells, 1.913 Mha of land
+# at 2015 on the `20260907T111653Z-e654d` support -- while the statistics of
+# Serbia and Spain already cover the first four (whep#1008).
+#
+# Only a row with NO code takes one, and `.carbon_rekey_area_code()` runs
+# after this and overrides wherever the crosswalk resolves the polity, so the
+# map fills the crosswalk's silence and never answers it a second way.
+.carbon_key_recorded <- function(
+  support,
+  year,
+  map = .cell_polity_support_map()
+) {
+  if (!rlang::has_name(support, "polity_code")) {
+    return(support)
+  }
+  unkeyed <- is.na(support$area_code)
+  if (!any(unkeyed)) {
+    return(support)
+  }
+  code <- .cpy_recorded_code(
+    support$polity_code[unkeyed],
+    year,
+    year + 1L,
+    map
+  )
+  support$area_code[unkeyed] <- dplyr::coalesce(
+    code,
+    as.integer(support$area_code[unkeyed])
+  )
+  support
 }
 
 # Take the interval covering `year`, using the package's own predicate so the

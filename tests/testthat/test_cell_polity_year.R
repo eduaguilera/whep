@@ -43,6 +43,9 @@
     # H: Spain and the Canary Islands (no area code), not overlapping.
     .cpy_row(-15.25, 28.25, "ESP-1800-2025", 1800, 2025, 60),
     .cpy_row(-15.25, 28.25, "ICN-1800-2025", 1800, 2025, 40),
+    # I: the United States and a polity no row of the mapping keys.
+    .cpy_row(-99.25, 31.25, "USA-1959-2025", 1959, 2025, 60),
+    .cpy_row(-99.25, 31.25, "USA-TX-1845-2025", 1845, 2025, 40),
     # North and South Vietnam, then Viet Nam.
     .cpy_row(105.75, 21.25, "DRV-1954-1975", 1954, 1975, 100),
     .cpy_row(106.75, 10.75, "RVN-1954-1975", 1954, 1975, 100),
@@ -186,9 +189,18 @@ testthat::test_that("two reporting claimants keep their halves and are listed", 
 })
 
 testthat::test_that("an unkeyed polity keeps its land in a clean cell", {
+  cell_i <- .cpy_cell(.cpy_build(1970L), -99.25, 31.25)
+  testthat::expect_equal(cell_i$area_code, 231L)
+  testthat::expect_equal(cell_i$polity_frac, 0.6)
+})
+
+testthat::test_that("the Canary Islands fold into Spain, which reports them", {
+  # whep#1008: the islands have no reporting code at any vintage, and Spain's
+  # FAOSTAT territory includes them, so the recorded row hands Spain the cell.
   cell_h <- .cpy_cell(.cpy_build(1970L), -15.25, 28.25)
   testthat::expect_equal(cell_h$area_code, 203L)
-  testthat::expect_equal(cell_h$polity_frac, 0.6)
+  testthat::expect_equal(cell_h$polity_frac, 1)
+  testthat::expect_equal(cell_h$polity_rule, "contained_fold+reporting")
 })
 
 testthat::test_that("shares never exceed the cell and equal cell_area_frac", {
