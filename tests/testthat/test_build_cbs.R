@@ -850,12 +850,49 @@ test_that(".fix_cbs wires trade recovery through the whole cascade", {
     dplyr::filter(on, item_cbs_code == 2511),
     dplyr::filter(off, item_cbs_code == 2511)
   )
-  # WHAT THE CASCADE DOES WITH THE CREATED SUPPLY, pinned because it is an
-  # allocation rule and not an identity: with no destiny of its own the row
-  # falls to the item's default destiny, which for rice is processing, not
-  # food. This is the open decision in #762 -- pinned so that changing it is
-  # a visible change, not a silent one.
+  # WHAT THE CASCADE DOES WITH THE CREATED SUPPLY WHEN NOTHING ELSE CAN SPLIT
+  # IT, pinned because it is an allocation rule and not an identity. No area
+  # in this fixture uses rice, so there is no world-average split either, and
+  # the row falls through to the item's default destiny: processing, for rice.
+  # On real data this branch is reached only by Meat Meal (2112), which no CBS
+  # row anywhere carries, and its default is feed; every other created row
+  # takes the world split pinned in the next test.
   expect_equal(value_of("processing"), 620863 - 91318)
+})
+
+test_that("a recovered row takes the item's world-average destiny split", {
+  # The rule a created row actually meets on real data. It has no destiny of
+  # its own and no other year to carry one from, so `.assemble_cbs_destinies()`
+  # gives it the item's world-average split -- the fallback every CBS key with
+  # no anchor already takes. Measured on a 2005-2015 build at 2010, 933 of the
+  # 1,038 created keys (5.27 of 6.57 Mt of their domestic supply) are split this
+  # way; the rest are Meat Meal on its default destiny, and 29 small keys that
+  # the second processing round reshapes. Here the world is one area, Spain,
+  # eating three quarters of its rice and feeding the rest.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod", "A",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod", "A",
+    2010, "Spain", 203L, "Rice and products", 2807, "production", 1000, "FAOSTAT_prod", "A",
+    2010, "Spain", 203L, "Rice and products", 2807, "food", 750, "FAOSTAT_FBS_New", "A",
+    2010, "Spain", 203L, "Rice and products", 2807, "feed", 250, "FAOSTAT_FBS_New", "A"
+  )
+  attr(raw, ".years") <- 2010L
+  attr(raw, ".fao_trade") <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2807, "import", 620863,
+    2010, 200L, 2807, "export", 91318
+  )
+
+  rice <- whep:::.fix_cbs(raw, trade_recovery = "net_import") |>
+    dplyr::filter(area_code == 200L, item_cbs_code == 2807)
+  value_of <- function(x) dplyr::pull(dplyr::filter(rice, element == x), value)
+
+  supply <- 620863 - 91318
+  expect_equal(value_of("domestic_supply"), supply)
+  expect_equal(value_of("food"), 0.75 * supply)
+  expect_equal(value_of("feed"), 0.25 * supply)
+  expect_false(any(c("processing", "seed", "production") %in% rice$element))
 })
 
 test_that("build_commodity_balances validates trade_recovery", {
