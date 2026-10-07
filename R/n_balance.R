@@ -148,13 +148,19 @@
 #'   (`n_output_residues_t`, `n_output_som_t`, `n_output_useful_t`,
 #'   `n_output_std_t`, `n_output_full_t`), the loss terms (`nh3_n_t`,
 #'   `n2o_direct_n_t`, `no3_n_t`, `denitrification_n_t`,
-#'   `n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`), the (post-cap)
+#'   `retained_profile_n_t`, `n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`;
+#'   `no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus,
+#'   see [calculate_n_leaching()]), the (post-cap)
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 #'   `method_soil_n2o`/`method_n2o_indirect_nh3`/`method_leaching`
 #'   provenance columns (the per-row stamps of the loss functions; a balance
 #'   row pooling loss rows priced differently lists them joined by `"|"`),
+#'   `method_drivers` (`"whep_built"`, `"supplied"` or
+#'   `"supplied|whep_built"`), and, when the leaching drivers carry them (as
+#'   built ones do), the row's wet/dry `moisture_regime`, how it was obtained
+#'   (`method_moisture_regime`) and `climate_fill_km`,
 #'   `method_regime`
 #'   and `method_regime_split` when the split ran (`"yield_ratio"`;
 #'   `"area_no_production"` where the crop's production could not be
@@ -1023,6 +1029,7 @@ build_nitrogen_balance <- function(
     "n2o_direct_n_t",
     "no3_n_t",
     "denitrification_n_t",
+    "retained_profile_n_t",
     "n2o_indirect_no3_n_t",
     "n2o_indirect_nh3_n_t",
     "n_balance_t",
@@ -1135,6 +1142,7 @@ build_nitrogen_balance <- function(
     ~n2o_direct_n_t,
     ~no3_n_t,
     ~denitrification_n_t,
+    ~retained_profile_n_t,
     ~n2o_indirect_no3_n_t,
     ~n2o_indirect_nh3_n_t,
     ~n_balance_t,
@@ -1174,6 +1182,7 @@ build_nitrogen_balance <- function(
     1.5,
     12,
     3,
+    0,
     0.132,
     0.49,
     0,

@@ -37,7 +37,9 @@ from \code{x}. Defaults to \code{FALSE}.}
 }
 \value{
 \code{x} with \code{no3_n_t}, \code{denitrification_n_t},
-\code{n2o_indirect_no3_n_t} and \code{method_leaching} appended.
+\code{retained_profile_n_t} (0 under \code{"meisinger_drainage"}, which books
+every non-leached tonne as denitrified), \code{n2o_indirect_no3_n_t} and
+\code{method_leaching} appended.
 }
 \description{
 Two methods for partitioning a nitrogen surplus into leached nitrate and
@@ -56,10 +58,16 @@ Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
 or in dry climate regions where irrigation (other than drip irrigation)
 is used"), and \code{EF5} is 0.011 (Table 11.3 (Updated) p. 11.26). All
 irrigation is treated as non-drip, since no layer says which is drip:
-an upper-bound assumption for dry irrigated land. The rest of the surplus
-is booked as \code{denitrification_n_t}, as in the Meisinger cascade. Each row
+an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+rows the rest of the surplus is booked as \code{denitrification_n_t}, as in the
+Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+as \code{retained_profile_n_t}, nitrogen left in the soil profile, and
+\code{denitrification_n_t} is 0: FracLEACH says that surplus does not leach,
+not that it denitrifies, and no method here estimates its fate. Each row
 is stamped \code{"ipcc_fracleach_wet"}, \code{"ipcc_fracleach_dry_irrigated"} or
-\code{"ipcc_fracleach_dry_rainfed"}.
+\code{"ipcc_fracleach_dry_rainfed_retained"}. Under either method
+\code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
+\code{n_surplus_t}.
 }
 \details{
 For \code{method = "meisinger_drainage"}, \code{denitrification_n_t} is computed

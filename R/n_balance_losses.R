@@ -209,10 +209,16 @@ calculate_soil_n2o <- function(
 #' or in dry climate regions where irrigation (other than drip irrigation)
 #' is used"), and `EF5` is 0.011 (Table 11.3 (Updated) p. 11.26). All
 #' irrigation is treated as non-drip, since no layer says which is drip:
-#' an upper-bound assumption for dry irrigated land. The rest of the surplus
-#' is booked as `denitrification_n_t`, as in the Meisinger cascade. Each row
+#' an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+#' rows the rest of the surplus is booked as `denitrification_n_t`, as in the
+#' Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+#' as `retained_profile_n_t`, nitrogen left in the soil profile, and
+#' `denitrification_n_t` is 0: FracLEACH says that surplus does not leach,
+#' not that it denitrifies, and no method here estimates its fate. Each row
 #' is stamped `"ipcc_fracleach_wet"`, `"ipcc_fracleach_dry_irrigated"` or
-#' `"ipcc_fracleach_dry_rainfed"`.
+#' `"ipcc_fracleach_dry_rainfed_retained"`. Under either method
+#' `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
+#' `n_surplus_t`.
 #'
 #' @details
 #' For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
@@ -256,7 +262,9 @@ calculate_soil_n2o <- function(
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
-#'   `n2o_indirect_no3_n_t` and `method_leaching` appended.
+#'   `retained_profile_n_t` (0 under `"meisinger_drainage"`, which books
+#'   every non-leached tonne as denitrified), `n2o_indirect_no3_n_t` and
+#'   `method_leaching` appended.
 #' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 #'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
 #'   p. 11.25 (`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
@@ -868,13 +876,22 @@ calculate_indirect_n2o_nh3 <- function(
   method <- dplyr::case_when(
     wet ~ "ipcc_fracleach_wet",
     dry_irrigated ~ "ipcc_fracleach_dry_irrigated",
-    .default = "ipcc_fracleach_dry_rainfed"
+    .default = "ipcc_fracleach_dry_rainfed_retained"
   )
+  dry_rainfed <- !wet & !dry_irrigated
   ef5 <- .ipcc2019_soil_ef("EF5", "aggregated")
+  # FracLEACH 0 on dry rainfed land says the surplus does not leach, not that
+  # it denitrifies: no method here estimates its fate, so it is booked as
+  # retained in the profile and its denitrification is 0, a term not
+  # estimated rather than a measured zero. Elsewhere the non-leached surplus
+  # is denitrification, as in the Meisinger cascade, and nothing is retained.
+  no3 <- x$n_surplus_t * frac_leach
+  retained <- dplyr::if_else(dry_rainfed, x$n_surplus_t - no3, 0)
   x |>
     dplyr::mutate(
-      no3_n_t = .data$n_surplus_t * .env$frac_leach,
-      denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
+      no3_n_t = .env$no3,
+      denitrification_n_t = .data$n_surplus_t - .env$no3 - .env$retained,
+      retained_profile_n_t = .env$retained,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
       method_leaching = .env$method
     )
@@ -925,10 +942,13 @@ calculate_indirect_n2o_nh3 <- function(
   raw_denit <- x$n_surplus_t * denit_share
   no3_n_t <- (x$n_surplus_t - raw_denit) * (1 - no3_red) * (1 - a_cn)
   ef5 <- .n_constant("ef5_no3_to_n2o")
+  # The cascade books every non-leached tonne as denitrified, so nothing is
+  # retained in the profile: a structural zero of the method.
   x |>
     dplyr::mutate(
       no3_n_t = .env$no3_n_t,
       denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
+      retained_profile_n_t = 0,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
       method_leaching = "meisinger_drainage"
     )
@@ -1241,12 +1261,14 @@ calculate_indirect_n2o_nh3 <- function(
     ~moisture_regime,
     ~no3_n_t,
     ~denitrification_n_t,
+    ~retained_profile_n_t,
     ~n2o_indirect_no3_n_t,
     ~method_leaching,
     100,
     "wet",
     24,
     76,
+    0,
     0.264,
     "ipcc_fracleach_wet"
   )

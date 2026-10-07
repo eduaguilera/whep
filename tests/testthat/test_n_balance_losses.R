@@ -647,8 +647,11 @@ testthat::test_that("calculate_n_leaching(method = \"meisinger_drainage\") match
   testthat::expect_equal(out$denitrification_n_t, 42.8, tolerance = 1e-9)
   testthat::expect_equal(out$n2o_indirect_no3_n_t, 0.6292, tolerance = 1e-9)
   testthat::expect_equal(out$method_leaching, "meisinger_drainage")
+  # The Meisinger cascade books every non-leached tonne as denitrified, so
+  # none is retained in the profile.
+  testthat::expect_equal(out$retained_profile_n_t, 0)
   testthat::expect_equal(
-    out$no3_n_t + out$denitrification_n_t,
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
     out$n_surplus_t,
     tolerance = 1e-9
   )
@@ -832,13 +835,20 @@ testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies F
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
 
   testthat::expect_equal(out$no3_n_t, c(24, 24, 24, 0), tolerance = 1e-12)
+  # Dry rainfed land leaches nothing, and its surplus is not estimated to
+  # denitrify either: it is booked as retained in the profile.
   testthat::expect_equal(
     out$denitrification_n_t,
-    c(76, 76, 76, 100),
+    c(76, 76, 76, 0),
     tolerance = 1e-12
   )
   testthat::expect_equal(
-    out$no3_n_t + out$denitrification_n_t,
+    out$retained_profile_n_t,
+    c(0, 0, 0, 100),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
     out$n_surplus_t,
     tolerance = 1e-12
   )
@@ -853,7 +863,7 @@ testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies F
       "ipcc_fracleach_wet",
       "ipcc_fracleach_wet",
       "ipcc_fracleach_dry_irrigated",
-      "ipcc_fracleach_dry_rainfed"
+      "ipcc_fracleach_dry_rainfed_retained"
     )
   )
 })
@@ -906,6 +916,7 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
       "n_surplus_t",
       "no3_n_t",
       "denitrification_n_t",
+      "retained_profile_n_t",
       "n2o_indirect_no3_n_t",
       "method_leaching"
     )

@@ -1821,7 +1821,7 @@ testthat::test_that("dry irrigated parts leach and dry rainfed parts do not", {
     out$method_leaching[irrigated] == "ipcc_fracleach_dry_irrigated"
   ))
   testthat::expect_true(all(
-    out$method_leaching[!irrigated] == "ipcc_fracleach_dry_rainfed"
+    out$method_leaching[!irrigated] == "ipcc_fracleach_dry_rainfed_retained"
   ))
   testthat::expect_gt(sum(out$surplus_t[irrigated]), 0)
 })
