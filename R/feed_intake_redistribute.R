@@ -1107,6 +1107,13 @@ build_feed_demand <- function(
 # (served to every territory by the national-scale allocator). Grass is not a
 # CBS item; it enters redistribute_feed as the grassland sink, not here.
 #
+# The 0.9 (a 10% loss between CBS feed supply and intake) is WHEP's one
+# feed-loss factor, applied to every CBS feed item, crop residues (2105, 2106)
+# included: it is the only route by which residue feed reaches the allocator
+# (whep#1138). Assumed, unverified: it is carried over from the Global
+# project's `animal_feed.r` ("A minimum of 10% feed loss is assumed"), which
+# gives no source; WHEP has none on record either.
+#
 # `residue_kgdm` (from `.residue_feed_kgdm()`) gives the crop residue items
 # their own per-country dry-matter content in place of the item's single one
 # (whep#1215); `NULL` applies the item coefficient to every row.

@@ -39,13 +39,4 @@ test_that("crop NPP -> carbon/nitrogen -> BNF -> residue destinies composes", {
     dest$residue_feed_dm_t + dest$residue_burn_dm_t + dest$residue_soil_dm_t,
     dest$residue_dm_t
   )
-
-  testthat::expect_warning(
-    avail <- whep::build_residue_feed_avail(dest),
-    class = "whep_residue_feed_avail_deprecated"
-  )
-  testthat::expect_true(
-    all(c("item_cbs_code", "avail_dm_t", "feed_quality") %in% names(avail))
-  )
-  testthat::expect_true(all(avail$feed_quality == "residues"))
 })

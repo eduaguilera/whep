@@ -25,64 +25,18 @@ test_that("shares method splits use/burn/soil and flags provisional", {
   testthat::expect_true(out$residue_destiny_to_be_revised)
 })
 
-test_that("build_residue_feed_avail yields the redistribute_feed contract", {
-  x <- tibble::tibble(
-    item_prod_code = "15",
-    year = 2000,
-    sub_territory = "ESP",
-    residue_feed_dm_t = 50
+# whep#1138: residue feed availability has one derivation, the commodity
+# balance's `feed` element for items 2105 and 2106, converted by the feed
+# allocator. build_residue_feed_avail() was a second, unwired route with a
+# different loss factor; it was added after v0.3.0 and never released, so it is
+# removed rather than carried through a deprecation cycle.
+test_that("residue feed availability has no second exported route", {
+  testthat::expect_false(
+    "build_residue_feed_avail" %in% getNamespaceExports("whep")
   )
-  testthat::expect_warning(
-    out <- whep::build_residue_feed_avail(x),
-    class = "whep_residue_feed_avail_deprecated"
+  testthat::expect_false(
+    exists("build_residue_feed_avail", envir = asNamespace("whep"))
   )
-  required <- c(
-    "year",
-    "territory",
-    "sub_territory",
-    "item_cbs_code",
-    "feed_group",
-    "feed_quality",
-    "avail_dm_t",
-    "feed_scale"
-  )
-  testthat::expect_true(all(required %in% names(out)))
-  testthat::expect_equal(out$feed_quality, "residues")
-  testthat::expect_equal(out$avail_dm_t, 50 * 0.85)
-  testthat::expect_equal(out$item_cbs_code, 2105)
-})
-
-# whep#1138: the output carried the country only in `sub_territory`, which
-# redistribute_feed() blanks for feed_scale = "national" -- so every country's
-# residue was pooled into one "All_territories" row that no territory's demand
-# could reach, and the documented pipe served zero intake.
-test_that("build_residue_feed_avail output reaches each territory's demand", {
-  x <- tibble::tibble(
-    item_prod_code = "15",
-    year = 2000L,
-    sub_territory = c("ESP", "FRA"),
-    residue_feed_dm_t = c(50, 1000)
-  )
-  avail <- suppressWarnings(whep::build_residue_feed_avail(x))
-  demand <- tibble::tribble(
-    ~year, ~territory, ~sub_territory, ~livestock_category,
-    ~item_cbs_code, ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
-    2000L, "ESP", "ESP", "Cattle_meat",
-    NA_integer_, NA_character_, "residues", 100, FALSE,
-    2000L, "FRA", "FRA", "Cattle_meat",
-    NA_integer_, NA_character_, "residues", 100, FALSE
-  )
-  intake <- whep::redistribute_feed(
-    demand,
-    avail,
-    options = list(distribute_surplus = FALSE)
-  ) |>
-    dplyr::summarise(intake = sum(intake_dm_t), .by = territory) |>
-    dplyr::arrange(territory)
-  testthat::expect_equal(intake$territory, c("ESP", "FRA"))
-  # ESP is capped at its own 42.5 t and FRA is fully fed from its own 850 t:
-  # neither draws on the other's residue.
-  testthat::expect_equal(intake$intake, c(50 * 0.85, 100))
 })
 
 test_that("calculate_residue_destinies conserves mass with an unmatched region", {
