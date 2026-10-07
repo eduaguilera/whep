@@ -108,6 +108,33 @@ testthat::test_that("a part label outside rainfed/irrigated aborts", {
   )
 })
 
+testthat::test_that("a part without a yield aborts instead of taking the zero-yield intercept", {
+  # Why the guard exists: the model books a missing production as zero and
+  # still hands the hectare its residue intercept, so a part with no yield
+  # would come back with a finite, plausible-looking factor.
+  row <- tibble::tibble(
+    item_prod_code = "56",
+    production_t = NA_real_,
+    area_ha = 1
+  )
+  at_na <- whep::calculate_crop_residues(row)
+  testthat::expect_true(all(is.finite(at_na$residue_dm_t)))
+  testthat::expect_gt(at_na$residue_dm_t, 0)
+  no_part <- dplyr::mutate(
+    .rrs_maize_parts(),
+    yield_part = c(4.8, NA_real_)
+  )
+  testthat::expect_error(
+    whep:::.rr_part_factors(no_part),
+    class = "whep_regime_part_yield"
+  )
+  no_mean <- dplyr::mutate(.rrs_maize_parts(), yield_mean = NA_real_)
+  testthat::expect_error(
+    whep:::.rr_part_factors(no_mean),
+    class = "whep_regime_part_yield"
+  )
+})
+
 testthat::test_that("a crop with no residue or root in the model keeps factor 1", {
   # Item 999999 is in no coefficient table: the model gives it no residue and
   # no root at any yield, so there is nothing to scale.
