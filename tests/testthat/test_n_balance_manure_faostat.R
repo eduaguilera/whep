@@ -322,6 +322,53 @@ testthat::test_that("faostat pasture manure follows the livestock proxies", {
   testthat::expect_equal(sum(excreta$n_input_t), 4.5, tolerance = 1e-10)
 })
 
+testthat::test_that("faostat pasture rows keep their species mix", {
+  # Cattle dairy 3 t and layers 0.5 t are CPP, sheep 1 t is SO (IPCC 2019
+  # Table 11.1); llamas are excluded upstream with their own warning.
+  out <- .nmf_quiet(
+    whep::build_n_inputs(resolution = "polity", data = .nmf_polity_data())
+  )
+  excreta <- dplyr::filter(out, .data$fert_type == "excreta")
+  testthat::expect_equal(nrow(excreta), 1L)
+  testthat::expect_equal(excreta$excreta_cpp_share, 3.5 / 4.5)
+  testthat::expect_equal(
+    excreta$method_excreta_species,
+    "faostat_species_group"
+  )
+  testthat::expect_true(all(is.na(
+    out$excreta_cpp_share[out$fert_type != "excreta"]
+  )))
+})
+
+testthat::test_that("faostat grid excreta carries each cell's own mix", {
+  out <- .nmf_quiet(
+    whep::build_n_inputs(resolution = "grid", data = .nmf_grid_data())
+  )
+  excreta <- out |>
+    dplyr::filter(.data$fert_type == "excreta") |>
+    dplyr::arrange(.data$lon)
+  # Cattle and sheep follow pasture + rangeland (400:200), layers cropland
+  # (100:300), so the cells differ in mix as well as in mass.
+  cattle <- 3 * c(400, 200) / 600
+  layers <- 0.5 * c(100, 300) / 400
+  sheep <- 1 * c(400, 200) / 600
+  testthat::expect_equal(
+    excreta$excreta_cpp_share,
+    (cattle + layers) / (cattle + layers + sheep),
+    tolerance = 1e-10
+  )
+  # The N-weighted cell shares re-aggregate to the national mix.
+  testthat::expect_equal(
+    sum(excreta$excreta_cpp_share * excreta$n_input_t) /
+      sum(excreta$n_input_t),
+    3.5 / 4.5,
+    tolerance = 1e-10
+  )
+  testthat::expect_true(all(
+    excreta$method_excreta_species == "faostat_species_group"
+  ))
+})
+
 testthat::test_that("faostat grid applied manure re-aggregates to national", {
   # With a local-grain (per-cell) engine intake, the grain the default manure
   # term needs to reach cells at all.

@@ -277,16 +277,26 @@
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
 #'   `method_human_kgn_cap`, `method_unsupported`, `method_manure`,
-#'   `method_unattributed`. At
+#'   `excreta_cpp_share`, `method_excreta_species`, `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
 #'   `method_deposition`, `method_deposition_scope`,
 #'   `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells),
+#'   `excreta_cpp_share` (N-weighted over cells), `method_excreta_species`.
 #'   `method_manure` records the source of the three manure terms
 #'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
+#'   `excreta_cpp_share` is the share of an `"excreta"` row's N deposited by
+#'   cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
+#'   (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
+#'   (EF3PRP,SO) deposit the rest. `method_excreta_species` records where the
+#'   share came from (`"engine_livestock_category"`,
+#'   `"faostat_species_group"`) or why the row has none
+#'   (`"fallback_label_no_species"` for manure the engine labelled excreta
+#'   only for want of a manure-type share, `"no_excreta_n"` for a row with no
+#'   N). Both are `NA` for every other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
@@ -499,6 +509,10 @@ build_n_inputs <- function(
 # from, the second which of the polycell's territory it was credited with.
 # `method_human_population` and `method_human_kgn_cap` are the human term's:
 # the population basis and the denominator of its per-capita rate.
+# `excreta_cpp_share` and `method_excreta_species` are the excreta term's
+# grazing species mix (R/excreta_species_mix.R), and are NA for every other
+# fert_type by design: only urine and dung deposited by grazing animals has a
+# species-specific emission factor.
 # All are per-source, so they live here rather than on the assembled schema.
 .ni_source_schema <- function() {
   c(
@@ -516,7 +530,9 @@ build_n_inputs <- function(
     "method_human_population",
     "method_human_kgn_cap",
     "method_unsupported",
-    "method_manure"
+    "method_manure",
+    "excreta_cpp_share",
+    "method_excreta_species"
   )
 }
 
@@ -634,8 +650,19 @@ build_n_inputs <- function(
   if (resolution == "grid") {
     return(dplyr::select(x, dplyr::all_of(.ni_schema())))
   }
+  # The species stamp and the N-weighted share read the cell rows' own N, so
+  # both come before n_input_t is replaced by its sum.
   x |>
     dplyr::summarise(
+      method_excreta_species = .excreta_method_stamp(
+        .data$method_excreta_species,
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
       .by = c(
         "area_code",
@@ -652,6 +679,11 @@ build_n_inputs <- function(
         "method_manure",
         "method_unattributed"
       )
+    ) |>
+    dplyr::relocate(
+      "excreta_cpp_share",
+      "method_excreta_species",
+      .after = "n_input_t"
     )
 }
 
@@ -812,9 +844,15 @@ build_n_inputs <- function(
 # build_production.R / grassland_land_extension.R); a missing sub_territory
 # (national/global resolution, no cell grain) drops lon/lat to NA -- those
 # rows are only usable at resolution = "polity".
+#
+# The excreta rows also carry their grazing species mix (R/excreta_species_
+# mix.R). Several engine rows can fold into one output row, so the share is
+# re-weighted by N here, and the stamp is computed BEFORE the share is
+# overwritten by its own summary.
 .manure_to_n_inputs <- function(applied) {
   coords <- .ni_manure_coords(applied$sub_territory)
   applied |>
+    .ni_excreta_species_cols() |>
     dplyr::mutate(
       lon = coords$lon,
       lat = coords$lat,
@@ -827,6 +865,15 @@ build_n_inputs <- function(
     ) |>
     dplyr::summarise(
       n_input_t = sum(.data$applied_n, na.rm = TRUE),
+      method_excreta_species = .excreta_method_stamp(
+        .data$method_excreta_species,
+        .data$excreta_cpp_share,
+        .data$applied_n
+      ),
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$applied_n
+      ),
       .by = c(
         "lon",
         "lat",
@@ -836,6 +883,7 @@ build_n_inputs <- function(
         "fert_type"
       )
     ) |>
+    dplyr::relocate("excreta_cpp_share", .before = "method_excreta_species") |>
     dplyr::mutate(method_manure = "livestock_intake")
 }
 
@@ -1770,7 +1818,9 @@ build_n_inputs <- function(
     method_human_population = character(),
     method_human_kgn_cap = character(),
     method_unsupported = character(),
-    method_manure = character()
+    method_manure = character(),
+    excreta_cpp_share = double(),
+    method_excreta_species = character()
   )
 }
 
@@ -1883,6 +1933,16 @@ build_n_inputs <- function(
       method_manure = dplyr::if_else(
         .data$fert_type %in% c("excreta", "manure_solid", "manure_liquid"),
         "livestock_intake",
+        NA_character_
+      ),
+      excreta_cpp_share = dplyr::if_else(
+        .data$fert_type == "excreta",
+        1,
+        NA_real_
+      ),
+      method_excreta_species = dplyr::if_else(
+        .data$fert_type == "excreta",
+        "engine_livestock_category",
         NA_character_
       ),
       method_unattributed = "cropland_area"

@@ -387,6 +387,22 @@ testthat::test_that("schema is complete at grid resolution", {
   )
 })
 
+testthat::test_that("the excreta species mix reaches only the excreta rows", {
+  # The fixture's only herd is dairy cattle, a CPP species (IPCC 2019 Table
+  # 11.1), so every excreta row is wholly CPP.
+  for (resolution in c("grid", "polity")) {
+    out <- .nbi_inputs(resolution)
+    excreta <- out$fert_type == "excreta"
+    testthat::expect_true(any(excreta))
+    testthat::expect_equal(out$excreta_cpp_share[excreta], rep(1, sum(excreta)))
+    testthat::expect_true(all(
+      out$method_excreta_species[excreta] == "engine_livestock_category"
+    ))
+    testthat::expect_true(all(is.na(out$excreta_cpp_share[!excreta])))
+    testthat::expect_true(all(is.na(out$method_excreta_species[!excreta])))
+  }
+})
+
 testthat::test_that("synthetic gridded output re-aggregates to the polity total", {
   out <- .nbi_inputs("grid")
   synthetic <- out[out$fert_type == "synthetic", ]
@@ -2334,10 +2350,13 @@ testthat::test_that("the default manure source reproduces the pre-option output"
     "n_inputs_default_golden.rds"
   ))
   manure <- c("excreta", "manure_solid", "manure_liquid")
+  # The excreta species mix is added beside the golden columns; every column
+  # the golden pins must stay identical.
+  added <- c("method_manure", "excreta_cpp_share", "method_excreta_species")
   for (resolution in c("grid", "polity")) {
     out <- suppressMessages(.nbi_inputs(resolution))
     testthat::expect_identical(
-      dplyr::select(out, -"method_manure"),
+      dplyr::select(out, -dplyr::all_of(added)),
       golden[[paste0("inputs_", resolution)]]
     )
     testthat::expect_true(all(
