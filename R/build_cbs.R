@@ -31,18 +31,28 @@
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
 #'   the same dataset; `"wide"` is what the IO model and the extensions consume.
-#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
-#'   what happens to a traded item the CBS has no row for. The trade record is
-#'   joined onto the CBS, so it can only fill a row that already exists;
-#'   `"none"` keeps that, and the import is dropped. `"net_import"` first
-#'   creates the missing rows from the trade record, restricted to
-#'   tonnes-denominated items (live-animal trade is in heads and arrives
-#'   through [get_livestock_cbs()]), to net importers, and to areas the CBS
-#'   already covers in that year. Selecting it **moves published values** —
-#'   at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
-#'   current build; 1,164 keys when whep#864 landed), and reclassifies three
-#'   areas on the nourishment axis. `NEWS.md` states the rest, and whep#762
-#'   keeps the remaining decisions open.
+#' @param trade_recovery One of `"net_import"` (default) or `"none"`,
+#'   selecting what happens to a traded item the CBS has no row for. The trade
+#'   record is joined onto the CBS, so it can only fill a row that already
+#'   exists. `"net_import"` first creates the missing rows from the trade
+#'   record, restricted to tonnes-denominated items (live-animal trade is in
+#'   heads and arrives through [get_livestock_cbs()]), to net importers, and to
+#'   areas the CBS already covers in that year. A created row has no
+#'   production and no stock change, so its domestic supply is its net import,
+#'   split over the destinies by the item's world-average shares -- the
+#'   fallback every CBS key with no destiny of its own takes. `"none"` is the
+#'   behaviour before whep#762: the import is dropped, so an area whose balance
+#'   sheet omits an item it imports loses that supply outright. **The default
+#'   moves published values.** Measured on a 2005-2015 build at 2010, it adds
+#'   1,038 keys, 7.96 Mt of imports (0.5% of the world total), 1.60 Mt of
+#'   exports and 2.75 Mt of food (0.06%). Protein supply rises from 28 to 63
+#'   g/cap/day in Singapore, 31 to 72 in Bahrain and 69 to 116 in Qatar, the
+#'   first two leaving the "Under" nourishment class and Qatar moving to
+#'   "Over"; FAOSTAT's own balance sheets, which cover Bahrain and Qatar only
+#'   from 2019, give 105-112 and 111-114. Spain, the USA and Niger do not move.
+#'   Net exporters with no CBS row are not created under either method (107
+#'   pairs and 3.20 Mt of exports at 2010, 2.33 Mt of it Meat Meal), because
+#'   the balance would have to invent the production that covers them.
 #'   [get_wide_cbs()], [get_processing_coefs()] and [build_io_model()] take the
 #'   same argument and pass it into the shared build chain, each method under
 #'   its own cache slot, so a downstream build can be run either way.
@@ -377,7 +387,7 @@ build_commodity_balances <- function(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
@@ -444,7 +454,7 @@ build_commodity_balances <- function(
         "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
       )
     }
-    if (trade_recovery != "none") {
+    if (trade_recovery != .cbs_trade_recovery_choices()[[1]]) {
       cli::cli_warn(
         "{.arg trade_recovery} is ignored when {.arg .fixed_data} is supplied."
       )
@@ -871,7 +881,7 @@ build_commodity_balances <- function(
 #'   attribute (set automatically by `.read_cbs()`).
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`. See
 #'   [build_commodity_balances()].
-#' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
+#' @param trade_recovery One of `"net_import"` (default) or `"none"`. See
 #'   [build_commodity_balances()].
 #' @param export_share_overflow One of `"report"` (default), `"drop"` or
 #'   `"abort"`. See [build_commodity_balances()].
@@ -886,7 +896,7 @@ build_commodity_balances <- function(
 #' @noRd
 .fix_cbs <- function(
   df,
-  trade_recovery = "none",
+  trade_recovery = "net_import",
   trade_zero = "prefer_record",
   export_share_overflow = .cbs_export_overflow_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
@@ -5094,9 +5104,9 @@ build_processing_coefs <- function(
 # tonnes-denominated items and 2.56 Mt of net imports short (whep#762).
 #
 # These helpers emit the missing `import`/`export` rows so the join has
-# something to land on. They run only under `trade_recovery = "net_import"`,
-# because they move published values, and they are deliberately narrower than
-# "every key the trade record carries". Each restriction below is what makes
+# something to land on. They run under `trade_recovery = "net_import"`, the
+# default since whep#762, and are deliberately narrower than "every key the
+# trade record carries". Each restriction below is what makes
 # the created row balanceable rather than a fabrication:
 #
 # * **Live animals are excluded.** Their CBS quantities are head counts, not
@@ -5111,8 +5121,14 @@ build_processing_coefs <- function(
 # * **Only net importers.** A created row has no production, so a net-exported
 #   one has nothing to export: the balancing cascade closes the identity by
 #   inventing production, and `check_supply_use_balance()` then passes on
-#   fabricated tonnage. 144 pairs / 28.9 Mt of exports at 2010 are left
-#   uncreated for that reason (whep#762 keeps the decision open).
+#   fabricated tonnage. Measured on a 2005-2015 build at 2010, 107 pairs are
+#   left uncreated for that reason: 3.20 Mt of exports against 1.04 Mt of
+#   imports. 2.33 Mt of those exports is Meat Meal (2112) in 38 rendering
+#   countries, a product WHEP gives no production at all, so its missing row is
+#   a missing production item, not a trade decision; the rest is mostly
+#   Singapore's re-exports of cocoa, maize, beer and coffee. Neither
+#   alternative -- a pass-through row with the export capped at the import, or
+#   production inferred as export minus import -- changes any food supply.
 # * **Only (year, area) buckets the CBS already covers**, so the `area` label
 #   comes from the CBS rows themselves instead of a year-free lookup that
 #   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
@@ -5359,6 +5375,17 @@ build_processing_coefs <- function(
     use.names = TRUE
   ) |>
     unique(by = by_cols)
+}
+
+# The two answers to "an area imports an item its CBS has no row for", default
+# first. `"net_import"` creates the row (whep#762); `"none"` drops the import,
+# the behaviour before it, and stays selectable for sensitivity work and to
+# reproduce an earlier build. One helper, so the default cannot drift between
+# `build_commodity_balances()`, `get_wide_cbs()`, `get_processing_coefs()` and
+# `build_io_model()`: a caller of one and a caller of another must get the
+# same CBS unless they ask otherwise.
+.cbs_trade_recovery_choices <- function() {
+  c("net_import", "none")
 }
 
 # -- Tier-1 trade fill: what a CBS zero does to a positive trade record --------

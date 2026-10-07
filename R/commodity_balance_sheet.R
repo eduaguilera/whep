@@ -13,12 +13,10 @@
 #'   balance built over the window alone would differ from the same years of
 #'   the full build (whep#833). A window therefore costs as much as the full
 #'   series the first time, and nothing after that.
-#' @param trade_recovery One of `"none"` (default) or `"net_import"`, passed
+#' @param trade_recovery One of `"net_import"` (default) or `"none"`, passed
 #'   to [build_commodity_balances()], which documents what each does and what
-#'   `"net_import"` moves. Each method is built and cached under its own slot,
-#'   so asking for one never serves the other's result. `"net_import"` is not
-#'   the default because two allocation questions it raises are still open
-#'   (whep#762).
+#'   the default moves. Each method is built and cached under its own slot,
+#'   so asking for one never serves the other's result.
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`. The example is the same
 #'   fixture under either `trade_recovery`.
@@ -74,7 +72,7 @@
 #' get_wide_cbs(example = TRUE)
 get_wide_cbs <- function(
   years = NULL,
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   example = FALSE
 ) {
   trade_recovery <- rlang::arg_match(trade_recovery)
@@ -468,7 +466,7 @@ get_livestock_cbs <- function(
 #'   coefficients on that range of the full-range commodity balances (see
 #'   [get_wide_cbs()] for why those are always built over the whole series)
 #'   and caches them under a window-specific key.
-#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#' @param trade_recovery One of `"net_import"` (default) or `"none"`, selecting
 #'   the CBS the coefficients are calibrated on. See
 #'   [build_commodity_balances()] and [get_wide_cbs()]. Pass the same value
 #'   here as to [get_wide_cbs()]: coefficients calibrated on one CBS do not
@@ -525,7 +523,7 @@ get_livestock_cbs <- function(
 #' get_processing_coefs(example = TRUE)
 get_processing_coefs <- function(
   years = NULL,
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   example = FALSE
 ) {
   trade_recovery <- rlang::arg_match(trade_recovery)

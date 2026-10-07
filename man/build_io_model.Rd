@@ -12,7 +12,7 @@ build_io_model(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = c("none", "net_import")
+  trade_recovery = .cbs_trade_recovery_choices()
 )
 }
 \arguments{
@@ -60,7 +60,7 @@ falls back to mass.}
 (\code{year}, \code{element}, \code{item_cbs_code}, \code{price}). Used only when
 \code{method = "value"}; built automatically when \code{NULL}.}
 
-\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+\item{trade_recovery}{One of \code{"net_import"} (default) or \code{"none"}, selecting
 the CBS every internally built input is derived from — the wide CBS, the
 processing coefficients, the supply-use tables, the bilateral trade
 matrices and the prices. See \code{\link[=build_commodity_balances]{build_commodity_balances()}} for what each

@@ -6,7 +6,7 @@
 \usage{
 get_processing_coefs(
   years = NULL,
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   example = FALSE
 )
 }
@@ -17,7 +17,7 @@ coefficients on that range of the full-range commodity balances (see
 \code{\link[=get_wide_cbs]{get_wide_cbs()}} for why those are always built over the whole series)
 and caches them under a window-specific key.}
 
-\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+\item{trade_recovery}{One of \code{"net_import"} (default) or \code{"none"}, selecting
 the CBS the coefficients are calibrated on. See
 \code{\link[=build_commodity_balances]{build_commodity_balances()}} and \code{\link[=get_wide_cbs]{get_wide_cbs()}}. Pass the same value
 here as to \code{\link[=get_wide_cbs]{get_wide_cbs()}}: coefficients calibrated on one CBS do not

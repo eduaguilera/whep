@@ -6,7 +6,7 @@
 \usage{
 get_wide_cbs(
   years = NULL,
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   example = FALSE
 )
 }
@@ -20,12 +20,10 @@ balance built over the window alone would differ from the same years of
 the full build (whep#833). A window therefore costs as much as the full
 series the first time, and nothing after that.}
 
-\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, passed
+\item{trade_recovery}{One of \code{"net_import"} (default) or \code{"none"}, passed
 to \code{\link[=build_commodity_balances]{build_commodity_balances()}}, which documents what each does and what
-\code{"net_import"} moves. Each method is built and cached under its own slot,
-so asking for one never serves the other's result. \code{"net_import"} is not
-the default because two allocation questions it raises are still open
-(whep#762).}
+the default moves. Each method is built and cached under its own slot,
+so asking for one never serves the other's result.}
 
 \item{example}{If \code{TRUE}, return a small example output without
 downloading remote data. Default is \code{FALSE}. The example is the same

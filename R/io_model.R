@@ -48,7 +48,7 @@
 #' @param prices Optional tibble of item prices as from [build_cbs_prices()]
 #'   (`year`, `element`, `item_cbs_code`, `price`). Used only when
 #'   `method = "value"`; built automatically when `NULL`.
-#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#' @param trade_recovery One of `"net_import"` (default) or `"none"`, selecting
 #'   the CBS every internally built input is derived from — the wide CBS, the
 #'   processing coefficients, the supply-use tables, the bilateral trade
 #'   matrices and the prices. See [build_commodity_balances()] for what each
@@ -83,7 +83,7 @@ build_io_model <- function(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = c("none", "net_import")
+  trade_recovery = .cbs_trade_recovery_choices()
 ) {
   method <- rlang::arg_match(method)
   trade_recovery <- rlang::arg_match(trade_recovery)
@@ -263,7 +263,7 @@ build_io_model <- function(
   endogenize_losses,
   method = "mass",
   prices = NULL,
-  trade_recovery = "none"
+  trade_recovery = .cbs_trade_recovery_choices()[[1]]
 ) {
   years <- .io_requested_years(years)
   cli::cli_inform(c(

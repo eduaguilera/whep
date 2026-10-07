@@ -830,7 +830,7 @@ test_that(".fix_cbs wires trade recovery through the whole cascade", {
     2010, 200L, 2807, "export", 91318
   )
 
-  off <- whep:::.fix_cbs(raw)
+  off <- whep:::.fix_cbs(raw, trade_recovery = "none")
   on <- whep:::.fix_cbs(raw, trade_recovery = "net_import")
 
   # The defect: the trade join can only fill, so rice never reaches the CBS.
@@ -912,7 +912,7 @@ test_that("build_commodity_balances validates trade_recovery", {
         value = c(1, 2),
         source = "FAOSTAT_trade"
       ),
-      trade_recovery = "net_import"
+      trade_recovery = "none"
     ),
     "ignored"
   )

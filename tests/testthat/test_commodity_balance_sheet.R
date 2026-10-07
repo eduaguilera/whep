@@ -387,7 +387,43 @@ testthat::test_that("get_wide_cbs takes and validates trade_recovery", {
     whep::get_wide_cbs(example = TRUE, trade_recovery = "net-import")
   )
   testthat::expect_no_error(
-    whep::get_wide_cbs(example = TRUE, trade_recovery = "net_import")
+    whep::get_wide_cbs(example = TRUE, trade_recovery = "none")
+  )
+})
+
+testthat::test_that("every CBS entry point defaults to trade recovery", {
+  # whep#762: the default is `"net_import"`, and it has to be the default of
+  # every entry point into the shared chain, or a footprint built through
+  # build_io_model() and a nourishment axis read through get_wide_cbs() would
+  # describe two different CBSs without either caller asking for that.
+  seen <- character()
+  testthat::local_mocked_bindings(
+    .cached_cbs_built = function(years, trade_recovery) {
+      seen <<- c(seen, trade_recovery)
+      rlang::abort("chain reached", class = "whep_chain_probe")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_error(
+    whep::get_wide_cbs(years = 2010),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_error(
+    whep::get_processing_coefs(years = 2010),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_error(
+    whep::build_io_model(years = 2010),
+    class = "whep_chain_probe"
+  )
+  testthat::expect_equal(seen, rep("net_import", 3))
+  testthat::expect_equal(
+    eval(
+      formals(whep::build_commodity_balances)$trade_recovery,
+      envir = asNamespace("whep")
+    )[[1]],
+    "net_import"
   )
 })
 
@@ -402,10 +438,10 @@ testthat::test_that("get_wide_cbs threads trade_recovery into the chain", {
   )
 
   testthat::expect_error(
-    whep::get_wide_cbs(years = 2010, trade_recovery = "net_import"),
+    whep::get_wide_cbs(years = 2010, trade_recovery = "none"),
     class = "whep_chain_probe"
   )
-  testthat::expect_equal(seen, "net_import")
+  testthat::expect_equal(seen, "none")
 })
 
 testthat::test_that("get_processing_coefs takes trade_recovery", {
@@ -426,10 +462,10 @@ testthat::test_that("get_processing_coefs takes trade_recovery", {
   )
 
   testthat::expect_error(
-    whep::get_processing_coefs(years = 2010, trade_recovery = "net_import"),
+    whep::get_processing_coefs(years = 2010, trade_recovery = "none"),
     class = "whep_chain_probe"
   )
-  testthat::expect_equal(seen, "net_import")
+  testthat::expect_equal(seen, "none")
 })
 
 # whep#1092: the live-animal trade the livestock balance rests on was

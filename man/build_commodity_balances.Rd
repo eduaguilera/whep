@@ -12,7 +12,7 @@ build_commodity_balances(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
@@ -55,18 +55,28 @@ per element. \code{"wide"} pivots the elements into columns, adds the live-anima
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
 
-\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
-what happens to a traded item the CBS has no row for. The trade record is
-joined onto the CBS, so it can only fill a row that already exists;
-\code{"none"} keeps that, and the import is dropped. \code{"net_import"} first
-creates the missing rows from the trade record, restricted to
-tonnes-denominated items (live-animal trade is in heads and arrives
-through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
-already covers in that year. Selecting it \strong{moves published values} —
-at 2010 it adds 1,154 keys and 53.7 Mt of imports (re-measured on the
-current build; 1,164 keys when whep#864 landed), and reclassifies three
-areas on the nourishment axis. \code{NEWS.md} states the rest, and whep#762
-keeps the remaining decisions open.
+\item{trade_recovery}{One of \code{"net_import"} (default) or \code{"none"},
+selecting what happens to a traded item the CBS has no row for. The trade
+record is joined onto the CBS, so it can only fill a row that already
+exists. \code{"net_import"} first creates the missing rows from the trade
+record, restricted to tonnes-denominated items (live-animal trade is in
+heads and arrives through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to
+areas the CBS already covers in that year. A created row has no
+production and no stock change, so its domestic supply is its net import,
+split over the destinies by the item's world-average shares -- the
+fallback every CBS key with no destiny of its own takes. \code{"none"} is the
+behaviour before whep#762: the import is dropped, so an area whose balance
+sheet omits an item it imports loses that supply outright. \strong{The default
+moves published values.} Measured on a 2005-2015 build at 2010, it adds
+1,038 keys, 7.96 Mt of imports (0.5\% of the world total), 1.60 Mt of
+exports and 2.75 Mt of food (0.06\%). Protein supply rises from 28 to 63
+g/cap/day in Singapore, 31 to 72 in Bahrain and 69 to 116 in Qatar, the
+first two leaving the "Under" nourishment class and Qatar moving to
+"Over"; FAOSTAT's own balance sheets, which cover Bahrain and Qatar only
+from 2019, give 105-112 and 111-114. Spain, the USA and Niger do not move.
+Net exporters with no CBS row are not created under either method (107
+pairs and 3.20 Mt of exports at 2010, 2.33 Mt of it Meat Meal), because
+the balance would have to invent the production that covers them.
 \code{\link[=get_wide_cbs]{get_wide_cbs()}}, \code{\link[=get_processing_coefs]{get_processing_coefs()}} and \code{\link[=build_io_model]{build_io_model()}} take the
 same argument and pass it into the shared build chain, each method under
 its own cache slot, so a downstream build can be run either way.}
