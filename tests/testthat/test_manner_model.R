@@ -66,13 +66,14 @@ testthat::test_that("synthetic temperature factor is capped at 1", {
   drivers <- list(soil_ph = 6, rate_kg_ha = 250, rainfall_mm = 0)
   # Absolute form at 30 deg C: exp(0.1386 * (30 - 8.625)) / 3 = 6.4 raw.
   testthat::expect_equal(
-    whep:::.manner_synth_temp_factor("Urea", c(drivers, temp_c = 30)),
+    whep:::.manner_synth_temp_factor("Urea", "pH<7", c(drivers, temp_c = 30)),
     1
   )
   # Anomaly form at a 20 deg C anomaly: exp(0.2197225 * 20) / 3 = 27 raw.
   testthat::expect_equal(
     whep:::.manner_synth_temp_factor(
       "CAN",
+      "pH<7",
       c(drivers, temp_c = 30, temp_c_annual_mean = 10)
     ),
     1
@@ -82,15 +83,102 @@ testthat::test_that("synthetic temperature factor is capped at 1", {
 testthat::test_that("synthetic temperature factor is unchanged below the cap", {
   # Inside the UK-calibrated range the cap must not move anything.
   testthat::expect_equal(
-    whep:::.manner_synth_temp_factor("Urea", list(temp_c = 15)),
+    whep:::.manner_synth_temp_factor("Urea", "pH<7", list(temp_c = 15)),
     exp(0.1386 * (15 - 8.625)) / 3
   )
   testthat::expect_equal(
     whep:::.manner_synth_temp_factor(
       "AS",
+      "pH<7",
       list(temp_c = 12, temp_c_annual_mean = 8)
     ),
     exp(0.2197225 * 4) / 3
+  )
+})
+
+testthat::test_that("synthetic temperature form follows Misselbrook 2004 by default", {
+  # whep#1370: AN takes the anomaly form (eq. 3) and AS on calcareous soil
+  # the absolute urea form (eq. 4). A 12 deg C month in a 12 deg C year has
+  # zero anomaly, so eq. 3 gives exactly 1/3; eq. 4 gives
+  # exp(0.1386 * (12 - 8.625)) / 3.
+  drivers <- list(temp_c = 12, temp_c_annual_mean = 12)
+  absolute <- exp(0.1386 * (12 - 8.625)) / 3
+  forms <- tibble::tribble(
+    ~fertiliser, ~ph_class,  ~expected,
+    "Urea",      "pH<7",     absolute,
+    "Urea",      "other pH", absolute,
+    "AN",        "pH<7",     1 / 3,
+    "AN",        "other pH", 1 / 3,
+    "CAN",       "pH<7",     1 / 3,
+    "CAN",       "other pH", 1 / 3,
+    "AS",        "pH<7",     1 / 3,
+    "AS",        "other pH", absolute
+  )
+  got <- purrr::map2_dbl(
+    forms$fertiliser,
+    forms$ph_class,
+    \(f, p) whep:::.manner_synth_temp_factor(f, p, drivers)
+  )
+  testthat::expect_equal(got, forms$expected)
+})
+
+testthat::test_that("source_port keeps the pre-#1370 temperature forms", {
+  drivers <- list(temp_c = 12, temp_c_annual_mean = 12)
+  absolute <- exp(0.1386 * (12 - 8.625)) / 3
+  got <- purrr::map_dbl(
+    c("Urea", "AN", "CAN", "AS"),
+    \(f) {
+      whep:::.manner_synth_temp_factor(
+        f,
+        "other pH",
+        drivers,
+        temp_method = "source_port"
+      )
+    }
+  )
+  testthat::expect_equal(got, c(absolute, absolute, 1 / 3, 1 / 3))
+})
+
+testthat::test_that("AN ef responds to the annual mean temperature", {
+  # Before whep#1370 AN ignored temp_c_annual_mean entirely.
+  an_ef <- function(annual, method) {
+    whep::calculate_manner_nh3(
+      n_applied_t = 1,
+      fertiliser = "AN",
+      drivers = list(
+        soil_ph = 6,
+        rate_kg_ha = 100,
+        rainfall_mm = 0,
+        irrigated = FALSE,
+        temp_c = 12,
+        temp_c_annual_mean = annual
+      ),
+      temp_method = method
+    )
+  }
+  warm_year <- an_ef(12, "misselbrook_2004")
+  cold_year <- an_ef(8, "misselbrook_2004")
+  testthat::expect_lt(warm_year$ef, cold_year$ef)
+  testthat::expect_equal(warm_year$method_manner_temp, "misselbrook_2004")
+  testthat::expect_equal(
+    an_ef(12, "source_port")$ef,
+    an_ef(8, "source_port")$ef
+  )
+  testthat::expect_equal(
+    an_ef(8, "source_port")$method_manner_temp,
+    "source_port"
+  )
+})
+
+testthat::test_that("calculate_manner_nh3 rejects an unknown temp_method", {
+  testthat::expect_error(
+    whep::calculate_manner_nh3(
+      n_applied_t = 1,
+      fertiliser = "AN",
+      drivers = list(),
+      temp_method = "inventory_2015"
+    ),
+    class = "rlang_error"
   )
 })
 
