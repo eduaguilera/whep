@@ -4,18 +4,26 @@
 \alias{whep_list_file_versions}
 \title{Input file versions}
 \usage{
-whep_list_file_versions(file_alias)
+whep_list_file_versions(file_alias, registry = NULL)
 }
 \arguments{
 \item{file_alias}{Internal name of the requested file. You can find the
 possible values in the \code{\link{whep_inputs}} dataset.}
+
+\item{registry}{The table that maps \code{file_alias} to a board and a frozen
+version. \code{NULL}, the default, is \code{\link{whep_inputs}}, this package's own
+inputs. Another package or project passes its own registry, a table with
+the columns \code{alias}, \code{board_url} and \code{version}, usually read with
+\code{\link[=whep_registry]{whep_registry()}}; it is validated the same way before it is used. See
+the section \emph{Reading from another registry}.}
 }
 \value{
 A tibble where each row is a version. For details about its format,
 see \code{pins::pin_versions()}.
 }
 \description{
-Lists all existing versions of an input file from \code{\link{whep_inputs}}.
+Lists all existing versions of an input file from \code{\link{whep_inputs}}, or from
+another registry.
 }
 \examples{
 whep_list_file_versions("read_example")

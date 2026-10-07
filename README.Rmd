@@ -172,6 +172,17 @@ analysis](https://eduaguilera.github.io/whep/articles/footprint-analysis.html)
 vignette, and every function is listed on the [reference
 page](https://eduaguilera.github.io/whep/reference/index.html).
 
+The same reader serves other packages' pinned inputs. A package lists its own
+inputs in a registry CSV with the columns `alias`, `board_url` and `version`,
+like `whep_inputs`, and passes it as `registry`; downloading, caching and the
+offline fallback then work as they do for WHEP's own inputs:
+
+``` r
+reg <- whep::whep_registry("inst/extdata/input_registry.csv")
+whep::whep_read_file("crop_yields", registry = reg)
+whep::whep_list_file_versions("crop_yields", registry = reg)
+```
+
 ## The WHEP project
 
 #### **Who Has Eaten the Planet? The paths of food systems beyond the safe and just operating space (1850-2020)**
