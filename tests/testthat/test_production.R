@@ -265,7 +265,8 @@ testthat::test_that("get_primary_residues keeps unresolved areas visible", {
   testthat::expect_true(is.na(unresolved$reporting_polity_code))
   testthat::expect_equal(
     sum(out$value),
-    150 / pin_recovery_rate("Wheat, other cereals", "West Europe") +
+    150 /
+      pin_recovery_rate("Wheat, other cereals", "West Europe") +
       11 / pin_recovery_rate("Wheat, other cereals", "Sub-saharan Africa") +
       7
   )

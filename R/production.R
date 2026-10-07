@@ -100,8 +100,9 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #'    These are actually not FAOSTAT defined items, but custom defined by us.
 #'    When necessary, FAOSTAT codes are extended for our needs.
-#' - `value`: The amount of residue produced, in tonnes of **fresh matter**,
-#'    like every other commodity-balance quantity.
+#' - `value`: The amount of residue produced -- all of it, before any is
+#'    recovered from the field -- in tonnes of **fresh matter**, like every
+#'    other commodity-balance quantity.
 #' - `value_dm`: The same residue in tonnes of **dry matter**: each crop's
 #'    fresh residue times its own residue dry-matter content,
 #'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
@@ -114,6 +115,31 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' every crop), not the residue's dry-matter content, which runs from 0.13
 #' (tomato) to 1.0 (rapeseed) (whep#1215). Use `value_dm` wherever a quantity
 #' is defined per unit of dry matter, such as a residue nitrogen content.
+#'
+#' The pin does not hold the residue produced but the share of it recovered
+#' from the field: the predecessor pipeline multiplied each residue row by the
+#' legacy recovery rate of its region and crop category (`recovery_rates` in
+#' `residue_recovery.csv`, see [calculate_residue_destinies()]) before writing
+#' it. Every reader of `value` treats it as the whole residue and applies a
+#' recovery rate of its own, so `value` is the pin divided by that same rate
+#' (whep#1195). The division is exact: WHEP ships the rate the predecessor
+#' used, and on the real pin the result equals the predecessor's gross residue
+#' on all 427,584 rows where both exist. Where that rate is 0 (fodder crops
+#' in seven of the eight regions; roots and tubers, cassava, sugar beet and
+#' dry beans in West Europe and in North America and Oceania) the
+#' pin holds 0 and the gross residue cannot be recovered from it, so those
+#' crops carry no residue here, as before.
+#'
+#' The ratio behind the pin's gross residue is the fresh-matter
+#' residue:product ratio of [biomass_coefs], scaled by the region's
+#' residue:product ratio relative to West Europe (`residue_dm_product_dm` in
+#' the same table) and by a harvest-index change factor per region and year.
+#' That factor is what makes the ratio vary by year. The predecessor's table
+#' carries it at eight anchor years from 1910 to 2000, interpolates linearly
+#' between them and holds 2000 constant after it, falling for instance from
+#' 1.10 in 1962 to 1.00 in 2000 in East Europe. Its code attributes the table
+#' to Krausmann et al. (2013), *PNAS* 110:10324, Table M2 (assumed,
+#' unverified), and WHEP does not ship it.
 #'
 #' @inheritSection whep_read_file The batch pin on the build path
 #'
@@ -128,10 +154,11 @@ get_primary_residues <- function(example = FALSE) {
 
   # The `crop_residues` pin is predecessor-pipeline output, not a curated
   # input: its `Product` rows equal the `primary_prod` pin's tonnes to the last
-  # digit, and the year-varying residue ratio behind its `Residue` rows is not
-  # in this repository. See the pin-batch section above for the measurement,
-  # and note that this is where the predecessor's production series enters the
-  # commodity balance (#1054).
+  # digit, and its `Residue` rows are the RECOVERED residue of the
+  # predecessor's harvest-index model, which `.residue_gross_from_recovered()`
+  # turns back into the residue produced (#1195). See the pin-batch section
+  # above for the measurement, and note that this is where the predecessor's
+  # production series enters the commodity balance (#1054).
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
