@@ -50,12 +50,12 @@
 #' `temp_method`:
 #' * `"misselbrook_2004"` (default): AN takes the anomaly form on every soil,
 #'   and AS takes the anomaly form on non-calcareous soils and the absolute
-#'   form on calcareous soils (`soil_ph >= 7`). These are eqs. 3 and 4 of
-#'   Misselbrook et al. (2004) as quoted from the paper in whep issue #1333;
-#'   the paper itself could not be opened for this package, so the AN
-#'   assignment is assumed, unverified. The calcareous-AS assignment agrees
-#'   with the UK inventory, which treats AS on calcareous soils "as for urea"
-#'   (Misselbrook et al. 2015, notes to Table A11).
+#'   form on calcareous soils (`soil_ph >= 7`). This is the assignment of
+#'   Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for AN and other N
+#'   to all soils and AS/DAP to non-calcareous soils", eq. 4 (absolute) "for
+#'   urea and UAN to all soils and AS/DAP to calcareous soils". The UK
+#'   inventory agrees for AS, which it treats on calcareous soils "as for
+#'   urea" (Misselbrook et al. 2015, notes to Table A11).
 #' * `"source_port"`: the forms of the regional implementation this model was
 #'   ported from. AN takes the absolute form, and AS takes the anomaly form on
 #'   every soil.
@@ -296,11 +296,13 @@ calculate_manner_nh3_default <- function(
 }
 
 # Whether a fertiliser takes the absolute temperature form. Misselbrook et
-# al. (2004) eq. 4 (absolute) covers urea and AS/DAP on calcareous soils;
-# eq. 3 (anomaly) covers AN, CAN and AS/DAP elsewhere, as quoted in whep#1333
-# (paper not opened here: assumed, unverified). The UK inventory's "as for
-# urea" for calcareous AS (Misselbrook et al. 2015, Table A11) agrees.
-# "source_port" keeps the ported implementation: absolute for Urea and AN.
+# al. (2004, doi:10.1111/j.1475-2743.2004.tb00385.x, p. 367, read from the
+# paper): eq. 4 (absolute) is "for urea and UAN to all soils and AS/DAP to
+# calcareous soils"; eq. 3 (anomaly) is "for AN and other N to all soils and
+# AS/DAP to non-calcareous soils". CAN counts as AN. The paper prints the
+# eq. 3 slope as 0.21972225; 0.2197225 is ln(3) / 5, the "factor of
+# approximately 3 for every 5 deg C" its text gives. "source_port" keeps
+# the ported implementation: absolute for Urea and AN (whep#1370).
 .manner_temp_absolute <- function(fertiliser, ph_class, temp_method) {
   if (temp_method == "source_port") {
     return(fertiliser %in% c("Urea", "AN"))

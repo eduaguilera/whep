@@ -97,8 +97,8 @@ testthat::test_that("synthetic temperature factor is unchanged below the cap", {
 })
 
 testthat::test_that("synthetic temperature form follows Misselbrook 2004 by default", {
-  # whep#1370: AN takes the anomaly form (eq. 3) and AS on calcareous soil
-  # the absolute urea form (eq. 4). A 12 deg C month in a 12 deg C year has
+  # whep#1370: Misselbrook et al. (2004, p. 367) put AN on the anomaly form
+  # (eq. 3) and AS on calcareous soil on the absolute urea form (eq. 4). A 12 deg C month in a 12 deg C year has
   # zero anomaly, so eq. 3 gives exactly one third; eq. 4 gives the
   # absolute urea factor at 12 deg C.
   drivers <- list(temp_c = 12, temp_c_annual_mean = 12)

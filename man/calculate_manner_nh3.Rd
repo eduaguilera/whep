@@ -86,12 +86,12 @@ Two forms of that factor exist. Urea always takes the absolute form,
 \itemize{
 \item \code{"misselbrook_2004"} (default): AN takes the anomaly form on every soil,
 and AS takes the anomaly form on non-calcareous soils and the absolute
-form on calcareous soils (\code{soil_ph >= 7}). These are eqs. 3 and 4 of
-Misselbrook et al. (2004) as quoted from the paper in whep issue #1333;
-the paper itself could not be opened for this package, so the AN
-assignment is assumed, unverified. The calcareous-AS assignment agrees
-with the UK inventory, which treats AS on calcareous soils "as for urea"
-(Misselbrook et al. 2015, notes to Table A11).
+form on calcareous soils (\code{soil_ph >= 7}). This is the assignment of
+Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for AN and other N
+to all soils and AS/DAP to non-calcareous soils", eq. 4 (absolute) "for
+urea and UAN to all soils and AS/DAP to calcareous soils". The UK
+inventory agrees for AS, which it treats on calcareous soils "as for
+urea" (Misselbrook et al. 2015, notes to Table A11).
 \item \code{"source_port"}: the forms of the regional implementation this model was
 ported from. AN takes the absolute form, and AS takes the anomaly form on
 every soil.
