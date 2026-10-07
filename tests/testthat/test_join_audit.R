@@ -614,7 +614,10 @@ test_that("every year-free territorial grouping is classified", {
   # the audit.
   # 139 on the 2026-10-06 merge of whep#1318 onto main's 138. Re-derived by
   # running the audit on the merged tree.
-  expect_lte(sum(full$n), 139L)
+  # 140 with whep#588: `.partial_coverage_rows()` reports the year range of a
+  # bucket's partial source coverage (`diagnostic`). Re-derived by running the
+  # audit.
+  expect_lte(sum(full$n), 140L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
