@@ -399,11 +399,14 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Sheep ship 6.7 in `ipcc_tier2_ym_values`, so their enteric CH4 rises by
   # exactly 6.7/6.5 and nothing else moves: cattle (961, 960) are already 6.5,
   # and manure CH4 and N2O are untouched. See `.assume_missing_diet()`.
+  # Since whep#1127 a "Cattle, dairy" head is a milking cow (the FAOSTAT Milk
+  # Animals count) rather than one sixth each of six dairy cohorts, so dairy
+  # cattle 960 rises 9.364 percent from 492717625.44; 961 and 976 do not move.
   expected_tier2 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 2255369539.5477095,
     10L, 976L, 1600495292.4821796,
-    100L, 960L, 492717625.4361503
+    100L, 960L, 538856333.32265997
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
   # no MCF table, so `mms_shares` and `indirect_n2o_source` are the flips that
@@ -502,11 +505,14 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
   # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
   # 0.402, 0.405 and 0.340 percent.
+  #
+  # Since whep#1127 the dairy herd is its milking cows, so cattle 960 rises
+  # 9.364 percent from 485105249.78 (`method_cohorts = "uniform"`).
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 2230894782.3991766,
     10L, 976L, 1583378815.2593365,
-    100L, 960L, 485105249.77573824
+    100L, 960L, 530531125.0806911
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
