@@ -322,7 +322,7 @@ testthat::test_that("custom de_percent overrides default", {
 testthat::test_that("Beef cattle gets default weight gain", {
   result <- tibble::tibble(
     species = "Beef Cattle",
-    cohort = "Adult Male",
+    cohort = "Fattening",
     weight = 500,
     diet_quality = "Medium",
     heads = 100
@@ -576,4 +576,228 @@ testthat::test_that("a data.table input solves the same energy balance", {
     as.data.frame(from_dt),
     as.data.frame(from_tibble)
   )
+})
+
+# Cohort life stage: growth and pregnancy (whep#1440) -------------------------
+
+# One row per cattle cohort, no production columns supplied, so every gain and
+# pregnancy value is the package default.
+cattle_cohort_fixture <- function() {
+  tibble::tribble(
+    ~species,            ~cohort,              ~weight,
+    "Cattle, non-dairy", "Adult Female",       400,
+    "Cattle, non-dairy", "Adult Male",         600,
+    "Cattle, non-dairy", "Replacement Female", 250,
+    "Cattle, non-dairy", "Fattening",          300,
+    "Cattle, dairy",     "Adult Female",       550,
+    "Cattle, dairy",     "Adult Male",         650,
+    "Cattle, dairy",     "Surplus Male",       160
+  ) |>
+    dplyr::mutate(diet_quality = "Medium", heads = 100)
+}
+
+testthat::test_that("mature cohorts gain no weight by default", {
+  result <- estimate_energy_demand(cattle_cohort_fixture())
+  mature <- result |>
+    dplyr::filter(cohort %in% c("Adult Female", "Adult Male"))
+
+  testthat::expect_equal(mature$weight_gain_kg_day, rep(0, nrow(mature)))
+  testthat::expect_equal(mature$ne_growth, rep(0, nrow(mature)))
+})
+
+testthat::test_that("growing cohorts keep the species growth default", {
+  result <- estimate_energy_demand(cattle_cohort_fixture()) |>
+    dplyr::filter(
+      species == "Cattle, non-dairy",
+      cohort %in% c("Replacement Female", "Fattening")
+    )
+
+  testthat::expect_equal(result$weight_gain_kg_day, c(0.5, 0.5))
+  testthat::expect_true(all(result$ne_growth > 0))
+})
+
+testthat::test_that("only mature females carry a pregnancy default", {
+  result <- estimate_energy_demand(cattle_cohort_fixture())
+  not_cows <- result |>
+    dplyr::filter(cohort != "Adult Female")
+  dairy_cow <- result |>
+    dplyr::filter(species == "Cattle, dairy", cohort == "Adult Female")
+
+  testthat::expect_equal(not_cows$pregnant_fraction, rep(0, nrow(not_cows)))
+  testthat::expect_equal(not_cows$ne_pregnancy, rep(0, nrow(not_cows)))
+  testthat::expect_equal(dairy_cow$pregnant_fraction, 0.9)
+})
+
+testthat::test_that("each row records its cohort life stage", {
+  result <- estimate_energy_demand(cattle_cohort_fixture())
+
+  testthat::expect_equal(
+    result$cohort_life_stage,
+    c(
+      "mature_female",
+      "mature",
+      "growing",
+      "growing",
+      "mature_female",
+      "mature",
+      "growing"
+    )
+  )
+})
+
+testthat::test_that("a row with no cohort keeps the species defaults", {
+  result <- tibble::tibble(
+    species = "Cattle, non-dairy",
+    cohort = NA_character_,
+    weight = 400,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(result$weight_gain_kg_day, 0.5)
+  testthat::expect_true(is.na(result$cohort_life_stage))
+})
+
+testthat::test_that("a caller-supplied gain on a mature cohort is kept", {
+  result <- tibble::tibble(
+    species = "Cattle, non-dairy",
+    cohort = "Adult Male",
+    weight = 600,
+    weight_gain_kg_day = 0.2,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(result$weight_gain_kg_day, 0.2)
+})
+
+testthat::test_that("a cohort outside the life-stage table aborts", {
+  testthat::expect_error(
+    tibble::tibble(
+      species = "Cattle, non-dairy",
+      cohort = "Heifer",
+      weight = 300,
+      diet_quality = "Medium",
+      heads = 100
+    ) |>
+      estimate_energy_demand(),
+    class = "whep_unknown_cohort"
+  )
+})
+
+testthat::test_that("every GLEAM cohort has a life stage", {
+  cohorts <- unique(gleam_livestock_categories$cohort)
+  stages <- whep:::.cohort_life_stages()
+
+  testthat::expect_true(all(cohorts %in% stages$cohort))
+  testthat::expect_true(all(
+    stages$cohort_life_stage %in% c("mature_female", "mature", "growing")
+  ))
+})
+
+testthat::test_that("a whole-herd row takes the species defaults", {
+  result <- tibble::tibble(
+    species = "Sheep",
+    cohort = "All",
+    weight = 45,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(result$weight_gain_kg_day, 0.1)
+  testthat::expect_equal(result$pregnant_fraction, 0.5)
+  testthat::expect_true(is.na(result$cohort_life_stage))
+})
+
+testthat::test_that("beef cows take the IPCC Table 10A.2 regional rate", {
+  result <- tibble::tibble(
+    species = "Cattle, non-dairy",
+    cohort = "Adult Female",
+    iso3 = c("USA", "IND", "KEN", "CHN", "FRA"),
+    weight = 400,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(
+    result$pregnant_fraction,
+    c(0.80, 0.40, (62 * 17 + 54 * 11) / 28 / 100, 53.75 / 100, 0.80)
+  )
+  testthat::expect_equal(
+    result$method_pregnancy,
+    c(
+      rep("ipcc2019_t10a2", 4),
+      "ipcc2019_t10a2_neighbour_assumed"
+    )
+  )
+  testthat::expect_true(all(result$ne_pregnancy > 0))
+})
+
+testthat::test_that("a beef cow with no territory takes the declared mean", {
+  result <- tibble::tibble(
+    species = "Cattle, non-dairy",
+    cohort = "Adult Female",
+    weight = 400,
+    diet_quality = "Medium",
+    heads = 100
+  ) |>
+    estimate_energy_demand()
+  published <- c(
+    0.80,
+    0.80,
+    0.81,
+    0.63,
+    53.75 / 100,
+    (62 * 17 + 54 * 11) / 28 / 100,
+    0.51,
+    0.40
+  )
+
+  testthat::expect_equal(result$pregnant_fraction, mean(published))
+  testthat::expect_equal(
+    result$method_pregnancy,
+    "ipcc2019_t10a2_mean_assumed"
+  )
+})
+
+testthat::test_that("method_pregnancy names the rule each row took", {
+  result <- cattle_cohort_fixture() |>
+    dplyr::bind_rows(
+      tibble::tibble(
+        species = "Sheep",
+        cohort = "All",
+        weight = 45,
+        diet_quality = "Medium",
+        heads = 100
+      ),
+      tibble::tibble(
+        species = "Cattle, dairy",
+        cohort = "Adult Female",
+        weight = 550,
+        pregnant_fraction = 0.7,
+        diet_quality = "Medium",
+        heads = 100
+      )
+    ) |>
+    estimate_energy_demand()
+
+  testthat::expect_equal(
+    result$method_pregnancy,
+    c(
+      "ipcc2019_t10a2_mean_assumed",
+      "not_mature_female",
+      "not_mature_female",
+      "not_mature_female",
+      "species_default",
+      "not_mature_female",
+      "not_mature_female",
+      "species_default_whole_herd",
+      "supplied"
+    )
+  )
+  testthat::expect_equal(dplyr::last(result$pregnant_fraction), 0.7)
 })
