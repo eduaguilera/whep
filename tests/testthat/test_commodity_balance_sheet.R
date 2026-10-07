@@ -547,6 +547,27 @@ testthat::test_that("get_livestock_cbs labels its rows as heads (#1055)", {
   pointblank::expect_col_vals_equal(result, "unit", "heads")
 })
 
+# `.normalise_feed_cbs()` and `.sjr_cbs_food()` sum `feed` / `food` over items
+# in tonnes. They are safe on the wide CBS only because head rows carry none
+# of either, so pin that: a head row with food or feed would be added to
+# tonnes by every reader that does not check `unit` (whep#1055).
+testthat::test_that("head-count CBS rows carry no food or feed (#1055)", {
+  local_mocked_bindings(
+    .get_livestock_trade_totals = .empty_livestock_trade
+  )
+
+  wide <- .cbs_wide_core(
+    .make_cbs_long_fixture(),
+    .make_livestock_fixture(),
+    2000L
+  )
+  heads <- dplyr::filter(wide, unit == "heads")
+
+  testthat::expect_gt(nrow(heads), 0L)
+  testthat::expect_true(all(heads$food == 0))
+  testthat::expect_true(all(heads$feed == 0))
+})
+
 testthat::test_that("the wide CBS aborts on one item in two units (#1055)", {
   # A live-animal code reaching the tonnes CBS as well as the livestock
   # builder would carry one item in both denominations.
