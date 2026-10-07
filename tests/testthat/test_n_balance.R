@@ -1477,12 +1477,32 @@ testthat::test_that("area_split replaces the yield share by the area share", {
 })
 
 testthat::test_that("the regime split aborts when no shares can be built", {
+  # A regime layer that covers none of the balance's cells: the real share
+  # path runs and builds nothing. The layer is supplied, so the default
+  # readers (the gridded crop areas and the country grid, both pins) are
+  # never reached; the pin reader is stubbed to abort under its own class
+  # so that a regression reaching one fails here instead of going online.
   testthat::local_mocked_bindings(
-    .nb_regime_shares = function(...) NULL,
+    whep_read_file = function(file_alias, ...) {
+      cli::cli_abort("Pin {.val {file_alias}} read.", class = "t_pin_read")
+    },
+    .download_pin_paths = function(file_alias, ...) {
+      cli::cli_abort("Pin {.val {file_alias}} read.", class = "t_pin_read")
+    },
     .package = "whep"
   )
+  data <- .nb_data_with_drivers()
+  data$regime_areas <- tibble::tibble(
+    lon = 100.25,
+    lat = -10.25,
+    area_code = 10L,
+    item_prod_code = 56L,
+    year = 2010L,
+    rainfed_ha = 50,
+    irrigated_ha = 50
+  )
   testthat::expect_error(
-    .nb_run_regime("yield_split"),
+    .nb_run_regime("yield_split", data = data),
     class = "whep_regime_shares_missing"
   )
 })
