@@ -1373,7 +1373,8 @@ build_soil_carbon_inputs <- function(
 # receptivity layer, supplied turnkey by .sci_manure_crop_layer() with the
 # fixed-ceiling (EU Nitrates-Directive 170 kg N/ha) cap, which needs only
 # harvested area. The `crop` it emits is the item_prod_code, so it resolves
-# straight back through .sci_manure_crop_prod_code().
+# straight back through .sci_manure_crop_prod_code(). The housed litter-using
+# streams are bedded with the straw .sci_bedding_supply() traces (whep#1005).
 .sci_read_manure <- function(years = NULL) {
   production <- get_primary_production(years = years)
   cbs <- get_wide_cbs(years = years)
@@ -1387,8 +1388,30 @@ build_soil_carbon_inputs <- function(
     intake,
     resolution = "national",
     methods = list(allocation = list(cap_method = "fixed_ceiling")),
-    gridded = list(crops = .sci_manure_crop_layer(production))
+    gridded = list(crops = .sci_manure_crop_layer(production)),
+    bedding = .sci_bedding_supply(production, years)
   )$applied
+}
+
+# The bedding straw that goes through the yard (whep#1005), per polity and
+# year, from the same crop-NPP residue chain .sci_read_npp() partitions: its
+# residue_bedding_dm_t is carved out of the recovered non-feed residue, never
+# out of residue_soil_dm_t, so the straw reaching the soil as bedded manure is
+# not also counted as soil-returned residue. calculate_residue_destinies()'s
+# default bedding rule is the Wirsenius (2000) Table 3.21 share. The manure
+# territory is the stringified area_code (see .manure_territory_to_area_code()).
+.sci_bedding_supply <- function(production, years = NULL) {
+  production |>
+    .sci_crop_prod_wide(years) |>
+    calculate_crop_npp() |>
+    calculate_residue_destinies(method = "recovery_regional") |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      territory = as.character(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      residue_bedding_dm_t = .data$residue_bedding_dm_t
+    ) |>
+    build_residue_bedding_supply()
 }
 
 # Turnkey cropland receptivity layer for the manure allocation: per polity-crop
