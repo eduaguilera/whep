@@ -1218,7 +1218,8 @@ testthat::test_that("the example fixture carries the output contract", {
       "density_ratio",
       "target_share",
       "method_grassland_split",
-      "density_basis"
+      "density_basis",
+      "method_cell_polity"
     )
   )
   # The fixture is self-consistent: the engine reproduces its classes.
@@ -1412,5 +1413,81 @@ testthat::test_that("a shared bucket keeps the bucket density", {
   testthat::expect_equal(
     d$density_basis,
     c(rep("chained_predecessor_trend", 2), "bucket", "bucket")
+  )
+})
+
+# ---- Cell support (issue #1297) ---------------------------------------------
+
+# A polycell support covering every fixture cell. The year-invariant crosswalk
+# below lacks cell (40.75, 55.25), as the pinned crosswalk lacks the coastal
+# cells outside the LPJmL grid; the support still has it.
+.gic_fx_support <- function() {
+  .gic_fx_cell_polity() |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      polity_code = dplyr::case_match(
+        .data$area_code,
+        185L ~ "RUS-2014-2025",
+        9L ~ "ARG-1800-2025",
+        21L ~ "BRA-1889-2025"
+      ),
+      area_code = .data$area_code,
+      start_year = 1800L,
+      end_year = 2026L,
+      cell_area_ha = 2e5,
+      polity_area_ha = 2e5,
+      land_area_ha = 2e5
+    )
+}
+
+.gic_fx_support_run <- function(...) {
+  data <- .gic_fx_data()
+  data$cell_polity <- NULL
+  testthat::local_mocked_bindings(
+    read_polycell_support = function(...) .gic_fx_support(),
+    .read_cell_polity_fraction = function(...) {
+      dplyr::filter(.gic_fx_cell_polity(), .data$lon != 40.75)
+    }
+  )
+  suppressMessages(
+    whep::build_grassland_intensity_classes(years = 1961L, data = data, ...)
+  )
+}
+
+testthat::test_that("the default support gives an off-grid cell a country", {
+  out <- .gic_fx_support_run()
+  row <- .gic_row(out, 50122L, 1961L)
+  testthat::expect_equal(row$country_2010, 185L)
+  testthat::expect_equal(row$method_grassland_split, "image2010_density_rank")
+  testthat::expect_equal(unique(out$method_cell_polity), "year_aware")
+})
+
+testthat::test_that("the constant crosswalk stays selectable", {
+  out <- .gic_fx_support_run(cell_support = "constant")
+  row <- .gic_row(out, 50122L, 1961L)
+  testthat::expect_true(is.na(row$country_2010))
+  testthat::expect_equal(
+    row$method_grassland_split,
+    "image2010_fixed_no_density"
+  )
+  testthat::expect_equal(unique(out$method_cell_polity), "constant")
+})
+
+testthat::test_that("an injected crosswalk is stamped as supplied", {
+  testthat::expect_equal(
+    unique(.gic_fx_default()$method_cell_polity),
+    "supplied"
+  )
+})
+
+testthat::test_that("an unknown cell support is refused", {
+  testthat::expect_error(
+    whep::build_grassland_intensity_classes(
+      years = 2010L,
+      data = .gic_fx_data(),
+      cell_support = "pin"
+    ),
+    class = "rlang_error"
   )
 })

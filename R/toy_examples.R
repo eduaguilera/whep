@@ -2065,7 +2065,8 @@
         .data$country_2010 == 185L & .data$year == 1961L,
         "chained_predecessor_trend",
         "own"
-      )
+      ),
+      method_cell_polity = "year_aware"
     )
 }
 # nolint end
