@@ -18,6 +18,11 @@
 # their containers (with the containers themselves left out), and only the
 # province rows are kept.
 #
+# `claims = "keep"`: the world build cuts out of a polity with no reporting
+# `area_code` the ground a keyed polity also claims (whep#1310). Provinces have
+# no reporting code by design and are the data carriers here, so that rule
+# would hand their border cells to the neighbours.
+#
 # Published 2026-09-30 as 20260930T115111Z-15e25: 335 provinces, 16,131 rows,
 # 88 neighbour polities, 15.5 min.
 #
@@ -107,7 +112,8 @@
     geometries = polities[attrs$polity_code %in% c(provinces, neighbours), ],
     water = whep::read_glwd_water(input_dir),
     ice = whep::read_glaciated_areas(ne_dir),
-    subnational = "include"
+    subnational = "include",
+    claims = "keep"
   )
   kept <- sf::st_drop_geometry(support)
   kept <- tibble::as_tibble(kept[kept$polity_code %in% provinces, ])

@@ -42,6 +42,15 @@
 #'   keeps its cells. `"include"` keeps them all in the partition, for a build
 #'   whose `geometries` already leave the containers out, as the
 #'   `polycell_support_subnational` pin's build does.
+#' @param claims What to do where a partition polity that answers no
+#'   reporting `area_code` claims ground a keyed partition polity also claims
+#'   in the same years -- Germany `DEU-1949-1990` over the unkeyed East and
+#'   West German polities, Northern and Southern Rhodesia and Nyasaland under
+#'   the unkeyed Federation, the Australian colonies under `AUS-1800-1901`.
+#'   `"cede_unkeyed"` (default) cuts that ground out of the unkeyed polity, so
+#'   the cell is handed out once; `"keep"` leaves both claims in the partition,
+#'   as every pin before whep#1310 did. See *Unkeyed claims cede to keyed ones*
+#'   below. The choice is recorded on every row in `method_claims`.
 #' @param geometries An `sf` table of polity geometries with at least
 #'   `polity_code`, `start_year` and `end_year`; defaults to
 #'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
@@ -72,8 +81,9 @@
 #'   `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 #'   `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 #'   `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-#'   `coverage_status`, `support_role`, `area_engine`, `luh2_vintage` and
-#'   `layers_supplied`, plus `year` when `years` is supplied.
+#'   `coverage_status`, `support_role`, `area_engine`, `luh2_vintage`,
+#'   `layers_supplied` and `method_claims`, plus `year` when `years` is
+#'   supplied.
 #'   `layers_supplied` is the provenance stamp described under *Optional layers
 #'   are stamped, not inferred* below. `support_role` is `"partition"` on every
 #'   row unless `aggregates = "overlap_layer"` was asked for. `area_engine` is
@@ -92,7 +102,9 @@
 #'   territory), `"water_unmatched"` (cells the water layer and the polycells do
 #'   not share), `"footprints"` and `"footprint_diff"` (the deployed crosswalk,
 #'   the current producer and the polycell footprint, reconciled at
-#'   `data$crosswalk_year`).
+#'   `data$crosswalk_year`), and `"ceded"` (every unkeyed polity interval
+#'   that gave ground up under `claims = "cede_unkeyed"`, the keyed polities it
+#'   gave it to, and how much).
 #'
 #'   `"overlap"`, `"terra_measured"`, `"water_excess"`, `"water_unmatched"` and
 #'   `"unassigned"` are **interval-grain**, like the table itself: they carry
@@ -240,6 +252,38 @@
 #' measuring the partition only: an over-full cell means something there, and
 #' in this layer it means nothing.
 #'
+#' @section Unkeyed claims cede to keyed ones:
+#' The partition is meant to hand each cell out once, but the polity
+#' vocabulary holds national-type containers beside their members:
+#' `DEU-1949-1990` covers `F77-1949-1990` and `F78-1949-1990`,
+#' `FRN-1953-1964` covers Northern and Southern Rhodesia and Nyasaland,
+#' `RWB-1922-1962` covers Rwanda and Burundi, `F228-1945-1991` covers the
+#' Azerbaijan SSR, and `AUS-1800-1901` covers the six colonies. None of them is
+#' `polity_type == "aggregate"`, so `aggregates` cannot catch them, and
+#' [polity_containment] holds no edge for any of them. Every consumer turns
+#' the support into a polity's share of the cell's land, so two claims to the
+#' same ground give each about half: Germany's 1961 cropland support came out
+#' at 6.54 Mha instead of 12.5 (whep#1310).
+#'
+#' In every one of those pairs one side answers no reporting `area_code`, and
+#' a polity with no reporting code receives no national data in any consumer.
+#' So with `claims = "cede_unkeyed"` the unkeyed polity keeps only the ground
+#' no keyed partition polity claims in the same years: its polygon minus the
+#' union of theirs, over each sub-interval in which that set of keyed claims is
+#' constant. The keyed polity is untouched. This is the rule decided on
+#' whep#1196 for the consumers ("in an overlapping cell, a polity with no area
+#' code leaves the denominator"), applied here exactly, with the polygons,
+#' instead of downstream from the cell's excess alone. Unkeyed ground that no
+#' keyed polity claims stays where it is, so nothing is handed to a neighbour.
+#'
+#' What it does not decide: two keyed polities claiming the same ground
+#' (Pakistan and Bangladesh to 1971, Saudi Arabia and Yemen, Morocco and
+#' Western Sahara, the USSR and the Baltic SSRs, neighbours whose borders
+#' overlap) keep both claims, as decided on whep#1196, and stay visible in the
+#' `"overlap"` diagnostic; so do two unkeyed claims. A province build passes
+#' `claims = "keep"`, because there the provinces are the data carriers and
+#' have no reporting code by design.
+#'
 #' @section Optional layers are stamped, not inferred:
 #' `water` and `ice` are optional, and when either is absent its column is
 #' filled with zeros. That is correct for a smoke build and wrong for a
@@ -276,11 +320,13 @@ build_polycell_support <- function(
   ice = NULL,
   data = list(),
   aggregates = c("exclude", "overlap_layer"),
-  subnational = c("exclude", "include")
+  subnational = c("exclude", "include"),
+  claims = c("cede_unkeyed", "keep")
 ) {
   rlang::check_installed("sf")
   aggregates <- rlang::arg_match(aggregates)
   subnational <- rlang::arg_match(subnational)
+  claims <- rlang::arg_match(claims)
   old_s2 <- sf::sf_use_s2()
   withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
   suppressMessages(sf::sf_use_s2(TRUE))
@@ -289,17 +335,18 @@ build_polycell_support <- function(
   polities <- .pcs_prepare_polities(geometries, aggregates, subnational)
   ice_union <- .pcs_prepare_ice(ice)
   layers <- .pcs_layers_supplied(water, ice_union)
-  support <- polities |>
+  claimed <- .pcs_cede_claims(polities, claims)
+  support <- claimed |>
     .pcs_intersect_grid() |>
     .pcs_add_ice(ice_union) |>
     .pcs_split_intervals() |>
     .pcs_add_water(water) |>
-    .pcs_finalize(.pcs_geometry_source(geometries), data, layers)
+    .pcs_finalize(.pcs_geometry_source(geometries), data, layers, claims)
 
   .pcs_inform_overlap_layer(support)
-  support |>
-    .pcs_attach_diagnostics(polities, data, water) |>
-    .pcs_expand(years)
+  support <- .pcs_attach_diagnostics(support, polities, data, water)
+  attr(support, "ceded") <- attr(claimed, "ceded")
+  .pcs_expand(support, years)
 }
 
 #' A minimal polity geometry table for examples and smoke tests
@@ -625,6 +672,173 @@ expand_polycell_years <- function(support, years) {
     return(geom)
   }
   sf::st_transform(geom, 4326)
+}
+
+# -- Unkeyed claims (whep#1310) -----------------------------------------------
+
+# Cut out of every unkeyed partition polity the ground a keyed partition polity
+# claims in the same years -- the rule and its precedent are in the roxygen
+# section *Unkeyed claims cede to keyed ones*. It runs on the polygons, before
+# the grid, so everything downstream (ice, water, the area floor, the terra
+# fallback, the interval split) sees an ordinary polity row and needs no case
+# of its own. A polity whose keyed claims change over its life is split into
+# one row per constant set of them: the intervals of one polity stay a
+# partition of its time, which `.pcs_abort_interval_overlap()` still checks.
+#
+# Positive evidence only, as in `.pcs_prepare_polities()`: a polity cedes
+# only where a keyed polygon is actually there, so a polity whose neighbours
+# merely touch it keeps its row exactly as prepared.
+.pcs_cede_claims <- function(polities, claims = c("cede_unkeyed", "keep")) {
+  claims <- rlang::arg_match(claims)
+  if (identical(claims, "keep")) {
+    return(polities)
+  }
+  pairs <- .pcs_claim_pairs(polities)
+  if (nrow(pairs) == 0L) {
+    return(polities)
+  }
+  ceding <- sort(unique(pairs$unkeyed))
+  cut <- purrr::map(ceding, \(i) {
+    .pcs_cede_polity(polities, i, pairs$keyed[pairs$unkeyed == i])
+  })
+  out <- rbind(
+    polities[-ceding, ],
+    do.call(rbind, purrr::map(cut, "rows"))
+  )
+  ceded <- dplyr::bind_rows(purrr::map(cut, "ceded"))
+  .pcs_inform_ceded(ceded)
+  attr(out, "ceded") <- ceded
+  out
+}
+
+# Which unkeyed rows overlap which keyed rows, in time and in ground. Only
+# usable partition rows take part on either side: an aggregate of the overlap
+# layer covers its members by design and is no claim on the partition, and a
+# row with no usable polygon or interval yields no polycell anyway.
+.pcs_claim_pairs <- function(polities) {
+  none <- tibble::tibble(unkeyed = integer(), keyed = integer())
+  usable <- polities$coverage_status %in%
+    c("has_geometry", "s2_repaired") &
+    !(polities$support_role %in% "overlap")
+  unkeyed <- which(usable & is.na(polities$area_code))
+  keyed <- which(usable & !is.na(polities$area_code))
+  if (length(unkeyed) == 0L || length(keyed) == 0L) {
+    return(none)
+  }
+  geom <- sf::st_geometry(polities)
+  hits <- sf::st_intersects(geom[unkeyed], geom[keyed])
+  pairs <- tibble::tibble(
+    unkeyed = rep(unkeyed, lengths(hits)),
+    keyed = keyed[unlist(hits)]
+  )
+  start <- polities$start_year
+  end <- polities$end_year
+  # `end_year` is exclusive at a succession, so intervals that only touch
+  # share no year; two open ends share the terminal year, but they also share
+  # every year before it, so the strict test below is exact for both.
+  pairs <- pairs[
+    pmax(start[pairs$unkeyed], start[pairs$keyed]) <
+      pmin(end[pairs$unkeyed], end[pairs$keyed]),
+  ]
+  # A shared border is an intersection to s2 but no shared ground, so a pair
+  # is kept only where the two polygons share area above the polycell floor.
+  shared <- .pcs_shared_ha(geom[pairs$unkeyed], geom[pairs$keyed])
+  pairs[shared > .pcs_area_floor_ha(), ]
+}
+
+# Measured on s2 directly rather than through `sf`: a shared piece is often a
+# collection of slivers, and taking its polygonal part with planar GEOS hands
+# s2 back a degenerate edge it then refuses to measure.
+.pcs_shared_ha <- function(x, y) {
+  if (length(x) == 0L) {
+    return(double())
+  }
+  s2::s2_area(s2::s2_intersection(sf::st_as_s2(x), sf::st_as_s2(y))) / 1e4
+}
+
+# One unkeyed row, split wherever the set of keyed claims on it changes. A
+# sub-interval whose polygon is entirely claimed emits no row: the polity holds
+# no partition ground then, and the `"ceded"` diagnostic says so.
+.pcs_cede_polity <- function(polities, i, keyed) {
+  row <- polities[i, ]
+  start <- polities$start_year[keyed]
+  end <- polities$end_year[keyed]
+  breaks <- sort(unique(pmin(
+    pmax(c(row$start_year, row$end_year, start, end), row$start_year),
+    row$end_year
+  )))
+  spans <- tibble::tibble(
+    start_year = utils::head(breaks, -1L),
+    end_year = utils::tail(breaks, -1L)
+  )
+  pieces <- purrr::pmap(spans, \(start_year, end_year) {
+    live <- keyed[start < end_year & end > start_year]
+    .pcs_cede_span(row, polities[live, ], start_year, end_year)
+  })
+  rows <- purrr::compact(purrr::map(pieces, "row"))
+  list(
+    rows = if (length(rows) > 0L) do.call(rbind, rows) else row[0L, ],
+    ceded = dplyr::bind_rows(purrr::map(pieces, "ceded"))
+  )
+}
+
+.pcs_cede_span <- function(row, claimants, start_year, end_year) {
+  row$start_year <- start_year
+  row$end_year <- end_year
+  if (nrow(claimants) == 0L) {
+    return(list(row = row, ceded = NULL))
+  }
+  own <- sf::st_as_s2(sf::st_geometry(row))
+  rest <- s2::s2_difference(
+    own,
+    s2::s2_union_agg(sf::st_as_s2(sf::st_geometry(claimants)))
+  )
+  own_ha <- s2::s2_area(own) / 1e4
+  rest_ha <- s2::s2_area(rest) / 1e4
+  ceded <- tibble::tibble(
+    polity_code = row$polity_code,
+    start_year = start_year,
+    end_year = end_year,
+    ceded_to = paste(sort(claimants$polity_code), collapse = ","),
+    territory_ha = own_ha,
+    ceded_ha = own_ha - rest_ha
+  )
+  if (rest_ha <= .pcs_area_floor_ha()) {
+    return(list(row = NULL, ceded = ceded))
+  }
+  sf::st_geometry(row) <- .pcs_ceded_geometry(rest)
+  list(row = row, ceded = ceded)
+}
+
+# The remainder back in `sf`, as one multipolygon: a difference can leave line
+# or point debris along a border it cut, which is no territory, and the
+# planar extraction can leave a ring s2 no longer reads, which the producer's
+# own repair takes back before anything is measured on it.
+.pcs_ceded_geometry <- function(rest) {
+  geom <- .pcs_polygonal_part(sf::st_as_sfc(rest, crs = sf::st_crs(4326)))
+  old <- sf::sf_use_s2()
+  on.exit(suppressMessages(sf::sf_use_s2(old)), add = TRUE)
+  suppressMessages(sf::sf_use_s2(FALSE))
+  rings <- sf::st_cast(sf::st_cast(geom, "MULTIPOLYGON"), "POLYGON")
+  one <- sf::st_sfc(
+    sf::st_multipolygon(lapply(rings, unclass)),
+    crs = sf::st_crs(4326)
+  )
+  suppressMessages(sf::sf_use_s2(TRUE))
+  .s2_repair(one)$geom
+}
+
+.pcs_inform_ceded <- function(ceded) {
+  if (nrow(ceded) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- sort(unique(ceded$polity_code))
+  cli::cli_inform(c(
+    "i" = "{length(codes)} unkeyed polit{?y/ies} cede ground a keyed polity
+           also claims: {.val {codes}}.",
+    "*" = "See the {.val ceded} attribute; {.code claims = \"keep\"} leaves
+           both claims in the partition."
+  ))
 }
 
 # -- The intersection ---------------------------------------------------------
@@ -1655,7 +1869,13 @@ expand_polycell_years <- function(support, years) {
 
 # -- Assembly -----------------------------------------------------------------
 
-.pcs_finalize <- function(pieces, geometry_source, data, layers = "none") {
+.pcs_finalize <- function(
+  pieces,
+  geometry_source,
+  data,
+  layers = "none",
+  claims = "keep"
+) {
   pieces |>
     dplyr::mutate(
       polycell_id = paste0(.data$polity_code, "@", .data$cell_id),
@@ -1671,7 +1891,8 @@ expand_polycell_years <- function(support, years) {
       ),
       geometry_source = geometry_source,
       luh2_vintage = .pcs_luh2_vintage(data$luh2),
-      layers_supplied = layers
+      layers_supplied = layers,
+      method_claims = claims
     ) |>
     .pcs_add_split_method() |>
     dplyr::select(
@@ -1722,7 +1943,8 @@ expand_polycell_years <- function(support, years) {
     "support_role",
     "area_engine",
     "luh2_vintage",
-    "layers_supplied"
+    "layers_supplied",
+    "method_claims"
   )
 }
 
@@ -2306,7 +2528,8 @@ expand_polycell_years <- function(support, years) {
     "water_unmatched",
     "footprints",
     "footprint_diff",
-    "unassigned"
+    "unassigned",
+    "ceded"
   )
 }
 

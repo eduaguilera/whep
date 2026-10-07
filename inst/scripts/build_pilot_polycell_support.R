@@ -281,7 +281,8 @@
     geometries = geometries,
     water = water,
     ice = ice,
-    subnational = "include"
+    subnational = "include",
+    claims = "keep"
   )
   cli::cli_alert_success(
     "{label}: {nrow(support)} interval rows,

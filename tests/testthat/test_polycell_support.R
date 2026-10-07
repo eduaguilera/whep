@@ -1055,6 +1055,263 @@ testthat::test_that("the shipped vocabulary prepares no province", {
   testthat::expect_true(any(prepared_types %in% "aggregate"))
 })
 
+# whep#1310 — unkeyed claims cede to keyed ones -------------------------------
+#
+# The vocabulary holds national-type containers beside their members (Germany
+# over East and West Germany, the Rhodesia federation over its members). Both
+# sit in the partition, so each gets about half of every shared cell. Where one
+# side answers no reporting `area_code`, that side gives the shared ground up.
+pcs_claims_fixture <- function(codes, area_codes, geoms, years = NULL) {
+  years <- years %||% rep(list(c(2000L, 2020L)), length(codes))
+  pcs_polities(
+    tibble::tibble(
+      polity_code = codes,
+      start_year = purrr::map_int(years, 1L),
+      end_year = purrr::map_int(years, 2L),
+      area_code = as.integer(area_codes)
+    ),
+    geoms
+  )
+}
+
+# One cell split into a west and an east half, with the whole drawn through
+# the halves' shared vertices: s2 edges are great circles, so a whole cell
+# drawn corner to corner bulges past the halves' edges and leaves slivers that
+# have nothing to do with the rule under test.
+pcs_halves <- function(lon = 10.25, lat = 45.25) {
+  w <- lon - 0.25
+  e <- lon + 0.25
+  s <- lat - 0.25
+  n <- lat + 0.25
+  list(
+    whole = sf::st_polygon(list(cbind(
+      c(w, lon, e, e, lon, w, w),
+      c(s, s, s, n, n, n, s)
+    ))),
+    west = pcs_rect(w, lon, s, n),
+    east = pcs_rect(lon, e, s, n)
+  )
+}
+
+pcs_territory_at <- function(support, code) {
+  sum(support$polity_area_ha[support$polity_code == code])
+}
+
+# The partition the issue asks to be asserted: no cell-year holds more
+# territory than the cell.
+pcs_expect_partition <- function(support) {
+  over <- support |>
+    dplyr::filter(.data$support_role == "partition") |>
+    dplyr::summarise(
+      territory = sum(.data$polity_area_ha),
+      cell = dplyr::first(.data$cell_area_ha),
+      .by = c("cell_id", "year")
+    ) |>
+    dplyr::filter(.data$territory > .data$cell * (1 + 1e-4))
+  testthat::expect_equal(nrow(over), 0L)
+}
+
+testthat::test_that("unkeyed members cede a keyed container's ground", {
+  testthat::skip_if_not_installed("sf")
+
+  geometries <- pcs_claims_fixture(
+    c("DEU-2000-2020", "WST-2000-2020", "EST-2000-2020"),
+    c(79L, NA, NA),
+    unname(pcs_halves())
+  )
+  support <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries
+  )
+
+  pcs_expect_partition(support)
+  testthat::expect_equal(unique(support$polity_code), "DEU-2000-2020")
+  testthat::expect_equal(
+    pcs_territory_at(support, "DEU-2000-2020"),
+    pcs_area_ha(pcs_halves()$whole),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(unique(support$method_claims), "cede_unkeyed")
+  ceded <- attr(support, "ceded")
+  testthat::expect_setequal(
+    ceded$polity_code,
+    c("WST-2000-2020", "EST-2000-2020")
+  )
+  testthat::expect_equal(unique(ceded$ceded_to), "DEU-2000-2020")
+  testthat::expect_equal(ceded$ceded_ha, ceded$territory_ha, tolerance = 1e-6)
+})
+
+testthat::test_that("an unkeyed container cedes to its keyed members", {
+  testthat::skip_if_not_installed("sf")
+
+  # The Federation of Rhodesia and Nyasaland shape: the container carries no
+  # reporting code, its members do.
+  halves <- pcs_halves()
+  geometries <- pcs_claims_fixture(
+    c("FED-2000-2020", "NRH-2000-2020", "SRH-2000-2020"),
+    c(NA, 251L, 181L),
+    unname(halves)
+  )
+  support <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries
+  )
+
+  pcs_expect_partition(support)
+  testthat::expect_setequal(
+    support$polity_code,
+    c("NRH-2000-2020", "SRH-2000-2020")
+  )
+  # The keyed members are untouched: each keeps exactly its own polygon.
+  testthat::expect_equal(
+    pcs_territory_at(support, "NRH-2000-2020"),
+    pcs_area_ha(halves$west),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("an unkeyed polity keeps the ground no keyed one claims", {
+  testthat::skip_if_not_installed("sf")
+
+  # Nothing is handed to a neighbour: only the claimed half is ceded.
+  geometries <- pcs_claims_fixture(
+    c("UNK-2000-2020", "KEY-2000-2020"),
+    c(NA, 11L),
+    unname(pcs_halves()[c("whole", "west")])
+  )
+  support <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries
+  )
+
+  pcs_expect_partition(support)
+  testthat::expect_equal(
+    pcs_territory_at(support, "UNK-2000-2020"),
+    pcs_area_ha(pcs_halves()$east),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    sum(support$polity_area_ha),
+    pcs_area_ha(pcs_halves()$whole),
+    tolerance = 1e-6
+  )
+})
+
+testthat::test_that("an unkeyed polity cedes only in the years claimed", {
+  testthat::skip_if_not_installed("sf")
+
+  geometries <- pcs_claims_fixture(
+    c("UNK-2000-2020", "KEY-2010-2020"),
+    c(NA, 11L),
+    unname(pcs_halves()[c("whole", "west")]),
+    years = list(c(2000L, 2020L), c(2010L, 2020L))
+  )
+  interval <- whep::build_polycell_support(geometries = geometries)
+  support <- whep::expand_polycell_years(interval, c(2005L, 2015L, 2020L))
+
+  pcs_expect_partition(support)
+  at <- \(yr) support[support$year == yr, ]
+  testthat::expect_equal(
+    pcs_territory_at(at(2005L), "UNK-2000-2020"),
+    pcs_area_ha(pcs_halves()$whole),
+    tolerance = 1e-9
+  )
+  # The residual half from 2010, through the open terminal year.
+  half <- pcs_area_ha(pcs_halves()$east)
+  testthat::expect_equal(
+    pcs_territory_at(at(2015L), "UNK-2000-2020"),
+    half,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    pcs_territory_at(at(2020L), "UNK-2000-2020"),
+    half,
+    tolerance = 1e-6
+  )
+  # The polity is split at 2010 and its intervals still partition its time.
+  unk <- interval[interval$polity_code == "UNK-2000-2020", ]
+  testthat::expect_setequal(unk$start_year, c(2000L, 2010L))
+  testthat::expect_setequal(unk$end_year, c(2010L, 2020L))
+})
+
+testthat::test_that("claims = 'keep' leaves both claims; keyed pairs are kept", {
+  testthat::skip_if_not_installed("sf")
+
+  unkeyed <- pcs_claims_fixture(
+    c("DEU-2000-2020", "WST-2000-2020"),
+    c(79L, NA),
+    unname(pcs_halves()[c("whole", "west")])
+  )
+  kept <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = unkeyed,
+    claims = "keep"
+  ) |>
+    suppressWarnings()
+  testthat::expect_setequal(
+    kept$polity_code,
+    c("DEU-2000-2020", "WST-2000-2020")
+  )
+  testthat::expect_equal(unique(kept$method_claims), "keep")
+  testthat::expect_null(attr(kept, "ceded"))
+  testthat::expect_gt(nrow(attr(kept, "overlap")), 0L)
+
+  # Two keyed claimants (Pakistan and Bangladesh to 1971) both stay: whep#1196
+  # decided their shares, and this producer does not choose between them.
+  keyed <- pcs_claims_fixture(
+    c("PAK-2000-2020", "BGD-2000-2020"),
+    c(165L, 16L),
+    unname(pcs_halves()[c("whole", "west")])
+  )
+  both <- whep::build_polycell_support(years = 2015L, geometries = keyed) |>
+    suppressWarnings()
+  testthat::expect_setequal(
+    both$polity_code,
+    c("PAK-2000-2020", "BGD-2000-2020")
+  )
+  testthat::expect_null(attr(both, "ceded"))
+  testthat::expect_error(
+    whep::build_polycell_support(geometries = keyed, claims = "drop"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the shipped Germany and Rhodesia pairs cede", {
+  testthat::skip_if_not_installed("sf")
+
+  # Real polygons, prepared as the published build prepares them. Each pair
+  # double-claimed its cells on every pin up to whep#1310.
+  codes <- c(
+    "DEU-1949-1990",
+    "F77-1949-1990",
+    "F78-1949-1990",
+    "FRN-1953-1964",
+    "NRH-1953-1964",
+    "SRH-1953-1964",
+    "MWI-1953-1964"
+  )
+  geoms <- whep::get_polity_geometries()
+  geoms <- geoms[geoms$polity_code %in% codes, ]
+  polities <- whep:::.pcs_prepare_polities(geoms, "overlap_layer")
+  ceded <- whep:::.pcs_cede_claims(polities, "cede_unkeyed") |>
+    suppressMessages()
+
+  keyed <- c("DEU-1949-1990", "NRH-1953-1964", "SRH-1953-1964", "MWI-1953-1964")
+  # The keyed side is untouched, polygon for polygon.
+  testthat::expect_equal(
+    sf::st_geometry(ceded[match(keyed, ceded$polity_code), ]),
+    sf::st_geometry(polities[match(keyed, polities$polity_code), ])
+  )
+  report <- attr(ceded, "ceded")
+  testthat::expect_setequal(
+    report$polity_code,
+    c("F77-1949-1990", "F78-1949-1990", "FRN-1953-1964")
+  )
+  # Each unkeyed polity is claimed whole, up to the slivers (under 0.1% of its
+  # territory) where its polygon and the keyed ones disagree.
+  testthat::expect_true(all(report$ceded_ha > 0.999 * report$territory_ha))
+})
+
 # S-A1 / DA-3 — three separately addressable area categories -------------------
 
 testthat::test_that("polity area decomposes into land, inland water and ice", {
