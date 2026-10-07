@@ -11,7 +11,8 @@ read_level_country_grid(
   reference_year = NULL,
   grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
-  double_claim = c("co_presence", "measured")
+  double_claim = c("co_presence", "measured"),
+  unkeyed_land = c("present_day_owner", "drop")
 )
 }
 \arguments{
@@ -45,6 +46,11 @@ depth. \code{NULL} (default) reads every admitted edge. Only read at
 \item{double_claim}{Which clashes the double-claim gate refuses, one of
 \code{"co_presence"} (default) or \code{"measured"}. See \emph{Which double claims are
 refused}. Only read at \code{level >= 1L}.}
+
+\item{unkeyed_land}{What a level-0 year-aware grid does with the land of a
+polity that has no reporting \code{area_code}, \code{"present_day_owner"} (default)
+or \code{"drop"}. See \emph{Land of a polity with no reporting code}. Not read at
+\code{level >= 1L} or with \code{grid_vintage = "snapshot_2015"}.}
 }
 \value{
 A \code{tibble} with \code{lon}, \code{lat}, \code{area_code} (integer, the container's
@@ -53,7 +59,9 @@ reporting code), \code{level_polity_code} (character, \code{NA} at level 0),
 \code{end_year}, \code{cell_area_ha} and \code{land_area_ha}. At level 0 with
 \code{grid_vintage = "snapshot_2015"} the six columns \code{.carbon_cell_support()}
 returns are passed through unchanged; with \code{"year_aware"} those six
-arrive alongside \code{start_year} and \code{end_year}.
+arrive alongside \code{start_year}, \code{end_year} and \code{method_cell_owner}
+(\code{"polity"}, or \code{"present_day_owner"} where the row holds land handed
+over under \emph{Land of a polity with no reporting code}).
 }
 \description{
 The spatialization engines allocate a national total into the compartments
@@ -115,6 +123,41 @@ where the year-aware grid offers only the USSR, so 17.2\% of the world's
 harvested area has no cell to land in and is dropped whole;
 \code{validation/spatialize_grid_vintage.R} measures it per year. Reconciling
 the two bases is a lineage step on the national side, not a grid setting.
+}
+
+\section{Land of a polity with no reporting code}{
+
+At level 0 with \code{grid_vintage = "year_aware"}, a cell can be held by a
+polity the reporting vocabulary has no \code{area_code} for: a colonial
+federation or protectorate such as Anglo-Egyptian Sudan, French West Africa
+or Netherlands New Guinea. Land a cell proves is counted twice leaves first,
+and a polity \code{inst/extdata/polity_cell_support_map.csv} places takes its
+recorded code. What is left is that polity's own land: on the
+\verb{20260907T111653Z-e654d} support, 651 Mha in 1851, 1,285 Mha in 1900,
+731 Mha in 1950, 65.5 Mha in 1961 and 1.9 Mha in 2015. \code{unkeyed_land}
+selects what happens to it, and the two are alternatives, never a fallback:
+
+\describe{
+\item{\code{"present_day_owner"}}{The default. The land goes to the polities
+that hold the cell at \code{.carbon_support_year()} (2015), in proportion to
+their land in the cell then, under the code each one's national row is
+keyed on in that year: its own code where its lineage resolves to the
+unkeyed polity (Sudan in 1900), its predecessor's where that is keyed
+(Russia's present-day cells are the USSR's in 1961). The national tables
+the grid is joined to are on constant, present-day territory, so this is
+the ground those rows describe. The row is stamped
+\code{method_cell_owner = "present_day_owner"}. A row valid at 2015 is never
+handed over -- there the polity itself is the present-day holder
+(Kosovo, Guam) -- so the grid at 2015 still equals the snapshot; land
+whose present-day holder also has no code stays out of the grid. On the
+support above, national harvested area with no cell falls from 34.2 to
+16.1 Mha in 1900 and from 10.2 to 0.09 Mha in 1950; what is left in 1900
+is lineage the walk cannot resolve (Bangladesh, Pakistan), not this
+land.}
+\item{\code{"drop"}}{The land stays out of the grid, reported per year with
+the warning that names it. National rows whose lineage resolves to such
+a polity then have no cell in those years.}
+}
 }
 
 \section{Which rows count as a level}{

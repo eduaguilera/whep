@@ -81,6 +81,10 @@ deep grid rather than from level 0. See \emph{What a granted depth runs}.
 \item \code{double_claim}: which clashes the depth read's double-claim gate
 refuses, \code{"co_presence"} (default) or \code{"measured"}, forwarded to
 \code{\link[=read_level_country_grid]{read_level_country_grid()}}. The default is the fail-closed rule.
+\item \code{unkeyed_land}: what the year-aware level-0 grid does with the land
+of a polity that has no reporting code, \code{"present_day_owner"}
+(default) or \code{"drop"}, forwarded to \code{\link[=read_level_country_grid]{read_level_country_grid()}}. See
+its \emph{Land of a polity with no reporting code}.
 \item \code{output_level} (integer, default \code{0L}): grain of the crop output.
 \code{0L} sums granted-depth rows back onto the container, so
 \verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
