@@ -4926,10 +4926,9 @@
   fraction, the rest (Micronesia, Polynesia, RoW and areas with no M49
   sub-region) keep the `0.20` fallback. This **moves published values**:
   `residue_feed_dm_t` and `residue_burn_dm_t` change, and with them
-  [`build_residue_feed_avail()`](https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.md)
-  and the nitrogen balance’s `used_residue_n_t` / `burnt_residue_n_t`.
-  `residue_soil_dm_t` and their sum do not change (neither depends on
-  `feed_use_fraction`), so
+  `build_residue_feed_avail()` and the nitrogen balance’s
+  `used_residue_n_t` / `burnt_residue_n_t`. `residue_soil_dm_t` and
+  their sum do not change (neither depends on `feed_use_fraction`), so
   [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)’s
   residue carbon is unaffected.
 
