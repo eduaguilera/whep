@@ -9,7 +9,8 @@ calculate_residue_destinies(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  bedding = c("wirsenius", "fraction")
 )
 }
 \arguments{
@@ -26,9 +27,9 @@ recovery rate times the UN-sub-regional feed-use fraction) or \code{"shares"}
 \code{to_be_revised}).}
 
 \item{bedding_fraction}{Fraction of the recovered \strong{non-feed} residue used
-as livestock bedding, one number in \verb{[0, 1]}. Default \code{0}, which is unset
-rather than measured; see the Bedding section for why, and what a caller
-setting it must convert from.}
+as livestock bedding under \code{bedding = "fraction"}, one number in \verb{[0, 1]}.
+Default \code{0}. Must stay \code{0} under \code{bedding = "wirsenius"}, which sets its
+own share.}
 
 \item{unmatched_recovery}{What the \code{recovery_regional} method does with a
 row that reaches no recovery rate at all, because its crop carries no
@@ -42,11 +43,18 @@ method reads: \code{"wirsenius"} (default since whep#1330, every rate
 Wirsenius 2000 states, at the value it states) or \code{"legacy"} (the table
 as shipped before whep#1163). See the Two recovery variants section.
 Ignored by the \code{"shares"} method.}
+
+\item{bedding}{Bedding rule: \code{"wirsenius"} (default, 12.4\% of the recovered
+cereal straw, Wirsenius 2000 Table 3.21) or \code{"fraction"} (\code{bedding_fraction}
+of the recovered non-feed residue of every crop). See the Where the bedding
+share comes from section.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
-\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
-\code{method_residue_destiny}, and \code{method_residue_recovery} (the \code{recovery}
+\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} (the
+share applied: of the recovered residue under \code{"wirsenius"}, zero for a
+non-cereal; of the recovered non-feed residue under \code{"fraction"}),
+\code{method_residue_bedding}, \code{method_residue_destiny}, and \code{method_residue_recovery} (the \code{recovery}
 variant, \code{NA} for the \code{"shares"} method). The \code{"recovery_regional"}
 method also returns
 \code{residue_recovery_matched}, \code{FALSE} where no recovery rate was found,
@@ -70,25 +78,48 @@ inventory compilers to cross-check bedding nitrogen "relative to the amount
 of agricultural residues that is removed for other purposes (i.e. bedding)
 other than the amount of agricultural residues returned to soils or burnt",
 so as "to eliminate the possibility of double counting".
+}
 
-\code{bedding_fraction} defaults to \strong{0}, and that default is \emph{unset, not
-measured}: no global bedding-only fraction of crop residue could be sourced
-(whep#1005). FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove}
-both merge bedding with feed and construction into one term. Three partial
-anchors exist and none is on this function's denominator, so each needs
-converting before it can be used here:
+\section{Where the bedding share comes from}{
+
+\code{bedding = "wirsenius"} (default) reads the one bedding figure that comes
+from the same accounting as the recovery rates: \strong{Wirsenius (2000)}, \emph{Human
+Use of Land and Organic Materials}, PhD thesis, Chalmers University of
+Technology, Table 3.21 (p. 126). Of 2700 Tg DM/yr of cereals straw & stover
+generated, 530 Tg is "not recovered", so 2170 Tg is recovered, and 270 Tg is
+"used as litter for animal bedding" -- 14\% of the 1940 Tg \emph{distributed}.
+This function's denominator is the \emph{recovered} residue, so the share is
+taken against the table's own recovered total, \code{270 / 2170 = 0.124}. That
+is the same distributed -> recovered conversion whep#1431 makes for the
+Table 3.20 feed shares; here the world table carries both totals, so no loss factor
+has to be assumed (the 10\% loss route, \code{0.14 * 0.90}, gives 0.126).
+
+Wirsenius models cereals straw and stover as the \emph{only} bedding material
+(p. 85, after Section 2.3.1), so the share applies to the five cereal
+categories (\verb{Wheat, other cereals}, \verb{Rice, Paddy}, \code{Maize}, \code{Sorghum},
+\code{Millet}) and
+every other crop beds nothing. It is one \strong{world} share applied in every
+region: the thesis prints no regional litter total, and its regional
+litter-use rates (Table 3.13, p. 86, kg straw per kg housed manure) are
+"very rough figures" (p. 85), with South & Central Asia cattle set to zero
+because "no reasonable values on litter use could be identified" -- not an
+estimate to inherit. The bedding is carved out of the recovered non-feed
+residue and capped at it; where the cap binds a warning says how much.
+
+\code{bedding = "fraction"} keeps the caller-set rule: \code{bedding_fraction} of the
+recovered non-feed residue of every crop, default \code{0} (no bedding). Two
+other anchors are on that denominator family, neither of them global:
 \itemize{
-\item Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
-3.21 p. 126 -- litter is 14\% of \emph{distributed} cereal straw and stover and
-11\% of distributed crop by-products. The author grades these "very rough",
-and the South & Central Asia cattle entry is 0 because the data were
-absent, which must not be inherited as an estimate.
 \item Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
 bedding-only column: 16-21\% of straw \emph{production}, about 30\% of \emph{removed}
 straw.
 \item Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
 Table 5 -- Denmark, barley 16\% and wheat 11\% of \emph{production}.
 }
+
+FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove} both merge
+bedding with feed and construction into one term, so neither is usable.
+The rule used is recorded in \code{method_residue_bedding}.
 }
 
 \section{Where the recovery rates come from}{
