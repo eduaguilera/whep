@@ -2452,3 +2452,62 @@
     not_shipped = character()
   )
 }
+
+# Ten rows of `build_cell_moisture_regime(years = 2009:2010)` run on the
+# offline fixture of its tests: one cell shared by two polities, a second
+# cell, maize and a vegetables item pooling green corn with cabbages. The
+# columns the fixture holds constant (latitude, temperature, frost days, PET,
+# the rule and window) are set once below.
+.example_cell_moisture_regime <- function() {
+  tibble::tribble(
+    ~lon, ~area_code, ~item_cbs_code, ~water_regime, ~year, ~prec_mm,
+    ~irrig_mm, ~moisture_regime, ~method_irrig_depth, ~lpjml_crop,
+    0.25, 1L, 2514L, "irrigated", 2009L, 600,
+    120, "dry", "lpjml_airrig_stand", "maize",
+    0.25, 1L, 2514L, "rainfed", 2009L, 600,
+    0, "dry", "rainfed_regime", NA,
+    0.25, 1L, 2605L, "irrigated", 2009L, 600,
+    336, "dry", "lpjml_others_proxy", "maize+others",
+    0.25, 1L, 2605L, "rainfed", 2009L, 600,
+    0, "dry", "rainfed_regime", NA,
+    0.25, 2L, 2514L, "rainfed", 2009L, 600,
+    0, "dry", "rainfed_regime", NA,
+    0.75, 1L, 2514L, "rainfed", 2009L, 1200,
+    0, "wet", "rainfed_regime", NA,
+    0.25, 1L, 2514L, "irrigated", 2010L, 600,
+    120, "dry", "lpjml_airrig_stand", "maize",
+    0.25, 1L, 2514L, "rainfed", 2010L, 600,
+    0, "dry", "rainfed_regime", NA,
+    0.25, 1L, 2605L, "irrigated", 2010L, 600,
+    336, "dry", "lpjml_others_proxy", "maize+others",
+    0.25, 2L, 2514L, "rainfed", 2010L, 600,
+    0, "dry", "rainfed_regime", NA
+  ) |>
+    dplyr::mutate(
+      lat = 45.25,
+      mat_c = 12,
+      frost_days = 40,
+      pet_mm = 1000,
+      water_mm = .data$prec_mm + .data$irrig_mm,
+      moisture_ratio = .data$water_mm / .data$pet_mm,
+      tropical = FALSE,
+      method_moisture_regime = "ipcc2019_wet_dry;trailing_30;precip_irrig",
+      irrigated = .data$water_regime == "irrigated",
+      lpjml_version = dplyr::if_else(
+        .data$irrigated,
+        "LPJmL C Version 6.1.1",
+        NA_character_
+      ),
+      lpjml_git_hash = dplyr::if_else(
+        .data$irrigated,
+        "e6e6c42b88354f4a0df945e55f2ccf3c4a3cb605",
+        NA_character_
+      ),
+      lpjml_run = dplyr::if_else(
+        .data$irrigated,
+        "fixture/scenario_1",
+        NA_character_
+      )
+    ) |>
+    ensure_columns(.cmr_prototype(), extra = "drop")
+}

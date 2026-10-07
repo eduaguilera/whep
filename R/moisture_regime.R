@@ -32,6 +32,90 @@
 #    `pet_not_positive`, a window-mean PET of zero, for which the ratio is
 #    undefined. Nothing is zero-filled.
 
+#' Build the IPCC 2019 wet/dry moisture regime of WHEP's crop land.
+#'
+#' @description
+#' Classify each cell, polity, commodity balance item, water regime and year
+#' of WHEP's own crop land use into the IPCC 2019 Tier 1 wet or dry climate,
+#' from CRU TS climate and, on irrigated land, the LPJmL irrigation depth of
+#' the row's crops weighted by WHEP's own irrigated hectares.
+#'
+#' @param years Integer vector of the years to classify.
+#' @param window How the inputs are averaged before they are classified:
+#'   `"trailing_30"` (default, the 30 years ending in each year), `"annual"`
+#'   or `"normal"` (one fixed period, `config$normal_period`).
+#' @param water The water term: `"precip_irrig"` (default, precipitation plus
+#'   the irrigation depth of the row's crops and regime) or `"precip"`.
+#' @param data Optional list of inputs used in place of reading them. Each
+#'   element is optional:
+#'   - `climate`: `lon`, `lat`, `year`, `mean_annual_temp_c`,
+#'     `annual_precip_mm`, `annual_pet_mm`, `annual_frost_days`; its years are
+#'     the climate record.
+#'   - `crop_depth`: the LPJmL irrigation depth per cell, crop and year
+#'     (`lon`, `lat`, `year`, `lpjml_crop`, `irrig_mm_irrigated`,
+#'     `irrig_mm_rainfed`, `stand_frac_irrigated`, `stand_frac_rainfed`,
+#'     `lpjml_version`, `lpjml_git_hash`, `lpjml_run`).
+#'   - `lpjml_years`: the years the LPJmL run covers (default: the years of
+#'     `crop_depth`).
+#'   - `regime_areas`: WHEP's rainfed and irrigated hectares (`lon`, `lat`,
+#'     `area_code`, `item_prod_code`, `year`, `rainfed_ha`, `irrigated_ha`).
+#'   - `country_grid`: the cell support the regime areas are built on when
+#'     they are not supplied.
+#' @param config Optional list: `cru_dir` (default `WHEP_CRU_DIR`), `run_dir`
+#'   (default `WHEP_LPJML_RUN_DIR`, else the pinned depth layer),
+#'   `normal_period` (default `1991:2020`) and `max_rows` (default `2e6`, the
+#'   classifier input rows per block of cells, about 1.3 KB each at peak).
+#' @param example If `TRUE`, return a small fixture instead of reading data.
+#'   Defaults to `FALSE`.
+#'
+#' @return A tibble with one row per `lon`, `lat`, `area_code`,
+#'   `item_cbs_code`, `water_regime` and `year` where WHEP has hectares of
+#'   that regime, carrying the window-mean `mat_c`, `frost_days`, `prec_mm`,
+#'   `pet_mm` and `irrig_mm`, `water_mm`, `moisture_ratio`, `tropical`,
+#'   `moisture_regime` (`"wet"`, `"dry"` or `NA`), `method_moisture_regime`,
+#'   `method_irrig_depth`, `lpjml_crop` and the LPJmL vintage columns
+#'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`.
+#' @export
+#'
+#' @examples
+#' build_cell_moisture_regime(example = TRUE)
+build_cell_moisture_regime <- function(
+  years = NULL,
+  window = c("trailing_30", "annual", "normal"),
+  water = c("precip_irrig", "precip"),
+  data = NULL,
+  config = list(),
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_cell_moisture_regime())
+  }
+  spec <- .cmr_spec(
+    years,
+    rlang::arg_match(window),
+    rlang::arg_match(water),
+    config
+  )
+  areas <- .cmr_regime_areas(data, spec$needed)
+  rows <- .lid_regime_keys(dplyr::filter(areas, .data$year %in% spec$years))
+  irrigation <- if (spec$water == "precip_irrig") {
+    .cmr_irrigation(areas, rows, data, spec)
+  }
+  climate <- .cmr_climate(
+    data,
+    spec,
+    dplyr::distinct(rows, .data$lon, .data$lat)
+  )
+  .cmr_year_groups(spec$years, irrigation) |>
+    purrr::map(\(group) {
+      .cmr_classify_group(group, rows, climate, irrigation, spec)
+    }) |>
+    dplyr::bind_rows() |>
+    ensure_columns(.cmr_prototype(), extra = "drop") |>
+    dplyr::arrange(dplyr::pick(dplyr::all_of(c("year", .cmr_row_key())))) |>
+    .cmr_report_unclassified()
+}
+
 # Classify rows into the IPCC 2019 wet/dry climate classes.
 #
 # `data` holds one row per `lon`, `lat`, `year` and, optionally,
@@ -48,11 +132,18 @@
 # `years` are the years to classify (`NULL`: every year of the record).
 # `normal_period` is used only by `window = "normal"`.
 #
-# Returns one row per series (`lon`, `lat` and the optional `item_cbs_code`,
-# `water_regime`) and requested year, carrying the window-mean inputs that
-# were classified, `water_mm`, `moisture_ratio` (water over PET), `tropical`,
-# `moisture_regime` (`"wet"`, `"dry"` or NA) and `method_moisture_regime`.
-# Other input columns are not carried.
+# `irrigation` (optional, `water = "precip_irrig"` only) holds the irrigation
+# depth as a record of its own: the series key columns, `year` and `irrig_mm`,
+# from a model run that covers every window year, years before the climate
+# record included. `data` then carries no `irrig_mm`, and the irrigation
+# window mean takes each window year's own depth: no climatology is held for
+# it. A window year the table lacks still gives a missing mean.
+#
+# Returns one row per series (`lon`, `lat` and the optional `area_code`,
+# `item_cbs_code`, `water_regime`) and requested year, carrying the
+# window-mean inputs that were classified, `water_mm`, `moisture_ratio`
+# (water over PET), `tropical`, `moisture_regime` (`"wet"`, `"dry"` or NA) and
+# `method_moisture_regime`. Other input columns are not carried.
 .classify_moisture_regime <- function(
   data,
   years = NULL,
@@ -60,11 +151,16 @@
   water = c("precip_irrig", "precip"),
   # 1991-2020 is an assumed choice, the most recent complete 30-year period;
   # no source used here prescribes it.
-  normal_period = 1991:2020
+  normal_period = 1991:2020,
+  irrigation = NULL
 ) {
   window <- rlang::arg_match(window)
   water <- rlang::arg_match(water)
-  inputs <- .check_moisture_inputs(data, water)
+  own <- water == "precip_irrig" && !is.null(irrigation)
+  inputs <- .check_moisture_inputs(data, if (own) "precip" else water)
+  if (own) {
+    irrigation <- .check_moisture_irrigation(irrigation, inputs)
+  }
   covered <- sort(unique(inputs$year))
   frame <- .moisture_frame(
     .resolve_climate_years(years, covered),
@@ -74,7 +170,7 @@
   )
   .moisture_series_years(inputs, frame$years) |>
     .join_window_climate(inputs, frame) |>
-    .join_window_irrigation(inputs, frame, water) |>
+    .join_window_irrigation(inputs, frame, water, irrigation) |>
     .apply_wet_dry(water) |>
     .report_unclassified() |>
     .stamp_moisture_regime(frame, water)
@@ -92,7 +188,11 @@
 # A series is one cell, or one crop and regime within it when those columns
 # are present.
 .moisture_series_key <- function(data) {
-  c("lon", "lat", intersect(c("item_cbs_code", "water_regime"), names(data)))
+  c(
+    "lon",
+    "lat",
+    intersect(c("area_code", "item_cbs_code", "water_regime"), names(data))
+  )
 }
 
 # The years whose inputs are averaged into `year`'s classification.
@@ -124,6 +224,7 @@
     years = years,
     period = period,
     covered = covered,
+    needed = needed,
     plan = .climate_year_plan(needed, covered)
   )
 }
@@ -167,6 +268,37 @@
   .check_moisture_domain(inputs)
   .check_moisture_supplied(inputs, water)
   inputs
+}
+
+# Validate a separate irrigation record against the series of `inputs` and
+# return it as a data.table, under the same domain and supply rules as an
+# `irrig_mm` column of `data`.
+.check_moisture_irrigation <- function(irrigation, inputs) {
+  key <- c(.moisture_series_key(inputs), "year")
+  .check_moisture_columns(irrigation, c(key, "irrig_mm"))
+  irrigation <- data.table::as.data.table(irrigation)[,
+    c(key, "irrig_mm"),
+    with = FALSE
+  ]
+  irrigation[, year := as.integer(year)]
+  irrigation[, irrig_mm := as.double(irrig_mm)]
+  .check_moisture_key(irrigation, key)
+  .check_moisture_domain(irrigation)
+  irrigated <- if (rlang::has_name(irrigation, "water_regime")) {
+    irrigation[water_regime == "irrigated"]
+  } else {
+    irrigation
+  }
+  if (nrow(irrigated) > 0L) {
+    check_inputs_supplied(
+      irrigated,
+      "irrig_mm",
+      details = c(
+        i = "Every irrigated row has zero or missing irrigation depth."
+      )
+    )
+  }
+  irrigation
 }
 
 .check_moisture_columns <- function(data, required) {
@@ -316,14 +448,21 @@
 # Irrigation is averaged per series. Rainfed land is not irrigated by
 # definition, so its irrigation term is a structural zero of the regime split
 # WHEP defines, not a filled absence.
-.join_window_irrigation <- function(rows, inputs, frame, water) {
+#
+# A separate `irrigation` record is averaged over each window year's own
+# depth, so its plan measures every year the windows need.
+.join_window_irrigation <- function(rows, inputs, frame, water, irrigation) {
   force(rows)
   if (water == "precip") {
     return(rows)
   }
   key <- .moisture_series_key(inputs)
   has_regime <- rlang::has_name(inputs, "water_regime")
-  irrigated <- if (has_regime) inputs[water_regime == "irrigated"] else inputs
+  source <- irrigation %||% inputs
+  if (!is.null(irrigation)) {
+    frame$plan <- .climate_year_plan(frame$needed, frame$needed)
+  }
+  irrigated <- if (has_regime) source[water_regime == "irrigated"] else source
   if (nrow(irrigated) == 0L) {
     # Every row is rainfed, so every irrigation term is the structural zero.
     return(rows[, irrig_mm := 0])
@@ -561,5 +700,849 @@
     length(outside),
     "of",
     n_span
+  )
+}
+
+# build_cell_moisture_regime() helpers ----
+#
+# The wrapper assembles the classifier's inputs:
+# - Rows: WHEP's own crop land use, the regime areas the N chain splits, one
+#   row per cell, polity, commodity balance item, regime and year where that
+#   regime has hectares.
+# - Climate: CRU TS annual MAT, precipitation, PET and frost days. Only CRU's
+#   own years are passed as the record, so years before 1901 take the
+#   classifier's held 1901-1930 climatology.
+# - Irrigation (irrigated rows): the LPJmL depth of each production item's
+#   crop, pooled to the balance item by WHEP's irrigated hectares. It is a
+#   record of its own: LPJmL runs before 1901 too, on recycled 1901-1930
+#   weather, and those depths are used as the model computed them, labelled.
+# - Structural stand check: LPJmL is run on WHEP's own crop land use, so an
+#   irrigated WHEP row whose crop has no irrigated LPJmL stand is a defect,
+#   not a gap. A year outside the run is the one cause that is filled; an
+#   unmapped item or any other mismatch aborts.
+# Classification is cell-independent, so it runs in blocks of cells.
+
+# The series a row belongs to (one cell, polity and balance item), and the
+# row key that adds the regime.
+.cmr_series_key <- function() {
+  c("lon", "lat", "area_code", "item_cbs_code")
+}
+
+.cmr_row_key <- function() {
+  c(.cmr_series_key(), "water_regime")
+}
+
+# The arguments resolved once, with every year the windows reach.
+.cmr_spec <- function(years, window, water, config) {
+  config <- .cmr_config(config)
+  years <- .cmr_check_years(years)
+  list(
+    years = years,
+    window = window,
+    water = water,
+    config = config,
+    needed = .cmr_window_years(years, window, config$normal_period)
+  )
+}
+
+.cmr_config <- function(config) {
+  defaults <- list(
+    cru_dir = NULL,
+    run_dir = NULL,
+    # 1991-2020 is an assumed choice, the most recent complete 30-year
+    # period; no source used here prescribes it.
+    normal_period = 1991:2020,
+    max_rows = 2e6
+  )
+  unknown <- setdiff(names(config), names(defaults))
+  if (length(unknown) > 0L) {
+    cli::cli_abort(
+      c(
+        "Unknown {.arg config} entr{?y/ies}: {.val {unknown}}.",
+        i = "Known entries: {.val {names(defaults)}}."
+      ),
+      class = "whep_moisture_regime_config"
+    )
+  }
+  out <- utils::modifyList(defaults, config)
+  rows_ok <- is.numeric(out$max_rows) &&
+    length(out$max_rows) == 1L &&
+    isTRUE(out$max_rows >= 1)
+  if (!rows_ok) {
+    cli::cli_abort(
+      "{.code config$max_rows} must be one positive number.",
+      class = "whep_moisture_regime_config"
+    )
+  }
+  out
+}
+
+.cmr_check_years <- function(years) {
+  ok <- is.numeric(years) && length(years) > 0L && !anyNA(years)
+  if (!ok) {
+    cli::cli_abort(
+      c(
+        "{.arg years} must name the years to classify.",
+        i = "Expanded to cells, crops and regimes, the whole record does not
+             fit in memory."
+      ),
+      class = "whep_moisture_regime_years"
+    )
+  }
+  sort(unique(as.integer(years)))
+}
+
+# Every year one of the requested years' windows holds.
+.cmr_window_years <- function(years, window, normal_period) {
+  period <- if (window == "normal") .check_normal_period(normal_period)
+  purrr::map(years, \(yr) .moisture_window_years(yr, window, period)) |>
+    unlist() |>
+    unique() |>
+    sort() |>
+    as.integer()
+}
+
+# WHEP's regime areas for every year the windows reach: the rows to classify
+# and, on irrigated land, the weights of the pooled items. A window year they
+# do not cover leaves its irrigated rows without a depth there, which the
+# classifier reports as missing; it is said here once.
+.cmr_regime_areas <- function(data, needed) {
+  areas <- data$regime_areas %||%
+    .sci_engine_crops(
+      needed,
+      data$country_grid %||% .sci_read_country_grid()
+    )
+  out <- .lid_check_areas(areas) |>
+    dplyr::filter(.data$year %in% needed)
+  absent <- setdiff(needed, out$year)
+  if (length(absent) > 0L) {
+    cli::cli_inform(
+      c(
+        "The regime areas hold no rows for {length(absent)} year{?s} the
+         windows reach: {.val {absent}}.",
+        i = "Irrigated rows whose window reaches them have no irrigation depth
+             there and are left unclassified."
+      ),
+      class = "whep_moisture_regime_area_years"
+    )
+  }
+  out
+}
+
+# -- Irrigation ---------------------------------------------------------------
+
+# The irrigation record of the irrigated series: per series and window year,
+# the pooled depth (in-run years) and the irrigated hectares of the years
+# outside the run, which the classification groups fill.
+.cmr_irrigation <- function(areas, rows, data, spec) {
+  check_inputs_supplied(
+    areas,
+    "irrigated_ha",
+    details = c(i = "The regime areas carry no irrigated hectares at all.")
+  )
+  key <- .cmr_series_key()
+  series <- rows |>
+    dplyr::filter(.data$water_regime == "irrigated") |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(key)))
+  if (nrow(series) == 0L) {
+    return(NULL)
+  }
+  items <- areas |>
+    dplyr::filter(.data$irrigated_ha > 0) |>
+    dplyr::semi_join(series, by = key)
+  lpjml <- .cmr_crop_depth(sort(unique(items$year)), data, spec$config)
+  depth <- .lid_item_depth(items, lpjml$crop)
+  .cmr_check_stands(depth, lpjml)
+  in_run <- depth$year %in% lpjml$run_years
+  list(
+    cbs = .cmr_cbs_depth(depth[in_run, ]),
+    outside = dplyr::summarise(
+      depth[!in_run, ],
+      irrigated_ha = sum(.data$irrigated_ha),
+      .by = dplyr::all_of(c(key, "year"))
+    ),
+    run_years = lpjml$run_years,
+    vintage = .cmr_vintage(lpjml$crop)
+  )
+}
+
+# The LPJmL crop-grain depth for `years`, and the years the run covers: the
+# supplied table, else the run (only its own years are read), else the pin.
+.cmr_crop_depth <- function(years, data, config) {
+  if (!is.null(data$crop_depth)) {
+    crop <- tibble::as_tibble(data$crop_depth)
+    return(list(
+      crop = .filter_years_if_present(crop, years),
+      run_years = as.integer(data$lpjml_years %||% sort(unique(crop$year)))
+    ))
+  }
+  run_dir <- .lid_run_dir_or_pin(config$run_dir)
+  if (is.null(run_dir)) {
+    crop <- .lid_crop_depth(years)
+    return(list(crop = crop, run_years = sort(unique(crop$year))))
+  }
+  run_years <- .lid_run_years(run_dir)
+  read <- intersect(years, run_years)
+  crop <- if (length(read) > 0L) {
+    .lid_crop_depth(read, run_dir)
+  } else {
+    .lid_crop_prototype()
+  }
+  list(crop = crop, run_years = as.integer(run_years))
+}
+
+# The pooled depth with each series-year's irrigated hectares beside it, the
+# weights of a country mean.
+.cmr_cbs_depth <- function(depth) {
+  key <- c(.cmr_series_key(), "year")
+  weights <- dplyr::summarise(
+    depth,
+    irrigated_ha = sum(.data$irrigated_ha),
+    .by = dplyr::all_of(key)
+  )
+  .lid_cbs_depth(depth) |>
+    dplyr::left_join(weights, by = key, relationship = "one-to-one")
+}
+
+.cmr_vintage <- function(crop) {
+  if (nrow(crop) == 0L) {
+    return(tibble::tibble(
+      lpjml_version = NA_character_,
+      lpjml_git_hash = NA_character_,
+      lpjml_run = NA_character_
+    ))
+  }
+  .lid_vintage_of(crop)
+}
+
+# -- Structural stand check ---------------------------------------------------
+
+# Every irrigated production item row without an LPJmL depth, by cause:
+# - "outside_run": the year lies outside the LPJmL run; filled later;
+# - "mapping": the item has no LPJmL crop band; aborts;
+# - "unexplained": anything else, the item's crop has no irrigated stand in
+#   the cell although the run covers the year; aborts. The diagnosis says
+#   whether LPJmL has any crop in the cell and a rainfed stand of the crop.
+.cmr_check_stands <- function(depth, lpjml) {
+  defects <- depth |>
+    dplyr::filter(!.data$method_irrig_depth %in% .lid_lpjml_methods()) |>
+    dplyr::mutate(
+      cause = dplyr::case_when(
+        .data$method_irrig_depth == "no_band" ~ "mapping",
+        !.data$year %in% lpjml$run_years ~ "outside_run",
+        .default = "unexplained"
+      )
+    )
+  if (!any(defects$cause %in% c("mapping", "unexplained"))) {
+    return(invisible(defects))
+  }
+  diagnosis <- .cmr_stand_diagnosis(defects, lpjml$crop)
+  .cmr_abort_mapping(diagnosis)
+  .cmr_abort_mismatch(diagnosis, .cmr_vintage(lpjml$crop))
+}
+
+.cmr_stand_diagnosis <- function(defects, crop) {
+  cells <- crop |>
+    dplyr::distinct(.data$lon, .data$lat, .data$year) |>
+    dplyr::mutate(cell_has_crops = TRUE)
+  rainfed <- crop |>
+    dplyr::filter(
+      is.finite(.data$stand_frac_rainfed),
+      .data$stand_frac_rainfed > 0
+    ) |>
+    dplyr::distinct(.data$lon, .data$lat, .data$year, .data$lpjml_crop) |>
+    dplyr::mutate(crop_rainfed = TRUE)
+  cases <- defects |>
+    dplyr::left_join(cells, by = c("lon", "lat", "year")) |>
+    dplyr::left_join(rainfed, by = c("lon", "lat", "year", "lpjml_crop")) |>
+    dplyr::mutate(
+      detail = dplyr::case_when(
+        .data$cause != "unexplained" ~ .data$cause,
+        is.na(.data$cell_has_crops) ~ "no_lpjml_crop_stand_in_cell",
+        .data$crop_rainfed %in% TRUE ~ "lpjml_crop_rainfed_only",
+        .default = "lpjml_crop_absent_from_cell"
+      )
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "item_prod_code",
+      "item_cbs_code",
+      "year",
+      "irrigated_ha",
+      "lpjml_crop",
+      "cause",
+      "detail"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$irrigated_ha))
+  summary <- cases |>
+    dplyr::summarise(
+      n_rows = dplyr::n(),
+      irrigated_ha = sum(.data$irrigated_ha),
+      .by = c("cause", "detail")
+    ) |>
+    dplyr::arrange(.data$cause, dplyr::desc(.data$irrigated_ha))
+  list(summary = summary, cases = cases)
+}
+
+.cmr_abort_mapping <- function(diagnosis) {
+  cases <- diagnosis$cases[diagnosis$cases$cause == "mapping", ]
+  if (nrow(cases) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(cases)
+  hectares <- .cmr_format_ha(sum(cases$irrigated_ha))
+  largest <- .cmr_largest(cases, "item_prod_code")
+  cli::cli_abort(
+    c(
+      "{n_rows} irrigated row{?s} of WHEP's land use ({hectares} ha) belong to
+       production items with no LPJmL crop band.",
+      x = "LPJmL is run on WHEP's own crop land use, so every irrigated item
+           must map to an LPJmL crop: this is a mapping defect, not a gap.",
+      i = "Largest items: {largest}.",
+      i = "Map them in {.code regime_yield_crop_mapping}; the condition's
+           {.field diagnosis} holds every case."
+    ),
+    class = "whep_moisture_regime_stand_mapping",
+    diagnosis = diagnosis
+  )
+}
+
+.cmr_abort_mismatch <- function(diagnosis, vintage) {
+  cases <- diagnosis$cases[diagnosis$cases$cause == "unexplained", ]
+  if (nrow(cases) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(cases)
+  hectares <- .cmr_format_ha(sum(cases$irrigated_ha))
+  details <- diagnosis$summary[diagnosis$summary$cause == "unexplained", ]
+  bullets <- rlang::set_names(
+    paste0(
+      details$detail,
+      ": ",
+      details$n_rows,
+      " rows, ",
+      .cmr_format_ha(details$irrigated_ha),
+      " ha"
+    ),
+    rep("*", nrow(details))
+  )
+  largest_items <- .cmr_largest(cases, "item_prod_code")
+  largest_cells <- .cmr_largest(cases, c("lon", "lat"))
+  cli::cli_abort(
+    c(
+      "{n_rows} irrigated row{?s} of WHEP's land use ({hectares} ha), in years
+       the LPJmL run covers, have no irrigated LPJmL stand of their crop.",
+      x = "LPJmL is run on WHEP's own crop land use, so the two must agree.
+           The likeliest cause is a land-use vintage mismatch between the
+           run's forcing and the current WHEP land use.",
+      bullets,
+      i = "Largest items: {largest_items}.",
+      i = "Largest cells (lon/lat): {largest_cells}.",
+      i = "LPJmL run: {vintage$lpjml_run}. The condition's {.field diagnosis}
+           holds every case."
+    ),
+    class = "whep_moisture_regime_stand_mismatch",
+    diagnosis = diagnosis
+  )
+}
+
+# The five largest groups of `cases` by irrigated hectares, as text.
+.cmr_largest <- function(cases, by) {
+  cases |>
+    dplyr::summarise(
+      irrigated_ha = sum(.data$irrigated_ha),
+      .by = dplyr::all_of(by)
+    ) |>
+    dplyr::slice_max(.data$irrigated_ha, n = 5L, with_ties = FALSE) |>
+    dplyr::mutate(
+      label = paste0(
+        purrr::pmap_chr(dplyr::pick(dplyr::all_of(by)), paste, sep = "/"),
+        " (",
+        .cmr_format_ha(.data$irrigated_ha),
+        " ha)"
+      )
+    ) |>
+    dplyr::pull("label") |>
+    paste(collapse = ", ")
+}
+
+.cmr_format_ha <- function(hectares) {
+  format(round(hectares), big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+# -- Classification -----------------------------------------------------------
+
+# The requested years classified together, unless a window year outside the
+# LPJmL run needs a fill: a fill averages the series' own window, which
+# differs between requested years, so each year is then its own group.
+.cmr_year_groups <- function(years, irrigation) {
+  if (is.null(irrigation) || nrow(irrigation$outside) == 0L) {
+    return(list(years))
+  }
+  as.list(years)
+}
+
+.cmr_classify_group <- function(group, rows, climate, irrigation, spec) {
+  frame <- .moisture_frame(
+    group,
+    spec$window,
+    spec$config$normal_period,
+    climate$record
+  )
+  ctx <- list(
+    group = group,
+    rows = dplyr::filter(rows, .data$year %in% group),
+    climate = dplyr::filter(
+      climate$table,
+      .data$year %in% frame$plan$read_years
+    ),
+    read_years = frame$plan$read_years,
+    depth = .cmr_group_irrigation(irrigation, group, spec),
+    spec = spec
+  )
+  .cmr_cell_blocks(ctx$rows, frame, spec$config$max_rows) |>
+    purrr::map(\(cells) .cmr_classify_block(cells, ctx)) |>
+    dplyr::bind_rows()
+}
+
+# The irrigation record the group's windows read, with the years outside the
+# run filled: the mean of the series' own window years with a depth, else the
+# country mean of its balance item over those years, stamped.
+.cmr_group_irrigation <- function(irrigation, group, spec) {
+  if (is.null(irrigation)) {
+    return(NULL)
+  }
+  span <- .cmr_window_years(group, spec$window, spec$config$normal_period)
+  depth <- dplyr::filter(irrigation$cbs, .data$year %in% span)
+  outside <- dplyr::filter(irrigation$outside, .data$year %in% span)
+  fills <- .cmr_fill_outside_run(depth, outside, span, irrigation$run_years)
+  list(
+    rows = dplyr::bind_rows(depth, fills$rows),
+    fills = fills$stamps,
+    vintage = irrigation$vintage
+  )
+}
+
+.cmr_fill_outside_run <- function(depth, outside, span, run_years) {
+  if (nrow(outside) == 0L) {
+    return(list(rows = NULL, stamps = NULL))
+  }
+  key <- .cmr_series_key()
+  in_run <- intersect(span, run_years)
+  known <- dplyr::filter(
+    depth,
+    .data$year %in% in_run,
+    !is.na(.data$irrig_mm)
+  )
+  own <- dplyr::summarise(
+    known,
+    series_fill = mean(.data$irrig_mm),
+    .by = dplyr::all_of(key)
+  )
+  country <- known |>
+    dplyr::summarise(
+      irrig_mm = sum(.data$irrig_mm * .data$irrigated_ha) /
+        sum(.data$irrigated_ha),
+      .by = c("area_code", "item_cbs_code", "year")
+    ) |>
+    dplyr::summarise(
+      country_fill = mean(.data$irrig_mm),
+      .by = c("area_code", "item_cbs_code")
+    )
+  filled <- outside |>
+    dplyr::left_join(own, by = key) |>
+    dplyr::left_join(country, by = c("area_code", "item_cbs_code")) |>
+    dplyr::mutate(
+      irrig_mm = dplyr::coalesce(.data$series_fill, .data$country_fill),
+      fill = dplyr::if_else(
+        is.na(.data$series_fill),
+        "country_mean",
+        "series_mean"
+      )
+    )
+  .cmr_check_filled(filled)
+  list(
+    rows = dplyr::select(filled, dplyr::all_of(c(key, "year", "irrig_mm"))),
+    stamps = dplyr::summarise(
+      filled,
+      n_filled = dplyr::n(),
+      fill = dplyr::if_else(
+        any(.data$fill == "country_mean"),
+        "country_mean",
+        "series_mean"
+      ),
+      .by = dplyr::all_of(key)
+    )
+  )
+}
+
+# A window wholly outside the run, or one where neither the series nor its
+# country has a depth, has nothing to average: no fill exists.
+.cmr_check_filled <- function(filled) {
+  unfilled <- is.na(filled$irrig_mm)
+  if (!any(unfilled)) {
+    return(invisible(NULL))
+  }
+  outside <- sort(unique(filled$year))
+  n_rows <- sum(unfilled)
+  cli::cli_abort(
+    c(
+      "{n_rows} irrigated series-year{?s} in years outside the LPJmL run
+       ({.val {outside}}) ha{?s/ve} no depth to fill from.",
+      i = "The fill averages the series' own window years inside the run,
+           else its country's; here neither has one.",
+      i = "Use a run covering the years, or a window reaching into the run."
+    ),
+    class = "whep_moisture_regime_outside_run"
+  )
+}
+
+# Blocks of cells whose classifier inputs stay near `max_rows` rows: a cell
+# carries one rainfed series and its irrigated series, each with one row per
+# climate year read and, irrigated, one irrigation row per window year. Cells
+# are dealt round-robin, so a block mixes cells from the whole grid.
+.cmr_cell_blocks <- function(rows, frame, max_rows) {
+  n_read <- length(frame$plan$read_years)
+  n_span <- length(frame$needed)
+  cells <- rows |>
+    dplyr::mutate(irrigated = .data$water_regime == "irrigated") |>
+    dplyr::summarise(
+      n_irrigated = dplyr::n_distinct(
+        .data$area_code[.data$irrigated],
+        .data$item_cbs_code[.data$irrigated]
+      ),
+      .by = c("lon", "lat")
+    ) |>
+    dplyr::arrange(.data$lon, .data$lat)
+  n_input <- sum((1 + cells$n_irrigated) * n_read + cells$n_irrigated * n_span)
+  n_blocks <- min(max(1L, ceiling(n_input / max_rows)), nrow(cells))
+  block <- (seq_len(nrow(cells)) - 1L) %% n_blocks
+  unname(split(dplyr::select(cells, "lon", "lat"), block))
+}
+
+.cmr_classify_block <- function(cells, ctx) {
+  rows <- dplyr::semi_join(ctx$rows, cells, by = c("lon", "lat"))
+  climate <- tidyr::expand_grid(cells, year = ctx$read_years) |>
+    dplyr::left_join(ctx$climate, by = c("lon", "lat", "year"))
+  if (ctx$spec$water == "precip") {
+    return(.cmr_precip_rows(rows, climate, ctx))
+  }
+  dplyr::bind_rows(
+    .cmr_rainfed_rows(rows, climate, ctx),
+    .cmr_irrigated_rows(rows, climate, ctx)
+  )
+}
+
+# The classifier on one block, its per-block report of unclassified rows
+# held back: the wrapper reports once over every block.
+.cmr_run_classifier <- function(data, ctx, water, irrigation = NULL) {
+  withCallingHandlers(
+    .classify_moisture_regime(
+      data,
+      years = ctx$group,
+      window = ctx$spec$window,
+      water = water,
+      normal_period = ctx$spec$config$normal_period,
+      irrigation = irrigation
+    ),
+    whep_moisture_regime_unclassified = .cmr_muffle
+  )
+}
+
+.cmr_muffle <- function(cnd) {
+  invokeRestart("muffleMessage")
+}
+
+# Precipitation alone is a property of the cell: every row of a cell takes
+# the cell's class.
+.cmr_precip_rows <- function(rows, climate, ctx) {
+  cells <- .cmr_run_classifier(climate, ctx, "precip") |>
+    dplyr::mutate(irrig_mm = NA_real_)
+  rows |>
+    dplyr::left_join(
+      cells,
+      by = c("lon", "lat", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      method_irrig_depth = NA_character_,
+      lpjml_crop = NA_character_
+    )
+}
+
+# Rainfed land receives no irrigation, by definition of the regime, so its
+# water term is the cell's precipitation and every rainfed row of a cell
+# takes one class, computed once per cell.
+.cmr_rainfed_rows <- function(rows, climate, ctx) {
+  rainfed <- dplyr::filter(rows, .data$water_regime == "rainfed")
+  if (nrow(rainfed) == 0L) {
+    return(NULL)
+  }
+  cells <- climate |>
+    dplyr::semi_join(rainfed, by = c("lon", "lat")) |>
+    dplyr::mutate(water_regime = "rainfed", irrig_mm = 0) |>
+    .cmr_run_classifier(ctx, "precip_irrig") |>
+    dplyr::select(-"water_regime")
+  rainfed |>
+    dplyr::left_join(
+      cells,
+      by = c("lon", "lat", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      method_irrig_depth = "rainfed_regime",
+      lpjml_crop = NA_character_
+    )
+}
+
+.cmr_irrigated_rows <- function(rows, climate, ctx) {
+  irrigated <- dplyr::filter(rows, .data$water_regime == "irrigated")
+  if (nrow(irrigated) == 0L) {
+    return(NULL)
+  }
+  key <- .cmr_series_key()
+  series <- dplyr::distinct(irrigated, dplyr::pick(dplyr::all_of(key)))
+  depth <- dplyr::semi_join(ctx$depth$rows, series, by = key)
+  input <- series |>
+    dplyr::inner_join(
+      climate,
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(water_regime = "irrigated")
+  classes <- .cmr_run_classifier(
+    input,
+    ctx,
+    "precip_irrig",
+    irrigation = dplyr::mutate(
+      dplyr::select(depth, dplyr::all_of(c(key, "year", "irrig_mm"))),
+      water_regime = "irrigated"
+    )
+  )
+  irrigated |>
+    dplyr::left_join(
+      classes,
+      by = c(.cmr_row_key(), "year"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::left_join(
+      .cmr_irrigation_stamps(irrigated, depth, ctx),
+      by = c(key, "year"),
+      relationship = "one-to-one"
+    )
+}
+
+# Per irrigated row: the least direct depth method over its window years,
+# "_recycled_climate" when a window year predates the CRU record LPJmL's
+# weather starts with, the fill of years outside the run, the crops behind
+# the year's own depth and the run's vintage.
+.cmr_irrigation_stamps <- function(irrigated, depth, ctx) {
+  key <- .cmr_series_key()
+  spec <- ctx$spec
+  windows <- tibble::tibble(year = ctx$group) |>
+    dplyr::mutate(
+      window_year = purrr::map(.data$year, \(yr) {
+        .moisture_window_years(yr, spec$window, spec$config$normal_period)
+      })
+    ) |>
+    tidyr::unnest("window_year")
+  window_depth <- dplyr::select(
+    depth,
+    dplyr::all_of(key),
+    window_year = "year",
+    "method_irrig_depth",
+    "irrig_mm"
+  )
+  irrigated |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(key, "year")))) |>
+    dplyr::inner_join(windows, by = "year", relationship = "many-to-many") |>
+    dplyr::left_join(window_depth, by = c(key, "window_year")) |>
+    dplyr::summarise(
+      rank = max(
+        dplyr::coalesce(
+          match(.data$method_irrig_depth, .lid_method_rank()),
+          0L
+        )
+      ),
+      recycled = any(
+        .data$window_year < .lrg_climate_first_year() & !is.na(.data$irrig_mm)
+      ),
+      n_window = dplyr::n(),
+      .by = dplyr::all_of(c(key, "year"))
+    ) |>
+    .cmr_stamp_fills(ctx$depth$fills) |>
+    dplyr::left_join(
+      dplyr::select(depth, dplyr::all_of(c(key, "year")), "lpjml_crop"),
+      by = c(key, "year"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::mutate(
+      lpjml_version = ctx$depth$vintage$lpjml_version,
+      lpjml_git_hash = ctx$depth$vintage$lpjml_git_hash,
+      lpjml_run = ctx$depth$vintage$lpjml_run
+    )
+}
+
+.cmr_stamp_fills <- function(stamps, fills) {
+  fills <- fills %||%
+    tibble::tibble(
+      lon = double(),
+      lat = double(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      n_filled = integer(),
+      fill = character()
+    )
+  stamps |>
+    dplyr::left_join(fills, by = .cmr_series_key()) |>
+    dplyr::mutate(
+      method = .lid_method_rank()[dplyr::na_if(.data$rank, 0L)],
+      method = dplyr::if_else(
+        .data$recycled & .data$method %in% .lid_lpjml_methods(),
+        paste0(.data$method, "_recycled_climate"),
+        .data$method
+      ),
+      method_irrig_depth = dplyr::if_else(
+        is.na(.data$n_filled),
+        .data$method,
+        paste0(
+          .data$method,
+          ";outside_run_",
+          .data$n_filled,
+          "of",
+          .data$n_window,
+          "_",
+          .data$fill
+        )
+      )
+    ) |>
+    dplyr::select(
+      dplyr::all_of(c(.cmr_series_key(), "year")),
+      "method_irrig_depth"
+    )
+}
+
+# -- Climate ------------------------------------------------------------------
+
+# CRU's annual climate under the classifier's names, for the cells to
+# classify, and the record (the years CRU covers).
+.cmr_climate <- function(data, spec, cells) {
+  climate <- if (is.null(data$climate)) {
+    .cmr_read_cru(spec)
+  } else {
+    table <- .cmr_rename_climate(data$climate)
+    list(table = table, record = sort(unique(table$year)))
+  }
+  check_inputs_supplied(
+    climate$table,
+    c("prec_mm", "pet_mm"),
+    details = c(i = "Supply annual totals in mm per year.")
+  )
+  climate$table <- dplyr::semi_join(climate$table, cells, by = c("lon", "lat"))
+  climate
+}
+
+# The four CRU variables over the years the classifier reads: the record's
+# years inside the windows, plus the held 1901-1930 (or last 30 years')
+# climatology when a window reaches past the record.
+.cmr_read_cru <- function(spec) {
+  dir <- .resolve_cru_dir(spec$config$cru_dir)
+  record <- .cru_covered_years(dir)
+  read <- .moisture_frame(
+    spec$years,
+    spec$window,
+    spec$config$normal_period,
+    record
+  )$plan$read_years
+  table <- purrr::map(c("tmp", "pre", "pet", "frs"), \(var) {
+    .cru_annual(dir, read, var)
+  }) |>
+    purrr::reduce(dplyr::full_join, by = c("lon", "lat", "year"))
+  list(table = .cmr_rename_climate(table), record = record)
+}
+
+# The CRU reader's column names, as the classifier names them.
+.cmr_climate_names <- function() {
+  c(
+    mat_c = "mean_annual_temp_c",
+    frost_days = "annual_frost_days",
+    prec_mm = "annual_precip_mm",
+    pet_mm = "annual_pet_mm"
+  )
+}
+
+.cmr_rename_climate <- function(climate) {
+  names_map <- .cmr_climate_names()
+  .check_columns(climate, c("lon", "lat", "year", names_map), "data$climate")
+  tibble::as_tibble(climate) |>
+    dplyr::select("lon", "lat", "year", dplyr::all_of(names_map)) |>
+    dplyr::mutate(
+      lon = round(as.numeric(.data$lon), 2),
+      lat = round(as.numeric(.data$lat), 2),
+      year = as.integer(.data$year)
+    )
+}
+
+# -- Report -------------------------------------------------------------------
+
+# One report over every block: how many rows were left without a class, by
+# regime and reason. Nothing is zero-filled.
+.cmr_report_unclassified <- function(out) {
+  reason <- stringr::str_extract(
+    out$method_moisture_regime,
+    "(missing=.*|pet_not_positive)$"
+  )
+  unclassified <- !is.na(reason)
+  if (!any(unclassified)) {
+    return(out)
+  }
+  counts <- table(paste0(
+    out$water_regime[unclassified],
+    ", ",
+    reason[unclassified]
+  ))
+  bullets <- rlang::set_names(
+    paste0(names(counts), ": ", as.integer(counts)),
+    rep("*", length(counts))
+  )
+  n_left <- sum(unclassified)
+  n_rows <- nrow(out)
+  cli::cli_inform(
+    c(
+      "{n_left} row{?s} of {n_rows} left without a moisture regime; nothing
+       was zero-filled.",
+      bullets
+    ),
+    class = "whep_moisture_regime_unclassified"
+  )
+  out
+}
+
+# The output schema, so every block and regime binds to the same columns.
+.cmr_prototype <- function() {
+  tibble::tibble(
+    lon = double(),
+    lat = double(),
+    area_code = integer(),
+    item_cbs_code = integer(),
+    water_regime = character(),
+    year = integer(),
+    mat_c = double(),
+    frost_days = double(),
+    prec_mm = double(),
+    pet_mm = double(),
+    irrig_mm = double(),
+    water_mm = double(),
+    moisture_ratio = double(),
+    tropical = logical(),
+    moisture_regime = character(),
+    method_moisture_regime = character(),
+    method_irrig_depth = character(),
+    lpjml_crop = character(),
+    lpjml_version = character(),
+    lpjml_git_hash = character(),
+    lpjml_run = character()
   )
 }

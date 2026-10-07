@@ -738,6 +738,7 @@ reference:
   - calculate_livestock_emissions
   - build_gridded_livestock_emissions
   - build_cell_climate_zone
+  - build_cell_moisture_regime
   - livestock_emissions_to_kt
   - calculate_enteric_ch4
   - calculate_manure_emissions
