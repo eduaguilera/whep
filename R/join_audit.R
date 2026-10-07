@@ -303,6 +303,12 @@
      LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
      national readers share ONE bridge: this row used to be that function's,
      and the move is why the count did not rise with the pasture reader.",
+    ".ndc_trend_factors", "inner_join", "area_code", 1L, "time_invariant",
+    "Attaches each country's mean HaNi and EMEP mass over the reference years
+     to every one of its years (whep#1121). The reference is one fixed period
+     by design -- a year in the key would compare each year with itself -- and
+     the countries are the static winner-take-all cells of the cell-polity
+     map, so an area_code covers the same cells in every year.",
     ".off_window_area_keys", "merge", "area_code", 1L, "time_invariant",
     "Attaches each area's own reporting window, one row per area by
      construction, and the year bound is the predicate immediately after it.
@@ -933,6 +939,10 @@
      that follows it DOES carry `year`.",
     ".nd_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same guard again, for the deposition support.",
+    ".ndc_reference", "summarise", "area_code", 2L, "year_axis",
+    "Counts a country's reference years, then averages its HaNi and EMEP mass
+     over them, so `year` is what the group reduces, not a key it is missing
+     (whep#1121).",
     ".off_window_area_years", "[", "area_code, window_start, window_end", 1L,
     "year_axis",
     "Reduces an area's off-window rows to the span they cover, so `year` is
