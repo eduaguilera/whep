@@ -13,7 +13,8 @@
 #'   balance built over the window alone would differ from the same years of
 #'   the full build (whep#833). A window therefore costs as much as the full
 #'   series the first time, and nothing after that.
-#' @param trade_recovery One of `"net_import"` (default) or `"none"`, passed
+#' @param trade_recovery One of `"pass_through"` (default), `"net_import"` or
+#'   `"none"`, passed
 #'   to [build_commodity_balances()], which documents what each does and what
 #'   the default moves. Each method is built and cached under its own slot,
 #'   so asking for one never serves the other's result.
@@ -466,8 +467,8 @@ get_livestock_cbs <- function(
 #'   coefficients on that range of the full-range commodity balances (see
 #'   [get_wide_cbs()] for why those are always built over the whole series)
 #'   and caches them under a window-specific key.
-#' @param trade_recovery One of `"net_import"` (default) or `"none"`, selecting
-#'   the CBS the coefficients are calibrated on. See
+#' @param trade_recovery One of `"pass_through"` (default), `"net_import"` or
+#'   `"none"`, selecting the CBS the coefficients are calibrated on. See
 #'   [build_commodity_balances()] and [get_wide_cbs()]. Pass the same value
 #'   here as to [get_wide_cbs()]: coefficients calibrated on one CBS do not
 #'   describe the other.

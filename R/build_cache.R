@@ -100,7 +100,7 @@ whep_clear_cache <- function() {
 
 # The cache-slot qualifier for a CBS build method. `"none"` returns NULL, so it
 # keeps the slot names it had when it was the default; every other method,
-# including today's default `"net_import"` (whep#762), gets its own suffix.
+# including today's default `"pass_through"` (whep#762), gets its own suffix.
 .cbs_cache_method <- function(trade_recovery) {
   if (identical(trade_recovery, "none")) {
     return(NULL)

@@ -392,7 +392,7 @@ testthat::test_that("get_wide_cbs takes and validates trade_recovery", {
 })
 
 testthat::test_that("every CBS entry point defaults to trade recovery", {
-  # whep#762: the default is `"net_import"`, and it has to be the default of
+  # whep#762: the default is `"pass_through"`, and it has to be the default of
   # every entry point into the shared chain, or a footprint built through
   # build_io_model() and a nourishment axis read through get_wide_cbs() would
   # describe two different CBSs without either caller asking for that.
@@ -417,13 +417,13 @@ testthat::test_that("every CBS entry point defaults to trade recovery", {
     whep::build_io_model(years = 2010),
     class = "whep_chain_probe"
   )
-  testthat::expect_equal(seen, rep("net_import", 3))
+  testthat::expect_equal(seen, rep("pass_through", 3))
   testthat::expect_equal(
     eval(
       formals(whep::build_commodity_balances)$trade_recovery,
       envir = asNamespace("whep")
     )[[1]],
-    "net_import"
+    "pass_through"
   )
 })
 

@@ -20,7 +20,8 @@ balance built over the window alone would differ from the same years of
 the full build (whep#833). A window therefore costs as much as the full
 series the first time, and nothing after that.}
 
-\item{trade_recovery}{One of \code{"net_import"} (default) or \code{"none"}, passed
+\item{trade_recovery}{One of \code{"pass_through"} (default), \code{"net_import"} or
+\code{"none"}, passed
 to \code{\link[=build_commodity_balances]{build_commodity_balances()}}, which documents what each does and what
 the default moves. Each method is built and cached under its own slot,
 so asking for one never serves the other's result.}

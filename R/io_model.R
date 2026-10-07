@@ -48,7 +48,8 @@
 #' @param prices Optional tibble of item prices as from [build_cbs_prices()]
 #'   (`year`, `element`, `item_cbs_code`, `price`). Used only when
 #'   `method = "value"`; built automatically when `NULL`.
-#' @param trade_recovery One of `"net_import"` (default) or `"none"`, selecting
+#' @param trade_recovery One of `"pass_through"` (default), `"net_import"` or
+#'   `"none"`, selecting
 #'   the CBS every internally built input is derived from — the wide CBS, the
 #'   processing coefficients, the supply-use tables, the bilateral trade
 #'   matrices and the prices. See [build_commodity_balances()] for what each

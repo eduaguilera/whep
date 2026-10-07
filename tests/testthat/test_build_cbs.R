@@ -579,11 +579,13 @@ test_that(".cbs_trade_recovery_rows creates the row the trade join cannot", {
   # The defect: `.cbs_impute_trade()` LEFT-joins trade onto the CBS, so an
   # import whose (year, area, item) has no CBS row is dropped outright. Rice
   # is exactly that shape for Singapore, and it is the largest single item in
-  # the 2010 measurement in #762.
+  # the 2010 measurement in #762. `"net_import"` isolates it from the net
+  # exporters, which the next tests cover.
   result <- whep:::.cbs_trade_recovery_rows(
     .recovery_cbs(),
     .recovery_trade(),
-    years = 2010
+    years = 2010,
+    method = "net_import"
   )
 
   expect_equal(
@@ -600,16 +602,18 @@ test_that(".cbs_trade_recovery_rows leaves every excluded key alone", {
   result <- whep:::.cbs_trade_recovery_rows(
     .recovery_cbs(),
     .recovery_trade(),
-    years = 2010
+    years = 2010,
+    method = "net_import"
   )
 
   # Wheat: the CBS already carries the key, so the existing left join fills it.
   expect_false(2511 %in% result$item_cbs_code)
   # Beer: a net exporter. A created row has no production, so balancing would
-  # invent some to cover the export (#762 keeps that decision open).
+  # invent some to cover the export; `"net_import"` does not create it.
   expect_false(2656 %in% result$item_cbs_code)
   # Onions: import and export are equal, so the row would carry no supply at
-  # all. The boundary is strict: a created row exists to hold a net import.
+  # all. Under `"net_import"` the boundary is strict: a created row exists to
+  # hold a net import.
   expect_false(2602 %in% result$item_cbs_code)
   # Pigs: `items_cbs$item_type` says live animals are counted in heads, and
   # `get_livestock_cbs()` already supplies that key in the wide CBS.
@@ -618,6 +622,94 @@ test_that(".cbs_trade_recovery_rows leaves every excluded key alone", {
   expect_false(13L %in% result$area_code)
   # 2009 is outside the requested window, though the CBS does cover it.
   expect_false(2009 %in% result$year)
+})
+
+test_that("pass-through recovery caps a net exporter's export at its import", {
+  # The default. A net exporter's row is created, but its export is cut to its
+  # import: the row passes its imports on and has no supply of its own, so
+  # nothing has to be invented to balance it. The cut export is reported, not
+  # dropped silently. Net importers are identical under both methods.
+  expect_message(
+    result <- whep:::.cbs_trade_recovery_rows(
+      .recovery_cbs(),
+      .recovery_trade(),
+      years = 2010
+    ),
+    "4900 t of export"
+  )
+  value_of <- function(item, el) {
+    dplyr::pull(
+      dplyr::filter(result, item_cbs_code == item, element == el),
+      value
+    )
+  }
+
+  # Beer imports 100 t and exports 5,000 t: 100 t passes through.
+  expect_equal(value_of(2656, "import"), 100)
+  expect_equal(value_of(2656, "export"), 100)
+  # Onions import and export the same 5,000 t, so nothing is cut.
+  expect_equal(value_of(2602, "import"), 5000)
+  expect_equal(value_of(2602, "export"), 5000)
+  # Rice, a net importer, is exactly what `"net_import"` creates.
+  expect_equal(
+    dplyr::filter(result, item_cbs_code == 2807),
+    whep:::.cbs_trade_recovery_rows(
+      .recovery_cbs(),
+      .recovery_trade(),
+      years = 2010,
+      method = "net_import"
+    )
+  )
+  # The other exclusions hold under either method.
+  expect_setequal(unique(result$item_cbs_code), c(2807, 2656, 2602))
+})
+
+test_that("a key that only exports is never created", {
+  # Nothing to pass through: with no import the capped export is zero, and a
+  # row made of zeros is not a row.
+  trade <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2112, "export", 5000
+  )
+
+  for (method in c("pass_through", "net_import")) {
+    expect_equal(
+      nrow(whep:::.cbs_trade_recovery_rows(
+        .recovery_cbs(),
+        trade,
+        years = 2010,
+        method = method
+      )),
+      0L
+    )
+  }
+})
+
+test_that("a passed-through row balances with no supply of its own", {
+  # End to end through `.fix_cbs()`: the capped row closes the identity on
+  # its own terms, so the cascade invents neither production nor a stock
+  # draw to cover the export the record carries beyond the import.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod", "A",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod", "A"
+  )
+  attr(raw, ".years") <- 2010L
+  attr(raw, ".fao_trade") <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2633, "import", 132832,
+    2010, 200L, 2633, "export", 155467
+  )
+
+  cocoa <- suppressMessages(whep:::.fix_cbs(raw)) |>
+    dplyr::filter(item_cbs_code == 2633)
+  skipped <- whep:::.fix_cbs(raw, trade_recovery = "net_import") |>
+    dplyr::filter(item_cbs_code == 2633)
+
+  expect_equal(nrow(skipped), 0L)
+  expect_setequal(cocoa$element, c("import", "export"))
+  expect_equal(cocoa$value, c(132832, 132832))
+  expect_equal(unique(cocoa$source), "FAOSTAT_trade")
 })
 
 test_that(".cbs_trade_recovery_rows labels rows from the right vocabulary", {
