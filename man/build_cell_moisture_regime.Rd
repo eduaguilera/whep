@@ -3,6 +3,14 @@
 \name{build_cell_moisture_regime}
 \alias{build_cell_moisture_regime}
 \title{Build the IPCC 2019 wet/dry moisture regime of WHEP's crop land.}
+\source{
+IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
+Greenhouse Gas Inventories, Volume 4: Chapter 3, Figure 3A.5.2 (p. 3.48);
+Chapter 11, Table 11.1, footnote 4 (p. 11.13).
+
+CRU TS version 4.09 (files \verb{cru_ts4.09.1901.2024.<var>.dat.nc}),
+Climatic Research Unit, University of East Anglia.
+}
 \usage{
 build_cell_moisture_regime(
   years = NULL,
@@ -78,10 +86,128 @@ cause; its \code{diagnosis} field lists every case.
 }
 \description{
 Classify each cell, polity, commodity balance item, water regime and year
-of WHEP's own crop land use into the IPCC 2019 Tier 1 wet or dry climate,
-from CRU TS climate and, on irrigated land, the LPJmL irrigation depth of
-the row's crops weighted by WHEP's own irrigated hectares.
+of WHEP's own crop land use as IPCC 2019 wet or dry, the classes the Tier 1
+managed-soil factors are keyed on.
+
+A zone is tropical where the mean annual temperature exceeds 18 degC and
+there are at most 7 frost days per year (IPCC 2019 Refinement, Volume 4,
+Chapter 3, Figure 3A.5.2, p. 3.48). A tropical row is wet where its annual
+water exceeds 1000 mm; any other row is wet where its annual water divided
+by potential evapotranspiration (PET) exceeds 1; every other row is dry.
+Both tests are strict, so a value of exactly 1 or exactly 1000 mm is dry
+(Volume 4, Chapter 11, Table 11.1, footnote 4, p. 11.13). Footnote 4 bases
+the disaggregation on long-term averages, so by default the inputs are
+averaged over the 30 years ending in each year before they are classified.
+
+The water term is precipitation plus, on irrigated rows, the irrigation
+depth of the row's crops (\code{water = "precip_irrig"}, the default), or
+precipitation alone (\code{water = "precip"}). Rainfed rows get no irrigation.
 }
+\details{
+Inputs:
+\itemize{
+\item Climate comes from CRU TS: annual mean temperature, precipitation, PET
+and ground-frost days. CRU ships PET as a mean daily rate in mm per day,
+which is multiplied by the days of each month and summed over the year.
+CRU's frost count is synthetic: CRU derives it from the gridded minimum
+temperature. Years before the CRU record (1901) hold the 1901-1930
+climatology, and years after it hold the climatology of its last 30 years.
+\item Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
+the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
+water on its rainfed rice stand is not counted: rainfed rows get none.
+}
+}
+\section{Irrigation depth stamps}{
+
+\code{method_irrig_depth} holds the least direct method over the window years
+of the row's irrigation record, one of:
+\itemize{
+\item \code{lpjml_airrig_stand}: the item's own LPJmL crop has an irrigated stand
+in the cell.
+\item \code{lpjml_crop_proxy}: another named LPJmL crop stands in for the item, as
+mapped in \code{regime_yield_crop_mapping} (fodder crops, for example).
+\item \code{lpjml_others_proxy}: the item sits on LPJmL's composite "others" stand
+of minor crops.
+\item \code{lpjml_landuse_vintage}: WHEP irrigates the crop in a cell of the LPJmL
+grid where the run has no irrigated stand of it, because the run's
+land-use forcing predates WHEP's current land use. The depth is the
+crop's mean over the polity's cells that have the stand, weighted by
+WHEP's irrigated hectares.
+\item \code{no_lpjml_cell}: the same fill for a cell outside the LPJmL grid.
+\item \code{lpjml_landuse_vintage_world_mean} and \code{no_lpjml_cell_world_mean}: the
+two fills above where the polity has no such stand that year, so the
+world's mean over the cells that have it is used.
+\item \code{rainfed_regime}: a rainfed row, zero by definition.
+\item \code{NA}: \code{water = "precip"}, where there is no irrigation term.
+}
+
+A stamp carries two optional additions. The suffix \verb{_recycled_climate}
+follows any of the seven LPJmL-derived methods above when a window year
+precedes 1901, because LPJmL recycles the 1901-1930 weather before its
+forcing starts. The field \verb{;outside_run_<n>of<m>_<fill>} follows it when
+\code{n} of the window's \code{m} years lie outside the LPJmL run: those years take
+the mean of the series' own window years inside the run (\verb{<fill>} is
+\code{series_mean}) or, where it has none, its country's mean for the balance
+item (\code{country_mean}).
+}
+
+\section{Moisture regime stamps}{
+
+\code{method_moisture_regime} joins these fields with \verb{;}, in this order:
+\itemize{
+\item \code{ipcc2019_wet_dry}: the rule.
+\item The window: \code{annual}, \code{trailing_30} or \verb{normal_<first>_<last>}.
+\item The water term: \code{precip} or \code{precip_irrig}.
+\item Optional \verb{climatology_<first>_<last>_<n>of<m>}: \code{n} of the window's \code{m}
+years lie outside the CRU record and took the held climatology of the
+years \verb{<first>} to \verb{<last>}.
+\item Optional \verb{irrig_years_<n>of<m>}: an irrigated row whose land is
+irrigated in \code{n} of the window's \code{m} years. Its irrigation is the mean of
+those \code{n} years and its climate the mean of all \code{m}.
+\item Optional, on an unclassified row (\code{moisture_regime} is \code{NA}):
+\verb{missing=<col>[+<col>...]}, the inputs whose window mean is unavailable,
+and \code{pet_not_positive}, a window-mean PET of zero. Nothing is
+zero-filled.
+}
+}
+
+\section{Errors}{
+
+The function aborts, with these condition classes, when:
+\itemize{
+\item \code{whep_moisture_regime_years}: \code{years} is \code{NULL}, empty or has a missing
+value.
+\item \code{whep_moisture_regime_config}: \code{config} has an unknown entry, or
+\code{max_rows} is not one positive number.
+\item \code{whep_moisture_regime_period}: \code{normal_period} is not a run of
+consecutive whole years.
+\item \code{whep_moisture_regime_columns}, \code{whep_moisture_regime_empty},
+\code{whep_moisture_regime_key}, \code{whep_moisture_regime_climate}: an input
+table lacks a required column, has no rows, has a duplicated or missing
+key, or carries more than one climate for a cell-year.
+\item \code{whep_moisture_regime_domain}: an input holds a negative precipitation,
+PET, frost count or irrigation depth, more than 366 frost days, a
+\code{water_regime} other than \code{"rainfed"} or \code{"irrigated"}, or irrigation on
+a rainfed row.
+\item \code{whep_moisture_regime_lpjml_grid}: \code{data$crop_depth} has stand gaps but
+no \code{data$lpjml_grid} is supplied.
+\item \code{whep_moisture_regime_stand_mapping}: an irrigated production item has
+no LPJmL crop band.
+\item \code{whep_moisture_regime_stand_no_mean}: a crop has no irrigated LPJmL
+stand anywhere that year, so there is no depth to fill from.
+\item \code{whep_moisture_regime_outside_run}: an irrigated series-year outside the
+LPJmL run has no depth of its own or of its country to fill from.
+\item \code{whep_absent_input}: precipitation, PET, the irrigated hectares or the
+irrigation depth of the irrigated rows is absent, missing or all zero.
+\item \verb{whep_lpjml_irrig_depth_*}: the LPJmL irrigation depth layer rejects the
+regime areas, the run or its output cubes, or the pinned layer.
+}
+
+Messages of class \code{whep_moisture_regime_unclassified} and
+\code{whep_moisture_regime_area_years} report rows left without a regime and
+window years the regime areas do not cover.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in
