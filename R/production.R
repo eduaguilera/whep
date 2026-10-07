@@ -412,6 +412,13 @@ get_primary_residues <- function(example = FALSE) {
 # The legacy recovery rate behind each (item_prod, area_code) pair the pin
 # carries. The pin names its crops, so the production item is resolved through
 # `add_item_prod_code()` and everything after it joins on codes.
+#
+# Keyed on `regions_full$region_HANPP` ON PURPOSE, and it must stay so. That
+# membership files Southeast Asia, Russia and the Caucasus under the wrong
+# Wirsenius region (whep#1430), but it is the membership the predecessor
+# WROTE the pin with, so it is the only one that inverts it exactly. Correcting
+# the membership belongs to the forward recovery rate and residue ratio, never
+# to this undo.
 .residue_pin_recovery_rates <- function(dt) {
   categories <- whep::items_prod_full |>
     dplyr::distinct(
