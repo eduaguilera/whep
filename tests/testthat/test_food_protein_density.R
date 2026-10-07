@@ -92,8 +92,9 @@ testthat::test_that("wheat protein density agrees with FAOSTAT FBS", {
 testthat::test_that("the items outside the FBS band are the known set", {
   # Pinned, not tolerated: this is the triage surface for the rest of the
   # nourishment axis, and it is what makes the wheat fix a measured change
-  # rather than a lucky one. Nuts 2551 is whep#797 (an FBS basket of ten
-  # species reached through Almonds); rice 2807 is a milled density over a
+  # rather than a lucky one. Nuts 2551 is whep#797: its shell no longer
+  # counts as food (4.3x down to 1.7x), but it is an FBS basket of ten species
+  # reached through Almonds; rice 2807 is a milled density over a
   # mass already converted to milled equivalent, settled in #751/#755, so its
   # 1.54 here is the density alone and not the axis error; the meat, fish and
   # root entries are open in #500. Olives 2563 left it in #1096. A row leaving
@@ -202,4 +203,27 @@ testthat::test_that("the cereals still on agronomic nitrogen are known", {
     ) |>
     dplyr::pull(.data$Name_biomass)
   testthat::expect_setequal(agronomic, c("Oats", "Maize", "Rice"))
+})
+
+testthat::test_that("tree nuts carry in-shell protein, not kernel protein", {
+  # whep#797: FBS item 2551 `Nuts and products` is a quantity in shell, while
+  # the `Almonds` row it reaches carries kernel protein (20 g/100 g) with an
+  # `Edible_portion` of 1, so the shell counted as food: 200 g/kg against an
+  # FBS density of 46.6, 4.3x. FAO's own food-composition factors for the
+  # FBS (Food Balance Sheets: A Handbook, 2001, Annex I) give almonds 8.0 g of
+  # protein per 100 g in shell and 20.0 shelled, so the edible fraction of the
+  # in-shell mass is 8.0 / 20.0 = 0.4. Walnut and hazelnut take the same
+  # ratio from the same table (6.4 / 14.3 and 6.0 / 13.0).
+  nuts <- dplyr::filter(.fpd_paired(), .data$item_cbs_code == 2551L)
+  testthat::expect_equal(nrow(nuts), 1L)
+  testthat::expect_equal(nuts$whep_protein_g_kgfm, 80)
+  testthat::expect_lt(nuts$whep_protein_g_kgfm / nuts$fbs_protein_g_kgfm, 2)
+  edible <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass %in% c("Almonds", "Walnut", "Hazelnut")) |>
+    dplyr::arrange(.data$Name_biomass)
+  testthat::expect_equal(
+    edible$Edible_portion,
+    c(8.0 / 20.0, 6.0 / 13.0, 6.4 / 14.3),
+    tolerance = 1e-4
+  )
 })

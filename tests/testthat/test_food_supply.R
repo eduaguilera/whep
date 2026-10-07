@@ -323,7 +323,9 @@ testthat::test_that("the packaged coefficients give the shipped protein", {
   # the workbook's own wheat-flour figure, 93 g of protein per kg.
   testthat::expect_equal(protein_of(2511), 0.093) # Wheat, flour basis
   testthat::expect_equal(protein_of(2807), 0.0743119266055046) # Rice, milled
-  testthat::expect_equal(protein_of(2551), 0.2) # Nuts -> Almonds (#500)
+  # Nuts were 0.2 until whep#797: almond kernel protein on an in-shell
+  # quantity. Almonds now carry FAO's in-shell edible fraction, 0.4.
+  testthat::expect_equal(protein_of(2551), 0.08) # Nuts -> Almonds, in shell
   testthat::expect_equal(protein_of(2848), 0.033) # Milk excl. Butter
 })
 
