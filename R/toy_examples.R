@@ -1996,6 +1996,8 @@
 # `tests/testthat/fixtures/country_grid_example_cells.csv`. The dairy herd is
 # run at an illustrative 5 kg of milk per cow and day (assumed, not a Kenyan
 # measurement): without a milk yield a dairy row aborts (whep#1439).
+# Since whep#1127 the dairy heads are milking cows rather than six equal
+# cohorts.
 .example_gridded_livestock_emissions <- function() {
   tibble::tribble(
     ~year, ~area_code,  ~lon,  ~lat,             ~species,  ~heads,
@@ -2004,11 +2006,11 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    6.867270819, 1.770933341, 0.08048958912,
+    7.049756616, 1.817992819, 0.08262846017,
     1, 0.86768667, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    4.578180546, 0.790092079, 0.05365972608,
+    4.699837744, 0.8110874039, 0.05508564011,
     1, 0.86768667, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
