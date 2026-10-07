@@ -833,6 +833,10 @@
     "Names the polities the recorded cell-support mapping keyed in the
      year-aware level-0 grid, and the code each took (whep#1318), for the
      message. It reaches no value.",
+    ".level0_inform_handed", "summarise", "polity_code", 1L, "diagnostic",
+    "Sums, for the message, the land each unkeyed polity handed to the cell's
+     present-day holders in the year-aware level-0 grid (whep#1318), to name
+     the largest. It reaches no value.",
     ".level0_fold_epochs", "summarise",
     "lon, lat, area_code, start_year, end_year", 1L, "single_year",
     "`.carbon_fold_area_code()`'s DA-23 fold with the epoch in the key
