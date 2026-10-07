@@ -2098,7 +2098,9 @@ test_that(".assemble_production_raw renames the live-animal units", {
     3, 9, 3,
     # A crop row the livestock filter must not pick up.
     2010L, "Spain", 203L, "Wheat", "15", NA, NA, "t_ha", "FAO", 10, 20, 2
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(.assemble_production_raw(yield_all))
   live <- result |>
@@ -2119,13 +2121,15 @@ test_that(".assemble_production_raw renames the live-animal units", {
 
 test_that("a stock takes its source from a product with reported tonnage", {
   # Cattle meat's tonnage is missing and was imputed; milk's was reported.
-  # The head count is the same reported stock under both, so it must not take
-  # the imputation's label just because that product sorts first (whep#1436).
+  # Only milk speaks for the stock: the imputed row must neither lend it the
+  # imputation's label because it sorts first nor pull its count into the
+  # mean -- its `fu` can be another area label's copy of the herd
+  # (whep#1436).
   yield_all <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
     ~live_anim_code, ~unit, ~source, ~t, ~fu2, ~t2, ~yield,
     2010L, "Spain", 203L, "Meat, cattle", "867", "Cattle", "866", "t_LU",
-    "imputed_yield", NA, 5, 10, 2,
+    "imputed_yield", NA, 9, 10, 2,
     2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU",
     "FAOSTAT_prod", 15, 5, 15, 3
   )
@@ -2135,6 +2139,22 @@ test_that("a stock takes its source from a product with reported tonnage", {
 
   expect_equal(stock$value, 5)
   expect_equal(stock$source, "FAOSTAT_prod")
+})
+
+test_that(".assemble_production_raw refuses a frame with no reported tonnage", {
+  # Without `t` there is no telling a reported product from an imputed one,
+  # and `t` would silently resolve to `base::t()`.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU",
+    "FAOSTAT_prod", 5, 15, 3
+  )
+
+  expect_error(
+    suppressMessages(whep:::.assemble_production_raw(yield_all)),
+    "reported tonnage"
+  )
 })
 
 # -- calculate_raw_yields source provenance ------------------------------------
@@ -2361,7 +2381,9 @@ test_that(".assemble_production_raw sends each flag to its own unit", {
   yield_all <- tibble::tribble(
     ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~live_anim,    ~live_anim_code, ~unit,  ~source,        ~fu2, ~t2, ~yield, ~flag_fu, ~flag_t,
     2019L, "Spain", 203L,       "Wheat",    "15",            NA_character_, NA_character_,   "t_ha", "FAOSTAT_prod", 1e6,  5e6, 5,      "A",      "E"
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
   flag_of <- function(u) {
@@ -2508,7 +2530,9 @@ test_that(".assemble_production_raw keeps a stock with no product tonnage", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   # The same layers stock, plus an asses stock no product row can carry.
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
@@ -2546,7 +2570,9 @@ test_that(".assemble_production_raw restores no aggregate live-animal code", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2573,7 +2599,9 @@ test_that(".assemble_production_raw reports a stock it cannot name", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2601,7 +2629,9 @@ test_that("breeding swine reach production now that 1051 is named", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2732,7 +2762,9 @@ test_that("flax fibre 771 reaches assembled production with a CBS item", {
     2010L, "France", 68L, "Flax, raw or retted", "771", NA_character_,
     NA_character_,
     "t_ha", "FAOSTAT_prod", NA, 50, NA
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
 

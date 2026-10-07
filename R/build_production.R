@@ -2592,8 +2592,12 @@ build_primary_production <- function(
 
   yield_all <- yield_all |>
     .ensure_fao_flag("flag_t") |>
-    .ensure_fao_flag("flag_fu") |>
-    ensure_columns(tibble::tibble(t = double()))
+    .ensure_fao_flag("flag_fu")
+  if (!rlang::has_name(yield_all, "t")) {
+    cli::cli_abort(
+      "{.arg yield_all} must carry the reported tonnage column {.field t}."
+    )
+  }
 
   # Each output row takes the flag of the quantity it is: the `ha` row gets
   # "Area harvested"'s flag, the `t` row gets "Production"'s. The yield rows get
@@ -2654,15 +2658,18 @@ build_primary_production <- function(
   # No flag: the stock these rows report is `.finalise_livestock()`'s LU/head
   # conversion averaged over every product of the animal, so it is not a figure
   # FAOSTAT published for any one of them.
+  #
+  # Only products whose tonnage was reported speak for the stock. A product
+  # whose tonnage `.impute_missing_values()` filled carries the imputation's
+  # label, which says nothing about the head count, and its `fu` can be another
+  # label's copy of the herd (whep#1436). An animal with no reported product
+  # tonnage at all is `.restore_unproduced_stocks()`'s case, read from the
+  # stocks themselves.
   live_anim_df <- yield_all |>
-    dplyr::filter(unit %in% c("t_LU", "t_head")) |>
+    dplyr::filter(unit %in% c("t_LU", "t_head"), !is.na(t)) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
-      # The stock is reported, not imputed, so its label comes from a product
-      # whose tonnage was reported too: a product whose tonnage
-      # `.impute_missing_values()` filled carries the imputation's label, which
-      # says nothing about the head count (whep#1436).
-      source = dplyr::coalesce(source[!is.na(t)][1L], source[1L]),
+      source = source[1L],
       fao_flag = NA_character_,
       .by = c(
         year,
