@@ -218,7 +218,10 @@ testthat::test_that("add_manure_bedding refuses a malformed supply", {
     year = 2020L,
     territory = "203"
   ) |>
-    whep::calculate_residue_destinies(bedding_fraction = bedding_fraction)
+    whep::calculate_residue_destinies(
+      bedding = "fraction",
+      bedding_fraction = bedding_fraction
+    )
 }
 
 testthat::test_that("the bedding supply uses the bio_coefs residue coefs", {

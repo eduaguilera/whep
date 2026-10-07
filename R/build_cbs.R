@@ -2461,9 +2461,17 @@ build_processing_coefs <- function(
 # Firewood is recovered like the others but is fuel, never feed, so its whole
 # recovered mass is `other_uses`. Keyed on the residue item CODE rather than
 # its name, unlike the name test this replaces.
-.residue_cbs_elements <- function(res, bedding_fraction = 0) {
+.residue_cbs_elements <- function(
+  res,
+  bedding = "wirsenius",
+  bedding_fraction = 0
+) {
   feed_items <- c(2105L, 2106L) # Straw, Other crop residues
-  split <- .residue_recovered_split(res, bedding_fraction = bedding_fraction)
+  split <- .residue_recovered_split(
+    res,
+    bedding = bedding,
+    bedding_fraction = bedding_fraction
+  )
   base <- dplyr::select(split, -"value", -"recovered", -"feed_dm_t")
   is_feed_item <- as.integer(split$item_cbs_code_residue) %in% feed_items
   dplyr::bind_rows(
@@ -2505,6 +2513,7 @@ build_processing_coefs <- function(
   res,
   warn = TRUE,
   method_destiny = "recovery_regional",
+  bedding = "wirsenius",
   bedding_fraction = 0
 ) {
   res <- dplyr::mutate(
@@ -2532,6 +2541,7 @@ build_processing_coefs <- function(
     ) |>
     calculate_residue_destinies(
       method = method_destiny,
+      bedding = bedding,
       bedding_fraction = bedding_fraction
     ) |>
     dplyr::summarise(
