@@ -811,6 +811,21 @@ test_that("a crop with hectares but no tonnage is imputed, not dropped", {
   )
 })
 
+test_that(".impute_missing_values keeps a reconstruction source", {
+  # Only the `FAOSTAT_prod` claim is false on an imputed tonnage; a
+  # reconstruction label already says the row is WHEP's own (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~sumprod_cbs_ratio, ~source,        ~Multi_type,   ~source_yield_c,
+    2011L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA, 10,  3,        3,          30,     1,               1,                  "EuropeAgriDB", NA_character_, "Original",
+    2011L, "Spain", 203L,       "Barley",   "44",            "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", NA, 10,  3,        3,          30,     1,               1,                  "FAOSTAT_prod", NA_character_, "Original"
+  )
+
+  result <- whep:::.impute_missing_values(df)
+
+  expect_equal(result$t2, c(30, 30))
+  expect_equal(result$source, c("EuropeAgriDB", "imputed_yield"))
+})
+
 test_that(".compute_cbs_ratios handles duplicate year rows without warning", {
   df <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~group, ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source, ~Multi_type,
@@ -2101,6 +2116,26 @@ test_that(".assemble_production_raw renames the live-animal units", {
   )
 })
 
+
+test_that("a stock takes its source from a product with reported tonnage", {
+  # Cattle meat's tonnage is missing and was imputed; milk's was reported.
+  # The head count is the same reported stock under both, so it must not take
+  # the imputation's label just because that product sorts first (whep#1436).
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~t, ~fu2, ~t2, ~yield,
+    2010L, "Spain", 203L, "Meat, cattle", "867", "Cattle", "866", "t_LU",
+    "imputed_yield", NA, 5, 10, 2,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU",
+    "FAOSTAT_prod", 15, 5, 15, 3
+  )
+
+  result <- suppressMessages(.assemble_production_raw(yield_all))
+  stock <- result |> dplyr::filter(unit == "LU")
+
+  expect_equal(stock$value, 5)
+  expect_equal(stock$source, "FAOSTAT_prod")
+})
 
 # -- calculate_raw_yields source provenance ------------------------------------
 
