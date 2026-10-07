@@ -1250,7 +1250,7 @@ test_that(".extend_historical stops warning once a federation is bridged", {
 })
 
 test_that("a historical land table does not swallow federation_land", {
-  # whep#102: under `land_method = "historical_polity"` the seam was handed a
+  # whep#102: under the historical_polity land method the seam was handed a
   # ready-made land table, and `federation_land` was then silently ignored, so
   # a federation the historical table lacks stayed un-back-cast whatever the
   # caller asked for. Ruritania (99) is in the historical table; Czechoslovakia
