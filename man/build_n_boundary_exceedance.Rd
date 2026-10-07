@@ -23,6 +23,7 @@ build_n_boundary_exceedance(
   grassland = list(classes = NULL, extensive_budget = NULL, critical_ara = NULL,
     critical_igl = NULL),
   negative_critical = c("keep", "clamp"),
+  regime_comparison = c("netted", "separate"),
   binding = NULL,
   example = FALSE
 )
@@ -99,6 +100,16 @@ value as it is, as the source does. \code{"clamp"} sets it to zero (a zero
 allowance) before the cell comparison. The choice is stamped in every
 output row as \code{negative_critical}; see the Negative critical surplus
 section.}
+
+\item{regime_comparison}{Treatment of a balance split into rainfed and
+irrigated rows (\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}'s \code{methods$regime}).
+\code{"netted"} (default) sums the two regimes of a cell before the
+comparison, so irrigated excess is offset by rainfed headroom in the same
+cell. \code{"separate"} compares each regime as its own part of the cell (or
+of the grassland-split component), so it is not offset. It needs a
+\code{water_regime} column in \code{surplus} and aborts without one. The choice is
+stamped in every output row as \code{regime_comparison}; see the Rainfed and
+irrigated parts section.}
 
 \item{binding}{Optional \code{\link[=build_critical_n_binding]{build_critical_n_binding()}} output for the same
 land-use scope. When supplied, its per-cell \code{binding_threshold} and
@@ -262,6 +273,34 @@ one by one, so with the 2010 classes the managed comparison under
 A binding threshold names the impact that sets a critical surplus, so it
 describes the managed allowance only; the extensive allowance is a 2010
 level, not a threshold, and its grid rows carry no binding label.
+}
+
+\section{Rainfed and irrigated parts}{
+
+Under \code{regime_comparison = "separate"} each comparison unit (the cell, or
+under the grassland split its managed and its extensive component) is
+divided into a rainfed and an irrigated part. Each part gets a share of
+the unit allowance equal to its share of the unit's \code{area_ha}, summed over
+its rows. The deposited critical surface has one rate per hectare and no
+regime axis, so this keeps the rate the same on both regimes. It also
+keeps every unit allowance, actual pressure and signed margin exactly as
+under \code{"netted"}. The unit overshoot becomes the sum of the part
+overshoots, \verb{sum(pmax(part actual - part allowance, 0))}, which is never
+below the netted \code{pmax(actual - allowance, 0)}. The areas are WHEP's
+harvested hectares. Irrigated land is more often multi-cropped, so
+harvested area can overstate the irrigated share of physical land. This is
+a declared assumption with no published precedent. A unit with no
+harvested area gives its whole allowance to the one part that carries
+pressure, which is the netted comparison. It aborts
+(\code{whep_nbx_regime_no_area}) when both parts do. Crop rows share the
+allowance, margin and overshoot of their own part. They keep their
+\code{water_regime}, plus that part's \code{regime_actual_n_t},
+\code{regime_critical_n_t} and \code{regime_positive_overshoot_n_t}. Cell and grid
+rows add the per-cell totals \code{rainfed_actual_n_t},
+\code{rainfed_critical_n_t}, \code{rainfed_positive_overshoot_n_t} and their
+\verb{irrigated_*} counterparts, summed over the parts that carry pressure
+rows. Under \code{"netted"} all of these are \code{NA}, so the schema does not
+depend on the choice.
 }
 
 \examples{

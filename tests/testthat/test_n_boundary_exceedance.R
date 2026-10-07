@@ -513,21 +513,39 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
     golden,
     tolerance = 1e-12
   )
-  stamps <- c("method_grassland_split", "grassland_split", "negative_critical")
+  # The goldens also predate the rainfed/irrigated comparison (#1345): its
+  # columns are extra, empty under the default "netted", which is stamped.
+  stamps <- c(
+    "method_grassland_split",
+    "grassland_split",
+    "negative_critical",
+    "regime_comparison"
+  )
   critical_cols <- c(
     "binding_threshold",
     "binding_matches_mi",
     "source_critical_kgn_ha",
     "negative_critical"
   )
+  regime_cols <- c(whep:::.nbx_regime_output_cols(), "regime_comparison")
   expected_extra <- switch(
     grain,
-    cell = c(whep:::.nbx_split_output_cols(), "grassland_split", critical_cols),
+    cell = c(
+      whep:::.nbx_split_output_cols(),
+      "grassland_split",
+      critical_cols,
+      regime_cols
+    ),
     grid = c(
       whep:::.nbx_split_output_cols(),
       "grassland_split",
       "boundary_component",
-      critical_cols
+      critical_cols,
+      regime_cols,
+      "water_regime",
+      "regime_actual_n_t",
+      "regime_critical_n_t",
+      "regime_positive_overshoot_n_t"
     ),
     agg = stamps
   )
@@ -536,6 +554,7 @@ testthat::test_that("cell-first input overshoot never falls below per-crop", {
   testthat::expect_true(all(out$method_grassland_split == "none"))
   testthat::expect_true(all(out$grassland_split == "none"))
   testthat::expect_true(all(out$negative_critical == "keep"))
+  testthat::expect_true(all(out$regime_comparison == "netted"))
   if (grain != "agg") {
     testthat::expect_identical(out$source_critical_kgn_ha, out$critical_kgn_ha)
   }

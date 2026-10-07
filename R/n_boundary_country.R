@@ -27,7 +27,10 @@
 #' The comparison unit is the cell, or, under the grassland split
 #' (`land_use = "all"`, `grassland_split = "image_density"`), the managed and
 #' the extensive-grassland component of a cell, which are compared with their
-#' own allowances and never net against each other. Deficit units never offset
+#' own allowances and never net against each other. Under
+#' `regime_comparison = "separate"` the unit is the rainfed or the irrigated
+#' part of the cell or component, and `surplus` must keep its `water_regime`
+#' rows, which are then joined regime by regime. Deficit units never offset
 #' excess elsewhere. Two country quantities follow and both use the country's
 #' **own** crop surplus (`actual_n_t`), never a whole-cell surplus, which sums
 #' every polity in a shared border cell and would count that cell once per
@@ -125,8 +128,8 @@
 #'
 #' @param exceedance A [build_n_boundary_exceedance()] result at
 #'   `resolution = "grid"` with `metric = "surplus"`, possibly bound over
-#'   several years. Its `negative_critical`, `land_use` and `grassland_split`
-#'   stamps must each be constant. It may carry the grassland split.
+#'   several years. Its `negative_critical`, `land_use`, `grassland_split`
+#'   and `regime_comparison` stamps must each be constant. It may carry the grassland split.
 #' @param surplus The [calculate_n_surplus()] output the grid was computed
 #'   from, carrying `lon`, `lat`, `area_code`, `item_cbs_code`, `year` and
 #'   `n_input_std_t`. Every crop row of `exceedance` must find exactly one
@@ -163,8 +166,8 @@
 #'   `exceedance_share_of_positive_surplus` or `excess_share_of_inputs` lies
 #'   outside `[0, 1]` (beyond a rounding tolerance of `1e-9`).
 #' * `nourish`, `sjos_class` when `nourishment` is given.
-#' * `negative_critical`, `land_use`, `grassland_split`, `beyond_share_cut`:
-#'   the run stamps.
+#' * `negative_critical`, `land_use`, `grassland_split`,
+#'   `regime_comparison`, `beyond_share_cut`: the run stamps.
 #' * the polity columns below.
 #'
 #' `diagnostics`, one row per `year`, world level: `n_countries`,
@@ -201,7 +204,7 @@ build_n_boundary_country <- function(
     return(.example_n_boundary_country())
   }
   .nbc_check_cut(beyond_share_cut)
-  surplus <- .nbc_collapse_regimes(surplus)
+  surplus <- .nbc_collapse_regimes(surplus, exceedance)
   crop <- .nbc_crop_rows(exceedance, surplus)
   country <- .nbc_country(crop, ag_land, beyond_share_cut) |>
     .nbc_add_class(nourishment)
@@ -247,13 +250,17 @@ build_n_boundary_country <- function(
     "managed_positive_overshoot_n_t",
     "extensive_positive_overshoot_n_t",
     "boundary_component",
+    "water_regime",
+    "regime_actual_n_t",
+    "regime_positive_overshoot_n_t",
     "coverage_state",
     "attribution_record_type",
     "attribution_status",
     "metric",
     "land_use",
     "grassland_split",
-    "negative_critical"
+    "negative_critical",
+    "regime_comparison"
   )
 }
 
@@ -295,25 +302,27 @@ build_n_boundary_country <- function(
 }
 
 # The comparison unit of a row: its cell, or under the grassland split its
-# managed or extensive component, with that unit's surplus and overshoot.
-# The unit's state, not the crop's attributed exceedance, decides membership
-# of the country's positive and exceeding surplus.
+# managed or extensive component, or under `regime_comparison = "separate"`
+# the rainfed or irrigated part of either, with that unit's surplus and
+# overshoot. The unit's state, not the crop's attributed exceedance, decides
+# membership of the country's positive and exceeding surplus.
 .nbc_add_units <- function(x) {
+  part <- !is.na(x$water_regime)
   dplyr::mutate(
     x,
-    unit_actual_n_t = dplyr::if_else(
-      is.na(.data$boundary_component),
-      .data$cell_actual_n_t,
-      .nbx_by_component(
+    unit_actual_n_t = dplyr::case_when(
+      part ~ .data$regime_actual_n_t,
+      is.na(.data$boundary_component) ~ .data$cell_actual_n_t,
+      .default = .nbx_by_component(
         .data$boundary_component,
         .data$managed_actual_n_t,
         .data$extensive_actual_n_t
       )
     ),
-    unit_positive_overshoot_n_t = dplyr::if_else(
-      is.na(.data$boundary_component),
-      .data$cell_positive_overshoot_n_t,
-      .nbx_by_component(
+    unit_positive_overshoot_n_t = dplyr::case_when(
+      part ~ .data$regime_positive_overshoot_n_t,
+      is.na(.data$boundary_component) ~ .data$cell_positive_overshoot_n_t,
+      .default = .nbx_by_component(
         .data$boundary_component,
         .data$managed_positive_overshoot_n_t,
         .data$extensive_positive_overshoot_n_t
@@ -336,7 +345,7 @@ build_n_boundary_country <- function(
     )
   }
   purrr::walk(
-    c("negative_critical", "land_use", "grassland_split"),
+    c("negative_critical", "land_use", "grassland_split", "regime_comparison"),
     \(col) {
       found <- unique(exceedance[[col]])
       if (length(found) != 1L) {
@@ -356,14 +365,19 @@ build_n_boundary_country <- function(
 
 # A balance split into rainfed and irrigated rows (build_nitrogen_balance()'s
 # `methods$regime`, whep#1233) carries two surplus rows per grid, crop and year
-# key. build_n_boundary_exceedance() sums them back to one row before it
-# compares a cell with its critical surplus, so the input read here is summed
-# the same way; the split conserves `n_input_std_t`, so the sum is the unsplit
-# input. Only the key and `n_input_std_t` are read from `surplus`. A key
-# repeated within one regime is left for `.nbc_join_inputs()` to refuse rather
-# than being summed away.
-.nbc_collapse_regimes <- function(surplus) {
-  if (!rlang::has_name(surplus, "water_regime")) {
+# key. Under `regime_comparison = "netted"` build_n_boundary_exceedance() sums
+# them back to one row before it compares a cell with its critical surplus, so
+# the input read here is summed the same way; the split conserves
+# `n_input_std_t`, so the sum is the unsplit input. Under "separate" the grid
+# keeps one row per regime (whep#1345), so the inputs stay split and join
+# regime by regime (.nbc_input_key()). Only the key and `n_input_std_t` are
+# read from `surplus`. A key repeated within one regime is left for
+# `.nbc_join_inputs()` to refuse rather than being summed away.
+.nbc_collapse_regimes <- function(surplus, exceedance) {
+  if (
+    !rlang::has_name(surplus, "water_regime") ||
+      .nbc_separate_regimes(exceedance)
+  ) {
     return(surplus)
   }
   key <- .nbc_input_key()
@@ -382,27 +396,30 @@ build_n_boundary_country <- function(
     )
 }
 
-.nbc_input_key <- function() {
-  c("lon", "lat", "area_code", "item_cbs_code", "year")
+.nbc_input_key <- function(separate = FALSE) {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  if (separate) c(key, "water_regime") else key
+}
+
+.nbc_separate_regimes <- function(exceedance) {
+  identical(unique(exceedance$regime_comparison), "separate")
 }
 
 # A crop row that finds no input row means `surplus` is not the table the grid
 # was computed from; an input summed as zero there would understate the
 # denominator without a trace, so it aborts.
 .nbc_join_inputs <- function(crop, surplus) {
-  key <- .nbc_input_key()
+  key <- .nbc_input_key(.nbc_separate_regimes(crop))
+  .check_columns(surplus, key, "surplus")
   inputs <- surplus |>
     dplyr::filter(
       .data$year %in% unique(crop$year),
       !is.na(.data$item_cbs_code)
     )
-  duplicated_key <- dplyr::n_distinct(
-    inputs$lon,
-    inputs$lat,
-    inputs$area_code,
-    inputs$item_cbs_code,
-    inputs$year
-  ) <
+  duplicated_key <- nrow(dplyr::distinct(
+    inputs,
+    dplyr::across(dplyr::all_of(key))
+  )) <
     nrow(inputs)
   if (duplicated_key) {
     cli::cli_abort(
@@ -441,7 +458,8 @@ build_n_boundary_country <- function(
       "exceedance_n_t",
       "negative_critical",
       "land_use",
-      "grassland_split"
+      "grassland_split",
+      "regime_comparison"
     )
   crop |>
     dplyr::summarise(
@@ -474,6 +492,7 @@ build_n_boundary_country <- function(
       "negative_critical",
       "land_use",
       "grassland_split",
+      "regime_comparison",
       "beyond_share_cut"
     ) |>
     dplyr::arrange(.data$year, .data$area_code)
@@ -647,6 +666,7 @@ build_n_boundary_country <- function(
       .data$cell_id,
       .data$year,
       .data$boundary_component,
+      .data$water_regime,
       .keep_all = TRUE
     ) |>
     dplyr::summarise(
