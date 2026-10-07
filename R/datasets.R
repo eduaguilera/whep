@@ -406,8 +406,8 @@
 #' 40-50% for hazelnuts (median 50). Nuts now carry 80 g of protein per kg,
 #' 1.7x FBS. What remains is the basket: 2551 covers ten species and FAO's
 #' in-shell factors for them run from 1.8 (chestnuts) to 10.3 (pistachios),
-#' so one representative species cannot match it. Only the protein moves: the
-#' energy columns are not scaled by `Edible_portion`.
+#' so one representative species cannot match it (whep#1453). Only the
+#' protein moves: the energy columns are not scaled by `Edible_portion`.
 #'
 #' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
 #' every row**, upstream in the source workbook as well as here, so no
