@@ -64,21 +64,34 @@
 #' | 2019 | 8.00 | 8.07 | 0.992 |
 #'
 #' Across 1990-2019 HaNi falls 18.4% where EMEP falls 42.7%, and the shortfall
-#' summed over those cells and years is 22.6 Tg N. The worst 1990 ratios are
-#' Italy 0.386, Denmark 0.429, Ireland 0.570, Germany 0.585 and Poland 0.603.
-#' The error is therefore a **function of time**, largest exactly where and
-#' when European deposition was largest, and it compounds backwards into the
-#' pre-1990 period where EMEP offers no check at all. Anything integrating
-#' deposition over the historical period inherits a trajectory that is too
-#' flat.
+#' summed over those cells and years is 22.6 Tg N.
 #'
-#' Nothing here corrects for it: which product is right, and what shape a
-#' correction should take, is a scientific decision recorded in whep#1097 and
-#' not taken by this reader. What the code does provide is the means to express
-#' one -- a corrected field injected through [build_n_deposition()]'s `data`
-#' argument is recorded per cell in `method_deposition` rather than inheriting
-#' HaNi's name. `validation/n_deposition_emep.R` reproduces the table above and
-#' writes the full per-country, per-year ratio series.
+#' Those are whole-cell figures, and part of the level gap in them is a
+#' measurement artifact: HaNi's mass is deposition to **land** within the cell
+#' while EMEP is a density over the **whole** cell, sea included, so dividing
+#' HaNi by whole-cell area reads low in every coastal cell (ratio 0.35 in 1990
+#' over cells under half land). The **trend** does not depend on it.
+#' Restricted to the cells whose territory in [build_polycell_support()] is at
+#' least 98% of the cell (2605 cells):
+#'
+#' | year | HaNi | EMEP | HaNi / EMEP |
+#' |---|---|---|---|
+#' | 1990 | 10.6 | 14.6 | 0.727 |
+#' | 2000 | 10.4 | 11.5 | 0.901 |
+#' | 2010 | 9.71 | 9.88 | 0.982 |
+#' | 2019 | 8.61 | 8.28 | 1.04 |
+#'
+#' HaNi falls 19% and EMEP 43%. The error is therefore a **function of time**,
+#' largest exactly when European deposition was largest, and it compounds
+#' backwards into the pre-1990 period where EMEP offers no check at all.
+#'
+#' This reader returns HaNi as published. [correct_n_deposition()] applies an
+#' opt-in, year-resolved correction of the European trend toward EMEP
+#' ([read_emep_deposition()]), stamped `method_deposition = "hani_emep_trend"`
+#' on the rows it touches; whether it becomes the default, and how it is
+#' carried back before 1990, is the open decision in whep#1121.
+#' `validation/n_deposition_emep.R` reproduces both tables and writes the full
+#' per-country, per-year ratio series.
 #'
 #' The comparison product is the EMEP MSC-W chemical transport model, run in
 #' support of the Convention on Long-Range Transboundary Air Pollution:
@@ -181,7 +194,8 @@ read_n_deposition <- function(
 #'   injected through `data` keeps whatever tag it carries, and an injected
 #'   field carrying no tag is recorded as `"supplied"`. A corrected or
 #'   substituted deposition field is therefore visible in the output instead
-#'   of inheriting HaNi's name (#1097).
+#'   of inheriting HaNi's name (#1097): [correct_n_deposition()] stamps the
+#'   rows it rescales `"hani_emep_trend"`.
 #'
 #'   Rows are keyed on `area_code`. `build_polycell_support()` keys on
 #'   `polity_code` and does not derive the reporting vocabulary (DA-23), and

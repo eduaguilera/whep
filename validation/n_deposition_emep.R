@@ -40,6 +40,26 @@
 # deposition was largest, and it compounds backwards into the pre-1990 period
 # where EMEP offers no check at all.
 #
+# ## Coastal cells exaggerate the level gap, not the trend (whep#1121)
+#
+# HaNi's mass is deposition to LAND within the cell; EMEP is a density over the
+# WHOLE cell, sea included. Dividing HaNi by whole-cell area therefore reads
+# low in every coastal cell: in 1990 the ratio is 0.35 over core cells under
+# half land, 0.47 at 50-90%, 0.56 at 90-98% and 0.73 at 98% or more. The same
+# table restricted to the 2605 cells at least 98% land (territory over cell
+# area in `read_polycell_support()`, polities valid in 2000), measured
+# 2026-10-07:
+#
+#   1990   HaNi 10.6   EMEP 14.6   ratio 0.727
+#   2000   HaNi 10.4   EMEP 11.5   ratio 0.901
+#   2010   HaNi 9.71   EMEP 9.88   ratio 0.982
+#   2019   HaNi 8.61   EMEP 8.28   ratio 1.04
+#
+# HaNi falls 18.8% and EMEP 43.3%: the trend finding is unchanged, only the
+# level gap shrinks. That is why `correct_n_deposition()` corrects the trend
+# (a ratio of ratios, in which a fixed land fraction cancels) and never
+# imposes EMEP's level. The script prints both tables.
+#
 # ## Two limits that are part of the finding, not caveats to it
 #
 # 1. EMEP's domain (lon -30..90, lat 30..82) is much wider than the region EMEP
@@ -265,7 +285,22 @@ emep_core_iso3 <- c(
   build_cell_polity() |>
     dplyr::slice_max(.data$polity_frac, n = 1, by = c("lon", "lat")) |>
     dplyr::distinct(.data$lon, .data$lat, .keep_all = TRUE) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_ha")
+    dplyr::select("lon", "lat", "area_code", "cell_area_ha") |>
+    dplyr::left_join(.vd_land_share(), by = c("lon", "lat"))
+}
+
+# The share of each cell that is territory (land + inland water + ice), from
+# the polities valid in 2000 so a cell is not counted once per period. A cell
+# under ~98% territory is coastal, where a land-referenced HaNi mass and a
+# whole-cell EMEP density cannot be compared on level.
+.vd_land_share <- function() {
+  read_polycell_support() |>
+    dplyr::filter(.data$start_year <= 2000, .data$end_year >= 2000) |>
+    dplyr::summarise(
+      territory_share = sum(.data$polity_area_ha) /
+        dplyr::first(.data$cell_area_ha),
+      .by = c("lon", "lat")
+    )
 }
 
 .vd_weighted <- function(x, by) {
@@ -327,6 +362,27 @@ print(
     "emep_kgn_ha",
     "ratio",
     "gap_tg"
+  ),
+  n = Inf
+)
+
+core_interior <- dplyr::semi_join(
+  dplyr::filter(matched, .data$territory_share >= 0.98),
+  dplyr::filter(by_country, .data$emep_core),
+  by = c("area_code", "year")
+) |>
+  .vd_weighted("year") |>
+  dplyr::arrange(.data$year)
+
+cat("\n=== Same, cells at least 98% territory (no coastal artifact) ===\n")
+print(
+  dplyr::select(
+    core_interior,
+    "year",
+    "n_cells",
+    "hani_kgn_ha",
+    "emep_kgn_ha",
+    "ratio"
   ),
   n = Inf
 )
