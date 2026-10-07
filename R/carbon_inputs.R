@@ -645,7 +645,10 @@ build_carbon_inputs <- function(
 # production is the crop's national yield on its cell area -- the yield of
 # the production its carbon densities were computed from; the ratio depends
 # on it only through that mean yield and the irrigated share. A row with no
-# national yield is "area_no_production" and never reaches the split.
+# national yield is "area_no_production" and never reaches the split. The
+# ratio is built on this call's cells, as the country normaliser of
+# build_regime_yield_ratio() pools the cells it is given, with the build's
+# shared cache for the inputs that do not depend on them.
 .ci_bounded_ratio <- function(rows, regime) {
   key <- c("lon", "lat", "area_code", "item_prod_code", "year")
   production <- regime$production %||%
@@ -688,7 +691,11 @@ build_carbon_inputs <- function(
       rainfed_ha = sum(.data$rainfed_ha),
       .by = dplyr::all_of(key)
     ) |>
-    .ryr_item_split(regime$ratio, regime$production) |>
+    .ryr_item_split(
+      regime$ratio,
+      regime$production,
+      regime$ratio_data
+    ) |>
     dplyr::select(dplyr::all_of(key), "ratio", "method_regime_split")
   back <- dplyr::left_join(
     cells[has_yield, key],
@@ -945,13 +952,19 @@ build_carbon_inputs <- function(
 # may supply (`data$regime_ratio`, `data$regime_production`, as in
 # build_nitrogen_balance()), the years the national yields are read for
 # when they are not -- the `years` the crop-NPP chain read its production
-# for, so the read is the same one -- and the residue and root humification
-# coefficients the crop's humified fraction was built with.
+# for, so the read is the same one -- the residue and root humification
+# coefficients the crop's humified fraction was built with, and the `data` the
+# ratio is built with when none is supplied. That `data` holds one cache: the
+# collapse runs once per year, and the inputs of build_regime_yield_ratio()
+# that do not depend on the year's cells (SPAM, fertiliser, the LPJmL window)
+# are read by the first year that needs them and reused by the others. It is
+# only filled when a year builds a ratio.
 .ci_regime_context <- function(data, years, cfg) {
   list(
     method = cfg$regime,
     ratio = data$regime_ratio,
     production = data$regime_production,
+    ratio_data = list(cache = new.env(parent = emptyenv())),
     years = years,
     humification = .sci_humification_lookup(
       data$residue_humification %||% whep::residue_humification

@@ -1250,3 +1250,224 @@ testthat::test_that("the carbon and nitrogen chains apply the same bounded R", {
   testthat::expect_lt(wheat$c_ratio, 40)
   testthat::expect_gte(wheat$c_ratio, 1)
 })
+
+# -- One read of the ratio's inputs per build ---------------------------------
+
+# A default build hands the collapse one year of the per-crop layer at a time,
+# and each year builds its own regime yield ratio. These tests run that path
+# on a fixture world with every reader it reaches mocked to serve the fixture
+# and count its calls.
+
+# Spain's crops in two cells, as SPAM2010 totals (one row per crop and
+# technology): wheat, maize, olives (oil crops), barley and rice.
+.rs_world_spam <- function() {
+  tibble::tribble(
+    ~iso3, ~spam_crop, ~technology, ~harvested_area_ha, ~production_t,
+    "ESP", "whea", "I", 100, 500,
+    "ESP", "whea", "R", 400, 1200,
+    "ESP", "maiz", "I", 10, 60,
+    "ESP", "maiz", "R", 10, 10,
+    "ESP", "ooil", "I", 10, 30,
+    "ESP", "ooil", "R", 10, 10,
+    "ESP", "barl", "I", 50, 100,
+    "ESP", "barl", "R", 150, 150,
+    "ESP", "rice", "I", 10, 50,
+    "ESP", "rice", "R", 10, 20
+  )
+}
+
+.rs_world_fertilizer <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Year, ~Value,
+    203L, 2009L, 1500,
+    203L, 2010L, 1000
+  ) |>
+    dplyr::mutate(
+      Element = "Agricultural Use",
+      Item = "Nutrient nitrogen N (total)"
+    )
+}
+
+.rs_world_cropland <- function() {
+  tibble::tribble(
+    ~area_code, ~year, ~cropland_ha,
+    203L, 2009L, 1000,
+    203L, 2010L, 1000
+  )
+}
+
+# LPJmL crop yields of the fixture's two cells at the crop grain, with
+# yields that differ by cell, crop and year so no two cell-crop-years share
+# a ratio.
+.rs_world_lpjml <- function(years) {
+  crops <- c("temperate cereals", "maize", "rice", "others")
+  tidyr::expand_grid(cell = 1:2, lpjml_crop = crops, year = years) |>
+    dplyr::mutate(
+      lon = c(0.25, 0.75)[.data$cell],
+      lat = 40.25,
+      yield_rainfed = 80 +
+        10 * .data$cell +
+        5 * match(.data$lpjml_crop, crops) +
+        (.data$year - 2000L),
+      yield_irrigated = .data$yield_rainfed *
+        (1.4 + 0.05 * .data$cell + 0.01 * (.data$year - 2000L)),
+      stand_frac_rainfed = 0.1,
+      stand_frac_irrigated = 0.1,
+      method_regime_yield = "lpjml_band_harvest"
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      "lpjml_crop",
+      "yield_rainfed",
+      "yield_irrigated",
+      "stand_frac_rainfed",
+      "stand_frac_irrigated",
+      "method_regime_yield"
+    )
+}
+
+# The readers the ratio reaches when the build supplies none of its inputs
+# but the production. Reaching the Linum and Hemp production or the LUH2
+# back-cast, which this world has no use for, is an error.
+.rs_counted_readers <- function(env = parent.frame()) {
+  calls <- new.env(parent = emptyenv())
+  count <- function(name) {
+    assign(name, (calls[[name]] %||% 0L) + 1L, envir = calls)
+  }
+  testthat::local_mocked_bindings(
+    read_spam_yields = function(...) {
+      count("spam")
+      .rs_world_spam()
+    },
+    whep_read_file = function(file_alias, ...) {
+      count(file_alias)
+      if (file_alias != "faostat-fertilizer-nutrients") {
+        rlang::abort(paste("unexpected read of", file_alias))
+      }
+      .rs_world_fertilizer()
+    },
+    get_arable_permanent_land = function(years = NULL, ...) {
+      count("cropland")
+      .rs_world_cropland() |>
+        dplyr::filter(.data$year %in% years)
+    },
+    .ryr_read_lpjml_window = function(run_dir) {
+      count("window")
+      .rs_world_lpjml(2000:2001)
+    },
+    .ryr_read_lpjml_grid = function(run_dir) {
+      count("grid")
+      tibble::tibble(lon = c(0.25, 0.75), lat = 40.25)
+    },
+    .lrg_crop_yield = function(years = NULL, ...) {
+      count("lpjml_year")
+      .rs_world_lpjml(years)
+    },
+    .package = "whep",
+    .env = env
+  )
+  calls
+}
+
+# Serves the per-crop layer to the collapse one year at a time, the way the
+# gridding loop does.
+.rs_year_chunks <- function(layer, env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    .sci_build = function(resolution, data, years, reduce = NULL, ...) {
+      purrr::map(years, \(year) reduce(layer[layer$year == year, ])) |>
+        dplyr::bind_rows()
+    },
+    .package = "whep",
+    .env = env
+  )
+}
+
+# The 2010 fixture and a 2009 with smaller crop areas and irrigated shares.
+.rs_world_data <- function() {
+  data <- .rs_carbon_data(ratio = NULL)
+  data$cropland <- NULL
+  data$crop_regime_share <- dplyr::bind_rows(
+    dplyr::mutate(
+      .rs_shares(),
+      year = 2009L,
+      irrigated_share = .data$irrigated_share * 0.8
+    ),
+    .rs_shares()
+  )
+  data
+}
+
+.rs_world_layer <- function() {
+  dplyr::bind_rows(
+    dplyr::mutate(
+      .rs_cropland(),
+      year = 2009L,
+      crop_area_ha = .data$crop_area_ha * 0.9
+    ),
+    .rs_cropland()
+  )
+}
+
+# Counts of the readers of a build, 0 for one never reached.
+.rs_counts <- function(calls) {
+  inputs <- c(
+    "spam",
+    "faostat-fertilizer-nutrients",
+    "window",
+    "grid",
+    "lpjml_year",
+    "cropland"
+  )
+  vapply(inputs, \(input) calls[[input]] %||% 0L, integer(1)) |>
+    unname()
+}
+
+testthat::test_that("a build reads the ratio's year-invariant inputs once, not once per year", {
+  calls <- .rs_counted_readers()
+  .rs_year_chunks(.rs_world_layer())
+  spy <- new.env(parent = emptyenv())
+  spy$ratios <- list()
+  item_split <- whep:::.ryr_item_split
+  testthat::local_mocked_bindings(
+    .ryr_item_split = function(...) {
+      out <- item_split(...)
+      spy$ratios[[length(spy$ratios) + 1L]] <- out
+      out
+    },
+    .package = "whep"
+  )
+  data <- .rs_world_data()
+  build <- function(years) {
+    suppressMessages(whep::build_carbon_inputs(data = data, years = years))
+  }
+  # The cropland classes of a build, in key order. The grassland and natural
+  # rows come from `data` whole, so a build per year repeats them.
+  crops <- function(x) {
+    x[whep:::.soc_is_cropland(x$land_use), ] |>
+      dplyr::arrange(.data$lon, .data$lat, .data$year, .data$land_use)
+  }
+  # Both years in one build: the year-invariant readers once; the readers of
+  # the year's own inputs, once per year.
+  together <- build(2009:2010)
+  testthat::expect_identical(.rs_counts(calls), c(1L, 1L, 1L, 1L, 2L, 2L))
+  ratios_together <- spy$ratios
+  # One build per year is the per-year reads of a build without a shared
+  # cache: every input of the ratio is read for each year.
+  rm(list = ls(calls), envir = calls)
+  spy$ratios <- list()
+  separate <- dplyr::bind_rows(build(2009L), build(2010L))
+  testthat::expect_identical(.rs_counts(calls), c(2L, 2L, 2L, 2L, 2L, 2L))
+  # Same ratios, cell-crop-year for cell-crop-year, and the same output.
+  testthat::expect_length(ratios_together, 2L)
+  testthat::expect_identical(ratios_together, spy$ratios)
+  testthat::expect_identical(crops(together), crops(separate))
+  # The numbers are the yield split's, not the fall-back's.
+  rules <- unique(unlist(stringr::str_split(
+    together$method_regime_split,
+    stringr::fixed("|")
+  )))
+  testthat::expect_true("yield_ratio" %in% rules)
+  testthat::expect_setequal(unique(together$year), 2009:2010)
+})
