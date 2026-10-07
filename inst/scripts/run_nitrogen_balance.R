@@ -243,8 +243,12 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # a second spatialization, reuse the weights build_soil_carbon_inputs() already
 # uses to put per-crop carbon on cells: harvested-area shares per polity-crop
 # from the crop_patterns surface, which sum to 1 per (area_code,
-# item_prod_code). Every extensive column is scaled by that share, so cell
-# values sum back to the national ones.
+# item_prod_code). Every extensive column (a quantity in tonnes or hectares)
+# is scaled by that share, so cell values sum back to the national ones. A
+# per-hectare column (`yield_dm_t_ha`) is a density of the polity-crop, which
+# every one of its cells carries unchanged: scaled by a share it would read as
+# the yield of a fraction of a hectare. .nbd_extensive_columns() tells the two
+# apart.
 #
 # METHOD NOTE: distributing NPP by harvested-area share is the same assumption
 # the soil-carbon inputs already make for the same crops, not a new one, but it
@@ -264,12 +268,18 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     country_grid,
     whep:::.sci_read_crop_patterns()
   )
-  keys <- c("year", "area_code", "item_prod_code")
-  extensive <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
+  .nbd_spread_npp(npp, weights)
+}
+
+# The national NPP table on the cells of `weights` (`area_code`,
+# `item_prod_code`, the cell and its `area_weight`): extensive columns times
+# the weight, every other column as it is.
+.nbd_spread_npp <- function(npp, weights) {
+  extensive <- .nbd_extensive_columns(npp)
   # .n_inputs_recycling() reads item_cbs_code straight off this table, while
   # .n_inputs_bnf() derives it from item_prod_code. Apply the package's own
   # mapping once here so all three consumers of this table see the same codes.
-  gridded <- npp |>
+  npp |>
     dplyr::mutate(
       item_cbs_code = whep:::.ni_item_cbs_from_prod(.data$item_prod_code)
     ) |>
@@ -281,7 +291,30 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     dplyr::mutate(
       dplyr::across(dplyr::all_of(extensive), \(v) v * .data$area_weight)
     )
-  gridded
+}
+
+# The numeric columns of the national NPP table a cell takes a share of:
+# `area_ha` and the quantities in tonnes (`production_t`, `residue_fm_t`,
+# `*_dm_t`, `*_n_t`, `*_c_t`). The per-hectare columns (`*_t_ha`, as
+# `yield_dm_t_ha`) are densities and stay whole. A numeric column that is
+# neither has no unit to say whether a cell shares it, and scaling it or not
+# would be a guess that moves the surplus, so it stops the stage instead.
+.nbd_extensive_columns <- function(npp) {
+  keys <- c("year", "area_code", "item_prod_code")
+  numeric <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
+  quantity <- numeric == "area_ha" | stringr::str_detect(numeric, "_t$")
+  per_hectare <- stringr::str_detect(numeric, "_t_ha$")
+  unknown <- numeric[!quantity & !per_hectare]
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{length(unknown)} numeric column{?s} of the NPP table {?is/are} neither
+       a quantity in tonnes or hectares nor a per-hectare density:
+       {.field {unknown}}.",
+      i = "Say in {.fn .nbd_extensive_columns} whether a cell takes a share of
+           each."
+    ))
+  }
+  numeric[quantity]
 }
 
 # What the gridding could not place, as a share of the national total. A silent
@@ -953,8 +986,8 @@ if (nrow(blockers) > 0L) {
     # residue N), both with these arguments; they are the package defaults,
     # written out so a run states them. The rainfed/irrigated split
     # re-evaluates each part's residue and root at the part's yield from
-    # split_regime_yield(), never from `npp`'s `yield_dm_t_ha`, which
-    # .nbd_grid_npp() scales by the cell weight with the extensive columns.
+    # split_regime_yield(), never from `npp`'s `yield_dm_t_ha`, the national
+    # crop's yield, which .nbd_grid_npp() carries to every cell unscaled.
     npp_n_input = npp,
     recycling_residue_basis = "residue_soil_returned",
     residue_destiny_method = "recovery_regional",
