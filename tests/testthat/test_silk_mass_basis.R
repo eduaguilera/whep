@@ -283,6 +283,11 @@ test_that("build_commodity_balances validates silk_basis", {
   )
 }
 
+# The basis without the duplicate announcement, which has its own test.
+.quiet_silk_basis <- function(...) {
+  suppressMessages(whep:::.cbs_silk_mass_basis(...))
+}
+
 test_that("cocoons booked as both Processed and Other uses count once", {
   # Every cocoon is reeled (1000 t processed) and the same 1000 t are booked
   # again as other uses; FAO's residual of -1000 t says its balance does not
@@ -290,11 +295,11 @@ test_that("cocoons booked as both Processed and Other uses count once", {
   extracted <- .local_duplicate_extract(1000, 1000, -1000)
 
   purrr::walk(whep:::.silk_basis_choices(), \(method) {
-    balance <- whep:::.cbs_silk_mass_basis(extracted, method) |>
+    balance <- .quiet_silk_basis(extracted, method) |>
       .silk_balance()
     expect_equal(balance$unbooked, 0, tolerance = 1e-9, label = method)
   })
-  kept <- whep:::.cbs_silk_mass_basis(
+  kept <- .quiet_silk_basis(
     extracted,
     "cocoon",
     drop_duplicate_use = FALSE
@@ -314,7 +319,7 @@ test_that("the duplicate guard needs FAO's own residual to agree", {
         value
       )
     )
-  out <- whep:::.cbs_silk_mass_basis(closes, "mixed") |>
+  out <- .quiet_silk_basis(closes, "mixed") |>
     dplyr::filter(item_cbs_code == 1185, element == "other_uses")
   expect_equal(sort(out$value), c(1000, 1000))
 })
@@ -323,7 +328,7 @@ test_that("an imbalance with two different elements is left as published", {
   # Viet Nam 2014 in the pin: Processed far above production, other uses
   # equal to it. Which element is wrong is not decidable from the record.
   extracted <- .local_duplicate_extract(6000, 1000, -6000)
-  balance <- whep:::.cbs_silk_mass_basis(extracted, "mixed") |>
+  balance <- .quiet_silk_basis(extracted, "mixed") |>
     .silk_balance()
   expect_equal(balance$unbooked, -6000)
 })
@@ -333,20 +338,44 @@ test_that("no Residuals row survives any basis", {
   expect_true("Residuals" %in% extracted$element)
 
   purrr::walk(whep:::.silk_basis_choices(), \(method) {
-    out <- whep:::.cbs_silk_mass_basis(extracted, method)
+    out <- .quiet_silk_basis(extracted, method)
     expect_false("Residuals" %in% out$element, label = method)
   })
 })
 
 test_that("the duplicate match allows for FAO's whole-tonne residual", {
   rounded <- .local_duplicate_extract(1000.24, 1000.24, -1000) |>
-    whep:::.cbs_silk_mass_basis("mixed") |>
+    .quiet_silk_basis("mixed") |>
     dplyr::filter(item_cbs_code == 1185, element == "other_uses")
   expect_equal(rounded$value, 1000.24)
 
   # Two tonnes apart is two different numbers, not a rounding.
   apart <- .local_duplicate_extract(1000, 998, -1000) |>
-    whep:::.cbs_silk_mass_basis("mixed") |>
+    .quiet_silk_basis("mixed") |>
     dplyr::filter(item_cbs_code == 1185, element == "other_uses")
   expect_equal(sort(apart$value), c(998, 1000))
+})
+
+test_that("a dropped duplicate is announced and unflags the kept row", {
+  extracted <- .local_duplicate_extract(1000, 1000, -1000)
+  expect_message(
+    out <- whep:::.silk_drop_duplicate_use(data.table::copy(extracted)),
+    "Testland 2020"
+  )
+  processed <- out |>
+    dplyr::filter(item_cbs_code == 1185, element == "Processed")
+  expect_true(is.na(processed$fao_flag))
+  # The rest of the record keeps FAO's flag.
+  rest <- out |>
+    dplyr::filter(!(item_cbs_code == 1185 & element == "Processed"))
+  expect_true(all(rest$fao_flag == "A"))
+  expect_false(any(out$item_cbs_code == 1185 & out$element == "other_uses"))
+})
+
+test_that("a record with no duplicate passes through silently", {
+  extracted <- .local_duplicate_extract(1000, 998, -1000)
+  expect_no_message(
+    out <- whep:::.silk_drop_duplicate_use(data.table::copy(extracted))
+  )
+  expect_equal(nrow(out), nrow(extracted))
 })

@@ -143,8 +143,24 @@
     key,
     with = FALSE
   ]
+  if (nrow(duplicated_use) == 0L) {
+    return(silk)
+  }
+  labels <- paste(duplicated_use$area, duplicated_use$year)
+  cli::cli_inform(c(
+    "i" = "Dropped {length(labels)} silk cocoon {.field other_uses} \\
+      row{?s} that repeat{?s/} the row's {.field Processed}: \\
+      {.val {labels}} (whep#1281)."
+  ))
   duplicated_use[, element := "other_uses"]
-  silk[!duplicated_use, on = c(key, "element")]
+  silk <- silk[!duplicated_use, on = c(key, "element")]
+  # The surviving `Processed` row is FAO's number, but the balance it sits in
+  # is no longer the one FAO published under that flag.
+  duplicated_use[, element := "Processed"]
+  if ("fao_flag" %in% names(silk)) {
+    silk[duplicated_use, on = c(key, "element"), fao_flag := NA_character_]
+  }
+  silk[]
 }
 
 # Mass as FAO reports it per link, summed. The cocoons sent to reeling are
