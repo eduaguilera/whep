@@ -243,3 +243,143 @@ testthat::test_that("check_series_jumps sees the fodder break with dropouts", {
   testthat::expect_identical(flags$year, 2020L)
   testthat::expect_equal(flags$ratio, 0)
 })
+
+# --- The LUH2 state-label guard (whep#1034) ----------------------------------
+
+# One country, Spain (ISO3 ESP), with LUH2 states before and at the 1961
+# splice. `perennial` moves from 20% to 30% of cropland, so a backcast that
+# loses it is visibly different from one that keeps it.
+.luh2_state_fixture <- function(perennial = c("c3per", "c4per")) {
+  tibble::tribble(
+    ~ISO3, ~Year, ~Land_Use, ~Area_Mha,
+    "ESP", 1950L, "c3ann",   8,
+    "ESP", 1950L, "c3per",   1,
+    "ESP", 1950L, "c4per",   1,
+    "ESP", 1961L, "c3ann",   7,
+    "ESP", 1961L, "c3per",   2,
+    "ESP", 1961L, "c4per",   1,
+    "ESP", 1950L, "pastr",   5,
+    "ESP", 1961L, "pastr",   6
+  ) |>
+    dplyr::mutate(
+      Land_Use = dplyr::case_match(
+        Land_Use,
+        "c3per" ~ perennial[[1L]],
+        "c4per" ~ perennial[[2L]],
+        .default = Land_Use
+      )
+    )
+}
+
+.luh2_fao_anchor <- function() {
+  code <- whep:::.luh2_bridge_iso3c(
+    data.table::data.table(iso3c = "ESP")
+  )$area_code
+  tibble::tibble(
+    area_code = code,
+    year = 1961L,
+    arable_ha = 6e6,
+    permanent_ha = 4e6,
+    cropland_ha = 1e7
+  )
+}
+
+testthat::test_that("a renamed perennial state is refused, not zeroed", {
+  # Recase the two perennial states. Without the guard they fall out of the
+  # filter, perennial area becomes 0, and the backcast still tiles cropland
+  # exactly -- it just carries the FAO 1961 share back unchanged.
+  renamed <- .luh2_state_fixture(c("C3PER", "C4PER"))
+  vacuous <- testthat::with_mocked_bindings(
+    whep:::.luh2_perennial_backcast(
+      .luh2_fao_anchor(),
+      luh2_data = renamed
+    ),
+    .luh2_check_states = function(dt, ...) invisible(dt),
+    .package = "whep"
+  )
+
+  expect_supplied_guard(
+    identity = nrow(vacuous) > 0L &&
+      isTRUE(all.equal(
+        vacuous$cropland_ha,
+        vacuous$arable_ha + vacuous$permanent_ha
+      )),
+    guard = whep:::.luh2_perennial_backcast(
+      .luh2_fao_anchor(),
+      luh2_data = renamed
+    ),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("the refusal names the state labels the table carries", {
+  testthat::expect_error(
+    whep:::.read_luh2_cft(.luh2_state_fixture(c("C3PER", "C4PER"))),
+    "C3PER"
+  )
+})
+
+testthat::test_that("a table with no crop state at all is refused", {
+  only_pasture <- dplyr::filter(.luh2_state_fixture(), Land_Use == "pastr")
+  testthat::expect_error(
+    whep:::.read_luh2_cft(only_pasture),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("a supplied table may lack perennial cropland", {
+  # A fixture, or a caller's subset, can legitimately carry no perennial
+  # state; every label it does carry is a LUH2 state, so nothing moved.
+  annual_only <- dplyr::filter(
+    .luh2_state_fixture(),
+    !Land_Use %in% c("c3per", "c4per")
+  )
+  cft <- whep:::.read_luh2_cft(annual_only)
+  testthat::expect_equal(cft$perennial, c(0, 0))
+  testthat::expect_equal(cft$annual, c(8e6, 7e6))
+})
+
+testthat::test_that("the luh2-areas pin must carry every requested state", {
+  # The pin is global: perennial cropland exists in the world, so a pin read
+  # without c3per/c4per is a truncated pin, not a perennial-free one.
+  annual_only <- dplyr::filter(
+    .luh2_state_fixture(),
+    !Land_Use %in% c("c3per", "c4per")
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(...) annual_only,
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep:::.read_luh2_cft(),
+    class = "whep_absent_label"
+  )
+})
+
+testthat::test_that("an intact LUH2 table backcasts the perennial share", {
+  out <- whep:::.luh2_perennial_backcast(
+    .luh2_fao_anchor(),
+    luh2_data = .luh2_state_fixture()
+  )
+  # LUH2 perennial share 0.2 in 1950 vs 0.3 in 1961, spliced on FAO's 0.4.
+  testthat::expect_equal(out$permanent_ha / out$cropland_ha, 0.4 * 0.2 / 0.3)
+  testthat::expect_equal(out$cropland_ha, 1e7 * 10 / 10)
+})
+
+testthat::test_that("a renamed grassland state is refused, not emptied", {
+  renamed <- dplyr::mutate(
+    .luh2_state_fixture(),
+    Land_Use = dplyr::if_else(Land_Use == "pastr", "Pasture", Land_Use)
+  )
+  testthat::expect_error(
+    whep:::.luh2_national_states(c("pastr", "range"), luh2_data = renamed),
+    class = "whep_absent_label"
+  )
+  testthat::expect_equal(
+    whep:::.luh2_national_states(
+      c("pastr", "range"),
+      luh2_data = .luh2_state_fixture()
+    )$luh2_ha,
+    c(5e6, 6e6)
+  )
+})

@@ -494,12 +494,23 @@ build_polycell_land_uses <- function(
 }
 
 # National LUH2 grassland (pastr + range) per area_code and year, from the same
-# `luh2-areas` input the cropland backcast reads.
+# `luh2-areas` input the cropland backcast reads. A read that fails yields no
+# trend and so no backcast; a pin whose state labels moved is a broken
+# contract rather than a failed read, and is re-raised (whep#1034).
 .plu_luh2_grassland <- function() {
   tryCatch(
     .luh2_national_states(c("pastr", "range")),
-    error = function(e) NULL
+    error = .plu_reraise_absent_input
   )
+}
+
+# One handler rather than a `whep_absent_input =` sibling: tryCatch() nests
+# its handlers, so a re-raise from the first would land in the second.
+.plu_reraise_absent_input <- function(e) {
+  if (inherits(e, "whep_absent_input")) {
+    rlang::cnd_signal(e)
+  }
+  NULL
 }
 
 # ---- Private helpers: allocation ---------------------------------------------

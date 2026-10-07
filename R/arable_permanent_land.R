@@ -350,33 +350,17 @@ get_arable_permanent_land <- function(
 # National LUH2 area (ha) per (area_code, year) for an arbitrary set of states,
 # from the same `luh2-areas` input the cropland back-cast reads.
 .luh2_national_states <- function(states, luh2_data = NULL) {
-  raw <- if (!is.null(luh2_data)) {
-    luh2_data
-  } else {
-    .read_input("luh2-areas", years = NULL, year_col = "Year")
-  }
-  dt <- data.table::as.data.table(raw)
-  if (!is.null(luh2_data) && data.table::is.data.table(raw)) {
-    dt <- data.table::copy(dt)
-  }
-  if ("ISO3" %in% names(dt) && !"iso3c" %in% names(dt)) {
-    data.table::setnames(dt, "ISO3", "iso3c")
-  }
-  if ("Year" %in% names(dt) && !"year" %in% names(dt)) {
-    data.table::setnames(dt, "Year", "year")
-  }
-  dt <- dt[Land_Use %in% states]
-  dt <- .luh2_bridge_iso3c(dt)
+  dt <- .luh2_states_table(states, luh2_data = luh2_data)
   tibble::as_tibble(dt[,
     .(luh2_ha = sum(Area_Mha, na.rm = TRUE) * 1e6),
     by = .(area_code, year = as.integer(year))
   ])
 }
 
-
-# Per (area_code, year) LUH2 annual vs perennial cropland (Mha -> ha), mapped to
-# whep area_code via ISO3. annual = c3ann+c4ann+c3nfx, perennial = c3per+c4per.
-.read_luh2_cft <- function(luh2_data = NULL) {
+# The `luh2-areas` rows for `states`, with `iso3c`/`year` names and the polity
+# `area_code` attached. Shared by both LUH2 national readers so the label
+# guard below sits once, where the filter is.
+.luh2_states_table <- function(states, luh2_data = NULL) {
   raw <- if (!is.null(luh2_data)) {
     luh2_data
   } else {
@@ -394,12 +378,57 @@ get_arable_permanent_land <- function(
   if ("Year" %in% names(dt) && !"year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
+  .luh2_check_states(dt, states, whole = is.null(luh2_data))
+  .luh2_bridge_iso3c(dt[Land_Use %in% states])
+}
+
+# Refuse a `Land_Use` vocabulary that no longer carries the states a LUH2
+# reader filters on (whep#1034).
+#
+# A renamed state does not raise: `Land_Use %in% states` drops its rows, the
+# perennial (or grassland) area becomes 0, and the back-cast still tiles
+# cropland exactly -- it just carries the FAO 1961 share back unchanged, or
+# builds no pre-1961 pasture at all. Nothing downstream can tell that from a
+# measurement. This is whep#1016's mechanism on the `luh2-areas` pin.
+#
+# `whole = TRUE` is the registered pin: it is global, and every requested state
+# exists somewhere in the world (the pin carries all twelve LUH2 states in
+# every year), so any one missing is a truncated or relabelled pin.
+#
+# A caller-supplied table (`whole = FALSE`) may legitimately be a subset -- a
+# fixture or a region with no perennial cropland -- so a missing state is
+# refused only when it cannot be that: when NONE of the requested states is
+# present (the filter would keep nothing), or when the table also carries a
+# label outside the LUH2 state vocabulary (Hurtt et al. 2020;
+# `.luh2_class_lookup()`), which is what a rename looks like.
+.luh2_check_states <- function(dt, states, whole = TRUE) {
+  remedy <- c(
+    i = "Source: the {.val luh2-areas} pin, or the table passed as
+         {.arg luh2_data}. Its {.field Land_Use} column holds the LUH2 v2h
+         state names ({.val c3ann}, {.val c3per}, {.val pastr}, ...)."
+  )
+  if (whole || !rlang::has_name(dt, "Land_Use")) {
+    return(check_labels_supplied(dt, "Land_Use", states, details = remedy))
+  }
+  observed <- unique(as.character(dt$Land_Use))
+  missing <- setdiff(states, observed)
+  unknown <- setdiff(observed, .luh2_class_lookup()$state)
+  moved <- length(missing) == length(unique(states)) ||
+    (length(missing) > 0L && length(unknown) > 0L)
+  if (moved) {
+    check_labels_supplied(dt, "Land_Use", states, details = remedy)
+  }
+  invisible(dt)
+}
+
+# Per (area_code, year) LUH2 annual vs perennial cropland (Mha -> ha), mapped to
+# whep area_code via ISO3. annual = c3ann+c4ann+c3nfx, perennial = c3per+c4per.
+.read_luh2_cft <- function(luh2_data = NULL) {
   annual <- c("c3ann", "c4ann", "c3nfx")
   perennial <- c("c3per", "c4per")
-  dt <- dt[Land_Use %in% c(annual, perennial)]
+  dt <- .luh2_states_table(c(annual, perennial), luh2_data = luh2_data)
   dt[, kind := data.table::fifelse(Land_Use %in% annual, "annual", "perennial")]
 
-  dt <- .luh2_bridge_iso3c(dt)
   agg <- dt[,
     .(area_ha = sum(Area_Mha, na.rm = TRUE) * 1e6),
     by = .(area_code, year = as.integer(year), kind)
@@ -410,6 +439,9 @@ get_arable_permanent_land <- function(
     value.var = "area_ha",
     fill = 0
   )
+  # Structural zeros: `.luh2_check_states()` has already refused a moved
+  # label, so a kind with no column here is one the supplied table carries no
+  # state of (a fixture or subset without perennial cropland).
   if (!"annual" %in% names(w)) {
     w[, annual := 0]
   }
