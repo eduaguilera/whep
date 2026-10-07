@@ -66,6 +66,8 @@ A tibble with one row per \code{lon}, \code{lat}, \code{area_code},
 that regime, carrying the window-mean \code{mat_c}, \code{frost_days}, \code{prec_mm},
 \code{pet_mm} and \code{irrig_mm}, \code{water_mm}, \code{moisture_ratio}, \code{tropical},
 \code{moisture_regime} (\code{"wet"}, \code{"dry"} or \code{NA}), \code{method_moisture_regime},
+\code{climate_fill_km} (the distance to the CRU cell whose climate a cell
+without one took, \code{NA} for a cell with its own),
 \code{method_irrig_depth}, \code{lpjml_crop} and the LPJmL vintage columns
 \code{lpjml_version}, \code{lpjml_git_hash} and \code{lpjml_run}, plus the polity
 columns below.
@@ -112,6 +114,12 @@ which is multiplied by the days of each month and summed over the year.
 CRU's frost count is synthetic: CRU derives it from the gridded minimum
 temperature. Years before the CRU record (1901) hold the 1901-1930
 climatology, and years after it hold the climatology of its last 30 years.
+A cell of WHEP's crop land with no CRU climate at all (off CRU's land
+mask, mostly coastal and island cells) takes the whole climate record of
+its nearest CRU land cell by great-circle distance between cell centres,
+among cells with a complete record; the distance is \code{climate_fill_km},
+and a message of class \code{whep_moisture_regime_nearest_climate} counts
+them. The cell's own water term, irrigation included, is then applied.
 \item Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
 the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
 water on its rainfed rice stand is not counted: rainfed rows get none.
@@ -164,6 +172,8 @@ years \verb{<first>} to \verb{<last>}.
 \item Optional \verb{irrig_years_<n>of<m>}: an irrigated row whose land is
 irrigated in \code{n} of the window's \code{m} years. Its irrigation is the mean of
 those \code{n} years and its climate the mean of all \code{m}.
+\item Optional \code{nearest_cru_cell}: the cell has no CRU climate and took its
+nearest CRU land cell's, \code{climate_fill_km} away.
 \item Optional, on an unclassified row (\code{moisture_regime} is \code{NA}):
 \verb{missing=<col>[+<col>...]}, the inputs whose window mean is unavailable,
 and \code{pet_not_positive}, a window-mean PET of zero. Nothing is
@@ -184,7 +194,8 @@ consecutive whole years.
 \item \code{whep_moisture_regime_columns}, \code{whep_moisture_regime_empty},
 \code{whep_moisture_regime_key}, \code{whep_moisture_regime_climate}: an input
 table lacks a required column, has no rows, has a duplicated or missing
-key, or carries more than one climate for a cell-year.
+key, or carries more than one climate for a cell-year; or no cell of the
+climate has a complete record to lend a cell without one.
 \item \code{whep_moisture_regime_domain}: an input holds a negative precipitation,
 PET, frost count or irrigation depth, more than 366 frost days, a
 \code{water_regime} other than \code{"rainfed"} or \code{"irrigated"}, or irrigation on
@@ -203,9 +214,11 @@ irrigation depth of the irrigated rows is absent, missing or all zero.
 regime areas, the run or its output cubes, or the pinned layer.
 }
 
-Messages of class \code{whep_moisture_regime_unclassified} and
-\code{whep_moisture_regime_area_years} report rows left without a regime and
-window years the regime areas do not cover.
+Messages of class \code{whep_moisture_regime_unclassified},
+\code{whep_moisture_regime_area_years} and
+\code{whep_moisture_regime_nearest_climate} report rows left without a regime,
+window years the regime areas do not cover and cells that took their
+nearest CRU cell's climate.
 }
 
 \section{Polity columns}{

@@ -136,6 +136,55 @@ testthat::test_that("rainfed rows take the cell's precipitation alone", {
   testthat::expect_true(all(is.na(rainfed$lpjml_run)))
 })
 
+testthat::test_that("a cell without CRU climate classifies on its nearest CRU cell", {
+  # Cell C (10.25, 47.75) grows rainfed maize but lies off CRU's land mask:
+  # its climate is B's (9.75, wet, 0.5 degrees away), not A's (1.0 away).
+  extra <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    10.25, 47.75, 79L,        56L,             40,          0
+  )
+  testthat::expect_message(
+    out <- whep::build_cell_moisture_regime(
+      years = 2010L,
+      window = "annual",
+      data = .cmw_data(2010L, extra = extra)
+    ),
+    class = "whep_moisture_regime_nearest_climate"
+  )
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  testthat::expect_identical(c_row$moisture_regime, "wet")
+  testthat::expect_equal(c_row$prec_mm, 1200)
+  rad <- pi / 180
+  km <- 2 * 6371.0088 * asin(cos(47.75 * rad) * sin(0.25 * rad))
+  testthat::expect_equal(c_row$climate_fill_km, km, tolerance = 1e-9)
+  testthat::expect_identical(
+    c_row$method_moisture_regime,
+    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell"
+  )
+  # The other rows keep their own cell's climate.
+  testthat::expect_true(all(is.na(out$climate_fill_km[out$lon != 10.25])))
+  testthat::expect_false(anyNA(out$moisture_regime))
+})
+
+testthat::test_that("the nearest CRU cell is one with a complete record", {
+  # B has a missing PET year, so it cannot lend a climate: C takes A's.
+  extra <- tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    10.25, 47.75, 79L,        56L,             40,          0
+  )
+  d <- .cmw_data(2009:2010, extra = extra)
+  d$climate$annual_pet_mm[d$climate$lon == 9.75 & d$climate$year == 2009L] <-
+    NA
+  out <- suppressMessages(whep::build_cell_moisture_regime(
+    years = 2010L,
+    window = "annual",
+    data = d
+  ))
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  testthat::expect_equal(c_row$prec_mm, 600)
+  testthat::expect_identical(c_row$moisture_regime, "dry")
+})
+
 testthat::test_that("irrigated rows add their crop's LPJmL depth", {
   out <- whep::build_cell_moisture_regime(
     years = 2010L,

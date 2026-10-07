@@ -30,6 +30,11 @@
 #    record: `irrig_years_<n>of<m>`, meaning the row's land was irrigated in
 #    n of the window's m years, and its irrigation is the mean of those n
 #    years. Climate is still the mean of all m.
+# 5b. Optional, only on a row whose cell has no CRU climate (off CRU's land
+#    mask): `nearest_cru_cell`, meaning the cell took the whole climate record
+#    of its nearest CRU land cell, `climate_fill_km` away. build_n_loss_
+#    drivers() adds `cell_rainfed_class=<reason>` here on a balance row with
+#    no class of its own.
 # 6. Optional, only on an unclassified row (`moisture_regime` is NA):
 #    `missing=<col>[+<col>...]`, the inputs whose window mean is unavailable
 #    because at least one window year has no value or no row; and/or
@@ -66,6 +71,12 @@
 #'   CRU's frost count is synthetic: CRU derives it from the gridded minimum
 #'   temperature. Years before the CRU record (1901) hold the 1901-1930
 #'   climatology, and years after it hold the climatology of its last 30 years.
+#'   A cell of WHEP's crop land with no CRU climate at all (off CRU's land
+#'   mask, mostly coastal and island cells) takes the whole climate record of
+#'   its nearest CRU land cell by great-circle distance between cell centres,
+#'   among cells with a complete record; the distance is `climate_fill_km`,
+#'   and a message of class `whep_moisture_regime_nearest_climate` counts
+#'   them. The cell's own water term, irrigation included, is then applied.
 #' - Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
 #'   the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
 #'   water on its rainfed rice stand is not counted: rainfed rows get none.
@@ -106,6 +117,8 @@
 #'   that regime, carrying the window-mean `mat_c`, `frost_days`, `prec_mm`,
 #'   `pet_mm` and `irrig_mm`, `water_mm`, `moisture_ratio`, `tropical`,
 #'   `moisture_regime` (`"wet"`, `"dry"` or `NA`), `method_moisture_regime`,
+#'   `climate_fill_km` (the distance to the CRU cell whose climate a cell
+#'   without one took, `NA` for a cell with its own),
 #'   `method_irrig_depth`, `lpjml_crop` and the LPJmL vintage columns
 #'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`, plus the polity
 #'   columns below.
@@ -167,6 +180,8 @@
 #' - Optional `irrig_years_<n>of<m>`: an irrigated row whose land is
 #'   irrigated in `n` of the window's `m` years. Its irrigation is the mean of
 #'   those `n` years and its climate the mean of all `m`.
+#' - Optional `nearest_cru_cell`: the cell has no CRU climate and took its
+#'   nearest CRU land cell's, `climate_fill_km` away.
 #' - Optional, on an unclassified row (`moisture_regime` is `NA`):
 #'   `missing=<col>[+<col>...]`, the inputs whose window mean is unavailable,
 #'   and `pet_not_positive`, a window-mean PET of zero. Nothing is
@@ -184,7 +199,8 @@
 #' - `whep_moisture_regime_columns`, `whep_moisture_regime_empty`,
 #'   `whep_moisture_regime_key`, `whep_moisture_regime_climate`: an input
 #'   table lacks a required column, has no rows, has a duplicated or missing
-#'   key, or carries more than one climate for a cell-year.
+#'   key, or carries more than one climate for a cell-year; or no cell of the
+#'   climate has a complete record to lend a cell without one.
 #' - `whep_moisture_regime_domain`: an input holds a negative precipitation,
 #'   PET, frost count or irrigation depth, more than 366 frost days, a
 #'   `water_regime` other than `"rainfed"` or `"irrigated"`, or irrigation on
@@ -202,9 +218,11 @@
 #' - `whep_lpjml_irrig_depth_*`: the LPJmL irrigation depth layer rejects the
 #'   regime areas, the run or its output cubes, or the pinned layer.
 #'
-#' Messages of class `whep_moisture_regime_unclassified` and
-#' `whep_moisture_regime_area_years` report rows left without a regime and
-#' window years the regime areas do not cover.
+#' Messages of class `whep_moisture_regime_unclassified`,
+#' `whep_moisture_regime_area_years` and
+#' `whep_moisture_regime_nearest_climate` report rows left without a regime,
+#' window years the regime areas do not cover and cells that took their
+#' nearest CRU cell's climate.
 #'
 #' @source
 #' IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
@@ -251,6 +269,7 @@ build_cell_moisture_regime <- function(
       .cmr_classify_group(group, rows, climate, irrigation, spec)
     }) |>
     dplyr::bind_rows() |>
+    .cmr_stamp_climate_fill(climate$fills) |>
     ensure_columns(.cmr_prototype(), extra = "drop") |>
     dplyr::arrange(dplyr::pick(dplyr::all_of(c("year", .cmr_row_key())))) |>
     .add_reporting_polity_columns() |>
@@ -1797,21 +1816,216 @@ build_cell_moisture_regime <- function(
 # -- Climate ------------------------------------------------------------------
 
 # CRU's annual climate under the classifier's names, for the cells to
-# classify, and the record (the years CRU covers).
+# classify, the record (the years CRU covers) and the cells whose climate is
+# their nearest CRU land cell's (`fills`). `data$.cru_climate` is that list
+# already read once, which build_n_loss_drivers() shares between its calls.
 .cmr_climate <- function(data, spec, cells) {
-  climate <- if (is.null(data$climate)) {
-    .cmr_read_cru(spec)
-  } else {
-    table <- .cmr_rename_climate(data$climate)
-    list(table = table, record = sort(unique(table$year)))
-  }
+  climate <- data$.cru_climate %||% .cmr_source_climate(data, spec)
   check_inputs_supplied(
     climate$table,
     c("prec_mm", "pet_mm"),
     details = c(i = "Supply annual totals in mm per year.")
   )
-  climate$table <- dplyr::semi_join(climate$table, cells, by = c("lon", "lat"))
+  filled <- .cmr_nearest_climate(climate$table, cells)
+  climate$table <- filled$table
+  climate$fills <- filled$fills
   climate
+}
+
+# The supplied climate table, else CRU over the years the windows read.
+.cmr_source_climate <- function(data, spec) {
+  if (is.null(data$climate)) {
+    return(.cmr_read_cru(spec))
+  }
+  table <- .cmr_rename_climate(data$climate)
+  list(table = table, record = sort(unique(table$year)))
+}
+
+# The climate of the cells to classify. A cell with no complete CRU row at all
+# lies off CRU's land mask (a coastal or island cell): it takes the whole
+# record of its nearest CRU land cell, by great-circle distance between cell
+# centres, among the cells whose record is complete in every year read. The
+# fill is a climate, not a class: the classifier then applies the cell's own
+# water term (its irrigation included) to it. `fills` lists each filled cell
+# with its distance, `climate_fill_km`.
+.cmr_nearest_climate <- function(table, cells) {
+  cells <- cells |>
+    dplyr::transmute(
+      lon = round(as.numeric(.data$lon), 2),
+      lat = round(as.numeric(.data$lat), 2)
+    ) |>
+    dplyr::distinct()
+  table$.complete <- stats::complete.cases(table[.moisture_climate_cols()])
+  own <- dplyr::distinct(table[table$.complete, ], .data$lon, .data$lat)
+  missing <- dplyr::anti_join(cells, own, by = c("lon", "lat"))
+  kept <- table |>
+    dplyr::semi_join(cells, by = c("lon", "lat")) |>
+    dplyr::semi_join(own, by = c("lon", "lat"))
+  if (nrow(missing) == 0L) {
+    return(list(
+      table = dplyr::select(kept, -".complete"),
+      fills = .cmr_fill_prototype()
+    ))
+  }
+  fills <- .cmr_nearest_cells(missing, .cmr_climate_donors(table))
+  copied <- fills |>
+    dplyr::select("lon", "lat", "donor_lon", "donor_lat") |>
+    dplyr::inner_join(
+      dplyr::rename(table, donor_lon = "lon", donor_lat = "lat"),
+      by = c("donor_lon", "donor_lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select(-"donor_lon", -"donor_lat")
+  .cmr_inform_nearest(fills)
+  list(
+    table = dplyr::select(dplyr::bind_rows(kept, copied), -".complete"),
+    fills = dplyr::select(fills, "lon", "lat", "climate_fill_km")
+  )
+}
+
+.cmr_fill_prototype <- function() {
+  tibble::tibble(lon = double(), lat = double(), climate_fill_km = double())
+}
+
+# The cells that can lend a climate: a complete row in every year the table
+# holds, ordered so that a tie in distance always resolves to the same cell.
+.cmr_climate_donors <- function(table) {
+  n_years <- dplyr::n_distinct(table$year)
+  donors <- table |>
+    dplyr::summarise(
+      lends = all(.data$.complete) & dplyr::n_distinct(.data$year) == n_years,
+      .by = c("lon", "lat")
+    ) |>
+    dplyr::filter(.data$lends) |>
+    dplyr::arrange(.data$lon, .data$lat)
+  if (nrow(donors) == 0L) {
+    cli::cli_abort(
+      c(
+        "No cell of the climate table has a complete record to lend a cell
+         without one.",
+        i = "Every cell needs mean temperature, precipitation, PET and frost
+             days in every year read."
+      ),
+      class = c("whep_moisture_regime_climate", "whep_absent_input")
+    )
+  }
+  donors
+}
+
+# For each cell without climate, the nearest donor and its distance (the
+# first in donor order on a tie).
+.cmr_nearest_cells <- function(missing, donors) {
+  purrr::map2(missing$lon, missing$lat, \(lon, lat) {
+    km <- .great_circle_km(lon, lat, donors$lon, donors$lat)
+    nearest <- which.min(km)
+    tibble::tibble(
+      lon = lon,
+      lat = lat,
+      donor_lon = donors$lon[nearest],
+      donor_lat = donors$lat[nearest],
+      climate_fill_km = km[nearest]
+    )
+  }) |>
+    dplyr::bind_rows()
+}
+
+# Great-circle (haversine) distance in km between points given in degrees, on
+# the mean Earth radius R1 = 6371.0088 km of the Geodetic Reference System
+# 1980 (Moritz 2000, Journal of Geodesy 74: 128-133).
+.great_circle_km <- function(lon1, lat1, lon2, lat2) {
+  rad <- pi / 180
+  h <- sin((lat2 - lat1) * rad / 2)^2 +
+    cos(lat1 * rad) * cos(lat2 * rad) * sin((lon2 - lon1) * rad / 2)^2
+  2 * 6371.0088 * asin(sqrt(pmin(1, h)))
+}
+
+.cmr_inform_nearest <- function(fills) {
+  n_cells <- nrow(fills)
+  cli::cli_inform(
+    c(
+      "{n_cells} cell{?s} without CRU climate took the climate of the nearest
+       CRU land cell, stamped {.val nearest_cru_cell}.",
+      i = "Distance: median {signif(stats::median(fills$climate_fill_km), 3)}
+           km, largest {signif(max(fills$climate_fill_km), 3)} km."
+    ),
+    class = "whep_moisture_regime_nearest_climate"
+  )
+}
+
+# Each row of a cell whose climate is a nearest-cell fill carries the
+# distance, `climate_fill_km`, and the field `nearest_cru_cell` in its
+# `method_moisture_regime`; every other row carries NA.
+.cmr_stamp_climate_fill <- function(out, fills) {
+  fills <- fills %||% .cmr_fill_prototype()
+  out |>
+    dplyr::select(-dplyr::any_of("climate_fill_km")) |>
+    dplyr::left_join(
+      fills,
+      by = c("lon", "lat"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      method_moisture_regime = dplyr::if_else(
+        is.na(.data$climate_fill_km),
+        .data$method_moisture_regime,
+        .moisture_add_field(.data$method_moisture_regime, "nearest_cru_cell")
+      )
+    )
+}
+
+# Add a field to a `method_moisture_regime` stamp, ahead of the reasons an
+# unclassified row carries, which always come last.
+.moisture_add_field <- function(stamp, field) {
+  tail <- ";(missing=|pet_not_positive).*$"
+  reasons <- stringr::str_extract(stamp, tail)
+  paste0(
+    stringr::str_remove(stamp, tail),
+    ";",
+    field,
+    dplyr::coalesce(reasons, "")
+  )
+}
+
+# The class of each cell on its precipitation alone, per requested year:
+# what a row with no crop takes, since no crop means no irrigation. Same
+# climate, nearest-cell fill and window as the crop rows.
+.cmr_cell_classes <- function(cells, spec, data) {
+  climate <- .cmr_climate(data, spec, cells)
+  frame <- .moisture_frame(
+    spec$years,
+    spec$window,
+    spec$config$normal_period,
+    climate$record
+  )
+  ctx <- list(
+    group = spec$years,
+    spec = spec,
+    read_years = frame$plan$read_years
+  )
+  table <- dplyr::filter(climate$table, .data$year %in% ctx$read_years)
+  cells <- dplyr::distinct(
+    dplyr::transmute(
+      cells,
+      lon = round(as.numeric(.data$lon), 2),
+      lat = round(as.numeric(.data$lat), 2)
+    )
+  )
+  n_blocks <- min(
+    max(
+      1L,
+      ceiling(nrow(cells) * length(ctx$read_years) / spec$config$max_rows)
+    ),
+    nrow(cells)
+  )
+  block <- (seq_len(nrow(cells)) - 1L) %% n_blocks
+  unname(split(cells, block)) |>
+    purrr::map(\(cell_block) {
+      tidyr::expand_grid(cell_block, year = ctx$read_years) |>
+        dplyr::left_join(table, by = c("lon", "lat", "year")) |>
+        .cmr_run_classifier(ctx, "precip")
+    }) |>
+    dplyr::bind_rows() |>
+    .cmr_stamp_climate_fill(climate$fills)
 }
 
 # The four CRU variables over the years the classifier reads: the record's
@@ -1909,6 +2123,7 @@ build_cell_moisture_regime <- function(
     tropical = logical(),
     moisture_regime = character(),
     method_moisture_regime = character(),
+    climate_fill_km = double(),
     method_irrig_depth = character(),
     lpjml_crop = character(),
     lpjml_version = character(),
