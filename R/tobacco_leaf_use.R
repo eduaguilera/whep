@@ -17,6 +17,20 @@
 # filter, and Ukraine 2019 reports 56 kt of products against 29.7 kt of leaf
 # `other_uses`. Which treatment to use is a science decision, so it is
 # selectable; see `tobacco_leaf_use` in `build_commodity_balances()`.
+#
+# No precedent settles the ratio (searched 2026-10-07). FAO's Technical
+# Conversion Factors for Agricultural Commodities
+# (https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf)
+# has no tobacco entry; it is "limited almost exclusively to edible
+# products". FABIO (github.com/fineprint-global/fabio) carries two factor
+# sets that disagree, and neither cites a source: `inst/tcf_btd.csv` turns
+# traded product into leaf by dividing by 0.9 (828), 0.6 (829) and 0.9 (831),
+# while `inst/sua/tcf_sua_expert.csv` gives leaf-to-product extraction rates
+# of 0.68 (cigarettes) and 0.375 (cigars). Edu's Global `commodity_balances.r`,
+# from which `.get_fiber_tobacco()` descends, sums all four links unconverted,
+# which is the double count itself. The afse-wiki decision
+# `methodological-decisions-ask-before-acting` forbids choosing a conversion
+# factor silently, so the default keeps the record as published.
 
 .tobacco_leaf_use_choices <- function() {
   c("as_published", "one_to_one")
