@@ -398,3 +398,26 @@ testthat::test_that("a duplicated area-year aborts rather than summing", {
     "more than once"
   )
 })
+
+testthat::test_that("residue N stamps which N content source each row used", {
+  # Wheat (2511) is in IPCC Table 11.1a; 2601 is not, so it takes the generic
+  # 0.008. Both used to be indistinguishable in the output (whep#1034).
+  f <- .soil_n2o_fixture()
+  f$fertilizer$Value <- 0
+  f$primary_residues <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+    ~value_dm,
+    2010L, 10L, 2511L, 2105L, 1000, 866,
+    2010L, 10L, 2601L, 2105L, 1000, 500
+  )
+  result <- whep::build_crop_soil_n2o_extension(data = f)
+
+  testthat::expect_equal(
+    result$method_residue_n[result$item_cbs_code == 2511L],
+    "ipcc_2019_table_11_1a"
+  )
+  testthat::expect_equal(
+    result$method_residue_n[result$item_cbs_code == 2601L],
+    "generic_default_0.008"
+  )
+})
