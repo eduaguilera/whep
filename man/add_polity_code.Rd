@@ -9,7 +9,8 @@ add_polity_code(
   code_column = "area_code",
   year_column = "year",
   polity_code_column = "polity_code",
-  backcast_anchor = 1961L
+  backcast_anchor = 1961L,
+  backcast_polity = NULL
 )
 }
 \arguments{
@@ -29,6 +30,10 @@ anchor-year territory rather than reported under their data-year borders.
 Such a row reports \code{mapping_status == "backcast_anchor"} where the anchor
 polity is not live in its own year. Set to \code{-Inf} to disable and match
 strictly by data year.}
+
+\item{backcast_polity}{Which territory a row before \code{backcast_anchor} is
+labelled with: \code{"anchor"} or \code{"present_day"}. See the section above.
+\code{NULL} (default) reads \code{getOption("whep.backcast_polity", "anchor")}.}
 }
 \value{
 A tibble with added polity metadata columns.
@@ -57,8 +62,8 @@ substituted something for a real period hit:
 \item \code{"matched"} / \code{"manual"}: the year fell inside the polity's period, and the
 value is the crosswalk row's own provenance, carried through.
 \item \code{"backcast_anchor"}: the row is before \code{backcast_anchor}, so it was
-resolved at the anchor year, and the polity live then is \strong{not} live in
-the row's own year. That polity is still the honest label -- the value is a
+resolved at the anchor year (or at 2023 under \code{backcast_polity = "present_day"}), and the polity live then is \strong{not} live in the row's own
+year. That polity is still the honest label -- the value is a
 reconstruction on the anchor year's territory -- but the row is no evidence
 the polity existed then, which is exactly what \code{"matched"} asserts.
 FAOSTAT area 238 reads \code{ETH-1952-1993} from 1850, 102 years before that
@@ -92,6 +97,39 @@ larger historical-extent period. Set
 \code{options(whep.polity_stand_in = "nearest")} to restore ranking by distance
 alone; it changes 235 of the crosswalk's 46,640 \verb{(area, year)} pairs over
 1850-2025, all of them areas 178 and 273 (whep#705).
+}
+
+\section{Which territory a back-cast row names}{
+
+A row before \code{backcast_anchor} has two territorial references, and they
+differ wherever a territory changed after the anchor (whep#748). Its
+\strong{level} is the area's value at the anchor, walked backwards by
+\code{\link[=fill_proxy_growth]{fill_proxy_growth()}}, so it describes the anchor year's territory. Its
+year-on-year \strong{movement} is a ratio of LUH2 land keyed on present-day ISO3,
+so it describes today's territory. \code{\link[=polity_anchor_drift]{polity_anchor_drift()}} reports where the
+two differ. \code{backcast_polity} chooses which one the label names:
+\itemize{
+\item \code{"anchor"} (default): the polity live at \code{backcast_anchor}, the territory
+of the level. Area 238 Ethiopia reads \code{ETH-1952-1993}, which includes
+Eritrea, from 1850 to 1992.
+\item \code{"present_day"}: the polity live in 2023, the territory of the movement and
+the reference year \code{\link[=polity_anchor_drift]{polity_anchor_drift()}} measures against. Area 238 reads
+\code{ETH-1993-2025} from 1850 to 1960, \code{ETH-1952-1993} from 1961 to 1992 and
+\code{ETH-1993-2025} after. An area with no polity live in 2023, such as 15
+Belgium-Luxembourg or 248 Yugoslav SFR, keeps its anchor polity, because
+there is no present-day territory to name.
+}
+
+Either way the row's \code{mapping_status} is \code{"backcast_anchor"} where the polity
+named is not live in the row's own year. Neither choice moves a value or a
+\code{polity_area_code} bucket: over the crosswalk's 1850-1960 grid,
+\code{"present_day"} relabels the pairs of 47 areas and leaves every bucket where
+it was.
+
+Without an explicit argument the session option
+\code{options(whep.backcast_polity = )} decides, and it is the same switch every
+published output's \code{reporting_polity_code} and \code{partner_polity_code} follow,
+so one setting relabels them all consistently.
 }
 
 \examples{

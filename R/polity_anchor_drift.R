@@ -8,8 +8,8 @@
 #' * its **level** is the area's reported value at the back-cast anchor, walked
 #'   backwards by [fill_proxy_growth()], so it describes the territory that
 #'   area had in `backcast_anchor`. That is the territory
-#'   `reporting_polity_code` names, because [add_polity_code()] floors the
-#'   polity lookup at the same anchor;
+#'   `reporting_polity_code` names by default, because [add_polity_code()]
+#'   floors the polity lookup at the same anchor;
 #' * its **year-on-year movement** is a ratio of LUH2 land, and under
 #'   `build_primary_production(land_method = "present_day")` the `luh2-areas`
 #'   pin is keyed on **present-day ISO3**, so the movement describes the
@@ -36,6 +36,12 @@
 #'   does not, which is the harder class to notice.
 #' - `"unmapped_reference"`: the area resolves to no polity at
 #'   `reference_year` at all, so what the movement describes cannot be named.
+#'
+#' The comparison is always against the anchor, whatever
+#' `options(whep.backcast_polity = )` is set to. That switch decides which of
+#' the two territories a published label names, and its `"present_day"` value
+#' relabels exactly the pairs reported here whose reference polity is live in
+#' `reference_year`, so this is also the list of rows it would move.
 #'
 #' A pair whose anchor polity is itself `NA` is **not** reported: that row has
 #' no label to disagree with, and it is [polity_mapping_provenance()] and
@@ -184,6 +190,11 @@ polity_anchor_drift <- function(
 }
 
 # The polity each pair resolves to, in `pairs` order and one row per pair.
+#
+# Pinned to the anchor convention rather than following
+# `options(whep.backcast_polity)`: under `"present_day"` the anchored resolution
+# would BE the reference, and the function would report no drift for a table
+# that has plenty.
 .anchor_drift_resolve <- function(pairs, backcast_anchor) {
   pairs |>
     dplyr::select("area_code", "year") |>
@@ -192,7 +203,8 @@ polity_anchor_drift <- function(
       code_col = "area_code",
       year_col = "year",
       include_unmapped = TRUE,
-      backcast_anchor = backcast_anchor
+      backcast_anchor = backcast_anchor,
+      backcast_polity = "anchor"
     ) |>
     tibble::as_tibble() |>
     dplyr::select("polity_code", "polity_name")

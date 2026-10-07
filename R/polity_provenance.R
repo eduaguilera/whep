@@ -68,7 +68,8 @@
 #' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data;
 #'   passed to the same resolution [add_polity_code()] documents. Set to `-Inf`
 #'   to resolve strictly by data year, which is what makes the manufactured
-#'   pre-1961 periods live.
+#'   pre-1961 periods live. The territory a pre-anchor row is resolved to
+#'   follows `options(whep.backcast_polity = )`, as the builds' labels do.
 #'
 #' @returns A tibble with one row per resolved `(area_code, year)`, ordered by
 #'   area code and year, carrying `area_code`, `year`, `polity_code`,

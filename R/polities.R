@@ -842,8 +842,9 @@
 #' - `"matched"` / `"manual"`: the year fell inside the polity's period, and the
 #'   value is the crosswalk row's own provenance, carried through.
 #' - `"backcast_anchor"`: the row is before `backcast_anchor`, so it was
-#'   resolved at the anchor year, and the polity live then is **not** live in
-#'   the row's own year. That polity is still the honest label -- the value is a
+#'   resolved at the anchor year (or at 2023 under `backcast_polity =
+#'   "present_day"`), and the polity live then is **not** live in the row's own
+#'   year. That polity is still the honest label -- the value is a
 #'   reconstruction on the anchor year's territory -- but the row is no evidence
 #'   the polity existed then, which is exactly what `"matched"` asserts.
 #'   FAOSTAT area 238 reads `ETH-1952-1993` from 1850, 102 years before that
@@ -875,6 +876,36 @@
 #' alone; it changes 235 of the crosswalk's 46,640 `(area, year)` pairs over
 #' 1850-2025, all of them areas 178 and 273 (whep#705).
 #'
+#' @section Which territory a back-cast row names:
+#' A row before `backcast_anchor` has two territorial references, and they
+#' differ wherever a territory changed after the anchor (whep#748). Its
+#' **level** is the area's value at the anchor, walked backwards by
+#' [fill_proxy_growth()], so it describes the anchor year's territory. Its
+#' year-on-year **movement** is a ratio of LUH2 land keyed on present-day ISO3,
+#' so it describes today's territory. [polity_anchor_drift()] reports where the
+#' two differ. `backcast_polity` chooses which one the label names:
+#'
+#' - `"anchor"` (default): the polity live at `backcast_anchor`, the territory
+#'   of the level. Area 238 Ethiopia reads `ETH-1952-1993`, which includes
+#'   Eritrea, from 1850 to 1992.
+#' - `"present_day"`: the polity live in 2023, the territory of the movement and
+#'   the reference year [polity_anchor_drift()] measures against. Area 238 reads
+#'   `ETH-1993-2025` from 1850 to 1960, `ETH-1952-1993` from 1961 to 1992 and
+#'   `ETH-1993-2025` after. An area with no polity live in 2023, such as 15
+#'   Belgium-Luxembourg or 248 Yugoslav SFR, keeps its anchor polity, because
+#'   there is no present-day territory to name.
+#'
+#' Either way the row's `mapping_status` is `"backcast_anchor"` where the polity
+#' named is not live in the row's own year. Neither choice moves a value or a
+#' `polity_area_code` bucket: over the crosswalk's 1850-1960 grid,
+#' `"present_day"` relabels the pairs of 47 areas and leaves every bucket where
+#' it was.
+#'
+#' Without an explicit argument the session option
+#' `options(whep.backcast_polity = )` decides, and it is the same switch every
+#' published output's `reporting_polity_code` and `partner_polity_code` follow,
+#' so one setting relabels them all consistently.
+#'
 #' @param table A data frame.
 #' @param code_column Name of the column containing numeric area codes.
 #' @param year_column Name of the column containing years. Set to `NULL` to
@@ -887,6 +918,9 @@
 #'   Such a row reports `mapping_status == "backcast_anchor"` where the anchor
 #'   polity is not live in its own year. Set to `-Inf` to disable and match
 #'   strictly by data year.
+#' @param backcast_polity Which territory a row before `backcast_anchor` is
+#'   labelled with: `"anchor"` or `"present_day"`. See the section above.
+#'   `NULL` (default) reads `getOption("whep.backcast_polity", "anchor")`.
 #'
 #' @returns A tibble with added polity metadata columns.
 #' @seealso [polity_coverage_gaps()], which reports the `"out_of_span"` and
@@ -991,7 +1025,9 @@ add_polity_code <- function(
 #'   it absent from `table`, to use the current/default mapping, which has no
 #'   gaps by construction.
 #' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data;
-#'   passed to the same resolution [add_polity_code()] documents.
+#'   passed to the same resolution [add_polity_code()] documents. The
+#'   territory a pre-anchor row is resolved to follows
+#'   `options(whep.backcast_polity = )`, as the builds' labels do.
 #'
 #' @returns A tibble with one row per reported `(area_code, year)`, ordered by
 #'   area code and year, carrying `area_code`, `year`, `polity_code`,
