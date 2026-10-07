@@ -165,8 +165,84 @@ testthat::test_that("bad input aborts with a classed condition", {
     class = "whep_landuse_floor_values"
   )
   testthat::expect_error(
-    whep:::.floor_landuse_fractions(.lu_cells(), method = "hectare"),
+    whep:::.floor_landuse_fractions(.lu_cells(), method = "acre"),
     class = "rlang_error"
+  )
+})
+
+# The hectare floor (whep#985): a band holding less than `min_ha` of land is
+# not a crop stand. The cell areas below are hectares per cell.
+.lu_cells_ha <- function() {
+  tibble::tribble(
+    ~year, ~pft, ~row, ~col, ~value, ~cell_area_ha,
+    2000L,   1L,   1L,   1L,   0.4,    250000,
+    2000L,   2L,   1L,   1L,   0.2,    250000,
+    2000L,   3L,   1L,   1L,   2e-6,   250000,
+    2000L,   4L,   1L,   1L,   8e-6,   250000,
+    2000L,   1L,   1L,   2L,   1e-6,   250000,
+    2000L,   2L,   1L,   2L,   3e-6,   250000,
+    2000L,   1L,   2L,   1L,   0.5,    1e6
+  ) |>
+    data.table::as.data.table()
+}
+
+testthat::test_that("method = 'hectare' drops bands below min_ha", {
+  lu <- .lu_cells_ha()
+  out <- whep:::.floor_landuse_fractions(lu, method = "hectare")
+
+  # Cell (1, 1): pft 3 is 0.5 ha and goes; pft 4 is 2 ha and stays. Cell
+  # (1, 2) holds 0.25 ha and 0.75 ha, both under 1 ha: only its largest band
+  # survives, carrying the whole cell, so the cell is never emptied.
+  kept <- out[order(row, col, pft), .(row, col, pft)]
+  testthat::expect_equal(kept$row, c(1L, 1L, 1L, 1L, 2L))
+  testthat::expect_equal(kept$col, c(1L, 1L, 1L, 2L, 1L))
+  testthat::expect_equal(kept$pft, c(1L, 2L, 4L, 2L, 1L))
+  testthat::expect_equal(out[row == 1L & col == 2L, value], 4e-6)
+
+  # Every cell keeps its land-use total.
+  totals <- .cell_sums(lu)[.cell_sums(out), on = .(year, row, col)]
+  testthat::expect_equal(nrow(totals), 3L)
+  testthat::expect_lt(
+    max(abs(totals$i.total / totals$total - 1)),
+    4 * .Machine$double.eps
+  )
+  # The floor is in hectares, so it moves with the cell area.
+  testthat::expect_equal(
+    nrow(whep:::.floor_landuse_fractions(lu, "hectare", min_ha = 3)),
+    4L
+  )
+})
+
+testthat::test_that("method = 'hectare' also applies the float32 floor", {
+  lu <- .lu_cells()[, cell_area_ha := 1e300]
+  out <- whep:::.floor_landuse_fractions(lu, method = "hectare")
+  testthat::expect_equal(
+    out[order(row, col, pft)],
+    whep:::.floor_landuse_fractions(.lu_cells())[order(row, col, pft)][,
+      cell_area_ha := 1e300
+    ]
+  )
+})
+
+testthat::test_that("method = 'hectare' refuses an absent cell area", {
+  testthat::expect_error(
+    whep:::.floor_landuse_fractions(.lu_cells(), method = "hectare"),
+    class = "whep_landuse_floor_columns"
+  )
+  testthat::expect_error(
+    whep:::.floor_landuse_fractions(
+      .lu_cells_ha()[1L, cell_area_ha := NA_real_],
+      method = "hectare"
+    ),
+    class = "whep_landuse_floor_values"
+  )
+  testthat::expect_error(
+    whep:::.floor_landuse_fractions(
+      .lu_cells_ha(),
+      method = "hectare",
+      min_ha = -1
+    ),
+    class = "whep_landuse_floor_values"
   )
 })
 
@@ -177,7 +253,7 @@ testthat::test_that("bad input aborts with a classed condition", {
 
 # `.pft_nc_write_chunk()` is swapped for a recorder, so the test sees exactly
 # the band values the writer hands to `ncvar_put()` without needing ncdf4.
-.captured_lu_chunk <- function(...) {
+.captured_lu_chunk <- function(..., rice_rainfed = 1e-12) {
   script_env <- environment(.write_lu_nc_chunk)
   real_writer <- script_env$.pft_nc_write_chunk
   withr::defer(assign(".pft_nc_write_chunk", real_writer, envir = script_env))
@@ -193,7 +269,7 @@ testthat::test_that("bad input aborts with a classed condition", {
     ~lon,    ~lat,  ~year, ~cft_name,           ~rainfed_ha, ~irrigated_ha,
     -179.75, 83.75, 2000L, "temperate_cereals", 0.3,         0,
     -179.75, 83.75, 2000L, "maize",             1e-45,       0,
-    -179.75, 83.75, 2000L, "rice",              1e-12,       0.1
+    -179.75, 83.75, 2000L, "rice",              rice_rainfed, 0.1
   ) |>
     dplyr::mutate(dplyr::across(c(rainfed_ha, irrigated_ha), \(x) {
       x * row_area_ha[1L]
@@ -230,4 +306,19 @@ testthat::test_that("landuse_floor = 'none' reproduces the unfloored writer", {
   # The pre-#985 file: the 1e-45 band reaches the float32 cast as a denormal.
   stored <- .as_float32(written$value)
   testthat::expect_true(any(stored > 0 & stored < .flt_min))
+})
+
+testthat::test_that("landuse_floor = 'hectare' drops a sub-hectare band", {
+  .need_spatialize_helper(".write_lu_nc_chunk")
+  # Rainfed rice at 1e-7 of a ~33,800 ha polar cell is ~0.003 ha: float32
+  # resolves it, so the default keeps it, but it is not a hectare.
+  kept <- .captured_lu_chunk(rice_rainfed = 1e-7)
+  written <- .captured_lu_chunk(
+    landuse_floor = "hectare",
+    rice_rainfed = 1e-7
+  )
+  testthat::expect_gt(nrow(kept), nrow(written))
+  testthat::expect_setequal(written$pft, c(1L, 18L))
+  testthat::expect_false("cell_area_ha" %in% names(written))
+  testthat::expect_equal(sum(written$value), 0.4 + 1e-7 + 1e-45)
 })

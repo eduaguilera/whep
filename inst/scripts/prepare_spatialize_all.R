@@ -6913,10 +6913,12 @@ prepare_lpjml6_static_inputs <- function(
   out <- rbind(rf, ir, .grassland_lu_band(pasture_chunk, grid, row_area_ha))
   out[, value := pmin(1, pmax(0, value))]
   # whep#985: `value > 0` is not a tolerance on a float32 file. Drop what
-  # float32 cannot resolve at the cell's own scale and fold it back into the
-  # cell; the floor is argued in R/lpjml_landuse_floor.R.
+  # float32 cannot resolve at the cell's own scale (and, for "hectare", any
+  # band under 1 ha) and fold it back into the cell; the floor is argued in
+  # R/lpjml_landuse_floor.R.
+  out[, cell_area_ha := row_area_ha[row]]
   out <- whep:::.floor_landuse_fractions(out, landuse_floor)
-  out[, value := pmin(1, value)]
+  out[, `:=`(value = pmin(1, value), cell_area_ha = NULL)]
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
@@ -7067,7 +7069,7 @@ run_crop_spatialize <- function(
   cli::cli_h2("Section 10: Crop spatialization")
   landuse_floor <- rlang::arg_match(
     landuse_floor,
-    c("float32_resolution", "denormal", "none")
+    c("float32_resolution", "denormal", "hectare", "none")
   )
 
   country_grid <- .spatialize_grid_with_share(
