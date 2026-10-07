@@ -616,7 +616,11 @@
 #'   The 2019 Refinement also moved buffalo into this table (78 Western
 #'   Europe, 68 Eastern Europe / Latin America / Asia, 81 Africa, 67 Middle
 #'   East, 85 Indian Subcontinent), which is not reflected here.
-#'   Tracked in whep#601.
+#'   Since whep#601 Tier 1 enteric CH4 reads the as-published 2019 factors
+#'   in [ipcc_enteric_ef_tier1] by default. This table is read only under
+#'   the `enteric_ef_source = "as_shipped"` manure-engine option (see
+#'   [manure_engine_options]), and as the fallback for rows the 2019 edition
+#'   prices at nothing.
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_cattle
@@ -641,7 +645,10 @@
 #'   buffalo out of this table into the regional Table 10.11. Poultry is
 #'   stored as `0`; both editions say "insufficient data for calculation",
 #'   so the zero is a project choice rather than a published factor.
-#'   Tracked in whep#601.
+#'   Since whep#601 Tier 1 enteric CH4 reads [ipcc_enteric_ef_tier1] by
+#'   default; this table is read only under `enteric_ef_source =
+#'   "as_shipped"` and as the fallback for rows the 2019 edition prices at
+#'   nothing (poultry, and buffalo in North America and Oceania).
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_other
@@ -792,11 +799,135 @@
 #'   value, while dry lot is 0.02 in both editions), `"Burned for Fuel"` 0
 #'   (both editions give no EF3 here and report those emissions under fuel
 #'   combustion or waste incineration instead) and `"Other"` 0.005.
-#'   **Assumed, unverified.** Tracked in whep#601.
+#'   **Assumed, unverified.** Since whep#601 the manure engine reads the
+#'   as-published 2019 EF3 in [ipcc_manure_ef3] by default; this table backs
+#'   only that dataset's `"as_shipped"` edition.
 #'
 #' @examples
 #' ipcc_2019_n2o_ef_direct
 "ipcc_2019_n2o_ef_direct"
+
+#' IPCC Tier 1 enteric emission factors, as published.
+#'
+#' @description
+#' Tier 1 enteric fermentation emission factors (kg CH4/head/yr) as the 2019
+#' Refinement publishes them, which the `ipcc_2019_enteric_ef_*` tables did
+#' not hold (whep#601). Tier 1 enteric CH4 reads this table by default; the
+#' `enteric_ef_source` manure-engine option selects it (`"ipcc_2019"`) or
+#' the older tables (`"as_shipped"`), see [manure_engine_options].
+#'
+#' A category has one of three shapes:
+#' - **regional** (`region` is an IPCC region, `productivity == "All"`):
+#'   dairy cattle, other cattle and buffalo, Table 10.11 (Updated). Only the
+#'   Tier 1 column is carried; the high/low productivity rows the table adds
+#'   for five regions are Tier 1a, which needs the head count split by
+#'   productivity system. North America and Oceania publish no buffalo
+#'   factor ("no buffalo herds").
+#' - **split by productivity** (`region == "All"`, `productivity` `"High"` or
+#'   `"Low"`): sheep, goats and swine, Table 10.10 (Updated). Its footnote 1
+#'   says that "for all regions other than North America, Europe and Oceania
+#'   the Tier 1 default values are the low productivity EFs", so Tier 1 takes
+#'   `"High"` in North America, Western Europe, Eastern Europe and Oceania
+#'   and `"Low"` in every other IPCC region.
+#' - **flat** (`region == "All"`, `productivity == "All"`): horses, camels,
+#'   mules and asses, and the deer, ostrich and llama/alpaca rows of the same
+#'   table.
+#'
+#' Poultry has no row: both editions say "insufficient data for
+#' calculation". A row the edition prices at nothing -- poultry, buffalo in
+#' North America or Oceania, or a regional or productivity-split species on a
+#' row whose IPCC region does not resolve -- keeps the as-shipped factor, and
+#' `method_enteric` says so (`enteric_ef_as_shipped_fallback`).
+#'
+#' @format A tibble with one row per `edition`, `region`, `category` and
+#'   `productivity`:
+#'   - `edition`: `"ipcc_2019"`.
+#'   - `region`: IPCC Tier 1 region, or `"All"`.
+#'   - `category`: `"Dairy Cattle"`, `"Other Cattle"`, `"Buffalo"` or a
+#'     general species name.
+#'   - `productivity`: `"All"`, `"High"` or `"Low"`.
+#'   - `ef_kg_head_yr`: emission factor, kg CH4 per head per year.
+#'   - `ipcc_table`: the table the value was read from.
+#'
+#' @section Measured effect:
+#' On FAOSTAT 2020 heads at national grain, Tier 1 enteric CH4 goes from
+#' 110.80 Tg (as shipped) to 125.32 Tg: cattle 78.58 to 90.98 Tg, buffalo
+#' 11.21 to 16.55 Tg, sheep 10.30 to 7.31 Tg (low productivity outside the
+#' four high regions), swine 1.41 to 1.08 Tg and goats 5.47 to 5.56 Tg.
+#' Every row resolved an IPCC region; the only fallback rows were poultry
+#' and 163 buffalo head in North America and Oceania.
+#'
+#' @source
+#'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
+#'   Greenhouse Gas Inventories*, Vol 4, Ch 10, Table 10.10 (Updated),
+#'   p. 10.38, and Table 10.11 (Updated), pp. 10.40-10.43 (PDF md5
+#'   `c1784e747af9bb307e93f4170c12679a`, downloaded from
+#'   `ipcc-nggip.iges.or.jp` and checksummed on 2026-10-07). Every value is a
+#'   transcription.
+#'
+#' @examples
+#' ipcc_enteric_ef_tier1
+"ipcc_enteric_ef_tier1"
+
+#' IPCC direct manure N2O emission factors (EF3), by edition.
+#'
+#' @description
+#' EF3 (kg N2O-N per kg N) for the six manure-management labels WHEP's
+#' manure engine carries, in two editions. The `ef3_source` option of the
+#' manure engine (see [manure_engine_options]) and of
+#' [apply_management_losses()] selects one; `"ipcc_2019"` is the default.
+#'
+#' - `"ipcc_2019"`: the 2019 Refinement, Vol 4, Ch 10, Table 10.21
+#'   (Updated): daily spread 0, solid storage 0.010, uncovered anaerobic
+#'   lagoon 0, poultry manure with litter 0.001. Liquid/slurry is published
+#'   as 0.005 with a natural crust, 0 without and 0.005 covered; the single
+#'   `"Liquid/Slurry"` label takes the no-crust 0, the same rule
+#'   [climate_mcf_ipcc] applies to that label's MCF. Pasture/range/paddock is
+#'   deferred to Ch 11, whose Table 11.1 (Updated) gives the aggregated
+#'   EF3PRP 0.004 for "cattle (dairy, non-dairy and buffalo), poultry and
+#'   pigs" (`animal_class == "cattle_poultry_pigs"`) and 0.003 for "sheep
+#'   and 'other animals'" (`"sheep_other"`), the chapter listing goats,
+#'   horses, mules, donkeys, camels, reindeer and camelids as other animals.
+#'   Its disaggregated wet/dry pair (0.006 / 0.002) needs a moisture regime
+#'   per row and is not carried.
+#' - `"as_shipped"`: the values the engine read before whep#601, a crosswalk
+#'   onto [ipcc_2019_n2o_ef_direct], which holds 2006 and unpublished values
+#'   (see its `@source`). Kept so earlier figures stay reproducible.
+#'
+#' `"Solid Storage"` also carries GLEAM's dry-lot shares (see
+#' [regional_mms_distribution]), which Table 10.21 prices at 0.02, not 0.010.
+#'
+#' @format A tibble with one row per `edition`, `mms_type` and
+#'   `animal_class`:
+#'   - `edition`: `"ipcc_2019"` or `"as_shipped"`.
+#'   - `mms_type`: manure-management system label.
+#'   - `animal_class`: `"all"`, or for 2019 pasture `"cattle_poultry_pigs"`
+#'     or `"sheep_other"`.
+#'   - `ef3`: kg N2O-N per kg N.
+#'   - `ipcc_system`: the published row (or the shipped table's row) the
+#'     value was read from.
+#'
+#' @section Measured effect:
+#' On FAOSTAT 2020 heads at national grain, Tier 1 direct manure N2O goes
+#' from 1.523 Tg (as shipped) to 1.120 Tg, almost all of it the pasture
+#' factor (0.010 to 0.004 / 0.003): keeping pasture at 0.010 would give
+#' 1.772 Tg. Taking the with-crust 0.005 for liquid/slurry instead of the
+#' no-crust 0 would give 1.236 Tg. In [apply_management_losses()], which
+#' carries no management N2O on the grazing stream, the 2019 edition moves
+#' the nitrogen applied to land by -1.1 to +0.7 percent per species under
+#' the Global split.
+#'
+#' @source
+#'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
+#'   Greenhouse Gas Inventories*, Vol 4, Ch 10, Table 10.21 (Updated),
+#'   pp. 10.91-10.93 (PDF md5 `c1784e747af9bb307e93f4170c12679a`), and Vol 4,
+#'   Ch 11, Table 11.1 (Updated), p. 11.13 (PDF md5
+#'   `06c11d4f5a2b729564f8b3bd1ba11824`). Both downloaded from
+#'   `ipcc-nggip.iges.or.jp` and checksummed on 2026-10-07.
+#'
+#' @examples
+#' ipcc_manure_ef3
+"ipcc_manure_ef3"
 
 #' IPCC Ym values.
 #'

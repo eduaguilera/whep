@@ -1006,10 +1006,16 @@ test_that("the GLEAM 2.0 half keeps its whep#958 ingest values", {
   temperate_mcf <- whep::climate_mcf |>
     dplyr::filter(.data$climate_zone == "Temperate") |>
     dplyr::select("mms_type", "mcf_percent")
+  # The EF3 is held at the as-shipped edition these values were measured
+  # under, which is the same for every animal class, so the lock moves only
+  # with the split (whep#601 added the 2019 edition beside it).
+  shipped_ef3 <- whep:::.manure_ef3("as_shipped") |>
+    dplyr::filter(.data$ef3_class == "cattle_poultry_pigs") |>
+    dplyr::select("mms_type", "ef3")
 
   effective <- mms |>
     dplyr::left_join(temperate_mcf, by = "mms_type") |>
-    dplyr::left_join(whep:::.manure_ef3(), by = "mms_type") |>
+    dplyr::left_join(shipped_ef3, by = "mms_type") |>
     dplyr::summarise(
       weighted_mcf = sum(.data$fraction * .data$mcf_percent / 100),
       weighted_ef3 = sum(.data$fraction * .data$ef3),
@@ -1231,6 +1237,156 @@ test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
     testthat::expect_false(bo("Horses") == bo("Mules and Asses"), info = nm)
     # #253: broilers and layers share the high-productivity tier.
     testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
+  }
+})
+
+# The as-published 2019 Tier 1 factors whep#601 added beside the `ipcc_2019_*`
+# tables, read off the 2019 Refinement Vol 4 Ch 10 Tables 10.10 (Updated),
+# p. 10.38, 10.11 (Updated), pp. 10.40-10.43, and 10.21 (Updated),
+# pp. 10.91-10.93, and Ch 11 Table 11.1 (Updated), p. 11.13.
+test_that("ipcc_enteric_ef_tier1 holds the 2019 Tables 10.10 and 10.11", {
+  ef <- whep::ipcc_enteric_ef_tier1
+  assert_clean_tibble(
+    ef,
+    "ipcc_enteric_ef_tier1",
+    c("edition", "region", "category", "productivity", "ef_kg_head_yr")
+  )
+  ef |>
+    pointblank::expect_col_vals_in_set("edition", "ipcc_2019") |>
+    pointblank::expect_col_vals_in_set("productivity", c("All", "High", "Low"))
+  testthat::expect_equal(
+    nrow(dplyr::distinct(ef, edition, region, category, productivity)),
+    nrow(ef)
+  )
+
+  table_10_11 <- tibble::tribble(
+    ~region,               ~dairy, ~other, ~buffalo,
+    "North America",          138,     64,       NA,
+    "Western Europe",         126,     52,       78,
+    "Eastern Europe",          93,     58,       68,
+    "Oceania",                 93,     63,       NA,
+    "Latin America",           87,     56,       68,
+    "Asia",                    78,     54,       68,
+    "Africa",                  76,     52,       81,
+    "Middle East",             76,     60,       67,
+    "Indian Subcontinent",     73,     46,       85
+  )
+  got <- function(cat) {
+    ef$ef_kg_head_yr[match(
+      paste(table_10_11$region, cat),
+      paste(ef$region, ef$category)
+    )]
+  }
+  testthat::expect_equal(got("Dairy Cattle"), table_10_11$dairy)
+  testthat::expect_equal(got("Other Cattle"), table_10_11$other)
+  testthat::expect_equal(got("Buffalo"), table_10_11$buffalo)
+
+  # Table 10.11 also prints the Tier 1a high/low productivity factors for five
+  # regions, and states the Tier 1 value is the regional average over the two
+  # systems. A misread Tier 1 cell would fall outside its own pair.
+  tier_1a <- tibble::tribble(
+    ~region,               ~category,      ~high, ~low,
+    "Latin America",       "Dairy Cattle",   103,   78,
+    "Latin America",       "Other Cattle",    55,   58,
+    "Asia",                "Dairy Cattle",    96,   71,
+    "Asia",                "Other Cattle",    43,   56,
+    "Africa",              "Dairy Cattle",    86,   66,
+    "Africa",              "Other Cattle",    60,   48,
+    "Middle East",         "Dairy Cattle",    94,   62,
+    "Middle East",         "Other Cattle",    61,   55,
+    "Indian Subcontinent", "Dairy Cattle",    70,   74,
+    "Indian Subcontinent", "Other Cattle",    41,   47
+  ) |>
+    dplyr::left_join(ef, by = c("region", "category"))
+  testthat::expect_true(all(
+    tier_1a$ef_kg_head_yr >= pmin(tier_1a$high, tier_1a$low) &
+      tier_1a$ef_kg_head_yr <= pmax(tier_1a$high, tier_1a$low)
+  ))
+
+  table_10_10 <- tibble::tribble(
+    ~category,         ~productivity, ~ef_kg_head_yr,
+    "Sheep",           "High",          9,
+    "Sheep",           "Low",           5,
+    "Goats",           "High",          9,
+    "Goats",           "Low",           5,
+    "Swine",           "High",          1.5,
+    "Swine",           "Low",           1,
+    "Horses",          "All",          18,
+    "Camels",          "All",          46,
+    "Mules and Asses", "All",          10
+  )
+  testthat::expect_equal(
+    table_10_10 |>
+      dplyr::left_join(
+        dplyr::filter(ef, region == "All"),
+        by = c("category", "productivity"),
+        suffix = c("", "_got")
+      ) |>
+      dplyr::pull(ef_kg_head_yr_got),
+    table_10_10$ef_kg_head_yr
+  )
+  # Both editions say "insufficient data for calculation" for poultry.
+  testthat::expect_false("Poultry" %in% ef$category)
+})
+
+test_that("ipcc_manure_ef3 holds the 2019 Table 10.21 and the as-shipped EF3", {
+  ef3 <- whep::ipcc_manure_ef3
+  assert_clean_tibble(
+    ef3,
+    "ipcc_manure_ef3",
+    c("edition", "mms_type", "animal_class", "ef3")
+  )
+  testthat::expect_equal(
+    nrow(dplyr::distinct(ef3, edition, mms_type, animal_class)),
+    nrow(ef3)
+  )
+  value <- function(edition, mms, class = "all") {
+    ef3$ef3[
+      ef3$edition == edition & ef3$mms_type == mms & ef3$animal_class == class
+    ]
+  }
+  testthat::expect_equal(
+    c(
+      value("ipcc_2019", "Pasture/Range/Paddock", "cattle_poultry_pigs"),
+      value("ipcc_2019", "Pasture/Range/Paddock", "sheep_other"),
+      value("ipcc_2019", "Daily Spread"),
+      value("ipcc_2019", "Solid Storage"),
+      value("ipcc_2019", "Liquid/Slurry"),
+      value("ipcc_2019", "Anaerobic Lagoon"),
+      value("ipcc_2019", "Poultry Manure")
+    ),
+    c(0.004, 0.003, 0, 0.010, 0, 0, 0.001)
+  )
+  # The as-shipped half is the crosswalk `.manure_ef3()` applied in code
+  # before whep#601, so it must stay what `ipcc_2019_n2o_ef_direct` holds.
+  shipped <- whep::ipcc_2019_n2o_ef_direct
+  testthat::expect_equal(
+    value("as_shipped", "Solid Storage"),
+    shipped$ef_kg_n2o_n_per_kg_n[shipped$system == "Solid Storage"]
+  )
+  testthat::expect_equal(
+    c(
+      value("as_shipped", "Pasture/Range/Paddock"),
+      value("as_shipped", "Daily Spread"),
+      value("as_shipped", "Liquid/Slurry"),
+      value("as_shipped", "Anaerobic Lagoon"),
+      value("as_shipped", "Poultry Manure")
+    ),
+    c(0.01, 0.01, 0.002, 0.001, 0.001)
+  )
+  # Both editions serve exactly the six labels the manure engine carries.
+  for (edition in c("ipcc_2019", "as_shipped")) {
+    testthat::expect_setequal(
+      unique(ef3$mms_type[ef3$edition == edition]),
+      c(
+        "Pasture/Range/Paddock",
+        "Daily Spread",
+        "Solid Storage",
+        "Liquid/Slurry",
+        "Anaerobic Lagoon",
+        "Poultry Manure"
+      )
+    )
   }
 })
 

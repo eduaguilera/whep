@@ -648,3 +648,41 @@ test_that("apply_management_losses reads the selected Table 11.3 edition", {
     "indirect_n2o_source"
   )
 })
+
+test_that("apply_management_losses reads the 2019 EF3 unless told not to", {
+  # whep#601: the loss stage shares the engine's EF3, so it reads the 2019
+  # Refinement Table 10.21 (Updated) by default -- solid storage 0.010 where
+  # the as-shipped table held 0.005 -- and records which in
+  # `method_direct_n2o`. The grazing stream carries no management N2O either
+  # way, and the N balance still closes.
+  split <- whep::split_manure_management(.cattle_in("203"))
+  new <- whep::apply_management_losses(split)
+  old <- whep::apply_management_losses(
+    split,
+    options = list(ef3_source = "as_shipped")
+  )
+  solid_new <- new[new$mms_type == "Solid Storage", ]
+  solid_old <- old[old$mms_type == "Solid Storage", ]
+  stream <- split$n_stream[split$mms_type == "Solid Storage"]
+
+  expect_equal(solid_new$n2o_direct_n, stream * 0.010)
+  expect_equal(solid_old$n2o_direct_n, stream * 0.005)
+  expect_equal(unique(new$method_direct_n2o), "ipcc_2019")
+  expect_equal(unique(old$method_direct_n2o), "as_shipped")
+  expect_true(all(new$n2o_direct_n[new$stream == "grazing"] == 0))
+  expect_equal(
+    sum(
+      new$applied_n +
+        new$n_volatilized +
+        new$n_leached +
+        new$n2o_direct_n +
+        new$n2_n
+    ),
+    sum(split$n_stream),
+    tolerance = 1e-8
+  )
+  expect_error(
+    whep::apply_management_losses(split, list(ef3_source = "x")),
+    class = "rlang_error"
+  )
+})

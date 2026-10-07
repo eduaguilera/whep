@@ -1539,3 +1539,62 @@ testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
     counts$parameter[counts$edition == "ipcc_2006"]
   )
 })
+
+# EF3 edition (whep#601) -------------------------------------------------------
+
+testthat::test_that("direct manure N2O reads the 2019 EF3 by default", {
+  # The as-shipped EF3 held 2006 and unpublished values (daily spread 0.010,
+  # solid storage 0.005, liquid slurry 0.002, lagoon 0.001, pasture 0.010).
+  # The 2019 Refinement Table 10.21 (Updated) gives 0, 0.010, 0 (no natural
+  # crust) and 0, and Ch 11 Table 11.1 (Updated) puts pasture at 0.004 for
+  # cattle. Over the GLEAM 2.0 Global cattle split of the test above:
+  #   0.443522579*0.004 + 0.446946808*0.010 = 0.006243558.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    n_excretion = 100,
+    heads = 10,
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_direct_n2o(data)
+
+  testthat::expect_equal(
+    result$manure_n2o_direct,
+    10 * 100 * 0.006243558396 * (44 / 28),
+    tolerance = 1e-8
+  )
+  testthat::expect_match(result$method_manure_n2o, "; ef3_ipcc_2019$")
+  shipped <- whep:::.calc_direct_n2o(data, list(ef3_source = "as_shipped"))
+  testthat::expect_match(shipped$method_manure_n2o, "; ef3_as_shipped$")
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data, list(ef3_source = "ipcc_2006")),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("pasture EF3 follows the Table 11.1 animal class", {
+  # EF3PRP is 0.004 for cattle, buffalo, poultry and pigs and 0.003 for sheep
+  # and "other animals" (goats, horses, mules, camels).
+  ef3 <- whep:::.manure_ef3()
+  pasture <- ef3[ef3$mms_type == "Pasture/Range/Paddock", ]
+  testthat::expect_equal(
+    pasture$ef3[match(
+      c("cattle_poultry_pigs", "sheep_other"),
+      pasture$ef3_class
+    )],
+    c(0.004, 0.003)
+  )
+  testthat::expect_equal(
+    whep:::.ef3_animal_class(
+      c("Cattle", "Buffalo", "Poultry", "Swine", "Sheep", "Goats", "Camels")
+    ),
+    c(rep("cattle_poultry_pigs", 4), rep("sheep_other", 3))
+  )
+  # Every other system is published for all animals, so both classes agree.
+  other <- ef3[ef3$mms_type != "Pasture/Range/Paddock", ]
+  testthat::expect_equal(
+    other$ef3[other$ef3_class == "cattle_poultry_pigs"],
+    other$ef3[other$ef3_class == "sheep_other"]
+  )
+})

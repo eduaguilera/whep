@@ -432,7 +432,10 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     10L, 976L, 1482483600,
     100L, 960L, 913281525
   )
-  as_shipped <- list(enteric_ef_source = "as_shipped", ef3_source = "as_shipped")
+  as_shipped <- list(
+    enteric_ef_source = "as_shipped",
+    ef3_source = "as_shipped"
+  )
 
   placeholder <- c(
     list(mms_shares = "placeholder", indirect_n2o_source = "ipcc_2006"),
