@@ -332,6 +332,53 @@ testthat::test_that("ipcc2019 keeps excreta on EF3PRP even on a rice row", {
   testthat::expect_equal(out$method_soil_n2o, "ipcc2019_ef3prp_blend")
 })
 
+testthat::test_that("ipcc2019 prices fallback-labelled excreta as applied manure", {
+  # Manure labelled excreta only as the fallback of a manure-type split is
+  # collected manure, not grazing deposition: EF1 for other N inputs, 0.006
+  # wet and 0.005 dry (Table 11.1, p. 11.13), whatever its missing mix, and
+  # EF1FR on a rice item like any other applied input.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    ~excreta_cpp_share, ~method_excreta_species,
+    10, "Excreta", 2511L, "wet", NA, "fallback_label_no_species",
+    10, "Excreta", 2511L, "dry", NA, "fallback_label_no_species",
+    10, "Excreta", 2807L, "wet", NA, "fallback_label_no_species",
+    10, "Excreta", 3000L, "wet", 0.5, "engine_livestock_category"
+  )
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_equal(
+    out$n2o_direct_n_t,
+    c(0.06, 0.05, 0.04, 10 * (0.5 * 0.006 + 0.5 * 0.003)),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(
+    out$method_soil_n2o,
+    c(
+      rep("ipcc2019_fallback_applied_manure", 3L),
+      "ipcc2019_ef3prp_blend"
+    )
+  )
+})
+
+testthat::test_that("aguilera prices fallback-labelled excreta on Excreta_other", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
+    ~method_excreta_species,
+    10, "Excreta", "MED", "Rainfed", NA, "fallback_label_no_species",
+    10, "Excreta", "ATL", "Tier_1", NA, "fallback_label_no_species"
+  )
+  out <- whep::calculate_soil_n2o(x, method = "aguilera")
+  # MED / Rainfed ef 0.0027 x mf 0.30; ATL / Tier_1 ef 0.010 x mf 0.30.
+  testthat::expect_equal(
+    out$n2o_direct_n_t,
+    c(10 * 0.0027 * 0.30, 10 * 0.010 * 0.30),
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(
+    out$method_soil_n2o == "aguilera_fallback_applied_manure"
+  ))
+})
+
 testthat::test_that("ipcc2019 refuses excreta N with no species share", {
   x <- tibble::tribble(
     ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,

@@ -1702,11 +1702,50 @@ testthat::test_that("the loss rows carry the N-weighted excreta share", {
   ]))
   # One excreta row of unknown mix leaves the whole key without a share.
   n_inputs$excreta_cpp_share[2] <- NA
-  n_inputs$method_excreta_species[2] <- "fallback_label_no_species"
+  n_inputs$method_excreta_species[2] <- NA
   unknown <- whep:::.nb_loss_rows(n_inputs, key, list())
   testthat::expect_true(is.na(
     unknown$excreta_cpp_share[unknown$fert_type == "Excreta"]
   ))
+})
+
+testthat::test_that("fallback-labelled excreta is pooled apart from grazing excreta", {
+  # Collected manure labelled excreta only as a fallback is priced as
+  # applied manure, so it must not pool with (and erase the mix of) the
+  # grazing excreta of the same key.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  n_inputs <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~fert_type, ~n_input_t,
+    ~excreta_cpp_share, ~method_excreta_species,
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 10, 0.2,
+    "engine_livestock_category",
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 30, NA,
+    "fallback_label_no_species",
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 5, NA,
+    "fallback_label_no_species"
+  )
+  rows <- whep:::.nb_loss_rows(n_inputs, key, list())
+  testthat::expect_identical(nrow(rows), 2L)
+  grazing <- rows[
+    rows$method_excreta_species %in% "engine_livestock_category",
+  ]
+  fallback <- rows[
+    rows$method_excreta_species %in% "fallback_label_no_species",
+  ]
+  testthat::expect_equal(grazing$n_input_t, 10)
+  testthat::expect_equal(grazing$excreta_cpp_share, 0.2)
+  testthat::expect_equal(fallback$n_input_t, 35)
+  testthat::expect_true(is.na(fallback$excreta_cpp_share))
+  # Priced in the cascade: the grazing part at the wet EF3PRP blend, the
+  # fallback part at wet EF1 for other N inputs (0.006).
+  priced <- rows |>
+    dplyr::mutate(moisture_regime = "wet") |>
+    whep::calculate_soil_n2o(method = "ipcc2019")
+  testthat::expect_equal(
+    sum(priced$n2o_direct_n_t),
+    10 * (0.2 * 0.006 + 0.8 * 0.003) + 35 * 0.006,
+    tolerance = 1e-12
+  )
 })
 
 testthat::test_that("the default balance prices its loss rows with the wet IPCC factors", {

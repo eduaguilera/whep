@@ -119,6 +119,12 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #'   other animals. Excreta keep this factor on a rice row too: Equation 11.1
 #'   prices urine and dung deposited by grazing animals apart from the N
 #'   applied to the crop. Stamped `"ipcc2019_ef3prp_blend"`.
+#' * Excreta labelled so only as the fallback of a manure-type split
+#'   (`method_excreta_species == "fallback_label_no_species"`) is collected
+#'   manure applied to the land, not grazing deposition: it takes the factor
+#'   of applied manure on its row (`EF1` for other N inputs, `EF1FR` on a
+#'   rice item), whatever its missing species mix. Stamped
+#'   `"ipcc2019_fallback_applied_manure"`.
 #'
 #' `"ipcc2019_atl_med"` is the earlier IPCC 2019 Tier 1 option keyed on the
 #' Atlantic/Mediterranean `climate` instead: the [n2o_efs_disaggregated]
@@ -132,7 +138,9 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' `"Excreta"` row, whose species are carried as a share rather than in its
 #' label, takes `excreta_cpp_share * mf(Excreta_cattle_monog) + (1 -
 #' excreta_cpp_share) * mf(Excreta_other)`, stamped
-#' `"aguilera_excreta_blend"`. `"ipcc2006"` uses the [n2o_efs_ipcc2006]
+#' `"aguilera_excreta_blend"`; a fallback-labelled `"Excreta"` row takes
+#' `mf(Excreta_other)`, stamped `"aguilera_fallback_applied_manure"`.
+#' `"ipcc2006"` uses the [n2o_efs_ipcc2006]
 #' table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
 #' keyed like `"aguilera"` on `(irrig_type, climate)` with no `mf`.
 #'
@@ -164,8 +172,9 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' @return `x` with `n2o_direct_n_t` and `method_soil_n2o` appended.
 #'   `method_soil_n2o` names the factor each row took: the method name, or
 #'   for `"ipcc2019"` one of `"ipcc2019_wet_dry"`, `"ipcc2019_ef1fr"`,
-#'   `"ipcc2019_ef3prp_blend"`, and for `"aguilera"`
-#'   `"aguilera_excreta_blend"` on blended excreta rows.
+#'   `"ipcc2019_ef3prp_blend"`, `"ipcc2019_fallback_applied_manure"`, and for
+#'   `"aguilera"` `"aguilera_excreta_blend"` on blended excreta rows and
+#'   `"aguilera_fallback_applied_manure"` on fallback-labelled ones.
 #' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 #'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Table 11.1
 #'   (Updated), p. 11.13.
@@ -612,14 +621,15 @@ calculate_indirect_n2o_nh3 <- function(
 # calculate_indirect_n2o_nh3() can reuse the raw ef*mf product without a
 # second EF join.
 .soil_n2o_aguilera <- function(x) {
-  blended <- x$fert_type %in% "Excreta"
+  fallback <- .n_excreta_fallback(x, x$fert_type)
+  blended <- x$fert_type %in% "Excreta" & !fallback
   x |>
     dplyr::mutate(
       n2o_direct_n_t = .data$n_input_t * .soil_n2o_ef_mf_aguilera(x),
-      method_soil_n2o = dplyr::if_else(
-        .env$blended,
-        "aguilera_excreta_blend",
-        "aguilera"
+      method_soil_n2o = dplyr::case_when(
+        .env$fallback ~ "aguilera_fallback_applied_manure",
+        .env$blended ~ "aguilera_excreta_blend",
+        .default = "aguilera"
       )
     )
 }
@@ -628,19 +638,21 @@ calculate_indirect_n2o_nh3 <- function(
 # its label, so its modifier is the N-weighted blend of the cattle and
 # monogastric row (the CPP animals of IPCC 2019 Table 11.1) and the
 # other-animal row of fertiliser_n2o_modifiers. Rows already labelled by
-# species keep their own modifier.
+# species keep their own modifier. A fallback-labelled "Excreta" row carries
+# no species at all and takes the Excreta_other modifier.
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(ef)
   fert_type <- .human_legacy_fert_type(x$fert_type)
-  blended <- fert_type == "Excreta"
+  fallback <- .n_excreta_fallback(x, fert_type)
+  blended <- fert_type == "Excreta" & !fallback
   share <- .n_excreta_share(x, blended)
   mf_cpp <- .soil_n2o_mf("Excreta_cattle_monog", x$climate)
   mf_other <- .soil_n2o_mf("Excreta_other", x$climate)
-  mf <- dplyr::if_else(
-    blended,
-    share * mf_cpp + (1 - share) * mf_other,
-    .soil_n2o_mf(fert_type, x$climate)
+  mf <- dplyr::case_when(
+    fallback ~ mf_other,
+    blended ~ share * mf_cpp + (1 - share) * mf_other,
+    .default = .soil_n2o_mf(fert_type, x$climate)
   )
   .soil_n2o_check_mf(x, mf)
   ef * mf
@@ -727,13 +739,16 @@ calculate_indirect_n2o_nh3 <- function(
 # p. 11.13, read from ipcc_2019_soil_n_ef. Excreta deposited by grazing
 # animals take the EF3PRP blend of their species share, every other input on
 # a rice item takes EF1FR, and the rest take EF1 split by moisture regime
-# (and, in wet climates, synthetic versus other N).
+# (and, in wet climates, synthetic versus other N). Excreta labelled so only
+# as the fallback of a manure-type split is collected manure applied to the
+# land, so it is priced as applied manure, an "other" N input.
 .soil_n2o_ipcc2019 <- function(x) {
   .n_check_moisture_regime(x)
   .soil_n2o_check_ipcc2019_cols(x)
   fert_type <- .human_legacy_fert_type(x$fert_type)
   .soil_n2o_check_fert_type(fert_type)
-  excreta <- fert_type %in% .n_excreta_fert_types()
+  fallback <- .n_excreta_fallback(x, fert_type)
+  excreta <- fert_type %in% .n_excreta_fert_types() & !fallback
   rice <- !excreta & x$item_cbs_code %in% .n_rice_item_cbs_codes()
   share <- .n_excreta_share(x, excreta)
   wet <- x$moisture_regime == "wet"
@@ -745,6 +760,7 @@ calculate_indirect_n2o_nh3 <- function(
     .default = .ipcc2019_soil_ef("EF1", "all_dry")
   )
   method <- dplyr::case_when(
+    fallback ~ "ipcc2019_fallback_applied_manure",
     excreta ~ "ipcc2019_ef3prp_blend",
     rice ~ "ipcc2019_ef1fr",
     .default = "ipcc2019_wet_dry"
@@ -1180,6 +1196,21 @@ calculate_indirect_n2o_nh3 <- function(
     stats::na.omit() |>
     unique() |>
     as.integer()
+}
+
+# TRUE on the excreta rows labelled excreta only as the fallback of a
+# manure-type split (`method_excreta_species == "fallback_label_no_species"`,
+# R/excreta_species_mix.R): collected manure with no type and no species,
+# which is not grazing deposition.
+.n_excreta_fallback <- function(x, fert_type) {
+  stamp <- if (rlang::has_name(x, "method_excreta_species")) {
+    x$method_excreta_species
+  } else {
+    rep(NA_character_, nrow(x))
+  }
+  fert_type %in%
+    .n_excreta_fert_types() &
+    stamp %in% .excreta_species_methods()[["fallback"]]
 }
 
 # `excreta_cpp_share` on the rows flagged `excreta`, the share of their N

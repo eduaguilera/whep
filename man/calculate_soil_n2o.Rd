@@ -36,8 +36,9 @@ from \code{x}. Defaults to \code{FALSE}.}
 \code{x} with \code{n2o_direct_n_t} and \code{method_soil_n2o} appended.
 \code{method_soil_n2o} names the factor each row took: the method name, or
 for \code{"ipcc2019"} one of \code{"ipcc2019_wet_dry"}, \code{"ipcc2019_ef1fr"},
-\code{"ipcc2019_ef3prp_blend"}, and for \code{"aguilera"}
-\code{"aguilera_excreta_blend"} on blended excreta rows.
+\code{"ipcc2019_ef3prp_blend"}, \code{"ipcc2019_fallback_applied_manure"}, and for
+\code{"aguilera"} \code{"aguilera_excreta_blend"} on blended excreta rows and
+\code{"aguilera_fallback_applied_manure"} on fallback-labelled ones.
 }
 \description{
 Four emission-factor regimes for direct nitrous oxide from nitrogen
@@ -64,6 +65,12 @@ dry for cattle, poultry and pigs and \verb{EF3PRP,SO} 0.003 for sheep and
 other animals. Excreta keep this factor on a rice row too: Equation 11.1
 prices urine and dung deposited by grazing animals apart from the N
 applied to the crop. Stamped \code{"ipcc2019_ef3prp_blend"}.
+\item Excreta labelled so only as the fallback of a manure-type split
+(\code{method_excreta_species == "fallback_label_no_species"}) is collected
+manure applied to the land, not grazing deposition: it takes the factor
+of applied manure on its row (\code{EF1} for other N inputs, \code{EF1FR} on a
+rice item), whatever its missing species mix. Stamped
+\code{"ipcc2019_fallback_applied_manure"}.
 }
 
 \code{"ipcc2019_atl_med"} is the earlier IPCC 2019 Tier 1 option keyed on the
@@ -77,7 +84,9 @@ granularity is available and its regional emission factors apply:
 \code{mf} from \link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}. An
 \code{"Excreta"} row, whose species are carried as a share rather than in its
 label, takes \code{excreta_cpp_share * mf(Excreta_cattle_monog) + (1 - excreta_cpp_share) * mf(Excreta_other)}, stamped
-\code{"aguilera_excreta_blend"}. \code{"ipcc2006"} uses the \link{n2o_efs_ipcc2006}
+\code{"aguilera_excreta_blend"}; a fallback-labelled \code{"Excreta"} row takes
+\code{mf(Excreta_other)}, stamped \code{"aguilera_fallback_applied_manure"}.
+\code{"ipcc2006"} uses the \link{n2o_efs_ipcc2006}
 table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
 keyed like \code{"aguilera"} on \verb{(irrig_type, climate)} with no \code{mf}.
 }

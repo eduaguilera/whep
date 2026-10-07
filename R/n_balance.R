@@ -796,17 +796,8 @@ build_nitrogen_balance <- function(
 # columns; never invents driver values, missing columns abort inside
 # calculate_*().
 .nb_loss_rows <- function(n_inputs, key, data) {
-  n2o_fert_types <- c(
-    "excreta",
-    "manure_liquid",
-    "manure_solid",
-    "som_mineralization",
-    "synthetic",
-    "human",
-    "recycling"
-  )
   rows <- n_inputs |>
-    dplyr::filter(.data$fert_type %in% n2o_fert_types) |>
+    dplyr::filter(.data$fert_type %in% .nb_n2o_fert_types()) |>
     .nb_pool_loss_rows(key) |>
     dplyr::mutate(fert_type = .nb_loss_fert_type(.data$fert_type))
   if (is.null(data$n_balance_drivers)) {
@@ -820,12 +811,28 @@ build_nitrogen_balance <- function(
   )
 }
 
+# N_input_for_N2O_MgN's own fert_types, in build_n_inputs()' vocabulary.
+.nb_n2o_fert_types <- function() {
+  c(
+    "excreta",
+    "manure_liquid",
+    "manure_solid",
+    "som_mineralization",
+    "synthetic",
+    "human",
+    "recycling"
+  )
+}
+
 # Sum the N of the rows sharing a (key, fert_type). The excreta species mix
 # travels with it: the share is the N-weighted mean of the pooled rows, and
 # undefined (NA) when any pooled row carrying N has none, so a row of
 # unknown species is never priced as though it had the mix of the rest
 # (.excreta_weighted_share()). The share is computed before n_input_t is
-# replaced by its sum.
+# replaced by its sum. Excreta labelled only as the fallback of a manure-type
+# split is collected manure, priced as applied manure, so it pools apart from
+# the grazing excreta of its key rather than erasing their mix: a key can
+# then carry two "Excreta" loss rows.
 .nb_pool_loss_rows <- function(rows, key) {
   by <- c(key, "fert_type")
   if (!rlang::has_name(rows, "excreta_cpp_share")) {
@@ -838,6 +845,8 @@ build_nitrogen_balance <- function(
   if (!rlang::has_name(rows, "method_excreta_species")) {
     rows$method_excreta_species <- NA_character_
   }
+  rows$.fallback <- rows$method_excreta_species %in%
+    .excreta_species_methods()[["fallback"]]
   dplyr::summarise(
     rows,
     method_excreta_species = .excreta_method_stamp(
@@ -850,8 +859,9 @@ build_nitrogen_balance <- function(
       .data$n_input_t
     ),
     n_input_t = sum(.data$n_input_t, na.rm = TRUE),
-    .by = dplyr::all_of(by)
-  )
+    .by = dplyr::all_of(c(by, ".fallback"))
+  ) |>
+    dplyr::select(-".fallback")
 }
 
 # ---- Step 3b/c: balance closure, SOM cap, NUE ------------------------------
