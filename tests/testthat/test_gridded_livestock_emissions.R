@@ -6,9 +6,21 @@
 .grid_fixture <- function() {
   tibble::tribble(
     ~lon,   ~lat, ~year, ~area_code,     ~species_group, ~heads,
-    34.25, -0.25, 1961L,       197L,     "cattle_dairy", 120000,
-    34.75,  0.25, 1961L,       197L,     "cattle_dairy",  80000,
-    34.25, -0.25, 1961L,       197L, "cattle_non_dairy",  50000
+    ~milk_yield_kg_day,
+    34.25, -0.25, 1961L,       197L,     "cattle_dairy", 120000, 5,
+    34.75,  0.25, 1961L,       197L,     "cattle_dairy",  80000, 5,
+    34.25, -0.25, 1961L,       197L, "cattle_non_dairy",  50000, NA
+  )
+}
+
+# The realised milk yield as the national production table carries it: 1.825
+# tonnes per cow and year is 5 kg per day.
+.milk_heads_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit,   ~value, ~live_anim_code,
+    ~item_prod_code,
+    1961L, 197L, 960L, "heads", 1000, NA_character_, "960",
+    1961L, 197L, 960L, "t_head", 1.825, "960", "882"
   )
 }
 
@@ -116,10 +128,10 @@ testthat::test_that("the example fixture is what the function actually emits", {
   # Inputs are the example's OWN, not `.grid_fixture()`, which uses a different
   # country, different cells and different temperatures.
   herd <- tibble::tribble(
-    ~lon, ~lat, ~year, ~area_code, ~species_group, ~heads,
-    34.25, -0.25, 1961L, 114L, "cattle_dairy", 120000,
-    35.25, 0.75, 1961L, 114L, "cattle_dairy", 80000,
-    34.25, -0.25, 1961L, 114L, "cattle_non_dairy", 50000
+    ~lon, ~lat, ~year, ~area_code, ~species_group, ~heads, ~milk_yield_kg_day,
+    34.25, -0.25, 1961L, 114L, "cattle_dairy", 120000, 5,
+    35.25, 0.75, 1961L, 114L, "cattle_dairy", 80000, 5,
+    34.25, -0.25, 1961L, 114L, "cattle_non_dairy", 50000, NA
   )
   climate <- tibble::tribble(
     ~lon, ~lat, ~year, ~mean_annual_temp_c, ~climate_zone,
@@ -749,4 +761,63 @@ testthat::test_that("a mixed herd keeps the species Tier 2 does resolve", {
   testthat::expect_gt(nrow(pigs), 0L)
   testthat::expect_false(anyNA(pigs$enteric_ch4_kt))
   testthat::expect_true(all(pigs$method_enteric == "IPCC_2019_Tier1"))
+})
+
+# Milk yield (whep#1439) ----------------------------------------------------
+
+.dairy_enteric <- function(grid, ...) {
+  whep::build_gridded_livestock_emissions(
+    grid,
+    method_diet = "uniform_medium",
+    data = list(cell_climate = .climate_fixture(), ...)
+  ) |>
+    dplyr::filter(species == "Cattle, dairy")
+}
+
+testthat::test_that("a dairy row with no milk yield aborts, never zero", {
+  grid <- dplyr::select(.grid_fixture(), -milk_yield_kg_day)
+  testthat::expect_error(
+    .dairy_enteric(grid, species_heads = .species_heads_fixture()),
+    "no milk yield"
+  )
+})
+
+testthat::test_that("a dairy row the t_head table misses aborts", {
+  grid <- dplyr::select(.grid_fixture(), -milk_yield_kg_day)
+  heads <- dplyr::mutate(.milk_heads_fixture(), area_code = 999L)
+  testthat::expect_error(
+    .dairy_enteric(grid, species_heads = heads),
+    "no milk yield"
+  )
+})
+
+testthat::test_that("national t_head milk equals the supplied yield", {
+  grid <- .grid_fixture()
+  supplied <- .dairy_enteric(grid)
+  derived <- .dairy_enteric(
+    dplyr::select(grid, -milk_yield_kg_day),
+    species_heads = .milk_heads_fixture()
+  )
+  testthat::expect_equal(
+    derived$enteric_ch4_kt,
+    supplied$enteric_ch4_kt,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("milk raises dairy enteric CH4 over a zero yield", {
+  grid <- .grid_fixture()
+  with_milk <- .dairy_enteric(grid)
+  no_milk <- .dairy_enteric(dplyr::mutate(grid, milk_yield_kg_day = 0))
+  testthat::expect_true(all(with_milk$enteric_ch4_kt > no_milk$enteric_ch4_kt))
+})
+
+testthat::test_that("the national grain carries the milk yield too", {
+  result <- .dairy_enteric(.grid_fixture())
+  zero <- .dairy_enteric(
+    dplyr::mutate(.grid_fixture(), milk_yield_kg_day = 0)
+  )
+  testthat::expect_true(
+    all(result$enteric_ch4_national_kt > zero$enteric_ch4_national_kt)
+  )
 })
