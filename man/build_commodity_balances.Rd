@@ -68,8 +68,9 @@ fallback every CBS key with no destiny of its own takes. \code{"none"} is the
 behaviour before whep#762: the import is dropped, so an area whose balance
 sheet omits an item it imports loses that supply outright. \strong{The default
 moves published values.} Measured on a 2005-2015 build at 2010, it adds
-1,038 keys, 7.96 Mt of imports (0.5\% of the world total), 1.60 Mt of
-exports and 2.75 Mt of food (0.06\%). Protein supply rises from 28 to 63
+1,038 keys and raises world imports by 8.72 Mt (0.57\%), exports by
+1.83 Mt and food by 3.07 Mt (0.07\%); 7.96, 1.60 and 2.75 Mt of that sit
+on the created keys. Protein supply rises from 28 to 63
 g/cap/day in Singapore, 31 to 72 in Bahrain and 69 to 116 in Qatar, the
 first two leaving the "Under" nourishment class and Qatar moving to
 "Over"; FAOSTAT's own balance sheets, which cover Bahrain and Qatar only
