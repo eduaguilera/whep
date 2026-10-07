@@ -48,7 +48,18 @@
 # These tests place the crops on the static `crop_patterns` fixture; the
 # spatialized weights are exercised at the end of the file.
 .fod_static <- function(...) {
-  whep::build_soil_carbon_inputs(..., method_crop_weights = "static")
+  whep::build_soil_carbon_inputs(
+    ...,
+    method_crop_weights = "static",
+    method_manure_placement = "crop_area"
+  )
+}
+
+# The fixtures here supply a national manure stream, which only the crop-area
+# placement grids; the livestock placement needs a cell-keyed one and has its
+# own tests in test_soil_carbon_manure_cells.R (whep#1307).
+.sci_crop_area_build <- function(...) {
+  whep::build_soil_carbon_inputs(..., method_manure_placement = "crop_area")
 }
 
 .fod_mass <- function(data) {
@@ -384,7 +395,7 @@ testthat::test_that("the fodder layer also fills the spatialized weights", {
     0.75, 0.25, 1L,         15L,             2020L, 10,          0
   )
   out <- suppressWarnings(suppressMessages(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data)
+    .sci_crop_area_build(resolution = "grid", data = data)
   ))
   testthat::expect_true(all(out$method_crop_weights == "spatialized"))
   testthat::expect_true(all(out$method_unspatialized == "fodder_pattern"))
@@ -394,7 +405,7 @@ testthat::test_that("the fodder layer also fills the spatialized weights", {
   total <- sum(out$total_c_input_mgc_ha_yr * out$crop_area_ha)
   testthat::expect_equal(total, .fod_mass(data))
   testthat::expect_message(
-    suppressWarnings(whep::build_soil_carbon_inputs(
+    suppressWarnings(.sci_crop_area_build(
       resolution = "grid",
       data = data
     )),

@@ -5,7 +5,18 @@
 # mass closure), so they pin that method explicitly. The "spatialized" method
 # has its own tests at the end of the file (whep#1002).
 .sci_static <- function(...) {
-  whep::build_soil_carbon_inputs(..., method_crop_weights = "static")
+  whep::build_soil_carbon_inputs(
+    ...,
+    method_crop_weights = "static",
+    method_manure_placement = "crop_area"
+  )
+}
+
+# The fixtures here supply a national manure stream, which only the crop-area
+# placement grids; the livestock placement needs a cell-keyed one and has its
+# own tests in test_soil_carbon_manure_cells.R (whep#1307).
+.sci_crop_area_build <- function(...) {
+  whep::build_soil_carbon_inputs(..., method_manure_placement = "crop_area")
 }
 
 .sci_npp_fixture <- function() {
@@ -1137,7 +1148,8 @@ testthat::test_that("the reallocated carbon survives into build_carbon_inputs", 
       data = data,
       crop_groups = list(method = "none"),
       method_unspatialized = "reallocate",
-      method_crop_weights = "static"
+      method_crop_weights = "static",
+      method_manure_placement = "crop_area"
     ),
     warning = function(w) invokeRestart("muffleWarning")
   )
@@ -1273,7 +1285,7 @@ testthat::test_that("the reallocating branch is guarded, not just the matched on
 }
 
 testthat::test_that("spatialized weights follow the engine's placement each year", {
-  out <- whep::build_soil_carbon_inputs(
+  out <- .sci_crop_area_build(
     resolution = "grid",
     data = .sci_two_year_data()
   )
@@ -1303,7 +1315,7 @@ testthat::test_that("static weights put every year on the same map", {
 
 testthat::test_that("the two weight methods agree on polity totals", {
   data <- .sci_two_year_data()
-  spatial <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  spatial <- .sci_crop_area_build(resolution = "polity", data = data)
   data$gridded_crops <- NULL
   data$crop_patterns <- .sci_grid_fixture()$crop_patterns
   static <- .sci_static(resolution = "polity", data = data)
@@ -1316,7 +1328,7 @@ testthat::test_that("a year the crop layer does not cover aborts", {
   data <- .sci_two_year_data()
   data$gridded_crops <- dplyr::filter(data$gridded_crops, .data$year == 2020L)
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data),
+    .sci_crop_area_build(resolution = "grid", data = data),
     class = "whep_sci_no_crop_cells"
   )
 })
@@ -1326,14 +1338,14 @@ testthat::test_that("a static layer handed to the spatialized method is refused"
   data$gridded_crops <- NULL
   data$crop_patterns <- .sci_grid_fixture()$crop_patterns
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data),
+    .sci_crop_area_build(resolution = "grid", data = data),
     class = "whep_sci_weight_layer_mismatch"
   )
 })
 
 testthat::test_that("an unknown weight method is refused", {
   testthat::expect_error(
-    whep::build_soil_carbon_inputs(
+    .sci_crop_area_build(
       data = .sci_two_year_data(),
       method_crop_weights = "pattern"
     ),
@@ -1356,7 +1368,7 @@ testthat::test_that("a crop missing from one year's layer is reallocated then", 
     )
   seen <- character()
   out <- withCallingHandlers(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data),
+    .sci_crop_area_build(resolution = "grid", data = data),
     warning = function(w) {
       seen <<- c(seen, conditionMessage(w))
       invokeRestart("muffleWarning")
@@ -1397,7 +1409,7 @@ testthat::test_that("the default runs the engine on the carbon support", {
   data$npp <- dplyr::filter(data$npp, .data$year == 2020L)
   data$manure <- dplyr::filter(data$manure, .data$year == 2020L)
   out <- suppressMessages(
-    whep::build_soil_carbon_inputs(resolution = "grid", data = data)
+    .sci_crop_area_build(resolution = "grid", data = data)
   )
   # Equal harvest fractions, so the engine places crop 15 by cropland: 3:1.
   testthat::expect_equal(.sci_cell_share(out, 2020L), 0.75)
