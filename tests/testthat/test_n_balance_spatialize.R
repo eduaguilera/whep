@@ -1277,3 +1277,97 @@ testthat::test_that("an unknown action is rejected", {
     class = "rlang_error"
   )
 })
+
+# Grid inputs: pin by default, env var as an override (whep#1475) ------------
+
+# The crop patterns and type cropland are WHEP-built (prepare_spatialize_all.R),
+# so the grid step reads the same pins run_spatialize() and the soil carbon
+# chain read. Before whep#1475 it read only the env vars, so a pin bump never
+# reached the gridded N balance. The pins are mocked: the suite stays offline.
+
+.nbs_unset_grid_env <- function(env = parent.frame()) {
+  withr::local_envvar(
+    WHEP_CROP_PATTERNS_PATH = "",
+    WHEP_TYPE_CROPLAND_PATH = "",
+    WHEP_GRIDDED_PASTURE_PATH = "",
+    .local_envir = env
+  )
+}
+
+.nbs_grid_from_pins <- function() {
+  whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_cell_polity(),
+    resolution = "grid",
+    data = list()
+  )
+}
+
+testthat::test_that("grid inputs are read from the pins by default", {
+  .nbs_unset_grid_env()
+  asked <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      asked <<- c(asked, file_alias)
+      switch(
+        file_alias,
+        "spatialize-crop-patterns" = .nbs_crop_patterns(),
+        "spatialize-type-cropland" = .nbs_type_cropland()
+      )
+    },
+    .package = "whep"
+  )
+
+  result <- .nbs_grid_from_pins()
+
+  testthat::expect_setequal(
+    asked,
+    c("spatialize-crop-patterns", "spatialize-type-cropland")
+  )
+  expected <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_cell_polity(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  testthat::expect_equal(result, expected)
+})
+
+testthat::test_that("the grid input aliases are frozen in whep_inputs", {
+  aliases <- whep:::.spatial_input_aliases()[
+    names(whep:::.n_grid_input_env_vars())
+  ]
+  testthat::expect_true(all(aliases %in% whep::whep_inputs$alias))
+})
+
+testthat::test_that("a grid input env var override wins over the pin", {
+  .nbs_unset_grid_env()
+  path <- withr::local_tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(.nbs_crop_patterns(), path)
+  withr::local_envvar(WHEP_CROP_PATTERNS_PATH = path)
+  asked <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      asked <<- c(asked, file_alias)
+      .nbs_type_cropland()
+    },
+    .package = "whep"
+  )
+
+  result <- .nbs_grid_from_pins()
+
+  testthat::expect_equal(asked, "spatialize-type-cropland")
+  testthat::expect_equal(sum(result$n_t), sum(.nbs_country_totals()$n_t))
+})
+
+testthat::test_that("an unreachable grid pin names the pin and the override", {
+  .nbs_unset_grid_env()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) cli::cli_abort("board is down"),
+    .package = "whep"
+  )
+
+  testthat::expect_error(.nbs_grid_from_pins(), "WHEP_TYPE_CROPLAND_PATH")
+})
