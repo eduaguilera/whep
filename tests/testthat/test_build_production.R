@@ -1249,6 +1249,53 @@ test_that(".extend_historical stops warning once a federation is bridged", {
   )
 })
 
+test_that("a historical land table does not swallow federation_land", {
+  # whep#102: under the historical_polity land method the seam was handed a
+  # ready-made land table, and `federation_land` was then silently ignored, so
+  # a federation the historical table lacks stayed un-back-cast whatever the
+  # caller asked for. Ruritania (99) is in the historical table; Czechoslovakia
+  # (51) is not, and LUH2 reaches it only through its successors.
+  primary <- dplyr::bind_rows(
+    .make_csk_production(),
+    .make_csk_production() |>
+      dplyr::mutate(area = "Ruritania", area_code = 99L)
+  )
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  historical <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area_code = 99L,
+    Cropland = c(5, 10),
+    Pasture = 0,
+    agriland = c(5, 10)
+  )
+  run <- function(federation_land) {
+    whep:::.extend_historical(
+      primary,
+      years,
+      .make_csk_land(),
+      federation_land = federation_land,
+      land_wide = historical
+    ) |>
+      dplyr::filter(.data$year == 1960L, .data$unit == "tonnes") |>
+      dplyr::arrange(.data$area_code)
+  }
+
+  expect_warning(none <- run("none"), "no LUH2 land")
+  expect_true(is.na(none$value[none$area_code == 51L]))
+
+  bridged <- run("successor_union") |> suppressMessages()
+  # Czechoslovakia grows on CZE + SVK, 6 -> 9 Mha, and says so: its land is
+  # LUH2 on present-day borders, not a historical polygon.
+  csk <- bridged[bridged$area_code == 51L, ]
+  expect_equal(csk$value, 100 * 6 / 9)
+  expect_equal(csk$source, "LUH2_cropland")
+  # A bucket the historical table covers keeps the historical table.
+  rur <- bridged[bridged$area_code == 99L, ]
+  expect_equal(rur$value, 50)
+  expect_equal(rur$source, "LUH2_polity_cropland")
+  expect_false(".land_label" %in% names(bridged))
+})
+
 test_that("build_primary_production rejects an unknown federation_land", {
   expect_error(
     build_primary_production(federation_land = "spatial_intersection"),

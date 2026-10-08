@@ -55,6 +55,9 @@ their pre-1962 production is not back-cast at all and the build warns.
 its successor states' LUH2 land, resolved from the \code{successor} relation
 published in \link{polities}. This back-casts 14.3\% more of the 1961-62
 production tonnage and therefore moves published pre-1962 values.
+Under \code{land_method = "historical_polity"} it reaches only the
+federations the historical table has no polygon for, and their rows
+keep the \verb{LUH2_*} source label, not \verb{LUH2_polity_*}.
 }}
 
 \item{land_method}{Character. Which borders the pre-1962 \code{ha} half of
