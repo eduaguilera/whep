@@ -281,9 +281,24 @@ all; it is the value the retired pin carried. That `items_full$FEDNA`
 names HIDROXI-ANAL MET for this item is not evidence for the analogue:
 that column is a feed-table stand-in, not a product identity (see
 [items_full](https://eduaguilera.github.io/whep/reference/items_full.md),
-whep#1131). `Lysine` at 0.2015 is the other hand-entered override and is
-still 5.2% above the free base's own 0.1916; FEDNA's L-Lisina HCl would
-give 0.1512.
+whep#1131).
+
+The upstream workbook records no source for the 28 feed-additive rows,
+so their provenance is kept in
+`inst/extdata/harmonization/biomass_coefs_additive_sources.csv`, one row
+per additive with the entry it was read from in the FEDNA 2019 tables
+(`Tablas FEDNA 2019.xlsx`, v. 15.01.2021, linked from
+<https://fundacionfedna.org/ingredientes-para-piensos>) or an explicit
+"assumed, unverified" status (whep#1074). `Lysine` is FEDNA's L-Lisina
+HCl, 94.4% crude protein, 0.1510; it carried 0.2015, above even the free
+base's 0.1916. `Ammonium chloride` is FEDNA's Cloruro amonico, 163.6%
+crude protein, 0.2618. `Choline chloride` is FEDNA's Cloruro colina 60,
+whose 52% choline gives 0.0699 through the choline cation's nitrogen
+fraction, 14.007 over 104.173; FEDNA books its crude protein as zero
+because choline nitrogen is not protein, not because it is absent. Both
+carried 0, so their nitrogen was missing from the balance. `Phytase` and
+`Enzimes` keep an unsourced 0.116, now marked as assumed; their
+fresh-matter `N_kgN_kgFM` of 0.16 now follows this column.
 
 - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry
   matter.

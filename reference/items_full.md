@@ -72,9 +72,11 @@ following columns:
   Flavours PROPIONATO SODICO, 4003 Anionic salts MET HIDROXI SAL CALCICA
   and 4011 Methionine HIDROXI-ANAL MET, a nitrogen-free analogue. Nor
   does the named entry fix the `biomass_coefs` nitrogen: Methionine and
-  Lysine carry more than their entries imply and Ammonium chloride and
-  Choline chloride carry zero although their entries hold nitrogen. No
-  WHEP function reads this column.
+  Lysine carry their dry commercial forms (DL-Metionina, L-Lisina HCl),
+  not the entries named here, and the FEDNA entry each additive's
+  nitrogen was actually read from is recorded in
+  `inst/extdata/harmonization/biomass_coefs_additive_sources.csv`
+  (whep#1074). No WHEP function reads this column.
 
 - `default_destiny`: Default CBS use category for this item. One of
   `"Feed"`, `"Food"`, `"Other_uses"`, `"Processing"`, or `NA`. It is
