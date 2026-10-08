@@ -965,6 +965,96 @@ testthat::test_that("the water denominator is the partition, not the layer", {
   )
 })
 
+# whep#1013 — subnational polities stay out of the world partition ------------
+#
+# `whep::polities` carries the provinces of the subnational pin (whep#1033)
+# beside the national polities that contain them. A province's polygon lies
+# inside its container's, so admitting it to the world partition hands its
+# ground out twice -- exactly the double claim the aggregate layer is kept apart
+# to avoid. The world pin is a partition of NATIONAL polities; the provinces
+# live in `polycell_support_subnational`, built with `subnational = "include"`.
+pcs_subnational_fixture <- function() {
+  pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year, ~polity_type,
+      "NAT-2000-2020", 2000L, 2020L, "national",
+      "NAT-PRV-2000-2020", 2000L, 2020L, "subnational"
+    ),
+    list(pcs_cell(10.25, 45.25), pcs_inset(10.05, 10.2))
+  )
+}
+
+testthat::test_that("subnational polities are excluded unless asked for", {
+  testthat::skip_if_not_installed("sf")
+
+  geometries <- pcs_subnational_fixture()
+  world <- whep::build_polycell_support(years = 2015L, geometries = geometries)
+  provinces <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    subnational = "include"
+  )
+
+  testthat::expect_equal(world$polity_code, "NAT-2000-2020")
+  # The container keeps its whole territory: nothing is carved out of it for a
+  # province that is not in the table.
+  testthat::expect_equal(
+    world$polity_area_ha,
+    pcs_area_ha(pcs_cell(10.25, 45.25)),
+    tolerance = 1e-9
+  )
+  testthat::expect_setequal(
+    provinces$polity_code,
+    c("NAT-2000-2020", "NAT-PRV-2000-2020")
+  )
+  testthat::expect_equal(unique(provinces$support_role), "partition")
+})
+
+testthat::test_that("a subnational polity that is a reporting area stays", {
+  testthat::skip_if_not_installed("sf")
+
+  # Burundi (29) inside Ruanda-Urundi, 1922-1962: FAOSTAT reports Burundi in
+  # 1961, so dropping the polity drops its national total's every cell.
+  geometries <- pcs_subnational_fixture()
+  geometries$area_code <- c(NA_integer_, 29L)
+
+  world <- whep::build_polycell_support(years = 2015L, geometries = geometries)
+
+  testthat::expect_setequal(
+    world$polity_code,
+    c("NAT-2000-2020", "NAT-PRV-2000-2020")
+  )
+  testthat::expect_equal(
+    world$area_code[world$polity_code == "NAT-PRV-2000-2020"],
+    29L
+  )
+})
+
+testthat::test_that("the shipped vocabulary prepares no province", {
+  testthat::skip_if_not_installed("sf")
+
+  # The vintage warning compares the pin against this set, so a province in it
+  # makes every read of a sound world pin report hundreds of missing polities.
+  types <- sf::st_drop_geometry(whep::polities)
+  prepared <- whep:::.pcs_prepare_polities(whep::polities, "overlap_layer")
+  prepared_types <- types$polity_type[
+    match(prepared$polity_code, types$polity_code)
+  ]
+
+  kept <- prepared$polity_code[prepared_types %in% "subnational"]
+
+  testthat::expect_gt(sum(types$polity_type %in% "subnational"), 400L)
+  # Only the three that are reporting areas in their own right.
+  testthat::expect_setequal(
+    kept,
+    c("BDI-1922-1962", "RWA-1922-1962", "SGP-1963-1965")
+  )
+  testthat::expect_false(anyNA(prepared$area_code[
+    prepared_types %in% "subnational"
+  ]))
+  testthat::expect_true(any(prepared_types %in% "aggregate"))
+})
+
 # S-A1 / DA-3 — three separately addressable area categories -------------------
 
 testthat::test_that("polity area decomposes into land, inland water and ice", {

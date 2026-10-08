@@ -27,10 +27,21 @@
 #'   polycell-year and adds a `year` column.
 #' @param aggregates What to do with `polity_type == "aggregate"` rows, which
 #'   cannot join the partition because an aggregate's polygon covers its
-#'   members'. `"exclude"` (default) drops them, which is what every published
-#'   polycell table holds. `"overlap_layer"` clips them too and emits them
+#'   members'. `"exclude"` (default) drops them, which is what every
+#'   published polycell table held before `20261006T184535Z-78592`.
+#'   `"overlap_layer"` clips them too and emits them
 #'   alongside the partition marked `support_role == "overlap"` -- see
 #'   *The aggregate overlap layer* below.
+#' @param subnational What to do with `polity_type == "subnational"` rows, the
+#'   provinces and historical sub-units that [polity_containment] places inside
+#'   a national polity. `"exclude"` (default) drops those that answer no
+#'   reporting `area_code`, because their polygons lie inside their
+#'   container's and the world support is a partition of national polities;
+#'   one that is a reporting area itself (Burundi and Rwanda inside
+#'   Ruanda-Urundi, Singapore inside Malaysia) stays, so its national total
+#'   keeps its cells. `"include"` keeps them all in the partition, for a build
+#'   whose `geometries` already leave the containers out, as the
+#'   `polycell_support_subnational` pin's build does.
 #' @param geometries An `sf` table of polity geometries with at least
 #'   `polity_code`, `start_year` and `end_year`; defaults to
 #'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
@@ -264,16 +275,18 @@ build_polycell_support <- function(
   water = NULL,
   ice = NULL,
   data = list(),
-  aggregates = c("exclude", "overlap_layer")
+  aggregates = c("exclude", "overlap_layer"),
+  subnational = c("exclude", "include")
 ) {
   rlang::check_installed("sf")
   aggregates <- rlang::arg_match(aggregates)
+  subnational <- rlang::arg_match(subnational)
   old_s2 <- sf::sf_use_s2()
   withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
   suppressMessages(sf::sf_use_s2(TRUE))
 
   geometries <- geometries %||% get_polity_geometries()
-  polities <- .pcs_prepare_polities(geometries, aggregates)
+  polities <- .pcs_prepare_polities(geometries, aggregates, subnational)
   ice_union <- .pcs_prepare_ice(ice)
   layers <- .pcs_layers_supplied(water, ice_union)
   support <- polities |>
@@ -414,11 +427,34 @@ expand_polycell_years <- function(support, years) {
 # a row whose `polity_type` is NA is not evidence of an aggregate, so it stays
 # in the PARTITION under either setting rather than being swept into a layer
 # whose whole contract is that it double-counts.
+#
+# Subnational rows are dropped by the same positive-evidence rule (whep#1013).
+# Every one of the 461 in `whep::polities` (1,231 rows, 2026-10) has a
+# `polity_containment` edge to a national container, and measured on an
+# equal-area projection the container's polygon covers a median 99.7% of the
+# member's (322 of 455 measurable members above 99%), so a province beside its
+# container claims its ground twice. The 11 historical sub-units the
+# `20260907T111653Z-e654d` pin carried in its partition did exactly that (8 of
+# them are dropped now, the 3 below stay): Alaska
+# (`ALK-1867-1959`) over-filled 1,141 of its 1,450 cells beside
+# `USA-1867-1959`. The provinces are the `polycell_support_subnational` pin,
+# built with `subnational = "include"` on geometries without their containers.
+#
+# A subnational polity that is itself a REPORTING AREA stays, because dropping
+# it drops that area's whole national total (the whep#907 failure). Three are:
+# `BDI-1922-1962` (29) and `RWA-1922-1962` (184) inside `RWB-1922-1962`, which
+# has no reporting code, and `SGP-1963-1965` (200) inside `MYS-1963-1965`
+# (131). Each has its own reporting code, so without their rows a grid keyed on
+# `area_code` has no cell for Burundi or Rwanda before 1962.
+# Their containers keep the same ground, as the `e654d` pin already had them;
+# that double claim is the vocabulary's to resolve, not this filter's.
 .pcs_prepare_polities <- function(
   geometries,
-  aggregates = c("exclude", "overlap_layer")
+  aggregates = c("exclude", "overlap_layer"),
+  subnational = c("exclude", "include")
 ) {
   aggregates <- rlang::arg_match(aggregates)
+  subnational <- rlang::arg_match(subnational)
   if (!inherits(geometries, "sf")) {
     cli::cli_abort("{.arg geometries} must be an {.cls sf} table.")
   }
@@ -429,13 +465,17 @@ expand_polycell_years <- function(support, years) {
   )
   attrs <- sf::st_drop_geometry(geometries)
   usable <- .pcs_usable_geometry(sf::st_geometry(geometries))
-  is_aggregate <- .pcs_col(attrs, "polity_type", NA_character_) %in% "aggregate"
+  polity_type <- .pcs_col(attrs, "polity_type", NA_character_)
+  is_aggregate <- polity_type %in% "aggregate"
+  area_code <- .pcs_area_code(attrs)
+  # A province answering no reporting area is what the world pin leaves out.
+  is_province <- polity_type %in% "subnational" & is.na(area_code)
   out <- sf::st_sf(
     polity_code = as.character(attrs$polity_code),
     start_year = as.integer(attrs$start_year),
     end_year = as.integer(attrs$end_year),
     polygon_status = .pcs_col(attrs, "polygon_status", NA_character_),
-    area_code = .pcs_area_code(attrs),
+    area_code = area_code,
     coverage_status = .pcs_coverage_status(usable$coverage_status, attrs),
     support_role = dplyr::if_else(is_aggregate, "overlap", "partition"),
     geometry = usable$geom
@@ -443,7 +483,8 @@ expand_polycell_years <- function(support, years) {
   # `.polity_is_live()` is the package's one reading of which rows are dead, so
   # the producer's filter and `.active_polities()`'s tie-break cannot drift.
   live <- .polity_is_live(.pcs_col(attrs, "wiki_status", NA_character_)) &
-    (identical(aggregates, "overlap_layer") | !is_aggregate)
+    (identical(aggregates, "overlap_layer") | !is_aggregate) &
+    (identical(subnational, "include") | !is_province)
   out[live, ]
 }
 
@@ -488,12 +529,15 @@ expand_polycell_years <- function(support, years) {
 # areas, so 168 of the 716 rows this producer prepares carry NA here because no
 # FAOSTAT or FABIO area was ever reported under their territory.
 #
-# AN AGGREGATE POLITY NEVER REACHES THE OUTPUT THROUGH THIS. `area_code` is
-# computed for every input row, but `.pcs_prepare_polities()` then keeps only
-# the rows that are live AND not `polity_type == "aggregate"`, so the eight live
-# aggregates absent from the crosswalk (whep#875) emit no polycell to carry an
-# NA. "Dead and aggregate rows receive no data and no land" in
-# `test_polycell_support.R` is the pin.
+# NO PARTITION ROW CARRIES AN AGGREGATE'S NA. `area_code` is computed for
+# every input row, but under the default `aggregates = "exclude"`
+# `.pcs_prepare_polities()` keeps no aggregate, so the live aggregates absent
+# from the crosswalk (whep#875) emit no polycell to carry an NA. Under
+# `"overlap_layer"` they do, on `support_role == "overlap"` rows only: on the
+# `20261006T184535Z-78592` pin that is 7 of the 19 aggregates (AOI, CODRU,
+# EGYSUD, GCT, MASG, PAPNG, SYL), reachable from no reporting area by design.
+# "Dead and aggregate rows receive no data and no land" in
+# `test_polycell_support.R` pins the default.
 .pcs_area_code <- function(attrs) {
   if (rlang::has_name(attrs, "area_code")) {
     return(as.integer(attrs$area_code))

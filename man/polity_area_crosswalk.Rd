@@ -213,9 +213,12 @@ composed-union identities held for footnote series that fold a colony into
 its metropole, and upstream has registered no label for them yet, so they
 are reachable from neither route by design rather than by omission.
 
-No absence here can NA an \code{area_code} on a polycell, either:
-\code{\link[=build_polycell_support]{build_polycell_support()}} excludes \code{polity_type == "aggregate"} by type
-before any lookup runs, so an aggregate emits no polycell to carry one.
+No absence here can NA an \code{area_code} on a \strong{partition} polycell, either:
+\code{\link[=build_polycell_support]{build_polycell_support()}} keeps \code{polity_type == "aggregate"} out of the
+partition by type before any lookup runs. Its \code{aggregates = "overlap_layer"}
+does clip them, and there the aggregates this section lists carry an \code{NA}
+\code{area_code} on their \code{support_role == "overlap"} rows, which
+\code{\link[=read_polycell_support]{read_polycell_support()}} returns only when asked for that layer.
 
 \code{F206-2011-2025} used to be the one absence that was a real gap, and it is
 filled: it now has a row, keyed on the bucket rather than on a reporting
