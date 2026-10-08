@@ -16,7 +16,8 @@ calculate_manner_nh3(
   n_applied_t = NULL,
   fertiliser = NULL,
   drivers = list(),
-  example = FALSE
+  example = FALSE,
+  temp_method = c("misselbrook_2004", "source_port")
 )
 ```
 
@@ -38,9 +39,9 @@ calculate_manner_nh3(
   pH), `rate_kg_ha` (numeric N application rate, kg N/ha), `rainfall_mm`
   (numeric period precipitation, mm), `irrigated` (logical), `temp_c`
   (numeric application-period temperature, deg C), `temp_c_annual_mean`
-  (numeric annual mean temperature, deg C; only used for CAN/AS).
-  Organic path: `rainfall_mm`, `irrigated`, `windspeed_ms` (numeric wind
-  speed, m/s), `technique` (one of the six
+  (numeric annual mean temperature, deg C; not used for Urea). Organic
+  path: `rainfall_mm`, `irrigated`, `windspeed_ms` (numeric wind speed,
+  m/s), `technique` (one of the six
   [manner_params](https://eduaguilera.github.io/whep/reference/manner_params.md)
   `technique` keys), `system` (`"Arable"` or `"Grassland"`), `temp_c`,
   `incorporation_delay_h` (numeric hours between surface application and
@@ -56,10 +57,16 @@ calculate_manner_nh3(
   If `TRUE`, return a small fixture instead of computing from drivers.
   Defaults to `FALSE`.
 
+- temp_method:
+
+  Synthetic path only: which temperature-equation form AN and AS use,
+  `"misselbrook_2004"` (default) or `"source_port"`. See Details.
+
 ## Value
 
 A tibble with `n_applied_t`, `ef` (realised emission factor), `nh3_n_t`
-and `method_manner`.
+and `method_manner`. The synthetic path also returns
+`method_manner_temp`, the `temp_method` used.
 
 ## Details
 
@@ -87,6 +94,24 @@ Emissions from UK Agriculture 2014). Without the cap, warm application
 months returned emission factors above 1. With it, `ef` never exceeds
 the fertiliser's `max_nh3` in
 [manner_params](https://eduaguilera.github.io/whep/reference/manner_params.md).
+
+Two forms of that factor exist. Urea always takes the absolute form,
+`exp(0.1386 (temp_c - 8.625)) / 3`; CAN always takes the anomaly form,
+`exp(0.2197225 (temp_c - temp_c_annual_mean)) / 3`. AN and AS depend on
+`temp_method`:
+
+- `"misselbrook_2004"` (default): AN takes the anomaly form on every
+  soil, and AS takes the anomaly form on non-calcareous soils and the
+  absolute form on calcareous soils (`soil_ph >= 7`). This is the
+  assignment of Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for
+  AN and other N to all soils and AS/DAP to non-calcareous soils", eq. 4
+  (absolute) "for urea and UAN to all soils and AS/DAP to calcareous
+  soils". The UK inventory agrees for AS, which it treats on calcareous
+  soils "as for urea" (Misselbrook et al. 2015, notes to Table A11).
+
+- `"source_port"`: the forms of the regional implementation this model
+  was ported from. AN takes the absolute form, and AS takes the anomaly
+  form on every soil.
 
 ## Examples
 

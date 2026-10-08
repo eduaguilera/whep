@@ -141,6 +141,15 @@ build_gridded_livestock(
     [polities](https://eduaguilera.github.io/whep/reference/polities.md)
     for the full rule.
 
+  A `livestock_data` row whose `area_code` has no cell in a year, but
+  whose
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+  bucket does, is folded onto that bucket for that year (and summed with
+  any row already there), with a message. A bucket-keyed grid holds
+  Sudan and South Sudan only as 206, while the livestock table keys them
+  on 276 and 277 from 2012. A code with cells of its own is never
+  folded.
+
 - species_proxy:
 
   A tibble mapping each `species_group` to its spatial proxy type:

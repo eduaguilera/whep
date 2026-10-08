@@ -96,6 +96,7 @@ per-country ratio is emitted per row rather than summarised away.</p>
 <span>  gridded_livestock <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  method_diet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_cell_feed"</span>, <span class="st">"national_feed"</span>, <span class="st">"uniform_medium"</span><span class="op">)</span>,</span>
 <span>  method_species <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"national_head_share"</span>, <span class="st">"refuse"</span><span class="op">)</span>,</span>
+<span>  method_climate_gap <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nearest_cell"</span>, <span class="st">"drop"</span>, <span class="st">"refuse"</span><span class="op">)</span>,</span>
 <span>  tier <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -151,6 +152,22 @@ example Sudan and South Sudan, reported together as polity 206), and
 <code>NA</code> emissions and a warning, never split on an invented ratio.</p></li>
 <li><p><code>"refuse"</code>: abort on any aggregate group, the behaviour before whep#1126.</p></li>
 </ul><p>The rung used is recorded per row in <code>method_species</code>.</p></dd>
+
+
+<dt id="arg-method-climate-gap">method_climate_gap<a class="anchor" aria-label="anchor" href="#arg-method-climate-gap"></a></dt>
+<dd><p>What happens to a cell that has no row in the
+climate table, which is where the climate land mask disagrees with the
+livestock grid (coastlines, reclaimed land, small islands):</p><ul><li><p><code>"nearest_cell"</code> (default): the cell takes the mean annual temperature
+of its nearest climate cell in the same year (great-circle distance
+between cell centres; equidistant cells are averaged), and its zone is
+classified from that. <code>method_climate_zone</code> reads
+<code>"nearest_cell; &lt;the donor's method&gt;"</code>. Only cells up to three grid
+steps away are searched; a gap with none that close aborts, because it
+means the climate table does not cover the herd.</p></li>
+<li><p><code>"drop"</code>: such rows are removed, with a warning naming their head
+count. Their emissions are then absent from every total.</p></li>
+<li><p><code>"refuse"</code>: abort, the behaviour before whep#1126.</p></li>
+</ul><p>No option gives a gap cell a default zone.</p></dd>
 
 
 <dt id="arg-tier">tier<a class="anchor" aria-label="anchor" href="#arg-tier"></a></dt>
@@ -275,7 +292,8 @@ figure stays reproducible.</p></li>
 and <code>species_heads</code> (national head counts by live-animal item, with
 <code>year</code>, <code>area_code</code>, <code>item_cbs_code</code> and <code>value</code> or <code>heads</code>, optionally
 <code>polity_area_code</code> and <code>unit</code>; rows with a <code>unit</code> other than <code>"heads"</code>
-are ignored). <code>cell_climate</code> falls back to <code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code>,
+are ignored, except <code>"t_head"</code> rows, which give the milk yield, see
+section "Milk yield"). <code>cell_climate</code> falls back to <code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code>,
 which reads CRU from <code>WHEP_CRU_DIR</code>. <code>species_heads</code> falls back to
 <code><a href="get_primary_production.html">get_primary_production()</a></code>, the source the spatializer's country table
 is built from, and is read only when an aggregate group is present.
@@ -308,9 +326,24 @@ per-cell drivers.</p></li>
 <code>"one_to_one"</code> (the group is a single species), <code>"national_head_share"</code>,
 <code>"polity_bucket_head_share"</code> or <code>"unsplit_no_national_mix"</code> (emissions
 <code>NA</code>, see <code>method_species</code>).</p></li>
-<li><p><code>method_climate_zone</code>, <code>method_diet</code>, <code>method_enteric</code>,
+<li><p><code>method_climate_zone</code>: How the cell's climate zone was resolved, from
+<code><a href="build_cell_climate_zone.html">build_cell_climate_zone()</a></code>, prefixed <code>"nearest_cell; "</code> when it was
+taken from the nearest climate cell (see <code>method_climate_gap</code>).</p></li>
+<li><p><code>method_diet</code>, <code>method_enteric</code>,
 <code>method_manure_ch4</code>, <code>method_manure_n2o</code>: Method tracking.</p></li>
 </ul><p>plus the polity columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="milk-yield">Milk yield<a class="anchor" aria-label="anchor" href="#milk-yield"></a></h2>
+
+
+<p>Tier 2 lactation energy (IPCC 2019 Eq 10.8) needs a milk yield per dairy
+cow. It is taken, in this order, from a <code>milk_yield_kg_day</code> column on
+<code>gridded_livestock</code>, or from the realised national yield of the <code>t_head</code>
+rows of <code>data$species_heads</code> (milk tonnes per head and year, converted to
+kilograms per day as <code><a href="prepare_livestock_emissions.html">prepare_livestock_emissions()</a></code> does). A dairy row
+that neither supplies aborts: the yield is never filled with zero, which
+would book every dairy cow as giving no milk.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

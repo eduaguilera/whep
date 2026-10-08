@@ -30,6 +30,7 @@ build_gridded_livestock_emissions(
   gridded_livestock = NULL,
   method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   method_species = c("national_head_share", "refuse"),
+  method_climate_gap = c("nearest_cell", "drop", "refuse"),
   tier = 2,
   options = list(),
   data = list(),
@@ -97,6 +98,28 @@ build_gridded_livestock_emissions(
     whep#1126.
 
   The rung used is recorded per row in `method_species`.
+
+- method_climate_gap:
+
+  What happens to a cell that has no row in the climate table, which is
+  where the climate land mask disagrees with the livestock grid
+  (coastlines, reclaimed land, small islands):
+
+  - `"nearest_cell"` (default): the cell takes the mean annual
+    temperature of its nearest climate cell in the same year
+    (great-circle distance between cell centres; equidistant cells are
+    averaged), and its zone is classified from that.
+    `method_climate_zone` reads `"nearest_cell; <the donor's method>"`.
+    Only cells up to three grid steps away are searched; a gap with none
+    that close aborts, because it means the climate table does not cover
+    the herd.
+
+  - `"drop"`: such rows are removed, with a warning naming their head
+    count. Their emissions are then absent from every total.
+
+  - `"refuse"`: abort, the behaviour before whep#1126.
+
+  No option gives a gap cell a default zone.
 
 - tier:
 
@@ -268,8 +291,9 @@ build_gridded_livestock_emissions(
   output), `feed_intake` (a feed-intake table) and `species_heads`
   (national head counts by live-animal item, with `year`, `area_code`,
   `item_cbs_code` and `value` or `heads`, optionally `polity_area_code`
-  and `unit`; rows with a `unit` other than `"heads"` are ignored).
-  `cell_climate` falls back to
+  and `unit`; rows with a `unit` other than `"heads"` are ignored,
+  except `"t_head"` rows, which give the milk yield, see section "Milk
+  yield"). `cell_climate` falls back to
   [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md),
   which reads CRU from `WHEP_CRU_DIR`. `species_heads` falls back to
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
@@ -313,10 +337,26 @@ A tibble with one row per `year`, `area_code`, `lon`, `lat` and
   `"national_head_share"`, `"polity_bucket_head_share"` or
   `"unsplit_no_national_mix"` (emissions `NA`, see `method_species`).
 
-- `method_climate_zone`, `method_diet`, `method_enteric`,
-  `method_manure_ch4`, `method_manure_n2o`: Method tracking.
+- `method_climate_zone`: How the cell's climate zone was resolved, from
+  [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md),
+  prefixed `"nearest_cell; "` when it was taken from the nearest climate
+  cell (see `method_climate_gap`).
+
+- `method_diet`, `method_enteric`, `method_manure_ch4`,
+  `method_manure_n2o`: Method tracking.
 
 plus the polity columns below.
+
+## Milk yield
+
+Tier 2 lactation energy (IPCC 2019 Eq 10.8) needs a milk yield per dairy
+cow. It is taken, in this order, from a `milk_yield_kg_day` column on
+`gridded_livestock`, or from the realised national yield of the `t_head`
+rows of `data$species_heads` (milk tonnes per head and year, converted
+to kilograms per day as
+[`prepare_livestock_emissions()`](https://eduaguilera.github.io/whep/reference/prepare_livestock_emissions.md)
+does). A dairy row that neither supplies aborts: the yield is never
+filled with zero, which would book every dairy cow as giving no milk.
 
 ## Polity columns
 

@@ -247,7 +247,12 @@ bound is <strong>exclusive at a succession</strong> and <strong>inclusive at the
 end</strong>, so 2014 selects <code>"RUS-2014-2025"</code> and not <code>"RUS-1991-2014"</code>,
 while 2025 still selects <code>"RUS-2014-2025"</code> because no later interval of
 that compartment follows it. See <a href="polities.html">polities</a> for the full rule.</p></li>
-</ul></dd>
+</ul><p>A <code>livestock_data</code> row whose <code>area_code</code> has no cell in a year, but
+whose <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> bucket does, is folded onto that bucket
+for that year (and summed with any row already there), with a message.
+A bucket-keyed grid holds Sudan and South Sudan only as 206, while the
+livestock table keys them on 276 and 277 from 2012. A code with cells of
+its own is never folded.</p></dd>
 
 
 <dt id="arg-species-proxy">species_proxy<a class="anchor" aria-label="anchor" href="#arg-species-proxy"></a></dt>
