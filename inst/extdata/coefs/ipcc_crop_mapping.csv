@@ -110,3 +110,65 @@ item_prod_code,item_prod_name,name_biomass,ipcc_crop,crop_group
 826,Unmanufactured tobacco,Tobacco,Other_fiber,Other
 836,Natural rubber in primary forms,Rubber,Permanent_crops,Other
 839,"Balata, gutta-percha, guayule, chicle and similar natural gums in primary forms or in plates, sheets or strip",Rubber,Permanent_crops,Other
+328,"Seed cotton, unginned",Seed cotton,Cotton,Other
+772,Linum,"Fibres, other",Other_fiber,Other
+773,"Flax, processed but not spun",Flax fibre and tow,Other_fiber,Other
+776,Hemp,"Fibres, other",Other_fiber,Other
+777,"True hemp, raw or retted","Fibres, other",Other_fiber,Other
+778,"Kapok fibre, raw","Fibres, other",Other_fiber,Other
+780,"Jute, raw or retted","Fibres, other",Other_fiber,Other
+782,"Kenaf, and other textile bast fibres, raw or retted","Fibres, other",Other_fiber,Other
+788,"Ramie, raw or retted","Fibres, other",Other_fiber,Other
+789,"Sisal, raw","Fibres, other",Other_fiber,Other
+800,"Agave fibres, raw, n.e.c.","Fibres, other",Other_fiber,Other
+809,"Abaca, manila hemp, raw","Fibres, other",Other_fiber,Other
+813,"Coir, raw","Fibres, other",Other_fiber,Other
+821,"Other fibre crops, raw, n.e.c.","Fibres, other",Other_fiber,Other
+531,Cherries,Cherries,Permanent_crops,Other
+569,Figs,Figs,Permanent_crops,Other
+221,"Almonds, in shell",Almonds,Permanent_crops,Other
+223,"Pistachios, in shell",Pistachios,Permanent_crops,Other
+216,"Brazil nuts, in shell",Nuts nes,Permanent_crops,Other
+217,"Cashew nuts, in shell",Nuts nes,Permanent_crops,Other
+224,Kola nuts,Nuts nes,Permanent_crops,Other
+226,Areca nuts,Nuts nes,Permanent_crops,Other
+234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",Nuts nes,Permanent_crops,Other
+263,Karite nuts (sheanuts),Nuts nes,Permanent_crops,Other
+275,Tung nuts,Nuts nes,Permanent_crops,Other
+486,Bananas,"Bananas, platains",Permanent_crops,Other
+489,Plantains and cooking bananas,"Bananas, platains",Permanent_crops,Other
+248,Coconuts,Coconut,Permanent_crops,Other
+249,"Coconuts, in shell",Coconut,Permanent_crops,Other
+656,"Coffee, green",Coffee,Permanent_crops,Other
+661,Cocoa beans,Cocoa beans,Permanent_crops,Other
+571,"Mangoes, guavas and mangosteens",Fruits,Permanent_crops,Other
+592,Kiwi fruit,Kiwifruit,Permanent_crops,Other
+310,Kapok fruit,Fruits,Permanent_crops,Other
+541,Other stone fruits,Fruits,Permanent_crops,Other
+542,Other pome fruits,Fruits,Permanent_crops,Other
+591,Cashewapple,Fruits,Permanent_crops,Other
+603,"Other tropical fruits, n.e.c.",Fruits,Permanent_crops,Other
+619,"Other fruits, n.e.c.",Fruits,Permanent_crops,Other
+552,Blueberries,Blueberries,Permanent_crops,Other
+530,Sour cherries,Berries nes,Permanent_crops,Other
+549,Gooseberries,Berries nes,Permanent_crops,Other
+550,Currants,Berries nes,Permanent_crops,Other
+554,Cranberries,Berries nes,Permanent_crops,Other
+558,Other berries and fruits of the genus vaccinium n.e.c.,Berries nes,Permanent_crops,Other
+547,Raspberries,Raspberries,Permanent_crops,Other
+687,"Pepper (Piper spp.), raw","Spices, Other",Permanent_crops,Other
+677,Hop cones,Hop,Permanent_crops,Other
+636,"Forage and silage, maize","Maize, green",Fodder_crops,Other
+637,"Forage and silage, sorghum","Sorghum, green",Fodder_crops,Other
+646,Turnips for fodder,"Turnip, for fodder",Fodder_crops,Other
+643,"Forage and silage, legumes",Other legumes for green fodder,Fodder_crops,Other
+639,"Forage and silage, grasses nes",Other true grasses for fodder,Fodder_crops,Other
+645,Mixed Grasses and Legumes,Cereal-legume mixture,Fodder_crops,Other
+644,Cabbage for fodder,Fodder cabbage,Fodder_crops,Other
+648,Carrots for fodder,"Carrot, for fodder",Fodder_crops,Other
+649,Swedes for fodder,Other roots and tubers for fodder,Fodder_crops,Other
+biomass_mixed_swards,Mixed swards,Mixed swards,Fodder_crops,Other
+358,Cabbages,"Cabbage, Broccoli",Vegetables,Other
+399,Eggplants (aubergines),Aubergine,Vegetables,Other
+394,"Pumpkins, squash and gourds","Squash, pumpkin",Vegetables,Other
+689,"Chillies and peppers, dry (Capsicum spp., Pimenta spp.), raw","Chili pepper and peppers, dry",Vegetables,Other
