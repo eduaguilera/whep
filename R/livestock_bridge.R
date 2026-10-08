@@ -90,7 +90,8 @@ prepare_livestock_emissions <- function(
     heads_data <- heads_data |>
       calculate_cohorts_systems(
         system_shares = system_shares
-      )
+      ) |>
+      .drop_mature_weight_gain()
   }
 
   heads_data
@@ -283,6 +284,29 @@ prepare_livestock_emissions <- function(
            {.field live_anim_code} and {.field item_prod_code}."
     )
   )
+}
+
+# The meat-derived `weight_gain_kg_day` is the growth rate of an animal raised
+# to slaughter weight, joined per species before the herd is split into
+# cohorts. Every cohort inherited it, so breeding cows and bulls grew about
+# 0.5 kg/day for life (whep#1440). IPCC 2019 Vol 4 Ch 10 p. 10.18: "Mature
+# animals are generally assumed to have no net weight gain or loss over an
+# entire year", so a mature cohort's gain is set to that zero here, and the
+# growing cohorts keep the realised rate.
+.drop_mature_weight_gain <- function(data) {
+  if (!rlang::has_name(data, "weight_gain_kg_day")) {
+    return(data)
+  }
+  stages <- .cohort_life_stages()
+  mature <- stages$cohort[.is_mature_stage(stages$cohort_life_stage)]
+  data |>
+    dplyr::mutate(
+      weight_gain_kg_day = dplyr::if_else(
+        .data$cohort %in% mature,
+        0,
+        .data$weight_gain_kg_day
+      )
+    )
 }
 
 # Convert `meat_yield_t_head` (FAOSTAT carcass weight per head, tonnes) to

@@ -399,11 +399,18 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Sheep ship 6.7 in `ipcc_tier2_ym_values`, so their enteric CH4 rises by
   # exactly 6.7/6.5 and nothing else moves: cattle (961, 960) are already 6.5,
   # and manure CH4 and N2O are untouched. See `.assume_missing_diet()`.
+  #
+  # whep#1440 then gave mature cohorts no growth and only mature females a
+  # pregnancy rate (IPCC 2019 Vol 4 Ch 10 pp. 10.18, 10.28), with beef cows
+  # at the Table 10A.2 regional rate (area 10 is Australia, Oceania 81%).
+  # Against the figures before it (2255369539.55, 1600495292.48,
+  # 492717625.44) that moves cattle 961 -13.60 percent, sheep 976 -26.30
+  # percent and cattle 960 -5.84 percent.
   expected_tier2 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2255369539.5477095,
-    10L, 976L, 1600495292.4821796,
-    100L, 960L, 492717625.4361503
+    10L, 961L, 1948581965.0761726,
+    10L, 976L, 1179516553.1179745,
+    100L, 960L, 463938465.6826474
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
   # no MCF table, so `mms_shares` and `indirect_n2o_source` are the flips that
@@ -485,8 +492,8 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   #
   # Against the same run with only `mms_shares = "placeholder"` -- the MCF
   # edition held at the 2019 default, so this is the ingest alone -- the
-  # sectors move cattle 961 -1.63 percent, sheep 976 +0.29 percent, cattle
-  # 960 -1.96 percent. The two effective Global factors at Temperate say why:
+  # sectors move cattle 961 -1.62 percent, sheep 976 +0.29 percent, cattle
+  # 960 -1.94 percent. The two effective Global factors at Temperate say why:
   # cattle fall on both (weighted MCF 7.310 -> 6.489 percent, weighted EF3
   # 0.00730 -> 0.006945), while sheep gain on the MCF (0.470 -> 1.600
   # percent, 32 percent of their manure moving from pasture to solid storage)
@@ -494,19 +501,22 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   #
   # Since whep#1137 the pasture stream is priced at the Bo 0.19 the 2019
   # Refinement pairs with its pasture MCF. Against `pasture_bo = "species"`
-  # that moves cattle 961 +0.018 percent (2221562951.73), cattle 960
-  # -0.089 percent (483894485.80) and leaves sheep 976, already at Bo 0.19,
+  # that moves cattle 961 +0.018 percent (1927087071.86), cattle 960
+  # -0.089 percent (457178064.89) and leaves sheep 976, already at Bo 0.19,
   # unchanged.
   #
   # Since whep#1245 indirect manure N2O reads the 2019 Table 11.3 EF5 (0.011)
   # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
-  # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
+  # 1919723257.38, 1162191367.34 and 455223333.72, the sector totals rise by
   # 0.402, 0.405 and 0.340 percent.
+  #
+  # whep#1440 (mature cohorts take no growth; only mature females a pregnancy
+  # rate) moved these from 2230894782.40, 1583378815.26 and 485105249.78.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2230894782.3991766,
-    10L, 976L, 1583378815.2593365,
-    100L, 960L, 485105249.77573824
+    10L, 961L, 1927436396.8918943,
+    10L, 976L, 1166902227.8461401,
+    100L, 960L, 456770721.51890796
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
