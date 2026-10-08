@@ -210,30 +210,20 @@
 # hand-over is the boundary. Rows without a map span (pre-1961 periods) hand
 # over nothing.
 .polity_map_handover <- function(area_code, map_year_start, map_year_end) {
-  rows <- data.table::data.table(
-    row = seq_along(area_code),
-    area_code = area_code,
-    map_year_start = as.numeric(map_year_start),
-    map_year_end = as.numeric(map_year_end)
-  )
-  starts <- rows[
-    !is.na(map_year_start),
-    .(area_code, next_start = map_year_start)
-  ]
-  mapped <- rows[!is.na(map_year_end)]
-  found <- starts[
-    mapped,
-    on = .(area_code, next_start > map_year_end),
-    .(row = i.row, handover = x.next_start),
-    nomatch = NULL
-  ]
-  out <- rep(Inf, length(area_code))
-  if (nrow(found) == 0L) {
-    return(out)
+  n <- length(area_code)
+  if (n == 0L) {
+    return(numeric(0))
   }
-  found <- found[, .(handover = min(handover)), by = "row"]
-  out[found$row] <- found$handover
-  out
+  start <- as.numeric(map_year_start)
+  # Row i hands over to row j when j is the same area and its map span opens
+  # after i's closes. A crosswalk has a few hundred rows, so the pairwise
+  # matrix is small.
+  later <- outer(area_code, area_code, "==") &
+    outer(as.numeric(map_year_end), start, "<")
+  later[is.na(later)] <- FALSE
+  candidates <- matrix(start, nrow = n, ncol = n, byrow = TRUE)
+  candidates[!later] <- Inf
+  apply(candidates, 1L, min)
 }
 
 # The first year a crosswalk row answers for, which is the polity's own start
@@ -3049,7 +3039,8 @@ resolve_polity_label <- function(
 # successor or predecessor, so a walk over `successor` cannot see that Serbia's
 # 1970 back-cast row lies inside the Yugoslav SFR. The containment edge does
 # say which polity each part sits inside, and in which years, so the part
-# takes that container's place in the lineage (#1306).
+# takes that container's place in the lineage (#1306). The lineage itself is
+# asked of upstream in whep-polities#740; this bridge can go once it lands.
 .routed_part_container <- function(polity_codes, years) {
   edges <- .routed_part_edges()
   # A back-cast year lies outside every edge of the part (Serbia's 1970 row on

@@ -139,7 +139,7 @@ testthat::test_that("no reporting area outside bucket 999 is stranded", {
   # Two came back with the whep-polities d45990a3 re-sync (#1306). Upstream now
   # routes 186 to `SCG-XK-1999-2006` from 1999 and 215 to `F215-1961-1964`
   # over 1961-1963, and publishes both with no successor, so no present-day
-  # ISO3 is reachable from either. The population DEFAULT is unaffected (its pin
+  # ISO3 is reachable from either (asked of upstream in whep-polities#740). The population DEFAULT is unaffected (its pin
   # carries both rows), and `read_population()`'s overlap check reads a routed
   # part through its container (`.routed_part_container()`).
   testthat::expect_setequal(
