@@ -268,9 +268,12 @@
 #' its metropole, and upstream has registered no label for them yet, so they
 #' are reachable from neither route by design rather than by omission.
 #'
-#' No absence here can NA an `area_code` on a polycell, either:
-#' [build_polycell_support()] excludes `polity_type == "aggregate"` by type
-#' before any lookup runs, so an aggregate emits no polycell to carry one.
+#' No absence here can NA an `area_code` on a **partition** polycell, either:
+#' [build_polycell_support()] keeps `polity_type == "aggregate"` out of the
+#' partition by type before any lookup runs. Its `aggregates = "overlap_layer"`
+#' does clip them, and there the aggregates this section lists carry an `NA`
+#' `area_code` on their `support_role == "overlap"` rows, which
+#' [read_polycell_support()] returns only when asked for that layer.
 #'
 #' `F206-2011-2025` used to be the one absence that was a real gap, and it is
 #' filled: it now has a row, keyed on the bucket rather than on a reporting

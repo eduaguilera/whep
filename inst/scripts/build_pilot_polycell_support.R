@@ -280,7 +280,9 @@
   support <- whep::build_polycell_support(
     geometries = geometries,
     water = water,
-    ice = ice
+    ice = ice,
+    subnational = "include",
+    claims = "keep"
   )
   cli::cli_alert_success(
     "{label}: {nrow(support)} interval rows,

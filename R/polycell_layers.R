@@ -589,6 +589,7 @@ read_polycell_support <- function(
     !(prepared$polity_code %in% .polities_without_polygon())
   ]
   missing <- setdiff(unique(can_have_cells), unique(support$polity_code))
+  missing <- setdiff(missing, .pcs_ceded_whole(missing, prepared, support))
   if (length(missing) == 0L) {
     return(invisible(support))
   }
@@ -601,6 +602,29 @@ read_polycell_support <- function(
            {.file data-raw/} and {.file inst/scripts/prepare_upload.R}."
   ))
   invisible(support)
+}
+
+# A build that cedes unkeyed claims (whep#1310) leaves no cell to a polity a
+# keyed polity claims whole -- the Azerbaijan SSR inside the USSR, Tasmania
+# inside `AUS-1800-1901`: five polities on the 2026-10 vocabulary. That is the
+# rule working, not a stale pin, so those are taken out of the vintage warning.
+# The rule is re-run on the candidates alone (an unkeyed polity the pin lacks)
+# against the keyed polities, rather than trusted from the pin, so a polity
+# that is genuinely missing still warns.
+.pcs_ceded_whole <- function(missing, prepared, support) {
+  if (!identical(unique(support[["method_claims"]]), "cede_unkeyed")) {
+    return(character())
+  }
+  candidate <- prepared$polity_code %in% missing & is.na(prepared$area_code)
+  if (!any(candidate)) {
+    return(character())
+  }
+  old_s2 <- sf::sf_use_s2()
+  withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
+  suppressMessages(sf::sf_use_s2(TRUE))
+  subset <- prepared[candidate | !is.na(prepared$area_code), ]
+  kept <- suppressMessages(.pcs_cede_claims(subset, "cede_unkeyed"))
+  setdiff(prepared$polity_code[candidate], kept$polity_code)
 }
 
 # The default is the PARTITION, and that is the whole consumer-side contract of

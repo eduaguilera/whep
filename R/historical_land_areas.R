@@ -289,6 +289,10 @@ build_historical_land_areas <- function(
 # `polity_area_ha` is also EXACTLY time-invariant per (cell, polity): a maximum
 # relative standard deviation of 0 over the 33,433 (cell, polity) pairs the
 # shipped table splits into more than one interval, because it is pure geometry.
+# The one exception is a polity with no reporting `area_code` that cedes ground
+# to a keyed one for part of its life (whep#1310); none can reach this cover,
+# because `.polity_area_by_year()` resolves keyed polities only (0 of the 125
+# such polities over 1850-1961 on the 2026-10 vocabulary).
 # That is what lets one cover serve every year, and it is why
 # `.land_in_polygons()`'s join on `polity_code` alone really is the
 # time-invariant join `.territorial_join_baseline()` classifies it as.
