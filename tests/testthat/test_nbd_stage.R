@@ -132,3 +132,57 @@ test_that("a long detail is still truncated to 1200 characters", {
   )
   expect_equal(nchar(row$detail), 1200L)
 })
+
+test_that("warnings and messages are counted apart from the capture", {
+  result <- .nbd_capture_conditions({
+    message("one")
+    warning("two")
+    warning("three")
+    4
+  })
+  expect_equal(result$warnings, 2L)
+  expect_equal(result$messages, 1L)
+})
+
+test_that("a warning lost from the capture is still counted (#1411)", {
+  # A warning with no message is recorded as zero rows, so it never reaches
+  # `conditions`; the count must disagree with the capture, or the balance
+  # manifest's reader could not tell a lossy capture from a complete one.
+  result <- .nbd_capture_conditions({
+    .nbd_unreadable_warning()
+    warning("seen")
+    1
+  })
+  expect_equal(sum(result$conditions$class == "warning"), 1L)
+  expect_equal(result$warnings, 2L)
+})
+
+test_that("a stage row carries its counts, and none is NA for a ran stage", {
+  captured <- .nbd_capture_conditions({
+    warning("w")
+    1
+  })
+  counted <- .nbd_stage_row(
+    "n_inputs",
+    "ok",
+    1,
+    1L,
+    NA_character_,
+    captured$conditions,
+    captured[c("warnings", "messages")]
+  )
+  expect_equal(counted$warnings, 1L)
+  expect_equal(counted$messages, 0L)
+  uncounted <- .nbd_stage_row(
+    "n_inputs",
+    "ok",
+    1,
+    1L,
+    NA_character_,
+    captured$conditions
+  )
+  expect_true(is.na(uncounted$warnings))
+  skipped <- .nbd_stage_row("carbon_balance", "skip", 0, NA_integer_, "skip")
+  expect_equal(skipped$warnings, 0L)
+  expect_equal(skipped$messages, 0L)
+})

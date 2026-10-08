@@ -32,6 +32,26 @@
 #                           boundary exceedance, so
 #                           `validation/n_balance_gridded.R` can check them
 #                           without re-running the assembly.
+#   WHEP_NBD_MARCH_ROOT=<dir>
+#                           also write the balance as one year of the
+#                           year-partitioned gridded balance the SJOS-N driver
+#                           reads (inst/scripts/run_sjos_nitrogen.R):
+#                           <dir>/whep_n_balance_grid/year=<Y>/part.parquet
+#                           and <dir>/whep_n_balance_run_manifest.json, with
+#                           every stage's counted warnings and captured
+#                           conditions (R/nbd_march.R, whep#1411). Grid
+#                           resolution only. A year already written is
+#                           skipped, so a span is a loop that resumes where
+#                           it stopped:
+#                             for y in $(seq 1961 2023); do
+#                               WHEP_NBD_MARCH_ROOT=<dir> Rscript \
+#                                 --no-init-file \
+#                                 inst/scripts/run_nitrogen_balance.R $y grid \
+#                                 || break
+#                             done
+#                           A root written from another commit or option set
+#                           is refused before anything is built.
+#   WHEP_NBD_MARCH_FORCE=1  rebuild and replace a year already written.
 #   WHEP_NBD_REGIME=yield_split|area_split|none
 #                           rainfed/irrigated split of the balance rows
 #                           (default yield_split; see build_nitrogen_balance()).
@@ -74,6 +94,8 @@ year <- as.integer(if (length(args) >= 1L) args[[1L]] else "2010")
 resolution <- if (length(args) >= 2L) args[[2L]] else "grid"
 skip_heavy <- nzchar(Sys.getenv("WHEP_NBD_SKIP_HEAVY"))
 out_path <- Sys.getenv("WHEP_NBD_OUT")
+march_root <- Sys.getenv("WHEP_NBD_MARCH_ROOT")
+march_force <- nzchar(Sys.getenv("WHEP_NBD_MARCH_FORCE"))
 unsupported_fertilizer <- rlang::arg_match0(
   Sys.getenv("WHEP_NBD_UNSUPPORTED_FERTILIZER", "drop"),
   c("drop", "abort"),
@@ -115,6 +137,7 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
   started <- proc.time()
   captured <- whep:::.nbd_capture_conditions(expr)
   elapsed <- round((proc.time() - started)[["elapsed"]], 1)
+  counts <- captured[c("warnings", "messages")]
   if (inherits(captured$value, "error")) {
     .nbd_record(
       label,
@@ -122,7 +145,8 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
       elapsed,
       NA_integer_,
       conditionMessage(captured$value),
-      captured$conditions
+      captured$conditions,
+      counts
     )
     cli::cli_inform("{cli::col_red('FAIL')} {label} ({elapsed}s)")
     return(NULL)
@@ -133,7 +157,8 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     elapsed,
     .nbd_size(captured$value),
     NA_character_,
-    captured$conditions
+    captured$conditions,
+    counts
   )
   cli::cli_inform("{cli::col_green('ok')}   {label} ({elapsed}s)")
   captured$value
@@ -145,7 +170,8 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
   seconds,
   rows,
   detail,
-  conditions = NULL
+  conditions = NULL,
+  counts = NULL
 ) {
   .nbd_log$rows[[length(.nbd_log$rows) + 1L]] <- whep:::.nbd_stage_row(
     label,
@@ -153,7 +179,8 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     seconds,
     rows,
     detail,
-    conditions
+    conditions,
+    counts
   )
 }
 
@@ -559,6 +586,38 @@ NBD_PLACEHOLDER_CLIMATE <- "ATL"
   invisible(gap)
 }
 
+# ---- 0. the balance root ----------------------------------------------------
+
+# Checked before anything is built, so a root holding another commit's or
+# option set's years fails in seconds rather than after a two-hour build, and
+# a year the root already holds is skipped (whep#1411).
+march_identity <- NULL
+if (nzchar(march_root)) {
+  march_identity <- whep:::.nbd_march_identity(
+    whep:::.sjr_whep_state(),
+    list(
+      resolution = resolution,
+      regime = NBD_LOSS_METHODS$regime,
+      loss_methods = NBD_LOSS_METHODS[c("nh3", "n2o", "leaching")],
+      placeholder_climate = NBD_PLACEHOLDER_CLIMATE,
+      unsupported_fertilizer = unsupported_fertilizer,
+      human_n_basis = human_n_basis,
+      manure_method = manure_method,
+      cell_support = cell_support_mode,
+      skip_heavy = skip_heavy
+    )
+  )
+  if (
+    !march_force &&
+      whep:::.nbd_march_has_year(march_root, year, march_identity)
+  ) {
+    cli::cli_alert_success(
+      "skip {year}: already written to {.file {march_root}}"
+    )
+    quit(save = "no", status = 0L)
+  }
+}
+
 # ---- 1. country statistics --------------------------------------------------
 
 cli::cli_h1("Nitrogen balance driver: {year}, resolution = {resolution}")
@@ -862,6 +921,13 @@ if (nrow(blockers) > 0L) {
     "{nrow(blockers)} blocker{?s}; the balance is not attempted. See #446."
   )
   .nbd_print_conditions(report)
+  if (nzchar(march_root)) {
+    cli::cli_abort(
+      "No {year} balance was built, so nothing was written to
+       {.file {march_root}}.",
+      class = "whep_nbd_march_no_balance"
+    )
+  }
   invisible(report)
 } else {
   cli::cli_h2("6. Nitrogen balance")
@@ -1076,6 +1142,18 @@ if (nrow(blockers) > 0L) {
   if (nzchar(out_path)) {
     saveRDS(result, out_path)
     cli::cli_alert_success("Saved to {.file {out_path}}.")
+  }
+  # Aborts when the balance stage failed, so a span loop stops on that year
+  # instead of moving past a year it never wrote.
+  if (nzchar(march_root)) {
+    whep:::.nbd_write_march_year(
+      march_root,
+      year,
+      balance,
+      final_report,
+      march_identity
+    )
+    cli::cli_alert_success("Wrote {year} to {.file {march_root}}.")
   }
   invisible(result)
 }
