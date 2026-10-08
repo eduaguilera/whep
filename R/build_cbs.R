@@ -83,16 +83,17 @@
 #'   observation), and `"abort"` refuses to build. The share is an
 #'   intermediate, not a published number: `.cbs_fill_destinies()` later
 #'   re-derives each destiny as `domestic_supply` times a share normalised to
-#'   sum to one, so on that build no published row from 1961 on carries a
-#'   destiny above its supply and every difference between the settings sits
-#'   at 1960 or earlier — against `"report"`, `"clamp"` moves 755 rows
-#'   (`other_uses` +23.21 Mt, `stock_variation` −22.97 Mt, `food` −1.00 Mt)
-#'   and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation`
-#'   −825 Mt), both upwards because the values they touch are negative
-#'   (whep#1065; measured under `negative_supply = "report"`, which leaves
-#'   those negatives in place). Which of those is right is
-#'   an open question — see whep#980 — so the reporting default is the one
-#'   that invents nothing.
+#'   sum to one. Re-measured under the current defaults
+#'   (`negative_supply = "floor"`, `hist_trade_scale = "correct"`), no
+#'   published row carries a destiny above its supply or a negative use under
+#'   any setting, and every difference between the settings sits at 1960 or
+#'   earlier. Against `"report"`, `"clamp"` moves 766 rows (`other_uses`
+#'   −0.91 Mt, `food` −1.00 Mt, `domestic_supply` −1.90 Mt) and `"drop"`
+#'   moves 557 (`other_uses` −3.15 Mt, `domestic_supply` −3.18 Mt), against
+#'   15,898 Mt of 1950–1960 `other_uses` and 15,411 Mt of `food`: at most
+#'   0.02%. The +23 Mt and +825 Mt once recorded here were whep#1065's
+#'   negative supplies, which the `"floor"` default now removes. The
+#'   reporting default is the one that invents nothing.
 #' @param negative_supply One of `"floor"` (default), `"report"` or
 #'   `"abort"`, selecting what happens when a pre-1962 row has no observed
 #'   `domestic_supply` and the `production + import - export` reconstruction
@@ -3957,14 +3958,19 @@ build_processing_coefs <- function(
 # an intermediate: `.cbs_fill_destinies()` re-derives every destiny as
 # `domestic_supply * dest_share` with `dest_share` normalised to sum to one
 # over the row's destinies, so an inflated share changes the split between
-# destinies rather than lifting one above the supply. On the same build no
-# published row from 1961 on has a destiny above its `domestic_supply`, and
-# every difference between the four settings sits at 1960 or earlier: against
-# `"report"`, `"clamp"` moves 755 rows (`other_uses` +23.21 Mt,
-# `stock_variation` -22.97 Mt, `food` -1.00 Mt, `domestic_supply` -1.00 Mt)
-# and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation` -825 Mt).
-# Both raise `other_uses` because the values they touch are negative, which is
-# whep#1065 rather than this.
+# destinies rather than lifting one above the supply. Re-measured on a real
+# 1950-1965 build under `negative_supply = "floor"` and
+# `hist_trade_scale = "correct"` (whep#980), the census above is unchanged,
+# no published row has a destiny above its `domestic_supply` or a negative use
+# under any setting, and every difference between the settings sits at 1960
+# or earlier: against `"report"`, `"clamp"` moves 766 rows (`other_uses`
+# -0.91 Mt, `food` -1.00 Mt, `domestic_supply` -1.90 Mt, `import` -0.71 Mt)
+# and `"drop"` moves 557 (`other_uses` -3.15 Mt, `domestic_supply` -3.18 Mt,
+# `stock_variation` +3.04 Mt). The 1950-1960 totals are 15,898 Mt of
+# `other_uses` and 15,411 Mt of `food`, so neither moves either by more than
+# 0.02%. The +23 Mt and +825 Mt `other_uses` once recorded here were measured
+# under `negative_supply = "report"` and were whep#1065's negative supplies,
+# not this.
 #
 # Renormalising the five shares to sum to one is not offered: 47 of the 70
 # `other_uses` offenders are the only observed destiny of their row, so there
