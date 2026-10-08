@@ -149,6 +149,12 @@
      polity's recorded windows and the year predicate that follows disposes
      of them -- a row keeps a code only where one window covers its whole
      span -- and `polity_code` carries its own period.",
+    ".level0_injected_rows", "inner_join", "polity_code", 1L, "identity_lookup",
+    "Re-dates a constant-territory polity's first-year polycells to the
+     windows the recorded cell-support mapping gives it (whep#1317). The join
+     proposes every recorded window and the clip that follows ends each at the
+     polity's own start, so no year holds it twice; `polity_code` carries its
+     own period.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",
     "Keyed on the polity, which is the year-scoped identity itself.",
     ".dependency_sovereign_iso3", "merge", "legacy_polity_prefix", 1L,
@@ -731,6 +737,11 @@
     "`min(start_year)` IS the reduction over one polity's intervals: a
      constant-territory polity (whep#1196) is read at its own first year, so a
      polycell the support splits at a neighbour's breakpoint is taken once.",
+    ".level0_injected_rows", "filter", "polity_code", 1L, "year_axis",
+    "`min(start_year)` IS the reduction over one polity's intervals, as in
+     `.cpy_rows_at_year()`: a constant-territory polity (whep#1317) is read at
+     its own first year, so a polycell the support splits at a neighbour's
+     breakpoint is injected once.",
     ".cpy_shares", "summarise", "lon, lat, area_code", 1L, "single_year",
     "Folds the polities of one cell into their area code on a polycell support
      already filtered to the interval covering one `year`, the frame

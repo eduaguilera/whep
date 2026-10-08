@@ -356,7 +356,10 @@ test_that("the enumerated baseline can only shrink", {
   # 111 with whep#1121: the deposition correction attaches each country's
   # reference-period mean to its years (`time_invariant`). Re-derived by
   # running `sum(.territorial_join_baseline()$n)`.
-  expect_lte(sum(baseline$n), 111L)
+  # 112 with whep#1317, on top of whep#1121's 111: `.level0_injected_rows()`
+  # re-dates a constant-territory polity to its recorded windows. Re-derived
+  # by running the audit on the merged tree.
+  expect_lte(sum(baseline$n), 112L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -629,7 +632,10 @@ test_that("every year-free territorial grouping is classified", {
   # 142 with whep#981, down from whep#1351's 143: `.combine_livestock()`'s
   # row-wise `mutate()` lost its `.by`, which grouped nothing and named the
   # `area` label. Re-derived by running the audit on the merged tree.
-  expect_lte(sum(full$n), 142L)
+  # 143 with whep#1317, on top of whep#981's 142: `.level0_injected_rows()`
+  # reads a constant-territory polity at its own first year. Re-derived by
+  # running the audit on the merged tree.
+  expect_lte(sum(full$n), 143L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

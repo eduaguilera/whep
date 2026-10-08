@@ -67,10 +67,15 @@ a year-aware support cannot place. Under \code{basis = "historical_polity"} the
 lineage places 21 of them, 156.5 Mha, leaving a 7.7 Mha (0.81\%) residue
 that is \strong{not} a lineage failure: 0.13 Mha is four Rest-of-region
 reporting buckets, which are aggregate polities the support excludes by
-construction under either vintage, and 7.6 Mha is Viet Nam and Yemen, whose
-reporting areas resolve to aggregate polities (\code{F237-1954-1975},
-\code{F249-1918-1990}) whose members the support carries separately -- splitting
-those between members needs a share rule this function does not invent.
+construction under either vintage, and 7.6 Mha is Viet Nam and Yemen. Their
+reporting polities are the aggregates \code{F237-1954-1975} and
+\code{F249-1918-1990}, which the support carries no cell for and which no polity
+names as its \code{predecessor}, so no walk reaches the polities that do hold
+the ground (North and South Vietnam; the Mutawakkilite Kingdom and Aden)
+and this function leaves them unresolved. The level-0 grid places them
+instead from the recorded rows of \code{polity_cell_support_map.csv}, which key
+those polities' cells on 237 and 249 and put Yemen on its modern cells in
+1962-1989 (whep#1317).
 }
 \section{Which vintage binds is a choice, not a fact}{
 
