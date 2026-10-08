@@ -18,8 +18,8 @@
 # their containers (with the containers themselves left out), and only the
 # province rows are kept.
 #
-# Published 2026-09-30 as 20260930T115111Z-15e25: 335 provinces, 16,131 rows,
-# 88 neighbour polities, 15.5 min.
+# Published 2026-10-08 as 20261008T145201Z-dd61a: 338 provinces, 16,625 rows,
+# 88 neighbour polities, 23 min (whep-polities d45990a3).
 #
 # Run (from the WHEP repository root):
 #   Rscript inst/scripts/build_subnational_polycell_support.R

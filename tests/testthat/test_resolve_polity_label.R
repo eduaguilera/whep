@@ -54,6 +54,27 @@ test_that("resolution is year-aware, so a label reaches the right period", {
   expect_equal(resolved, c("CPV-1886-1975", "CPV-1975-2025"))
 })
 
+test_that("the six GBD country spellings resolve under ihme-gbd (#1306)", {
+  # IHME GBD spells these six the UN way. They used to resolve only under
+  # `faostat`; whep-polities#709 publishes them as `ihme-gbd` aliases for
+  # 1990-2023, Moldova's 1990 as a back-cast onto the 1991 state.
+  gbd <- tibble::tribble(
+    ~label,                                  ~polity,
+    "Democratic People's Republic of Korea", "PRK-1948-2025",
+    "Lao People's Democratic Republic",      "LAO-1954-2025",
+    "Republic of Moldova",                   "MDA-1991-2025",
+    "Republic of Korea",                     "KOR-1948-2025",
+    "Oman",                                  "OMN-1856-2025",
+    "United Republic of Tanzania",           "TZA-1964-2025"
+  )
+  purrr::walk(c(1990L, 2020L, 2023L), function(year) {
+    expect_equal(
+      resolve_polity_label(gbd$label, source = "ihme-gbd", year = year),
+      gbd$polity
+    )
+  })
+})
+
 test_that("a source-scoped alias never applies to another source", {
   # The IIA aliases for "burundi" route 1919-1921 to the Belgian occupation of
   # Ruanda-Urundi, because that is the entity IIA reported under the label;
