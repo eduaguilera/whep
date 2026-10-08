@@ -17,9 +17,12 @@ exceedance itself.
 The comparison unit is the cell, or, under the grassland split
 (`land_use = "all"`, `grassland_split = "image_density"`), the managed
 and the extensive-grassland component of a cell, which are compared with
-their own allowances and never net against each other. Deficit units
-never offset excess elsewhere. Two country quantities follow and both
-use the country's **own** crop surplus (`actual_n_t`), never a
+their own allowances and never net against each other. Under
+`regime_comparison = "separate"` the unit is the rainfed or the
+irrigated part of the cell or component, and `surplus` must keep its
+`water_regime` rows, which are then joined regime by regime. Deficit
+units never offset excess elsewhere. Two country quantities follow and
+both use the country's **own** crop surplus (`actual_n_t`), never a
 whole-cell surplus, which sums every polity in a shared border cell and
 would count that cell once per polity:
 
@@ -94,9 +97,9 @@ build_n_boundary_country(
   A
   [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
   result at `resolution = "grid"` with `metric = "surplus"`, possibly
-  bound over several years. Its `negative_critical`, `land_use` and
-  `grassland_split` stamps must each be constant. It may carry the
-  grassland split.
+  bound over several years. Its `negative_critical`, `land_use`,
+  `grassland_split` and `regime_comparison` stamps must each be
+  constant. It may carry the grassland split.
 
 - surplus:
 
@@ -169,7 +172,7 @@ A named list of two tibbles.
 - `nourish`, `sjos_class` when `nourishment` is given.
 
 - `negative_critical`, `land_use`, `grassland_split`,
-  `beyond_share_cut`: the run stamps.
+  `regime_comparison`, `beyond_share_cut`: the run stamps.
 
 - the polity columns below.
 
@@ -298,12 +301,12 @@ extra column.
 ``` r
 build_n_boundary_country(example = TRUE)
 #> $country
-#> # A tibble: 2 × 21
+#> # A tibble: 2 × 22
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
 #> 2  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 16 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 17 more variables: reporting_polity_has_geometry <lgl>,
 #> #   exceedance_n_t <dbl>, input_std_n_t <dbl>, excess_share_of_inputs <dbl>,
 #> #   positive_surplus_n_t <dbl>, exceeding_surplus_n_t <dbl>,
 #> #   beyond_share <dbl>, exceedance_share_of_positive_surplus <dbl>,

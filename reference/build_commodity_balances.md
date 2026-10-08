@@ -31,6 +31,7 @@ build_commodity_balances(
   seed_backcast = .cbs_seed_backcast_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
   .fixed_data = NULL
 )
 ```
@@ -436,6 +437,28 @@ build_commodity_balances(
   Balances, which carry no link breakdown, and are unchanged, so under
   `"cocoon"` the 2013-2014 seam steps by roughly the raw silk
   production.
+
+- tobacco_leaf_use:
+
+  One of `"as_published"` (default) or `"one_to_one"`, selecting how the
+  Tobacco balance from 2014 on treats leaf manufactured into products
+  (whep#1390). The non-food Commodity Balances book the leaf (826) that
+  goes into a factory as leaf `other_uses`, and the cigarettes, cigars
+  and other manufactured tobacco (828, 829, 831) made from it are used
+  or exported again. Their production is not booked as supply
+  (whep#1276), so the summed uses exceed supply by about the
+  manufactured output, and the balance closes through a stock withdrawal
+  with no stock behind it – about 54 kt a year for the Netherlands and
+  Ukraine over 2019-2021.
+
+  `"as_published"` keeps FAOSTAT's leaf `other_uses`, phantom withdrawal
+  included. `"one_to_one"` subtracts the products' production from the
+  leaf `other_uses`, floored at zero, assuming one tonne of leaf per
+  tonne of product – assumed, unverified: no sourced leaf content per
+  tonne of product was found, and a cigarette also holds paper and
+  filter. Where the products outweigh the leaf use (Ukraine 2019: 56 kt
+  against 29.7 kt) the remainder stays as stock change. Only Tobacco
+  rows from 2014 on move.
 
 - .fixed_data:
 

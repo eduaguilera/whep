@@ -260,7 +260,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 
 #> $boundary_surplus
 #> $boundary_surplus$grid
-#> # A tibble: 7 × 79
+#> # A tibble: 7 × 90
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -270,16 +270,16 @@ build_sjos_nitrogen(example = TRUE)
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 7  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 74 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> # ℹ 85 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
 #> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
-#> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
-#> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
-#> #   critical_threshold <chr>, binding_threshold <chr>,
+#> #   item_cbs_code <int>, water_regime <chr>, actual_year <int>,
+#> #   critical_reference_year <int>, area_ha <dbl>, source_area_ha <dbl>,
+#> #   image_region <int>, critical_threshold <chr>, binding_threshold <chr>,
 #> #   binding_matches_mi <lgl>, actual_n_t <dbl>, pressure_share <dbl>,
 #> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>, …
 #> 
 #> $boundary_surplus$country
-#> # A tibble: 6 × 37
+#> # A tibble: 6 × 38
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -288,7 +288,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 32 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 33 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, actual_n_t <dbl>, critical_n_t <dbl>,
 #> #   signed_margin_n_t <dbl>, crop_critical_n_t <dbl>,
 #> #   positive_overshoot_n_t <dbl>, exceedance_n_t <dbl>,

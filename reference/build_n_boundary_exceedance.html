@@ -120,6 +120,7 @@ produces), and a warning when it is not.</p>
 <span>  grassland <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>classes <span class="op">=</span> <span class="cn">NULL</span>, extensive_budget <span class="op">=</span> <span class="cn">NULL</span>, critical_ara <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    critical_igl <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>,</span>
 <span>  negative_critical <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"clamp"</span><span class="op">)</span>,</span>
+<span>  regime_comparison <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"netted"</span>, <span class="st">"separate"</span><span class="op">)</span>,</span>
 <span>  binding <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -233,6 +234,18 @@ value as it is, as the source does. <code>"clamp"</code> sets it to zero (a zero
 allowance) before the cell comparison. The choice is stamped in every
 output row as <code>negative_critical</code>; see the Negative critical surplus
 section.</p></dd>
+
+
+<dt id="arg-regime-comparison">regime_comparison<a class="anchor" aria-label="anchor" href="#arg-regime-comparison"></a></dt>
+<dd><p>Treatment of a balance split into rainfed and
+irrigated rows (<code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code>'s <code>methods$regime</code>).
+<code>"netted"</code> (default) sums the two regimes of a cell before the
+comparison, so irrigated excess is offset by rainfed headroom in the same
+cell. <code>"separate"</code> compares each regime as its own part of the cell (or
+of the grassland-split component), so it is not offset. It needs a
+<code>water_regime</code> column in <code>surplus</code> and aborts without one. The choice is
+stamped in every output row as <code>regime_comparison</code>; see the Rainfed and
+irrigated parts section.</p></dd>
 
 
 <dt id="arg-binding">binding<a class="anchor" aria-label="anchor" href="#arg-binding"></a></dt>
@@ -376,11 +389,40 @@ A binding threshold names the impact that sets a critical surplus, so it
 describes the managed allowance only; the extensive allowance is a 2010
 level, not a threshold, and its grid rows carry no binding label.</p>
     </div>
+    <div class="section level2">
+    <h2 id="rainfed-and-irrigated-parts">Rainfed and irrigated parts<a class="anchor" aria-label="anchor" href="#rainfed-and-irrigated-parts"></a></h2>
+
+
+<p>Under <code>regime_comparison = "separate"</code> each comparison unit (the cell, or
+under the grassland split its managed and its extensive component) is
+divided into a rainfed and an irrigated part. Each part gets a share of
+the unit allowance equal to its share of the unit's <code>area_ha</code>, summed over
+its rows. The deposited critical surface has one rate per hectare and no
+regime axis, so this keeps the rate the same on both regimes. It also
+keeps every unit allowance, actual pressure and signed margin exactly as
+under <code>"netted"</code>. The unit overshoot becomes the sum of the part
+overshoots, <code>sum(pmax(part actual - part allowance, 0))</code>, which is never
+below the netted <code>pmax(actual - allowance, 0)</code>. The areas are WHEP's
+harvested hectares. Irrigated land is more often multi-cropped, so
+harvested area can overstate the irrigated share of physical land. This is
+a declared assumption with no published precedent. A unit with no
+harvested area gives its whole allowance to the one part that carries
+pressure, which is the netted comparison. It aborts
+(<code>whep_nbx_regime_no_area</code>) when both parts do. Crop rows share the
+allowance, margin and overshoot of their own part. They keep their
+<code>water_regime</code>, plus that part's <code>regime_actual_n_t</code>,
+<code>regime_critical_n_t</code> and <code>regime_positive_overshoot_n_t</code>. Cell and grid
+rows add the per-cell totals <code>rainfed_actual_n_t</code>,
+<code>rainfed_critical_n_t</code>, <code>rainfed_positive_overshoot_n_t</code> and their
+<code>irrigated_*</code> counterparts, summed over the parts that carry pressure
+rows. Under <code>"netted"</code> all of these are <code>NA</code>, so the schema does not
+depend on the choice.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_boundary_exceedance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 79</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 90</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
@@ -388,11 +430,11 @@ level, not a threshold, and its grid rows carry no binding label.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>010         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 74 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 85 more variables: reporting_polity_has_geometry &lt;lgl&gt;, cell_id &lt;int&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   source_row &lt;int&gt;, source_col &lt;int&gt;, lon &lt;dbl&gt;, lat &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, actual_year &lt;int&gt;, critical_reference_year &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;, image_region &lt;int&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_threshold &lt;chr&gt;, binding_threshold &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, water_regime &lt;chr&gt;, actual_year &lt;int&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_reference_year &lt;int&gt;, area_ha &lt;dbl&gt;, source_area_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   image_region &lt;int&gt;, critical_threshold &lt;chr&gt;, binding_threshold &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   binding_matches_mi &lt;lgl&gt;, actual_n_t &lt;dbl&gt;, pressure_share &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pressure_condition_ratio &lt;dbl&gt;, critical_n_t &lt;dbl&gt;, …</span></span>
 </code></pre></div>

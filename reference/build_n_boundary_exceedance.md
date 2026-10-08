@@ -47,6 +47,7 @@ build_n_boundary_exceedance(
   grassland = list(classes = NULL, extensive_budget = NULL, critical_ara = NULL,
     critical_igl = NULL),
   negative_critical = c("keep", "clamp"),
+  regime_comparison = c("netted", "separate"),
   binding = NULL,
   example = FALSE
 )
@@ -162,6 +163,18 @@ build_n_boundary_exceedance(
   is, as the source does. `"clamp"` sets it to zero (a zero allowance)
   before the cell comparison. The choice is stamped in every output row
   as `negative_critical`; see the Negative critical surplus section.
+
+- regime_comparison:
+
+  Treatment of a balance split into rainfed and irrigated rows
+  ([`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)'s
+  `methods$regime`). `"netted"` (default) sums the two regimes of a cell
+  before the comparison, so irrigated excess is offset by rainfed
+  headroom in the same cell. `"separate"` compares each regime as its
+  own part of the cell (or of the grassland-split component), so it is
+  not offset. It needs a `water_regime` column in `surplus` and aborts
+  without one. The choice is stamped in every output row as
+  `regime_comparison`; see the Rainfed and irrigated parts section.
 
 - binding:
 
@@ -310,11 +323,38 @@ surplus, so it describes the managed allowance only; the extensive
 allowance is a 2010 level, not a threshold, and its grid rows carry no
 binding label.
 
+## Rainfed and irrigated parts
+
+Under `regime_comparison = "separate"` each comparison unit (the cell,
+or under the grassland split its managed and its extensive component) is
+divided into a rainfed and an irrigated part. Each part gets a share of
+the unit allowance equal to its share of the unit's `area_ha`, summed
+over its rows. The deposited critical surface has one rate per hectare
+and no regime axis, so this keeps the rate the same on both regimes. It
+also keeps every unit allowance, actual pressure and signed margin
+exactly as under `"netted"`. The unit overshoot becomes the sum of the
+part overshoots, `sum(pmax(part actual - part allowance, 0))`, which is
+never below the netted `pmax(actual - allowance, 0)`. The areas are
+WHEP's harvested hectares. Irrigated land is more often multi-cropped,
+so harvested area can overstate the irrigated share of physical land.
+This is a declared assumption with no published precedent. A unit with
+no harvested area gives its whole allowance to the one part that carries
+pressure, which is the netted comparison. It aborts
+(`whep_nbx_regime_no_area`) when both parts do. Crop rows share the
+allowance, margin and overshoot of their own part. They keep their
+`water_regime`, plus that part's `regime_actual_n_t`,
+`regime_critical_n_t` and `regime_positive_overshoot_n_t`. Cell and grid
+rows add the per-cell totals `rainfed_actual_n_t`,
+`rainfed_critical_n_t`, `rainfed_positive_overshoot_n_t` and their
+`irrigated_*` counterparts, summed over the parts that carry pressure
+rows. Under `"netted"` all of these are `NA`, so the schema does not
+depend on the choice.
+
 ## Examples
 
 ``` r
 build_n_boundary_exceedance(example = TRUE)
-#> # A tibble: 5 × 79
+#> # A tibble: 5 × 90
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -322,11 +362,11 @@ build_n_boundary_exceedance(example = TRUE)
 #> 3  2010         1                1 ARM-1991-2025         Armenia              
 #> 4  2010         1                1 ARM-1991-2025         Armenia              
 #> 5  2010         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 74 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> # ℹ 85 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
 #> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
-#> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
-#> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
-#> #   critical_threshold <chr>, binding_threshold <chr>,
+#> #   item_cbs_code <int>, water_regime <chr>, actual_year <int>,
+#> #   critical_reference_year <int>, area_ha <dbl>, source_area_ha <dbl>,
+#> #   image_region <int>, critical_threshold <chr>, binding_threshold <chr>,
 #> #   binding_matches_mi <lgl>, actual_n_t <dbl>, pressure_share <dbl>,
 #> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>, …
 ```
