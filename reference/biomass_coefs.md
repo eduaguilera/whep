@@ -204,6 +204,30 @@ corroborated by the FBS oracle, not cited upstream. The workbook copy
 read was `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still
 carries the old values in `Coefs` and should follow.
 
+The tree-nut rows `Almonds`, `Walnut` and `Hazelnut` pair a **kernel**
+nitrogen density with an `Edible_portion` that now refers to the nut
+**in shell** (whep#797). FBS item 2551 `Nuts and products` is a quantity
+in shell, and it reaches `Almonds` through
+[items_full](https://eduaguilera.github.io/whep/reference/items_full.md);
+with an `Edible_portion` of 1 the shell was counted as food, 200 g of
+protein per kg against an FBS density of 46.6, 4.3x. The edible fraction
+is FAO's own food-composition factor for the FBS, in-shell protein over
+shelled protein per 100 g (FAO, *Food balance sheets: a handbook*, Rome,
+2001, Annex I, <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>,
+PDF page 65): almonds 8.0 / 20.0 = **0.4**, walnuts 6.4 / 14.3 =
+**0.4476**, hazelnuts 6.0 / 13.0 = **0.4615**. The shelled figures are
+this table's own kernel densities to within 8% (20.0, 14.0, 14.1 g/100
+g). FAO's *Technical conversion factors for agricultural commodities*
+(<https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>)
+corroborates the range: its per-country shelled-from-unshelled
+extraction rates run 30-65% for almonds (median 35), 35-70% for walnuts
+(median 40) and 40-50% for hazelnuts (median 50). Nuts now carry 80 g of
+protein per kg, 1.7x FBS. What remains is the basket: 2551 covers ten
+species and FAO's in-shell factors for them run from 1.8 (chestnuts) to
+10.3 (pistachios), so one representative species cannot match it
+(whep#1453). Only the protein moves: the energy columns are not scaled
+by `Edible_portion`.
+
 The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty
 in every row**, upstream in the source workbook as well as here, so no
 edible/non-edible nutrient split can be read from them (#361). Use

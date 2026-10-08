@@ -430,13 +430,16 @@ build_commodity_balances(
 
   Measured at 2020 on that build, production is 443 / 71 / 536 kt
   (cocoon / raw_silk / mixed) and `stock_variation` -170 / -32 / -164
-  kt, of which -157 kt is one FAOSTAT record under every setting: China
+  kt, of which -157 kt was one FAOSTAT record under every setting: China
   mainland's 2020 cocoons are booked both as `Processed` and as
-  `Other uses` (FAOSTAT's own `Residuals` is -156,943 t). No non-Silk
-  row moves. Years before 2014 come from the aggregated old Commodity
-  Balances, which carry no link breakdown, and are unchanged, so under
-  `"cocoon"` the 2013-2014 seam steps by roughly the raw silk
-  production.
+  `Other uses` (FAOSTAT's own `Residuals` is -156,938 t). Under every
+  setting a cocoon `Other uses` that equals the row's `Processed`, where
+  FAOSTAT's `Residuals` is minus that amount, is now dropped as a second
+  booking (whep#1281); world Silk `stock_variation` at 2020 moves from
+  -170 kt to -13 kt under `"cocoon"`. No non-Silk row moves. Years
+  before 2014 come from the aggregated old Commodity Balances, which
+  carry no link breakdown, and are unchanged, so under `"cocoon"` the
+  2013-2014 seam steps by roughly the raw silk production.
 
 - tobacco_leaf_use:
 
