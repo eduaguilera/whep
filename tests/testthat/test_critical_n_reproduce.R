@@ -206,6 +206,84 @@ testthat::test_that("NUE above 0.8 is capped in the cut-off", {
   )
 })
 
+testthat::test_that("the cut-off binds once uptake reaches yield potential", {
+  inputs <- whep:::.example_critical_n_inputs()[2, ]
+  inputs$uptake_arable_kg <- 0.95 * whep:::.critn_prepare(inputs)$input_ara
+  prep <- whep:::.critn_prepare(inputs)
+  # A critical input whose uptake (NUE 0.95) passes uptake at yield
+  # potential while the input stays below the cut-off input, which divides
+  # by NUE capped at 0.8. The archive cuts off here, raising the input.
+  input <- prep$uptake_max_ara / 0.9
+  x <- (input - prep$fixation_arable_kg - prep$f_ara * prep$emission_fixed) /
+    (1 + prep$f_ara * prep$c_ara)
+  testthat::expect_lt(x, prep$x_max_ara)
+  out <- whep:::.critn_finish(prep, list(x_ara = x, x_igl = 0), "sw") |>
+    dplyr::filter(.data$critical_land_use == "ara")
+  testthat::expect_equal(out$critical_rule, "yield_potential_cap")
+  testthat::expect_equal(
+    out$critical_n_input_kgn_ha * prep$area_arable_ha,
+    prep$uptake_max_ara / 0.8
+  )
+})
+
+testthat::test_that("the cut-off counts the other land use's deposition", {
+  prep <- .critn_fixture_prep()[3, ]
+  testthat::expect_lt(prep$nue_igl, 0.8)
+  x_ara <- prep$x_ara
+  # Intensive grassland's own fertiliser plus manure stays below its
+  # cut-off value, but with the NH3 arable land deposits on it the input
+  # passes the cut-off input.
+  push <- prep$f_igl * prep$c_ara * x_ara / (1 + prep$f_igl * prep$c_igl)
+  x_igl <- prep$x_max_igl - push / 2
+  out <- whep:::.critn_finish(
+    prep,
+    list(x_ara = x_ara, x_igl = x_igl),
+    "de"
+  ) |>
+    dplyr::filter(.data$critical_land_use == "igl")
+  testthat::expect_equal(out$critical_rule, "yield_potential_cap")
+  testthat::expect_equal(
+    (out$critical_n_input_kgn_ha - out$critical_n_surplus_kgn_ha) *
+      prep$area_intensive_ha,
+    prep$uptake_max_igl
+  )
+})
+
+testthat::test_that("critical NH3 is shared by current NH3 in mixed cells", {
+  inputs <- whep:::.example_critical_n_inputs()[3, ]
+  # Grassland with manure only: its fertiliser share is clipped to 1e-4, so
+  # its NH3 per kg is not its current NH3 over its current input.
+  testthat::expect_equal(inputs$fertilizer_net_grass_kg, 0)
+  prep <- whep:::.critn_prepare(inputs)
+  de <- whep:::.critn_env_deposition(prep)
+  nh3_ara <- prep$nh3_fer_ara + prep$nh3_man_ara
+  nh3_igl <- prep$nh3_fer_igl + prep$nh3_man_igl
+  allowance <- prep$limit_de - prep$emission_fixed
+  testthat::expect_gt(allowance, 0)
+  testthat::expect_equal(
+    prep$c_igl * de$x_igl,
+    allowance * nh3_igl / (nh3_ara + nh3_igl)
+  )
+  testthat::expect_equal(
+    prep$c_ara * de$x_ara,
+    allowance * nh3_ara / (nh3_ara + nh3_igl)
+  )
+})
+
+testthat::test_that("a land use emitting no NH3 has no allowance", {
+  inputs <- whep:::.example_critical_n_inputs()
+  # Arable land of the US cell gets fertiliser that emits no NH3, and no
+  # manure: the archive leaves such cells empty in every layer.
+  inputs$manure_net_arable_kg[2] <- 0
+  inputs$nh3_fertilizer_arable_kg[2] <- 0
+  inputs$nh3_spreading_arable_kg[2] <- 0
+  out <- whep::calculate_critical_n(inputs = inputs)
+  arable <- dplyr::filter(out, .data$critical_land_use == "ara")
+  testthat::expect_false(61368L %in% arable$cell_id)
+  testthat::expect_true(all(is.finite(out$critical_n_input_kgn_ha)))
+  testthat::expect_true(89786L %in% arable$cell_id)
+})
+
 testthat::test_that("the fertiliser share is clipped to [1e-4, 1 - 1e-4]", {
   inputs <- whep:::.example_critical_n_inputs()[1, ]
   inputs$manure_net_arable_kg <- 0

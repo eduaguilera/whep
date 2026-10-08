@@ -627,10 +627,27 @@ calculate_critical_n <- function(
   list(x_ara = factor * p$x_ara, x_igl = factor * p$x_igl)
 }
 
-# SI Eqs. 7-10; in mixed cells the allowed NH3 is shared in proportion to the
-# current NH3 of each land use.
+# SI Eqs. 7-10. The agricultural NH3 the critical deposition leaves room for
+# (Eq. 8) is shared between arable land and intensive grassland in
+# proportion to their current NH3 emission, and each share is turned into
+# fertiliser plus manure by that land use's NH3 per kg (Eq. 10). Recovered
+# from the archive: sharing by current NH3 rather than by NH3 per kg times
+# current input (which differ by the fertiliser-share clip) reproduces all
+# 11,432 mixed cells of the deposited "de" layers within 0.01 kg N/ha.
 .critn_env_deposition <- function(p) {
-  .critn_common_factor(p, "emission", p$limit_de)
+  allowance <- p$limit_de - p$emission_fixed
+  nh3_ara <- p$nh3_fer_ara + p$nh3_man_ara
+  nh3_igl <- p$nh3_fer_igl + p$nh3_man_igl
+  list(
+    x_ara = .critn_div(
+      allowance * .critn_div(nh3_ara, nh3_ara + nh3_igl),
+      p$c_ara
+    ),
+    x_igl = .critn_div(
+      allowance * .critn_div(nh3_igl, nh3_ara + nh3_igl),
+      p$c_igl
+    )
+  )
 }
 
 # SI Eqs. 11-28.
@@ -692,22 +709,36 @@ calculate_critical_n <- function(
 .critn_finish <- function(p, x, threshold) {
   floor_ara <- .critn_present(p$area_arable_ha, pmax(x$x_ara, 0))
   floor_igl <- .critn_present(p$area_intensive_ha, pmax(x$x_igl, 0))
-  cut_ara <- .critn_present(p$area_arable_ha, floor_ara >= p$x_max_ara, FALSE)
-  cut_igl <- .critn_present(
-    p$area_intensive_ha,
-    floor_igl >= p$x_max_igl,
-    FALSE
-  )
+  pre_cut <- p$emission_fixed + p$c_ara * floor_ara + p$c_igl * floor_igl
+  cut_ara <- .critn_reaches_potential(p, "ara", floor_ara, pre_cut)
+  cut_igl <- .critn_reaches_potential(p, "igl", floor_igl, pre_cut)
   final_ara <- dplyr::if_else(cut_ara, p$x_max_ara, floor_ara)
   final_igl <- dplyr::if_else(cut_igl, p$x_max_igl, floor_igl)
   emission <- p$emission_fixed + p$c_ara * final_ara + p$c_igl * final_igl
-  pre_cut <- p$emission_fixed + p$c_ara * floor_ara + p$c_igl * floor_igl
   deposition <- list(final = emission, pre_cut = pre_cut)
   ara <- .critn_land_use_result(p, "ara", final_ara, cut_ara, deposition)
   igl <- .critn_land_use_result(p, "igl", final_igl, cut_igl, deposition)
   ara$rule <- .critn_rule(floor_ara, cut_ara)
   igl$rule <- .critn_rule(floor_igl, cut_igl)
   .critn_long(p, ara, igl, threshold)
+}
+
+# Whether a land use is cut off: its uptake at the critical input (current NUE
+# times fertiliser plus manure, fixation and the deposition of both land uses
+# before any cut-off) reaches its uptake at yield potential (Methods Eqs.
+# 1-2). Recovered from the archive. Testing fertiliser plus manure against
+# its own cut-off value instead misses two cases the deposited layers cut
+# off: a mixed cell where the other land use's NH3 deposition lifts the
+# input past the cut-off input, and NUE above 0.8, where uptake reaches
+# yield potential below the cut-off input (uptake at yield potential over
+# 0.8), which then raises the input to it.
+.critn_reaches_potential <- function(p, land_use, x, deposition) {
+  f <- p[[paste0("f_", land_use)]]
+  fix <- p[[.critn_land_use_col(land_use, "fixation")]]
+  uptake <- p[[paste0("nue_", land_use)]] * (x + fix + f * deposition)
+  reached <- uptake >= p[[paste0("uptake_max_", land_use)]]
+  reached[is.na(reached)] <- FALSE
+  .critn_present(p[[.critn_land_use_col(land_use, "area")]], reached, FALSE)
 }
 
 .critn_rule <- function(floor, cut) {
@@ -750,8 +781,12 @@ calculate_critical_n <- function(
   current <- p[[paste0("input_", land_use)]]
   current_uptake <- p[[.critn_land_use_col(land_use, "uptake")]]
   area <- p[[.critn_land_use_col(land_use, "area")]]
+  # No allowance without current fertiliser plus manure, the NH3 it emits
+  # (SI Eq. 10 divides by it; the archive leaves all 56 such arable cells
+  # empty in every layer), crop uptake or agricultural leaching.
   defined <- area > 0 &
     p[[paste0("x_", land_use)]] > 0 &
+    p[[paste0("c_", land_use)]] > 0 &
     current_uptake > 0 &
     p$leaching_ag_kg > 0
   defined[is.na(defined)] <- FALSE
