@@ -25,6 +25,14 @@
 #   - the country-year totals Smerald validate against;
 #   - #1132's all-crop yardstick, whose 73% cereal share (Shinde et al. 2022,
 #     Ind. Crops Prod. 181:114772) could not be opened: assumed, unverified.
+#   - the non-cereal base (#1399), crop by crop, at 2010 and 2020: soybean,
+#     groundnut and potato against IPCC (2006) Table 11.2 and its +-2 s.d.;
+#     sugar cane trash per tonne of cane (Hassuani et al. 2005); oil palm
+#     Firewood between a fronds-only lower bound (Heuze et al. 2015) and
+#     Malaysia's all-solid-biomass upper bound (National Biomass Strategy
+#     2020); and Lal's (2005) cereal share. A Malaysian oil palm residue above
+#     that upper bound warns but does not fail: changing a residue ratio is a
+#     science decision, not something this check should force.
 #
 # Not part of the test suite: it reads the `crop_residues` pin.
 #
@@ -182,6 +190,186 @@ cli::cli_inform(c(
          {round(yardstick)} Tg DM at the top of their band."
 ))
 
+# 3. Non-cereal residue against per-crop literature (#1399), reported only ---
+# No openable global non-cereal series exists, so each large non-cereal crop
+# is checked against the best source that could be read; see `non_cereal` in
+# the ground truth for the quotes. These are reported, not gated: moving a
+# residue ratio is a science decision (#1399), and the cereal gate below must
+# keep working until one is taken.
+nc <- gt$non_cereal
+check_years <- c(2010, 2020)
+
+# Harvested area and fresh production of each crop, from the same pin's
+# `Product` rows, so every benchmark is applied to WHEP's own crop base.
+crop_base <- whep_read_file("crop_residues") |>
+  dplyr::rename_with(tolower) |>
+  dplyr::filter(
+    .data$product_residue == "Product",
+    .data$year %in% check_years
+  ) |>
+  add_item_cbs_code(
+    name_column = "item_cbs_crop",
+    code_column = "item_cbs_code_crop"
+  ) |>
+  dplyr::summarise(
+    product_fm_t = sum(.data$prod_ygpit_mg, na.rm = TRUE),
+    area_ha = sum(.data$area_ygpit_ha, na.rm = TRUE),
+    .by = c("year", "item_cbs_code_crop")
+  )
+crop_residue <- residues |>
+  dplyr::filter(.data$year %in% check_years) |>
+  dplyr::summarise(
+    whep_dm_tg = sum(.data$value_dm) / 1e6,
+    .by = c("year", "item_cbs_code_crop")
+  )
+
+# IPCC (2006) Table 11.2 above-ground residue, with the band its own +-2 s.d.
+# on slope and intercept give (both at their low or both at their high end).
+ipcc <- tibble::as_tibble(nc$ipcc_2006_table_11_2$crops) |>
+  dplyr::inner_join(crop_base, by = "item_cbs_code_crop") |>
+  dplyr::inner_join(crop_residue, by = c("year", "item_cbs_code_crop")) |>
+  dplyr::mutate(
+    product_dm_t = .data$product_fm_t * .data$dry,
+    ipcc_tg = (.data$product_dm_t *
+      .data$slope +
+      .data$area_ha * .data$intercept) /
+      1e6,
+    ipcc_low_tg = (.data$product_dm_t *
+      .data$slope *
+      (1 - .data$slope_2sd_pct / 100) +
+      .data$area_ha * .data$intercept * (1 - .data$intercept_2sd_pct / 100)) /
+      1e6,
+    ipcc_high_tg = (.data$product_dm_t *
+      .data$slope *
+      (1 + .data$slope_2sd_pct / 100) +
+      .data$area_ha * .data$intercept * (1 + .data$intercept_2sd_pct / 100)) /
+      1e6,
+    ratio_to_ipcc = .data$whep_dm_tg / .data$ipcc_tg,
+    inside_2sd = .data$whep_dm_tg >= .data$ipcc_low_tg &
+      .data$whep_dm_tg <= .data$ipcc_high_tg
+  )
+cli::cli_h2("Non-cereal residue against IPCC (2006) Table 11.2")
+print(
+  dplyr::select(
+    ipcc,
+    "year",
+    "crop",
+    "whep_dm_tg",
+    "ipcc_low_tg",
+    "ipcc_tg",
+    "ipcc_high_tg",
+    "ratio_to_ipcc",
+    "inside_2sd"
+  ),
+  width = Inf
+)
+
+# Sugar cane trash per tonne of cane stalk (Hassuani et al. 2005).
+cane <- crop_base |>
+  dplyr::filter(.data$item_cbs_code_crop == 2536) |>
+  dplyr::inner_join(crop_residue, by = c("year", "item_cbs_code_crop")) |>
+  dplyr::mutate(
+    whep_t_dm_per_t_cane = .data$whep_dm_tg * 1e6 / .data$product_fm_t,
+    ratio_to_hassuani = .data$whep_t_dm_per_t_cane /
+      nc$sugarcane_trash$t_dm_per_t_cane
+  )
+cli::cli_h2("Sugar cane trash against Hassuani et al. (2005)")
+print(
+  dplyr::select(
+    cane,
+    "year",
+    "whep_dm_tg",
+    "whep_t_dm_per_t_cane",
+    "ratio_to_hassuani"
+  )
+)
+
+# Oil palm: fronds alone (Heuze et al. 2015) are a lower bound on the field
+# residue; Malaysia's all-solid-biomass total, which also holds the mill
+# residues, is an upper bound on it.
+palm <- crop_base |>
+  dplyr::filter(.data$item_cbs_code_crop == 254) |>
+  dplyr::inner_join(crop_residue, by = c("year", "item_cbs_code_crop")) |>
+  dplyr::mutate(
+    whep_t_dm_per_ha = .data$whep_dm_tg * 1e6 / .data$area_ha,
+    fronds_tg = .data$area_ha * nc$oil_palm_fronds$t_dm_per_ha_yr / 1e6,
+    ratio_to_fronds = .data$whep_dm_tg / .data$fronds_tg
+  )
+palm_mys <- residues |>
+  dplyr::filter(
+    .data$item_cbs_code_crop == 254,
+    stringr::str_starts(.data$reporting_polity_code, "MYS")
+  ) |>
+  dplyr::summarise(whep_dm_tg = sum(.data$value_dm) / 1e6, .by = "year") |>
+  dplyr::inner_join(
+    tibble::as_tibble(nc$malaysia_oil_palm_solid_biomass$values),
+    by = "year"
+  ) |>
+  dplyr::mutate(
+    ratio_to_high = .data$whep_dm_tg / .data$high_mt_dm,
+    above_upper_bound = .data$whep_dm_tg > .data$high_mt_dm
+  )
+cli::cli_h2("Oil palm Firewood against fronds and Malaysia's biomass total")
+print(
+  dplyr::select(
+    palm,
+    "year",
+    "area_ha",
+    "whep_dm_tg",
+    "whep_t_dm_per_ha",
+    "fronds_tg",
+    "ratio_to_fronds"
+  )
+)
+print(
+  dplyr::select(
+    palm_mys,
+    "year",
+    "whep_dm_tg",
+    "low_mt_dm",
+    "high_mt_dm",
+    "ratio_to_high",
+    "above_upper_bound",
+    "kind"
+  ),
+  width = Inf
+)
+if (any(palm_mys$above_upper_bound)) {
+  cli::cli_warn(c(
+    "Malaysian oil palm residue exceeds the country's whole solid oil palm
+     biomass, mill residues included, in {cli::qty(sum(
+     palm_mys$above_upper_bound))}year{?s}
+     {palm_mys$year[palm_mys$above_upper_bound]}.",
+    "i" = "Upper bound: Agensi Inovasi Malaysia (2013), National Biomass
+           Strategy 2020, v2.0. See #1399."
+  ))
+}
+
+# Lal (2005) cereal share, reported only: year and mass basis unverified.
+lal_share <- nc$lal_2005$cereals_mt / nc$lal_2005$food_crops_27_mt
+share_2020 <- all_2020 |>
+  dplyr::summarise(
+    all = sum(.data$value_dm),
+    no_firewood = sum(.data$value_dm[.data$item_cbs_code_residue != 2107]),
+    cereal = sum(.data$value_dm[.data$item_cbs_code_crop %in% cereal_codes]),
+    cereal_no_firewood = sum(
+      .data$value_dm[
+        .data$item_cbs_code_crop %in%
+          cereal_codes &
+          .data$item_cbs_code_residue != 2107
+      ]
+    )
+  )
+cli::cli_inform(c(
+  "*" = "2020 non-cereal residue: {round((share_2020$all -
+         share_2020$cereal) / 1e6)} Tg DM, of which Firewood
+         {round((share_2020$all - share_2020$no_firewood) / 1e6)} Tg DM.",
+  "*" = "2020 cereal share: {round(100 * share_2020$cereal / share_2020$all,
+         1)}% of all residue, {round(100 * share_2020$cereal_no_firewood /
+         share_2020$no_firewood, 1)}% excluding Firewood; Lal (2005), 27 food
+         crops: {round(100 * lal_share, 1)}% (year and basis unverified)."
+))
+
 if (any(world$outside)) {
   bad <- world$year[world$outside]
   cli::cli_abort(c(
@@ -196,4 +384,12 @@ cli::cli_alert_success(
   "World cereal residue is inside the published dry-matter band in every
    year {min(world$year)}-{max(world$year)}."
 )
-invisible(list(world = world, per_crop = per_crop, countries = countries))
+invisible(list(
+  world = world,
+  per_crop = per_crop,
+  countries = countries,
+  ipcc = ipcc,
+  cane = cane,
+  palm = palm,
+  palm_mys = palm_mys
+))
