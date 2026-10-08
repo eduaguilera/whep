@@ -63,10 +63,15 @@
 # (`processed`, FAO's own cocoon mass) and the raw silk not reeled from
 # domestic cocoons, `(other_uses - production) / rate`. The extraction rate
 # therefore only touches raw silk that crossed a border or a stock.
+#
+# `cbs_new` may also carry FAO's "Residuals" element; it is read only to
+# confirm a duplicated cocoon use (`.silk_drop_duplicate_use()`) and, like
+# "Processed", never survives the return.
 .cbs_silk_mass_basis <- function(
   cbs_new,
   method = .silk_basis_choices(),
-  rate = .silk_raw_extraction_rate()
+  rate = .silk_raw_extraction_rate(),
+  drop_duplicate_use = TRUE
 ) {
   method <- rlang::arg_match(method, .silk_basis_choices())
   dt <- data.table::as.data.table(cbs_new)
@@ -74,7 +79,11 @@
     c(.silk_cocoon_code, .silk_raw_code) &
     dt$year >= .silk_basis_first_year
   silk <- dt[in_scope]
-  rest <- dt[!in_scope & element != "Processed"]
+  rest <- dt[!in_scope & !element %in% c("Processed", "Residuals")]
+  if (drop_duplicate_use) {
+    silk <- .silk_drop_duplicate_use(silk)
+  }
+  silk <- silk[element != "Residuals"]
 
   silk <- switch(
     method,
@@ -83,6 +92,75 @@
     raw_silk = .silk_scale_links(.silk_cocoon_basis(silk, rate), rate)
   )
   data.table::rbindlist(list(rest, silk), use.names = TRUE, fill = TRUE)
+}
+
+# Tolerance of the duplicate match below, in tonnes. In the pinned release
+# FAO publishes every cocoon `Residuals` value in whole tonnes and the use
+# elements to two decimals, so a residual that is minus a use it duplicates
+# lies within half a tonne of it (China mainland 2020: -156,938 against
+# 156,938.24). The same half tonne is applied to the two uses, which then have
+# to agree to FAO's own precision (whep#1281).
+.silk_duplicate_tolerance <- 0.5
+
+# Drop a cocoon `other_uses` that repeats the cocoons' `Processed`.
+#
+# FAO's own balance per row is
+#   production + import - export - stock - other uses - processed = residual
+# so when other uses equals processed and the residual is minus that amount,
+# FAO's balance closes on either element alone and the other is a second
+# booking of the same cocoons. China mainland 2020 in the pinned
+# `faostat-cbs-new`: 156,938 t booked as both, against 156,690 t produced,
+# residual -156,938 t. Kept, it became a -157 kt Silk stock variation under
+# every `silk_basis` (whep#1281). The `other_uses` row is the one dropped, as
+# the `Processed` row is the one the raw-silk link continues from; both land
+# in Silk `other_uses` under every basis, so the choice moves no number.
+#
+# An imbalance whose two elements differ is left as published, because the
+# record does not say which of them is wrong: in the same pin Viet Nam
+# 2014-2015 and Indonesia 2015-2018 report more cocoons processed than
+# supplied, Afghanistan 2015-2018 books its production as processed and its
+# supply as other uses, and China mainland 2022-2023 carries 18.7 kt of other
+# uses on top of processing that already equals supply.
+.silk_drop_duplicate_use <- function(silk) {
+  key <- setdiff(
+    names(silk),
+    c("item_cbs", "element", "unit", "value", "fao_flag")
+  )
+  cocoon <- silk[item_cbs_code == .silk_cocoon_code]
+  terms <- cocoon[,
+    .(
+      processed = sum(value[element == "Processed"], na.rm = TRUE),
+      other_uses = sum(value[element == "other_uses"], na.rm = TRUE),
+      residual = sum(value[element == "Residuals"], na.rm = TRUE)
+    ),
+    by = key
+  ]
+  tol <- .silk_duplicate_tolerance
+  duplicated_use <- terms[
+    processed > tol &
+      abs(other_uses - processed) <= tol &
+      abs(residual + processed) <= tol,
+    key,
+    with = FALSE
+  ]
+  if (nrow(duplicated_use) == 0L) {
+    return(silk)
+  }
+  labels <- paste(duplicated_use$area, duplicated_use$year)
+  cli::cli_inform(c(
+    "i" = "Dropped {length(labels)} silk cocoon {.field other_uses} \\
+      row{?s} that repeat{?s/} the row's {.field Processed}: \\
+      {.val {labels}} (whep#1281)."
+  ))
+  duplicated_use[, element := "other_uses"]
+  silk <- silk[!duplicated_use, on = c(key, "element")]
+  # The surviving `Processed` row is FAO's number, but the balance it sits in
+  # is no longer the one FAO published under that flag.
+  duplicated_use[, element := "Processed"]
+  if ("fao_flag" %in% names(silk)) {
+    silk[duplicated_use, on = c(key, "element"), fao_flag := NA_character_]
+  }
+  silk[]
 }
 
 # Mass as FAO reports it per link, summed. The cocoons sent to reeling are
