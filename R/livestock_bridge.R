@@ -21,8 +21,12 @@
 #'
 #' @return A tibble with columns `species`, `heads`, `iso3`
 #'   (if `area_code` present), and optionally
-#'   `milk_yield_kg_day`, `meat_yield_t_head`, cohort columns,
-#'   plus all extra columns from the input.
+#'   `milk_yield_kg_day`, `method_milk_yield`, `weight_gain_kg_day`, cohort
+#'   columns, plus all extra columns from the input. Milk is read for every
+#'   milked species FAOSTAT reports (cattle, buffalo, sheep, goats, camels),
+#'   not only for an animal's designated product, and with `expand_cohorts =
+#'   TRUE` it sits on the milked cohort only (see
+#'   [calculate_cohorts_systems()]).
 #' @export
 #'
 #' @examples
@@ -88,11 +92,9 @@ prepare_livestock_emissions <- function(
 
   if (expand_cohorts) {
     heads_data <- heads_data |>
-      dplyr::mutate(.herd_row = dplyr::row_number()) |>
       calculate_cohorts_systems(
         system_shares = system_shares
-      ) |>
-      .route_milk_to_milked_cohort()
+      )
   }
 
   heads_data
@@ -219,13 +221,13 @@ prepare_livestock_emissions <- function(
     dplyr::mutate(
       item_cbs_code = as.integer(live_anim_code),
       milk_yield_kg_day = value * 1000 / 365,
-      method_milk_yield = "reported_whole_herd"
+      method_milk_yield = "whole_herd"
     ) |>
     dplyr::select(
       dplyr::any_of(c("year", "area_code")),
       item_cbs_code,
       milk_yield_kg_day,
-      method_milk_yield
+      "method_milk_yield"
     )
 
   # Meat/egg yields: convert carcass weight per head to daily live-weight gain
@@ -374,7 +376,7 @@ prepare_livestock_emissions <- function(
   )
   if (!rlang::has_name(yield_rows, "item_prod_code")) {
     anim_lookup <- product_map |>
-      dplyr::filter(designated) |>
+      dplyr::filter(.data$designated) |>
       dplyr::transmute(
         live_anim_code = as.character(item_cbs_code),
         Liv_prod_cat
@@ -401,75 +403,4 @@ prepare_livestock_emissions <- function(
     c("year", "area_code", "item_cbs_code"),
     intersect(names(heads_data), names(yields))
   )
-}
-
-# Put the reported milk of each herd on the cohort that is milked: the
-# dairy-system `"Adult Female"`, which `gleam_livestock_categories` describes as
-# the milking cows, buffalo, ewes and goats. FAOSTAT's milk is what milked
-# females give, so a bull, a lamb or a meat-system ewe reaches the energy
-# balance with no lactation energy (the milk a dam suckles is not in it).
-#
-# The per-head yield is the herd's reported milk over the milked cohort's heads,
-# `t_head / cohort_fraction`, so the milk the cohorts carry is the milk FAOSTAT
-# reports, whatever the system and cohort shares are. Those shares are assumed
-# and unverified for buffalo, sheep and goats (whep#1194), and they decide how
-# many heads share the milk, so the per-head yield of a milking ewe inherits
-# their error while the herd total does not.
-#
-# A herd with no cohorts (camels: GLEAM has none) keeps its whole-herd yield. A
-# herd split into cohorts none of which is milked cannot place its milk, and
-# dropping it would be a zero that reads as "these animals give no milk", so it
-# aborts.
-.route_milk_to_milked_cohort <- function(data) {
-  if (!rlang::has_name(data, "milk_yield_kg_day")) {
-    return(dplyr::select(data, -".herd_row"))
-  }
-  data <- data |>
-    dplyr::mutate(
-      .milked = .data$system %in% "Dairy" &
-        .data$cohort %in% "Adult Female",
-      .milked_fraction = sum(.data$cohort_fraction[.data$.milked]),
-      .has_cohorts = any(!is.na(.data$cohort)),
-      .by = ".herd_row"
-    )
-  .check_milked_cohort(data)
-  data |>
-    dplyr::mutate(
-      .routed = !is.na(.data$milk_yield_kg_day) & .data$.has_cohorts,
-      milk_yield_kg_day = dplyr::case_when(
-        !.data$.routed ~ .data$milk_yield_kg_day,
-        .data$.milked ~ .data$milk_yield_kg_day / .data$.milked_fraction,
-        TRUE ~ 0
-      ),
-      method_milk_yield = dplyr::case_when(
-        !.data$.routed ~ .data$method_milk_yield,
-        .data$.milked ~ "reported_milked_cohort",
-        TRUE ~ "not_milked_cohort"
-      )
-    ) |>
-    dplyr::select(-dplyr::starts_with("."))
-}
-
-.check_milked_cohort <- function(data) {
-  stranded <- data |>
-    dplyr::filter(
-      .data$.has_cohorts,
-      dplyr::coalesce(.data$milk_yield_kg_day, 0) > 0,
-      .data$.milked_fraction <= 0
-    ) |>
-    dplyr::distinct(.data$species) |>
-    dplyr::pull("species")
-  if (length(stranded) > 0) {
-    cli::cli_abort(
-      c(
-        "Reported milk has no milked cohort to carry it for
-         {.val {stranded}}.",
-        i = "Milk goes to the {.val Dairy} system's {.val Adult Female}
-             cohort, and these herds give it no heads.",
-        i = "Give the {.val Dairy} system a positive share in
-             {.arg system_shares}, or drop the milk {.val t_head} rows."
-      ),
-      class = "whep_milk_without_milked_cohort"
-    )
-  }
 }

@@ -21,8 +21,11 @@ shares. Passed to \code{calculate_cohorts_systems()}.}
 \value{
 A tibble with columns \code{species}, \code{heads}, \code{iso3}
 (if \code{area_code} present), and optionally
-\code{milk_yield_kg_day}, \code{meat_yield_t_head}, cohort columns,
-plus all extra columns from the input.
+\code{milk_yield_kg_day}, \code{method_milk_yield}, \code{weight_gain_kg_day}, cohort
+columns, plus all extra columns from the input. Milk is read for every
+milked species FAOSTAT reports (cattle, buffalo, sheep, goats, camels),
+not only for an animal's designated product, and with \code{expand_cohorts = TRUE} it sits on the milked cohort only (see
+\code{\link[=calculate_cohorts_systems]{calculate_cohorts_systems()}}).
 }
 \description{
 Bridge between \code{build_primary_production()} output and the

@@ -227,3 +227,87 @@ testthat::test_that("a species absent from supplied shares keeps its herd", {
 
   testthat::expect_equal(sum(result$cohort_heads), 2000, tolerance = 1)
 })
+
+# whep#1472: milk is what milked females give, so cohort expansion moves a
+# herd's milk onto the dairy system's "Adult Female" and conserves it.
+test_that("cohort expansion puts a herd's milk on the milked cohort", {
+  herd <- tibble::tribble(
+    ~species,  ~heads, ~milk_yield_kg_day,
+    "Sheep",   1000,   0.5,
+    "Goats",   400,    NA
+  )
+  result <- calculate_cohorts_systems(herd)
+  sheep <- dplyr::filter(result, species == "Sheep")
+  milked <- sheep$system == "Dairy" & sheep$cohort == "Adult Female"
+
+  expect_equal(sum(milked), 1L)
+  expect_equal(
+    sheep$milk_yield_kg_day[milked],
+    0.5 / sheep$cohort_fraction[milked]
+  )
+  expect_true(all(sheep$milk_yield_kg_day[!milked] == 0))
+  expect_equal(sum(sheep$cohort_heads * sheep$milk_yield_kg_day), 1000 * 0.5)
+  expect_equal(
+    sort(unique(sheep$method_milk_yield)),
+    c("milked_cohort", "not_milked_cohort")
+  )
+  # A herd with no milk yield is not given one.
+  goats <- dplyr::filter(result, species == "Goats")
+  expect_true(all(is.na(goats$milk_yield_kg_day)))
+  expect_true(all(is.na(goats$method_milk_yield)))
+  expect_false(rlang::has_name(result, ".herd_row"))
+})
+
+test_that("milk follows supplied system shares and keeps its total", {
+  shares <- tibble::tribble(
+    ~species_gen, ~system, ~system_share,
+    "Buffalo",    "Dairy", 0.9,
+    "Buffalo",    "Other", 0.1
+  )
+  result <- tibble::tibble(
+    species = "Buffalo",
+    heads = 200,
+    milk_yield_kg_day = 3
+  ) |>
+    calculate_cohorts_systems(system_shares = shares)
+
+  expect_equal(sum(result$cohort_heads * result$milk_yield_kg_day), 200 * 3)
+  expect_equal(
+    result$milk_yield_kg_day[result$cohort == "Adult Female"],
+    3 / (0.9 * 0.5)
+  )
+})
+
+test_that("a species with no dairy system keeps the milk it was given", {
+  # Pigs have cohorts but no dairy system, so there is nothing to move the
+  # column onto; it is left as the caller supplied it.
+  result <- tibble::tibble(
+    species = "Pigs",
+    heads = 100,
+    milk_yield_kg_day = 1
+  ) |>
+    calculate_cohorts_systems()
+
+  expect_true(all(result$milk_yield_kg_day == 1))
+  expect_true(all(result$method_milk_yield == "whole_herd"))
+})
+
+test_that("a milked species whose herd has no milked cohort aborts", {
+  shares <- tibble::tribble(
+    ~species_gen, ~system, ~system_share,
+    "Goats",      "Meat",  1
+  )
+  goats <- tibble::tibble(species = "Goats", heads = 100, milk_yield_kg_day = 1)
+
+  expect_error(
+    calculate_cohorts_systems(goats, system_shares = shares),
+    class = "whep_milk_without_milked_cohort"
+  )
+  # No milk, nothing to strand.
+  expect_no_error(
+    calculate_cohorts_systems(
+      dplyr::mutate(goats, milk_yield_kg_day = 0),
+      system_shares = shares
+    )
+  )
+})

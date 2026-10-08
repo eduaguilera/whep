@@ -296,7 +296,7 @@ test_that("sheep, goat and buffalo milk yields are read (whep#1472)", {
     result$weight_gain_kg_day[result$item_cbs_code == 946L],
     (0.05 * 1000 / 0.55 - 40) / 547.5
   )
-  expect_equal(unique(result$method_milk_yield), "reported_whole_herd")
+  expect_equal(unique(result$method_milk_yield), "whole_herd")
 })
 
 test_that("reported milk goes to the milked cohort and is conserved", {
@@ -311,7 +311,7 @@ test_that("reported milk goes to the milked cohort and is conserved", {
   expect_true(all(result$milk_yield_kg_day[!milked] == 0))
   expect_equal(
     unique(result$method_milk_yield[milked]),
-    "reported_milked_cohort"
+    "milked_cohort"
   )
   # The milk the cohorts carry is the milk FAOSTAT reports, per species.
   carried <- result |>
@@ -363,7 +363,7 @@ test_that("a species with no cohorts keeps its whole-herd milk yield", {
 
   expect_equal(nrow(result), 1L)
   expect_equal(result$milk_yield_kg_day, 0.4 * 1000 / 365)
-  expect_equal(result$method_milk_yield, "reported_whole_herd")
+  expect_equal(result$method_milk_yield, "whole_herd")
 })
 
 test_that("without product codes only the designated product is tagged", {

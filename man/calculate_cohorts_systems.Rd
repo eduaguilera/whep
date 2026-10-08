@@ -22,6 +22,12 @@ Dataframe expanded to cohort level with
 \code{cohort_fraction} columns, plus \code{method_system_share}: \code{"reported"} when
 the commodity itself names the system, \code{"assumed"} when WHEP's unsourced
 default split was applied, or \code{"supplied"} when \code{system_shares} was given.
+A \code{milk_yield_kg_day} column (per head of the input row) is moved onto the
+milked cohort, the \code{"Dairy"} system's \code{"Adult Female"}, at the yield that
+keeps the herd's milk unchanged; every other cohort gets 0.
+\code{method_milk_yield} says which: \code{"milked_cohort"}, \code{"not_milked_cohort"},
+or \code{"whole_herd"} for a species with no cohorts. A herd with milk but no
+milked cohort aborts (class \code{whep_milk_without_milked_cohort}).
 }
 \description{
 Distributes national herd totals across GLEAM-defined
