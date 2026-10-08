@@ -7,7 +7,11 @@ directly processed here.
 If the requested file doesn't exist locally, it is downloaded from a public
 link and cached before reading it. This is all implemented using the
 pins package. It supports multiple
-file formats and file versioning."><meta property="og:description" content="Used to fetch input files that are needed for the package's functions
+file formats and file versioning.
+Other packages and projects can use the same reader for their own pinned
+inputs by passing a registry: a table with the same alias, board_url
+and version columns as whep_inputs, usually loaded and validated
+from a CSV with whep_registry()."><meta property="og:description" content="Used to fetch input files that are needed for the package's functions
 and that were built in external sources and are too large to include
 directly. This is a public function for transparency purposes, so that
 users can inspect the original inputs of this package that were not
@@ -15,7 +19,11 @@ directly processed here.
 If the requested file doesn't exist locally, it is downloaded from a public
 link and cached before reading it. This is all implemented using the
 pins package. It supports multiple
-file formats and file versioning."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+file formats and file versioning.
+Other packages and projects can use the same reader for their own pinned
+inputs by passing a registry: a table with the same alias, board_url
+and version columns as whep_inputs, usually loaded and validated
+from a CSV with whep_registry()."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -64,6 +72,10 @@ directly processed here.</p>
 link and cached before reading it. This is all implemented using the
 <a href="https://pins.rstudio.com/index.html" class="external-link"><code>pins</code></a> package. It supports multiple
 file formats and file versioning.</p>
+<p>Other packages and projects can use the same reader for their own pinned
+inputs by passing a <code>registry</code>: a table with the same <code>alias</code>, <code>board_url</code>
+and <code>version</code> columns as <code><a href="whep_inputs.html">whep_inputs</a></code>, usually loaded and validated
+from a CSV with <code><a href="whep_registry.html">whep_registry()</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -73,7 +85,8 @@ file formats and file versioning.</p>
 <span>  type <span class="op">=</span> <span class="st">"parquet"</span>,</span>
 <span>  version <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  year_col <span class="op">=</span> <span class="st">"year"</span></span>
+<span>  year_col <span class="op">=</span> <span class="st">"year"</span>,</span>
+<span>  registry <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -132,11 +145,35 @@ abort rather than ignore it. <code>NULL</code>, the default, reads the whole fil
 <dt id="arg-year-col">year_col<a class="anchor" aria-label="anchor" href="#arg-year-col"></a></dt>
 <dd><p>Name of the year column <code>years</code> filters on.</p></dd>
 
+
+<dt id="arg-registry">registry<a class="anchor" aria-label="anchor" href="#arg-registry"></a></dt>
+<dd><p>The table that maps <code>file_alias</code> to a board and a frozen
+version. <code>NULL</code>, the default, is <code><a href="whep_inputs.html">whep_inputs</a></code>, this package's own
+inputs. Another package or project passes its own registry, a table with
+the columns <code>alias</code>, <code>board_url</code> and <code>version</code>, usually read with
+<code><a href="whep_registry.html">whep_registry()</a></code>; it is validated the same way before it is used. See
+the section <em>Reading from another registry</em>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with the dataset. Some information about each dataset can
 be found in the code where it's used as input for further processing.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="reading-from-another-registry">Reading from another registry<a class="anchor" aria-label="anchor" href="#reading-from-another-registry"></a></h2>
+
+
+<p>A registry other than <code><a href="whep_inputs.html">whep_inputs</a></code> is authoritative for its aliases. The
+file is downloaded from that registry's board, cached, and read back from
+the cache when the board is unreachable, exactly as for <code><a href="whep_inputs.html">whep_inputs</a></code>.
+Two behaviours belong to <code><a href="whep_inputs.html">whep_inputs</a></code> alone, so with another registry
+the example board bundled with this package is not consulted, so an alias such as <code>read_example</code> in
+another registry resolves to that registry's board. The predecessor-pipeline
+warnings below are not raised, since they describe this package's pins.</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">reg</span> <span class="op">&lt;-</span> <span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="../reference/whep_registry.html">whep_registry</a></span><span class="op">(</span><span class="st">"inst/extdata/input_registry.csv"</span><span class="op">)</span></span>
+<span><span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="../reference/whep_read_file.html">whep_read_file</a></span><span class="op">(</span><span class="st">"crop_yields"</span>, registry <span class="op">=</span> <span class="va">reg</span><span class="op">)</span></span>
+<span><span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="../reference/whep_list_file_versions.html">whep_list_file_versions</a></span><span class="op">(</span><span class="st">"crop_yields"</span>, registry <span class="op">=</span> <span class="va">reg</span><span class="op">)</span></span></code></pre><p></p></div>
     </div>
     <div class="section level2">
     <h2 id="frozen-predecessor-pipeline-references">Frozen predecessor-pipeline references<a class="anchor" aria-label="anchor" href="#frozen-predecessor-pipeline-references"></a></h2>

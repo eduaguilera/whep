@@ -168,6 +168,11 @@
 <span><span class="co">#&gt; 1       203 MED     Rainfed         1000             10 ipcc2006</span></span>
 <span><span class="co">#&gt; 2        11 ATL     Rainfed         1000             10 ipcc2006</span></span></code></pre></div>
 <p>Running a pipeline for real needs its external inputs: WHEP-curated datasets are fetched with <code><a href="reference/whep_read_file.html">whep_read_file()</a></code> from the board listed in <code>whep_inputs</code>, and the large third-party archives (CRU, LUH2, LPJmL, HYDE, HWSD) are read from local disk through documented <code>WHEP_*</code> environment variables, with each reader telling you what to set. Tracing a pressure through trade is covered end-to-end in the <a href="https://eduaguilera.github.io/whep/articles/footprint-analysis.html">Environmental footprint analysis</a> vignette, and every function is listed on the <a href="https://eduaguilera.github.io/whep/reference/index.html">reference page</a>.</p>
+<p>The same reader serves other packages’ pinned inputs. A package lists its own inputs in a registry CSV with the columns <code>alias</code>, <code>board_url</code> and <code>version</code>, like <code>whep_inputs</code>, and passes it as <code>registry</code>; downloading, caching and the offline fallback then work as they do for WHEP’s own inputs:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reg</span> <span class="op">&lt;-</span> <span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="reference/whep_registry.html">whep_registry</a></span><span class="op">(</span><span class="st">"inst/extdata/input_registry.csv"</span><span class="op">)</span></span>
+<span><span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="reference/whep_read_file.html">whep_read_file</a></span><span class="op">(</span><span class="st">"crop_yields"</span>, registry <span class="op">=</span> <span class="va">reg</span><span class="op">)</span></span>
+<span><span class="fu">whep</span><span class="fu">::</span><span class="fu"><a href="reference/whep_list_file_versions.html">whep_list_file_versions</a></span><span class="op">(</span><span class="st">"crop_yields"</span>, registry <span class="op">=</span> <span class="va">reg</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="the-whep-project">The WHEP project<a class="anchor" aria-label="anchor" href="#the-whep-project"></a>
@@ -206,7 +211,7 @@
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
 </h2>
 <p>To cite <code>whep</code> in publications, use:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"whep"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">

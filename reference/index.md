@@ -637,6 +637,8 @@ Fetch large files from external sources and cache them.
   : External inputs
 - [`whep_list_file_versions()`](https://eduaguilera.github.io/whep/reference/whep_list_file_versions.md)
   : Input file versions
+- [`whep_registry()`](https://eduaguilera.github.io/whep/reference/whep_registry.md)
+  : Read a registry of pinned input files
 - [`whep_clear_cache()`](https://eduaguilera.github.io/whep/reference/whep_clear_cache.md)
   : Clear the build pipeline cache
 

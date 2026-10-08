@@ -11,6 +11,13 @@ public link and cached before reading it. This is all implemented using
 the [`pins`](https://pins.rstudio.com/index.html) package. It supports
 multiple file formats and file versioning.
 
+Other packages and projects can use the same reader for their own pinned
+inputs by passing a `registry`: a table with the same `alias`,
+`board_url` and `version` columns as
+[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md),
+usually loaded and validated from a CSV with
+[`whep_registry()`](https://eduaguilera.github.io/whep/reference/whep_registry.md).
+
 ## Usage
 
 ``` r
@@ -19,7 +26,8 @@ whep_read_file(
   type = "parquet",
   version = NULL,
   years = NULL,
-  year_col = "year"
+  year_col = "year",
+  registry = NULL
 )
 ```
 
@@ -92,10 +100,41 @@ whep_read_file(
 
   Name of the year column `years` filters on.
 
+- registry:
+
+  The table that maps `file_alias` to a board and a frozen version.
+  `NULL`, the default, is
+  [`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md),
+  this package's own inputs. Another package or project passes its own
+  registry, a table with the columns `alias`, `board_url` and `version`,
+  usually read with
+  [`whep_registry()`](https://eduaguilera.github.io/whep/reference/whep_registry.md);
+  it is validated the same way before it is used. See the section
+  *Reading from another registry*.
+
 ## Value
 
 A tibble with the dataset. Some information about each dataset can be
 found in the code where it's used as input for further processing.
+
+## Reading from another registry
+
+A registry other than
+[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
+is authoritative for its aliases. The file is downloaded from that
+registry's board, cached, and read back from the cache when the board is
+unreachable, exactly as for
+[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md).
+Two behaviours belong to
+[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
+alone, so with another registry the example board bundled with this
+package is not consulted, so an alias such as `read_example` in another
+registry resolves to that registry's board. The predecessor-pipeline
+warnings below are not raised, since they describe this package's pins.
+
+    reg <- whep::whep_registry("inst/extdata/input_registry.csv")
+    whep::whep_read_file("crop_yields", registry = reg)
+    whep::whep_list_file_versions("crop_yields", registry = reg)
 
 ## Frozen predecessor-pipeline references
 

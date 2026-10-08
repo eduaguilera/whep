@@ -1,12 +1,13 @@
 # Input file versions
 
 Lists all existing versions of an input file from
-[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md).
+[`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md),
+or from another registry.
 
 ## Usage
 
 ``` r
-whep_list_file_versions(file_alias)
+whep_list_file_versions(file_alias, registry = NULL)
 ```
 
 ## Arguments
@@ -17,6 +18,18 @@ whep_list_file_versions(file_alias)
   in the
   [`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md)
   dataset.
+
+- registry:
+
+  The table that maps `file_alias` to a board and a frozen version.
+  `NULL`, the default, is
+  [`whep_inputs`](https://eduaguilera.github.io/whep/reference/whep_inputs.md),
+  this package's own inputs. Another package or project passes its own
+  registry, a table with the columns `alias`, `board_url` and `version`,
+  usually read with
+  [`whep_registry()`](https://eduaguilera.github.io/whep/reference/whep_registry.md);
+  it is validated the same way before it is used. See the section
+  *Reading from another registry*.
 
 ## Value
 
