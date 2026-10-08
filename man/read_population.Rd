@@ -7,7 +7,7 @@
 read_population(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback",
+  population_source = c("pin_wpp_fbs_fallback", "pin", "pin_wpp_fallback",
     "pin_fbs_fallback"),
   territory_overlap = c("federation", "successors", "none"),
   example = FALSE
@@ -23,10 +23,10 @@ thousands), \code{wpp_population} (a \code{\link[=read_wpp_population]{read_wpp_
 \code{fbs_population} (a \code{\link[=read_fbs_population]{read_fbs_population()}} output). Falls back to
 \code{\link[=whep_read_file]{whep_read_file()}} when absent.}
 
-\item{population_source}{\code{"pin"} (default, the \code{gdp-population} pin alone),
-\code{"pin_wpp_fallback"}, which additionally fills country-years the pin does
-not cover from UN WPP, or \code{"pin_wpp_fbs_fallback"}, which then fills what
-neither reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}, or \code{"pin_fbs_fallback"},
+\item{population_source}{\code{"pin_wpp_fbs_fallback"} (default), which fills
+the country-years the \code{gdp-population} pin does not cover from UN WPP and
+then what neither reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}; \code{"pin"}, the pin
+alone; \code{"pin_wpp_fallback"}, the pin then UN WPP; or \code{"pin_fbs_fallback"},
 which fills from \code{\link[=read_fbs_population]{read_fbs_population()}} alone and never reads UN WPP.}
 
 \item{territory_overlap}{Which row survives when two area codes describe
@@ -127,7 +127,7 @@ country-years inside the pin's own year span. Filled rows are stamped
 It is a gap-filler and not a replacement, because the two sources disagree
 where they overlap: across 12,309 shared country-years they differ by a
 median 0.64\%, a 95th percentile of 4.4\% and a maximum of 81\%. That is why
-\code{"pin"} remains the default.
+the pin keeps every value it has under every composition.
 
 \code{population_source = "pin_wpp_fbs_fallback"} then fills what NEITHER of those
 reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}, the FAOSTAT Food Balance Sheet
@@ -138,13 +138,18 @@ area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
 denominator. It is anti-joined like the WPP fill, so it too cannot move a
 denominator that was already published.
 
-It is opt-in and not the default because the sources disagree on the value,
-not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+It is the default (#1133). The sources disagree on the value, not just on
+the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
 WPP 2024 territorial sum for the same ground (\code{SRB + MNE + XKX}) gives
 10,104,000, 6.5\% lower; and the \code{SRB + MNE} sum a successor walk can actually
 reach today gives 8,311,000, 23\% lower, because WPP publishes Kosovo
-separately and it carries no WHEP area code (#863). Which of the three a
-dissolved federation should be given is an open decision.
+separately and it carries no WHEP area code (#863). Under the default
+\code{territory_overlap = "federation"} area 186 keeps the FAOSTAT figure and the
+Serbia and Montenegro rows from UN WPP are dropped in those years, so the
+federation's denominator covers the same territory, from the same
+publisher, as the FAOSTAT food divided by it. Measured on the real inputs,
+the default adds 45 areas to the pin's 190 and changes no value the pin
+already carries; \code{"pin"} reproduces the earlier, pin-only table.
 
 \code{population_source = "pin_fbs_fallback"} is FAOSTAT's own population
 behind the pin, skipping UN WPP. It reaches the two dissolved areas but

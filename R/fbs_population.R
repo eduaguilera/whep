@@ -45,14 +45,14 @@
 #   (year, area), which is the same order `.cbs_source_rank()` gives the two
 #   pins for the numerator.
 #
-# THIS BUILDS NO DEFAULT. `read_population()` still defaults to the
-# `gdp-population` pin. This reader is the fill for
-# `population_source = "pin_wpp_fbs_fallback"`, and which denominator a
-# dissolved federation SHOULD get is a science decision the maintainer has not
-# made: for area 186 in 2000 FAOSTAT says 10,801,000 while a UN WPP 2024
-# territorial sum (`SRB + MNE + XKX`) says 10,104,000, 6.5% apart, and the
-# `SRB + MNE` sum the successor walk can actually reach today says 8,311,000,
-# 23% apart (#863). See `read_population()`.
+# This reader is the last fill of `read_population()`'s default
+# `population_source = "pin_wpp_fbs_fallback"` (#1133). For a dissolved
+# federation the sources disagree: for area 186 in 2000 FAOSTAT says
+# 10,801,000 while a UN WPP 2024 territorial sum (`SRB + MNE + XKX`) says
+# 10,104,000, 6.5% apart, and the `SRB + MNE` sum the successor walk can
+# actually reach today says 8,311,000, 23% apart (#863). The default
+# `territory_overlap = "federation"` keeps this FAOSTAT row, the one on the
+# same territory as the FAOSTAT food it divides. See `read_population()`.
 
 #' Read FAOSTAT Food Balance Sheet population on WHEP area codes.
 #'

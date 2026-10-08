@@ -82,11 +82,17 @@ testthat::test_that("the example fixture matches the documented contract", {
 
 testthat::test_that("ISO3 becomes a numeric area code and thousands persons", {
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_raw())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    ),
     "no numeric"
   )
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_raw()))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    )
   )
   esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
   testthat::expect_equal(esp$population, 46600)
@@ -99,7 +105,10 @@ testthat::test_that("historical twin ISO3 codes resolve to one area code each", 
   # SDN both 276 and 206. Mapping through polity_area_code collapses each pair,
   # so neither country is duplicated nor lands on its predecessor.
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_raw()))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    )
   )
   testthat::expect_equal(sum(out$area_code == 238L & out$year == 2010L), 1L)
   testthat::expect_equal(sum(out$area_code == 206L & out$year == 2010L), 1L)
@@ -108,11 +117,17 @@ testthat::test_that("historical twin ISO3 codes resolve to one area code each", 
 
 testthat::test_that("regional residual aggregates are dropped and reported", {
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_raw())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    ),
     "RAFR"
   )
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_raw()))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    )
   )
   testthat::expect_false(any(is.na(out$area_code)))
   # The residual's 200 people are gone, so the total is countries-only.
@@ -122,6 +137,7 @@ testthat::test_that("regional residual aggregates are dropped and reported", {
 testthat::test_that("years filter the result", {
   out <- suppressMessages(
     whep::read_population(
+      population_source = "pin",
       years = 2011L,
       data = list(gdp_population = .popf_raw())
     )
@@ -132,7 +148,10 @@ testthat::test_that("years filter the result", {
 
 testthat::test_that("missing required columns abort", {
   testthat::expect_error(
-    whep::read_population(data = list(gdp_population = tibble::tibble(x = 1))),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = tibble::tibble(x = 1))
+    ),
     "gdp_population"
   )
 })
@@ -150,16 +169,25 @@ testthat::test_that("the Rest-of-World fold is reported, not silent", {
   # to work for anyone reproducing a published-before number.
   withr::local_options(whep.unfold_rest_of_world = "none")
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_folded())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_folded())
+    ),
     "aggregate"
   )
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_folded())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_folded())
+    ),
     "999 \\(GNQ \\+ MKD \\+ PSE \\+ SWZ \\+ SYR\\)"
   )
   # Two buckets, seven ISO3 codes between them: 5 on 999 and SDN + SSD on 206.
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_folded())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_folded())
+    ),
     "Folded 7 ISO3 codes into 2 aggregate"
   )
 })
@@ -171,7 +199,10 @@ testthat::test_that("the folded rows carry the summed population", {
   # to work for anyone reproducing a published-before number.
   withr::local_options(whep.unfold_rest_of_world = "none")
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_folded()))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_folded())
+    )
   )
   # These are the real 2015 pin values: reading them off the fixture must give
   # the same numbers a real read_population(years = 2015L) prints.
@@ -302,9 +333,9 @@ testthat::test_that("the share is of the quantity in range, not of the world", {
 
 testthat::test_that("the coverage warning names the source that reaches more", {
   # #862: area 186 Serbia and Montenegro carries the most food of any area with
-  # no denominator on the default source, and only the opt-in FBS composition
-  # reaches it. The warning is the one place a user meets the gap, so it has to
-  # say how to close it, not only that it is there.
+  # no denominator on the pin alone, and only the FBS fill reaches it. The
+  # warning is the one place a user meets the gap, so it has to say which
+  # composition it was read with, not only that the gap is there.
   testthat::expect_warning(
     whep:::.warn_missing_population(
       .popf_agg(),
@@ -312,7 +343,7 @@ testthat::test_that("the coverage warning names the source that reaches more", {
       "protein_t",
       "food protein"
     ),
-    "pin_wpp_fbs_fallback"
+    "population_source = \"pin\""
   )
 })
 
@@ -378,11 +409,18 @@ testthat::test_that("a bucket with one member in a year is not a fold", {
   )
 }
 
-testthat::test_that("the default source is the pin alone", {
-  # Nothing published may move by default, so the fallback must not be reached
-  # unless it is asked for. An injected reader that errors proves it is not.
+testthat::test_that("population_source = 'pin' reaches neither fill", {
+  # The pin-only table stays reproducible. Readers that error prove neither
+  # fill is reached.
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) stop("WPP must not be read"),
+    read_fbs_population = function(...) stop("FBS must not be read")
+  )
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_raw()))
+    whep::read_population(
+      data = list(gdp_population = .popf_raw()),
+      population_source = "pin"
+    )
   )
   testthat::expect_false(any(out$area_code %in% c(18L, 45L)))
   testthat::expect_equal(unique(out$source_pop), "pin")
@@ -430,7 +468,10 @@ testthat::test_that("the pin's own Source_pop vocabulary is carried", {
     )
   )
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = raw))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = raw)
+    )
   )
   esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
   testthat::expect_equal(esp$source_pop, "Original")
@@ -446,7 +487,10 @@ testthat::test_that("a bucket mixing sources reports both, not one", {
     2015L, "South Sudan", "SSD",      11194, "Linear interpolation"
   )
   out <- suppressMessages(
-    whep::read_population(data = list(gdp_population = raw))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = raw)
+    )
   )
   testthat::expect_equal(
     out$source_pop,
@@ -547,6 +591,28 @@ testthat::test_that("the FBS fill never overwrites a pin or WPP row", {
   testthat::expect_equal(btn$source_pop, "UN WPP 2024")
 })
 
+testthat::test_that("the default composes the pin, then WPP, then FBS", {
+  # #1133: the default fills what the pin lacks from UN WPP and then from the
+  # FAOSTAT Food Balance Sheets, and moves no value the pin already carries.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = .popf_raw(),
+        wpp_population = .popf_wpp(),
+        fbs_population = .popf_fbs()
+      )
+    )
+  )
+  testthat::expect_setequal(
+    unique(out$source_pop),
+    c("pin", "UN WPP 2024", "FAOSTAT FBS")
+  )
+  testthat::expect_true(all(c(18L, 45L, 186L, 151L) %in% out$area_code))
+  esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
+  testthat::expect_equal(esp$population, 46600)
+  testthat::expect_equal(esp$source_pop, "pin")
+})
+
 testthat::test_that("the WPP fill stops at WPP's last estimate year", {
   # UN WPP 2024 publishes estimates to 2023 and medium-variant projections from
   # 2024 to 2100 in the same file. A projection is not a measured population,
@@ -637,7 +703,11 @@ testthat::test_that("pin_fbs_fallback fills from FAOSTAT and never reads WPP", {
 
 .popf_overlap_read <- function(...) {
   suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_overlap()), ...)
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_overlap()),
+      ...
+    )
   )
 }
 
@@ -664,6 +734,7 @@ testthat::test_that("keeping both is what double counts, and it is measured", {
   testthat::expect_equal(sum(out$population), 268494411)
   testthat::expect_warning(
     whep::read_population(
+      population_source = "pin",
       data = list(gdp_population = .popf_overlap()),
       territory_overlap = "none"
     ),
@@ -671,6 +742,7 @@ testthat::test_that("keeping both is what double counts, and it is measured", {
   )
   testthat::expect_warning(
     whep::read_population(
+      population_source = "pin",
       data = list(gdp_population = .popf_overlap()),
       territory_overlap = "none"
     ),
@@ -680,11 +752,17 @@ testthat::test_that("keeping both is what double counts, and it is measured", {
 
 testthat::test_that("the overlap is named, not resolved in silence", {
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_overlap())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_overlap())
+    ),
     "Czechoslovakia \\(51, 1961-1961\\) over 167"
   )
   testthat::expect_message(
-    whep::read_population(data = list(gdp_population = .popf_overlap())),
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_overlap())
+    ),
     "Kept the federation"
   )
 })
@@ -757,6 +835,7 @@ testthat::test_that("a table with no overlap is left alone and says nothing", {
   # every other, so the guard has to be a no-op and emit no message of its own.
   before <- suppressMessages(
     whep::read_population(
+      population_source = "pin",
       data = list(gdp_population = .popf_raw()),
       territory_overlap = "none"
     )
@@ -765,12 +844,16 @@ testthat::test_that("a table with no overlap is left alone and says nothing", {
   # and not the mode's.
   testthat::expect_no_warning(suppressMessages(
     whep::read_population(
+      population_source = "pin",
       data = list(gdp_population = .popf_raw()),
       territory_overlap = "none"
     )
   ))
   after <- suppressMessages(
-    whep::read_population(data = list(gdp_population = .popf_raw()))
+    whep::read_population(
+      population_source = "pin",
+      data = list(gdp_population = .popf_raw())
+    )
   )
   testthat::expect_equal(
     dplyr::select(after, -"method_territory_overlap"),
@@ -794,6 +877,7 @@ testthat::test_that("the chosen treatment is recorded in the output", {
 testthat::test_that("an unknown territory_overlap is rejected", {
   testthat::expect_error(
     whep::read_population(
+      population_source = "pin",
       data = list(gdp_population = .popf_raw()),
       territory_overlap = "drop"
     ),

@@ -498,7 +498,10 @@ testthat::test_that("the country table carries the chain's own population", {
   )
   testthat::expect_true(all(country$method_population == "supplied"))
   manifest <- jsonlite::read_json(run$manifest)
-  testthat::expect_equal(manifest$population$population_source, "pin")
+  testthat::expect_equal(
+    manifest$population$population_source,
+    "pin_wpp_fbs_fallback"
+  )
   testthat::expect_equal(
     manifest$input_march_manifest$allocation$recorded,
     "not recorded in the balance manifest"

@@ -35,14 +35,23 @@
 # population, 0.07%) nor `.pop_report_folded()` can see which uncovered area
 # actually reports food.
 #
-# A THIRD SOURCE, opt-in. Both the pin and UN WPP are keyed on a present-day
+# A THIRD SOURCE. Both the pin and UN WPP are keyed on a present-day
 # ISO3, so neither can reach a territory that no longer exists -- see
 # `R/population_reach.R`. `R/fbs_population.R` reads the FAOSTAT Food Balance
 # Sheet population instead, which is keyed on the FAOSTAT area code and so does
 # reach one; `.pop_fill_from_fbs()` below is where
-# `population_source = "pin_wpp_fbs_fallback"` uses it. It stays opt-in because
-# the three sources disagree on the VALUE for such a territory, not only on
-# whether they have one (#862, #863).
+# `population_source = "pin_wpp_fbs_fallback"` uses it.
+#
+# THE DEFAULT is `"pin_wpp_fbs_fallback"` (#1133). No fill can move a value the
+# pin carries, so the flip only adds denominators: on the real inputs 45 areas
+# (190 -> 235), and 18 more countries in the nourishment table in 2000 and in
+# 2010. The open value question of #863 -- which population a dissolved
+# federation gets -- is answered by the `territory_overlap = "federation"`
+# default: area 186 keeps its FAOSTAT row (10,801,000 in 2000, Kosovo
+# included) and the WPP `272`/`273` rows that would sum to 8.3 M are dropped.
+# That is the same territory, and the same publisher, as the FAOSTAT food the
+# per-capita divide puts over it. `"pin"` stays selectable to reproduce an
+# earlier number.
 #
 # TERRITORIAL OVERLAP, which no anti-join on `(year, area_code)` can see
 # (#939). Both fills refuse to overwrite a key that is already present, and
@@ -121,7 +130,7 @@
 #' It is a gap-filler and not a replacement, because the two sources disagree
 #' where they overlap: across 12,309 shared country-years they differ by a
 #' median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
-#' `"pin"` remains the default.
+#' the pin keeps every value it has under every composition.
 #'
 #' `population_source = "pin_wpp_fbs_fallback"` then fills what NEITHER of those
 #' reaches from [read_fbs_population()], the FAOSTAT Food Balance Sheet
@@ -132,13 +141,18 @@
 #' denominator. It is anti-joined like the WPP fill, so it too cannot move a
 #' denominator that was already published.
 #'
-#' It is opt-in and not the default because the sources disagree on the value,
-#' not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+#' It is the default (#1133). The sources disagree on the value, not just on
+#' the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
 #' WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`) gives
 #' 10,104,000, 6.5% lower; and the `SRB + MNE` sum a successor walk can actually
 #' reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
-#' separately and it carries no WHEP area code (#863). Which of the three a
-#' dissolved federation should be given is an open decision.
+#' separately and it carries no WHEP area code (#863). Under the default
+#' `territory_overlap = "federation"` area 186 keeps the FAOSTAT figure and the
+#' Serbia and Montenegro rows from UN WPP are dropped in those years, so the
+#' federation's denominator covers the same territory, from the same
+#' publisher, as the FAOSTAT food divided by it. Measured on the real inputs,
+#' the default adds 45 areas to the pin's 190 and changes no value the pin
+#' already carries; `"pin"` reproduces the earlier, pin-only table.
 #'
 #' `population_source = "pin_fbs_fallback"` is FAOSTAT's own population
 #' behind the pin, skipping UN WPP. It reaches the two dissolved areas but
@@ -180,10 +194,10 @@
 #'   thousands), `wpp_population` (a [read_wpp_population()] output) and
 #'   `fbs_population` (a [read_fbs_population()] output). Falls back to
 #'   [whep_read_file()] when absent.
-#' @param population_source `"pin"` (default, the `gdp-population` pin alone),
-#'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
-#'   not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then fills what
-#'   neither reaches from [read_fbs_population()], or `"pin_fbs_fallback"`,
+#' @param population_source `"pin_wpp_fbs_fallback"` (default), which fills
+#'   the country-years the `gdp-population` pin does not cover from UN WPP and
+#'   then what neither reaches from [read_fbs_population()]; `"pin"`, the pin
+#'   alone; `"pin_wpp_fallback"`, the pin then UN WPP; or `"pin_fbs_fallback"`,
 #'   which fills from [read_fbs_population()] alone and never reads UN WPP.
 #' @param territory_overlap Which row survives when two area codes describe
 #'   overlapping territory in the same year, as a dissolved federation and its
@@ -243,9 +257,9 @@ read_population <- function(
   years = NULL,
   data = list(),
   population_source = c(
+    "pin_wpp_fbs_fallback",
     "pin",
     "pin_wpp_fallback",
-    "pin_wpp_fbs_fallback",
     "pin_fbs_fallback"
   ),
   territory_overlap = c("federation", "successors", "none"),
@@ -327,7 +341,7 @@ read_population <- function(
 # The two sources are NOT interchangeable where they overlap: across 12,309
 # shared country-years they differ by a median 0.64%, a 95th percentile of
 # 4.4%, and up to 81%. That is the reason this is a gap-filler and not a
-# replacement, and the reason the default stays `"pin"`.
+# replacement.
 .pop_fill_from_wpp <- function(pinned, population_source, wpp, years) {
   if (!population_source %in% c("pin_wpp_fallback", "pin_wpp_fbs_fallback")) {
     return(pinned)
@@ -394,8 +408,9 @@ read_population <- function(
 # while a UN WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`)
 # gives 10,104,000 -- 6.5% apart -- and the `SRB + MNE` sum the successor walk
 # can actually reach today gives 8,311,000, 23% apart (#863). Which of those a
-# dissolved federation should get is an open decision, which is why this is
-# opt-in and `"pin"` remains the default.
+# dissolved federation should get is settled by `territory_overlap`: the
+# default `"federation"` keeps this FAOSTAT row for 186, on the same territory
+# as the FAOSTAT food it divides (#1133).
 .pop_fill_from_fbs <- function(filled, population_source, fbs, years) {
   if (!population_source %in% c("pin_wpp_fbs_fallback", "pin_fbs_fallback")) {
     return(filled)
@@ -685,11 +700,9 @@ read_population <- function(
     "i" = "{.val {signif(100 * share, 3)}}% of the {quantity} in range goes
            with them. See {.fun read_population} for what the denominator
            covers.",
-    "i" = "{.code read_population(population_source =
-           \"pin_wpp_fbs_fallback\")} fills the pin's gaps from UN WPP and
-           then the FAOSTAT Food Balance Sheets, which also reach dissolved
-           reporting areas such as Serbia and Montenegro (186). It is opt-in,
-           not the default."
+    "i" = "{.code read_population()} fills the pin's gaps from UN WPP and then
+           the FAOSTAT Food Balance Sheets by default; a table read with
+           {.code population_source = \"pin\"} has neither fill."
   ))
   invisible(dropped)
 }

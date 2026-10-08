@@ -46,7 +46,7 @@
 #'   (absolute persons). Defaults to `NULL`, which reads
 #'   [read_population()] at its own default composition over the years of
 #'   `n_inputs`; supply a table to use any other source (for instance
-#'   `read_population(population_source = "pin_wpp_fbs_fallback")`).
+#'   `read_population(population_source = "pin")`).
 #' @param framing How the total anthropogenic reactive nitrogen is defined.
 #'   `"synthetic_bnf"` (default) scales the `"synthetic"` term by
 #'   `syn_tot_agri_ratio` and adds the `"bnf"` term; other framings can be added.
