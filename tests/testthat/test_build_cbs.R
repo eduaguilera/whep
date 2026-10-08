@@ -3405,6 +3405,34 @@ test_that(".read_historical_trade row order does not depend on the read", {
   expect_identical(forward, reversed)
 })
 
+# whep#1409: the pins report live pigs (trade code 1034) in a mass
+# measurement; stamped "tonnes" they sat beside the head counts
+# `get_livestock_cbs()` books for item 1049 from 1961 on.
+test_that(".read_historical_trade drops live-animal items from the mass record", {
+  rows <- tibble::tribble(
+    ~iso3, ~year, ~item_code, ~measurement, ~value,
+    "ESP", 1931L, 15,         "1000 MT",    10,
+    "ESP", 1931L, 1034,       "1000 MT",    4,
+    "FRA", 1932L, 1034,       "1000 MT",    7
+  ) |>
+    data.table::as.data.table()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(rows)
+    }
+  )
+
+  expect_message(
+    out <- whep:::.read_historical_trade(),
+    "live-animal"
+  )
+
+  expect_false(1049L %in% out$item_cbs_code)
+  expect_gt(nrow(out), 0L)
+  expect_setequal(unique(out$unit), "tonnes")
+  expect_false(any(out$item_cbs_code %in% whep:::.live_animal_cbs_codes()))
+})
+
 # Issue whep#833, the other half. `.cbs_fill_destinies()` splits domestic
 # supply with the area's own observed split, carried across the year axis, and
 # falls back to the world average split for a key that has no split anywhere
