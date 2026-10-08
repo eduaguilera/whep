@@ -30,7 +30,7 @@ assumed Medium is coarser still. Both remain selectable. The assumption is
 never chosen implicitly, and the rung used is recorded in \code{method_ghg}.
 Ignored at Tier 1, whose emission factors carry no diet dimension.}
 
-\item{options}{A named list of manure-engine options. All but five
+\item{options}{A named list of manure-engine options. All but six
 defaults reproduce the behaviour in force before whep#949. The exceptions
 are \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
@@ -39,8 +39,10 @@ in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
 since whep#1137 pairs the 2019 pasture MCF with its published \code{Bo} and
 moves Tier 2 manure CH4, and \code{tier2_uncovered}, which since whep#1028
 gives species with no Tier 2 method their Tier 1 values instead of \code{NA},
-and \code{indirect_n2o_source}, which since whep#1245 reads the 2019
-Refinement's leaching factors and moves both tiers' indirect manure N2O.
+\code{indirect_n2o_source}, which since whep#1245 reads the 2019
+Refinement's leaching factors and moves both tiers' indirect manure N2O,
+and \code{indirect_n2o_fractions}, which since whep#1365 weights the Table
+10.22 fractions over the manure-management split and moves it again.
 
 \code{indirect_n2o_source} selects the edition of \link{indirect_n2o_ef} the
 indirect manure N2O reads:
@@ -54,11 +56,31 @@ before whep#1245 under a 2019 citation, kept selectable so earlier
 figures stay reproducible.
 }
 
-EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
-\code{"ipcc_2006"} the default raises the leaching term by
-\code{0.24 * 0.011 / (0.30 * 0.0075) = 1.173} and leaves the volatilisation
-term alone. \code{method_manure_n2o} records the edition used
-(\code{indirect_ipcc_2019} or \code{indirect_ipcc_2006}).
+EF4 (0.010) is the same under both. The edition also selects the Ch 11
+FracGASM (0.21 in 2019, 0.20 in 2006) the pasture stream is priced at.
+
+\code{indirect_n2o_fractions} selects which nitrogen fractions the indirect
+manure N2O volatilises and leaches:
+\itemize{
+\item \code{"per_mms"} (default): IPCC 2019 Refinement, Vol 4, Ch 10, Eq. 10.26
+and 10.27 (Updated), pp. 10.76-10.77. \code{FracGasMS} and \code{FracLeachMS} per
+animal category and system, from Table 10.22 (Updated), pp.
+10.96-10.97, weighted over the row's own manure-management split, the
+same split the direct EF3 is weighted over. Pasture/range/paddock N,
+which Table 10.22 does not cover, is priced at the Ch 11 Table 11.3
+FracGASM and FracLEACH-(H) (Eq. 11.9 and 11.10), as the IPCC prices
+grazing deposition; no other WHEP chain prices it, and the direct path
+prices the same N at EF3, so it is counted once. The managed-system
+fractions are the 2019 table's under either edition, as in
+\code{\link[=apply_management_losses]{apply_management_losses()}}: the 2006 Table 10.22 leaves most pairs
+blank.
+\item \code{"single"}: one FracGasMS 0.20 (assumed, unverified) and one
+FracLEACH-(H) on all excreted N, the form before whep#1365. Kept so
+earlier figures stay reproducible.
+}
+
+\code{method_manure_n2o} records both choices, e.g.
+\code{indirect_ipcc_2019_per_mms} or \code{indirect_ipcc_2006_single}.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

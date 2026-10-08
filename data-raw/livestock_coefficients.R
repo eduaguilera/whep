@@ -2531,7 +2531,12 @@ generate_ipcc_tier2_params <- function() {
     # FracGasMS 0.20 is the same in both blocks and is assumed, unverified:
     # Table 10.22 of either edition publishes FracGasMS per animal category
     # and system, not one number, and 0.20 is the 2006 FracGASM of
-    # Table 11.3 (the 2019 FracGASM is 0.21).
+    # Table 11.3 (the 2019 FracGASM is 0.21). Since #1365 only the
+    # `indirect_n2o_fractions = "single"` form reads it.
+    # FracGASM (organic N applied and dung/urine deposited by grazing
+    # animals): 0.21 in Table 11.3 (Updated) of the 2019 Refinement, 0.20 in
+    # Table 11.3 of the 2006 Guidelines, both read off the PDFs (#1365). The
+    # per-MMS form prices pasture N at it.
     indirect_n2o_ef = tibble::tribble(
       ~edition,    ~parameter,           ~value,
         ~description,
@@ -2543,6 +2548,8 @@ generate_ipcc_tier2_params <- function() {
         "FracGasMS: fraction N lost as NH3+NOx from MMS",
       "ipcc_2019", "frac_leach",         0.24,
         "FracLeach: fraction N lost via leaching/runoff",
+      "ipcc_2019", "frac_gasm",          0.21,
+        "FracGASM: fraction of grazing-deposited N lost as NH3+NOx",
       "ipcc_2006", "ef4_volatilization", 0.010,
         "EF4: N2O-N per kg NH3-N + NOx-N volatilized",
       "ipcc_2006", "ef5_leaching",       0.0075,
@@ -2550,7 +2557,9 @@ generate_ipcc_tier2_params <- function() {
       "ipcc_2006", "frac_gasms",         0.20,
         "FracGasMS: fraction N lost as NH3+NOx from MMS",
       "ipcc_2006", "frac_leach",         0.30,
-        "FracLeach: fraction N lost via leaching/runoff"
+        "FracLeach: fraction N lost via leaching/runoff",
+      "ipcc_2006", "frac_gasm",          0.20,
+        "FracGASM: fraction of grazing-deposited N lost as NH3+NOx"
     ),
 
     # Uncertainty Ranges for key parameters.
