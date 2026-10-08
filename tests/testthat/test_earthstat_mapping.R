@@ -568,3 +568,84 @@ testthat::test_that(".share_pattern_groups pools a group and replicates it", {
     patterns
   )
 })
+
+# ---- forage layers: WHEP's own fodder items (whep#1271) ----------------------
+
+# The 16 layers in group "Forage" of the archive's metadata table, and the
+# FAOSTAT forage item each one is. The metadata gives these layers no FAO name
+# (its Cropname_FAO column repeats the EarthStat code), which is why the
+# crosswalk once recorded 15 of them as `no_fao_crop_name` and sent the 16th,
+# `legumenes`, to 463 "Other vegetables" beside `vegetablenes`. FAOSTAT's
+# current list dropped fodder around 2013 (whep#1027), but `items_prod`
+# carries every forage item, one per layer.
+.forage_layers <- function() {
+  tibble::tribble(
+    ~earthstat_name, ~item_prod_code,
+    "alfalfa",       641L,
+    "beetfor",       647L,
+    "cabbagefor",    644L,
+    "carrotfor",     648L,
+    "clover",        640L,
+    "fornes",        651L,
+    "grassnes",      639L,
+    "legumenes",     643L,
+    "maizefor",      636L,
+    "mixedgrass",    645L,
+    "oilseedfor",    642L,
+    "ryefor",        638L,
+    "sorghumfor",    637L,
+    "swedefor",      649L,
+    "turnipfor",     646L,
+    "vegfor",        655L
+  )
+}
+
+testthat::test_that("the forage layers feed the forage items, pooled", {
+  earthstat <- .read_extdata_csv("earthstat_mapping.csv")
+  forage <- .forage_layers()
+
+  found <- earthstat |>
+    dplyr::filter(earthstat_name %in% forage$earthstat_name) |>
+    dplyr::arrange(earthstat_name)
+
+  testthat::expect_equal(
+    as.integer(found$item_prod_code),
+    forage$item_prod_code
+  )
+  # One pooled group, and only these 16 rows in it: the per-item layers keep
+  # the circa-2000 reporting vocabulary, and the United States' `grassnes`
+  # sits only on its Mexican border (see `R/soil_carbon_fodder.R`).
+  testthat::expect_true(all(found$pattern_group %in% "fodder"))
+  testthat::expect_setequal(
+    earthstat$earthstat_name[earthstat$pattern_group %in% "fodder"],
+    forage$earthstat_name
+  )
+  # No layer is left out for want of an FAO name any more.
+  testthat::expect_false(any(
+    earthstat$unmapped_reason %in% "no_fao_crop_name"
+  ))
+})
+
+testthat::test_that("legumenes is forage legumes, not a fresh vegetable", {
+  earthstat <- .read_extdata_csv("earthstat_mapping.csv")
+
+  legumenes <- earthstat[earthstat$earthstat_name == "legumenes", ]
+  testthat::expect_equal(as.integer(legumenes$item_prod_code), 643L)
+  testthat::expect_equal(
+    earthstat$earthstat_name[earthstat$item_prod_code %in% 463],
+    "vegetablenes"
+  )
+})
+
+# The soil carbon fodder layer (whep#1118) reads the same 16 rasters through
+# its own list; until that layer is retired the two must not drift apart.
+testthat::test_that("the soil carbon fodder layers agree with the crosswalk", {
+  earthstat <- .read_extdata_csv("earthstat_mapping.csv")
+  fodder <- whep:::.fodder_earthstat_layers()
+
+  expected <- earthstat$item_prod_code[
+    match(fodder$earthstat_name, earthstat$earthstat_name)
+  ]
+
+  testthat::expect_equal(as.integer(fodder$item_prod_code), expected)
+})

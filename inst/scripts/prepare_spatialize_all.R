@@ -419,10 +419,18 @@ cft_to_pft <- c(
 #
 #   no_fao_crop_name  the archive's own metadata table gives no FAO crop
 #                     name for the layer, repeating the EarthStat code in
-#                     its Cropname_FAO column instead. The 15 fodder
-#                     layers (alfalfa, clover, maizefor, grassnes, ...).
+#                     its Cropname_FAO column instead. No row uses it now:
+#                     the 16 layers it once covered are the archive's
+#                     "Forage" group, and they map one to one to WHEP's
+#                     forage items 636-649, 651 and 655 (whep#1271).
 #   unmapped          the archive names an FAO crop but WHEP has not
 #                     chosen an item code for it.
+#
+# `pattern_group` pools layers: every code in a group gets the summed
+# pattern of the whole group (`.share_pattern_groups()`). The forage layers
+# are one group, `"fodder"`, as in `R/soil_carbon_fodder.R`, because the
+# per-item layers keep the circa-2000 reporting vocabulary: the United
+# States' `grassnes` sits only on its Mexican border.
 #
 # The distinction is the point. Before it, a layer WHEP had simply never
 # been told about looked exactly like one deliberately left out, and
@@ -1156,21 +1164,37 @@ cft_to_pft <- c(
 # `area_code`. THE TWO ROUTES ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and they
 # disagree on 547 of 6,909 rows, so which one runs is the caller's choice:
 #
-#   "area_name"  joins the label onto `regions.csv`'s `area_name` (status quo).
-#   "alias_map"  decides it against `whep::polity_label_aliases` at the row's
-#                own year, then bridges polity -> iso3 -> area exactly as
-#                `.spatialize_label_area_code()` does for the other readers.
+#   "alias_map"  (default) decides it against `whep::polity_label_aliases` at
+#                the row's own year, then bridges polity -> iso3 -> area
+#                exactly as `.spatialize_label_area_code()` does for the
+#                other readers.
+#   "area_name"  joins the label onto `regions.csv`'s `area_name` (the
+#                pre-#649 default, kept for comparison).
 #
 # Measured against real package data, `"alias_map"` resolves 6,713 rows where
-# `"area_name"` resolves 6,370: it gains 445 rows over 10 labels the name join
-# simply spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
+# `"area_name"` resolves 6,370. It gains 445 rows over 10 labels the name join
+# only spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
 # Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, FSU,
-# Occupied Palestinian Territory) and loses 102 over 5 the name join keeps but
-# the resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR
-# 18, Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the
-# grid is a present-day rasterisation, which argues for the modern successors;
-# the polity migration argues for the territory that existed in the data year --
-# so whep#576 leaves the choice open and the default stays where it was.
+# Occupied Palestinian Territory). It loses 102 over 5 labels it dates outside
+# their polity's life (South Sudan 49, Yugoslav SFR 18, Czechoslovakia 16, Viet
+# Nam 14, Botswana 5).
+#
+# Why the alias route is the default (whep#649): every gain is a misspelling,
+# i.e. a share the name join silently dropped. China, the large one, has no
+# share at all under the name join, so its 1961-2009 synthetic N fell through
+# to 100% cropland. Against the FAOSTAT synthetic-N totals of 1961-2009, the
+# Lassaletta-routed grassland synthetic N goes from 156.7 to 197.9 Mt: China
+# +22.5, USSR +16.2, Belgium-Luxembourg +2.4. That is before the EuroAgriDB
+# override, which replaces the Belgium-Luxembourg share in every year, and the
+# present-day grid has no USSR (SUN) cell, so China is what reaches the grid.
+# The losses move almost nothing.
+# South Sudan's and Botswana's shares are zero. Czechoslovakia and Yugoslav SFR
+# are refused only after they dissolved, when FAOSTAT books no N total under
+# codes 51 and 248. Viet Nam 1961-1974 loses shares of at most 0.003 (0.002 Mt
+# of its 24.8 Mt). The test file pins this. A name-join fallback for the
+# refused years would recover only that 0.002 Mt, and it would be a silent
+# fallback, so it is not built. The route actually used is stamped in
+# `method_grass_share`.
 .grass_share_area_code <- function(label, year, area_lookup, route) {
   if (identical(route, "alias_map")) {
     return(.spatialize_label_area_code(
@@ -2573,7 +2597,7 @@ prepare_nitrogen_inputs <- function(
   output_dir,
   year_range,
   prod = NULL,
-  grass_share_route = c("area_name", "alias_map")
+  grass_share_route = c("alias_map", "area_name")
 ) {
   cli::cli_h2("Section 7: Nitrogen / fertilizer inputs")
   grass_share_route <- rlang::arg_match(grass_share_route)
@@ -7787,7 +7811,7 @@ prepare_spatialize_all <- function(
   year_range = 1851:2023,
   target_res = 0.5,
   cru_version = NULL,
-  grass_share_route = c("area_name", "alias_map")
+  grass_share_route = c("alias_map", "area_name")
 ) {
   # For a quick test run use: year_range = 2000:2001
   #
