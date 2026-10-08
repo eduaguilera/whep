@@ -22,7 +22,9 @@ it absent from \code{table}, to use the current/default mapping, which has no
 gaps by construction.}
 
 \item{backcast_anchor}{First year of reported (non-back-cast) FAOSTAT data;
-passed to the same resolution \code{\link[=add_polity_code]{add_polity_code()}} documents.}
+passed to the same resolution \code{\link[=add_polity_code]{add_polity_code()}} documents. The
+territory a pre-anchor row is resolved to follows
+\code{options(whep.backcast_polity = )}, as the builds' labels do.}
 }
 \value{
 A tibble with one row per reported \verb{(area_code, year)}, ordered by

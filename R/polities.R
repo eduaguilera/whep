@@ -424,6 +424,99 @@
   mode
 }
 
+# Which territory a pre-anchor row is labelled with (whep#748).
+#
+# A pre-1961 row is a reconstruction with two territorial references. Its LEVEL
+# is the area's reported value at `backcast_anchor`, walked backwards by
+# `fill_proxy_growth()`, so it describes the anchor year's territory. Its
+# year-on-year MOVEMENT is a ratio of LUH2 land from the `luh2-areas` pin,
+# which is keyed on present-day ISO3, so it describes today's territory. Where
+# a territory changed after the anchor no single polity is right for both, and
+# `polity_anchor_drift()` reports where they differ.
+#
+# - `"anchor"` (default): the polity live at `backcast_anchor`, which names the
+#   territory of the level. What WHEP has always published.
+# - `"present_day"`: the polity live at `.backcast_reference_year()`, which
+#   names the territory of the movement. An area with no polity live in that
+#   year keeps its anchor polity rather than a stand-in, because there is then
+#   no present-day territory to name. It changes no value of the table it
+#   labels and no `polity_area_code` bucket: over the crosswalk's 1850-1960
+#   grid it relabels 5,106 `(area, year)` pairs of 46 areas, exactly the pairs
+#   `polity_anchor_drift()` reports with a reference polity live in 2023. A
+#   consumer that joins on `reporting_polity_code` follows the label.
+#
+# Which one a published row should carry has defensible alternatives and is the
+# maintainer's call, so both are implemented and the default is today's.
+# `mode` lets an exported resolver take an explicit argument; without one, one
+# switch, `options(whep.backcast_polity = )`, covers every call site, as with
+# `whep.polity_mapping_status`.
+.backcast_polity_mode <- function(mode = NULL) {
+  valid <- c("anchor", "present_day")
+  if (!is.null(mode)) {
+    return(rlang::arg_match(mode, valid))
+  }
+  mode <- getOption("whep.backcast_polity", "anchor")
+  if (!rlang::is_string(mode) || !mode %in% valid) {
+    cli::cli_abort(c(
+      "{.code options(whep.backcast_polity)} must be one of {.val {valid}}.",
+      "x" = "It is {.val {mode}}."
+    ))
+  }
+  mode
+}
+
+# The year whose territory `"present_day"` names: the default `end_year` of
+# `build_primary_production()` and the default `reference_year` of
+# `polity_anchor_drift()`, so the convention relabels exactly the territory the
+# diagnostic measures against. On the shipped crosswalk every reference year
+# from 2014 to 2024 gives the same answer, so the choice is not load-bearing.
+.backcast_reference_year <- function() {
+  2023L
+}
+
+# Re-resolve the pre-anchor rows of `dt` at the reference year, and keep the
+# answer only where the area has a polity live in that year.
+#
+# The rows are resolved again rather than deduplicated by area and joined back,
+# because that join would be keyed on `area_code` with no year, the year-blind
+# territorial key `.territorial_joins()` exists to catch.
+.resolve_backcast_at_reference <- function(
+  map,
+  dt,
+  cols,
+  include_unmapped,
+  backcast_anchor
+) {
+  years <- as.numeric(dt[[cols$year]])
+  pre_anchor <- which(!is.na(years) & years < backcast_anchor)
+  if (length(pre_anchor) == 0L) {
+    return(map)
+  }
+  request <- data.table::data.table(
+    ..whep_backcast_rowid = dt[[cols$rowid]][pre_anchor],
+    area_code = dt[[cols$code]][pre_anchor],
+    year = .backcast_reference_year()
+  )
+  reference <- .add_polity_columns_dt(
+    request,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = include_unmapped,
+    backcast_anchor = -Inf
+  )
+  reference <- reference[mapping_status %in% c("matched", "manual")]
+  if (nrow(reference) == 0L) {
+    return(map)
+  }
+  data.table::setnames(reference, "..whep_backcast_rowid", cols$rowid)
+  map[
+    reference,
+    on = cols$rowid,
+    (cols$base) := mget(paste0("i.", cols$base))
+  ]
+  map
+}
+
 .order_stand_in_matches <- function(matches, rowid_col) {
   keys <- if (identical(.polity_stand_in_mode(), "forward")) {
     c(rowid_col, "stand_in_ended", "year_distance", "join_start_year")
@@ -478,7 +571,8 @@
   year_col = "year",
   prefix = "",
   include_unmapped = FALSE,
-  backcast_anchor = 1961L
+  backcast_anchor = 1961L,
+  backcast_polity = "anchor"
 ) {
   if (!data.table::is.data.table(data)) {
     data.table::setDT(data)
@@ -567,6 +661,9 @@
     # dissolved AFTER 1961) instead of a larger historical-extent period.
     # Genuine historical-source data (reported under real historical borders) is
     # handled separately, keyed directly to its polity, not via this lookup.
+    # The floor names the territory of the back-cast's LEVEL; its MOVEMENT is
+    # measured on today's borders, and `backcast_polity = "present_day"`
+    # relabels the pre-anchor rows with that territory instead, below (whep#748).
     join_data <- dt[,
       .(
         ..whep_polity_rowid = get(rowid_col),
@@ -677,6 +774,20 @@
         data.table::setkey(map, NULL)
       }
     }
+    if (identical(backcast_polity, "present_day")) {
+      map <- .resolve_backcast_at_reference(
+        map,
+        dt,
+        list(
+          code = code_col,
+          year = year_col,
+          rowid = rowid_col,
+          base = base_cols
+        ),
+        include_unmapped,
+        backcast_anchor
+      )
+    }
     map <- .mark_backcast_anchor_status(
       map,
       dt[,
@@ -732,8 +843,9 @@
 #' - `"matched"` / `"manual"`: the year fell inside the polity's period, and the
 #'   value is the crosswalk row's own provenance, carried through.
 #' - `"backcast_anchor"`: the row is before `backcast_anchor`, so it was
-#'   resolved at the anchor year, and the polity live then is **not** live in
-#'   the row's own year. That polity is still the honest label -- the value is a
+#'   resolved at the anchor year (or at 2023 under `backcast_polity =
+#'   "present_day"`), and the polity live then is **not** live in the row's own
+#'   year. That polity is still the honest label -- the value is a
 #'   reconstruction on the anchor year's territory -- but the row is no evidence
 #'   the polity existed then, which is exactly what `"matched"` asserts.
 #'   FAOSTAT area 238 reads `ETH-1952-1993` from 1850, 102 years before that
@@ -765,6 +877,37 @@
 #' alone; it changes 235 of the crosswalk's 46,640 `(area, year)` pairs over
 #' 1850-2025, all of them areas 178 and 273 (whep#705).
 #'
+#' @section Which territory a back-cast row names:
+#' A row before `backcast_anchor` has two territorial references, and they
+#' differ wherever a territory changed after the anchor (whep#748). Its
+#' **level** is the area's value at the anchor, walked backwards by
+#' [fill_proxy_growth()], so it describes the anchor year's territory. Its
+#' year-on-year **movement** is a ratio of LUH2 land keyed on present-day ISO3,
+#' so it describes today's territory. [polity_anchor_drift()] reports where the
+#' two differ. `backcast_polity` chooses which one the label names:
+#'
+#' - `"anchor"` (default): the polity live at `backcast_anchor`, the territory
+#'   of the level. Area 238 Ethiopia reads `ETH-1952-1993`, which includes
+#'   Eritrea, from 1850 to 1992.
+#' - `"present_day"`: the polity live in 2023, the territory of the movement and
+#'   the reference year [polity_anchor_drift()] measures against. Area 238 reads
+#'   `ETH-1993-2025` from 1850 to 1960, `ETH-1952-1993` from 1961 to 1992 and
+#'   `ETH-1993-2025` after. An area with no polity live in 2023, such as 15
+#'   Belgium-Luxembourg or 248 Yugoslav SFR, keeps its anchor polity, because
+#'   there is no present-day territory to name.
+#'
+#' Either way the row's `mapping_status` is `"backcast_anchor"` where the polity
+#' named is not live in the row's own year. Neither choice moves a value of
+#' the table being labelled or a `polity_area_code` bucket: over the
+#' crosswalk's 1850-1960 grid, `"present_day"` relabels 5,106 `(area, year)`
+#' pairs of 46 areas and leaves every bucket where it was. A consumer that
+#' joins on `reporting_polity_code` follows the label it is given.
+#'
+#' Without an explicit argument the session option
+#' `options(whep.backcast_polity = )` decides, and it is the same switch every
+#' published output's `reporting_polity_code` and `partner_polity_code` follow,
+#' so one setting relabels them all consistently.
+#'
 #' @param table A data frame.
 #' @param code_column Name of the column containing numeric area codes.
 #' @param year_column Name of the column containing years. Set to `NULL` to
@@ -777,6 +920,9 @@
 #'   Such a row reports `mapping_status == "backcast_anchor"` where the anchor
 #'   polity is not live in its own year. Set to `-Inf` to disable and match
 #'   strictly by data year.
+#' @param backcast_polity Which territory a row before `backcast_anchor` is
+#'   labelled with: `"anchor"` or `"present_day"`. See the section above.
+#'   `NULL` (default) reads `getOption("whep.backcast_polity", "anchor")`.
 #'
 #' @returns A tibble with added polity metadata columns.
 #' @seealso [polity_coverage_gaps()], which reports the `"out_of_span"` and
@@ -799,8 +945,10 @@ add_polity_code <- function(
   code_column = "area_code",
   year_column = "year",
   polity_code_column = "polity_code",
-  backcast_anchor = 1961L
+  backcast_anchor = 1961L,
+  backcast_polity = NULL
 ) {
+  backcast_polity <- .backcast_polity_mode(backcast_polity)
   dt <- data.table::as.data.table(table)
   year_col <- if (!is.null(year_column) && year_column %in% names(dt)) {
     year_column
@@ -812,7 +960,8 @@ add_polity_code <- function(
     code_col = code_column,
     year_col = year_col,
     include_unmapped = TRUE,
-    backcast_anchor = backcast_anchor
+    backcast_anchor = backcast_anchor,
+    backcast_polity = backcast_polity
   )
 
   if (polity_code_column != "polity_code" && "polity_code" %in% names(out)) {
@@ -878,7 +1027,9 @@ add_polity_code <- function(
 #'   it absent from `table`, to use the current/default mapping, which has no
 #'   gaps by construction.
 #' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data;
-#'   passed to the same resolution [add_polity_code()] documents.
+#'   passed to the same resolution [add_polity_code()] documents. The
+#'   territory a pre-anchor row is resolved to follows
+#'   `options(whep.backcast_polity = )`, as the builds' labels do.
 #'
 #' @returns A tibble with one row per reported `(area_code, year)`, ordered by
 #'   area code and year, carrying `area_code`, `year`, `polity_code`,
@@ -930,7 +1081,8 @@ polity_coverage_gaps <- function(
     code_col = code_column,
     year_col = year_col,
     include_unmapped = TRUE,
-    backcast_anchor = backcast_anchor
+    backcast_anchor = backcast_anchor,
+    backcast_polity = .backcast_polity_mode()
   )
   data.table::setnames(resolved, code_column, "area_code")
   if (is.null(year_col)) {
@@ -1208,6 +1360,12 @@ polity_coverage_gaps <- function(
   if (mode != "none") {
     return(FALSE)
   }
+  # The fold resolves its identity under the default back-cast convention, so
+  # under the other one it is a different answer by design rather than a
+  # re-keyed frame, and is re-resolved without the contradiction warning.
+  if (.backcast_polity_mode() != "anchor") {
+    return(FALSE)
+  }
   if (!all(c(code_column, .reporting_polity_cols()) %in% names(dt))) {
     return(FALSE)
   }
@@ -1317,7 +1475,8 @@ polity_coverage_gaps <- function(
     code_col = code_column,
     year_col = year_col,
     prefix = "reporting_",
-    include_unmapped = TRUE
+    include_unmapped = TRUE,
+    backcast_polity = .backcast_polity_mode()
   )
   if ("reporting_has_geometry" %in% names(out)) {
     data.table::setnames(
@@ -1408,7 +1567,8 @@ polity_coverage_gaps <- function(
     code_col = code_column,
     year_col = year_col,
     prefix = "partner_",
-    include_unmapped = TRUE
+    include_unmapped = TRUE,
+    backcast_polity = .backcast_polity_mode()
   )
   if ("partner_has_geometry" %in% names(out)) {
     data.table::setnames(

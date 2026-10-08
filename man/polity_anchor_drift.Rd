@@ -50,8 +50,8 @@ and they need not agree (whep#748):
 \item its \strong{level} is the area's reported value at the back-cast anchor, walked
 backwards by \code{\link[=fill_proxy_growth]{fill_proxy_growth()}}, so it describes the territory that
 area had in \code{backcast_anchor}. That is the territory
-\code{reporting_polity_code} names, because \code{\link[=add_polity_code]{add_polity_code()}} floors the
-polity lookup at the same anchor;
+\code{reporting_polity_code} names by default, because \code{\link[=add_polity_code]{add_polity_code()}}
+floors the polity lookup at the same anchor;
 \item its \strong{year-on-year movement} is a ratio of LUH2 land, and under
 \code{build_primary_production(land_method = "present_day")} the \code{luh2-areas}
 pin is keyed on \strong{present-day ISO3}, so the movement describes the
@@ -80,6 +80,12 @@ does not, which is the harder class to notice.
 \item \code{"unmapped_reference"}: the area resolves to no polity at
 \code{reference_year} at all, so what the movement describes cannot be named.
 }
+
+The comparison is always against the anchor, whatever
+\code{options(whep.backcast_polity = )} is set to. That switch decides which of
+the two territories a published label names, and its \code{"present_day"} value
+relabels exactly the pairs reported here whose reference polity is live in
+\code{reference_year}, so this is also the list of rows it would move.
 
 A pair whose anchor polity is itself \code{NA} is \strong{not} reported: that row has
 no label to disagree with, and it is \code{\link[=polity_mapping_provenance]{polity_mapping_provenance()}} and

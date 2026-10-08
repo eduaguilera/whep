@@ -25,7 +25,8 @@ it absent from \code{table}, to use the current/default mapping.}
 \item{backcast_anchor}{First year of reported (non-back-cast) FAOSTAT data;
 passed to the same resolution \code{\link[=add_polity_code]{add_polity_code()}} documents. Set to \code{-Inf}
 to resolve strictly by data year, which is what makes the manufactured
-pre-1961 periods live.}
+pre-1961 periods live. The territory a pre-anchor row is resolved to
+follows \code{options(whep.backcast_polity = )}, as the builds' labels do.}
 }
 \value{
 A tibble with one row per resolved \verb{(area_code, year)}, ordered by
