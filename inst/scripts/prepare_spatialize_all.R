@@ -446,7 +446,7 @@ cft_to_pft <- c(
 # how barley -- the fourth-largest crop on Earth -- was missing until
 # whep#877: 169 rows against the 172 crop directories the EarthStat tree
 # ships. `tests/testthat/test_earthstat_mapping.R` is the guard; it asserts
-# the set of `cft_mapping.csv` crops with no row here is exactly the six
+# the set of `cft_mapping.csv` crops with no row here is exactly the seven
 # EarthStat publishes no raster for. Adding a row is inert until the
 # `spatialize-crop-patterns` pin is rebuilt from it.
 .read_earthstat_mapping <- function() {

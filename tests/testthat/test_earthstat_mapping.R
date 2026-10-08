@@ -34,6 +34,7 @@
     305L, "Tallowtree seed -- no EarthStat crop",
     378L, "Cassava leaves -- EarthStat maps the root, not the leaf",
     407L, "Leeks and other alliaceous vegetables -- no EarthStat crop",
+    542L, "Other pome fruits -- no EarthStat crop",
     689L, "Chillies and peppers, dry -- no EarthStat crop",
     839L, "Balata, gutta-percha and similar natural gums -- no EarthStat crop"
   )

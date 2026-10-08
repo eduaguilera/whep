@@ -33,7 +33,6 @@
 # removed from the list.
 .cft_excluded_ha_items <- function() {
   fodder <- "Fodder crop: not gridded as cropland, pending whep#1372"
-  missing <- "Crop not yet mapped to a CFT (whep#1364)"
   tibble::tribble(
     ~item_prod_code, ~why,
     3001L, "Permanent pasture: gridded separately, not cropland",
@@ -54,15 +53,7 @@
     648L, fodder,
     649L, fodder,
     651L, fodder,
-    655L, fodder,
-    149L, missing,
-    161L, missing,
-    420L, missing,
-    459L, missing,
-    542L, missing,
-    591L, missing,
-    782L, missing,
-    809L, missing
+    655L, fodder
   )
 }
 
@@ -148,4 +139,74 @@ testthat::test_that("the fixture holds the area the four crops lost", {
     13.86,
     tolerance = 0.005
   )
+})
+
+# The eight crops whep#1364 found with harvested area but no `cft_mapping`
+# row. The CFT and LUH2 type follow LandInG's
+# `crop_types_FAOSTAT_LPJmL_default.csv`, the source `data-raw/cft_mapping.R`
+# names: "temperate roots" for 149, "Others, annual" for 420, 459 and 782,
+# "Others, perennial" for 161, 542, 591 and 809.
+testthat::test_that("the eight whep#1364 crops are mapped to a CFT", {
+  added <- whep::cft_mapping |>
+    dplyr::filter(
+      .data$item_prod_code %in%
+        c(149L, 161L, 420L, 459L, 542L, 591L, 782L, 809L)
+    ) |>
+    dplyr::arrange(.data$item_prod_code)
+
+  testthat::expect_equal(
+    added$item_prod_code,
+    c(149L, 161L, 420L, 459L, 542L, 591L, 782L, 809L)
+  )
+  testthat::expect_equal(
+    added$cft_lpjml,
+    c("temperate_roots", rep("others", 7L))
+  )
+  testthat::expect_equal(
+    added$luh2_type,
+    c("c3ann", "c3per", "c3ann", "c3ann", "c3per", "c3per", "c3ann", "c3per")
+  )
+})
+
+# Seven of the eight have an EarthStat layer of their own, and each must feed
+# the crop's own code: a mapped crop with no pattern is placed nowhere. The
+# names are Monfreda's, from the archive metadata
+# (METADATA_HarvestedAreaYield175Crops_June2018.pdf), and the codes agree with
+# `data-raw/mirca/crop_types_Monfreda_FAOSTAT_MIRCA.csv`. Four of them used to
+# feed another crop: greenbroadbean ("Leguminous vegetables, nes", FAO 420)
+# fed dry broad beans (181), abaca ("Manila Fibre", 809) fed other fibre crops
+# (821), chicory ("Chicory roots", 459) fed lettuce and chicory (372), and
+# jutelikefiber ("Other Bastfibres", 782) fed jute (780).
+testthat::test_that("each whep#1364 crop has its own EarthStat layer", {
+  path <- system.file("extdata", "earthstat_mapping.csv", package = "whep")
+  testthat::skip_if_not(nzchar(path) && file.exists(path))
+  crosswalk <- readr::read_csv(path, show_col_types = FALSE)
+
+  expected <- tibble::tribble(
+    ~earthstat_name, ~item_prod_code,
+    "abaca", 809L,
+    "cashewapple", 591L,
+    "chicory", 459L,
+    "greenbroadbean", 420L,
+    "jutelikefiber", 782L,
+    "rootnes", 149L,
+    "sugarnes", 161L
+  )
+  actual <- crosswalk |>
+    dplyr::filter(.data$earthstat_name %in% expected$earthstat_name) |>
+    dplyr::transmute(
+      .data$earthstat_name,
+      item_prod_code = as.integer(.data$item_prod_code)
+    ) |>
+    dplyr::arrange(.data$earthstat_name)
+
+  testthat::expect_equal(actual, expected)
+  # The layers they leave keep their own crop.
+  kept <- crosswalk |>
+    dplyr::filter(
+      .data$earthstat_name %in% c("broadbean", "fibrenes", "lettuce", "jute")
+    ) |>
+    dplyr::arrange(.data$earthstat_name) |>
+    dplyr::pull("item_prod_code")
+  testthat::expect_equal(as.integer(kept), c(181L, 821L, 780L, 372L))
 })

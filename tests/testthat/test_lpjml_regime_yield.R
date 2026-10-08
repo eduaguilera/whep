@@ -189,8 +189,8 @@ testthat::test_that("every crop-specific cft_mapping entry resolves to a band", 
   items <- whep:::.lrg_item_bands()
   mapped <- whep::cft_mapping[whep::cft_mapping$cft_lpjml != "others", ]
   # A renamed CFT in either table would silently drop its items; this pins
-  # that all 40 crop-specific items find a band, and "others" finds none.
-  testthat::expect_identical(nrow(items), 40L)
+  # that all 41 crop-specific items find a band, and "others" finds none.
+  testthat::expect_identical(nrow(items), 41L)
   testthat::expect_setequal(
     items$item_prod_code,
     as.integer(mapped$item_prod_code)
