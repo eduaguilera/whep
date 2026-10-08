@@ -227,7 +227,8 @@ figure stays reproducible.
 and \code{species_heads} (national head counts by live-animal item, with
 \code{year}, \code{area_code}, \code{item_cbs_code} and \code{value} or \code{heads}, optionally
 \code{polity_area_code} and \code{unit}; rows with a \code{unit} other than \code{"heads"}
-are ignored). \code{cell_climate} falls back to \code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}},
+are ignored, except \code{"t_head"} rows, which give the milk yield, see
+section "Milk yield"). \code{cell_climate} falls back to \code{\link[=build_cell_climate_zone]{build_cell_climate_zone()}},
 which reads CRU from \code{WHEP_CRU_DIR}. \code{species_heads} falls back to
 \code{\link[=get_primary_production]{get_primary_production()}}, the source the spatializer's country table
 is built from, and is read only when an aggregate group is present.
@@ -288,6 +289,17 @@ ratio between the two (\verb{divergence_*}). The global difference between the
 two grains is small while the per-country difference is not, so the
 per-country ratio is emitted per row rather than summarised away.
 }
+\section{Milk yield}{
+
+Tier 2 lactation energy (IPCC 2019 Eq 10.8) needs a milk yield per dairy
+cow. It is taken, in this order, from a \code{milk_yield_kg_day} column on
+\code{gridded_livestock}, or from the realised national yield of the \code{t_head}
+rows of \code{data$species_heads} (milk tonnes per head and year, converted to
+kilograms per day as \code{\link[=prepare_livestock_emissions]{prepare_livestock_emissions()}} does). A dairy row
+that neither supplies aborts: the yield is never filled with zero, which
+would book every dairy cow as giving no milk.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

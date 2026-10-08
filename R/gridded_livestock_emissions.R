@@ -113,7 +113,8 @@
 #'   and `species_heads` (national head counts by live-animal item, with
 #'   `year`, `area_code`, `item_cbs_code` and `value` or `heads`, optionally
 #'   `polity_area_code` and `unit`; rows with a `unit` other than `"heads"`
-#'   are ignored). `cell_climate` falls back to [build_cell_climate_zone()],
+#'   are ignored, except `"t_head"` rows, which give the milk yield, see
+#'   section "Milk yield"). `cell_climate` falls back to [build_cell_climate_zone()],
 #'   which reads CRU from `WHEP_CRU_DIR`. `species_heads` falls back to
 #'   [get_primary_production()], the source the spatializer's country table
 #'   is built from, and is read only when an aggregate group is present.
@@ -122,6 +123,15 @@
 #'   `"uniform_medium"`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
+#'
+#' @section Milk yield:
+#' Tier 2 lactation energy (IPCC 2019 Eq 10.8) needs a milk yield per dairy
+#' cow. It is taken, in this order, from a `milk_yield_kg_day` column on
+#' `gridded_livestock`, or from the realised national yield of the `t_head`
+#' rows of `data$species_heads` (milk tonnes per head and year, converted to
+#' kilograms per day as [prepare_livestock_emissions()] does). A dairy row
+#' that neither supplies aborts: the yield is never filled with zero, which
+#' would book every dairy cow as giving no milk.
 #'
 #' @return A tibble with one row per `year`, `area_code`, `lon`, `lat` and
 #'   `species`:
@@ -175,9 +185,14 @@ build_gridded_livestock_emissions <- function(
   # Validated here so an unknown option aborts before the climate join, not
   # minutes later inside the manure engine.
   .manure_options(options)
+  gridded_livestock <- .check_gridded_livestock(gridded_livestock)
+  species_heads <- data$species_heads
+  if (is.null(species_heads) && .needs_national_heads(gridded_livestock)) {
+    species_heads <- .read_species_heads(sort(unique(gridded_livestock$year)))
+  }
   herd <- gridded_livestock |>
-    .check_gridded_livestock() |>
-    .resolve_gridded_species(method_species, data$species_heads)
+    .resolve_gridded_species(method_species, species_heads) |>
+    .attach_milk_yield(species_heads)
   cells <- herd |>
     dplyr::filter(!is.na(species)) |>
     .join_cell_climate(data$cell_climate, method_climate_gap) |>
@@ -392,6 +407,76 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
 .read_species_heads <- function(years) {
   get_primary_production(years = years) |>
     tibble::as_tibble()
+}
+
+# Whether the national production table is needed: an aggregate group to split,
+# or a dairy herd whose milk yield the caller did not supply.
+.needs_national_heads <- function(cells) {
+  groups <- cells[["species_group"]]
+  species <- cells[["species"]]
+  has_milk <- rlang::has_name(cells, "milk_yield_kg_day")
+  aggregate <- !is.null(groups) &&
+    !rlang::has_name(cells, "species") &&
+    any(!groups %in% .gridded_species_map()$species_group)
+  dairy <- (!is.null(groups) && any(groups == "cattle_dairy")) ||
+    (!is.null(species) && any(.is_dairy(species)))
+  aggregate || (dairy && !has_milk)
+}
+
+# Give every dairy row the realised milk yield of its country and year, from the
+# `t_head` rows of the national production table (the derivation
+# `prepare_livestock_emissions()` uses). A caller-supplied `milk_yield_kg_day`
+# column is kept. A dairy row left without a yield aborts: the energy model
+# would coalesce it to zero, and a zero cannot be told from "these cows give no
+# milk" once it is downstream (whep#1439, AGENTS.md "Absent inputs must not
+# become zeros").
+.attach_milk_yield <- function(herd, species_heads) {
+  dairy <- !is.na(herd$species) & .is_dairy(herd$species)
+  if (rlang::has_name(herd, "milk_yield_kg_day")) {
+    return(.check_dairy_milk(herd, dairy))
+  }
+  yields <- .national_milk_yields(species_heads)
+  if (is.null(yields) || !any(dairy)) {
+    return(.check_dairy_milk(herd, dairy))
+  }
+  herd |>
+    dplyr::left_join(
+      yields,
+      by = intersect(c("year", "area_code", "item_cbs_code"), names(yields))
+    ) |>
+    .check_dairy_milk(dairy)
+}
+
+.national_milk_yields <- function(species_heads) {
+  if (is.null(species_heads) || !rlang::has_name(species_heads, "unit")) {
+    return(NULL)
+  }
+  rows <- tibble::as_tibble(species_heads)
+  yields <- .extract_production_yields(rows, animals_codes)
+  if (is.null(yields) || !rlang::has_name(yields, "milk_yield_kg_day")) {
+    return(NULL)
+  }
+  yields |>
+    dplyr::filter(!is.na(milk_yield_kg_day)) |>
+    dplyr::summarise(
+      milk_yield_kg_day = max(milk_yield_kg_day),
+      .by = dplyr::any_of(c("year", "area_code", "item_cbs_code"))
+    )
+}
+
+.check_dairy_milk <- function(herd, dairy) {
+  unresolved <- dairy & is.na(herd[["milk_yield_kg_day"]] %||% NA_real_)
+  if (any(unresolved)) {
+    cli::cli_abort(c(
+      "{sum(unresolved)} dairy gridded row{?s} {?has/have} no milk yield.",
+      i = "Tier 2 lactation energy would be zero for those cows, which
+           cannot be told from a measured zero yield.",
+      i = "Supply a {.field milk_yield_kg_day} column, or
+           {.code data$species_heads} with the {.val t_head} milk rows of
+           {.fun get_primary_production} for the same years and countries."
+    ))
+  }
+  herd
 }
 
 # Each member's share of its group's national herd, per year and country key.
@@ -766,10 +851,12 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
 # compared against.
 .national_livestock_input <- function(cells) {
   cells |>
+    ensure_columns(tibble::tibble(milk_yield_kg_day = double())) |>
     dplyr::summarise(
       # Weight before the herd is summed: `summarise()` evaluates in order, so
       # this line still sees the per-cell heads that the next line collapses.
       mean_annual_temp_c = stats::weighted.mean(mean_annual_temp_c, heads),
+      milk_yield_kg_day = .weighted_milk_yield(milk_yield_kg_day, heads),
       heads = sum(heads),
       .by = c(year, area_code, species, item_cbs_code)
     ) |>
@@ -778,6 +865,14 @@ livestock_emissions_to_kt <- function(data, tier = 2) {
       temperature_c = mean_annual_temp_c,
       method_climate_zone = "national_head_weighted_mean"
     )
+}
+
+# Head-weighted mean yield of a country's cells; absent when no cell has one.
+.weighted_milk_yield <- function(yield, heads) {
+  if (is.null(yield) || all(is.na(yield))) {
+    return(NA_real_)
+  }
+  stats::weighted.mean(yield, heads, na.rm = TRUE)
 }
 
 # The national run mirrors the cell run's diet source: a feed-based cell diet is
