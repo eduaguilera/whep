@@ -761,6 +761,71 @@ test_that(".collapse_cbs_ratio_rows aggregates duplicate ratio rows", {
   expect_equal(result$Multi_type, "Primary")
 })
 
+test_that(".collapse_cbs_ratio_rows keeps an all-missing tonnage missing", {
+  # `.impute_missing_values()` keys every imputation on `is.na(t)` and
+  # `is.na(fu)`. Summing with `na.rm = TRUE` turned a missing tonnage into 0,
+  # so the imputation never ran and the row was dropped as `t2 == 0`
+  # (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t,  ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~prod_cbs_count, ~sumprod_cbs_ratio, ~source,        ~Multi_type,
+    2010L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA,  4,   NA,       2,          20,     NA,              1,               NA,                 "FAOSTAT_prod", NA_character_,
+    2010L, "Spain", 203L,       "Barley",   44L,             "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", 6,   NA,  NA,       2,          20,     0.3,             1,               0.3,                "FAOSTAT_prod", NA_character_,
+    2010L, "Spain", 203L,       "Barley",   44L,             "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", 4,   NA,  NA,       2,          20,     0.2,             1,               0.2,                "FAOSTAT_prod", NA_character_
+  )
+
+  result <- whep:::.collapse_cbs_ratio_rows(df)
+  wheat <- result |> dplyr::filter(item_prod_code == 15L)
+  barley <- result |> dplyr::filter(item_prod_code == 44L)
+
+  expect_true(is.na(wheat$t))
+  expect_equal(wheat$fu, 4)
+  expect_equal(barley$t, 10)
+  expect_true(is.na(barley$fu))
+})
+
+test_that("a crop with hectares but no tonnage is imputed, not dropped", {
+  # Reported hectares and tonnage in 2010 and 2012, hectares only in 2011.
+  # The 2011 tonnage is WHEP's estimate (fu * interpolated yield), so it must
+  # neither be dropped nor keep the `FAOSTAT_prod` label its hectares carried
+  # (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t,  ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source,        ~Multi_type,   ~source_yield_c,
+    2010L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", 20,  10,  2,        2,          20,     "FAOSTAT_prod", NA_character_, "Original",
+    2011L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA,  10,  3,        3,          30,     "FAOSTAT_prod", NA_character_, "Original",
+    2012L, "Spain", 203L,       "Wheat",    15L,             "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", 40,  10,  4,        4,          40,     "FAOSTAT_prod", NA_character_, "Original"
+  )
+
+  result <- df |>
+    whep:::.compute_cbs_ratios() |>
+    whep:::.impute_missing_values() |>
+    tibble::as_tibble()
+  imputed <- result |> dplyr::filter(year == 2011L)
+
+  expect_equal(sort(result$year), c(2010L, 2011L, 2012L))
+  expect_equal(imputed$t2, 30)
+  expect_equal(imputed$fu2, 10)
+  expect_equal(imputed$source, "imputed_yield")
+  expect_equal(
+    result |> dplyr::filter(year != 2011L) |> dplyr::pull(source),
+    c("FAOSTAT_prod", "FAOSTAT_prod")
+  )
+})
+
+test_that(".impute_missing_values keeps a reconstruction source", {
+  # Only the `FAOSTAT_prod` claim is false on an imputed tonnage; a
+  # reconstruction label already says the row is WHEP's own (whep#1436).
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,  ~group,          ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~sumprod_cbs_ratio, ~source,        ~Multi_type,   ~source_yield_c,
+    2011L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "t_ha", "Primary crops", NA, 10,  3,        3,          30,     1,               1,                  "EuropeAgriDB", NA_character_, "Original",
+    2011L, "Spain", 203L,       "Barley",   "44",            "Barley and products", 2513L,         NA_character_, NA_character_,   "t_ha", "Primary crops", NA, 10,  3,        3,          30,     1,               1,                  "FAOSTAT_prod", NA_character_, "Original"
+  )
+
+  result <- whep:::.impute_missing_values(df)
+
+  expect_equal(result$t2, c(30, 30))
+  expect_equal(result$source, c("EuropeAgriDB", "imputed_yield"))
+})
+
 test_that(".compute_cbs_ratios handles duplicate year rows without warning", {
   df <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~group, ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source, ~Multi_type,
@@ -2080,7 +2145,9 @@ test_that(".assemble_production_raw renames the live-animal units", {
     3, 9, 3,
     # A crop row the livestock filter must not pick up.
     2010L, "Spain", 203L, "Wheat", "15", NA, NA, "t_ha", "FAO", 10, 20, 2
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(.assemble_production_raw(yield_all))
   live <- result |>
@@ -2098,6 +2165,44 @@ test_that(".assemble_production_raw renames the live-animal units", {
   )
 })
 
+
+test_that("a stock takes its source from a product with reported tonnage", {
+  # Cattle meat's tonnage is missing and was imputed; milk's was reported.
+  # Only milk speaks for the stock: the imputed row must neither lend it the
+  # imputation's label because it sorts first nor pull its count into the
+  # mean -- its `fu` can be another area label's copy of the herd
+  # (whep#1436).
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~t, ~fu2, ~t2, ~yield,
+    2010L, "Spain", 203L, "Meat, cattle", "867", "Cattle", "866", "t_LU",
+    "imputed_yield", NA, 9, 10, 2,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU",
+    "FAOSTAT_prod", 15, 5, 15, 3
+  )
+
+  result <- suppressMessages(.assemble_production_raw(yield_all))
+  stock <- result |> dplyr::filter(unit == "LU")
+
+  expect_equal(stock$value, 5)
+  expect_equal(stock$source, "FAOSTAT_prod")
+})
+
+test_that(".assemble_production_raw refuses a frame with no reported tonnage", {
+  # Without `t` there is no telling a reported product from an imputed one,
+  # and `t` would silently resolve to `base::t()`.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU",
+    "FAOSTAT_prod", 5, 15, 3
+  )
+
+  expect_error(
+    suppressMessages(whep:::.assemble_production_raw(yield_all)),
+    "reported tonnage"
+  )
+})
 
 # -- calculate_raw_yields source provenance ------------------------------------
 
@@ -2323,7 +2428,9 @@ test_that(".assemble_production_raw sends each flag to its own unit", {
   yield_all <- tibble::tribble(
     ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~live_anim,    ~live_anim_code, ~unit,  ~source,        ~fu2, ~t2, ~yield, ~flag_fu, ~flag_t,
     2019L, "Spain", 203L,       "Wheat",    "15",            NA_character_, NA_character_,   "t_ha", "FAOSTAT_prod", 1e6,  5e6, 5,      "A",      "E"
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
   flag_of <- function(u) {
@@ -2470,7 +2577,9 @@ test_that(".assemble_production_raw keeps a stock with no product tonnage", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   # The same layers stock, plus an asses stock no product row can carry.
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
@@ -2508,7 +2617,9 @@ test_that(".assemble_production_raw restores no aggregate live-animal code", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2535,7 +2646,9 @@ test_that(".assemble_production_raw reports a stock it cannot name", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2563,7 +2676,9 @@ test_that("breeding swine reach production now that 1051 is named", {
     ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
     2020L, "Spain", 203L, "Eggs", "1062", "Chickens, layers", "1052",
     "t_head", "FAOSTAT_prod", 3, 9, 3
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
   stocks <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
     ~source,
@@ -2694,7 +2809,9 @@ test_that("flax fibre 771 reaches assembled production with a CBS item", {
     2010L, "France", 68L, "Flax, raw or retted", "771", NA_character_,
     NA_character_,
     "t_ha", "FAOSTAT_prod", NA, 50, NA
-  )
+  ) |>
+    # The tonnage was reported, so the imputed `t2` is the reported `t`.
+    dplyr::mutate(t = t2)
 
   result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
 

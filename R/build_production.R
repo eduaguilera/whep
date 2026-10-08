@@ -2452,7 +2452,15 @@ build_primary_production <- function(
     data.table::setDT(df)
   }
 
-  df[, .tcbs_ok := as.double(!is.na(t_cbs))]
+  # `t` and `fu` keep a missing value missing, as in `.collapse_yield_rows()`:
+  # `.impute_missing_values()` keys every imputation on `is.na(t)` and
+  # `is.na(fu)`, so a bare `sum(na.rm = TRUE)` turning an all-NA group into 0
+  # disabled it and dropped the row as `t2 == 0` (whep#1436).
+  df[, `:=`(
+    .t_ok = as.double(!is.na(t)),
+    .fu_ok = as.double(!is.na(fu)),
+    .tcbs_ok = as.double(!is.na(t_cbs))
+  )]
 
   by_cols <- c(
     "year",
@@ -2472,7 +2480,9 @@ build_primary_production <- function(
   out <- df[,
     .(
       t = sum(t, na.rm = TRUE),
+      .t_n = sum(.t_ok),
       fu = sum(fu, na.rm = TRUE),
+      .fu_n = sum(.fu_ok),
       yield_c = mean(yield_c, na.rm = TRUE),
       yield_glo = mean(yield_glo, na.rm = TRUE),
       t_cbs = sum(t_cbs, na.rm = TRUE),
@@ -2484,12 +2494,14 @@ build_primary_production <- function(
     keyby = by_cols
   ]
 
+  out[.t_n == 0, t := NA_real_]
+  out[.fu_n == 0, fu := NA_real_]
   out[.tcbs_n == 0, t_cbs := NA_real_]
   out[is.nan(yield_c), yield_c := NA_real_]
   out[is.nan(yield_glo), yield_glo := NA_real_]
   out[is.nan(prod_cbs_ratio), prod_cbs_ratio := NA_real_]
   out[is.nan(sumprod_cbs_ratio), sumprod_cbs_ratio := NA_real_]
-  out[, .tcbs_n := NULL]
+  out[, c(".t_n", ".fu_n", ".tcbs_n") := NULL]
 
   # Character columns: vectorised first-non-NA via unique()
   chars <- .first_non_na_chars(
@@ -2504,7 +2516,7 @@ build_primary_production <- function(
 
   out <- out[chars]
   out <- .add_folded_fao_flags(out, df, by_cols, c("flag_t", "flag_fu"))
-  df[, .tcbs_ok := NULL]
+  df[, c(".t_ok", ".fu_ok", ".tcbs_ok") := NULL]
   out
 }
 
@@ -2534,8 +2546,14 @@ build_primary_production <- function(
         t2 / yield,
         fu
       ),
+      # `source` is resolved per key, so on a row whose tonnage is imputed
+      # here it arrives from the hectarage. A `FAOSTAT_prod` label would then
+      # credit WHEP's estimate to FAOSTAT (whep#1436), so it yields to the
+      # imputation label. Reconstruction labels (`EuropeAgriDB`, the
+      # `DM_yield_estimate*` family) already say the row is WHEP's own and
+      # stay as they are.
       source = dplyr::case_when(
-        !is.na(source) ~ source,
+        !is.na(source) & (!is.na(t) | source != "FAOSTAT_prod") ~ source,
         !is.na(t) ~ "FAOSTAT_prod",
         !is.na(fu * yield) &
           !is.na(source_yield_c) &
@@ -2585,6 +2603,11 @@ build_primary_production <- function(
   yield_all <- yield_all |>
     .ensure_fao_flag("flag_t") |>
     .ensure_fao_flag("flag_fu")
+  if (!rlang::has_name(yield_all, "t")) {
+    cli::cli_abort(
+      "{.arg yield_all} must carry the reported tonnage column {.field t}."
+    )
+  }
 
   # Each output row takes the flag of the quantity it is: the `ha` row gets
   # "Area harvested"'s flag, the `t` row gets "Production"'s. The yield rows get
@@ -2645,8 +2668,15 @@ build_primary_production <- function(
   # No flag: the stock these rows report is `.finalise_livestock()`'s LU/head
   # conversion averaged over every product of the animal, so it is not a figure
   # FAOSTAT published for any one of them.
+  #
+  # Only products whose tonnage was reported speak for the stock. A product
+  # whose tonnage `.impute_missing_values()` filled carries the imputation's
+  # label, which says nothing about the head count, and its `fu` can be another
+  # label's copy of the herd (whep#1436). An animal with no reported product
+  # tonnage at all is `.restore_unproduced_stocks()`'s case, read from the
+  # stocks themselves.
   live_anim_df <- yield_all |>
-    dplyr::filter(unit %in% c("t_LU", "t_head")) |>
+    dplyr::filter(unit %in% c("t_LU", "t_head"), !is.na(t)) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
       source = source[1L],
