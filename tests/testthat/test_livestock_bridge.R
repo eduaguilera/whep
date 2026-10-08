@@ -258,3 +258,123 @@ testthat::test_that("weight gain is NA for a species without fattening params", 
     is.na(result$weight_gain_kg_day[result$item_cbs_code == 1057L])
   )
 })
+
+# whep#1472: sheep, goats and buffalo are designated to their meat (or to no
+# product), so their milk `t_head` rows used to be dropped and every milking
+# ewe, doe and buffalo cow reached the energy balance with no lactation energy.
+.milked_species_fixture <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
+    ~live_anim_code, ~item_prod_code,
+    976L,  "heads",  1000,   2020L, 4L, NA_character_, "976",
+    976L,  "t_head", 0.12,   2020L, 4L, "976",         "982",
+    976L,  "t_head", 0.015,  2020L, 4L, "976",         "977",
+    1016L, "heads",  2000,   2020L, 4L, NA_character_, "1016",
+    1016L, "t_head", 0.06,   2020L, 4L, "1016",        "1020",
+    946L,  "heads",  500,    2020L, 4L, NA_character_, "946",
+    946L,  "t_head", 0.8,    2020L, 4L, "946",         "951",
+    946L,  "t_head", 0.05,   2020L, 4L, "946",         "947"
+  )
+}
+
+test_that("sheep, goat and buffalo milk yields are read (whep#1472)", {
+  result <- prepare_livestock_emissions(.milked_species_fixture())
+
+  expect_equal(nrow(result), 3L)
+  milk <- rlang::set_names(result$milk_yield_kg_day, result$item_cbs_code)
+  expect_equal(
+    unname(milk[c("976", "1016", "946")]),
+    c(0.12, 0.06, 0.8) * 1000 / 365
+  )
+  # Sheep keep the realised gain of their designated meat.
+  expect_equal(
+    result$weight_gain_kg_day[result$item_cbs_code == 976L],
+    (0.015 * 1000 / 0.45 - 4) / 365
+  )
+  # Buffalo have no designated product; their meat now gives a realised gain.
+  expect_equal(
+    result$weight_gain_kg_day[result$item_cbs_code == 946L],
+    (0.05 * 1000 / 0.55 - 40) / 547.5
+  )
+  expect_equal(unique(result$method_milk_yield), "reported_whole_herd")
+})
+
+test_that("reported milk goes to the milked cohort and is conserved", {
+  result <- prepare_livestock_emissions(
+    .milked_species_fixture(),
+    expand_cohorts = TRUE
+  )
+  milked <- result$system %in% "Dairy" & result$cohort %in% "Adult Female"
+
+  # Only milking ewes, does and buffalo cows carry milk.
+  expect_true(all(result$milk_yield_kg_day[milked] > 0))
+  expect_true(all(result$milk_yield_kg_day[!milked] == 0))
+  expect_equal(
+    unique(result$method_milk_yield[milked]),
+    "reported_milked_cohort"
+  )
+  # The milk the cohorts carry is the milk FAOSTAT reports, per species.
+  carried <- result |>
+    dplyr::summarise(
+      milk_t = sum(cohort_heads * milk_yield_kg_day) * 365 / 1000,
+      .by = item_cbs_code
+    ) |>
+    dplyr::arrange(item_cbs_code)
+  expect_equal(carried$item_cbs_code, c(946L, 976L, 1016L))
+  expect_equal(carried$milk_t, c(500 * 0.8, 1000 * 0.12, 2000 * 0.06))
+})
+
+test_that("the milking cohorts reach the energy balance with lactation", {
+  energy <- .milked_species_fixture() |>
+    dplyr::mutate(diet_quality = "Medium") |>
+    prepare_livestock_emissions(expand_cohorts = TRUE) |>
+    estimate_energy_demand()
+  milked <- energy$system %in% "Dairy" & energy$cohort %in% "Adult Female"
+
+  expect_true(all(energy$ne_lactation[milked] > 0))
+  expect_true(all(energy$ne_lactation[!milked] == 0))
+})
+
+test_that("reported milk with no milked cohort to carry it aborts", {
+  shares <- tibble::tribble(
+    ~species_gen, ~system, ~system_share,
+    "Sheep",      "Meat",  1
+  )
+  sheep <- .milked_species_fixture() |>
+    dplyr::filter(item_cbs_code == 976L)
+  expect_error(
+    prepare_livestock_emissions(
+      sheep,
+      expand_cohorts = TRUE,
+      system_shares = shares
+    ),
+    class = "whep_milk_without_milked_cohort"
+  )
+})
+
+test_that("a species with no cohorts keeps its whole-herd milk yield", {
+  camels <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
+    ~live_anim_code, ~item_prod_code,
+    1126L, "heads",  100,  2020L, 4L, NA_character_, "1126",
+    1126L, "t_head", 0.4,  2020L, 4L, "1126",        "1130"
+  )
+  result <- prepare_livestock_emissions(camels, expand_cohorts = TRUE)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$milk_yield_kg_day, 0.4 * 1000 / 365)
+  expect_equal(result$method_milk_yield, "reported_whole_herd")
+})
+
+test_that("without product codes only the designated product is tagged", {
+  # A t_head row with no item_prod_code cannot say whether it is milk or meat,
+  # so the co-products added for whep#1472 must not fan it out.
+  data <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code, ~live_anim_code,
+    976L,           "heads",  1000,   2020L, 4L,         NA_character_,
+    976L,           "t_head", 0.015,  2020L, 4L,         "976"
+  )
+  result <- prepare_livestock_emissions(data)
+  expect_equal(nrow(result), 1L)
+  expect_false(rlang::has_name(result, "milk_yield_kg_day"))
+})
