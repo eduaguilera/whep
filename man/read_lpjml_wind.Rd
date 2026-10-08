@@ -14,7 +14,9 @@ base; the span is whatever the resolved file holds, not a fixed range).}
 \item{wind_dir}{Path to the directory holding a
 \verb{wind_gswp3-w5e5_<span>_monthly.nc}. The span in that filename is
 resolved against the directory rather than assumed, so an extended base
-reads without a code change. Defaults to \code{Sys.getenv("WHEP_WIND_DIR")}.}
+reads without a code change. Defaults to \code{Sys.getenv("WHEP_WIND_DIR")};
+when that is also unset, the registered \code{lpjml-wind-isimip-1901-2019}
+pin is read via \code{\link[=whep_read_file]{whep_read_file()}}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}

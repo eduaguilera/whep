@@ -187,3 +187,33 @@ testthat::test_that("reads the real GSWP3-W5E5 wind forcing file", {
   testthat::expect_true(all(result$windspeed_ms >= 0))
   testthat::expect_true(all(result$windspeed_ms <= 20))
 })
+
+testthat::test_that("with no directory set the registered pin is read", {
+  cube <- .lpjml_wind_fixture_cube()
+  asked <- NULL
+  withr::local_envvar(WHEP_WIND_DIR = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, type = "parquet", ...) {
+      asked <<- c(file_alias, type)
+      file.path(cube$dir, list.files(cube$dir, pattern = "\\.nc$"))
+    }
+  )
+
+  result <- whep::read_lpjml_wind(years = 1902L)
+
+  testthat::expect_identical(asked, c("lpjml-wind-isimip-1901-2019", "nc"))
+  testthat::expect_setequal(result$year, 1902L)
+  testthat::expect_gt(nrow(result), 0)
+})
+
+testthat::test_that("an explicit directory bypasses the pin", {
+  cube <- .lpjml_wind_fixture_cube()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) stop("pin must not be read")
+  )
+
+  testthat::expect_gt(
+    nrow(whep::read_lpjml_wind(years = 1902L, wind_dir = cube$dir)),
+    0
+  )
+})

@@ -31,8 +31,9 @@
 #   see issue #371). the fetch_isimip_wind.sh script under inst/scripts rebuilds the series from
 #   those files and validation/lpjml_wind_provenance.R audits the pin against
 #   them; run_lpjml.R declares the same unit as input.wind.unit = "m/s".
-# - Local dev data dir is read from Sys.getenv("WHEP_WIND_DIR"); never
-#   hardcode an absolute path in committed code.
+# - Local override dir is read from Sys.getenv("WHEP_WIND_DIR"); with none set
+#   the `lpjml-wind-isimip-1901-2019` pin is used. Never hardcode an absolute
+#   path in committed code.
 
 #' Read gridded LPJmL-forcing windspeed onto WHEP's grid.
 #'
@@ -57,7 +58,9 @@
 #' @param wind_dir Path to the directory holding a
 #'   `wind_gswp3-w5e5_<span>_monthly.nc`. The span in that filename is
 #'   resolved against the directory rather than assumed, so an extended base
-#'   reads without a code change. Defaults to `Sys.getenv("WHEP_WIND_DIR")`.
+#'   reads without a code change. Defaults to `Sys.getenv("WHEP_WIND_DIR")`;
+#'   when that is also unset, the registered `lpjml-wind-isimip-1901-2019`
+#'   pin is read via [whep_read_file()].
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `year`, `month`, `windspeed_ms`.
@@ -70,22 +73,21 @@ read_lpjml_wind <- function(years = NULL, wind_dir = NULL, example = FALSE) {
     return(.example_lpjml_wind())
   }
   rlang::check_installed("ncdf4")
-  .read_wind_nc(.wind_file(.resolve_wind_dir(wind_dir)), years)
+  .read_wind_nc(.wind_path(wind_dir), years)
 }
 
 # ---- Private helpers --------------------------------------------------
 
-# Resolve the wind forcing data directory from the argument, else the env
-# var.
-.resolve_wind_dir <- function(wind_dir) {
+# Path of the wind NetCDF. An explicit `wind_dir` or WHEP_WIND_DIR (a local
+# override) wins; with neither, read the registered
+# `lpjml-wind-isimip-1901-2019` pin, so the driver is obtainable without
+# env-var setup (issue #1078).
+.wind_path <- function(wind_dir) {
   resolved <- wind_dir %||% Sys.getenv("WHEP_WIND_DIR")
-  if (!.has_path(resolved)) {
-    cli::cli_abort(c(
-      "No LPJmL wind forcing directory available.",
-      i = "Pass {.arg wind_dir} or set {.envvar WHEP_WIND_DIR}."
-    ))
+  if (.has_path(resolved)) {
+    return(.wind_file(resolved))
   }
-  resolved
+  whep_read_file("lpjml-wind-isimip-1901-2019", type = "nc")
 }
 
 # On-disk path of the consolidated monthly wind base, resolved from what the
