@@ -623,7 +623,10 @@ test_that("every year-free territorial grouping is classified", {
   # 142 with whep#1121, on top of whep#588's 140: the deposition correction
   # counts and averages each country's reference years (`year_axis`).
   # Re-derived by running the audit on the merged tree.
-  expect_lte(sum(full$n), 142L)
+  # 143 with whep#1351, on top of whep#1121's 142: `.flax_fibre_values()` takes
+  # a straw-basis country's median fibre ratio over its overlap years
+  # (`year_axis`). Re-derived by running the audit on the merged tree.
+  expect_lte(sum(full$n), 143L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

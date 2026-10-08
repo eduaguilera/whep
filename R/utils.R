@@ -2681,6 +2681,10 @@ utils::globalVariables(
     # silk_mass_basis.R (whep#1281) -- FAO's own residual of a cocoon row,
     # which confirms a duplicated use
     "residual",
+    # R/build_production.R, flax fibre basis (whep#1351)
+    "ElementCode",
+    "fibre_t",
+    "fibre_ratio",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
