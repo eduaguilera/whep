@@ -423,7 +423,13 @@ read_population <- function(
 .pop_overlap_pairs <- function(filled) {
   live <- filled |>
     dplyr::filter(!is.na(.data$reporting_polity_code)) |>
-    dplyr::distinct(.data$year, .data$area_code, .data$reporting_polity_code)
+    dplyr::distinct(.data$year, .data$area_code, .data$reporting_polity_code) |>
+    dplyr::mutate(
+      reporting_polity_code = .routed_part_container(
+        .data$reporting_polity_code,
+        .data$year
+      )
+    )
   descendants <- .polity_descendant_map(live$reporting_polity_code)
   edges <- tibble::tibble(
     reporting_polity_code = rep(names(descendants), lengths(descendants)),

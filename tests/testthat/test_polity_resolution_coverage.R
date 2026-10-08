@@ -136,7 +136,12 @@ testthat::test_that("an absent polity is one no reporting area names", {
   # slice of a normal phenomenon rather than a class of their own. It was 8
   # until whep#860 gave `F206-2011-2025` a row keyed on the aggregation bucket.
   testthat::expect_gt(nrow(absent), 100L)
-  testthat::expect_equal(sum(absent$polity_type == "aggregate"), 7L)
+  #
+  # 7 -> 21 with the whep-polities d45990a3 re-sync (#1306): upstream minted
+  # fourteen more combined reporting units for the pre-FAOSTAT label sources
+  # (the Cameroons, French North Africa, Gilbert and Ellice, ...). None is a
+  # FAOSTAT area, so none has a crosswalk row to be absent from.
+  testthat::expect_equal(sum(absent$polity_type == "aggregate"), 21L)
 
   # The invariant that makes absence structural: no absent AGGREGATE carries a
   # prefix that any reporting area carries, so the row space has no slot to put
@@ -161,14 +166,30 @@ testthat::test_that("absent aggregates are label-reachable but for two", {
   # Five resolve by the LABEL route instead of by an area code, which is the
   # route a pre-FAOSTAT combined reporting unit is supposed to take: it never
   # had an area code to be absent from.
+  # Nineteen since the whep-polities d45990a3 re-sync (#1306), which brought
+  # the labels for fourteen new combined units and one for `CODRU-1922-1960`.
   testthat::expect_setequal(
     aggregates$polity_code[reachable],
     c(
       "AOI-1936-1941",
+      "BFCM-1920-1960",
+      "CHT-1949-1950",
+      "CHT-1950-2025",
+      "CODRU-1922-1960",
+      "FNA-1912-1956",
       "GCT-1919-1956",
+      "GEI-1892-1916",
+      "GEI-1916-1976",
+      "KORP-1948-1953",
       "MASG-1946-1963",
+      "NGBC-1916-1960",
+      "NZI-1926-1965",
       "PAPNG-1920-1949",
-      "SYL-1944-1953"
+      "SJM-1930-2025",
+      "SSM-1914-1945",
+      "SYL-1920-1944",
+      "SYL-1944-1953",
+      "USA-FLLA-1845-2025"
     )
   )
 
@@ -183,9 +204,13 @@ testthat::test_that("absent aggregates are label-reachable but for two", {
   # by keying a crosswalk row on `polity_area_code` 206 -- so it is now absent
   # from THIS list because it is present in the crosswalk, which is what the
   # test below asserts rather than leaves implied.
+  #
+  # `CODRU-1922-1960` left this pair with the whep-polities d45990a3 re-sync
+  # (#1306), which gave it a label, and `PRT-CON-1800-2025` "Mainland
+  # Portugal" took its place: a statistical aggregate no label names yet.
   testthat::expect_setequal(
     aggregates$polity_code[!reachable],
-    c("CODRU-1922-1960", "EGYSUD-1934-1956")
+    c("EGYSUD-1934-1956", "PRT-CON-1800-2025")
   )
   testthat::expect_true(
     "F206-2011-2025" %in% whep::polity_area_crosswalk$polity_code

@@ -206,16 +206,21 @@ test_that("a period does not answer for its exclusive end year", {
   # -- but the resolver used to join on `>= year`, so a period answered for one
   # year past its end and the row still read "matched"/"manual" (#550). Three
   # FAOSTAT areas landed that way in a state that had already dissolved.
+  #
+  # Serbia and Montenegro (186) left this list with the whep-polities d45990a3
+  # re-sync (#1306): from 1999 it maps to `SCG-XK-1999-2006`, which upstream
+  # publishes with no successor, so it reads as open and covers its end year.
+  # FAOSTAT reports nothing under 186 after 2005, so no value rests on it.
   dissolved <- tibble::tibble(
-    area_code = c(51L, 186L, 248L),
-    year = c(1993L, 2006L, 1992L)
+    area_code = c(51L, 248L),
+    year = c(1993L, 1992L)
   ) |>
     add_polity_code()
 
   expect_equal(dissolved$year, dissolved$polity_end_year)
   expect_equal(
     dissolved$mapping_status,
-    rep("out_of_span", 3L)
+    rep("out_of_span", 2L)
   )
 
   # The successor owns the hand-over year: 1993 is Czechia's and Slovakia's,
@@ -317,9 +322,10 @@ test_that("a still-open period covers its terminal year, a succeeded one does no
     add_polity_code()
   expect_true(all(now$mapping_status == "matched"))
 
+  # Serbia and Montenegro is out for the reason given in the test above.
   handover <- tibble::tibble(
-    area_code = c(51L, 248L, 186L),
-    year = c(1993L, 1992L, 2006L)
+    area_code = c(51L, 248L),
+    year = c(1993L, 1992L)
   ) |>
     add_polity_code()
   expect_true(all(handover$mapping_status == "out_of_span"))
@@ -1545,7 +1551,13 @@ testthat::test_that(".successor_code_reuse censuses the lossy partitions", {
     census$polity_code,
     c(
       "BCM-1916-1961",
-      "DEU-1920-1938",
+      # Five arrived and `DEU-1920-1938` left with the whep-polities d45990a3
+      # re-sync (#1306): upstream re-cut the Chinese, Colombian, German and
+      # Rhodesian successions.
+      "CHN-1914-1921",
+      "COL-1800-1830",
+      "COL-1830-1903",
+      "DEU-1871-1919",
       "F248-1920-1991",
       "F248-1947-1991",
       "KOR-1945-1948",
@@ -1557,7 +1569,8 @@ testthat::test_that(".successor_code_reuse censuses the lossy partitions", {
       "PAK-1949-1971",
       "SGP-1946-1963",
       "SRB-2006-2008",
-      "SUD-1956-2011"
+      "SUD-1956-2011",
+      "ZWE-1900-1953"
     )
   )
   serbia <- dplyr::filter(census, .data$polity_code == "SRB-2006-2008")

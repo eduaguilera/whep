@@ -872,8 +872,8 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
 .rs_depth_support <- function() {
   tibble::tribble(
     ~polycell_id, ~cell_id, ~lon,   ~lat,  ~polity_code,
-    "AICHI@1",          1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
-    "GIFU@2",           2L, 137.75, 35.25, "JPN-GIFU-1871-2025"
+    "AICHI@1",          1L, 137.25, 35.25, "JPN-23-1871-2025",
+    "GIFU@2",           2L, 137.75, 35.25, "JPN-21-1871-2025"
   ) |>
     dplyr::mutate(
       area_code = 110L,
@@ -1018,7 +1018,7 @@ testthat::test_that("a depth run allocates on admin shares, not the pattern", {
   ))
   testthat::expect_setequal(
     crops$level_polity_code,
-    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
+    c("JPN-23-1871-2025", "JPN-21-1871-2025")
   )
   placed <- crops |>
     dplyr::summarise(

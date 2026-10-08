@@ -226,8 +226,12 @@
     on = .(area_code, next_start > map_year_end),
     .(row = i.row, handover = x.next_start),
     nomatch = NULL
-  ][, .(handover = min(handover)), by = "row"]
+  ]
   out <- rep(Inf, length(area_code))
+  if (nrow(found) == 0L) {
+    return(out)
+  }
+  found <- found[, .(handover = min(handover)), by = "row"]
   out[found$row] <- found$handover
   out
 }
@@ -2201,7 +2205,7 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' - **`back_cast`: whether to accept reconstructions.** An alias whose
 #'   `disposition` is `"back_cast"` routes years a source reconstructs onto a
 #'   boundary that did not exist yet to the modern polity, which may begin
-#'   after those years by design (`BRA-TOCANTINS-1988-2025` receives the
+#'   after those years by design (`BRA-TO-1988-2025` receives the
 #'   panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops those
 #'   aliases, for a caller that wants observation only.
 #' - **`indicator`: aliases split per indicator.** One panel unit id can name
@@ -3033,6 +3037,51 @@ resolve_polity_label <- function(
     return(character(0))
   }
   sort(setdiff(part_iso3, code))
+}
+
+# The polity a FAOSTAT-routed part stands for in the succession relation, in
+# the given year; every other code is returned unchanged.
+#
+# whep-polities d45990a3 routes some FAOSTAT areas to a part of their country
+# (`map_match_route == "manual-territory"`): Serbia without Kosovo
+# `SRB-XK-2006-2008`, West Pakistan `PAK-WP-1949-1971`, the Israeli statistics
+# area `ISR-RA-1967-2025`, and others. Upstream publishes those parts with no
+# successor or predecessor, so a walk over `successor` cannot see that Serbia's
+# 1970 back-cast row lies inside the Yugoslav SFR. The containment edge does
+# say which polity each part sits inside, and in which years, so the part
+# takes that container's place in the lineage (#1306).
+.routed_part_container <- function(polity_codes, years) {
+  routed <- polity_area_crosswalk$polity_code[
+    polity_area_crosswalk$map_match_route %in% "manual-territory"
+  ]
+  edges <- tibble::as_tibble(polity_containment) |>
+    dplyr::filter(.data$member_code %in% routed) |>
+    dplyr::select("member_code", "container_code", "start_year", "end_year")
+  # A back-cast year lies outside every edge of the part (Serbia's 1970 row on
+  # `SRB-XK-2006-2008`), so the nearest edge in time answers, the same
+  # nearest-period reading `add_polity_code()` gives that row.
+  hit <- tibble::tibble(
+    row = seq_along(polity_codes),
+    member_code = polity_codes,
+    year = as.integer(years)
+  ) |>
+    dplyr::inner_join(
+      edges,
+      by = "member_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      distance = pmax(
+        .data$start_year - .data$year,
+        .data$year - (.data$end_year - 1L),
+        0L
+      )
+    ) |>
+    dplyr::arrange(.data$row, .data$distance, .data$start_year) |>
+    dplyr::distinct(.data$row, .keep_all = TRUE)
+  out <- polity_codes
+  out[hit$row] <- hit$container_code
+  out
 }
 
 .polity_successor_edges <- function() {

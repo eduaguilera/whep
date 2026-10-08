@@ -92,9 +92,11 @@ test_that("a source-scoped alias never applies to another source", {
     resolve_polity_label("burundi", source = "iia", year = 1920L),
     "RWB-1919-1922"
   )
+  # And the whep-polities d45990a3 re-sync (#1306) pointed it back at the joint
+  # territory, so the 1930 IIA answer is the scoped one again.
   expect_equal(
     resolve_polity_label("burundi", source = "iia", year = 1930L),
-    "BDI-1922-1962"
+    "RWB-1922-1962"
   )
   expect_equal(
     resolve_polity_label("burundi", source = "faostat", year = 2000L),
@@ -109,8 +111,10 @@ test_that("a source-scoped alias never applies to another source", {
   # the IIA rule that speaks about 1930 now names the same family, so the
   # agreement check lets it through; before the re-sync that rule named RWB,
   # disagreed with the name, and sent the label back to NA.
+  # With the IIA rule naming RWB again since d45990a3, 1930 is back to that
+  # disagreement, and so to NA.
   expect_true(is.na(resolve_polity_label("burundi", year = 1920L)))
-  expect_equal(resolve_polity_label("burundi", year = 1930L), "BDI-1922-1962")
+  expect_true(is.na(resolve_polity_label("burundi", year = 1930L)))
 })
 
 test_that("a missing year bound is unbounded on that side, not unscoped", {
@@ -482,19 +486,19 @@ testthat::test_that("an ISO3 shared by a state and its provinces resolves to the
 
 testthat::test_that(".drop_contained_candidates() only drops members of a present container", {
   cand <- data.frame(
-    polity_code = c("JPN-1952-2025", "JPN-AICHI-1871-2025"),
+    polity_code = c("JPN-1952-2025", "JPN-23-1871-2025"),
     stringsAsFactors = FALSE
   )
   out <- whep:::.drop_contained_candidates(cand, 2010L)
   testthat::expect_equal(out$polity_code, "JPN-1952-2025")
   # The container absent: the member keeps its claim.
   alone <- data.frame(
-    polity_code = "JPN-AICHI-1871-2025",
+    polity_code = "JPN-23-1871-2025",
     stringsAsFactors = FALSE
   )
   testthat::expect_equal(
     whep:::.drop_contained_candidates(alone, 2010L)$polity_code,
-    "JPN-AICHI-1871-2025"
+    "JPN-23-1871-2025"
   )
   # Outside the edge's years the member is not contained by that container.
   out_early <- whep:::.drop_contained_candidates(cand, 1900L)
