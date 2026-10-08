@@ -248,7 +248,12 @@ crosswalk assigns to no country.</p></li>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_grassland_intensity_classes</span><span class="op">(</span><span class="va">years</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_grassland_intensity_classes</span><span class="op">(</span></span>
+<span>  <span class="va">years</span>,</span>
+<span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  cell_support <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"year_aware"</span>, <span class="st">"constant"</span><span class="op">)</span>,</span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -270,12 +275,24 @@ of the grassland surface.</p></li>
 Default: the parquet at <code>WHEP_GRIDDED_PASTURE_PATH</code> when set, else the
 <code>spatialize-gridded-pasture</code> pin.</p></li>
 <li><p><code>cell_polity</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>polity_frac</code>. Default: the
-<code>spatialize-cell-polity-fraction</code> pin (<code>WHEP_POLITY_FRACTION_PATH</code>
-overrides it).</p></li>
+support <code>cell_support</code> selects. An injected table replaces it and is
+stamped <code>"supplied"</code>.</p></li>
 <li><p><code>grassland_layers</code>: one row per IMAGE cell with <code>cell_id</code>, <code>lon</code>, <code>lat</code>,
 <code>a_crop_ha</code>, <code>a_gr_int_ha</code>, <code>a_gr_ext_ha</code>, <code>manure_int_n_kg</code>,
 <code>manure_ext_n_kg</code>, <code>image_class_2010</code> and <code>image_region</code>. Default: the
 critical-nitrogen archive, resolved as <code><a href="read_critical_n.html">read_critical_n()</a></code> resolves it.</p></li>
+</ul></dd>
+
+
+<dt id="arg-cell-support">cell_support<a class="anchor" aria-label="anchor" href="#arg-cell-support"></a></dt>
+<dd><p>The cell-to-country support:</p><ul><li><p><code>"year_aware"</code> (default): <code><a href="build_cell_polity.html">build_cell_polity()</a></code> read at a present-day
+year from the polycell support, so <code>polity_frac</code> is the polity's share
+of the cell's measured land. It covers every land cell, coastal cells
+whose centre lies at sea included.</p></li>
+<li><p><code>"constant"</code>: the year-invariant <code>spatialize-cell-polity-fraction</code> pin
+(<code>WHEP_POLITY_FRACTION_PATH</code> overrides it). It is restricted to the
+LPJmL grid, so it gives no country to 2,643 IMAGE grassland cells
+holding 56.8 Mha (issue #1297); those keep their IMAGE class.</p></li>
 </ul></dd>
 
 
@@ -312,12 +329,14 @@ undefined and for cells with no IMAGE grassland.</p></li>
 formed: <code>"own"</code>, <code>"chained_predecessor_trend"</code> or <code>"bucket"</code>; <code>NA</code>
 where the cell has no 2010 country or its code resolves to no
 reporting polity that year.</p></li>
+<li><p><code>method_cell_polity</code>: the cell support that assigned the countries:
+<code>"year_aware"</code>, <code>"constant"</code> or <code>"supplied"</code>.</p></li>
 </ul></div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_grassland_intensity_classes</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 12 × 15</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 12 × 16</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    cell_id   lon   lat  year country_2010 image_region a_crop_ha grass_ha_image</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>   <span style="text-decoration: underline;">50</span>131  45.2  55.2  <span style="text-decoration: underline;">1</span>961          185           15      <span style="text-decoration: underline;">5</span>000          <span style="text-decoration: underline;">20</span>000</span>
@@ -332,9 +351,9 @@ reporting polity that year.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">179</span>522 -<span style="color: #BB0000;">59.2</span> -<span style="color: #BB0000;">34.8</span>  <span style="text-decoration: underline;">2</span>010            9            5         0          <span style="text-decoration: underline;">50</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span>  <span style="text-decoration: underline;">179</span>523 -<span style="color: #BB0000;">58.8</span> -<span style="color: #BB0000;">34.8</span>  <span style="text-decoration: underline;">1</span>961            9           <span style="color: #BB0000;">NA</span>         0              0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">12</span>  <span style="text-decoration: underline;">179</span>523 -<span style="color: #BB0000;">58.8</span> -<span style="color: #BB0000;">34.8</span>  <span style="text-decoration: underline;">2</span>010            9           <span style="color: #BB0000;">NA</span>         0              0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: whep_grass_ha &lt;dbl&gt;, image_class_2010 &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: whep_grass_ha &lt;dbl&gt;, image_class_2010 &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   grassland_class &lt;chr&gt;, density_ratio &lt;dbl&gt;, target_share &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_grassland_split &lt;chr&gt;, density_basis &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_grassland_split &lt;chr&gt;, density_basis &lt;chr&gt;, method_cell_polity &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -90,7 +90,12 @@ measurement:
 ## Usage
 
 ``` r
-build_grassland_intensity_classes(years, data = list(), example = FALSE)
+build_grassland_intensity_classes(
+  years,
+  data = list(),
+  cell_support = c("year_aware", "constant"),
+  example = FALSE
+)
 ```
 
 ## Arguments
@@ -115,8 +120,8 @@ build_grassland_intensity_classes(years, data = list(), example = FALSE)
     when set, else the `spatialize-gridded-pasture` pin.
 
   - `cell_polity`: `lon`, `lat`, `area_code`, `polity_frac`. Default:
-    the `spatialize-cell-polity-fraction` pin
-    (`WHEP_POLITY_FRACTION_PATH` overrides it).
+    the support `cell_support` selects. An injected table replaces it
+    and is stamped `"supplied"`.
 
   - `grassland_layers`: one row per IMAGE cell with `cell_id`, `lon`,
     `lat`, `a_crop_ha`, `a_gr_int_ha`, `a_gr_ext_ha`, `manure_int_n_kg`,
@@ -124,6 +129,22 @@ build_grassland_intensity_classes(years, data = list(), example = FALSE)
     the critical-nitrogen archive, resolved as
     [`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
     resolves it.
+
+- cell_support:
+
+  The cell-to-country support:
+
+  - `"year_aware"` (default):
+    [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+    read at a present-day year from the polycell support, so
+    `polity_frac` is the polity's share of the cell's measured land. It
+    covers every land cell, coastal cells whose centre lies at sea
+    included.
+
+  - `"constant"`: the year-invariant `spatialize-cell-polity-fraction`
+    pin (`WHEP_POLITY_FRACTION_PATH` overrides it). It is restricted to
+    the LPJmL grid, so it gives no country to 2,643 IMAGE grassland
+    cells holding 56.8 Mha (issue \#1297); those keep their IMAGE class.
 
 - example:
 
@@ -174,11 +195,14 @@ any requested year. Columns:
   where the cell has no 2010 country or its code resolves to no
   reporting polity that year.
 
+- `method_cell_polity`: the cell support that assigned the countries:
+  `"year_aware"`, `"constant"` or `"supplied"`.
+
 ## Examples
 
 ``` r
 build_grassland_intensity_classes(example = TRUE)
-#> # A tibble: 12 × 15
+#> # A tibble: 12 × 16
 #>    cell_id   lon   lat  year country_2010 image_region a_crop_ha grass_ha_image
 #>      <int> <dbl> <dbl> <int>        <int>        <int>     <dbl>          <dbl>
 #>  1   50131  45.2  55.2  1961          185           15      5000          20000
@@ -193,7 +217,7 @@ build_grassland_intensity_classes(example = TRUE)
 #> 10  179522 -59.2 -34.8  2010            9            5         0          50000
 #> 11  179523 -58.8 -34.8  1961            9           NA         0              0
 #> 12  179523 -58.8 -34.8  2010            9           NA         0              0
-#> # ℹ 7 more variables: whep_grass_ha <dbl>, image_class_2010 <chr>,
+#> # ℹ 8 more variables: whep_grass_ha <dbl>, image_class_2010 <chr>,
 #> #   grassland_class <chr>, density_ratio <dbl>, target_share <dbl>,
-#> #   method_grassland_split <chr>, density_basis <chr>
+#> #   method_grassland_split <chr>, density_basis <chr>, method_cell_polity <chr>
 ```
