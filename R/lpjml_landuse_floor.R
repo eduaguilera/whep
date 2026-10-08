@@ -32,10 +32,17 @@
 # band left -- every band below `FLT_MIN` -- is dropped outright; its lost
 # area is below `32 * FLT_MIN` of a cell, some 1e-31 ha.
 #
-# What this floor deliberately does NOT do is the hectare floor whep#985 also
-# proposes (drop allocations below 1 ha, ~4e-6 of a cell). That decides what
-# counts as a real crop stand in LPJmL, has defensible alternatives, and is
-# left to the maintainer.
+# `method = "hectare"` adds the floor whep#985 also proposes: on top of the
+# float32 floor, drop a band holding less than `min_ha` hectares of its cell
+# (default 1 ha, about 3e-6 to 4e-6 of a 30-arcmin cell outside the polar
+# rows). Unlike the float32 floor this is a chosen threshold: it decides what
+# counts as a real crop stand in LPJmL, which builds a soil column and full
+# daily cycle for every non-zero band. The 1 ha default is the issue's
+# proposal -- assumed, unverified; no source fixes a minimum stand area. The
+# float32 floor stays the writer's default until the maintainer opts in.
+# Mass is folded back within the cell as above, and a cell's largest band is
+# always kept, so a cell whose every band is under `min_ha` keeps its total
+# in one band instead of being emptied.
 
 #' Float32 constants the land-use floor is derived from.
 #' @noRd
@@ -54,27 +61,41 @@
 #'   in `cell_cols` and a double `value` column.
 #' @param method `"float32_resolution"` (default) drops fractions below
 #'   `cell_total * FLT_EPSILON` or below `FLT_MIN`; `"denormal"` drops only
-#'   those below `FLT_MIN`; `"none"` returns `lu` unchanged.
+#'   those below `FLT_MIN`; `"hectare"` applies the float32 floor and also
+#'   drops bands under `min_ha` hectares (needs a `cell_area_ha` column),
+#'   always keeping each cell's largest band; `"none"` returns `lu` unchanged.
 #' @param cell_cols Columns identifying one cell's land-use vector.
+#' @param min_ha Smallest band area, in hectares, kept by `"hectare"`.
 #' @return A data.table with the same columns, fewer rows, and every cell's
 #'   `sum(value)` unchanged to double precision.
 #' @noRd
 .floor_landuse_fractions <- function(
   lu,
-  method = c("float32_resolution", "denormal", "none"),
-  cell_cols = c("year", "row", "col")
+  method = c("float32_resolution", "denormal", "hectare", "none"),
+  cell_cols = c("year", "row", "col"),
+  min_ha = 1
 ) {
   method <- rlang::arg_match(method)
   .check_landuse_floor_input(lu, cell_cols)
+  if (method == "hectare") {
+    .check_landuse_floor_hectare(lu, min_ha)
+  }
   if (method == "none" || nrow(lu) == 0L) {
     return(lu)
   }
   dt <- data.table::copy(data.table::as.data.table(lu))
   dt[, cell_total_ := sum(value), by = cell_cols]
-  rel <- if (method == "float32_resolution") .float32_epsilon() else 0
+  rel <- if (method == "denormal") 0 else .float32_epsilon()
   dt[,
     keep_ := value >= .float32_min_normal() & value >= cell_total_ * rel
   ]
+  if (method == "hectare") {
+    dt[,
+      keep_ := keep_ &
+        (value * cell_area_ha >= min_ha | value == max(value)),
+      by = cell_cols
+    ]
+  }
   dt[, kept_total_ := sum(value[keep_]), by = cell_cols]
   out <- dt[keep_ == TRUE]
   out[, value := value * (cell_total_ / kept_total_)]
@@ -94,6 +115,29 @@
   if (any(!is.finite(lu$value)) || any(lu$value < 0)) {
     cli::cli_abort(
       "Column {.field value} of {.arg lu} must be finite and non-negative.",
+      class = "whep_landuse_floor_values"
+    )
+  }
+  invisible(lu)
+}
+
+#' @noRd
+.check_landuse_floor_hectare <- function(lu, min_ha) {
+  if (!rlang::has_name(lu, "cell_area_ha")) {
+    cli::cli_abort(
+      "{.arg lu} needs column {.field cell_area_ha} for the hectare floor.",
+      class = "whep_landuse_floor_columns"
+    )
+  }
+  area <- lu$cell_area_ha
+  bad_min <- !is.numeric(min_ha) ||
+    length(min_ha) != 1L ||
+    !is.finite(min_ha) ||
+    min_ha < 0
+  if (bad_min || any(!is.finite(area)) || any(area <= 0)) {
+    cli::cli_abort(
+      "{.arg min_ha} must be one non-negative number and {.field
+       cell_area_ha} finite and positive.",
       class = "whep_landuse_floor_values"
     )
   }
