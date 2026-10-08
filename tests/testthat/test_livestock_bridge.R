@@ -233,3 +233,28 @@ test_that("a production table with no yield rows is not judged", {
   )
   expect_no_error(prepare_livestock_emissions(heads_only))
 })
+
+testthat::test_that("weight gain is NA for a species without fattening params", {
+  # Poultry has no row in the dressing-fraction table. It must come out NA
+  # rather than borrow cattle's 0.55 / 547.5 d (whep#1034). Cattle: live
+  # weight 0.3 t / 0.55 = 545.45 kg, gain (545.45 - 40) / 547.5 kg/day.
+  animals <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,
+    866L, "Cattle",
+    1057L, "Poultry Birds"
+  )
+  meat_yields <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~meat_yield_t_head,
+    2010L, 10L, 866L, 0.3,
+    2010L, 10L, 1057L, 0.002
+  )
+  result <- whep:::.meat_to_weight_gain(meat_yields, animals)
+
+  testthat::expect_equal(
+    result$weight_gain_kg_day[result$item_cbs_code == 866L],
+    (300 / 0.55 - 40) / 547.5
+  )
+  testthat::expect_true(
+    is.na(result$weight_gain_kg_day[result$item_cbs_code == 1057L])
+  )
+})

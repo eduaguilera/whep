@@ -2668,6 +2668,8 @@ utils::globalVariables(
     "is_aggregate",
     # n_prov_destiny.R (whep#932) -- per-tissue wood residue nitrogen
     "wood_tissue_kgN_kgDM",
+    # crop_soil_n2o_extension.R (whep#1034) -- residue N source stamp
+    "method_residue_n",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

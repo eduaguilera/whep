@@ -40,8 +40,10 @@ data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}, plus the
-polity columns below.
+\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}, plus
+\code{method_synthetic}, \code{method_residue_n} (which residue-N source fed the
+row: \code{ipcc_2019_table_11_1a}, or \code{generic_default_0.008} for crops the
+table does not list) and the polity columns below.
 }
 \description{
 Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to

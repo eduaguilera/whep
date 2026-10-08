@@ -311,13 +311,13 @@ prepare_livestock_emissions <- function(
     dplyr::left_join(species_key, by = "item_cbs_code") |>
     dplyr::left_join(fattening_params, by = "species_gen") |>
     dplyr::mutate(
-      live_weight_kg = meat_yield_t_head *
-        1000 /
-        dplyr::coalesce(dressing_frac, 0.55),
+      # A species with no row above stays NA: it has no dressing fraction or
+      # fattening period, and borrowing cattle's 0.55 / 547.5 d would invent a
+      # weight gain for it (whep#1034).
+      live_weight_kg = meat_yield_t_head * 1000 / dressing_frac,
       weight_gain_kg_day = dplyr::if_else(
         !is.na(dressing_frac) & live_weight_kg > birth_weight_kg,
-        (live_weight_kg - birth_weight_kg) /
-          dplyr::coalesce(fattening_days, 547.5),
+        (live_weight_kg - birth_weight_kg) / fattening_days,
         NA_real_
       )
     ) |>

@@ -69,8 +69,10 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
-#'   `impact_u` (soil N2O in kilograms CO2e) and `method_soil_n2o`, plus the
-#'   polity columns below.
+#'   `impact_u` (soil N2O in kilograms CO2e) and `method_soil_n2o`, plus
+#'   `method_synthetic`, `method_residue_n` (which residue-N source fed the
+#'   row: `ipcc_2019_table_11_1a`, or `generic_default_0.008` for crops the
+#'   table does not list) and the polity columns below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -369,9 +371,16 @@ build_crop_soil_n2o_extension <- function(
       year,
       area_code,
       item_cbs_code,
+      # Crops with no IPCC Table 11.1a row take the generic 0.008. That is a
+      # declared assumption, so the row says which source it used (whep#1034).
       n_t = .data$residue_dm_t *
         dplyr::coalesce(.data$n_ag, 0.008) *
-        (1 - removed_frac)
+        (1 - removed_frac),
+      method_residue_n = dplyr::if_else(
+        is.na(.data$n_ag),
+        "generic_default_0.008",
+        "ipcc_2019_table_11_1a"
+      )
     )
 }
 
@@ -393,11 +402,16 @@ build_crop_soil_n2o_extension <- function(
   factor_residue <- (ef$ef1 + ef$frac_leach * ef$ef5) * to_co2e
 
   dplyr::bind_rows(
-    dplyr::mutate(synthetic, impact_u = .data$n_t * factor_synthetic),
+    dplyr::mutate(
+      synthetic,
+      impact_u = .data$n_t * factor_synthetic,
+      method_residue_n = NA_character_
+    ),
     dplyr::mutate(
       manure,
       impact_u = .data$n_t * factor_manure,
-      method_synthetic = NA_character_
+      method_synthetic = NA_character_,
+      method_residue_n = NA_character_
     ),
     dplyr::mutate(
       residue,
@@ -407,19 +421,8 @@ build_crop_soil_n2o_extension <- function(
   ) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),
-      method_synthetic = {
-        methods <- sort(unique(
-          .data$method_synthetic[!is.na(.data$method_synthetic)]
-        ))
-        if (length(methods) == 0L) {
-          NA_character_
-        } else {
-          paste(
-            methods,
-            collapse = "|"
-          )
-        }
-      },
+      method_synthetic = .collapse_method_labels(.data$method_synthetic),
+      method_residue_n = .collapse_method_labels(.data$method_residue_n),
       .by = c(year, area_code, item_cbs_code)
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
@@ -430,8 +433,18 @@ build_crop_soil_n2o_extension <- function(
       item_cbs_code,
       impact_u,
       method_soil_n2o,
-      method_synthetic
+      method_synthetic,
+      method_residue_n
     )
+}
+
+# Distinct non-missing labels joined by "|", or NA when a group has none.
+.collapse_method_labels <- function(labels) {
+  methods <- sort(unique(labels[!is.na(labels)]))
+  if (length(methods) == 0L) {
+    return(NA_character_)
+  }
+  paste(methods, collapse = "|")
 }
 
 # IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1 managed-soil N2O factors,

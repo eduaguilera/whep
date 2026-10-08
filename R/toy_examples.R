@@ -126,10 +126,11 @@
 .example_soil_n2o_extension <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_soil_n2o,
-    ~method_synthetic,
-    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6", "coello",
-    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6", "coello"
+    ~method_synthetic, ~method_residue_n,
+    2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6", "coello", NA,
+    2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6", "coello", NA
   ) |>
+    dplyr::mutate(method_residue_n = as.character(method_residue_n)) |>
     .add_reporting_polity_columns()
 }
 
