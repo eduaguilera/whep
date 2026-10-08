@@ -1556,21 +1556,8 @@ prepare_country_areas <- function(
 
     needs_fallback <- is.na(crop_areas$irrigated_area_ha)
     if (any(needs_fallback)) {
-      fallback <- crop_areas |>
-        dplyr::filter(is.na(.data$irrigated_area_ha)) |>
-        dplyr::left_join(
-          luh2_irrig,
-          by = c("year", "area_code", "luh2_type")
-        ) |>
-        dplyr::mutate(
-          irrig_ha = dplyr::if_else(is.na(.data$irrig_ha), 0, .data$irrig_ha),
-          cft_total = sum(.data$harvested_area_ha),
-          crop_share = .data$harvested_area_ha / .data$cft_total,
-          irrigated_area_ha = .data$crop_share * .data$irrig_ha,
-          .by = c("year", "area_code", "luh2_type")
-        )
       crop_areas$irrigated_area_ha[needs_fallback] <-
-        fallback$irrigated_area_ha
+        .fallback_irrigation(crop_areas, luh2_irrig)[needs_fallback]
     }
     crop_areas <- .cap_national_irrigation(crop_areas)
   } else {
@@ -1662,12 +1649,40 @@ prepare_country_areas <- function(
   crop_areas
 }
 
+# LUH2-proportional irrigation for the MIRCA-absent rows of `crop_areas`
+# (returned for every row; the caller keeps the absent ones). A fallback crop
+# gets the irrigation DENSITY of its LUH2 type: the type's irrigation over the
+# harvested area of ALL the type's crops in the country, MIRCA-covered ones
+# included (whep#1368). Sharing it over the fallback rows alone handed them the
+# type's whole irrigation, which `.cap_national_irrigation()` then took from
+# the covered crops. The alternative, giving fallback crops only the residual
+# irrigation the MIRCA crops leave, is not implemented: MIRCA already absorbs
+# the national total, so that residual is ~0.
+.fallback_irrigation <- function(crop_areas, luh2_irrig) {
+  crop_areas |>
+    dplyr::left_join(luh2_irrig, by = c("year", "area_code", "luh2_type")) |>
+    dplyr::mutate(
+      irrig_ha = dplyr::if_else(is.na(.data$irrig_ha), 0, .data$irrig_ha),
+      type_total_ha = sum(.data$harvested_area_ha),
+      type_density = dplyr::if_else(
+        .data$type_total_ha > 0,
+        .data$irrig_ha / .data$type_total_ha,
+        0
+      ),
+      .by = c("year", "area_code", "luh2_type")
+    ) |>
+    dplyr::mutate(
+      fallback_ha = .data$type_density * .data$harvested_area_ha
+    ) |>
+    dplyr::pull("fallback_ha")
+}
+
 # `mirca_irrigation_country.parquet` is keyed on the `cft_mapping.csv` codes
 # that `prepare_mirca_irrigation()` read when it was built. A code mapped since
 # then has no MIRCA row in ANY country, so every row of it takes the
-# LUH2-proportional fallback below. That fallback shares a LUH2 type's whole
-# national irrigation among the fallback crops alone, and
-# `.cap_national_irrigation()` then shrinks every other crop to make room. When
+# LUH2-proportional fallback below. That fallback used to share a LUH2 type's
+# whole national irrigation among the fallback crops alone (whep#1368), so
+# `.cap_national_irrigation()` shrank every other crop to make room. When
 # whep#1292 moved coconut, linum, hemp and kapok onto their area-carrying codes
 # against the old table, 2010 irrigated area fell from 254.1 to 173.1 Mha and
 # Linum came out 96% irrigated. A code absent from the whole table is a stale

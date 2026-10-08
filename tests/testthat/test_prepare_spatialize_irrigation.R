@@ -73,3 +73,23 @@ test_that(".check_mirca_covers_mapping passes a code absent in some countries", 
   current <- tibble::tibble(item_prod_code = c(27L, 248L))
   expect_identical(.check_mirca_covers_mapping(mirca, current), mirca)
 })
+
+test_that(".fallback_irrigation uses the type's density over all its crops", {
+  .need_spatialize_helper(".fallback_irrigation")
+  # Crop 1 is MIRCA-covered (900 ha), crop 2 is absent (100 ha), same type.
+  # The type irrigates 500 ha: density 0.5. Sharing it over the absent crop
+  # alone (the old base) would hand crop 2 all 500 ha, more than it harvests.
+  crop_areas <- tibble::tribble(
+    ~year, ~area_code, ~luh2_type, ~harvested_area_ha,
+    2000L, 1L, "c3ann", 900,
+    2000L, 1L, "c3ann", 100,
+    2000L, 1L, "c4ann", 50
+  )
+  luh2_irrig <- tibble::tribble(
+    ~year, ~area_code, ~luh2_type, ~irrig_ha,
+    2000L, 1L, "c3ann", 500
+  )
+  out <- .fallback_irrigation(crop_areas, luh2_irrig)
+  expect_equal(out, c(450, 50, 0), tolerance = 1e-9)
+  expect_lte(out[2], crop_areas$harvested_area_ha[2])
+})
