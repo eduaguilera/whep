@@ -44,6 +44,22 @@
 #' months returned emission factors above 1. With it, `ef` never exceeds the
 #' fertiliser's `max_nh3` in [manner_params].
 #'
+#' Two forms of that factor exist. Urea always takes the absolute form,
+#' `exp(0.1386 (temp_c - 8.625)) / 3`; CAN always takes the anomaly form,
+#' `exp(0.2197225 (temp_c - temp_c_annual_mean)) / 3`. AN and AS depend on
+#' `temp_method`:
+#' * `"misselbrook_2004"` (default): AN takes the anomaly form on every soil,
+#'   and AS takes the anomaly form on non-calcareous soils and the absolute
+#'   form on calcareous soils (`soil_ph >= 7`). This is the assignment of
+#'   Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for AN and other N
+#'   to all soils and AS/DAP to non-calcareous soils", eq. 4 (absolute) "for
+#'   urea and UAN to all soils and AS/DAP to calcareous soils". The UK
+#'   inventory agrees for AS, which it treats on calcareous soils "as for
+#'   urea" (Misselbrook et al. 2015, notes to Table A11).
+#' * `"source_port"`: the forms of the regional implementation this model was
+#'   ported from. AN takes the absolute form, and AS takes the anomaly form on
+#'   every soil.
+#'
 #' @param n_applied_t Numeric, nitrogen applied (t).
 #' @param fertiliser One of `"Urea"`, `"AN"`, `"CAN"`, `"AS"` (synthetic
 #'   path) or `"cattle_slurry"`, `"pig_slurry"`, `"FYM"`,
@@ -52,8 +68,8 @@
 #'   (numeric soil pH), `rate_kg_ha` (numeric N application rate, kg N/ha),
 #'   `rainfall_mm` (numeric period precipitation, mm), `irrigated`
 #'   (logical), `temp_c` (numeric application-period temperature, deg C),
-#'   `temp_c_annual_mean` (numeric annual mean temperature, deg C; only
-#'   used for CAN/AS). Organic path: `rainfall_mm`, `irrigated`,
+#'   `temp_c_annual_mean` (numeric annual mean temperature, deg C; not
+#'   used for Urea). Organic path: `rainfall_mm`, `irrigated`,
 #'   `windspeed_ms` (numeric wind speed, m/s), `technique` (one of the six
 #'   [manner_params] `technique` keys), `system` (`"Arable"` or
 #'   `"Grassland"`), `temp_c`, `incorporation_delay_h` (numeric hours
@@ -64,8 +80,12 @@
 #'   default species, and it is ignored entirely for `"urban"`).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from drivers. Defaults to `FALSE`.
+#' @param temp_method Synthetic path only: which temperature-equation form AN
+#'   and AS use, `"misselbrook_2004"` (default) or `"source_port"`. See
+#'   Details.
 #' @return A tibble with `n_applied_t`, `ef` (realised emission factor),
-#'   `nh3_n_t` and `method_manner`.
+#'   `nh3_n_t` and `method_manner`. The synthetic path also returns
+#'   `method_manner_temp`, the `temp_method` used.
 #' @export
 #' @examples
 #' calculate_manner_nh3(example = TRUE)
@@ -73,13 +93,15 @@ calculate_manner_nh3 <- function(
   n_applied_t = NULL,
   fertiliser = NULL,
   drivers = list(),
-  example = FALSE
+  example = FALSE,
+  temp_method = c("misselbrook_2004", "source_port")
 ) {
   if (isTRUE(example)) {
     return(.example_manner_nh3())
   }
+  temp_method <- rlang::arg_match(temp_method)
   if (fertiliser %in% c("Urea", "AN", "CAN", "AS")) {
-    .manner_synthetic(n_applied_t, fertiliser, drivers)
+    .manner_synthetic(n_applied_t, fertiliser, drivers, temp_method)
   } else if (
     fertiliser %in%
       c("cattle_slurry", "pig_slurry", "FYM", "poultry_manure", "urban")
@@ -170,19 +192,20 @@ calculate_manner_nh3_default <- function(
 # ---- Private helpers: synthetic-fertiliser path -----------------------
 
 # Synthetic path: ef = ph * rate * max_nh3 * land_use * rain * temp.
-.manner_synthetic <- function(n_applied_t, fertiliser, drivers) {
+.manner_synthetic <- function(n_applied_t, fertiliser, drivers, temp_method) {
   ph_class <- .manner_ph_class(drivers$soil_ph)
   ef <- .manner_lookup(whep::manner_params, "ph", fertiliser, ph_class) *
     .manner_synth_rate_factor(fertiliser, ph_class, drivers$rate_kg_ha) *
     .manner_lookup(whep::manner_params, "max_nh3", fertiliser) *
     .manner_lookup(whep::manner_params, "incorporation", "TallerCrop") *
     .manner_synth_rain_factor(fertiliser, ph_class, drivers) *
-    .manner_synth_temp_factor(fertiliser, drivers)
+    .manner_synth_temp_factor(fertiliser, ph_class, drivers, temp_method)
   tibble::tibble(
     n_applied_t = n_applied_t,
     ef = ef,
     nh3_n_t = ef * n_applied_t,
-    method_manner = paste0("manner_synthetic_", fertiliser)
+    method_manner = paste0("manner_synthetic_", fertiliser),
+    method_manner_temp = temp_method
   )
 }
 
@@ -246,8 +269,9 @@ calculate_manner_nh3_default <- function(
     dplyr::pull("factor")
 }
 
-# Temperature factor: Urea/AN use an absolute reference (8.625 deg C);
-# CAN/AS use an anomaly against the cell/region annual mean temperature.
+# Temperature factor: an absolute form against a fixed reference
+# (8.625 deg C) or an anomaly form against the cell/region annual mean
+# temperature; .manner_temp_absolute() picks which (whep#1370).
 # Capped at 1 (whep#1333): the exponential was scaled on UK monthly
 # temperatures (Misselbrook et al. 2004, doi:10.1079/SUM2004280) and grows
 # without bound outside them, returning ef above 1 at warm temperatures. The
@@ -257,13 +281,33 @@ calculate_manner_nh3_default <- function(
 # notes to Table A11, https://uk-air.defra.gov.uk/reports/cat07/1605231002_nh3inv2014_Final_20112015.pdf).
 # With every other synthetic factor at or below 1, ef stays at or below
 # max_nh3.
-.manner_synth_temp_factor <- function(fertiliser, drivers) {
-  raw <- if (fertiliser %in% c("Urea", "AN")) {
+.manner_synth_temp_factor <- function(
+  fertiliser,
+  ph_class,
+  drivers,
+  temp_method = "misselbrook_2004"
+) {
+  raw <- if (.manner_temp_absolute(fertiliser, ph_class, temp_method)) {
     exp(0.1386 * (drivers$temp_c - 8.625)) / 3
   } else {
     exp(0.2197225 * (drivers$temp_c - drivers$temp_c_annual_mean)) / 3
   }
   pmin(1, raw)
+}
+
+# Whether a fertiliser takes the absolute temperature form. Misselbrook et
+# al. (2004, doi:10.1111/j.1475-2743.2004.tb00385.x, p. 367, read from the
+# paper): eq. 4 (absolute) is "for urea and UAN to all soils and AS/DAP to
+# calcareous soils"; eq. 3 (anomaly) is "for AN and other N to all soils and
+# AS/DAP to non-calcareous soils". CAN counts as AN. The paper prints the
+# eq. 3 slope as 0.21972225; 0.2197225 is ln(3) / 5, the "factor of
+# approximately 3 for every 5 deg C" its text gives. "source_port" keeps
+# the ported implementation: absolute for Urea and AN (whep#1370).
+.manner_temp_absolute <- function(fertiliser, ph_class, temp_method) {
+  if (temp_method == "source_port") {
+    return(fertiliser %in% c("Urea", "AN"))
+  }
+  fertiliser == "Urea" || (fertiliser == "AS" && ph_class == "other pH")
 }
 
 # ---- Private helpers: organic-manure path ------------------------------
