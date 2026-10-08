@@ -378,19 +378,13 @@ test_that(".read_land_areas_wide keys its output on the reporting bucket", {
   expect_equal(result$agriland, 5)
 })
 
-test_that(".read_land_areas_wide holds back folded aggregate buckets", {
-  # Scoped to the explicit fold. WHEP now models the reporting members of
-  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
-  # by default; what this pins is the fold behaviour itself, which still has
-  # to work for anyone reproducing a published-before number.
-  withr::local_options(whep.unfold_rest_of_world = "none")
-  # Equatorial Guinea and Syria both fold into the Rest of World bucket (999).
-  # Summing their agricultural land into it would give the bucket an extent that
-  # is neither member's nor the real rest of the world's, so proxies are not
-  # synthesised for aggregates that are only reached by folding. Deciding what an
-  # aggregate's proxy should be is a methodological choice (#493); until it is
-  # made these buckets stay unfilled, which is where the name-keyed join left
-  # them too.
+test_that(".read_land_areas_wide gives Rest of World its members' land", {
+  # Bucket 999 is the territory of FABIO's Rest-of-World members, whatever the
+  # fold mode: under the default every member reports as itself, but the
+  # predecessor-built `crop_residues` pin still books all of them on one "RoW"
+  # label, and that is what reaches bucket 999 (whep#724). Its growth proxy is
+  # therefore the sum over those members -- Equatorial Guinea and Syria here --
+  # and never Spain, which is no member.
   local_mocked_bindings(
     .read_land_areas = function(years = NULL) {
       tibble::tibble(
@@ -405,11 +399,32 @@ test_that(".read_land_areas_wide holds back folded aggregate buckets", {
 
   result <- whep:::.read_land_areas_wide(years = 1950L)
 
-  expect_equal(result$area_code, 203L)
-  # NO Rest-of-World BUCKET AT ALL. This named the polity code until whep#698
-  # re-keyed the table on the reporting bucket; 999 is that bucket's code and
-  # is what a folded member would land on now.
-  expect_false(999L %in% result$area_code)
+  expect_equal(sort(result$area_code), c(61L, 203L, 212L, 999L))
+  expect_equal(result$agriland[result$area_code == 999L], 3)
+  expect_equal(result$agriland[result$area_code == 212L], 2)
+})
+
+test_that(".read_land_areas_wide sums members into 999 under the fold too", {
+  # Under the explicit fold the members' own rows are held back, because they
+  # report through the bucket; the bucket's proxy is the same member sum, so it
+  # is counted once and only on 999.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = rep(1950L, 3),
+        iso3c = c("ESP", "GNQ", "SYR"),
+        area = c("Spain", "Equatorial Guinea", "Syrian Arab Republic"),
+        Land_Use = "c3ann",
+        Area_Mha = c(10, 1, 2)
+      )
+    }
+  )
+
+  result <- suppressWarnings(whep:::.read_land_areas_wide(years = 1950L))
+
+  expect_equal(sort(result$area_code), c(203L, 999L))
+  expect_equal(result$agriland[result$area_code == 999L], 3)
 })
 
 test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
@@ -2148,26 +2163,56 @@ test_that(".fill_with_proxies gives a promoted member its own population", {
   expect_equal(result$food, c(100, 100, 100))
 })
 
-test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
-  # Scoped to the explicit fold. WHEP now models the reporting members of
-  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
-  # by default; what this pins is the fold behaviour itself, which still has
-  # to work for anyone reproducing a published-before number.
-  withr::local_options(whep.unfold_rest_of_world = "none")
-  # Syria folds into the Rest of World bucket (999), so the pin's Syrian
-  # population is not the bucket's population and a per-capita rate against it
-  # would mean nothing. Deciding what an aggregate's proxy should be is a
-  # methodological choice (#493), so nothing is summed into the bucket here and
-  # the gap survives -- which is also where the name-keyed join left it.
+test_that(".fill_with_proxies grows Rest of World on its members' population", {
+  # whep#724. Bucket 999 used to have no proxy at all, so its pre-1961 series
+  # stopped dead at 1961. Its rows describe FABIO's Rest-of-World members, so
+  # it grows on their summed population: 500, 600, 1200 here, which takes the
+  # 1952 anchor of 120 back to 50 and 60. Spain is no member and must not
+  # count, and the members' own buckets keep their own populations.
   frame <- tibble::tibble(
     year = 1950:1952,
     area = "Rest of World",
     area_code = 999L,
-    item_cbs = "Wheat and products",
-    item_cbs_code = 2511L,
-    food = c(100, NA, NA),
-    other_uses = NA_real_,
-    feed = NA_real_,
+    item_cbs = "Straw",
+    item_cbs_code = 2105L,
+    food = NA_real_,
+    other_uses = c(NA, NA, 120),
+    feed = c(NA, NA, 30),
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = rep(1950:1952, 3L),
+    area = rep(c("Equatorial Guinea", "Syria", "Spain"), each = 3L),
+    area_code = rep(c("GNQ", "SYR", "ESP"), each = 3L),
+    pop = c(100, 100, 100, 400, 500, 1100, 9000, 1, 9000)
+  )
+  land_wide <- tibble::tibble(
+    year = 1950:1952,
+    area_code = 999L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = c(1, 2, 3)
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_equal(result$pop, c(500, 600, 1200))
+  expect_equal(result$other_uses, c(50, 60, 120))
+  expect_equal(result$feed, c(10, 20, 30))
+})
+
+test_that(".fill_with_proxies leaves Rest of World unproxied under 'none'", {
+  # The alternative stays selectable: no proxy, so bucket 999's pre-1962
+  # series ends where its observations do.
+  frame <- tibble::tibble(
+    year = 1950:1952,
+    area = "Rest of World",
+    area_code = 999L,
+    item_cbs = "Straw",
+    item_cbs_code = 2105L,
+    food = NA_real_,
+    other_uses = c(NA, NA, 120),
+    feed = c(NA, NA, 30),
     processing = NA_real_
   )
   gdp_pop <- tibble::tibble(
@@ -2176,24 +2221,38 @@ test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
     area_code = "SYR",
     pop = c(1000, 1100, 1200)
   )
-  # Keyed on Syria's OWN reporting area, which is what `.read_land_areas_wide()`
-  # emits for it -- the fold sends the bucket's code to 999, so nothing here
-  # reaches the frame.
   land_wide <- tibble::tibble(
     year = 1950:1952,
-    area_code = 212L,
+    area_code = 999L,
     Cropland = 1,
     Pasture = 1,
-    agriland = c(2, 2.2, 2.4)
+    agriland = c(1, 2, 3)
   )
 
-  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+  result <- whep:::.fill_with_proxies(
+    frame,
+    gdp_pop,
+    land_wide,
+    aggregate_proxy = "none"
+  )
 
   expect_true(all(is.na(result$pop)))
   expect_true(all(is.na(result$agriland)))
-  expect_equal(result$food, c(100, NA, NA))
+  expect_equal(result$other_uses, c(NA, NA, 120))
+  expect_equal(result$feed, c(NA, NA, 30))
 })
 
+test_that(".fill_with_proxies rejects an unknown aggregate_proxy", {
+  expect_error(
+    whep:::.fill_with_proxies(
+      tibble::tibble(),
+      tibble::tibble(),
+      tibble::tibble(),
+      aggregate_proxy = "world"
+    ),
+    class = "rlang_error"
+  )
+})
 
 # -- historical trade wiring (issue #141) -------------------------------------
 
