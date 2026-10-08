@@ -339,6 +339,24 @@
 #'   moves. Years before 2014 come from the aggregated old Commodity Balances,
 #'   which carry no link breakdown, and are unchanged, so under `"cocoon"` the
 #'   2013-2014 seam steps by roughly the raw silk production.
+#' @param tobacco_leaf_use One of `"as_published"` (default) or
+#'   `"one_to_one"`, selecting how the Tobacco balance from 2014 on treats
+#'   leaf manufactured into products (whep#1390). The non-food Commodity
+#'   Balances book the leaf (826) that goes into a factory as leaf
+#'   `other_uses`, and the cigarettes, cigars and other manufactured tobacco
+#'   (828, 829, 831) made from it are used or exported again. Their production
+#'   is not booked as supply (whep#1276), so the summed uses exceed supply by
+#'   about the manufactured output, and the balance closes through a stock
+#'   withdrawal with no stock behind it -- about 54 kt a year for the
+#'   Netherlands and Ukraine over 2019-2021.
+#'
+#'   `"as_published"` keeps FAOSTAT's leaf `other_uses`, phantom withdrawal
+#'   included. `"one_to_one"` subtracts the products' production from the
+#'   leaf `other_uses`, floored at zero, assuming one tonne of leaf per tonne
+#'   of product -- assumed, unverified: no sourced leaf content per tonne of
+#'   product was found, and a cigarette also holds paper and filter. Where the
+#'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
+#'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -388,6 +406,7 @@ build_commodity_balances <- function(
   seed_backcast = .cbs_seed_backcast_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -401,6 +420,7 @@ build_commodity_balances <- function(
   seed_backcast <- rlang::arg_match(seed_backcast)
   unmatched_processing <- rlang::arg_match(unmatched_processing)
   silk_basis <- rlang::arg_match(silk_basis)
+  tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
   if (example) {
     return(
       if (format == "wide") {
@@ -427,7 +447,8 @@ build_commodity_balances <- function(
       negative_supply = negative_supply,
       hist_trade_scale = hist_trade_scale,
       seed_backcast = seed_backcast,
-      silk_basis = silk_basis
+      silk_basis = silk_basis,
+      tobacco_leaf_use = tobacco_leaf_use
     )
     scale_log <- attr(raw, ".hist_trade_scale_log")
     fixed <- raw |>
@@ -499,6 +520,12 @@ build_commodity_balances <- function(
     if (silk_basis != "cocoon") {
       cli::cli_warn(
         "{.arg silk_basis} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (tobacco_leaf_use != "as_published") {
+      cli::cli_warn(
+        "{.arg tobacco_leaf_use} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     fixed <- .fixed_data
@@ -743,7 +770,8 @@ build_commodity_balances <- function(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
-  silk_basis = .silk_basis_choices()
+  silk_basis = .silk_basis_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -763,7 +791,8 @@ build_commodity_balances <- function(
     primary_all,
     years,
     hist_trade_scale = hist_trade_scale,
-    silk_basis = silk_basis
+    silk_basis = silk_basis,
+    tobacco_leaf_use = tobacco_leaf_use
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1195,7 +1224,8 @@ build_processing_coefs <- function(
   primary_all,
   years,
   hist_trade_scale = .hist_trade_scale_choices(),
-  silk_basis = .silk_basis_choices()
+  silk_basis = .silk_basis_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
@@ -1222,7 +1252,8 @@ build_processing_coefs <- function(
     years = years,
     keep_elements = "Processed"
   ) |>
-    .cbs_silk_mass_basis(silk_basis)
+    .cbs_silk_mass_basis(silk_basis) |>
+    .cbs_tobacco_leaf_use(tobacco_leaf_use)
 
   # Trade
   fao_trade <- .read_fao_trade(years = years) |>
