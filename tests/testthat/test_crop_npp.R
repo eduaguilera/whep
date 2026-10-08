@@ -348,3 +348,86 @@ test_that("residues stamp items with no IPCC crop group as uncorrected", {
     whep::calculate_crop_residues(x[1, ])$residue_dm_t
   )
 })
+
+# Modern-variety adoption is tabulated by decade (1900, 1920, 1940, 1950, ...,
+# 2020). Joined on the exact year, every year that does not end in a zero found
+# no row, and `replace_na(modern_share, 1)` switched the harvest-index
+# correction off: a sawtooth, residue high on decade years only (whep#1034).
+.variety_wheat <- function(years, region = "Sub-saharan Africa") {
+  tibble::tibble(
+    item_prod_code = "15",
+    production_t = 100,
+    area_ha = 40,
+    year = years,
+    region_hanpp = region
+  )
+}
+
+.variety_share <- function(region, crop, year) {
+  whep::whep_coef_table("modern_variety_adoption") |>
+    dplyr::filter(
+      region_hanpp == region,
+      crop_group == crop,
+      year == !!year
+    ) |>
+    dplyr::pull(modern_share)
+}
+
+test_that("modern-variety adoption reaches the years between decades", {
+  out <- whep::calculate_crop_residues(.variety_wheat(1970:1980))
+  residue <- out$residue_dm_t
+  bare <- whep::calculate_crop_residues(
+    dplyr::select(.variety_wheat(1975), -year, -region_hanpp)
+  )$residue_dm_t
+  share_1975 <- (.variety_share("Sub-saharan Africa", "Wheat", 1970) +
+    .variety_share("Sub-saharan Africa", "Wheat", 1980)) /
+    2
+  gap <- whep::whep_coef_table("hi_crop_ranges") |>
+    dplyr::filter(crop_group == "Wheat") |>
+    dplyr::pull(hi_gap_factor)
+
+  testthat::expect_true(all(diff(residue) < 0))
+  testthat::expect_equal(
+    residue[out$year == 1975],
+    bare * (1 + (1 - share_1975) * (gap - 1))
+  )
+})
+
+test_that("modern-variety adoption holds its end values beyond the table", {
+  out <- whep::calculate_crop_residues(.variety_wheat(c(
+    1850,
+    1900,
+    2020,
+    2023
+  )))
+  residue <- rlang::set_names(out$residue_dm_t, out$year)
+
+  testthat::expect_equal(residue[["1850"]], residue[["1900"]])
+  testthat::expect_equal(residue[["2023"]], residue[["2020"]])
+})
+
+test_that("a moved region vocabulary is refused, not read as fully modern", {
+  moved <- .variety_wheat(2010, region = "Africa (Sub-Saharan)")
+  out <- testthat::with_mocked_bindings(
+    whep::calculate_crop_residues(moved),
+    check_labels_supplied = function(data, ...) invisible(data)
+  )
+  bare <- whep::calculate_crop_residues(
+    dplyr::select(moved, -year, -region_hanpp)
+  )
+
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(out$residue_dm_t, bare$residue_dm_t)),
+    guard = whep::calculate_crop_residues(moved),
+    class = "whep_absent_label"
+  )
+})
+
+test_that("a polity with no HANPP region keeps the uncorrected residue", {
+  out <- whep::calculate_crop_residues(.variety_wheat(2010, NA_character_))
+  bare <- whep::calculate_crop_residues(
+    dplyr::select(.variety_wheat(2010), -year, -region_hanpp)
+  )
+
+  testthat::expect_equal(out$residue_dm_t, bare$residue_dm_t)
+})

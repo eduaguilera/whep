@@ -446,17 +446,62 @@ calculate_npp_carbon_nitrogen <- function(x) {
     return(dplyr::mutate(x, hi_correction_factor = 1))
   }
   adoption <- whep::whep_coef_table("modern_variety_adoption") |>
-    dplyr::select(region_hanpp, crop_group, year, modern_share)
+    dplyr::select(region_hanpp, crop_group, year, modern_share) |>
+    .check_variety_regions(x) |>
+    .annual_variety_adoption(x$year)
   ranges <- whep::whep_coef_table("hi_crop_ranges") |>
     dplyr::select(crop_group, hi_gap_factor)
   x |>
     dplyr::left_join(adoption, by = c("region_hanpp", "crop_group", "year")) |>
     dplyr::left_join(ranges, by = "crop_group") |>
     dplyr::mutate(
+      # After the annual expansion every (region, crop group, year) of the
+      # table's vocabulary has a share, so this fill reaches only a polity with
+      # no HANPP region or an item with no IPCC crop group. Those keep the
+      # uncorrected residue: no adoption is known for them (whep#1034).
       modern_share = tidyr::replace_na(modern_share, 1),
       hi_gap_factor = tidyr::replace_na(hi_gap_factor, 1),
       hi_correction_factor = 1 + (1 - modern_share) * (hi_gap_factor - 1)
     )
+}
+
+# The adoption table is tabulated by decade (1900, 1920, 1940, 1950, ...,
+# 2020), so a join on the exact year matches one year in ten. afsetools, which
+# this chain is ported from, interpolates it to annual resolution with
+# `zoo::na.approx()` before joining (`load_data.R`); the port dropped that
+# step, and every other year fell to `replace_na(modern_share, 1)`, which
+# switches the harvest-index correction off (whep#1034). Shares are
+# interpolated linearly between decades and held at the end values outside
+# 1900-2020: 1900 is zero in every region and crop group, and a year past 2020
+# has no reason to jump to full adoption.
+.annual_variety_adoption <- function(adoption, years) {
+  span <- range(c(adoption$year, years[!is.na(years)]))
+  annual <- seq.int(span[[1]], span[[2]])
+  adoption |>
+    dplyr::reframe(
+      modern_share = stats::approx(year, modern_share, annual, rule = 2)$y,
+      year = annual,
+      .by = c(region_hanpp, crop_group)
+    )
+}
+
+# A region label the adoption table does not carry joins no row, and the fill
+# above reads it as full adoption: the correction is silently off for that
+# whole region. The HANPP labels come from `regions_full`, so a label outside
+# the table's eight is a moved vocabulary, not an absent quantity.
+.check_variety_regions <- function(adoption, x) {
+  regions <- unique(x$region_hanpp[!is.na(x$region_hanpp)])
+  if (length(regions) == 0L) {
+    return(adoption)
+  }
+  check_labels_supplied(
+    adoption,
+    "region_hanpp",
+    regions,
+    details = c(
+      i = "{.field region_hanpp} must use the {.code regions_full} labels."
+    )
+  )
 }
 
 .residue_combine <- function(x, method, w_ipcc) {

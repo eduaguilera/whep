@@ -16,8 +16,8 @@ test_that("crop NPP -> carbon/nitrogen -> BNF -> residue destinies composes", {
     # residue feed-use fraction (M49 sub-regions, see #405). Keeping all three
     # here is what .sci_crop_prod_wide() actually supplies.
     region_krausmann = "West Europe",
-    region_hanpp = "Western Europe",
-    region_un_sub = "Western Europe",
+    region_hanpp = "West Europe",
+    region_un_sub = "West Europe",
     sub_territory = "ESP"
   )
 
