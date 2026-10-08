@@ -124,7 +124,9 @@ tags its own rows `"hani"`, a field injected through `data` keeps
 whatever tag it carries, and an injected field carrying no tag is
 recorded as `"supplied"`. A corrected or substituted deposition field is
 therefore visible in the output instead of inheriting HaNi's name
-(#1097).
+(#1097):
+[`correct_n_deposition()`](https://eduaguilera.github.io/whep/reference/correct_n_deposition.md)
+stamps the rows it rescales `"hani_emep_trend"`.
 
 Rows are keyed on `area_code`.
 [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)

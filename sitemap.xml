@@ -186,6 +186,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/consolidate_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/conv_bouwman.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/conv_krausmann.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/correct_n_deposition.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_alfredos_typologies.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_finn_indicator.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/create_grafs_plot_df.html</loc></url>
@@ -367,6 +368,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_admin_stats_sidra.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_critical_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_cru_climate.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_emep_deposition.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_fbs_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glaciated_areas.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glw_density.html</loc></url>
