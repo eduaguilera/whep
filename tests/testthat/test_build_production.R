@@ -2511,24 +2511,140 @@ test_that("build_primary_production emits fao_flag from .raw_data", {
   expect_true(all(is.na(unflagged$fao_flag)))
 })
 
+# Reported meat tonnages for three items that reach the balance's Meat, Other
+# (2735), next to a cattle meat whose herd FAOSTAT reports (whep#1487). The
+# wheat rows are there because the yield step needs one crop area to pivot.
+.make_meat_other_raw <- function() {
+  fao_combined <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod,     ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
+    2010L, "Ghana", 81L,        "Wheat",        "15",            "ha",  1e3,    "FAOSTAT_prod", "A",
+    2010L, "Ghana", 81L,        "Wheat",        "15",            "t",   2e3,    "FAOSTAT_prod", "A",
+    2010L, "Ghana", 81L,        "Cattle meat",  "867",           "t",   2e4,    "FAOSTAT_prod", "A",
+    2010L, "Ghana", 81L,        "Game meat",    "1163",          "t",   3e5,    "FAOSTAT_prod", "A",
+    2010L, "Ghana", 81L,        "Other meat",   "1166",          "t",   4e4,    "FAOSTAT_prod", "E",
+    2010L, "Ghana", 81L,        "Snails",       "1176",          "t",   5e3,    "FAOSTAT_prod", "I"
+  )
+  fao_liv_all <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~unit,   ~value, ~source,
+    2010L, "Ghana", 81L,        "Cattle",   "961",           "LU",    1e6,    "FAOSTAT_prod",
+    2010L, "Ghana", 81L,        "Cattle",   "961",           "heads", 1.5e6,  "FAOSTAT_prod"
+  )
+  list(fao_combined = fao_combined, fao_liv_all = fao_liv_all)
+}
+
+# Steps 6-8 of `.read_production()`: combine, yields, assembly. The chain keys
+# on `area_code` and the label goes back on before assembly (whep#981).
+.run_meat_chain <- function(raw) {
+  labels <- whep:::.area_label_lookup(raw$fao_combined)
+  primary_raw <- whep:::.combine_primary_raw(raw$fao_combined, raw$fao_liv_all)
+  cbs_prod_raw <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~item_cbs,     ~t_cbs,
+    2010L, 81L,        2511,           "Wheat",       2e3,
+    2010L, 81L,        2731,           "Bovine Meat", 2e4,
+    2010L, 81L,        2735,           "Meat, Other", 3.45e5
+  )
+  whep:::.compute_yields(primary_raw, cbs_prod_raw) |>
+    whep:::.attach_area_label(labels) |>
+    whep:::.assemble_production_raw(
+      whep:::.attach_area_label(primary_raw, labels)
+    )
+}
+
+test_that("game meat keeps its tonnes through a synthetic Game herd (#1487)", {
+  # The Game herd is derived from the tonnage, and the yield step needs the
+  # herd to carry the tonnage at all. Building it after assembly found no
+  # tonnes left and emitted neither tonnes nor stocks.
+  result <- suppressMessages(.run_meat_chain(.make_meat_other_raw()))
+  game_t <- result |> dplyr::filter(item_prod_code == "1163", unit == "tonnes")
+  game_stock <- result |> dplyr::filter(item_prod_code == "1190")
+
+  expect_equal(game_t$value, 3e5)
+  expect_equal(game_t$fao_flag, "A")
+  expect_equal(
+    game_stock |> dplyr::filter(unit == "LU") |> dplyr::pull(value),
+    3 * 3e5
+  )
+  expect_equal(
+    game_stock |> dplyr::filter(unit == "heads") |> dplyr::pull(value),
+    0.3 * 3e5
+  )
+})
+
+test_that("meat of an animal with no herd passes its tonnes through (#1487)", {
+  # Other meat (1166) and snails (1176) map to Animals live nes (1171), which
+  # has no stock anywhere. With no herd there is no yield to carry them, so
+  # the reported tonnage is emitted as reported rather than dropped.
+  raw <- .make_meat_other_raw()
+  result <- suppressMessages(.run_meat_chain(raw))
+  reported <- raw$fao_combined |>
+    dplyr::filter(unit == "t", item_prod_code != "15") |>
+    dplyr::select(item_prod_code, reported = value)
+  emitted <- result |>
+    dplyr::filter(unit == "tonnes", item_prod_code != "15") |>
+    dplyr::select(item_prod_code, value, fao_flag, live_anim_code)
+
+  # Every reported meat tonnage survives, each once.
+  expect_equal(
+    dplyr::left_join(reported, emitted, by = "item_prod_code")$value,
+    reported$reported
+  )
+  expect_equal(
+    emitted |> dplyr::filter(item_prod_code == "1166") |> dplyr::pull(fao_flag),
+    "E"
+  )
+  expect_equal(
+    emitted |>
+      dplyr::filter(item_prod_code %in% c("1166", "1176")) |>
+      dplyr::pull(live_anim_code),
+    c("1171", "1171")
+  )
+  # No yield and no stock is invented for the herdless animal.
+  expect_equal(nrow(result |> dplyr::filter(item_prod_code == "1171")), 0L)
+  expect_false(
+    any(result$unit %in% c("t_LU", "t_head") & result$item_prod_code == "1166")
+  )
+})
+
+test_that("a herdless tonnage is not emitted twice beside a yield row", {
+  # The pass-through is for tonnes the yield branch produced nothing for. A
+  # product the branch does carry must not also come through it.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~t, ~fu2, ~t2, ~yield,
+    2010L, "Spain", 203L, "Honey", "1182", "Bees", "1181", "t_head",
+    "FAOSTAT_prod", 30, 10, 30, 3,
+    2010L, "Spain", 203L, "Honey", "1182", "Bees", "1181", NA,
+    "FAOSTAT_prod", 30, NA, 30, NA
+  )
+
+  result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
+
+  expect_equal(
+    result |> dplyr::filter(unit == "tonnes") |> dplyr::pull(value),
+    30
+  )
+})
+
 test_that("the synthetic game-meat stock claims no FAOSTAT flag", {
   # LU = tonnes * 3 for an item FAOSTAT reports no stock for at all, so the
   # meat tonnage's flag does not describe these rows.
   df <- tibble::tribble(
-    ~year, ~area,   ~area_code, ~item_prod,  ~item_prod_code, ~unit,    ~value, ~source,        ~fao_flag,
-    2019L, "Spain", 203L,       "Game meat", 1163,            "tonnes", 100,    "FAOSTAT_prod", "A"
+    ~year, ~area,   ~area_code, ~item_prod,  ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Game meat", "1163",          "t",   100,    "FAOSTAT_prod", "A"
   )
 
-  result <- suppressMessages(whep:::.add_game_meat_final(df))
+  result <- whep:::.add_game_meat(df)
 
   expect_equal(
-    result |> dplyr::filter(unit == "tonnes") |> dplyr::pull(fao_flag),
+    result |> dplyr::filter(unit == "t") |> dplyr::pull(fao_flag),
     "A"
   )
   expect_true(
-    all(is.na(
-      result |> dplyr::filter(unit != "tonnes") |> dplyr::pull(fao_flag)
-    ))
+    all(is.na(result |> dplyr::filter(unit != "t") |> dplyr::pull(fao_flag)))
+  )
+  expect_equal(
+    result |> dplyr::filter(unit != "t") |> dplyr::pull(item_prod_code),
+    c("1190", "1190")
   )
 })
 
