@@ -547,6 +547,60 @@ testthat::test_that("the FBS fill never overwrites a pin or WPP row", {
   testthat::expect_equal(btn$source_pop, "UN WPP 2024")
 })
 
+testthat::test_that("the WPP fill stops at WPP's last estimate year", {
+  # UN WPP 2024 publishes estimates to 2023 and medium-variant projections from
+  # 2024 to 2100 in the same file. A projection is not a measured population,
+  # and nothing in WHEP has a numerator past 2023, so a fill row past it is
+  # either a denominator with no numerator or a 2100-inclusive world sum
+  # (#1133).
+  wpp <- dplyr::bind_rows(
+    .popf_wpp(),
+    tibble::tribble(
+      ~year, ~area_code, ~iso3c, ~population,
+      2023L, 18L,        "BTN",  786385,
+      2024L, 18L,        "BTN",  791524,
+      2100L, 18L,        "BTN",  637000
+    )
+  )
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw(), wpp_population = wpp),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  btn <- dplyr::filter(out, .data$area_code == 18L)
+  testthat::expect_setequal(btn$year, c(2010L, 2023L))
+  testthat::expect_lte(max(out$year), 2023L)
+  testthat::expect_message(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw(), wpp_population = wpp),
+      population_source = "pin_wpp_fallback"
+    ),
+    "projection"
+  )
+})
+
+testthat::test_that("pin_fbs_fallback fills from FAOSTAT and never reads WPP", {
+  # The FAO-only composition: pin, then FAOSTAT FBS, skipping UN WPP. A WPP
+  # reader that errors proves it is not reached.
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) stop("WPP must not be read")
+  )
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw(), fbs_population = .popf_fbs()),
+      population_source = "pin_fbs_fallback"
+    )
+  )
+  filled <- dplyr::filter(out, .data$area_code %in% c(186L, 151L))
+  testthat::expect_setequal(filled$area_code, c(186L, 151L))
+  testthat::expect_equal(unique(filled$source_pop), "FAOSTAT FBS")
+  testthat::expect_false(any(out$area_code %in% c(18L, 45L)))
+  esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
+  testthat::expect_equal(esp$population, 46600)
+  testthat::expect_equal(esp$source_pop, "pin")
+})
+
 # ---- Two codes, one territory (#939) ---------------------------------------
 #
 # Neither fill can overwrite a key the previous source already has, and that is

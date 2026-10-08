@@ -230,7 +230,12 @@
 read_population <- function(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  population_source = c(
+    "pin",
+    "pin_wpp_fallback",
+    "pin_wpp_fbs_fallback",
+    "pin_fbs_fallback"
+  ),
   territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 ) {
@@ -312,7 +317,7 @@ read_population <- function(
 # 4.4%, and up to 81%. That is the reason this is a gap-filler and not a
 # replacement, and the reason the default stays `"pin"`.
 .pop_fill_from_wpp <- function(pinned, population_source, wpp, years) {
-  if (population_source == "pin") {
+  if (!population_source %in% c("pin_wpp_fallback", "pin_wpp_fbs_fallback")) {
     return(pinned)
   }
   wpp <- wpp %||% read_wpp_population(years = years)
@@ -333,7 +338,34 @@ read_population <- function(
   if (!is.null(years)) {
     fill <- dplyr::filter(fill, .data$year %in% years)
   }
-  dplyr::bind_rows(pinned, fill)
+  dplyr::bind_rows(pinned, .pop_drop_wpp_projections(fill))
+}
+
+# UN WPP 2024 ships its estimates (1950-2023) and its medium-variant
+# projections (2024-2100) in one file with nothing marking which is which. A
+# projection is not a measured population, the pin stops at 2021, and nothing
+# in WHEP has a numerator past 2023, so a projected fill row could only be a
+# denominator with no numerator or a silently 2100-inclusive world sum (#1133).
+# The cut-off is the publisher's: "estimates, 1950-2023, and projections
+# (medium scenario), 2024-2100" (United Nations, Department of Economic and
+# Social Affairs, Population Division (2024). World Population Prospects 2024:
+# Summary of Results, figure notes). On the real inputs this drops 17,710 rows.
+.pop_drop_wpp_projections <- function(fill) {
+  last <- .wpp_last_estimate_year()
+  projected <- fill$year > last
+  if (any(projected)) {
+    n <- sum(projected)
+    cli::cli_inform(c(
+      "Dropped {n} UN WPP fill row{?s} after {last}.",
+      "i" = "WPP 2024 years from {last + 1L} on are medium-variant
+             projections, not estimates."
+    ))
+  }
+  fill[!projected, ]
+}
+
+.wpp_last_estimate_year <- function() {
+  2023L
 }
 
 # `pin_wpp_fbs_fallback`: after the WPP fill, fill what is STILL missing from
@@ -353,7 +385,7 @@ read_population <- function(
 # dissolved federation should get is an open decision, which is why this is
 # opt-in and `"pin"` remains the default.
 .pop_fill_from_fbs <- function(filled, population_source, fbs, years) {
-  if (population_source != "pin_wpp_fbs_fallback") {
+  if (!population_source %in% c("pin_wpp_fbs_fallback", "pin_fbs_fallback")) {
     return(filled)
   }
   fbs <- fbs %||% read_fbs_population(years = years)
