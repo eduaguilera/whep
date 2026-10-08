@@ -273,14 +273,133 @@ testthat::test_that("the divergence ratio is per country, not global", {
   )))
 })
 
-testthat::test_that("a cell with no climate row aborts", {
+testthat::test_that("a cell with no climate row aborts under refuse", {
   testthat::expect_error(
     whep::build_gridded_livestock_emissions(
       .grid_fixture(),
       method_diet = "uniform_medium",
+      method_climate_gap = "refuse",
       data = list(cell_climate = dplyr::slice(.climate_fixture(), 1))
     ),
-    "no climate zone"
+    class = "whep_cell_climate_missing"
+  )
+})
+
+# Cells the CRU land mask does not cover (whep#1126) ---------------------------
+
+# The first fixture cell's climate only. The second cell is its diagonal
+# neighbour, so it is a land-mask gap, not a coverage error.
+.one_cell_climate <- function() {
+  dplyr::slice(.climate_fixture(), 1)
+}
+
+testthat::test_that("a gap cell takes its nearest CRU cell, stamped", {
+  testthat::expect_message(
+    result <- whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      data = list(cell_climate = .one_cell_climate())
+    ),
+    "nearest"
+  )
+
+  gap <- dplyr::filter(result, lon == 34.75, lat == 0.25)
+  testthat::expect_equal(unique(gap$mean_annual_temp_c), 21.1)
+  testthat::expect_equal(unique(gap$climate_zone), "Warm")
+  testthat::expect_equal(
+    unique(gap$method_climate_zone),
+    "nearest_cell; cru_ts_annual"
+  )
+  measured <- dplyr::filter(result, lon == 34.25)
+  testthat::expect_equal(
+    unique(measured$method_climate_zone),
+    "cru_ts_annual"
+  )
+  testthat::expect_equal(sum(result$heads), sum(.grid_fixture()$heads))
+  testthat::expect_false(anyNA(result$enteric_ch4_kt))
+})
+
+testthat::test_that("equidistant nearest cells are averaged", {
+  # Donors one cell east and one cell west of the gap, the same distance
+  # away. The southern and diagonal donors are farther (a degree of
+  # longitude is shorter than one of latitude at 45N) and must not enter.
+  climate <- tibble::tribble(
+    ~lon,  ~lat, ~year, ~mean_annual_temp_c,
+    11.25, 45.75, 2000L,                 9.0,
+    10.25, 45.75, 2000L,                13.0,
+    10.75, 45.25, 2000L,                30.0,
+    10.25, 45.25, 2000L,                 0.0
+  ) |>
+    dplyr::mutate(
+      climate_zone = whep:::.climate_zone_from_mat(mean_annual_temp_c),
+      method_climate_zone = "cru_ts_annual"
+    )
+  cells <- tibble::tibble(lon = 10.75, lat = 45.75, year = 2000L, heads = 1)
+
+  filled <- whep:::.fill_climate_gaps(cells, climate)
+
+  testthat::expect_equal(filled$mean_annual_temp_c, 11)
+  testthat::expect_equal(filled$climate_zone, "Temperate")
+  testthat::expect_equal(
+    filled$method_climate_zone,
+    "nearest_cell; cru_ts_annual"
+  )
+})
+
+testthat::test_that("the nearest-cell search wraps the antimeridian", {
+  climate <- tibble::tibble(
+    lon = -179.75,
+    lat = 60.25,
+    year = 2000L,
+    mean_annual_temp_c = -5,
+    climate_zone = "Cool",
+    method_climate_zone = "cru_ts_annual"
+  )
+  cells <- tibble::tibble(lon = 179.75, lat = 60.25, year = 2000L, heads = 1)
+
+  filled <- whep:::.fill_climate_gaps(cells, climate)
+
+  testthat::expect_equal(filled$mean_annual_temp_c, -5)
+})
+
+testthat::test_that("a gap with no CRU neighbour still aborts", {
+  # A neighbour in another year does not count: the climate table must
+  # cover the herd's years, and a missing year is a coverage error.
+  climate <- .one_cell_climate() |>
+    dplyr::mutate(year = 1962L)
+
+  testthat::expect_error(
+    whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      data = list(cell_climate = climate)
+    ),
+    class = "whep_cell_climate_missing"
+  )
+})
+
+testthat::test_that("drop removes gap rows and names the head count", {
+  testthat::expect_warning(
+    result <- whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_diet = "uniform_medium",
+      method_climate_gap = "drop",
+      data = list(cell_climate = .one_cell_climate())
+    ),
+    "80000"
+  )
+
+  testthat::expect_false(any(result$lon == 34.75))
+  testthat::expect_equal(sum(result$heads), 170000)
+})
+
+testthat::test_that("an unknown climate-gap method aborts", {
+  testthat::expect_error(
+    whep::build_gridded_livestock_emissions(
+      .grid_fixture(),
+      method_climate_gap = "temperate"
+    ),
+    "method_climate_gap"
   )
 })
 
