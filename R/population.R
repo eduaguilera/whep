@@ -140,6 +140,17 @@
 #' separately and it carries no WHEP area code (#863). Which of the three a
 #' dissolved federation should be given is an open decision.
 #'
+#' `population_source = "pin_fbs_fallback"` is FAOSTAT's own population
+#' behind the pin, skipping UN WPP. It reaches the two dissolved areas but
+#' only 12 of the 45 areas the pin lacks (202 areas against 235), because the
+#' Food Balance Sheets do not report Bhutan, Comoros, the French overseas
+#' departments or most small island states. Where both FBS and WPP would fill
+#' the same country-year they agree to a median of about 1e-6.
+#'
+#' The UN WPP fill stops at 2023, the last year WPP 2024 publishes as an
+#' estimate; 2024-2100 are medium-variant projections and are dropped, with a
+#' message, rather than returned as population.
+#'
 #' Neither fill can overwrite a key the previous source already has, but an
 #' anti-join on `(year, area_code)` cannot see two **different** codes naming
 #' the same ground in the same year, and all three sources produce such pairs:
@@ -172,7 +183,8 @@
 #' @param population_source `"pin"` (default, the `gdp-population` pin alone),
 #'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
 #'   not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then fills what
-#'   neither reaches from [read_fbs_population()].
+#'   neither reaches from [read_fbs_population()], or `"pin_fbs_fallback"`,
+#'   which fills from [read_fbs_population()] alone and never reads UN WPP.
 #' @param territory_overlap Which row survives when two area codes describe
 #'   overlapping territory in the same year, as a dissolved federation and its
 #'   successor states do. Overlaps are found from the polities database's
