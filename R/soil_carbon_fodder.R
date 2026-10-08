@@ -1,11 +1,10 @@
 # Fodder crop spatial layer for the soil carbon inputs (whep#1118).
 #
-# The `spatialize-crop-patterns` pin carries no fodder crop: the 16 forage
-# layers of the Monfreda et al. (2008) 175-crop archive are the rows of
-# `inst/extdata/earthstat_mapping.csv` with `unmapped_reason ==
-# "no_fao_crop_name"` (15) plus `legumenes`, which that crosswalk sends to 463
-# (whep#1271).
-# At 2010 that leaves 293.7 of the 310.0 Mt C the crop-pattern join cannot
+# The `spatialize-crop-patterns` pin carried no fodder crop until whep#1271
+# mapped the 16 forage layers of the Monfreda et al. (2008) 175-crop archive
+# in `inst/extdata/earthstat_mapping.csv`; until then 15 were unmapped
+# (`no_fao_crop_name`) and `legumenes` fed 463 "Other vegetables".
+# At 2010 that left 293.7 of the 310.0 Mt C the crop-pattern join cannot
 # place on fodder items, and `method_unspatialized = "reallocate"` spreads it
 # uniformly over the polity's cropland. The rasters themselves exist and are
 # reproducibly obtainable (`inst/scripts/download/download_monfreda.R`); this
@@ -16,9 +15,15 @@
 # The 0.5-degree layer those rasters reduce to is WHEP-built, so it is a pin,
 # `spatialize-fodder-patterns`, produced by
 # `inst/scripts/prepare_fodder_patterns.R`; `WHEP_MONFREDA_DIR` is only an
-# override that rebuilds it from a local copy of the rasters. The separate pin
-# is an interim step: whep#1271 would map the forage layers into the
-# `spatialize-crop-patterns` pin itself, which would supersede this one.
+# override that rebuilds it from a local copy of the rasters.
+#
+# The crop-pattern pin now carries the same pooled layer (whep#1271), so under
+# `method_crop_weights = "static"` the crop-pattern join places the fodder
+# crops itself and this layer fills nothing. It is still what places them
+# under the default `"spatialized"` weights: those come from
+# `build_gridded_landuse()`, which grids only the crops in `cft_mapping.csv`,
+# and fodder is kept out of that table (whep#1372). Retire this pin once
+# whep#1372 is settled, not before.
 #
 # Source: Monfreda, C., N. Ramankutty and J. A. Foley (2008), Farming the
 # planet: 2. Geographic distribution of crop areas, yields, physiological
@@ -31,7 +36,8 @@
 # The archive's metadata gives no FAO name for these layers (its Cropname_FAO
 # column repeats the EarthStat code), so the codes are matched on the layer
 # name against the FAOSTAT forage items in `items_prod_full`: assumed,
-# unverified against a Monfreda table. The match is one-to-one -- 16 layers,
+# unverified against a Monfreda table. `earthstat_mapping.csv` carries the
+# same 16 codes, and `test_earthstat_mapping.R` keeps the two in step. The match is one-to-one -- 16 layers,
 # 16 FAOSTAT forage items -- which is what makes the name reading unambiguous
 # for all but `fornes` ("forage nes" -> 651 Forage products) and `vegfor`
 # (-> 655 Vegetables and roots fodder), the two catch-all classes.
