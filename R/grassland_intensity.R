@@ -111,12 +111,21 @@
 #'     Default: the parquet at `WHEP_GRIDDED_PASTURE_PATH` when set, else the
 #'     `spatialize-gridded-pasture` pin.
 #'   * `cell_polity`: `lon`, `lat`, `area_code`, `polity_frac`. Default: the
-#'     `spatialize-cell-polity-fraction` pin (`WHEP_POLITY_FRACTION_PATH`
-#'     overrides it).
+#'     support `cell_support` selects. An injected table replaces it and is
+#'     stamped `"supplied"`.
 #'   * `grassland_layers`: one row per IMAGE cell with `cell_id`, `lon`, `lat`,
 #'     `a_crop_ha`, `a_gr_int_ha`, `a_gr_ext_ha`, `manure_int_n_kg`,
 #'     `manure_ext_n_kg`, `image_class_2010` and `image_region`. Default: the
 #'     critical-nitrogen archive, resolved as [read_critical_n()] resolves it.
+#' @param cell_support The cell-to-country support:
+#'   * `"year_aware"` (default): [build_cell_polity()] read at a present-day
+#'     year from the polycell support, so `polity_frac` is the polity's share
+#'     of the cell's measured land. It covers every land cell, coastal cells
+#'     whose centre lies at sea included.
+#'   * `"constant"`: the year-invariant `spatialize-cell-polity-fraction` pin
+#'     (`WHEP_POLITY_FRACTION_PATH` overrides it). It is restricted to the
+#'     LPJmL grid, so it gives no country to 2,643 IMAGE grassland cells
+#'     holding 56.8 Mha (issue #1297); those keep their IMAGE class.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble, one row per cell and year, sorted by `cell_id` and
@@ -146,20 +155,24 @@
 #'     formed: `"own"`, `"chained_predecessor_trend"` or `"bucket"`; `NA`
 #'     where the cell has no 2010 country or its code resolves to no
 #'     reporting polity that year.
+#'   * `method_cell_polity`: the cell support that assigned the countries:
+#'     `"year_aware"`, `"constant"` or `"supplied"`.
 #' @export
 #' @examples
 #' build_grassland_intensity_classes(example = TRUE)
 build_grassland_intensity_classes <- function(
   years,
   data = list(),
+  cell_support = c("year_aware", "constant"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_grassland_intensity_classes())
   }
+  cell_support <- rlang::arg_match(cell_support)
   years <- .gic_check_years(years)
   base_years <- sort(unique(c(years, .gic_base_year())))
-  inputs <- .gic_inputs(data, base_years)
+  inputs <- .gic_inputs(data, base_years, cell_support)
   cells <- .gic_cells(inputs, years)
   lineage <- .gic_reporting_map(
     sort(unique(inputs$cell_polity$area_code)),
@@ -175,7 +188,8 @@ build_grassland_intensity_classes <- function(
     dplyr::filter(lineage$map, .data$year %in% base_years),
     cells
   )
-  .gic_classify(cells, ratios, inputs$pasture, years)
+  .gic_classify(cells, ratios, inputs$pasture, years) |>
+    dplyr::mutate(method_cell_polity = inputs$method_cell_polity)
 }
 # nolint end
 
@@ -767,8 +781,9 @@ build_grassland_intensity_classes <- function(
 .gic_base_year <- function() 2010L
 
 # The year whose polity names a present-day crosswalk code's ISO3 for the
-# successor fallback. The crosswalk carries present-day codes only (276 and
-# 277, which exist from 2011), so any year after 2011 names them the same way.
+# successor fallback, and the year the year-aware cell support is read at. The
+# crosswalk carries present-day codes only (276 and 277, which exist from
+# 2011), so any year after 2011 names them the same way.
 .gic_present_year <- function() 2020L
 
 .gic_check_years <- function(years) {
@@ -786,9 +801,8 @@ build_grassland_intensity_classes <- function(
 }
 
 # Read (or take injected) every input, each checked where it enters.
-.gic_inputs <- function(data, base_years) {
+.gic_inputs <- function(data, base_years, cell_support) {
   layers <- data$grassland_layers %||% .gic_read_archive()
-  cell_polity <- data$cell_polity %||% .read_cell_polity_fraction(NULL)
   pasture <- data$gridded_pasture %||% .gic_read_gridded_pasture()
   stock_lu <- data$stock_lu %||%
     get_primary_production(
@@ -797,11 +811,40 @@ build_grassland_intensity_classes <- function(
         max(c(base_years, pasture$year[pasture$year >= min(base_years)]))
       )
     )
+  grazers <- .gic_grazer_lu(stock_lu, base_years)
+  cell_polity <- data$cell_polity %||%
+    .gic_read_cell_polity(cell_support, grazers)
   list(
     layers = .gic_check_layers(layers),
-    grazers = .gic_grazer_lu(stock_lu, base_years),
+    grazers = grazers,
     cell_polity = .gic_key_cell_polity(cell_polity),
-    pasture = .gic_pasture(pasture, base_years)
+    pasture = .gic_pasture(pasture, base_years),
+    method_cell_polity = if (is.null(data$cell_polity)) {
+      cell_support
+    } else {
+      "supplied"
+    }
+  )
+}
+
+# The cell-to-country support. The pinned crosswalk is clipped to the LPJmL
+# grid, the centroid rasterisation of country polygons, so it holds no coastal
+# cell whose centre lies at sea: 2,643 IMAGE grassland cells with 56.8 Mha
+# (issue #1297, the coastline issue #1166 measures for LUH2). Nothing here
+# needs an LPJmL output, so the default reads the polycell support instead,
+# which covers 56.7 of those 56.8 Mha, as the gridded nitrogen driver does
+# (`.nbd_cell_polity()`). It is read at the present-day year, because the
+# crosswalk codes are present-day codes resolved to each year's reporting
+# polity by the lineage below. An overlapping cell drops the polities with
+# no grazer livestock units from its share denominator.
+.gic_read_cell_polity <- function(cell_support, grazers) {
+  if (cell_support == "constant") {
+    return(.read_cell_polity_fraction(NULL))
+  }
+  reporting <- grazers$area_code[is.finite(grazers$value) & grazers$value > 0]
+  build_cell_polity(
+    year = .gic_present_year(),
+    reporting_areas = sort(unique(reporting))
   )
 }
 

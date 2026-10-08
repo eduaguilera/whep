@@ -4,7 +4,12 @@
 \alias{build_grassland_intensity_classes}
 \title{Classify grassland cells as intensive or extensive through time}
 \usage{
-build_grassland_intensity_classes(years, data = list(), example = FALSE)
+build_grassland_intensity_classes(
+  years,
+  data = list(),
+  cell_support = c("year_aware", "constant"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Integer vector of years to classify. 2010 is always read as
@@ -21,12 +26,24 @@ of the grassland surface.
 Default: the parquet at \code{WHEP_GRIDDED_PASTURE_PATH} when set, else the
 \code{spatialize-gridded-pasture} pin.
 \item \code{cell_polity}: \code{lon}, \code{lat}, \code{area_code}, \code{polity_frac}. Default: the
-\code{spatialize-cell-polity-fraction} pin (\code{WHEP_POLITY_FRACTION_PATH}
-overrides it).
+support \code{cell_support} selects. An injected table replaces it and is
+stamped \code{"supplied"}.
 \item \code{grassland_layers}: one row per IMAGE cell with \code{cell_id}, \code{lon}, \code{lat},
 \code{a_crop_ha}, \code{a_gr_int_ha}, \code{a_gr_ext_ha}, \code{manure_int_n_kg},
 \code{manure_ext_n_kg}, \code{image_class_2010} and \code{image_region}. Default: the
 critical-nitrogen archive, resolved as \code{\link[=read_critical_n]{read_critical_n()}} resolves it.
+}}
+
+\item{cell_support}{The cell-to-country support:
+\itemize{
+\item \code{"year_aware"} (default): \code{\link[=build_cell_polity]{build_cell_polity()}} read at a present-day
+year from the polycell support, so \code{polity_frac} is the polity's share
+of the cell's measured land. It covers every land cell, coastal cells
+whose centre lies at sea included.
+\item \code{"constant"}: the year-invariant \code{spatialize-cell-polity-fraction} pin
+(\code{WHEP_POLITY_FRACTION_PATH} overrides it). It is restricted to the
+LPJmL grid, so it gives no country to 2,643 IMAGE grassland cells
+holding 56.8 Mha (issue #1297); those keep their IMAGE class.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
@@ -61,6 +78,8 @@ undefined and for cells with no IMAGE grassland.
 formed: \code{"own"}, \code{"chained_predecessor_trend"} or \code{"bucket"}; \code{NA}
 where the cell has no 2010 country or its code resolves to no
 reporting polity that year.
+\item \code{method_cell_polity}: the cell support that assigned the countries:
+\code{"year_aware"}, \code{"constant"} or \code{"supplied"}.
 }
 }
 \description{
