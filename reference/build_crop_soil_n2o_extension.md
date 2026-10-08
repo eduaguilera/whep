@@ -113,8 +113,10 @@ build_crop_soil_n2o_extension(
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(soil N2O in kilograms CO2e) and `method_soil_n2o`, plus the polity
-columns below.
+(soil N2O in kilograms CO2e) and `method_soil_n2o`, plus
+`method_synthetic`, `method_residue_n` (which residue-N source fed the
+row: `ipcc_2019_table_11_1a`, or `generic_default_0.008` for crops the
+table does not list) and the polity columns below.
 
 ## Polity columns
 
@@ -171,11 +173,12 @@ extra column.
 
 ``` r
 build_crop_soil_n2o_extension(example = TRUE)
-#> # A tibble: 2 × 10
+#> # A tibble: 2 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010        10               10 AUS-1901-2025         Australia            
 #> 2  2010        10               10 AUS-1901-2025         Australia            
-#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
-#> #   impact_u <dbl>, method_soil_n2o <chr>, method_synthetic <chr>
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_soil_n2o <chr>, method_synthetic <chr>,
+#> #   method_residue_n <chr>
 ```

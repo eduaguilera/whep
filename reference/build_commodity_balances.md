@@ -149,16 +149,17 @@ build_commodity_balances(
   the only observation), and `"abort"` refuses to build. The share is an
   intermediate, not a published number: `.cbs_fill_destinies()` later
   re-derives each destiny as `domestic_supply` times a share normalised
-  to sum to one, so on that build no published row from 1961 on carries
-  a destiny above its supply and every difference between the settings
-  sits at 1960 or earlier — against `"report"`, `"clamp"` moves 755 rows
-  (`other_uses` +23.21 Mt, `stock_variation` −22.97 Mt, `food` −1.00 Mt)
-  and `"drop"` moves 544 (`other_uses` +825 Mt, `stock_variation` −825
-  Mt), both upwards because the values they touch are negative
-  (whep#1065; measured under `negative_supply = "report"`, which leaves
-  those negatives in place). Which of those is right is an open question
-  — see whep#980 — so the reporting default is the one that invents
-  nothing.
+  to sum to one. Re-measured under the current defaults
+  (`negative_supply = "floor"`, `hist_trade_scale = "correct"`), no
+  published row carries a destiny above its supply or a negative use
+  under any setting, and every difference between the settings sits at
+  1960 or earlier. Against `"report"`, `"clamp"` moves 766 rows
+  (`other_uses` −0.91 Mt, `food` −1.00 Mt, `domestic_supply` −1.90 Mt)
+  and `"drop"` moves 557 (`other_uses` −3.15 Mt, `domestic_supply` −3.18
+  Mt), against 15,898 Mt of 1950–1960 `other_uses` and 15,411 Mt of
+  `food`: at most 0.02%. The +23 Mt and +825 Mt once recorded here were
+  whep#1065's negative supplies, which the `"floor"` default now
+  removes. The reporting default is the one that invents nothing.
 
 - negative_supply:
 

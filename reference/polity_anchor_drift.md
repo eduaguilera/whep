@@ -7,7 +7,7 @@ references** and they need not agree (whep#748):
   walked backwards by
   [`fill_proxy_growth()`](https://eduaguilera.github.io/whep/reference/fill_proxy_growth.md),
   so it describes the territory that area had in `backcast_anchor`. That
-  is the territory `reporting_polity_code` names, because
+  is the territory `reporting_polity_code` names by default, because
   [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
   floors the polity lookup at the same anchor;
 
@@ -41,6 +41,13 @@ what kind of disagreement a pair carries:
 - `"unmapped_reference"`: the area resolves to no polity at
   `reference_year` at all, so what the movement describes cannot be
   named.
+
+The comparison is always against the anchor, whatever
+`options(whep.backcast_polity = )` is set to. That switch decides which
+of the two territories a published label names, and its `"present_day"`
+value relabels exactly the pairs reported here whose reference polity is
+live in `reference_year`, so this is also the list of rows it would
+move.
 
 A pair whose anchor polity is itself `NA` is **not** reported: that row
 has no label to disagree with, and it is

@@ -20,7 +20,14 @@ warning, and the result is stamped critical_var = &quot;threshold_exceedance&quo
 The archive
 directory comes from dir, else the WHEP_CRITICAL_N_DIR environment
 variable, else a local cache that is populated by downloading the archive
-from Zenodo on first use (see dir)."><meta property="og:description" content="Reads one 0.5-degree gridded critical-nitrogen layer from the
+from Zenodo on first use (see dir).
+method = &quot;reproduced&quot; returns the same layer recomputed from the
+archive's own 2010 inputs with the source's equations by
+calculate_critical_n(), instead of the deposited raster. It covers the
+critical surplus, the critical input and the surplus exceedance, matches
+the deposited layers closely but not exactly (see
+calculate_critical_n()), and is stamped in method_critical_n and
+critical_source so it is never read as the deposited surface."><meta property="og:description" content="Reads one 0.5-degree gridded critical-nitrogen layer from the
 Schulte-Uebbing et al. (2022) archive (doi:10.5281/zenodo.6395016) onto
 WHEP's grid: the critical nitrogen surplus, the critical nitrogen input,
 the exceedance of the critical surplus, the three medium-specific critical
@@ -41,7 +48,14 @@ warning, and the result is stamped critical_var = &quot;threshold_exceedance&quo
 The archive
 directory comes from dir, else the WHEP_CRITICAL_N_DIR environment
 variable, else a local cache that is populated by downloading the archive
-from Zenodo on first use (see dir)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+from Zenodo on first use (see dir).
+method = &quot;reproduced&quot; returns the same layer recomputed from the
+archive's own 2010 inputs with the source's equations by
+calculate_critical_n(), instead of the deposited raster. It covers the
+critical surplus, the critical input and the surplus exceedance, matches
+the deposited layers closely but not exactly (see
+calculate_critical_n()), and is stamped in method_critical_n and
+critical_source so it is never read as the deposited surface."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -103,6 +117,13 @@ warning, and the result is stamped <code>critical_var = "threshold_exceedance"</
 directory comes from <code>dir</code>, else the <code>WHEP_CRITICAL_N_DIR</code> environment
 variable, else a local cache that is populated by downloading the archive
 from Zenodo on first use (see <code>dir</code>).</p>
+<p><code>method = "reproduced"</code> returns the same layer recomputed from the
+archive's own 2010 inputs with the source's equations by
+<code><a href="calculate_critical_n.html">calculate_critical_n()</a></code>, instead of the deposited raster. It covers the
+critical surplus, the critical input and the surplus exceedance, matches
+the deposited layers closely but not exactly (see
+<code><a href="calculate_critical_n.html">calculate_critical_n()</a></code>), and is stamped in <code>method_critical_n</code> and
+<code>critical_source</code> so it is never read as the deposited surface.</p>
     </div>
 
     <div class="section level2">
@@ -115,7 +136,8 @@ from Zenodo on first use (see <code>dir</code>).</p>
 <span>  dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  verify_source <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verify_source <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"archive"</span>, <span class="st">"reproduced"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -177,6 +199,14 @@ selected critical raster and its source-area/IMAGE support rasters against
 the package's versioned content manifest before parsing. Ignored for
 <code>data</code> and <code>example</code> injection.</p></dd>
 
+
+<dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
+<dd><p>Where the layer comes from: <code>"archive"</code> (default) reads the
+deposited raster; <code>"reproduced"</code> recomputes it with
+<code><a href="calculate_critical_n.html">calculate_critical_n()</a></code> from the archive's 2010 inputs. <code>"reproduced"</code>
+supports <code>var = "critical_n_surplus"</code>, <code>"critical_n_input"</code> and
+<code>"exceedance"</code> and aborts for the other layers.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -185,14 +215,15 @@ the package's versioned content manifest before parsing. Ignored for
 <code>threshold_exceedance</code>) and retained layer provenance: <code>critical_var</code>,
 <code>critical_threshold</code>, <code>critical_land_use</code>, <code>critical_year</code> and
 <code>critical_source</code>, canonical integer <code>cell_id</code>/row/column keys, deposited
-<code>source_area_ha</code>, IMAGE-region membership, DOI/version and archive checksum.
-NODATA cells are dropped.</p>
+<code>source_area_ha</code>, IMAGE-region membership, DOI/version, archive checksum
+and <code>method_critical_n</code> (<code>"archive"</code> or <code>"reproduced"</code>). NODATA cells are
+dropped.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">read_critical_n</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 16</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 17</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat value critical_var       critical_threshold critical_land_use</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> -<span style="color: #BB0000;">0.75</span>  51.8     9 critical_n_surplus mi                 all              </span>
@@ -201,10 +232,10 @@ NODATA cells are dropped.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> -<span style="color: #BB0000;">0.75</span>  51.2   120 critical_n_surplus mi                 all              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> -<span style="color: #BB0000;">0.25</span>  51.2    47 critical_n_surplus mi                 all              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  0.25  51.2    63 critical_n_surplus mi                 all              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 10 more variables: critical_year &lt;int&gt;, critical_source &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 11 more variables: critical_year &lt;int&gt;, critical_source &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cell_id &lt;int&gt;, source_row &lt;int&gt;, source_col &lt;int&gt;, source_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   image_region &lt;int&gt;, critical_source_doi &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_source_version &lt;chr&gt;, archive_md5 &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   critical_source_version &lt;chr&gt;, archive_md5 &lt;chr&gt;, method_critical_n &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

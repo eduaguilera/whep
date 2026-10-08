@@ -76,7 +76,8 @@ reporting area outlived (or predates) every polity mapped to it.</p>
 <span>  code_column <span class="op">=</span> <span class="st">"area_code"</span>,</span>
 <span>  year_column <span class="op">=</span> <span class="st">"year"</span>,</span>
 <span>  polity_code_column <span class="op">=</span> <span class="st">"polity_code"</span>,</span>
-<span>  backcast_anchor <span class="op">=</span> <span class="fl">1961L</span></span>
+<span>  backcast_anchor <span class="op">=</span> <span class="fl">1961L</span>,</span>
+<span>  backcast_polity <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -110,6 +111,12 @@ Such a row reports <code>mapping_status == "backcast_anchor"</code> where the an
 polity is not live in its own year. Set to <code>-Inf</code> to disable and match
 strictly by data year.</p></dd>
 
+
+<dt id="arg-backcast-polity">backcast_polity<a class="anchor" aria-label="anchor" href="#arg-backcast-polity"></a></dt>
+<dd><p>Which territory a row before <code>backcast_anchor</code> is
+labelled with: <code>"anchor"</code> or <code>"present_day"</code>. See the section above.
+<code>NULL</code> (default) reads <code>getOption("whep.backcast_polity", "anchor")</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -126,8 +133,8 @@ crosswalk row's own status through, and overwrites it wherever the resolution
 substituted something for a real period hit:</p><ul><li><p><code>"matched"</code> / <code>"manual"</code>: the year fell inside the polity's period, and the
 value is the crosswalk row's own provenance, carried through.</p></li>
 <li><p><code>"backcast_anchor"</code>: the row is before <code>backcast_anchor</code>, so it was
-resolved at the anchor year, and the polity live then is <strong>not</strong> live in
-the row's own year. That polity is still the honest label – the value is a
+resolved at the anchor year (or at 2023 under <code>backcast_polity = "present_day"</code>), and the polity live then is <strong>not</strong> live in the row's own
+year. That polity is still the honest label – the value is a
 reconstruction on the anchor year's territory – but the row is no evidence
 the polity existed then, which is exactly what <code>"matched"</code> asserts.
 FAOSTAT area 238 reads <code>ETH-1952-1993</code> from 1850, 102 years before that
@@ -160,6 +167,36 @@ larger historical-extent period. Set
 <code>options(whep.polity_stand_in = "nearest")</code> to restore ranking by distance
 alone; it changes 235 of the crosswalk's 46,640 <code>(area, year)</code> pairs over
 1850-2025, all of them areas 178 and 273 (whep#705).</p>
+    </div>
+    <div class="section level2">
+    <h2 id="which-territory-a-back-cast-row-names">Which territory a back-cast row names<a class="anchor" aria-label="anchor" href="#which-territory-a-back-cast-row-names"></a></h2>
+
+
+<p>A row before <code>backcast_anchor</code> has two territorial references, and they
+differ wherever a territory changed after the anchor (whep#748). Its
+<strong>level</strong> is the area's value at the anchor, walked backwards by
+<code><a href="fill_proxy_growth.html">fill_proxy_growth()</a></code>, so it describes the anchor year's territory. Its
+year-on-year <strong>movement</strong> is a ratio of LUH2 land keyed on present-day ISO3,
+so it describes today's territory. <code><a href="polity_anchor_drift.html">polity_anchor_drift()</a></code> reports where the
+two differ. <code>backcast_polity</code> chooses which one the label names:</p><ul><li><p><code>"anchor"</code> (default): the polity live at <code>backcast_anchor</code>, the territory
+of the level. Area 238 Ethiopia reads <code>ETH-1952-1993</code>, which includes
+Eritrea, from 1850 to 1992.</p></li>
+<li><p><code>"present_day"</code>: the polity live in 2023, the territory of the movement and
+the reference year <code><a href="polity_anchor_drift.html">polity_anchor_drift()</a></code> measures against. Area 238 reads
+<code>ETH-1993-2025</code> from 1850 to 1960, <code>ETH-1952-1993</code> from 1961 to 1992 and
+<code>ETH-1993-2025</code> after. An area with no polity live in 2023, such as 15
+Belgium-Luxembourg or 248 Yugoslav SFR, keeps its anchor polity, because
+there is no present-day territory to name.</p></li>
+</ul><p>Either way the row's <code>mapping_status</code> is <code>"backcast_anchor"</code> where the polity
+named is not live in the row's own year. Neither choice moves a value of
+the table being labelled or a <code>polity_area_code</code> bucket: over the
+crosswalk's 1850-1960 grid, <code>"present_day"</code> relabels 5,106 <code>(area, year)</code>
+pairs of 46 areas and leaves every bucket where it was. A consumer that
+joins on <code>reporting_polity_code</code> follows the label it is given.</p>
+<p>Without an explicit argument the session option
+<code>options(whep.backcast_polity = )</code> decides, and it is the same switch every
+published output's <code>reporting_polity_code</code> and <code>partner_polity_code</code> follow,
+so one setting relabels them all consistently.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

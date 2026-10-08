@@ -89,7 +89,9 @@ polity_mapping_provenance(
   same resolution
   [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
   documents. Set to `-Inf` to resolve strictly by data year, which is
-  what makes the manufactured pre-1961 periods live.
+  what makes the manufactured pre-1961 periods live. The territory a
+  pre-anchor row is resolved to follows
+  `options(whep.backcast_polity = )`, as the builds' labels do.
 
 ## Value
 

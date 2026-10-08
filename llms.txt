@@ -721,6 +721,9 @@ embodied-nitrogen trade footprint extension.
 
 - [`read_critical_n()`](https://eduaguilera.github.io/whep/reference/read_critical_n.md)
   : Read a Schulte-Uebbing gridded critical-nitrogen layer.
+- [`calculate_critical_n()`](https://eduaguilera.github.io/whep/reference/calculate_critical_n.md)
+  : Calculate critical-nitrogen allowances with the Schulte-Uebbing
+  method.
 - [`build_grassland_intensity_classes()`](https://eduaguilera.github.io/whep/reference/build_grassland_intensity_classes.md)
   : Classify grassland cells as intensive or extensive through time
 - [`build_critical_n_binding()`](https://eduaguilera.github.io/whep/reference/build_critical_n_binding.md)

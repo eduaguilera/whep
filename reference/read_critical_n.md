@@ -26,6 +26,16 @@ The archive directory comes from `dir`, else the `WHEP_CRITICAL_N_DIR`
 environment variable, else a local cache that is populated by
 downloading the archive from Zenodo on first use (see `dir`).
 
+`method = "reproduced"` returns the same layer recomputed from the
+archive's own 2010 inputs with the source's equations by
+[`calculate_critical_n()`](https://eduaguilera.github.io/whep/reference/calculate_critical_n.md),
+instead of the deposited raster. It covers the critical surplus, the
+critical input and the surplus exceedance, matches the deposited layers
+closely but not exactly (see
+[`calculate_critical_n()`](https://eduaguilera.github.io/whep/reference/calculate_critical_n.md)),
+and is stamped in `method_critical_n` and `critical_source` so it is
+never read as the deposited surface.
+
 ## Usage
 
 ``` r
@@ -37,7 +47,8 @@ read_critical_n(
   dir = NULL,
   data = NULL,
   example = FALSE,
-  verify_source = TRUE
+  verify_source = TRUE,
+  method = c("archive", "reproduced")
 )
 ```
 
@@ -99,6 +110,15 @@ read_critical_n(
   versioned content manifest before parsing. Ignored for `data` and
   `example` injection.
 
+- method:
+
+  Where the layer comes from: `"archive"` (default) reads the deposited
+  raster; `"reproduced"` recomputes it with
+  [`calculate_critical_n()`](https://eduaguilera.github.io/whep/reference/calculate_critical_n.md)
+  from the archive's 2010 inputs. `"reproduced"` supports
+  `var = "critical_n_surplus"`, `"critical_n_input"` and `"exceedance"`
+  and aborts for the other layers.
+
 ## Value
 
 A tibble with `lon`, `lat` (0.5-degree cell centres), `value` (kg N per
@@ -106,14 +126,15 @@ hectare per year; a categorical impact code for `threshold_exceedance`)
 and retained layer provenance: `critical_var`, `critical_threshold`,
 `critical_land_use`, `critical_year` and `critical_source`, canonical
 integer `cell_id`/row/column keys, deposited `source_area_ha`,
-IMAGE-region membership, DOI/version and archive checksum. NODATA cells
-are dropped.
+IMAGE-region membership, DOI/version, archive checksum and
+`method_critical_n` (`"archive"` or `"reproduced"`). NODATA cells are
+dropped.
 
 ## Examples
 
 ``` r
 read_critical_n(example = TRUE)
-#> # A tibble: 6 × 16
+#> # A tibble: 6 × 17
 #>     lon   lat value critical_var       critical_threshold critical_land_use
 #>   <dbl> <dbl> <dbl> <chr>              <chr>              <chr>            
 #> 1 -0.75  51.8     9 critical_n_surplus mi                 all              
@@ -122,8 +143,8 @@ read_critical_n(example = TRUE)
 #> 4 -0.75  51.2   120 critical_n_surplus mi                 all              
 #> 5 -0.25  51.2    47 critical_n_surplus mi                 all              
 #> 6  0.25  51.2    63 critical_n_surplus mi                 all              
-#> # ℹ 10 more variables: critical_year <int>, critical_source <chr>,
+#> # ℹ 11 more variables: critical_year <int>, critical_source <chr>,
 #> #   cell_id <int>, source_row <int>, source_col <int>, source_area_ha <dbl>,
 #> #   image_region <int>, critical_source_doi <chr>,
-#> #   critical_source_version <chr>, archive_md5 <chr>
+#> #   critical_source_version <chr>, archive_md5 <chr>, method_critical_n <chr>
 ```
