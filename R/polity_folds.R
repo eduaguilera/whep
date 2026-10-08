@@ -709,6 +709,134 @@ row_promotion_status <- function(crosswalk = NULL) {
   folded
 }
 
+# Warn where a balance-sheet source sums a bucket over FEWER members than
+# production does (whep#588).
+#
+# The CBS takes each element of a bucket from whichever source reports it, so
+# its supply and its uses can come from different member sets. Where a source
+# reports only some of the members whose production the bucket holds, the
+# bucket's uses are one territory's while its production is several, and the
+# other territories' food, feed and seed are absent from a balance that still
+# books their production. Nothing reconciles that away: each source's total is
+# the exact sum of the members it reported.
+#
+# Measured on the real pins: under the default, bucket 206 in 2012-2013, where
+# the old food balances and crop balances report Sudan (276) and not South
+# Sudan (277), whose production the bucket includes. Under the Rest-of-World
+# sensitivity modes, bucket 999 throughout 1961-2013, where Eswatini alone
+# answered for the old food balances of a bucket summing 61 members' production
+# -- the non-monotonic seed response whep#588 reported.
+#
+# A source with NO row for the bucket-year is not flagged: the bucket's uses
+# then come from the estimated balance as a whole, which is consistent with its
+# production. Only the partial case mixes two member sets.
+#
+# The record each side is read from is the `bucket_members` attribute
+# `.aggregate_to_polities()` writes. A frame without it (a caller-built or
+# mocked input) has nothing to compare and is skipped.
+.warn_partial_source_coverage <- function(production, sources) {
+  produced <- attr(production, "bucket_members")
+  if (is.null(produced) || length(sources) == 0L) {
+    return(invisible(.empty_partial_coverage()))
+  }
+  flagged <- purrr::imap(
+    sources,
+    \(src, label) {
+      .partial_coverage_rows(produced, attr(src, "bucket_members"), label)
+    }
+  ) |>
+    purrr::list_rbind()
+  if (nrow(flagged) == 0L) {
+    return(invisible(flagged))
+  }
+  if (isTRUE(getOption("whep.warn_polity_folds", TRUE))) {
+    .warn_partial_coverage(flagged)
+  }
+  invisible(flagged)
+}
+
+# Drop the member record once the guard has read it, by reference, so the
+# frames travel on exactly as they did before it was written.
+.strip_bucket_members <- function(frames) {
+  purrr::walk(
+    purrr::compact(frames),
+    \(frame) data.table::setattr(frame, "bucket_members", NULL)
+  )
+  invisible(NULL)
+}
+
+.empty_partial_coverage <- function() {
+  tibble::tibble(
+    source = character(),
+    polity_area_code = integer(),
+    covered = character(),
+    missing = character(),
+    year_range = character()
+  )
+}
+
+# The bucket-years a source reports for some, but not all, of the members with
+# production in them, one row per (bucket, member sets) with its year span.
+.partial_coverage_rows <- function(produced, reported, label) {
+  if (is.null(reported) || nrow(reported) == 0L) {
+    return(.empty_partial_coverage())
+  }
+  reported <- tibble::as_tibble(reported)
+  uncovered <- tibble::as_tibble(produced) |>
+    dplyr::semi_join(reported, by = c("polity_area_code", "year")) |>
+    dplyr::anti_join(reported, by = c("polity_area_code", "year", "area_code"))
+  if (nrow(uncovered) == 0L) {
+    return(.empty_partial_coverage())
+  }
+  uncovered |>
+    dplyr::summarise(
+      missing = paste(sort(unique(.data$area_code)), collapse = ", "),
+      .by = c("polity_area_code", "year")
+    ) |>
+    dplyr::left_join(
+      reported |>
+        dplyr::summarise(
+          covered = paste(sort(unique(.data$area_code)), collapse = ", "),
+          .by = c("polity_area_code", "year")
+        ),
+      by = c("polity_area_code", "year")
+    ) |>
+    dplyr::summarise(
+      year_range = paste0(min(.data$year), "-", max(.data$year)),
+      .by = c("polity_area_code", "covered", "missing")
+    ) |>
+    dplyr::mutate(source = label, .before = 1L)
+}
+
+.warn_partial_coverage <- function(flagged) {
+  bullets <- paste0(
+    "Bucket ",
+    flagged$polity_area_code,
+    " in ",
+    flagged$source,
+    " (",
+    flagged$year_range,
+    "): reports area ",
+    flagged$covered,
+    ", not ",
+    flagged$missing,
+    "."
+  )
+  n <- nrow(flagged)
+  cli::cli_warn(
+    c(
+      "!" = paste(
+        "{n} bucket-source pair{?s} sum{?s/} the balance sheet over fewer",
+        "members than production, so the bucket's uses describe part of the",
+        "territory its supply does."
+      ),
+      rlang::set_names(bullets, rep("*", n)),
+      "i" = "Silence with {.code options(whep.warn_polity_folds = FALSE)}."
+    ),
+    class = "whep_warn_partial_source_coverage"
+  )
+}
+
 # The identity an aggregation bucket carries, one row per (bucket, year): the
 # `area` label AND the polity the label came from.
 #

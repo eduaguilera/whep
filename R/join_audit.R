@@ -938,6 +938,11 @@
     "Reduces an area's off-window rows to the span they cover, so `year` is
      what the group is summarising, not a key it is missing. The window
      columns ride along as attributes of the area (whep#884).",
+    ".partial_coverage_rows", "summarise",
+    "polity_area_code, covered, missing", 1L, "diagnostic",
+    "`paste(min(year), max(year))` is the year RANGE the partial-coverage
+     warning reports; the per-year member sets are compared before it, on a
+     key that carries `year` (whep#588). It moves no value.",
     ".predecessor_bucket_codes", "summarise", "area_code", 1L, "year_axis",
     "`max(map_year_end)` over an area's crosswalk periods: the same reduction
      as `.area_last_reporting_year()`, computed here off whichever crosswalk

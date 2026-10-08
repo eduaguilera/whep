@@ -482,7 +482,12 @@
 # `(area_code, year)` before each build's tail, which keeps it rather than
 # resolving again (whep#707, `R/polity_identity_carry.R`). It is not threaded
 # through their `by =`, for the reason above.
-.aggregate_to_polities <- function(df, ..., source_label = NULL) {
+.aggregate_to_polities <- function(
+  df,
+  ...,
+  source_label = NULL,
+  keep_members = FALSE
+) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) {
@@ -513,6 +518,12 @@
   # reporting columns already say a bucket is called.
   by_cols <- c("year", "polity_area_code", "unit", "element", dots)
   labels <- .bucket_area_labels(dt)
+  # Which members the sum is about to be taken over, recorded before the sum
+  # erases them, so a caller can tell two sources summing different members
+  # into one bucket (whep#588). See `.warn_partial_source_coverage()`. Opt-in,
+  # and stripped by the caller once read: an attribute riding on a frame makes
+  # it unequal to the same values without it.
+  members <- if (keep_members) .bucket_members(dt)
 
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
@@ -524,7 +535,21 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  .apply_bucket_area_labels(dt, labels)
+  out <- .apply_bucket_area_labels(dt, labels)
+  if (keep_members) {
+    data.table::setattr(out, "bucket_members", members)
+  }
+  out
+}
+
+# One row per (bucket, year, member) that holds at least one value that is
+# neither missing nor zero: a row count is not a report, and an all-NA member
+# would otherwise be named as covered.
+.bucket_members <- function(dt) {
+  reported <- !is.na(dt$value) & dt$value != 0
+  unique(
+    dt[reported, .(polity_area_code, year, area_code)]
+  )
 }
 
 # A bucket that folds several reporting areas (whep#414) is a *sum*, and the
@@ -645,7 +670,8 @@
   pin_alias,
   years = NULL,
   keep_elements = character(),
-  elements = NULL
+  elements = NULL,
+  keep_members = FALSE
 ) {
   cb_elements <- c(
     "production",
@@ -724,7 +750,8 @@
     dt,
     item_cbs,
     item_cbs_code,
-    source_label = pin_alias
+    source_label = pin_alias,
+    keep_members = keep_members
   )
   # Pin the row order, for the same reason `.extract_cb()` below does and one
   # stage earlier, so the two callers that stop here get it too: the CBS build
@@ -746,8 +773,18 @@
   out
 }
 
-.extract_cb <- function(pin_alias, years = NULL, elements = NULL) {
-  dt <- .extract_fao(pin_alias, years = years, elements = elements)
+.extract_cb <- function(
+  pin_alias,
+  years = NULL,
+  elements = NULL,
+  keep_members = FALSE
+) {
+  dt <- .extract_fao(
+    pin_alias,
+    years = years,
+    elements = elements,
+    keep_members = keep_members
+  )
   items <- .items_cbs_bridge()
   # Keyed on the code alone, and the label replaced by the `items_full` one.
   # The new Food Balances write "Cereals, other", "Vegetables, other" and
@@ -756,7 +793,11 @@
   # kept their production and lost all of their destinies (whep#961). No pin
   # carries one code under two labels, so this cannot merge two items.
   dt[, item_cbs := NULL]
+  members <- attr(dt, "bucket_members")
   out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
+  # `merge()` drops the member record `.aggregate_to_polities()` wrote, and the
+  # CBS needs it to see a bucket two sources sum differently (whep#588).
+  data.table::setattr(out, "bucket_members", members)
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in
