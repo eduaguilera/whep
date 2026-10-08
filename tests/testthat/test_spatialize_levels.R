@@ -325,7 +325,8 @@ testthat::test_that("the year-aware level-0 grid carries its epochs", {
       "land_area_ha",
       "cell_area_frac",
       "start_year",
-      "end_year"
+      "end_year",
+      "method_cell_owner"
     )
   )
   testthat::expect_false(rlang::has_name(grid, "level_polity_code"))
@@ -632,7 +633,11 @@ testthat::test_that("a recorded row keys an unkeyable polity in its years", {
   # FAOSTAT reports Viet Nam (237) for 1961-1974 and the national tables carry
   # it, but the year-aware grid held no 237 cell: 6.28 Mha of 1961 harvested
   # area had nowhere to land.
-  grid <- suppressMessages(.lv_epoch_grid(.lv_recorded_support()))
+  # `"drop"` isolates the recorded rule: the fixture carries no present-day
+  # Viet Nam, so the default would hand the 1954-1960 land to Cambodia.
+  grid <- suppressMessages(
+    .lv_epoch_grid(.lv_recorded_support(), unkeyed_land = "drop")
+  )
   at <- function(yr) whep:::.filter_country_grid_year(grid, yr)
 
   testthat::expect_equal(.lv_frac(at(1961L), 105.75), 1)
@@ -643,6 +648,211 @@ testthat::test_that("a recorded row keys an unkeyable polity in its years", {
   testthat::expect_identical(at(1955L)$area_code, 115L)
   testthat::expect_equal(.lv_frac(at(1955L), 106.25), 0.3)
 })
+# --- land of a polity with no reporting code (whep#1318) --------------------
+
+# Four 1,000-ha cells, all land, with a federation the reporting vocabulary
+# cannot key (`FED`) holding ground in 1900-1950:
+#
+#   (0.25, 50.25) FED alone; held in 2015 by areas 1 (600 ha) and 2 (400 ha)
+#   (0.75, 50.25) FED beside area 3; held in 2015 by area 1 alone
+#   (1.25, 50.25) Serbia (4), then Serbia beside Kosovo, which has no code
+#                 and is the present-day holder of its own 300 ha
+#   (1.75, 50.25) FED, then Guam: the present-day holder has no code either
+.lv_unkeyed_support <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,    ~polity_code,  ~area_code, ~start_year, ~end_year,
+    0.25, 50.25, "FED-1900-1950", NA_integer_,       1900L,     1950L,
+    0.25, 50.25, "AAA-1950-2100",          1L,       1950L,     2100L,
+    0.25, 50.25, "BBB-1950-2100",          2L,       1950L,     2100L,
+    0.75, 50.25, "FED-1900-1950", NA_integer_,       1900L,     1950L,
+    0.75, 50.25, "CCC-1900-1950",          3L,       1900L,     1950L,
+    0.75, 50.25, "AAA-1950-2100",          1L,       1950L,     2100L,
+    1.25, 50.25, "SRB-1900-2008",          4L,       1900L,     2008L,
+    1.25, 50.25, "SRB-2008-2100",          4L,       2008L,     2100L,
+    1.25, 50.25, "KOS-2008-2100", NA_integer_,       2008L,     2100L,
+    1.75, 50.25, "FED-1900-1950", NA_integer_,       1900L,     1950L,
+    1.75, 50.25, "GUM-1950-2100", NA_integer_,       1950L,     2100L
+  ) |>
+    dplyr::mutate(
+      land_area_ha = c(
+        1000,
+        600,
+        400,
+        500,
+        500,
+        1000,
+        1000,
+        700,
+        300,
+        1000,
+        1000
+      ),
+      polity_area_ha = .data$land_area_ha,
+      cell_area_ha = 1000
+    )
+}
+
+# The lineage of the present-day codes, stubbed so the fixture needs no real
+# polity: area 2's national row is keyed on the USSR (228) before 1930, as
+# Russia's is in 1961, and every other row resolves to nothing, so it keeps
+# its own code.
+.lv_unkeyed_lineage <- function(national, support, ...) {
+  dplyr::mutate(
+    national,
+    lineage_polity_code = dplyr::if_else(
+      .data$area_code == 2L & .data$year < 1930L,
+      "F228-1945-1991",
+      NA_character_
+    )
+  )
+}
+
+.lv_unkeyed_grid <- function(...) {
+  suppressMessages(.lv_epoch_grid(.lv_unkeyed_support(), ...))
+}
+
+testthat::test_that("unkeyed land goes to the cell's present-day holders", {
+  testthat::local_mocked_bindings(
+    resolve_polity_lineage = .lv_unkeyed_lineage,
+    .package = "whep"
+  )
+  grid <- .lv_unkeyed_grid()
+  at <- function(yr, lon) {
+    whep:::.filter_country_grid_year(grid, yr) |>
+      dplyr::filter(.data$lon == .env$lon) |>
+      dplyr::arrange(.data$area_code)
+  }
+  # The federation's cell is split 600/400 as it is held in 2015, under the
+  # code each holder's national row carries that year: 228 for area 2 before
+  # 1930, its own code after.
+  early <- at(1920L, 0.25)
+  testthat::expect_identical(early$area_code, c(1L, 228L))
+  testthat::expect_equal(early$cell_area_frac, c(0.6, 0.4))
+  late <- at(1940L, 0.25)
+  testthat::expect_identical(late$area_code, c(1L, 2L))
+  testthat::expect_equal(late$cell_area_frac, c(0.6, 0.4))
+  testthat::expect_setequal(late$method_cell_owner, "present_day_owner")
+  # Beside a keyed polity, only the federation's own 500 ha move; area 3
+  # keeps its half and its stamp.
+  shared <- at(1920L, 0.75)
+  testthat::expect_identical(shared$area_code, c(1L, 3L))
+  testthat::expect_equal(shared$cell_area_frac, c(0.5, 0.5))
+  testthat::expect_identical(
+    shared$method_cell_owner,
+    c("present_day_owner", "polity")
+  )
+  # The cut at 1930 is made in the cell that needs it, and only there.
+  testthat::expect_setequal(
+    dplyr::filter(grid, .data$lon == 0.25, .data$start_year < 1950L)$end_year,
+    c(1930L, 1950L)
+  )
+  testthat::expect_setequal(
+    dplyr::filter(grid, .data$lon == 0.75, .data$start_year < 1950L)$end_year,
+    1950L
+  )
+})
+
+testthat::test_that("handing unkeyed land over conserves every cell's land", {
+  testthat::local_mocked_bindings(
+    resolve_polity_lineage = .lv_unkeyed_lineage,
+    .package = "whep"
+  )
+  # Every year, a cell's shares sum to its keyed land over its whole land:
+  # 1 where a present-day holder has a code, 0 where it has none, and never
+  # more than 1, which would mean the land was handed out twice.
+  sums <- purrr::map(c(1920L, 1940L, 1960L, 2015L), \(yr) {
+    whep:::.filter_country_grid_year(.lv_unkeyed_grid(), yr) |>
+      dplyr::summarise(share = sum(.data$cell_area_frac), .by = "lon") |>
+      dplyr::mutate(year = yr)
+  }) |>
+    purrr::list_rbind()
+  testthat::expect_lte(max(sums$share), 1 + 1e-12)
+  testthat::expect_equal(
+    dplyr::filter(sums, .data$lon %in% c(0.25, 0.75))$share,
+    rep(1, 8)
+  )
+})
+
+testthat::test_that("a polity holding its land in 2015 keeps it out", {
+  testthat::local_mocked_bindings(
+    resolve_polity_lineage = .lv_unkeyed_lineage,
+    .package = "whep"
+  )
+  grid <- .lv_unkeyed_grid()
+  # Kosovo is the present-day holder of its own ground, so its 300 ha are
+  # never handed to Serbia, and the year-aware grid still equals the
+  # snapshot at 2015.
+  aware <- whep:::.filter_country_grid_year(grid, 2015L)
+  testthat::expect_equal(.lv_frac(aware, 1.25), 0.7)
+  snapshot <- suppressWarnings(suppressMessages(
+    tibble::as_tibble(whep:::.carbon_cell_support(.lv_unkeyed_support()))
+  ))
+  testthat::expect_equal(
+    aware |>
+      dplyr::select(dplyr::all_of(names(snapshot))) |>
+      dplyr::arrange(lon, lat, area_code),
+    dplyr::arrange(snapshot, lon, lat, area_code)
+  )
+  # Guam has no code, so the federation's land under it stays out of the
+  # grid, and the read says so.
+  testthat::expect_false(
+    1.75 %in% whep:::.filter_country_grid_year(grid, 1920L)$lon
+  )
+  testthat::expect_warning(
+    suppressMessages(whep:::read_level_country_grid(
+      level = 0L,
+      support = .lv_unkeyed_support(),
+      grid_vintage = "year_aware"
+    )),
+    "carry\\s+no"
+  )
+})
+
+testthat::test_that("unkeyed_land = 'drop' keeps unkeyed land out", {
+  testthat::local_mocked_bindings(
+    resolve_polity_lineage = function(...) {
+      testthat::fail("No lineage is read when nothing is handed over.")
+    },
+    .package = "whep"
+  )
+  grid <- .lv_unkeyed_grid(unkeyed_land = "drop")
+  testthat::expect_false(
+    0.25 %in% whep:::.filter_country_grid_year(grid, 1920L)$lon
+  )
+  shared <- whep:::.filter_country_grid_year(grid, 1920L) |>
+    dplyr::filter(.data$lon == 0.75)
+  testthat::expect_identical(shared$area_code, 3L)
+  testthat::expect_equal(shared$cell_area_frac, 0.5)
+  testthat::expect_setequal(grid$method_cell_owner, "polity")
+  testthat::expect_error(
+    .lv_unkeyed_grid(unkeyed_land = "modern"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("cell breaks cut only the rows of their own cell", {
+  rows <- tibble::tribble(
+    ~lon, ~lat, ~start_year, ~end_year, ~land_area_ha,
+       0,    0,       1900L,     1950L,            10,
+       0,    0,       1950L,     2000L,            20,
+       1,    0,       1900L,     1950L,            30
+  )
+  breaks <- tibble::tribble(
+    ~lon, ~lat, ~year,
+       0,    0, 1920L,
+       0,    0, 1950L,
+       0,    0, 1960L
+  )
+  out <- whep:::.level0_cut_at_cell_breaks(rows, breaks) |>
+    dplyr::arrange(.data$lon, .data$start_year)
+  testthat::expect_identical(
+    out$start_year,
+    c(1900L, 1920L, 1950L, 1960L, 1900L)
+  )
+  testthat::expect_identical(out$end_year, c(1920L, 1950L, 1960L, 2000L, 1950L))
+  testthat::expect_equal(out$land_area_ha, c(10, 10, 20, 20, 30))
+})
+
 testthat::test_that(".check_grid_level refuses a non-depth", {
   fn <- whep:::.check_grid_level
   testthat::expect_identical(fn(NULL), 0L)

@@ -77,6 +77,10 @@
 #'   - `double_claim`: which clashes the depth read's double-claim gate
 #'     refuses, `"co_presence"` (default) or `"measured"`, forwarded to
 #'     [read_level_country_grid()]. The default is the fail-closed rule.
+#'   - `unkeyed_land`: what the year-aware level-0 grid does with the land
+#'     of a polity that has no reporting code, `"present_day_owner"`
+#'     (default) or `"drop"`, forwarded to [read_level_country_grid()]. See
+#'     its *Land of a polity with no reporting code*.
 #'   - `output_level` (integer, default `0L`): grain of the crop output.
 #'     `0L` sums granted-depth rows back onto the container, so
 #'     `(lon, lat, area_code, item_prod_code, year)` stays unique and the
@@ -489,6 +493,7 @@ run_spatialize <- function(
       output_level = 0L,
       granted_containers = NULL,
       double_claim = "co_presence",
+      unkeyed_land = "present_day_owner",
       constraint_exclude = NULL,
       livestock_proxy = "luh2",
       livestock_glw_variant = "DA",
@@ -505,6 +510,7 @@ run_spatialize <- function(
       output_level = 0L,
       granted_containers = NULL,
       double_claim = "co_presence",
+      unkeyed_land = "present_day_owner",
       constraint_exclude = NULL,
       livestock_proxy = "luh2",
       livestock_glw_variant = "DA",
@@ -526,6 +532,7 @@ run_spatialize <- function(
     "output_level",
     "granted_containers",
     "double_claim",
+    "unkeyed_land",
     "constraint_exclude",
     "livestock_proxy",
     "livestock_glw_variant",
@@ -673,6 +680,11 @@ run_spatialize <- function(
   config$grid_vintage <- .check_grid_vintage(
     config$grid_vintage,
     "overrides$grid_vintage"
+  )
+  config$unkeyed_land <- rlang::arg_match0(
+    config$unkeyed_land %||% "present_day_owner",
+    .level0_unkeyed_methods(),
+    arg_nm = "overrides$unkeyed_land"
   )
   config$livestock_proxy <- rlang::arg_match0(
     config$livestock_proxy %||% "luh2",
@@ -863,7 +875,8 @@ run_spatialize <- function(
     config$level,
     config$grid_vintage,
     config$granted_containers,
-    config$double_claim
+    config$double_claim,
+    config$unkeyed_land
   )
   polity_support <- .load_polity_support(config)
 
@@ -931,7 +944,8 @@ run_spatialize <- function(
     config$level,
     config$grid_vintage,
     config$granted_containers,
-    config$double_claim
+    config$double_claim,
+    config$unkeyed_land
   )
   polity_support <- .load_polity_support(config)
 
@@ -1022,7 +1036,8 @@ run_spatialize <- function(
   level = 0L,
   grid_vintage = "year_aware",
   granted_containers = NULL,
-  double_claim = "co_presence"
+  double_claim = "co_presence",
+  unkeyed_land = "present_day_owner"
 ) {
   if (is.null(source)) {
     source <- "polycell"
@@ -1039,11 +1054,17 @@ run_spatialize <- function(
     # it, and passing it there would make every depth run report a key it
     # ignored; `.grid_vintage_method()` records what the grid actually is.
     if (level > 0L) {
-      return(.load_allocation_layer(level, granted_containers, double_claim))
+      return(.load_allocation_layer(
+        level,
+        granted_containers,
+        double_claim,
+        unkeyed_land
+      ))
     }
     return(read_level_country_grid(
       level = level,
-      grid_vintage = grid_vintage
+      grid_vintage = grid_vintage,
+      unkeyed_land = unkeyed_land
     ))
   }
   .inform_static_crosswalk(source, grid_vintage)
@@ -1363,7 +1384,12 @@ run_spatialize <- function(
 # (b). So `grid_vintage` is not read here, which is what
 # `.grid_vintage_method()` has always recorded for a depth run and what every
 # output row's `method_grid_vintage` says.
-.load_allocation_layer <- function(level, granted_containers, double_claim) {
+.load_allocation_layer <- function(
+  level,
+  granted_containers,
+  double_claim,
+  unkeyed_land = "present_day_owner"
+) {
   granted <- tibble::tibble(
     area_code = .level_check_containers(
       granted_containers,
@@ -1377,7 +1403,8 @@ run_spatialize <- function(
   )
   grid0 <- read_level_country_grid(
     level = 0L,
-    grid_vintage = "year_aware"
+    grid_vintage = "year_aware",
+    unkeyed_land = unkeyed_land
   )
   grid_deep <- read_level_country_grid(
     level = level,

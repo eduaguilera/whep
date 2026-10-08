@@ -103,6 +103,39 @@
 #' `validation/spatialize_grid_vintage.R` measures it per year. Reconciling
 #' the two bases is a lineage step on the national side, not a grid setting.
 #'
+#' @section Land of a polity with no reporting code:
+#' At level 0 with `grid_vintage = "year_aware"`, a cell can be held by a
+#' polity the reporting vocabulary has no `area_code` for: a colonial
+#' federation or protectorate such as Anglo-Egyptian Sudan, French West Africa
+#' or Netherlands New Guinea. Land a cell proves is counted twice leaves first,
+#' and a polity `inst/extdata/polity_cell_support_map.csv` places takes its
+#' recorded code. What is left is that polity's own land: on the
+#' `20260907T111653Z-e654d` support, 651 Mha in 1851, 1,285 Mha in 1900,
+#' 731 Mha in 1950, 65.5 Mha in 1961 and 1.9 Mha in 2015. `unkeyed_land`
+#' selects what happens to it, and the two are alternatives, never a fallback:
+#'
+#' \describe{
+#'   \item{`"present_day_owner"`}{The default. The land goes to the polities
+#'     that hold the cell at `.carbon_support_year()` (2015), in proportion to
+#'     their land in the cell then, under the code each one's national row is
+#'     keyed on in that year: its own code where its lineage resolves to the
+#'     unkeyed polity (Sudan in 1900), its predecessor's where that is keyed
+#'     (Russia's present-day cells are the USSR's in 1961). The national tables
+#'     the grid is joined to are on constant, present-day territory, so this is
+#'     the ground those rows describe. The row is stamped
+#'     `method_cell_owner = "present_day_owner"`. A row valid at 2015 is never
+#'     handed over -- there the polity itself is the present-day holder
+#'     (Kosovo, Guam) -- so the grid at 2015 still equals the snapshot; land
+#'     whose present-day holder also has no code stays out of the grid. On the
+#'     support above, national harvested area with no cell falls from 34.2 to
+#'     16.1 Mha in 1900 and from 10.2 to 0.09 Mha in 1950; what is left in 1900
+#'     is lineage the walk cannot resolve (Bangladesh, Pakistan), not this
+#'     land.}
+#'   \item{`"drop"`}{The land stays out of the grid, reported per year with
+#'     the warning that names it. National rows whose lineage resolves to such
+#'     a polity then have no cell in those years.}
+#' }
+#'
 #' @section Which rows count as a level:
 #' A polity is at depth *d* when the containment edge ([polity_containment])
 #' places it *d* steps inside a container that is not itself contained. An edge
@@ -165,6 +198,10 @@
 #' @param double_claim Which clashes the double-claim gate refuses, one of
 #'   `"co_presence"` (default) or `"measured"`. See *Which double claims are
 #'   refused*. Only read at `level >= 1L`.
+#' @param unkeyed_land What a level-0 year-aware grid does with the land of a
+#'   polity that has no reporting `area_code`, `"present_day_owner"` (default)
+#'   or `"drop"`. See *Land of a polity with no reporting code*. Not read at
+#'   `level >= 1L` or with `grid_vintage = "snapshot_2015"`.
 #'
 #' @section Which double claims are refused:
 #' A support that carries a container's own row beside its units' rows in one
@@ -226,7 +263,9 @@
 #'   `end_year`, `cell_area_ha` and `land_area_ha`. At level 0 with
 #'   `grid_vintage = "snapshot_2015"` the six columns `.carbon_cell_support()`
 #'   returns are passed through unchanged; with `"year_aware"` those six
-#'   arrive alongside `start_year` and `end_year`.
+#'   arrive alongside `start_year`, `end_year` and `method_cell_owner`
+#'   (`"polity"`, or `"present_day_owner"` where the row holds land handed
+#'   over under *Land of a polity with no reporting code*).
 #'
 #' @seealso [build_allocation_layer()], [read_polycell_support()].
 #' @export
@@ -284,11 +323,13 @@ read_level_country_grid <- function(
   reference_year = NULL,
   grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
-  double_claim = c("co_presence", "measured")
+  double_claim = c("co_presence", "measured"),
+  unkeyed_land = c("present_day_owner", "drop")
 ) {
   level <- .check_grid_level(level)
   containers <- .level_check_containers(containers)
   double_claim <- rlang::arg_match(double_claim)
+  unkeyed_land <- rlang::arg_match(unkeyed_land)
   # Whether the caller SUPPLIED a vintage, which `arg_match()` cannot say once
   # it has resolved one: the unevaluated default is the whole vocabulary, so
   # its length is the question. Only used to decide whether a depth read has
@@ -301,7 +342,8 @@ read_level_country_grid <- function(
       support,
       containment,
       reference_year,
-      grid_vintage
+      grid_vintage,
+      unkeyed_land
     ))
   }
   .inform_deep_vintage(level, vintage_given)
@@ -714,14 +756,15 @@ admin_coverage_prototype <- function() {
   support,
   containment,
   reference_year,
-  grid_vintage
+  grid_vintage,
+  unkeyed_land = "present_day_owner"
 ) {
   if (grid_vintage == "snapshot_2015") {
     .refuse_level0_arguments(support, containment, reference_year)
     return(.read_polycell_country_grid())
   }
   .refuse_level0_containment(containment)
-  grid <- .polycell_grid_year_aware(support)
+  grid <- .polycell_grid_year_aware(support, unkeyed_land)
   if (!is.null(reference_year)) {
     grid <- .filter_country_grid_year(grid, as.integer(reference_year))
   }
@@ -895,7 +938,11 @@ admin_coverage_prototype <- function() {
 # Taking one denominator across the whole interval-grain table would instead
 # count each cell once per epoch, which is the trap `.level_cell_land()` was
 # written for; this reuses that helper rather than restating the rule.
-.polycell_grid_year_aware <- function(support = NULL) {
+.polycell_grid_year_aware <- function(
+  support = NULL,
+  unkeyed_land = "present_day_owner"
+) {
+  unkeyed_land <- rlang::arg_match(unkeyed_land, .level0_unkeyed_methods())
   support <- (support %||% read_polycell_support()) |>
     tibble::as_tibble() |>
     .level_support_intervals()
@@ -904,13 +951,15 @@ admin_coverage_prototype <- function() {
     c("lon", "lat", "area_code", "cell_area_ha", "land_area_ha"),
     "support"
   )
+  lineage_support <- support
   support <- .carbon_rekey_area_code(support)
   .level0_check_epochs(support)
   support <- support |>
     .carbon_discount_duplicates(
       by = c("lon", "lat", "start_year", "end_year")
     ) |>
-    .level0_key_recorded()
+    .level0_key_recorded() |>
+    .level0_unkeyed_land(lineage_support, unkeyed_land)
   cell_land <- .level_cell_land(support, unique(support$start_year))
   support |>
     .carbon_drop_unkeyed() |>
@@ -971,6 +1020,231 @@ admin_coverage_prototype <- function() {
   rows$area_code[keyed] <- code[keyed]
   .level0_inform_recorded(rows[keyed, , drop = FALSE])
   dplyr::bind_rows(support[!touched, , drop = FALSE], rows)
+}
+
+# What the level-0 grid does with the land of a polity the reporting
+# vocabulary cannot key and no recorded row places (whep#1318): colonial
+# federations and protectorates such as Anglo-Egyptian Sudan, French West
+# Africa or Netherlands New Guinea. On the `20260907T111653Z-e654d` support,
+# after `.carbon_discount_duplicates()` and `.level0_key_recorded()`, that is
+# 651 Mha of land in 1851, 1,285 Mha in 1900, 731 Mha in 1950, 65.5 Mha in
+# 1961 and 1.9 Mha in 2015.
+#
+# * `"present_day_owner"` hands it to the polities that hold the cell at the
+#   carbon path's reference year (`.carbon_support_year()`), in proportion to
+#   their land there, under the code each one's national row is keyed on in
+#   that year (`.level0_lineage_code()`). The national tables the grid is
+#   joined to are on constant, present-day territory: Sudan's 1900 harvested
+#   area is Sudan's present-day ground, which lay inside `SUD-1899-1934`, and
+#   Indonesia's 1961 area includes Netherlands New Guinea. Dropped, that land
+#   leaves those rows with no cell, or with only part of their ground.
+# * `"drop"` keeps it out of the grid, reported per year by
+#   `.carbon_warn_unkeyed()`: the behaviour before this choice existed.
+#
+# A row valid at the reference year is never handed over: there the polity
+# itself is the present-day holder (Kosovo, Guam), and the year-aware grid has
+# to equal the snapshot at that year. Land handed to a present-day polity that
+# itself has no code stays unattributed, and so does a cell with no land at
+# the reference year.
+.level0_unkeyed_methods <- function() c("present_day_owner", "drop")
+
+.level0_unkeyed_land <- function(support, lineage_support, method) {
+  support$method_cell_owner <- "polity"
+  if (method == "drop" || !rlang::has_name(support, "polity_code")) {
+    return(support)
+  }
+  support$row_id <- seq_len(nrow(support))
+  now <- .filter_country_grid_year(support, .carbon_support_year())
+  moves <- is.na(support$area_code) &
+    !is.na(support$land_area_ha) &
+    !support$row_id %in% now$row_id
+  owners <- .level0_cell_owners(now, support[moves, , drop = FALSE])
+  if (nrow(owners) == 0L) {
+    return(dplyr::select(support, -"row_id"))
+  }
+  moving <- support[moves, , drop = FALSE] |>
+    dplyr::semi_join(owners, by = c("lon", "lat"))
+  codes <- .level0_owner_codes(
+    unique(owners$owner_code),
+    seq(min(moving$start_year), max(moving$end_year) - 1L),
+    lineage_support
+  )
+  pieces <- .level0_hand_over(moving, owners, codes)
+  .level0_inform_handed(pieces)
+  touched <- paste(support$lon, support$lat) %in%
+    paste(pieces$lon, pieces$lat)
+  kept <- support[touched & !support$row_id %in% moving$row_id, ]
+  rows <- dplyr::bind_rows(kept, pieces) |>
+    .level0_cut_at_cell_breaks(
+      dplyr::distinct(
+        dplyr::bind_rows(
+          dplyr::select(pieces, "lon", "lat", year = "start_year"),
+          dplyr::select(pieces, "lon", "lat", year = "end_year")
+        )
+      )
+    )
+  dplyr::bind_rows(support[!touched, , drop = FALSE], rows) |>
+    dplyr::select(-"row_id")
+}
+
+# The polities holding each cell of `moving` at the reference year, with
+# their share of the land the cell holds then. An owner with no code keeps
+# `NA`: its share of the handed-over land stays unattributed.
+.level0_cell_owners <- function(now, moving) {
+  now |>
+    dplyr::semi_join(moving, by = c("lon", "lat")) |>
+    dplyr::filter(.data$land_area_ha > 0) |>
+    dplyr::mutate(
+      weight = .data$land_area_ha / sum(.data$land_area_ha),
+      .by = c("lon", "lat")
+    ) |>
+    dplyr::select("lon", "lat", owner_code = "area_code", "weight")
+}
+
+# The code each present-day reporting code's national row is keyed on, per
+# run of years in which it does not change, read exactly as the national side
+# reads it (`.level0_lineage_rekey()`), so the handed-over land sits under the
+# code the row looking for it carries. Russia's present-day cells are the
+# USSR's (228) in 1961; Sudan's are Sudan's (276) in 1900, where its row
+# resolves to the unkeyed `SUD-1899-1934` and keeps its own code.
+.level0_owner_codes <- function(owner_codes, years, lineage_support) {
+  national <- tidyr::expand_grid(
+    owner_code = as.integer(owner_codes[!is.na(owner_codes)]),
+    year = as.integer(years)
+  ) |>
+    dplyr::mutate(area_code = .data$owner_code)
+  resolved <- withCallingHandlers(
+    resolve_polity_lineage(national, lineage_support),
+    whep_lineage_unresolved = \(w) invokeRestart("muffleWarning")
+  )
+  resolved |>
+    dplyr::mutate(code = .level0_lineage_code(resolved)) |>
+    dplyr::arrange(.data$owner_code, .data$year) |>
+    dplyr::mutate(
+      run = cumsum(
+        .data$code != dplyr::lag(.data$code, default = -1L) |
+          .data$year != dplyr::lag(.data$year, default = -1L) + 1L
+      ),
+      .by = "owner_code"
+    ) |>
+    dplyr::summarise(
+      code_start = min(.data$year),
+      code_end = max(.data$year) + 1L,
+      code = dplyr::first(.data$code),
+      .by = c("owner_code", "run")
+    ) |>
+    dplyr::select(-"run")
+}
+
+# Split each moving row over its cell's present-day owners, and each owner's
+# piece over the runs of its code. The weights sum to one per cell, so a row's
+# land is conserved; an owner with no code keeps the row's whole interval and
+# `NA`.
+.level0_hand_over <- function(moving, owners, codes) {
+  pieces <- moving |>
+    dplyr::inner_join(
+      owners,
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::left_join(
+      codes,
+      by = "owner_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      start_year = dplyr::if_else(
+        is.na(.data$code),
+        .data$start_year,
+        pmax(.data$start_year, .data$code_start)
+      ),
+      end_year = dplyr::if_else(
+        is.na(.data$code),
+        .data$end_year,
+        pmin(.data$end_year, .data$code_end)
+      )
+    ) |>
+    dplyr::filter(.data$start_year < .data$end_year) |>
+    dplyr::mutate(
+      area_code = .data$code,
+      land_area_ha = .data$land_area_ha * .data$weight,
+      method_cell_owner = dplyr::if_else(
+        is.na(.data$code),
+        "polity",
+        "present_day_owner"
+      )
+    )
+  if (rlang::has_name(pieces, "polity_area_ha")) {
+    pieces$polity_area_ha <- pieces$polity_area_ha * pieces$weight
+  }
+  dplyr::select(
+    pieces,
+    -"owner_code",
+    -"weight",
+    -"code",
+    -"code_start",
+    -"code_end"
+  )
+}
+
+# Cut every row at each break year of its own cell that falls strictly inside
+# its interval. Cutting all of a cell's rows at the same years keeps the
+# intervals inside the cell coinciding or disjoint, which the per-epoch
+# denominator relies on (`.level0_check_epochs()`); the pieces carry the row's
+# values unchanged.
+.level0_cut_at_cell_breaks <- function(rows, breaks) {
+  rows$cut_id <- seq_len(nrow(rows))
+  spans <- dplyr::select(rows, "cut_id", "lon", "lat", "start_year", "end_year")
+  inner <- spans |>
+    dplyr::inner_join(
+      breaks,
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(
+      .data$year > .data$start_year,
+      .data$year < .data$end_year
+    ) |>
+    dplyr::select("cut_id", "year")
+  bounds <- dplyr::bind_rows(
+    dplyr::select(spans, "cut_id", year = "start_year"),
+    dplyr::select(spans, "cut_id", year = "end_year"),
+    inner
+  ) |>
+    dplyr::distinct() |>
+    dplyr::arrange(.data$cut_id, .data$year) |>
+    dplyr::mutate(end_year = dplyr::lead(.data$year), .by = "cut_id") |>
+    dplyr::filter(!is.na(.data$end_year)) |>
+    dplyr::rename(start_year = "year")
+  rows |>
+    dplyr::select(-"start_year", -"end_year") |>
+    dplyr::inner_join(bounds, by = "cut_id") |>
+    dplyr::select(-"cut_id")
+}
+
+.level0_inform_handed <- function(pieces) {
+  handed <- dplyr::filter(pieces, .data$method_cell_owner != "polity")
+  if (nrow(handed) == 0L) {
+    return(invisible(NULL))
+  }
+  top <- handed |>
+    dplyr::summarise(
+      land = sum(.data$land_area_ha),
+      .by = "polity_code"
+    ) |>
+    dplyr::slice_max(.data$land, n = 3L) |>
+    dplyr::pull("polity_code")
+  land <- signif(sum(handed$land_area_ha) / 1e6, 4)
+  n_polities <- dplyr::n_distinct(handed$polity_code)
+  year <- .carbon_support_year()
+  cli::cli_inform(c(
+    i = "{cli::qty(n_polities)}{n_polities} polit{?y/ies} with no reporting
+         code handed {land} Mha of land, summed over epochs, to the polities
+         holding their cells in {year}.",
+    i = "Largest: {.val {top}}. Rows carry {.field method_cell_owner} =
+         {.val present_day_owner}; {.code unkeyed_land = \"drop\"} keeps
+         them out of the grid."
+  ))
 }
 
 # Cut each row's interval at every break strictly inside it.
@@ -1056,13 +1330,30 @@ admin_coverage_prototype <- function() {
 # `.carbon_fold_area_code()`'s fold with the epoch in the key: two polities
 # sharing a reporting code inside one cell are summed only where their validity
 # intervals coincide, so a successor is not added to its own predecessor.
+#
+# A folded row whose land includes any an unkeyed polity handed over
+# (`.level0_unkeyed_land()`) is stamped `"present_day_owner"`. Handed-over
+# pieces are not counted as folded polities: they are reported where they are
+# handed over, and counting them would bury the folds this warning is for.
 .level0_fold_epochs <- function(support) {
+  if (!rlang::has_name(support, "method_cell_owner")) {
+    support$method_cell_owner <- "polity"
+  }
   folded <- support |>
     dplyr::summarise(
       cell_area_ha = dplyr::first(.data$cell_area_ha),
       land_area_ha = sum(.data$land_area_ha),
-      n_polities = dplyr::n(),
+      n_polities = sum(.data$method_cell_owner == "polity"),
+      handed = any(.data$method_cell_owner == "present_day_owner"),
       .by = c("lon", "lat", "area_code", "start_year", "end_year")
+    ) |>
+    dplyr::mutate(
+      method_cell_owner = dplyr::if_else(
+        .data$handed,
+        "present_day_owner",
+        "polity"
+      ),
+      handed = NULL
     )
   .carbon_warn_fold(folded, support)
   dplyr::select(folded, -"n_polities")
@@ -1093,7 +1384,8 @@ admin_coverage_prototype <- function() {
       "land_area_ha",
       "cell_area_frac",
       "start_year",
-      "end_year"
+      "end_year",
+      "method_cell_owner"
     )
 }
 
@@ -4287,6 +4579,15 @@ build_level_crop_targets <- function(
     return(country_areas)
   }
   resolved <- resolve_polity_lineage(country_areas, support)
+  resolved$area_code <- .level0_lineage_code(resolved)
+  resolved
+}
+
+# The `area_code` a resolved national row is keyed on: its lineage polity's
+# reporting code, else the recorded code, else its own. Shared with
+# `.level0_owner_codes()`, so land handed to a present-day polity sits under
+# the code its national row looks for.
+.level0_lineage_code <- function(resolved) {
   # Look the code up only where there IS one. `.polity_reporting_area_code()`
   # does not propagate a missing value -- handed NA it returns a real area code
   # (351), so mapping the whole column would silently rekey every unresolved
@@ -4311,11 +4612,7 @@ build_level_crop_targets <- function(
   # An unresolved row keeps its own code rather than taking NA: keying on NA
   # would drop it silently, which is the failure this step exists to remove.
   # It stays visible through `.warn_grid_missing_reporters()`, as before.
-  resolved$area_code <- dplyr::coalesce(
-    as.integer(mapped),
-    as.integer(resolved$area_code)
-  )
-  resolved
+  dplyr::coalesce(as.integer(mapped), as.integer(resolved$area_code))
 }
 
 # Reconcile a national table's polity vintage with a year-aware grid's.
