@@ -138,8 +138,10 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' `"Excreta"` row, whose species are carried as a share rather than in its
 #' label, takes `excreta_cpp_share * mf(Excreta_cattle_monog) + (1 -
 #' excreta_cpp_share) * mf(Excreta_other)`, stamped
-#' `"aguilera_excreta_blend"`; a fallback-labelled `"Excreta"` row takes
-#' `mf(Excreta_other)`, stamped `"aguilera_fallback_applied_manure"`.
+#' `"aguilera_excreta_blend"`; a fallback-labelled `"Excreta"` row, which is
+#' collected manure applied to the land and not grazing deposition, takes
+#' `mf(Solid)` (0.38 on MED, 0.60 on ATL), stamped
+#' `"aguilera_fallback_applied_manure"`.
 #' `"ipcc2006"` uses the [n2o_efs_ipcc2006]
 #' table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
 #' keyed like `"aguilera"` on `(irrig_type, climate)` with no `mf`.
@@ -641,7 +643,8 @@ calculate_indirect_n2o_nh3 <- function(
 # monogastric row (the CPP animals of IPCC 2019 Table 11.1) and the
 # other-animal row of fertiliser_n2o_modifiers. Rows already labelled by
 # species keep their own modifier. A fallback-labelled "Excreta" row carries
-# no species at all and takes the Excreta_other modifier.
+# no species at all and is collected manure applied to the land, not grazing
+# deposition: it takes the Solid modifier of fertiliser_n2o_modifiers.
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(ef)
@@ -651,8 +654,9 @@ calculate_indirect_n2o_nh3 <- function(
   share <- .n_excreta_share(x, blended)
   mf_cpp <- .soil_n2o_mf("Excreta_cattle_monog", x$climate)
   mf_other <- .soil_n2o_mf("Excreta_other", x$climate)
+  mf_applied <- .soil_n2o_mf("Solid", x$climate)
   mf <- dplyr::case_when(
-    fallback ~ mf_other,
+    fallback ~ mf_applied,
     blended ~ share * mf_cpp + (1 - share) * mf_other,
     .default = .soil_n2o_mf(fert_type, x$climate)
   )

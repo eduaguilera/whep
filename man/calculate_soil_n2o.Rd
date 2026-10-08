@@ -84,8 +84,10 @@ granularity is available and its regional emission factors apply:
 \code{mf} from \link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}. An
 \code{"Excreta"} row, whose species are carried as a share rather than in its
 label, takes \code{excreta_cpp_share * mf(Excreta_cattle_monog) + (1 - excreta_cpp_share) * mf(Excreta_other)}, stamped
-\code{"aguilera_excreta_blend"}; a fallback-labelled \code{"Excreta"} row takes
-\code{mf(Excreta_other)}, stamped \code{"aguilera_fallback_applied_manure"}.
+\code{"aguilera_excreta_blend"}; a fallback-labelled \code{"Excreta"} row, which is
+collected manure applied to the land and not grazing deposition, takes
+\code{mf(Solid)} (0.38 on MED, 0.60 on ATL), stamped
+\code{"aguilera_fallback_applied_manure"}.
 \code{"ipcc2006"} uses the \link{n2o_efs_ipcc2006}
 table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
 keyed like \code{"aguilera"} on \verb{(irrig_type, climate)} with no \code{mf}.

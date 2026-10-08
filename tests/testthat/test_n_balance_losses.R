@@ -360,23 +360,30 @@ testthat::test_that("ipcc2019 prices fallback-labelled excreta as applied manure
   )
 })
 
-testthat::test_that("aguilera prices fallback-labelled excreta on Excreta_other", {
+testthat::test_that("aguilera prices fallback-labelled excreta as Solid", {
+  # Collected manure with no type split is applied manure, not grazing
+  # deposition: it takes the Solid modifier, 0.38 on MED and 0.60 on ATL.
   x <- tibble::tribble(
     ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
     ~method_excreta_species,
     10, "Excreta", "MED", "Rainfed", NA, "fallback_label_no_species",
-    10, "Excreta", "ATL", "Tier_1", NA, "fallback_label_no_species"
+    10, "Excreta", "ATL", "Tier_1", NA, "fallback_label_no_species",
+    10, "Solid", "MED", "Rainfed", NA, NA,
+    10, "Solid", "ATL", "Tier_1", NA, NA
   )
   out <- whep::calculate_soil_n2o(x, method = "aguilera")
-  # MED / Rainfed ef 0.0027 x mf 0.30; ATL / Tier_1 ef 0.010 x mf 0.30.
+  # MED / Rainfed ef 0.0027 x mf 0.38; ATL / Tier_1 ef 0.010 x mf 0.60.
   testthat::expect_equal(
-    out$n2o_direct_n_t,
-    c(10 * 0.0027 * 0.30, 10 * 0.010 * 0.30),
+    out$n2o_direct_n_t[1:2],
+    c(10 * 0.0027 * 0.38, 10 * 0.010 * 0.60),
     tolerance = 1e-12
   )
+  # The same emission as the Solid rows of that climate and irrigation type.
+  testthat::expect_equal(out$n2o_direct_n_t[1:2], out$n2o_direct_n_t[3:4])
   testthat::expect_true(all(
-    out$method_soil_n2o == "aguilera_fallback_applied_manure"
+    out$method_soil_n2o[1:2] == "aguilera_fallback_applied_manure"
   ))
+  testthat::expect_identical(out$method_soil_n2o[3:4], rep("aguilera", 2L))
 })
 
 testthat::test_that("ipcc2019 refuses excreta N with no species share", {
