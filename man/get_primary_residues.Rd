@@ -4,11 +4,35 @@
 \alias{get_primary_residues}
 \title{Crop residue items}
 \usage{
-get_primary_residues(example = FALSE)
+get_primary_residues(
+  example = FALSE,
+  oil_palm_residue = c("per_hectare", "per_product", "pin")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{oil_palm_residue}{How oil palm residue (fronds and trunks) is
+obtained. One of:
+\itemize{
+\item \code{"per_hectare"} (default): 60 Mt DM / 4.85 Mha = 12.37 t DM per
+harvested hectare, Malaysia's 2010 fronds and trunks. Frond and trunk
+production is a property of the standing palm, and the rate barely
+moves between the strategy's two Malaysian years (12.26 t DM/ha at
+2012, from its "over 83 million dry tonnes" times "about 75 percent"
+on FAOSTAT's 5.08 Mha).
+\item \code{"per_product"}: 60 Mt DM / 83.09 Mt of fresh fruit bunches = 0.722 t
+DM per tonne of fruit, the same 2010 anchor over Malaysia's 2010
+FAOSTAT production. It keeps the pin's production-times-ratio form but
+gives far less residue where yields are low (Nigeria, 2.6 t/ha), and
+drifts between the strategy's two years (0.656 at 2012).
+\item \code{"pin"}: the pin as published, 3.8 t fresh residue per tonne of fruit.
+}
+
+The anchored dry matter is converted to fresh mass with the oil palm
+\code{Residue_kgDM_kgFM} of \link{biomass_coefs}, so \code{value_dm} is the anchor
+exactly. The choice is recorded in \code{method_residue}.}
 }
 \value{
 A tibble with the crop residue data.
@@ -37,6 +61,10 @@ fresh residue times its own residue dry-matter content,
 \code{Residue_kgDM_kgFM} in \link{biomass_coefs}, summed per row. \code{NA} where a
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.
+\item \code{method_residue}: Where the residue quantity comes from: \code{"pin"} for the
+\code{crop_residues} pin, or \code{"malaysia_nbs_per_hectare"} /
+\code{"malaysia_nbs_per_product"} for oil palm re-anchored by
+\code{oil_palm_residue}.
 }
 
 The pin's residue quantities are fresh matter. Across its crops the ratio of
@@ -48,6 +76,20 @@ is defined per unit of dry matter, such as a residue nitrogen content.
 }
 \description{
 Get type and amount of residue produced for each crop production item.
+
+Oil palm residue is re-anchored rather than taken from the pin
+(whep#1424). The pin books 35.8 t of residue dry matter per harvested
+hectare at 2020, more than an oil palm plantation's whole above-ground net
+primary production, fruit included: 81\% of 17.3 Mg C, so about 30 t DM at
+the 0.47 kg C per kg DM of \link{biomass_coefs}, per hectare and year in the
+industrial plantation of Wakhid, Hirano, Dariah & Agus (2022), \emph{Mires and
+Peat} 28:02, doi:10.19189/map.2021.snpg.sta.2288. In Malaysia it is 2.2 to 2.9
+times the country's whole solid oil palm biomass, mill residues included.
+The anchor is Malaysia's field residue: fronds (46 Mt) and trunks (14 Mt)
+of dry matter on 4.85 Mha planted in 2010, Exhibit 1 and p. 10 of Agensi
+Inovasi Malaysia (2013), \emph{National Biomass Strategy 2020}, version 2.0
+(FAOLEX mal228571). Mill residues (empty fruit bunches, fibre, shells) are
+part of the fruit bunch and are not field residue, so they are left out.
 }
 \section{The batch pin on the build path}{
 

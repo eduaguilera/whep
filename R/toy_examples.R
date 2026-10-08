@@ -184,6 +184,7 @@
     1994, 109, 2605, 2105, 5597., 5035.7,
     1982, 194, 2605, 2106, 280552., 58261.3
   ) |>
+    dplyr::mutate(method_residue = "pin") |>
     .add_reporting_polity_columns()
 }
 
