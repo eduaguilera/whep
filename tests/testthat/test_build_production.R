@@ -1396,6 +1396,66 @@ test_that(".prepare_historical_production normalizes generic historical rows", {
   expect_type(result$live_anim_code, "character")
 })
 
+test_that(".prepare_historical_production reports rows with no area", {
+  # whep#1489: whep-polities publishes a polity with no FAOSTAT area
+  # (Tanganyika 1922-1964, Algeria's Constantine department) with `area_code`
+  # NA. Its territory belongs to an area WHEP models in its own right, so the
+  # row must not reach bucket 999 -- and its absence must be reported, not
+  # silent.
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~polity_code,        ~item_prod_code, ~unit,    ~value,
+    1950L, 203L,       203L,              "ESP-1800-2025",     "15",            "tonnes", 100,
+    1950L, NA,         NA,                "TAN-1922-1964",     "15",            "tonnes", 40,
+    1950L, NA,         NA,                "DZA-CVD-1902-1919", "15",            "tonnes", 60,
+    1800L, NA,         NA,                "TAN-1891-1920",     "15",            "tonnes", 7
+  )
+
+  expect_message(
+    result <- whep:::.prepare_historical_production(
+      historical,
+      years = 1950L
+    ),
+    class = "whep_inform_historical_no_area"
+  )
+
+  expect_equal(result$area_code, 203L)
+  expect_equal(result$value, 100)
+  expect_false(999L %in% result$area_code)
+})
+
+test_that("no-area report names the polities and counts rows in scope", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~polity_code,    ~item_prod_code, ~unit,    ~value,
+    1950L, NA,         "TAN-1922-1964", "15",            "tonnes", 40,
+    1951L, NA,         "TAN-1922-1964", "15",            "tonnes", 41,
+    1800L, NA,         "TAN-1891-1920", "15",            "tonnes", 7
+  )
+
+  msg <- testthat::capture_messages(
+    whep:::.prepare_historical_production(historical, years = 1950:1951)
+  ) |>
+    paste(collapse = "")
+
+  expect_match(msg, "2 harmonized historical rows", fixed = TRUE)
+  expect_match(msg, "TAN-1922-1964", fixed = TRUE)
+  expect_no_match(msg, "TAN-1891-1920", fixed = TRUE)
+})
+
+test_that("historical rows prefer area_code over a 999 polity_area_code", {
+  # Before whep-polities#738 a small territory arrived with its own FAOSTAT
+  # area in `area_code` and WHEP's FABIO bucket 999 in `polity_area_code`.
+  # The area is what WHEP models (the Rest-of-World fold is off), so the row
+  # must land on it, never on 999.
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_prod_code, ~unit,    ~value,
+    1950L, 87L,        999L,              "15",            "tonnes", 5
+  )
+
+  result <- whep:::.prepare_historical_production(historical, years = 1950L)
+
+  expect_equal(result$area_code, 87L)
+})
+
 test_that(".extend_historical uses historical rows as LUH2 anchors", {
   primary <- tibble::tibble(
     year = c(1950L, 1961L),

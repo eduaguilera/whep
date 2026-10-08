@@ -1914,6 +1914,25 @@ test_that(".select_best_source uses dataset-specific source names", {
 
 # -- historical CBS rows -------------------------------------------------------
 
+test_that(".prepare_historical_cbs reports rows with no area", {
+  # whep#1489: the CBS reader shares the harmonized table with the production
+  # reader, so a polity with no FAOSTAT area is skipped -- and reported --
+  # here too, never routed to bucket 999.
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~polity_code,    ~item_prod_code, ~unit,    ~value,
+    1950L, 203L,       "ESP-1800-2025", "15",            "tonnes", 100,
+    1950L, NA,         "TAN-1922-1964", "15",            "tonnes", 40
+  )
+
+  expect_message(
+    result <- whep:::.prepare_historical_cbs(historical, years = 1950L),
+    class = "whep_inform_historical_no_area"
+  )
+
+  expect_equal(result$area_code, 203L)
+  expect_equal(result$value, 100)
+})
+
 test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
   historical <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,

@@ -2250,6 +2250,7 @@ build_processing_coefs <- function(
     value = suppressWarnings(as.numeric(raw$value)) * value_multiplier,
     source = source
   )
+  .report_historical_no_area(raw, dt$area_code, dt$year, years)
   dt <- .harmonize_element_names(dt)
 
   valid_elements <- c(
