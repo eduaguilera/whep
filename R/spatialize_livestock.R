@@ -92,6 +92,13 @@
 #'     end**, so 2014 selects `"RUS-2014-2025"` and not `"RUS-1991-2014"`,
 #'     while 2025 still selects `"RUS-2014-2025"` because no later interval of
 #'     that compartment follows it. See [polities] for the full rule.
+#'
+#'   A `livestock_data` row whose `area_code` has no cell in a year, but
+#'   whose [polity_area_crosswalk] bucket does, is folded onto that bucket
+#'   for that year (and summed with any row already there), with a message.
+#'   A bucket-keyed grid holds Sudan and South Sudan only as 206, while the
+#'   livestock table keys them on 276 and 277 from 2012. A code with cells of
+#'   its own is never folded.
 #' @param species_proxy A tibble mapping each `species_group` to its
 #'   spatial proxy type: `"pasture"`, `"cropland"`, `"rangeland"`, or
 #'   `"mixed"`.
@@ -296,6 +303,7 @@ build_gridded_livestock <- function(
   )
   livestock_data <- reconciled$national
   country_grid <- reconciled$grid
+  livestock_data <- .fold_national_to_grid_bucket(livestock_data, country_grid)
 
   .warn_grid_missing_reporters(
     livestock_data,
@@ -365,6 +373,120 @@ build_gridded_livestock <- function(
 
 
 # --- Private helpers : livestock spatialization ---------------------------
+
+# Fold a national row onto the matrix bucket where the grid keys that ground
+# on the bucket and not on the row's own code (whep#1312).
+#
+# The livestock country pin keys Sudan on its reporting codes, 276 and 277,
+# from 2012 (whep#1274), because the year-aware grid `run_spatialize()` reads
+# does. A bucket-keyed support -- the carbon path's 2015 snapshot, which
+# `.carbon_fold_to_bucket()` folds onto 206 (whep#1168), or
+# `build_cell_polity(area_key = "polity_area")`, which the gridded nitrogen
+# balance places its animals on -- holds the same ground only as 206. Every
+# Sudanese row then matched no cell and the herd was dropped whole: measured
+# on the `20261001T175458Z-dd754` pin, 235.8 M head and 3.37 Tg of manure N
+# in 2015 on either support.
+#
+# Only a row with no cell of its own THAT YEAR moves, and only onto a bucket
+# the grid does hold that year, so this is a relabelling onto ground the grid
+# already names, never an absorption by a neighbour: a reporting area with
+# cells keeps them even where its bucket is on the grid too, and a code whose
+# bucket is missing as well is left alone for
+# `.warn_grid_missing_reporters()` to report. The bucket is read through
+# `.cell_polity_bucket_lookup()`, the lookup the carbon fold uses, so under the
+# un-fold switch (whep#680) 276 is its own bucket and nothing moves.
+#
+# The moved rows are summed with any row already on the bucket that year, one
+# row per `(year, area_code, species_group)`: two reporting areas folded onto
+# one bucket are one national total there, and a second row on the same key
+# would make the allocation's join many-to-many. A plain `sum()`, so a missing
+# value stays missing rather than becoming a zero. Rows the fold does not
+# reach are returned exactly as they came.
+.fold_national_to_grid_bucket <- function(national, grid) {
+  moves <- .national_bucket_moves(national, grid)
+  if (nrow(moves) == 0L) {
+    return(national)
+  }
+  .inform_national_bucket_fold(national, moves)
+  key <- paste(as.integer(national$year), as.integer(national$area_code))
+  bucket <- moves$bucket[match(key, paste(moves$year, moves$area_code))]
+  national$area_code <- dplyr::coalesce(bucket, as.integer(national$area_code))
+  hit <- paste(as.integer(national$year), national$area_code) %in%
+    paste(moves$year, moves$bucket)
+  by <- intersect(c("year", "area_code", "species_group"), names(national))
+  value_cols <- setdiff(
+    names(national)[vapply(national, is.numeric, logical(1))],
+    by
+  )
+  folded <- national[hit, , drop = FALSE] |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(value_cols), sum),
+      .by = dplyr::all_of(by)
+    )
+  dplyr::bind_rows(national[!hit, , drop = FALSE], folded)
+}
+
+# The (year, area_code) national pairs with no cell that year whose bucket
+# does have one, with that bucket.
+.national_bucket_moves <- function(national, grid) {
+  lookup <- .cell_polity_bucket_lookup()
+  pairs <- national |>
+    dplyr::distinct(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code)
+    ) |>
+    dplyr::mutate(
+      bucket = lookup$polity_area_code[
+        match(.data$area_code, lookup$area_code)
+      ]
+    ) |>
+    dplyr::filter(!is.na(.data$bucket), .data$bucket != .data$area_code)
+  if (nrow(pairs) == 0L) {
+    return(dplyr::select(pairs, "year", "area_code", "bucket"))
+  }
+  purrr::map(sort(unique(pairs$year)), function(yr) {
+    have <- .grid_codes_at(grid, yr)
+    dplyr::filter(
+      pairs,
+      .data$year == yr,
+      !.data$area_code %in% have,
+      .data$bucket %in% have
+    )
+  }) |>
+    dplyr::bind_rows()
+}
+
+# The area codes a grid holds in one year; every year alike for a snapshot.
+.grid_codes_at <- function(grid, yr) {
+  if (.country_grid_is_dynamic(grid)) {
+    grid <- .filter_country_grid_year(grid, yr)
+  }
+  unique(as.integer(grid$area_code))
+}
+
+.inform_national_bucket_fold <- function(national, moves) {
+  from <- sort(unique(moves$area_code))
+  to <- sort(unique(moves$bucket))
+  years <- range(moves$year)
+  n_from <- length(from)
+  heads <- if (rlang::has_name(national, "heads")) {
+    moved <- paste(national$year, national$area_code) %in%
+      paste(moves$year, moves$area_code)
+    paste0(", ", round(sum(national$heads[moved], na.rm = TRUE)), " head")
+  } else {
+    ""
+  }
+  cli::cli_inform(c(
+    i = paste0(
+      "{cli::qty(n_from)}Folded {n_from} national reporting area{?s} onto ",
+      "the bucket the {.arg country_grid} keys their ground on",
+      heads,
+      "."
+    ),
+    i = "{.val {from}} onto {.val {to}}, in {years[[1]]}-{years[[2]]}
+         (whep#1312)."
+  ))
+}
 
 #' Default species-group → spatial-proxy mapping.
 #' @noRd

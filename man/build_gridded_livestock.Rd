@@ -73,7 +73,14 @@ bound is \strong{exclusive at a succession} and \strong{inclusive at the open
 end}, so 2014 selects \code{"RUS-2014-2025"} and not \code{"RUS-1991-2014"},
 while 2025 still selects \code{"RUS-2014-2025"} because no later interval of
 that compartment follows it. See \link{polities} for the full rule.
-}}
+}
+
+A \code{livestock_data} row whose \code{area_code} has no cell in a year, but
+whose \link{polity_area_crosswalk} bucket does, is folded onto that bucket
+for that year (and summed with any row already there), with a message.
+A bucket-keyed grid holds Sudan and South Sudan only as 206, while the
+livestock table keys them on 276 and 277 from 2012. A code with cells of
+its own is never folded.}
 
 \item{species_proxy}{A tibble mapping each \code{species_group} to its
 spatial proxy type: \code{"pasture"}, \code{"cropland"}, \code{"rangeland"}, or
