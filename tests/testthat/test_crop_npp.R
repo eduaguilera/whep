@@ -324,3 +324,27 @@ test_that("stamping the weed stream moves no number", {
   testthat::expect_equal(out$weed_npp_n_t, c(0, 0))
   testthat::expect_equal(out$total_npp_c_t, out$crop_npp_c_t)
 })
+
+test_that("residues stamp items with no IPCC crop group as uncorrected", {
+  mapping <- whep::whep_coef_table("ipcc_crop_mapping")
+  unmapped <- setdiff(
+    whep::whep_coef_table("bio_coefs")$item_prod_code,
+    mapping$item_prod_code[!is.na(mapping$crop_group)]
+  )
+  testthat::skip_if(length(unmapped) == 0L)
+  x <- tibble::tibble(
+    item_prod_code = c("15", unmapped[[1]]),
+    production_t = 100,
+    area_ha = 40
+  )
+  out <- whep::calculate_crop_residues(x)
+  testthat::expect_equal(
+    out$method_residue_group,
+    c("ipcc_group", "unmapped_uncorrected")
+  )
+  # stamping moves no number
+  testthat::expect_equal(
+    out$residue_dm_t[[1]],
+    whep::calculate_crop_residues(x[1, ])$residue_dm_t
+  )
+})

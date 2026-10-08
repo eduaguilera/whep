@@ -52,8 +52,12 @@ calculate_potential_npp <- function(
 #'   `"ipcc"` (IPCC linear only) or `"ratio"` (`bio_coefs` ratio only).
 #' @param weights Named list; `w_ipcc` is the IPCC weight in the ensemble (0-1,
 #'   default 0.5), used only when `method = "ensemble"`.
-#' @return The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`
-#'   and `method_residue`.
+#' @return The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`,
+#'   `method_residue` and `method_residue_group`. The latter is `"ipcc_group"`
+#'   for an item with an IPCC crop group, and `"unmapped_uncorrected"` for one
+#'   without: that item gets no irrigation or modern-variety residue correction
+#'   (both are keyed on the crop group), which is not the same as a correction
+#'   that was computed and found to be 1.
 #' @export
 #' @examples
 #' calculate_crop_residues(
@@ -75,6 +79,7 @@ calculate_crop_residues <- function(
     .residue_dm_conversions() |>
     .residue_ipcc() |>
     .residue_ratio() |>
+    .stamp_residue_group() |>
     .residue_irrigation_factor() |>
     .residue_variety_factor() |>
     .residue_combine(method, w_ipcc) |>
@@ -399,6 +404,21 @@ calculate_npp_carbon_nitrogen <- function(x) {
   dplyr::mutate(
     x,
     residue_ratio_t = production_t * residue_kg_product_fm_kg * residue_dm_kgfm
+  )
+}
+
+# Items absent from `ipcc_crop_mapping` have no crop group, so the irrigation
+# sensitivity and the modern-variety correction both miss and fall back to 1.
+# That is today's behaviour (whether to map them, e.g. to "Other", is a science
+# decision, whep#1437); this only records which rows it applies to.
+.stamp_residue_group <- function(x) {
+  dplyr::mutate(
+    x,
+    method_residue_group = dplyr::if_else(
+      is.na(crop_group),
+      "unmapped_uncorrected",
+      "ipcc_group"
+    )
   )
 }
 
