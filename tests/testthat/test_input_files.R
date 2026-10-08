@@ -659,3 +659,435 @@ testthat::test_that("the documented readers read the documented aliases", {
     c(.predecessor_batch_build_path(), "bilateral_trade")
   )
 })
+
+# Reading from another registry ---------------------------------------------
+
+.test_board_url <- function() {
+  "https://saco.csic.es/public.php/dav/files/TestShare0/inputs/_pins.yaml"
+}
+
+.test_registry <- function(alias = "crop_yields", version = NA_character_) {
+  tibble::tibble(
+    alias = alias,
+    board_url = .test_board_url(),
+    version = version
+  )
+}
+
+# A versioned pins board on local disk, standing in for the remote board a
+# registry names, with one version per table pinned as csv and parquet the way
+# `inst/scripts/prepare_upload.R` pins them. Versions are a second apart so
+# their creation times, which is what pins orders them by, are distinct.
+.local_test_board <- function(alias, tables, env = parent.frame()) {
+  withr::local_options(pins.quiet = TRUE, .local_envir = env)
+  board <- pins::board_folder(
+    withr::local_tempdir(.local_envir = env),
+    versioned = TRUE
+  )
+  file_dir <- withr::local_tempdir(.local_envir = env)
+  purrr::iwalk(tables, function(table, i) {
+    if (i > 1L) {
+      Sys.sleep(1.1)
+    }
+    csv <- fs::path(file_dir, paste0(alias, ".csv"))
+    parquet <- fs::path(file_dir, paste0(alias, ".parquet"))
+    readr::write_csv(table, csv)
+    nanoparquet::write_parquet(table, parquet)
+    pins::pin_upload(board, c(csv, parquet), alias)
+  })
+
+  board
+}
+
+# Stands the local board in for the remote one and records every board URL the
+# reader asked for, so a test can assert which registry row was used.
+.serve_test_board <- function(board, env = parent.frame()) {
+  asked <- new.env()
+  asked$urls <- character()
+  testthat::local_mocked_bindings(
+    .check_remote_reachable = function(...) invisible(NULL),
+    .build_board_with_progress = function(board_url) {
+      asked$urls <- c(asked$urls, board_url)
+      board
+    },
+    .env = env
+  )
+
+  asked
+}
+
+.oldest_version <- function(board, alias) {
+  board |>
+    pins::pin_versions(alias) |>
+    dplyr::arrange(created) |>
+    dplyr::pull(version) |>
+    dplyr::first()
+}
+
+testthat::test_that("whep_read_file reads through another registry", {
+  expected <- tibble::tibble(year = 2001:2003, value = c(1.5, 2.5, 3.5))
+  board <- .local_test_board("crop_yields", list(expected))
+  asked <- .serve_test_board(board)
+
+  result <- whep_read_file("crop_yields", registry = .test_registry())
+
+  testthat::expect_equal(result, expected)
+  testthat::expect_equal(asked$urls, .test_board_url())
+  testthat::expect_equal(
+    whep_read_file("crop_yields", type = "csv", registry = .test_registry()),
+    expected,
+    ignore_attr = TRUE
+  )
+  testthat::expect_equal(
+    whep_read_file("crop_yields", years = 2002, registry = .test_registry()),
+    dplyr::filter(expected, year == 2002)
+  )
+})
+
+testthat::test_that("another registry's frozen version is the default", {
+  board <- .local_test_board(
+    "crop_yields",
+    list(
+      tibble::tibble(year = 2001L, value = 1),
+      tibble::tibble(year = 2001L, value = 2)
+    )
+  )
+  .serve_test_board(board)
+  registry <- .test_registry(version = .oldest_version(board, "crop_yields"))
+
+  testthat::expect_equal(
+    dplyr::pull(whep_read_file("crop_yields", registry = registry), value),
+    1
+  )
+  testthat::expect_equal(
+    whep_read_file("crop_yields", version = "latest", registry = registry) |>
+      dplyr::pull(value),
+    2
+  )
+  # A blank version reads the newest one, as for `whep_inputs`.
+  testthat::expect_equal(
+    whep_read_file("crop_yields", registry = .test_registry()) |>
+      dplyr::pull(value),
+    2
+  )
+})
+
+testthat::test_that("another registry never reads the bundled example", {
+  # `read_example` exists on this package's example board. Another registry
+  # is authoritative for its own aliases, so the same name must resolve to its
+  # board and not silently to the bundled file.
+  board <- .local_test_board(
+    "read_example",
+    list(tibble::tibble(year = 1999L, value = 42))
+  )
+  asked <- .serve_test_board(board)
+  registry <- .test_registry("read_example")
+
+  testthat::expect_equal(
+    dplyr::pull(whep_read_file("read_example", registry = registry), value),
+    42
+  )
+  testthat::expect_equal(asked$urls, .test_board_url())
+  testthat::expect_equal(
+    nrow(whep_list_file_versions("read_example", registry = registry)),
+    1L
+  )
+})
+
+testthat::test_that("predecessor warnings are for whep_inputs only", {
+  board <- .local_test_board(
+    "primary_prod",
+    list(tibble::tibble(year = 2001L, value = 1))
+  )
+  .serve_test_board(board)
+
+  testthat::expect_no_warning(
+    whep_read_file("primary_prod", registry = .test_registry("primary_prod"))
+  )
+})
+
+testthat::test_that("another registry falls back to its cached copy", {
+  cache_root <- .local_pin_cache_root()
+  pin_url <- .test_board_url() |>
+    stringr::str_replace("_pins\\.yaml$", "") |>
+    paste0("crop_yields/")
+  .write_fake_pin_cache(cache_root, pin_url, "20250101T000000Z", "ccccc")
+  testthat::local_mocked_bindings(
+    .check_remote_reachable = function(...) {
+      cli::cli_abort("Remote host is not reachable.")
+    }
+  )
+
+  testthat::expect_warning(
+    result <- whep_read_file(
+      "crop_yields",
+      registry = .test_registry(version = "20250101T000000Z-ccccc")
+    ),
+    "Using cached local copy"
+  )
+  testthat::expect_equal(result$version, "20250101T000000Z-ccccc")
+
+  testthat::expect_error(
+    whep_read_file(
+      "crop_yields",
+      registry = .test_registry(version = "20990101T000000Z-ddddd")
+    ),
+    "No local cached copy"
+  )
+})
+
+testthat::test_that("whep_list_file_versions lists another registry's pin", {
+  board <- .local_test_board(
+    "crop_yields",
+    list(
+      tibble::tibble(year = 2001L, value = 1),
+      tibble::tibble(year = 2001L, value = 2)
+    )
+  )
+  asked <- .serve_test_board(board)
+
+  result <- whep_list_file_versions("crop_yields", registry = .test_registry())
+
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(asked$urls, .test_board_url())
+  testthat::expect_error(
+    whep_list_file_versions("absent_alias", registry = .test_registry()),
+    "There is no file entry"
+  )
+})
+
+testthat::test_that("an unknown alias in another registry is refused", {
+  testthat::expect_error(
+    whep_read_file("absent_alias", registry = .test_registry()),
+    "There is no file entry"
+  )
+})
+
+testthat::test_that("a registry column named file_alias does not mask", {
+  registry <- dplyr::bind_rows(
+    .test_registry("a"),
+    .test_registry("b")
+  ) |>
+    dplyr::mutate(file_alias = c("b", "a"))
+
+  testthat::expect_equal(.fetch_file_info("a", registry)$alias, "a")
+})
+
+# The default registry is unchanged -----------------------------------------
+
+testthat::test_that("registry = NULL resolves exactly as whep_inputs did", {
+  testthat::expect_identical(.resolve_registry(NULL), whep::whep_inputs)
+  aliases <- c(
+    "commodity_balance_sheet",
+    "bilateral_trade",
+    "crop_residues",
+    "read_example"
+  )
+  purrr::walk(aliases, function(alias) {
+    testthat::expect_identical(
+      .fetch_file_info(alias, .resolve_registry(NULL)),
+      c(dplyr::filter(whep::whep_inputs, .data$alias == .env$alias))
+    )
+  })
+})
+
+testthat::test_that("whep_read_file passes whep_inputs when no registry", {
+  received <- NULL
+  testthat::local_mocked_bindings(
+    .fetch_file_info = function(file_alias, input_files) {
+      received <<- input_files
+      rlang::abort("stubbed", class = "whep_test_stub")
+    }
+  )
+
+  testthat::expect_error(
+    whep_read_file("commodity_balance_sheet"),
+    class = "whep_test_stub"
+  )
+  testthat::expect_identical(received, whep::whep_inputs)
+})
+
+testthat::test_that("whep_inputs itself satisfies the registry contract", {
+  # Every rule `whep_registry()` enforces was read off the rows of
+  # `whep_inputs`, so the package's own registry must pass all of them.
+  registry <- whep_registry(
+    system.file("extdata", "whep_inputs.csv", package = "whep")
+  )
+
+  testthat::expect_equal(
+    dplyr::select(registry, alias, board_url, version),
+    dplyr::select(whep::whep_inputs, alias, board_url, version),
+    ignore_attr = TRUE
+  )
+  testthat::expect_identical(
+    .validate_registry(whep::whep_inputs)$alias,
+    whep::whep_inputs$alias
+  )
+})
+
+# whep_registry validation --------------------------------------------------
+
+.write_registry_csv <- function(lines, env = parent.frame()) {
+  path <- withr::local_tempfile(fileext = ".csv", .local_envir = env)
+  readr::write_lines(lines, path)
+  path
+}
+
+testthat::test_that("whep_registry reads a valid registry", {
+  path <- .write_registry_csv(c(
+    "alias,board_url,version,description",
+    paste0("a,", .test_board_url(), ",20250714T123343Z-114b5,frozen"),
+    paste0("b,", .test_board_url(), ",,blank"),
+    paste0(
+      "NA,",
+      "https://saco.csic.es/public.php/dav/files/Tok/_pins.yaml,latest,"
+    )
+  ))
+
+  registry <- whep_registry(path)
+
+  testthat::expect_s3_class(registry, "tbl_df")
+  testthat::expect_equal(registry$alias, c("a", "b", "NA"))
+  testthat::expect_equal(
+    registry$version,
+    c("20250714T123343Z-114b5", NA, "latest")
+  )
+  testthat::expect_equal(registry$description, c("frozen", "blank", NA))
+})
+
+testthat::test_that("whep_registry refuses a missing file", {
+  testthat::expect_error(
+    whep_registry(fs::path(withr::local_tempdir(), "absent.csv")),
+    class = "whep_registry_error"
+  )
+  testthat::expect_error(
+    whep_registry(c("a.csv", "b.csv")),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("whep_registry names the file it refuses", {
+  path <- .write_registry_csv(c("alias,board_url", "a,b"))
+
+  testthat::expect_error(whep_registry(path), "version")
+  testthat::expect_error(
+    whep_registry(path),
+    fs::path_file(path),
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("a registry missing columns is refused", {
+  testthat::expect_error(
+    .validate_registry(dplyr::select(.test_registry(), alias)),
+    class = "whep_registry_error"
+  )
+  testthat::expect_error(
+    .validate_registry(dplyr::select(.test_registry(), alias, board_url)),
+    "version"
+  )
+})
+
+testthat::test_that("a registry that is not a data frame is refused", {
+  testthat::expect_error(
+    .validate_registry(list(alias = "a")),
+    class = "whep_registry_error"
+  )
+  testthat::expect_error(
+    whep_read_file("a", registry = "a.csv"),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("an empty registry is refused", {
+  testthat::expect_error(
+    .validate_registry(.test_registry()[0, ]),
+    "no rows"
+  )
+})
+
+testthat::test_that("an empty alias is refused", {
+  purrr::walk(c(NA_character_, "", "  "), function(bad) {
+    testthat::expect_error(
+      .validate_registry(.test_registry(c("a", bad))),
+      "empty"
+    )
+  })
+  testthat::expect_error(
+    .validate_registry(.test_registry(1)),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("a duplicated alias is refused", {
+  testthat::expect_error(
+    .validate_registry(.test_registry(c("a", "b", "a"))),
+    "more than once"
+  )
+  testthat::expect_error(
+    whep_read_file("a", registry = .test_registry(c("a", "a"))),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("a board_url that is not a saco pins board is refused", {
+  bad_urls <- c(
+    # plain http
+    "http://saco.csic.es/public.php/dav/files/Tok/_pins.yaml",
+    # another host
+    "https://example.org/public.php/dav/files/Tok/_pins.yaml",
+    "https://saco.csic.es.example.org/public.php/dav/files/Tok/_pins.yaml",
+    # not a public share link
+    "https://saco.csic.es/remote.php/dav/files/user/_pins.yaml",
+    # not the pins manifest
+    "https://saco.csic.es/public.php/dav/files/Tok/data.csv",
+    "https://saco.csic.es/public.php/dav/files/Tok/my_pins.yaml",
+    "https://saco.csic.es/public.php/dav/files/Tok/_pins.yaml?x=1",
+    # no share token
+    "https://saco.csic.es/public.php/dav/files/_pins.yaml",
+    NA_character_
+  )
+  purrr::walk(bad_urls, function(url) {
+    registry <- dplyr::mutate(.test_registry(), board_url = url)
+    testthat::expect_error(
+      .validate_registry(registry),
+      "board_url",
+      info = url
+    )
+  })
+  testthat::expect_error(
+    .validate_registry(dplyr::mutate(.test_registry(), board_url = 1)),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("an invalid version is refused", {
+  purrr::walk(
+    c("v1", "2025-07-14", "20250714T123343Z", "20250714T123343Z-114B5"),
+    function(bad) {
+      testthat::expect_error(
+        .validate_registry(.test_registry(version = bad)),
+        "version",
+        info = bad
+      )
+    }
+  )
+  testthat::expect_error(
+    .validate_registry(.test_registry(version = 20250714)),
+    class = "whep_registry_error"
+  )
+})
+
+testthat::test_that("blank, latest and pins versions are accepted", {
+  registry <- .test_registry(
+    c("a", "b", "c", "d"),
+    c(NA, "", "latest", "20250714T123343Z-114b5")
+  )
+  testthat::expect_identical(.validate_registry(registry), registry)
+  # A data frame built in code gives an all-blank column NA logicals.
+  testthat::expect_identical(
+    .validate_registry(.test_registry(version = NA))$version,
+    NA_character_
+  )
+})

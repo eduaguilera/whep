@@ -12,6 +12,26 @@
 #' [`pins`](https://pins.rstudio.com/index.html) package. It supports multiple
 #' file formats and file versioning.
 #'
+#' Other packages and projects can use the same reader for their own pinned
+#' inputs by passing a `registry`: a table with the same `alias`, `board_url`
+#' and `version` columns as [`whep_inputs`], usually loaded and validated
+#' from a CSV with [whep_registry()].
+#'
+#' @section Reading from another registry:
+#' A registry other than [`whep_inputs`] is authoritative for its aliases. The
+#' file is downloaded from that registry's board, cached, and read back from
+#' the cache when the board is unreachable, exactly as for [`whep_inputs`].
+#' Two behaviours belong to [`whep_inputs`] alone, so with another registry
+#' the example board bundled with this package is not consulted, so an alias such as `read_example` in
+#' another registry resolves to that registry's board. The predecessor-pipeline
+#' warnings below are not raised, since they describe this package's pins.
+#'
+#' ```r
+#' reg <- whep::whep_registry("inst/extdata/input_registry.csv")
+#' whep::whep_read_file("crop_yields", registry = reg)
+#' whep::whep_list_file_versions("crop_yields", registry = reg)
+#' ```
+#'
 #' @section Frozen predecessor-pipeline references:
 #' Four aliases in [`whep_inputs`] are not outputs of this package:
 #' `primary_prod`, `commodity_balance_sheet`, `processing_coefs` and
@@ -160,6 +180,12 @@
 #'   returned as a path (`nc`, `nc4`, `raw`, archives) cannot honour it and
 #'   abort rather than ignore it. `NULL`, the default, reads the whole file.
 #' @param year_col Name of the year column `years` filters on.
+#' @param registry The table that maps `file_alias` to a board and a frozen
+#'   version. `NULL`, the default, is [`whep_inputs`], this package's own
+#'   inputs. Another package or project passes its own registry, a table with
+#'   the columns `alias`, `board_url` and `version`, usually read with
+#'   [whep_registry()]; it is validated the same way before it is used. See
+#'   the section *Reading from another registry*.
 #'
 #' @returns A tibble with the dataset. Some information about each dataset can
 #'   be found in the code where it's used as input for further processing.
@@ -179,28 +205,29 @@ whep_read_file <- function(
   type = "parquet",
   version = NULL,
   years = NULL,
-  year_col = "year"
+  year_col = "year",
+  registry = NULL
 ) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
-  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
-  .warn_legacy_reference(file_alias)
+  own_inputs <- is.null(registry)
+  file_info <- .fetch_file_info(file_alias, .resolve_registry(registry))
+  if (own_inputs) {
+    .warn_legacy_reference(file_alias)
+  }
   version <- .choose_version(file_info$version, version)
 
-  paths <- tryCatch(
-    .get_local_board() |>
-      pins::pin_download(file_alias, version = version),
-    error = function(e) {
-      tryCatch(
-        file_info |>
-          .get_remote_board() |>
-          pins::pin_download(file_alias, version = version),
-        error = function(e) {
-          .get_cache_paths(file_info, file_alias, version, e)
-        }
-      )
-    }
-  )
+  paths <- if (own_inputs) {
+    tryCatch(
+      .get_local_board() |>
+        pins::pin_download(file_alias, version = version),
+      error = function(e) {
+        .download_remote_pin(file_info, file_alias, version)
+      }
+    )
+  } else {
+    .download_remote_pin(file_info, file_alias, version)
+  }
 
   paths |>
     .read_file(type, years, year_col)
@@ -209,10 +236,12 @@ whep_read_file <- function(
 #' Input file versions
 #'
 #' @description
-#' Lists all existing versions of an input file from [`whep_inputs`].
+#' Lists all existing versions of an input file from [`whep_inputs`], or from
+#' another registry.
 #'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the [`whep_inputs`] dataset.
+#' @inheritParams whep_read_file
 #'
 #' @returns A tibble where each row is a version. For details about its format,
 #'   see `pins::pin_versions()`.
@@ -221,17 +250,65 @@ whep_read_file <- function(
 #'
 #' @examples
 #' whep_list_file_versions("read_example")
-whep_list_file_versions <- function(file_alias) {
-  board <- if (file_alias == "read_example") {
+whep_list_file_versions <- function(file_alias, registry = NULL) {
+  board <- if (is.null(registry) && file_alias == "read_example") {
     .get_local_board()
   } else {
     file_alias |>
-      .fetch_file_info(whep::whep_inputs) |>
+      .fetch_file_info(.resolve_registry(registry)) |>
       .get_remote_board()
   }
 
   board |>
     pins::pin_versions(file_alias)
+}
+
+#' Read a registry of pinned input files
+#'
+#' @description
+#' Reads and validates a registry CSV, so another package or project can fetch
+#' its own pinned inputs with [whep_read_file()] and
+#' [whep_list_file_versions()] instead of the ones listed in [`whep_inputs`].
+#'
+#' A registry has one row per input and the same columns as [`whep_inputs`]:
+#' - `alias`: the name the input is read by. It must be non-empty and unique.
+#' - `board_url`: the public link to the `_pins.yaml` manifest of the
+#'   [`pins`](https://pins.rstudio.com/index.html) board holding it. It must be
+#'   an `https://saco.csic.es/public.php/dav/files/` public link ending in
+#'   `/_pins.yaml`, as every board in [`whep_inputs`] is.
+#' - `version`: the frozen pins version read by default, such as
+#'   `"20250714T123343Z-114b5"`. A blank cell or `"latest"` reads the newest
+#'   version on the board.
+#'
+#' Further columns, such as a description, are kept. Every column is read as
+#' text, so a version string is never reinterpreted.
+#'
+#' @param path Path to the registry CSV.
+#'
+#' @returns A tibble with one row per input, ready to pass as the `registry`
+#'   argument of [whep_read_file()] and [whep_list_file_versions()].
+#'
+#' @export
+#'
+#' @examples
+#' # This package's own registry is itself a valid registry.
+#' system.file("extdata", "whep_inputs.csv", package = "whep") |>
+#'   whep_registry()
+whep_registry <- function(path) {
+  if (!rlang::is_string(path) || !fs::file_exists(path)) {
+    cli::cli_abort(
+      "Registry file {.file {path}} does not exist.",
+      class = "whep_registry_error"
+    )
+  }
+
+  path |>
+    readr::read_csv(
+      col_types = readr::cols(.default = readr::col_character()),
+      na = "",
+      progress = FALSE
+    ) |>
+    .validate_registry(source = path)
 }
 
 # The 2025-07-14 pin batch carries output of the predecessor R-script pipeline,
@@ -632,8 +709,10 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .fetch_file_info <- function(file_alias, input_files) {
+  # `.env` keeps a registry column that happens to be called `file_alias` from
+  # masking the argument, which would silently select the wrong rows.
   file_info <- input_files |>
-    dplyr::filter(alias == file_alias)
+    dplyr::filter(alias == .env$file_alias)
 
   if (nrow(file_info) == 0) {
     cli::cli_abort("There is no file entry with alias {file_alias}")
@@ -649,6 +728,189 @@ whep_list_file_versions <- function(file_alias) {
   }
 
   c(file_info)
+}
+
+# The registry an alias is resolved against: this package's own inputs unless
+# the caller supplies another, which must pass the same checks as one read by
+# `whep_registry()`.
+.resolve_registry <- function(registry) {
+  if (is.null(registry)) {
+    whep::whep_inputs
+  } else {
+    .validate_registry(registry)
+  }
+}
+
+# Download a pin from the board its registry row names. When the board cannot
+# be reached, fall back to the copy the pins cache already holds, warning that
+# it did so, and abort if there is none.
+.download_remote_pin <- function(file_info, file_alias, version) {
+  tryCatch(
+    file_info |>
+      .get_remote_board() |>
+      pins::pin_download(file_alias, version = version),
+    error = function(e) {
+      .get_cache_paths(file_info, file_alias, version, e)
+    }
+  )
+}
+
+.registry_columns <- function() {
+  c("alias", "board_url", "version")
+}
+
+# A registry row is only usable if its alias selects exactly one row, its board
+# is a public pins manifest on the same host as every `whep_inputs` board, and
+# its version is one `.choose_version()` understands. Each check names the rows
+# that fail it, because a registry is edited by hand.
+.validate_registry <- function(registry, source = NULL) {
+  if (!is.data.frame(registry)) {
+    .abort_registry(
+      "A registry must be a data frame, not {.obj_type_friendly {registry}}.",
+      source
+    )
+  }
+  required <- .registry_columns()
+  absent <- setdiff(required, names(registry))
+  if (length(absent) > 0L) {
+    .abort_registry(
+      c(
+        "The registry has no {.field {absent}} column{?s}.",
+        i = "A registry needs the columns {.field {required}}."
+      ),
+      source
+    )
+  }
+  if (nrow(registry) == 0L) {
+    .abort_registry("The registry has no rows.", source)
+  }
+
+  checked <- tibble::as_tibble(registry)
+  checked$version <- .registry_version_text(checked$version, source)
+
+  .check_registry_aliases(checked$alias, source)
+  .check_registry_boards(checked, source)
+  .check_registry_versions(checked, source)
+
+  checked
+}
+
+# An all-blank version column carries no type of its own (a data frame built in
+# code gives it NA logicals), so it is read as text; any other non-text column
+# is a wiring mistake rather than something to coerce.
+.registry_version_text <- function(version, source) {
+  if (is.character(version)) {
+    version
+  } else if (all(is.na(version))) {
+    as.character(version)
+  } else {
+    .abort_registry(
+      "The registry {.field version} column must be text, not
+       {.obj_type_friendly {version}}.",
+      source
+    )
+  }
+}
+
+.check_registry_aliases <- function(alias, source) {
+  if (!is.character(alias)) {
+    .abort_registry(
+      "The registry {.field alias} column must be text, not
+       {.obj_type_friendly {alias}}.",
+      source
+    )
+  }
+  empty <- which(is.na(alias) | !nzchar(stringr::str_trim(alias)))
+  if (length(empty) > 0L) {
+    .abort_registry(
+      "The registry has an empty {.field alias} in row{?s} {empty}.",
+      source
+    )
+  }
+  duplicated_aliases <- unique(alias[duplicated(alias)])
+  if (length(duplicated_aliases) > 0L) {
+    .abort_registry(
+      c(
+        "The registry lists {.val {duplicated_aliases}} more than once.",
+        i = "Each alias must select exactly one row."
+      ),
+      source
+    )
+  }
+}
+
+.check_registry_boards <- function(registry, source) {
+  if (!is.character(registry$board_url)) {
+    .abort_registry(
+      "The registry {.field board_url} column must be text, not
+       {.obj_type_friendly {registry$board_url}}.",
+      source
+    )
+  }
+  board_url <- registry$board_url
+  valid <- !is.na(board_url) &
+    stringr::str_detect(board_url, .registry_board_regex())
+  bad <- registry$alias[!valid]
+  if (length(bad) > 0L) {
+    .abort_registry(
+      c(
+        "The registry has an invalid {.field board_url} for {.val {bad}}.",
+        i = "A board is a public link of the form
+             {.url https://saco.csic.es/public.php/dav/files/<share>/_pins.yaml},
+             optionally with folders before {.file _pins.yaml}."
+      ),
+      source
+    )
+  }
+}
+
+# The shape of every board in `whep_inputs`: a public share link on
+# saco.csic.es pointing at a pins manifest, `_pins.yaml`, with or without
+# folders between the share token and the manifest.
+.registry_board_regex <- function() {
+  paste0(
+    "^https://saco\\.csic\\.es/public\\.php/dav/files/",
+    "[^/?#\\s]+/(?:[^?#\\s]+/)?_pins\\.yaml$"
+  )
+}
+
+.check_registry_versions <- function(registry, source) {
+  version <- registry$version
+  valid <- is.na(version) |
+    !nzchar(version) |
+    version == "latest" |
+    stringr::str_detect(version, .pins_version_regex())
+  bad <- registry$alias[!valid]
+  if (length(bad) > 0L) {
+    .abort_registry(
+      c(
+        "The registry has an invalid {.field version} for {.val {bad}}.",
+        i = "Use a pins version such as {.val 20250714T123343Z-114b5}, or
+             leave it blank or {.val latest} to read the newest version."
+      ),
+      source
+    )
+  }
+}
+
+# A pins version is the UTC creation time followed by the first five hex
+# characters of the pin hash.
+.pins_version_regex <- function() {
+  "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{5}$"
+}
+
+.abort_registry <- function(message, source, env = rlang::caller_env()) {
+  where <- if (is.null(source)) {
+    NULL
+  } else {
+    c(i = cli::format_inline("In {.file {source}}."))
+  }
+  cli::cli_abort(
+    c(message, where),
+    class = "whep_registry_error",
+    .envir = env,
+    call = NULL
+  )
 }
 
 .build_board_with_progress <- function(board_url) {

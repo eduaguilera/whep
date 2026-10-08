@@ -9,7 +9,8 @@ whep_read_file(
   type = "parquet",
   version = NULL,
   years = NULL,
-  year_col = "year"
+  year_col = "year",
+  registry = NULL
 )
 }
 \arguments{
@@ -60,6 +61,13 @@ returned as a path (\code{nc}, \code{nc4}, \code{raw}, archives) cannot honour i
 abort rather than ignore it. \code{NULL}, the default, reads the whole file.}
 
 \item{year_col}{Name of the year column \code{years} filters on.}
+
+\item{registry}{The table that maps \code{file_alias} to a board and a frozen
+version. \code{NULL}, the default, is \code{\link{whep_inputs}}, this package's own
+inputs. Another package or project passes its own registry, a table with
+the columns \code{alias}, \code{board_url} and \code{version}, usually read with
+\code{\link[=whep_registry]{whep_registry()}}; it is validated the same way before it is used. See
+the section \emph{Reading from another registry}.}
 }
 \value{
 A tibble with the dataset. Some information about each dataset can
@@ -76,7 +84,28 @@ If the requested file doesn't exist locally, it is downloaded from a public
 link and cached before reading it. This is all implemented using the
 \href{https://pins.rstudio.com/index.html}{\code{pins}} package. It supports multiple
 file formats and file versioning.
+
+Other packages and projects can use the same reader for their own pinned
+inputs by passing a \code{registry}: a table with the same \code{alias}, \code{board_url}
+and \code{version} columns as \code{\link{whep_inputs}}, usually loaded and validated
+from a CSV with \code{\link[=whep_registry]{whep_registry()}}.
 }
+\section{Reading from another registry}{
+
+A registry other than \code{\link{whep_inputs}} is authoritative for its aliases. The
+file is downloaded from that registry's board, cached, and read back from
+the cache when the board is unreachable, exactly as for \code{\link{whep_inputs}}.
+Two behaviours belong to \code{\link{whep_inputs}} alone, so with another registry
+the example board bundled with this package is not consulted, so an alias such as \code{read_example} in
+another registry resolves to that registry's board. The predecessor-pipeline
+warnings below are not raised, since they describe this package's pins.
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{reg <- whep::whep_registry("inst/extdata/input_registry.csv")
+whep::whep_read_file("crop_yields", registry = reg)
+whep::whep_list_file_versions("crop_yields", registry = reg)
+}\if{html}{\out{</div>}}
+}
+
 \section{Frozen predecessor-pipeline references}{
 
 Four aliases in \code{\link{whep_inputs}} are not outputs of this package:

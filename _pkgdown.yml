@@ -424,6 +424,7 @@ reference:
   - whep_read_file
   - whep_inputs
   - whep_list_file_versions
+  - whep_registry
   - whep_clear_cache
 
 - title: Code namings
