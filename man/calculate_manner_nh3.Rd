@@ -80,13 +80,13 @@ months returned emission factors above 1. With it, \code{ef} never exceeds the
 fertiliser's \code{max_nh3} in \link{manner_params}.
 
 Two forms of that factor exist. Urea always takes the absolute form,
-\code{exp(0.1386 (temp_c - 8.625)) / 3}; CAN always takes the anomaly form,
+\code{exp(0.1386 (temp_c - 8.4)) / 3}; CAN always takes the anomaly form,
 \code{exp(0.2197225 (temp_c - temp_c_annual_mean)) / 3}. AN and AS depend on
 \code{temp_method}:
 \itemize{
 \item \code{"misselbrook_2004"} (default): AN takes the anomaly form on every soil,
 and AS takes the anomaly form on non-calcareous soils and the absolute
-form on calcareous soils (\code{soil_ph >= 7}). This is the assignment of
+form on calcareous soils (\code{soil_ph > 7}). This is the assignment of
 Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for AN and other N
 to all soils and AS/DAP to non-calcareous soils", eq. 4 (absolute) "for
 urea and UAN to all soils and AS/DAP to calcareous soils". The UK
