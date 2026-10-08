@@ -58,6 +58,8 @@ input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 selects the method (default \code{"recovery_regional"}) and
 \code{residue_bedding_fraction} the share of the recovered non-feed residue
 used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
+\code{residue_feed_share} selects that function's \code{feed_share} (default
+\code{"wirsenius"}).
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.

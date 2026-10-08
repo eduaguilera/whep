@@ -278,3 +278,82 @@ test_that("the shares method records no recovery variant", {
   )
   testthat::expect_true(is.na(out$method_residue_recovery))
 })
+
+feed_share_of_recovered <- function(out) {
+  out$residue_feed_dm_t / (out$residue_feed_dm_t + out$residue_burn_dm_t)
+}
+
+test_that("feed_share = 'wirsenius' reads Table 3.20 on Wirsenius's regions", {
+  # Wheat straw. Indonesia is East Asia in Wirsenius Table 3.1 (feed 0.30 of
+  # the distributed straw), India is South & Central Asia (0.80), France is
+  # West Europe (0.05). Distributed is 90% of recovered, so the share of
+  # recovered residue fed is 0.27, 0.72 and 0.045. HANPP files Indonesia
+  # with India: keyed on HANPP, Indonesia would read 0.72.
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = c(
+      "Southeastern Asia",
+      "Southern Asia",
+      "Western Europe"
+    ),
+    region_un_sub = c("South-eastern Asia", "Southern Asia", "Western Europe")
+  )
+  out <- whep::calculate_residue_destinies(wheat, feed_share = "wirsenius")
+  testthat::expect_equal(feed_share_of_recovered(out), c(0.27, 0.72, 0.045))
+  testthat::expect_equal(out$method_residue_feed, rep("wirsenius", 3))
+  testthat::expect_equal(
+    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    rep(100, 3)
+  )
+  testthat::expect_false("region_wirsenius" %in% names(out))
+})
+
+test_that("feed_share moves feed against burn, never the soil return", {
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Southern Asia",
+    region_un_sub = "Southern Asia"
+  )
+  legacy <- whep::calculate_residue_destinies(wheat, feed_share = "legacy")
+  wirsenius <- whep::calculate_residue_destinies(
+    wheat,
+    feed_share = "wirsenius"
+  )
+  testthat::expect_equal(legacy$residue_soil_dm_t, wirsenius$residue_soil_dm_t)
+  testthat::expect_equal(
+    legacy$residue_feed_dm_t + legacy$residue_burn_dm_t,
+    wirsenius$residue_feed_dm_t + wirsenius$residue_burn_dm_t
+  )
+  # The legacy Southern Asia fraction is 0.45; Table 3.20 gives 0.72.
+  testthat::expect_equal(feed_share_of_recovered(legacy), 0.45)
+  testthat::expect_equal(legacy$method_residue_feed, "legacy")
+  testthat::expect_error(
+    whep::calculate_residue_destinies(wheat, feed_share = "smil"),
+    class = "rlang_error"
+  )
+})
+
+test_that("a category Table 3.20 omits keeps the legacy fraction, stamped", {
+  # Item 176 is dry beans: Wirsenius models no pulse residue, so there is no
+  # Table 3.20 row and the legacy Eastern Asia fraction (0.3) stays. The row
+  # must say so rather than pass the legacy number off as Wirsenius's.
+  beans <- tibble::tibble(
+    item_prod_code = "176",
+    residue_dm_t = 100,
+    region_krausmann = "Eastern Asia",
+    region_un_sub = "Eastern Asia"
+  )
+  out <- whep::calculate_residue_destinies(beans, feed_share = "wirsenius")
+  testthat::expect_equal(feed_share_of_recovered(out), 0.3)
+  testthat::expect_equal(out$method_residue_feed, "legacy")
+})
+
+test_that("the shares method records no feed-share variant", {
+  x <- tibble::tibble(item_prod_code = "15", residue_dm_t = 100, year = 1950)
+  out <- suppressWarnings(
+    whep::calculate_residue_destinies(x, method = "shares")
+  )
+  testthat::expect_true(is.na(out$method_residue_feed))
+})
