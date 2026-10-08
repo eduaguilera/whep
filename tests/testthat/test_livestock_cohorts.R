@@ -2,7 +2,7 @@
 
 testthat::test_that("calculate_cohorts_systems expands rows", {
   input <- tibble::tibble(
-    species = "Dairy Cattle",
+    species = "Cattle",
     heads = 1000
   )
   result <- calculate_cohorts_systems(input)
@@ -13,7 +13,7 @@ testthat::test_that("calculate_cohorts_systems expands rows", {
 
 testthat::test_that("cohort heads sum to original heads", {
   input <- tibble::tibble(
-    species = "Dairy Cattle",
+    species = "Cattle",
     heads = 1000
   )
   result <- calculate_cohorts_systems(input)
@@ -226,4 +226,68 @@ testthat::test_that("a species absent from supplied shares keeps its herd", {
     whep::calculate_cohorts_systems(system_shares = custom)
 
   testthat::expect_equal(sum(result$cohort_heads), 2000, tolerance = 1)
+})
+
+testthat::test_that("dairy cattle heads are all milking cows", {
+  # whep#1127: FAOSTAT's "Cattle, dairy" head count is the Milk Animals
+  # element, cows producing milk (Tubiello et al. 2015, FAO, p. 45). Splitting
+  # it evenly over the six dairy cohorts booked five sixths of the cows as
+  # bulls, heifers and calves. The dairy herd's young stock and bulls sit in
+  # "Cattle, non-dairy", which FAOSTAT derives as cattle minus milk animals.
+  result <- tibble::tibble(species = "Cattle, dairy", heads = 1000) |>
+    whep::calculate_cohorts_systems()
+
+  testthat::expect_equal(result$cohort, "Adult Female")
+  testthat::expect_equal(result$cohort_heads, 1000)
+  testthat::expect_equal(result$method_cohort_share, "milk_animals")
+})
+
+testthat::test_that("other herds keep the equal cohort split", {
+  result <- tibble::tribble(
+    ~species,            ~heads,
+    "Cattle, non-dairy",   1000,
+    "Buffalo",             1000,
+    "Sheep",               1000
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  testthat::expect_setequal(result$method_cohort_share, "uniform")
+  totals <- result |>
+    dplyr::summarise(cohort_heads = sum(cohort_heads), .by = species)
+  testthat::expect_equal(totals$cohort_heads, rep(1000, 3))
+  beef_cows <- result |>
+    dplyr::filter(species == "Cattle, non-dairy", cohort == "Adult Female")
+  testthat::expect_equal(beef_cows$cohort_heads, 200)
+})
+
+testthat::test_that("method_cohorts = 'uniform' keeps the old dairy split", {
+  result <- tibble::tibble(species = "Cattle, dairy", heads = 1200) |>
+    whep::calculate_cohorts_systems(method_cohorts = "uniform")
+
+  testthat::expect_equal(nrow(result), 6L)
+  testthat::expect_equal(result$cohort_heads, rep(200, 6))
+  testthat::expect_setequal(result$method_cohort_share, "uniform")
+})
+
+testthat::test_that("milk-animal routing still applies under supplied shares", {
+  custom <- tibble::tribble(
+    ~species_gen, ~system, ~system_share,
+    "Cattle",     "Dairy",           0.5,
+    "Cattle",     "Beef",            0.5
+  )
+  result <- tibble::tibble(species = "Cattle, dairy", heads = 1000) |>
+    whep::calculate_cohorts_systems(system_shares = custom)
+
+  dairy <- dplyr::filter(result, system == "Dairy")
+  testthat::expect_equal(dairy$cohort, "Adult Female")
+  testthat::expect_equal(dairy$cohort_heads, 500)
+  testthat::expect_equal(sum(result$cohort_heads), 1000)
+})
+
+testthat::test_that("an unknown method_cohorts aborts", {
+  testthat::expect_error(
+    tibble::tibble(species = "Cattle, dairy", heads = 1) |>
+      whep::calculate_cohorts_systems(method_cohorts = "even"),
+    class = "rlang_error"
+  )
 })
