@@ -141,6 +141,15 @@
 #'   allowance) before the cell comparison. The choice is stamped in every
 #'   output row as `negative_critical`; see the Negative critical surplus
 #'   section.
+#' @param regime_comparison Treatment of a balance split into rainfed and
+#'   irrigated rows ([build_nitrogen_balance()]'s `methods$regime`).
+#'   `"netted"` (default) sums the two regimes of a cell before the
+#'   comparison, so irrigated excess is offset by rainfed headroom in the same
+#'   cell. `"separate"` compares each regime as its own part of the cell (or
+#'   of the grassland-split component), so it is not offset. It needs a
+#'   `water_regime` column in `surplus` and aborts without one. The choice is
+#'   stamped in every output row as `regime_comparison`; see the Rainfed and
+#'   irrigated parts section.
 #' @param binding Optional [build_critical_n_binding()] output for the same
 #'   land-use scope. When supplied, its per-cell `binding_threshold` and
 #'   `binding_matches_mi` are carried into the cell and grid results; when
@@ -214,6 +223,32 @@
 #' A binding threshold names the impact that sets a critical surplus, so it
 #' describes the managed allowance only; the extensive allowance is a 2010
 #' level, not a threshold, and its grid rows carry no binding label.
+#'
+#' @section Rainfed and irrigated parts:
+#' Under `regime_comparison = "separate"` each comparison unit (the cell, or
+#' under the grassland split its managed and its extensive component) is
+#' divided into a rainfed and an irrigated part. Each part gets a share of
+#' the unit allowance equal to its share of the unit's `area_ha`, summed over
+#' its rows. The deposited critical surface has one rate per hectare and no
+#' regime axis, so this keeps the rate the same on both regimes. It also
+#' keeps every unit allowance, actual pressure and signed margin exactly as
+#' under `"netted"`. The unit overshoot becomes the sum of the part
+#' overshoots, `sum(pmax(part actual - part allowance, 0))`, which is never
+#' below the netted `pmax(actual - allowance, 0)`. The areas are WHEP's
+#' harvested hectares. Irrigated land is more often multi-cropped, so
+#' harvested area can overstate the irrigated share of physical land. This is
+#' a declared assumption with no published precedent. A unit with no
+#' harvested area gives its whole allowance to the one part that carries
+#' pressure, which is the netted comparison. It aborts
+#' (`whep_nbx_regime_no_area`) when both parts do. Crop rows share the
+#' allowance, margin and overshoot of their own part. They keep their
+#' `water_regime`, plus that part's `regime_actual_n_t`,
+#' `regime_critical_n_t` and `regime_positive_overshoot_n_t`. Cell and grid
+#' rows add the per-cell totals `rainfed_actual_n_t`,
+#' `rainfed_critical_n_t`, `rainfed_positive_overshoot_n_t` and their
+#' `irrigated_*` counterparts, summed over the parts that carry pressure
+#' rows. Under `"netted"` all of these are `NA`, so the schema does not
+#' depend on the choice.
 #' @export
 #' @examples
 #' build_n_boundary_exceedance(example = TRUE)
@@ -240,6 +275,7 @@ build_n_boundary_exceedance <- function(
     critical_igl = NULL
   ),
   negative_critical = c("keep", "clamp"),
+  regime_comparison = c("netted", "separate"),
   binding = NULL,
   example = FALSE
 ) {
@@ -264,6 +300,7 @@ build_n_boundary_exceedance <- function(
   resolution <- rlang::arg_match(resolution)
   grassland_split <- rlang::arg_match(grassland_split)
   negative_critical <- rlang::arg_match(negative_critical)
+  regime_comparison <- rlang::arg_match(regime_comparison)
   metric <- .nbx_match_metric(metric)
   allocation_scenario <- .nbx_match_scenario(allocation_scenario)
   # The split only has meaning where grassland shares the allowance with
@@ -299,10 +336,12 @@ build_n_boundary_exceedance <- function(
   .nbx_validate_critical(critical, metric, land_use)
   method_critical <- .nbx_critical_method(critical, grassland, split)
 
-  actual <- surplus |>
+  rows <- surplus |>
     dplyr::filter(.data$year == .env$actual_year) |>
     .nbx_filter_land_use(land_use, metric) |>
     .nbx_prepare_actual(metric)
+  .nbx_check_regime_rows(rows, regime_comparison)
+  actual <- .nbx_collapse_regimes(rows)
   support <- .nbx_prepare_critical(critical) |>
     .nbx_treat_negative(negative_critical) |>
     .nbx_join_binding(binding, land_use)
@@ -321,6 +360,14 @@ build_n_boundary_exceedance <- function(
     cells <- .nbx_build_cells(actual, support, actual_year, metric, land_use) |>
       .nbx_no_split_cols()
   }
+  parts <- NULL
+  if (regime_comparison == "separate") {
+    actual <- .nbx_regime_rows(rows, actual)
+    parts <- .nbx_regime_parts(actual, cells, split)
+    cells <- .nbx_regime_cells(cells, parts, split)
+  } else {
+    cells <- .nbx_no_regime_cols(cells)
+  }
   cells <- .nbx_stamp(
     cells,
     metric,
@@ -331,12 +378,15 @@ build_n_boundary_exceedance <- function(
     split,
     method_critical
   ) |>
-    dplyr::mutate(negative_critical = .env$negative_critical)
+    dplyr::mutate(
+      negative_critical = .env$negative_critical,
+      regime_comparison = .env$regime_comparison
+    )
   if (resolution == "cell") {
     return(.nbx_cell_cols(cells))
   }
 
-  crop <- .nbx_attribute_crops(actual, cells, metric)
+  crop <- .nbx_attribute_crops(actual, cells, metric, parts)
   .nbx_resolve(crop, resolution) |>
     .add_polity_columns_if_keyed()
 }
@@ -628,8 +678,7 @@ build_n_boundary_exceedance <- function(
     "area_ha",
     "actual_n_t",
     dplyr::any_of(c("production_n_t", "water_regime"))
-  ) |>
-    .nbx_collapse_regimes()
+  )
 }
 
 # A sum that stays missing when every part is missing, so the collapse never
@@ -643,7 +692,9 @@ build_n_boundary_exceedance <- function(
 # loads are per cell, and the attribution works at the crop grain. Summing
 # first keeps every quantity -- including the absolute pressure, which two
 # regime rows of opposite sign would otherwise inflate -- exactly what the
-# unsplit balance gives.
+# unsplit balance gives. The cell comparison always runs on these rows;
+# `regime_comparison = "separate"` then re-divides each unit into its regime
+# parts (R/n_boundary_regime.R) from the uncollapsed rows.
 .nbx_collapse_regimes <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(x)
@@ -1928,10 +1979,13 @@ build_n_boundary_exceedance <- function(
   )
 }
 
-.nbx_attribute_crops <- function(actual, cells, metric) {
+.nbx_attribute_crops <- function(actual, cells, metric, parts = NULL) {
   valid <- dplyr::filter(cells, .data$coverage_state == "valid")
   if (!rlang::has_name(actual, "boundary_component")) {
     actual$boundary_component <- NA_character_
+  }
+  if (!rlang::has_name(actual, "water_regime")) {
+    actual$water_regime <- NA_character_
   }
   joined <- dplyr::inner_join(
     actual,
@@ -1940,28 +1994,29 @@ build_n_boundary_exceedance <- function(
     relationship = "many-to-one"
   ) |>
     .nbx_attribution_units() |>
+    .nbx_attribution_parts(parts) |>
     dplyr::mutate(
-      attribution_defined = .data$unit_actual_n_t != 0 &
-        .data$unit_condition_ratio >= sqrt(.Machine$double.eps),
+      attribution_defined = .data$part_actual_n_t != 0 &
+        .data$part_condition_ratio >= sqrt(.Machine$double.eps),
       pressure_share = dplyr::if_else(
         .data$attribution_defined,
-        .data$actual_n_t / .data$unit_actual_n_t,
+        .data$actual_n_t / .data$part_actual_n_t,
         NA_real_
       ),
       critical_n_t = dplyr::if_else(
         .data$attribution_defined,
-        .data$pressure_share * .data$unit_critical_n_t,
+        .data$pressure_share * .data$part_critical_n_t,
         0
       ),
       crop_critical_n_t = .data$critical_n_t,
       signed_margin_n_t = dplyr::if_else(
         .data$attribution_defined,
-        .data$pressure_share * .data$unit_signed_margin_n_t,
+        .data$pressure_share * .data$part_signed_margin_n_t,
         0
       ),
       positive_overshoot_n_t = dplyr::if_else(
         .data$attribution_defined,
-        .data$pressure_share * .data$unit_positive_overshoot_n_t,
+        .data$pressure_share * .data$part_positive_overshoot_n_t,
         0
       ),
       exceedance_n_t = .data$positive_overshoot_n_t,
@@ -1983,7 +2038,7 @@ build_n_boundary_exceedance <- function(
         .data$attribution_defined,
         "defined",
         dplyr::if_else(
-          .data$unit_actual_n_t == 0,
+          .data$part_actual_n_t == 0,
           "undefined_zero_denominator",
           "undefined_near_zero_denominator"
         )
@@ -2002,7 +2057,7 @@ build_n_boundary_exceedance <- function(
     ) |>
     dplyr::slice_head(
       n = 1L,
-      by = c("cell_id", "year", "boundary_component")
+      by = c("cell_id", "year", "boundary_component", "water_regime")
     ) |>
     dplyr::mutate(
       area_code = NA_integer_,
@@ -2017,15 +2072,16 @@ build_n_boundary_exceedance <- function(
       positive_overshoot_n_t = 0,
       exceedance_n_t = 0,
       within_boundary_n_t = NA_real_,
-      unallocated_critical_n_t = .data$unit_critical_n_t,
-      unallocated_signed_margin_n_t = .data$unit_signed_margin_n_t,
-      unallocated_positive_overshoot_n_t = .data$unit_positive_overshoot_n_t,
+      unallocated_critical_n_t = .data$part_critical_n_t,
+      unallocated_signed_margin_n_t = .data$part_signed_margin_n_t,
+      unallocated_positive_overshoot_n_t = .data$part_positive_overshoot_n_t,
       attribution_record_type = "cell_residual"
     )
   rowless <- .nbx_rowless_components(valid, joined, metric)
   dplyr::bind_rows(joined, residual, rowless) |>
     .nbx_assert_reconciliation() |>
-    dplyr::select(-dplyr::starts_with("unit_"))
+    .nbx_regime_grid_cols() |>
+    dplyr::select(-dplyr::starts_with("unit_"), -dplyr::starts_with("part_"))
 }
 
 # A compared component can hold allowance area and no pressure row at all: an
@@ -2072,6 +2128,11 @@ build_n_boundary_exceedance <- function(
       unit_actual_n_t = 0,
       unit_signed_margin_n_t = -.data$unit_critical_n_t,
       unit_condition_ratio = 0,
+      part_actual_n_t = 0,
+      part_critical_n_t = .data$unit_critical_n_t,
+      part_signed_margin_n_t = .data$unit_signed_margin_n_t,
+      part_positive_overshoot_n_t = .data$unit_positive_overshoot_n_t,
+      part_condition_ratio = 0,
       attribution_defined = FALSE,
       pressure_share = NA_real_,
       critical_n_t = 0,
@@ -2136,7 +2197,9 @@ build_n_boundary_exceedance <- function(
     .nbx_split_output_cols(),
     "managed_absolute_n_t",
     "extensive_absolute_n_t",
-    "grassland_split"
+    "grassland_split",
+    .nbx_regime_output_cols(),
+    "regime_comparison"
   )
 }
 
@@ -2224,6 +2287,14 @@ build_n_boundary_exceedance <- function(
       tolerance
     )
   }
+  if (any(!is.na(x$water_regime))) {
+    .nbx_assert_reconciled_by(
+      x,
+      c("cell_id", "year", "boundary_component", "water_regime"),
+      "part",
+      tolerance
+    )
+  }
   x
 }
 
@@ -2287,7 +2358,12 @@ build_n_boundary_exceedance <- function(
     64 * .Machine$double.eps * allocated_scale
   )
   if (any(!is.finite(residual) | residual > numerical_bound)) {
-    what <- if (prefix == "cell") "cell" else "grassland-split component"
+    what <- switch(
+      prefix,
+      cell = "cell",
+      unit = "grassland-split component",
+      part = "rainfed or irrigated part"
+    )
     cli::cli_abort(
       "Crop attribution does not reconcile to its {what} result.",
       class = "whep_nbx_reconciliation"
@@ -2333,7 +2409,9 @@ build_n_boundary_exceedance <- function(
     "urban_treatment",
     "provisional_reason",
     dplyr::all_of(.nbx_split_output_cols()),
-    "grassland_split"
+    "grassland_split",
+    dplyr::all_of(.nbx_regime_output_cols()),
+    "regime_comparison"
   ) |>
     tibble::as_tibble()
 }
@@ -2366,6 +2444,7 @@ build_n_boundary_exceedance <- function(
     "lat",
     "area_code",
     "item_cbs_code",
+    "water_regime",
     "year",
     "actual_year",
     "critical_reference_year",
@@ -2414,7 +2493,12 @@ build_n_boundary_exceedance <- function(
     "provisional_reason",
     "boundary_component",
     dplyr::all_of(.nbx_split_output_cols()),
-    "grassland_split"
+    "grassland_split",
+    "regime_actual_n_t",
+    "regime_critical_n_t",
+    "regime_positive_overshoot_n_t",
+    dplyr::all_of(.nbx_regime_output_cols()),
+    "regime_comparison"
   ) |>
     tibble::as_tibble()
 }
@@ -2455,7 +2539,8 @@ build_n_boundary_exceedance <- function(
       "attribution_status",
       "attribution_state",
       "attribution_record_type",
-      "grassland_split"
+      "grassland_split",
+      "regime_comparison"
     ),
     names(x)
   )

@@ -16,8 +16,8 @@ build_n_boundary_country(
 \arguments{
 \item{exceedance}{A \code{\link[=build_n_boundary_exceedance]{build_n_boundary_exceedance()}} result at
 \code{resolution = "grid"} with \code{metric = "surplus"}, possibly bound over
-several years. Its \code{negative_critical}, \code{land_use} and \code{grassland_split}
-stamps must each be constant. It may carry the grassland split.}
+several years. Its \code{negative_critical}, \code{land_use}, \code{grassland_split}
+and \code{regime_comparison} stamps must each be constant. It may carry the grassland split.}
 
 \item{surplus}{The \code{\link[=calculate_n_surplus]{calculate_n_surplus()}} output the grid was computed
 from, carrying \code{lon}, \code{lat}, \code{area_code}, \code{item_cbs_code}, \code{year} and
@@ -60,8 +60,8 @@ A named list of two tibbles.
 \code{exceedance_share_of_positive_surplus} or \code{excess_share_of_inputs} lies
 outside \verb{[0, 1]} (beyond a rounding tolerance of \code{1e-9}).
 \item \code{nourish}, \code{sjos_class} when \code{nourishment} is given.
-\item \code{negative_critical}, \code{land_use}, \code{grassland_split}, \code{beyond_share_cut}:
-the run stamps.
+\item \code{negative_critical}, \code{land_use}, \code{grassland_split},
+\code{regime_comparison}, \code{beyond_share_cut}: the run stamps.
 \item the polity columns below.
 }
 
@@ -100,7 +100,10 @@ naming no crop were removed by the exceedance itself.
 The comparison unit is the cell, or, under the grassland split
 (\code{land_use = "all"}, \code{grassland_split = "image_density"}), the managed and
 the extensive-grassland component of a cell, which are compared with their
-own allowances and never net against each other. Deficit units never offset
+own allowances and never net against each other. Under
+\code{regime_comparison = "separate"} the unit is the rainfed or the irrigated
+part of the cell or component, and \code{surplus} must keep its \code{water_regime}
+rows, which are then joined regime by regime. Deficit units never offset
 excess elsewhere. Two country quantities follow and both use the country's
 \strong{own} crop surplus (\code{actual_n_t}), never a whole-cell surplus, which sums
 every polity in a shared border cell and would count that cell once per
