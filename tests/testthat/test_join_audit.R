@@ -635,7 +635,10 @@ test_that("every year-free territorial grouping is classified", {
   # 143 with whep#1317, on top of whep#981's 142: `.level0_injected_rows()`
   # reads a constant-territory polity at its own first year. Re-derived by
   # running the audit on the merged tree.
-  expect_lte(sum(full$n), 143L)
+  # 144 with whep#1414, on top of whep#1317's 143: `.land_bridge_by_year()`
+  # crosses each ISO3 -> area pair with the years asked about. Re-derived by
+  # running the audit on the merged tree.
+  expect_lte(sum(full$n), 144L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

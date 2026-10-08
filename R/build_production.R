@@ -711,15 +711,20 @@ build_primary_production <- function(
     !is.na(area_iso3c),
     .(iso3c = area_iso3c, area_code = polity_area_code)
   ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
-  area_bridge <- .add_land_bucket_label(area_bridge)
-
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
+  area_bridge <- .land_bridge_by_year(area_bridge, unique(dt$year))
+  area_bridge <- .add_land_bucket_label(area_bridge)
   if (dependency_land == "sovereign") {
     dt <- .attribute_dependency_land(dt, area_bridge$iso3c)
   }
-  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- merge(
+    dt,
+    area_bridge,
+    by = c("iso3c", "year"),
+    all.x = TRUE,
+    sort = FALSE
+  )
   # Say WHICH KIND of unmatched. The old single message reported two unrelated
   # facts as one, and the proportions make that misleading. Measured over the
   # whole pin, 1850-2022:
@@ -761,6 +766,35 @@ build_primary_production <- function(
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
   .fix_luh2_crop_collapse(dt)
+}
+
+# One `area_code` per (iso3c, year). An ISO3 that maps to several codes -- SDN
+# to 206 and 276 under `whep.unfold_predecessor_bucket = "all"` -- takes, in
+# each year, the code still reporting then that stops earliest (206 up to its
+# last year, 2011; the successor 276 after), or the latest-reporting code once
+# every candidate has ended. This is the year-aware form of
+# `.iso3c_keep_live_area()`, so land follows the herd's key (#1414). On the
+# shipped fold no ISO3 is duplicated and the result is the plain bridge.
+.land_bridge_by_year <- function(area_bridge, years) {
+  area_bridge <- unique(area_bridge, by = c("iso3c", "area_code"))
+  last_year <- data.table::as.data.table(.area_last_reporting_year())
+  area_bridge <- merge(area_bridge, last_year, by = "area_code", all.x = TRUE)
+  area_bridge[, last_year := data.table::fcoalesce(as.numeric(last_year), Inf)]
+  out <- area_bridge[,
+    .(year = as.integer(years)),
+    by = c("iso3c", "area_code", "last_year")
+  ]
+  out[, live := last_year >= year]
+  # Live codes rank before ended ones; among live the earliest-ending wins,
+  # among ended the latest-ending wins.
+  out[, rank_key := data.table::fifelse(live, last_year, -last_year)]
+  out[, live_first := !live]
+  data.table::setorderv(
+    out,
+    c("iso3c", "year", "live_first", "rank_key", "area_code")
+  )
+  out <- unique(out, by = c("iso3c", "year"))
+  out[, .(iso3c, year, area_code)]
 }
 
 # The `area` label a LUH2 aggregation bucket carries, one per bucket code.
