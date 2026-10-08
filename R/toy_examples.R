@@ -2517,8 +2517,8 @@
 # Five balance keys of build_n_loss_drivers() on the offline three-cell
 # fixture of its tests (2010, annual window): irrigated maize in a dry cell,
 # a row with no crop, grass and rice rows with no regime land, and maize in a
-# cell off CRU's land mask that took its nearest CRU cell's climate. The loss
-# table carries each key with its synthetic N row.
+# cell off CRU's land mask that took its climate from its nearest CRU cell.
+# The loss table carries each key with its synthetic N row.
 .example_n_loss_drivers <- function() {
   leaching <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime,
@@ -2532,7 +2532,10 @@
     9.75, 47.75, 79L, 2807L, 2010L, "irrigated", "wet",
     "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
     10.25, 47.75, 79L, 2514L, 2010L, "rainfed", "wet",
-    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell", 37.38188
+    paste0(
+      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
+    ), 37.38188
   ) |>
     dplyr::mutate(climate_fill_km = as.numeric(.data$climate_fill_km))
   loss <- leaching |>

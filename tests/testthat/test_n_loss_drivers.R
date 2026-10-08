@@ -152,7 +152,10 @@ testthat::test_that("a cell without CRU climate takes its nearest CRU cell's", {
   )
   testthat::expect_identical(
     c_row$method_moisture_regime,
-    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell"
+    paste0(
+      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
+    )
   )
   # Rows in cells CRU covers keep their own climate and no distance.
   own <- out$n_balance_leaching_drivers[

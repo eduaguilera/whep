@@ -159,7 +159,10 @@ testthat::test_that("a cell without CRU climate classifies on its nearest CRU ce
   testthat::expect_equal(c_row$climate_fill_km, km, tolerance = 1e-9)
   testthat::expect_identical(
     c_row$method_moisture_regime,
-    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell"
+    paste0(
+      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
+    )
   )
   # The other rows keep their own cell's climate.
   testthat::expect_true(all(is.na(out$climate_fill_km[out$lon != 10.25])))
@@ -183,6 +186,211 @@ testthat::test_that("the nearest CRU cell is one with a complete record", {
   c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
   testthat::expect_equal(c_row$prec_mm, 600)
   testthat::expect_identical(c_row$moisture_regime, "dry")
+})
+
+# Cell C (10.25, 47.75) grows rainfed maize. B is 0.5 degrees of longitude
+# from it and A 1.0. Where CRU holds climate for C it is 15 degC, 20 frost
+# days, 700 mm of precipitation and 900 mm of PET, and B's PET is 800 mm.
+.cmw_extra_c <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~area_code, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+    10.25, 47.75, 79L,        56L,             40,          0
+  )
+}
+
+.cmw_cell_c <- function(years, ...) {
+  tibble::tibble(
+    lon = 10.25,
+    lat = 47.75,
+    year = as.integer(years),
+    mean_annual_temp_c = 15,
+    annual_precip_mm = 700,
+    annual_pet_mm = 900,
+    annual_frost_days = 20
+  ) |>
+    dplyr::mutate(...)
+}
+
+# Great-circle distance in km for a difference in longitude on latitude 47.75.
+.cmw_lon_km <- function(dlon) {
+  rad <- pi / 180
+  2 * 6371.0088 * asin(cos(47.75 * rad) * sin(dlon / 2 * rad))
+}
+
+.cmw_build_c <- function(years, cell_c, b_pet_gap = FALSE) {
+  d <- .cmw_data(years, extra = .cmw_extra_c())
+  d$climate$annual_pet_mm[d$climate$lon == 9.75] <- 800
+  if (b_pet_gap) {
+    # B has no PET in the first year read, so it cannot lend PET.
+    d$climate$annual_pet_mm[
+      d$climate$lon == 9.75 & d$climate$year == min(years)
+    ] <- NA
+  }
+  d$climate <- dplyr::bind_rows(d$climate, cell_c)
+  suppressMessages(whep::build_cell_moisture_regime(
+    years = 2010L,
+    window = "annual",
+    data = d
+  ))
+}
+
+testthat::test_that("a cell missing only PET keeps its own variables", {
+  d <- .cmw_data(2010L, extra = .cmw_extra_c())
+  d$climate$annual_pet_mm[d$climate$lon == 9.75] <- 800
+  d$climate <- dplyr::bind_rows(
+    d$climate,
+    .cmw_cell_c(2010L, annual_pet_mm = NA_real_)
+  )
+  testthat::expect_message(
+    out <- whep::build_cell_moisture_regime(
+      years = 2010L,
+      window = "annual",
+      data = d
+    ),
+    class = "whep_moisture_regime_nearest_climate"
+  )
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  # Temperature, frost days and precipitation are C's own; PET is B's.
+  testthat::expect_equal(c_row$mat_c, 15)
+  testthat::expect_equal(c_row$frost_days, 20)
+  testthat::expect_equal(c_row$prec_mm, 700)
+  testthat::expect_equal(c_row$pet_mm, 800)
+  # B's whole climate would make C wet (1200 / 800); its own 700 / 800 is dry.
+  testthat::expect_identical(c_row$moisture_regime, "dry")
+  testthat::expect_equal(
+    c_row$climate_fill_km,
+    .cmw_lon_km(0.5),
+    tolerance = 1e-9
+  )
+  testthat::expect_identical(
+    c_row$method_moisture_regime,
+    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell=pet_mm"
+  )
+})
+
+testthat::test_that("the donor of a variable holds it in every year read", {
+  # B's PET is missing in 2009, so A, 1.0 degrees away, lends C its PET.
+  out <- .cmw_build_c(
+    2009:2010,
+    .cmw_cell_c(2009:2010, annual_pet_mm = NA_real_),
+    b_pet_gap = TRUE
+  )
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  testthat::expect_equal(c_row$prec_mm, 700)
+  testthat::expect_equal(c_row$pet_mm, 1000)
+  testthat::expect_equal(
+    c_row$climate_fill_km,
+    .cmw_lon_km(1),
+    tolerance = 1e-9
+  )
+  testthat::expect_identical(
+    c_row$method_moisture_regime,
+    "ipcc2019_wet_dry;annual;precip_irrig;nearest_cru_cell=pet_mm"
+  )
+})
+
+testthat::test_that("a cell missing every variable takes all four", {
+  # C has rows, but not one value: it takes B's whole climate.
+  out <- .cmw_build_c(
+    2010L,
+    .cmw_cell_c(
+      2010L,
+      mean_annual_temp_c = NA_real_,
+      annual_precip_mm = NA_real_,
+      annual_pet_mm = NA_real_,
+      annual_frost_days = NA_real_
+    )
+  )
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  testthat::expect_equal(c_row$mat_c, 12)
+  testthat::expect_equal(c_row$frost_days, 40)
+  testthat::expect_equal(c_row$prec_mm, 1200)
+  testthat::expect_equal(c_row$pet_mm, 800)
+  testthat::expect_identical(
+    c_row$method_moisture_regime,
+    paste0(
+      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
+    )
+  )
+})
+
+testthat::test_that("a variable with gaps stays the cell's own", {
+  # C has PET in 2009 and none in 2010: no variable is wholly absent, so
+  # nothing is filled and the year without PET is reported, not lent.
+  out <- .cmw_build_c(
+    2009:2010,
+    .cmw_cell_c(2009:2010, annual_pet_mm = c(900, NA))
+  )
+  c_row <- .cmw_row(out, 10.25, 79L, 2514L, "rainfed")
+  testthat::expect_true(is.na(c_row$moisture_regime))
+  testthat::expect_true(is.na(c_row$climate_fill_km))
+  testthat::expect_match(c_row$method_moisture_regime, "missing=pet_mm$")
+  testthat::expect_false(grepl(
+    "nearest_cru_cell",
+    c_row$method_moisture_regime,
+    fixed = TRUE
+  ))
+})
+
+testthat::test_that("cells missing different variables each take theirs", {
+  # A (0.25) and E (10.25) hold all four. B (1.25) has no PET, C (2.25) has
+  # rows without one value, and D (9.25) has no rows.
+  table <- tidyr::expand_grid(
+    lon = c(0.25, 1.25, 2.25, 10.25),
+    year = 2009:2010
+  ) |>
+    dplyr::mutate(
+      lat = 0.25,
+      mat_c = 10,
+      frost_days = 30,
+      prec_mm = dplyr::if_else(.data$lon == 1.25, 777, 500),
+      pet_mm = dplyr::case_when(
+        .data$lon == 0.25 ~ 400,
+        .data$lon == 10.25 ~ 1,
+        .default = NA_real_
+      )
+    )
+  table[table$lon == 2.25, c("mat_c", "frost_days", "prec_mm")] <- NA
+  cells <- tibble::tibble(lon = c(0.25, 1.25, 2.25, 9.25), lat = 0.25)
+  filled <- suppressMessages(whep:::.cmr_nearest_climate(table, cells))
+  at <- function(lon, year) {
+    filled$table[filled$table$lon == lon & filled$table$year == year, ]
+  }
+  # B keeps its own precipitation and takes A's PET, the nearest PET record.
+  testthat::expect_equal(at(1.25, 2010L)$prec_mm, 777)
+  testthat::expect_equal(at(1.25, 2010L)$pet_mm, 400)
+  # C and D take A's and E's whole record, in every year.
+  testthat::expect_equal(at(2.25, 2009L)$prec_mm, 500)
+  testthat::expect_equal(at(2.25, 2010L)$pet_mm, 400)
+  testthat::expect_equal(at(9.25, 2009L)$pet_mm, 1)
+  testthat::expect_identical(nrow(filled$table), 8L)
+  fills <- filled$fills[order(filled$fills$lon), ]
+  testthat::expect_identical(fills$lon, c(1.25, 2.25, 9.25))
+  testthat::expect_identical(
+    fills$climate_fill_vars,
+    rep(c("pet_mm", "mat_c+frost_days+prec_mm+pet_mm"), c(1L, 2L))
+  )
+})
+
+testthat::test_that("a variable no cell holds in every year aborts", {
+  # No cell has PET in 2009, so nothing can lend C the PET it lacks.
+  d <- .cmw_data(2009:2010, extra = .cmw_extra_c())
+  d$climate$annual_pet_mm[d$climate$year == 2009L] <- NA
+  d$climate <- dplyr::bind_rows(
+    d$climate,
+    .cmw_cell_c(2009:2010, annual_pet_mm = NA_real_)
+  )
+  err <- testthat::expect_error(
+    whep::build_cell_moisture_regime(
+      years = 2010L,
+      window = "annual",
+      data = d
+    ),
+    class = "whep_moisture_regime_climate"
+  )
+  testthat::expect_s3_class(err, "whep_absent_input")
+  testthat::expect_match(cli::ansi_strip(conditionMessage(err)), "pet_mm")
 })
 
 testthat::test_that("irrigated rows add their crop's LPJmL depth", {

@@ -69,8 +69,8 @@ A row whose cell, polity, commodity balance item and water regime has a
 class of its own takes it. A row without one takes its cell's class on
 precipitation alone (no crop, no irrigation): a row with no crop item, as
 the soil organic matter sequestration rows, and a row of an item WHEP
-holds no land of in that water regime, as grass. A cell with no CRU
-climate takes the climate of its nearest CRU land cell (see
+holds no land of in that water regime, as grass. A cell lacking CRU
+climate variables takes them from its nearest CRU land cell (see
 \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}). Every row ends with a class.
 
 \code{climate} is \code{"ATL"} on wet rows and \code{"MED"} on dry rows. \code{irrig_type},
@@ -110,8 +110,9 @@ unless its driver table is supplied.
 that took its cell's precipitation-only class carries the extra field
 \code{cell_rainfed_class=no_crop_item} (no crop item) or
 \code{cell_rainfed_class=no_regime_area} (an item without regime land of the
-row's water regime), and a row in a cell without CRU climate the field
-\code{nearest_cru_cell}.
+row's water regime), and a row in a cell that took climate variables from
+its nearest CRU cell the field \verb{nearest_cru_cell=<col>[+<col>...]}, naming
+them.
 }
 \section{Errors}{
 

@@ -10,8 +10,9 @@
 #   WHEP holds no regime land of in that water regime, as grass) takes its
 #   cell's class on precipitation alone: no crop means no irrigation, and a
 #   rainfed water term is precipitation alone by definition.
-# - A cell off CRU's land mask has already taken its nearest CRU land cell's
-#   climate, inside the climate assembly of build_cell_moisture_regime().
+# - A cell off CRU's land mask, or one CRU maps for some variables only, has
+#   already taken the variables it lacks from its nearest CRU land cell,
+#   inside the climate assembly of build_cell_moisture_regime().
 # Every row ends with a class; one that cannot is refused, not defaulted.
 #
 # The Atlantic/Mediterranean options read `climate` and `irrig_type`, mapped
@@ -34,8 +35,8 @@
 #' class of its own takes it. A row without one takes its cell's class on
 #' precipitation alone (no crop, no irrigation): a row with no crop item, as
 #' the soil organic matter sequestration rows, and a row of an item WHEP
-#' holds no land of in that water regime, as grass. A cell with no CRU
-#' climate takes the climate of its nearest CRU land cell (see
+#' holds no land of in that water regime, as grass. A cell lacking CRU
+#' climate variables takes them from its nearest CRU land cell (see
 #' [build_cell_moisture_regime()]). Every row ends with a class.
 #'
 #' `climate` is `"ATL"` on wet rows and `"MED"` on dry rows. `irrig_type`,
@@ -75,8 +76,9 @@
 #' that took its cell's precipitation-only class carries the extra field
 #' `cell_rainfed_class=no_crop_item` (no crop item) or
 #' `cell_rainfed_class=no_regime_area` (an item without regime land of the
-#' row's water regime), and a row in a cell without CRU climate the field
-#' `nearest_cru_cell`.
+#' row's water regime), and a row in a cell that took climate variables from
+#' its nearest CRU cell the field `nearest_cru_cell=<col>[+<col>...]`, naming
+#' them.
 #'
 #' @section Errors:
 #' - `whep_n_loss_drivers_rows`: `rows` is missing, empty, lacks a key

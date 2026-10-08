@@ -30,11 +30,13 @@
 #    record: `irrig_years_<n>of<m>`, meaning the row's land was irrigated in
 #    n of the window's m years, and its irrigation is the mean of those n
 #    years. Climate is still the mean of all m.
-# 5b. Optional, only on a row whose cell has no CRU climate (off CRU's land
-#    mask): `nearest_cru_cell`, meaning the cell took the whole climate record
-#    of its nearest CRU land cell, `climate_fill_km` away. build_n_loss_
-#    drivers() adds `cell_rainfed_class=<reason>` here on a balance row with
-#    no class of its own.
+# 5b. Optional, only on a row whose cell lacks CRU climate variables (all four
+#    off CRU's land mask, fewer where CRU maps the cell for some only):
+#    `nearest_cru_cell=<col>[+<col>...]`, naming the variables the cell took
+#    from the climate record of its nearest CRU land cell, `climate_fill_km`
+#    away; the cell's other variables are its own. build_n_loss_drivers() adds
+#    `cell_rainfed_class=<reason>` here on a balance row with no class of its
+#    own.
 # 6. Optional, only on an unclassified row (`moisture_regime` is NA):
 #    `missing=<col>[+<col>...]`, the inputs whose window mean is unavailable
 #    because at least one window year has no value or no row; and/or
@@ -71,12 +73,18 @@
 #'   CRU's frost count is synthetic: CRU derives it from the gridded minimum
 #'   temperature. Years before the CRU record (1901) hold the 1901-1930
 #'   climatology, and years after it hold the climatology of its last 30 years.
-#'   A cell of WHEP's crop land with no CRU climate at all (off CRU's land
-#'   mask, mostly coastal and island cells) takes the whole climate record of
-#'   its nearest CRU land cell by great-circle distance between cell centres,
-#'   among cells with a complete record; the distance is `climate_fill_km`,
-#'   and a message of class `whep_moisture_regime_nearest_climate` counts
-#'   them. The cell's own water term, irrigation included, is then applied.
+#'   A cell of WHEP's crop land that holds no value of a CRU variable in any
+#'   year (all four for a cell off CRU's land mask, mostly coastal and island
+#'   cells; fewer for a cell CRU maps for some variables only) takes that
+#'   variable's whole record from its nearest CRU land cell by great-circle
+#'   distance between cell centres, among the cells that hold it in every year
+#'   read. One donor supplies every variable the cell lacks, and the cell
+#'   keeps the variables it has; a variable with gaps is not lent but left to
+#'   the classifier, which reports the years without it. The distance is
+#'   `climate_fill_km`, and a message of class
+#'   `whep_moisture_regime_nearest_climate` counts the cells by the variables
+#'   they took. The cell's own water term, irrigation included, is then
+#'   applied.
 #' - Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
 #'   the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
 #'   water on its rainfed rice stand is not counted: rainfed rows get none.
@@ -117,8 +125,8 @@
 #'   that regime, carrying the window-mean `mat_c`, `frost_days`, `prec_mm`,
 #'   `pet_mm` and `irrig_mm`, `water_mm`, `moisture_ratio`, `tropical`,
 #'   `moisture_regime` (`"wet"`, `"dry"` or `NA`), `method_moisture_regime`,
-#'   `climate_fill_km` (the distance to the CRU cell whose climate a cell
-#'   without one took, `NA` for a cell with its own),
+#'   `climate_fill_km` (the distance to the CRU cell whose climate variables a
+#'   cell lacking some took, `NA` for a cell with all of its own),
 #'   `method_irrig_depth`, `lpjml_crop` and the LPJmL vintage columns
 #'   `lpjml_version`, `lpjml_git_hash` and `lpjml_run`, plus the polity
 #'   columns below.
@@ -180,8 +188,10 @@
 #' - Optional `irrig_years_<n>of<m>`: an irrigated row whose land is
 #'   irrigated in `n` of the window's `m` years. Its irrigation is the mean of
 #'   those `n` years and its climate the mean of all `m`.
-#' - Optional `nearest_cru_cell`: the cell has no CRU climate and took its
-#'   nearest CRU land cell's, `climate_fill_km` away.
+#' - Optional `nearest_cru_cell=<col>[+<col>...]`: the cell lacks these CRU
+#'   climate variables (`mat_c`, `frost_days`, `prec_mm`, `pet_mm`) and took
+#'   them from its nearest CRU land cell, `climate_fill_km` away; its other
+#'   variables are its own.
 #' - Optional, on an unclassified row (`moisture_regime` is `NA`):
 #'   `missing=<col>[+<col>...]`, the inputs whose window mean is unavailable,
 #'   and `pet_not_positive`, a window-mean PET of zero. Nothing is
@@ -200,7 +210,7 @@
 #'   `whep_moisture_regime_key`, `whep_moisture_regime_climate`: an input
 #'   table lacks a required column, has no rows, has a duplicated or missing
 #'   key, or carries more than one climate for a cell-year; or no cell of the
-#'   climate has a complete record to lend a cell without one.
+#'   climate holds, in every year read, a variable that a cell lacks.
 #' - `whep_moisture_regime_domain`: an input holds a negative precipitation,
 #'   PET, frost count or irrigation depth, more than 366 frost days, a
 #'   `water_regime` other than `"rainfed"` or `"irrigated"`, or irrigation on
@@ -221,8 +231,8 @@
 #' Messages of class `whep_moisture_regime_unclassified`,
 #' `whep_moisture_regime_area_years` and
 #' `whep_moisture_regime_nearest_climate` report rows left without a regime,
-#' window years the regime areas do not cover and cells that took their
-#' nearest CRU cell's climate.
+#' window years the regime areas do not cover and cells that took climate
+#' variables from their nearest CRU cell.
 #'
 #' @source
 #' IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
@@ -1841,13 +1851,19 @@ build_cell_moisture_regime <- function(
   list(table = table, record = sort(unique(table$year)))
 }
 
-# The climate of the cells to classify. A cell with no complete CRU row at all
-# lies off CRU's land mask (a coastal or island cell): it takes the whole
-# record of its nearest CRU land cell, by great-circle distance between cell
-# centres, among the cells whose record is complete in every year read. The
-# fill is a climate, not a class: the classifier then applies the cell's own
-# water term (its irrigation included) to it. `fills` lists each filled cell
-# with its distance, `climate_fill_km`.
+# The climate of the cells to classify. A variable a cell holds no value of in
+# any year is lent by the nearest CRU land cell, by great-circle distance
+# between cell centres, among the cells that hold that variable in every year
+# read; every variable the cell does hold stays its own. A cell off CRU's land
+# mask (a coastal or island cell) holds none of the four and so takes all of
+# them; a cell CRU maps for some variables only takes the rest. A variable
+# with gaps is not lacking: it stays the cell's own and the classifier
+# reports the years without it. One donor supplies all the variables a cell
+# lacks, so the borrowed variables always come from a single place. The fill
+# is a climate, not a class: the classifier then applies the cell's own water
+# term (its irrigation included) to it. `fills` lists each filled cell with
+# its distance, `climate_fill_km`, and the variables it took,
+# `climate_fill_vars`.
 .cmr_nearest_climate <- function(table, cells) {
   cells <- cells |>
     dplyr::transmute(
@@ -1855,65 +1871,157 @@ build_cell_moisture_regime <- function(
       lat = round(as.numeric(.data$lat), 2)
     ) |>
     dplyr::distinct()
-  table$.complete <- stats::complete.cases(table[.moisture_climate_cols()])
-  own <- dplyr::distinct(table[table$.complete, ], .data$lon, .data$lat)
-  missing <- dplyr::anti_join(cells, own, by = c("lon", "lat"))
+  coverage <- .cmr_climate_coverage(table)
+  lacking <- .cmr_lacking_variables(cells, coverage)
   kept <- table |>
     dplyr::semi_join(cells, by = c("lon", "lat")) |>
-    dplyr::semi_join(own, by = c("lon", "lat"))
-  if (nrow(missing) == 0L) {
-    return(list(
-      table = dplyr::select(kept, -".complete"),
-      fills = .cmr_fill_prototype()
-    ))
+    dplyr::anti_join(lacking, by = c("lon", "lat"))
+  if (nrow(lacking) == 0L) {
+    return(list(table = kept, fills = .cmr_fill_prototype()))
   }
-  fills <- .cmr_nearest_cells(missing, .cmr_climate_donors(table))
-  copied <- fills |>
-    dplyr::select("lon", "lat", "donor_lon", "donor_lat") |>
-    dplyr::inner_join(
-      dplyr::rename(table, donor_lon = "lon", donor_lat = "lat"),
-      by = c("donor_lon", "donor_lat"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::select(-"donor_lon", -"donor_lat")
+  .cmr_check_donors(coverage, unique(lacking$climate_fill_vars))
+  fills <- .cmr_by_variables(lacking, \(group) {
+    .cmr_nearest_donor(group, coverage)
+  })
+  copied <- .cmr_by_variables(fills, \(group) .cmr_copy_climate(table, group))
   .cmr_inform_nearest(fills)
   list(
-    table = dplyr::select(dplyr::bind_rows(kept, copied), -".complete"),
-    fills = dplyr::select(fills, "lon", "lat", "climate_fill_km")
+    table = dplyr::bind_rows(kept, copied),
+    fills = dplyr::select(
+      fills,
+      "lon",
+      "lat",
+      "climate_fill_km",
+      "climate_fill_vars"
+    )
   )
 }
 
 .cmr_fill_prototype <- function() {
-  tibble::tibble(lon = double(), lat = double(), climate_fill_km = double())
+  tibble::tibble(
+    lon = double(),
+    lat = double(),
+    climate_fill_km = double(),
+    climate_fill_vars = character()
+  )
 }
 
-# The cells that can lend a climate: a complete row in every year the table
-# holds, ordered so that a tie in distance always resolves to the same cell.
-.cmr_climate_donors <- function(table) {
+# Apply `fun` to the cells that lack the same variables, and bind the results.
+.cmr_by_variables <- function(cells, fun) {
+  unname(split(cells, cells$climate_fill_vars)) |>
+    purrr::map(fun) |>
+    dplyr::bind_rows()
+}
+
+# One row per cell of the table: for each CRU variable, whether the cell holds
+# any value of it (`<col>_has`) and a value in every year the table holds
+# (`<col>_full`); and whether it has a row in every one of those years.
+.cmr_climate_coverage <- function(table) {
   n_years <- dplyr::n_distinct(table$year)
-  donors <- table |>
+  table |>
     dplyr::summarise(
-      lends = all(.data$.complete) & dplyr::n_distinct(.data$year) == n_years,
-      .by = c("lon", "lat")
-    ) |>
-    dplyr::filter(.data$lends) |>
-    dplyr::arrange(.data$lon, .data$lat)
-  if (nrow(donors) == 0L) {
-    cli::cli_abort(
-      c(
-        "No cell of the climate table has a complete record to lend a cell
-         without one.",
-        i = "Every cell needs mean temperature, precipitation, PET and frost
-             days in every year read."
+      dplyr::across(
+        dplyr::all_of(.moisture_climate_cols()),
+        list(has = \(x) any(!is.na(x)), full = \(x) all(!is.na(x)))
       ),
-      class = c("whep_moisture_regime_climate", "whep_absent_input")
+      years_full = dplyr::n_distinct(.data$year) == .env$n_years,
+      .by = c("lon", "lat")
     )
-  }
-  donors
 }
 
-# For each cell without climate, the nearest donor and its distance (the
-# first in donor order on a tie).
+# The cells that lack at least one CRU variable, with the variables they lack
+# (`climate_fill_vars`), joined by "+" in the order and spelling of the
+# `missing=` stamp. A cell absent from the table lacks all four.
+.cmr_lacking_variables <- function(cells, coverage) {
+  joined <- dplyr::left_join(cells, coverage, by = c("lon", "lat"))
+  vars <- purrr::map(.moisture_climate_cols(), \(col) {
+    has <- dplyr::coalesce(joined[[paste0(col, "_has")]], FALSE)
+    dplyr::if_else(has, "", paste0("+", col))
+  }) |>
+    purrr::reduce(paste0) |>
+    stringr::str_remove("^\\+")
+  joined |>
+    dplyr::select("lon", "lat") |>
+    dplyr::mutate(climate_fill_vars = .env$vars) |>
+    dplyr::filter(.data$climate_fill_vars != "")
+}
+
+# The variables of a `climate_fill_vars` stamp.
+.cmr_fill_variables <- function(key) {
+  stringr::str_split_1(key, "\\+")
+}
+
+# For cells that lack the same variables, the nearest donor of all of them and
+# its distance.
+.cmr_nearest_donor <- function(group, coverage) {
+  key <- group$climate_fill_vars[[1]]
+  donors <- .cmr_climate_donors(coverage, .cmr_fill_variables(key))
+  .cmr_nearest_cells(group, donors) |>
+    dplyr::mutate(climate_fill_vars = key)
+}
+
+# The cells that can lend `vars`: a value of each in every year the table
+# holds, ordered so that a tie in distance always resolves to the same cell.
+.cmr_climate_donors <- function(coverage, vars) {
+  coverage |>
+    dplyr::filter(
+      .data$years_full,
+      dplyr::if_all(dplyr::all_of(paste0(vars, "_full")))
+    ) |>
+    dplyr::arrange(.data$lon, .data$lat)
+}
+
+# Every set of variables some cell lacks needs a donor of all of them. Checked
+# before any cell is filled, outside the per-set iteration, so the abort keeps
+# its own condition classes.
+.cmr_check_donors <- function(coverage, keys) {
+  donorless <- purrr::keep(keys, \(key) {
+    nrow(.cmr_climate_donors(coverage, .cmr_fill_variables(key))) == 0L
+  })
+  if (length(donorless) == 0L) {
+    return(invisible(NULL))
+  }
+  vars <- unique(unlist(purrr::map(donorless, .cmr_fill_variables)))
+  cli::cli_abort(
+    c(
+      "No cell of the climate table holds {.field {vars}} in every year read
+       to lend it to a cell without it.",
+      i = "Every variable a cell lacks needs a cell with the full record."
+    ),
+    class = c("whep_moisture_regime_climate", "whep_absent_input")
+  )
+}
+
+# The donor's values of the variables the cells lack, in every year it holds,
+# beside the cells' own values of the others.
+.cmr_copy_climate <- function(table, group) {
+  vars <- .cmr_fill_variables(group$climate_fill_vars[[1]])
+  own <- table |>
+    dplyr::semi_join(group, by = c("lon", "lat")) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      dplyr::all_of(setdiff(.moisture_climate_cols(), vars))
+    )
+  table |>
+    dplyr::select(
+      donor_lon = "lon",
+      donor_lat = "lat",
+      "year",
+      dplyr::all_of(vars)
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(group, "lon", "lat", "donor_lon", "donor_lat"),
+      by = c("donor_lon", "donor_lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select(-"donor_lon", -"donor_lat") |>
+    dplyr::left_join(own, by = c("lon", "lat", "year"))
+}
+
+# For each cell that lacks climate variables, the nearest donor and its
+# distance (the first in donor order on a tie).
 .cmr_nearest_cells <- function(missing, donors) {
   purrr::map2(missing$lon, missing$lat, \(lon, lat) {
     km <- .great_circle_km(lon, lat, donors$lon, donors$lat)
@@ -1941,10 +2049,16 @@ build_cell_moisture_regime <- function(
 
 .cmr_inform_nearest <- function(fills) {
   n_cells <- nrow(fills)
+  counts <- table(fills$climate_fill_vars)
+  bullets <- rlang::set_names(
+    paste0(names(counts), ": ", as.integer(counts)),
+    rep("*", length(counts))
+  )
   cli::cli_inform(
     c(
-      "{n_cells} cell{?s} without CRU climate took the climate of the nearest
-       CRU land cell, stamped {.val nearest_cru_cell}.",
+      "{n_cells} cell{?s} lacking CRU climate took the missing variables from
+       the nearest CRU land cell, stamped {.val nearest_cru_cell}.",
+      bullets,
       i = "Distance: median {signif(stats::median(fills$climate_fill_km), 3)}
            km, largest {signif(max(fills$climate_fill_km), 3)} km."
     ),
@@ -1953,12 +2067,15 @@ build_cell_moisture_regime <- function(
 }
 
 # Each row of a cell whose climate is a nearest-cell fill carries the
-# distance, `climate_fill_km`, and the field `nearest_cru_cell` in its
-# `method_moisture_regime`; every other row carries NA.
+# distance, `climate_fill_km`, and the field `nearest_cru_cell=<col>[+<col>...]`
+# naming the variables it took, in its `method_moisture_regime`; every other
+# row carries NA.
 .cmr_stamp_climate_fill <- function(out, fills) {
   fills <- fills %||% .cmr_fill_prototype()
   out |>
-    dplyr::select(-dplyr::any_of("climate_fill_km")) |>
+    dplyr::select(
+      -dplyr::any_of(c("climate_fill_km", "climate_fill_vars"))
+    ) |>
     dplyr::left_join(
       fills,
       by = c("lon", "lat"),
@@ -1966,11 +2083,15 @@ build_cell_moisture_regime <- function(
     ) |>
     dplyr::mutate(
       method_moisture_regime = dplyr::if_else(
-        is.na(.data$climate_fill_km),
+        is.na(.data$climate_fill_vars),
         .data$method_moisture_regime,
-        .moisture_add_field(.data$method_moisture_regime, "nearest_cru_cell")
+        .moisture_add_field(
+          .data$method_moisture_regime,
+          paste0("nearest_cru_cell=", .data$climate_fill_vars)
+        )
       )
-    )
+    ) |>
+    dplyr::select(-"climate_fill_vars")
 }
 
 # Add a field to a `method_moisture_regime` stamp, ahead of the reasons an
