@@ -643,6 +643,69 @@ testthat::test_that("a recorded row keys an unkeyable polity in its years", {
   testthat::expect_identical(at(1955L)$area_code, 115L)
   testthat::expect_equal(.lv_frac(at(1955L), 106.25), 0.3)
 })
+
+# whep#1008. Territories the reporting vocabulary has no code for at ANY
+# vintage: Kosovo beside Serbia, the Canary Islands beside Spain, and Guam
+# alone. Each is recorded inside the reporting unit whose statistics cover it.
+.lv_territory_support <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~polity_code,    ~area_code, ~land_area_ha, ~start_year,
+    20.75, 42.75, "KOS-2008-2025", NA_integer_,          600,       2008L,
+    20.75, 42.75, "SRB-2008-2025",        272L,          400,       2008L,
+    -15.75, 28.25, "ICN-1800-2025", NA_integer_,         300,       1800L,
+    -15.75, 28.25, "ESP-1800-2025",        203L,          100,       1800L,
+    144.75, 13.25, "GUM-1950-2025", NA_integer_,         500,       1950L
+  ) |>
+    dplyr::mutate(
+      polity_area_ha = .data$land_area_ha,
+      cell_area_ha = 1000,
+      end_year = 2025L
+    )
+}
+
+testthat::test_that("a territory with no reporting code at any vintage is keyed", {
+  # On the `20260907T111653Z-e654d` support these six polities carried no
+  # `area_code` at 2015 -- 48 polycells, 1.913 Mha of land in no national
+  # total. The recorded rows file them under the unit that reports them.
+  testthat::expect_true(all(is.na(whep:::.polity_reporting_area_code(c(
+    "KOS-2008-2025",
+    "ICN-1800-2025",
+    "CEM-1800-2025",
+    "GUM-1950-2025",
+    "BES-2010-2025",
+    "SXM-2010-2025"
+  )))))
+  grid <- suppressMessages(.lv_epoch_grid(.lv_territory_support()))
+  at <- whep:::.filter_country_grid_year(grid, 2015L)
+
+  # Every hectare is claimed, so each cell is one whole reporting unit.
+  testthat::expect_equal(sum(at$land_area_ha), 1900)
+  testthat::expect_equal(.lv_frac(at, 20.75), 1)
+  testthat::expect_identical(at$area_code[at$lon == 20.75], 272L)
+  testthat::expect_identical(at$area_code[at$lon == -15.75], 203L)
+  testthat::expect_identical(at$area_code[at$lon == 144.75], 999L)
+  # The open end is reached: 2025 is inside every open polity's interval.
+  testthat::expect_equal(
+    sum(whep:::.filter_country_grid_year(grid, 2025L)$land_area_ha),
+    1900
+  )
+})
+
+testthat::test_that("the six 2015 territories each have exactly one row", {
+  codes <- whep:::.cpy_recorded_code(
+    c(
+      "KOS-2008-2025",
+      "ICN-1800-2025",
+      "CEM-1800-2025",
+      "GUM-1950-2025",
+      "BES-2010-2025",
+      "SXM-2010-2025"
+    ),
+    2015L,
+    2026L
+  )
+  testthat::expect_identical(codes, c(272L, 203L, 203L, 999L, 999L, 999L))
+})
 testthat::test_that(".check_grid_level refuses a non-depth", {
   fn <- whep:::.check_grid_level
   testthat::expect_identical(fn(NULL), 0L)

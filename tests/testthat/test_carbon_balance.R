@@ -1136,6 +1136,47 @@ test_that("C7: polycells with no area_code are reported, never folded", {
   testthat::expect_equal(shared$cell_area_frac, 0.75)
 })
 
+test_that("C7: a recorded territory is keyed, not dropped (whep#1008)", {
+  # Kosovo has no reporting code at any vintage, and FAOSTAT's Serbia (272)
+  # covers it: its 8,836 kha country area is Serbia's with Kosovo. Dropping it
+  # left 1.07 Mha of the 2015 carbon ledger in no national total.
+  support <- tibble::tribble(
+    ~lon,  ~lat,  ~polity_code,    ~area_code, ~cell_area_ha, ~land_area_ha,
+    20.75, 42.75, "KOS-2008-2025", NA_integer_,       100000,         60000,
+    20.75, 42.75, "SRB-2008-2025",        272L,       100000,         40000
+  ) |>
+    dplyr::mutate(start_year = 2008L, end_year = 2025L)
+  # The fold is reported like any other; the drop is gone.
+  warned <- character()
+  out <- withCallingHandlers(
+    suppressMessages(whep:::.carbon_cell_support(support, year = 2015L)),
+    warning = function(w) {
+      warned <<- c(warned, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  testthat::expect_false(any(grepl("carry no", warned)))
+  testthat::expect_true(any(grepl("fold more than one", warned)))
+  testthat::expect_identical(out$area_code, 272L)
+  testthat::expect_equal(out$land_area_ha, 100000)
+  testthat::expect_equal(out$cell_area_frac, 1)
+})
+
+test_that("C7: a recorded code never overrides a code the support carries", {
+  # The crosswalk answers first. A recorded row reaches only a polity left
+  # with no code, so the map cannot answer "which unit" a second way.
+  support <- .c7_support_fixture()
+  map <- tibble::tibble(
+    polity_code = "AAA-1900-2025",
+    area_code = 77L,
+    start_year = 1900L,
+    end_year = 2026L,
+    rule = "contained_fold"
+  )
+  out <- whep:::.carbon_key_recorded(support, 2000L, map)
+  testthat::expect_identical(out$area_code, support$area_code)
+})
+
 test_that("C7: an unkeyed layer the cell proves counted twice leaves", {
   # whep#1318. A federation with no area_code laid over the two polities
   # that partition the cell: 200,000 ha of territory claimed in a 100,000-ha
