@@ -667,14 +667,21 @@ testthat::test_that("a territory with no reporting code at any vintage is keyed"
   # On the `20260907T111653Z-e654d` support these six polities carried no
   # `area_code` at 2015 -- 48 polycells, 1.913 Mha of land in no national
   # total. The recorded rows file them under the unit that reports them.
+  # Five still carry none. Guam no longer belongs to the set: the
+  # whep-polities d45990a3 re-sync (#1306) mapped FAOSTAT area 88 to
+  # `GUM-1950-2025`, which therefore resolves to 88's bucket, 999 -- the same
+  # code its recorded row gives it.
   testthat::expect_true(all(is.na(whep:::.polity_reporting_area_code(c(
     "KOS-2008-2025",
     "ICN-1800-2025",
     "CEM-1800-2025",
-    "GUM-1950-2025",
     "BES-2010-2025",
     "SXM-2010-2025"
   )))))
+  testthat::expect_identical(
+    whep:::.polity_reporting_area_code("GUM-1950-2025"),
+    999L
+  )
   grid <- suppressMessages(.lv_epoch_grid(.lv_territory_support()))
   at <- whep:::.filter_country_grid_year(grid, 2015L)
 

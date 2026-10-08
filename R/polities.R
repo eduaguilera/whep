@@ -3051,12 +3051,7 @@ resolve_polity_label <- function(
 # say which polity each part sits inside, and in which years, so the part
 # takes that container's place in the lineage (#1306).
 .routed_part_container <- function(polity_codes, years) {
-  routed <- polity_area_crosswalk$polity_code[
-    polity_area_crosswalk$map_match_route %in% "manual-territory"
-  ]
-  edges <- tibble::as_tibble(polity_containment) |>
-    dplyr::filter(.data$member_code %in% routed) |>
-    dplyr::select("member_code", "container_code", "start_year", "end_year")
+  edges <- .routed_part_edges()
   # A back-cast year lies outside every edge of the part (Serbia's 1970 row on
   # `SRB-XK-2006-2008`), so the nearest edge in time answers, the same
   # nearest-period reading `add_polity_code()` gives that row.
@@ -3082,6 +3077,16 @@ resolve_polity_label <- function(
   out <- polity_codes
   out[hit$row] <- hit$container_code
   out
+}
+
+# The containment edges of the FAOSTAT-routed parts described above.
+.routed_part_edges <- function() {
+  routed <- polity_area_crosswalk$polity_code[
+    polity_area_crosswalk$map_match_route %in% "manual-territory"
+  ]
+  tibble::as_tibble(polity_containment) |>
+    dplyr::filter(.data$member_code %in% routed) |>
+    dplyr::select("member_code", "container_code", "start_year", "end_year")
 }
 
 .polity_successor_edges <- function() {

@@ -487,8 +487,28 @@ resolve_polity_lineage <- function(
       is_aggregate = TRUE,
       .by = code
     )
-  dplyr::bind_rows(own, aggregate) |>
+  dplyr::bind_rows(own, aggregate, .lineage_routed_part_edges(own)) |>
     dplyr::filter(!is.na(predecessor), predecessor != "")
+}
+
+# A part of a country that upstream routes a FAOSTAT area to (Serbia without
+# Kosovo `SRB-XK-2006-2008`, West Pakistan `PAK-WP-1949-1971`) is published
+# with no predecessor, so the walk from area 272 in 1961 stopped on it and
+# never reached the Yugoslav SFR. Its container is the polity whose lineage it
+# shares, so the walk steps to it, after any edge the part lists itself
+# (#1306). The support check picks the container carried in the row's year.
+.lineage_routed_part_edges <- function(own) {
+  .routed_part_edges() |>
+    dplyr::distinct(
+      code = .data$member_code,
+      predecessor = .data$container_code
+    ) |>
+    dplyr::anti_join(own, by = c("code", "predecessor")) |>
+    dplyr::mutate(
+      edge_rank = .lineage_aggregate_rank() + dplyr::row_number(),
+      is_aggregate = FALSE,
+      .by = "code"
+    )
 }
 
 # Aggregate edges rank after every edge a polity lists itself, so a real

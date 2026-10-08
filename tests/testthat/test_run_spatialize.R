@@ -913,16 +913,20 @@ testthat::test_that("an area_code-keyed hold-out is what both ends take", {
 }
 
 
-# The identity alias route the investigation found for the staged Japanese
-# pin: `polity_code == paste0(source_native_unit_id, "-1871-2025")`, bijective
-# over the 46 prefectures. Stubbed rather than read, because the alias rows
-# are a whep-polities deliverable that `polity_label_aliases` does not carry
-# yet, and the suite must not depend on them landing.
+# The alias route for the two prefectures the fixture carries. It used to be
+# the identity `paste0(source_native_unit_id, "-1871-2025")`; whep-polities
+# d45990a3 recoded the prefectures to their ISO 3166-2 numbers (`JPN-AICHI`
+# is `JPN-23-1871-2025`), so it is a lookup now (#1306). Stubbed rather than
+# read, so the suite does not depend on the published alias rows.
 .rs_stub_resolve_units <- function(x, code_system, year_col = "year", ...) {
+  prefectures <- c(
+    "JPN-AICHI" = "JPN-23-1871-2025",
+    "JPN-GIFU" = "JPN-21-1871-2025"
+  )
   rows <- dplyr::mutate(
     x,
     alias_source = as.character(code_system),
-    level_polity_code = paste0(x$source_native_unit_id, "-1871-2025")
+    level_polity_code = unname(prefectures[x$source_native_unit_id])
   )
   list(
     rows = rows,
@@ -1026,7 +1030,8 @@ testthat::test_that("a depth run allocates on admin shares, not the pattern", {
       .by = "level_polity_code"
     ) |>
     dplyr::arrange(level_polity_code)
-  testthat::expect_equal(placed$ha, c(300, 700))
+  # Gifu (`JPN-21`) sorts before Aichi (`JPN-23`).
+  testthat::expect_equal(placed$ha, c(700, 300))
   testthat::expect_equal(sum(placed$ha), 1000)
   testthat::expect_identical(unique(crops$method_grid_vintage), "year_aware")
 
