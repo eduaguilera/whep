@@ -284,6 +284,20 @@ testthat::test_that("a land use emitting no NH3 has no allowance", {
   testthat::expect_true(89786L %in% arable$cell_id)
 })
 
+testthat::test_that("arable land without uptake leaves a mixed cell empty", {
+  inputs <- whep:::.example_critical_n_inputs()
+  # Archive cell 72198: arable land with fertiliser and manure but no crop
+  # uptake next to intensive grassland. Its NUE, cut-off and so the NH3 it
+  # deposits on the grassland are undefined; the archive has no value for
+  # either land use, and none may come out as NaN.
+  inputs$uptake_arable_kg[3] <- 0
+  out <- whep::calculate_critical_n(inputs = inputs)
+  testthat::expect_false(59642L %in% out$cell_id)
+  testthat::expect_false(anyNA(out$critical_n_input_kgn_ha))
+  testthat::expect_false(anyNA(out$critical_n_surplus_kgn_ha))
+  testthat::expect_true(61591L %in% out$cell_id)
+})
+
 testthat::test_that("the fertiliser share is clipped to [1e-4, 1 - 1e-4]", {
   inputs <- whep:::.example_critical_n_inputs()[1, ]
   inputs$manure_net_arable_kg <- 0
@@ -408,10 +422,10 @@ testthat::test_that("calculate_critical_n reproduces the deposited layers", {
   dir <- .real_critn_dir()
   out <- whep::calculate_critical_n(dir = dir)
   root <- whep:::.critn_root_path(dir)
+  # Cells with one reducible land use, with or without extensive grassland.
   single <- whep:::.critn_read_inputs(root) |>
     dplyr::filter(
-      (.data$area_arable_ha > 0) + (.data$area_intensive_ha > 0) == 1L,
-      .data$area_extensive_ha == 0
+      (.data$area_arable_ha > 0) + (.data$area_intensive_ha > 0) == 1L
     ) |>
     dplyr::pull("cell_id")
   layers <- tidyr::expand_grid(
@@ -419,7 +433,7 @@ testthat::test_that("calculate_critical_n reproduces the deposited layers", {
     land_use = c("ara", "igl", "all"),
     var = c("critical_n_input", "critical_n_surplus")
   )
-  gate <- purrr::pmap(layers, \(threshold, land_use, var) {
+  cells <- purrr::pmap(layers, \(threshold, land_use, var) {
     archive <- whep::read_critical_n(var, threshold, land_use, dir = dir)
     ours <- dplyr::filter(
       out,
@@ -431,35 +445,68 @@ testthat::test_that("calculate_critical_n reproduces the deposited layers", {
     } else {
       ours$critical_n_surplus_kgn_ha
     }
-    both <- dplyr::inner_join(
+    dplyr::full_join(
       dplyr::select(archive, "cell_id", "source_area_ha", archive = "value"),
       tibble::tibble(cell_id = ours$cell_id, reproduced = value),
       by = "cell_id"
-    )
-    diff <- abs(both$reproduced - both$archive)
-    tibble::tibble(
-      threshold = threshold,
-      layer = paste(var, threshold, land_use),
-      missed = sum(!archive$cell_id %in% ours$cell_id),
-      single_exact = mean(diff[both$cell_id %in% single] < 0.005),
-      within_1 = mean(diff <= 1),
-      total_ratio = sum(both$reproduced * both$source_area_ha) /
-        sum(both$archive * both$source_area_ha)
-    )
+    ) |>
+      dplyr::mutate(
+        threshold = threshold,
+        land_use = land_use,
+        var = var,
+        single = .data$cell_id %in% single,
+        diff = abs(.data$reproduced - .data$archive)
+      )
   }) |>
     purrr::list_rbind()
-  # No deposited cell is left without a reproduced value.
-  testthat::expect_true(all(gate$missed == 0L))
-  # Cells with one reducible land use and no extensive grassland follow the
-  # printed equations: exact to the rasters' 0.001 kg N/ha, both rounded.
-  # The all-impacts layer departs from the lowest of the three thresholds in
-  # 2 of the 128 arable-only cells (cells 89068 and 89787: "mi" equals the
-  # surface-water cut-off while deposition and groundwater are at the floor).
-  per_threshold <- dplyr::filter(gate, .data$threshold != "mi")
-  testthat::expect_true(all(per_threshold$single_exact == 1))
-  testthat::expect_true(all(gate$single_exact >= 0.98))
-  # Measured 2026-10-06: at least 91% of cells within 1 kg N/ha in every
-  # layer, global totals within 1.7%.
-  testthat::expect_true(all(gate$within_1 >= 0.9))
+  # Every deposited cell gets a value, and no other cell does.
+  testthat::expect_false(anyNA(cells$archive))
+  testthat::expect_false(anyNA(cells$reproduced))
+  # Cells with one reducible land use follow the printed equations within
+  # 0.01 kg N/ha (the rasters carry 0.001) in every per-threshold layer.
+  per_threshold <- dplyr::filter(cells, .data$threshold != "mi")
+  testthat::expect_lt(max(per_threshold$diff[per_threshold$single]), 0.01)
+  # Deposition is exact in every cell, mixed ones included; surface water
+  # departs in fewer than 1 in 1,000 cells. Measured 2026-10-08.
+  de <- dplyr::filter(cells, .data$threshold == "de")
+  testthat::expect_lt(max(de$diff), 0.005)
+  sw <- dplyr::filter(cells, .data$threshold == "sw")
+  testthat::expect_gt(mean(sw$diff <= 0.01), 0.999)
+  # All impacts in single-use cells departs only where the archive takes the
+  # surface-water value although deposition and groundwater sit lower, at
+  # the non-agricultural floor (see .critn_env_minimum()): 53 cells, each in
+  # the arable and the all-land layer.
+  wide <- cells |>
+    dplyr::filter(.data$single, .data$var == "critical_n_input") |>
+    dplyr::select(
+      "cell_id",
+      "land_use",
+      "threshold",
+      "archive",
+      "reproduced"
+    ) |>
+    tidyr::pivot_wider(
+      names_from = "threshold",
+      values_from = c("archive", "reproduced")
+    )
+  off <- dplyr::filter(
+    wide,
+    abs(.data$reproduced_mi - .data$archive_mi) > 0.01
+  )
+  testthat::expect_equal(nrow(off), 2L * 53L)
+  testthat::expect_equal(off$archive_mi, off$archive_sw)
+  testthat::expect_equal(off$reproduced_mi, off$reproduced_de)
+  testthat::expect_equal(off$reproduced_mi, off$reproduced_gw)
+  testthat::expect_true(all(off$reproduced_mi < off$archive_sw))
+  # The groundwater rule of mixed cells is a reconstruction: at least 91% of
+  # cells within 1 kg N/ha in every layer, global totals within 2%.
+  gate <- cells |>
+    dplyr::summarise(
+      within_1 = mean(.data$diff <= 1),
+      total_ratio = sum(.data$reproduced * .data$source_area_ha) /
+        sum(.data$archive * .data$source_area_ha),
+      .by = c("threshold", "land_use", "var")
+    )
+  testthat::expect_true(all(gate$within_1 >= 0.91))
   testthat::expect_true(all(abs(gate$total_ratio - 1) < 0.02))
 })

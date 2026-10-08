@@ -24,16 +24,24 @@
 #   1.0001e-4 times the other above the unclipped solution, in every such cell.
 # * The yield-gap ratios carry three decimals; SI Supplementary Table 5 prints
 #   two. See .critn_region_ratios().
-# * Mixed cells: the reducible inputs of arable land and intensive grassland
-#   are scaled by one common factor for the deposition and surface-water
-#   thresholds; each land use is then cut off on its own, with the deposition
-#   from its own emissions only (SI Eq. 2); the reported input adds the other
-#   land use's deposition; uptake of a cut-off land use is its uptake at yield
-#   potential, otherwise current NUE times the input before any cut-off.
+# * Mixed cells, deposition: the agricultural NH3 the critical deposition
+#   leaves room for is shared between arable land and intensive grassland by
+#   their current NH3 emission (2026-10-08; see .critn_env_deposition()).
+#   Surface water: both land uses' fertiliser plus manure scale by one common
+#   factor. The reported input adds the other land use's deposition; uptake
+#   of a cut-off land use is its uptake at yield potential, otherwise current
+#   NUE times the input before any cut-off.
+# * The cut-off binds where uptake at the critical input reaches uptake at
+#   yield potential, not where fertiliser plus manure reaches its own cut-off
+#   value (2026-10-08; see .critn_reaches_potential()).
+# * No allowance for a land use whose fertiliser and manure emit no NH3, nor
+#   in a mixed cell whose other land use has no uptake (2026-10-08).
 # * Groundwater in cells with both arable land and intensive grassland is the
 #   one rule the SI leaves unprinted. The rule below (each land use against
 #   its area share of the critical leaching, the one that must fall further
 #   solved first) is a reconstruction; see .critn_env_groundwater().
+# * "All impacts" is the lowest of the three (SI Eq. 31). The archive departs
+#   from that in 57 arable cells; see .critn_env_minimum().
 #
 # How close the result is, layer by layer, is measured by
 # inst/scripts/validate_critical_n_reproduction.R and pinned by the real-data
@@ -83,12 +91,21 @@
 #' print 11.3); ice cells get 5 kg N/ha of critical deposition (Supplementary
 #' Table 2 prints "n.a."); the fertiliser share is clipped to
 #' \[1e-4, 1 - 1e-4\]; the regional yield-gap ratios carry three decimals
-#' (each rounds to the two printed in Supplementary Table 5). In cells with
-#' both arable land and intensive grassland, both land uses are scaled by one
-#' factor for the deposition and surface-water thresholds. For groundwater
-#' there, each land use is held to its area share of the critical leaching
-#' and the one that must fall further is solved first; this rule is a
-#' reconstruction, and those cells carry the remaining differences.
+#' (each rounds to the two printed in Supplementary Table 5). The cut-off
+#' binds where uptake at the critical input (with the deposition of every
+#' land use in the cell) reaches uptake at yield potential; with NUE above
+#' 0.8 this raises the input to the cut-off input. In cells with both arable
+#' land and intensive grassland, the NH3 the critical deposition leaves room
+#' for is shared by their current NH3 emission, and both land uses are scaled
+#' by one factor for the surface-water threshold. For groundwater there, each
+#' land use is held to its area share of the critical leaching and the one
+#' that must fall further is solved first; this rule is a reconstruction, and
+#' those cells carry the remaining differences.
+#'
+#' One departure is deliberate: `"mi"` is the lowest of the three thresholds
+#' as SI Eq. 31 defines it. In 57 arable cells where deposition and
+#' groundwater both sit at the non-agricultural floor, the deposited
+#' all-impacts layer carries the higher surface-water value instead.
 #'
 #' @param inputs Optional tibble with one row per cell and the IMAGE-GNM
 #'   quantities listed by `whep:::.critn_input_specs()`: `cell_id`, `lon`,
@@ -692,7 +709,15 @@ calculate_critical_n <- function(
 }
 
 # SI Eqs. 31-32: the lowest critical fertiliser plus manure of the three
-# thresholds, land use by land use.
+# thresholds, land use by land use. The deposited all-impacts layers depart
+# from this in 57 arable cells (2 arable-only, 51 with extensive grassland, 4
+# with intensive grassland; no grassland cell): where deposition and
+# groundwater both sit at the non-agricultural floor, they carry the
+# surface-water value. All 57 are reproduced by a choice with strict
+# comparisons (deposition if strictly below both others, else groundwater if
+# strictly below both, else surface water), which a tie at the floor sends to
+# surface water. That allowance exceeds two of the three thresholds, so the
+# minimum the SI defines is kept. Measured 2026-10-08.
 .critn_env_minimum <- function(env) {
   list(
     x_ara = do.call(pmin, purrr::map(env, \(x) pmax(x$x_ara, 0))),
@@ -783,12 +808,16 @@ calculate_critical_n <- function(
   area <- p[[.critn_land_use_col(land_use, "area")]]
   # No allowance without current fertiliser plus manure, the NH3 it emits
   # (SI Eq. 10 divides by it; the archive leaves all 56 such arable cells
-  # empty in every layer), crop uptake or agricultural leaching.
+  # empty in every layer), crop uptake or agricultural leaching. Nor where
+  # the deposition is undefined: the other land use of a mixed cell has
+  # fertiliser and manure but no uptake, so no NUE and no cut-off (archive
+  # cell 72198, empty for both land uses in every layer).
   defined <- area > 0 &
     p[[paste0("x_", land_use)]] > 0 &
     p[[paste0("c_", land_use)]] > 0 &
     current_uptake > 0 &
-    p$leaching_ag_kg > 0
+    p$leaching_ag_kg > 0 &
+    is.finite(deposition$final)
   defined[is.na(defined)] <- FALSE
   list(
     defined = defined,

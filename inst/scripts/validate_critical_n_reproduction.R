@@ -21,6 +21,12 @@ started <- Sys.time()
 reproduced <- calculate_critical_n(dir = dir)
 elapsed <- as.numeric(difftime(Sys.time(), started, units = "secs"))
 
+# Cells holding both arable land and intensive grassland, where the source
+# does not print its formulas; every other cell has one reducible land use.
+mixed <- whep:::.critn_read_inputs(root) |>
+  dplyr::filter(.data$area_arable_ha > 0, .data$area_intensive_ha > 0) |>
+  dplyr::pull("cell_id")
+
 layers <- tidyr::expand_grid(
   threshold = c("de", "sw", "gw", "mi"),
   land_use = c("ara", "igl", "all"),
@@ -71,6 +77,8 @@ compare_layer <- function(threshold, land_use, var) {
     only_archive = sum(!archive$cell_id %in% ours$cell_id),
     only_reproduced = sum(!ours$cell_id %in% archive$cell_id),
     within_0.01 = mean(diff <= 0.01),
+    within_0.01_single = mean(diff[!both$cell_id %in% mixed] <= 0.01),
+    within_0.01_mixed = mean(diff[both$cell_id %in% mixed] <= 0.01),
     within_1 = mean(diff <= 1),
     p99_abs_diff = unname(stats::quantile(diff, 0.99)),
     archive_tg = sum(both$archive * both$area_ha, na.rm = TRUE) / 1e9,
