@@ -198,6 +198,29 @@ test_that(".fix_item_codes never converts milled rice", {
   expect_equal(result$value, 100)
 })
 
+test_that(".fix_item_codes remaps FAOSTAT Meat Meal 2749 -> 2112", {
+  # The old FAOSTAT commodity balances report Meat Meal as item 2749;
+  # `items_full` carries it as 2112. Unmapped, the code-keyed join in
+  # `.extract_cb()` dropped the item's whole balance, so Meat Meal had no CBS
+  # row anywhere and its trade had nothing to land on (whep#1450).
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,   ~value,
+    2749L,          "Meat Meal", 285000,
+    2511L,          "Wheat",     200
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  expect_false(2749L %in% result$item_cbs_code)
+  meal <- dplyr::filter(result, item_cbs_code == 2112L)
+  expect_equal(meal$item_cbs, "Meat Meal")
+  expect_equal(meal$value, 285000)
+  whep::items_full |>
+    dplyr::filter(item_cbs_code == 2112) |>
+    dplyr::pull(item_cbs) |>
+    expect_equal("Meat Meal")
+})
+
 test_that("a paddy source converts even once the row is relabelled", {
   # The complement of `.fix_item_codes leaves an already-labelled rice row
   # alone` (#778). `.prepare_historical_cbs()` relabels every 2807 row "Rice
@@ -624,8 +647,8 @@ test_that(".cbs_trade_recovery_rows labels rows from the right vocabulary", {
   # The `area` label is a property of the (year, area_code) bucket and is read
   # from the CBS itself; a year-free lookup would relabel a merged bucket
   # (whep#563). The item label is year-free, so it comes from `items_cbs` and
-  # works for an item the CBS names nowhere -- Meat Meal is in 107 areas'
-  # trade records and in no CBS row at all.
+  # works for an item the CBS names nowhere -- after 2013, when FAOSTAT's
+  # balance for it ends, Meat Meal is in ~85 areas' trade and in no CBS row.
   trade <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~element, ~value,
     2010, 200L, 2112, "import", 5000

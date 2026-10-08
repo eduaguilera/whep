@@ -458,6 +458,41 @@ test_that(".extract_cb keeps an item whose label differs only in case", {
     expect_equal(60)
 })
 
+# -- .extract_cb keeps Meat Meal --------------------------------------------
+
+# `faostat-cbs-old-animal` reports Meat Meal as item 2749, a code `items_full`
+# does not carry (it books the item as 2112). Keyed on the code, every Meat
+# Meal row fell out of the extract: in 2010 that is the 484 kt of production
+# FAOSTAT reports (Australia 285 kt, New Zealand 140 kt, ...), the item's
+# feed and the trade of ~150 areas (whep#1450).
+test_that(".extract_cb keeps the old CBS Meat Meal balance", {
+  fixture <- tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,         ~Element,          ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2749,         "Meat Meal",   "Production",      "tonnes", 2010L, 285000,
+    203L,         "Testland", 2749,         "Meat Meal",   "Export Quantity", "tonnes", 2010L, 262000,
+    203L,         "Testland", 2749,         "Meat Meal",   "Feed",            "tonnes", 2010L, 23000,
+    203L,         "Testland", 2855,         "Fish Meal",   "Feed",            "tonnes", 2010L, 999
+  ) |>
+    data.table::as.data.table()
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_cb("faostat-cbs-old-animal") |>
+    tibble::as_tibble()
+
+  expect_setequal(out$item_cbs_code, 2112)
+  expect_setequal(out$item_cbs, "Meat Meal")
+  expect_setequal(out$element, c("production", "export", "feed"))
+  out |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(value) |>
+    expect_equal(285000)
+})
+
 # -- .extract_fao row order ----------------------------------------------------
 
 # The same defect one stage earlier, and the stage the CBS build consumes

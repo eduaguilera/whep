@@ -5310,7 +5310,7 @@ build_processing_coefs <- function(
 # from the CBS rows of that same bucket -- an inner join, which also enforces
 # the "areas the CBS already covers" restriction. The item label is year-free
 # and comes from the canonical lookup, so an item the CBS names nowhere (Meat
-# Meal, 2112) still gets one.
+# Meal, 2112, after 2013, when FAOSTAT's balance for it ends) still gets one.
 .label_recovered_rows <- function(candidates, cbs) {
   areas <- data.table::as.data.table(cbs)[,
     .(year, area_code, area)
