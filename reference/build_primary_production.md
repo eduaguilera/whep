@@ -86,7 +86,10 @@ build_primary_production(
     `successor` relation published in
     [polities](https://eduaguilera.github.io/whep/reference/polities.md).
     This back-casts 14.3% more of the 1961-62 production tonnage and
-    therefore moves published pre-1962 values.
+    therefore moves published pre-1962 values. Under
+    `land_method = "historical_polity"` it reaches only the federations
+    the historical table has no polygon for, and their rows keep the
+    `LUH2_*` source label, not `LUH2_polity_*`.
 
 - land_method:
 

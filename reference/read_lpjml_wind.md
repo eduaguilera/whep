@@ -35,7 +35,9 @@ read_lpjml_wind(years = NULL, wind_dir = NULL, example = FALSE)
   Path to the directory holding a `wind_gswp3-w5e5_<span>_monthly.nc`.
   The span in that filename is resolved against the directory rather
   than assumed, so an extended base reads without a code change.
-  Defaults to `Sys.getenv("WHEP_WIND_DIR")`.
+  Defaults to `Sys.getenv("WHEP_WIND_DIR")`; when that is also unset,
+  the registered `lpjml-wind-isimip-1901-2019` pin is read via
+  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md).
 
 - example:
 

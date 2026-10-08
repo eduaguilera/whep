@@ -43,15 +43,15 @@ an absent weed stream and a weed-free field are the same zero otherwise
 tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40) |>
   calculate_crop_npp() |>
   calculate_npp_carbon_nitrogen()
-#> # A tibble: 1 × 32
-#>   item_prod_code production_t area_ha product_dm_t yield_dm_t_ha residue_dm_t
-#>   <chr>                 <dbl>   <dbl>        <dbl>         <dbl>        <dbl>
-#> 1 15                      100      40         87.9          2.20         136.
-#> # ℹ 26 more variables: method_residue <chr>, root_dm_t <dbl>,
-#> #   method_root <chr>, crop_npp_dm_t <dbl>, weed_ag_dm_t <dbl>,
-#> #   method_weed_npp <chr>, weed_bg_dm_t <dbl>, weed_npp_dm_t <dbl>,
-#> #   weed_ag_n_t <dbl>, weed_bg_n_t <dbl>, weed_npp_n_t <dbl>,
-#> #   weed_ag_c_t <dbl>, weed_bg_c_t <dbl>, weed_npp_c_t <dbl>,
-#> #   total_npp_dm_t <dbl>, product_n_t <dbl>, residue_n_t <dbl>, root_n_t <dbl>,
-#> #   crop_npp_n_t <dbl>, total_npp_n_t <dbl>, product_c_t <dbl>, …
+#> # A tibble: 1 × 33
+#>   item_prod_code production_t area_ha product_dm_t yield_dm_t_ha
+#>   <chr>                 <dbl>   <dbl>        <dbl>         <dbl>
+#> 1 15                      100      40         87.9          2.20
+#> # ℹ 28 more variables: method_residue_group <chr>, residue_dm_t <dbl>,
+#> #   method_residue <chr>, root_dm_t <dbl>, method_root <chr>,
+#> #   crop_npp_dm_t <dbl>, weed_ag_dm_t <dbl>, method_weed_npp <chr>,
+#> #   weed_bg_dm_t <dbl>, weed_npp_dm_t <dbl>, weed_ag_n_t <dbl>,
+#> #   weed_bg_n_t <dbl>, weed_npp_n_t <dbl>, weed_ag_c_t <dbl>,
+#> #   weed_bg_c_t <dbl>, weed_npp_c_t <dbl>, total_npp_dm_t <dbl>,
+#> #   product_n_t <dbl>, residue_n_t <dbl>, root_n_t <dbl>, crop_npp_n_t <dbl>, …
 ```

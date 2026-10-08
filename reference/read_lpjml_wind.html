@@ -91,7 +91,9 @@ base; the span is whatever the resolved file holds, not a fixed range).</p></dd>
 <dd><p>Path to the directory holding a
 <code>wind_gswp3-w5e5_&lt;span&gt;_monthly.nc</code>. The span in that filename is
 resolved against the directory rather than assumed, so an extended base
-reads without a code change. Defaults to <code>Sys.getenv("WHEP_WIND_DIR")</code>.</p></dd>
+reads without a code change. Defaults to <code>Sys.getenv("WHEP_WIND_DIR")</code>;
+when that is also unset, the registered <code>lpjml-wind-isimip-1901-2019</code>
+pin is read via <code><a href="whep_read_file.html">whep_read_file()</a></code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

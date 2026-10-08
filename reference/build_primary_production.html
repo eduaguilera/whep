@@ -130,7 +130,10 @@ their pre-1962 production is not back-cast at all and the build warns.</p></li>
 <li><p><code>"successor_union"</code> rebuilds each federation's land series as the sum of
 its successor states' LUH2 land, resolved from the <code>successor</code> relation
 published in <a href="polities.html">polities</a>. This back-casts 14.3% more of the 1961-62
-production tonnage and therefore moves published pre-1962 values.</p></li>
+production tonnage and therefore moves published pre-1962 values.
+Under <code>land_method = "historical_polity"</code> it reaches only the
+federations the historical table has no polygon for, and their rows
+keep the <code>LUH2_*</code> source label, not <code>LUH2_polity_*</code>.</p></li>
 </ul></dd>
 
 

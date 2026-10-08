@@ -36,8 +36,13 @@ calculate_crop_residues(
 
 ## Value
 
-The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`
-and `method_residue`.
+The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`,
+`method_residue` and `method_residue_group`. The latter is
+`"ipcc_group"` for an item with an IPCC crop group, and
+`"unmapped_uncorrected"` for one without: that item gets no irrigation
+or modern-variety residue correction (both are keyed on the crop group),
+which is not the same as a correction that was computed and found to be
+1.
 
 ## Examples
 
@@ -45,9 +50,10 @@ and `method_residue`.
 calculate_crop_residues(
   tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40)
 )
-#> # A tibble: 1 × 7
-#>   item_prod_code production_t area_ha product_dm_t yield_dm_t_ha residue_dm_t
-#>   <chr>                 <dbl>   <dbl>        <dbl>         <dbl>        <dbl>
-#> 1 15                      100      40         87.9          2.20         136.
-#> # ℹ 1 more variable: method_residue <chr>
+#> # A tibble: 1 × 8
+#>   item_prod_code production_t area_ha product_dm_t yield_dm_t_ha
+#>   <chr>                 <dbl>   <dbl>        <dbl>         <dbl>
+#> 1 15                      100      40         87.9          2.20
+#> # ℹ 3 more variables: method_residue_group <chr>, residue_dm_t <dbl>,
+#> #   method_residue <chr>
 ```
