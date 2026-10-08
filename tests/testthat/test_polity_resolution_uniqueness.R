@@ -77,6 +77,47 @@ testthat::test_that("adjacent periods are not a conflict", {
   testthat::expect_equal(nrow(whep:::.area_year_polity_conflicts(adjacent)), 0L)
 })
 
+testthat::test_that("a mapped hand-over ends a period that is still alive", {
+  # whep-polities d45990a3 routes FAOSTAT Cyprus (50) to `CYP-1879-2025` over
+  # 1961-1974 and to the government-controlled area `CYP-RA-1975-2025` from
+  # 1975, while the island-wide polity itself never ends. Its territorial span
+  # covers 1975-2025 as well, so without the map's hand-over both rows answered
+  # for those years and the pick fell to the `polity_start_year DESC` order.
+  cw <- data.frame(
+    area_code = c(50L, 50L),
+    polity_code = c("CYP-1879-2025", "CYP-RA-1975-2025"),
+    polity_start_year = c(1879L, 1975L),
+    polity_end_year = c(2025L, 2025L),
+    map_year_start = c(1961L, 1975L),
+    map_year_end = c(1974L, 2024L),
+    stringsAsFactors = FALSE
+  )
+  testthat::expect_equal(
+    whep:::.polity_map_handover(
+      cw$area_code,
+      cw$map_year_start,
+      cw$map_year_end
+    ),
+    c(1975, Inf)
+  )
+  testthat::expect_equal(nrow(whep:::.area_year_polity_conflicts(cw)), 0L)
+  testthat::expect_equal(
+    nrow(whep:::.polity_join_conflicts(cw, years = 1961:2024)),
+    0L
+  )
+
+  # Rows without a declared map span hand over nothing: a pre-1961 period the
+  # map never names keeps its territorial end.
+  testthat::expect_equal(
+    whep:::.polity_map_handover(
+      c(50L, 50L),
+      c(NA, 1975L),
+      c(NA, 2024L)
+    ),
+    c(Inf, Inf)
+  )
+})
+
 testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
   # ZERO, not a pin -- see the header. The measured history of this number on the
   # same detector: prefix inference alone gave 199 conflicting area-years across

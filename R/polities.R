@@ -194,6 +194,44 @@
   pmax(territorial, reported)
 }
 
+# The year upstream's FAOSTAT map hands an area from this row to a later one,
+# `Inf` where it hands over nothing. The resolver and both conflict detectors
+# cap a row's span here.
+#
+# A hand-over normally coincides with the polity's own end, and then this
+# changes nothing. It does not when upstream routes an area to a part of a
+# polity that is still alive: whep-polities d45990a3 maps FAOSTAT Cyprus (50)
+# to `CYP-1879-2025` over 1961-1974 and to `CYP-RA-1975-2025`, the
+# government-controlled area, from 1975, and Serbia and Montenegro (186) to
+# `SCG-XK-1999-2006` from 1999. The parent's territorial span still covers
+# those years, so without the cap both rows answered and the
+# `polity_start_year DESC` order in `add_polity_code()` decided. The map is the
+# authority on reporting years (see `.polity_join_end_year()`), so its
+# hand-over is the boundary. Rows without a map span (pre-1961 periods) hand
+# over nothing.
+.polity_map_handover <- function(area_code, map_year_start, map_year_end) {
+  rows <- data.table::data.table(
+    row = seq_along(area_code),
+    area_code = area_code,
+    map_year_start = as.numeric(map_year_start),
+    map_year_end = as.numeric(map_year_end)
+  )
+  starts <- rows[
+    !is.na(map_year_start),
+    .(area_code, next_start = map_year_start)
+  ]
+  mapped <- rows[!is.na(map_year_end)]
+  found <- starts[
+    mapped,
+    on = .(area_code, next_start > map_year_end),
+    .(row = i.row, handover = x.next_start),
+    nomatch = NULL
+  ][, .(handover = min(handover)), by = "row"]
+  out <- rep(Inf, length(area_code))
+  out[found$row] <- found$handover
+  out
+}
+
 # The first year a crosswalk row answers for, which is the polity's own start
 # unless the row itself declares a later one.
 #
@@ -612,6 +650,9 @@
     if (!rlang::has_name(lookup, "map_year_end")) {
       lookup[, "map_year_end" := NA_integer_]
     }
+    if (!rlang::has_name(lookup, "map_year_start")) {
+      lookup[, "map_year_start" := NA_integer_]
+    }
     if (!rlang::has_name(lookup, "applies_from_year")) {
       lookup[, "applies_from_year" := NA_integer_]
     }
@@ -625,10 +666,17 @@
       ) := .(
         area_code,
         .polity_join_start_year(polity_start_year, get("applies_from_year")),
-        .polity_join_end_year(
-          polity_end_year,
-          get("map_year_end"),
-          polity_code %in% .open_polity_codes()
+        pmin(
+          .polity_join_end_year(
+            polity_end_year,
+            get("map_year_end"),
+            polity_code %in% .open_polity_codes()
+          ),
+          .polity_map_handover(
+            area_code,
+            get("map_year_start"),
+            get("map_year_end")
+          )
         ),
         area_name,
         area_iso3c,
@@ -1781,11 +1829,18 @@ get_polity_geometries <- function(polity_codes = NULL) {
   # report 1 -- area 7 at 1975, `AGO-1975-2025` against `ANG-1905-1975`,
   # which is #683. An earlier note here claimed the two agreed; that was
   # measured on a snapshot since superseded.
+  handover <- if (
+    all(rlang::has_name(cw, c("map_year_start", "map_year_end")))
+  ) {
+    .polity_map_handover(cw$area_code, cw$map_year_start, cw$map_year_end)
+  } else {
+    Inf
+  }
   .area_year_span_conflicts(data.frame(
     area_code = cw$area_code,
     polity_code = cw$polity_code,
     span_start = cw$polity_start_year,
-    span_end = cw$polity_end_year,
+    span_end = pmin(cw$polity_end_year, handover),
     stringsAsFactors = FALSE
   ))
 }
@@ -1848,14 +1903,20 @@ get_polity_geometries <- function(polity_codes = NULL) {
   if (!rlang::has_name(cw, "map_year_end")) {
     cw$map_year_end <- NA_integer_
   }
+  if (!rlang::has_name(cw, "map_year_start")) {
+    cw$map_year_start <- NA_integer_
+  }
   if (!rlang::has_name(cw, "applies_from_year")) {
     cw$applies_from_year <- NA_integer_
   }
   cw <- cw[!is.na(cw$area_code) & !is.na(cw$polity_code), ]
-  span_end <- .polity_join_end_year(
-    cw$polity_end_year,
-    cw$map_year_end,
-    cw$polity_code %in% .open_polity_codes()
+  span_end <- pmin(
+    .polity_join_end_year(
+      cw$polity_end_year,
+      cw$map_year_end,
+      cw$polity_code %in% .open_polity_codes()
+    ),
+    .polity_map_handover(cw$area_code, cw$map_year_start, cw$map_year_end)
   )
   span_start <- .polity_join_start_year(
     cw$polity_start_year,
