@@ -323,10 +323,113 @@ testthat::test_that("the packaged coefficients give the shipped protein", {
   # the workbook's own wheat-flour figure, 93 g of protein per kg.
   testthat::expect_equal(protein_of(2511), 0.093) # Wheat, flour basis
   testthat::expect_equal(protein_of(2807), 0.0743119266055046) # Rice, milled
-  # Nuts were 0.2 until whep#797: almond kernel protein on an in-shell
-  # quantity. Almonds now carry FAO's in-shell edible fraction, 0.4.
-  testthat::expect_equal(protein_of(2551), 0.08) # Nuts -> Almonds, in shell
+  # Nuts were 0.2 until whep#797 (almond kernel protein on an in-shell
+  # quantity) and 0.08 until whep#1453 (almonds in shell standing in for ten
+  # species). They are now FAO's in-shell basket, 64.7 g of protein per kg.
+  testthat::expect_equal(protein_of(2551), 0.0647040, tolerance = 1e-6)
   testthat::expect_equal(protein_of(2848), 0.033) # Milk excl. Butter
+})
+
+testthat::test_that("nuts take FAO's ten-species in-shell basket (#1453)", {
+  # FBS 2551 `Nuts and products` is ten species. Reached through Almonds alone
+  # it carried 80 g of protein per kg in shell, near the top of FAO's own
+  # in-shell range (1.8 chestnuts to 10.3 pistachios, g per 100 g). The basket
+  # weights FAO's factors by 2010 world production and comes to 64.7 g/kg.
+  species <- whep:::.nut_basket_species()
+  testthat::expect_equal(nrow(species), 10L)
+  testthat::expect_setequal(
+    species$item_prod_code,
+    whep::items_prod_full |>
+      dplyr::filter(.data$item_cbs_code == 2551) |>
+      dplyr::pull("item_prod_code") |>
+      as.integer()
+  )
+  basket <- whep:::.food_nutrition_lookup(
+    whep::items_full,
+    whep::biomass_coefs,
+    "edible_portion"
+  ) |>
+    dplyr::filter(.data$item_cbs_code == 2551)
+  testthat::expect_equal(nrow(basket), 1L)
+  testthat::expect_equal(basket$protein_frac_kgfm, 0.0647040, tolerance = 1e-6)
+  # The representative species stays selectable, unchanged.
+  almonds <- whep:::.food_nutrition_lookup(
+    whep::items_full,
+    whep::biomass_coefs,
+    "edible_portion",
+    "representative_species"
+  ) |>
+    dplyr::filter(.data$item_cbs_code == 2551)
+  testthat::expect_equal(almonds$protein_frac_kgfm, 0.08)
+  # Only protein moves: the energy density is the representative row's.
+  testthat::expect_equal(basket$energy_mj_kgfm, almonds$energy_mj_kgfm)
+})
+
+testthat::test_that("the nut basket applies on the edible-portion basis only", {
+  # FAO's factor is edible protein per kg in shell, which is what the
+  # edible_portion basis means. The other two bases are defined on the
+  # coefficient row's own nitrogen, so the basket must not leak into them.
+  lookup_of <- function(basis, basket) {
+    whep:::.food_nutrition_lookup(
+      whep::items_full,
+      whep::biomass_coefs,
+      basis,
+      basket
+    ) |>
+      dplyr::filter(.data$item_cbs_code == 2551) |>
+      dplyr::pull("protein_frac_kgfm")
+  }
+  for (basis in c("whole_commodity", "product_nitrogen")) {
+    testthat::expect_equal(
+      lookup_of(basis, "fao_composition"),
+      lookup_of(basis, "representative_species")
+    )
+  }
+})
+
+testthat::test_that("the chosen basket is recorded and validated", {
+  cbs_food <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~food_t,
+    2010L, 1L,         2551,           1e6
+  )
+  population <- tibble::tribble(
+    ~year, ~area_code, ~population,
+    2010L, 1L,         1e6
+  )
+  supply_of <- function(basket) {
+    whep::build_food_supply(
+      data = list(cbs_food = cbs_food, population = population),
+      basket = basket
+    )
+  }
+  basket <- supply_of("fao_composition")
+  almonds <- supply_of("representative_species")
+  testthat::expect_equal(basket$method_basket, "fao_composition")
+  testthat::expect_equal(almonds$method_basket, "representative_species")
+  # One million tonnes for one million people: 0.0647 kg/kg x 1e6 g / 365.
+  testthat::expect_equal(
+    basket$protein_g_cap_day,
+    0.0647040 * 1e6 / 365,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(almonds$protein_g_cap_day, 0.08 * 1e6 / 365)
+  testthat::expect_error(
+    supply_of("not_a_basket"),
+    "must be one of|not_a_basket"
+  )
+  fbs <- whep::build_food_supply(
+    method = "faostat_fbs",
+    data = list(
+      fbs_supply = tibble::tribble(
+        ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day,
+        ~population,
+        2010L, 1L,         80,                 2800,
+        1e6
+      )
+    )
+  )
+  # The basket does not apply to a pass-through supply.
+  testthat::expect_true(all(is.na(fbs$method_basket)))
 })
 
 testthat::test_that("every food item resolves to one coefficient row", {
@@ -357,7 +460,8 @@ testthat::test_that("build_food_supply(example = TRUE) has the contract shape", 
       "energy_kcal_cap_day",
       "population",
       "method_food_supply",
-      "method_protein_basis"
+      "method_protein_basis",
+      "method_basket"
     )
   )
 })

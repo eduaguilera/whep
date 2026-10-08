@@ -1555,13 +1555,13 @@
 .example_build_food_supply <- function() {
   tibble::tribble(
     ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
-    ~method_food_supply, ~method_protein_basis,
+    ~method_food_supply, ~method_protein_basis, ~method_basket,
     2010L, 10L, 42.4643835616, 1204.850834228, 10000, "whep_native",
-    "edible_portion",
+    "edible_portion", "fao_composition",
     2010L, 32L, 26.0273972603, 681.002645433, 5000, "whep_native",
-    "edible_portion",
+    "edible_portion", "fao_composition",
     2011L, 10L, 34.4134434596, 969.375937598, 10200, "whep_native",
-    "edible_portion"
+    "edible_portion", "fao_composition"
   ) |>
     .add_reporting_polity_columns()
 }
