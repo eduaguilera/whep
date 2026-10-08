@@ -80,8 +80,40 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' @description
 #' Get type and amount of residue produced for each crop production item.
 #'
+#' Oil palm residue is re-anchored rather than taken from the pin
+#' (whep#1424). The pin books 35.8 t of residue dry matter per harvested
+#' hectare at 2020, more than an oil palm plantation's whole above-ground net
+#' primary production, fruit included: 81% of 17.3 Mg C, so about 30 t DM at
+#' the 0.47 kg C per kg DM of [biomass_coefs], per hectare and year in the
+#' industrial plantation of Wakhid, Hirano, Dariah & Agus (2022), *Mires and
+#' Peat* 28:02, doi:10.19189/map.2021.snpg.sta.2288. In Malaysia it is 2.2 to 2.9
+#' times the country's whole solid oil palm biomass, mill residues included.
+#' The anchor is Malaysia's field residue: fronds (46 Mt) and trunks (14 Mt)
+#' of dry matter on 4.85 Mha planted in 2010, Exhibit 1 and p. 10 of Agensi
+#' Inovasi Malaysia (2013), *National Biomass Strategy 2020*, version 2.0
+#' (FAOLEX mal228571). Mill residues (empty fruit bunches, fibre, shells) are
+#' part of the fruit bunch and are not field residue, so they are left out.
+#'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param oil_palm_residue How oil palm residue (fronds and trunks) is
+#'   obtained. One of:
+#'   - `"per_hectare"` (default): 60 Mt DM / 4.85 Mha = 12.37 t DM per
+#'     harvested hectare, Malaysia's 2010 fronds and trunks. Frond and trunk
+#'     production is a property of the standing palm, and the rate barely
+#'     moves between the strategy's two Malaysian years (12.26 t DM/ha at
+#'     2012, from its "over 83 million dry tonnes" times "about 75 percent"
+#'     on FAOSTAT's 5.08 Mha).
+#'   - `"per_product"`: 60 Mt DM / 83.09 Mt of fresh fruit bunches = 0.722 t
+#'     DM per tonne of fruit, the same 2010 anchor over Malaysia's 2010
+#'     FAOSTAT production. It keeps the pin's production-times-ratio form but
+#'     gives far less residue where yields are low (Nigeria, 2.6 t/ha), and
+#'     drifts between the strategy's two years (0.656 at 2012).
+#'   - `"pin"`: the pin as published, 3.8 t fresh residue per tonne of fruit.
+#'
+#'   The anchored dry matter is converted to fresh mass with the oil palm
+#'   `Residue_kgDM_kgFM` of [biomass_coefs], so `value_dm` is the anchor
+#'   exactly. The choice is recorded in `method_residue`.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -107,6 +139,10 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
 #'    crop with residue mass carries no such coefficient, so the gap stays
 #'    visible rather than reading as zero.
+#' - `method_residue`: Where the residue quantity comes from: `"pin"` for the
+#'    `crop_residues` pin, or `"malaysia_nbs_per_hectare"` /
+#'    `"malaysia_nbs_per_product"` for oil palm re-anchored by
+#'    `oil_palm_residue`.
 #'
 #' The pin's residue quantities are fresh matter. Across its crops the ratio of
 #' pinned residue to product tracks the fresh-matter residue:product ratio
@@ -121,7 +157,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #' @examples
 #' get_primary_residues(example = TRUE)
-get_primary_residues <- function(example = FALSE) {
+get_primary_residues <- function(
+  example = FALSE,
+  oil_palm_residue = c("per_hectare", "per_product", "pin")
+) {
+  oil_palm_residue <- rlang::arg_match(oil_palm_residue)
   if (example) {
     return(.example_get_primary_residues())
   }
@@ -135,6 +175,7 @@ get_primary_residues <- function(example = FALSE) {
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
+    .anchor_oil_palm_residue(oil_palm_residue) |>
     dplyr::filter(product_residue == "Residue") |>
     add_area_code(name_column = "area") |>
     .residue_area_from_polity() |>
@@ -154,7 +195,13 @@ get_primary_residues <- function(example = FALSE) {
       # drops -- erasing real, non-NA residue rows along with the missing one.
       value = sum(prod_ygpit_mg, na.rm = TRUE),
       value_dm = .sum_residue_dm(prod_ygpit_mg, residue_kgdm_kgfm),
-      .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
+      .by = c(
+        year,
+        area_code,
+        item_cbs_code_crop,
+        item_cbs_code_residue,
+        method_residue
+      )
     ) |>
     dplyr::filter(value > 0) |>
     dplyr::select(
@@ -163,7 +210,8 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_crop,
       item_cbs_code_residue,
       value,
-      value_dm
+      value_dm,
+      method_residue
     ) |>
     .use_crop_process_cbs_item() |>
     .add_reporting_polity_columns()
@@ -334,6 +382,112 @@ get_primary_residues <- function(example = FALSE) {
 # Joined many-to-one on purpose: `biomass_coefs` repeats a few livestock names,
 # and a crop name that ever matched two different contents would be a guess,
 # so it aborts rather than duplicating residue mass.
+# Replace the pin's oil palm residue with the Malaysian fronds-and-trunks
+# anchor (whep#1424), and stamp every row with where its residue comes from.
+#
+# Works on the pin before its `Product` rows are dropped, because the anchor
+# needs the fruit row's harvested hectares or tonnes. The sources and the
+# derivation of both rates are in the `oil_palm_residue` documentation of
+# `get_primary_residues()`. The anchored quantity is dry matter; it is stored
+# as fresh mass through the same `Residue_kgDM_kgFM` that
+# `.add_residue_dm_content()` applies later, so `value_dm` comes out equal to
+# the anchor.
+.anchor_oil_palm_residue <- function(pin, method) {
+  pin <- dplyr::mutate(pin, method_residue = "pin")
+  if (method == "pin" || !rlang::has_name(pin, "name_biomass")) {
+    return(pin)
+  }
+  is_palm <- pin$name_biomass %in% "Oil palm"
+  if (!any(is_palm)) {
+    return(pin)
+  }
+  palm <- .oil_palm_anchored_residue(pin[is_palm, ], method)
+  dplyr::bind_rows(pin[!is_palm, ], palm)
+}
+
+.oil_palm_anchored_residue <- function(palm, method) {
+  # Malaysia, 2010: fronds 46 + trunks 14 Mt DM (National Biomass Strategy
+  # 2020, Exhibit 1) on 4.85 Mha planted (p. 10), or over FAOSTAT's 83,090,935
+  # t of fresh fruit bunches.
+  rate <- switch(
+    method,
+    per_hectare = 60e6 / 4.85e6,
+    per_product = 60e6 / 83090935
+  )
+  stamp <- paste0("malaysia_nbs_", method)
+  basis <- if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg"
+  kgdm <- .oil_palm_residue_kgdm()
+  fruit <- .oil_palm_fruit_basis(palm, basis)
+  residue <- dplyr::filter(palm, .data$product_residue == "Residue")
+  .check_oil_palm_fruit(residue, fruit)
+  residue |>
+    dplyr::left_join(
+      fruit,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      prod_ygpit_mg = .data$fruit_basis * rate / kgdm,
+      method_residue = stamp
+    ) |>
+    dplyr::select(-"fruit_basis") |>
+    dplyr::bind_rows(dplyr::filter(palm, .data$product_residue != "Residue"))
+}
+
+.oil_palm_fruit_basis <- function(palm, basis) {
+  if (!rlang::has_name(palm, basis)) {
+    cli::cli_abort(
+      c(
+        "The crop-residue pin has no {.field {basis}} column, which the oil
+         palm residue anchor needs.",
+        i = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own
+             oil palm residue."
+      ),
+      class = "whep_oil_palm_no_product"
+    )
+  }
+  palm |>
+    dplyr::filter(.data$product_residue == "Product") |>
+    dplyr::summarise(
+      fruit_basis = sum(.data[[basis]]),
+      .by = c("year", "area")
+    )
+}
+
+# A residue row with no fruit row would come out `NA` here, then sum to zero
+# and be dropped by `get_primary_residues()`: an absent input turned into no
+# residue. Refuse instead.
+.check_oil_palm_fruit <- function(residue, fruit) {
+  orphan <- dplyr::anti_join(residue, fruit, by = c("year", "area"))
+  if (nrow(orphan) == 0L) {
+    return(invisible(NULL))
+  }
+  labels <- unique(paste(orphan$area, orphan$year))
+  cli::cli_abort(
+    c(
+      "{nrow(orphan)} oil palm residue row{?s} ha{?s/ve} no fruit row to
+       anchor on.",
+      i = "Area and year: {.val {labels}}.",
+      i = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own oil
+           palm residue."
+    ),
+    class = "whep_oil_palm_no_product"
+  )
+}
+
+.oil_palm_residue_kgdm <- function(biomass_coefs = whep::biomass_coefs) {
+  kgdm <- biomass_coefs$Residue_kgDM_kgFM[
+    biomass_coefs$Name_biomass %in% "Oil palm"
+  ]
+  if (length(kgdm) != 1L || is.na(kgdm) || kgdm <= 0) {
+    cli::cli_abort(
+      "{.field biomass_coefs} has no single positive oil palm
+       {.field Residue_kgDM_kgFM}, which the oil palm residue anchor needs."
+    )
+  }
+  kgdm
+}
+
 .add_residue_dm_content <- function(dt, biomass_coefs = whep::biomass_coefs) {
   if (!rlang::has_name(dt, "name_biomass")) {
     cli::cli_abort(
