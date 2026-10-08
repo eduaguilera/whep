@@ -1448,7 +1448,8 @@ prepare_country_areas <- function(
       item_prod_code = as.integer(.data$item_prod_code),
       harvested_area_ha = .data$value
     ) |>
-    dplyr::filter(.data$harvested_area_ha > 0)
+    dplyr::filter(.data$harvested_area_ha > 0) |>
+    .check_no_residual_buckets()
 
   cli::cli_alert_success(
     "{nrow(crop_areas)} crop-area rows from production pipeline"
@@ -1580,6 +1581,57 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# ---- Residual reporting buckets stay out of the country table (whep#656) ----
+# 901-906 ("Africa Other" ... "Oceania Other") and 999 RoW are residual
+# reporting buckets: each stands for whichever small territories were not
+# reported on their own code, so it is neither a country nor a total of
+# countries. Decision: `country_areas` does not carry them. The country table
+# should not hold a regional bucket (the rule `energy_co2_extension.R` states for
+# "the regional buckets RAFR to ROW"), and here it would lose area: a bucket has
+# no `country_grid` cell, so `build_gridded_landuse()` warns and drops it while
+# the national table still sums it. The June 2026 pin carried 904 and 906 that
+# way, 9.76 and 3.07 Mha summed over 1851-2006 and 1851-2023, standing in for
+# Guadeloupe, Martinique, New Caledonia and the others that production now
+# reports under their own codes (measured on 1900-1962: no 9xx code at all).
+# So a bucket here means production regressed to folding them again; that is a
+# broken input with no defensible fill, and the build aborts rather than drop
+# the area or keep a row no cell can receive.
+.residual_bucket_codes <- function() {
+  buckets <- c("RAFR", "RASI", "REUR", "RLAM", "RNAM", "ROCE", "ROW")
+  whep::polity_area_crosswalk |>
+    dplyr::filter(
+      .data$area_iso3c %in% buckets,
+      .data$area_code == .data$polity_area_code
+    ) |>
+    dplyr::distinct(.data$area_code) |>
+    dplyr::pull() |>
+    as.integer()
+}
+
+.check_no_residual_buckets <- function(crop_areas) {
+  found <- crop_areas |>
+    dplyr::filter(.data$area_code %in% .residual_bucket_codes()) |>
+    dplyr::summarise(
+      ha = sum(.data$harvested_area_ha),
+      .by = "area_code"
+    )
+  if (nrow(found) > 0L) {
+    cli::cli_abort(
+      c(
+        "Production carries {cli::qty(nrow(found))}{?a/} residual reporting
+         bucket{?s} {.val {found$area_code}} with
+         {.val {round(sum(found$ha))}} ha of crop area.",
+        x = "A bucket has no {.file country_grid} cell, so its area cannot be
+             gridded and {.file country_areas} must not carry it.",
+        i = "Report the bucket's members under their own area codes in
+             {.fn build_primary_production} before rebuilding (whep#656)."
+      ),
+      class = "whep_crop_residual_bucket"
+    )
+  }
+  crop_areas
 }
 
 # `mirca_irrigation_country.parquet` is keyed on the `cft_mapping.csv` codes
