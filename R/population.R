@@ -640,7 +640,12 @@ read_population <- function(
     stats::setNames(dropped$label, rep("*", nrow(dropped))),
     "i" = "{.val {signif(100 * share, 3)}}% of the {quantity} in range goes
            with them. See {.fun read_population} for what the denominator
-           covers."
+           covers.",
+    "i" = "{.code read_population(population_source =
+           \"pin_wpp_fbs_fallback\")} fills the pin's gaps from UN WPP and
+           then the FAOSTAT Food Balance Sheets, which also reach dissolved
+           reporting areas such as Serbia and Montenegro (186). It is opt-in,
+           not the default."
   ))
   invisible(dropped)
 }

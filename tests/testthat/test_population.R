@@ -300,6 +300,22 @@ testthat::test_that("the share is of the quantity in range, not of the world", {
   )
 })
 
+testthat::test_that("the coverage warning names the source that reaches more", {
+  # #862: area 186 Serbia and Montenegro carries the most food of any area with
+  # no denominator on the default source, and only the opt-in FBS composition
+  # reaches it. The warning is the one place a user meets the gap, so it has to
+  # say how to close it, not only that it is there.
+  testthat::expect_warning(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    ),
+    "pin_wpp_fbs_fallback"
+  )
+})
+
 testthat::test_that("a fully covered denominator says nothing", {
   covered <- tibble::tribble(
     ~year, ~area_code, ~population,
