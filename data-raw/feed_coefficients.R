@@ -31,6 +31,9 @@ conv_krausmann <- file.path(feed_dir, "conv_krausmann.csv") |>
 # 3. feed_taxonomy: item -> feed_group (crop class), feed_quality class, per-consumer
 #    feedtype labels (granivores get a restricted set; only grazers eat fibrous roughage),
 #    a priority rank, and a Zoot_fixed flag (intake equals demand regardless of supply).
+#    One deviation from Codes_coefs.xlsx: feed_items.csv leaves "Other crop
+#    residues" (2106) without a granivore feed type, like Straw, because it is
+#    mostly oilcrop stalks and cane tops (whep#1218).
 items_lookup <- file.path(harm_dir, "items_full.csv") |>
   readr::read_csv(show_col_types = FALSE) |>
   dplyr::distinct(item_cbs, item_cbs_code)
