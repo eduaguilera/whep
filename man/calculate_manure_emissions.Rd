@@ -15,9 +15,11 @@ select regional emission factors.}
 \item{tier}{Integer 1 or 2. If \code{NULL} (default),
 auto-selects based on data completeness.}
 
-\item{options}{A named list of manure-engine options. All but five
+\item{options}{A named list of manure-engine options. All but seven
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are \code{mcf_source}, which moved from the shipped table to the 2019
+are \code{enteric_ef_source} and \code{ef3_source}, which since whep#601 read the
+2019 Refinement's Tier 1 enteric factors and direct manure N2O EF3 and
+move Tier 1 enteric CH4 and both tiers' direct manure N2O, \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
@@ -44,6 +46,34 @@ EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
 \code{0.24 * 0.011 / (0.30 * 0.0075) = 1.173} and leaves the volatilisation
 term alone. \code{method_manure_n2o} records the edition used
 (\code{indirect_ipcc_2019} or \code{indirect_ipcc_2006}).
+
+\code{enteric_ef_source} selects the Tier 1 enteric CH4 emission factors.
+Although it sits among the manure-engine options, it governs the enteric
+path only:
+\itemize{
+\item \code{"ipcc_2019"} (default): \link{ipcc_enteric_ef_tier1}, the 2019
+Refinement's Tables 10.10 and 10.11 (Updated) as published: cattle and
+buffalo by IPCC region, and sheep, goats and swine at the productivity
+system the Table 10.10 footnote assigns the region (high in North
+America, Europe and Oceania, low elsewhere). A row the edition prices
+at nothing keeps the as-shipped factor, stamped
+\code{enteric_ef_as_shipped_fallback}.
+\item \code{"as_shipped"}: \link{ipcc_2019_enteric_ef_cattle} and
+\link{ipcc_2019_enteric_ef_other}, the 2006 Guidelines' factors with four
+cells in neither edition, read before whep#601. Kept so earlier figures
+stay reproducible.
+}
+
+\code{method_enteric} records which (\code{enteric_ef_ipcc_2019} or
+\code{enteric_ef_as_shipped}). On FAOSTAT 2020 heads the default raises Tier 1
+enteric CH4 from 110.80 to 125.32 Tg. Taking high productivity everywhere
+instead would give 134.21 Tg, low everywhere 124.21 Tg.
+
+\code{ef3_source} selects the direct manure N2O emission factors, at both
+tiers: \code{"ipcc_2019"} (default) or \code{"as_shipped"}, the two editions of
+\link{ipcc_manure_ef3}. \code{method_manure_n2o} records which (\code{ef3_ipcc_2019} or
+\code{ef3_as_shipped}). On FAOSTAT 2020 heads the default lowers Tier 1 direct
+manure N2O from 1.523 to 1.120 Tg.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

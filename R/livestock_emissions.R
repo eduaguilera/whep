@@ -94,7 +94,7 @@ calculate_enteric_ch4 <- function(data, tier = NULL, options = list()) {
       .enteric_tier1_chain
     )
   } else {
-    .calc_enteric_ch4_tier1(data)
+    .calc_enteric_ch4_tier1(data, options)
   }
 }
 
@@ -189,7 +189,7 @@ calculate_manure_emissions <- function(data, tier = NULL, options = list()) {
 }
 
 .enteric_tier1_chain <- function(data, options = list()) {
-  .calc_enteric_ch4_tier1(data)
+  .calc_enteric_ch4_tier1(data, options)
 }
 
 .manure_tier2_chain <- function(data, options = list()) {
@@ -303,7 +303,7 @@ calculate_manure_emissions <- function(data, tier = NULL, options = list()) {
 #' @noRd
 .run_tier1 <- function(data, options = list()) {
   data |>
-    .calc_enteric_ch4_tier1() |>
+    .calc_enteric_ch4_tier1(options) |>
     .calc_manure_ch4_tier1() |>
     .calc_manure_n2o_tier1(options)
 }

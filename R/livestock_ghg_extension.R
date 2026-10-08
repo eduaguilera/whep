@@ -47,7 +47,8 @@
 #' read and how it is keyed, and which methane conversion factor table is read
 #' at which climate zone) are selectable from here too; passing none takes the
 #' engine's own defaults, so this entry point publishes what the engine does.
-#' `mms_shares` and `mms_region` bite at both tiers; the `tier = 1` default
+#' `mms_shares`, `mms_region` and `ef3_source` bite at both tiers and
+#' `enteric_ef_source` at Tier 1; the `tier = 1` default
 #' here is unaffected by `mcf_source` and by the climate options, because Tier
 #' 1 manure CH4 comes from regional emission factors rather than a
 #' climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever

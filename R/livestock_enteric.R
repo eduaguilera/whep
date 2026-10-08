@@ -1,23 +1,25 @@
-#' IPCC 2019 Tier 1 enteric CH4.
+#' IPCC Tier 1 enteric CH4.
+#'
+#' `options$enteric_ef_source` selects the emission factors: `"ipcc_2019"`
+#' (default) reads [ipcc_enteric_ef_tier1] through
+#' `.join_enteric_ef_ipcc_2019()`, `"as_shipped"` the `ipcc_2019_enteric_ef_*`
+#' tables WHEP read before whep#601, which hold 2006 and unpublished values.
+#' `method_enteric` records which (`enteric_ef_ipcc_2019` or
+#' `enteric_ef_as_shipped`).
 #' @noRd
-.calc_enteric_ch4_tier1 <- function(data) {
+.calc_enteric_ch4_tier1 <- function(data, options = list()) {
+  source <- .manure_options(options)$enteric_ef_source
   data <- data |>
     dplyr::mutate(
       species_gen = .get_general_species(species),
       method_enteric = "IPCC_2019_Tier1"
     )
 
-  # Determine best EF table
-  cattle_ef <- ipcc_2019_enteric_ef_cattle |>
-    dplyr::rename(
-      ef_cattle = ef_kg_head_yr
-    )
-  other_ef <- ipcc_2019_enteric_ef_other |>
-    dplyr::rename(
-      ef_other = ef_kg_head_yr
-    )
-
-  data <- .join_enteric_ef_tier1(data, cattle_ef, other_ef)
+  data <- if (source == "ipcc_2019") {
+    .join_enteric_ef_ipcc_2019(data)
+  } else {
+    .join_enteric_ef_as_shipped(data)
+  }
 
   n_animals <- .animal_count(data)
   data |>
@@ -64,6 +66,147 @@
 }
 
 # Private helpers ----
+
+#' Tier 1 enteric EF from the shipped `ipcc_2019_enteric_ef_*` tables.
+#'
+#' These hold the 2006 Guidelines' Tables 10.10 and 10.11 with four cells
+#' matching neither edition (see their `@source`); they are kept selectable so
+#' figures WHEP published before whep#601 stay reproducible.
+#' @noRd
+.join_enteric_ef_as_shipped <- function(data) {
+  cattle_ef <- ipcc_2019_enteric_ef_cattle |>
+    dplyr::rename(ef_cattle = ef_kg_head_yr)
+  other_ef <- ipcc_2019_enteric_ef_other |>
+    dplyr::rename(ef_other = ef_kg_head_yr)
+  data |>
+    .join_enteric_ef_tier1(cattle_ef, other_ef) |>
+    .stamp_assumption("method_enteric", "enteric_ef_as_shipped", TRUE)
+}
+
+#' Tier 1 enteric EF from the 2019 Refinement, Tables 10.10 and 10.11.
+#'
+#' Cattle and buffalo take their IPCC region's Table 10.11 (Updated) factor.
+#' The other species take Table 10.10 (Updated), and for sheep, goats and
+#' swine at the productivity system its footnote 1 assigns the region: "for
+#' all regions other than North America, Europe and Oceania the Tier 1
+#' default values are the low productivity EFs", so high productivity in
+#' those four IPCC regions and low elsewhere (`.enteric_productivity()`).
+#'
+#' The edition publishes no factor for three kinds of row, and those keep the
+#' as-shipped factor, stamped `enteric_ef_as_shipped_fallback` in
+#' `method_enteric` so they can be counted: a regional or productivity-split
+#' species on a row whose IPCC region does not resolve (the as-shipped
+#' `"Global"` row then applies), buffalo in North America and Oceania, where
+#' Table 10.11 records "no buffalo herds", and poultry, for which both
+#' editions say "insufficient data for calculation" and the shipped table
+#' holds 0.
+#' @noRd
+.join_enteric_ef_ipcc_2019 <- function(data) {
+  region_added <- !rlang::has_name(data, "region") &&
+    .has_gleam_region_key(data)
+  if (region_added) {
+    data <- .add_ipcc_region(data)
+  }
+  region <- if (rlang::has_name(data, "region")) {
+    as.character(data$region)
+  } else {
+    rep(NA_character_, nrow(data))
+  }
+  keyed <- data |>
+    dplyr::mutate(
+      .ef_row = dplyr::row_number(),
+      .ef_region = region,
+      .ef_category = .enteric_ef_category(species, species_gen),
+      .ef_productivity = .enteric_productivity(region)
+    )
+  shipped <- keyed |>
+    .join_enteric_ef_as_shipped() |>
+    dplyr::arrange(.data$.ef_row) |>
+    dplyr::pull("enteric_ef_kgch4")
+
+  out <- keyed |>
+    .lookup_enteric_ef_ipcc_2019() |>
+    dplyr::mutate(enteric_ef_kgch4 = dplyr::coalesce(ef_2019, shipped))
+  out <- out |>
+    .stamp_assumption(
+      "method_enteric",
+      "enteric_ef_ipcc_2019",
+      !is.na(out$ef_2019)
+    ) |>
+    .stamp_assumption(
+      "method_enteric",
+      "enteric_ef_as_shipped_fallback",
+      is.na(out$ef_2019)
+    ) |>
+    dplyr::select(-dplyr::starts_with(".ef_"), -"ef_2019")
+  if (region_added) {
+    out <- dplyr::select(out, -"region")
+  }
+  out
+}
+
+#' The 2019 Tier 1 factor per keyed row, `NA` where the edition has none.
+#'
+#' A category is in exactly one of three shapes in [ipcc_enteric_ef_tier1]:
+#' regional (cattle and buffalo), split by productivity (sheep, goats,
+#' swine), or one value for every region (the rest), so at most one of the
+#' three joins matches a row.
+#' @noRd
+.lookup_enteric_ef_ipcc_2019 <- function(keyed) {
+  ef <- dplyr::filter(ipcc_enteric_ef_tier1, edition == "ipcc_2019")
+  regional <- ef |>
+    dplyr::filter(region != "All") |>
+    dplyr::select(
+      .ef_region = "region",
+      .ef_category = "category",
+      .ef_regional = "ef_kg_head_yr"
+    )
+  by_productivity <- ef |>
+    dplyr::filter(region == "All", productivity != "All") |>
+    dplyr::select(
+      .ef_category = "category",
+      .ef_productivity = "productivity",
+      .ef_split = "ef_kg_head_yr"
+    )
+  flat <- ef |>
+    dplyr::filter(region == "All", productivity == "All") |>
+    dplyr::select(.ef_category = "category", .ef_flat = "ef_kg_head_yr")
+  keyed |>
+    dplyr::left_join(regional, by = c(".ef_region", ".ef_category")) |>
+    dplyr::left_join(
+      by_productivity,
+      by = c(".ef_category", ".ef_productivity")
+    ) |>
+    dplyr::left_join(flat, by = ".ef_category") |>
+    dplyr::mutate(
+      ef_2019 = dplyr::coalesce(.ef_regional, .ef_split, .ef_flat)
+    )
+}
+
+#' The [ipcc_enteric_ef_tier1] category of each row.
+#' @noRd
+.enteric_ef_category <- function(species, species_gen) {
+  dplyr::case_when(
+    species_gen == "Cattle" & .is_dairy(species) ~ "Dairy Cattle",
+    species_gen == "Cattle" ~ "Other Cattle",
+    TRUE ~ species_gen
+  )
+}
+
+#' The productivity system Table 10.10 (Updated) footnote 1 assigns a region.
+#'
+#' High in North America, Europe (both of WHEP's IPCC European regions) and
+#' Oceania; low in every other region; `NA` where no region resolved, which
+#' includes an explicit `"Global"`.
+#' @noRd
+.enteric_productivity <- function(region) {
+  high <- c("North America", "Western Europe", "Eastern Europe", "Oceania")
+  dplyr::case_when(
+    is.na(region) | region == "Global" ~ NA_character_,
+    region %in% high ~ "High",
+    TRUE ~ "Low"
+  )
+}
 
 #' Join Tier 1 enteric EF (cattle tables have regional detail).
 #' @noRd

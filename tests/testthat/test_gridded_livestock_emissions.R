@@ -695,7 +695,9 @@ testthat::test_that("a species with no Tier 2 method takes Tier 1, stamped", {
 
   testthat::expect_false(anyNA(tier2$enteric_ch4_kt))
   testthat::expect_true(all(tier2$enteric_ch4_kt > 0))
-  testthat::expect_true(all(tier2$method_enteric == "IPCC_2019_Tier1"))
+  testthat::expect_true(all(
+    startsWith(tier2$method_enteric, "IPCC_2019_Tier1;")
+  ))
   testthat::expect_true(all(tier2$method_manure_ch4 == "IPCC_2019_Tier1"))
   testthat::expect_equal(sum(tier2$enteric_ch4_kt), sum(tier1$enteric_ch4_kt))
   testthat::expect_equal(sum(tier2$manure_ch4_kt), sum(tier1$manure_ch4_kt))
@@ -748,5 +750,7 @@ testthat::test_that("a mixed herd keeps the species Tier 2 does resolve", {
   testthat::expect_true(all(cattle$method_enteric == "IPCC_2019_Tier2"))
   testthat::expect_gt(nrow(pigs), 0L)
   testthat::expect_false(anyNA(pigs$enteric_ch4_kt))
-  testthat::expect_true(all(pigs$method_enteric == "IPCC_2019_Tier1"))
+  testthat::expect_true(all(
+    startsWith(pigs$method_enteric, "IPCC_2019_Tier1;")
+  ))
 })

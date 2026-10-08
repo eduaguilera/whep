@@ -2320,6 +2320,16 @@ testthat::test_that("a total population under the urban basis is refused by name
 # former "urban" rows are labelled "human" and gain the method_human_population
 # and method_human_kgn_cap stamps. The fixtures pin the urban basis, so every
 # value, and every non-human row, is bit-identical to the 5421973b output.
+#
+# whep#601 moved the manure-management EF3 onto the 2019 Refinement, which
+# moves the N lost in storage and so the manure rows. The goldens predate it,
+# so they are compared under `ef3_source = "as_shipped"`, which reproduces
+# them bit for bit; `.nbi_with_shipped_ef3()` is the only difference.
+.nbi_with_shipped_ef3 <- function(data) {
+  data$methods <- list(losses = list(ef3_source = "as_shipped"))
+  data
+}
+
 testthat::test_that("the default manure source reproduces the pre-option output", {
   golden <- readRDS(testthat::test_path(
     "fixtures",
@@ -2327,7 +2337,10 @@ testthat::test_that("the default manure source reproduces the pre-option output"
   ))
   manure <- c("excreta", "manure_solid", "manure_liquid")
   for (resolution in c("grid", "polity")) {
-    out <- suppressMessages(.nbi_inputs(resolution))
+    out <- suppressMessages(whep::build_n_inputs(
+      data = .nbi_with_shipped_ef3(.nbi_full_data()),
+      resolution = resolution
+    ))
     testthat::expect_identical(
       dplyr::select(out, -"method_manure"),
       golden[[paste0("inputs_", resolution)]]

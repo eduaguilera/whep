@@ -4,9 +4,11 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but five
+#' @param options A named list of manure-engine options. All but seven
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
-#'   are `mcf_source`, which moved from the shipped table to the 2019
+#'   are `enteric_ef_source` and `ef3_source`, which since whep#601 read the
+#'   2019 Refinement's Tier 1 enteric factors and direct manure N2O EF3 and
+#'   move Tier 1 enteric CH4 and both tiers' direct manure N2O, `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
@@ -31,6 +33,32 @@
 #'   `0.24 * 0.011 / (0.30 * 0.0075) = 1.173` and leaves the volatilisation
 #'   term alone. `method_manure_n2o` records the edition used
 #'   (`indirect_ipcc_2019` or `indirect_ipcc_2006`).
+#'
+#'   `enteric_ef_source` selects the Tier 1 enteric CH4 emission factors.
+#'   Although it sits among the manure-engine options, it governs the enteric
+#'   path only:
+#'   * `"ipcc_2019"` (default): [ipcc_enteric_ef_tier1], the 2019
+#'     Refinement's Tables 10.10 and 10.11 (Updated) as published: cattle and
+#'     buffalo by IPCC region, and sheep, goats and swine at the productivity
+#'     system the Table 10.10 footnote assigns the region (high in North
+#'     America, Europe and Oceania, low elsewhere). A row the edition prices
+#'     at nothing keeps the as-shipped factor, stamped
+#'     `enteric_ef_as_shipped_fallback`.
+#'   * `"as_shipped"`: [ipcc_2019_enteric_ef_cattle] and
+#'     [ipcc_2019_enteric_ef_other], the 2006 Guidelines' factors with four
+#'     cells in neither edition, read before whep#601. Kept so earlier figures
+#'     stay reproducible.
+#'
+#'   `method_enteric` records which (`enteric_ef_ipcc_2019` or
+#'   `enteric_ef_as_shipped`). On FAOSTAT 2020 heads the default raises Tier 1
+#'   enteric CH4 from 110.80 to 125.32 Tg. Taking high productivity everywhere
+#'   instead would give 134.21 Tg, low everywhere 124.21 Tg.
+#'
+#'   `ef3_source` selects the direct manure N2O emission factors, at both
+#'   tiers: `"ipcc_2019"` (default) or `"as_shipped"`, the two editions of
+#'   [ipcc_manure_ef3]. `method_manure_n2o` records which (`ef3_ipcc_2019` or
+#'   `ef3_as_shipped`). On FAOSTAT 2020 heads the default lowers Tier 1 direct
+#'   manure N2O from 1.523 to 1.120 Tg.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -1036,20 +1064,25 @@ NULL
 .calc_direct_n2o <- function(data, options = list()) {
   opt <- .manure_options(options)
   data <- .resolve_manure_region(data, opt$mms_region, opt$mms_shares)
-  .calc_weighted_direct_n2o(
-    data,
-    .manure_ef3(),
-    livestock_constants$n_to_n2o,
-    opt$mms_region,
-    opt$mms_shares
-  )
+  data |>
+    .calc_weighted_direct_n2o(
+      .manure_ef3(opt$ef3_source),
+      livestock_constants$n_to_n2o,
+      opt$mms_region,
+      opt$mms_shares
+    ) |>
+    .stamp_assumption(
+      "method_manure_n2o",
+      paste0("ef3_", opt$ef3_source),
+      TRUE
+    )
 }
 
 #' Direct N2O weighted over the row's manure-management distribution.
 #'
-#' `ef3_tbl` is [.manure_ef3()], the crosswalk that resolves each of the six
-#' MMS labels the engine carries onto its `ipcc_2019_n2o_ef_direct` row. An
-#' unresolved label aborts: it used to silently take the table's 0.005 `Other`
+#' `ef3_tbl` is [.manure_ef3()], the `ipcc_manure_ef3` rows of one edition for
+#' the six MMS labels the engine carries, keyed on the pasture animal class as
+#' well (see `.ef3_animal_class()`). An unresolved label aborts: it used to silently take the table's 0.005 `Other`
 #' value, which is what put 80% of poultry manure on 0.005 where the litter
 #' rows give 0.001 (whep#950).
 #'
@@ -1080,7 +1113,8 @@ NULL
       shares = mms_shares
     ) |>
     .fill_assumed_mms_shares(mms_shares) |>
-    dplyr::left_join(ef3_tbl, by = "mms_type") |>
+    dplyr::mutate(ef3_class = .ef3_animal_class(species_gen)) |>
+    dplyr::left_join(ef3_tbl, by = c("mms_type", "ef3_class")) |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(
       weighted_ef3 = sum(fraction * ef3),
@@ -1230,7 +1264,9 @@ NULL
 #' pasture MCF, and whep#1028 made `tier2_uncovered` fill species with no
 #' Tier 2 method from Tier 1 instead of leaving them `NA`, and whep#1245 made
 #' `indirect_n2o_source` read the 2019 Table 11.3 EF5 and FracLEACH-(H) that
-#' the shipped table had cited while holding the 2006 values.
+#' the shipped table had cited while holding the 2006 values. whep#601 moved
+#' `enteric_ef_source` and `ef3_source` off tables that held 2006, mixed or
+#' unpublished values under a 2019 name onto the 2019 Refinement.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1241,7 +1277,9 @@ NULL
     assumed_climate_zone = "Temperate",
     tier2_uncovered = "tier1",
     pasture_bo = "paired",
-    indirect_n2o_source = "ipcc_2019"
+    indirect_n2o_source = "ipcc_2019",
+    enteric_ef_source = "ipcc_2019",
+    ef3_source = "ipcc_2019"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1261,6 +1299,8 @@ NULL
   tier2_uncovered <- opt$tier2_uncovered
   pasture_bo <- opt$pasture_bo
   indirect_n2o_source <- opt$indirect_n2o_source
+  enteric_ef_source <- opt$enteric_ef_source
+  ef3_source <- opt$ef3_source
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1287,8 +1327,19 @@ NULL
     indirect_n2o_source = rlang::arg_match(
       indirect_n2o_source,
       c("ipcc_2019", "ipcc_2006")
-    )
+    ),
+    enteric_ef_source = rlang::arg_match(
+      enteric_ef_source,
+      c("ipcc_2019", "as_shipped")
+    ),
+    ef3_source = .ef3_source_arg(ef3_source)
   )
+}
+
+#' Validate the `ef3_source` option, shared with [apply_management_losses()].
+#' @noRd
+.ef3_source_arg <- function(ef3_source) {
+  rlang::arg_match(ef3_source, c("ipcc_2019", "as_shipped"))
 }
 
 #' Which column `.resolve_mms_shares()` keys the MMS split on.
@@ -1479,8 +1530,8 @@ NULL
     cli::cli_abort(
       c(
         "No EF3 for manure-management system{?s} {.val {bad$mms_type}}.",
-        i = "Add the {.field ipcc_2019_n2o_ef_direct} row it maps to in \\
-             {.fun .manure_ef3}."
+        i = "Add its row to {.field ipcc_manure_ef3} for the edition in \\
+             use."
       ),
       class = "whep_missing_ef3"
     )

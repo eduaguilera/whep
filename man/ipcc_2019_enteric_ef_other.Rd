@@ -17,7 +17,9 @@ swine 1.5 / 1.0), leaves camels, horses and mules unchanged, and moves
 buffalo out of this table into the regional Table 10.11. Poultry is
 stored as \code{0}; both editions say "insufficient data for calculation",
 so the zero is a project choice rather than a published factor.
-Tracked in whep#601.
+Since whep#601 Tier 1 enteric CH4 reads \link{ipcc_enteric_ef_tier1} by
+default; this table is read only under \code{enteric_ef_source = "as_shipped"} and as the fallback for rows the 2019 edition prices at
+nothing (poultry, and buffalo in North America and Oceania).
 }
 \usage{
 ipcc_2019_enteric_ef_other
