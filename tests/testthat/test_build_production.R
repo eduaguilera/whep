@@ -2962,3 +2962,186 @@ test_that(".flax_to_fibre_basis refuses straw it has no fibre ratio for", {
     guard = .flax_basis(fibre = fibre)
   )
 })
+
+# -- `area` is a year-varying label, never a year-axis key (whep#981) ---------
+#
+# A bucket's `area` label comes from the polity its code resolves to in each
+# year, so a bucket whose polity changes carries a different label on each side
+# of the change: 42 buckets did on the 1850-2023 FAOSTAT read, e.g. 238
+# "Ethiopia (1952-1993)" -> "Ethiopia" at 1993. With the label in a fill or a
+# completion key, each label was its own series: neither side could
+# interpolate across the change, and each was carried flat over the other's
+# years as a second row for the same code.
+
+.relabelled_years <- function(years, change) {
+  dplyr::if_else(years < change, "Ethiopia (1952-1993)", "Ethiopia")
+}
+
+test_that(".compute_yields interpolates a yield across a label change", {
+  years <- 1990:1996
+  # Tonnes every year; hectares reported up to 1991 (2 t/ha) and from 1994
+  # (4 t/ha), so the 1992-1993 yields are interpolated across 1993's change.
+  primary_raw <- dplyr::bind_rows(
+    tibble::tibble(
+      year = years,
+      unit = "t",
+      value = c(200, 200, 300, 300, 400, 400, 400)
+    ),
+    tibble::tibble(
+      year = c(1990L, 1991L, 1994L, 1995L, 1996L),
+      unit = "ha",
+      value = 100
+    )
+  ) |>
+    dplyr::mutate(
+      area = .relabelled_years(year, 1993L),
+      area_code = 238L,
+      item_prod = "Wheat",
+      item_prod_code = "15",
+      source = "FAOSTAT_prod",
+      fao_flag = "A"
+    )
+  cbs_prod_raw <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code = double(),
+    item_cbs = character(),
+    t_cbs = double()
+  )
+
+  result <- whep:::.compute_yields(primary_raw, cbs_prod_raw) |>
+    tibble::as_tibble() |>
+    dplyr::filter(item_prod_code == "15", unit == "t_ha") |>
+    dplyr::arrange(year)
+
+  expect_equal(result$year, years)
+  expect_equal(result$yield, c(2, 2, 2 + 2 / 3, 2 + 4 / 3, 4, 4, 4))
+})
+
+test_that(".combine_livestock fills one herd series across a label change", {
+  # `n > 40` years is what makes a gap interpolated rather than zero-filled.
+  years <- 1960:2005
+  reported <- setdiff(years, 1992:1993)
+  fao_combined <- tibble::tibble(
+    year = reported,
+    area = .relabelled_years(reported, 1993L),
+    area_code = 238L,
+    item_prod_code = "1096",
+    element = "Stocks",
+    unit = "An",
+    value = dplyr::if_else(reported < 1993L, 100, 400)
+  )
+  fao_stocks <- tibble::tibble(
+    year = years,
+    area = .relabelled_years(years, 1993L),
+    area_code = 238L,
+    item_cbs_code = 1096,
+    item_cbs = "Horses",
+    value = 1
+  )
+
+  horses <- whep:::.combine_livestock(
+    fao_combined,
+    fao_stocks,
+    whep::animals_codes
+  ) |>
+    dplyr::filter(!is.na(item_cbs)) |>
+    dplyr::arrange(year)
+
+  expect_equal(horses$year, years)
+  expect_equal(horses$value[horses$year %in% 1992:1993], c(200, 300))
+})
+
+test_that(".fill_pre_faostat back-casts one series across a label change", {
+  # A historical anchor labelled with the code's current name and FAOSTAT's
+  # 1961 anchor labelled with its 1961 polity are one series, so the years
+  # between them interpolate instead of each being carried flat on its own.
+  key <- tibble::tibble(
+    area_code = 238L,
+    item_prod = "Horse meat",
+    item_prod_code = "1097",
+    item_cbs = "Horse meat",
+    item_cbs_code = 2735,
+    land_use = "Agriland",
+    live_anim = "Horses",
+    live_anim_code = "1096",
+    unit = "t_head"
+  )
+  anchors <- tibble::tribble(
+    ~year, ~area, ~value, ~source,
+    1950L, "Ethiopia", 0.1, "historical_test",
+    1961L, "Ethiopia (1952-1993)", 0.2, "FAOSTAT_prod"
+  ) |>
+    dplyr::cross_join(key)
+  df <- dplyr::bind_rows(anchors, tibble::tibble(year = 1951:1960))
+  land_wide <- tibble::tibble(
+    year = 1950:1961,
+    area_code = 238L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+
+  result <- whep:::.fill_pre_faostat(
+    df,
+    land_wide,
+    join_keys = c("year", "area_code")
+  ) |>
+    dplyr::filter(item_prod_code == "1097") |>
+    dplyr::arrange(year)
+
+  expect_equal(result$year, 1950:1961)
+  expect_equal(result$value, seq(0.1, 0.2, length.out = 12))
+  expect_false(anyNA(result$area))
+})
+
+test_that("a bucket-year with two labels stops the code-keyed chain", {
+  # Keying on the code alone is sound only while each (year, area_code) has
+  # one label (whep#563). Two labels mean two territories share the code, and
+  # the code-keyed chain would sum them.
+  labelled <- tibble::tribble(
+    ~year, ~area_code, ~area,
+    2015L, 206L, "Sudan",
+    2015L, 206L, "South Sudan",
+    2015L, 203L, "Spain"
+  )
+
+  expect_error(
+    whep:::.area_label_lookup(labelled),
+    class = "whep_error_bucket_two_labels"
+  )
+})
+
+test_that("the label goes back on each row from its own bucket-year", {
+  labels <- whep:::.area_label_lookup(
+    tibble::tribble(
+      ~year, ~area_code, ~area,
+      1990L, 238L, "Ethiopia (1952-1993)",
+      1995L, 238L, "Ethiopia",
+      1990L, 203L, "Spain"
+    )
+  )
+  rows <- tibble::tibble(
+    year = c(1990L, 1992L, 1994L, 1995L, 2020L, 1990L, 1990L),
+    area_code = c(238L, 238L, 238L, 238L, 238L, 203L, 999L),
+    area = "stale"
+  )
+
+  result <- whep:::.attach_area_label(rows, labels)
+
+  # A year with no label of its own takes the nearest one of the same code,
+  # and a code with no label anywhere gets none.
+  expect_equal(
+    result$area,
+    c(
+      "Ethiopia (1952-1993)",
+      "Ethiopia (1952-1993)",
+      "Ethiopia",
+      "Ethiopia",
+      "Ethiopia",
+      "Spain",
+      NA
+    )
+  )
+  expect_s3_class(result, "tbl_df")
+})

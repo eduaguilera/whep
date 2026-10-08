@@ -75,7 +75,7 @@
 # One row per FAOSTAT year (1961-2023) inside the requested read.
 .stub_fao_rows <- function(years) {
   span <- if (is.null(years)) 1961L:2023L else intersect(years, 1961L:2023L)
-  tibble::tibble(year = span, area_code = 1L, value = 1)
+  tibble::tibble(year = span, area = "Stub", area_code = 1L, value = 1)
 }
 
 .stub_yield_anchors <- function() {
