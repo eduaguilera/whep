@@ -12,7 +12,8 @@ read_critical_n(
   dir = NULL,
   data = NULL,
   example = FALSE,
-  verify_source = TRUE
+  verify_source = TRUE,
+  method = c("archive", "reproduced")
 )
 }
 \arguments{
@@ -56,6 +57,12 @@ Defaults to \code{FALSE}.}
 selected critical raster and its source-area/IMAGE support rasters against
 the package's versioned content manifest before parsing. Ignored for
 \code{data} and \code{example} injection.}
+
+\item{method}{Where the layer comes from: \code{"archive"} (default) reads the
+deposited raster; \code{"reproduced"} recomputes it with
+\code{\link[=calculate_critical_n]{calculate_critical_n()}} from the archive's 2010 inputs. \code{"reproduced"}
+supports \code{var = "critical_n_surplus"}, \code{"critical_n_input"} and
+\code{"exceedance"} and aborts for the other layers.}
 }
 \value{
 A tibble with \code{lon}, \code{lat} (0.5-degree cell centres), \code{value}
@@ -63,8 +70,9 @@ A tibble with \code{lon}, \code{lat} (0.5-degree cell centres), \code{value}
 \code{threshold_exceedance}) and retained layer provenance: \code{critical_var},
 \code{critical_threshold}, \code{critical_land_use}, \code{critical_year} and
 \code{critical_source}, canonical integer \code{cell_id}/row/column keys, deposited
-\code{source_area_ha}, IMAGE-region membership, DOI/version and archive checksum.
-NODATA cells are dropped.
+\code{source_area_ha}, IMAGE-region membership, DOI/version, archive checksum
+and \code{method_critical_n} (\code{"archive"} or \code{"reproduced"}). NODATA cells are
+dropped.
 }
 \description{
 Reads one 0.5-degree gridded critical-nitrogen layer from the
@@ -91,6 +99,14 @@ The archive
 directory comes from \code{dir}, else the \code{WHEP_CRITICAL_N_DIR} environment
 variable, else a local cache that is populated by downloading the archive
 from Zenodo on first use (see \code{dir}).
+
+\code{method = "reproduced"} returns the same layer recomputed from the
+archive's own 2010 inputs with the source's equations by
+\code{\link[=calculate_critical_n]{calculate_critical_n()}}, instead of the deposited raster. It covers the
+critical surplus, the critical input and the surplus exceedance, matches
+the deposited layers closely but not exactly (see
+\code{\link[=calculate_critical_n]{calculate_critical_n()}}), and is stamped in \code{method_critical_n} and
+\code{critical_source} so it is never read as the deposited surface.
 }
 \examples{
 read_critical_n(example = TRUE)

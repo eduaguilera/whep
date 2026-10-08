@@ -1,59 +1,3 @@
-# Writes a tiny 3x2-cell ESRI ASCII grid (6-line header + matrix) at the
-# nested archive path read_critical_n() expects for the default
-# threshold "mi" and land_use "all", so the real parser is exercised
-# without the off-repo Zenodo archive.
-.critical_n_write_asc <- function(dir) {
-  target <- file.path(
-    dir,
-    "extracted",
-    "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances",
-    "Output_files",
-    "Critical N surpluses"
-  )
-  dir.create(target, recursive = TRUE, showWarnings = FALSE)
-  writeLines(
-    c(
-      "ncols 3",
-      "nrows 2",
-      "xllcorner 0",
-      "yllcorner 0",
-      "cellsize 0.5",
-      "NODATA_value -9999",
-      "10 20 -9999",
-      "40 50 60"
-    ),
-    file.path(target, "nsur_crit_mi_all_ph.asc")
-  )
-  input <- file.path(
-    dir,
-    "extracted",
-    "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances",
-    "Input_files"
-  )
-  dir.create(input, recursive = TRUE, showWarnings = FALSE)
-  header <- c(
-    "ncols 3",
-    "nrows 2",
-    "xllcorner 0",
-    "yllcorner 0",
-    "cellsize 0.5",
-    "NODATA_value -9999"
-  )
-  writeLines(
-    c(header, "100 200 300", "400 500 600"),
-    file.path(input, "a_crop.asc")
-  )
-  writeLines(
-    c(header, "10 20 30", "40 50 60"),
-    file.path(input, "a_gr_int.asc")
-  )
-  writeLines(
-    c(header, "1 2 3", "4 5 6"),
-    file.path(input, "image_region28.asc")
-  )
-  invisible(dir)
-}
-
 testthat::test_that("read_critical_n parses an ESRI grid at cell centres", {
   tmp <- withr::local_tempdir()
   .critical_n_write_asc(tmp)
@@ -76,10 +20,12 @@ testthat::test_that("read_critical_n parses an ESRI grid at cell centres", {
       "image_region",
       "critical_source_doi",
       "critical_source_version",
-      "archive_md5"
+      "archive_md5",
+      "method_critical_n"
     )
   )
   testthat::expect_s3_class(out, "tbl_df")
+  testthat::expect_equal(unique(out$method_critical_n), "archive")
   # 6 cells minus the one NODATA cell.
   testthat::expect_equal(nrow(out), 5L)
   # Row 1 (north) has lat 0.75 with the two non-NODATA values.
@@ -115,17 +61,26 @@ testthat::test_that("source manifest pins every grid-boundary raster", {
     manifest,
     c("relative_path", "bytes", "md5", "sha256")
   )
-  testthat::expect_equal(nrow(manifest), 27L)
-  testthat::expect_equal(length(unique(manifest$relative_path)), 27L)
+  # 24 deposited surfaces plus the 44 inputs calculate_critical_n() reads,
+  # which include the three support rasters of the grid boundary (#1291).
+  testthat::expect_equal(nrow(manifest), 68L)
+  testthat::expect_equal(length(unique(manifest$relative_path)), 68L)
   testthat::expect_true(all(grepl("^[0-9a-f]{64}$", manifest$sha256)))
   testthat::expect_setequal(
     manifest$relative_path[grepl("^Input_files", manifest$relative_path)],
+    file.path(
+      "Input_files",
+      paste0(whep:::.critn_input_specs()$file, ".asc")
+    )
+  )
+  testthat::expect_true(all(
     c(
       "Input_files/a_crop.asc",
       "Input_files/a_gr_int.asc",
       "Input_files/image_region28.asc"
-    )
-  )
+    ) %in%
+      manifest$relative_path
+  ))
 })
 
 testthat::test_that("selected source rasters fail closed on content drift", {

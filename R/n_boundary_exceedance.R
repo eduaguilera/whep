@@ -297,6 +297,7 @@ build_n_boundary_exceedance <- function(
     "critical"
   )
   .nbx_validate_critical(critical, metric, land_use)
+  method_critical <- .nbx_critical_method(critical, grassland, split)
 
   actual <- surplus |>
     dplyr::filter(.data$year == .env$actual_year) |>
@@ -327,7 +328,8 @@ build_n_boundary_exceedance <- function(
     allocation_scenario,
     actual_year,
     critical_reference_year,
-    split
+    split,
+    method_critical
   ) |>
     dplyr::mutate(negative_critical = .env$negative_critical)
   if (resolution == "cell") {
@@ -1845,7 +1847,8 @@ build_n_boundary_exceedance <- function(
   scenario,
   actual_year,
   reference_year,
-  split = FALSE
+  split = FALSE,
+  method_critical = "archive"
 ) {
   dplyr::mutate(
     x,
@@ -1855,7 +1858,7 @@ build_n_boundary_exceedance <- function(
     indicator = if (.env$metric == "input") "total_input" else "surplus",
     land_use = .env$land_use,
     allocation_scenario = .env$scenario,
-    method_boundary = "schulte_uebbing_grid",
+    method_boundary = .nbx_method_boundary(method_critical),
     critical_source_doi = "10.5281/zenodo.6395016",
     critical_source_version = "1.0",
     archive_md5 = .critn_archive_md5(),
@@ -1863,6 +1866,45 @@ build_n_boundary_exceedance <- function(
     provisional_reason = .nbx_provisional_reason(split),
     grassland_split = if (split) "image_density" else "none"
   )
+}
+
+# A critical surface WHEP recomputed with the Schulte-Uebbing method
+# (calculate_critical_n()) is not the deposited one, and says so (#1291).
+.nbx_method_boundary <- function(method_critical) {
+  if (identical(method_critical, "reproduced")) {
+    return("schulte_uebbing_grid_reproduced")
+  }
+  "schulte_uebbing_grid"
+}
+
+# The critical method of the compared surface: `method_critical_n` as
+# read_critical_n() stamps it, "archive" for a layer that predates the stamp.
+# The grassland split's own layers must come from the same method, or the
+# managed and extensive allowances of one cell would mix two surfaces.
+.nbx_critical_method <- function(critical, grassland, split) {
+  layers <- list(critical = critical)
+  if (split) {
+    layers$critical_ara <- grassland$critical_ara
+    layers$critical_igl <- grassland$critical_igl
+  }
+  methods <- purrr::map_chr(purrr::compact(layers), \(layer) {
+    if (!rlang::has_name(layer, "method_critical_n")) {
+      return("archive")
+    }
+    paste(unique(layer$method_critical_n), collapse = "+")
+  })
+  if (length(unique(methods)) > 1L) {
+    cli::cli_abort(
+      c(
+        "The critical layers come from different methods.",
+        x = "{.field {names(methods)}}: {.val {methods}}.",
+        i = "Read every layer with the same {.arg method} in
+             {.fn read_critical_n}."
+      ),
+      class = "whep_nbx_mixed_critical_method"
+    )
+  }
+  methods[[1L]]
 }
 
 .nbx_provisional_reason <- function(split) {

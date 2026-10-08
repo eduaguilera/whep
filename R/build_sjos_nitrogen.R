@@ -406,6 +406,13 @@ build_sjos_nitrogen <- function(
   .check_columns(critical, c("critical_var", "critical_threshold"), "critical")
   var <- unique(critical$critical_var)
   threshold <- unique(critical$critical_threshold)
+  # Same method as data$critical: build_n_boundary_exceedance() refuses to
+  # mix a deposited and a recomputed surface in one cell (#1291).
+  method <- if (rlang::has_name(critical, "method_critical_n")) {
+    unique(critical$method_critical_n)
+  } else {
+    "archive"
+  }
   years <- sort(unique(surplus$year[!is.na(surplus$year)]))
   root <- .critn_root_path(.resolve_critical_n_dir(NULL))
   list(
@@ -416,12 +423,14 @@ build_sjos_nitrogen <- function(
     critical_ara = read_critical_n(
       var = var,
       threshold = threshold,
-      land_use = "ara"
+      land_use = "ara",
+      method = method
     ),
     critical_igl = read_critical_n(
       var = var,
       threshold = threshold,
-      land_use = "igl"
+      land_use = "igl",
+      method = method
     )
   )
 }
