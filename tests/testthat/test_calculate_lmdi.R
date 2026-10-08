@@ -1331,6 +1331,11 @@ test_that("limit closes a ratio identity that small value breaks (#69)", {
   )
   expect_match(
     small_value_warnings,
+    "cannot keep a ratio identity",
+    all = FALSE
+  )
+  expect_match(
+    small_value_warnings,
     "Additive contributions differ",
     all = FALSE
   )
