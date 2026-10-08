@@ -1430,11 +1430,15 @@ prepare_country_areas <- function(
   cft_mapping <- .read_cft_mapping()
 
   if (is.null(prod)) {
-    prod <- whep::build_primary_production(
-      start_year = min(year_range),
-      end_year = max(year_range)
+    prod <- withr::with_options(
+      list(whep.unfold_predecessor_bucket = "all"),
+      whep::build_primary_production(
+        start_year = min(year_range),
+        end_year = max(year_range)
+      )
     )
   }
+  prod <- .crop_reporting_areas(prod)
 
   crop_areas <- prod |>
     dplyr::filter(
@@ -1656,6 +1660,30 @@ prepare_country_areas <- function(
     ))
   }
   invisible(mirca)
+}
+
+# Section 2 keys crop areas on the REPORTING codes FAOSTAT publishes, as
+# Section 8 keys the herds (see `.livestock_reporting_areas()`). Production
+# folds Sudan 276 and South Sudan 277 into bucket 206 in every year, and
+# `.redistribute_predecessors()` would then split 206 back by LUH2 cropland
+# share -- replacing FAOSTAT's own split from 2012, where it reports South
+# Sudan separately: 2.50 of Sudan's 12.19 Mha in 2012 is South Sudan's, the
+# LUH2 share gives it 1.18 (whep#1367). So Section 2 reads production under
+# `options(whep.unfold_predecessor_bucket = "all")` and drops the retired
+# bucket's rows after its last reporting year, which that mode carries flat
+# beside the successors. Up to 2011 the bucket is 206 in either mode and is
+# split by `.redistribute_predecessors()` as before.
+.crop_reporting_areas <- function(
+  prod,
+  buckets = .livestock_predecessor_buckets()
+) {
+  .check_livestock_unfolded(
+    prod,
+    buckets,
+    section = "Section 2",
+    class = "whep_crop_folded_production"
+  )
+  prod[!.livestock_after_bucket_end(prod, buckets), , drop = FALSE]
 }
 
 # Cap summed irrigated area per country-year at the LUH2 national total. MIRCA
@@ -4270,7 +4298,12 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 
 # A table built under the default fold has the bucket after its end year and
 # none of its successors. That table cannot be split back, so it is refused.
-.check_livestock_unfolded <- function(prod, buckets) {
+.check_livestock_unfolded <- function(
+  prod,
+  buckets,
+  section = "Section 8",
+  class = "whep_livestock_folded_production"
+) {
   after <- .livestock_after_bucket_end(prod, buckets)
   folded <- unique(as.integer(prod$area_code[after]))
   members <- buckets$member[buckets$bucket %in% folded]
@@ -4285,9 +4318,9 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
        of the successor areas {.val {members}}.",
       i = "It was built under the default fold. Build it with
            {.code options(whep.unfold_predecessor_bucket = \"all\")}, which
-           is what {.fn .load_or_cache_production} does for Section 8."
+           is what {.fn .load_or_cache_production} does for {section}."
     ),
-    class = "whep_livestock_folded_production"
+    class = class
   )
 }
 
@@ -7796,13 +7829,18 @@ prepare_spatialize_all <- function(
   # is available on the first pass)
   prepare_mirca_irrigation(l_files_dir, output_dir, country_grid, target_res)
 
-  # Section 2: Country areas
+  # Section 2: Country areas. Keyed on the reporting codes, like Section 8
+  # (see `.crop_reporting_areas()`), so it reads the un-folded production.
   country_areas <- prepare_country_areas(
     l_files_dir,
     year_range,
     country_grid,
     target_res,
-    prod
+    .load_or_cache_production(
+      output_dir,
+      year_range,
+      unfold_predecessor = "all"
+    )
   )
   .save_parquet(country_areas, output_dir, "country_areas")
 
