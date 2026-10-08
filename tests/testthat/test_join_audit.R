@@ -353,7 +353,10 @@ test_that("the enumerated baseline can only shrink", {
   # 110 on the 2026-10-06 merge of whep#1318 onto whep#1342's 110.
   # Re-derived by running `sum(.territorial_join_baseline()$n)` on the merged
   # tree.
-  expect_lte(sum(baseline$n), 110L)
+  # 111 with whep#1121: the deposition correction attaches each country's
+  # reference-period mean to its years (`time_invariant`). Re-derived by
+  # running `sum(.territorial_join_baseline()$n)`.
+  expect_lte(sum(baseline$n), 111L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -617,7 +620,10 @@ test_that("every year-free territorial grouping is classified", {
   # 140 with whep#588: `.partial_coverage_rows()` reports the year range of a
   # bucket's partial source coverage (`diagnostic`). Re-derived by running the
   # audit.
-  expect_lte(sum(full$n), 140L)
+  # 142 with whep#1121, on top of whep#588's 140: the deposition correction
+  # counts and averages each country's reference years (`year_axis`).
+  # Re-derived by running the audit on the merged tree.
+  expect_lte(sum(full$n), 142L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

@@ -79,7 +79,8 @@ asserted: \code{\link[=read_n_deposition]{read_n_deposition()}} tags its own row
 injected through \code{data} keeps whatever tag it carries, and an injected
 field carrying no tag is recorded as \code{"supplied"}. A corrected or
 substituted deposition field is therefore visible in the output instead
-of inheriting HaNi's name (#1097).
+of inheriting HaNi's name (#1097): \code{\link[=correct_n_deposition]{correct_n_deposition()}} stamps the
+rows it rescales \code{"hani_emep_trend"}.
 
 Rows are keyed on \code{area_code}. \code{build_polycell_support()} keys on
 \code{polity_code} and does not derive the reporting vocabulary (DA-23), and
