@@ -34,18 +34,22 @@
 #     that upper bound warns but does not fail: changing a residue ratio is a
 #     science decision, not something this check should force.
 #
-# Since #1195 this gate FAILS, and that is a finding, not a broken script.
-# The pin holds residue the predecessor had already multiplied by its legacy
-# recovery rate; #1330 compared that recovered residue with Smerald's gross
-# residue and found it inside the band. `get_primary_residues()` now undoes the
-# recovery, and the residue produced is above the band in 16 of the 25 years,
-# its 1997-2021 mean 16.1% above Smerald's (3899 against 3357 Tg DM).
-# Against Smerald's own constant-ratio method the excess is a steady 25%
-# (2010: 3826 against 3071 Tg DM), with the same grain production on both
-# sides. It is the residue:product ratio: Wirsenius's early-1990s regional
-# ratios against Sandstrom et al. (2022) 68%, the region membership of #1430
-# 15%, scaling a non-West-Europe `biomass_coefs` ratio by region over West
-# Europe 13%, and six minor cereals Smerald omit 4%. Decomposition in #1448.
+# History. The pin holds residue the predecessor had already multiplied by
+# its legacy recovery rate; #1330 compared that recovered residue with
+# Smerald's gross residue and found it inside the band. #1195 undid the
+# recovery, and the residue produced was above the band in 16 of the 25
+# years, its 1997-2021 mean 16.1% above Smerald's (3899 against 3357 Tg DM),
+# a steady 25% above their constant-ratio method with the same grain
+# production. It was the residue:product ratio: Wirsenius's early-1990s
+# regional ratios, the region membership of #1430, and scaling a
+# non-West-Europe `biomass_coefs` ratio by region over West Europe (#1448).
+#
+# Since #1448 `get_primary_residues()` estimates cereal residue from the
+# pin's production and harvested area with `calculate_crop_residues()`. The
+# default, `cereal_residue = "ipcc"`, passes: 1997-2021 mean 3385 Tg DM, 0.8%
+# above Smerald's, inside the band in every year. Pass another method as the
+# first argument to check it: `Rscript ... validation/residue_base_dm.R
+# ensemble` (5 years below the band), `ratio` or `wirsenius` (both fail).
 #
 # Not part of the test suite: it reads the `crop_residues` pin.
 #
@@ -66,7 +70,12 @@ cli::cli_h1("Gross crop-residue base, dry matter (#1330)")
 cereal_codes <- whep::items_full |>
   dplyr::filter(.data$comm_group == "Cereals") |>
   dplyr::pull("item_cbs_code")
-residues <- get_primary_residues()
+method <- commandArgs(trailingOnly = TRUE)[1]
+if (is.na(method)) {
+  method <- "ipcc"
+}
+cli::cli_inform("Cereal residue method: {.val {method}}.")
+residues <- get_primary_residues(cereal_residue = method)
 cereals <- dplyr::filter(residues, .data$item_cbs_code_crop %in% cereal_codes)
 
 # 2. Unit basis -------------------------------------------------------------

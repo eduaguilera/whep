@@ -115,13 +115,17 @@ and 1,919 are crops whose \code{biomass_coefs} ratio is 0.
 WHEP ships the recovery rate and the regional ratio the predecessor used
 (both equal in all 160 cells), but not the \code{HI_changes} table. So
 \code{\link[=get_primary_residues]{get_primary_residues()}} undoes the recovery exactly, dividing by the same
-rate, but cannot recompute the residue from production.
+rate, but cannot recompute the predecessor's residue from production. It
+then re-keys the regional ratio on Wirsenius's own region membership, and
+estimates cereal residue from the pin's production and harvested area
+instead of reading it (#1448).
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 9.31 Gt
-and 404.1 Gt of residue produced. 3,998 of its 249,095 output rows carry
-\code{NA} polity columns because the pin is name-keyed.
+327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 8.73
+Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+Gt of residue produced. 3,998 of its 249,095 output rows carry \code{NA} polity
+columns because the pin is name-keyed.
 
 Driving the same residue model off a fresh \code{\link[=get_primary_production]{get_primary_production()}} would
 move those numbers. Measured for 2010 at (\code{area_code}, \code{item_prod}): 1.958
@@ -135,7 +139,9 @@ the pin's is paddy, which is a basis difference rather than an error, since
 straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
-model, which is a science decision and not a refresh.
+model, which is a science decision and not a refresh. For cereals that
+model is chosen by \code{get_primary_residues(cereal_residue = )}; it still
+runs on the pin's production.
 }
 
 \subsection{\code{bilateral_trade} is built by \code{\link[=build_detailed_trade]{build_detailed_trade()}}}{

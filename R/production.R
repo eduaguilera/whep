@@ -82,6 +82,17 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @param cereal_residue How cereal residue is estimated. One of:
+#'   - `"ipcc"` (default): the IPCC yield-dependent line, above-ground residue
+#'     dry matter = slope x grain dry-matter yield + intercept, through
+#'     [calculate_crop_residues()] with its modern-variety correction.
+#'   - `"ensemble"`: the same estimator's mean of that line and the static
+#'     [biomass_coefs] ratio, as the soil carbon and nitrogen chain uses it.
+#'   - `"ratio"`: the static [biomass_coefs] ratio alone.
+#'   - `"wirsenius"`: the predecessor's model, Wirsenius (2000) Table 3.16
+#'     regional ratios, applied directly on Wirsenius's own region membership.
+#'
+#'   See the "Cereal residue" section. Other crops are not affected.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -108,6 +119,8 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
 #'    crop with residue mass carries no such coefficient, so the gap stays
 #'    visible rather than reading as zero.
+#' - `method_residue`: how the row's residue was estimated: the
+#'    `cereal_residue` method for a cereal, `"pin"` for every other crop.
 #'
 #' The pin's residue quantities are fresh matter. Across its crops the ratio of
 #' pinned residue to product tracks the fresh-matter residue:product ratio
@@ -133,13 +146,65 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' The ratio behind the pin's gross residue is the fresh-matter
 #' residue:product ratio of [biomass_coefs], scaled by the region's
 #' residue:product ratio relative to West Europe (`residue_dm_product_dm` in
-#' the same table) and by a harvest-index change factor per region and year.
-#' That factor is what makes the ratio vary by year. The predecessor's table
-#' carries it at eight anchor years from 1910 to 2000, interpolates linearly
-#' between them and holds 2000 constant after it, falling for instance from
-#' 1.10 in 1962 to 1.00 in 2000 in East Europe. Its code attributes the table
-#' to Krausmann et al. (2013), *PNAS* 110:10324, Table M2 (assumed,
-#' unverified), and WHEP does not ship it.
+#' the same table, Wirsenius (2000) Table 3.16) and by a harvest-index change
+#' factor per region and year. That factor is what makes the ratio vary by
+#' year. The predecessor's table carries it at eight anchor years from 1910 to
+#' 2000, interpolates linearly between them and holds 2000 constant after it,
+#' falling for instance from 1.10 in 1962 to 1.00 in 2000 in East Europe. Its
+#' code attributes the table to Krausmann et al. (2013), *PNAS* 110:10324,
+#' Table M2 (assumed, unverified), and WHEP does not ship it.
+#'
+#' The predecessor looked the regional ratio up by `regions_full$region_HANPP`,
+#' which carries Wirsenius's eight region names but not his membership
+#' (Wirsenius 2000, Table 3.1): Southeast Asia, Russia, Belarus, the Caucasus
+#' and Sudan took another region's ratio (whep#1430). For every crop that
+#' reads the pin, the ratio is re-keyed here on Wirsenius's own membership,
+#' through the (HANPP region, UN M49 sub-region) pairs listed in
+#' `residue_feed_regions.csv`. That lowers world non-cereal residue dry
+#' matter by 0.2% in 2010.
+#'
+#' @section Cereal residue:
+#' Cereals are the one part of the base with a published global series:
+#' Smerald, Rahimi & Scheer (2023), *A global dataset for the production and
+#' usage of cereal residues in the period 1997-2021*, Scientific Data 10:685,
+#' \doi{10.1038/s41597-023-02587-0}, the mean of three methods (constant
+#' regional ratios, and two yield-dependent ones). The pin's model put world
+#' cereal residue 16.1% above that mean over 1997-2021 (3899 against 3357 Tg
+#' dry matter), and 25% above their constant-ratio method in every year with
+#' the same grain production (whep#1448). Besides the membership above, two
+#' things caused it. The West Europe anchor presumes that [biomass_coefs]
+#' holds the West Europe ratio, and for cereals it does not (wheat 1.34,
+#' barley 1.18, sorghum 1.70 and maize 0.96 kg dry matter per kg grain dry
+#' matter, against Wirsenius's 1.0, 1.0, 1.2 and 1.2). And Wirsenius's ratios
+#' are early-1990s harvest indices, held constant after 2000 while yields
+#' rose.
+#'
+#' Cereal residue is therefore estimated from the pin's own production and
+#' harvested area (its `Product` rows, which equal the `primary_prod` pin)
+#' with [calculate_crop_residues()], the estimator the soil carbon and
+#' nitrogen chain already uses. Its modern-variety harvest-index correction
+#' applies, keyed on the HANPP region its adoption table is written in. The
+#' `"ipcc"` line is IPCC (2019), *2019 Refinement to the 2006 IPCC Guidelines
+#' for National Greenhouse Gas Inventories*, Vol. 4, Ch. 11, Table 11.2
+#' (p. 11.19), whose cereal slopes and intercepts are those of IPCC (2006)
+#' Table 11.2. Measured against Smerald et al. (`validation/residue_base_dm.R`),
+#' world cereal residue in dry matter over 1997-2021 and in 2010 is:
+#'
+#' | `cereal_residue` | 1997-2021 mean, Tg | vs Smerald | years outside band | 2010, Tg |
+#' |---|--:|--:|--:|--:|
+#' | `"ipcc"` | 3385 | +0.8% | 0 of 25 | 3333 |
+#' | `"ensemble"` | 3059 | -8.9% | 5 of 25 | 3008 |
+#' | `"ratio"` | 2732 | -18.6% | 25 of 25 | 2684 |
+#' | `"wirsenius"` | 3656 | +8.9% | 9 of 25 | 3598 |
+#' | the pin's model | 3899 | +16.1% | 16 of 25 | 3826 |
+#'
+#' The band is the spread of Smerald et al.'s three methods, widened by 5%;
+#' their 2010 mean is 3334 Tg. `"ipcc"` matches the world total, but per crop
+#' it books maize about 19% and sorghum about 20% below their mean and wheat
+#' about 23% above it (2010 and 2020). `"wirsenius"` keeps the pin's
+#' harvest-index factor and corrects the anchor by applying Table 3.16
+#' directly: residue dry matter is grain dry matter times the ratio of the
+#' area's Wirsenius region.
 #'
 #' @inheritSection whep_read_file The batch pin on the build path
 #'
@@ -147,7 +212,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #' @examples
 #' get_primary_residues(example = TRUE)
-get_primary_residues <- function(example = FALSE) {
+get_primary_residues <- function(
+  example = FALSE,
+  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius")
+) {
+  cereal_residue <- rlang::arg_match(cereal_residue)
   if (example) {
     return(.example_get_primary_residues())
   }
@@ -159,14 +228,23 @@ get_primary_residues <- function(example = FALSE) {
   # turns back into the residue produced (#1195). See the pin-batch section
   # above for the measurement, and note that this is where the predecessor's
   # production series enters the commodity balance (#1054).
-  "crop_residues" |>
+  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448).
+  # Cereal residue is recomputed from the pin's `Product` rows, so both kinds
+  # of row resolve their area here, once.
+  pin <- "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
-    dplyr::filter(product_residue == "Residue") |>
+    dplyr::filter(product_residue %in% c("Residue", "Product")) |>
     add_area_code(name_column = "area") |>
-    .residue_area_from_polity() |>
+    .residue_area_from_polity()
+  pin |>
+    dplyr::filter(product_residue == "Residue") |>
     .warn_residues_no_area() |>
     .residue_gross_from_recovered() |>
+    .residue_ratio_corrected(
+      products = dplyr::filter(pin, product_residue == "Product"),
+      method = cereal_residue
+    ) |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",
       code_column = "item_cbs_code_crop"
@@ -182,7 +260,13 @@ get_primary_residues <- function(example = FALSE) {
       # drops -- erasing real, non-NA residue rows along with the missing one.
       value = sum(prod_ygpit_mg, na.rm = TRUE),
       value_dm = .sum_residue_dm(prod_ygpit_mg, residue_kgdm_kgfm),
-      .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
+      .by = c(
+        year,
+        area_code,
+        item_cbs_code_crop,
+        item_cbs_code_residue,
+        method_residue
+      )
     ) |>
     dplyr::filter(value > 0) |>
     dplyr::select(
@@ -191,7 +275,8 @@ get_primary_residues <- function(example = FALSE) {
       item_cbs_code_crop,
       item_cbs_code_residue,
       value,
-      value_dm
+      value_dm,
+      method_residue
     ) |>
     .use_crop_process_cbs_item() |>
     .add_reporting_polity_columns()
