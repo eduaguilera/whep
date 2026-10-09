@@ -90,6 +90,8 @@
 #'     selects the method (default `"recovery_regional"`) and
 #'     `residue_bedding_fraction` the share of the recovered non-feed residue
 #'     used as bedding (default `0`; see [calculate_residue_destinies()]).
+#'     The bedded straw also comes back as a manure input, through
+#'     [build_n_inputs()].
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -516,12 +518,8 @@ build_nitrogen_balance <- function(
       item_prod_code = as.character(.data$item_prod_code),
       residue_n_kgdm = .data$residue_n_kgdm
     )
-  destiny <- data$residue_destiny_input |>
-    calculate_residue_destinies(
-      method = data$residue_destiny_method %||% "recovery_regional",
-      bedding_fraction = data$residue_bedding_fraction %||% 0
-    ) |>
-    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
+  destiny <- data |>
+    .nb_residue_destinies() |>
     dplyr::left_join(n_kgdm, by = "item_prod_code") |>
     .nb_check_residue_n_joined() |>
     dplyr::summarise(
@@ -540,6 +538,18 @@ build_nitrogen_balance <- function(
       .by = dplyr::all_of(key)
     )
   .nb_merge_output_term(x, destiny, key)
+}
+
+# The one residue-destiny split of a balance. The manure input reads the same
+# split (.ni_manure_bedding(), R/n_balance_inputs.R), so the bedding booked
+# here as leaving the field is the bedding that comes back as manure.
+.nb_residue_destinies <- function(data) {
+  data$residue_destiny_input |>
+    calculate_residue_destinies(
+      method = data$residue_destiny_method %||% "recovery_regional",
+      bedding_fraction = data$residue_bedding_fraction %||% 0
+    ) |>
+    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code))
 }
 
 # The N content is joined on item_prod_code, and a key that does not match

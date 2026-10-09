@@ -241,6 +241,14 @@
 #'     own axis, not this function's: it defaults to `"subnational"` at
 #'     `resolution = "grid"` (cell-level nitrogen needs cell-level manure) and
 #'     to `"national"` otherwise. A value supplied here is always honoured.
+#'   * `residue_destiny_input`, `residue_destiny_method`,
+#'     `residue_bedding_fraction`: the residue-destiny split
+#'     [build_nitrogen_balance()] documents. The straw it beds is passed to
+#'     [build_livestock_nutrient_flows()] as `bedding`, one supply per
+#'     `year x territory` that [add_manure_bedding()] spreads over the housed
+#'     litter-using streams, so the bedding N the balance books as leaving the
+#'     field returns in the manure input. Nothing is bedded when the input is
+#'     absent or the split beds nothing.
 #' @param method_unsupported What happens to non-item nitrogen (deposition,
 #'   human, soil-organic-matter mineralization, unattributed manure) whose own
 #'   cell-year carries no allocation support at all. The support is the one
@@ -760,8 +768,42 @@ build_n_inputs <- function(
     data$livestock_intake,
     resolution = data$resolution %||% "national",
     methods = data$methods %||% list(),
-    gridded = data[["gridded"]]
+    gridded = data[["gridded"]],
+    bedding = .ni_manure_bedding(data)
   )
+}
+
+# The bedding straw build_nitrogen_balance() books as leaving the field
+# (bedding_residue_n_t) is mixed into the housed manure and comes back to the
+# land with it (whep#1445). It is read from the same residue-destiny split,
+# .nb_residue_destinies(), so the two terms cannot disagree.
+#
+# The supply is national (year x territory), even at grid resolution: the
+# straw is booked in the cell where it grew, the manure in the cell where the
+# animals are housed, and nothing places one in the other. add_manure_bedding()
+# spreads a territory's supply over its cells' litter-using streams in
+# proportion to their nitrogen, which keeps the national mass whole; keying it
+# per cell would strand the straw of every cell without housed animals.
+#
+# No residue-destiny input, or a split that beds nothing (residue_bedding_
+# fraction defaults to 0), means no bedding was booked out either, so no supply
+# is passed and the manure engine runs as it did before bedding existed.
+.ni_manure_bedding <- function(data) {
+  if (is.null(data$residue_destiny_input)) {
+    return(NULL)
+  }
+  destiny <- .nb_residue_destinies(data)
+  if (!any(destiny$residue_bedding_dm_t > 0, na.rm = TRUE)) {
+    return(NULL)
+  }
+  destiny |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      territory = as.character(.data$area_code),
+      item_prod_code = .data$item_prod_code,
+      residue_bedding_dm_t = .data$residue_bedding_dm_t
+    ) |>
+    build_residue_bedding_supply()
 }
 
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,

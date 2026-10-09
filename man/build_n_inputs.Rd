@@ -203,6 +203,14 @@ forwarding its own \code{data} list.
 own axis, not this function's: it defaults to \code{"subnational"} at
 \code{resolution = "grid"} (cell-level nitrogen needs cell-level manure) and
 to \code{"national"} otherwise. A value supplied here is always honoured.
+\item \code{residue_destiny_input}, \code{residue_destiny_method},
+\code{residue_bedding_fraction}: the residue-destiny split
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} documents. The straw it beds is passed to
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}} as \code{bedding}, one supply per
+\verb{year x territory} that \code{\link[=add_manure_bedding]{add_manure_bedding()}} spreads over the housed
+litter-using streams, so the bedding N the balance books as leaving the
+field returns in the manure input. Nothing is bedded when the input is
+absent or the split beds nothing.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of assembling

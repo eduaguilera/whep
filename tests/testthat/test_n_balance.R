@@ -522,6 +522,59 @@ testthat::test_that("bedding residue N leaves the field without leaking", {
   testthat::expect_equal(removed(bedded), removed(bare))
 })
 
+testthat::test_that("bedded straw N comes back as a manure input", {
+  # whep#1445: the bedding the balance books as leaving the field must return
+  # in the housed manure it is mixed into. IPCC 2019 Eq. 10.34 puts bedding N
+  # outside the storage loss term, so all of it reaches the land.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  manure <- c("manure_solid", "manure_liquid", "excreta")
+  run <- function(fraction) {
+    data <- .nb_full_data()
+    data$residue_bedding_fraction <- fraction
+    inputs <- suppressWarnings(whep::build_n_inputs(data = data))
+    removed <- inputs |>
+      dplyr::distinct(dplyr::across(dplyr::all_of(key))) |>
+      whep:::.nb_add_residue_destiny(data, key)
+    list(
+      manure_n = sum(inputs$n_input_t[inputs$fert_type %in% manure]),
+      bedding_n = sum(removed$bedding_residue_n_t)
+    )
+  }
+  bare <- run(0)
+  bedded <- run(0.4)
+
+  testthat::expect_gt(bedded$bedding_n, 0)
+  testthat::expect_equal(
+    bedded$manure_n - bare$manure_n,
+    bedded$bedding_n,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("a balance without bedding passes no bedding supply", {
+  # A zero bedding share is a declared choice, not an absent input: the manure
+  # engine then runs exactly as before bedding existed.
+  data <- .nb_full_data()
+  testthat::expect_null(whep:::.ni_manure_bedding(data))
+  data$residue_destiny_input <- NULL
+  data$residue_bedding_fraction <- 0.4
+  testthat::expect_null(whep:::.ni_manure_bedding(data))
+})
+
+testthat::test_that("the bedding supply is national, keyed on the territory", {
+  # The straw is booked where it grew, the manure where the animals are; the
+  # national supply is spread over the housed streams by add_manure_bedding().
+  data <- .nb_full_data()
+  data$residue_bedding_fraction <- 0.4
+  supply <- whep:::.ni_manure_bedding(data)
+
+  testthat::expect_named(
+    supply,
+    c("year", "territory", "bedding_dm_t", "bedding_c_t", "bedding_n_t")
+  )
+  testthat::expect_identical(supply$territory, "10")
+})
+
 testthat::test_that("bedding residue N is an output of the full balance", {
   aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
     prod_n_t = 10,
