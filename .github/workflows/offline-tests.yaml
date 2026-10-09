@@ -32,6 +32,20 @@
 #
 # If this job fails alone, the fix is to give the offending test an offline
 # fixture (see AGENTS.md), not to skip it and not to relax this job.
+#
+# On a pull request this is the ONLY run of the suite (R-CMD-check runs
+# `--no-tests` there, #1347), so it is split into three shards that run side by
+# side. Each shard takes every third test file in sorted order; together they
+# take every file exactly once, and a new file joins a shard with no list to
+# update. Run locally (2026-10-06, origin/main 5e4bf894) the shards took 5.1,
+# 2.7 and 3.9 min against 11.7 min for the whole suite in one process. Shards,
+# not `Config/testthat/parallel`: testthat's own workers made the parent
+# process grow past a runner's 16 GB (measured on #1347).
+#
+# Reproduce one shard locally (here shard 1 of 3):
+#   SHARD=1 SHARDS=3 CI=false XDG_CACHE_HOME=$(mktemp -d) \
+#     http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 \
+#     Rscript .github/scripts/test_shard.R
 
 on:
   push:
@@ -49,8 +63,14 @@ concurrency:
 
 jobs:
   offline-tests:
+    name: offline-tests (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    # Backstop against a hung test. The suite is ~11 min; the rest of the
+    strategy:
+      # Every shard reports, so one failing file does not hide another.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    # Backstop against a hung test. The whole suite is ~11 min; the rest of the
     # headroom is for a cold dependency install of the geo stack, measured at 29
     # min on a slow package mirror -- which is what the old 30-minute budget
     # could not survive, killing this job before the suite had started.
@@ -90,7 +110,9 @@ jobs:
           # Runs the `skip_on_ci()` tests here as well -- see the header.
           # testthat treats any non-"true" value as "not on CI".
           CI: "false"
+          SHARD: ${{ matrix.shard }}
+          SHARDS: 3
         run: |
           mkdir -p "$XDG_CACHE_HOME"
-          Rscript -e 'devtools::test(stop_on_failure = TRUE)'
+          Rscript .github/scripts/test_shard.R
         shell: bash
