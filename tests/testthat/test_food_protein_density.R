@@ -93,8 +93,10 @@ testthat::test_that("the items outside the FBS band are the known set", {
   # Pinned, not tolerated: this is the triage surface for the rest of the
   # nourishment axis, and it is what makes the wheat fix a measured change
   # rather than a lucky one. Nuts 2551 is whep#797: its shell no longer
-  # counts as food (4.3x down to 1.7x), but it is an FBS basket of ten species
-  # reached through Almonds; rice 2807 is a milled density over a
+  # counts as food (4.3x down to 1.7x). This file checks the Almonds row it
+  # reaches; build_food_supply() itself now uses FAO's ten-species basket,
+  # 64.7 g/kg (whep#1453), still out of band because the new-FBS nut food
+  # quantity exceeds world in-shell production; rice 2807 is a milled density over a
   # mass already converted to milled equivalent, settled in #751/#755, so its
   # 1.54 here is the density alone and not the axis error; the meat, fish and
   # root entries are open in #500. Olives 2563 left it in #1096. A row leaving

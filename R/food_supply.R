@@ -51,6 +51,28 @@
 #' count and a few examples (the residual gap-fill, O-B), never silently
 #' dropped.
 #'
+#' An FBS item that covers several species reaches `biomass_coefs` through
+#' one representative `Name_biomass` in [items_full]. For FBS 2551 `Nuts and
+#' products`, ten species reached through `Almonds`, that one row is not
+#' representative: on FAO's own food-composition factors for the FBS, protein
+#' per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
+#' (pistachios), and almonds sit near the top at 8.0 (FAO, *Food balance
+#' sheets: a handbook*, Rome, 2001, Annex I, PDF page 65,
+#' <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>). With
+#' `basket = "fao_composition"` (default) the protein density of 2551 is those
+#' ten factors weighted by 2010 world production of each species (FAOSTAT
+#' production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
+#' almonds alone (#1453). It replaces the protein term only, and only on the
+#' `"edible_portion"` basis, whose meaning (edible protein per kg of commodity)
+#' is what FAO's in-shell factor is. Energy keeps the representative row: FAO's
+#' factor is dietary energy, not the gross energy this function carries.
+#' Against the pre-2014 FBS, which FAO built from these same factors on what
+#' each country actually ate, the basket gives 0.98x 2010 world nut protein over
+#' 130 countries, against 1.21x for almonds alone. The world basket moves
+#' little over time (61 g/kg on 1961 production, 66 on 2024).
+#' `"representative_species"` keeps the single-species coefficient, for
+#' continuity and sensitivity analysis.
+#'
 #' The `"faostat_fbs"` method is FAOSTAT's own per-capita supply, the
 #' independent benchmark for the default. With `data$fbs_supply` injected it is
 #' returned unchanged. Otherwise it is read from the `faostat-fbs-old`
@@ -111,12 +133,18 @@
 #'   `"product_nitrogen"` uses the agronomic `Product_kgN_kgDM` for both the
 #'   edible and inedible fractions, scaled by `Edible_portion`, ignoring
 #'   `N_kgN_kgFM`. A missing `Edible_portion` counts as 1.
+#' @param basket Protein density of multi-species FBS items, for
+#'   `"whep_native"` with `protein_basis = "edible_portion"` only:
+#'   `"fao_composition"` (default) weights FAO's FBS food-composition factors
+#'   per species by world production (today FBS 2551 `Nuts and products`);
+#'   `"representative_species"` uses the one `biomass_coefs` row that
+#'   [items_full] bridges the item to.
 #' @param example If `TRUE`, return a small fixture instead of computing.
 #'   Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-#'   `energy_kcal_cap_day`, `population`, `method_food_supply` and
-#'   `method_protein_basis` (`NA` for `"faostat_fbs"`), plus the polity columns
-#'   below.
+#'   `energy_kcal_cap_day`, `population`, `method_food_supply`,
+#'   `method_protein_basis` and `method_basket` (both `NA` for
+#'   `"faostat_fbs"`), plus the polity columns below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -125,6 +153,7 @@ build_food_supply <- function(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
   protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
+  basket = c("fao_composition", "representative_species"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -132,19 +161,18 @@ build_food_supply <- function(
   }
   method <- rlang::arg_match(method)
   protein_basis <- rlang::arg_match(protein_basis)
-  out <- if (method == "faostat_fbs") {
+  basket <- rlang::arg_match(basket)
+  fbs <- method == "faostat_fbs"
+  out <- if (fbs) {
     .food_supply_fbs(data)
   } else {
-    .food_supply_whep_native(data, protein_basis)
+    .food_supply_whep_native(data, protein_basis, basket)
   }
   dplyr::mutate(
     out,
     method_food_supply = method,
-    method_protein_basis = if (method == "faostat_fbs") {
-      NA_character_
-    } else {
-      protein_basis
-    }
+    method_protein_basis = if (fbs) NA_character_ else protein_basis,
+    method_basket = if (fbs) NA_character_ else basket
   ) |>
     .add_reporting_polity_columns()
 }
@@ -304,7 +332,7 @@ build_food_supply <- function(
 
 # whep_native: commodity-balance food tonnes times the per-item nutrition
 # coefficients, aggregated per country-year and divided by national population.
-.food_supply_whep_native <- function(data, protein_basis) {
+.food_supply_whep_native <- function(data, protein_basis, basket) {
   cbs_food <- data$cbs_food
   population <- data[["population"]]
   coefs <- data$biomass_coefs %||% whep::biomass_coefs
@@ -321,7 +349,7 @@ build_food_supply <- function(
   )
   cbs_food |>
     .food_join_nutrition(
-      .food_nutrition_lookup(items, coefs, protein_basis)
+      .food_nutrition_lookup(items, coefs, protein_basis, basket)
     ) |>
     .food_aggregate() |>
     .food_per_capita(population)
@@ -329,8 +357,15 @@ build_food_supply <- function(
 
 # Per-item nutrition coefficients keyed by item_cbs_code. Bridge item_cbs_code
 # to Name_biomass (items_full) then to biomass_coefs, deriving protein and
-# gross-energy content per kilogram fresh matter.
-.food_nutrition_lookup <- function(items, coefs, protein_basis) {
+# gross-energy content per kilogram fresh matter. With the "fao_composition"
+# basket, a multi-species item's protein on the edible_portion basis is then
+# replaced by its FAO basket density (.food_basket_protein()).
+.food_nutrition_lookup <- function(
+  items,
+  coefs,
+  protein_basis,
+  basket = "fao_composition"
+) {
   .check_columns(coefs, .food_coef_cols(), "data$biomass_coefs")
   # ANIMAL PRODUCTS is a section header that leaked into the coefficient table:
   # it carries Edible_portion 4.0 and 3 kg of nitrogen per kg of fresh matter,
@@ -357,7 +392,52 @@ build_food_supply <- function(
     # Name_biomass rows (e.g. livestock cohorts), and without this a name with
     # >1 row would fan out and double-count food_t downstream.
     dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
-  dplyr::left_join(bridge, nutrition, by = "Name_biomass")
+  lookup <- dplyr::left_join(bridge, nutrition, by = "Name_biomass")
+  if (protein_basis != "edible_portion" || basket != "fao_composition") {
+    return(lookup)
+  }
+  dplyr::rows_update(
+    lookup,
+    .food_basket_protein(),
+    by = "item_cbs_code",
+    unmatched = "ignore"
+  )
+}
+
+# Protein per kg fresh matter of FBS 2551 `Nuts and products`, FAO's in-shell
+# food-composition factors weighted by 2010 world production (#1453).
+.food_basket_protein <- function() {
+  .nut_basket_species() |>
+    dplyr::summarise(
+      protein_frac_kgfm = sum(.data$protein_g_100g * .data$prod_2010_t) /
+        sum(.data$prod_2010_t) /
+        100
+    ) |>
+    dplyr::mutate(item_cbs_code = 2551, .before = 1)
+}
+
+# The ten primary items of FBS 2551 `Nuts and products` (items_prod_full).
+# protein_g_100g: FAO, Food balance sheets: a handbook, Rome, 2001, Annex I
+# "Food composition in terms of retail weight", PDF page 65, the in-shell
+# (primary) rows, the factors FBS itself applies to these items. Read from the
+# scanned table; https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf.
+# prod_2010_t: FAOSTAT world production 2010 (faostat-production pin, element
+# 5510, tonnes), summed over areas below 5000 with 351 China (the aggregate of
+# 41, 96, 128 and 214) excluded.
+.nut_basket_species <- function() {
+  tibble::tribble(
+    ~item_prod_code, ~species,      ~protein_g_100g, ~prod_2010_t,
+    216L,            "brazil nuts", 6.9,             75787.0,
+    217L,            "cashew nuts", 7.7,             3050698.3,
+    220L,            "chestnuts",   1.8,             1999713.3,
+    221L,            "almonds",     8.0,             2575821.4,
+    222L,            "walnuts",     6.4,             2780468.6,
+    223L,            "pistachios",  10.3,            718149.6,
+    224L,            "kola nuts",   9.0,             280308.4,
+    225L,            "hazelnuts",   6.0,             854742.2,
+    226L,            "areca nuts",  4.9,             1086449.0,
+    234L,            "nuts nes",    7.0,             869534.9
+  )
 }
 
 .food_coef_cols <- function() {

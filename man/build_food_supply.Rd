@@ -8,6 +8,7 @@ build_food_supply(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
   protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
+  basket = c("fao_composition", "representative_species"),
   example = FALSE
 )
 }
@@ -39,14 +40,21 @@ argument existed, kept for continuity and sensitivity analysis;
 edible and inedible fractions, scaled by \code{Edible_portion}, ignoring
 \code{N_kgN_kgFM}. A missing \code{Edible_portion} counts as 1.}
 
+\item{basket}{Protein density of multi-species FBS items, for
+\code{"whep_native"} with \code{protein_basis = "edible_portion"} only:
+\code{"fao_composition"} (default) weights FAO's FBS food-composition factors
+per species by world production (today FBS 2551 \verb{Nuts and products});
+\code{"representative_species"} uses the one \code{biomass_coefs} row that
+\link{items_full} bridges the item to.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of computing.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{protein_g_cap_day},
-\code{energy_kcal_cap_day}, \code{population}, \code{method_food_supply} and
-\code{method_protein_basis} (\code{NA} for \code{"faostat_fbs"}), plus the polity columns
-below.
+\code{energy_kcal_cap_day}, \code{population}, \code{method_food_supply},
+\code{method_protein_basis} and \code{method_basket} (both \code{NA} for
+\code{"faostat_fbs"}), plus the polity columns below.
 }
 \description{
 Assembles per-capita protein and dietary-energy supply, the state variable
@@ -79,6 +87,27 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped.
+
+An FBS item that covers several species reaches \code{biomass_coefs} through
+one representative \code{Name_biomass} in \link{items_full}. For FBS 2551 \verb{Nuts and products}, ten species reached through \code{Almonds}, that one row is not
+representative: on FAO's own food-composition factors for the FBS, protein
+per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
+(pistachios), and almonds sit near the top at 8.0 (FAO, \emph{Food balance
+sheets: a handbook}, Rome, 2001, Annex I, PDF page 65,
+\url{https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf}). With
+\code{basket = "fao_composition"} (default) the protein density of 2551 is those
+ten factors weighted by 2010 world production of each species (FAOSTAT
+production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
+almonds alone (#1453). It replaces the protein term only, and only on the
+\code{"edible_portion"} basis, whose meaning (edible protein per kg of commodity)
+is what FAO's in-shell factor is. Energy keeps the representative row: FAO's
+factor is dietary energy, not the gross energy this function carries.
+Against the pre-2014 FBS, which FAO built from these same factors on what
+each country actually ate, the basket gives 0.98x 2010 world nut protein over
+130 countries, against 1.21x for almonds alone. The world basket moves
+little over time (61 g/kg on 1961 production, 66 on 2024).
+\code{"representative_species"} keeps the single-species coefficient, for
+continuity and sensitivity analysis.
 
 The \code{"faostat_fbs"} method is FAOSTAT's own per-capita supply, the
 independent benchmark for the default. With \code{data$fbs_supply} injected it is
