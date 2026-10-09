@@ -359,10 +359,10 @@ test_that("the enumerated baseline can only shrink", {
   # 112 with whep#1317, on top of whep#1121's 111: `.level0_injected_rows()`
   # re-dates a constant-territory polity to its recorded windows. Re-derived
   # by running the audit on the merged tree.
-  # JOINCAP with whep#1195, on top of whep#1317's 112: the residue pin's legacy recovery rate, attached per
-  # (crop, area) and keyed on the area's year-free HANPP region. Re-derived by
-  # running `sum(.territorial_join_baseline()$n)`.
-  expect_lte(sum(baseline$n), 112L)
+  # 114 with whep#1195, on top of whep#1317's 112: the residue pin's legacy
+  # recovery rate, attached per (crop, area) and keyed on the area's year-free
+  # HANPP region. Re-derived by running the audit on the merged tree.
+  expect_lte(sum(baseline$n), 114L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -641,10 +641,10 @@ test_that("every year-free territorial grouping is classified", {
   # 144 with whep#1414, on top of whep#1317's 143: `.land_bridge_by_year()`
   # crosses each ISO3 -> area pair with the years asked about. Re-derived by
   # running the audit on the merged tree.
-  # GRPCAP with whep#1195, on top of whep#1414's 144: the residue pin's recovery-rate lookup, one row per
-  # area and one per (crop, area) pair. Re-derived by running
-  # `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), GRPCAPL)
+  # 146 with whep#1195, on top of whep#1414's 144: the residue pin's
+  # recovery-rate lookup, one row per area and one per (crop, area) pair.
+  # Re-derived by running the audit on the merged tree.
+  expect_lte(sum(full$n), 146L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
