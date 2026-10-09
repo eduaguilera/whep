@@ -96,13 +96,13 @@ the fertiliser's `max_nh3` in
 [manner_params](https://eduaguilera.github.io/whep/reference/manner_params.md).
 
 Two forms of that factor exist. Urea always takes the absolute form,
-`exp(0.1386 (temp_c - 8.625)) / 3`; CAN always takes the anomaly form,
+`exp(0.1386 (temp_c - 8.4)) / 3`; CAN always takes the anomaly form,
 `exp(0.2197225 (temp_c - temp_c_annual_mean)) / 3`. AN and AS depend on
 `temp_method`:
 
 - `"misselbrook_2004"` (default): AN takes the anomaly form on every
   soil, and AS takes the anomaly form on non-calcareous soils and the
-  absolute form on calcareous soils (`soil_ph >= 7`). This is the
+  absolute form on calcareous soils (`soil_ph > 7`). This is the
   assignment of Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for
   AN and other N to all soils and AS/DAP to non-calcareous soils", eq. 4
   (absolute) "for urea and UAN to all soils and AS/DAP to calcareous

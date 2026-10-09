@@ -212,9 +212,10 @@ already-built table.</p></dd>
 <dd><p>Optional named list of pre-loaded grid inputs, used only when
 <code>resolution = "grid"</code>: <code>crop_patterns</code> (<code>lon</code>, <code>lat</code>, <code>item_prod_code</code>,
 <code>harvest_fraction</code>) and <code>type_cropland</code> (<code>lon</code>, <code>lat</code>, <code>year</code>,
-<code>luh2_type</code>, <code>type_ha</code>), each falling back to a lazy parquet read from
-<code>Sys.getenv("WHEP_CROP_PATTERNS_PATH")</code> /
-<code>Sys.getenv("WHEP_TYPE_CROPLAND_PATH")</code> when absent. <code>item_cbs_code</code> in
+<code>luh2_type</code>, <code>type_ha</code>). When absent, each is read from the
+<code>spatialize-crop-patterns</code> / <code>spatialize-type-cropland</code> pin, or from the
+local parquet at <code>WHEP_CROP_PATTERNS_PATH</code> / <code>WHEP_TYPE_CROPLAND_PATH</code>
+when that override is set. <code>item_cbs_code</code> in
 <code>crop_shares</code>/<code>country_totals</code> is matched to the <code>item_prod_code</code> column
 of <code>crop_patterns</code> via <a href="items_prod_full.html">items_prod_full</a> (the same crosswalk
 <code><a href="build_crop_land_extension.html">build_crop_land_extension()</a></code> uses).</p></dd>

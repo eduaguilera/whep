@@ -123,9 +123,10 @@ spatialize_country_n_to_crops(
   Optional named list of pre-loaded grid inputs, used only when
   `resolution = "grid"`: `crop_patterns` (`lon`, `lat`,
   `item_prod_code`, `harvest_fraction`) and `type_cropland` (`lon`,
-  `lat`, `year`, `luh2_type`, `type_ha`), each falling back to a lazy
-  parquet read from `Sys.getenv("WHEP_CROP_PATTERNS_PATH")` /
-  `Sys.getenv("WHEP_TYPE_CROPLAND_PATH")` when absent. `item_cbs_code`
+  `lat`, `year`, `luh2_type`, `type_ha`). When absent, each is read from
+  the `spatialize-crop-patterns` / `spatialize-type-cropland` pin, or
+  from the local parquet at `WHEP_CROP_PATTERNS_PATH` /
+  `WHEP_TYPE_CROPLAND_PATH` when that override is set. `item_cbs_code`
   in `crop_shares`/`country_totals` is matched to the `item_prod_code`
   column of `crop_patterns` via
   [items_prod_full](https://eduaguilera.github.io/whep/reference/items_prod_full.md)
