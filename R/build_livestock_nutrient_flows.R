@@ -32,9 +32,10 @@
 #'   [build_residue_bedding_supply()]. When given, [add_manure_bedding()] places
 #'   it on the litter-using housed streams before the management losses, so the
 #'   manure reaching the field is bedded farmyard manure rather than excreta
-#'   alone. `NULL` (default) leaves every number excreta-only; the share of crop
-#'   residue used as bedding is unset in this package pending a source
-#'   (whep#1005), so a caller has to build the supply deliberately.
+#'   alone. `NULL` (default) leaves every number excreta-only. Build the
+#'   supply from [calculate_residue_destinies()], whose default bedding share
+#'   is Wirsenius (2000) Table 3.21 (whep#1005); the turnkey soil-carbon
+#'   reader of [build_soil_carbon_inputs()] does so.
 #' @param gridded The land-surface layer (`crops` and optional `grass` tibbles)
 #'   passed to [allocate_manure_to_land()]; required for the default
 #'   `"potential_uptake"` cap. `NULL` is treated as an empty list. The `crop`

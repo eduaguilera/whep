@@ -502,13 +502,17 @@ testthat::test_that("bedding residue N leaves the field without leaking", {
   )
   bare <- whep:::.nb_add_residue_destiny(
     inputs,
-    list(residue_destiny_input = .nb_residue_destiny_input()),
+    list(
+      residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding = "fraction"
+    ),
     key
   )
   bedded <- whep:::.nb_add_residue_destiny(
     inputs,
     list(
       residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding = "fraction",
       residue_bedding_fraction = 0.4
     ),
     key
@@ -1464,7 +1468,11 @@ testthat::test_that("the default manure source reproduces the pre-option balance
     "fixtures",
     "n_inputs_default_golden.rds"
   ))
-  out <- suppressMessages(.nb_run())
+  # The golden predates the sourced bedding share (whep#1005), so it is
+  # reproduced under the rule it was written with: no bedding.
+  data <- .nb_data_with_drivers()
+  data$residue_bedding <- "fraction"
+  out <- suppressMessages(.nb_run(data))
   testthat::expect_identical(
     dplyr::select(out, -"method_manure"),
     golden$balance_grid
@@ -1491,6 +1499,27 @@ testthat::test_that("the default manure source reproduces the pre-option balance
     .env = env
   )
 }
+
+testthat::test_that("the default bedding share moves no surplus", {
+  # whep#1005: the Wirsenius bedding share carves bedding out of the burnt
+  # residue. Both leave the field, so only the split between the two output
+  # terms may move -- never the full output or the surplus.
+  data <- .nb_data_with_drivers()
+  data$residue_bedding <- "fraction"
+  bare <- suppressMessages(.nb_run(data))
+  bedded <- suppressMessages(.nb_run())
+  testthat::expect_gt(sum(bedded$bedding_residue_n_t), 0)
+  testthat::expect_equal(sum(bare$bedding_residue_n_t), 0)
+  testthat::expect_equal(
+    bedded$bedding_residue_n_t + bedded$burnt_residue_n_t,
+    bare$burnt_residue_n_t
+  )
+  moved <- c("bedding_residue_n_t", "burnt_residue_n_t")
+  testthat::expect_equal(
+    dplyr::select(bedded, -dplyr::all_of(moved)),
+    dplyr::select(bare, -dplyr::all_of(moved))
+  )
+})
 
 testthat::test_that("default MANNER ammonia without drivers is refused before any assembly", {
   .nb_stub_assembly()

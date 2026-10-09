@@ -3767,8 +3767,12 @@ testthat::test_that("a bedding destiny stays inside the CBS balance", {
   # feed and burn would drop the bedding mass out of residue `production`
   # while leaving `feed` alone, and `production = feed + other_uses` would
   # break silently, since other_uses is derived as recovered - feed.
-  bare <- whep:::.residue_cbs_elements(.rcr_row())
-  bedded <- whep:::.residue_cbs_elements(.rcr_row(), bedding_fraction = 0.4)
+  bare <- whep:::.residue_cbs_elements(.rcr_row(), bedding = "fraction")
+  bedded <- whep:::.residue_cbs_elements(
+    .rcr_row(),
+    bedding = "fraction",
+    bedding_fraction = 0.4
+  )
   value_of <- function(out, el) out$value[out$element == el]
 
   testthat::expect_equal(value_of(bedded, "production"), 700)

@@ -16,23 +16,44 @@
 #' other than the amount of agricultural residues returned to soils or burnt",
 #' so as "to eliminate the possibility of double counting".
 #'
-#' `bedding_fraction` defaults to **0**, and that default is *unset, not
-#' measured*: no global bedding-only fraction of crop residue could be sourced
-#' (whep#1005). FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's `FracRemove`
-#' both merge bedding with feed and construction into one term. Three partial
-#' anchors exist and none is on this function's denominator, so each needs
-#' converting before it can be used here:
+#' @section Where the bedding share comes from:
+#' `bedding = "wirsenius"` (default) reads the one bedding figure that comes
+#' from the same accounting as the recovery rates: **Wirsenius (2000)**, *Human
+#' Use of Land and Organic Materials*, PhD thesis, Chalmers University of
+#' Technology, Table 3.21 (p. 126). Of 2700 Tg DM/yr of cereals straw & stover
+#' generated, 530 Tg is "not recovered", so 2170 Tg is recovered, and 270 Tg is
+#' "used as litter for animal bedding" -- 14% of the 1940 Tg *distributed*.
+#' This function's denominator is the *recovered* residue, so the share is
+#' taken against the table's own recovered total, `270 / 2170 = 0.124`. That
+#' is the same distributed -> recovered conversion whep#1431 makes for the
+#' Table 3.20 feed shares; here the world table carries both totals, so no loss factor
+#' has to be assumed (the 10% loss route, `0.14 * 0.90`, gives 0.126).
 #'
-#' * Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
-#'   3.21 p. 126 -- litter is 14% of *distributed* cereal straw and stover and
-#'   11% of distributed crop by-products. The author grades these "very rough",
-#'   and the South & Central Asia cattle entry is 0 because the data were
-#'   absent, which must not be inherited as an estimate.
+#' Wirsenius models cereals straw and stover as the *only* bedding material
+#' (p. 85, after Section 2.3.1), so the share applies to the five cereal
+#' categories (`Wheat, other cereals`, `Rice, Paddy`, `Maize`, `Sorghum`,
+#' `Millet`) and
+#' every other crop beds nothing. It is one **world** share applied in every
+#' region: the thesis prints no regional litter total, and its regional
+#' litter-use rates (Table 3.13, p. 86, kg straw per kg housed manure) are
+#' "very rough figures" (p. 85), with South & Central Asia cattle set to zero
+#' because "no reasonable values on litter use could be identified" -- not an
+#' estimate to inherit. The bedding is carved out of the recovered non-feed
+#' residue and capped at it; where the cap binds a warning says how much.
+#'
+#' `bedding = "fraction"` keeps the caller-set rule: `bedding_fraction` of the
+#' recovered non-feed residue of every crop, default `0` (no bedding). Two
+#' other anchors are on that denominator family, neither of them global:
+#'
 #' * Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
 #'   bedding-only column: 16-21% of straw *production*, about 30% of *removed*
 #'   straw.
 #' * Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
 #'   Table 5 -- Denmark, barley 16% and wheat 11% of *production*.
+#'
+#' FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's `FracRemove` both merge
+#' bedding with feed and construction into one term, so neither is usable.
+#' The rule used is recorded in `method_residue_bedding`.
 #'
 #' @param x A tibble with `item_prod_code` and `residue_dm_t`. The
 #'   `recovery_regional` method also needs `region_krausmann` (for the recovery
@@ -45,9 +66,9 @@
 #'   (the Spain-specific per-crop-year use/burn shares, flagged
 #'   `to_be_revised`).
 #' @param bedding_fraction Fraction of the recovered **non-feed** residue used
-#'   as livestock bedding, one number in `[0, 1]`. Default `0`, which is unset
-#'   rather than measured; see the Bedding section for why, and what a caller
-#'   setting it must convert from.
+#'   as livestock bedding under `bedding = "fraction"`, one number in `[0, 1]`.
+#'   Default `0`. Must stay `0` under `bedding = "wirsenius"`, which sets its
+#'   own share.
 #' @param unmatched_recovery What the `recovery_regional` method does with a
 #'   row that reaches no recovery rate at all, because its crop carries no
 #'   Krausmann category or its region label reaches no recovery region:
@@ -59,9 +80,15 @@
 #'   Wirsenius 2000 states, at the value it states) or `"legacy"` (the table
 #'   as shipped before whep#1163). See the Two recovery variants section.
 #'   Ignored by the `"shares"` method.
+#' @param bedding Bedding rule: `"wirsenius"` (default, 12.4% of the recovered
+#'   cereal straw, Wirsenius 2000 Table 3.21) or `"fraction"` (`bedding_fraction`
+#'   of the recovered non-feed residue of every crop). See the Where the bedding
+#'   share comes from section.
 #' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
-#'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
-#'   `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
+#'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` (the
+#'   share applied: of the recovered residue under `"wirsenius"`, zero for a
+#'   non-cereal; of the recovered non-feed residue under `"fraction"`),
+#'   `method_residue_bedding`, `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
 #'   variant, `NA` for the `"shares"` method). The `"recovery_regional"`
 #'   method also returns
 #'   `residue_recovery_matched`, `FALSE` where no recovery rate was found,
@@ -169,12 +196,14 @@ calculate_residue_destinies <- function(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  bedding = c("wirsenius", "fraction")
 ) {
   method <- rlang::arg_match(method)
   unmatched_recovery <- rlang::arg_match(unmatched_recovery)
   recovery <- rlang::arg_match(recovery)
-  .check_bedding_fraction(bedding_fraction)
+  bedding <- rlang::arg_match(bedding)
+  .check_bedding_fraction(bedding_fraction, bedding)
   .crop_npp_validate(
     x,
     c("item_prod_code", "residue_dm_t"),
@@ -190,8 +219,9 @@ calculate_residue_destinies <- function(
     shares = .residue_destiny_shares(x)
   )
   out |>
-    .residue_carve_bedding(bedding_fraction) |>
+    .residue_carve_bedding(bedding, bedding_fraction) |>
     dplyr::mutate(
+      method_residue_bedding = bedding,
       method_residue_destiny = method,
       # The recovery table is read by the recovery_regional method only.
       method_residue_recovery = if (method == "shares") {
@@ -204,7 +234,7 @@ calculate_residue_destinies <- function(
 
 # ---- Private helpers --------------------------------------------------
 
-.check_bedding_fraction <- function(bedding_fraction) {
+.check_bedding_fraction <- function(bedding_fraction, bedding) {
   ok <- rlang::is_bare_numeric(bedding_fraction, n = 1) &&
     !is.na(bedding_fraction) &&
     bedding_fraction >= 0 &&
@@ -213,6 +243,19 @@ calculate_residue_destinies <- function(
     cli::cli_abort(
       "{.arg bedding_fraction} must be one number between 0 and 1, not
        {.val {bedding_fraction}}."
+    )
+  }
+  # A fraction passed alongside the sourced rule would be silently ignored, so
+  # the two are refused together rather than one quietly winning.
+  if (bedding == "wirsenius" && bedding_fraction != 0) {
+    cli::cli_abort(
+      c(
+        "{.arg bedding_fraction} is only read under
+         {.code bedding = \"fraction\"}.",
+        i = "{.code bedding = \"wirsenius\"} sets its own share; pass
+             {.code bedding = \"fraction\"} to use {.val {bedding_fraction}}."
+      ),
+      class = "whep_bedding_rule_conflict"
     )
   }
   invisible(NULL)
@@ -226,16 +269,81 @@ calculate_residue_destinies <- function(
 # -- is unchanged by the carve, which is what keeps `production = feed +
 # other_uses` closed with a fourth destiny in play.
 #
-# The fraction is recorded on the rows rather than only in a method label,
+# The share is recorded on the rows rather than only in a method label,
 # because it is a magnitude and a downstream reader has to be able to tell a
 # build with bedding switched on from one without it.
-.residue_carve_bedding <- function(out, bedding_fraction) {
+.residue_carve_bedding <- function(out, bedding, bedding_fraction) {
+  if (bedding == "fraction") {
+    return(dplyr::mutate(
+      out,
+      residue_bedding_dm_t = .data$residue_burn_dm_t * bedding_fraction,
+      residue_burn_dm_t = .data$residue_burn_dm_t - .data$residue_bedding_dm_t,
+      residue_bedding_fraction = bedding_fraction
+    ))
+  }
+  share <- dplyr::if_else(
+    .residue_is_cereal(out$item_prod_code),
+    .wirsenius_bedding_share(),
+    0
+  )
+  wanted <- (out$residue_feed_dm_t + out$residue_burn_dm_t) * share
+  .warn_bedding_capped(wanted, out$residue_burn_dm_t)
   dplyr::mutate(
     out,
-    residue_bedding_dm_t = .data$residue_burn_dm_t * bedding_fraction,
+    residue_bedding_dm_t = pmin(wanted, .data$residue_burn_dm_t),
     residue_burn_dm_t = .data$residue_burn_dm_t - .data$residue_bedding_dm_t,
-    residue_bedding_fraction = bedding_fraction
+    residue_bedding_fraction = share
   )
+}
+
+# Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table 3.21
+# (p. 126), world totals for cereals straw & stover in Tg DM/yr: 2700
+# generated, 530 not recovered, 270 used as litter for animal bedding. The
+# share is litter over RECOVERED straw (2700 - 530), the denominator
+# calculate_residue_destinies() multiplies; see its roxygen section.
+.wirsenius_bedding_share <- function() {
+  270 / (2700 - 530)
+}
+
+# Cereals straw and stover is the only bedding material Wirsenius models
+# (p. 85, after Section 2.3.1), so only the five cereal recovery categories
+# bed.
+.residue_is_cereal <- function(item_prod_code) {
+  cereals <- c(
+    "Wheat, other cereals",
+    "Rice, Paddy",
+    "Maize",
+    "Sorghum",
+    "Millet"
+  )
+  cats <- whep::items_prod_full |>
+    dplyr::filter(.data$Cat_Krausmann %in% cereals) |>
+    dplyr::pull("item_prod_code") |>
+    as.character()
+  as.character(item_prod_code) %in% cats
+}
+
+# The sourced share is of the recovered residue, but bedding can only come out
+# of what is not fed. Where the feed share leaves less than that, the carve is
+# capped at the non-feed residue, and the bedding lost to the cap is said out
+# loud rather than vanishing.
+.warn_bedding_capped <- function(wanted, burn) {
+  short <- wanted - burn
+  capped <- !is.na(short) & short > 1e-9 * pmax(wanted, 1)
+  if (!any(capped)) {
+    return(invisible(NULL))
+  }
+  n_rows <- sum(capped)
+  lost <- signif(sum(short[capped]), 3)
+  cli::cli_warn(
+    c(
+      "!" = "Bedding capped at the non-feed residue on {n_rows} row(s).",
+      "i" = "Bedding not carved because the feed share leaves too little:
+             {lost} t of dry matter."
+    ),
+    class = "whep_bedding_capped"
+  )
+  invisible(NULL)
 }
 
 # The feed-use fraction is keyed by UN M49 sub-region, not by HANPP region: the

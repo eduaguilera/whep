@@ -87,7 +87,9 @@
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
 #'     `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
-#'     selects the method (default `"recovery_regional"`) and
+#'     selects the method (default `"recovery_regional"`), `residue_bedding`
+#'     the bedding rule (default `"wirsenius"`, 12.4% of the recovered cereal
+#'     straw) and, under `residue_bedding = "fraction"`,
 #'     `residue_bedding_fraction` the share of the recovered non-feed residue
 #'     used as bedding (default `0`; see [calculate_residue_destinies()]).
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
@@ -519,6 +521,7 @@ build_nitrogen_balance <- function(
   destiny <- data$residue_destiny_input |>
     calculate_residue_destinies(
       method = data$residue_destiny_method %||% "recovery_regional",
+      bedding = data$residue_bedding %||% "wirsenius",
       bedding_fraction = data$residue_bedding_fraction %||% 0
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>

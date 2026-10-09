@@ -67,11 +67,14 @@ test_that("the feed-fraction join is live across regions_full sub-regions", {
     dplyr::mutate(item_prod_code = "15", residue_dm_t = 100) |>
     whep::calculate_residue_destinies()
 
-  # The implied feed fraction recovered from the split: feed and burn together
-  # are residue_dm_t * recovery_rates, so their ratio is feed_use_fraction
+  # The implied feed fraction recovered from the split: feed, bedding and burn
+  # together are residue_dm_t * recovery_rates, so the ratio is the fraction
   # exactly, whatever the recovery rate is.
   implied <- round(
-    out$residue_feed_dm_t / (out$residue_feed_dm_t + out$residue_burn_dm_t),
+    out$residue_feed_dm_t /
+      (out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t),
     4
   )
   # Pre-fix this was the single value 0.2. Post-fix it is the file's full range.
@@ -103,11 +106,17 @@ test_that("each sub-region receives its published feed-use fraction", {
     whep::calculate_residue_destinies()
 
   testthat::expect_equal(
-    out$residue_feed_dm_t / (out$residue_feed_dm_t + out$residue_burn_dm_t),
+    out$residue_feed_dm_t /
+      (out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t),
     unname(published[probes])
   )
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     rep(100, length(probes))
   )
 })
