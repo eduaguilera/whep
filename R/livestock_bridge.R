@@ -21,8 +21,12 @@
 #'
 #' @return A tibble with columns `species`, `heads`, `iso3`
 #'   (if `area_code` present), and optionally
-#'   `milk_yield_kg_day`, `meat_yield_t_head`, cohort columns,
-#'   plus all extra columns from the input.
+#'   `milk_yield_kg_day`, `method_milk_yield`, `weight_gain_kg_day`, cohort
+#'   columns, plus all extra columns from the input. Milk is read for every
+#'   milked species FAOSTAT reports (cattle, buffalo, sheep, goats, camels),
+#'   not only for an animal's designated product, and with `expand_cohorts =
+#'   TRUE` it sits on the milked cohort only (see
+#'   [calculate_cohorts_systems()]).
 #' @export
 #'
 #' @examples
@@ -196,15 +200,7 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
 
-  # Get product-to-animal mapping from animals_codes
-  product_map <- animals |>
-    dplyr::filter(!is.na(Item_Code_product)) |>
-    dplyr::select(
-      item_cbs_code,
-      Item_Code_product,
-      Liv_prod_cat
-    ) |>
-    dplyr::distinct()
+  product_map <- .yield_product_map(animals)
 
   if (!rlang::has_name(yield_rows, "live_anim_code")) {
     return(NULL)
@@ -217,17 +213,21 @@ prepare_livestock_emissions <- function(
     return(NULL)
   }
 
-  # Milk yields
+  # Milk yields. `t_head` is the reported milk over the animal's whole stock
+  # (`fu` in `.compute_yields()`), so it is a per-head yield of the herd row it
+  # joins to, whatever share of that herd is actually milked.
   milk_yields <- tagged |>
     dplyr::filter(Liv_prod_cat == "Milk") |>
     dplyr::mutate(
       item_cbs_code = as.integer(live_anim_code),
-      milk_yield_kg_day = value * 1000 / 365
+      milk_yield_kg_day = value * 1000 / 365,
+      method_milk_yield = "whole_herd"
     ) |>
     dplyr::select(
       dplyr::any_of(c("year", "area_code")),
       item_cbs_code,
-      milk_yield_kg_day
+      milk_yield_kg_day,
+      "method_milk_yield"
     )
 
   # Meat/egg yields: convert carcass weight per head to daily live-weight gain
@@ -328,9 +328,44 @@ prepare_livestock_emissions <- function(
     )
 }
 
+# The products whose `t_head` yield feeds the energy balance: each animal's
+# designated product in `animals_codes`, plus the raw milk of the animals
+# designated to something else (sheep and goats to their meat) or to nothing
+# (buffalo, camels), and buffalo meat. Without these, their milk rows were never
+# read, `.join_production_defaults()` coalesced the missing yield to 0, and
+# every milking ewe, doe and buffalo cow got no lactation energy (whep#1472).
+# Codes are FAOSTAT QCL items, as `items_prim` names them: 951 "Raw milk of
+# buffalo", 982 "Raw milk of sheep", 1020 "Raw milk of goats", 1130 "Raw milk of
+# camel", 947 "Meat of buffalo, fresh or chilled" (the same buffalo meat code
+# `.slaughter_map()` in build_production.R supplements). Each animal has at
+# most one milk and one meat product here, so the yield join cannot fan out.
+.yield_product_map <- function(animals) {
+  designated <- animals |>
+    dplyr::filter(!is.na(Item_Code_product)) |>
+    dplyr::select(
+      item_cbs_code,
+      Item_Code_product,
+      Liv_prod_cat
+    ) |>
+    dplyr::distinct() |>
+    dplyr::mutate(designated = TRUE)
+  co_products <- tibble::tribble(
+    ~item_cbs_code, ~Item_Code_product, ~Liv_prod_cat,
+    946,            951,                "Milk",
+    976,            982,                "Milk",
+    1016,           1020,               "Milk",
+    1126,           1130,               "Milk",
+    946,            947,                "Buffalo meat"
+  ) |>
+    dplyr::mutate(designated = FALSE)
+  dplyr::bind_rows(designated, co_products)
+}
+
 # Tag each t_head yield row with the producing animal's product category,
 # matching on the animal's DESIGNATED product (`Item_Code_product`), not just on
-# `live_anim_code`.
+# `live_anim_code`. Without an `item_prod_code` a yield row cannot say which
+# product it is, so only the designated product is matched: a sheep row would
+# otherwise be tagged both milk and meat.
 .tag_yields_to_animal_product <- function(yield_rows, product_map) {
   # `live_anim_code` arrives as an integer from real production data but the
   # lookups key on it as character, so coerce before any join to keep the
@@ -341,6 +376,7 @@ prepare_livestock_emissions <- function(
   )
   if (!rlang::has_name(yield_rows, "item_prod_code")) {
     anim_lookup <- product_map |>
+      dplyr::filter(.data$designated) |>
       dplyr::transmute(
         live_anim_code = as.character(item_cbs_code),
         Liv_prod_cat
