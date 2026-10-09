@@ -31,6 +31,19 @@
 #'   eat cannot cover stays unmet rather than being filled with roughage.
 #'   `"none"` lets any category receive any item (the behaviour before
 #'   whep#1218), for sensitivity analysis.
+#' @param feed_loss Share of the Commodity Balance Sheet `feed` element lost
+#'   between distribution and intake. FAOSTAT books storage and transport
+#'   losses in a separate element, so the `feed` element is already net of
+#'   them. `"wirsenius"` (default) applies the per-class losses of Wirsenius
+#'   (2000, sections 3.1.2 and 3.1.5): none on Food Balance Sheet products and
+#'   processing by-products, 10% on crop residues (`Straw`, `Other crop
+#'   residues`), 20% on harvested grass, legume and cereal fodder (hay-making
+#'   and ensiling, harvest to intake) and 5% on fodder vegetables and roots;
+#'   temporary grassland, booked as grazed grass, carries none. `"flat"`
+#'   applies 10% to every item, the unsourced factor used before whep#1420.
+#'   `"none"` takes the `feed` element as intake. Grass from the grassland
+#'   sink and scavenging are not Commodity Balance Sheet items and carry no
+#'   loss under any method.
 #'
 #' @returns
 #' A tibble with the feed intake data.
@@ -73,12 +86,14 @@ get_feed_intake <- function(
   demand_tier = c("ipcc", "fcr"),
   feed_mode = c("historical", "scenario"),
   years = NULL,
-  feed_eligibility = c("feed_table", "none")
+  feed_eligibility = c("feed_table", "none"),
+  feed_loss = c("wirsenius", "flat", "none")
 ) {
   grain <- rlang::arg_match(grain)
   demand_tier <- rlang::arg_match(demand_tier)
   feed_mode <- rlang::arg_match(feed_mode)
   feed_eligibility <- rlang::arg_match(feed_eligibility)
+  feed_loss <- rlang::arg_match(feed_loss)
   if (example) {
     return(.example_get_feed_intake())
   }
@@ -87,7 +102,8 @@ get_feed_intake <- function(
     demand_tier = demand_tier,
     feed_mode = feed_mode,
     years = years,
-    feed_eligibility = feed_eligibility
+    feed_eligibility = feed_eligibility,
+    feed_loss = feed_loss
   ) |>
     .add_reporting_polity_columns()
 }

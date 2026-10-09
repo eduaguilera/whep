@@ -15,7 +15,8 @@ build_feed_intake_local(
   input_dir = NULL,
   grass_availability = NULL,
   grass_availability_path = NULL,
-  feed_eligibility = c("feed_table", "none")
+  feed_eligibility = c("feed_table", "none"),
+  feed_loss = c("wirsenius", "flat", "none")
 )
 }
 \arguments{
@@ -62,6 +63,19 @@ them, at any allocation level. Granivore demand that the feeds they may
 eat cannot cover stays unmet rather than being filled with roughage.
 \code{"none"} lets any category receive any item (the behaviour before
 whep#1218), for sensitivity analysis.}
+
+\item{feed_loss}{Share of the Commodity Balance Sheet \code{feed} element lost
+between distribution and intake. FAOSTAT books storage and transport
+losses in a separate element, so the \code{feed} element is already net of
+them. \code{"wirsenius"} (default) applies the per-class losses of Wirsenius
+(2000, sections 3.1.2 and 3.1.5): none on Food Balance Sheet products and
+processing by-products, 10\% on crop residues (\code{Straw}, \verb{Other crop residues}), 20\% on harvested grass, legume and cereal fodder (hay-making
+and ensiling, harvest to intake) and 5\% on fodder vegetables and roots;
+temporary grassland, booked as grazed grass, carries none. \code{"flat"}
+applies 10\% to every item, the unsourced factor used before whep#1420.
+\code{"none"} takes the \code{feed} element as intake. Grass from the grassland
+sink and scavenging are not Commodity Balance Sheet items and carry no
+loss under any method.}
 }
 \value{
 When \code{out_dir} is \code{NULL}, a tibble in the \code{get_feed_intake()} contract plus a

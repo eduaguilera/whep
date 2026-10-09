@@ -75,7 +75,8 @@ testthat::test_that("residue feed availability uses the crop-mix content", {
   flat <- whep:::.build_feed_avail_national(cbs)
   mixed <- whep:::.build_feed_avail_national(cbs, residue_kgdm = kgdm)
 
-  # 1000 t fresh at the mix's 0.5 kg DM/kg, less the 0.9 feed-loss factor.
+  # 1000 t fresh at the mix's 0.5 kg DM/kg, less the 10% crop by-product
+  # feed loss (Wirsenius 2000, whep#1420).
   testthat::expect_equal(
     mixed$avail_dm_t[mixed$item_cbs_code == 2106L],
     1000 * 0.9 * 0.5

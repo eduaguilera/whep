@@ -32,7 +32,8 @@
   cbs = NULL,
   years = NULL,
   feed_eligibility = "feed_table",
-  residues = NULL
+  residues = NULL,
+  feed_loss = "wirsenius"
 ) {
   if (grain == "local") {
     cli::cli_abort(c(
@@ -50,6 +51,7 @@
     .feed_demand_data(),
     .filter_years(residues %||% get_primary_residues(), years)
   )
+  data$feed_loss <- feed_loss
   engine <- .national_redistribute(
     production,
     cbs,
@@ -108,6 +110,7 @@
 #'   eat cannot cover stays unmet rather than being filled with roughage.
 #'   `"none"` lets any category receive any item (the behaviour before
 #'   whep#1218), for sensitivity analysis.
+#' @inheritParams get_feed_intake
 #'
 #' @returns
 #' When `out_dir` is `NULL`, a tibble in the `get_feed_intake()` contract plus a
@@ -131,7 +134,8 @@ build_feed_intake_local <- function(
   input_dir = NULL,
   grass_availability = NULL,
   grass_availability_path = NULL,
-  feed_eligibility = c("feed_table", "none")
+  feed_eligibility = c("feed_table", "none"),
+  feed_loss = c("wirsenius", "flat", "none")
 ) {
   if (example) {
     return(.example_local_intake())
@@ -139,6 +143,7 @@ build_feed_intake_local <- function(
   demand_tier <- rlang::arg_match(demand_tier)
   feed_mode <- rlang::arg_match(feed_mode)
   feed_eligibility <- rlang::arg_match(feed_eligibility)
+  feed_loss <- rlang::arg_match(feed_loss)
   ctx <- .local_run_context(
     demand_tier,
     feed_mode,
@@ -148,6 +153,7 @@ build_feed_intake_local <- function(
     grass_availability_path = grass_availability_path
   )
   ctx$feed_eligibility <- feed_eligibility
+  ctx$data$feed_loss <- feed_loss
   years <- .resolve_local_years(years, ctx$production)
   if (is.null(out_dir)) {
     return(.bind_local_years(years, ctx))
@@ -1030,7 +1036,10 @@ build_feed_demand <- function(
   demand_total <- .aggregate_demand_to_category(codes, data$crosswalk)
   feed_demand <- .build_feed_mix(demand_total, data)
   feed_avail <- cbs |>
-    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
+    .build_feed_avail_national(
+      residue_kgdm = data$residue_kgdm,
+      feed_loss = data$feed_loss %||% "wirsenius"
+    ) |>
     .add_scavenging_avail(feed_demand)
   options <- .with_feed_eligibility(options, feed_eligibility, data$crosswalk)
   list(
@@ -1111,17 +1120,15 @@ build_feed_demand <- function(
 }
 
 # National feed availability from the Commodity Balance Sheet `feed` element:
-# per-item dry-matter supply (with the 0.9 feed-loss factor), tagged with its
+# per-item dry-matter supply net of the feed lost before intake, tagged with its
 # feed_group + feed_quality from `feed_taxonomy` and feed_scale = "national"
 # (served to every territory by the national-scale allocator). Grass is not a
 # CBS item; it enters redistribute_feed as the grassland sink, not here.
 #
-# The 0.9 (a 10% loss between CBS feed supply and intake) is WHEP's one
-# feed-loss factor, applied to every CBS feed item, crop residues (2105, 2106)
-# included: it is the only route by which residue feed reaches the allocator
-# (whep#1138). Assumed, unverified: it is carried over from the Global
-# project's `animal_feed.r` ("A minimum of 10% feed loss is assumed"), which
-# gives no source; WHEP has none on record either.
+# `feed_loss` selects the loss between the CBS `feed` element and intake
+# (`.feed_loss_shares()`, whep#1420) and is stamped on each row as
+# `method_feed_loss`. It is the only route by which a loss reaches residue feed
+# (whep#1138).
 #
 # `residue_kgdm` (from `.residue_feed_kgdm()`) gives the crop residue items
 # their own per-country dry-matter content in place of the item's single one
@@ -1131,8 +1138,10 @@ build_feed_demand <- function(
   items_full = whep::items_full,
   biomass_coefs = whep::biomass_coefs,
   feed_taxonomy = whep::feed_taxonomy,
-  residue_kgdm = NULL
+  residue_kgdm = NULL,
+  feed_loss = "wirsenius"
 ) {
+  feed_loss <- rlang::arg_match(feed_loss, .feed_loss_methods())
   cbs <- .normalise_feed_cbs(cbs)
   items <- .feed_items_lookup(items_full)
   biomass <- .feed_biomass_lookup(biomass_coefs)
@@ -1146,7 +1155,12 @@ build_feed_demand <- function(
     dplyr::left_join(biomass, by = "Name_biomass") |>
     dplyr::left_join(tax, by = "item_cbs_code") |>
     .apply_residue_kgdm(residue_kgdm, mass_col = "feed") |>
-    dplyr::mutate(avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm)
+    dplyr::mutate(
+      feed_loss_share = .feed_loss_shares(.data$item_cbs_code, feed_loss),
+      avail_dm_t = .data$feed *
+        (1 - .data$feed_loss_share) *
+        .data$product_kgdm_kgfm
+    )
   .warn_unclassified_feed(joined)
   joined |>
     dplyr::transmute(
@@ -1157,7 +1171,8 @@ build_feed_demand <- function(
       feed_group,
       feed_quality,
       avail_dm_t,
-      feed_scale = "national"
+      feed_scale = "national",
+      method_feed_loss = feed_loss
     ) |>
     dplyr::filter(
       !is.na(avail_dm_t),
@@ -1165,6 +1180,68 @@ build_feed_demand <- function(
       !is.na(feed_quality),
       feed_quality != "non_feed"
     )
+}
+
+# The feed-loss methods `.feed_loss_shares()` knows, the default first.
+.feed_loss_methods <- function() {
+  c("wirsenius", "flat", "none")
+}
+
+# Share of the CBS `feed` element (fresh matter) lost before intake, per item
+# (whep#1420). FAOSTAT books storage and transport losses in its own `Losses`
+# element, separate from `Feed`, so the `feed` element is already net of them;
+# what is left is the loss between feed distributed and feed eaten.
+#
+# "wirsenius" (default) follows Wirsenius (2000), Human Use of Land and Organic
+# Materials, PhD thesis, Chalmers University of Technology, section 3.1.5
+# (pp. 98-99) and the feed-processing section of 3.1.2 (pp. 86-87):
+# - FBS products: losses "taken directly" from the FBS waste element and none
+#   added, so 0 here, where that element is already separate from `feed`.
+#   Conversion by-products (brans, cakes, pulp, DDGS): "assumed to be zero".
+# - Crop by-products (cereals straw and stover, etc.; WHEP's 2105 Straw and
+#   2106 Other crop residues): "dry matter losses were uniformly set to 10
+#   percent".
+# - Harvested grass-legume and whole-cereals forage (2000 Fodder cereal and
+#   grasses, 2001 Fodder legumes, 2003 Fodder mix): their distribution losses
+#   are inside the hay-making and ensiling loss, "uniformly assumed to be 20
+#   percent ... from the harvest (that is, cutting in field) to the actual
+#   intake". Wirsenius feeds harvested forage only as hay or silage (his
+#   Table 2.3), so the 20% here also reaches any fodder WHEP's CBS carries that
+#   is fed fresh; that is the source's assumption, applied as published.
+# - 2002 Fodder vegetables and roots is Wirsenius's "other animal forage
+#   crops", which he does not ensile. His Table 3.21 (world, p. 126) books it
+#   5.0 Tg DM of distribution and storage loss against 104 Tg DM supplied
+#   (110 generated, 6 not recovered): 4.8%, used here as 0.05.
+# - 3002 Temporary grassland stays at 0: WHEP books it as fresh grass with the
+#   grazer feed type "grass", and Wirsenius's grazed "cropland pasture" has no
+#   distribution loss (Table 3.21; p. 51, note 77: "distribution losses ... are
+#   ... zero for the pasture flows"). The share of it that is mown for hay or
+#   silage, which would carry the 20%, is not known.
+# His shares are on dry matter; WHEP applies them to the fresh-matter `feed`
+# before the dry-matter conversion, which is the same product.
+#
+# "flat" is the 10% loss on every item WHEP applied before whep#1420, carried
+# over from the Global project's `animal_feed.r` ("A minimum of 10% feed loss is
+# assumed"). Assumed, unverified: neither project gives a source. "none" takes
+# the CBS `feed` element as intake. GLEAM 2.0 (FAO 2018, model description,
+# revision 5, Table 3.4) does so for grains, by-products and silages (feed use
+# efficiency 1); its below-one efficiencies for grass and crop residues act on
+# the gross field yield, the step WHEP's residue recovery and feed-use share
+# already take. Both stay selectable for sensitivity analysis.
+.feed_loss_shares <- function(item_cbs_code, method = "wirsenius") {
+  method <- rlang::arg_match(method, .feed_loss_methods())
+  code <- as.integer(item_cbs_code)
+  switch(
+    method,
+    none = rep(0, length(code)),
+    flat = rep(0.1, length(code)),
+    wirsenius = dplyr::case_when(
+      code %in% c(2105L, 2106L) ~ 0.10,
+      code %in% c(2000L, 2001L, 2003L) ~ 0.20,
+      code %in% 2002L ~ 0.05,
+      .default = 0
+    )
+  )
 }
 
 # Surface CBS feed mass this join cannot classify: an item_cbs_code with a
@@ -1249,7 +1326,10 @@ build_feed_demand <- function(
   feed_demand <- .build_feed_mix(demand_total, data) |>
     .distribute_demand_to_cells(spatial$cell_shares)
   feed_avail <- cbs |>
-    .build_feed_avail_national(residue_kgdm = data$residue_kgdm) |>
+    .build_feed_avail_national(
+      residue_kgdm = data$residue_kgdm,
+      feed_loss = data$feed_loss %||% "wirsenius"
+    ) |>
     .add_scavenging_avail(feed_demand)
   options <- .with_feed_eligibility(
     list(

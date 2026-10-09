@@ -668,14 +668,15 @@ test_that(".build_feed_avail_national tags CBS feed with quality + scale", {
       "feed_group",
       "feed_quality",
       "avail_dm_t",
-      "feed_scale"
+      "feed_scale",
+      "method_feed_loss"
     )
   )
   expect_true(all(out$feed_scale == "national"))
   expect_true(all(is.na(out$sub_territory)))
   expect_true(all(c("high_quality", "residues") %in% out$feed_quality))
   expect_true(all(out$avail_dm_t > 0))
-  # avail = feed * 0.9 * product_kgdm_kgfm, so DM is below the fresh-matter feed.
+  # avail = feed * (1 - loss) * product_kgdm_kgfm: DM is below fresh matter.
   cake <- out[out$item_cbs_code == 2591L, ]
   expect_lt(cake$avail_dm_t, 1000)
 })
@@ -766,6 +767,121 @@ test_that(".build_feed_avail_national does not blame a non_feed item", {
   expect_no_warning(out <- whep:::.build_feed_avail_national(cbs))
   expect_false(2899L %in% out$item_cbs_code)
   expect_true(2591L %in% out$item_cbs_code)
+})
+
+test_that(".feed_loss_shares follows Wirsenius (2000) per feed class", {
+  # Maize, soybean cake, brans | straw, other crop residues | harvested
+  # grass, legume and mixed fodder | fodder vegetables and roots.
+  codes <- c(2514L, 2590L, 2111L, 2105L, 2106L, 2000L, 2001L, 2003L, 2002L)
+  expect_equal(
+    whep:::.feed_loss_shares(codes, "wirsenius"),
+    c(0, 0, 0, 0.1, 0.1, 0.2, 0.2, 0.2, 0.05)
+  )
+  expect_equal(whep:::.feed_loss_shares(codes, "flat"), rep(0.1, 9))
+  expect_equal(whep:::.feed_loss_shares(codes, "none"), rep(0, 9))
+  expect_error(whep:::.feed_loss_shares(codes, "gleam"), class = "rlang_error")
+})
+
+test_that(".build_feed_avail_national applies the selected feed loss", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    2010L, 203L,       2514L,          1000, # maize: an FBS product
+    2010L, 203L,       2105L,          1000, # straw: a crop by-product
+    2010L, 203L,       2000L,          1000  # fodder: harvested forage
+  )
+  avail <- function(method) {
+    whep:::.build_feed_avail_national(cbs, feed_loss = method) |>
+      dplyr::arrange(item_cbs_code)
+  }
+  none <- avail("none")
+  wirsenius <- avail("wirsenius")
+  flat <- avail("flat")
+  # Rows ordered 2000, 2105, 2514.
+  expect_equal(wirsenius$avail_dm_t / none$avail_dm_t, c(0.8, 0.9, 1))
+  expect_equal(flat$avail_dm_t / none$avail_dm_t, rep(0.9, 3))
+  default <- whep:::.build_feed_avail_national(cbs)
+  expect_equal(dplyr::arrange(default, item_cbs_code), wirsenius)
+  expect_true(all(wirsenius$method_feed_loss == "wirsenius"))
+  expect_true(all(flat$method_feed_loss == "flat"))
+  expect_error(avail("gleam"), class = "rlang_error")
+})
+
+test_that("the feed-loss method reaches the national allocator", {
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
+  bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
+  area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~item_prod_code,
+    ~unit, ~value,
+    1970L, area, 960L, NA_character_, "960", "heads", 1e6
+  )
+  # Too little cake for a million cows, so every tonne offered is eaten.
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, area,       2591L,          1e5
+  )
+  hq_intake <- function(method) {
+    data <- whep:::.feed_demand_data()
+    data$feed_loss <- method
+    out <- whep:::.run_redistribute_national(prod, cbs, "ipcc", data = data)
+    sum(out$intake_dm_t[out$feed_quality == "high_quality"])
+  }
+  none <- hq_intake("none")
+  expect_gt(none, 0)
+  expect_equal(hq_intake("flat"), 0.9 * none)
+  # Cake is a processing by-product: no loss under Wirsenius (2000).
+  expect_equal(hq_intake("wirsenius"), none)
+})
+
+test_that("get_feed_intake and the local build pass feed_loss down", {
+  seen <- new.env()
+  testthat::local_mocked_bindings(
+    .build_redistribute_intake = function(...) {
+      seen$public <- list(...)$feed_loss
+      tibble::tibble()
+    },
+    .add_reporting_polity_columns = function(x) x,
+    .local_run_context = function(...) list(data = list()),
+    .resolve_local_years = function(years, production) 2000L,
+    .bind_local_years = function(years, ctx) {
+      seen$local <- ctx$data$feed_loss
+      tibble::tibble()
+    }
+  )
+  whep::get_feed_intake(feed_loss = "flat")
+  expect_equal(seen$public, "flat")
+  whep::get_feed_intake()
+  expect_equal(seen$public, "wirsenius")
+  expect_error(
+    whep::get_feed_intake(feed_loss = "gleam"),
+    class = "rlang_error"
+  )
+
+  whep::build_feed_intake_local(feed_loss = "flat")
+  expect_equal(seen$local, "flat")
+  whep::build_feed_intake_local()
+  expect_equal(seen$local, "wirsenius")
+})
+
+test_that(".build_redistribute_intake hands feed_loss to the engine", {
+  seen <- new.env()
+  testthat::local_mocked_bindings(
+    .with_residue_kgdm = function(data, residues) data,
+    .national_redistribute = function(production, cbs, demand_tier, data, ...) {
+      seen$engine <- data$feed_loss
+      list(result = tibble::tibble(), code_shares = tibble::tibble())
+    }
+  )
+  whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production = tibble::tibble(year = integer()),
+    cbs = tibble::tibble(year = integer()),
+    residues = tibble::tibble(year = integer()),
+    feed_loss = "none"
+  )
+  expect_equal(seen$engine, "none")
 })
 
 test_that(".run_redistribute_national meets grass, caps concentrates", {
