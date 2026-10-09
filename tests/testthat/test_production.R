@@ -307,3 +307,113 @@ testthat::test_that("get_primary_residues(example = TRUE) needs no remote", {
     all(c("year", "area_code", "item_cbs_code_crop", "value") %in% names(out))
   )
 })
+
+# Oil palm residue (whep#1424) --------------------------------------------------
+
+# One Malaysian oil palm hectare-and-tonnage pair at the pin's own 3.84 fresh
+# residue per tonne of fruit, plus an unrelated wheat row that must not move.
+oil_palm_pin_fixture <- function() {
+  tibble::tribble(
+    ~Area,      ~Product_residue, ~Item_cbs,         ~Item_cbs_crop,
+    ~Name_biomass, ~Prod_ygpit_Mg, ~Area_ygpit_ha,
+    "Malaysia", "Product",        "Oil, palm fruit", "Oil, palm fruit",
+    "Oil palm",    18.5,           1,
+    "Malaysia", "Residue",        "Firewood",        "Oil, palm fruit",
+    "Oil palm",    71,             0,
+    "Spain",    "Residue",        "Straw",           "Wheat and products",
+    "Wheat",       100,            0
+  ) |>
+    dplyr::mutate(Year = 2010L)
+}
+
+oil_palm_kgdm <- function() {
+  coefs <- whep::biomass_coefs
+  coefs$Residue_kgDM_kgFM[coefs$Name_biomass == "Oil palm"]
+}
+
+testthat::test_that("oil palm residue is anchored per tonne of fruit by default", {
+  # whep#1424: the pin books 35.8 t DM of oil palm residue per harvested
+  # hectare at 2020, more than an oil palm plantation's whole above-ground net
+  # primary production, fruit included. The default re-anchors it on
+  # Malaysia's fronds and trunks: 60 Mt DM over 83,090,935 t of fruit in 2010.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    oil_palm_pin_fixture()
+  })
+
+  out <- whep::get_primary_residues()
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  testthat::expect_equal(palm$value_dm, 18.5 * 60e6 / 83090935)
+  testthat::expect_equal(palm$value, 18.5 * 60e6 / 83090935 / oil_palm_kgdm())
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_product")
+  # Every other crop keeps the pin's value and says so.
+  wheat <- out[out$item_cbs_code_crop == 2511, ]
+  testthat::expect_equal(wheat$value, 100)
+  testthat::expect_equal(wheat$method_residue, "pin")
+})
+
+testthat::test_that("oil palm residue can be anchored per hectare", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    oil_palm_pin_fixture()
+  })
+
+  out <- whep::get_primary_residues(oil_palm_residue = "per_hectare")
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  testthat::expect_equal(palm$value_dm, 60 / 4.85)
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_hectare")
+})
+
+testthat::test_that("oil palm residue can be kept as the pin publishes it", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    oil_palm_pin_fixture()
+  })
+
+  out <- whep::get_primary_residues(oil_palm_residue = "pin")
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  testthat::expect_equal(palm$value, 71)
+  testthat::expect_equal(palm$value_dm, 71 * oil_palm_kgdm())
+  testthat::expect_equal(unique(out$method_residue), "pin")
+})
+
+testthat::test_that("oil palm residue without its fruit row aborts", {
+  # The anchor needs the fruit row's hectares. A residue row with no fruit row
+  # would otherwise come out NA, then summed to zero and dropped: a missing
+  # input turned into no residue at all.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::filter(oil_palm_pin_fixture(), Product_residue == "Residue")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_oil_palm_no_product"
+  )
+})
+
+testthat::test_that("oil palm residue without harvested area aborts", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::select(oil_palm_pin_fixture(), -"Area_ygpit_ha")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(oil_palm_residue = "per_hectare"),
+    class = "whep_oil_palm_no_product"
+  )
+  # The default anchors on tonnes of fruit and the pin method on nothing, so
+  # neither needs the hectares.
+  out <- whep::get_primary_residues()
+  testthat::expect_equal(
+    out$value_dm[out$item_cbs_code_crop == 254],
+    18.5 * 60e6 / 83090935
+  )
+  out <- whep::get_primary_residues(oil_palm_residue = "pin")
+  testthat::expect_equal(out$value[out$item_cbs_code_crop == 254], 71)
+})
+
+testthat::test_that("get_primary_residues rejects an unknown oil palm method", {
+  testthat::expect_error(
+    whep::get_primary_residues(oil_palm_residue = "fronds"),
+    class = "rlang_error"
+  )
+})
