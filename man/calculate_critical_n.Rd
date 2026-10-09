@@ -88,12 +88,21 @@ emission; the groundwater limit is 11.6 mg NO3-N/l (the article's Methods
 print 11.3); ice cells get 5 kg N/ha of critical deposition (Supplementary
 Table 2 prints "n.a."); the fertiliser share is clipped to
 [1e-4, 1 - 1e-4]; the regional yield-gap ratios carry three decimals
-(each rounds to the two printed in Supplementary Table 5). In cells with
-both arable land and intensive grassland, both land uses are scaled by one
-factor for the deposition and surface-water thresholds. For groundwater
-there, each land use is held to its area share of the critical leaching
-and the one that must fall further is solved first; this rule is a
-reconstruction, and those cells carry the remaining differences.
+(each rounds to the two printed in Supplementary Table 5). The cut-off
+binds where uptake at the critical input (with the deposition of every
+land use in the cell) reaches uptake at yield potential; with NUE above
+0.8 this raises the input to the cut-off input. In cells with both arable
+land and intensive grassland, the NH3 the critical deposition leaves room
+for is shared by their current NH3 emission, and both land uses are scaled
+by one factor for the surface-water threshold. For groundwater there, each
+land use is held to its area share of the critical leaching and the one
+that must fall further is solved first; this rule is a reconstruction, and
+those cells carry the remaining differences.
+
+One departure is deliberate: \code{"mi"} is the lowest of the three thresholds
+as SI Eq. 31 defines it. In 57 arable cells where deposition and
+groundwater both sit at the non-agricultural floor, the deposited
+all-impacts layer carries the higher surface-water value instead.
 }
 
 \examples{
