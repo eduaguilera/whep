@@ -798,6 +798,44 @@ testthat::test_that("the WPP fill cannot add a successor beside its federation",
   )
 })
 
+testthat::test_that("a FAOSTAT-routed part stands in for its parent (#1306)", {
+  # Since the whep-polities d45990a3 re-sync, area 272 Serbia resolves before
+  # 2008 to `SRB-XK-2006-2008`, Serbia without Kosovo, a part upstream routes
+  # FAOSTAT to and publishes with no successor or predecessor. Read off the
+  # succession relation alone it descends from nothing, so a WPP Serbia row
+  # for 1970 sat beside the pin's Yugoslavia and both were summed. Its
+  # containing polity `SRB-2006-2008` does descend from the Yugoslav SFR.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = tibble::tribble(
+          ~Year, ~area,          ~area_code, ~pop,
+          1970L, "Yugoslav SFR", "YUG",      20371.302
+        ),
+        wpp_population = tibble::tribble(
+          ~year, ~area_code, ~iso3c, ~population,
+          1970L, 272L,       "SRB",  7324429
+        )
+      ),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  testthat::expect_setequal(out$area_code, 248L)
+  testthat::expect_equal(sum(out$population), 20371302)
+  testthat::expect_equal(
+    whep:::.routed_part_container(
+      c(
+        "SRB-XK-2006-2008",
+        "ISR-RA-1967-2025",
+        "ISR-RA-1967-2025",
+        "ESP-1800-2025"
+      ),
+      c(1970L, 1970L, 1990L, 1990L)
+    ),
+    c("SRB-2006-2008", "ISR-1967-1979", "ISR-1979-2025", "ESP-1800-2025")
+  )
+})
+
 testthat::test_that("the FBS fill cannot stack a federation on WPP's parts", {
   # 1992-2005 is where the two fills meet: the FBS fill supplies 186 Serbia and
   # Montenegro (the row #862 wants) while the WPP fill has already supplied 272

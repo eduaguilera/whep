@@ -53,12 +53,24 @@ testthat::test_that("mapping_source accounts for every crosswalk row", {
   # reach none of it: all 18 `registry` rows are areas FABIO folds into
   # Rest-of-World (Andorra, Monaco, San Marino, Greenland and the like), and the
   # fold used to consume that route entirely.
+  # `manual-territory` replaced `manual-span` with the whep-polities d45990a3
+  # re-sync (#1306): it routes an area to a part of its country for some
+  # years (Cyprus 50 to `CYP-RA-1975-2025`, Pakistan 165 to
+  # `PAK-WP-1949-1971`, ...).
   testthat::expect_setequal(
     unique(cw$map_match_route[from_map]),
-    c("iso-equal", "registry", "manual-route", "manual-replace", "manual-span")
+    c(
+      "iso-equal",
+      "registry",
+      "manual-route",
+      "manual-replace",
+      "manual-territory"
+    )
   )
-  testthat::expect_equal(sum(cw$mapping_source == "upstream_map"), 245L)
-  testthat::expect_equal(sum(cw$mapping_source == "fabio_row_promoted"), 52L)
+  # 245 -> 246 and 52 -> 53 with the same re-sync: Cyprus gains the
+  # government-controlled area, and Guam (88) the live `GUM-1950-2025`.
+  testthat::expect_equal(sum(cw$mapping_source == "upstream_map"), 246L)
+  testthat::expect_equal(sum(cw$mapping_source == "fabio_row_promoted"), 53L)
 })
 
 testthat::test_that("every upstream map row reaches the crosswalk once", {
@@ -130,7 +142,24 @@ testthat::test_that("prefix inference cannot reach a non-canonical code", {
   codes <- unique(cw$polity_code[!is.na(cw$polity_code)])
   non_canonical <- codes[!grepl("^[^-]+-[0-9]{4}-[0-9]{4}$", codes)]
 
-  testthat::expect_equal(non_canonical, character(0))
+  # Six arrived with the whep-polities d45990a3 re-sync (#1306), and every one
+  # is named by the upstream map, not reached by inference: the parts of a
+  # country upstream routes an area to (`CYP-RA-1975-2025`,
+  # `PAK-WP-1949-1971`, ...).
+  testthat::expect_setequal(
+    non_canonical,
+    c(
+      "CYP-RA-1975-2025",
+      "IDN-XTL-1976-2002",
+      "ISR-RA-1967-2025",
+      "PAK-WP-1949-1971",
+      "SCG-XK-1999-2006",
+      "SRB-XK-2006-2008"
+    )
+  )
+  testthat::expect_true(all(
+    cw$mapping_source[cw$polity_code %in% non_canonical] == "upstream_map"
+  ))
 
   # Three of the five were typed `subnational`. The three that remain are named
   # explicitly by the upstream map, each covering the whole of what the FAOSTAT
@@ -143,7 +172,17 @@ testthat::test_that("prefix inference cannot reach a non-canonical code", {
   ]
   testthat::expect_setequal(
     unique(subnational$polity_code),
-    c("BDI-1922-1962", "RWA-1922-1962", "SGP-1963-1965")
+    c(
+      "BDI-1922-1962",
+      "RWA-1922-1962",
+      "SGP-1963-1965",
+      "CYP-RA-1975-2025",
+      "IDN-XTL-1976-2002",
+      "ISR-RA-1967-2025",
+      "PAK-WP-1949-1971",
+      "SCG-XK-1999-2006",
+      "SRB-XK-2006-2008"
+    )
   )
   testthat::expect_true(all(subnational$mapping_source == "upstream_map"))
 })
@@ -238,12 +277,17 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
   )
 
   pair <- table(cw$mapping_status, cw$mapping_source)
-  testthat::expect_equal(pair["matched", "upstream_map"], 233L)
-  testthat::expect_equal(pair["matched", "fabio_row_promoted"], 50L)
+  # 233 -> 228 and 50 -> 51 with the whep-polities d45990a3 re-sync (#1306):
+  # six map rows became `manual-territory` routes, which read `manual`, while
+  # Cyprus gained one and Guam (88) a live `GUM-1950-2025`.
+  testthat::expect_equal(pair["matched", "upstream_map"], 228L)
+  testthat::expect_equal(pair["matched", "fabio_row_promoted"], 51L)
   # 248 since the #835 upstream re-sync, up from 246: upstream added
   # `CPV-1800-1886` and `SUR-1800-1886`, and the prefix rule picks both up
   # because neither area is named by an upstream map row for those years.
-  testthat::expect_equal(pair["matched", "prefix_outside_map"], 248L)
+  # 251 since the d45990a3 re-sync: France splits at 1860 (one row more) and
+  # Bosnia and Singapore gain a pre-FAOSTAT period each.
+  testthat::expect_equal(pair["matched", "prefix_outside_map"], 251L)
   testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
   # Unchanged at 62: the fold row of every Rest-of-World member survives in the
   # shipped table, which is what lets `whep.unfold_rest_of_world = "none"`
@@ -252,7 +296,8 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
   # A hand-made decision is labelled one whether upstream made it or this
   # package did, so `manual` straddles the map and the prefix overrides. Two of
   # the promoted rows are `manual-route` (French Guiana and Reunion).
-  testthat::expect_equal(sum(cw$mapping_status == "manual"), 29L)
+  # 29 -> 35 with the d45990a3 re-sync: the six `manual-territory` routes.
+  testthat::expect_equal(sum(cw$mapping_status == "manual"), 35L)
   testthat::expect_equal(pair["manual", "fabio_row_promoted"], 2L)
   # Only FAOSTAT 351 "China" is left deliberately unmapped.
   testthat::expect_equal(cw$area_code[cw$mapping_status == "unmapped"], 351L)
@@ -280,7 +325,11 @@ testthat::test_that("a row with no reporting area is labelled as one", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
   no_area <- cw[cw$mapping_status == "not_a_reporting_area", ]
 
-  testthat::expect_equal(nrow(no_area), 19L)
+  #
+  # 19 -> 17 with the whep-polities d45990a3 re-sync (#1306): Guernsey, Jersey
+  # and the Isle of Man each answer to a polity of their own instead of two
+  # British periods, while France's 1860 split gives Saint Barthelemy a fourth.
+  testthat::expect_equal(nrow(no_area), 17L)
   # The label means exactly one thing, in both directions.
   testthat::expect_equal(
     which(cw$mapping_status == "not_a_reporting_area"),

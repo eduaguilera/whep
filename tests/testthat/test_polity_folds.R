@@ -405,20 +405,34 @@ testthat::test_that("206 is the only bucket folding live territories", {
     include_unmapped = FALSE
   ))
 
+  # A row's span ends where the upstream map hands its area to a later row, as
+  # in `add_polity_code()`. Since the whep-polities d45990a3 re-sync (#1306)
+  # that is not always the polity's end: Cyprus (50) passes from
+  # `CYP-1879-2025` to `CYP-RA-1975-2025` in 1975 while the first lives on.
   cw <- resolved |>
     dplyr::filter(!is.na(.data$polity_area_code)) |>
+    dplyr::mutate(
+      span_end = pmin(
+        .data$polity_end_year,
+        whep:::.polity_map_handover(
+          .data$area_code,
+          .data$map_year_start,
+          .data$map_year_end
+        )
+      )
+    ) |>
     dplyr::distinct(
       .data$polity_area_code,
       .data$polity_code,
       .data$polity_start_year,
-      .data$polity_end_year
+      .data$span_end
     )
 
   folds <- cw |>
     dplyr::cross_join(tibble::tibble(year = 1850L:2023L)) |>
     dplyr::filter(
       .data$polity_start_year <= .data$year,
-      .data$polity_end_year > .data$year
+      .data$span_end > .data$year
     ) |>
     dplyr::summarise(
       n_polities = dplyr::n_distinct(.data$polity_code),

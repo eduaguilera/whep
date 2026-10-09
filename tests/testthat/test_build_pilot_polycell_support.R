@@ -37,7 +37,7 @@ testthat::test_that("the subset gate names only the side that is wrong", {
   # were emitted unconditionally, so the side with no content rendered as
   # "Unexpected: ." -- an `x` bullet claiming a second problem that does not
   # exist. Measured on a real Argentina build, where
-  # `ARG-SANTACRUZ-1955-2025` is invalid under the spherical engine and so
+  # `ARG-Z-1955-2025` is invalid under the spherical engine and so
   # receives no polycell: the operator's first line was the empty one.
   env <- .bps_definitions(".bps_subset_gate")
   err <- testthat::expect_error(

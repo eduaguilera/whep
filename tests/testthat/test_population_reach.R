@@ -135,7 +135,17 @@ testthat::test_that("no reporting area outside bucket 999 is stranded", {
   # present-day-ISO3 population source can reach even through succession, which
   # is the whole subject of whep#787; it is a thing to go and fix upstream, not
   # a reason to widen the filter.
-  testthat::expect_identical(stranded$polity_code, character(0))
+  #
+  # Two came back with the whep-polities d45990a3 re-sync (#1306). Upstream now
+  # routes 186 to `SCG-XK-1999-2006` from 1999 and 215 to `F215-1961-1964`
+  # over 1961-1963, and publishes both with no successor, so no present-day
+  # ISO3 is reachable from either (asked of upstream in whep-polities#740). The population DEFAULT is unaffected (its pin
+  # carries both rows), and `read_population()`'s overlap check reads a routed
+  # part through its container (`.routed_part_container()`).
+  testthat::expect_setequal(
+    stranded$polity_code,
+    c("SCG-XK-1999-2006", "F215-1961-1964")
+  )
 })
 
 testthat::test_that("the other dissolved federations do read through successors", {
@@ -218,9 +228,11 @@ testthat::test_that("the extent flag fires where the ISO3 is narrower", {
     union(.live_polity_iso3(), c("CUW", "SXM", "BES", "XKX"))
   )
   flagged <- dplyr::filter(out, .data$extent_exceeds_iso3)
-  testthat::expect_true(
-    all(c("SUD-1956-2011", "SRB-2006-2008") %in% flagged$polity_code)
-  )
+  # `SRB-2006-2008` left with the whep-polities d45990a3 re-sync (#1306):
+  # area 272 now reports 2006-2007 under `SRB-XK-2006-2008`, Serbia without
+  # Kosovo, whose `SRB` is coextensive with it, so there is nothing to flag.
+  testthat::expect_true("SUD-1956-2011" %in% flagged$polity_code)
+  testthat::expect_false("SRB-2006-2008" %in% out$polity_code)
   sudan <- dplyr::filter(out, .data$polity_code == "SUD-1956-2011")
   testthat::expect_identical(sudan$area_code, 206L)
   testthat::expect_identical(sudan$reach, "direct")

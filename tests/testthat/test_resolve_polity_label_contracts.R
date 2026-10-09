@@ -9,11 +9,11 @@
   tibble::tribble(
     ~polity_code, ~polity_name, ~start_year, ~end_year, ~iso3_code,
     ~wiki_status, ~predecessor, ~successor,
-    "ARG-SANTACRUZ-1955-2025", "Santa Cruz (province of Argentina)",
+    "ARG-Z-1955-2025", "Santa Cruz (province of Argentina)",
     1955L, 2025L, "ARG", "draft", NA, NA,
-    "BOL-SZ-1825-2025", "Santa Cruz (department of Bolivia)",
+    "BOL-S-1825-2025", "Santa Cruz (department of Bolivia)",
     1825L, 2025L, "BOL", "draft", NA, NA,
-    "BRA-AMAZONAS-1889-2025", "Amazonas",
+    "BRA-AM-1889-2025", "Amazonas",
     1889L, 2025L, "BRA", "draft", NA, NA,
     "COL-AMA-1991-2025", "Amazonas (department of Colombia)",
     1991L, 2025L, "COL", "draft", NA, NA,
@@ -23,7 +23,7 @@
     1960L, 2025L, "BRA", "draft", NA, NA,
     "MEX-CMX-1824-2025", "Ciudad de México (Distrito Federal)",
     1824L, 2025L, "MEX", "draft", NA, NA,
-    "BRA-TOCANTINS-1988-2025", "Tocantins",
+    "BRA-TO-1988-2025", "Tocantins",
     1988L, 2025L, "BRA", "draft", NA, NA,
     "CAP-1800-1895", "Cape Colony (to 1895)",
     1800L, 1895L, "CAP", "draft", NA, "CAP-1895-1910",
@@ -85,9 +85,9 @@
     ~source_label, ~source, ~year_start, ~year_end, ~polity_code,
     ~disposition,
     "BRA-TOCANTINS", "whep-lab-latam", 1900L, 1987L,
-    "BRA-TOCANTINS-1988-2025", "back_cast",
+    "BRA-TO-1988-2025", "back_cast",
     "BRA-TOCANTINS", "whep-lab-latam", 1988L, 2023L,
-    "BRA-TOCANTINS-1988-2025", NA,
+    "BRA-TO-1988-2025", NA,
     "south africa", NA, 1852L, 1894L, "CAP-1800-1895", NA,
     "south africa", NA, 1895L, 1909L, "CAP-1895-1910", NA,
     "south africa", NA, 1910L, 2025L, "ZAF-1910-2025", NA,
@@ -215,10 +215,10 @@ test_that("a bare subnational name does not resolve to another country", {
       country = c("BOL", "BRA", "BRA", "ARG", "COL")
     ),
     c(
-      "BOL-SZ-1825-2025",
-      "BRA-AMAZONAS-1889-2025",
+      "BOL-S-1825-2025",
+      "BRA-AM-1889-2025",
       "BRA-DFRJ-1900-1959",
-      "ARG-SANTACRUZ-1955-2025",
+      "ARG-Z-1955-2025",
       "COL-AMA-1991-2025"
     )
   )
@@ -235,7 +235,7 @@ test_that("the refusal names what it refused and spares unshared names", {
   expect_no_warning(
     expect_equal(
       .resolve_on_contract("Tocantins", year = 1990L),
-      "BRA-TOCANTINS-1988-2025"
+      "BRA-TO-1988-2025"
     )
   )
 })
@@ -291,7 +291,7 @@ test_that("back_cast aliases route by default and can be excluded", {
       source = "whep-lab-latam",
       year = years
     ),
-    rep("BRA-TOCANTINS-1988-2025", 2)
+    rep("BRA-TO-1988-2025", 2)
   )
   expect_equal(
     .resolve_on_contract(
@@ -300,7 +300,7 @@ test_that("back_cast aliases route by default and can be excluded", {
       year = years,
       back_cast = FALSE
     ),
-    c(NA, "BRA-TOCANTINS-1988-2025")
+    c(NA, "BRA-TO-1988-2025")
   )
   expect_error(
     .resolve_on_contract("BRA-TOCANTINS", back_cast = NA),
@@ -862,7 +862,7 @@ test_that("a blank indicator scope matches every indicator", {
       indicator = c(NA, "area"),
       aliases = aliases
     ),
-    rep("BRA-TOCANTINS-1988-2025", 2)
+    rep("BRA-TO-1988-2025", 2)
   )
   # Upstream writes a blank scope as an empty field; read as "" rather than
   # `NA`, it still means any indicator.
@@ -874,7 +874,7 @@ test_that("a blank indicator scope matches every indicator", {
       year = 2000L,
       aliases = aliases
     ),
-    "BRA-TOCANTINS-1988-2025"
+    "BRA-TO-1988-2025"
   )
 })
 
@@ -907,6 +907,6 @@ test_that("a map with no indicator column reads as all-blank", {
       year = 1950L,
       aliases = without
     ),
-    "BRA-TOCANTINS-1988-2025"
+    "BRA-TO-1988-2025"
   )
 })

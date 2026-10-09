@@ -222,8 +222,8 @@ than returning a grid that silently lacks it.
 # containment edge that puts it inside Japan. No pin and no network.
 support <- tibble::tribble(
   ~polycell_id, ~cell_id, ~lon, ~lat, ~polity_code,
-  "JPN-AICHI-1871-2025@1", 1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
-  "JPN-AICHI-1871-2025@2", 2L, 137.75, 35.25, "JPN-AICHI-1871-2025"
+  "JPN-23-1871-2025@1", 1L, 137.25, 35.25, "JPN-23-1871-2025",
+  "JPN-23-1871-2025@2", 2L, 137.75, 35.25, "JPN-23-1871-2025"
 ) |>
   dplyr::mutate(
     area_code = 110L,
@@ -233,7 +233,7 @@ support <- tibble::tribble(
     land_area_ha = c(1200, 2000)
   )
 containment <- tibble::tibble(
-  member_code = "JPN-AICHI-1871-2025",
+  member_code = "JPN-23-1871-2025",
   container_code = "JPN-1952-2025",
   start_year = 1952L,
   end_year = 2025L,

@@ -141,11 +141,13 @@ test_that("only the recorded areas resolve through a WHEP prefix guess", {
   # Both numbers fell by one in whep#741/#743; see the note above. The shipped
   # total then rose from 261 to 263 in the #835 upstream re-sync (two new
   # pre-1886 polities, Cape Verde and Dutch Guiana), while the LIVE population
-  # stayed at four -- which is the point of the distinction.
+  # stayed at four -- which is the point of the distinction. The whep-polities
+  # d45990a3 re-sync (#1306) took it to 266 the same way: France split at 1860,
+  # and Bosnia and Singapore gained a pre-FAOSTAT period each.
   expect_equal(nrow(outside_map), 4L)
   expect_equal(
     sum(whep::polity_area_crosswalk$mapping_source == "prefix_outside_map"),
-    263L
+    266L
   )
 })
 

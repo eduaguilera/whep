@@ -194,6 +194,38 @@
   pmax(territorial, reported)
 }
 
+# The year upstream's FAOSTAT map hands an area from this row to a later one,
+# `Inf` where it hands over nothing. The resolver and both conflict detectors
+# cap a row's span here.
+#
+# A hand-over normally coincides with the polity's own end, and then this
+# changes nothing. It does not when upstream routes an area to a part of a
+# polity that is still alive: whep-polities d45990a3 maps FAOSTAT Cyprus (50)
+# to `CYP-1879-2025` over 1961-1974 and to `CYP-RA-1975-2025`, the
+# government-controlled area, from 1975, and Serbia and Montenegro (186) to
+# `SCG-XK-1999-2006` from 1999. The parent's territorial span still covers
+# those years, so without the cap both rows answered and the
+# `polity_start_year DESC` order in `add_polity_code()` decided. The map is the
+# authority on reporting years (see `.polity_join_end_year()`), so its
+# hand-over is the boundary. Rows without a map span (pre-1961 periods) hand
+# over nothing.
+.polity_map_handover <- function(area_code, map_year_start, map_year_end) {
+  n <- length(area_code)
+  if (n == 0L) {
+    return(numeric(0))
+  }
+  start <- as.numeric(map_year_start)
+  # Row i hands over to row j when j is the same area and its map span opens
+  # after i's closes. A crosswalk has a few hundred rows, so the pairwise
+  # matrix is small.
+  later <- outer(area_code, area_code, "==") &
+    outer(as.numeric(map_year_end), start, "<")
+  later[is.na(later)] <- FALSE
+  candidates <- matrix(start, nrow = n, ncol = n, byrow = TRUE)
+  candidates[!later] <- Inf
+  apply(candidates, 1L, min)
+}
+
 # The first year a crosswalk row answers for, which is the polity's own start
 # unless the row itself declares a later one.
 #
@@ -612,6 +644,9 @@
     if (!rlang::has_name(lookup, "map_year_end")) {
       lookup[, "map_year_end" := NA_integer_]
     }
+    if (!rlang::has_name(lookup, "map_year_start")) {
+      lookup[, "map_year_start" := NA_integer_]
+    }
     if (!rlang::has_name(lookup, "applies_from_year")) {
       lookup[, "applies_from_year" := NA_integer_]
     }
@@ -625,10 +660,17 @@
       ) := .(
         area_code,
         .polity_join_start_year(polity_start_year, get("applies_from_year")),
-        .polity_join_end_year(
-          polity_end_year,
-          get("map_year_end"),
-          polity_code %in% .open_polity_codes()
+        pmin(
+          .polity_join_end_year(
+            polity_end_year,
+            get("map_year_end"),
+            polity_code %in% .open_polity_codes()
+          ),
+          .polity_map_handover(
+            area_code,
+            get("map_year_start"),
+            get("map_year_end")
+          )
         ),
         area_name,
         area_iso3c,
@@ -1781,11 +1823,18 @@ get_polity_geometries <- function(polity_codes = NULL) {
   # report 1 -- area 7 at 1975, `AGO-1975-2025` against `ANG-1905-1975`,
   # which is #683. An earlier note here claimed the two agreed; that was
   # measured on a snapshot since superseded.
+  handover <- if (
+    all(rlang::has_name(cw, c("map_year_start", "map_year_end")))
+  ) {
+    .polity_map_handover(cw$area_code, cw$map_year_start, cw$map_year_end)
+  } else {
+    Inf
+  }
   .area_year_span_conflicts(data.frame(
     area_code = cw$area_code,
     polity_code = cw$polity_code,
     span_start = cw$polity_start_year,
-    span_end = cw$polity_end_year,
+    span_end = pmin(cw$polity_end_year, handover),
     stringsAsFactors = FALSE
   ))
 }
@@ -1848,14 +1897,20 @@ get_polity_geometries <- function(polity_codes = NULL) {
   if (!rlang::has_name(cw, "map_year_end")) {
     cw$map_year_end <- NA_integer_
   }
+  if (!rlang::has_name(cw, "map_year_start")) {
+    cw$map_year_start <- NA_integer_
+  }
   if (!rlang::has_name(cw, "applies_from_year")) {
     cw$applies_from_year <- NA_integer_
   }
   cw <- cw[!is.na(cw$area_code) & !is.na(cw$polity_code), ]
-  span_end <- .polity_join_end_year(
-    cw$polity_end_year,
-    cw$map_year_end,
-    cw$polity_code %in% .open_polity_codes()
+  span_end <- pmin(
+    .polity_join_end_year(
+      cw$polity_end_year,
+      cw$map_year_end,
+      cw$polity_code %in% .open_polity_codes()
+    ),
+    .polity_map_handover(cw$area_code, cw$map_year_start, cw$map_year_end)
   )
   span_start <- .polity_join_start_year(
     cw$polity_start_year,
@@ -2140,7 +2195,7 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' - **`back_cast`: whether to accept reconstructions.** An alias whose
 #'   `disposition` is `"back_cast"` routes years a source reconstructs onto a
 #'   boundary that did not exist yet to the modern polity, which may begin
-#'   after those years by design (`BRA-TOCANTINS-1988-2025` receives the
+#'   after those years by design (`BRA-TO-1988-2025` receives the
 #'   panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops those
 #'   aliases, for a caller that wants observation only.
 #' - **`indicator`: aliases split per indicator.** One panel unit id can name
@@ -2972,6 +3027,57 @@ resolve_polity_label <- function(
     return(character(0))
   }
   sort(setdiff(part_iso3, code))
+}
+
+# The polity a FAOSTAT-routed part stands for in the succession relation, in
+# the given year; every other code is returned unchanged.
+#
+# whep-polities d45990a3 routes some FAOSTAT areas to a part of their country
+# (`map_match_route == "manual-territory"`): Serbia without Kosovo
+# `SRB-XK-2006-2008`, West Pakistan `PAK-WP-1949-1971`, the Israeli statistics
+# area `ISR-RA-1967-2025`, and others. Upstream publishes those parts with no
+# successor or predecessor, so a walk over `successor` cannot see that Serbia's
+# 1970 back-cast row lies inside the Yugoslav SFR. The containment edge does
+# say which polity each part sits inside, and in which years, so the part
+# takes that container's place in the lineage (#1306). The lineage itself is
+# asked of upstream in whep-polities#740; this bridge can go once it lands.
+.routed_part_container <- function(polity_codes, years) {
+  edges <- .routed_part_edges()
+  # A back-cast year lies outside every edge of the part (Serbia's 1970 row on
+  # `SRB-XK-2006-2008`), so the nearest edge in time answers, the same
+  # nearest-period reading `add_polity_code()` gives that row.
+  hit <- tibble::tibble(
+    row = seq_along(polity_codes),
+    member_code = polity_codes,
+    year = as.integer(years)
+  ) |>
+    dplyr::inner_join(
+      edges,
+      by = "member_code",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      distance = pmax(
+        .data$start_year - .data$year,
+        .data$year - (.data$end_year - 1L),
+        0L
+      )
+    ) |>
+    dplyr::arrange(.data$row, .data$distance, .data$start_year) |>
+    dplyr::distinct(.data$row, .keep_all = TRUE)
+  out <- polity_codes
+  out[hit$row] <- hit$container_code
+  out
+}
+
+# The containment edges of the FAOSTAT-routed parts described above.
+.routed_part_edges <- function() {
+  routed <- polity_area_crosswalk$polity_code[
+    polity_area_crosswalk$map_match_route %in% "manual-territory"
+  ]
+  tibble::as_tibble(polity_containment) |>
+    dplyr::filter(.data$member_code %in% routed) |>
+    dplyr::select("member_code", "container_code", "start_year", "end_year")
 }
 
 .polity_successor_edges <- function() {

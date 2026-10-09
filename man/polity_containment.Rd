@@ -14,7 +14,7 @@ same convention as \link{polities}: \code{start_year} is inclusive and \code{end
 is exclusive at a succession (a later edge for the same member takes
 over from \code{end_year}) and inclusive at the open end (an edge nothing
 succeeds still covers its own terminal year). The interval belongs to
-the edge, not to either endpoint polity: \code{JPN-AICHI-1871-2025} is one
+the edge, not to either endpoint polity: \code{JPN-23-1871-2025} is one
 member polity spanning 1871-2025, but four separate edges route it
 through \code{JPN-1800-1895}, \code{JPN-1895-1945}, \code{JPN-1945-1952} and
 \code{JPN-1952-2025} as Japan's own periodization changes underneath it.

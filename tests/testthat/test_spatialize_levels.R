@@ -70,9 +70,9 @@
 .lv_support <- function() {
   tibble::tribble(
     ~polycell_id,     ~cell_id, ~lon,  ~lat,  ~polity_code,
-    "AICHI@1",              1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
-    "AICHI@2",              2L, 137.75, 35.25, "JPN-AICHI-1871-2025",
-    "GIFU@2",               2L, 137.75, 35.25, "JPN-GIFU-1871-2025",
+    "AICHI@1",              1L, 137.25, 35.25, "JPN-23-1871-2025",
+    "AICHI@2",              2L, 137.75, 35.25, "JPN-23-1871-2025",
+    "GIFU@2",               2L, 137.75, 35.25, "JPN-21-1871-2025",
     "OTHER@2",              2L, 137.75, 35.25, "USA-1959-2025"
   ) |>
     dplyr::mutate(
@@ -87,8 +87,8 @@
 .lv_containment <- function() {
   tibble::tribble(
     ~member_code,          ~container_code, ~start_year, ~end_year,
-    "JPN-AICHI-1871-2025", "JPN-1952-2025",       1952L,     2025L,
-    "JPN-GIFU-1871-2025",  "JPN-1952-2025",       1952L,     2025L
+    "JPN-23-1871-2025", "JPN-1952-2025",       1952L,     2025L,
+    "JPN-21-1871-2025",  "JPN-1952-2025",       1952L,     2025L
   ) |>
     dplyr::mutate(basis = "prefecture inside JPN-1952-2025")
 }
@@ -652,13 +652,14 @@ testthat::test_that("Viet Nam keeps its cells from partition (whep#1317)", {
 })
 
 # Yemen across its three support regimes: the Mutawakkilite Kingdom (one
-# cell) and Aden (another) to 1962 and 1963, nothing of North or South Yemen,
+# cell) and Aden (another) to 1962 and 1967 (Aden's end since the
+# whep-polities d45990a3 re-sync, #1306), nothing of North or South Yemen,
 # then YEM-1990-2025 on both cells -- one of which the support splits at 1993.
 .lv_yemen_support <- function() {
   tibble::tribble(
     ~lon,  ~lat,  ~polity_code,    ~area_code, ~start_year, ~end_year,
     44.25, 15.25, "MKY-1918-1962", NA_integer_,      1918L,     1962L,
-    45.25, 13.25, "ADE-1839-1963", NA_integer_,      1839L,     1963L,
+    45.25, 13.25, "ADE-1839-1967", NA_integer_,      1839L,     1967L,
     44.25, 15.25, "YEM-1990-2025",        249L,      1990L,     1993L,
     44.25, 15.25, "YEM-1990-2025",        249L,      1993L,     2025L,
     45.25, 13.25, "YEM-1990-2025",        249L,      1990L,     2025L
@@ -680,7 +681,7 @@ testthat::test_that("Yemen has cells in every year from 1918 (whep#1317)", {
   testthat::expect_equal(.lv_frac(at(1930L), 44.25), 1)
   testthat::expect_equal(.lv_frac(at(1930L), 45.25), 1)
   testthat::expect_identical(unique(at(1930L)$area_code), 249L)
-  # 1962-1989: modern Yemen's cells (constant_territory). In 1962 Aden still
+  # 1962-1989: modern Yemen's cells (constant_territory). To 1966 Aden still
   # holds its cell; the injected claim duplicates it, so the cell is 249's
   # once, not twice.
   for (yr in c(1962L, 1965L, 1989L)) {
@@ -724,14 +725,21 @@ testthat::test_that("a territory with no reporting code at any vintage is keyed"
   # On the `20260907T111653Z-e654d` support these six polities carried no
   # `area_code` at 2015 -- 48 polycells, 1.913 Mha of land in no national
   # total. The recorded rows file them under the unit that reports them.
+  # Five still carry none. Guam no longer belongs to the set: the
+  # whep-polities d45990a3 re-sync (#1306) mapped FAOSTAT area 88 to
+  # `GUM-1950-2025`, which therefore resolves to 88's bucket, 999 -- the same
+  # code its recorded row gives it.
   testthat::expect_true(all(is.na(whep:::.polity_reporting_area_code(c(
     "KOS-2008-2025",
     "ICN-1800-2025",
     "CEM-1800-2025",
-    "GUM-1950-2025",
     "BES-2010-2025",
     "SXM-2010-2025"
   )))))
+  testthat::expect_identical(
+    whep:::.polity_reporting_area_code("GUM-1950-2025"),
+    999L
+  )
   grid <- suppressMessages(.lv_epoch_grid(.lv_territory_support()))
   at <- whep:::.filter_country_grid_year(grid, 2015L)
 
@@ -802,17 +810,17 @@ testthat::test_that("level 1 keys cells on the unit and the container code", {
   testthat::expect_identical(unique(grid$level), 1L)
   testthat::expect_setequal(
     grid$level_polity_code,
-    c("JPN-AICHI-1871-2025", "JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
+    c("JPN-23-1871-2025", "JPN-23-1871-2025", "JPN-21-1871-2025")
   )
   # `land_area_ha / cell_land_ha` on the land basis: cell 2 holds
   # 1000 + 2000 + 1000 = 4000 ha of land.
   aichi_2 <- dplyr::filter(
     grid,
     lon == 137.75,
-    level_polity_code == "JPN-AICHI-1871-2025"
+    level_polity_code == "JPN-23-1871-2025"
   )
   testthat::expect_equal(aichi_2$cell_area_frac, 0.25, tolerance = 1e-12)
-  gifu <- dplyr::filter(grid, level_polity_code == "JPN-GIFU-1871-2025")
+  gifu <- dplyr::filter(grid, level_polity_code == "JPN-21-1871-2025")
   testthat::expect_equal(gifu$cell_area_frac, 0.5, tolerance = 1e-12)
   # The cell Aichi holds alone is its whole cell.
   aichi_1 <- dplyr::filter(grid, lon == 137.25)
@@ -849,13 +857,13 @@ testthat::test_that("reference_year snapshots the grid on edge validity", {
   )
   testthat::expect_setequal(
     grid$level_polity_code,
-    c("JPN-AICHI-1871-2025", "JPN-AICHI-1871-2025")
+    c("JPN-23-1871-2025", "JPN-23-1871-2025")
   )
 })
 
 testthat::test_that("an aggregate container is refused, not folded to 999", {
   containment <- tibble::tibble(
-    member_code = "JPN-AICHI-1871-2025",
+    member_code = "JPN-23-1871-2025",
     container_code = "ROW-1850-2025",
     start_year = 1952L,
     end_year = 2025L,
@@ -960,7 +968,7 @@ testthat::test_that("a within-container share is composed, not read raw", {
   # Cell 2 land is 1000 + 2000 + 1000 + 3000 = 7000 (the container's own row is
   # part of the denominator in the nested shape), Japan's own share is
   # 3000 / 7000, and each unit takes half of it.
-  gifu <- dplyr::filter(grid, level_polity_code == "JPN-GIFU-1871-2025")
+  gifu <- dplyr::filter(grid, level_polity_code == "JPN-21-1871-2025")
   testthat::expect_equal(
     gifu$cell_area_frac,
     0.5 * (3000 / 7000),
@@ -4176,7 +4184,7 @@ testthat::test_that("the containment edge cuts the support's interval", {
   edges <- dplyr::mutate(
     .lv_containment(),
     start_year = dplyr::if_else(
-      member_code == "JPN-AICHI-1871-2025",
+      member_code == "JPN-23-1871-2025",
       1980L,
       start_year
     )
@@ -4186,7 +4194,7 @@ testthat::test_that("the containment edge cuts the support's interval", {
     support = .lv_support(),
     containment = edges
   )
-  aichi <- dplyr::filter(grid, level_polity_code == "JPN-AICHI-1871-2025")
+  aichi <- dplyr::filter(grid, level_polity_code == "JPN-23-1871-2025")
   testthat::expect_equal(nrow(aichi), 2L)
   testthat::expect_true(all(aichi$start_year == 1980L))
 
@@ -4194,7 +4202,7 @@ testthat::test_that("the containment edge cuts the support's interval", {
   early <- whep:::.filter_country_grid_year(grid, 1960L)
   testthat::expect_identical(
     unique(early$level_polity_code),
-    "JPN-GIFU-1871-2025"
+    "JPN-21-1871-2025"
   )
 })
 
@@ -4205,12 +4213,12 @@ testthat::test_that("an empty intersection yields no compartment", {
   edges <- dplyr::mutate(
     .lv_containment(),
     start_year = dplyr::if_else(
-      member_code == "JPN-AICHI-1871-2025",
+      member_code == "JPN-23-1871-2025",
       2025L,
       start_year
     ),
     end_year = dplyr::if_else(
-      member_code == "JPN-AICHI-1871-2025",
+      member_code == "JPN-23-1871-2025",
       2030L,
       end_year
     )
@@ -4222,7 +4230,7 @@ testthat::test_that("an empty intersection yields no compartment", {
   )
   testthat::expect_identical(
     unique(grid$level_polity_code),
-    "JPN-GIFU-1871-2025"
+    "JPN-21-1871-2025"
   )
   testthat::expect_true(all(grid$start_year < grid$end_year))
 })
@@ -4647,7 +4655,7 @@ testthat::test_that("the coverage prototype is the resolver's own schema", {
 .lv_two_container_support <- function() {
   tibble::tribble(
     ~polycell_id,  ~cell_id, ~lon,   ~lat,   ~polity_code,
-    "AICHI@1",           1L, 137.25, 35.25,  "JPN-AICHI-1871-2025",
+    "AICHI@1",           1L, 137.25, 35.25,  "JPN-23-1871-2025",
     "ALK@9",             9L, -150.25, 65.25, "ALK-1867-1959",
     "USA@9",             9L, -150.25, 65.25, "USA-1867-1959"
   ) |>
@@ -4676,7 +4684,7 @@ testthat::test_that("an ungranted container's nesting does not abort a run", {
   testthat::expect_identical(unique(grid$area_code), 110L)
   testthat::expect_identical(
     unique(grid$level_polity_code),
-    "JPN-AICHI-1871-2025"
+    "JPN-23-1871-2025"
   )
 })
 
@@ -4730,7 +4738,7 @@ testthat::test_that("the double-claim abort counts rows and cells apart", {
   # unit's container in two successive epochs, so two rows describe one cell.
   support <- tibble::tribble(
     ~polycell_id,  ~cell_id, ~lon,   ~lat,  ~polity_code,          ~start_year,
-    "AICHI@1",           1L, 137.25, 35.25, "JPN-AICHI-1871-2025",       1871L,
+    "AICHI@1",           1L, 137.25, 35.25, "JPN-23-1871-2025",       1871L,
     "JPN45@1",           1L, 137.25, 35.25, "JPN-1945-1952",             1945L,
     "JPN52@1",           1L, 137.25, 35.25, "JPN-1952-2025",             1952L
   ) |>
@@ -4763,7 +4771,7 @@ testthat::test_that("the measured rule passes a clash the cell cannot refute", {
   # its 1 shared cell, and RYU inside JPN-1895-1945 over-claims 0 Mha over 8.
   support <- tibble::tribble(
     ~polycell_id,  ~cell_id, ~lon,   ~lat,  ~polity_code,
-    "AICHI@1",           1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
+    "AICHI@1",           1L, 137.25, 35.25, "JPN-23-1871-2025",
     "JPN@1",             1L, 137.25, 35.25, "JPN-1952-2025"
   ) |>
     dplyr::mutate(
@@ -4812,7 +4820,7 @@ testthat::test_that("the measured rule still refuses a proven over-claim", {
   # shared cells, which is why the rule keeps refusing it.
   support <- tibble::tribble(
     ~polycell_id,  ~cell_id, ~lon,   ~lat,  ~polity_code,
-    "AICHI@1",           1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
+    "AICHI@1",           1L, 137.25, 35.25, "JPN-23-1871-2025",
     "JPN@1",             1L, 137.25, 35.25, "JPN-1952-2025"
   ) |>
     dplyr::mutate(
@@ -5115,7 +5123,7 @@ testthat::test_that("a depth read drops a cell with no measured land", {
       cell_id = 3L,
       lon = 138.25,
       lat = 35.25,
-      polity_code = "JPN-AICHI-1871-2025",
+      polity_code = "JPN-23-1871-2025",
       area_code = NA_integer_,
       start_year = 1952L,
       end_year = 2025L,
@@ -5149,7 +5157,7 @@ test_that("the depth support swaps a container for its members only", {
   expect_false("JPN-1952-2025" %in% composed$polity_code)
   expect_setequal(
     unique(composed$polity_code),
-    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025", "USA-1959-2025")
+    c("JPN-23-1871-2025", "JPN-21-1871-2025", "USA-1959-2025")
   )
   # The neighbour keeps its world row, so the shared cell's land is whole.
   cell2 <- dplyr::filter(composed, cell_id == 2L)
@@ -5177,7 +5185,7 @@ test_that("a depth read with no support reads both pins and matches", {
   # Aichi holds 1000 of the shared cell's 4000 ha, not 1000 of 3000.
   aichi2 <- dplyr::filter(
     default,
-    level_polity_code == "JPN-AICHI-1871-2025",
+    level_polity_code == "JPN-23-1871-2025",
     lon == 137.75
   )
   expect_equal(aichi2$cell_area_frac, 0.25)
@@ -5212,7 +5220,7 @@ test_that("the subnational reader returns a supplied local table", {
   expect_equal(nrow(read), 3L)
   expect_setequal(
     unique(read$polity_code),
-    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
+    c("JPN-23-1871-2025", "JPN-21-1871-2025")
   )
 })
 

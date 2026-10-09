@@ -112,7 +112,7 @@ under \code{"eurostat-nuts2016"}, both for the one Champagne-Ardenne polity
 the recoding renames; \code{"FRF2"} under \code{"jrc-nuts2016"} for the same one;
 \code{"35"} under \code{"ibge-uf"} for the Sao Paulo state polity; \code{"ESP-ES111"}
 under \code{"whep-lab-spain-provinces"} for the NUTS-3 province \code{ES111}; and
-\code{"JPN-AICHI"} under \code{"whep-lab-japan"} for \code{JPN-AICHI-1871-2025}, the
+\code{"JPN-AICHI"} under \code{"whep-lab-japan"} for \code{JPN-23-1871-2025}, the
 one target polity that already exists in the shipped \link{polities}.
 }
 

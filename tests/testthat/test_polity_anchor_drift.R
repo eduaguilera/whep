@@ -129,7 +129,7 @@ test_that("the anchor and the reference year are both selectable", {
   )
 })
 
-test_that("the crosswalk's own back-cast grid drifts for 49 areas", {
+test_that("the crosswalk's own back-cast grid drifts for 51 areas", {
   # The population whep#748 is about, measured on package data alone: an area
   # drifts when the polity it is labelled with at the anchor is not the polity
   # its present-day ISO3 resolves to, which is what the `luh2-areas` growth
@@ -140,7 +140,12 @@ test_that("the crosswalk's own back-cast grid drifts for 49 areas", {
   )
   out <- whep::polity_anchor_drift(grid)
 
-  expect_equal(dplyr::n_distinct(out$area_code), 49L)
+  # 49 -> 51 with the whep-polities d45990a3 re-sync (#1306): upstream routes
+  # Cyprus (50), Israel (105), Pakistan (165), Serbia and Montenegro (186),
+  # Tanzania (215) and Serbia (272) to a part of their country for some years,
+  # so all six now drift by entity; 105, 165, 215 and 272 drifted by interval
+  # before.
+  expect_equal(dplyr::n_distinct(out$area_code), 51L)
   expect_setequal(
     unique(out$drift_kind),
     c("entity", "interval", "unmapped_reference")
@@ -151,8 +156,8 @@ test_that("the crosswalk's own back-cast grid drifts for 49 areas", {
       areas = dplyr::n_distinct(.data$area_code),
       .by = "drift_kind"
     )
-  expect_equal(by_kind$areas[by_kind$drift_kind == "entity"], 7L)
-  expect_equal(by_kind$areas[by_kind$drift_kind == "interval"], 40L)
+  expect_equal(by_kind$areas[by_kind$drift_kind == "entity"], 13L)
+  expect_equal(by_kind$areas[by_kind$drift_kind == "interval"], 36L)
   expect_equal(by_kind$areas[by_kind$drift_kind == "unmapped_reference"], 2L)
 })
 

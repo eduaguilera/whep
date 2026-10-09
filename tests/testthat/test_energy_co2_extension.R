@@ -193,9 +193,10 @@ testthat::test_that("Bermuda, Guam and Palau are grouped like their peers", {
   rows <- .energy_self_reporting_gaps() |>
     dplyr::filter(.data$area_code %in% c(17L, 88L, 180L))
 
-  # Four rows over three areas: Bermuda carries two upstream periods, which is
-  # itself the year-aware identity whep#717 gives a promoted member.
-  testthat::expect_equal(nrow(rows), 4L)
+  # Five rows over three areas: Bermuda and, since the whep-polities d45990a3
+  # re-sync (#1306), Guam carry two upstream periods each, which is itself the
+  # year-aware identity whep#717 gives a promoted member.
+  testthat::expect_equal(nrow(rows), 5L)
   testthat::expect_setequal(rows$area_code, c(17L, 88L, 180L))
   testthat::expect_false(any(rows$polity_type == "aggregate"))
   testthat::expect_false(any(rows$continent == "World"))
@@ -203,18 +204,17 @@ testthat::test_that("Bermuda, Guam and Palau are grouped like their peers", {
     .energy_gleam_continent(rows$continent) %in% .energy_scheme_continents()
   ))
 
-  # Bermuda and Palau are live, so they join whep#415's `polity_region`
-  # treatment. Guam does NOT: its only upstream period `GUM-1898-1950` ended in
-  # 1950, so it is a dissolved entity by the same derived test every other one
-  # passes. Splitting the three that way is the crosswalk speaking, not a list
-  # typed in here.
+  # All three are live, so they join whep#415's `polity_region` treatment.
+  # Guam used to be the exception: its only upstream period `GUM-1898-1950`
+  # ended in 1950, which made it a dissolved entity, until the whep-polities
+  # d45990a3 re-sync (#1306) gave it the live `GUM-1950-2025`. That is the
+  # crosswalk speaking, not a list typed in here.
   live <- .areas_gleam_cannot_group()$area_code
-  testthat::expect_true(all(c(17L, 180L) %in% live))
-  testthat::expect_false(88L %in% live)
-  testthat::expect_true(88L %in% .energy_dissolved_areas()$area_code)
+  testthat::expect_true(all(c(17L, 88L, 180L) %in% live))
+  testthat::expect_false(88L %in% .energy_dissolved_areas()$area_code)
 
   grouped <- suppressMessages(.energy_hierarchy("polity_region"))
-  testthat::expect_true(all(c("BMU", "PLW") %in% grouped$iso3))
+  testthat::expect_true(all(c("BMU", "GUM", "PLW") %in% grouped$iso3))
 
   # And Guam is STILL not priced, because `historical_region` needs the OECD/EU
   # membership the entity held while it existed and
@@ -222,7 +222,7 @@ testthat::test_that("Bermuda, Guam and Palau are grouped like their peers", {
   # answer, not a gap to fill here: inventing a membership for a colonial
   # administration would be exactly the manufactured value this package forbids.
   historical <- suppressMessages(.energy_hierarchy("historical_region"))
-  testthat::expect_false(any(c("GUM", "CXR", "SHN") %in% historical$iso3))
+  testthat::expect_false(any(c("CXR", "SHN") %in% historical$iso3))
   testthat::expect_equal(nrow(.energy_dissolved_rows()), 6L)
 })
 
@@ -260,6 +260,7 @@ testthat::test_that("the unfold moves what the energy file reads", {
       65L,
       82L,
       85L,
+      88L,
       94L,
       125L,
       140L,
@@ -284,9 +285,11 @@ testthat::test_that("the unfold moves what the energy file reads", {
   # Trust Territory now resolves to TTPI-1947-1994, a period that ENDED, where the fold
   # had hidden it behind ROW-1850-2025's open end. FAOSTAT stops reporting area 164 in
   # 1990 and TTPI covers to 1993, so the gap this creates is latent -- no data falls in it.
+  # Guam (88) left this set and joined the live gaps above with the
+  # whep-polities d45990a3 re-sync (#1306), which gave it `GUM-1950-2025`.
   testthat::expect_setequal(
     setdiff(dissolved$area_code, refolded_dissolved$area_code),
-    c(42L, 88L, 164L, 187L)
+    c(42L, 164L, 187L)
   )
   # Everything added is a promoted member, and re-folding removes nothing else.
   testthat::expect_true(all(
@@ -325,7 +328,8 @@ testthat::test_that("polity_region groups an omitted area like its GLEAM peers",
   # 16 -> 28 on 2026-08-13: sixteen Rest-of-World members gained their own polity upstream
   # (whep-polities #209/#210/#212), so sixteen more areas get polity_region treatment instead
   # of the bucket's. The setequal above is the invariant; this count follows it.
-  testthat::expect_equal(nrow(derived), 28L)
+  # 28 -> 29 with the whep-polities d45990a3 re-sync (#1306): Guam is live.
+  testthat::expect_equal(nrow(derived), 29L)
 
   # The peer set is taken on GLEAM's OWN continent vocabulary, which is what the
   # scheme rules are written against: the crosswalk splits the Americas in two
@@ -729,9 +733,11 @@ testthat::test_that("the dissolved set is derived, not typed in", {
   # them is a coverage gap `polity_coverage_gaps()` now reports.
   # 164 Pacific Islands Trust Territory joined on 2026-08-13, by the same mechanism: it now
   # resolves to TTPI-1947-1994, whose period ended in 1994.
+  # 88 Guam left with the whep-polities d45990a3 re-sync (#1306), which gave it
+  # the live successor period `GUM-1950-2025`.
   testthat::expect_setequal(
     dissolved$area_code,
-    c(15L, 42L, 51L, 88L, 151L, 164L, 186L, 187L, 228L, 248L)
+    c(15L, 42L, 51L, 151L, 164L, 186L, 187L, 228L, 248L)
   )
   # The live omissions stay with whep#415's treatment ...
   testthat::expect_false(any(c(148L, 227L) %in% dissolved$area_code))

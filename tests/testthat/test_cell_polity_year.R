@@ -53,7 +53,7 @@
     .cpy_row(106.75, 10.75, "VNM-1975-2025", 1975, 2025, 100),
     # Yemen: the Kingdom and Aden, then modern Yemen on both cells.
     .cpy_row(44.25, 15.25, "MKY-1918-1962", 1918, 1962, 100),
-    .cpy_row(45.25, 13.25, "ADE-1839-1963", 1839, 1963, 100),
+    .cpy_row(45.25, 13.25, "ADE-1839-1967", 1839, 1967, 100),
     .cpy_row(44.25, 15.25, "YEM-1990-2025", 1990, 2025, 100),
     .cpy_row(45.25, 13.25, "YEM-1990-2025", 1990, 2025, 100),
     # A border cell of modern Yemen whose polycell the support splits at 1993,
@@ -184,7 +184,7 @@ testthat::test_that("Yemen is its predecessors in 1961 and modern Yemen after", 
   # In 1962 Aden (no area code) overlaps the modern cells and is removed.
   removed <- attr(.cpy_build(1962L), "deduplicated")
   testthat::expect_equal(
-    removed$removed_reason[removed$polity_code == "ADE-1839-1963"],
+    removed$removed_reason[removed$polity_code == "ADE-1839-1967"],
     "no_area_code"
   )
 })

@@ -168,7 +168,7 @@ restricted: an alias names its polity explicitly.
 \item \strong{\code{back_cast}: whether to accept reconstructions.} An alias whose
 \code{disposition} is \code{"back_cast"} routes years a source reconstructs onto a
 boundary that did not exist yet to the modern polity, which may begin
-after those years by design (\code{BRA-TOCANTINS-1988-2025} receives the
+after those years by design (\code{BRA-TO-1988-2025} receives the
 panel's 1900-1987 Tocantins series). \code{back_cast = FALSE} drops those
 aliases, for a caller that wants observation only.
 \item \strong{\code{indicator}: aliases split per indicator.} One panel unit id can name
