@@ -408,9 +408,11 @@ calculate_npp_carbon_nitrogen <- function(x) {
 }
 
 # Items absent from `ipcc_crop_mapping` have no crop group, so the irrigation
-# sensitivity and the modern-variety correction both miss and fall back to 1.
-# That is today's behaviour (whether to map them, e.g. to "Other", is a science
-# decision, whep#1437); this only records which rows it applies to.
+# sensitivity and the modern-variety correction both miss and fall back to 1;
+# this records which rows that applies to. The crops afsetools' mapping names
+# (cotton, fibres, tree crops, forages, some vegetables) carry the group it
+# gives them, all "Other" (whep#1437). What remains unmapped (spices, flowers,
+# green peas and beans, mustard and poppy seed) has no upstream row.
 .stamp_residue_group <- function(x) {
   dplyr::mutate(
     x,

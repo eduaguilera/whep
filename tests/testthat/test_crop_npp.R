@@ -431,3 +431,45 @@ test_that("a polity with no HANPP region keeps the uncorrected residue", {
 
   testthat::expect_equal(out$residue_dm_t, bare$residue_dm_t)
 })
+
+# afsetools' IPCC_crop_mapping lists cotton, bananas, coconuts, coffee, cocoa,
+# green maize and the other forages, but under spellings ("Coffee green",
+# "Maize green") the biomass vocabulary does not use, so the port inherited
+# none of them and 12.8% of 2010 harvested area got no variety correction
+# (whep#1437).
+test_that("the largest crops by area carry an IPCC crop group", {
+  big <- c("328", "645", "636", "248", "656", "661", "639", "486")
+  mapping <- whep::whep_coef_table("ipcc_crop_mapping")
+
+  testthat::expect_setequal(
+    mapping$item_prod_code[!is.na(mapping$crop_group)] |> intersect(big),
+    big
+  )
+  testthat::expect_equal(
+    mapping$crop_group[match(big, mapping$item_prod_code)],
+    rep("Other", length(big))
+  )
+})
+
+test_that("coffee residue gets the modern-variety correction", {
+  x <- tibble::tibble(
+    item_prod_code = "656",
+    production_t = 100,
+    area_ha = 40,
+    year = 1970,
+    region_hanpp = "Sub-saharan Africa"
+  )
+  out <- whep::calculate_crop_residues(x)
+  bare <- whep::calculate_crop_residues(dplyr::select(x, -year, -region_hanpp))
+  share <- .variety_share("Sub-saharan Africa", "Other", 1970)
+  gap <- whep::whep_coef_table("hi_crop_ranges") |>
+    dplyr::filter(crop_group == "Other") |>
+    dplyr::pull(hi_gap_factor)
+
+  testthat::expect_lt(share, 1)
+  testthat::expect_equal(out$method_residue_group, "ipcc_group")
+  testthat::expect_equal(
+    out$residue_dm_t,
+    bare$residue_dm_t * (1 + (1 - share) * (gap - 1))
+  )
+})
