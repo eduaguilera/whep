@@ -286,6 +286,26 @@
 #'   falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 #'   than 295. Under `"production_share"` pre-1962 `seed` is 5.22 Gt, total
 #'   tonnage moves -1.023%, and the seam holds 5 jumps.
+#' @param aggregate_proxy One of `"member_sum"` (default) or `"none"`,
+#'   selecting what Rest of World (area code 999) grows on in the pre-1962
+#'   back-cast (whep#724). Every other area grows its `food`, `other_uses`
+#'   and `processing` on its own population and its `feed` on its own
+#'   agricultural land. No ISO3 code names Rest of World, so no proxy reaches
+#'   it directly. Its rows are crop residues from the `crop_residues` pin,
+#'   which books all of FABIO's Rest-of-World members on one label.
+#'
+#'   `"member_sum"` grows it on the summed population and agricultural land
+#'   of those members, the territory its rows describe. This holds whatever
+#'   `options(whep.unfold_rest_of_world)` is set to. `"none"` gives it no
+#'   proxy, so its series starts in 1961.
+#'
+#'   **The default moves published values**, for area 999 before 1961 only.
+#'   Measured on a real 1955-1965 build, 66 rows are added and no other
+#'   value changes: 83.5 Mt of residue `domestic_supply` over 1955-1960
+#'   (13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
+#'   which 68.3 Mt is `other_uses` and 15.3 Mt `feed`. That raises world
+#'   residue use by 0.74-0.78% in those years. Under `"none"` the build is
+#'   identical to the one before this argument existed.
 #' @param unmatched_processing One of `"other_uses"` (default),
 #'   `"processing"` or `"redistribute"`, selecting where a `processing`
 #'   destiny goes when its item has no pathway in [cb_processing], so no
@@ -407,6 +427,7 @@ build_commodity_balances <- function(
   export_share_overflow = .cbs_export_overflow_choices(),
   export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
@@ -421,6 +442,7 @@ build_commodity_balances <- function(
   export_share_overflow <- rlang::arg_match(export_share_overflow)
   export_share_basis <- rlang::arg_match(export_share_basis)
   seed_backcast <- rlang::arg_match(seed_backcast)
+  aggregate_proxy <- rlang::arg_match(aggregate_proxy)
   unmatched_processing <- rlang::arg_match(unmatched_processing)
   silk_basis <- rlang::arg_match(silk_basis)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
@@ -450,6 +472,7 @@ build_commodity_balances <- function(
       negative_supply = negative_supply,
       hist_trade_scale = hist_trade_scale,
       seed_backcast = seed_backcast,
+      aggregate_proxy = aggregate_proxy,
       silk_basis = silk_basis,
       tobacco_leaf_use = tobacco_leaf_use
     )
@@ -512,6 +535,12 @@ build_commodity_balances <- function(
     if (seed_backcast != "area_rate") {
       cli::cli_warn(
         "{.arg seed_backcast} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (aggregate_proxy != "member_sum") {
+      cli::cli_warn(
+        "{.arg aggregate_proxy} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     if (unmatched_processing != "other_uses") {
@@ -773,6 +802,7 @@ build_commodity_balances <- function(
   negative_supply = .cbs_negative_supply_choices(),
   hist_trade_scale = .hist_trade_scale_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
   silk_basis = .silk_basis_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices()
 ) {
@@ -821,7 +851,8 @@ build_commodity_balances <- function(
     years,
     share_overflow = share_overflow,
     negative_supply = negative_supply,
-    seed_backcast = seed_backcast
+    seed_backcast = seed_backcast,
+    aggregate_proxy = aggregate_proxy
   )
 
   # Trim to requested years and attach context for downstream
@@ -3612,7 +3643,8 @@ build_processing_coefs <- function(
   years,
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
-  seed_backcast = .cbs_seed_backcast_choices()
+  seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   items <- whep::items_full
 
@@ -3688,7 +3720,8 @@ build_processing_coefs <- function(
       items,
       share_overflow = share_overflow,
       negative_supply = negative_supply,
-      seed_backcast = seed_backcast
+      seed_backcast = seed_backcast,
+      aggregate_proxy = aggregate_proxy
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -3748,7 +3781,8 @@ build_processing_coefs <- function(
   items,
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
-  seed_backcast = .cbs_seed_backcast_choices()
+  seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   share_overflow <- rlang::arg_match(
     share_overflow,
@@ -3811,7 +3845,7 @@ build_processing_coefs <- function(
     .fill_share_columns() |>
     .report_seed_backcast(seed_backcast) |>
     .apply_filled_shares(seed_backcast) |>
-    .fill_with_proxies(gdp_pop, land_wide) |>
+    .fill_with_proxies(gdp_pop, land_wide, aggregate_proxy) |>
     .finalise_historical(items)
 }
 
@@ -4550,30 +4584,17 @@ build_processing_coefs <- function(
 
 # Put a proxy table keyed by ISO3 on the same bucket key. Rows whose ISO3 has no
 # polity are dropped, and so are rows that would only reach an artificial
-# aggregate by folding into it from somewhere else: summing the six crosswalk
-# members that fold into Rest of World (999) would give the bucket a population
-# that is neither one member's nor the real rest of the world's, and a
-# per-capita rate against it would mean nothing. What such an aggregate's proxy
-# should be is a methodological choice, so those buckets stay unfilled here,
-# exactly as the name-keyed join left them.
+# aggregate by folding into it from somewhere else: a member that reports
+# through a bucket is not the bucket, so its own proxy row is never relabelled
+# as the bucket's. What Rest of World (999) grows on instead is the explicit
+# member sum `.rest_of_world_proxy()` builds (whep#724).
 #
 # `area_code == polity_area_code` keeps the aggregates that report as themselves
 # (the pin carries RAFR, RASI, REUR, RLAM, ROCE and BLX, which ARE "Africa
 # Other" .. "Belgium-Luxembourg" rather than members of them). Nothing is being
 # summed for those, so there is no choice to defer.
 .proxy_polity_key <- function(df, iso3_col) {
-  dt <- if (data.table::is.data.table(df)) {
-    data.table::copy(df)
-  } else {
-    data.table::as.data.table(df)
-  }
-  if (iso3_col != "area_code") {
-    if ("area_code" %in% names(dt)) {
-      dt[, area_code := NULL]
-    }
-    data.table::setnames(dt, iso3_col, "area_code")
-  }
-  dt <- .iso3_to_fao_area_code(dt)
+  dt <- .proxy_area_key(df, iso3_col)
   dt <- .add_polity_columns_dt(
     dt,
     code_col = "area_code",
@@ -4587,21 +4608,82 @@ build_processing_coefs <- function(
   ]
 }
 
+# The ISO3-keyed proxy table on the FAOSTAT `area_code` each ISO3 resolves to,
+# before any bucket is chosen.
+.proxy_area_key <- function(df, iso3_col) {
+  dt <- if (data.table::is.data.table(df)) {
+    data.table::copy(df)
+  } else {
+    data.table::as.data.table(df)
+  }
+  if (iso3_col != "area_code") {
+    if ("area_code" %in% names(dt)) {
+      dt[, area_code := NULL]
+    }
+    data.table::setnames(dt, iso3_col, "area_code")
+  }
+  .iso3_to_fao_area_code(dt)
+}
+
 # The same table on the key the frames being filled actually carry: their
 # `area_code` is the reporting bucket, because `.aggregate_to_polities()`
 # groups on `polity_area_code` and renames it. Overwriting `area_code` with the
-# bucket is therefore the whole conversion -- and it is a rename, not a
-# regrouping: `.proxy_polity_key()` has already dropped every row that would
-# only reach a bucket by folding into it, so no member's proxy is being summed
-# into an aggregate here (whep#493 stays open, and the two `.read_land_areas_wide`
-# / `.fill_with_proxies` tests that pin the fold still hold).
+# bucket is therefore the whole conversion for every bucket that reports as
+# itself. Rest of World (999) is the one bucket no ISO3 names, so its rows are
+# the member sum appended by `.rest_of_world_proxy()`; consumers sum per
+# (year, bucket), which collapses them into one proxy value.
 .proxy_bucket_key <- function(df, iso3_col) {
   dt <- .proxy_polity_key(df, iso3_col = iso3_col)
   dt[, area_code := as.integer(polity_area_code)]
+  rbind(dt, .rest_of_world_proxy(df, iso3_col), fill = TRUE)
+}
+
+# Rest of World's growth proxy: the proxy rows of FABIO's Rest-of-World
+# members, relabelled onto bucket 999 (whep#724, the decision whep#493 left
+# open).
+#
+# The members are read off the crosswalk with the "all" predicate whatever fold
+# mode is running, because what bucket 999 carries does not follow the mode.
+# On main at c64c0041, a 1955-1965 build's only 999 rows are crop residues
+# (Straw, Other crop residues, Firewood: 15.3 Mt of domestic supply in 1961),
+# and they come from the predecessor-built `crop_residues` pin, which books
+# every one of these members on a single "RoW" label and none of them under its
+# own name. The member sum is therefore the territory those rows describe. It
+# is only a growth index: the pre-1962 fill reads ratios of it, so a member
+# that also keeps its own bucket's proxy is not counted twice in any quantity.
+#
+# Edu Aguilera chose this over leaving 999 unfilled (an empty pre-1961 series
+# that steps up at 1961) and over world-total growth; `aggregate_proxy =
+# "none"` keeps the unfilled alternative selectable.
+.rest_of_world_proxy <- function(df, iso3_col) {
+  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
+  members <- unique(
+    crosswalk$area_code[.rest_of_world_members(crosswalk, "all")]
+  )
+  dt <- .proxy_area_key(df, iso3_col)[area_code %in% members]
+  dt[, area_code := .rest_of_world_code()]
+  dt[, polity_area_code := .rest_of_world_code()]
   dt
 }
 
-.fill_with_proxies <- function(df, gdp_pop, land_wide) {
+.rest_of_world_code <- function() {
+  999L
+}
+
+.cbs_aggregate_proxy_choices <- function() {
+  c("member_sum", "none")
+}
+
+.fill_with_proxies <- function(
+  df,
+  gdp_pop,
+  land_wide,
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  aggregate_proxy <- rlang::arg_match(
+    aggregate_proxy,
+    .cbs_aggregate_proxy_choices()
+  )
   # The CODE, not the label: `fill_proxy_growth()` carries a value forward
   # within a group, so a second label for one code would break the series in
   # two and each half would be filled from its own end (whep#709).
@@ -4630,19 +4712,24 @@ build_processing_coefs <- function(
   #
   # Keying on the bucket removes that sum rather than deciding it: measured on
   # the pin, no two surviving proxy rows share a (year, `polity_area_code`),
-  # while up to four shared a (year, `polity_code`). Nothing is summed into an
-  # aggregate here -- `.proxy_polity_key()` still holds back members that only
-  # reach a bucket by folding, which is whep#493's open question.
+  # while up to four shared a (year, `polity_code`). The one sum made here is
+  # deliberate and confined to bucket 999, whose rows are FABIO's Rest-of-World
+  # members (see `.rest_of_world_proxy()`, whep#724).
   dt <- data.table::as.data.table(df)
   dt[, area_code := as.integer(area_code)]
   pop_dt <- .proxy_bucket_key(gdp_pop, iso3_col = "area_code")
-  # One row per bucket: a no-op on the current pin, but it keeps a future fold
-  # from fanning the frame out on the merge below.
+  # One row per bucket: this is what collapses Rest of World's members into
+  # its single proxy value, and it keeps any other fold from fanning the frame
+  # out on the merge below.
   pop_dt <- pop_dt[,
     .(pop = sum(pop, na.rm = TRUE)),
     by = .(year, area_code)
   ]
   land_dt <- data.table::as.data.table(land_wide)
+  if (aggregate_proxy == "none") {
+    pop_dt <- pop_dt[area_code != .rest_of_world_code()]
+    land_dt <- land_dt[area_code != .rest_of_world_code()]
+  }
   join_cols <- c("year", "area_code")
   dt <- merge(dt, pop_dt, by = join_cols, all.x = TRUE, sort = FALSE)
   dt <- merge(dt, land_dt, by = join_cols, all.x = TRUE, sort = FALSE)

@@ -20,6 +20,7 @@ build_commodity_balances(
   export_share_overflow = .cbs_export_overflow_choices(),
   export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
@@ -317,6 +318,27 @@ reports for 1961, and \code{\link[=check_series_jumps]{check_series_jumps()}} on
 falls from 582 jumps to 176, of which the 1960-1961 seam holds 3 rather
 than 295. Under \code{"production_share"} pre-1962 \code{seed} is 5.22 Gt, total
 tonnage moves -1.023\%, and the seam holds 5 jumps.}
+
+\item{aggregate_proxy}{One of \code{"member_sum"} (default) or \code{"none"},
+selecting what Rest of World (area code 999) grows on in the pre-1962
+back-cast (whep#724). Every other area grows its \code{food}, \code{other_uses}
+and \code{processing} on its own population and its \code{feed} on its own
+agricultural land. No ISO3 code names Rest of World, so no proxy reaches
+it directly. Its rows are crop residues from the \code{crop_residues} pin,
+which books all of FABIO's Rest-of-World members on one label.
+
+\code{"member_sum"} grows it on the summed population and agricultural land
+of those members, the territory its rows describe. This holds whatever
+\code{options(whep.unfold_rest_of_world)} is set to. \code{"none"} gives it no
+proxy, so its series starts in 1961.
+
+\strong{The default moves published values}, for area 999 before 1961 only.
+Measured on a real 1955-1965 build, 66 rows are added and no other
+value changes: 83.5 Mt of residue \code{domestic_supply} over 1955-1960
+(13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
+which 68.3 Mt is \code{other_uses} and 15.3 Mt \code{feed}. That raises world
+residue use by 0.74-0.78\% in those years. Under \code{"none"} the build is
+identical to the one before this argument existed.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
