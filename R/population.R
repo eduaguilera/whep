@@ -35,14 +35,23 @@
 # population, 0.07%) nor `.pop_report_folded()` can see which uncovered area
 # actually reports food.
 #
-# A THIRD SOURCE, opt-in. Both the pin and UN WPP are keyed on a present-day
+# A THIRD SOURCE. Both the pin and UN WPP are keyed on a present-day
 # ISO3, so neither can reach a territory that no longer exists -- see
 # `R/population_reach.R`. `R/fbs_population.R` reads the FAOSTAT Food Balance
 # Sheet population instead, which is keyed on the FAOSTAT area code and so does
 # reach one; `.pop_fill_from_fbs()` below is where
-# `population_source = "pin_wpp_fbs_fallback"` uses it. It stays opt-in because
-# the three sources disagree on the VALUE for such a territory, not only on
-# whether they have one (#862, #863).
+# `population_source = "pin_wpp_fbs_fallback"` uses it.
+#
+# THE DEFAULT is `"pin_wpp_fbs_fallback"` (#1133). No fill can move a value the
+# pin carries, so the flip only adds denominators: on the real inputs 45 areas
+# (190 -> 235), and 18 more countries in the nourishment table in 2000 and in
+# 2010. The open value question of #863 -- which population a dissolved
+# federation gets -- is answered by the `territory_overlap = "federation"`
+# default: area 186 keeps its FAOSTAT row (10,801,000 in 2000, Kosovo
+# included) and the WPP `272`/`273` rows that would sum to 8.3 M are dropped.
+# That is the same territory, and the same publisher, as the FAOSTAT food the
+# per-capita divide puts over it. `"pin"` stays selectable to reproduce an
+# earlier number.
 #
 # TERRITORIAL OVERLAP, which no anti-join on `(year, area_code)` can see
 # (#939). Both fills refuse to overwrite a key that is already present, and
@@ -121,7 +130,7 @@
 #' It is a gap-filler and not a replacement, because the two sources disagree
 #' where they overlap: across 12,309 shared country-years they differ by a
 #' median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
-#' `"pin"` remains the default.
+#' the pin keeps every value it has under every composition.
 #'
 #' `population_source = "pin_wpp_fbs_fallback"` then fills what NEITHER of those
 #' reaches from [read_fbs_population()], the FAOSTAT Food Balance Sheet
@@ -132,13 +141,29 @@
 #' denominator. It is anti-joined like the WPP fill, so it too cannot move a
 #' denominator that was already published.
 #'
-#' It is opt-in and not the default because the sources disagree on the value,
-#' not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+#' It is the default (#1133). The sources disagree on the value, not just on
+#' the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
 #' WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`) gives
 #' 10,104,000, 6.5% lower; and the `SRB + MNE` sum a successor walk can actually
 #' reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
-#' separately and it carries no WHEP area code (#863). Which of the three a
-#' dissolved federation should be given is an open decision.
+#' separately and it carries no WHEP area code (#863). Under the default
+#' `territory_overlap = "federation"` area 186 keeps the FAOSTAT figure and the
+#' Serbia and Montenegro rows from UN WPP are dropped in those years, so the
+#' federation's denominator covers the same territory, from the same
+#' publisher, as the FAOSTAT food divided by it. Measured on the real inputs,
+#' the default adds 45 areas to the pin's 190 and changes no value the pin
+#' already carries; `"pin"` reproduces the earlier, pin-only table.
+#'
+#' `population_source = "pin_fbs_fallback"` is FAOSTAT's own population
+#' behind the pin, skipping UN WPP. It reaches the two dissolved areas but
+#' only 12 of the 45 areas the pin lacks (202 areas against 235), because the
+#' Food Balance Sheets do not report Bhutan, Comoros, the French overseas
+#' departments or most small island states. Where both FBS and WPP would fill
+#' the same country-year they agree to a median of about 1e-6.
+#'
+#' The UN WPP fill stops at 2023, the last year WPP 2024 publishes as an
+#' estimate; 2024-2100 are medium-variant projections and are dropped, with a
+#' message, rather than returned as population.
 #'
 #' Neither fill can overwrite a key the previous source already has, but an
 #' anti-join on `(year, area_code)` cannot see two **different** codes naming
@@ -169,10 +194,11 @@
 #'   thousands), `wpp_population` (a [read_wpp_population()] output) and
 #'   `fbs_population` (a [read_fbs_population()] output). Falls back to
 #'   [whep_read_file()] when absent.
-#' @param population_source `"pin"` (default, the `gdp-population` pin alone),
-#'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
-#'   not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then fills what
-#'   neither reaches from [read_fbs_population()].
+#' @param population_source `"pin_wpp_fbs_fallback"` (default), which fills
+#'   the country-years the `gdp-population` pin does not cover from UN WPP and
+#'   then what neither reaches from [read_fbs_population()]; `"pin"`, the pin
+#'   alone; `"pin_wpp_fallback"`, the pin then UN WPP; or `"pin_fbs_fallback"`,
+#'   which fills from [read_fbs_population()] alone and never reads UN WPP.
 #' @param territory_overlap Which row survives when two area codes describe
 #'   overlapping territory in the same year, as a dissolved federation and its
 #'   successor states do. Overlaps are found from the polities database's
@@ -230,7 +256,12 @@
 read_population <- function(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  population_source = c(
+    "pin_wpp_fbs_fallback",
+    "pin",
+    "pin_wpp_fallback",
+    "pin_fbs_fallback"
+  ),
   territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 ) {
@@ -310,9 +341,9 @@ read_population <- function(
 # The two sources are NOT interchangeable where they overlap: across 12,309
 # shared country-years they differ by a median 0.64%, a 95th percentile of
 # 4.4%, and up to 81%. That is the reason this is a gap-filler and not a
-# replacement, and the reason the default stays `"pin"`.
+# replacement.
 .pop_fill_from_wpp <- function(pinned, population_source, wpp, years) {
-  if (population_source == "pin") {
+  if (!population_source %in% c("pin_wpp_fallback", "pin_wpp_fbs_fallback")) {
     return(pinned)
   }
   wpp <- wpp %||% read_wpp_population(years = years)
@@ -333,7 +364,34 @@ read_population <- function(
   if (!is.null(years)) {
     fill <- dplyr::filter(fill, .data$year %in% years)
   }
-  dplyr::bind_rows(pinned, fill)
+  dplyr::bind_rows(pinned, .pop_drop_wpp_projections(fill))
+}
+
+# UN WPP 2024 ships its estimates (1950-2023) and its medium-variant
+# projections (2024-2100) in one file with nothing marking which is which. A
+# projection is not a measured population, the pin stops at 2021, and nothing
+# in WHEP has a numerator past 2023, so a projected fill row could only be a
+# denominator with no numerator or a silently 2100-inclusive world sum (#1133).
+# The cut-off is the publisher's: "estimates, 1950-2023, and projections
+# (medium scenario), 2024-2100" (United Nations, Department of Economic and
+# Social Affairs, Population Division (2024). World Population Prospects 2024:
+# Summary of Results, figure notes). On the real inputs this drops 17,710 rows.
+.pop_drop_wpp_projections <- function(fill) {
+  last <- .wpp_last_estimate_year()
+  projected <- fill$year > last
+  if (any(projected)) {
+    n <- sum(projected)
+    cli::cli_inform(c(
+      "Dropped {n} UN WPP fill row{?s} after {last}.",
+      "i" = "WPP 2024 years from {last + 1L} on are medium-variant
+             projections, not estimates."
+    ))
+  }
+  fill[!projected, ]
+}
+
+.wpp_last_estimate_year <- function() {
+  2023L
 }
 
 # `pin_wpp_fbs_fallback`: after the WPP fill, fill what is STILL missing from
@@ -350,10 +408,11 @@ read_population <- function(
 # while a UN WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`)
 # gives 10,104,000 -- 6.5% apart -- and the `SRB + MNE` sum the successor walk
 # can actually reach today gives 8,311,000, 23% apart (#863). Which of those a
-# dissolved federation should get is an open decision, which is why this is
-# opt-in and `"pin"` remains the default.
+# dissolved federation should get is settled by `territory_overlap`: the
+# default `"federation"` keeps this FAOSTAT row for 186, on the same territory
+# as the FAOSTAT food it divides (#1133).
 .pop_fill_from_fbs <- function(filled, population_source, fbs, years) {
-  if (population_source != "pin_wpp_fbs_fallback") {
+  if (!population_source %in% c("pin_wpp_fbs_fallback", "pin_fbs_fallback")) {
     return(filled)
   }
   fbs <- fbs %||% read_fbs_population(years = years)
@@ -641,11 +700,9 @@ read_population <- function(
     "i" = "{.val {signif(100 * share, 3)}}% of the {quantity} in range goes
            with them. See {.fun read_population} for what the denominator
            covers.",
-    "i" = "{.code read_population(population_source =
-           \"pin_wpp_fbs_fallback\")} fills the pin's gaps from UN WPP and
-           then the FAOSTAT Food Balance Sheets, which also reach dissolved
-           reporting areas such as Serbia and Montenegro (186). It is opt-in,
-           not the default."
+    "i" = "{.code read_population()} fills the pin's gaps from UN WPP and then
+           the FAOSTAT Food Balance Sheets by default; a table read with
+           {.code population_source = \"pin\"} has neither fill."
   ))
   invisible(dropped)
 }

@@ -21,7 +21,7 @@ build_n_percapita(
 (absolute persons). Defaults to \code{NULL}, which reads
 \code{\link[=read_population]{read_population()}} at its own default composition over the years of
 \code{n_inputs}; supply a table to use any other source (for instance
-\code{read_population(population_source = "pin_wpp_fbs_fallback")}).}
+\code{read_population(population_source = "pin")}).}
 
 \item{framing}{How the total anthropogenic reactive nitrogen is defined.
 \code{"synthetic_bnf"} (default) scales the \code{"synthetic"} term by
