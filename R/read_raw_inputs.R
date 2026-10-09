@@ -457,6 +457,18 @@
     )
   ]
 
+  # `faostat-cbs-old-animal` reports Meat Meal as 2749, `items_full` books it
+  # as 2112. Without this the code-keyed join in `.extract_cb()` dropped the
+  # item's whole 1961-2013 balance, so Meat Meal had no CBS row anywhere
+  # (whep#1450). No other source carries 2749.
+  dt[
+    item_cbs_code == 2749L,
+    `:=`(
+      item_cbs_code = 2112L,
+      item_cbs = "Meat Meal"
+    )
+  ]
+
   dt
 }
 
