@@ -1203,6 +1203,37 @@ test_that("C7: an unkeyed layer the cell proves counted twice leaves", {
   testthat::expect_equal(shared$land_area_ha, c(20000, 60000))
 })
 
+test_that("C7: an unkeyed layer copying its members leaves on the coast", {
+  # whep#1405. The same federation in a coastal cell: the sea is nobody's,
+  # so the three claims sum to 160,000 ha and the area proves only 60,000 ha
+  # twice. The layer's 80,000 ha equal its members' together, so it is a
+  # copy and leaves whole rather than keeping a quarter of its land.
+  support <- .c7_support_fixture() |>
+    dplyr::mutate(polity_area_ha = c(20000, 60000, 100000)) |>
+    dplyr::filter(lon == 0.25) |>
+    dplyr::bind_rows(tibble::tibble(
+      lon = 0.25,
+      lat = 40.25,
+      polity_code = "FED-1900-2025",
+      area_code = NA_integer_,
+      cell_area_ha = 100000,
+      land_area_ha = 80000,
+      polity_area_ha = 80000,
+      start_year = 1900L,
+      end_year = 2025L
+    ))
+  out <- suppressMessages(suppressWarnings(
+    whep:::.carbon_cell_support(support, year = 2000L)
+  ))
+  testthat::expect_equal(
+    dplyr::arrange(out, area_code)$cell_area_frac,
+    c(
+      0.25,
+      0.75
+    )
+  )
+})
+
 test_that("C7: two polity codes on one area_code are summed and reported", {
   support <- dplyr::mutate(.c7_support_fixture(), area_code = c(206L, 206L, 1L))
   testthat::expect_warning(

@@ -35,8 +35,9 @@
 # pin, Germany's 1961 cropland support fell from 12.54 to 6.54 Mha. In an
 # OVERLAPPING cell, a polity that has no area code, no national data in the
 # year (`reporting_areas`), or duplicates the container it folds into is
-# therefore removed from the denominator. Two claimants that both report keep
-# their halves; they are listed in the `overlap_kept` attribute.
+# therefore removed from the denominator -- but only as far as the cell's own
+# area proves it is counted twice (whep#1405). Two claimants that both report
+# keep their halves; they are listed in the `overlap_kept` attribute.
 
 # How far a cell's summed territory may exceed its area before the cell counts
 # as labelled twice. Measured on the shipped `polycell_support` pin at 2010, the
@@ -264,7 +265,18 @@
   keyed
 }
 
-# Flag, per cell, the rows an overlapping cell takes out of its denominator.
+# Flag, per cell, the rows an overlapping cell takes out of its denominator,
+# and how much of each. A cell cannot hold more territory than its area, so
+# what it claims beyond `cell_area_ha` is counted twice; no more of the
+# removable claims than that leaves, shared between them in proportion to
+# their territory (whep#1405). It is the bound the level-0 spatialization
+# and the carbon snapshot apply to an unkeyed claim
+# (`.carbon_discount_duplicates()`), so the two gridded chains run one rule.
+# Removing whole rows instead handed the rest of the claim to its neighbours:
+# at 2015 Kosovo's cell (20.25, 42.75) is over-claimed by 90 ha, and its 117
+# kha claim left in full, doubling the shares of Albania, Montenegro and
+# Serbia. A claim that copies a kept one still leaves whole; see
+# `.carbon_duplicate_frac()`.
 .cpy_mark_removed <- function(rows, reporting_areas) {
   if (anyNA(rows$land_area_ha) || any(rows$land_area_ha < 0)) {
     cli::cli_abort(
@@ -287,7 +299,15 @@
       .by = c("lon", "lat")
     ) |>
     dplyr::mutate(
-      removed = .data$overlap & (.data$no_data | .data$container),
+      removed_frac = .carbon_duplicate_frac(
+        .data$polity_area_ha,
+        .data$cell_area_ha,
+        .data$overlap & (.data$no_data | .data$container)
+      ),
+      .by = c("lon", "lat")
+    ) |>
+    dplyr::mutate(
+      removed = .data$removed_frac > 0,
       removed_reason = dplyr::case_when(
         !.data$removed ~ NA_character_,
         is.na(.data$area_code) ~ "no_area_code",
@@ -297,17 +317,18 @@
     )
 }
 
-# The land share over the rows the cell keeps. The denominator includes the
+# The land share over the land the cell keeps. The denominator includes the
 # land of kept rows with no area code, so an unkeyable polity's hectares are
 # never handed to its neighbour; those rows then leave the table.
 .cpy_shares <- function(rows, area_key) {
   out <- rows |>
     dplyr::mutate(
-      denominator = sum(.data$land_area_ha[!.data$removed]),
+      land_area_ha = .data$land_area_ha * (1 - .data$removed_frac),
+      denominator = sum(.data$land_area_ha),
       .by = c("lon", "lat")
     ) |>
     dplyr::filter(
-      !.data$removed,
+      .data$removed_frac < 1,
       !is.na(.data$area_code),
       .data$denominator > 0
     ) |>
@@ -346,7 +367,7 @@
     dplyr::filter(.data$removed) |>
     dplyr::summarise(
       cells = dplyr::n_distinct(.data$lon, .data$lat),
-      land_area_ha = sum(.data$land_area_ha),
+      land_area_ha = sum(.data$land_area_ha * .data$removed_frac),
       .by = c("polity_code", "area_code", "removed_reason")
     ) |>
     dplyr::arrange(dplyr::desc(.data$land_area_ha))
@@ -356,7 +377,11 @@
 # claimants that both carry national data, left at their halves.
 .cpy_overlap_kept <- function(rows) {
   rows |>
-    dplyr::filter(.data$overlap, !.data$removed, !is.na(.data$area_code)) |>
+    dplyr::filter(
+      .data$overlap,
+      !.data$no_data,
+      !.data$container
+    ) |>
     dplyr::mutate(
       n_kept = dplyr::n_distinct(.data$area_code),
       .by = c("lon", "lat")
@@ -378,7 +403,8 @@
          by the recorded mapping ({dplyr::n_distinct(mapped$polity_code)}
          polit{?y/ies}).",
     i = "{nrow(removed)} polycell{?s}
-         ({round(sum(removed$land_area_ha) / 1e6, 2)} Mha of land) removed from
-         overlapping cells' share denominators."
+         ({round(sum(removed$land_area_ha * removed$removed_frac) / 1e6, 2)}
+         Mha of land) counted twice and removed from overlapping cells' share
+         denominators."
   ))
 }
