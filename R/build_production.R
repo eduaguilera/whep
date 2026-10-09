@@ -221,8 +221,7 @@ build_primary_production <- function(
 #'
 #' No data corrections are applied at this stage. The output preserves
 #' FAOSTAT values as-is (including known issues such as un-corrected tea
-#' tonnages and the absence of game-meat stocks). For the corrected
-#' version, pipe into `.fix_production()`.
+#' tonnages). For the corrected version, pipe into `.fix_production()`.
 #'
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2023`.
@@ -424,7 +423,7 @@ build_primary_production <- function(
     .trim_yield_chain(fao_combined, chain_years, years)
   )
 
-  # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
+  # 6. Primary dataset (crops + livestock + the synthetic Game herd)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
   # 7. Yield calculation + gap-filling
@@ -498,8 +497,6 @@ build_primary_production <- function(
 #'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
 #' * **Rice × 0.67** — FAOSTAT reports rice production as paddy;
 #'   this converts paddy rice tonnes and yields to milled equivalent.
-#' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
-#'   for item "Game" (1190) from game-meat production tonnes (1163).
 #' * **Dissolved countries** — removes overlapping country/year
 #'   observations (e.g. Czechoslovakia after 1992).
 #'
@@ -513,7 +510,6 @@ build_primary_production <- function(
   df |>
     .correct_tea_final() |>
     .fix_rice_milled_equiv() |>
-    .add_game_meat_final() |>
     .filter_dissolved_countries()
 }
 
@@ -2134,18 +2130,35 @@ build_primary_production <- function(
   # half of it was. Kept when every part agrees, `NA` when they disagree
   # (whep#581). An unflagged part blocks it as well (whep#1044).
   .add_folded_fao_flags(out, bound, by_cols, unflagged = "blocks") |>
-    tibble::as_tibble()
+    tibble::as_tibble() |>
+    .add_game_meat()
 }
 
+# Synthetic Game herd (1190) for game meat (1163), which FAOSTAT reports with no
+# stock. A meat tonnage reaches the output only through a yield on its animal's
+# herd (`.calculate_raw_yields()`), so the herd has to exist before the yield
+# step: built after assembly, as it was from the read/fix split until whep#1487,
+# it found no game tonnes left and the output carried neither. Global built it
+# here too (`Global/R/Crop_liv_prod.R`, `Primary_all_raw`).
+#
+# The factors are Global's: 3 LU per tonne and 10 LU per head, which its own
+# comments call arbitrary and "should be revised". Assumed, unverified. The
+# tonnage they carry is unaffected by them -- the yield is t / (3 t), so the
+# tonnes come back exactly -- only the reported Game LU and heads depend on
+# them. No `fao_flag`: FAOSTAT publishes no Game stock (whep#1044).
 .add_game_meat <- function(df) {
   game <- df |>
-    dplyr::filter(item_prod_code == 1163) |>
+    dplyr::filter(item_prod_code == "1163", unit == "t") |>
     dplyr::mutate(
       value = value * 3,
       unit = "LU",
       item_prod = "Game",
-      item_prod_code = 1190
+      item_prod_code = "1190",
+      fao_flag = NA_character_
     )
+  if (nrow(game) == 0L) {
+    return(df)
+  }
 
   game_heads <- game |>
     dplyr::mutate(value = value / 10, unit = "heads")
@@ -2837,6 +2850,8 @@ build_primary_production <- function(
       fao_flag = flag_t
     )
 
+  herdless_df <- .herdless_tonnes(yield_all)
+
   yield_df <- yield_all |>
     dplyr::mutate(fao_flag = NA_character_) |>
     dplyr::select(
@@ -2888,7 +2903,7 @@ build_primary_production <- function(
 
   live_anim_df <- .restore_unproduced_stocks(live_anim_df, stocks, items)
 
-  dplyr::bind_rows(ha_df, tonnes_df, yield_df) |>
+  dplyr::bind_rows(ha_df, tonnes_df, herdless_df, yield_df) |>
     dplyr::select(-item_prod) |>
     dplyr::left_join(
       whep::items_prim |>
@@ -2912,6 +2927,45 @@ build_primary_production <- function(
         "tonnes",
         as.character(unit)
       )
+    )
+}
+
+# Reported livestock tonnes the yield branch emits nothing for, as reported.
+#
+# `tonnes_df` reads a livestock tonnage off its `t_head` yield row, which exists
+# only where the producing animal has a herd: `.calculate_raw_yields()` joins
+# the stock on, and a product with no stock that area-year keeps a row with no
+# `unit` at all. Those rows were dropped, and with them every tonne of a meat
+# whose animal FAOSTAT reports no stock for -- other meat (1166) and snails
+# (1176), both on Animals live nes (1171): 1.46 Mt at 2010 that the balance
+# still carries as Meat, Other (whep#1487).
+#
+# Only a reported `t` passes, with its own flag: no herd, no yield and no
+# imputation is made for it, because there is no stock to divide by. A product
+# the yield branch does carry that area-year is left to it -- the anti-join --
+# so no tonnage is emitted twice.
+.herdless_tonnes <- function(yield_all) {
+  carried <- yield_all |>
+    dplyr::filter(unit %in% c("t_LU", "t_head"))
+  yield_all |>
+    dplyr::filter(is.na(unit), !is.na(live_anim_code), !is.na(t)) |>
+    dplyr::anti_join(
+      carried,
+      by = c("year", "area_code", "item_prod_code")
+    ) |>
+    dplyr::mutate(unit = "t") |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      live_anim,
+      live_anim_code,
+      unit,
+      source,
+      value = t,
+      fao_flag = flag_t
     )
 }
 
@@ -3420,43 +3474,6 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::select(-dplyr::all_of("rice_source_is_paddy"))
-}
-
-#' Add game-meat livestock units and heads (final format)
-#' @details Creates `LU` and `heads` rows for item "Game" (1190) from
-#'   game-meat production tonnes (item 1163). Conversion:
-#'   LU = tonnes * 3, heads = tonnes * 3 / 10.
-#' @keywords internal
-#' @noRd
-.add_game_meat_final <- function(df) {
-  force(df)
-  cli::cli_progress_step("Adding game meat stocks")
-  game_tonnes <- df |>
-    dplyr::filter(item_prod_code == 1163, unit == "tonnes")
-
-  if (nrow(game_tonnes) == 0L) {
-    return(df)
-  }
-
-  game_lu <- game_tonnes |>
-    dplyr::mutate(
-      value = value * 3,
-      unit = "LU",
-      item_prod = "Game",
-      item_prod_code = 1190,
-      # The tonnage's flag does not describe these rows. A stock inferred from
-      # a meat tonnage through an assumed 3 LU/t factor is WHEP's estimate for
-      # an item FAOSTAT reports no stock for at all (whep#1044).
-      fao_flag = NA_character_
-    )
-
-  game_heads <- game_lu |>
-    dplyr::mutate(
-      value = value / 10,
-      unit = "heads"
-    )
-
-  dplyr::bind_rows(df, game_lu, game_heads)
 }
 
 # -- Historical extension -----------------------------------------------------
