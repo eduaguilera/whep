@@ -122,7 +122,7 @@ get_wide_cbs(example = TRUE)
 #>  6  1995       234              234 URY-1828-2025         Uruguay               
 #>  7  1975        10               10 AUS-1901-2025         Australia             
 #>  8  1961       156              156 NZL-1840-2025         New Zealand           
-#>  9  1961       236              236 VEN-1821-2025         Venezuela             
+#>  9  1961       236              236 VEN-1830-2025         Venezuela             
 #> 10  1995        49               49 CUB-1800-2025         Cuba                  
 #> # ℹ 14 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <dbl>, unit <chr>, domestic_supply <dbl>, food <dbl>,

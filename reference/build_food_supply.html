@@ -29,6 +29,26 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped.
+An FBS item that covers several species reaches biomass_coefs through
+one representative Name_biomass in items_full. For FBS 2551 Nuts and products, ten species reached through Almonds, that one row is not
+representative: on FAO's own food-composition factors for the FBS, protein
+per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
+(pistachios), and almonds sit near the top at 8.0 (FAO, Food balance
+sheets: a handbook, Rome, 2001, Annex I, PDF page 65,
+https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf). With
+basket = &quot;fao_composition&quot; (default) the protein density of 2551 is those
+ten factors weighted by 2010 world production of each species (FAOSTAT
+production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
+almonds alone (#1453). It replaces the protein term only, and only on the
+&quot;edible_portion&quot; basis, whose meaning (edible protein per kg of commodity)
+is what FAO's in-shell factor is. Energy keeps the representative row: FAO's
+factor is dietary energy, not the gross energy this function carries.
+Against the pre-2014 FBS, which FAO built from these same factors on what
+each country actually ate, the basket gives 0.98x 2010 world nut protein over
+130 countries, against 1.21x for almonds alone. The world basket moves
+little over time (61 g/kg on 1961 production, 66 on 2024).
+&quot;representative_species&quot; keeps the single-species coefficient, for
+continuity and sensitivity analysis.
 The &quot;faostat_fbs&quot; method is FAOSTAT's own per-capita supply, the
 independent benchmark for the default. With data$fbs_supply injected it is
 returned unchanged. Otherwise it is read from the faostat-fbs-old
@@ -91,6 +111,26 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped.
+An FBS item that covers several species reaches biomass_coefs through
+one representative Name_biomass in items_full. For FBS 2551 Nuts and products, ten species reached through Almonds, that one row is not
+representative: on FAO's own food-composition factors for the FBS, protein
+per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
+(pistachios), and almonds sit near the top at 8.0 (FAO, Food balance
+sheets: a handbook, Rome, 2001, Annex I, PDF page 65,
+https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf). With
+basket = &quot;fao_composition&quot; (default) the protein density of 2551 is those
+ten factors weighted by 2010 world production of each species (FAOSTAT
+production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
+almonds alone (#1453). It replaces the protein term only, and only on the
+&quot;edible_portion&quot; basis, whose meaning (edible protein per kg of commodity)
+is what FAO's in-shell factor is. Energy keeps the representative row: FAO's
+factor is dietary energy, not the gross energy this function carries.
+Against the pre-2014 FBS, which FAO built from these same factors on what
+each country actually ate, the basket gives 0.98x 2010 world nut protein over
+130 countries, against 1.21x for almonds alone. The world basket moves
+little over time (61 g/kg on 1961 production, 66 on 2024).
+&quot;representative_species&quot; keeps the single-species coefficient, for
+continuity and sensitivity analysis.
 The &quot;faostat_fbs&quot; method is FAOSTAT's own per-capita supply, the
 independent benchmark for the default. With data$fbs_supply injected it is
 returned unchanged. Otherwise it is read from the faostat-fbs-old
@@ -193,6 +233,26 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped.</p>
+<p>An FBS item that covers several species reaches <code>biomass_coefs</code> through
+one representative <code>Name_biomass</code> in <a href="items_full.html">items_full</a>. For FBS 2551 <code>Nuts and products</code>, ten species reached through <code>Almonds</code>, that one row is not
+representative: on FAO's own food-composition factors for the FBS, protein
+per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
+(pistachios), and almonds sit near the top at 8.0 (FAO, <em>Food balance
+sheets: a handbook</em>, Rome, 2001, Annex I, PDF page 65,
+<a href="https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf" class="external-link">https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf</a>). With
+<code>basket = "fao_composition"</code> (default) the protein density of 2551 is those
+ten factors weighted by 2010 world production of each species (FAOSTAT
+production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
+almonds alone (#1453). It replaces the protein term only, and only on the
+<code>"edible_portion"</code> basis, whose meaning (edible protein per kg of commodity)
+is what FAO's in-shell factor is. Energy keeps the representative row: FAO's
+factor is dietary energy, not the gross energy this function carries.
+Against the pre-2014 FBS, which FAO built from these same factors on what
+each country actually ate, the basket gives 0.98x 2010 world nut protein over
+130 countries, against 1.21x for almonds alone. The world basket moves
+little over time (61 g/kg on 1961 production, 66 on 2024).
+<code>"representative_species"</code> keeps the single-species coefficient, for
+continuity and sensitivity analysis.</p>
 <p>The <code>"faostat_fbs"</code> method is FAOSTAT's own per-capita supply, the
 independent benchmark for the default. With <code>data$fbs_supply</code> injected it is
 returned unchanged. Otherwise it is read from the <code>faostat-fbs-old</code>
@@ -234,6 +294,7 @@ gaps: 351 is the aggregate whose members carry population separately, and
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"whep_native"</span>, <span class="st">"faostat_fbs"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  protein_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"edible_portion"</span>, <span class="st">"whole_commodity"</span>, <span class="st">"product_nitrogen"</span><span class="op">)</span>,</span>
+<span>  basket <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fao_composition"</span>, <span class="st">"representative_species"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -275,6 +336,15 @@ edible and inedible fractions, scaled by <code>Edible_portion</code>, ignoring
 <code>N_kgN_kgFM</code>. A missing <code>Edible_portion</code> counts as 1.</p></dd>
 
 
+<dt id="arg-basket">basket<a class="anchor" aria-label="anchor" href="#arg-basket"></a></dt>
+<dd><p>Protein density of multi-species FBS items, for
+<code>"whep_native"</code> with <code>protein_basis = "edible_portion"</code> only:
+<code>"fao_composition"</code> (default) weights FAO's FBS food-composition factors
+per species by world production (today FBS 2551 <code>Nuts and products</code>);
+<code>"representative_species"</code> uses the one <code>biomass_coefs</code> row that
+<a href="items_full.html">items_full</a> bridges the item to.</p></dd>
+
+
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small fixture instead of computing.
 Defaults to <code>FALSE</code>.</p></dd>
@@ -283,9 +353,9 @@ Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>year</code>, <code>area_code</code> with <code>protein_g_cap_day</code>,
-<code>energy_kcal_cap_day</code>, <code>population</code>, <code>method_food_supply</code> and
-<code>method_protein_basis</code> (<code>NA</code> for <code>"faostat_fbs"</code>), plus the polity columns
-below.</p>
+<code>energy_kcal_cap_day</code>, <code>population</code>, <code>method_food_supply</code>,
+<code>method_protein_basis</code> and <code>method_basket</code> (both <code>NA</code> for
+<code>"faostat_fbs"</code>), plus the polity columns below.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
@@ -329,15 +399,15 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_food_supply</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 11</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 12</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010        10               10 AUS-1901-2025         Australia            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010        32               32 CMR-1961-2025         Cameroon             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>011        10               10 AUS-1901-2025         Australia            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   protein_g_cap_day &lt;dbl&gt;, energy_kcal_cap_day &lt;dbl&gt;, population &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_food_supply &lt;chr&gt;, method_protein_basis &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_food_supply &lt;chr&gt;, method_protein_basis &lt;chr&gt;, method_basket &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

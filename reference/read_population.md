@@ -52,7 +52,8 @@ own year span. Filled rows are stamped `source_pop = "UN WPP 2024"`.
 It is a gap-filler and not a replacement, because the two sources
 disagree where they overlap: across 12,309 shared country-years they
 differ by a median 0.64%, a 95th percentile of 4.4% and a maximum of
-81%. That is why `"pin"` remains the default.
+81%. That is why the pin keeps every value it has under every
+composition.
 
 `population_source = "pin_wpp_fbs_fallback"` then fills what NEITHER of
 those reaches from
@@ -65,14 +66,30 @@ Montenegro over 1992-2005 (#862) and area 151 Netherlands Antilles over
 anti-joined like the WPP fill, so it too cannot move a denominator that
 was already published.
 
-It is opt-in and not the default because the sources disagree on the
-value, not just on the coverage. For area 186 in 2000 FAOSTAT gives
-10,801,000; a UN WPP 2024 territorial sum for the same ground
-(`SRB + MNE + XKX`) gives 10,104,000, 6.5% lower; and the `SRB + MNE`
-sum a successor walk can actually reach today gives 8,311,000, 23%
-lower, because WPP publishes Kosovo separately and it carries no WHEP
-area code (#863). Which of the three a dissolved federation should be
-given is an open decision.
+It is the default (#1133). The sources disagree on the value, not just
+on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN WPP
+2024 territorial sum for the same ground (`SRB + MNE + XKX`) gives
+10,104,000, 6.5% lower; and the `SRB + MNE` sum a successor walk can
+actually reach today gives 8,311,000, 23% lower, because WPP publishes
+Kosovo separately and it carries no WHEP area code (#863). Under the
+default `territory_overlap = "federation"` area 186 keeps the FAOSTAT
+figure and the Serbia and Montenegro rows from UN WPP are dropped in
+those years, so the federation's denominator covers the same territory,
+from the same publisher, as the FAOSTAT food divided by it. Measured on
+the real inputs, the default adds 45 areas to the pin's 190 and changes
+no value the pin already carries; `"pin"` reproduces the earlier,
+pin-only table.
+
+`population_source = "pin_fbs_fallback"` is FAOSTAT's own population
+behind the pin, skipping UN WPP. It reaches the two dissolved areas but
+only 12 of the 45 areas the pin lacks (202 areas against 235), because
+the Food Balance Sheets do not report Bhutan, Comoros, the French
+overseas departments or most small island states. Where both FBS and WPP
+would fill the same country-year they agree to a median of about 1e-6.
+
+The UN WPP fill stops at 2023, the last year WPP 2024 publishes as an
+estimate; 2024-2100 are medium-variant projections and are dropped, with
+a message, rather than returned as population.
 
 Neither fill can overwrite a key the previous source already has, but an
 anti-join on `(year, area_code)` cannot see two **different** codes
@@ -104,7 +121,8 @@ the note at the top of `R/population_reach.R`.
 read_population(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
+  population_source = c("pin_wpp_fbs_fallback", "pin", "pin_wpp_fallback",
+    "pin_fbs_fallback"),
   territory_overlap = c("federation", "successors", "none"),
   example = FALSE
 )
@@ -131,11 +149,14 @@ read_population(
 
 - population_source:
 
-  `"pin"` (default, the `gdp-population` pin alone),
-  `"pin_wpp_fallback"`, which additionally fills country-years the pin
-  does not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then
-  fills what neither reaches from
-  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md).
+  `"pin_wpp_fbs_fallback"` (default), which fills the country-years the
+  `gdp-population` pin does not cover from UN WPP and then what neither
+  reaches from
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md);
+  `"pin"`, the pin alone; `"pin_wpp_fallback"`, the pin then UN WPP; or
+  `"pin_fbs_fallback"`, which fills from
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md)
+  alone and never reads UN WPP.
 
 - territory_overlap:
 

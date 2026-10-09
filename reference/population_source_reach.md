@@ -83,7 +83,7 @@ where those codes cover less ground than the period's territory).
 
 ``` r
 population_source_reach(c("BEL", "LUX", "CZE", "SVK", "CUW"))
-#> # A tibble: 297 × 10
+#> # A tibble: 299 × 10
 #>    area_code polity_code  polity_name own_iso3 map_year_start map_year_end reach
 #>        <int> <chr>        <chr>       <chr>             <int>        <int> <chr>
 #>  1         1 ARM-1991-20… Armenia     ARM                1992         2024 unre…
@@ -96,7 +96,7 @@ population_source_reach(c("BEL", "LUX", "CZE", "SVK", "CUW"))
 #>  8         8 ATG-1800-20… Antigua an… ATG                1961         2024 unre…
 #>  9         9 ARG-1902-20… Argentina   ARG                1961         2024 unre…
 #> 10        10 AUS-1901-20… Australia   AUS                1961         2024 unre…
-#> # ℹ 287 more rows
+#> # ℹ 289 more rows
 #> # ℹ 3 more variables: n_iso3 <int>, iso3_reached <chr>,
 #> #   extent_exceeds_iso3 <lgl>
 ```

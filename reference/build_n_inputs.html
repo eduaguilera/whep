@@ -329,6 +329,14 @@ forwarding its own <code>data</code> list.</p></li>
 own axis, not this function's: it defaults to <code>"subnational"</code> at
 <code>resolution = "grid"</code> (cell-level nitrogen needs cell-level manure) and
 to <code>"national"</code> otherwise. A value supplied here is always honoured.</p></li>
+<li><p><code>residue_destiny_input</code>, <code>residue_destiny_method</code>,
+<code>residue_bedding_fraction</code>: the residue-destiny split
+<code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> documents. The straw it beds is passed to
+<code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code> as <code>bedding</code>, one supply per
+<code>year x territory</code> that <code><a href="add_manure_bedding.html">add_manure_bedding()</a></code> spreads over the housed
+litter-using streams, so the bedding N the balance books as leaving the
+field returns in the manure input. Nothing is bedded when the input is
+absent or the split beds nothing.</p></li>
 </ul></dd>
 
 

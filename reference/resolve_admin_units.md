@@ -139,8 +139,8 @@ polity; `"FR21"` under `"eurostat-nuts2013"` and `"FRF2"` under
 recoding renames; `"FRF2"` under `"jrc-nuts2016"` for the same one;
 `"35"` under `"ibge-uf"` for the Sao Paulo state polity; `"ESP-ES111"`
 under `"whep-lab-spain-provinces"` for the NUTS-3 province `ES111`; and
-`"JPN-AICHI"` under `"whep-lab-japan"` for `JPN-AICHI-1871-2025`, the
-one target polity that already exists in the shipped
+`"JPN-AICHI"` under `"whep-lab-japan"` for `JPN-23-1871-2025`, the one
+target polity that already exists in the shipped
 [polities](https://eduaguilera.github.io/whep/reference/polities.md).
 
 ## Why there is no staleness warning

@@ -35,6 +35,29 @@ factors could refine it (O-B). Food items with no protein coefficient
 after the coalesce chain are excluded with a warning naming the count
 and a few examples (the residual gap-fill, O-B), never silently dropped.
 
+An FBS item that covers several species reaches `biomass_coefs` through
+one representative `Name_biomass` in
+[items_full](https://eduaguilera.github.io/whep/reference/items_full.md).
+For FBS 2551 `Nuts and products`, ten species reached through `Almonds`,
+that one row is not representative: on FAO's own food-composition
+factors for the FBS, protein per 100 g of nut in shell runs from 1.8 g
+(chestnuts) to 10.3 g (pistachios), and almonds sit near the top at 8.0
+(FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I, PDF page
+65, <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>). With
+`basket = "fao_composition"` (default) the protein density of 2551 is
+those ten factors weighted by 2010 world production of each species
+(FAOSTAT production, element 5510, area 351 excluded), 64.7 g per kg
+against 80 for almonds alone (#1453). It replaces the protein term only,
+and only on the `"edible_portion"` basis, whose meaning (edible protein
+per kg of commodity) is what FAO's in-shell factor is. Energy keeps the
+representative row: FAO's factor is dietary energy, not the gross energy
+this function carries. Against the pre-2014 FBS, which FAO built from
+these same factors on what each country actually ate, the basket gives
+0.98x 2010 world nut protein over 130 countries, against 1.21x for
+almonds alone. The world basket moves little over time (61 g/kg on 1961
+production, 66 on 2024). `"representative_species"` keeps the
+single-species coefficient, for continuity and sensitivity analysis.
+
 The `"faostat_fbs"` method is FAOSTAT's own per-capita supply, the
 independent benchmark for the default. With `data$fbs_supply` injected
 it is returned unchanged. Otherwise it is read from the
@@ -79,6 +102,7 @@ build_food_supply(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
   protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
+  basket = c("fao_composition", "representative_species"),
   example = FALSE
 )
 ```
@@ -123,6 +147,16 @@ build_food_supply(
   fractions, scaled by `Edible_portion`, ignoring `N_kgN_kgFM`. A
   missing `Edible_portion` counts as 1.
 
+- basket:
+
+  Protein density of multi-species FBS items, for `"whep_native"` with
+  `protein_basis = "edible_portion"` only: `"fao_composition"` (default)
+  weights FAO's FBS food-composition factors per species by world
+  production (today FBS 2551 `Nuts and products`);
+  `"representative_species"` uses the one `biomass_coefs` row that
+  [items_full](https://eduaguilera.github.io/whep/reference/items_full.md)
+  bridges the item to.
+
 - example:
 
   If `TRUE`, return a small fixture instead of computing. Defaults to
@@ -131,9 +165,9 @@ build_food_supply(
 ## Value
 
 A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-`energy_kcal_cap_day`, `population`, `method_food_supply` and
-`method_protein_basis` (`NA` for `"faostat_fbs"`), plus the polity
-columns below.
+`energy_kcal_cap_day`, `population`, `method_food_supply`,
+`method_protein_basis` and `method_basket` (both `NA` for
+`"faostat_fbs"`), plus the polity columns below.
 
 ## Polity columns
 
@@ -190,13 +224,13 @@ extra column.
 
 ``` r
 build_food_supply(example = TRUE)
-#> # A tibble: 3 × 11
+#> # A tibble: 3 × 12
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010        10               10 AUS-1901-2025         Australia            
 #> 2  2010        32               32 CMR-1961-2025         Cameroon             
 #> 3  2011        10               10 AUS-1901-2025         Australia            
-#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>,
 #> #   protein_g_cap_day <dbl>, energy_kcal_cap_day <dbl>, population <dbl>,
-#> #   method_food_supply <chr>, method_protein_basis <chr>
+#> #   method_food_supply <chr>, method_protein_basis <chr>, method_basket <chr>
 ```

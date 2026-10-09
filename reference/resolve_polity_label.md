@@ -213,9 +213,9 @@ alias map:
 - **`back_cast`: whether to accept reconstructions.** An alias whose
   `disposition` is `"back_cast"` routes years a source reconstructs onto
   a boundary that did not exist yet to the modern polity, which may
-  begin after those years by design (`BRA-TOCANTINS-1988-2025` receives
-  the panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops
-  those aliases, for a caller that wants observation only.
+  begin after those years by design (`BRA-TO-1988-2025` receives the
+  panel's 1900-1987 Tocantins series). `back_cast = FALSE` drops those
+  aliases, for a caller that wants observation only.
 
 - **`indicator`: aliases split per indicator.** One panel unit id can
   name two territories: whep-polities \#703 found `CHL-LL`'s crops

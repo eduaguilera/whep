@@ -195,18 +195,18 @@ fodder area whose `source` is a carried one (0.022 to 0.750, a ratio of
 ``` r
 build_primary_production(example = TRUE)
 #> # A tibble: 10 × 13
-#>     year area_code polity_area_code reporting_polity_code reporting_polity_name
-#>    <dbl>     <dbl>            <int> <chr>                 <chr>                
-#>  1  1912       165              165 PAK-1949-1971         Pakistan (1949-1971) 
-#>  2  2012       112              112 JOR-1946-2025         Jordan               
-#>  3  1943        41               41 CHN-1950-2025         China (PRC)          
-#>  4  1979        45               45 COM-1975-2025         Comoros              
-#>  5  1910       141              141 MNG-1921-2025         Mongolia             
-#>  6  1867        90               90 GIN-1958-2025         Guinea               
-#>  7  1939        15               15 BLX-1850-1999         Belgium-Luxembourg   
-#>  8  1935       211              211 CHE-1800-2025         Switzerland          
-#>  9  1937         9                9 ARG-1902-2025         Argentina            
-#> 10  2000         9                9 ARG-1902-2025         Argentina            
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
+#>  1  1912       165              165 PAK-WP-1949-1971      West Pakistan (1949-1…
+#>  2  2012       112              112 JOR-1946-2025         Jordan                
+#>  3  1943        41               41 CHN-1950-2025         China (PRC)           
+#>  4  1979        45               45 COM-1975-2025         Comoros               
+#>  5  1910       141              141 MNG-1921-2025         Mongolia              
+#>  6  1867        90               90 GIN-1958-2025         Guinea                
+#>  7  1939        15               15 BLX-1850-1999         Belgium-Luxembourg    
+#>  8  1935       211              211 CHE-1800-2025         Switzerland           
+#>  9  1937         9                9 ARG-1902-2025         Argentina             
+#> 10  2000         9                9 ARG-1902-2025         Argentina             
 #> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_prod_code <chr>, item_cbs_code <dbl>, live_anim_code <chr>,
 #> #   unit <chr>, value <dbl>, source <chr>, fao_flag <chr>

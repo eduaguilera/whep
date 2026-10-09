@@ -47,7 +47,13 @@ Dataframe expanded to cohort level with `cohort`, `system`,
 `cohort_heads`, and `cohort_fraction` columns, plus
 `method_system_share`: `"reported"` when the commodity itself names the
 system, `"assumed"` when WHEP's unsourced default split was applied, or
-`"supplied"` when `system_shares` was given.
+`"supplied"` when `system_shares` was given. A `milk_yield_kg_day`
+column (per head of the input row) is moved onto the milked cohort, the
+`"Dairy"` system's `"Adult Female"`, at the yield that keeps the herd's
+milk unchanged; every other cohort gets 0. `method_milk_yield` says
+which: `"milked_cohort"`, `"not_milked_cohort"`, or `"whole_herd"` for a
+species with no cohorts. A herd with milk but no milked cohort aborts
+(class `whep_milk_without_milked_cohort`).
 
 ## Examples
 

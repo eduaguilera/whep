@@ -139,12 +139,12 @@ extra column.
 ``` r
 read_fbs_population(example = TRUE)
 #> # A tibble: 4 × 8
-#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
-#>   <int>     <int>            <int> <chr>                 <chr>                
-#> 1  1992       186              186 SCG-1992-2006         Serbia and Montenegro
-#> 2  2000       186              186 SCG-1992-2006         Serbia and Montenegro
-#> 3  2005       186              186 SCG-1992-2006         Serbia and Montenegro
-#> 4  2010       203              203 ESP-1800-2025         Spain                
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name  
+#>   <int>     <int>            <int> <chr>                 <chr>                  
+#> 1  1992       186              186 SCG-1992-2006         Serbia and Montenegro  
+#> 2  2000       186              186 SCG-XK-1999-2006      Serbia and Montenegro …
+#> 3  2005       186              186 SCG-XK-1999-2006      Serbia and Montenegro …
+#> 4  2010       203              203 ESP-1800-2025         Spain                  
 #> # ℹ 3 more variables: reporting_polity_has_geometry <lgl>, population <dbl>,
 #> #   source_pop <chr>
 ```

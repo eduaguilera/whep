@@ -49,7 +49,7 @@ build_n_percapita(
   [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
   at its own default composition over the years of `n_inputs`; supply a
   table to use any other source (for instance
-  `read_population(population_source = "pin_wpp_fbs_fallback")`).
+  `read_population(population_source = "pin")`).
 
 - framing:
 

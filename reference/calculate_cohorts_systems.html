@@ -118,7 +118,13 @@ supplied shares are used verbatim.</p></dd>
 <code>cohort</code>, <code>system</code>, <code>cohort_heads</code>, and
 <code>cohort_fraction</code> columns, plus <code>method_system_share</code>: <code>"reported"</code> when
 the commodity itself names the system, <code>"assumed"</code> when WHEP's unsourced
-default split was applied, or <code>"supplied"</code> when <code>system_shares</code> was given.</p>
+default split was applied, or <code>"supplied"</code> when <code>system_shares</code> was given.
+A <code>milk_yield_kg_day</code> column (per head of the input row) is moved onto the
+milked cohort, the <code>"Dairy"</code> system's <code>"Adult Female"</code>, at the yield that
+keeps the herd's milk unchanged; every other cohort gets 0.
+<code>method_milk_yield</code> says which: <code>"milked_cohort"</code>, <code>"not_milked_cohort"</code>,
+or <code>"whole_herd"</code> for a species with no cohorts. A herd with milk but no
+milked cohort aborts (class <code>whep_milk_without_milked_cohort</code>).</p>
     </div>
 
     <div class="section level2">

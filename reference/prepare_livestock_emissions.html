@@ -90,8 +90,11 @@ shares. Passed to <code><a href="calculate_cohorts_systems.html">calculate_cohor
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns <code>species</code>, <code>heads</code>, <code>iso3</code>
 (if <code>area_code</code> present), and optionally
-<code>milk_yield_kg_day</code>, <code>meat_yield_t_head</code>, cohort columns,
-plus all extra columns from the input.</p>
+<code>milk_yield_kg_day</code>, <code>method_milk_yield</code>, <code>weight_gain_kg_day</code>, cohort
+columns, plus all extra columns from the input. Milk is read for every
+milked species FAOSTAT reports (cattle, buffalo, sheep, goats, camels),
+not only for an animal's designated product, and with <code>expand_cohorts = TRUE</code> it sits on the milked cohort only (see
+<code><a href="calculate_cohorts_systems.html">calculate_cohorts_systems()</a></code>).</p>
     </div>
 
     <div class="section level2">

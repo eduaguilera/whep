@@ -308,8 +308,8 @@ than returning a grid that silently lacks it.</p>
 <span class="r-in"><span><span class="co"># containment edge that puts it inside Japan. No pin and no network.</span></span></span>
 <span class="r-in"><span><span class="va">support</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="op">~</span><span class="va">polycell_id</span>, <span class="op">~</span><span class="va">cell_id</span>, <span class="op">~</span><span class="va">lon</span>, <span class="op">~</span><span class="va">lat</span>, <span class="op">~</span><span class="va">polity_code</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"JPN-AICHI-1871-2025@1"</span>, <span class="fl">1L</span>, <span class="fl">137.25</span>, <span class="fl">35.25</span>, <span class="st">"JPN-AICHI-1871-2025"</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"JPN-AICHI-1871-2025@2"</span>, <span class="fl">2L</span>, <span class="fl">137.75</span>, <span class="fl">35.25</span>, <span class="st">"JPN-AICHI-1871-2025"</span></span></span>
+<span class="r-in"><span>  <span class="st">"JPN-23-1871-2025@1"</span>, <span class="fl">1L</span>, <span class="fl">137.25</span>, <span class="fl">35.25</span>, <span class="st">"JPN-23-1871-2025"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"JPN-23-1871-2025@2"</span>, <span class="fl">2L</span>, <span class="fl">137.75</span>, <span class="fl">35.25</span>, <span class="st">"JPN-23-1871-2025"</span></span></span>
 <span class="r-in"><span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
 <span class="r-in"><span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>    area_code <span class="op">=</span> <span class="fl">110L</span>,</span></span>
@@ -319,7 +319,7 @@ than returning a grid that silently lacks it.</p>
 <span class="r-in"><span>    land_area_ha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1200</span>, <span class="fl">2000</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">containment</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  member_code <span class="op">=</span> <span class="st">"JPN-AICHI-1871-2025"</span>,</span></span>
+<span class="r-in"><span>  member_code <span class="op">=</span> <span class="st">"JPN-23-1871-2025"</span>,</span></span>
 <span class="r-in"><span>  container_code <span class="op">=</span> <span class="st">"JPN-1952-2025"</span>,</span></span>
 <span class="r-in"><span>  start_year <span class="op">=</span> <span class="fl">1952L</span>,</span></span>
 <span class="r-in"><span>  end_year <span class="op">=</span> <span class="fl">2025L</span>,</span></span>
@@ -333,10 +333,10 @@ than returning a grid that silently lacks it.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> No `containers` scope: every admitted containment edge is read (1 container).</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> country_grid: polycell support at level 1, 2 compartments over 2 cells in 1 container.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code level_polity_code   level cell_area_frac polycell_id    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  137.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  138.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code level_polity_code level cell_area_frac polycell_id      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  137.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  138.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: start_year &lt;int&gt;, end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   land_area_ha &lt;dbl&gt;</span></span>
 <span class="r-in"><span></span></span>
@@ -351,10 +351,10 @@ than returning a grid that silently lacks it.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> country_grid: polycell support at level 1, 2 compartments over 2 cells in 1 container.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code level_polity_code   level cell_area_frac polycell_id    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  137.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  138.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code level_polity_code level cell_area_frac polycell_id      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  137.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  138.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: start_year &lt;int&gt;, end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   land_area_ha &lt;dbl&gt;</span></span>
 <span class="r-in"><span></span></span>

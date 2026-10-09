@@ -40,8 +40,13 @@ prepare_livestock_emissions(data, expand_cohorts = FALSE, system_shares = NULL)
 ## Value
 
 A tibble with columns `species`, `heads`, `iso3` (if `area_code`
-present), and optionally `milk_yield_kg_day`, `meat_yield_t_head`,
-cohort columns, plus all extra columns from the input.
+present), and optionally `milk_yield_kg_day`, `method_milk_yield`,
+`weight_gain_kg_day`, cohort columns, plus all extra columns from the
+input. Milk is read for every milked species FAOSTAT reports (cattle,
+buffalo, sheep, goats, camels), not only for an animal's designated
+product, and with `expand_cohorts = TRUE` it sits on the milked cohort
+only (see
+[`calculate_cohorts_systems()`](https://eduaguilera.github.io/whep/reference/calculate_cohorts_systems.md)).
 
 ## Examples
 

@@ -78,6 +78,7 @@ destiny filling, and final balancing.</p></li>
 <span>  export_share_overflow <span class="op">=</span> <span class="fu">.cbs_export_overflow_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  export_share_basis <span class="op">=</span> <span class="fu">.cbs_export_basis_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  seed_backcast <span class="op">=</span> <span class="fu">.cbs_seed_backcast_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  aggregate_proxy <span class="op">=</span> <span class="fu">.cbs_aggregate_proxy_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  unmatched_processing <span class="op">=</span> <span class="fu">.cbs_unmatched_proc_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  silk_basis <span class="op">=</span> <span class="fu">.silk_basis_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  tobacco_leaf_use <span class="op">=</span> <span class="fu">.tobacco_leaf_use_choices</span><span class="op">(</span><span class="op">)</span>,</span>
@@ -402,6 +403,27 @@ than 295. Under <code>"production_share"</code> pre-1962 <code>seed</code> is 5.
 tonnage moves -1.023%, and the seam holds 5 jumps.</p></dd>
 
 
+<dt id="arg-aggregate-proxy">aggregate_proxy<a class="anchor" aria-label="anchor" href="#arg-aggregate-proxy"></a></dt>
+<dd><p>One of <code>"member_sum"</code> (default) or <code>"none"</code>,
+selecting what Rest of World (area code 999) grows on in the pre-1962
+back-cast (whep#724). Every other area grows its <code>food</code>, <code>other_uses</code>
+and <code>processing</code> on its own population and its <code>feed</code> on its own
+agricultural land. No ISO3 code names Rest of World, so no proxy reaches
+it directly. Its rows are crop residues from the <code>crop_residues</code> pin,
+which books all of FABIO's Rest-of-World members on one label.</p>
+<p><code>"member_sum"</code> grows it on the summed population and agricultural land
+of those members, the territory its rows describe. This holds whatever
+<code>options(whep.unfold_rest_of_world)</code> is set to. <code>"none"</code> gives it no
+proxy, so its series starts in 1961.</p>
+<p><strong>The default moves published values</strong>, for area 999 before 1961 only.
+Measured on a real 1955-1965 build, 66 rows are added and no other
+value changes: 83.5 Mt of residue <code>domestic_supply</code> over 1955-1960
+(13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
+which 68.3 Mt is <code>other_uses</code> and 15.3 Mt <code>feed</code>. That raises world
+residue use by 0.74-0.78% in those years. Under <code>"none"</code> the build is
+identical to the one before this argument existed.</p></dd>
+
+
 <dt id="arg-unmatched-processing">unmatched_processing<a class="anchor" aria-label="anchor" href="#arg-unmatched-processing"></a></dt>
 <dd><p>One of <code>"other_uses"</code> (default),
 <code>"processing"</code> or <code>"redistribute"</code>, selecting where a <code>processing</code>
@@ -526,7 +548,7 @@ production pin.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>938       226              226 UGA-1926-1962         Uganda (1926-1962)    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>924        11               11 AUT-1919-2025         Austria               </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>928        96               96 HKG-1842-2025         Hong Kong             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>879       236              236 VEN-1821-2025         Venezuela             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>879       236              236 VEN-1830-2025         Venezuela             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: reporting_polity_has_geometry &lt;lgl&gt;, item_cbs_code &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   element &lt;chr&gt;, value &lt;dbl&gt;, source &lt;chr&gt;, fao_flag &lt;chr&gt;</span></span>
 </code></pre></div>

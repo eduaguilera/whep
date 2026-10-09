@@ -98,6 +98,8 @@ build_nitrogen_balance(
     `residue_bedding_fraction` the share of the recovered non-feed
     residue used as bedding (default `0`; see
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)).
+    The bedded straw also comes back as a manure input, through
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md).
 
   - `livestock_intake`: shared with
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s

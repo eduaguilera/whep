@@ -50,7 +50,8 @@
 <span>  demand_tier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"fcr"</span><span class="op">)</span>,</span>
 <span>  feed_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"historical"</span>, <span class="st">"scenario"</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  feed_eligibility <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"feed_table"</span>, <span class="st">"none"</span><span class="op">)</span></span>
+<span>  feed_eligibility <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"feed_table"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  feed_loss <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"wirsenius"</span>, <span class="st">"flat"</span>, <span class="st">"none"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -102,6 +103,21 @@ them, at any allocation level. Granivore demand that the feeds they may
 eat cannot cover stays unmet rather than being filled with roughage.
 <code>"none"</code> lets any category receive any item (the behaviour before
 whep#1218), for sensitivity analysis.</p></dd>
+
+
+<dt id="arg-feed-loss">feed_loss<a class="anchor" aria-label="anchor" href="#arg-feed-loss"></a></dt>
+<dd><p>Share of the Commodity Balance Sheet <code>feed</code> element lost
+between distribution and intake. FAOSTAT books storage and transport
+losses in a separate element, so the <code>feed</code> element is already net of
+them. <code>"wirsenius"</code> (default) applies the per-class losses of Wirsenius
+(2000, sections 3.1.2 and 3.1.5): none on Food Balance Sheet products and
+processing by-products, 10% on crop residues (<code>Straw</code>, <code>Other crop residues</code>), 20% on harvested grass, legume and cereal fodder (hay-making
+and ensiling, harvest to intake) and 5% on fodder vegetables and roots;
+temporary grassland, booked as grazed grass, carries none. <code>"flat"</code>
+applies 10% to every item, the unsourced factor used before whep#1420.
+<code>"none"</code> takes the <code>feed</code> element as intake. Grass from the grassland
+sink and scavenging are not Commodity Balance Sheet items and carry no
+loss under any method.</p></dd>
 
 </dl></div>
     <div class="section level2">

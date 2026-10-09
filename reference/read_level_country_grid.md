@@ -259,8 +259,8 @@ silently lacks it.
 # containment edge that puts it inside Japan. No pin and no network.
 support <- tibble::tribble(
   ~polycell_id, ~cell_id, ~lon, ~lat, ~polity_code,
-  "JPN-AICHI-1871-2025@1", 1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
-  "JPN-AICHI-1871-2025@2", 2L, 137.75, 35.25, "JPN-AICHI-1871-2025"
+  "JPN-23-1871-2025@1", 1L, 137.25, 35.25, "JPN-23-1871-2025",
+  "JPN-23-1871-2025@2", 2L, 137.75, 35.25, "JPN-23-1871-2025"
 ) |>
   dplyr::mutate(
     area_code = 110L,
@@ -270,7 +270,7 @@ support <- tibble::tribble(
     land_area_ha = c(1200, 2000)
   )
 containment <- tibble::tibble(
-  member_code = "JPN-AICHI-1871-2025",
+  member_code = "JPN-23-1871-2025",
   container_code = "JPN-1952-2025",
   start_year = 1952L,
   end_year = 2025L,
@@ -284,10 +284,10 @@ read_level_country_grid(
 #> No `containers` scope: every admitted containment edge is read (1 container).
 #> ℹ country_grid: polycell support at level 1, 2 compartments over 2 cells in 1 container.
 #> # A tibble: 2 × 11
-#>     lon   lat area_code level_polity_code   level cell_area_frac polycell_id    
-#>   <dbl> <dbl>     <int> <chr>               <int>          <dbl> <chr>          
-#> 1  137.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…
-#> 2  138.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…
+#>     lon   lat area_code level_polity_code level cell_area_frac polycell_id      
+#>   <dbl> <dbl>     <int> <chr>             <int>          <dbl> <chr>            
+#> 1  137.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…
+#> 2  138.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…
 #> # ℹ 4 more variables: start_year <int>, end_year <int>, cell_area_ha <dbl>,
 #> #   land_area_ha <dbl>
 
@@ -302,10 +302,10 @@ read_level_country_grid(
 )
 #> ℹ country_grid: polycell support at level 1, 2 compartments over 2 cells in 1 container.
 #> # A tibble: 2 × 11
-#>     lon   lat area_code level_polity_code   level cell_area_frac polycell_id    
-#>   <dbl> <dbl>     <int> <chr>               <int>          <dbl> <chr>          
-#> 1  137.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…
-#> 2  138.  35.2       110 JPN-AICHI-1871-2025     1              1 JPN-AICHI-1871…
+#>     lon   lat area_code level_polity_code level cell_area_frac polycell_id      
+#>   <dbl> <dbl>     <int> <chr>             <int>          <dbl> <chr>            
+#> 1  137.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…
+#> 2  138.  35.2       110 JPN-23-1871-2025      1              1 JPN-23-1871-2025…
 #> # ℹ 4 more variables: start_year <int>, end_year <int>, cell_area_ha <dbl>,
 #> #   land_area_ha <dbl>
 

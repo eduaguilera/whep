@@ -29,6 +29,7 @@ build_commodity_balances(
   export_share_overflow = .cbs_export_overflow_choices(),
   export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
@@ -373,6 +374,29 @@ build_commodity_balances(
   pre-1962 `seed` is 5.22 Gt, total tonnage moves -1.023%, and the seam
   holds 5 jumps.
 
+- aggregate_proxy:
+
+  One of `"member_sum"` (default) or `"none"`, selecting what Rest of
+  World (area code 999) grows on in the pre-1962 back-cast (whep#724).
+  Every other area grows its `food`, `other_uses` and `processing` on
+  its own population and its `feed` on its own agricultural land. No
+  ISO3 code names Rest of World, so no proxy reaches it directly. Its
+  rows are crop residues from the `crop_residues` pin, which books all
+  of FABIO's Rest-of-World members on one label.
+
+  `"member_sum"` grows it on the summed population and agricultural land
+  of those members, the territory its rows describe. This holds whatever
+  `options(whep.unfold_rest_of_world)` is set to. `"none"` gives it no
+  proxy, so its series starts in 1961.
+
+  **The default moves published values**, for area 999 before 1961 only.
+  Measured on a real 1955-1965 build, 66 rows are added and no other
+  value changes: 83.5 Mt of residue `domestic_supply` over 1955-1960
+  (13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
+  which 68.3 Mt is `other_uses` and 15.3 Mt `feed`. That raises world
+  residue use by 0.74-0.78% in those years. Under `"none"` the build is
+  identical to the one before this argument existed.
+
 - unmatched_processing:
 
   One of `"other_uses"` (default), `"processing"` or `"redistribute"`,
@@ -511,7 +535,7 @@ build_commodity_balances(example = TRUE)
 #>  7  1938       226              226 UGA-1926-1962         Uganda (1926-1962)    
 #>  8  1924        11               11 AUT-1919-2025         Austria               
 #>  9  1928        96               96 HKG-1842-2025         Hong Kong             
-#> 10  1879       236              236 VEN-1821-2025         Venezuela             
+#> 10  1879       236              236 VEN-1830-2025         Venezuela             
 #> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <dbl>,
 #> #   element <chr>, value <dbl>, source <chr>, fao_flag <chr>
 ```

@@ -307,6 +307,18 @@ build_n_inputs(
     nitrogen needs cell-level manure) and to `"national"` otherwise. A
     value supplied here is always honoured.
 
+  - `residue_destiny_input`, `residue_destiny_method`,
+    `residue_bedding_fraction`: the residue-destiny split
+    [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+    documents. The straw it beds is passed to
+    [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)
+    as `bedding`, one supply per `year x territory` that
+    [`add_manure_bedding()`](https://eduaguilera.github.io/whep/reference/add_manure_bedding.md)
+    spreads over the housed litter-using streams, so the bedding N the
+    balance books as leaving the field returns in the manure input.
+    Nothing is bedded when the input is absent or the split beds
+    nothing.
+
 - example:
 
   If `TRUE`, return a small fixture instead of assembling real data.
