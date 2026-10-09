@@ -47,8 +47,8 @@ testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner
     50,
     0,
     FALSE,
-    8.625,
-    8.625
+    8.4,
+    8.4
   )
   out <- whep::calculate_nh3(x, method = "manner")
   direct <- whep::calculate_manner_nh3(
@@ -59,8 +59,8 @@ testthat::test_that("calculate_nh3(method = \"manner\") matches calculate_manner
       rate_kg_ha = 50,
       rainfall_mm = 0,
       irrigated = FALSE,
-      temp_c = 8.625,
-      temp_c_annual_mean = 8.625
+      temp_c = 8.4,
+      temp_c_annual_mean = 8.4
     )
   )
 

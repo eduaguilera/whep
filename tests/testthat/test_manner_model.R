@@ -12,7 +12,7 @@ testthat::test_that("calculate_manner_nh3 matches a hand-computed synthetic ef",
   # - zero rainfall and no irrigation give zero rain-days, hence the "dry"
   #   wetness class and the "norain" rain level, together the
   #   "noraindry" rainfall class, whose Urea/"pH<7" factor is 0.7
-  # - a period temperature equal to the 8.625 degree Celsius reference used
+  # - a period temperature equal to the 8.4 degree Celsius reference used
   #   by the Urea/AN temperature response puts the exponential term at its
   #   baseline, so the temperature factor reduces to one third
   # Multiplying every factor above together gives the expected ef.
@@ -27,8 +27,8 @@ testthat::test_that("calculate_manner_nh3 matches a hand-computed synthetic ef",
       rate_kg_ha = 50,
       rainfall_mm = 0,
       irrigated = FALSE,
-      temp_c = 8.625,
-      temp_c_annual_mean = 8.625
+      temp_c = 8.4,
+      temp_c_annual_mean = 8.4
     )
   )
 
@@ -64,7 +64,7 @@ testthat::test_that("synthetic ef never exceeds max_nh3 at warm temperatures", {
 
 testthat::test_that("synthetic temperature factor is capped at 1", {
   drivers <- list(soil_ph = 6, rate_kg_ha = 250, rainfall_mm = 0)
-  # Absolute form at 30 deg C: exp(0.1386 * (30 - 8.625)) / 3 = 6.4 raw.
+  # Absolute form at 30 deg C: exp(0.1386 * (30 - 8.4)) / 3 = 6.4 raw.
   testthat::expect_equal(
     whep:::.manner_synth_temp_factor("Urea", "pH<7", c(drivers, temp_c = 30)),
     1
@@ -84,7 +84,7 @@ testthat::test_that("synthetic temperature factor is unchanged below the cap", {
   # Inside the UK-calibrated range the cap must not move anything.
   testthat::expect_equal(
     whep:::.manner_synth_temp_factor("Urea", "pH<7", list(temp_c = 15)),
-    exp(0.1386 * (15 - 8.625)) / 3
+    exp(0.1386 * (15 - 8.4)) / 3
   )
   testthat::expect_equal(
     whep:::.manner_synth_temp_factor(
@@ -102,7 +102,7 @@ testthat::test_that("synthetic temperature form follows Misselbrook 2004 by defa
   # zero anomaly, so eq. 3 gives exactly one third; eq. 4 gives the
   # absolute urea factor at 12 deg C.
   drivers <- list(temp_c = 12, temp_c_annual_mean = 12)
-  absolute <- exp(0.1386 * (12 - 8.625)) / 3
+  absolute <- exp(0.1386 * (12 - 8.4)) / 3
   forms <- tibble::tribble(
     ~fertiliser, ~ph_class,  ~expected,
     "Urea",      "pH<7",     absolute,
@@ -124,7 +124,7 @@ testthat::test_that("synthetic temperature form follows Misselbrook 2004 by defa
 
 testthat::test_that("source_port keeps the pre-#1370 temperature forms", {
   drivers <- list(temp_c = 12, temp_c_annual_mean = 12)
-  absolute <- exp(0.1386 * (12 - 8.625)) / 3
+  absolute <- exp(0.1386 * (12 - 8.4)) / 3
   got <- purrr::map_dbl(
     c("Urea", "AN", "CAN", "AS"),
     \(f) {
@@ -698,4 +698,11 @@ testthat::test_that("manner_default_technique_mix has the 4 expected rows summin
     mix$incorporation_delay_h[mix$delay_bin == "1-2 days"],
     48
   )
+})
+
+test_that("pH exactly 7 is non-calcareous (paper: calcareous is pH > 7)", {
+  # Misselbrook et al. (2004, p. 366): calcareous means "pH > 7".
+  expect_equal(whep:::.manner_ph_class(7), "pH<7")
+  expect_equal(whep:::.manner_ph_class(7.01), "other pH")
+  expect_equal(whep:::.manner_ph_class(6.5), "pH<7")
 })

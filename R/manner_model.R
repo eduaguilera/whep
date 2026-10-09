@@ -45,12 +45,12 @@
 #' fertiliser's `max_nh3` in [manner_params].
 #'
 #' Two forms of that factor exist. Urea always takes the absolute form,
-#' `exp(0.1386 (temp_c - 8.625)) / 3`; CAN always takes the anomaly form,
+#' `exp(0.1386 (temp_c - 8.4)) / 3`; CAN always takes the anomaly form,
 #' `exp(0.2197225 (temp_c - temp_c_annual_mean)) / 3`. AN and AS depend on
 #' `temp_method`:
 #' * `"misselbrook_2004"` (default): AN takes the anomaly form on every soil,
 #'   and AS takes the anomaly form on non-calcareous soils and the absolute
-#'   form on calcareous soils (`soil_ph >= 7`). This is the assignment of
+#'   form on calcareous soils (`soil_ph > 7`). This is the assignment of
 #'   Misselbrook et al. (2004, p. 367): eq. 3 (anomaly) "for AN and other N
 #'   to all soils and AS/DAP to non-calcareous soils", eq. 4 (absolute) "for
 #'   urea and UAN to all soils and AS/DAP to calcareous soils". The UK
@@ -210,10 +210,10 @@ calculate_manner_nh3_default <- function(
 }
 
 # pH class shared by ph_factor, rate_factor's soil-type axis and
-# rain_factor: soil_ph < 7 -> "pH<7" (also "non-calcareous" for the rate
+# rain_factor: soil_ph <= 7 -> "pH<7" (also "non-calcareous" for the rate
 # table), otherwise "other pH" (also "calcareous").
 .manner_ph_class <- function(soil_ph) {
-  if (soil_ph < 7) "pH<7" else "other pH"
+  if (soil_ph <= 7) "pH<7" else "other pH"
 }
 
 # Rate factor: soil_type is the same pH-class axis, re-expressed as
@@ -270,7 +270,7 @@ calculate_manner_nh3_default <- function(
 }
 
 # Temperature factor: an absolute form against a fixed reference
-# (8.625 deg C) or an anomaly form against the cell/region annual mean
+# (8.4 deg C) or an anomaly form against the cell/region annual mean
 # temperature; .manner_temp_absolute() picks which (whep#1370).
 # Capped at 1 (whep#1333): the exponential was scaled on UK monthly
 # temperatures (Misselbrook et al. 2004, doi:10.1079/SUM2004280) and grows
@@ -288,7 +288,7 @@ calculate_manner_nh3_default <- function(
   temp_method = "misselbrook_2004"
 ) {
   raw <- if (.manner_temp_absolute(fertiliser, ph_class, temp_method)) {
-    exp(0.1386 * (drivers$temp_c - 8.625)) / 3
+    exp(0.1386 * (drivers$temp_c - 8.4)) / 3
   } else {
     exp(0.2197225 * (drivers$temp_c - drivers$temp_c_annual_mean)) / 3
   }
