@@ -2685,6 +2685,11 @@ utils::globalVariables(
     "ElementCode",
     "fibre_t",
     "fibre_ratio",
+    # build_production.R (whep#1414) -- year-aware ISO3 land bridge
+    "last_year",
+    "live",
+    "rank_key",
+    "live_first",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

@@ -1594,6 +1594,36 @@ test_that(".read_land_areas gives a bucket one area label", {
 })
 
 
+test_that(".read_land_areas follows Sudan's herd key under the un-fold", {
+  # Under whep.unfold_predecessor_bucket = "all" SDN maps to 206 (reports to
+  # 2011) and 276 (live). The bridge kept 206 in every year, so north Sudan's
+  # grassland sat on 206 while its herd moved to 276 from 2012 (#1414).
+  withr::local_options(whep.unfold_predecessor_bucket = "all")
+  local_mocked_bindings(
+    .read_input = function(name, years = NULL, year_col = NULL, ...) {
+      data.table::as.data.table(
+        tibble::tribble(
+          ~ISO3, ~Year, ~Land_Use, ~Area_Mha, ~C_stock_Tg,
+          "SDN", 2010L, "pastr", 20, 200,
+          "SDN", 2011L, "pastr", 20, 200,
+          "SDN", 2012L, "pastr", 20, 200,
+          "SDN", 2013L, "pastr", 20, 200,
+          "SSD", 2012L, "pastr", 5, 50
+        )
+      )
+    }
+  )
+
+  land <- suppressWarnings(whep:::.read_land_areas())
+  sdn <- land[land$iso3c == "SDN", ]
+  data.table::setorderv(sdn, "year")
+
+  expect_equal(sdn$area_code, c(206L, 206L, 276L, 276L))
+  expect_equal(land$area_code[land$iso3c == "SSD"], 277L)
+  expect_equal(nrow(land), 5L)
+})
+
+
 # -- correct_tea_final ----------------------------------------------------------
 
 test_that(".correct_tea_final leaves NA item_prod rows unchanged", {

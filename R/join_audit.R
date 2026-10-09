@@ -302,8 +302,11 @@
     "ISO3 -> bucket bridge. It read as a polity join until whep#687 renamed
      `regions_full$polity_code`, which was never a polity code but the vendored
      ISO3-like stem; the key now names both vocabularies it actually bridges.",
-    ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
-    "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
+    ".land_bridge_by_year", "merge", "area_code", 1L, "identity_lookup",
+    "Attaches each area's LAST reported year so the bridge can choose, per
+     year, between a retired area and its successor (whep#1414). The joined
+     side is `.area_last_reporting_year()`, one row per area; the year is the
+     value being attached, not a missing key.",
     ".luh2_bridge_iso3c", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 names the territory, not one of its periods; the year rides on the
      LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
@@ -823,6 +826,10 @@
      then applied to.",
     ".iso3c_area_code_lookup", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup", "ISO3 -> bucket, one row per pair, off `regions_full`.",
+    ".land_bridge_by_year", "[", "iso3c, area_code, last_year", 1L,
+    "identity_lookup",
+    "Expands each ISO3 -> area pair over the years it is asked about; the
+     year is what the group is crossed with (whep#1414).",
     ".iso3c_keep_live_area", "filter", "iso3c", 1L, "identity_lookup",
     "Keeps one area per ISO3 where the un-fold leaves two, by their last
      reported year (whep#680). The group IS the identity resolution, and the
