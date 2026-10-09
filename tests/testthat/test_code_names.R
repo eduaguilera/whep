@@ -279,16 +279,9 @@ testthat::test_that("add_item_prod_code correctly sets new column in table", {
 })
 
 testthat::test_that("add_item_prod_name does not fan out on a duplicate item_prod_code", {
-  # Regression for #236: whep::items_prod has a real non-unique key --
-  # item_prod_code 1807 maps to two unrelated names ("Citrus Fruit, Total"
-  # and "Sheep and Goat Meat"). Without a distinct() guard on the lookup,
-  # every input row with that code was duplicated by the left_join, silently
-  # doubling any downstream sum()/.by aggregation.
-  dup_names <- whep::items_prod |>
-    dplyr::filter(item_prod_code == 1807) |>
-    dplyr::pull(item_prod_name)
-  testthat::expect_gt(length(dup_names), 1)
-
+  # Regression for #236: a duplicated key in the lookup fanned every input
+  # row out via the left_join. items_prod used to carry 1807 twice (fixed in
+  # #1484), so the lookup is now unique and must stay one row per input.
   table <- tibble::tibble(item_prod_code = c(1807, 27), value = c(100, 200))
 
   out <- add_item_prod_name(table)
