@@ -41,8 +41,9 @@ A tibble with the crop residue data. It contains the following columns:
   These are actually not FAOSTAT defined items, but custom defined by
   us. When necessary, FAOSTAT codes are extended for our needs.
 
-- `value`: The amount of residue produced, in tonnes of **fresh
-  matter**, like every other commodity-balance quantity.
+- `value`: The amount of residue produced – all of it, before any is
+  recovered from the field – in tonnes of **fresh matter**, like every
+  other commodity-balance quantity.
 
 - `value_dm`: The same residue in tonnes of **dry matter**: each crop's
   fresh residue times its own residue dry-matter content,
@@ -59,6 +60,34 @@ residue:product ratio `kg_residue_kg_product_FM` of
 content, which runs from 0.13 (tomato) to 1.0 (rapeseed) (whep#1215).
 Use `value_dm` wherever a quantity is defined per unit of dry matter,
 such as a residue nitrogen content.
+
+The pin does not hold the residue produced but the share of it recovered
+from the field: the predecessor pipeline multiplied each residue row by
+the legacy recovery rate of its region and crop category
+(`recovery_rates` in `residue_recovery.csv`, see
+[`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md))
+before writing it. Every reader of `value` treats it as the whole
+residue and applies a recovery rate of its own, so `value` is the pin
+divided by that same rate (whep#1195). The division is exact: WHEP ships
+the rate the predecessor used, and on the real pin the result equals the
+predecessor's gross residue on all 427,584 rows where both exist. Where
+that rate is 0 (fodder crops in seven of the eight regions; roots and
+tubers, cassava, sugar beet and dry beans in West Europe and in North
+America and Oceania) the pin holds 0 and the gross residue cannot be
+recovered from it, so those crops carry no residue here, as before.
+
+The ratio behind the pin's gross residue is the fresh-matter
+residue:product ratio of
+[biomass_coefs](https://eduaguilera.github.io/whep/reference/biomass_coefs.md),
+scaled by the region's residue:product ratio relative to West Europe
+(`residue_dm_product_dm` in the same table) and by a harvest-index
+change factor per region and year. That factor is what makes the ratio
+vary by year. The predecessor's table carries it at eight anchor years
+from 1910 to 2000, interpolates linearly between them and holds 2000
+constant after it, falling for instance from 1.10 in 1962 to 1.00 in
+2000 in East Europe. Its code attributes the table to Krausmann et al.
+(2013), *PNAS* 110:10324, Table M2 (assumed, unverified), and WHEP does
+not ship it.
 
 ## The batch pin on the build path
 
@@ -86,19 +115,41 @@ artifact of the same predecessor run, carrying that run's production
 series into the commodity balance.
 
 Its residue quantities are those production numbers times a
-residue-to-product ratio that varies by year and does not exist in this
-repository: 100 of its 116 `Name_biomass` items carry between 77 and 252
-distinct ratios across 1961–2021 (the 16 that carry one flat ratio are
-all fodder items), 33,411 area-item-year keys carry a residue of exactly
-0, and `biomass_coefs$kg_residue_kg_product_FM` reproduces only 3,189 of
-the 472,790 keys where the comparison can be made. The ratios are
-therefore not recoverable here, and the artifact is not reproducible
-from this package.
+residue-to-product ratio that varies by year, and times a **recovery
+rate**: the pin holds the residue the predecessor recovered from the
+field, not the residue produced (#1195). The predecessor's code
+(`Global/R/crop_npp.r`, then `afsetools::residue_use()`) writes each row
+as
 
-It is not a small input. `get_primary_residues()` supplies 7.63 Gt to
-the 2010 commodity balance (Straw 3.60 Gt, Other crop residues 2.49 Gt,
-Firewood 1.54 Gt) and 327.7 Gt over 1961–2021, and 3,998 of its 249,095
-output rows carry `NA` polity columns because the pin is name-keyed.
+`product * kg_residue_kg_product_FM * HI_changes(region, year) * residue_dm_product_dm(region, category) / residue_dm_product_dm("West Europe", category) * recovery_rates(region, category)`,
+
+with region and category keyed as in `residue_recovery.csv`. Rebuilt
+from the predecessor's own coefficient tables, that formula reproduces
+all 425,934 pin rows whose region it can key, at a relative tolerance of
+1e-6. The year variation is `HI_changes` alone: a harvest-index change
+factor per region, given at eight anchor years from 1910 to 2000, linear
+in between and flat after 2000 (East Europe 1.10 in 1962 to 1.00 in
+2000), which the predecessor attributes to Krausmann et al. (2013),
+*PNAS* 110:10324, Table M2 (assumed, unverified). It is a regional
+historical adjustment, not a yield response, and after 2000 the ratio of
+every region and category is constant. That is why
+`biomass_coefs$kg_residue_kg_product_FM` alone reproduces only 3,189 of
+the 472,790 comparable keys. Of the 33,411 keys that carry a residue of
+exactly 0, 30,620 are cells whose recovery rate is 0 (fodder crops in
+seven of the eight regions; roots and tubers, cassava, sugar beet and
+dry beans in West Europe and in North America and Oceania) and 1,919 are
+crops whose `biomass_coefs` ratio is 0.
+
+WHEP ships the recovery rate and the regional ratio the predecessor used
+(both equal in all 160 cells), but not the `HI_changes` table. So
+`get_primary_residues()` undoes the recovery exactly, dividing by the
+same rate, but cannot recompute the residue from production.
+
+It is not a small input. The pin holds 7.63 Gt of recovered residue for
+2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
+327.7 Gt over 1961–2021, which `get_primary_residues()` turns into 9.31
+Gt and 404.1 Gt of residue produced. 3,998 of its 249,095 output rows
+carry `NA` polity columns because the pin is name-keyed.
 
 Driving the same residue model off a fresh
 [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)

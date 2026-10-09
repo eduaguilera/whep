@@ -160,27 +160,30 @@ records which one was used:
 `"wirsenius"` is the only variant in which every rate is traceable to
 the cited source, and it is the default since whep#1330. Its switch
 waited on the gross residue base these rates multiply, once thought to
-be about 36% too high (step 2 of whep#1132). In dry matter that excess
-is not there: the 36% compared the pin's fresh weight with dry-matter
-literature, and the pin's cereal residue in dry matter lies inside the
+be about 36% too high (step 2 of whep#1132). whep#1330 found that excess
+gone in dry matter, but it measured the `crop_residues` pin as it was
+then read, and that pin holds residue already multiplied by the
+`"legacy"` rate (whep#1195). Read as the residue produced, which
+[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
+now returns, world cereal residue in dry matter is above the
 three-method band of Smerald, Rahimi & Scheer (2023),
 [doi:10.1038/s41597-023-02587-0](https://doi.org/10.1038/s41597-023-02587-0)
-, in every year 1997–2021, its 1997–2021 mean 4.8% below theirs
-(`validation/residue_base_dm.R`, whep#1330). That check covers cereals
-only, and the rates the switch moves are all non-cereal; no published
-global total for the non-cereal residue base was found to check it
-against.
+, in 16 of the 25 years 1997–2021, its 1997–2021 mean 16.1% above theirs
+(`validation/residue_base_dm.R`). The rates the switch moves are all
+non-cereal, and no published global total for the non-cereal residue
+base was found to check it against.
 
-Measured on the `crop_residues` pin as read by
-[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md),
-on its fresh `value` (the commodity balance's basis, whep#1330),
-`"wirsenius"` against `"legacy"` in 2010 raises recovered residue from
-6341 to 6463 Mt fresh matter (+1.9%), the feed destiny from 1852 to 1891
-Mt (+2.1%) and the burned/other-use destiny from 4489 to 4572 Mt
-(+1.8%), and lowers the soil destiny from 1294 to 1172 Mt (-9.4%); over
-1961–1965 the same moves are +3.5%, +3.4%, +3.6% and -15.2%. Roots and
-tubers, cassava, sugar beet and groundnut are the only categories that
-move.
+Measured on
+[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)'s
+fresh `value` (the commodity balance's basis), `"wirsenius"` against
+`"legacy"` in 2010 raises recovered residue from 7635 to 7822 Mt fresh
+matter (+2.4%), the feed destiny from 2181 to 2238 Mt (+2.6%) and the
+burned/other-use destiny from 5454 to 5584 Mt (+2.4%), and lowers the
+soil destiny from 1675 to 1488 Mt (-11.2%); over 1961–1965 the same
+moves are +5.0%, +4.7%, +5.1% and -19.5%. Roots and tubers, cassava,
+sugar beet and groundnut are the only categories that move. Under
+`"legacy"` the recovered total is the pin's own figure, since that is
+the rate the pin was written with.
 
 Three categories move no mass at all today, which is why the fodder rate
 of 0 is not the live problem it looks like: `Sugar Crops nes` and
@@ -202,8 +205,9 @@ Data* **10**:685,
 [doi:10.1038/s41597-023-02587-0](https://doi.org/10.1038/s41597-023-02587-0)
 . Re-anchoring it is **not** done here: it was held back because the
 gross residue base it multiplies was thought too high (whep#1132,
-whep#1041), which in dry matter it is not for cereals (whep#1330), so
-that re-anchoring is now a choice of its own.
+whep#1041). In dry matter that base is about 16% above the published
+cereal band once the pin's recovery is undone (whep#1195), so the reason
+for holding it back stands.
 
 ## Examples
 
