@@ -3054,6 +3054,7 @@ build_primary_production <- function(
     source = source
   )
 
+  .report_historical_no_area(raw, dt$area_code, dt$year, years)
   dt <- dt[
     year %in%
       years &
@@ -3250,6 +3251,40 @@ build_primary_production <- function(
     "value",
     "source"
   )
+}
+
+# whep#1489: whep-polities publishes a polity with no FAOSTAT reporting area
+# (a colonial federation, a predecessor state, a subnational unit: Tanganyika
+# 1922-1964, French Equatorial Africa, Java and Madura) with `area_code` NA.
+# Such rows are skipped, deliberately NOT routed to Rest-of-World bucket 999:
+# each of those territories lies within one or more areas WHEP models in its
+# own right (all 86 in the 2026-10-08 build do), so booking it in 999 too
+# would count the land twice, and 999 is kept for territories that report
+# nothing (see `.unfold_rest_of_world()`, issue 459). The skip is reported so
+# the rows are not lost silently.
+.report_historical_no_area <- function(raw, area_code, year, years) {
+  no_area <- is.na(area_code) & year %in% years
+  n <- sum(no_area)
+  if (n == 0L) {
+    return(invisible(NULL))
+  }
+  polities <- .coalesce_historical_cols(
+    raw,
+    c("polity_code", "reporting_polity_code", "area", "raw_country")
+  )[no_area] |>
+    unique() |>
+    sort()
+  cli::cli_inform(
+    c(
+      "i" = "Skipped {n} harmonized historical row{?s} with no
+        {.field area_code}: {cli::qty(length(polities))}polit{?y/ies}
+        {.val {polities}}.",
+      " " = "Each lies within one or more areas WHEP models itself, so it is
+        not booked to Rest of World (999)."
+    ),
+    class = "whep_inform_historical_no_area"
+  )
+  invisible(NULL)
 }
 
 .coalesce_historical_cols <- function(df, cols) {
