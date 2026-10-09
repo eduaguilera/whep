@@ -98,17 +98,21 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'   remote data. Default is `FALSE`.
 #' @param oil_palm_residue How oil palm residue (fronds and trunks) is
 #'   obtained. One of:
-#'   - `"per_hectare"` (default): 60 Mt DM / 4.85 Mha = 12.37 t DM per
-#'     harvested hectare, Malaysia's 2010 fronds and trunks. Frond and trunk
-#'     production is a property of the standing palm, and the rate barely
-#'     moves between the strategy's two Malaysian years (12.26 t DM/ha at
-#'     2012, from its "over 83 million dry tonnes" times "about 75 percent"
-#'     on FAOSTAT's 5.08 Mha).
-#'   - `"per_product"`: 60 Mt DM / 83.09 Mt of fresh fruit bunches = 0.722 t
-#'     DM per tonne of fruit, the same 2010 anchor over Malaysia's 2010
-#'     FAOSTAT production. It keeps the pin's production-times-ratio form but
-#'     gives far less residue where yields are low (Nigeria, 2.6 t/ha), and
-#'     drifts between the strategy's two years (0.656 at 2012).
+#'   - `"per_product"` (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
+#'     = 0.722 t DM per tonne of fruit, Malaysia's 2010 fronds and trunks over
+#'     its 2010 FAOSTAT production. It keeps the pin's production-times-ratio
+#'     form and is the cautious rule where the per-hectare one is weakest:
+#'     low-yield, semi-wild palm systems such as Nigeria's (2.6 t of fruit per
+#'     hectare against Malaysia's ~17), which `"per_hectare"` would give twice
+#'     the pin's residue. West African semi-wild systems stay uncertain under
+#'     either rule and would need their own source. Maintainer decision
+#'     (whep#1424).
+#'   - `"per_hectare"`: 60 Mt DM / 4.85 Mha = 12.37 t DM per harvested
+#'     hectare, the same 2010 anchor. It treats frond and trunk production as
+#'     a property of the standing palm, and the rate barely moves between the
+#'     strategy's two Malaysian years (12.26 t DM/ha at 2012, from its "over 83
+#'     million dry tonnes" times "about 75 percent" on FAOSTAT's 5.08 Mha),
+#'     where the per-tonne ratio drifts (0.656 at 2012).
 #'   - `"pin"`: the pin as published, 3.8 t fresh residue per tonne of fruit.
 #'
 #'   The anchored dry matter is converted to fresh mass with the oil palm
@@ -159,7 +163,7 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' get_primary_residues(example = TRUE)
 get_primary_residues <- function(
   example = FALSE,
-  oil_palm_residue = c("per_hectare", "per_product", "pin")
+  oil_palm_residue = c("per_product", "per_hectare", "pin")
 ) {
   oil_palm_residue <- rlang::arg_match(oil_palm_residue)
   if (example) {

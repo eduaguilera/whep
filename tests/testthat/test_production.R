@@ -331,11 +331,11 @@ oil_palm_kgdm <- function() {
   coefs$Residue_kgDM_kgFM[coefs$Name_biomass == "Oil palm"]
 }
 
-testthat::test_that("oil palm residue is anchored per hectare by default", {
+testthat::test_that("oil palm residue is anchored per tonne of fruit by default", {
   # whep#1424: the pin books 35.8 t DM of oil palm residue per harvested
   # hectare at 2020, more than an oil palm plantation's whole above-ground net
   # primary production, fruit included. The default re-anchors it on
-  # Malaysia's fronds and trunks: 60 Mt DM on 4.85 Mha in 2010.
+  # Malaysia's fronds and trunks: 60 Mt DM over 83,090,935 t of fruit in 2010.
   local_mocked_bindings(whep_read_file = function(name, ...) {
     oil_palm_pin_fixture()
   })
@@ -343,25 +343,25 @@ testthat::test_that("oil palm residue is anchored per hectare by default", {
   out <- whep::get_primary_residues()
 
   palm <- out[out$item_cbs_code_crop == 254, ]
-  testthat::expect_equal(palm$value_dm, 60 / 4.85)
-  testthat::expect_equal(palm$value, 60 / 4.85 / oil_palm_kgdm())
-  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_hectare")
+  testthat::expect_equal(palm$value_dm, 18.5 * 60e6 / 83090935)
+  testthat::expect_equal(palm$value, 18.5 * 60e6 / 83090935 / oil_palm_kgdm())
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_product")
   # Every other crop keeps the pin's value and says so.
   wheat <- out[out$item_cbs_code_crop == 2511, ]
   testthat::expect_equal(wheat$value, 100)
   testthat::expect_equal(wheat$method_residue, "pin")
 })
 
-testthat::test_that("oil palm residue can be anchored per tonne of fruit", {
+testthat::test_that("oil palm residue can be anchored per hectare", {
   local_mocked_bindings(whep_read_file = function(name, ...) {
     oil_palm_pin_fixture()
   })
 
-  out <- whep::get_primary_residues(oil_palm_residue = "per_product")
+  out <- whep::get_primary_residues(oil_palm_residue = "per_hectare")
 
   palm <- out[out$item_cbs_code_crop == 254, ]
-  testthat::expect_equal(palm$value_dm, 18.5 * 60e6 / 83090935)
-  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_product")
+  testthat::expect_equal(palm$value_dm, 60 / 4.85)
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_hectare")
 })
 
 testthat::test_that("oil palm residue can be kept as the pin publishes it", {
@@ -397,10 +397,16 @@ testthat::test_that("oil palm residue without harvested area aborts", {
   })
 
   testthat::expect_error(
-    whep::get_primary_residues(),
+    whep::get_primary_residues(oil_palm_residue = "per_hectare"),
     class = "whep_oil_palm_no_product"
   )
-  # The pin method needs neither, so it still runs.
+  # The default anchors on tonnes of fruit and the pin method on nothing, so
+  # neither needs the hectares.
+  out <- whep::get_primary_residues()
+  testthat::expect_equal(
+    out$value_dm[out$item_cbs_code_crop == 254],
+    18.5 * 60e6 / 83090935
+  )
   out <- whep::get_primary_residues(oil_palm_residue = "pin")
   testthat::expect_equal(out$value[out$item_cbs_code_crop == 254], 71)
 })
