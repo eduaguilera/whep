@@ -15,10 +15,10 @@
 #   the centroid country_grid carries. Do not re-assert a literal here;
 #   .check_cell_polity_vintage() asserts the vocabulary instead, which is the
 #   part that has to hold.
-# - crop_patterns.parquet (Sys.getenv("WHEP_CROP_PATTERNS_PATH")): lon, lat,
+# - crop_patterns.parquet (spatialize-crop-patterns pin): lon, lat,
 #   item_prod_code, harvest_fraction, a STATIC crop-pattern weight (no year
 #   dimension), 2,247,239 rows.
-# - type_cropland.parquet (Sys.getenv("WHEP_TYPE_CROPLAND_PATH")): lon, lat,
+# - type_cropland.parquet (spatialize-type-cropland pin): lon, lat,
 #   year, luh2_type, type_ha, type_irrig_ha, an annual per-cell cropland
 #   area by LUH2 class, 27,496,275 rows.
 # - Per-cell per-crop hectares = type_ha * harvest_fraction, the exact
@@ -264,9 +264,10 @@ build_cell_polity <- function(
 #' @param data Optional named list of pre-loaded grid inputs, used only when
 #'   `resolution = "grid"`: `crop_patterns` (`lon`, `lat`, `item_prod_code`,
 #'   `harvest_fraction`) and `type_cropland` (`lon`, `lat`, `year`,
-#'   `luh2_type`, `type_ha`), each falling back to a lazy parquet read from
-#'   `Sys.getenv("WHEP_CROP_PATTERNS_PATH")` /
-#'   `Sys.getenv("WHEP_TYPE_CROPLAND_PATH")` when absent. `item_cbs_code` in
+#'   `luh2_type`, `type_ha`). When absent, each is read from the
+#'   `spatialize-crop-patterns` / `spatialize-type-cropland` pin, or from the
+#'   local parquet at `WHEP_CROP_PATTERNS_PATH` / `WHEP_TYPE_CROPLAND_PATH`
+#'   when that override is set. `item_cbs_code` in
 #'   `crop_shares`/`country_totals` is matched to the `item_prod_code` column
 #'   of `crop_patterns` via [whep::items_prod_full] (the same crosswalk
 #'   [build_crop_land_extension()] uses).
@@ -1006,7 +1007,7 @@ spatialize_country_n_to_crops <- function(
 # after reading (before any join), so a single-year query stays fast against
 # the ~27.5M-row real file.
 .n_read_type_cropland <- function(type_cropland, years) {
-  raw <- type_cropland %||% .n_read_parquet_env("WHEP_TYPE_CROPLAND_PATH")
+  raw <- type_cropland %||% .n_read_grid_input("type_cropland", years)
   .check_columns(
     raw,
     c("lon", "lat", "year", "luh2_type", "type_ha"),
@@ -1019,7 +1020,7 @@ spatialize_country_n_to_crops <- function(
 # immediately after reading (before any join), so a single-crop query stays
 # fast against the ~2.2M-row real file.
 .n_read_crop_patterns <- function(crop_patterns, item_prod_codes) {
-  raw <- crop_patterns %||% .n_read_parquet_env("WHEP_CROP_PATTERNS_PATH")
+  raw <- crop_patterns %||% .n_read_grid_input("crop_patterns")
   .check_columns(
     raw,
     c("lon", "lat", "item_prod_code", "harvest_fraction"),
@@ -1028,6 +1029,44 @@ spatialize_country_n_to_crops <- function(
   dplyr::filter(
     tibble::as_tibble(raw),
     .data$item_prod_code %in% item_prod_codes
+  )
+}
+
+# Read a WHEP-built gridded surface: the parquet its env var names when set,
+# else the pin run_spatialize() and the soil carbon chain read. These surfaces
+# are built by inst/scripts/prepare_spatialize_all.R, so per AGENTS.md ("Where
+# input data comes from") the pin is the source and the env var only an
+# override, the order build_cell_polity() resolves the polity fraction in
+# (whep#694). Reading the env var alone kept each machine on whatever vintage
+# its local file held, so a pin bump never reached the N balance (whep#1475).
+# `years` is pushed into the pin read; the caller still filters, because the
+# override path reads the whole file.
+.n_read_grid_input <- function(input, years = NULL) {
+  env_var <- .n_grid_input_env_vars()[[input]]
+  if (.has_path(Sys.getenv(env_var))) {
+    return(.n_read_parquet_env(env_var))
+  }
+  alias <- .spatial_input_aliases()[[input]]
+  tryCatch(
+    whep_read_file(alias, years = years),
+    error = function(e) {
+      cli::cli_abort(
+        c(
+          "Could not read the {.val {alias}} pin.",
+          i = "Pass it via {.arg data}, or set {.envvar {env_var}} to a local
+               parquet."
+        ),
+        parent = e
+      )
+    }
+  )
+}
+
+.n_grid_input_env_vars <- function() {
+  c(
+    crop_patterns = "WHEP_CROP_PATTERNS_PATH",
+    type_cropland = "WHEP_TYPE_CROPLAND_PATH",
+    gridded_pasture = "WHEP_GRIDDED_PASTURE_PATH"
   )
 }
 

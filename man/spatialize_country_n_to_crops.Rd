@@ -65,9 +65,10 @@ already-built table.}
 \item{data}{Optional named list of pre-loaded grid inputs, used only when
 \code{resolution = "grid"}: \code{crop_patterns} (\code{lon}, \code{lat}, \code{item_prod_code},
 \code{harvest_fraction}) and \code{type_cropland} (\code{lon}, \code{lat}, \code{year},
-\code{luh2_type}, \code{type_ha}), each falling back to a lazy parquet read from
-\code{Sys.getenv("WHEP_CROP_PATTERNS_PATH")} /
-\code{Sys.getenv("WHEP_TYPE_CROPLAND_PATH")} when absent. \code{item_cbs_code} in
+\code{luh2_type}, \code{type_ha}). When absent, each is read from the
+\code{spatialize-crop-patterns} / \code{spatialize-type-cropland} pin, or from the
+local parquet at \code{WHEP_CROP_PATTERNS_PATH} / \code{WHEP_TYPE_CROPLAND_PATH}
+when that override is set. \code{item_cbs_code} in
 \code{crop_shares}/\code{country_totals} is matched to the \code{item_prod_code} column
 of \code{crop_patterns} via \link{items_prod_full} (the same crosswalk
 \code{\link[=build_crop_land_extension]{build_crop_land_extension()}} uses).}

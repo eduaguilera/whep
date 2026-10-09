@@ -144,7 +144,7 @@ build_ag_land_support <- function(
 # Mirrors .n_cropland_ha() (R/n_balance_spatialize.R) but treats years = NULL as
 # "every year the surface covers" instead of filtering to an empty table.
 .als_type_cropland <- function(data, years) {
-  raw <- data$type_cropland %||% .n_read_parquet_env("WHEP_TYPE_CROPLAND_PATH")
+  raw <- data$type_cropland %||% .n_read_grid_input("type_cropland", years)
   .check_columns(
     raw,
     c("lon", "lat", "year", "luh2_type", "type_ha"),
@@ -278,8 +278,7 @@ build_ag_land_support <- function(
 # and 1851-2023 span, so a full-period run needs no grassland back-fill. Border
 # cells are split by the SAME cell_polity crosswalk the cropland side uses.
 .als_read_gridded_pasture <- function(data, cell_polity, years) {
-  raw <- data$gridded_pasture %||%
-    .n_read_parquet_env("WHEP_GRIDDED_PASTURE_PATH")
+  raw <- data$gridded_pasture %||% .n_read_grid_input("gridded_pasture", years)
   .check_columns(
     raw,
     c("lon", "lat", "year", "pasture_ha", "rangeland_ha"),

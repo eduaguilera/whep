@@ -29,9 +29,9 @@
 #
 # The balance run builds one resolution, so `second_resolution_conditions` is
 # always empty. It records nothing about a subnational allocation: the run
-# reads its crop-pattern surface from WHEP_CROP_PATTERNS_PATH and cannot see
-# how that surface was built, and the SJOS-N driver takes a manifest that
-# records nothing as the national default.
+# reads its crop-pattern surface from a pin (or the WHEP_CROP_PATTERNS_PATH
+# override) and cannot see how that surface was built, and the SJOS-N driver
+# takes a manifest that records nothing as the national default.
 
 .nbd_march_schema_version <- function() 1L
 

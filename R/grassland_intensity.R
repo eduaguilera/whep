@@ -862,17 +862,10 @@ build_grassland_intensity_classes <- function(
 }
 
 # The gridded pasture + rangeland surface ag_land_support reads: the
-# WHEP_GRIDDED_PASTURE_PATH parquet when set (as .als_read_gridded_pasture()
-# reads it), else the spatialize-gridded-pasture pin run_spatialize() reads.
+# WHEP_GRIDDED_PASTURE_PATH parquet when set, else the
+# spatialize-gridded-pasture pin (.n_read_grid_input()).
 .gic_read_gridded_pasture <- function() {
-  if (.has_path(Sys.getenv("WHEP_GRIDDED_PASTURE_PATH"))) {
-    return(.n_read_parquet_env("WHEP_GRIDDED_PASTURE_PATH"))
-  }
-  .read_spatial_input(
-    NULL,
-    "gridded_pasture.parquet",
-    .spatial_input_aliases()[["gridded_pasture"]]
-  )
+  .n_read_grid_input("gridded_pasture")
 }
 
 .gic_check_layers <- function(layers) {
