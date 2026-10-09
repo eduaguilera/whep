@@ -2094,11 +2094,14 @@ test_that("the Rest-of-World mix is a weighted average of its regions", {
 test_that(".feed_table_exclusions bars roughage from granivores only", {
   excl <- whep:::.feed_table_exclusions(whep:::.livestock_crosswalk())
   expect_setequal(unique(excl$livestock_category), c("Pigs", "Poultry"))
-  # Straw and the green fodders have no granivore feed type in feed_taxonomy.
-  expect_setequal(unique(excl$item_cbs_code), c(2105L, 2000L, 2001L, 2003L))
-  # Other crop residues (2106) is a granivore feed in the taxonomy.
-  expect_false(2106L %in% excl$item_cbs_code)
-  expect_equal(nrow(excl), 8L)
+  # Straw, Other crop residues and the green fodders have no granivore feed
+  # type in feed_taxonomy. 2106 is mostly oilcrop stalks and cane tops, the
+  # same fibrous straw as 2105 (whep#1218).
+  expect_setequal(
+    unique(excl$item_cbs_code),
+    c(2105L, 2106L, 2000L, 2001L, 2003L)
+  )
+  expect_equal(nrow(excl), 10L)
 })
 
 test_that(".with_feed_eligibility derives, disables and yields to options", {
@@ -2118,7 +2121,7 @@ test_that(".with_feed_eligibility derives, disables and yields to options", {
   expect_error(whep:::.with_feed_eligibility(list(), "bogus", cw))
 })
 
-test_that("national engine never feeds straw to pigs under feed_table", {
+test_that("national engine never feeds crop residues to pigs (feed_table)", {
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
@@ -2132,16 +2135,18 @@ test_that("national engine never feeds straw to pigs under feed_table", {
   )
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~feed,
-    1970L, area,       2105L,          1e6
+    1970L, area,       2105L,          1e6,
+    1970L, area,       2106L,          1e6
   )
-  straw_to <- function(out, category) {
+  straw_to <- function(out, category, items = c(2105L, 2106L)) {
     sum(out$intake_dm_t[
-      out$livestock_category == category & out$item_cbs_code %in% 2105L
+      out$livestock_category == category & out$item_cbs_code %in% items
     ])
   }
   restricted <- whep:::.run_redistribute_national(NULL, cbs, "ipcc")
   expect_equal(straw_to(restricted, "Pigs"), 0)
-  expect_gt(straw_to(restricted, "Cattle_milk"), 0)
+  expect_gt(straw_to(restricted, "Cattle_milk", 2106L), 0)
+  expect_gt(straw_to(restricted, "Cattle_milk", 2105L), 0)
   expect_equal(unique(restricted$method_feed_eligibility), "feed_table")
   # The unmet pig demand is reported as underfeeding, not hidden.
   pigs <- restricted[restricted$livestock_category == "Pigs", ]
@@ -2153,7 +2158,8 @@ test_that("national engine never feeds straw to pigs under feed_table", {
     "ipcc",
     feed_eligibility = "none"
   )
-  expect_gt(straw_to(open, "Pigs"), 0)
+  expect_gt(straw_to(open, "Pigs", 2105L), 0)
+  expect_gt(straw_to(open, "Pigs", 2106L), 0)
   expect_equal(unique(open$method_feed_eligibility), "none")
 })
 

@@ -1082,10 +1082,20 @@ build_feed_demand <- function(
 # for grazers and one for granivores; `granivore_feedtype` is NA for the fibrous
 # roughage granivores never request (data-raw/feed_coefficients.R: "granivores
 # get a restricted set; only grazers eat fibrous roughage"). Under
-# "feed_table", every item a grazer eats but a granivore does not (Straw 2105
-# and the green fodders 2000, 2001, 2003) is barred from every category whose
-# crosswalk rows are all Granivores (Pigs, Poultry). An explicit
-# `options$feed_exclusions` from the caller wins over the derived table.
+# "feed_table", every item a grazer eats but a granivore does not (Straw 2105,
+# Other crop residues 2106 and the green fodders 2000, 2001, 2003) is barred
+# from every category whose crosswalk rows are all Granivores (Pigs, Poultry).
+# An explicit `options$feed_exclusions` from the caller wins over the derived
+# table.
+#
+# 2106 follows the rule of the Global project's `animal_feed.r`, "only grazers
+# are allowed to eat straw and fibrous green fodder": by residue dry matter at
+# 2020 it is about 34% soybean stalks, 22% sugarcane tops, 9% rape straw and
+# under a quarter vegetable, root and tuber leaves, so it is straw in all but
+# its CBS label (soybean straw lands there only because soy is an oilcrop,
+# while pea straw is 2105). The afsetools `Codes_coefs.xlsx` table this
+# taxonomy came from gave 2106 a granivore feed type; it is blanked in
+# `inst/extdata/feed/feed_items.csv` (whep#1218).
 .with_feed_eligibility <- function(options, feed_eligibility, crosswalk) {
   feed_eligibility <- rlang::arg_match(
     feed_eligibility,
