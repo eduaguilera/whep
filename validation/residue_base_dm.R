@@ -34,6 +34,19 @@
 #     that upper bound warns but does not fail: changing a residue ratio is a
 #     science decision, not something this check should force.
 #
+# Since #1195 this gate FAILS, and that is a finding, not a broken script.
+# The pin holds residue the predecessor had already multiplied by its legacy
+# recovery rate; #1330 compared that recovered residue with Smerald's gross
+# residue and found it inside the band. `get_primary_residues()` now undoes the
+# recovery, and the residue produced is above the band in 16 of the 25 years,
+# its 1997-2021 mean 16.1% above Smerald's (3899 against 3357 Tg DM).
+# Against Smerald's own constant-ratio method the excess is a steady 25%
+# (2010: 3826 against 3071 Tg DM), with the same grain production on both
+# sides. It is the residue:product ratio: Wirsenius's early-1990s regional
+# ratios against Sandstrom et al. (2022) 68%, the region membership of #1430
+# 15%, scaling a non-West-Europe `biomass_coefs` ratio by region over West
+# Europe 13%, and six minor cereals Smerald omit 4%. Decomposition in #1448.
+#
 # Not part of the test suite: it reads the `crop_residues` pin.
 #
 # Run:  Rscript --no-init-file validation/residue_base_dm.R

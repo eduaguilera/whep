@@ -100,8 +100,9 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'
 #'    These are actually not FAOSTAT defined items, but custom defined by us.
 #'    When necessary, FAOSTAT codes are extended for our needs.
-#' - `value`: The amount of residue produced, in tonnes of **fresh matter**,
-#'    like every other commodity-balance quantity.
+#' - `value`: The amount of residue produced -- all of it, before any is
+#'    recovered from the field -- in tonnes of **fresh matter**, like every
+#'    other commodity-balance quantity.
 #' - `value_dm`: The same residue in tonnes of **dry matter**: each crop's
 #'    fresh residue times its own residue dry-matter content,
 #'    `Residue_kgDM_kgFM` in [biomass_coefs], summed per row. `NA` where a
@@ -114,6 +115,31 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' every crop), not the residue's dry-matter content, which runs from 0.13
 #' (tomato) to 1.0 (rapeseed) (whep#1215). Use `value_dm` wherever a quantity
 #' is defined per unit of dry matter, such as a residue nitrogen content.
+#'
+#' The pin does not hold the residue produced but the share of it recovered
+#' from the field: the predecessor pipeline multiplied each residue row by the
+#' legacy recovery rate of its region and crop category (`recovery_rates` in
+#' `residue_recovery.csv`, see [calculate_residue_destinies()]) before writing
+#' it. Every reader of `value` treats it as the whole residue and applies a
+#' recovery rate of its own, so `value` is the pin divided by that same rate
+#' (whep#1195). The division is exact: WHEP ships the rate the predecessor
+#' used, and on the real pin the result equals the predecessor's gross residue
+#' on all 427,584 rows where both exist. Where that rate is 0 (fodder crops
+#' in seven of the eight regions; roots and tubers, cassava, sugar beet and
+#' dry beans in West Europe and in North America and Oceania) the
+#' pin holds 0 and the gross residue cannot be recovered from it, so those
+#' crops carry no residue here, as before.
+#'
+#' The ratio behind the pin's gross residue is the fresh-matter
+#' residue:product ratio of [biomass_coefs], scaled by the region's
+#' residue:product ratio relative to West Europe (`residue_dm_product_dm` in
+#' the same table) and by a harvest-index change factor per region and year.
+#' That factor is what makes the ratio vary by year. The predecessor's table
+#' carries it at eight anchor years from 1910 to 2000, interpolates linearly
+#' between them and holds 2000 constant after it, falling for instance from
+#' 1.10 in 1962 to 1.00 in 2000 in East Europe. Its code attributes the table
+#' to Krausmann et al. (2013), *PNAS* 110:10324, Table M2 (assumed,
+#' unverified), and WHEP does not ship it.
 #'
 #' @inheritSection whep_read_file The batch pin on the build path
 #'
@@ -128,10 +154,11 @@ get_primary_residues <- function(example = FALSE) {
 
   # The `crop_residues` pin is predecessor-pipeline output, not a curated
   # input: its `Product` rows equal the `primary_prod` pin's tonnes to the last
-  # digit, and the year-varying residue ratio behind its `Residue` rows is not
-  # in this repository. See the pin-batch section above for the measurement,
-  # and note that this is where the predecessor's production series enters the
-  # commodity balance (#1054).
+  # digit, and its `Residue` rows are the RECOVERED residue of the
+  # predecessor's harvest-index model, which `.residue_gross_from_recovered()`
+  # turns back into the residue produced (#1195). See the pin-batch section
+  # above for the measurement, and note that this is where the predecessor's
+  # production series enters the commodity balance (#1054).
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
@@ -139,6 +166,7 @@ get_primary_residues <- function(example = FALSE) {
     add_area_code(name_column = "area") |>
     .residue_area_from_polity() |>
     .warn_residues_no_area() |>
+    .residue_gross_from_recovered() |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",
       code_column = "item_cbs_code_crop"
@@ -322,6 +350,131 @@ get_primary_residues <- function(example = FALSE) {
        {.val {labels}}"
   ))
   dt
+}
+
+# Turn the pin's RECOVERED residue back into the residue the crop produced.
+#
+# The pin's `Residue` rows are not gross residue. The predecessor pipeline
+# (`Global/R/crop_npp.r`, then `afsetools::residue_use()`) wrote each one as
+# the product, times the `kg_residue_kg_product_FM` ratio of `biomass_coefs`,
+# times a harvest-index change factor for the region and year, times the
+# region's `residue_dm_product_dm` over West Europe's for the category, times
+# `Use_Share` -- the legacy recovery rate of the region and category. Every
+# consumer of `value` reads it as the whole residue: `calculate_residue_
+# destinies()` multiplies it by a recovery rate again, and the soil-N2O path
+# takes its unremoved share. So the recovery was applied twice (whep#1195).
+#
+# Dividing by that same rate undoes it EXACTLY, because WHEP ships the rate the
+# predecessor used: `recovery_rates` in `residue_recovery.csv` equals its
+# `residue_krausmann$Recovery_rates` in all 160 cells, keyed the same way --
+# `items_prod_full$Cat_Krausmann` by production item and
+# `regions_full$region_HANPP` by area. Measured on the real pin, the result
+# equals the predecessor's gross residue on all 427,584 comparable rows at a
+# relative tolerance of 1e-6. Nothing is estimated here.
+#
+# Where the legacy rate is 0 (31,492 pin rows, all of them 0 in the pin) the
+# gross residue was never written, so it cannot be recovered from the pin: the
+# row stays 0 and is dropped below, exactly as before. A row with no area has
+# no region, so its recovery cannot be undone either; it keeps the pin's figure
+# and stays visible with `NA` polity columns, which every consumer that joins
+# on an area already drops (`.warn_residues_no_area()` names it).
+#
+# A row WITH an area that reaches no rate, or a positive residue where the rate
+# is 0, means the pin was not written by the rule this inverts. Passing it on
+# would book recovered residue as gross, so it aborts.
+.residue_gross_from_recovered <- function(dt) {
+  if (!rlang::has_name(dt, "item_prod")) {
+    cli::cli_abort(
+      "The crop-residue table has no {.field item_prod} column, so the
+       recovery rate its residue already carries cannot be undone.",
+      class = "whep_residue_pin_recovery"
+    )
+  }
+  rated <- dplyr::left_join(
+    dt,
+    .residue_pin_recovery_rates(dt),
+    by = c("item_prod", "area_code"),
+    relationship = "many-to-one"
+  )
+  .check_pin_recovery(rated)
+  rated |>
+    dplyr::mutate(
+      prod_ygpit_mg = dplyr::case_when(
+        is.na(.data$area_code) ~ .data$prod_ygpit_mg,
+        .data$pin_recovery_rate > 0 ~ .data$prod_ygpit_mg /
+          .data$pin_recovery_rate,
+        .default = .data$prod_ygpit_mg
+      )
+    ) |>
+    dplyr::select(-"pin_recovery_rate")
+}
+
+# The legacy recovery rate behind each (item_prod, area_code) pair the pin
+# carries. The pin names its crops, so the production item is resolved through
+# `add_item_prod_code()` and everything after it joins on codes.
+#
+# Keyed on `regions_full$region_HANPP` ON PURPOSE, and it must stay so. That
+# membership files Southeast Asia, Russia and the Caucasus under the wrong
+# Wirsenius region (whep#1430), but it is the membership the predecessor
+# WROTE the pin with, so it is the only one that inverts it exactly. Correcting
+# the membership belongs to the forward recovery rate and residue ratio, never
+# to this undo.
+.residue_pin_recovery_rates <- function(dt) {
+  categories <- whep::items_prod_full |>
+    dplyr::distinct(
+      item_prod_code = as.character(.data$item_prod_code),
+      cat_krausmann = .data$Cat_Krausmann
+    )
+  regions <- whep::regions_full |>
+    dplyr::filter(!is.na(.data$code)) |>
+    dplyr::distinct(
+      area_code = as.integer(.data$code),
+      region_krausmann = .data$region_HANPP
+    )
+  dt |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(.data$item_prod, .data$area_code) |>
+    add_item_prod_code(name_column = "item_prod") |>
+    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
+    dplyr::left_join(categories, by = "item_prod_code") |>
+    dplyr::left_join(regions, by = "area_code") |>
+    dplyr::left_join(
+      .residue_recovery_rates("legacy"),
+      by = c("cat_krausmann", "region_krausmann")
+    ) |>
+    dplyr::select(
+      "item_prod",
+      "area_code",
+      pin_recovery_rate = "recovery_rates"
+    )
+}
+
+# No cli pluralisation markers, for the reason `.warn_residues_no_area()`
+# gives.
+.check_pin_recovery <- function(rated) {
+  has_area <- !is.na(rated$area_code)
+  no_rate <- has_area & is.na(rated$pin_recovery_rate)
+  zero_rate_mass <- has_area &
+    !no_rate &
+    rated$pin_recovery_rate == 0 &
+    !is.na(rated$prod_ygpit_mg) &
+    rated$prod_ygpit_mg > 0
+  if (!any(no_rate) && !any(zero_rate_mass)) {
+    return(invisible(NULL))
+  }
+  bad <- no_rate | zero_rate_mass
+  crops <- sort(unique(as.character(rated$item_prod[bad])))
+  n_bad <- sum(bad)
+  cli::cli_abort(
+    c(
+      "{n_bad} crop-residue rows cannot be turned back into gross residue.",
+      "i" = "Their crop or region reaches no legacy recovery rate, or the rate
+        is 0 while the pin holds residue: {.val {crops}}.",
+      "i" = "The pin's residue is recovered residue (whep#1195); without the
+        rate it was recovered at, it cannot be read as the residue produced."
+    ),
+    class = "whep_residue_pin_recovery"
+  )
 }
 
 # Attach each pin row's residue dry-matter content (kg DM per kg fresh
