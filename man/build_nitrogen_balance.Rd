@@ -201,6 +201,39 @@ themselves, so one choice governs the whole build (whep#727). A
 own call with its own choice, and the balance rows derived from it still get
 this argument's fate at the tail.
 }
+\section{Loss drivers}{
+
+Which driver columns each loss method reads, and whether
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} supplies them. At grid resolution that function
+builds each driver table left \code{NULL}; at polity resolution both tables must
+be supplied.\tabular{llll}{
+   Method \tab Driver columns \tab Supplied \tab Status \cr
+   \code{nh3}: \code{"ipcc"} \tab \code{fert_type} \tab yes \tab built \cr
+   \code{nh3}: \code{"manner"}, \code{"manner_default"} \tab MANNER's \tab no \tab note 1 \cr
+   \code{n2o}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
+   \code{n2o}: \code{"ipcc2019_atl_med"} \tab \code{climate} \tab yes \tab built \cr
+   \code{n2o}: \code{"aguilera"}, \code{"ipcc2006"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
+   \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
+   \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
+   \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
+   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
+}
+
+\itemize{
+\item Note 1: MANNER reads \code{manner_fertiliser}, \code{soil_ph}, \code{rate_kg_ha},
+\code{rainfall_mm}, \code{irrigated}, \code{temp_c}, \code{temp_c_annual_mean}, \code{windspeed_ms},
+\code{technique}, \code{system}, \code{incorporation_delay_h} and \code{species} (see
+\code{\link[=calculate_nh3]{calculate_nh3()}}). Drivers must be supplied; global drivers planned.
+\item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
+\code{cn_input}, \code{tillage}, \code{som_share} and \code{drainage_mm} (see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}). Drivers must be supplied; global drivers
+planned.
+}
+
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 or note 2 before
+assembling any input unless its driver table is supplied.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

@@ -217,6 +217,37 @@
 #' `data$n_inputs` table supplied directly is left alone: it was built by its
 #' own call with its own choice, and the balance rows derived from it still get
 #' this argument's fate at the tail.
+#'
+#' @section Loss drivers:
+#' Which driver columns each loss method reads, and whether
+#' [build_n_loss_drivers()] supplies them. At grid resolution that function
+#' builds each driver table left `NULL`; at polity resolution both tables must
+#' be supplied.
+#'
+#' |Method|Driver columns|Supplied|Status|
+#' |---|---|---|---|
+#' |`nh3`: `"ipcc"`|`fert_type`|yes|built|
+#' |`nh3`: `"manner"`, `"manner_default"`|MANNER's|no|note 1|
+#' |`n2o`: `"ipcc2019"`|`moisture_regime`|yes|built|
+#' |`n2o`: `"ipcc2019_atl_med"`|`climate`|yes|built|
+#' |`n2o`: `"aguilera"`, `"ipcc2006"`|`climate`, `irrig_type`|yes|built|
+#' |`n2o_indirect`: `"ipcc2019"`|`moisture_regime`|yes|built|
+#' |`n2o_indirect`: `"ipcc2019_atl_med"`|`climate`, `irrig_type`|yes|built|
+#' |`leaching`: `"ipcc_fracleach"`|`moisture_regime`, `water_regime`|yes|built|
+#' |`leaching`: `"meisinger_drainage"`|Meisinger's|no|note 2|
+#'
+#' - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
+#'   `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`, `windspeed_ms`,
+#'   `technique`, `system`, `incorporation_delay_h` and `species` (see
+#'   [calculate_nh3()]). Drivers must be supplied; global drivers planned.
+#' - Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`, `land_use`,
+#'   `cn_input`, `tillage`, `som_share` and `drainage_mm` (see
+#'   [calculate_n_leaching()]). Drivers must be supplied; global drivers
+#'   planned.
+#'
+#' [build_nitrogen_balance()] refuses a method of note 1 or note 2 before
+#' assembling any input unless its driver table is supplied.
+#'
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
