@@ -1692,3 +1692,9 @@ testthat::test_that("the entry check lets complete drivers and the IPCC method t
 testthat::test_that("the shared balance fixtures were never mutated", {
   expect_n_fixtures_untouched("nb_")
 })
+
+test_that("the balance's residue recovery default is the package's", {
+  default <- eval(formals(whep::calculate_residue_destinies)$recovery)[[1]]
+  args <- whep:::.nb_residue_destiny_args(list())
+  expect_identical(args$recovery, default)
+})

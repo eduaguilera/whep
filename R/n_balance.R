@@ -90,7 +90,7 @@
 #'     `used_residue_n_t`/`bedding_residue_n_t`/`burnt_residue_n_t`.
 #'     `residue_destiny_method` selects the method (default
 #'     `"recovery_regional"`), `residue_destiny_recovery` its recovery-rate
-#'     variant (default `"legacy"`) and `residue_bedding_fraction` the share
+#'     variant (default `"wirsenius"`, the package default) and `residue_bedding_fraction` the share
 #'     of the recovered non-feed residue used as bedding (default `0`; see
 #'     [calculate_residue_destinies()]). The same three arguments split the
 #'     residue of `npp_n_input` for the `"recycling"` input of
@@ -604,8 +604,9 @@ build_nitrogen_balance <- function(
 # the recycling input (.n_balance_npp()) and the bedding that comes back as
 # manure (.ni_manure_bedding(), R/n_balance_inputs.R). What leaves the field,
 # what stays and what returns through the yard are parts of one split, so
-# all three read this one set of arguments: `data$residue_destiny_method` (default
-# "recovery_regional"), `data$residue_destiny_recovery` (default "legacy")
+# all three read this one set of arguments: `data$residue_destiny_method`
+# (default "recovery_regional"), `data$residue_destiny_recovery` (default
+# "wirsenius", calculate_residue_destinies()'s own default)
 # and `data$residue_bedding_fraction` (default 0). A residue table without
 # the polity's regions takes them from its `area_code`
 # (.nb_with_residue_regions()).
@@ -624,7 +625,7 @@ build_nitrogen_balance <- function(
   list(
     method = data$residue_destiny_method %||% "recovery_regional",
     bedding_fraction = data$residue_bedding_fraction %||% 0,
-    recovery = data$residue_destiny_recovery %||% "legacy"
+    recovery = data$residue_destiny_recovery %||% "wirsenius"
   )
 }
 

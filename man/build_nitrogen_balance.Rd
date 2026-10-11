@@ -58,7 +58,7 @@ input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{used_residue_n_t}/\code{bedding_residue_n_t}/\code{burnt_residue_n_t}.
 \code{residue_destiny_method} selects the method (default
 \code{"recovery_regional"}), \code{residue_destiny_recovery} its recovery-rate
-variant (default \code{"legacy"}) and \code{residue_bedding_fraction} the share
+variant (default \code{"wirsenius"}, the package default) and \code{residue_bedding_fraction} the share
 of the recovered non-feed residue used as bedding (default \code{0}; see
 \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}). The same three arguments split the
 residue of \code{npp_n_input} for the \code{"recycling"} input of

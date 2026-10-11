@@ -991,7 +991,7 @@ if (nrow(blockers) > 0L) {
     npp_n_input = npp,
     recycling_residue_basis = "residue_soil_returned",
     residue_destiny_method = "recovery_regional",
-    residue_destiny_recovery = "legacy",
+    residue_destiny_recovery = "wirsenius",
     residue_bedding_fraction = 0,
     bnf_input = .nbd_bnf_input(npp),
     residue_destiny_input = npp,
