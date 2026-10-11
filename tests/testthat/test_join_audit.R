@@ -362,7 +362,11 @@ test_that("the enumerated baseline can only shrink", {
   # 114 with whep#1195, on top of whep#1317's 112: the residue pin's legacy
   # recovery rate, attached per (crop, area) and keyed on the area's year-free
   # HANPP region. Re-derived by running the audit on the merged tree.
-  expect_lte(sum(baseline$n), 114L)
+  # 115 with the per-part residue re-evaluation of the rainfed/irrigated
+  # split (whep#1233), on top of whep#1195's 114: `.rr_model_rows()` attaches
+  # the HANPP region by area, one time-invariant join. Re-derived by running
+  # the audit on the merged tree.
+  expect_lte(sum(baseline$n), 115L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
