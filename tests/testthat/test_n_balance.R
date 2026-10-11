@@ -586,6 +586,56 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
   testthat::expect_identical(supply$territory, "10")
 })
 
+testthat::test_that("bedded straw N is priced as applied manure, not as excreta", {
+  # add_manure_bedding() places the straw on the housed, litter-using streams
+  # only, so it lands as "manure_solid" and IPCC 2019 Table 11.1 prices it with
+  # EF1 for other N inputs, never with the EF3PRP of grazing deposition. The
+  # excreta rows and their species mix must come out untouched. The drivers
+  # are set dry, where EF1 (0.005) differs from both EF3PRP factors.
+  key <- whep:::.nb_key("grid")
+  run <- function(fraction) {
+    data <- .nb_data_with_drivers()
+    data$residue_bedding_fraction <- fraction
+    data$n_balance_drivers$moisture_regime <- "dry"
+    inputs <- suppressWarnings(whep::build_n_inputs(data = data))
+    loss <- whep:::.nb_loss_rows(inputs, key, data) |>
+      whep::calculate_soil_n2o(method = "ipcc2019")
+    list(inputs = inputs, loss = loss)
+  }
+  type_n <- function(x, type, col = "n_input_t") {
+    sum(x[[col]][x$fert_type == type])
+  }
+  excreta <- function(x) {
+    x |>
+      dplyr::filter(.data$fert_type %in% c("excreta", "Excreta")) |>
+      dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+  }
+  bare <- run(0)
+  bedded <- run(0.4)
+  bedding_n <- type_n(bedded$inputs, "manure_solid") -
+    type_n(bare$inputs, "manure_solid")
+  manure <- c("manure_solid", "manure_liquid", "excreta")
+
+  testthat::expect_gt(bedding_n, 0)
+  testthat::expect_equal(
+    sum(bedded$inputs$n_input_t[bedded$inputs$fert_type %in% manure]) -
+      sum(bare$inputs$n_input_t[bare$inputs$fert_type %in% manure]),
+    bedding_n,
+    tolerance = 1e-12
+  )
+  testthat::expect_gt(nrow(excreta(bare$inputs)), 0L)
+  testthat::expect_identical(excreta(bedded$inputs), excreta(bare$inputs))
+  testthat::expect_identical(excreta(bedded$loss), excreta(bare$loss))
+  solid <- dplyr::filter(bedded$loss, .data$fert_type == "Solid")
+  testthat::expect_true(all(solid$method_soil_n2o == "ipcc2019_wet_dry"))
+  testthat::expect_equal(
+    type_n(bedded$loss, "Solid", "n2o_direct_n_t") -
+      type_n(bare$loss, "Solid", "n2o_direct_n_t"),
+    bedding_n * whep:::.ipcc2019_soil_ef("EF1", "all_dry"),
+    tolerance = 1e-12
+  )
+})
+
 testthat::test_that("bedding residue N is an output of the full balance", {
   aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
     prod_n_t = 10,
