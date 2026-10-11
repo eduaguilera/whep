@@ -262,6 +262,33 @@ if (!is.null(manifest_scoped) && sum(alias_scoped) != manifest_scoped) {
   ))
 }
 
+# THE LABEL KEY (whep-polities' label-qualifier fix). A revision whose manifest
+# publishes `label_alias_map$label_key_why` keys every source label WITH its
+# bracketed qualifier, and its rules were written for that key; an earlier one
+# dropped qualifiers and its rules lean on it. The resolver reads the key off
+# this attribute, so the snapshot and the key always come from one revision.
+alias_label_key <- if (
+  file.exists(whep_polities_manifest) &&
+    !is.null(alias_manifest$label_key_why)
+) {
+  "qualifiers_kept"
+} else {
+  "qualifiers_dropped"
+}
+resolver_keeps_qualifiers <- any(grepl(
+  ".alias_keeps_qualifiers",
+  readLines(here::here("R", "polities.R")),
+  fixed = TRUE
+))
+if (alias_label_key == "qualifiers_kept" && !resolver_keeps_qualifiers) {
+  cli::cli_abort(c(
+    "The label alias map keeps bracketed qualifiers in its labels, but
+     {.fn resolve_polity_label} cannot read that key.",
+    i = "Restore the label key in {.path R/polities.R} before shipping."
+  ))
+}
+attr(polity_label_aliases, "label_key") <- alias_label_key
+
 unknown_dispositions <- setdiff(
   stats::na.omit(polity_label_aliases$disposition),
   "back_cast"

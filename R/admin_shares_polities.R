@@ -319,8 +319,9 @@ resolve_admin_units <- function(
   # or ISO3 code resolve to the wrong thing (usually the container). See
   # the file banner and finding #1000/T34-3.
   aliases <- .assert_alias_table(aliases %||% polity_label_aliases)
-  alias_key <- .norm_polity_label(aliases$source_label)
-  label_key <- .norm_polity_label(keys$label)
+  label_key_of <- .alias_label_key(aliases)
+  alias_key <- label_key_of(aliases$source_label)
+  label_key <- label_key_of(keys$label)
   vapply(
     seq_along(label_key),
     function(i) {
