@@ -170,7 +170,10 @@
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 #'   `method_soil_n2o`/`method_n2o_indirect_nh3`/`method_leaching`
 #'   provenance columns (the per-row stamps of the loss functions; a balance
-#'   row pooling loss rows priced differently lists them joined by `"|"`),
+#'   row pooling loss rows priced differently lists them joined by `"|"`,
+#'   and a row with no N2O-relevant input, which emits no direct or
+#'   NH3-indirect N2O, carries the method chosen suffixed `"_no_loss_row"`,
+#'   e.g. `"ipcc2019_no_loss_row"`),
 #'   `method_drivers` (`"whep_built"`, `"supplied"` or
 #'   `"supplied|whep_built"`), and, when the leaching drivers carry them (as
 #'   built ones do), the row's wet/dry `moisture_regime`, how it was obtained
@@ -418,16 +421,32 @@ build_nitrogen_balance <- function(
 }
 
 # The balance keys the drivers must cover: every balance row (for leaching)
-# and, with its loss fert_type, every loss row .nb_loss_rows() forms.
+# and, with its loss fert_type, every loss row .nb_loss_rows() forms. Each
+# carries its N, which build_n_loss_drivers() needs to tell an irrigated row
+# without irrigated land of its item from one that carries no irrigated N.
 .nb_driver_rows <- function(split) {
   key <- split$key
   loss <- split$n_inputs |>
     dplyr::filter(.data$fert_type %in% .nb_n2o_fert_types()) |>
-    dplyr::distinct(dplyr::pick(dplyr::all_of(c(key, "fert_type")))) |>
+    dplyr::summarise(
+      n_input_t = sum(.data$n_input_t),
+      .by = dplyr::all_of(c(key, "fert_type"))
+    ) |>
     dplyr::mutate(fert_type = .nb_loss_fert_type(.data$fert_type))
+  key_n <- dplyr::summarise(
+    split$n_inputs,
+    n_input_t = sum(.data$n_input_t),
+    .by = dplyr::all_of(key)
+  )
+  # A balance key with no input row in build_n_inputs()' own ledger (one
+  # that only an output term opened) received no input N: a structural zero.
   balance <- split$x |>
     dplyr::distinct(dplyr::pick(dplyr::all_of(key))) |>
-    dplyr::mutate(fert_type = NA_character_)
+    dplyr::left_join(key_n, by = key, relationship = "one-to-one") |>
+    dplyr::mutate(
+      n_input_t = dplyr::coalesce(.data$n_input_t, 0),
+      fert_type = NA_character_
+    )
   dplyr::bind_rows(loss, balance)
 }
 
@@ -896,6 +915,7 @@ build_nitrogen_balance <- function(
 # matching fertiliser_n2o_modifiers's coverage.
 .nb_losses <- function(x, n_inputs, key, m, data) {
   rows <- .nb_loss_rows(n_inputs, key, data)
+  no_loss <- .nb_no_loss_stamps(m)
   if (nrow(rows) == 0L) {
     return(dplyr::mutate(
       x,
@@ -903,8 +923,8 @@ build_nitrogen_balance <- function(
       n2o_direct_n_t = 0,
       n2o_indirect_nh3_n_t = 0,
       method_nh3 = m$nh3,
-      method_soil_n2o = m$n2o,
-      method_n2o_indirect_nh3 = m$n2o_indirect
+      method_soil_n2o = no_loss$soil,
+      method_n2o_indirect_nh3 = no_loss$indirect
     ))
   }
   no_volat <- c("Recycling", "SOM")
@@ -933,7 +953,8 @@ build_nitrogen_balance <- function(
     ) |>
     dplyr::mutate(method_nh3 = m$nh3)
   # A balance row with no loss row (no N2O-relevant input) emits nothing;
-  # its zeros are structural, and it is stamped with the method chosen.
+  # its zeros are structural, and it is stamped with the method chosen and
+  # the reason, apart from the rows that method priced.
   x |>
     dplyr::left_join(losses, by = key) |>
     dplyr::mutate(
@@ -944,12 +965,24 @@ build_nitrogen_balance <- function(
         0
       ),
       method_nh3 = tidyr::replace_na(.data$method_nh3, m$nh3),
-      method_soil_n2o = tidyr::replace_na(.data$method_soil_n2o, m$n2o),
+      method_soil_n2o = tidyr::replace_na(.data$method_soil_n2o, no_loss$soil),
       method_n2o_indirect_nh3 = tidyr::replace_na(
         .data$method_n2o_indirect_nh3,
-        m$n2o_indirect
+        no_loss$indirect
       )
     )
+}
+
+# The N2O stamps of a balance row with no loss row. Several methods stamp
+# their priced rows with the bare method name ("ipcc2019_atl_med",
+# "ipcc2006", "aguilera" on non-excreta rows), so the bare name alone would
+# read as a priced row; the suffix says no factor was applied. method_nh3
+# stays the bare method on every row, as calculate_nh3() stamps it.
+.nb_no_loss_stamps <- function(m) {
+  list(
+    soil = paste0(m$n2o, "_no_loss_row"),
+    indirect = paste0(m$n2o_indirect, "_no_loss_row")
+  )
 }
 
 # N_input_for_N2O_MgN's own fert_types (Excreta, Liquid, Solid, SOM,
@@ -995,7 +1028,8 @@ build_nitrogen_balance <- function(
 # replaced by its sum. Excreta labelled only as the fallback of a manure-type
 # split is collected manure, priced as applied manure, so it pools apart from
 # the grazing excreta of its key rather than erasing their mix: a key can
-# then carry two "Excreta" loss rows.
+# then carry two "Excreta" loss rows. build_n_inputs() already keeps the two
+# apart; this holds the rule for a supplied input table too.
 .nb_pool_loss_rows <- function(rows, key) {
   by <- c(key, "fert_type")
   if (!rlang::has_name(rows, "excreta_cpp_share")) {
@@ -1008,8 +1042,7 @@ build_nitrogen_balance <- function(
   if (!rlang::has_name(rows, "method_excreta_species")) {
     rows$method_excreta_species <- NA_character_
   }
-  rows$.fallback <- rows$method_excreta_species %in%
-    .excreta_species_methods()[["fallback"]]
+  rows$.fallback <- .excreta_is_fallback(rows$method_excreta_species)
   dplyr::summarise(
     rows,
     method_excreta_species = .excreta_method_stamp(

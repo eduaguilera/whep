@@ -386,6 +386,65 @@ testthat::test_that("aguilera prices fallback-labelled excreta as Solid", {
   testthat::expect_identical(out$method_soil_n2o[3:4], rep("aguilera", 2L))
 })
 
+testthat::test_that("ipcc2019 reads the species of a species-labelled row", {
+  # Table 11.1: EF3PRP,CPP 0.006 wet and 0.002 dry for cattle, poultry and
+  # pigs; EF3PRP,SO 0.003 for sheep and other animals. The label is the
+  # species, so no share column is needed, and a share that agrees with it
+  # is accepted.
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "Excreta_cattle_monog", 3000L, "wet",
+    10, "Excreta_cattle_monog", 3000L, "dry",
+    10, "Excreta_other", 3000L, "wet",
+    10, "Excreta_other", 3000L, "dry"
+  )
+  expected <- c(0.06, 0.02, 0.03, 0.03)
+  out <- whep::calculate_soil_n2o(x, method = "ipcc2019")
+  testthat::expect_equal(out$n2o_direct_n_t, expected, tolerance = 1e-12)
+  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_ef3prp_blend"))
+  agreeing <- dplyr::mutate(x, excreta_cpp_share = c(1, NA, 0, NA))
+  out <- whep::calculate_soil_n2o(agreeing, method = "ipcc2019")
+  testthat::expect_equal(out$n2o_direct_n_t, expected, tolerance = 1e-12)
+})
+
+testthat::test_that("ipcc2019 refuses a share that contradicts the label", {
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    ~excreta_cpp_share,
+    10, "Excreta_cattle_monog", 3000L, "wet", 0,
+    10, "Excreta_other", 3000L, "wet", 1,
+    10, "Excreta_other", 3000L, "wet", 0
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_excreta_share_label_conflict"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "2 excreta rows", fixed = TRUE)
+  testthat::expect_match(msg, "Excreta_cattle_monog", fixed = TRUE)
+})
+
+testthat::test_that("a duplicated IPCC 2019 factor row aborts the lookup", {
+  # A factor table holding the wet EF1 for other N twice: two values for one
+  # factor is a broken table, never one to pick from.
+  table <- whep::ipcc_2019_soil_n_ef
+  twice <- table$parameter == "EF1" & table$disaggregation == "other_wet"
+  testthat::local_mocked_bindings(
+    .ipcc2019_soil_ef_table = function() dplyr::bind_rows(table, table[twice, ])
+  )
+  x <- tibble::tribble(
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    10, "Solid", 2511L, "wet"
+  )
+  err <- testthat::expect_error(
+    whep::calculate_soil_n2o(x, method = "ipcc2019"),
+    class = "whep_ipcc2019_ef_lookup"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "2 values", fixed = TRUE)
+  testthat::expect_match(msg, "other_wet", fixed = TRUE)
+})
+
 testthat::test_that("ipcc2019 refuses excreta N with no species share", {
   x <- tibble::tribble(
     ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime, ~excreta_cpp_share,

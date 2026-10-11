@@ -141,7 +141,10 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_n2o_indirect_nh3}/\code{method_leaching}
 provenance columns (the per-row stamps of the loss functions; a balance
-row pooling loss rows priced differently lists them joined by \code{"|"}),
+row pooling loss rows priced differently lists them joined by \code{"|"},
+and a row with no N2O-relevant input, which emits no direct or
+NH3-indirect N2O, carries the method chosen suffixed \code{"_no_loss_row"},
+e.g. \code{"ipcc2019_no_loss_row"}),
 \code{method_drivers} (\code{"whep_built"}, \code{"supplied"} or
 \code{"supplied|whep_built"}), and, when the leaching drivers carry them (as
 built ones do), the row's wet/dry \code{moisture_regime}, how it was obtained

@@ -39,6 +39,15 @@
   )
 }
 
+# TRUE on the rows stamped as the fallback label of a manure-type split:
+# collected manure applied to the land, which is priced as applied manure and
+# so must never pool with the grazing excreta of its key. Pooling the two
+# would leave the pooled row with no share and the fallback stamp, pricing
+# the grazing N as applied manure too.
+.excreta_is_fallback <- function(method) {
+  method %in% .excreta_species_methods()[["fallback"]]
+}
+
 .excreta_species_classes <- function() {
   system.file(
     "extdata",

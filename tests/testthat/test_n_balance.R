@@ -868,12 +868,29 @@ testthat::test_that("method_nh3/method_soil_n2o/method_leaching are stamped", {
   out <- .nb_run()
   testthat::expect_true(all(out$method_nh3 == "ipcc"))
   # Each soil-N2O stamp names the factor its loss rows took; a row with no
-  # loss row carries the method chosen.
+  # loss row says so.
   stamps <- unlist(strsplit(out$method_soil_n2o, "|", fixed = TRUE))
   testthat::expect_true(all(
-    stamps %in% c("ipcc2019", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
+    stamps %in%
+      c("ipcc2019_no_loss_row", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
   ))
   testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+})
+
+testthat::test_that("a balance row with no loss row is stamped as such", {
+  # A row with no N2O-relevant input forms no loss row, so it emits nothing
+  # and no factor was applied to it; its stamp must not read as a priced
+  # row's, which under several methods is the bare method name.
+  out <- .nb_run()
+  no_loss <- out$method_soil_n2o == "ipcc2019_no_loss_row"
+  testthat::expect_true(any(no_loss))
+  testthat::expect_true(all(out$n_input_for_n2o_t[no_loss] == 0))
+  testthat::expect_true(all(out$n2o_direct_n_t[no_loss] == 0))
+  testthat::expect_true(all(out$n2o_indirect_nh3_n_t[no_loss] == 0))
+  testthat::expect_true(all(
+    out$method_n2o_indirect_nh3[no_loss] == "ipcc2019_no_loss_row"
+  ))
+  testthat::expect_false(any(out$method_soil_n2o == "ipcc2019"))
 })
 
 testthat::test_that("resolution argument is validated", {
@@ -1547,8 +1564,10 @@ testthat::test_that("the default manure source reproduces the pre-option balance
     ),
     data = .nb_data_with_drivers()
   ))
-  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
-  testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
+  # Rows with no N2O-relevant input carry the method and the reason.
+  atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
+  testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
   testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
   # Added after the golden: the retained-in-profile term (zero on wet rows),
   # the drivers' provenance and the class the leaching drivers carry.
@@ -1801,14 +1820,15 @@ testthat::test_that("the default balance prices its loss rows with the wet IPCC 
   )
   stamps <- unlist(strsplit(stats::na.omit(out$method_soil_n2o), "|", TRUE))
   testthat::expect_true(all(
-    stamps %in% c("ipcc2019", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
+    stamps %in%
+      c("ipcc2019_no_loss_row", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
   ))
   grass <- out[out$item_cbs_code %in% 3000L, ]
   testthat::expect_identical(grass$method_soil_n2o, "ipcc2019_ef3prp_blend")
   pointblank::expect_col_vals_in_set(
     out,
     "method_n2o_indirect_nh3",
-    c("ipcc2019", "ipcc2019_wet_dry")
+    c("ipcc2019_no_loss_row", "ipcc2019_wet_dry")
   )
 })
 
@@ -1831,8 +1851,10 @@ testthat::test_that("the ATL/MED options reproduce the former balance", {
     tolerance = 1e-12
   )
   testthat::expect_equal(sum(out$no3_n_t), 8139.995079404959, tolerance = 1e-12)
-  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
-  testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
+  # Rows with no N2O-relevant input carry the method and the reason.
+  atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
+  testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
 })
 
 testthat::test_that("the balance refuses loss drivers without a moisture regime", {
@@ -1941,6 +1963,22 @@ testthat::test_that("the balance example carries the method columns a build retu
 # which classes every row without a crop of its own.
 .nb_built_driver_data <- function() {
   data <- .nb_regime_split_data()
+  # The shares and the classes describe one land use: only 2511 holds
+  # irrigated land, so no other item carries irrigated N (an irrigated row
+  # with N and no class of its own is refused).
+  data$regime_shares <- dplyr::mutate(
+    data$regime_shares,
+    irrigated_area_share = dplyr::if_else(
+      .data$item_cbs_code %in% 2511L,
+      .data$irrigated_area_share,
+      0
+    ),
+    irrigated_yield_share = dplyr::if_else(
+      .data$item_cbs_code %in% 2511L,
+      .data$irrigated_yield_share,
+      0
+    )
+  )
   data$n_balance_drivers <- NULL
   data$n_balance_leaching_drivers <- NULL
   data$drainage_mm <- NULL

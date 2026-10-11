@@ -86,6 +86,12 @@
 #'   than `"rainfed"` or `"irrigated"`.
 #' - `whep_n_loss_drivers_unclassified`: a row is still without a class (for
 #'   example a window-mean PET of zero), named by its stamp.
+#' - `whep_n_loss_drivers_irrigated_cell_class`: an irrigated row carrying N,
+#'   or one whose N is not supplied, has no class of its own and would take
+#'   its cell's precipitation-only class. The rainfed/irrigated split gives
+#'   an irrigated row N only where the item holds irrigated land, so such a
+#'   row means the balance and the moisture regime disagree on the item's
+#'   regime land; the error names the count and the items carrying most N.
 #' - Every error of [build_cell_moisture_regime()], including
 #'   `whep_absent_input` for an absent climate or irrigation layer.
 #'
@@ -96,7 +102,8 @@
 #'   its non-missing `(key, fert_type)` pairs; without it, for every key and
 #'   the seven loss `fert_type`s (`"Excreta"`, `"Liquid"`, `"Solid"`,
 #'   `"SOM"`, `"Synthetic"`, `"Human"`, `"Recycling"`). The leaching drivers
-#'   cover every key.
+#'   cover every key. `n_input_t`, the N of each row, is needed wherever an
+#'   irrigated row has no class of its own: such a row must carry no N.
 #' @param window,water,config As in [build_cell_moisture_regime()]. The
 #'   window also sets the precipitation-only class of rows without a crop.
 #' @param data Optional list of inputs, passed to
@@ -267,7 +274,7 @@ build_n_loss_drivers <- function(
   )
   distinct_cols <- unique(c(.nld_key(), join))
   rows |>
-    dplyr::distinct(dplyr::pick(dplyr::all_of(distinct_cols))) |>
+    .nld_key_n(distinct_cols) |>
     dplyr::left_join(own, by = join, relationship = "many-to-one") |>
     dplyr::left_join(
       cell,
@@ -277,8 +284,28 @@ build_n_loss_drivers <- function(
     .nld_take_cell_class()
 }
 
+# The N of each distinct balance key: the largest its rows carry (a key's
+# balance row holds all its input N, each loss row one fert_type's part), and
+# NA where the rows carry no N column or a row's N is missing, so an unknown
+# N is never read as none.
+.nld_key_n <- function(rows, cols) {
+  if (!rlang::has_name(rows, "n_input_t")) {
+    return(
+      rows |>
+        dplyr::distinct(dplyr::pick(dplyr::all_of(cols))) |>
+        dplyr::mutate(.n_input_t = NA_real_)
+    )
+  }
+  dplyr::summarise(
+    rows,
+    .n_input_t = max(.data$n_input_t),
+    .by = dplyr::all_of(cols)
+  )
+}
+
 .nld_take_cell_class <- function(rows) {
   from_cell <- is.na(rows$.own)
+  .nld_check_irrigated_class(rows, from_cell)
   reason <- dplyr::if_else(
     is.na(rows$.item),
     "cell_rainfed_class=no_crop_item",
@@ -302,7 +329,60 @@ build_n_loss_drivers <- function(
         .data$climate_fill_km
       )
     ) |>
-    dplyr::select(-".own", -".cell_regime", -".cell_method", -".cell_km")
+    dplyr::select(
+      -".own",
+      -".cell_regime",
+      -".cell_method",
+      -".cell_km",
+      -".n_input_t"
+    )
+}
+
+# The precipitation-only class is the class of a row with no irrigation. An
+# irrigated row reaches it only when the moisture regime holds no irrigated
+# land of its item, and the rainfed/irrigated split gives an irrigated row N
+# only where the item holds some: an irrigated row with N here is the two
+# disagreeing on the item's regime land, and its irrigated N would be priced
+# as rainfed. Irrigated rows without N keep the cell class, stamped.
+.nld_check_irrigated_class <- function(rows, from_cell) {
+  bad <- from_cell &
+    rows$water_regime == "irrigated" &
+    !rows$.n_input_t %in% 0
+  if (!any(bad)) {
+    return(invisible(rows))
+  }
+  items <- tibble::tibble(
+    item = rows$.item[bad],
+    n_t = rows$.n_input_t[bad]
+  ) |>
+    dplyr::summarise(n_t = sum(.data$n_t), .by = "item") |>
+    dplyr::arrange(dplyr::desc(.data$n_t)) |>
+    utils::head(5L)
+  bullets <- rlang::set_names(
+    paste0(
+      dplyr::coalesce(as.character(items$item), "no crop item"),
+      ": ",
+      dplyr::if_else(
+        is.na(items$n_t),
+        "N not supplied",
+        paste(signif(items$n_t, 6), "t N")
+      )
+    ),
+    rep("*", nrow(items))
+  )
+  n_bad <- sum(bad)
+  cli::cli_abort(
+    c(
+      "{n_bad} irrigated balance row{?s} with N, or without a supplied
+       {.field n_input_t}, {?has/have} no class of {?its/their} own.",
+      x = "The cell's precipitation-only class would price irrigated N as
+           rainfed: the balance gives the row irrigated N where the moisture
+           regime holds no irrigated land of its item.",
+      i = "Items carrying most N ({.field item_cbs_code}):",
+      bullets
+    ),
+    class = "whep_n_loss_drivers_irrigated_cell_class"
+  )
 }
 
 # Every row must end with a class: the loss methods refuse a missing one, and

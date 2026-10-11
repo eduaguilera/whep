@@ -65,19 +65,21 @@
 # Balance rows of every kind the builder meets: crop rows with a class of
 # their own, rows without a crop (NA item, the SOM sequestration rows), grass
 # and rice rows with no regime land, and a crop row in the cell CRU misses.
+# `n_input_t` is the rows' N: the irrigated rows without a class of their own
+# carry none, as the rainfed/irrigated split leaves them.
 .nld_rows <- function() {
   tibble::tribble(
-    ~lon,  ~lat,  ~area_code, ~item_cbs_code, ~year, ~water_regime,
-    9.25,  47.75, 79L,        2514L,          2010L, "irrigated",
-    9.25,  47.75, 79L,        2514L,          2010L, "rainfed",
-    9.25,  47.75, 79L,        NA,             2010L, "rainfed",
-    9.25,  47.75, 79L,        NA,             2010L, "irrigated",
-    9.25,  47.75, 79L,        2807L,          2010L, "irrigated",
-    9.25,  47.75, 79L,        2807L,          2010L, "rainfed",
-    9.75,  47.75, 79L,        3000L,          2010L, "rainfed",
-    9.75,  47.75, 79L,        2807L,          2010L, "irrigated",
-    9.75,  47.75, 79L,        2807L,          2010L, "rainfed",
-    10.25, 47.75, 79L,        2514L,          2010L, "rainfed"
+    ~lon,  ~lat,  ~area_code, ~item_cbs_code, ~year, ~water_regime, ~n_input_t,
+    9.25,  47.75, 79L,        2514L,          2010L, "irrigated",   4,
+    9.25,  47.75, 79L,        2514L,          2010L, "rainfed",     3,
+    9.25,  47.75, 79L,        NA,             2010L, "rainfed",     1,
+    9.25,  47.75, 79L,        NA,             2010L, "irrigated",   0,
+    9.25,  47.75, 79L,        2807L,          2010L, "irrigated",   0,
+    9.25,  47.75, 79L,        2807L,          2010L, "rainfed",     2,
+    9.75,  47.75, 79L,        3000L,          2010L, "rainfed",     5,
+    9.75,  47.75, 79L,        2807L,          2010L, "irrigated",   0,
+    9.75,  47.75, 79L,        2807L,          2010L, "rainfed",     2,
+    10.25, 47.75, 79L,        2514L,          2010L, "rainfed",     3
   )
 }
 

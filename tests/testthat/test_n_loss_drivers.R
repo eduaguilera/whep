@@ -133,6 +133,47 @@ testthat::test_that("rows without a crop take the cell's rainfed class", {
   )
 })
 
+testthat::test_that("irrigated rows without N keep their cell's class", {
+  out <- .nld_build()$n_balance_leaching_drivers
+  rice <- out[out$item_cbs_code %in% 2807L & out$water_regime == "irrigated", ]
+  testthat::expect_identical(nrow(rice), 2L)
+  testthat::expect_true(all(stringr::str_detect(
+    rice$method_moisture_regime,
+    "cell_rainfed_class=no_regime_area"
+  )))
+})
+
+testthat::test_that("an irrigated row with N cannot take its cell's class", {
+  # Irrigated N on rice, an item WHEP holds no irrigated land of in A or B:
+  # the balance and the moisture regime disagree on the item's regime land,
+  # so the precipitation-only class would price irrigated N as rainfed.
+  rows <- .nld_rows()
+  wet_rice <- rows$item_cbs_code %in% 2807L & rows$water_regime == "irrigated"
+  rows$n_input_t[wet_rice] <- c(5, 2)
+  err <- testthat::expect_error(
+    .nld_build(rows),
+    class = "whep_n_loss_drivers_irrigated_cell_class"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  testthat::expect_match(msg, "2 irrigated balance rows", fixed = TRUE)
+  testthat::expect_match(msg, "2807: 7 t N", fixed = TRUE)
+})
+
+testthat::test_that("irrigated rows without an N column are refused", {
+  # Without N, an irrigated row taking its cell's class cannot be shown to
+  # carry none: an absent column is not a column of zeros.
+  rows <- dplyr::select(.nld_rows(), -"n_input_t")
+  err <- testthat::expect_error(
+    .nld_build(rows),
+    class = "whep_n_loss_drivers_irrigated_cell_class"
+  )
+  testthat::expect_match(
+    cli::ansi_strip(conditionMessage(err)),
+    "3 irrigated balance rows",
+    fixed = TRUE
+  )
+})
+
 testthat::test_that("a cell without CRU climate takes its nearest CRU cell's", {
   testthat::expect_message(
     out <- whep::build_n_loss_drivers(

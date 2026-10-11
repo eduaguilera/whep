@@ -2313,6 +2313,29 @@ testthat::test_that("stranded human-N rows keep their basis stamps when pooled",
   )
 })
 
+testthat::test_that("reallocated fallback excreta keeps its species stamp", {
+  # Collected manure labelled excreta for want of a type split, landed with
+  # no crop item in cells without cropland: after reallocation it must still
+  # read as applied manure, not as grazing excreta of unknown species.
+  stranded <- .nbi_stranded_inputs() |>
+    dplyr::mutate(
+      fert_type = "excreta",
+      method_manure = "livestock_intake",
+      excreta_cpp_share = NA_real_,
+      method_excreta_species = "fallback_label_no_species"
+    )
+  out <- whep:::.ni_allocate_unattributed(
+    stranded,
+    list(ag_land_support = .nbi_ag_land_support()),
+    method_unsupported = "reallocate"
+  )
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_true(all(
+    out$method_excreta_species == "fallback_label_no_species"
+  ))
+  testthat::expect_true(all(is.na(out$excreta_cpp_share)))
+})
+
 testthat::test_that("a total population under the urban basis is refused by name", {
   # Every population slot is read by exact name, so no slot can partially
   # match another `data` entry and hand a string on as the population; the

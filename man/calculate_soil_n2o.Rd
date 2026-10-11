@@ -20,7 +20,7 @@ calculate_soil_n2o(
 \code{fert_type} (\code{"Synthetic"}, \code{"Solid"}, \code{"Liquid"}, \code{"Human"},
 \code{"Recycling"}, \code{"SOM"} or an excreta label: \code{"Excreta"},
 \code{"Excreta_cattle_monog"}, \code{"Excreta_other"}), \code{item_cbs_code} and
-\code{moisture_regime}, plus \code{excreta_cpp_share} on excreta rows.
+\code{moisture_regime}, plus \code{excreta_cpp_share} on \code{"Excreta"} rows.
 \code{"ipcc2019_atl_med"} requires \code{climate}. \code{"aguilera"} and \code{"ipcc2006"}
 require \code{climate} and \code{irrig_type}, and aguilera \code{fert_type} (and
 \code{excreta_cpp_share} on \code{"Excreta"} rows).}
@@ -64,7 +64,9 @@ N-weighted blend \verb{excreta_cpp_share * EF3PRP,CPP + (1 - excreta_cpp_share) 
 dry for cattle, poultry and pigs and \verb{EF3PRP,SO} 0.003 for sheep and
 other animals. Excreta keep this factor on a rice row too: Equation 11.1
 prices urine and dung deposited by grazing animals apart from the N
-applied to the crop. Stamped \code{"ipcc2019_ef3prp_blend"}.
+applied to the crop. A row labelled by species reads its share from the
+label: 1 on \code{"Excreta_cattle_monog"}, 0 on \code{"Excreta_other"}. Stamped
+\code{"ipcc2019_ef3prp_blend"}.
 \item Excreta labelled so only as the fallback of a manure-type split
 (\code{method_excreta_species == "fallback_label_no_species"}) is collected
 manure applied to the land, not grazing deposition: it takes the factor
@@ -99,8 +101,10 @@ keyed like \code{"aguilera"} on \verb{(irrig_type, climate)} with no \code{mf}.
 \code{"dry"} (\code{whep_moisture_regime_value}): which class a row belongs to is
 decided where the drivers are built, not here. An excreta row carrying N
 without an \code{excreta_cpp_share} aborts (\code{whep_excreta_share_missing}), as
-does a share outside 0 to 1 (\code{whep_excreta_share_invalid}); a row with no
-excreta N emits nothing whatever its mix. A \code{fert_type} with no direct
+does a share outside 0 to 1 (\code{whep_excreta_share_invalid}) and a share on
+a species-labelled row that contradicts its label
+(\code{whep_excreta_share_label_conflict}); a row with no excreta N emits
+nothing whatever its mix. A \code{fert_type} with no direct
 factor in Equation 11.1 (\code{"BNF"}, \code{"Deposition"}) aborts
 (\code{whep_soil_n2o_fert_type}).
 }

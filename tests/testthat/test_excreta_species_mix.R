@@ -309,6 +309,24 @@ testthat::test_that("a fallback Excreta label is stamped, not guessed", {
   )
 }
 
+# .esm_applied() plus half a tonne of fallback-labelled excreta on its key.
+.esm_applied_mixed <- function() {
+  dplyr::bind_rows(
+    .esm_applied(),
+    tibble::tibble(
+      year = 2010L,
+      territory = "10",
+      sub_territory = "0.25_50.25",
+      land_use = "Grassland",
+      crop = NA_character_,
+      manure_type = "Excreta",
+      applied_n = 0.5,
+      excreta_cpp_share = NA_real_,
+      method_excreta_species = "fallback_label_no_species"
+    )
+  )
+}
+
 testthat::test_that("folded excreta rows take the N-weighted share", {
   out <- whep:::.manure_to_n_inputs(.esm_applied())
   excreta <- dplyr::filter(out, .data$fert_type == "excreta")
@@ -324,30 +342,94 @@ testthat::test_that("folded excreta rows take the N-weighted share", {
   testthat::expect_true(is.na(solid$method_excreta_species))
 })
 
-testthat::test_that("one fallback tonne in a row leaves its share undefined", {
-  applied <- dplyr::bind_rows(
-    .esm_applied(),
-    tibble::tibble(
-      year = 2010L,
-      territory = "10",
-      sub_territory = "0.25_50.25",
-      land_use = "Grassland",
-      crop = NA_character_,
-      manure_type = "Excreta",
-      applied_n = 0.5,
-      excreta_cpp_share = NA_real_,
-      method_excreta_species = "fallback_label_no_species"
-    )
+# Grazing excreta and fallback-labelled excreta (collected manure with no
+# manure-type split) on one key: 3 t deposited by grazing animals, 80% of it
+# by cattle, poultry and pigs, and 2 t of collected manure.
+.esm_grazing_and_fallback <- function() {
+  tibble::tribble(
+    ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~source_stream,
+    ~manure_type, ~applied_n, ~excreta_cpp_share, ~method_excreta_species,
+    2010L, "10", "0.25_50.25", "Grassland", NA, "grazing",
+    "Excreta", 3, 0.8, "engine_livestock_category",
+    2010L, "10", "0.25_50.25", "Grassland", NA, "collected",
+    "Excreta", 2, NA, "fallback_label_no_species"
   )
-  out <- whep:::.manure_to_n_inputs(applied)
-  excreta <- dplyr::filter(out, .data$fert_type == "excreta")
-  testthat::expect_equal(nrow(excreta), 1L)
-  testthat::expect_equal(excreta$n_input_t, 4.5)
-  testthat::expect_true(is.na(excreta$excreta_cpp_share))
+}
+
+# IPCC 2019 Tier 1 direct N2O of the excreta rows of an n_inputs table,
+# through the balance's own loss-row assembly.
+.esm_price_excreta <- function(n_inputs, key, moisture_regime) {
+  n_inputs |>
+    whep:::.nb_loss_rows(key, data = list()) |>
+    dplyr::mutate(moisture_regime = moisture_regime) |>
+    whep::calculate_soil_n2o(method = "ipcc2019")
+}
+
+# IPCC 2019 Vol 4 Ch 11 Table 11.1 (Updated), p. 11.13: EF3PRP,CPP 0.006 wet
+# and 0.002 dry, EF3PRP,SO 0.003, EF1 for other N inputs 0.006 wet and 0.005
+# dry.
+.esm_expected_n2o <- function(moisture_regime) {
+  cpp <- if (moisture_regime == "wet") 0.006 else 0.002
+  ef1_other <- if (moisture_regime == "wet") 0.006 else 0.005
+  c(grazing = 3 * (0.8 * cpp + 0.2 * 0.003), fallback = 2 * ef1_other)
+}
+
+.esm_expect_priced_apart <- function(losses, moisture_regime) {
+  expected <- .esm_expected_n2o(moisture_regime)
+  grazing <- losses[losses$method_soil_n2o == "ipcc2019_ef3prp_blend", ]
+  fallback <- losses[
+    losses$method_soil_n2o == "ipcc2019_fallback_applied_manure",
+  ]
+  testthat::expect_equal(grazing$n_input_t, 3)
+  testthat::expect_equal(grazing$n2o_direct_n_t, expected[["grazing"]])
+  testthat::expect_equal(fallback$n_input_t, 2)
+  testthat::expect_equal(fallback$n2o_direct_n_t, expected[["fallback"]])
+  testthat::expect_equal(sum(losses$n2o_direct_n_t), sum(expected))
+}
+
+testthat::test_that("fallback excreta pools apart from grazing excreta", {
+  out <- whep:::.manure_to_n_inputs(.esm_applied_mixed())
+  excreta <- out |>
+    dplyr::filter(.data$fert_type == "excreta") |>
+    dplyr::arrange(.data$method_excreta_species)
+  testthat::expect_equal(nrow(excreta), 2L)
+  testthat::expect_equal(sum(excreta$n_input_t), 4.5)
+  testthat::expect_equal(excreta$n_input_t, c(4, 0.5))
+  testthat::expect_equal(excreta$excreta_cpp_share, c(0.75, NA))
   testthat::expect_equal(
     excreta$method_excreta_species,
-    "fallback_label_no_species"
+    c("engine_livestock_category", "fallback_label_no_species")
   )
+})
+
+testthat::test_that("the engine rows price grazing and fallback N apart", {
+  out <- whep:::.manure_to_n_inputs(.esm_grazing_and_fallback())
+  testthat::expect_equal(sum(out$n_input_t), 5)
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  for (regime in c("wet", "dry")) {
+    .esm_expect_priced_apart(.esm_price_excreta(out, key, regime), regime)
+  }
+})
+
+testthat::test_that("build_n_inputs prices grazing and fallback N apart", {
+  testthat::local_mocked_bindings(
+    .ni_manure_flows = function(data) {
+      list(applied = .esm_grazing_and_fallback())
+    }
+  )
+  data <- list(livestock_intake = .esm_intake(), resolution = "subnational")
+  grid <- whep::build_n_inputs(resolution = "grid", data = data)
+  polity <- whep::build_n_inputs(resolution = "polity", data = data)
+  grid_key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  polity_key <- c("area_code", "item_cbs_code", "year")
+  for (regime in c("wet", "dry")) {
+    .esm_expect_priced_apart(.esm_price_excreta(grid, grid_key, regime), regime)
+    .esm_expect_priced_apart(
+      .esm_price_excreta(polity, polity_key, regime),
+      regime
+    )
+  }
+  testthat::expect_equal(nrow(polity[polity$fert_type == "excreta", ]), 2L)
 })
 
 testthat::test_that("excreta rows with no species stamp are refused", {

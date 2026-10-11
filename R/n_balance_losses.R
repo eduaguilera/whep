@@ -118,7 +118,9 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #'   dry for cattle, poultry and pigs and `EF3PRP,SO` 0.003 for sheep and
 #'   other animals. Excreta keep this factor on a rice row too: Equation 11.1
 #'   prices urine and dung deposited by grazing animals apart from the N
-#'   applied to the crop. Stamped `"ipcc2019_ef3prp_blend"`.
+#'   applied to the crop. A row labelled by species reads its share from the
+#'   label: 1 on `"Excreta_cattle_monog"`, 0 on `"Excreta_other"`. Stamped
+#'   `"ipcc2019_ef3prp_blend"`.
 #' * Excreta labelled so only as the fallback of a manure-type split
 #'   (`method_excreta_species == "fallback_label_no_species"`) is collected
 #'   manure applied to the land, not grazing deposition: it takes the factor
@@ -153,8 +155,10 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' `"dry"` (`whep_moisture_regime_value`): which class a row belongs to is
 #' decided where the drivers are built, not here. An excreta row carrying N
 #' without an `excreta_cpp_share` aborts (`whep_excreta_share_missing`), as
-#' does a share outside 0 to 1 (`whep_excreta_share_invalid`); a row with no
-#' excreta N emits nothing whatever its mix. A `fert_type` with no direct
+#' does a share outside 0 to 1 (`whep_excreta_share_invalid`) and a share on
+#' a species-labelled row that contradicts its label
+#' (`whep_excreta_share_label_conflict`); a row with no excreta N emits
+#' nothing whatever its mix. A `fert_type` with no direct
 #' factor in Equation 11.1 (`"BNF"`, `"Deposition"`) aborts
 #' (`whep_soil_n2o_fert_type`).
 #'
@@ -162,7 +166,7 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #'   `fert_type` (`"Synthetic"`, `"Solid"`, `"Liquid"`, `"Human"`,
 #'   `"Recycling"`, `"SOM"` or an excreta label: `"Excreta"`,
 #'   `"Excreta_cattle_monog"`, `"Excreta_other"`), `item_cbs_code` and
-#'   `moisture_regime`, plus `excreta_cpp_share` on excreta rows.
+#'   `moisture_regime`, plus `excreta_cpp_share` on `"Excreta"` rows.
 #'   `"ipcc2019_atl_med"` requires `climate`. `"aguilera"` and `"ipcc2006"`
 #'   require `climate` and `irrig_type`, and aguilera `fert_type` (and
 #'   `excreta_cpp_share` on `"Excreta"` rows).
@@ -651,7 +655,7 @@ calculate_indirect_n2o_nh3 <- function(
   fert_type <- .human_legacy_fert_type(x$fert_type)
   fallback <- .n_excreta_fallback(x, fert_type)
   blended <- fert_type == "Excreta" & !fallback
-  share <- .n_excreta_share(x, blended)
+  share <- .n_excreta_share(x, blended, fert_type)
   mf_cpp <- .soil_n2o_mf("Excreta_cattle_monog", x$climate)
   mf_other <- .soil_n2o_mf("Excreta_other", x$climate)
   mf_applied <- .soil_n2o_mf("Solid", x$climate)
@@ -756,7 +760,7 @@ calculate_indirect_n2o_nh3 <- function(
   fallback <- .n_excreta_fallback(x, fert_type)
   excreta <- fert_type %in% .n_excreta_fert_types() & !fallback
   rice <- !excreta & x$item_cbs_code %in% .n_rice_item_cbs_codes()
-  share <- .n_excreta_share(x, excreta)
+  share <- .n_excreta_share(x, excreta, fert_type)
   wet <- x$moisture_regime == "wet"
   ef <- dplyr::case_when(
     excreta ~ .soil_n2o_ef3prp(share, wet),
@@ -1127,7 +1131,7 @@ calculate_indirect_n2o_nh3 <- function(
 # disaggregation. A lookup that does not return exactly one value is a broken
 # table, never a factor to guess.
 .ipcc2019_soil_ef <- function(parameter, disaggregation) {
-  table <- whep::ipcc_2019_soil_n_ef
+  table <- .ipcc2019_soil_ef_table()
   value <- table$value[
     table$parameter == parameter & table$disaggregation == disaggregation
   ]
@@ -1139,6 +1143,12 @@ calculate_indirect_n2o_nh3 <- function(
     )
   }
   value
+}
+
+# The factor table every IPCC 2019 Tier 1 lookup reads, one binding so a test
+# can hand the lookup a broken table.
+.ipcc2019_soil_ef_table <- function() {
+  whep::ipcc_2019_soil_n_ef
 }
 
 # The wet/dry class every IPCC 2019 wet/dry factor is keyed on. Its absence,
@@ -1214,23 +1224,24 @@ calculate_indirect_n2o_nh3 <- function(
   } else {
     rep(NA_character_, nrow(x))
   }
-  fert_type %in%
-    .n_excreta_fert_types() &
-    stamp %in% .excreta_species_methods()[["fallback"]]
+  fert_type %in% .n_excreta_fert_types() & .excreta_is_fallback(stamp)
 }
 
 # `excreta_cpp_share` on the rows flagged `excreta`, the share of their N
-# deposited by cattle, poultry and pigs (R/excreta_species_mix.R). A row with
-# excreta N and no share has no defensible factor and aborts; so does a share
-# outside [0, 1]. A row with no excreta N emits nothing whatever its mix, so
-# its share is structurally irrelevant and set to 0 to keep the product
-# finite. Rows not flagged keep NA.
-.n_excreta_share <- function(x, excreta) {
+# deposited by cattle, poultry and pigs (R/excreta_species_mix.R). A row
+# labelled by species (`fert_type`) takes the share its label states, and a
+# supplied share that contradicts the label aborts. A row with excreta N and
+# no share has no defensible factor and aborts; so does a share outside
+# [0, 1]. A row with no excreta N emits nothing whatever its mix, so its share
+# is structurally irrelevant and set to 0 to keep the product finite. Rows not
+# flagged keep NA.
+.n_excreta_share <- function(x, excreta, fert_type) {
   share <- if (rlang::has_name(x, "excreta_cpp_share")) {
     x$excreta_cpp_share
   } else {
     rep(NA_real_, nrow(x))
   }
+  share <- .n_excreta_label_share(share, excreta, fert_type)
   no_n <- excreta & x$n_input_t %in% 0
   unknown <- excreta & !no_n & is.na(share)
   if (any(unknown)) {
@@ -1246,6 +1257,36 @@ calculate_indirect_n2o_nh3 <- function(
     )
   }
   dplyr::if_else(no_n & is.na(share), 0, share)
+}
+
+# The CPP share a species label states: all of an "Excreta_cattle_monog"
+# row's N comes from cattle, poultry and pigs (EF3PRP,CPP) and none of an
+# "Excreta_other" row's. Rows flagged `excreta` with a species label take it;
+# a supplied share that says otherwise is a contradiction with no defensible
+# resolution, so it aborts.
+.n_excreta_label_share <- function(share, excreta, fert_type) {
+  label <- dplyr::case_when(
+    fert_type == "Excreta_cattle_monog" ~ 1,
+    fert_type == "Excreta_other" ~ 0,
+    .default = NA_real_
+  )
+  labelled <- excreta & !is.na(label)
+  conflict <- labelled &
+    !is.na(share) &
+    abs(share - label) > sqrt(.Machine$double.eps)
+  if (any(conflict)) {
+    cli::cli_abort(
+      c(
+        "{sum(conflict)} excreta row{?s} carr{?ies/y} an
+         {.field excreta_cpp_share} that contradicts {?its/their} species
+         label: {.val {unique(fert_type[conflict])}}.",
+        i = "{.val Excreta_cattle_monog} states a share of 1 and
+             {.val Excreta_other} a share of 0."
+      ),
+      class = "whep_excreta_share_label_conflict"
+    )
+  }
+  dplyr::if_else(labelled, label, share)
 }
 
 .abort_excreta_share_missing <- function(x, unknown) {

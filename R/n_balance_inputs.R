@@ -651,8 +651,12 @@ build_n_inputs <- function(
     return(dplyr::select(x, dplyr::all_of(.ni_schema())))
   }
   # The species stamp and the N-weighted share read the cell rows' own N, so
-  # both come before n_input_t is replaced by its sum.
+  # both come before n_input_t is replaced by its sum. Fallback-labelled
+  # excreta keeps a row of its own (.excreta_is_fallback()).
   x |>
+    dplyr::mutate(
+      .fallback = .excreta_is_fallback(.data$method_excreta_species)
+    ) |>
     dplyr::summarise(
       method_excreta_species = .excreta_method_stamp(
         .data$method_excreta_species,
@@ -677,9 +681,11 @@ build_n_inputs <- function(
         "method_human_kgn_cap",
         "method_unsupported",
         "method_manure",
-        "method_unattributed"
+        "method_unattributed",
+        ".fallback"
       )
     ) |>
+    dplyr::select(-".fallback") |>
     dplyr::relocate(
       "excreta_cpp_share",
       "method_excreta_species",
@@ -848,7 +854,9 @@ build_n_inputs <- function(
 # The excreta rows also carry their grazing species mix (R/excreta_species_
 # mix.R). Several engine rows can fold into one output row, so the share is
 # re-weighted by N here, and the stamp is computed BEFORE the share is
-# overwritten by its own summary.
+# overwritten by its own summary. Excreta labelled only as the fallback of a
+# manure-type split is collected manure, so it folds into a row of its own
+# beside the grazing excreta of its key: a key can carry two excreta rows.
 .manure_to_n_inputs <- function(applied) {
   coords <- .ni_manure_coords(applied$sub_territory)
   applied |>
@@ -858,7 +866,8 @@ build_n_inputs <- function(
       lat = coords$lat,
       area_code = .manure_territory_to_area_code(.data$territory),
       item_cbs_code = .ni_manure_item_cbs(.data$crop, .data$land_use),
-      fert_type = .ni_manure_fert_type(.data$manure_type)
+      fert_type = .ni_manure_fert_type(.data$manure_type),
+      .fallback = .excreta_is_fallback(.data$method_excreta_species)
     ) |>
     dplyr::filter(
       .data$land_use %in% c("Cropland", "Grassland", "transported")
@@ -880,9 +889,11 @@ build_n_inputs <- function(
         "area_code",
         "item_cbs_code",
         "year",
-        "fert_type"
+        "fert_type",
+        ".fallback"
       )
     ) |>
+    dplyr::select(-".fallback") |>
     dplyr::relocate("excreta_cpp_share", .before = "method_excreta_species") |>
     dplyr::mutate(method_manure = "livestock_intake")
 }
@@ -1582,6 +1593,11 @@ build_n_inputs <- function(
 # now groups a pooled split rather than identifying a source row, and a
 # collision would make .ni_check_unallocated() read a pooled row as one of the
 # source rows it is accounting for.
+#
+# Excreta keeps its species stamp as a key and its share as the N-weighted
+# mean of the pooled rows, so fallback-labelled excreta (collected manure with
+# no type split, the excreta that can arrive without a crop item) is still
+# priced as applied manure after it is reallocated.
 .ni_pool_stranded <- function(stranded) {
   keys <- c(
     "area_code",
@@ -1592,11 +1608,17 @@ build_n_inputs <- function(
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
-    "method_manure"
+    "method_manure",
+    "method_excreta_species"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
+    ensure_columns(tibble::tibble(excreta_cpp_share = double())) |>
     dplyr::summarise(
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
       .by = dplyr::any_of(keys)
     ) |>

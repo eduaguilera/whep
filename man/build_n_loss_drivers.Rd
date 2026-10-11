@@ -26,7 +26,8 @@ build_n_loss_drivers(
 its non-missing \verb{(key, fert_type)} pairs; without it, for every key and
 the seven loss \code{fert_type}s (\code{"Excreta"}, \code{"Liquid"}, \code{"Solid"},
 \code{"SOM"}, \code{"Synthetic"}, \code{"Human"}, \code{"Recycling"}). The leaching drivers
-cover every key.}
+cover every key. \code{n_input_t}, the N of each row, is needed wherever an
+irrigated row has no class of its own: such a row must carry no N.}
 
 \item{window, water, config}{As in \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}. The
 window also sets the precipitation-only class of rows without a crop.}
@@ -122,6 +123,12 @@ column, or holds a missing coordinate or year, or a \code{water_regime} other
 than \code{"rainfed"} or \code{"irrigated"}.
 \item \code{whep_n_loss_drivers_unclassified}: a row is still without a class (for
 example a window-mean PET of zero), named by its stamp.
+\item \code{whep_n_loss_drivers_irrigated_cell_class}: an irrigated row carrying N,
+or one whose N is not supplied, has no class of its own and would take
+its cell's precipitation-only class. The rainfed/irrigated split gives
+an irrigated row N only where the item holds irrigated land, so such a
+row means the balance and the moisture regime disagree on the item's
+regime land; the error names the count and the items carrying most N.
 \item Every error of \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}, including
 \code{whep_absent_input} for an absent climate or irrigation layer.
 }
