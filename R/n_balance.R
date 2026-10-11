@@ -90,9 +90,10 @@
 #'     `used_residue_n_t`/`bedding_residue_n_t`/`burnt_residue_n_t`.
 #'     `residue_destiny_method` selects the method (default
 #'     `"recovery_regional"`), `residue_destiny_recovery` its recovery-rate
-#'     variant (default `"wirsenius"`, the package default) and `residue_bedding_fraction` the share
-#'     of the recovered non-feed residue used as bedding (default `0`; see
-#'     [calculate_residue_destinies()]). The same three arguments split the
+#'     variant (default `"wirsenius"`, the package default) and
+#'     `residue_bedding_fraction` the share of the recovered non-feed residue
+#'     used as bedding (default `0`; see [calculate_residue_destinies()]).
+#'     The same three arguments split the
 #'     residue of `npp_n_input` for the `"recycling"` input of
 #'     [build_n_inputs()], which returns to the soil only the residue left on
 #'     the field (`recycling_residue_basis`, default
@@ -224,7 +225,13 @@
 #' reproduces the unsplit balance for every additive column except the
 #' residue terms and the totals that contain them, which sum to the parts'
 #' evaluation instead: with the irrigation terms, the residue and root N of
-#' irrigated land fall. A non-zero residue term at a key the per-item
+#' irrigated land fall. The bedded straw the manure input brings back is
+#' the parts' bedding: when the balance builds its own inputs and beds any
+#' straw, each production item's bedding is scaled by its factor over the
+#' two parts before it reaches the manure engine, so the manure columns,
+#' too, differ from an unsplit run by the bedding the irrigation terms take
+#' off, and the bedded N that leaves the field is still the bedded N that
+#' returns. A non-zero residue term at a key the per-item
 #' evaluation does not cover means the balance's inputs and the NPP-N table
 #' disagree, and aborts. `"area_split"` uses the area share for everything,
 #' residue terms included, and `"none"` returns the unsplit balance.
@@ -281,6 +288,7 @@ build_nitrogen_balance <- function(
   # back to harvested area even though physical support was available.
   data$.polity_validity <- polity_validity
   data$ag_land_support <- .ni_resolve_land_support(data, years = NULL)
+  data <- .nb_attach_regime_layer(data, key, resolution, m$regime)
   n_inputs <- (data$n_inputs %||%
     build_n_inputs(
       resolution = resolution,

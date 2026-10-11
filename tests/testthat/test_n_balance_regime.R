@@ -470,8 +470,9 @@ testthat::test_that("every split column sums back over water_regime", {
 # Each part through the same chain, written out in absolute form: its own
 # area, its own production at its own yield, and its water regime, so the
 # model's irrigation terms apply to the irrigated part. Then the residue
-# destinies and the C/N partition, as the balance applies them.
-.regime_parts_by_hand <- function() {
+# destinies and the C/N partition, as the balance applies them, with
+# `bedding_fraction` the share of the recovered non-feed residue bedded.
+.regime_parts_by_hand <- function(bedding_fraction = 0) {
   crops <- dplyr::mutate(
     .regime_crops(),
     yield_mean = .data$production_t / .data$area_ha,
@@ -499,7 +500,7 @@ testthat::test_that("every split column sums back over water_regime", {
     dplyr::select(-"irrigated_share", -"ratio") |>
     .regime_with_regions() |>
     whep::calculate_crop_npp() |>
-    whep::calculate_residue_destinies() |>
+    whep::calculate_residue_destinies(bedding_fraction = bedding_fraction) |>
     whep::calculate_npp_carbon_nitrogen() |>
     dplyr::mutate(
       water_regime = stringr::str_to_lower(.data$water_regime),
@@ -731,4 +732,134 @@ testthat::test_that("area_split keeps the crop's residue per hectare on both par
   maize <- split$x[split$x$item_cbs_code == 2514L, ]
   per_ha <- maize$recycling / maize$area_ha
   testthat::expect_equal(per_ha[1], per_ha[2], tolerance = 1e-12)
+})
+
+# The residue fixture with a bedding share, its NPP cache rebuilt on it: the
+# recycled residue is what the destiny split leaves on the field, so it moves
+# with the bedding share too.
+.regime_bedded_data <- function(fraction = 0.3) {
+  data <- .regime_residue_data()
+  data$.npp_cache <- NULL
+  data$residue_bedding_fraction <- fraction
+  data$.npp_cache <- whep:::.n_balance_npp(data)
+  data
+}
+
+testthat::test_that("the manure brings back the bedding the regime parts remove", {
+  data <- .regime_bedded_data()
+  attached <- whep:::.nb_attach_regime_layer(
+    data,
+    .regime_key,
+    "grid",
+    "yield_split"
+  )
+  split <- whep:::.nb_split_balance(
+    .regime_residue_inputs(attached),
+    attached,
+    .regime_key,
+    "grid",
+    "yield_split"
+  )
+  parts_bedding <- sum(split$x$bedding_residue_n_t)
+  returned <- whep:::.ni_manure_bedding(attached)
+  testthat::expect_equal(
+    sum(returned$bedding_n_t),
+    parts_bedding,
+    tolerance = 1e-10
+  )
+  # Not vacuous: the irrigation terms take bedding off the irrigated parts,
+  # so the parts' bedding is below the unsplit bedding, which is what the
+  # manure input would return without the factors.
+  unsplit <- whep:::.ni_manure_bedding(data)
+  testthat::expect_lt(parts_bedding, sum(unsplit$bedding_n_t))
+  # The split reuses the layer it was handed, which is the one it would build.
+  testthat::expect_identical(
+    attached$.regime_layer,
+    whep:::.nb_regime_layer(data, .regime_key, "yield_split")
+  )
+})
+
+testthat::test_that("the parts' residue N stays and leaves in full", {
+  # Per part, the soil-returned residue N plus the used, bedded and burnt
+  # residue N is the part's gross residue N, so the parts' four residue
+  # destinies sum to the gross residue N of the parts' own evaluation.
+  hand <- .regime_parts_by_hand(0.3)
+  testthat::expect_true(all(hand$bedding_residue_n_t > 0))
+  testthat::expect_equal(
+    hand$residue_soil_n_t +
+      hand$used_residue_n_t +
+      hand$bedding_residue_n_t +
+      hand$burnt_residue_n_t,
+    hand$residue_n_t,
+    tolerance = 1e-10
+  )
+  split <- whep:::.nb_split_balance(
+    .regime_residue_inputs(.regime_bedded_data()),
+    .regime_bedded_data(),
+    .regime_key,
+    "grid",
+    "yield_split"
+  )
+  testthat::expect_equal(
+    sum(split$x$recycling) +
+      sum(split$x$used_residue_n_t) +
+      sum(split$x$bedding_residue_n_t) +
+      sum(split$x$burnt_residue_n_t),
+    sum(hand$root_n_t + hand$residue_n_t),
+    tolerance = 1e-10
+  )
+})
+
+testthat::test_that("an unbedded or unsplit balance attaches no regime layer", {
+  data <- .regime_residue_data()
+  testthat::expect_identical(
+    whep:::.nb_attach_regime_layer(data, .regime_key, "grid", "yield_split"),
+    data
+  )
+  bedded <- .regime_bedded_data()
+  for (method in c("area_split", "none")) {
+    testthat::expect_identical(
+      whep:::.nb_attach_regime_layer(bedded, .regime_key, "grid", method),
+      bedded
+    )
+  }
+  supplied <- bedded
+  supplied$n_inputs <- .regime_residue_inputs(bedded)
+  testthat::expect_identical(
+    whep:::.nb_attach_regime_layer(
+      supplied,
+      .regime_key,
+      "grid",
+      "yield_split"
+    ),
+    supplied
+  )
+})
+
+testthat::test_that("the balance hands its manure input the parts' bedding", {
+  data <- .regime_bedded_data()
+  data$.npp_cache <- NULL
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    build_n_inputs = function(..., data) {
+      captured <<- data
+      rlang::abort("captured", class = "test_captured_inputs")
+    },
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = list(nh3 = "ipcc"),
+      resolution = "grid",
+      data = data
+    ),
+    class = "test_captured_inputs"
+  )
+  testthat::expect_false(is.null(captured$.regime_bedding_factors))
+  expected <- .regime_bedded_data() |>
+    whep:::.nb_attach_regime_layer(.regime_key, "grid", "yield_split")
+  testthat::expect_equal(
+    whep:::.ni_manure_bedding(captured),
+    whep:::.ni_manure_bedding(expected)
+  )
 })

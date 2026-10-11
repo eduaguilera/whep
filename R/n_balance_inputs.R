@@ -832,6 +832,13 @@ build_n_inputs <- function(
 # proportion to their nitrogen, which keeps the national mass whole; keying it
 # per cell would strand the straw of every cell without housed animals.
 #
+# Under build_nitrogen_balance()'s rainfed/irrigated yield split the bedding
+# each part books as leaving the field is the residue model at the part's
+# yield, so each production item's bedding is scaled by its factor over both
+# parts (`data$.regime_bedding_factors`, .nb_attach_regime_layer()) and the
+# manure brings back the bedding the parts removed. Without those factors
+# (any other call) the bedding is the unsplit split's.
+#
 # No residue-destiny input, or a split that beds nothing (residue_bedding_
 # fraction defaults to 0), means no bedding was booked out either, so no supply
 # is passed and the manure engine runs as it did before bedding existed.
@@ -839,7 +846,8 @@ build_n_inputs <- function(
   if (is.null(data$residue_destiny_input)) {
     return(NULL)
   }
-  destiny <- .nb_residue_destinies(data$residue_destiny_input, data)
+  destiny <- .nb_residue_destinies(data$residue_destiny_input, data) |>
+    .ni_regime_bedding(data$.regime_bedding_factors)
   if (!any(destiny$residue_bedding_dm_t > 0, na.rm = TRUE)) {
     return(NULL)
   }
@@ -851,6 +859,29 @@ build_n_inputs <- function(
       residue_bedding_dm_t = .data$residue_bedding_dm_t
     ) |>
     build_residue_bedding_supply()
+}
+
+# Each production item's bedding times its factor over the regime parts
+# (.nb_bedding_factors()). The factors are keyed on the regime layer's typed
+# cell coordinates, so the destiny rows are matched on a normalised copy of
+# their key. An item without a factor has no part re-evaluated and is booked
+# wholly rainfed at its unsplit bedding, as the parts' bedding removal books
+# it (.nb_rainfed_parts()), so its factor is 1.
+.ni_regime_bedding <- function(destiny, factors) {
+  if (is.null(factors)) {
+    return(destiny)
+  }
+  item_key <- .nb_residue_item_key()
+  factor <- destiny |>
+    dplyr::select(dplyr::all_of(item_key)) |>
+    .nb_round_cell_coords() |>
+    dplyr::left_join(factors, by = item_key, relationship = "many-to-one") |>
+    dplyr::pull("bedding_factor")
+  dplyr::mutate(
+    destiny,
+    residue_bedding_dm_t = .data$residue_bedding_dm_t *
+      dplyr::coalesce(.env$factor, 1)
+  )
 }
 
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,

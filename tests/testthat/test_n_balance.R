@@ -627,6 +627,58 @@ testthat::test_that("recycling and the residue removals read one destiny argumen
   testthat::expect_gt(out$bedding_residue_n_t, 0)
 })
 
+testthat::test_that("the manure bedding reads the balance's one destiny split", {
+  # Recycling, the residue removals and the bedding that comes back as manure
+  # are read from one destiny split with one argument set, the recovery
+  # variant left at the package default. What stays plus what leaves is the
+  # gross residue N, and the bedded N that leaves the field is the bedded N
+  # the manure input brings back.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  residue <- dplyr::mutate(
+    .nb_npp_input(),
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+  data <- list(
+    npp_n_input = residue,
+    residue_destiny_input = residue,
+    residue_bedding_fraction = 0.3
+  )
+  calls <- list()
+  real <- whep::calculate_residue_destinies
+  default <- eval(formals(real)$recovery)[[1]]
+  testthat::local_mocked_bindings(
+    calculate_residue_destinies = function(x, ...) {
+      calls[[length(calls) + 1L]] <<- list(...)
+      real(x, ...)
+    },
+    .package = "whep"
+  )
+  npp <- whep:::.n_balance_npp(data)
+  row <- dplyr::distinct(residue, dplyr::across(dplyr::all_of(key)))
+  out <- whep:::.nb_add_residue_destiny(row, data, key)
+  supply <- whep:::.ni_manure_bedding(data)
+
+  testthat::expect_length(calls, 3L)
+  testthat::expect_identical(calls[[1]], calls[[2]])
+  testthat::expect_identical(calls[[1]], calls[[3]])
+  testthat::expect_identical(calls[[1]]$recovery, default)
+  testthat::expect_gt(out$bedding_residue_n_t, 0)
+  testthat::expect_equal(
+    npp$residue_soil_n_t +
+      out$used_residue_n_t +
+      out$bedding_residue_n_t +
+      out$burnt_residue_n_t,
+    npp$residue_n_t,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    sum(supply$bedding_n_t),
+    sum(out$bedding_residue_n_t),
+    tolerance = 1e-12
+  )
+})
+
 testthat::test_that("bedding residue N is an output of the full balance", {
   aggregated <- whep:::.nb_output_aggregates(tibble::tibble(
     prod_n_t = 10,

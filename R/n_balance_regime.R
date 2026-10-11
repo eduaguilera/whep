@@ -16,9 +16,12 @@
 # are the package's residue model at the part's own yield and water regime
 # (`.nb_item_part_factors()`, R/regime_residue.R), so the model's irrigation
 # terms apply to the irrigated part, and the parts are summed to the row.
-# The carbon chain re-evaluates residue and root carbon the same way
-# (`.ci_part_factors()`). A row with no share is booked wholly rainfed and
-# stamped `no_regime_share`, never dropped and never split on a guess.
+# The bedding the manure input brings back follows the same evaluation
+# (`.nb_attach_regime_layer()`), so the bedded N the parts book as leaving the
+# field is the bedded N that returns as manure. The carbon chain re-evaluates
+# residue and root carbon the same way (`.ci_part_factors()`). A row with no
+# share is booked wholly rainfed and stamped `no_regime_share`, never dropped
+# and never split on a guess.
 
 # Balance columns split by the production share: the synthetic input and
 # the product.
@@ -66,7 +69,7 @@
   if (method == "none" || resolution != "grid") {
     return(list(x = x, n_inputs = n_inputs, key = key))
   }
-  layer <- .nb_regime_layer(data, key, method)
+  layer <- data$.regime_layer %||% .nb_regime_layer(data, key, method)
   if (is.null(layer$shares)) {
     cli::cli_abort(
       c(
@@ -85,21 +88,53 @@
   .nb_split_tables(x, n_inputs, shares, key, method, layer$residue)
 }
 
-# The shares of every grid key, and the per-part residue weights where the
-# parts can be re-evaluated: under "yield_split", from the production-item
-# split. Shares supplied as `data$regime_shares` carry no production item,
-# so no part can be re-evaluated and the residue terms follow the
-# production share (stamped "yield_share").
+# The shares of every grid key, and, where the parts can be re-evaluated
+# (under "yield_split", from the production-item split), the per-part
+# residue weights and each production item's bedding factor
+# (.nb_bedding_factors()). Shares supplied as `data$regime_shares` carry no
+# production item, so no part can be re-evaluated and the residue terms
+# follow the production share (stamped "yield_share").
 .nb_regime_layer <- function(data, key, method) {
   if (!is.null(data$regime_shares)) {
-    return(list(shares = data$regime_shares, residue = NULL))
+    return(list(shares = data$regime_shares, residue = NULL, bedding = NULL))
   }
   items <- .nb_regime_items(data)
   shares <- .nb_regime_shares(data, key, items)
-  residue <- if (method == "yield_split" && !is.null(shares)) {
-    .nb_residue_weights(items, data, key)
+  if (method != "yield_split" || is.null(shares)) {
+    return(list(shares = shares, residue = NULL, bedding = NULL))
   }
-  list(shares = shares, residue = residue)
+  parts <- .nb_item_part_factors(items, .nb_residue_item_key())
+  list(
+    shares = shares,
+    residue = .nb_residue_weights(parts, data, key),
+    bedding = .nb_bedding_factors(parts)
+  )
+}
+
+# The regime layer, built before the balance's own inputs when they bed any
+# straw, so the manure input can bring back the bedding the parts book as
+# leaving the field. Under "yield_split" each part's bedding removal is the
+# residue model at the part's yield (.nb_residue_weights()), so the parts'
+# bedding sums to the re-evaluated bedding, not the unsplit one; the manure
+# input reads each production item's factor (`data$.regime_bedding_factors`,
+# .ni_manure_bedding()) and returns that same mass. The split then reuses this
+# layer (`data$.regime_layer`) rather than building it again. Nothing is
+# attached when the split does not re-evaluate parts (another method or
+# resolution, or shares supplied as `data$regime_shares`), when the inputs
+# are the caller's (`data$n_inputs`) or when nothing is bedded.
+.nb_attach_regime_layer <- function(data, key, resolution, method) {
+  re_evaluated <- resolution == "grid" &&
+    method == "yield_split" &&
+    is.null(data$regime_shares)
+  beds <- !is.null(data$residue_destiny_input) &&
+    is.null(data$n_inputs) &&
+    any(.nb_residue_destiny_args(data)$bedding_fraction > 0)
+  if (!re_evaluated || !beds) {
+    return(data)
+  }
+  data$.regime_layer <- .nb_regime_layer(data, key, method)
+  data$.regime_bedding_factors <- data$.regime_layer$bedding
+  data
 }
 
 # Apply the shares to both tables. Every numeric flow column of the wide
@@ -649,11 +684,10 @@
 # and `.rw_stamp_<r>` the union of its items' part stamps. The part value is
 # the sum over the key's production items of each item's part: its area
 # fraction times its residue (root) N per hectare times the part's residue
-# (root) factor.
-.nb_residue_weights <- function(items, data, key) {
-  item_key <- c(.nb_regime_item_key(), "item_cbs_code")
+# (root) factor. `parts` is .nb_item_part_factors()' result.
+.nb_residue_weights <- function(parts, data, key) {
+  item_key <- .nb_residue_item_key()
   values <- .nb_item_residue_n(data, item_key)
-  parts <- .nb_item_part_factors(items, item_key)
   unsplit_items <- dplyr::anti_join(values, parts, by = item_key)
   parts <- dplyr::bind_rows(parts, .nb_rainfed_parts(unsplit_items, item_key))
   cols <- .nb_regime_residue_cols()
@@ -683,6 +717,23 @@
       .by = dplyr::all_of(key)
     )
   .nb_residue_weight_table(part_values, unsplit, key, cols)
+}
+
+# The production-item grain the residue terms are re-evaluated at.
+.nb_residue_item_key <- function() {
+  c(.nb_regime_item_key(), "item_cbs_code")
+}
+
+# Each production item's bedding over both parts as a multiple of its
+# unsplit bedding: the sum over its parts of the part's area fraction times
+# its residue factor, the same product the parts' bedding removals carry
+# (.nb_residue_weights()). 1 where no part is re-evaluated.
+.nb_bedding_factors <- function(parts) {
+  parts |>
+    dplyr::summarise(
+      bedding_factor = sum(.data$area_frac * .data$residue_factor),
+      .by = dplyr::all_of(.nb_residue_item_key())
+    )
 }
 
 # Part value over unsplit value, one column per residue term and regime,

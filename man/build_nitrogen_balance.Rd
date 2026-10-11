@@ -58,9 +58,10 @@ input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{used_residue_n_t}/\code{bedding_residue_n_t}/\code{burnt_residue_n_t}.
 \code{residue_destiny_method} selects the method (default
 \code{"recovery_regional"}), \code{residue_destiny_recovery} its recovery-rate
-variant (default \code{"wirsenius"}, the package default) and \code{residue_bedding_fraction} the share
-of the recovered non-feed residue used as bedding (default \code{0}; see
-\code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}). The same three arguments split the
+variant (default \code{"wirsenius"}, the package default) and
+\code{residue_bedding_fraction} the share of the recovered non-feed residue
+used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
+The same three arguments split the
 residue of \code{npp_n_input} for the \code{"recycling"} input of
 \code{\link[=build_n_inputs]{build_n_inputs()}}, which returns to the soil only the residue left on
 the field (\code{recycling_residue_basis}, default
@@ -71,6 +72,9 @@ uses the caller's destinies while the removal outputs use
 \code{residue_destiny_input} and these three arguments, so the
 soil-returned and removed residue add up to the gross residue only
 when both come from the package's own destiny split.
+The bedded straw also comes back as a manure input, through
+\code{\link[=build_n_inputs]{build_n_inputs()}}, read from the same split as
+\code{bedding_residue_n_t}.
 \item \code{regime_areas}, \code{regime_ratio}, \code{regime_production}, \code{regime_shares}:
 the rainfed/irrigated split's inputs (see Details), each read or built
 when absent: the rainfed and irrigated hectares per cell and
@@ -204,7 +208,13 @@ yield share. Summing the two parts
 reproduces the unsplit balance for every additive column except the
 residue terms and the totals that contain them, which sum to the parts'
 evaluation instead: with the irrigation terms, the residue and root N of
-irrigated land fall. A non-zero residue term at a key the per-item
+irrigated land fall. The bedded straw the manure input brings back is
+the parts' bedding: when the balance builds its own inputs and beds any
+straw, each production item's bedding is scaled by its factor over the
+two parts before it reaches the manure engine, so the manure columns,
+too, differ from an unsplit run by the bedding the irrigation terms take
+off, and the bedded N that leaves the field is still the bedded N that
+returns. A non-zero residue term at a key the per-item
 evaluation does not cover means the balance's inputs and the NPP-N table
 disagree, and aborts. \code{"area_split"} uses the area share for everything,
 residue terms included, and \code{"none"} returns the unsplit balance.
