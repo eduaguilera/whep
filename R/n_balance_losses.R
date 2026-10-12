@@ -208,7 +208,7 @@ calculate_soil_n2o <- function(
 #' Estimate nitrate leaching, topsoil denitrification and indirect N2O.
 #'
 #' @description
-#' Two methods for partitioning a nitrogen surplus into leached nitrate,
+#' Three methods for partitioning a nitrogen surplus into leached nitrate,
 #' denitrified nitrogen and nitrate retained in the soil profile.
 #'
 #' `"meisinger_drainage"` (the default) is a transport-limited Meisinger
@@ -248,6 +248,17 @@ calculate_soil_n2o <- function(
 #' `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
 #' `n_surplus_t`.
 #'
+#' `"image_gnm"` is the root-zone leaching and denitrification of IMAGE-GNM
+#' (Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
+#' doi:10.5194/gmd-8-4045-2015, eqs. 10-14, p. 4052, and Table 2, p. 4053).
+#' The budget left after surface runoff leaches in the share `f_leach`,
+#' `no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)` (eq. 10), and the
+#' rest of it denitrifies (`f_den = 1 - f_leach`), with
+#' `f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)] f_landuse`
+#' (eq. 11); see the IMAGE-GNM section under Details. IMAGE-GNM carries no
+#' nitrate from year to year, so every row closes
+#' `n_surplus_t = surface_runoff_n_t + no3_n_t + denitrification_n_t`.
+#'
 #' @details
 #' ## Transport factor
 #'
@@ -265,26 +276,11 @@ calculate_soil_n2o <- function(
 #'   through the root zone, `f = (P / (P + theta_fc))^(h / 2)`, with `P` the
 #'   drainage and `h` the depth, both in cm (Burns 1976, J. Agric. Sci.
 #'   86:305-313, doi:10.1017/S0021859600054769).
-#' - `"residence_time"`: the steady-state root-zone residence time of
-#'   IMAGE-GNM (Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
-#'   doi:10.5194/gmd-8-4045-2015, eqs. 12-14, p. 4052). Water and nitrate
-#'   stay `tau = theta_fc h / D` years in the root zone (`h` and `D` in the
-#'   same length unit), where they denitrify at the first-order rate
-#'   `k = 7.94e12 exp(-74830 / (R T))` per year, with `T` the mean annual
-#'   temperature `temp_c_annual_mean` in kelvin and `R = 8.3144` J/(mol K).
-#'   The share that leaves undenitrified is `1 / (1 + k tau)`. This replaces
-#'   Meisinger's `d`: the residence-time denitrification `k tau / (1 + k tau)`
-#'   takes the place of `d`, [meisinger_denitrification] is not read (nor
-#'   `tillage` and `som_share`), and everything not denitrified leaves within
-#'   the year (`f = 1`), so nothing is retained and `none_class` does not
-#'   apply. At `D = 0` the residence time is infinite and the whole surplus
-#'   denitrifies, as eq. 14 implies.
 #'
 #' Every constant is read from [n_attenuation_constants]. The columns a
 #' transport reads must be present and non-missing on every row:
-#' `"swat_mixing"` reads `root_depth_cm` and `soil_porosity`, `"burns"`
-#' `root_depth_cm` and `soil_field_capacity`, and `"residence_time"`
-#' `root_depth_cm`, `soil_field_capacity` and `temp_c_annual_mean`.
+#' `"swat_mixing"` reads `root_depth_cm` and `soil_porosity`, and `"burns"`
+#' `root_depth_cm` and `soil_field_capacity`.
 #'
 #' ## Zero drainage and deep vadose storage
 #'
@@ -333,9 +329,65 @@ calculate_soil_n2o <- function(
 #' row is its own key's first and only year.
 #'
 #' `method_leaching` joins these fields with `;`: `meisinger_drainage`; the
-#' transport; `none_retention` or `none_waterlogged` (not under
-#' `"residence_time"`); the pool field; and, optionally, `vadose_storage`
-#' and `pool_held_absent_key`.
+#' transport; `none_retention` or `none_waterlogged`; the pool field; and,
+#' optionally, `vadose_storage` and `pool_held_absent_key`.
+#'
+#' ## IMAGE-GNM
+#'
+#' `method = "image_gnm"` follows Beusen et al. (2015), eqs. 10-14 (p. 4052)
+#' and Table 2 (p. 4053). Where the paper is silent or ambiguous it follows
+#' the authors' model code published with the paper
+#' (`N_model/trunk/tools/n_soil_denitrification.py`, the code that produced
+#' their results), as noted below.
+#'
+#' - `f_climate = f_K T_r` (eq. 12), with
+#'   `f_K = 7.94e12 exp(-74830 / (R K))` (eq. 13), `R = 8.3144` J/(mol K) and
+#'   `K` the mean annual temperature `temp_c_annual_mean` + 273.15 (the
+#'   authors' code adds 273). `f_K` is bounded at 1, as in the authors' code
+#'   (line 97); the bound binds above about 30 degC.
+#' - `T_r = tawc / q_eff` years (eq. 14). `tawc` is the total available
+#'   water capacity of the top 1 m, `(soil_field_capacity -
+#'   soil_wilting_point)` x 1,000 mm. The source takes the top 1 m "or less
+#'   if thinner"; WHEP has no soil-thickness layer, so the full 1 m is used
+#'   everywhere. `q_eff` is the excess water flow of eq. 5 (p. 4049), the
+#'   water that infiltrates and recharges shallow and deep groundwater, here
+#'   `drainage_mm`: WHEP's annual drainage is the deep seepage below the
+#'   soil column, which is that excess water. Where `q_eff` is 0 the
+#'   authors' code takes `T_r = 100` years (`trzd()`, lines 179-182).
+#' - On cropland `T_r` is at most 1 year, as in the authors' code (lines
+#'   377-378: crops must have enough water, for example from irrigation).
+#'   The printed sentence (p. 4052) reads as raising a `T_r` below 1 to 1 on
+#'   dry agricultural land; the code lowers every cropland `T_r` above 1 to
+#'   1, and the code is followed.
+#' - `f_text`, `f_drain` and `f_soc` are read from
+#'   [image_gnm_leaching_factors] (Table 2) on `soil_texture_class`,
+#'   `soil_drainage_class` and the topsoil organic carbon
+#'   `soil_organic_carbon_pct` (% by weight; each organic-carbon class holds
+#'   its lower bound, as in the authors' class code). `f_landuse` is 1 on
+#'   `"Cropland"` and 0.36 on `"Grassland"` and `"Natural"` (p. 4052, citing
+#'   Keuskamp et al. 2012).
+#' - `surface_runoff_n_t` is `N_sro` of eq. 10, the nitrogen surface runoff
+#'   carries off before the budget leaches. WHEP's balance has no surface
+#'   runoff term, so it must be supplied; a row supplying 0 states that
+#'   none runs off.
+#' - IMAGE-GNM keeps no root-zone nitrate from one year to the next, so
+#'   `retained_profile_n_t` and `retained_carried_in_n_t` are 0 by
+#'   construction, and `transport`, `none_class` and `carry_over_by` do not
+#'   apply.
+#'
+#' Three parts of the authors' code are not reproduced. Its separate water
+#' capacities of dominant and suitable soils: WHEP has one soil per cell.
+#' Its land-use shares of surface runoff taken off the net precipitation:
+#' WHEP's drainage is already below the surface. And its 3 mm net
+#' precipitation below which the excess water is set to 0: net
+#' precipitation is not a WHEP quantity. The code also interpolates `f_soc`
+#' linearly from 0 at 0% to 0.3 at 6% organic carbon instead of the printed
+#' classes; the printed Table 2 is used.
+#'
+#' `method_leaching` is `image_gnm;tawc_top_1m`, followed where they apply
+#' by `no_drainage_residence_100yr` (`q_eff` of 0), `crop_residence_cap_1yr`
+#' (a cropland `T_r` above 1 year held at 1) and `temperature_effect_cap_1`
+#' (an `f_K` above 1 held at 1), joined with `;`.
 #'
 #' ## Errors
 #'
@@ -346,6 +398,20 @@ calculate_soil_n2o <- function(
 #'   or field capacity outside (0, 1], or a drainage at or below -0.1 mm.
 #' - `whep_leaching_carry_key`: `carry_over_by` names an absent column, `x`
 #'   has no `year`, or a key occurs twice in one year.
+#'
+#' For `method = "image_gnm"`:
+#'
+#' - `whep_missing_leaching_driver` (also `whep_absent_input`): a column it
+#'   reads is absent or holds a missing value, or `drainage_mm` is absent or
+#'   missing.
+#' - `whep_leaching_driver_value`: a field capacity outside (0, 1], a
+#'   wilting point outside (0, field capacity), a negative organic carbon or
+#'   drainage, a non-finite temperature, or a surface runoff outside
+#'   [0, `n_surplus_t`].
+#' - `whep_leaching_class_value`: a texture, drainage or land-use label
+#'   [image_gnm_leaching_factors] does not hold. The authors' code books an
+#'   unknown texture or drainage class as 0; here it aborts, because a class
+#'   that cannot be read is not a class.
 #'
 #' For `method = "ipcc_fracleach"`, a missing or invalid `moisture_regime`
 #' aborts as in [calculate_soil_n2o()], and a dry row without a
@@ -362,15 +428,20 @@ calculate_soil_n2o <- function(
 #'   and the soil columns its `transport` reads (see Details), plus `year`
 #'   with `carry_over_by`; `method = "ipcc_fracleach"` requires
 #'   `moisture_regime` (`"wet"` or `"dry"`) and, on dry rows, `water_regime`
-#'   (`"rainfed"` or `"irrigated"`).
+#'   (`"rainfed"` or `"irrigated"`); `method = "image_gnm"` requires
+#'   `surface_runoff_n_t`, `land_use` (`"Cropland"`, `"Grassland"` or
+#'   `"Natural"`), `temp_c_annual_mean`, `soil_field_capacity`,
+#'   `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
+#'   `soil_organic_carbon_pct` (see Details).
 #' @param drainage_mm A numeric vector aligned to `x`'s rows giving annual
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
 #'   because in the full pipeline it flows in from Module A's gridded water
 #'   balance.
-#' @param method `"meisinger_drainage"` (default) or `"ipcc_fracleach"`.
+#' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"` or
+#'   `"image_gnm"`.
 #' @param transport The transport factor of `"meisinger_drainage"`:
-#'   `"swat_mixing"` (default), `"burns"` or `"residence_time"`.
+#'   `"swat_mixing"` (default) or `"burns"`.
 #' @param none_class How `"meisinger_drainage"` prices Meisinger's `None`
 #'   drainage class: `"retention"` (default) or `"waterlogged"`.
 #' @param carry_over_by Character vector of the columns that key a row
@@ -380,10 +451,16 @@ calculate_soil_n2o <- function(
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
 #'   `retained_profile_n_t`, `n2o_indirect_no3_n_t` and `method_leaching`
-#'   appended, plus `retained_carried_in_n_t` under `"meisinger_drainage"`.
+#'   appended, plus `retained_carried_in_n_t` under `"meisinger_drainage"`
+#'   and `"image_gnm"`.
 #' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 #'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
 #'   p. 11.25 (`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
+#'   Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al. (2015).
+#'   Coupling global models for hydrology and
+#'   nutrient loading to simulate nitrogen and phosphorus retention in
+#'   surface water - description of IMAGE-GNM and analysis of performance.
+#'   Geosci. Model Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}.
 #'   The transport sources are cited under Details.
 #' @export
 #' @examples
@@ -391,8 +468,8 @@ calculate_soil_n2o <- function(
 calculate_n_leaching <- function(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
-  transport = c("swat_mixing", "burns", "residence_time"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "image_gnm"),
+  transport = c("swat_mixing", "burns"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
   example = FALSE
@@ -407,6 +484,9 @@ calculate_n_leaching <- function(
     return(.leaching_ipcc_fracleach(x))
   }
   drainage <- .leaching_drainage_values(x, drainage_mm)
+  if (method == "image_gnm") {
+    return(.leaching_image_gnm(x, drainage))
+  }
   options <- list(transport = transport, none_class = none_class)
   .leaching_meisinger(x, drainage, options, carry_over_by)
 }
@@ -1266,12 +1346,7 @@ calculate_indirect_n2o_nh3 <- function(
   switch(
     transport,
     swat_mixing = c("root_depth_cm", "soil_porosity"),
-    burns = c("root_depth_cm", "soil_field_capacity"),
-    residence_time = c(
-      "root_depth_cm",
-      "soil_field_capacity",
-      "temp_c_annual_mean"
-    )
+    burns = c("root_depth_cm", "soil_field_capacity")
   )
 }
 
@@ -1315,8 +1390,7 @@ calculate_indirect_n2o_nh3 <- function(
     col,
     root_depth_cm = values <= 0,
     soil_porosity = values <= 0 | values > 1,
-    soil_field_capacity = values <= 0 | values > 1,
-    temp_c_annual_mean = !is.finite(values)
+    soil_field_capacity = values <= 0 | values > 1
   )
 }
 
@@ -1325,13 +1399,8 @@ calculate_indirect_n2o_nh3 <- function(
 # `transport`, and whether the row drains at all.
 .leaching_rates <- function(x, drainage_mm, options) {
   drained <- drainage_mm > 0
-  shares <- if (options$transport == "residence_time") {
-    .leaching_rates_residence(x, drainage_mm, drained)
-  } else {
-    .leaching_rates_meisinger(x, drainage_mm, options)
-  }
   c(
-    shares,
+    .leaching_rates_meisinger(x, drainage_mm, options),
     list(
       drained = drained,
       a_cn = .leaching_a_cn(x),
@@ -1355,24 +1424,6 @@ calculate_indirect_n2o_nh3 <- function(
     } else {
       .leaching_f_burns(drainage_mm, x$soil_field_capacity, x$root_depth_cm)
     }
-  )
-}
-
-# IMAGE-GNM's steady-state root zone (Beusen et al. 2015, GMD 8:4045-4067,
-# eqs. 12-14, p. 4052): water and nitrate stay tau years, denitrifying at
-# rate k, so 1 / (1 + k tau) leaves undenitrified. That denitrification takes
-# the place of Meisinger's d, and what survives it leaves within the year
-# (transport 1). Without drainage tau is infinite and d is 1.
-.leaching_rates_residence <- function(x, drainage_mm, drained) {
-  k_tau <- .leaching_denit_rate(x$temp_c_annual_mean) *
-    .leaching_residence_years(
-      drainage_mm,
-      x$soil_field_capacity,
-      x$root_depth_cm
-    )
-  list(
-    denit_share = 1 - 1 / (1 + k_tau),
-    transport = as.numeric(drained)
   )
 }
 
@@ -1400,28 +1451,6 @@ calculate_indirect_n2o_nh3 <- function(
   dplyr::if_else(drainage_mm > 0, displaced, 0)
 }
 
-# Beusen et al. (2015) eq. 13: the Arrhenius temperature effect on root-zone
-# denitrification, per year of residence. Celsius to kelvin by + 273.15.
-.leaching_denit_rate <- function(temp_c) {
-  .n_constant("beusen_arrhenius_factor") *
-    exp(
-      -.n_constant("beusen_activation_energy") /
-        (.n_constant("molar_gas_constant") * (temp_c + 273.15))
-    )
-}
-
-# Beusen et al. (2015) eq. 14: years the drainage takes to pass the water the
-# root zone holds at field capacity (theta_fc x depth, mm). Infinite without
-# drainage.
-.leaching_residence_years <- function(
-  drainage_mm,
-  soil_field_capacity,
-  root_depth_cm
-) {
-  held_mm <- soil_field_capacity * root_depth_cm * 10
-  dplyr::if_else(drainage_mm > 0, held_mm / drainage_mm, Inf)
-}
-
 # One year of the cascade. Where the row drains, the carried pool joins the
 # surplus; where it does not, the pool is held as deep vadose storage
 # (Walvoord et al. 2003, doi:10.1126/science.1086435; Ascott et al. 2017,
@@ -1442,9 +1471,9 @@ calculate_indirect_n2o_nh3 <- function(
 
 # The pool a key starts with: the steady state of its first year's fluxes,
 # pool = S r / (1 - r), r the share of the pool's input that stays. Every
-# meisinger_denitrification share is at least 0.02 and residence_time moves
-# all it does not denitrify, so r < 1 on a drained row. A store with no exit
-# (no drainage) has no finite steady state and starts at 0.
+# meisinger_denitrification share is at least 0.02, so r < 1 on a drained
+# row. A store with no exit (no drainage) has no finite steady state and
+# starts at 0.
 .leaching_steady_pool <- function(surplus, rates) {
   stays <- (1 - rates$denit_share) * (1 - rates$a_cn) * (1 - rates$transport)
   dplyr::if_else(rates$drained, surplus * stays / (1 - stays), 0)
@@ -1553,17 +1582,15 @@ calculate_indirect_n2o_nh3 <- function(
   )
 }
 
-# method_leaching fields joined by ";": method, transport, None-class rule
-# (not under residence_time, which reads no Meisinger share), pool field,
-# then the optional vadose_storage and pool_held_absent_key.
+# method_leaching fields joined by ";": method, transport, None-class rule,
+# pool field, then the optional vadose_storage and pool_held_absent_key.
 .leaching_stamp <- function(options, drained, pool) {
-  none <- if (options$transport == "residence_time") {
-    character()
-  } else {
-    paste0("none_", options$none_class)
-  }
   base <- paste(
-    c("meisinger_drainage", options$transport, none),
+    c(
+      "meisinger_drainage",
+      options$transport,
+      paste0("none_", options$none_class)
+    ),
     collapse = ";"
   )
   paste0(
@@ -1573,6 +1600,206 @@ calculate_indirect_n2o_nh3 <- function(
     dplyr::if_else(drained, "", ";vadose_storage"),
     dplyr::if_else(pool$held, ";pool_held_absent_key", "")
   )
+}
+
+# ---- Private helpers: IMAGE-GNM root-zone leaching -----------------------
+
+# image_gnm: Beusen et al. (2015), Geosci. Model Dev. 8:4045-4067, eqs. 10-14
+# (p. 4052) and Table 2 (p. 4053). The budget left after surface runoff
+# leaches in the share f_leach (eq. 10) and the rest denitrifies
+# (f_den = 1 - f_leach). IMAGE-GNM keeps no root-zone nitrate from one year
+# to the next, so the retained and carried-in pools are structural zeros of
+# the method, not estimates.
+.leaching_image_gnm <- function(x, drainage_mm) {
+  drainage_mm <- .gnm_check_drivers(x, drainage_mm)
+  factors <- .gnm_factors(x, drainage_mm)
+  budget <- x$n_surplus_t - x$surface_runoff_n_t
+  flows <- list(
+    leached = factors$f_leach * budget,
+    denitrified = (1 - factors$f_leach) * budget
+  )
+  ef5 <- .n_constant("ef5_no3_to_n2o")
+  x |>
+    dplyr::mutate(
+      no3_n_t = flows$leached,
+      denitrification_n_t = flows$denitrified,
+      retained_profile_n_t = 0,
+      retained_carried_in_n_t = 0,
+      n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
+      method_leaching = factors$stamp
+    )
+}
+
+# Eqs. 11-14 per row: f_leach = [1 - min(f_climate + f_text + f_drain +
+# f_soc, 1)] f_landuse, f_climate = f_K T_r, with the stamp fields of the
+# bounds that held a factor. Two bounds come from the authors' model code
+# (N_model/trunk/tools/n_soil_denitrification.py), which governs where the
+# paper is silent or ambiguous: f_K at most 1 (line 97) and, on cropland,
+# T_r at most 1 year (lines 377-378, "the residence time of the water is
+# maximal 1 year (for example irrigation)"); the printed sentence (p. 4052)
+# reads as a floor of 1 year on dry agricultural land instead.
+.gnm_factors <- function(x, drainage_mm) {
+  f_landuse <- .gnm_class_factor(x$land_use, "land_use")
+  cropland <- x$land_use == "Cropland"
+  f_k_eq13 <- .gnm_f_k(x$temp_c_annual_mean)
+  f_k <- pmin(f_k_eq13, .n_constant("image_gnm_max_temperature_effect"))
+  residence <- .gnm_residence_years(x, drainage_mm)
+  crop_cap <- .n_constant("image_gnm_crop_max_residence_yr")
+  t_r <- dplyr::if_else(cropland, pmin(residence, crop_cap), residence)
+  f_climate <- f_k * t_r
+  f_sum <- f_climate +
+    .gnm_class_factor(x$soil_texture_class, "texture") +
+    .gnm_class_factor(x$soil_drainage_class, "drainage") +
+    .gnm_soc_factor(x$soil_organic_carbon_pct)
+  list(
+    f_leach = (1 - pmin(f_sum, 1)) * f_landuse,
+    stamp = .gnm_stamp(
+      no_drainage = drainage_mm == 0,
+      crop_capped = cropland & residence > crop_cap,
+      f_k_capped = f_k_eq13 > f_k
+    )
+  )
+}
+
+# Beusen et al. (2015) eq. 13: the Arrhenius temperature effect on root-zone
+# denitrification, per year of residence, with the mean annual temperature in
+# kelvin (Celsius + 273.15; the authors' code adds 273). Unbounded here; the
+# caller applies the bound at 1.
+.gnm_f_k <- function(temp_c) {
+  .n_constant("beusen_arrhenius_factor") *
+    exp(
+      -.n_constant("beusen_activation_energy") /
+        (.n_constant("molar_gas_constant") * (temp_c + 273.15))
+    )
+}
+
+# Beusen et al. (2015) eq. 14: T_r = tawc / q_eff years. tawc is the total
+# available water capacity (field capacity - wilting point) of the top 1 m,
+# in mm; the source takes the top 1 m "or less if thinner", and WHEP has no
+# soil-thickness layer, so the full 1 m is used. q_eff, the excess water flow
+# of eq. 5 (p. 4049) that recharges groundwater, is WHEP's annual drainage,
+# the deep seepage below the soil column. Eq. 14 is undefined without
+# drainage; the authors' code takes 100 years there (trzd(),
+# n_soil_denitrification.py lines 179-182).
+.gnm_residence_years <- function(x, drainage_mm) {
+  tawc_mm <- (x$soil_field_capacity - x$soil_wilting_point) *
+    .n_constant("image_gnm_tawc_depth_m") *
+    1000
+  dplyr::if_else(
+    drainage_mm > 0,
+    tawc_mm / drainage_mm,
+    .n_constant("image_gnm_no_drainage_residence_yr")
+  )
+}
+
+# The Table 2 texture or drainage factor, or f_landuse, of each label, from
+# image_gnm_leaching_factors. A label the table does not hold aborts: the
+# authors' code books an unknown texture or drainage class as 0, which would
+# read as a measured coarse or well-drained soil.
+.gnm_class_factor <- function(labels, factor) {
+  rows <- dplyr::filter(
+    whep::image_gnm_leaching_factors,
+    .data$factor == .env$factor
+  )
+  hit <- match(labels, rows$class)
+  if (anyNA(hit)) {
+    cli::cli_abort(
+      c(
+        "{sum(is.na(hit))} row{?s} carr{?ies/y} a {factor} class that
+         {.code image_gnm_leaching_factors} does not hold:
+         {.val {unique(labels[is.na(hit)])}}.",
+        i = "Expected one of {.val {rows$class}}."
+      ),
+      class = "whep_leaching_class_value"
+    )
+  }
+  rows$value[hit]
+}
+
+# Table 2's soil organic carbon factor. Each class holds its lower bound
+# (1-3% starts at 1), as in the authors' class code (n_soil_denitrification.py
+# lines 111-118: oc < 1, oc < 3, oc < 6, else). Negative values are refused
+# before this point.
+.gnm_soc_factor <- function(soc_pct) {
+  rows <- dplyr::filter(whep::image_gnm_leaching_factors, .data$factor == "soc")
+  rows$value[findInterval(soc_pct, rows$soc_min_pct)]
+}
+
+# method_leaching for image_gnm: the method and its 1 m water-capacity depth,
+# then each bound that held a factor on the row, joined by ";".
+.gnm_stamp <- function(no_drainage, crop_capped, f_k_capped) {
+  paste0(
+    "image_gnm;tawc_top_1m",
+    dplyr::if_else(no_drainage, ";no_drainage_residence_100yr", ""),
+    dplyr::if_else(crop_capped, ";crop_residence_cap_1yr", ""),
+    dplyr::if_else(f_k_capped, ";temperature_effect_cap_1", "")
+  )
+}
+
+# The columns image_gnm reads from `x` (drainage arrives separately).
+.gnm_driver_cols <- function() {
+  c(
+    "n_surplus_t",
+    "surface_runoff_n_t",
+    "land_use",
+    "temp_c_annual_mean",
+    "soil_field_capacity",
+    "soil_wilting_point",
+    "soil_texture_class",
+    "soil_drainage_class",
+    "soil_organic_carbon_pct"
+  )
+}
+
+# An absent or missing driver has no defensible value, so it aborts here
+# rather than becoming a zero factor; then every value must be physical.
+# Returns the drainage recycled to the rows of `x`.
+.gnm_check_drivers <- function(x, drainage_mm) {
+  needed <- .gnm_driver_cols()
+  present <- needed[rlang::has_name(x, needed)]
+  with_na <- present[purrr::map_lgl(present, \(col) anyNA(x[[col]]))]
+  no_drainage <- is.null(drainage_mm) || anyNA(drainage_mm)
+  missing <- c(setdiff(needed, present), with_na, "drainage_mm"[no_drainage])
+  if (length(missing) > 0L) {
+    cli::cli_abort(
+      c(
+        "{.code image_gnm} reads {.field {missing}}, absent from {.arg x} or
+         missing on some row.",
+        i = "Supply {.field {c(needed, 'drainage_mm')}}."
+      ),
+      class = c("whep_missing_leaching_driver", "whep_absent_input")
+    )
+  }
+  drainage <- vctrs::vec_recycle(drainage_mm, nrow(x), x_arg = "drainage_mm")
+  .gnm_check_values(x, drainage)
+  drainage
+}
+
+.gnm_check_values <- function(x, drainage_mm) {
+  capacity <- x$soil_field_capacity
+  wilting <- x$soil_wilting_point
+  runoff <- x$surface_runoff_n_t
+  bad <- c(
+    soil_field_capacity = any(capacity <= 0 | capacity > 1),
+    soil_wilting_point = any(wilting <= 0 | wilting >= capacity),
+    soil_organic_carbon_pct = any(x$soil_organic_carbon_pct < 0),
+    temp_c_annual_mean = any(!is.finite(x$temp_c_annual_mean)),
+    drainage_mm = any(drainage_mm < 0),
+    surface_runoff_n_t = any(runoff < 0 | runoff > x$n_surplus_t)
+  )
+  if (any(bad)) {
+    cli::cli_abort(
+      c(
+        "{.field {names(bad)[bad]}} {?holds/hold} a value outside its
+         physical range.",
+        i = "Field capacity in (0, 1], wilting point in (0, field capacity),
+             non-negative organic carbon and drainage, a finite temperature,
+             and surface runoff in [0, {.field n_surplus_t}]."
+      ),
+      class = "whep_leaching_driver_value"
+    )
+  }
+  invisible(x)
 }
 
 # ---- Private helpers: shared ---------------------------------------------

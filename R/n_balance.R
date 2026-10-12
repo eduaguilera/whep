@@ -68,8 +68,10 @@
 #'   (forwarded to [calculate_indirect_n2o_nh3()], default `"ipcc2019"`, the
 #'   wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or `"ipcc2019_atl_med"`),
 #'   `leaching` (forwarded to [calculate_n_leaching()], default
-#'   `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
-#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25), `leaching_transport` and
+#'   `"meisinger_drainage"`; `"ipcc_fracleach"`, the wet/dry
+#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25; or `"image_gnm"`, the
+#'   IMAGE-GNM root zone of Beusen et al. 2015, eqs. 10-14 p. 4052),
+#'   `leaching_transport` and
 #'   `leaching_none_class` (forwarded to [calculate_n_leaching()] as
 #'   `transport`, default `"swat_mixing"`, and `none_class`, default
 #'   `"retention"`; read only under `"meisinger_drainage"`, which threads
@@ -115,10 +117,10 @@
 #'     wet/dry class and the ATL/MED drivers mapped from it; see its table of
 #'     which methods it supplies), and `method_drivers` says so. That needs
 #'     the rainfed/irrigated split (`methods$regime` other than `"none"`);
-#'     `leaching = "meisinger_drainage"` and the MANNER `nh3` methods read
-#'     drivers it does not supply and are refused before any input is
-#'     assembled unless their table is supplied. At polity resolution both
-#'     must be supplied.
+#'     `leaching = "meisinger_drainage"` or `"image_gnm"` and the MANNER
+#'     `nh3` methods read drivers it does not supply and are refused before
+#'     any input is assembled unless their table is supplied. At polity
+#'     resolution both must be supplied.
 #'   * `n_loss_driver_inputs`: optional list passed as `data` to
 #'     [build_n_loss_drivers()] when it runs (`climate`, `crop_depth`,
 #'     `lpjml_years`, `lpjml_grid`, `regime_areas`, `moisture_regime`); the
@@ -170,7 +172,8 @@
 #'   `retained_profile_n_t`, `n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`;
 #'   `no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus
 #'   plus, under `"meisinger_drainage"`, the nitrate the profile carried in
-#'   from the key's previous year, `retained_carried_in_n_t`, see
+#'   from the key's previous year, `retained_carried_in_n_t`, and less,
+#'   under `"image_gnm"`, the `surface_runoff_n_t` its drivers supply, see
 #'   [calculate_n_leaching()]), the (post-cap)
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
@@ -245,6 +248,7 @@
 #' |`n2o_indirect`: `"ipcc2019_atl_med"`|`climate`, `irrig_type`|yes|built|
 #' |`leaching`: `"ipcc_fracleach"`|`moisture_regime`, `water_regime`|yes|built|
 #' |`leaching`: `"meisinger_drainage"`|Meisinger's|no|note 2|
+#' |`leaching`: `"image_gnm"`|IMAGE-GNM's|no|note 3|
 #'
 #' - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
 #'   `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`, `windspeed_ms`,
@@ -252,13 +256,16 @@
 #'   [calculate_nh3()]). Drivers must be supplied; global drivers planned.
 #' - Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`, `land_use`,
 #'   `cn_input`, `tillage`, `som_share`, `drainage_mm`, `root_depth_cm`
-#'   and, by transport, `soil_porosity` (`"swat_mixing"`),
-#'   `soil_field_capacity` (`"burns"`) or `soil_field_capacity` and
-#'   `temp_c_annual_mean` (`"residence_time"`); see
-#'   [calculate_n_leaching()]. Drivers must be supplied; global drivers
-#'   planned.
+#'   and, by transport, `soil_porosity` (`"swat_mixing"`) or
+#'   `soil_field_capacity` (`"burns"`); see [calculate_n_leaching()].
+#'   Drivers must be supplied; global drivers planned.
+#' - Note 3: IMAGE-GNM reads `drainage_mm`, `surface_runoff_n_t`,
+#'   `land_use`, `temp_c_annual_mean`, `soil_field_capacity`,
+#'   `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
+#'   `soil_organic_carbon_pct`; see [calculate_n_leaching()]. Drivers must
+#'   be supplied; global drivers planned.
 #'
-#' [build_nitrogen_balance()] refuses a method of note 1 or note 2 before
+#' [build_nitrogen_balance()] refuses a method of note 1, 2 or 3 before
 #' assembling any input unless its driver table is supplied.
 #'
 #' @inheritSection whep_polity_columns Polity columns
@@ -383,23 +390,13 @@ build_nitrogen_balance <- function(
 }
 
 .nb_check_leaching_buildable <- function(m) {
-  if (m$leaching != "meisinger_drainage") {
+  needed <- .nb_leaching_driver_cols(m)
+  if (length(needed) == 0L) {
     return(invisible(NULL))
   }
-  needed <- c(
-    "fert_type",
-    "climate",
-    "irrig_cat",
-    "land_use",
-    "cn_input",
-    "tillage",
-    "som_share",
-    "drainage_mm",
-    .leaching_soil_cols(m$leaching_transport)
-  )
   cli::cli_abort(
     c(
-      "{.code leaching = \"meisinger_drainage\"} reads driver columns
+      "{.code leaching} = {.val {m$leaching}} reads driver columns
        {.fn build_n_loss_drivers} does not supply: {.field {needed}}.",
       i = "Supply them in {.code data$n_balance_leaching_drivers}, or use
            {.code leaching = \"ipcc_fracleach\"}, whose
@@ -407,6 +404,31 @@ build_nitrogen_balance <- function(
            supplies."
     ),
     class = "whep_n_loss_drivers_unsupported"
+  )
+}
+
+# The leaching driver columns build_n_loss_drivers() does not supply, by
+# method: none for ipcc_fracleach, Meisinger's with its transport's soil
+# columns, and IMAGE-GNM's (calculate_n_leaching() reads each).
+.nb_leaching_driver_cols <- function(m) {
+  switch(
+    m$leaching,
+    ipcc_fracleach = character(),
+    meisinger_drainage = c(
+      "fert_type",
+      "climate",
+      "irrig_cat",
+      "land_use",
+      "cn_input",
+      "tillage",
+      "som_share",
+      "drainage_mm",
+      .leaching_soil_cols(m$leaching_transport)
+    ),
+    image_gnm = c(
+      "drainage_mm",
+      setdiff(.gnm_driver_cols(), "n_surplus_t")
+    )
   )
 }
 
@@ -503,11 +525,11 @@ build_nitrogen_balance <- function(
     ),
     leaching = rlang::arg_match(
       leaching,
-      c("meisinger_drainage", "ipcc_fracleach")
+      c("meisinger_drainage", "ipcc_fracleach", "image_gnm")
     ),
     leaching_transport = rlang::arg_match(
       transport,
-      c("swat_mixing", "burns", "residence_time")
+      c("swat_mixing", "burns")
     ),
     leaching_none_class = rlang::arg_match(
       none_class,
@@ -1275,7 +1297,7 @@ build_nitrogen_balance <- function(
     "no3_n_t",
     "denitrification_n_t",
     "retained_profile_n_t",
-    intersect("retained_carried_in_n_t", names(x)),
+    intersect(c("retained_carried_in_n_t", "surface_runoff_n_t"), names(x)),
     "n2o_indirect_no3_n_t",
     "n2o_indirect_nh3_n_t",
     "n_balance_t",

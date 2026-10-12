@@ -95,17 +95,21 @@ supplies:\tabular{lll}{
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \cr
    \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's, see below \tab no \cr
+   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's, see below \tab no \cr
 }
 
 
-The two methods it does not supply are later work. MANNER reads
+The methods it does not supply are later work. MANNER reads
 \code{manner_fertiliser}, \code{soil_ph}, \code{rate_kg_ha}, \code{rainfall_mm}, \code{irrigated},
 \code{temp_c}, \code{temp_c_annual_mean}, \code{windspeed_ms}, \code{technique}, \code{system},
 \code{incorporation_delay_h} and \code{species} (see \code{\link[=calculate_nh3]{calculate_nh3()}}); Meisinger
 reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input},
 \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm} and its transport's
-soil columns (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
-\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses either before assembling any input
+soil columns, and IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_n_t},
+\code{land_use}, \code{temp_c_annual_mean}, \code{soil_field_capacity},
+\code{soil_wilting_point}, \code{soil_texture_class}, \code{soil_drainage_class} and
+\code{soil_organic_carbon_pct} (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses any of them before assembling any input
 unless its driver table is supplied.
 
 \code{method_moisture_regime} is \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}'s stamp. A row

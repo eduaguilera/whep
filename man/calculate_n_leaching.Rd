@@ -7,14 +7,19 @@
 IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
 p. 11.25 (\code{FracLEACH-(H)}) and Table 11.3 (Updated), p. 11.26 (\code{EF5}).
+Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al. (2015).
+Coupling global models for hydrology and
+nutrient loading to simulate nitrogen and phosphorus retention in
+surface water - description of IMAGE-GNM and analysis of performance.
+Geosci. Model Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}.
 The transport sources are cited under Details.
 }
 \usage{
 calculate_n_leaching(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
-  transport = c("swat_mixing", "burns", "residence_time"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "image_gnm"),
+  transport = c("swat_mixing", "burns"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
   example = FALSE
@@ -27,7 +32,11 @@ requires \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \c
 and the soil columns its \code{transport} reads (see Details), plus \code{year}
 with \code{carry_over_by}; \code{method = "ipcc_fracleach"} requires
 \code{moisture_regime} (\code{"wet"} or \code{"dry"}) and, on dry rows, \code{water_regime}
-(\code{"rainfed"} or \code{"irrigated"}).}
+(\code{"rainfed"} or \code{"irrigated"}); \code{method = "image_gnm"} requires
+\code{surface_runoff_n_t}, \code{land_use} (\code{"Cropland"}, \code{"Grassland"} or
+\code{"Natural"}), \code{temp_c_annual_mean}, \code{soil_field_capacity},
+\code{soil_wilting_point}, \code{soil_texture_class}, \code{soil_drainage_class} and
+\code{soil_organic_carbon_pct} (see Details).}
 
 \item{drainage_mm}{A numeric vector aligned to \code{x}'s rows giving annual
 drainage (mm), or a single string naming a column of \code{x} to use
@@ -35,10 +44,11 @@ instead. Kept as a separate argument (rather than a static \code{x} column)
 because in the full pipeline it flows in from Module A's gridded water
 balance.}
 
-\item{method}{\code{"meisinger_drainage"} (default) or \code{"ipcc_fracleach"}.}
+\item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"} or
+\code{"image_gnm"}.}
 
 \item{transport}{The transport factor of \code{"meisinger_drainage"}:
-\code{"swat_mixing"} (default), \code{"burns"} or \code{"residence_time"}.}
+\code{"swat_mixing"} (default) or \code{"burns"}.}
 
 \item{none_class}{How \code{"meisinger_drainage"} prices Meisinger's \code{None}
 drainage class: \code{"retention"} (default) or \code{"waterlogged"}.}
@@ -53,10 +63,11 @@ from \code{x}. Defaults to \code{FALSE}.}
 \value{
 \code{x} with \code{no3_n_t}, \code{denitrification_n_t},
 \code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t} and \code{method_leaching}
-appended, plus \code{retained_carried_in_n_t} under \code{"meisinger_drainage"}.
+appended, plus \code{retained_carried_in_n_t} under \code{"meisinger_drainage"}
+and \code{"image_gnm"}.
 }
 \description{
-Two methods for partitioning a nitrogen surplus into leached nitrate,
+Three methods for partitioning a nitrogen surplus into leached nitrate,
 denitrified nitrogen and nitrate retained in the soil profile.
 
 \code{"meisinger_drainage"} (the default) is a transport-limited Meisinger
@@ -94,6 +105,17 @@ Each row is stamped \code{"ipcc_fracleach_wet"},
 \code{"ipcc_fracleach_dry_rainfed_retained"}, and
 \code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
 \code{n_surplus_t}.
+
+\code{"image_gnm"} is the root-zone leaching and denitrification of IMAGE-GNM
+(Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
+doi:10.5194/gmd-8-4045-2015, eqs. 10-14, p. 4052, and Table 2, p. 4053).
+The budget left after surface runoff leaches in the share \code{f_leach},
+\code{no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)} (eq. 10), and the
+rest of it denitrifies (\code{f_den = 1 - f_leach}), with
+\verb{f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)] f_landuse}
+(eq. 11); see the IMAGE-GNM section under Details. IMAGE-GNM carries no
+nitrate from year to year, so every row closes
+\code{n_surplus_t = surface_runoff_n_t + no3_n_t + denitrification_n_t}.
 }
 \details{
 \subsection{Transport factor}{
@@ -112,27 +134,12 @@ Version 2012, ch. 22, p. 304).
 through the root zone, \code{f = (P / (P + theta_fc))^(h / 2)}, with \code{P} the
 drainage and \code{h} the depth, both in cm (Burns 1976, J. Agric. Sci.
 86:305-313, doi:10.1017/S0021859600054769).
-\item \code{"residence_time"}: the steady-state root-zone residence time of
-IMAGE-GNM (Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
-doi:10.5194/gmd-8-4045-2015, eqs. 12-14, p. 4052). Water and nitrate
-stay \verb{tau = theta_fc h / D} years in the root zone (\code{h} and \code{D} in the
-same length unit), where they denitrify at the first-order rate
-\verb{k = 7.94e12 exp(-74830 / (R T))} per year, with \code{T} the mean annual
-temperature \code{temp_c_annual_mean} in kelvin and \code{R = 8.3144} J/(mol K).
-The share that leaves undenitrified is \verb{1 / (1 + k tau)}. This replaces
-Meisinger's \code{d}: the residence-time denitrification \verb{k tau / (1 + k tau)}
-takes the place of \code{d}, \link{meisinger_denitrification} is not read (nor
-\code{tillage} and \code{som_share}), and everything not denitrified leaves within
-the year (\code{f = 1}), so nothing is retained and \code{none_class} does not
-apply. At \code{D = 0} the residence time is infinite and the whole surplus
-denitrifies, as eq. 14 implies.
 }
 
 Every constant is read from \link{n_attenuation_constants}. The columns a
 transport reads must be present and non-missing on every row:
-\code{"swat_mixing"} reads \code{root_depth_cm} and \code{soil_porosity}, \code{"burns"}
-\code{root_depth_cm} and \code{soil_field_capacity}, and \code{"residence_time"}
-\code{root_depth_cm}, \code{soil_field_capacity} and \code{temp_c_annual_mean}.
+\code{"swat_mixing"} reads \code{root_depth_cm} and \code{soil_porosity}, and \code{"burns"}
+\code{root_depth_cm} and \code{soil_field_capacity}.
 }
 
 \subsection{Zero drainage and deep vadose storage}{
@@ -184,9 +191,66 @@ each key's first \code{retained_carried_in_n_t}. Without \code{carry_over_by} ev
 row is its own key's first and only year.
 
 \code{method_leaching} joins these fields with \verb{;}: \code{meisinger_drainage}; the
-transport; \code{none_retention} or \code{none_waterlogged} (not under
-\code{"residence_time"}); the pool field; and, optionally, \code{vadose_storage}
-and \code{pool_held_absent_key}.
+transport; \code{none_retention} or \code{none_waterlogged}; the pool field; and,
+optionally, \code{vadose_storage} and \code{pool_held_absent_key}.
+}
+
+\subsection{IMAGE-GNM}{
+
+\code{method = "image_gnm"} follows Beusen et al. (2015), eqs. 10-14 (p. 4052)
+and Table 2 (p. 4053). Where the paper is silent or ambiguous it follows
+the authors' model code published with the paper
+(\code{N_model/trunk/tools/n_soil_denitrification.py}, the code that produced
+their results), as noted below.
+\itemize{
+\item \verb{f_climate = f_K T_r} (eq. 12), with
+\verb{f_K = 7.94e12 exp(-74830 / (R K))} (eq. 13), \code{R = 8.3144} J/(mol K) and
+\code{K} the mean annual temperature \code{temp_c_annual_mean} + 273.15 (the
+authors' code adds 273). \code{f_K} is bounded at 1, as in the authors' code
+(line 97); the bound binds above about 30 degC.
+\item \code{T_r = tawc / q_eff} years (eq. 14). \code{tawc} is the total available
+water capacity of the top 1 m, \code{(soil_field_capacity - soil_wilting_point)} x 1,000 mm. The source takes the top 1 m "or less
+if thinner"; WHEP has no soil-thickness layer, so the full 1 m is used
+everywhere. \code{q_eff} is the excess water flow of eq. 5 (p. 4049), the
+water that infiltrates and recharges shallow and deep groundwater, here
+\code{drainage_mm}: WHEP's annual drainage is the deep seepage below the
+soil column, which is that excess water. Where \code{q_eff} is 0 the
+authors' code takes \code{T_r = 100} years (\code{trzd()}, lines 179-182).
+\item On cropland \code{T_r} is at most 1 year, as in the authors' code (lines
+377-378: crops must have enough water, for example from irrigation).
+The printed sentence (p. 4052) reads as raising a \code{T_r} below 1 to 1 on
+dry agricultural land; the code lowers every cropland \code{T_r} above 1 to
+1, and the code is followed.
+\item \code{f_text}, \code{f_drain} and \code{f_soc} are read from
+\link{image_gnm_leaching_factors} (Table 2) on \code{soil_texture_class},
+\code{soil_drainage_class} and the topsoil organic carbon
+\code{soil_organic_carbon_pct} (\% by weight; each organic-carbon class holds
+its lower bound, as in the authors' class code). \code{f_landuse} is 1 on
+\code{"Cropland"} and 0.36 on \code{"Grassland"} and \code{"Natural"} (p. 4052, citing
+Keuskamp et al. 2012).
+\item \code{surface_runoff_n_t} is \code{N_sro} of eq. 10, the nitrogen surface runoff
+carries off before the budget leaches. WHEP's balance has no surface
+runoff term, so it must be supplied; a row supplying 0 states that
+none runs off.
+\item IMAGE-GNM keeps no root-zone nitrate from one year to the next, so
+\code{retained_profile_n_t} and \code{retained_carried_in_n_t} are 0 by
+construction, and \code{transport}, \code{none_class} and \code{carry_over_by} do not
+apply.
+}
+
+Three parts of the authors' code are not reproduced. Its separate water
+capacities of dominant and suitable soils: WHEP has one soil per cell.
+Its land-use shares of surface runoff taken off the net precipitation:
+WHEP's drainage is already below the surface. And its 3 mm net
+precipitation below which the excess water is set to 0: net
+precipitation is not a WHEP quantity. The code also interpolates \code{f_soc}
+linearly from 0 at 0\% to 0.3 at 6\% organic carbon instead of the printed
+classes; the printed Table 2 is used.
+
+\code{method_leaching} is \verb{image_gnm;tawc_top_1m}, followed where they apply
+by \code{no_drainage_residence_100yr} (\code{q_eff} of 0), \code{crop_residence_cap_1yr}
+(a cropland \code{T_r} above 1 year held at 1) and \code{temperature_effect_cap_1}
+(an \code{f_K} above 1 held at 1), joined with \verb{;}.
 }
 
 \subsection{Errors}{
@@ -198,6 +262,21 @@ column the transport reads is absent or holds a missing value, or
 or field capacity outside (0, 1], or a drainage at or below -0.1 mm.
 \item \code{whep_leaching_carry_key}: \code{carry_over_by} names an absent column, \code{x}
 has no \code{year}, or a key occurs twice in one year.
+}
+
+For \code{method = "image_gnm"}:
+\itemize{
+\item \code{whep_missing_leaching_driver} (also \code{whep_absent_input}): a column it
+reads is absent or holds a missing value, or \code{drainage_mm} is absent or
+missing.
+\item \code{whep_leaching_driver_value}: a field capacity outside (0, 1], a
+wilting point outside (0, field capacity), a negative organic carbon or
+drainage, a non-finite temperature, or a surface runoff outside
+.
+\item \code{whep_leaching_class_value}: a texture, drainage or land-use label
+\link{image_gnm_leaching_factors} does not hold. The authors' code books an
+unknown texture or drainage class as 0; here it aborts, because a class
+that cannot be read is not a class.
 }
 
 For \code{method = "ipcc_fracleach"}, a missing or invalid \code{moisture_regime}

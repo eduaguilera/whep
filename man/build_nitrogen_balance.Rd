@@ -23,8 +23,10 @@ wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
 (forwarded to \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}, default \code{"ipcc2019"}, the
 wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
 \code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
-\code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
-FracLEACH-(H) of Section 11.2.2.2 p. 11.25), \code{leaching_transport} and
+\code{"meisinger_drainage"}; \code{"ipcc_fracleach"}, the wet/dry
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25; or \code{"image_gnm"}, the
+IMAGE-GNM root zone of Beusen et al. 2015, eqs. 10-14 p. 4052),
+\code{leaching_transport} and
 \code{leaching_none_class} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} as
 \code{transport}, default \code{"swat_mixing"}, and \code{none_class}, default
 \code{"retention"}; read only under \code{"meisinger_drainage"}, which threads
@@ -81,10 +83,10 @@ drivers. At grid resolution each one left \code{NULL} is built by
 wet/dry class and the ATL/MED drivers mapped from it; see its table of
 which methods it supplies), and \code{method_drivers} says so. That needs
 the rainfed/irrigated split (\code{methods$regime} other than \code{"none"});
-\code{leaching = "meisinger_drainage"} and the MANNER \code{nh3} methods read
-drivers it does not supply and are refused before any input is
-assembled unless their table is supplied. At polity resolution both
-must be supplied.
+\code{leaching = "meisinger_drainage"} or \code{"image_gnm"} and the MANNER
+\code{nh3} methods read drivers it does not supply and are refused before
+any input is assembled unless their table is supplied. At polity
+resolution both must be supplied.
 \item \code{n_loss_driver_inputs}: optional list passed as \code{data} to
 \code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} when it runs (\code{climate}, \code{crop_depth},
 \code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}); the
@@ -141,7 +143,8 @@ per-hectare rate), the input aggregates
 \code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t};
 \code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus
 plus, under \code{"meisinger_drainage"}, the nitrate the profile carried in
-from the key's previous year, \code{retained_carried_in_n_t}, see
+from the key's previous year, \code{retained_carried_in_n_t}, and less,
+under \code{"image_gnm"}, the \code{surface_runoff_n_t} its drivers supply, see
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
@@ -227,6 +230,7 @@ be supplied.\tabular{llll}{
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
    \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
+   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's \tab no \tab note 3 \cr
 }
 
 \itemize{
@@ -236,14 +240,17 @@ be supplied.\tabular{llll}{
 \code{\link[=calculate_nh3]{calculate_nh3()}}). Drivers must be supplied; global drivers planned.
 \item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
 \code{cn_input}, \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm}
-and, by transport, \code{soil_porosity} (\code{"swat_mixing"}),
-\code{soil_field_capacity} (\code{"burns"}) or \code{soil_field_capacity} and
-\code{temp_c_annual_mean} (\code{"residence_time"}); see
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must be supplied; global drivers
-planned.
+and, by transport, \code{soil_porosity} (\code{"swat_mixing"}) or
+\code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}.
+Drivers must be supplied; global drivers planned.
+\item Note 3: IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_n_t},
+\code{land_use}, \code{temp_c_annual_mean}, \code{soil_field_capacity},
+\code{soil_wilting_point}, \code{soil_texture_class}, \code{soil_drainage_class} and
+\code{soil_organic_carbon_pct}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must
+be supplied; global drivers planned.
 }
 
-\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 or note 2 before
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1, 2 or 3 before
 assembling any input unless its driver table is supplied.
 }
 

@@ -62,15 +62,19 @@
 #' | `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes |
 #' | `leaching`: `"ipcc_fracleach"` | `moisture_regime`, `water_regime` | yes |
 #' | `leaching`: `"meisinger_drainage"` | Meisinger's, see below | no |
+#' | `leaching`: `"image_gnm"` | IMAGE-GNM's, see below | no |
 #'
-#' The two methods it does not supply are later work. MANNER reads
+#' The methods it does not supply are later work. MANNER reads
 #' `manner_fertiliser`, `soil_ph`, `rate_kg_ha`, `rainfall_mm`, `irrigated`,
 #' `temp_c`, `temp_c_annual_mean`, `windspeed_ms`, `technique`, `system`,
 #' `incorporation_delay_h` and `species` (see [calculate_nh3()]); Meisinger
 #' reads `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`,
 #' `tillage`, `som_share`, `drainage_mm`, `root_depth_cm` and its transport's
-#' soil columns (see [calculate_n_leaching()]).
-#' [build_nitrogen_balance()] refuses either before assembling any input
+#' soil columns, and IMAGE-GNM reads `drainage_mm`, `surface_runoff_n_t`,
+#' `land_use`, `temp_c_annual_mean`, `soil_field_capacity`,
+#' `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
+#' `soil_organic_carbon_pct` (see [calculate_n_leaching()]).
+#' [build_nitrogen_balance()] refuses any of them before assembling any input
 #' unless its driver table is supplied.
 #'
 #' `method_moisture_regime` is [build_cell_moisture_regime()]'s stamp. A row

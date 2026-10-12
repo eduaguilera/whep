@@ -2320,6 +2320,84 @@ testthat::test_that("the leaching transport and None class are validated methods
     whep:::.nb_methods(list(leaching_transport = "piston")),
     class = "rlang_error"
   )
+  # The residence-time transport is gone; IMAGE-GNM is its own method.
+  testthat::expect_error(
+    whep:::.nb_methods(list(leaching_transport = "residence_time")),
+    class = "rlang_error"
+  )
+  testthat::expect_identical(
+    whep:::.nb_methods(list(leaching = "image_gnm"))$leaching,
+    "image_gnm"
+  )
+})
+
+testthat::test_that("image_gnm names the drivers the builder lacks", {
+  .nb_stub_assembly()
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(leaching = "image_gnm"),
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_unsupported"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  for (col in c(
+    "drainage_mm",
+    "surface_runoff_n_t",
+    "land_use",
+    "temp_c_annual_mean",
+    "soil_field_capacity",
+    "soil_wilting_point",
+    "soil_texture_class",
+    "soil_drainage_class",
+    "soil_organic_carbon_pct"
+  )) {
+    testthat::expect_match(msg, col, fixed = TRUE)
+  }
+})
+
+testthat::test_that("image_gnm leaching runs through the balance and closes", {
+  data <- .nb_three_year_data()
+  data$n_balance_leaching_drivers <- data$n_balance_leaching_drivers |>
+    dplyr::mutate(
+      surface_runoff_n_t = 0,
+      land_use = "Cropland",
+      temp_c_annual_mean = 15,
+      soil_field_capacity = 0.29,
+      soil_wilting_point = 0.14,
+      soil_texture_class = "medium",
+      soil_drainage_class = "moderately_well_drained",
+      soil_organic_carbon_pct = 2
+    )
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "image_gnm",
+      regime = "none"
+    ),
+    data = data
+  ))
+  testthat::expect_gt(sum(out$surplus_t), 0)
+  # eq. 10 and 11 on every row: no pool, the surplus leaches or denitrifies.
+  testthat::expect_equal(
+    out$surplus_t,
+    out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t,
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(out$retained_profile_n_t == 0))
+  testthat::expect_true(all(out$retained_carried_in_n_t == 0))
+  # 600 and 300 mm drain a 150 mm tawc in under a year; 0 mm takes the
+  # authors' 100-year residence, capped at 1 yr on cropland.
+  f_k <- 7.94e12 * exp(-74830 / (8.3144 * 288.15))
+  t_r <- c(`2010` = 0.25, `2011` = 1, `2012` = 0.5)
+  f_leach <- 1 - (f_k * t_r[as.character(out$year)] + 0.3)
+  testthat::expect_equal(
+    out$no3_n_t,
+    unname(out$surplus_t * f_leach),
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(startsWith(out$method_leaching, "image_gnm;")))
 })
 
 testthat::test_that("the shared balance fixtures were never mutated", {
