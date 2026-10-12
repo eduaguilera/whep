@@ -534,7 +534,9 @@
 #' ammonia-volatilisation fractions. \code{swat_anion_exclusion} is the
 #' SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
 #' \code{molar_gas_constant} give the Arrhenius temperature effect on
-#' root-zone denitrification of the residence-time transport.
+#' root-zone denitrification of the IMAGE-GNM method, and
+#' \code{image_gnm_*} its root-zone depth and the bounds its authors' model
+#' code places on the residence time and the temperature effect.
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -543,7 +545,11 @@
 #'     \code{"ef5_no3_to_n2o"}, \code{"ef4_nh3_to_n2o_atl"},
 #'     \code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"},
 #'     \code{"swat_anion_exclusion"}, \code{"beusen_arrhenius_factor"},
-#'     \code{"beusen_activation_energy"}, \code{"molar_gas_constant"}.}
+#'     \code{"beusen_activation_energy"}, \code{"molar_gas_constant"},
+#'     \code{"image_gnm_tawc_depth_m"},
+#'     \code{"image_gnm_crop_max_residence_yr"},
+#'     \code{"image_gnm_no_drainage_residence_yr"},
+#'     \code{"image_gnm_max_temperature_effect"}.}
 #'   \item{value}{Numeric value of the constant.}
 #'   \item{description}{Human-readable description of the constant.}
 #' }
@@ -561,11 +567,77 @@
 #'   al. (2011), SWAT 2009 Theoretical Documentation, TR-406, eqs. 4:2.1.2 to
 #'   4:2.1.8. Arrhenius factor 7.94e12, activation energy 74,830 J/mol and
 #'   gas constant 8.3144 J/(mol K): Beusen et al. (2015), Geosci. Model Dev.
-#'   8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052.
+#'   8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052. The
+#'   1 m depth of the total available water capacity: the same paper, eq. 14,
+#'   p. 4052 (the top 1 m "or less if thinner"; WHEP has no soil-thickness
+#'   layer, so the full 1 m is used). The cropland residence time of at most
+#'   1 year, the 100-year residence time without excess water and the bound
+#'   of 1 on the temperature effect: the authors' IMAGE-GNM model code
+#'   published with the paper, \code{n_soil_denitrification.py} (in
+#'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97.
 #'
 #' @examples
 #' n_attenuation_constants
 "n_attenuation_constants"
+
+#' IMAGE-GNM soil denitrification and land-use leaching factors.
+#'
+#' @description
+#' The class factors of IMAGE-GNM's root-zone leaching fraction (Beusen et
+#' al. 2015, eq. 11, p. 4052),
+#' \code{f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)]
+#' f_landuse}, read by [calculate_n_leaching()] with
+#' \code{method = "image_gnm"}: the denitrification fractions for soil
+#' texture (\code{f_text}), soil drainage (\code{f_drain}) and soil organic
+#' carbon content (\code{f_soc}) of Table 2 (p. 4053), and the land-use
+#' factor \code{f_landuse} (p. 4052). Table 2 is transcribed as printed. Its
+#' drainage column names five classes; the FAO classes it does not name,
+#' well drained and somewhat excessively drained, take 0 from the authors'
+#' model code, which books every well-drained class at 0. The organic-carbon
+#' classes are half-open, \code{soc_min_pct <= SOC < soc_max_pct}, as in the
+#' authors' class code; the table gives no numeric bound for its Organic
+#' class, which here starts where the 6-50\% class ends, and both take 0.3.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{factor}{Which factor the row gives: \code{"texture"},
+#'     \code{"drainage"}, \code{"soc"} or \code{"land_use"}.}
+#'   \item{class}{The class key [calculate_n_leaching()] matches:
+#'     texture \code{"coarse"}, \code{"medium"}, \code{"fine"},
+#'     \code{"very_fine"}, \code{"organic"}; drainage
+#'     \code{"excessively_drained"}, \code{"somewhat_excessively_drained"},
+#'     \code{"well_drained"}, \code{"moderately_well_drained"},
+#'     \code{"imperfectly_drained"}, \code{"poorly_drained"},
+#'     \code{"very_poorly_drained"}; organic carbon \code{"below_1_pct"},
+#'     \code{"1_to_3_pct"}, \code{"3_to_6_pct"}, \code{"6_to_50_pct"},
+#'     \code{"organic"}; land use \code{"Cropland"}, \code{"Grassland"},
+#'     \code{"Natural"}.}
+#'   \item{label}{The class as the source prints it (\code{NA} for the two
+#'     drainage classes taken from the authors' code).}
+#'   \item{soc_min_pct, soc_max_pct}{Bounds of an organic-carbon class, \%
+#'     by weight (\code{NA} on other rows).}
+#'   \item{value}{The factor (dimensionless).}
+#'   \item{source}{Locator of the value.}
+#' }
+#'
+#' @source Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al.
+#'   (2015). Coupling global models for hydrology and nutrient loading to
+#'   simulate nitrogen and phosphorus retention in surface water -
+#'   description of IMAGE-GNM and analysis of performance. Geosci. Model
+#'   Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}. Table 2 (p. 4053,
+#'   after Van Drecht et al. 2003) for \code{f_text}, \code{f_drain} and
+#'   \code{f_soc}; p. 4052 for \code{f_landuse} (1 for arable land, 0.36
+#'   for grassland and natural vegetation, citing Keuskamp, J. A., Van
+#'   Drecht, G. & Bouwman, A. F. 2012, Environ. Pollut. 165, 67-76,
+#'   \doi{10.1016/j.envpol.2012.02.008}). The well-drained and somewhat
+#'   excessively drained classes: the authors' model code published with the
+#'   paper, \code{n_soil_denitrification.py} (in
+#'   \code{N_model/trunk/tools/}), \code{fr_Ndenitrification_drainage()},
+#'   lines 163-165.
+#'
+#' @examples
+#' image_gnm_leaching_factors
+"image_gnm_leaching_factors"
 
 #' IPCC 2019 Tier 1 soil nitrogen emission and leaching factors.
 #'

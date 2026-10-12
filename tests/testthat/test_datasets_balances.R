@@ -357,6 +357,95 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["beusen_arrhenius_factor"]], 7.94e12)
   testthat::expect_equal(lookup[["beusen_activation_energy"]], 74830)
   testthat::expect_equal(lookup[["molar_gas_constant"]], 8.3144)
+  # IMAGE-GNM root-zone rules: the 1 m depth of eq. 14 (p. 4052) and the
+  # authors' code bounds (n_soil_denitrification.py lines 97, 179-182,
+  # 377-378).
+  testthat::expect_equal(lookup[["image_gnm_tawc_depth_m"]], 1)
+  testthat::expect_equal(lookup[["image_gnm_crop_max_residence_yr"]], 1)
+  testthat::expect_equal(lookup[["image_gnm_no_drainage_residence_yr"]], 100)
+  testthat::expect_equal(lookup[["image_gnm_max_temperature_effect"]], 1)
+})
+
+test_that("image_gnm_leaching_factors transcribes Beusen et al. Table 2", {
+  x <- whep::image_gnm_leaching_factors
+  pointblank::expect_col_exists(
+    x,
+    columns = c(
+      "factor",
+      "class",
+      "label",
+      "soc_min_pct",
+      "soc_max_pct",
+      "value",
+      "source"
+    )
+  )
+  # Table 2, p. 4053, as printed; the two well-drained FAO classes the table
+  # does not name take 0 from the authors' code; f_landuse from p. 4052.
+  expected <- tibble::tribble(
+    ~factor,    ~class,                         ~value,
+    "texture",  "coarse",                       0.0,
+    "texture",  "medium",                       0.1,
+    "texture",  "fine",                         0.2,
+    "texture",  "very_fine",                    0.3,
+    "texture",  "organic",                      0.0,
+    "drainage", "excessively_drained",          0.0,
+    "drainage", "moderately_well_drained",      0.1,
+    "drainage", "imperfectly_drained",          0.2,
+    "drainage", "poorly_drained",               0.3,
+    "drainage", "very_poorly_drained",          0.4,
+    "drainage", "well_drained",                 0.0,
+    "drainage", "somewhat_excessively_drained", 0.0,
+    "soc",      "below_1_pct",                  0.0,
+    "soc",      "1_to_3_pct",                   0.1,
+    "soc",      "3_to_6_pct",                   0.2,
+    "soc",      "6_to_50_pct",                  0.3,
+    "soc",      "organic",                      0.3,
+    "land_use", "Cropland",                     1.0,
+    "land_use", "Grassland",                    0.36,
+    "land_use", "Natural",                      0.36
+  )
+  testthat::expect_equal(dplyr::select(x, "factor", "class", "value"), expected)
+  soc <- dplyr::filter(x, .data$factor == "soc")
+  testthat::expect_equal(soc$soc_min_pct, c(0, 1, 3, 6, 50))
+  testthat::expect_equal(soc$soc_max_pct, c(1, 3, 6, 50, Inf))
+  testthat::expect_true(all(is.na(x$soc_min_pct[x$factor != "soc"])))
+  testthat::expect_identical(
+    x$label[x$factor %in% c("texture", "drainage", "soc")],
+    c(
+      "Coarse",
+      "Medium",
+      "Fine",
+      "Very fine",
+      "Organic",
+      "Excessively well drained",
+      "Moderate well drained",
+      "Imperfectly drained",
+      "Poorly drained",
+      "Very poorly drained",
+      NA,
+      NA,
+      "<1%",
+      "1-3%",
+      "3-6%",
+      "6-50%",
+      "Organic"
+    )
+  )
+  from_code <- x$class %in% c("well_drained", "somewhat_excessively_drained")
+  testthat::expect_true(all(
+    stringr::str_detect(x$source[from_code], "n_soil_denitrification\\.py")
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor != "land_use" & !from_code],
+      "Table 2, p\\. 4053"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(x$source[x$factor == "land_use"], "p\\. 4052")
+  ))
+  testthat::expect_false(vctrs::vec_duplicate_any(x[c("factor", "class")]))
 })
 
 test_that("ipcc_2019_soil_n_ef transcribes every Tier 1 factor", {

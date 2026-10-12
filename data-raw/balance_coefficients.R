@@ -70,6 +70,11 @@ manner_params <- .read_balance_csv("manner_params.csv")
 n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 ipcc_2019_soil_n_ef <- .read_balance_csv("ipcc_2019_soil_n_ef.csv")
 fao56_root_depth <- .read_balance_csv("fao56_root_depth.csv")
+# IMAGE-GNM root-zone leaching class factors: Beusen et al. (2015) Table 2
+# (p. 4053) and f_landuse (p. 4052). See R/datasets_balances.R @source.
+image_gnm_leaching_factors <- .read_balance_csv(
+  "image_gnm_leaching_factors.csv"
+)
 
 # Resolve an ISO3 area label to the numeric FAOSTAT area code every other
 # area_code in this package uses. Aborts on an ISO3 the crosswalk does not
@@ -230,6 +235,7 @@ usethis::use_data(
   n_attenuation_constants,
   ipcc_2019_soil_n_ef,
   fao56_root_depth,
+  image_gnm_leaching_factors,
   human_n_reference,
   human_kgn_cap_reference,
   human_kgn_cap_total_reference,

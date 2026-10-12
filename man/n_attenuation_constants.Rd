@@ -12,7 +12,11 @@ A tibble with columns:
 \code{"ef5_no3_to_n2o"}, \code{"ef4_nh3_to_n2o_atl"},
 \code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"},
 \code{"swat_anion_exclusion"}, \code{"beusen_arrhenius_factor"},
-\code{"beusen_activation_energy"}, \code{"molar_gas_constant"}.}
+\code{"beusen_activation_energy"}, \code{"molar_gas_constant"},
+\code{"image_gnm_tawc_depth_m"},
+\code{"image_gnm_crop_max_residence_yr"},
+\code{"image_gnm_no_drainage_residence_yr"},
+\code{"image_gnm_max_temperature_effect"}.}
 \item{value}{Numeric value of the constant.}
 \item{description}{Human-readable description of the constant.}
 }
@@ -31,7 +35,14 @@ File Documentation, Version 2012, ch. 22, p. 304, as used in Neitsch et
 al. (2011), SWAT 2009 Theoretical Documentation, TR-406, eqs. 4:2.1.2 to
 4:2.1.8. Arrhenius factor 7.94e12, activation energy 74,830 J/mol and
 gas constant 8.3144 J/(mol K): Beusen et al. (2015), Geosci. Model Dev.
-8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052.
+8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052. The
+1 m depth of the total available water capacity: the same paper, eq. 14,
+p. 4052 (the top 1 m "or less if thinner"; WHEP has no soil-thickness
+layer, so the full 1 m is used). The cropland residence time of at most
+1 year, the 100-year residence time without excess water and the bound
+of 1 on the temperature effect: the authors' IMAGE-GNM model code
+published with the paper, \code{n_soil_denitrification.py} (in
+\code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97.
 }
 \usage{
 n_attenuation_constants
@@ -46,7 +57,9 @@ volatilised ammonia and leached nitrate into indirect N2O and set the
 ammonia-volatilisation fractions. \code{swat_anion_exclusion} is the
 SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
 \code{molar_gas_constant} give the Arrhenius temperature effect on
-root-zone denitrification of the residence-time transport.
+root-zone denitrification of the IMAGE-GNM method, and
+\code{image_gnm_*} its root-zone depth and the bounds its authors' model
+code places on the residence time and the temperature effect.
 }
 \examples{
 n_attenuation_constants
