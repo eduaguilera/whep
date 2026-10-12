@@ -1,0 +1,306 @@
+item_prod_code,fao56_crop,depth_min_m,depth_max_m,method_root_depth,rationale,source
+809,Banana - 1 st year; Banana - 2 nd year,0.5,0.9,proxy,abaca is Musa textilis; banana rows used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+800,Sisal,0.5,1.0,proxy,agave fibre; sisal is Agave sisalana,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+221,Almonds,1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+711,Carrots,0.5,1.0,proxy,umbellifer seed spices; carrot (Apiaceae) row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+515,"Apples, Cherries, Pears",1.0,2.0,direct,pome fruit / cherries share this FAO-56 row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+526,"Apricots, Peaches, Stone Fruit",1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+226,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+366,Artichokes,0.6,0.9,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) f)"
+367,Asparagus,1.2,1.8,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) f)"
+572,Avocado,0.5,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+839,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+203,Groundnut (Peanut),0.5,1.0,proxy,bambara groundnut is geocarpic like groundnut,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+486,Banana - 1 st year; Banana - 2 nd year,0.5,0.9,direct_multi,year-1 and year-2 rows share one range (489 plantain: banana row),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+44,Barley,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+176,"Beans, dry and Pulses",0.6,0.9,direct,"FAO-56 row is labelled 'Beans, dry and Pulses'","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+1806,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+51,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1183,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+647,Sugar Beet,0.7,1.2,proxy,fodder beet is Beta vulgaris; sugar beet row used rather than table beet,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+552,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+216,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+181,Fababean (broad bean) - Dry/Seed,0.5,0.7,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+420,Fababean (broad bean) - Fresh,0.5,0.7,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+89,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+949,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1811,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+983,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+952,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+886,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1022,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+899,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+644,Cabbage,0.5,0.8,direct,fodder cabbage,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+358,Cabbage,0.5,0.8,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+101,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+568,Cantaloupe; Sweet Melons,0.8,1.5,direct_multi,cantaloupes and other melons,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) c)"
+426,Carrots; Turnip (and Rutabaga),0.5,1.0,direct_multi,carrots and turnips item; both rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) ad)"
+648,Carrots,0.5,1.0,direct,fodder carrot,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+217,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+591,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+378,Cassava - year 1; Cassava - year 2,0.5,1.0,direct_multi,year-1 and year-2 rows combined; WHEP item has no crop-age split (378 = leaves of the same plant),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+125,Cassava - year 1; Cassava - year 2,0.5,1.0,direct_multi,year-1 and year-2 rows combined; WHEP item has no crop-age split (378 = leaves of the same plant),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+265,Castorbean (Ricinus),1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+869,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+393,Cauliflower; Broccoli,0.4,0.7,direct_multi,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+108,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+1717,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1745,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+955,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1021,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+984,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+904,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+901,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+531,"Apples, Cherries, Pears",1.0,2.0,direct,pome fruit / cherries share this FAO-56 row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+220,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+191,Chick pea,0.6,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+459,Sugar Beet,0.7,1.2,proxy,chicory root is a biennial taproot crop; sugar beet used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+689,Sweet Peppers (bell),0.5,1.0,proxy,chilli is Capsicum; bell pepper row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+401,Sweet Peppers (bell),0.5,1.0,proxy,chilli is Capsicum; bell pepper row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+693,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+1804,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+698,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+661,Cacao,0.7,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+252,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+248,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+249,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+656,Coffee,0.9,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+813,Palm Trees,0.7,1.1,direct,coir from coconut palm,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+767,Cotton,1.0,1.7,direct,seed cotton / cottonseed / lint from the same crop,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+329,Cotton,1.0,1.7,direct,seed cotton / cottonseed / lint from the same crop,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+331,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+195,Green Gram and Cowpeas,0.6,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+554,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+885,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+397,Cucumber - Fresh Market; Cucumber - Machine harvest,0.7,1.2,direct_multi,both cucumber rows share one range,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) c)"
+550,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+577,Date Palms,1.5,2.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+948,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+868,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1018,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1036,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+978,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1128,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1098,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+149,"Beets, table; Cassava - year 1; Cassava - year 2; Parsnip; Potato; Sweet Potato; Turnip (and Rutabaga); Sugar Beet",0.4,1.5,proxy,n.e.c. starch roots/tubers; all FAO-56 roots-and-tubers rows (section d),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+399,Egg Plant,0.7,1.2,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+1783,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1091,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1816,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1129,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1037,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+17530,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+569,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+773,Flax,1.0,1.5,direct,linseed / flax fibre / linum,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+771,Flax,1.0,1.5,direct,linseed / flax fibre / linum,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+2108,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+94,Millet,1.0,2.0,proxy,no FAO-56 row for fonio; millet used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+641,Alfalfa - for hay,1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+640,"Clover hay, Berseem",0.6,0.9,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+639,"Alfalfa - for hay; Bermuda - for hay; Clover hay, Berseem; Rye Grass hay; Sudan Grass hay (annual)",0.6,2.0,proxy,grasses n.e.c.; FAO-56 hay-forage rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+642,"Rapeseed, Canola",1.0,1.5,proxy,green forage oilseeds (brassica); rapeseed row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+643,"Clover hay, Berseem",0.6,0.9,proxy,forage legumes n.e.c.; clover row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+636,"Maize, Field (grain) (field corn)",1.0,1.7,direct,forage maize; field-maize row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+638,Rye Grass hay,0.6,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+637,Sorghum - grain,1.0,2.0,direct,forage sorghum; sorghum row used (grain and sweet rows share one range),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+651,"Alfalfa - for hay; Bermuda - for hay; Clover hay, Berseem; Rye Grass hay; Sudan Grass hay (annual)",0.6,2.0,proxy,mixed forage; FAO-56 hay-forage rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+1738,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1163,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+953,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+887,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+720,"Beets, table; Cassava - year 1; Cassava - year 2; Parsnip; Potato; Sweet Potato; Turnip (and Rutabaga); Sugar Beet",0.4,1.5,proxy,ginger rhizome; roots-and-tubers rows (section d) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+1019,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+549,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+560,Grapes - Table or Raisin; Grapes - Wine,1.0,2.0,direct_multi,table and wine grape rows share one range,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+446,"Maize, Sweet (sweet corn)",0.8,1.2,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+406,Garlic,0.3,0.5,direct,green garlic,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+244,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+242,Groundnut (Peanut),0.5,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+225,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+776,Flax,1.0,1.5,proxy,hemp: no FAO-56 row; flax (fibre/oil annual) used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+336,Flax,1.0,1.5,proxy,hemp: no FAO-56 row; flax (fibre/oil annual) used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+1062,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+677,Hops,1.0,1.2,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+1097,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+277,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+780,Cotton; Flax; Sisal,0.5,1.7,proxy,"no FAO-56 row for this fibre crop; fibre-crop rows (cotton, flax, sisal) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+778,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,kapok tree; no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+310,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,kapok tree; no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+311,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,kapok tree; no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+263,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+782,Cotton; Flax; Sisal,0.5,1.7,proxy,"no FAO-56 row for this fibre crop; fibre-crop rows (cotton, flax, sisal) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+592,Kiwi,0.7,1.3,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+224,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+407,Onions - green,0.3,0.6,proxy,leeks and other alliaceous; onion row used (all onion rows share one range),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+497,Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy,0.8,1.5,direct_multi,70/50/20 percent canopy rows combined (item has no canopy-cover split),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+201,Lentil,0.6,0.8,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+372,Lettuce,0.3,0.5,direct,item is lettuce and chicory; FAO-56 names lettuce only,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+333,Flax,1.0,1.5,direct,linseed / flax fibre / linum,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+772,Flax,1.0,1.5,direct,linseed / flax fibre / linum,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+461,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+210,"Beans, dry and Pulses",0.6,0.9,proxy,no FAO-56 row for this pulse; dry-bean/pulse row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+56,"Maize, Field (grain) (field corn)",1.0,1.7,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+571,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical fruit with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+1242,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+671,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,mate (Ilex) is a tree; tropical-tree rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+1108,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+947,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1127,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+867,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1058,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1069,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1073,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1017,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1111,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1158,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1151,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1035,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1089,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1141,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+977,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1080,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1808,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1765,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+299,Sweet Melons,0.8,1.5,proxy,melon seed; melon row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) c)"
+1780,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+79,Millet,1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+645,"Alfalfa - for hay; Bermuda - for hay; Clover hay, Berseem; Rye Grass hay; Sudan Grass hay (annual)",0.6,2.0,proxy,mixed forage; FAO-56 hay-forage rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+103,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+165,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+449,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+292,"Rapeseed, Canola",1.0,1.5,proxy,mustard is Brassica; rapeseed row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+1182,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+836,Rubber Trees,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+702,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+75,Oats,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+334,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+60,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+258,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+290,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+254,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+1841,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1732,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+430,Egg Plant; Sweet Peppers (bell); Tomato,0.5,1.5,proxy,"no FAO-56 row for okra; fruiting-vegetable rows (aubergine, sweet pepper, tomato) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+261,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+260,Olives (40 to 60% ground coverage by canopy),1.2,1.7,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+403,Onions - dry,0.3,0.6,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+402,Onions - green,0.3,0.6,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+490,Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy,0.8,1.5,direct_multi,70/50/20 percent canopy rows combined (item has no canopy-cover split),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+414,"Beans, green",0.5,0.7,direct,green/string beans,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+558,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+512,Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy,0.8,1.5,direct_multi,70/50/20 percent canopy rows combined (item has no canopy-cover split),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+821,Cotton; Flax; Sisal,0.5,1.7,proxy,"no FAO-56 row for this fibre crop; fibre-crop rows (cotton, flax, sisal) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+619,"Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded; Berries (bushes); Grapes - Table or Raisin; Grapes - Wine; Hops; Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Avocado; Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy; Conifer Trees; Kiwi; Olives (40 to 60% ground coverage by canopy); Pistachios; Walnut Orchard",0.3,2.5,proxy,"other fruits n.e.c.; all FAO-56 tropical, grape/berry and fruit-tree rows (sections l-n) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) lmn)"
+1166,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+234,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+339,"Castorbean (Ricinus); Rapeseed, Canola; Safflower; Sesame; Sunflower",0.8,2.0,proxy,poppy / other oilseeds n.e.c.; all FAO-56 oil-crop rows (section h) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+542,"Apples, Cherries, Pears",1.0,2.0,proxy,other pome fruit; apple/pear row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+211,"Beans, dry and Pulses",0.6,0.9,direct,"FAO-56 row is labelled 'Beans, dry and Pulses'","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+723,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+541,"Apricots, Peaches, Stone Fruit",1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+161,Sugar Beet; Sugar Cane,0.7,2.0,proxy,n.e.c. sugar crops; sugar beet and sugar cane rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) dk)"
+603,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical fruit with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+463,"Broccoli; Brussel Sprouts; Cabbage; Carrots; Cauliflower; Celery; Garlic; Lettuce; Onions - dry; Onions - green; Onions - seed; Spinach; Radishes; Egg Plant; Sweet Peppers (bell); Tomato; Cantaloupe; Cucumber - Fresh Market; Cucumber - Machine harvest; Pumpkin, Winter Squash; Squash, Zucchini; Sweet Melons; Watermelon",0.3,1.5,proxy,other vegetables n.e.c.; all FAO-56 vegetable rows (sections a-c) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) abc)"
+256,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+257,Palm Trees,0.7,1.1,direct,"generic palm row (coconut, oil palm, areca palm)","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+600,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical fruit with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+3001,Grazing Pasture - Rotated Grazing; Grazing Pasture - Extensive Grazing,0.5,1.5,direct,pasture; both grazing-pasture rows share one range,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+534,"Apricots, Peaches, Stone Fruit",1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+521,"Apples, Cherries, Pears",1.0,2.0,direct,pome fruit / cherries share this FAO-56 row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+187,Peas - Dry/Seed,0.6,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+417,Peas - Fresh,0.6,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+687,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+748,Mint,0.4,0.8,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) f)"
+587,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+1043,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+197,"Beans, dry and Pulses",0.6,0.9,proxy,no FAO-56 row for pigeon pea; dry-bean/pulse row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+574,Pineapple,0.3,0.6,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+223,Pistachios,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+489,Banana - 1 st year; Banana - 2 nd year,0.5,0.9,direct_multi,year-1 and year-2 rows share one range (489 plantain: banana row),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+536,"Apricots, Peaches, Stone Fruit",1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+507,Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy,0.8,1.5,direct_multi,70/50/20 percent canopy rows combined (item has no canopy-cover split),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+296,"Castorbean (Ricinus); Rapeseed, Canola; Safflower; Sesame; Sunflower",0.8,2.0,proxy,poppy / other oilseeds n.e.c.; all FAO-56 oil-crop rows (section h) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+116,Potato,0.4,0.6,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+1726,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+394,"Pumpkin, Winter Squash; Squash, Zucchini",0.6,1.5,direct_multi,pumpkin/squash/gourds; both rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) c)"
+754,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+523,"Apples, Cherries, Pears",1.0,2.0,proxy,other pome fruit; apple/pear row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+92,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+788,Cotton; Flax; Sisal,0.5,1.7,proxy,"no FAO-56 row for this fibre crop; fibre-crop rows (cotton, flax, sisal) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+270,"Rapeseed, Canola",1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+271,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+547,Berries (bushes),0.6,1.2,direct,generic bush-berry row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) m)"
+162,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+957,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+919,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1025,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+995,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+951,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1130,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+882,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1020,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+982,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1186,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+27,Rice,0.5,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+1720,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+71,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+280,Safflower,1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+281,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+328,Cotton,1.0,1.7,direct,seed cotton / cottonseed / lint from the same crop,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+289,Sesame,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+1807,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+979,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+987,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1185,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+789,Sisal,0.5,1.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+1809,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+898,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+888,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+896,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+895,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+1176,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+83,Sorghum - grain,1.0,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+530,"Apples, Cherries, Pears",1.0,2.0,direct,pome fruit / cherries share this FAO-56 row,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+237,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+236,Soybeans,0.6,1.3,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+373,Spinach,0.3,0.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) a)"
+544,Strawberries,0.2,0.3,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) f)"
+423,"Beans, green",0.5,0.7,direct,green/string beans,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+1723,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+157,Sugar Beet,0.7,1.2,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+156,Sugar Cane,1.2,2.0,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) k)"
+267,Sunflower,0.8,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) h)"
+268,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+649,Turnip (and Rutabaga),0.5,1.0,direct,swede = rutabaga; fodder use,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+122,Sweet Potato,1.0,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+1225,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+305,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+495,Citrus - 70% canopy; Citrus - 50% canopy; Citrus - 20% canopy,0.8,1.5,direct_multi,70/50/20 percent canopy rows combined (item has no canopy-cover split),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+136,Sweet Potato,1.0,1.5,proxy,no FAO-56 row; sweet potato (tuberous root) used as nearest analogue,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+667,Tea - non-shaded; Tea - shaded,0.9,1.5,direct_multi,shaded and non-shaded rows share one range,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+674,Tea - non-shaded; Tea - shaded,0.9,1.5,direct_multi,shaded and non-shaded rows share one range,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+996,Grazing Pasture - Rotated Grazing,0.5,1.5,proxy,temporary grassland; rotated-grazing pasture row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"
+388,Tomato,0.7,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+1729,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+97,Barley; Oats; Spring Wheat; Winter Wheat,1.0,1.8,proxy,no FAO-56 row for this crop; small-grain cereal rows used (range spans spring and winter types),"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+777,Flax,1.0,1.5,proxy,hemp: no FAO-56 row; flax (fibre/oil annual) used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) g)"
+275,"Almonds; Apples, Cherries, Pears; Apricots, Peaches, Stone Fruit; Pistachios; Walnut Orchard",1.0,2.4,proxy,"tree fruit/nut with no FAO-56 row; deciduous fruit and nut tree rows (almond, apple/pear/cherry, stone fruit, pistachio, walnut) combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+646,Turnip (and Rutabaga),0.5,1.0,direct,fodder turnip,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+826,Egg Plant; Sweet Peppers (bell); Tomato,0.5,1.5,proxy,"no FAO-56 row for tobacco; Solanaceae rows (aubergine, sweet pepper, tomato) used","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) b)"
+692,Banana - 1 st year; Banana - 2 nd year; Cacao; Coffee; Date Palms; Palm Trees; Pineapple; Rubber Trees; Tea - non-shaded; Tea - shaded,0.3,2.5,proxy,tropical perennial / tree crop with no FAO-56 row; tropical fruits-and-trees rows (section l) combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) l)"
+1735,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+655,"Beets, table; Carrots; Turnip (and Rutabaga)",0.5,1.0,proxy,"mixed fodder roots/vegetables; table beet, carrot and turnip rows combined","https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) ad)"
+205,"Beans, dry and Pulses",0.6,0.9,proxy,no FAO-56 row for this pulse; dry-bean/pulse row used,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) e)"
+222,Walnut Orchard,1.7,2.4,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) n)"
+567,Watermelon,0.8,1.5,direct,,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) c)"
+15,Spring Wheat; Winter Wheat,1.0,1.8,direct_multi,item does not split spring/winter wheat; both rows combined,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) i)"
+890,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+900,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+897,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+889,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+894,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+564,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+137,Sweet Potato,1.0,1.5,proxy,no FAO-56 row; sweet potato (tuberous root) used as nearest analogue,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+135,Sweet Potato,1.0,1.5,proxy,no FAO-56 row; sweet potato (tuberous root) used as nearest analogue,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) d)"
+891,,,,none,"not a soil-grown crop or grassland item (processed, animal, aggregate or non-plant product); no root depth applies",
+3002,Grazing Pasture - Extensive Grazing,0.5,1.5,direct,range / extensive grazing,"https://www.fao.org/4/x0490e/x0490e0e.htm (FAO-56 Chapter 8, Table 22, section(s) j)"

@@ -69,6 +69,7 @@ subsoil_no3_reduction <- .read_balance_csv("subsoil_no3_reduction.csv")
 manner_params <- .read_balance_csv("manner_params.csv")
 n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 ipcc_2019_soil_n_ef <- .read_balance_csv("ipcc_2019_soil_n_ef.csv")
+fao56_root_depth <- .read_balance_csv("fao56_root_depth.csv")
 
 # Resolve an ISO3 area label to the numeric FAOSTAT area code every other
 # area_code in this package uses. Aborts on an ISO3 the crosswalk does not
@@ -228,6 +229,7 @@ usethis::use_data(
   manner_params,
   n_attenuation_constants,
   ipcc_2019_soil_n_ef,
+  fao56_root_depth,
   human_n_reference,
   human_kgn_cap_reference,
   human_kgn_cap_total_reference,

@@ -711,3 +711,83 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
   ))
   testthat::expect_false(anyNA(blend))
 })
+
+test_that("fao56_root_depth has unique, known production items", {
+  x <- whep::fao56_root_depth
+  pointblank::expect_col_exists(
+    x,
+    columns = c(
+      "item_prod_code",
+      "fao56_crop",
+      "depth_min_m",
+      "depth_max_m",
+      "method_root_depth",
+      "rationale",
+      "source"
+    )
+  )
+  testthat::expect_equal(nrow(x), 305L)
+  testthat::expect_false(anyDuplicated(x$item_prod_code) > 0L)
+  # items_prod_full omits the aggregate fibre-equivalent item 17530, so the
+  # complete production-item list the table covers is items_prod.
+  testthat::expect_setequal(x$item_prod_code, whep::items_prod$item_prod_code)
+  testthat::expect_true(
+    all(
+      as.character(setdiff(x$item_prod_code, 17530)) %in%
+        whep::items_prod_full$item_prod_code
+    )
+  )
+})
+
+test_that("fao56_root_depth ranges are ordered and typed by method", {
+  x <- whep::fao56_root_depth
+  pointblank::expect_col_vals_in_set(
+    x,
+    columns = "method_root_depth",
+    set = c("direct", "direct_multi", "proxy", "none")
+  )
+  testthat::expect_equal(
+    x |>
+      dplyr::count(method_root_depth) |>
+      dplyr::arrange(method_root_depth) |>
+      dplyr::pull(n),
+    c(94L, 18L, 117L, 76L)
+  )
+  with_depth <- dplyr::filter(x, method_root_depth != "none")
+  testthat::expect_false(anyNA(with_depth$depth_min_m))
+  testthat::expect_false(anyNA(with_depth$depth_max_m))
+  testthat::expect_true(
+    all(with_depth$depth_min_m <= with_depth$depth_max_m)
+  )
+  none <- dplyr::filter(x, method_root_depth == "none")
+  testthat::expect_true(all(is.na(none$depth_min_m)))
+  testthat::expect_true(all(is.na(none$depth_max_m)))
+})
+
+test_that("fao56_root_depth proxy rows state their rationale", {
+  proxy <- whep::fao56_root_depth |>
+    dplyr::filter(method_root_depth == "proxy")
+  testthat::expect_gt(nrow(proxy), 0L)
+  testthat::expect_false(anyNA(proxy$rationale))
+  testthat::expect_true(all(nzchar(trimws(proxy$rationale))))
+})
+
+test_that("fao56_root_depth transcribes the FAO-56 Table 22 ranges", {
+  expected <- tibble::tribble(
+    ~item_prod_code, ~depth_min_m, ~depth_max_m,
+    44L, 1.0, 1.5,
+    116L, 0.4, 0.6,
+    27L, 0.5, 1.0,
+    56L, 1.0, 1.7,
+    15L, 1.0, 1.8
+  )
+  joined <- expected |>
+    dplyr::inner_join(
+      whep::fao56_root_depth,
+      by = "item_prod_code",
+      suffix = c("_expected", "")
+    )
+  testthat::expect_equal(nrow(joined), 5L)
+  testthat::expect_equal(joined$depth_min_m, joined$depth_min_m_expected)
+  testthat::expect_equal(joined$depth_max_m, joined$depth_max_m_expected)
+})

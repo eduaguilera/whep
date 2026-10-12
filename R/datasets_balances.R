@@ -590,6 +590,47 @@
 #' ipcc_2019_soil_n_ef
 "ipcc_2019_soil_n_ef"
 
+#' FAO-56 maximum effective rooting depth by production item.
+#'
+#' @description
+#' Ranges of maximum effective rooting depth Zr as printed in FAO-56
+#' Table 22 (Allen, Pereira, Raes & Smith 1998, FAO Irrigation and Drainage
+#' Paper 56, Chapter 8), mapped to WHEP production items. Footnote 1 of the
+#' table says that smaller values may be used for irrigation scheduling and
+#' larger ones for modelling soil water stress or rainfed conditions. Items
+#' without a row of their own in the table carry a stated proxy
+#' (`method_root_depth` `"proxy"`), and non-crop items (processed, animal,
+#' aggregate or non-plant products) have missing depths.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{item_prod_code}{Production item code, as in [items_prod_full].}
+#'   \item{fao56_crop}{FAO-56 Table 22 crop name(s) the item maps to,
+#'     separated by `"; "` when several rows are used; missing for non-crop
+#'     items.}
+#'   \item{depth_min_m}{Lower end of the Table 22 range, in metres; missing
+#'     for non-crop items.}
+#'   \item{depth_max_m}{Upper end of the Table 22 range, in metres; missing
+#'     for non-crop items.}
+#'   \item{method_root_depth}{How the item maps to Table 22:
+#'     `"direct"` (one table row), `"direct_multi"` (several table rows),
+#'     `"proxy"` (a stated substitute crop) or `"none"` (no root depth
+#'     applies).}
+#'   \item{rationale}{Why a proxy was chosen, or why no depth applies;
+#'     missing for some direct matches.}
+#'   \item{source}{Locator of the value in FAO-56 (Chapter 8, Table 22 and
+#'     the section(s) of the table); missing when no depth applies.}
+#' }
+#'
+#' @source Allen, R. G., Pereira, L. S., Raes, D. & Smith, M. (1998). *Crop
+#'   evapotranspiration: Guidelines for computing crop water requirements*.
+#'   FAO Irrigation and Drainage Paper 56, Chapter 8, Table 22.
+#'   <https://www.fao.org/4/x0490e/x0490e0e.htm>.
+#'
+#' @examples
+#' fao56_root_depth
+"fao56_root_depth"
+
 #' Historical human-population nitrogen applied to agriculture.
 #'
 #' @description
