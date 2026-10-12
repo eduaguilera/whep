@@ -7,3 +7,7 @@ ef5_no3_to_n2o,0.011,"IPCC EF5: fraction of leached NO3-N emitted as indirect N2
 ef4_nh3_to_n2o_atl,0.014,"Atlantic (wet) NH3-N to indirect N2O-N factor EF4 (IPCC 2019 Table 11.3, wet climate, p. 11.26)."
 nh3_frac_synthetic,0.11,"IPCC 2019 Table 11.3 NH3-N volatilisation fraction for synthetic fertiliser."
 nh3_frac_organic,0.21,"IPCC 2019 Table 11.3 NH3-N volatilisation fraction for organic N inputs."
+swat_anion_exclusion,0.50,"SWAT fraction of porosity from which nitrate is excluded (theta_e, ANION_EXCL default): SWAT Input/Output File Documentation Version 2012, ch. 22 (.sol), p. 304; used in Neitsch et al. (2011) SWAT 2009 Theoretical Documentation eqs. 4:2.1.2-4:2.1.8."
+beusen_arrhenius_factor,7.94e12,"IMAGE-GNM pre-exponential factor of the root-zone denitrification temperature effect f_K, multiplied by the root-zone residence time in years to give the dimensionless f_climate: Beusen et al. (2015) Geosci. Model Dev. 8:4045-4067, eqs. 12-13, p. 4052."
+beusen_activation_energy,74830,"Activation energy of root-zone denitrification E_a,d (J mol-1): Beusen et al. (2015) Geosci. Model Dev. 8:4045-4067, eq. 13, p. 4052."
+molar_gas_constant,8.3144,"Molar gas constant R (J mol-1 K-1), as used in Beusen et al. (2015) eq. 13, p. 4052."

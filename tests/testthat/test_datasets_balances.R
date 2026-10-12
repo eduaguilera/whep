@@ -351,6 +351,12 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.014)
   testthat::expect_equal(lookup[["nh3_frac_synthetic"]], 0.11)
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
+  # SWAT ANION_EXCL default (I/O documentation 2012, ch. 22, p. 304) and the
+  # IMAGE-GNM Arrhenius constants (Beusen et al. 2015, eq. 13, p. 4052).
+  testthat::expect_equal(lookup[["swat_anion_exclusion"]], 0.5)
+  testthat::expect_equal(lookup[["beusen_arrhenius_factor"]], 7.94e12)
+  testthat::expect_equal(lookup[["beusen_activation_energy"]], 74830)
+  testthat::expect_equal(lookup[["molar_gas_constant"]], 8.3144)
 })
 
 test_that("ipcc_2019_soil_n_ef transcribes every Tier 1 factor", {

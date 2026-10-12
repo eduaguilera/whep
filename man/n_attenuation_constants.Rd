@@ -10,7 +10,9 @@ A tibble with columns:
 \item{constant}{Constant name: \code{"a_cn_min_cn"},
 \code{"a_cn_span"}, \code{"a_cn_span_other"}, \code{"a_cn_max"},
 \code{"ef5_no3_to_n2o"}, \code{"ef4_nh3_to_n2o_atl"},
-\code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"}.}
+\code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"},
+\code{"swat_anion_exclusion"}, \code{"beusen_arrhenius_factor"},
+\code{"beusen_activation_energy"}, \code{"molar_gas_constant"}.}
 \item{value}{Numeric value of the constant.}
 \item{description}{Human-readable description of the constant.}
 }
@@ -24,17 +26,27 @@ IPCC Guidelines for National Greenhouse Gas Inventories, Vol. 4,
 Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for
 Atlantic, i.e. wet-climate, ammonia to N2O, p. 11.26; NH3
 volatilisation fractions 0.11 synthetic and 0.21 organic, Table 11.3).
+Anion exclusion 0.5: the ANION_EXCL default of the SWAT Input/Output
+File Documentation, Version 2012, ch. 22, p. 304, as used in Neitsch et
+al. (2011), SWAT 2009 Theoretical Documentation, TR-406, eqs. 4:2.1.2 to
+4:2.1.8. Arrhenius factor 7.94e12, activation energy 74,830 J/mol and
+gas constant 8.3144 J/(mol K): Beusen et al. (2015), Geosci. Model Dev.
+8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052.
 }
 \usage{
 n_attenuation_constants
 }
 \description{
 Scalar constants for the nitrogen-loss cascade: the input C:N leaching
-attenuation parameters (\code{a_cn_*}) and the IPCC indirect-emission
-factors. The C:N attenuation reduces nitrate leaching for
+attenuation parameters (\code{a_cn_*}), the IPCC indirect-emission
+factors and the constants of the nitrate transport factors of
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. The C:N attenuation reduces nitrate leaching for
 carbon-rich, low-availability inputs; the indirect factors convert
 volatilised ammonia and leached nitrate into indirect N2O and set the
-ammonia-volatilisation fractions.
+ammonia-volatilisation fractions. \code{swat_anion_exclusion} is the
+SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
+\code{molar_gas_constant} give the Arrhenius temperature effect on
+root-zone denitrification of the residence-time transport.
 }
 \examples{
 n_attenuation_constants
