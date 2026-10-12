@@ -16,7 +16,12 @@ A tibble with columns:
 \code{"image_gnm_tawc_depth_m"},
 \code{"image_gnm_crop_max_residence_yr"},
 \code{"image_gnm_no_drainage_residence_yr"},
-\code{"image_gnm_max_temperature_effect"}.}
+\code{"image_gnm_max_temperature_effect"},
+\code{"image_gnm_runoff_calibration"},
+\code{"image_gnm_erosion_slope_offset"},
+\code{"image_gnm_erosion_slope_range"},
+\code{"image_gnm_erosion_slope_intercept"},
+\code{"image_gnm_erosion_slope_rate"}.}
 \item{value}{Numeric value of the constant.}
 \item{description}{Human-readable description of the constant.}
 }
@@ -42,7 +47,13 @@ layer, so the full 1 m is used). The cropland residence time of at most
 1 year, the 100-year residence time without excess water and the bound
 of 1 on the temperature effect: the authors' IMAGE-GNM model code
 published with the paper, \code{n_soil_denitrification.py} (in
-\code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97.
+\code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97. The
+surface runoff calibration factor 0.3: the same paper, \code{f_cal} of
+eq. 9, p. 4052, and \code{C_sro,N} of Table 3, p. 4056. The erosion
+slope factor \code{a + b / (1 + exp(c - d S / 1000))} with
+\code{a = -1.5}, \code{b = 17}, \code{c = 2.3} and \code{d = 6.1}: the
+authors' code, \code{n_erosion.py}, line 50, for the soil loss of
+Cerdan et al. (2010) the paper cites on p. 4052.
 }
 \usage{
 n_attenuation_constants
@@ -58,8 +69,10 @@ ammonia-volatilisation fractions. \code{swat_anion_exclusion} is the
 SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
 \code{molar_gas_constant} give the Arrhenius temperature effect on
 root-zone denitrification of the IMAGE-GNM method, and
-\code{image_gnm_*} its root-zone depth and the bounds its authors' model
-code places on the residence time and the temperature effect.
+\code{image_gnm_*} its root-zone depth, the bounds its authors' model
+code places on the residence time and the temperature effect, the
+calibration factor of its surface runoff nitrogen and the four constants
+of its erosion slope factor.
 }
 \examples{
 n_attenuation_constants

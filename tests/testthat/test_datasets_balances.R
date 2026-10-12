@@ -364,6 +364,76 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["image_gnm_crop_max_residence_yr"]], 1)
   testthat::expect_equal(lookup[["image_gnm_no_drainage_residence_yr"]], 100)
   testthat::expect_equal(lookup[["image_gnm_max_temperature_effect"]], 1)
+  # IMAGE-GNM surface runoff: f_cal of eq. 9 (p. 4052; C_sro,N of Table 3,
+  # p. 4056) and the erosion slope factor of the authors' code
+  # (n_erosion.py line 50).
+  testthat::expect_equal(lookup[["image_gnm_runoff_calibration"]], 0.3)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_offset"]], -1.5)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_range"]], 17)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_intercept"]], 2.3)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_rate"]], 6.1)
+})
+
+test_that("image_gnm_runoff_factors transcribes the authors' runoff inputs", {
+  x <- whep::image_gnm_runoff_factors
+  pointblank::expect_col_exists(
+    x,
+    columns = c("factor", "class", "value", "unit", "source")
+  )
+  # Land-use factors of Table 3 (p. 4056), the authors' texture_erosion.vat,
+  # their soil-loss factors (parameters_history_100.ini lines 112-114) and
+  # the erosion C:N ratios (p. 4052).
+  expected <- tibble::tribble(
+    ~factor,           ~class,      ~value,
+    "runoff_land_use", "Cropland",  1.0,
+    "runoff_land_use", "Grassland", 0.25,
+    "runoff_land_use", "Natural",   0.125,
+    "erosion_texture", "coarse",    0.5,
+    "erosion_texture", "medium",    1.5,
+    "erosion_texture", "fine",      1.5,
+    "erosion_texture", "very_fine", 0.5,
+    "erosion_texture", "organic",   0.5,
+    "soil_loss",       "Cropland",  1151,
+    "soil_loss",       "Grassland", 99,
+    "soil_loss",       "Natural",   29,
+    "erosion_cn",      "Cropland",  12,
+    "erosion_cn",      "Grassland", 14,
+    "erosion_cn",      "Natural",   14
+  )
+  testthat::expect_equal(dplyr::select(x, "factor", "class", "value"), expected)
+  testthat::expect_false(vctrs::vec_duplicate_any(x[c("factor", "class")]))
+  pointblank::expect_col_vals_not_null(x, c("unit", "source"))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "runoff_land_use"],
+      "Table 3, p\\. 4056"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "erosion_texture"],
+      "texture_erosion\\.vat"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "soil_loss"],
+      "parameters_history_100\\.ini"
+    )
+  ))
+  # Every texture class Table 2 reads has an erosion factor, and every land
+  # use of eq. 11 a runoff, soil loss and C:N factor.
+  gnm <- whep::image_gnm_leaching_factors
+  testthat::expect_setequal(
+    x$class[x$factor == "erosion_texture"],
+    gnm$class[gnm$factor == "texture"]
+  )
+  for (f in c("runoff_land_use", "soil_loss", "erosion_cn")) {
+    testthat::expect_setequal(
+      x$class[x$factor == f],
+      gnm$class[gnm$factor == "land_use"]
+    )
+  }
 })
 
 test_that("image_gnm_leaching_factors transcribes Beusen et al. Table 2", {

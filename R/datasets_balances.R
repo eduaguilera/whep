@@ -535,8 +535,10 @@
 #' SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
 #' \code{molar_gas_constant} give the Arrhenius temperature effect on
 #' root-zone denitrification of the IMAGE-GNM method, and
-#' \code{image_gnm_*} its root-zone depth and the bounds its authors' model
-#' code places on the residence time and the temperature effect.
+#' \code{image_gnm_*} its root-zone depth, the bounds its authors' model
+#' code places on the residence time and the temperature effect, the
+#' calibration factor of its surface runoff nitrogen and the four constants
+#' of its erosion slope factor.
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -549,7 +551,12 @@
 #'     \code{"image_gnm_tawc_depth_m"},
 #'     \code{"image_gnm_crop_max_residence_yr"},
 #'     \code{"image_gnm_no_drainage_residence_yr"},
-#'     \code{"image_gnm_max_temperature_effect"}.}
+#'     \code{"image_gnm_max_temperature_effect"},
+#'     \code{"image_gnm_runoff_calibration"},
+#'     \code{"image_gnm_erosion_slope_offset"},
+#'     \code{"image_gnm_erosion_slope_range"},
+#'     \code{"image_gnm_erosion_slope_intercept"},
+#'     \code{"image_gnm_erosion_slope_rate"}.}
 #'   \item{value}{Numeric value of the constant.}
 #'   \item{description}{Human-readable description of the constant.}
 #' }
@@ -574,7 +581,13 @@
 #'   1 year, the 100-year residence time without excess water and the bound
 #'   of 1 on the temperature effect: the authors' IMAGE-GNM model code
 #'   published with the paper, \code{n_soil_denitrification.py} (in
-#'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97.
+#'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97. The
+#'   surface runoff calibration factor 0.3: the same paper, \code{f_cal} of
+#'   eq. 9, p. 4052, and \code{C_sro,N} of Table 3, p. 4056. The erosion
+#'   slope factor \code{a + b / (1 + exp(c - d S / 1000))} with
+#'   \code{a = -1.5}, \code{b = 17}, \code{c = 2.3} and \code{d = 6.1}: the
+#'   authors' code, \code{n_erosion.py}, line 50, for the soil loss of
+#'   Cerdan et al. (2010) the paper cites on p. 4052.
 #'
 #' @examples
 #' n_attenuation_constants
@@ -638,6 +651,56 @@
 #' @examples
 #' image_gnm_leaching_factors
 "image_gnm_leaching_factors"
+
+#' IMAGE-GNM surface runoff and erosion factors.
+#'
+#' @description
+#' The factors of IMAGE-GNM's surface runoff nitrogen (Beusen et al. 2015,
+#' eqs. 8-9, p. 4052), read by [calculate_n_leaching()] with
+#' \code{method = "image_gnm"}:
+#'
+#' - \code{runoff_land_use}: \code{f_qsro(landuse)} of eq. 3 (p. 4049),
+#'   the land-use factor of the surface runoff fraction, as listed with
+#'   its standard values in Table 3 (p. 4056).
+#' - \code{erosion_texture}: the texture factor of the erodibility, from
+#'   the authors' \code{fix_input/texture_erosion.vat}.
+#' - \code{soil_loss}: the soil loss per km2 and year per unit erodibility
+#'   of each land use, from the authors' parameter file. The paper prints
+#'   only the European means these were calibrated to (360, 40 and 15 t
+#'   per km2 for arable land, grassland and natural vegetation, p. 4052).
+#' - \code{erosion_cn}: the C:N ratio of eroded soil (p. 4052).
+#'
+#' The paper sets the soil loss of peat soils equal to that of fine
+#' texture (p. 4052); the authors' table gives peat 0.5 and fine 1.5, and
+#' the table, the one their results came from, is used.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{factor}{\code{"runoff_land_use"}, \code{"erosion_texture"},
+#'     \code{"soil_loss"} or \code{"erosion_cn"}.}
+#'   \item{class}{Land use \code{"Cropland"}, \code{"Grassland"} or
+#'     \code{"Natural"}, or the texture classes of
+#'     [image_gnm_leaching_factors] (\code{"coarse"}, \code{"medium"},
+#'     \code{"fine"}, \code{"very_fine"}, \code{"organic"}).}
+#'   \item{value}{The factor.}
+#'   \item{unit}{Its unit.}
+#'   \item{source}{Locator of the value.}
+#' }
+#'
+#' @source Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al.
+#'   (2015). Coupling global models for hydrology and nutrient loading to
+#'   simulate nitrogen and phosphorus retention in surface water -
+#'   description of IMAGE-GNM and analysis of performance. Geosci. Model
+#'   Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}. Table 3 (p. 4056)
+#'   for \code{runoff_land_use} and p. 4052 for \code{erosion_cn}. The
+#'   authors' model code and inputs published with the paper,
+#'   \doi{10.5194/gmd-8-4045-2015-supplement}:
+#'   \code{N_model/trunk/tools/parameters_history_100.ini} lines 112-121 and
+#'   213-215, and \code{fix_input/texture_erosion.vat}.
+#'
+#' @examples
+#' image_gnm_runoff_factors
+"image_gnm_runoff_factors"
 
 #' IPCC 2019 Tier 1 soil nitrogen emission and leaching factors.
 #'
