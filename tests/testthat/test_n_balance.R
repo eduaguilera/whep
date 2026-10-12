@@ -2192,7 +2192,14 @@ testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
     class = "whep_n_loss_drivers_unsupported"
   )
   msg <- cli::ansi_strip(conditionMessage(err))
-  for (col in c("drainage_mm", "som_share", "irrig_cat", "tillage")) {
+  for (col in c(
+    "drainage_mm",
+    "som_share",
+    "irrig_cat",
+    "tillage",
+    "root_depth_cm",
+    "soil_porosity"
+  )) {
     testthat::expect_match(msg, col, fixed = TRUE)
   }
   err <- testthat::expect_error(
@@ -2208,6 +2215,113 @@ testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
 
 # Runs last: every fixture the tests above shared must still be exactly what
 # a fresh build produces, so no test's edits leaked into another's input.
+# The default fixture spread over three years, with Meisinger leaching
+# drivers: 2010 and 2012 drain (600 and 300 mm), 2011 does not.
+.nb_spread_years <- function(table) {
+  if (!is.data.frame(table) || !rlang::has_name(table, "year")) {
+    return(table)
+  }
+  purrr::map(2010:2012, \(y) dplyr::mutate(table, year = y)) |>
+    dplyr::bind_rows()
+}
+
+.nb_three_year_data <- function() {
+  spread <- .nb_spread_years
+  base <- .nb_data_with_drivers()
+  data <- purrr::map(.nb_full_data(), spread)
+  data$n_balance_drivers <- spread(base$n_balance_drivers)
+  drainage <- c(`2010` = 600, `2011` = 0, `2012` = 300)
+  data$n_balance_leaching_drivers <- spread(base$n_balance_leaching_drivers) |>
+    dplyr::mutate(
+      fert_type = "Synthetic",
+      tillage = "Tillage",
+      root_depth_cm = 100,
+      soil_porosity = 0.45,
+      drainage_mm = unname(drainage[as.character(.data$year)])
+    )
+  data
+}
+
+testthat::test_that("Meisinger leaching carries retained nitrate across the balance years", {
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "meisinger_drainage",
+      regime = "none"
+    ),
+    data = .nb_three_year_data()
+  )) |>
+    dplyr::arrange(.data$item_cbs_code, .data$year)
+  testthat::expect_setequal(unique(out$year), 2010:2012)
+  # Every year closes its partition with the nitrate carried in.
+  testthat::expect_equal(
+    out$surplus_t + out$retained_carried_in_n_t,
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    tolerance = 1e-9
+  )
+  key <- c("lon", "lat", "area_code", "item_cbs_code")
+  carried <- out |>
+    dplyr::mutate(
+      previous_retained = dplyr::lag(.data$retained_profile_n_t),
+      previous_year = dplyr::lag(.data$year),
+      .by = dplyr::all_of(key)
+    ) |>
+    dplyr::filter(!is.na(.data$previous_year))
+  testthat::expect_gt(nrow(carried), 0L)
+  testthat::expect_equal(
+    carried$retained_carried_in_n_t,
+    carried$previous_retained,
+    tolerance = 1e-12
+  )
+  # 2011 does not drain: nothing leaches and the carried pool stays stored.
+  dry <- out[out$year == 2011L, ]
+  testthat::expect_true(all(dry$no3_n_t == 0))
+  testthat::expect_true(all(
+    dry$retained_profile_n_t >= dry$retained_carried_in_n_t
+  ))
+  testthat::expect_true(all(grepl(";vadose_storage", dry$method_leaching)))
+  testthat::expect_gt(sum(dry$retained_carried_in_n_t), 0)
+  # Over the run the surplus is the leached and denitrified nitrogen plus the
+  # final pools minus the initial ones.
+  first <- dplyr::slice_min(out, .data$year, by = dplyr::all_of(key))
+  last <- dplyr::slice_max(out, .data$year, by = dplyr::all_of(key))
+  testthat::expect_true(all(grepl(
+    "initial_pool_steady_state",
+    first$method_leaching
+  )))
+  testthat::expect_equal(
+    sum(out$surplus_t),
+    sum(out$no3_n_t) +
+      sum(out$denitrification_n_t) +
+      sum(last$retained_profile_n_t) -
+      sum(first$retained_carried_in_n_t),
+    tolerance = 1e-9
+  )
+  # A key missing from a later year of the run keeps its pool, stamped.
+  ends_early <- last$year < 2012L
+  testthat::expect_equal(
+    grepl("pool_held_absent_key", last$method_leaching),
+    ends_early
+  )
+})
+
+testthat::test_that("the leaching transport and None class are validated methods", {
+  m <- whep:::.nb_methods(list(
+    leaching_transport = "burns",
+    leaching_none_class = "waterlogged"
+  ))
+  testthat::expect_identical(m$leaching_transport, "burns")
+  testthat::expect_identical(m$leaching_none_class, "waterlogged")
+  defaults <- whep:::.nb_methods(list())
+  testthat::expect_identical(defaults$leaching_transport, "swat_mixing")
+  testthat::expect_identical(defaults$leaching_none_class, "retention")
+  testthat::expect_error(
+    whep:::.nb_methods(list(leaching_transport = "piston")),
+    class = "rlang_error"
+  )
+})
+
 testthat::test_that("the shared balance fixtures were never mutated", {
   expect_n_fixtures_untouched("nb_")
 })

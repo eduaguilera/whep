@@ -103,7 +103,8 @@ The two methods it does not supply are later work. MANNER reads
 \code{temp_c}, \code{temp_c_annual_mean}, \code{windspeed_ms}, \code{technique}, \code{system},
 \code{incorporation_delay_h} and \code{species} (see \code{\link[=calculate_nh3]{calculate_nh3()}}); Meisinger
 reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input},
-\code{tillage}, \code{som_share} and \code{drainage_mm} (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
+\code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm} and its transport's
+soil columns (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
 \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses either before assembling any input
 unless its driver table is supplied.
 

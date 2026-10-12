@@ -24,7 +24,12 @@ wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
 wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
 \code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
 \code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
-FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and \code{regime}, how each grid
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25), \code{leaching_transport} and
+\code{leaching_none_class} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} as
+\code{transport}, default \code{"swat_mixing"}, and \code{none_class}, default
+\code{"retention"}; read only under \code{"meisinger_drainage"}, which threads
+the retained nitrate through the years of the balance on each key
+without its year) and \code{regime}, how each grid
 row is split into a rainfed and an irrigated part (see Details):
 \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
 wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
@@ -134,8 +139,10 @@ per-hectare rate), the input aggregates
 \code{n_output_std_t}, \code{n_output_full_t}), the loss terms (\code{nh3_n_t},
 \code{n2o_direct_n_t}, \code{no3_n_t}, \code{denitrification_n_t},
 \code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t};
-\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus,
-see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
+\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus
+plus, under \code{"meisinger_drainage"}, the nitrate the profile carried in
+from the key's previous year, \code{retained_carried_in_n_t}, see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
@@ -228,8 +235,11 @@ be supplied.\tabular{llll}{
 \code{technique}, \code{system}, \code{incorporation_delay_h} and \code{species} (see
 \code{\link[=calculate_nh3]{calculate_nh3()}}). Drivers must be supplied; global drivers planned.
 \item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
-\code{cn_input}, \code{tillage}, \code{som_share} and \code{drainage_mm} (see
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}). Drivers must be supplied; global drivers
+\code{cn_input}, \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm}
+and, by transport, \code{soil_porosity} (\code{"swat_mixing"}),
+\code{soil_field_capacity} (\code{"burns"}) or \code{soil_field_capacity} and
+\code{temp_c_annual_mean} (\code{"residence_time"}); see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must be supplied; global drivers
 planned.
 }
 

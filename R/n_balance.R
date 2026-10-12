@@ -69,7 +69,12 @@
 #'   wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or `"ipcc2019_atl_med"`),
 #'   `leaching` (forwarded to [calculate_n_leaching()], default
 #'   `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
-#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and `regime`, how each grid
+#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25), `leaching_transport` and
+#'   `leaching_none_class` (forwarded to [calculate_n_leaching()] as
+#'   `transport`, default `"swat_mixing"`, and `none_class`, default
+#'   `"retention"`; read only under `"meisinger_drainage"`, which threads
+#'   the retained nitrate through the years of the balance on each key
+#'   without its year) and `regime`, how each grid
 #'   row is split into a rainfed and an irrigated part (see Details):
 #'   `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
 #'   wet/dry methods read `moisture_regime` from the driver tables in `data`.
@@ -163,8 +168,10 @@
 #'   `n_output_std_t`, `n_output_full_t`), the loss terms (`nh3_n_t`,
 #'   `n2o_direct_n_t`, `no3_n_t`, `denitrification_n_t`,
 #'   `retained_profile_n_t`, `n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`;
-#'   `no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus,
-#'   see [calculate_n_leaching()]), the (post-cap)
+#'   `no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus
+#'   plus, under `"meisinger_drainage"`, the nitrate the profile carried in
+#'   from the key's previous year, `retained_carried_in_n_t`, see
+#'   [calculate_n_leaching()]), the (post-cap)
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
@@ -244,8 +251,11 @@
 #'   `technique`, `system`, `incorporation_delay_h` and `species` (see
 #'   [calculate_nh3()]). Drivers must be supplied; global drivers planned.
 #' - Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`, `land_use`,
-#'   `cn_input`, `tillage`, `som_share` and `drainage_mm` (see
-#'   [calculate_n_leaching()]). Drivers must be supplied; global drivers
+#'   `cn_input`, `tillage`, `som_share`, `drainage_mm`, `root_depth_cm`
+#'   and, by transport, `soil_porosity` (`"swat_mixing"`),
+#'   `soil_field_capacity` (`"burns"`) or `soil_field_capacity` and
+#'   `temp_c_annual_mean` (`"residence_time"`); see
+#'   [calculate_n_leaching()]. Drivers must be supplied; global drivers
 #'   planned.
 #'
 #' [build_nitrogen_balance()] refuses a method of note 1 or note 2 before
@@ -367,13 +377,13 @@ build_nitrogen_balance <- function(
     )
   }
   if ("n_balance_leaching_drivers" %in% absent) {
-    .nb_check_leaching_buildable(m$leaching)
+    .nb_check_leaching_buildable(m)
   }
   invisible(NULL)
 }
 
-.nb_check_leaching_buildable <- function(leaching) {
-  if (leaching != "meisinger_drainage") {
+.nb_check_leaching_buildable <- function(m) {
+  if (m$leaching != "meisinger_drainage") {
     return(invisible(NULL))
   }
   needed <- c(
@@ -384,7 +394,8 @@ build_nitrogen_balance <- function(
     "cn_input",
     "tillage",
     "som_share",
-    "drainage_mm"
+    "drainage_mm",
+    .leaching_soil_cols(m$leaching_transport)
   )
   cli::cli_abort(
     c(
@@ -453,7 +464,15 @@ build_nitrogen_balance <- function(
 # ---- Private helpers: method validation ----------------------------------
 
 .nb_methods <- function(methods) {
-  valid_names <- c("nh3", "n2o", "n2o_indirect", "leaching", "regime")
+  valid_names <- c(
+    "nh3",
+    "n2o",
+    "n2o_indirect",
+    "leaching",
+    "leaching_transport",
+    "leaching_none_class",
+    "regime"
+  )
   unknown <- setdiff(names(methods), valid_names)
   if (length(unknown) > 0L) {
     # qty() pinned: the marker sat ahead of both interpolations, so cli had to
@@ -469,6 +488,8 @@ build_nitrogen_balance <- function(
   n2o <- methods$n2o %||% "ipcc2019"
   n2o_indirect <- methods$n2o_indirect %||% "ipcc2019"
   leaching <- methods$leaching %||% "meisinger_drainage"
+  transport <- methods$leaching_transport %||% "swat_mixing"
+  none_class <- methods$leaching_none_class %||% "retention"
   regime <- methods$regime %||% "yield_split"
   list(
     nh3 = rlang::arg_match(nh3, c("manner", "ipcc", "manner_default")),
@@ -483,6 +504,14 @@ build_nitrogen_balance <- function(
     leaching = rlang::arg_match(
       leaching,
       c("meisinger_drainage", "ipcc_fracleach")
+    ),
+    leaching_transport = rlang::arg_match(
+      transport,
+      c("swat_mixing", "burns", "residence_time")
+    ),
+    leaching_none_class = rlang::arg_match(
+      none_class,
+      c("retention", "waterlogged")
     ),
     regime = rlang::arg_match(
       regime,
@@ -1130,9 +1159,12 @@ build_nitrogen_balance <- function(
 # calculate_n_leaching() runs once per balance key (n_surplus_t is a
 # balance-level quantity, not per-fert_type): joins data$n_balance_
 # leaching_drivers (fert_type, climate, irrig_cat, land_use, cn_input,
-# tillage, som_share) at the balance key, and data$drainage_mm (a numeric
-# vector aligned to x, or a "drainage_mm" column already present via
-# n_balance_leaching_drivers).
+# tillage, som_share and the transport's soil columns) at the balance key,
+# and data$drainage_mm (a numeric vector aligned to x, or a "drainage_mm"
+# column already present via n_balance_leaching_drivers). The Meisinger
+# cascade carries the retained nitrate from year to year on the balance key
+# without its year (cell, polity, item and water regime), so every year of
+# the balance is threaded in order on that key.
 .nb_run_leaching <- function(x, m, data, key) {
   joined <- if (is.null(data$n_balance_leaching_drivers)) {
     x
@@ -1146,7 +1178,14 @@ build_nitrogen_balance <- function(
   }
   # calculate_n_leaching() stamps each row with the fraction it took (for
   # ipcc_fracleach, wet, dry irrigated or dry rainfed), so the stamp is kept.
-  calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching)
+  calculate_n_leaching(
+    joined,
+    drainage_mm = drainage,
+    method = m$leaching,
+    transport = m$leaching_transport,
+    none_class = m$leaching_none_class,
+    carry_over_by = setdiff(key, "year")
+  )
 }
 
 # n_balance_leaching_drivers is caller-supplied and documented as one row per
@@ -1236,6 +1275,7 @@ build_nitrogen_balance <- function(
     "no3_n_t",
     "denitrification_n_t",
     "retained_profile_n_t",
+    intersect("retained_carried_in_n_t", names(x)),
     "n2o_indirect_no3_n_t",
     "n2o_indirect_nh3_n_t",
     "n_balance_t",
@@ -1357,6 +1397,7 @@ build_nitrogen_balance <- function(
     ~no3_n_t,
     ~denitrification_n_t,
     ~retained_profile_n_t,
+    ~retained_carried_in_n_t,
     ~n2o_indirect_no3_n_t,
     ~n2o_indirect_nh3_n_t,
     ~n_balance_t,
@@ -1398,6 +1439,7 @@ build_nitrogen_balance <- function(
     12,
     3,
     0,
+    0,
     0.132,
     0.49,
     0,
@@ -1412,7 +1454,10 @@ build_nitrogen_balance <- function(
     "manner",
     "ipcc2019_wet_dry",
     "ipcc2019_wet_dry",
-    "meisinger_drainage",
+    paste0(
+      "meisinger_drainage;swat_mixing;none_retention;",
+      "initial_pool_steady_state"
+    ),
     "supplied"
   ) |>
     .add_reporting_polity_columns()

@@ -68,7 +68,8 @@
 #' `temp_c`, `temp_c_annual_mean`, `windspeed_ms`, `technique`, `system`,
 #' `incorporation_delay_h` and `species` (see [calculate_nh3()]); Meisinger
 #' reads `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`,
-#' `tillage`, `som_share` and `drainage_mm` (see [calculate_n_leaching()]).
+#' `tillage`, `som_share`, `drainage_mm`, `root_depth_cm` and its transport's
+#' soil columns (see [calculate_n_leaching()]).
 #' [build_nitrogen_balance()] refuses either before assembling any input
 #' unless its driver table is supplied.
 #'
