@@ -105,10 +105,12 @@ The methods it does not supply are later work. MANNER reads
 \code{incorporation_delay_h} and \code{species} (see \code{\link[=calculate_nh3]{calculate_nh3()}}); Meisinger
 reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input},
 \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm} and its transport's
-soil columns, and IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_n_t},
-\code{land_use}, \code{temp_c_annual_mean}, \code{soil_field_capacity},
-\code{soil_wilting_point}, \code{soil_texture_class}, \code{soil_drainage_class} and
-\code{soil_organic_carbon_pct} (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
+soil columns, and IMAGE-GNM reads \code{drainage_mm},
+\code{surface_runoff_fraction}, \code{slope_m_per_km} (both from
+\code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use}, \code{temp_c_annual_mean},
+\code{soil_field_capacity}, \code{soil_wilting_point}, \code{soil_texture_class},
+\code{soil_drainage_class} and \code{soil_organic_carbon_pct} (see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
 \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses any of them before assembling any input
 unless its driver table is supplied.
 

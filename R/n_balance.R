@@ -173,7 +173,9 @@
 #'   `no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus
 #'   plus, under `"meisinger_drainage"`, the nitrate the profile carried in
 #'   from the key's previous year, `retained_carried_in_n_t`, and less,
-#'   under `"image_gnm"`, the `surface_runoff_n_t` its drivers supply, see
+#'   under `"image_gnm"`, the `surface_runoff_n_t` it computes from the
+#'   inputs, to at most the surplus; `"image_gnm"` also reports the eroded
+#'   soil N, `erosion_n_t`, which no budget pays for; see
 #'   [calculate_n_leaching()]), the (post-cap)
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
@@ -259,11 +261,13 @@
 #'   and, by transport, `soil_porosity` (`"swat_mixing"`) or
 #'   `soil_field_capacity` (`"burns"`); see [calculate_n_leaching()].
 #'   Drivers must be supplied; global drivers planned.
-#' - Note 3: IMAGE-GNM reads `drainage_mm`, `surface_runoff_n_t`,
-#'   `land_use`, `temp_c_annual_mean`, `soil_field_capacity`,
-#'   `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
-#'   `soil_organic_carbon_pct`; see [calculate_n_leaching()]. Drivers must
-#'   be supplied; global drivers planned.
+#' - Note 3: IMAGE-GNM reads `drainage_mm`, `surface_runoff_fraction`,
+#'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`,
+#'   `temp_c_annual_mean`, `soil_field_capacity`, `soil_wilting_point`,
+#'   `soil_texture_class`, `soil_drainage_class` and
+#'   `soil_organic_carbon_pct`, plus the balance's own `n_input_std_t`,
+#'   `nh3_n_t` and `area_ha`; see [calculate_n_leaching()]. Drivers must be
+#'   supplied; global drivers planned.
 #'
 #' [build_nitrogen_balance()] refuses a method of note 1, 2 or 3 before
 #' assembling any input unless its driver table is supplied.
@@ -425,10 +429,7 @@ build_nitrogen_balance <- function(
       "drainage_mm",
       .leaching_soil_cols(m$leaching_transport)
     ),
-    image_gnm = c(
-      "drainage_mm",
-      setdiff(.gnm_driver_cols(), "n_surplus_t")
-    )
+    image_gnm = c("drainage_mm", .gnm_external_cols())
   )
 }
 
@@ -1297,7 +1298,10 @@ build_nitrogen_balance <- function(
     "no3_n_t",
     "denitrification_n_t",
     "retained_profile_n_t",
-    intersect(c("retained_carried_in_n_t", "surface_runoff_n_t"), names(x)),
+    intersect(
+      c("retained_carried_in_n_t", "surface_runoff_n_t", "erosion_n_t"),
+      names(x)
+    ),
     "n2o_indirect_no3_n_t",
     "n2o_indirect_nh3_n_t",
     "n_balance_t",

@@ -144,7 +144,9 @@ per-hectare rate), the input aggregates
 \code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus
 plus, under \code{"meisinger_drainage"}, the nitrate the profile carried in
 from the key's previous year, \code{retained_carried_in_n_t}, and less,
-under \code{"image_gnm"}, the \code{surface_runoff_n_t} its drivers supply, see
+under \code{"image_gnm"}, the \code{surface_runoff_n_t} it computes from the
+inputs, to at most the surplus; \code{"image_gnm"} also reports the eroded
+soil N, \code{erosion_n_t}, which no budget pays for; see
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
@@ -243,11 +245,13 @@ be supplied.\tabular{llll}{
 and, by transport, \code{soil_porosity} (\code{"swat_mixing"}) or
 \code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}.
 Drivers must be supplied; global drivers planned.
-\item Note 3: IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_n_t},
-\code{land_use}, \code{temp_c_annual_mean}, \code{soil_field_capacity},
-\code{soil_wilting_point}, \code{soil_texture_class}, \code{soil_drainage_class} and
-\code{soil_organic_carbon_pct}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must
-be supplied; global drivers planned.
+\item Note 3: IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_fraction},
+\code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use},
+\code{temp_c_annual_mean}, \code{soil_field_capacity}, \code{soil_wilting_point},
+\code{soil_texture_class}, \code{soil_drainage_class} and
+\code{soil_organic_carbon_pct}, plus the balance's own \code{n_input_std_t},
+\code{nh3_n_t} and \code{area_ha}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must be
+supplied; global drivers planned.
 }
 
 \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1, 2 or 3 before

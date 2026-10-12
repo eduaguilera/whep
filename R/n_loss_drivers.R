@@ -70,10 +70,12 @@
 #' `incorporation_delay_h` and `species` (see [calculate_nh3()]); Meisinger
 #' reads `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`,
 #' `tillage`, `som_share`, `drainage_mm`, `root_depth_cm` and its transport's
-#' soil columns, and IMAGE-GNM reads `drainage_mm`, `surface_runoff_n_t`,
-#' `land_use`, `temp_c_annual_mean`, `soil_field_capacity`,
-#' `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
-#' `soil_organic_carbon_pct` (see [calculate_n_leaching()]).
+#' soil columns, and IMAGE-GNM reads `drainage_mm`,
+#' `surface_runoff_fraction`, `slope_m_per_km` (both from
+#' [read_image_gnm_runoff()]), `land_use`, `temp_c_annual_mean`,
+#' `soil_field_capacity`, `soil_wilting_point`, `soil_texture_class`,
+#' `soil_drainage_class` and `soil_organic_carbon_pct` (see
+#' [calculate_n_leaching()]).
 #' [build_nitrogen_balance()] refuses any of them before assembling any input
 #' unless its driver table is supplied.
 #'

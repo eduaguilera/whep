@@ -1316,11 +1316,18 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
 # soil_hydraulic_by_texture) at 15 degC draining 100 mm/yr, so the top 1 m
 # holds tawc = 0.15 x 1,000 = 150 mm and T_r = 150 / 100 = 1.5 yr, with
 # f_K(15 degC) = 0.216327. Medium texture (f_text 0.1), moderately well
-# drained (f_drain 0.1) and 2% organic carbon (f_soc 0.1); no surface runoff.
+# drained (f_drain 0.1) and 2% organic carbon (f_soc 0.1). A surface runoff
+# fraction of 0 runs no nitrogen off (eq. 9), so the leaching tests below
+# read eqs. 10-14 alone; 100 ha on a flat cell erode a little soil, which
+# eq. 10 does not take from the budget.
 .gnm_rows <- function(n = 1L, ...) {
   base <- tibble::tibble(
     n_surplus_t = 100,
-    surface_runoff_n_t = 0,
+    n_input_std_t = 150,
+    nh3_n_t = 10,
+    area_ha = 100,
+    surface_runoff_fraction = 0,
+    slope_m_per_km = 0,
     land_use = "Cropland",
     temp_c_annual_mean = 15,
     soil_field_capacity = 0.29,
@@ -1338,9 +1345,12 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
 
 # Every image_gnm row closes eq. 10: the budget less surface runoff is leached
 # or denitrified, and nothing is retained or carried (IMAGE-GNM has no pool).
+# Surface runoff is a share of the inputs (eq. 9), so it can exceed the
+# surplus; the budget left is then 0, as in the authors' code, and the row
+# books the larger of the two.
 .expect_gnm_closes <- function(out) {
   testthat::expect_equal(
-    out$n_surplus_t,
+    pmax(out$n_surplus_t, out$surface_runoff_n_t),
     out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t,
     tolerance = 1e-12
   )
@@ -1527,19 +1537,174 @@ testthat::test_that("image_gnm caps the temperature effect at one", {
 })
 
 testthat::test_that("image_gnm leaches only the budget surface runoff leaves (eq. 10)", {
+  # Cropland, f_qsro 0.5 and 210 - 10 = 200 t of input net of ammonia:
+  # N_sro = 0.3 x 1 x 0.5 x 200 = 30 t (eq. 9), so 70 of the 100 t surplus
+  # is the budget of eq. 10. The second row's surplus of 20 t is below its
+  # 30 t of runoff: the authors' code leaves a budget of 0 (n_surface_
+  # runoff.py lines 121-122) and the row says so.
   out <- whep::calculate_n_leaching(
-    .gnm_rows(2L, surface_runoff_n_t = c(20, 100)),
+    .gnm_rows(
+      2L,
+      n_surplus_t = c(100, 20),
+      n_input_std_t = 210,
+      surface_runoff_fraction = 0.5
+    ),
     drainage_mm = 100,
     method = "image_gnm"
   )
+  testthat::expect_equal(out$surface_runoff_n_t, c(30, 30), tolerance = 1e-12)
   f_leach <- 1 - (.gnm_f_k(15) + 0.3)
-  testthat::expect_equal(out$no3_n_t, c(80 * f_leach, 0), tolerance = 1e-12)
+  testthat::expect_equal(out$no3_n_t, c(70 * f_leach, 0), tolerance = 1e-12)
   testthat::expect_equal(
     out$denitrification_n_t,
-    c(80 * (1 - f_leach), 0),
+    c(70 * (1 - f_leach), 0),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(
+    out$method_leaching,
+    c(
+      "image_gnm;tawc_top_1m;crop_residence_cap_1yr",
+      paste0(
+        "image_gnm;tawc_top_1m;crop_residence_cap_1yr;",
+        "surface_runoff_exceeds_budget"
+      )
+    )
+  )
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm computes surface runoff N by eq. 9 on two authors' cells", {
+  # f_qsro of two cells of the authors' 0.5-degree layer
+  # (water_input/pcrglobwb_100/fQsro.map of the paper's supplement): 5.25E
+  # 52.25N, 0.0135612, and 10.25E 46.25N, 0.524785. Eq. 9 (p. 4052):
+  # N_sro = f_cal f_qsro(landuse) f_qsro N_inp, with f_cal 0.3 and
+  # f_qsro(landuse) 1 on crops and 0.25 on grassland (Table 3, p. 4056).
+  # N_inp is the input net of ammonia, 200 - 20 and 80 - 8 t.
+  x <- .gnm_rows(
+    2L,
+    land_use = c("Cropland", "Grassland"),
+    surface_runoff_fraction = c(0.0135612, 0.524785),
+    n_input_std_t = c(200, 80),
+    nh3_n_t = c(20, 8)
+  )
+  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(0.3 * 1 * 0.0135612 * 180, 0.3 * 0.25 * 0.524785 * 72),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(0.7323048, 2.833839),
+    tolerance = 1e-7
+  )
+  # The budget of eq. 10 is the surplus less that runoff.
+  f_k <- .gnm_f_k(15)
+  f_leach <- c(1 - (f_k + 0.3), (1 - (f_k * 1.5 + 0.3)) * 0.36)
+  testthat::expect_equal(
+    out$no3_n_t,
+    (100 - out$surface_runoff_n_t) * f_leach,
     tolerance = 1e-12
   )
   .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm takes N_inp by land use as the authors' code does", {
+  # Natural vegetation runs off a share of its balance, f_qsro(nat) 0.125
+  # (n_surface_runoff.py line 128); crops and grassland a share of the input
+  # net of ammonia, floored at 0 (lines 96 and 112).
+  x <- .gnm_rows(
+    3L,
+    land_use = c("Natural", "Cropland", "Grassland"),
+    n_surplus_t = c(10, 100, 100),
+    surface_runoff_fraction = 0.111708,
+    n_input_std_t = c(500, 5, 40),
+    nh3_n_t = c(0, 8, 4)
+  )
+  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(0.3 * 0.125 * 0.111708 * 10, 0, 0.3 * 0.25 * 0.111708 * 36),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(out$surface_runoff_n_t[1], 0.0418905, tolerance = 1e-9)
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm computes erosion N on each land use (eq. 8)", {
+  # The authors' code (n_erosion.py lines 50-55, 88-135): erodibility
+  # -1.5 + 17 / (1 + exp(2.3 - 6.1 S / 1000)) times the texture factor
+  # (texture_erosion.vat: 1.5 medium, 0.5 coarse), soil loss per km2 of
+  # 1151, 99 and 29 t times it on crops, grassland and natural vegetation,
+  # and N = topsoil organic carbon x soil loss / C:N (12, 14, 14).
+  slope_factor <- function(s) -1.5 + 17 / (1 + exp(2.3 - 6.1 * s / 1000))
+  x <- .gnm_rows(
+    3L,
+    land_use = c("Cropland", "Grassland", "Natural"),
+    slope_m_per_km = c(1.2113556, 220.75122, 11.114079),
+    soil_texture_class = c("medium", "coarse", "medium"),
+    soil_organic_carbon_pct = c(2, 4, 1),
+    area_ha = c(1000, 500, 2000)
+  )
+  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  testthat::expect_equal(
+    out$erosion_n_t,
+    c(
+      slope_factor(1.2113556) * 1.5 * 1151 * 10 * 0.02 / 12,
+      slope_factor(220.75122) * 0.5 * 99 * 5 * 0.04 / 14,
+      slope_factor(11.114079) * 1.5 * 29 * 20 * 0.01 / 14
+    ),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$erosion_n_t,
+    c(1.7128436874917512, 2.2836236181895324, 0.09148988379762495),
+    tolerance = 1e-12
+  )
+  # Erosion is the soil's long-term memory (eq. 8), not the year's budget:
+  # the authors' code adds it to the river load and never takes it from the
+  # balance (N-model.py lines 242-243 and 307), so leaching is unchanged.
+  flat <- whep::calculate_n_leaching(
+    dplyr::mutate(x, area_ha = 0),
+    drainage_mm = 100,
+    method = "image_gnm"
+  )
+  testthat::expect_identical(flat$erosion_n_t, c(0, 0, 0))
+  testthat::expect_identical(flat$no3_n_t, out$no3_n_t)
+  testthat::expect_identical(flat$denitrification_n_t, out$denitrification_n_t)
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm reads every erosion texture class", {
+  testthat::expect_equal(
+    whep:::.gnm_runoff_factor(
+      c("coarse", "medium", "fine", "very_fine", "organic"),
+      "erosion_texture"
+    ),
+    c(0.5, 1.5, 1.5, 0.5, 0.5)
+  )
+  testthat::expect_equal(
+    whep:::.gnm_runoff_factor(
+      c("Cropland", "Grassland", "Natural"),
+      "runoff_land_use"
+    ),
+    c(1, 0.25, 0.125)
+  )
+  testthat::expect_error(
+    whep:::.gnm_runoff_factor("loam", "erosion_texture"),
+    class = "whep_leaching_class_value"
+  )
+})
+
+testthat::test_that("image_gnm refuses a supplied surface runoff", {
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      .gnm_rows(surface_runoff_n_t = 5),
+      drainage_mm = 100,
+      method = "image_gnm"
+    ),
+    class = "whep_gnm_runoff_supplied"
+  )
 })
 
 testthat::test_that("image_gnm keeps no pool across years", {
@@ -1563,7 +1728,11 @@ testthat::test_that("image_gnm keeps no pool across years", {
 testthat::test_that("image_gnm aborts on an absent or missing driver", {
   x <- .gnm_rows()
   needed <- c(
-    "surface_runoff_n_t",
+    "n_input_std_t",
+    "nh3_n_t",
+    "area_ha",
+    "surface_runoff_fraction",
+    "slope_m_per_km",
     "land_use",
     "temp_c_annual_mean",
     "soil_field_capacity",
@@ -1610,8 +1779,13 @@ testthat::test_that("image_gnm aborts on an impossible driver value", {
     dplyr::mutate(x, soil_field_capacity = 1.2),
     dplyr::mutate(x, soil_organic_carbon_pct = -1),
     dplyr::mutate(x, temp_c_annual_mean = Inf),
-    dplyr::mutate(x, surface_runoff_n_t = -1),
-    dplyr::mutate(x, surface_runoff_n_t = 101)
+    dplyr::mutate(x, surface_runoff_fraction = -0.1),
+    dplyr::mutate(x, surface_runoff_fraction = 1.2),
+    dplyr::mutate(x, slope_m_per_km = -1),
+    dplyr::mutate(x, area_ha = -1),
+    dplyr::mutate(x, n_input_std_t = -1),
+    dplyr::mutate(x, nh3_n_t = -1),
+    dplyr::mutate(x, n_surplus_t = -1)
   )
   for (row in bad) {
     testthat::expect_error(
@@ -1623,6 +1797,105 @@ testthat::test_that("image_gnm aborts on an impossible driver value", {
     whep::calculate_n_leaching(x, drainage_mm = -1, method = "image_gnm"),
     class = "whep_leaching_driver_value"
   )
+})
+
+testthat::test_that("the default Meisinger path is unchanged by IMAGE-GNM runoff", {
+  # Golden values from calculate_n_leaching() at commit 8ab9ea6d, before
+  # IMAGE-GNM computed its own surface runoff: the default
+  # meisinger_drainage with swat_mixing, threaded and single-year, and the
+  # burns transport.
+  rows <- tibble::tibble(
+    n_surplus_t = c(80, 100, 100, 60, 40, 55),
+    fert_type = c(
+      "Solid",
+      "Synthetic",
+      "Solid",
+      "Liquid",
+      "Synthetic",
+      "Solid"
+    ),
+    climate = c("MED", "ATL", "MED", "ATL", "MED", "ATL"),
+    irrig_cat = "Rainfed",
+    land_use = "Cropland",
+    cn_input = c(NA, 20, 40, NA, 12, 90),
+    tillage = c(
+      "Not_specified",
+      "Tillage",
+      "Not_specified",
+      "Not_specified",
+      "Tillage",
+      "Not_specified"
+    ),
+    som_share = c(0.06, 0.015, 0.04, 0.03, 0.06, 0.03),
+    root_depth_cm = c(100, 60, 120, 90, 100, 40),
+    soil_porosity = c(0.45, 0.40, 0.5, 0.42, 0.45, 0.38),
+    soil_field_capacity = 0.30,
+    temp_c_annual_mean = 15,
+    cell = c("a", "b", "a", "a", "b", "c"),
+    year = c(2003L, 2001L, 2001L, 2002L, 2003L, 2001L),
+    drainage_mm = c(600, 250, 900, 0, 45, 3500)
+  )
+  threaded <- whep::calculate_n_leaching(
+    rows,
+    drainage_mm = "drainage_mm",
+    carry_over_by = "cell"
+  )
+  testthat::expect_equal(
+    threaded$no3_n_t,
+    c(
+      47.776632259147078,
+      40.202953823230345,
+      46.677254954609317,
+      0,
+      5.594215086321622,
+      5.9193750000000005
+    ),
+    tolerance = 1e-14
+  )
+  testthat::expect_equal(
+    threaded$retained_profile_n_t,
+    c(
+      5.4885731545569296,
+      11.435596323446291,
+      3.762595820994898,
+      9.7625958209948962,
+      31.583928384682689,
+      0
+    ),
+    tolerance = 1e-14
+  )
+  single <- whep::calculate_n_leaching(rows, drainage_mm = "drainage_mm")
+  testthat::expect_equal(
+    single$denitrification_n_t,
+    c(
+      34.646396839747325,
+      59.797046176769655,
+      53.32274504539069,
+      54,
+      28.727969652569072,
+      49.080624999999998
+    ),
+    tolerance = 1e-14
+  )
+  burns <- whep::calculate_n_leaching(
+    rows,
+    drainage_mm = "drainage_mm",
+    transport = "burns"
+  )
+  testthat::expect_equal(
+    burns$no3_n_t,
+    c(
+      44.255871371805469,
+      38.310016919174416,
+      44.660373594788638,
+      0,
+      3.4040056852627241,
+      5.8493663043936923
+    ),
+    tolerance = 1e-14
+  )
+  testthat::expect_false(rlang::has_name(threaded, "surface_runoff_n_t"))
+  testthat::expect_false(rlang::has_name(threaded, "erosion_n_t"))
 })
 
 testthat::test_that("image_gnm aborts on a class outside its tables", {

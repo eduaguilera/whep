@@ -2343,7 +2343,8 @@ testthat::test_that("image_gnm names the drivers the builder lacks", {
   msg <- cli::ansi_strip(conditionMessage(err))
   for (col in c(
     "drainage_mm",
-    "surface_runoff_n_t",
+    "surface_runoff_fraction",
+    "slope_m_per_km",
     "land_use",
     "temp_c_annual_mean",
     "soil_field_capacity",
@@ -2360,7 +2361,8 @@ testthat::test_that("image_gnm leaching runs through the balance and closes", {
   data <- .nb_three_year_data()
   data$n_balance_leaching_drivers <- data$n_balance_leaching_drivers |>
     dplyr::mutate(
-      surface_runoff_n_t = 0,
+      surface_runoff_fraction = 0.2,
+      slope_m_per_km = 15,
       land_use = "Cropland",
       temp_c_annual_mean = 15,
       soil_field_capacity = 0.29,
@@ -2379,9 +2381,18 @@ testthat::test_that("image_gnm leaching runs through the balance and closes", {
     data = data
   ))
   testthat::expect_gt(sum(out$surplus_t), 0)
-  # eq. 10 and 11 on every row: no pool, the surplus leaches or denitrifies.
+  # eq. 9 on every row: cropland runs off 0.3 x 1 x 0.2 of its input net of
+  # ammonia, read from the balance's own n_input_std_t and nh3_n_t.
+  testthat::expect_gt(sum(out$surface_runoff_n_t), 0)
   testthat::expect_equal(
-    out$surplus_t,
+    out$surface_runoff_n_t,
+    0.3 * 0.2 * pmax(0, out$n_input_std_t - out$nh3_n_t),
+    tolerance = 1e-9
+  )
+  # eq. 10 and 11 on every row: no pool, the budget left after runoff
+  # leaches or denitrifies; a runoff above the surplus leaves no budget.
+  testthat::expect_equal(
+    pmax(out$surplus_t, out$surface_runoff_n_t),
     out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t,
     tolerance = 1e-9
   )
@@ -2394,9 +2405,13 @@ testthat::test_that("image_gnm leaching runs through the balance and closes", {
   f_leach <- 1 - (f_k * t_r[as.character(out$year)] + 0.3)
   testthat::expect_equal(
     out$no3_n_t,
-    unname(out$surplus_t * f_leach),
+    unname(pmax(0, out$surplus_t - out$surface_runoff_n_t) * f_leach),
     tolerance = 1e-9
   )
+  # Erosion N is reported on every row with an area, and taken from no
+  # budget.
+  testthat::expect_true(rlang::has_name(out, "erosion_n_t"))
+  testthat::expect_true(all(out$erosion_n_t >= 0))
   testthat::expect_true(all(startsWith(out$method_leaching, "image_gnm;")))
 })
 

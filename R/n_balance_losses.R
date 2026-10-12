@@ -250,14 +250,17 @@ calculate_soil_n2o <- function(
 #'
 #' `"image_gnm"` is the root-zone leaching and denitrification of IMAGE-GNM
 #' (Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
-#' doi:10.5194/gmd-8-4045-2015, eqs. 10-14, p. 4052, and Table 2, p. 4053).
-#' The budget left after surface runoff leaches in the share `f_leach`,
-#' `no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)` (eq. 10), and the
-#' rest of it denitrifies (`f_den = 1 - f_leach`), with
+#' doi:10.5194/gmd-8-4045-2015, eqs. 8-14, pp. 4051-4052, and Table 2,
+#' p. 4053). Surface runoff first carries off `surface_runoff_n_t`, a share of
+#' the year's nitrogen input (eq. 9). The budget left leaches in the share
+#' `f_leach`, `no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)`
+#' (eq. 10), and the rest of it denitrifies (`f_den = 1 - f_leach`), with
 #' `f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)] f_landuse`
-#' (eq. 11); see the IMAGE-GNM section under Details. IMAGE-GNM carries no
-#' nitrate from year to year, so every row closes
-#' `n_surplus_t = surface_runoff_n_t + no3_n_t + denitrification_n_t`.
+#' (eq. 11). Eroded soil carries `erosion_n_t` from the soil's own organic
+#' nitrogen (eq. 8), which no budget pays for. See the IMAGE-GNM section under
+#' Details. IMAGE-GNM carries no nitrate from year to year, so every row
+#' closes `max(n_surplus_t, surface_runoff_n_t) = surface_runoff_n_t +
+#' no3_n_t + denitrification_n_t`.
 #'
 #' @details
 #' ## Transport factor
@@ -334,11 +337,12 @@ calculate_soil_n2o <- function(
 #'
 #' ## IMAGE-GNM
 #'
-#' `method = "image_gnm"` follows Beusen et al. (2015), eqs. 10-14 (p. 4052)
-#' and Table 2 (p. 4053). Where the paper is silent or ambiguous it follows
-#' the authors' model code published with the paper
-#' (`N_model/trunk/tools/n_soil_denitrification.py`, the code that produced
-#' their results), as noted below.
+#' `method = "image_gnm"` follows Beusen et al. (2015), eqs. 8-14
+#' (pp. 4051-4052) and Table 2 (p. 4053). Where the paper is silent or
+#' ambiguous, or disagrees with the code, it follows the authors' model code
+#' published with the paper (doi:10.5194/gmd-8-4045-2015-supplement,
+#' `N_model/trunk/tools/`, the code that produced their results), as noted
+#' below.
 #'
 #' - `f_climate = f_K T_r` (eq. 12), with
 #'   `f_K = 7.94e12 exp(-74830 / (R K))` (eq. 13), `R = 8.3144` J/(mol K) and
@@ -366,10 +370,34 @@ calculate_soil_n2o <- function(
 #'   its lower bound, as in the authors' class code). `f_landuse` is 1 on
 #'   `"Cropland"` and 0.36 on `"Grassland"` and `"Natural"` (p. 4052, citing
 #'   Keuskamp et al. 2012).
-#' - `surface_runoff_n_t` is `N_sro` of eq. 10, the nitrogen surface runoff
-#'   carries off before the budget leaches. WHEP's balance has no surface
-#'   runoff term, so it must be supplied; a row supplying 0 states that
-#'   none runs off.
+#' - `surface_runoff_n_t` is `N_sro,rec` of eq. 9 (p. 4052), the nitrogen
+#'   surface runoff carries off from the year's inputs before the budget
+#'   leaches: `f_cal f_qsro(landuse) f_qsro N_inp`, with `f_cal = 0.3` and
+#'   `f_qsro(landuse)` 1 on cropland, 0.25 on grassland and 0.125 on natural
+#'   vegetation (Table 3, p. 4056; the authors' code,
+#'   `n_surface_runoff.py` lines 98, 114 and 128, uses the same values).
+#'   `f_qsro`, the product `f_qsro(slope) f_qsro(texture)` of eqs. 3-4
+#'   (p. 4049), is the column `surface_runoff_fraction`: the authors' own
+#'   0.5-degree layer, which their code reads instead of computing eq. 4
+#'   (see [read_image_gnm_runoff()]). `N_inp` follows the authors' code: on
+#'   cropland and grassland the input net of ammonia, `n_input_std_t -
+#'   nh3_n_t`, floored at 0 (`n_surface_runoff.py` lines 57-58, 96 and 112);
+#'   on natural vegetation the surplus `n_surplus_t` (line 128). Surface
+#'   runoff is a share of the input, so it can exceed the surplus; eq. 10 is
+#'   then negative, and the authors' code sets the budget to 0 (lines 106,
+#'   122 and 136), as here.
+#' - `erosion_n_t` is `N_sro,mem` of eq. 8 (p. 4052), the nitrogen of soil
+#'   lost to erosion, computed as the authors' code does (`n_erosion.py`
+#'   lines 47-55 and 88-135): an erodibility
+#'   `(-1.5 + 17 / (1 + exp(2.3 - 6.1 S / 1000)))` times a texture factor
+#'   (1.5 on medium and fine, 0.5 on the others), with `S` the median slope
+#'   `slope_m_per_km`; a soil loss of 1,151, 99 and 29 t per km2 per unit
+#'   erodibility on cropland, grassland and natural vegetation over `area_ha`;
+#'   and N = soil loss x `soil_organic_carbon_pct` / C:N, with C:N 12, 14
+#'   and 14 (p. 4052). The paper subtracts the whole of eq. 8 in eq. 10; the
+#'   authors' code subtracts only the runoff from the recent inputs and adds
+#'   the eroded N to the river load (`N-model.py` lines 233-243 and 307), so
+#'   `erosion_n_t` is reported and taken from no budget.
 #' - IMAGE-GNM keeps no root-zone nitrate from one year to the next, so
 #'   `retained_profile_n_t` and `retained_carried_in_n_t` are 0 by
 #'   construction, and `transport`, `none_class` and `carry_over_by` do not
@@ -377,8 +405,9 @@ calculate_soil_n2o <- function(
 #'
 #' Three parts of the authors' code are not reproduced. Its separate water
 #' capacities of dominant and suitable soils: WHEP has one soil per cell.
-#' Its land-use shares of surface runoff taken off the net precipitation:
-#' WHEP's drainage is already below the surface. And its 3 mm net
+#' Its excess water flow of eq. 5, `(1 - f_qsro(landuse) f_qsro)` times the
+#' total runoff (`n_soil_denitrification.py` lines 356, 376 and 399): WHEP's
+#' drainage is already below the surface. And its 3 mm net
 #' precipitation below which the excess water is set to 0: net
 #' precipitation is not a WHEP quantity. The code also interpolates `f_soc`
 #' linearly from 0 at 0% to 0.3 at 6% organic carbon instead of the printed
@@ -386,8 +415,10 @@ calculate_soil_n2o <- function(
 #'
 #' `method_leaching` is `image_gnm;tawc_top_1m`, followed where they apply
 #' by `no_drainage_residence_100yr` (`q_eff` of 0), `crop_residence_cap_1yr`
-#' (a cropland `T_r` above 1 year held at 1) and `temperature_effect_cap_1`
-#' (an `f_K` above 1 held at 1), joined with `;`.
+#' (a cropland `T_r` above 1 year held at 1), `temperature_effect_cap_1`
+#' (an `f_K` above 1 held at 1) and `surface_runoff_exceeds_budget` (a
+#' surface runoff above `n_surplus_t`, leaving a budget of 0), joined with
+#' `;`.
 #'
 #' ## Errors
 #'
@@ -405,9 +436,11 @@ calculate_soil_n2o <- function(
 #'   reads is absent or holds a missing value, or `drainage_mm` is absent or
 #'   missing.
 #' - `whep_leaching_driver_value`: a field capacity outside (0, 1], a
-#'   wilting point outside (0, field capacity), a negative organic carbon or
-#'   drainage, a non-finite temperature, or a surface runoff outside
-#'   [0, `n_surplus_t`].
+#'   wilting point outside (0, field capacity), a negative organic carbon,
+#'   drainage, slope, area, input, ammonia or surplus, a non-finite
+#'   temperature, or a surface runoff fraction outside [0, 1].
+#' - `whep_gnm_runoff_supplied`: `x` already holds `surface_runoff_n_t`,
+#'   which `"image_gnm"` computes; drop it rather than have it overwritten.
 #' - `whep_leaching_class_value`: a texture, drainage or land-use label
 #'   [image_gnm_leaching_factors] does not hold. The authors' code books an
 #'   unknown texture or drainage class as 0; here it aborts, because a class
@@ -429,10 +462,12 @@ calculate_soil_n2o <- function(
 #'   with `carry_over_by`; `method = "ipcc_fracleach"` requires
 #'   `moisture_regime` (`"wet"` or `"dry"`) and, on dry rows, `water_regime`
 #'   (`"rainfed"` or `"irrigated"`); `method = "image_gnm"` requires
-#'   `surface_runoff_n_t`, `land_use` (`"Cropland"`, `"Grassland"` or
-#'   `"Natural"`), `temp_c_annual_mean`, `soil_field_capacity`,
-#'   `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
-#'   `soil_organic_carbon_pct` (see Details).
+#'   `n_input_std_t`, `nh3_n_t`, `area_ha`, `surface_runoff_fraction`,
+#'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`
+#'   (`"Cropland"`, `"Grassland"` or `"Natural"`), `temp_c_annual_mean`,
+#'   `soil_field_capacity`, `soil_wilting_point`, `soil_texture_class`,
+#'   `soil_drainage_class` and `soil_organic_carbon_pct`, and no
+#'   `surface_runoff_n_t` (see Details).
 #' @param drainage_mm A numeric vector aligned to `x`'s rows giving annual
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
@@ -452,7 +487,8 @@ calculate_soil_n2o <- function(
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
 #'   `retained_profile_n_t`, `n2o_indirect_no3_n_t` and `method_leaching`
 #'   appended, plus `retained_carried_in_n_t` under `"meisinger_drainage"`
-#'   and `"image_gnm"`.
+#'   and `"image_gnm"`, and `surface_runoff_n_t` and `erosion_n_t` under
+#'   `"image_gnm"`.
 #' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 #'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
 #'   p. 11.25 (`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
@@ -1604,30 +1640,123 @@ calculate_indirect_n2o_nh3 <- function(
 
 # ---- Private helpers: IMAGE-GNM root-zone leaching -----------------------
 
-# image_gnm: Beusen et al. (2015), Geosci. Model Dev. 8:4045-4067, eqs. 10-14
-# (p. 4052) and Table 2 (p. 4053). The budget left after surface runoff
-# leaches in the share f_leach (eq. 10) and the rest denitrifies
-# (f_den = 1 - f_leach). IMAGE-GNM keeps no root-zone nitrate from one year
-# to the next, so the retained and carried-in pools are structural zeros of
-# the method, not estimates.
+# image_gnm: Beusen et al. (2015), Geosci. Model Dev. 8:4045-4067, eqs. 8-14
+# (pp. 4051-4052) and Table 2 (p. 4053). Surface runoff carries off a share of
+# the year's inputs (eq. 9); the budget left leaches in the share f_leach
+# (eq. 10) and the rest denitrifies (f_den = 1 - f_leach). Eroded soil N
+# (eq. 8) is reported but, as in the authors' code, taken from no budget.
+# IMAGE-GNM keeps no root-zone nitrate from one year to the next, so the
+# retained and carried-in pools are structural zeros of the method, not
+# estimates.
 .leaching_image_gnm <- function(x, drainage_mm) {
   drainage_mm <- .gnm_check_drivers(x, drainage_mm)
   factors <- .gnm_factors(x, drainage_mm)
-  budget <- x$n_surplus_t - x$surface_runoff_n_t
+  runoff <- .gnm_surface_runoff(x)
+  # Eq. 10 with a runoff above the surplus is negative; the authors' code
+  # floors the remaining balance at 0 (n_surface_runoff.py lines 106, 122
+  # and 136).
+  budget <- pmax(0, x$n_surplus_t - runoff)
   flows <- list(
     leached = factors$f_leach * budget,
     denitrified = (1 - factors$f_leach) * budget
   )
+  stamp <- paste0(
+    factors$stamp,
+    dplyr::if_else(
+      runoff > x$n_surplus_t,
+      ";surface_runoff_exceeds_budget",
+      ""
+    )
+  )
   ef5 <- .n_constant("ef5_no3_to_n2o")
   x |>
     dplyr::mutate(
+      surface_runoff_n_t = runoff,
+      erosion_n_t = .gnm_erosion(x),
       no3_n_t = flows$leached,
       denitrification_n_t = flows$denitrified,
       retained_profile_n_t = 0,
       retained_carried_in_n_t = 0,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
-      method_leaching = factors$stamp
+      method_leaching = stamp
     )
+}
+
+# Beusen et al. (2015) eq. 9 (p. 4052): N_sro,rec = f_cal f_qsro N_inp, with
+# f_qsro = f_qsro(slope) f_qsro(texture) f_qsro(landuse) (eq. 3, p. 4049).
+# The slope and texture product is the authors' 0.5-degree layer
+# (surface_runoff_fraction); the land-use factor is Table 3's (p. 4056).
+# N_inp as the authors' code takes it (n_surface_runoff.py): the input net
+# of ammonia on crops and grassland, floored at 0 (lines 57-58, 96 and 112),
+# and the balance on natural vegetation (line 128).
+.gnm_surface_runoff <- function(x) {
+  natural <- x$land_use == "Natural"
+  n_inp <- dplyr::if_else(
+    natural,
+    x$n_surplus_t,
+    pmax(0, x$n_input_std_t - x$nh3_n_t)
+  )
+  .n_constant("image_gnm_runoff_calibration") *
+    .gnm_runoff_factor(x$land_use, "runoff_land_use") *
+    x$surface_runoff_fraction *
+    n_inp
+}
+
+# N_sro,mem of eq. 8 (p. 4052), the N of eroded soil, as the authors' code
+# computes it (n_erosion.py): erodibility = slope factor x texture factor
+# (lines 47-55), soil loss = erodibility x the land use's loss per km2 x the
+# area (lines 88-116), and N = topsoil organic carbon x soil loss / C:N
+# (lines 120-135). area_ha / 100 is the area in km2; the soil loss is in
+# tonnes, so N is in tonnes.
+.gnm_erosion <- function(x) {
+  soil_loss_t <- .gnm_erodibility(x) *
+    .gnm_runoff_factor(x$land_use, "soil_loss") *
+    x$area_ha /
+    100
+  soil_loss_t *
+    x$soil_organic_carbon_pct /
+    100 /
+    .gnm_runoff_factor(x$land_use, "erosion_cn")
+}
+
+# The authors' erodibility (n_erosion.py lines 47-55): the slope factor
+# a + b / (1 + exp(c - d S / 1000)) of the median slope S in m/km (S / 1000
+# in m/m), times the texture factor of texture_erosion.vat.
+.gnm_erodibility <- function(x) {
+  slope_m_per_m <- x$slope_m_per_km / 1000
+  slope_factor <- .n_constant("image_gnm_erosion_slope_offset") +
+    .n_constant("image_gnm_erosion_slope_range") /
+      (1 +
+        exp(
+          .n_constant("image_gnm_erosion_slope_intercept") -
+            .n_constant("image_gnm_erosion_slope_rate") * slope_m_per_m
+        ))
+  slope_factor *
+    .gnm_runoff_factor(x$soil_texture_class, "erosion_texture")
+}
+
+# One factor of image_gnm_runoff_factors per label. A label the table does
+# not hold aborts rather than take a factor the source never gave it (the
+# authors' texture_erosion.vat gives its undefined class 0 a factor of 1,
+# which would read as a measured soil).
+.gnm_runoff_factor <- function(labels, factor) {
+  rows <- dplyr::filter(
+    whep::image_gnm_runoff_factors,
+    .data$factor == .env$factor
+  )
+  hit <- match(labels, rows$class)
+  if (anyNA(hit)) {
+    cli::cli_abort(
+      c(
+        "{sum(is.na(hit))} row{?s} carr{?ies/y} a {factor} class that
+         {.code image_gnm_runoff_factors} does not hold:
+         {.val {unique(labels[is.na(hit)])}}.",
+        i = "Expected one of {.val {rows$class}}."
+      ),
+      class = "whep_leaching_class_value"
+    )
+  }
+  rows$value[hit]
 }
 
 # Eqs. 11-14 per row: f_leach = [1 - min(f_climate + f_text + f_drain +
@@ -1736,11 +1865,23 @@ calculate_indirect_n2o_nh3 <- function(
   )
 }
 
-# The columns image_gnm reads from `x` (drainage arrives separately).
+# The columns image_gnm reads from `x` (drainage arrives separately): the
+# balance's own terms, then the drivers a caller supplies.
 .gnm_driver_cols <- function() {
+  c(.gnm_balance_cols(), .gnm_external_cols())
+}
+
+# The image_gnm columns a nitrogen balance row already carries.
+.gnm_balance_cols <- function() {
+  c("n_surplus_t", "n_input_std_t", "nh3_n_t", "area_ha")
+}
+
+# The image_gnm drivers a nitrogen balance does not hold, supplied in its
+# leaching driver table.
+.gnm_external_cols <- function() {
   c(
-    "n_surplus_t",
-    "surface_runoff_n_t",
+    "surface_runoff_fraction",
+    "slope_m_per_km",
     "land_use",
     "temp_c_annual_mean",
     "soil_field_capacity",
@@ -1755,6 +1896,17 @@ calculate_indirect_n2o_nh3 <- function(
 # rather than becoming a zero factor; then every value must be physical.
 # Returns the drainage recycled to the rows of `x`.
 .gnm_check_drivers <- function(x, drainage_mm) {
+  if (rlang::has_name(x, "surface_runoff_n_t")) {
+    cli::cli_abort(
+      c(
+        "{.code image_gnm} computes {.field surface_runoff_n_t} (eq. 9), but
+         {.arg x} already holds it.",
+        i = "Drop it, and supply {.field surface_runoff_fraction} from
+             {.fn read_image_gnm_runoff} instead."
+      ),
+      class = "whep_gnm_runoff_supplied"
+    )
+  }
   needed <- .gnm_driver_cols()
   present <- needed[rlang::has_name(x, needed)]
   with_na <- present[purrr::map_lgl(present, \(col) anyNA(x[[col]]))]
@@ -1778,14 +1930,22 @@ calculate_indirect_n2o_nh3 <- function(
 .gnm_check_values <- function(x, drainage_mm) {
   capacity <- x$soil_field_capacity
   wilting <- x$soil_wilting_point
-  runoff <- x$surface_runoff_n_t
+  fraction <- x$surface_runoff_fraction
+  non_negative <- c(
+    "soil_organic_carbon_pct",
+    "slope_m_per_km",
+    "area_ha",
+    "n_input_std_t",
+    "nh3_n_t",
+    "n_surplus_t"
+  )
   bad <- c(
     soil_field_capacity = any(capacity <= 0 | capacity > 1),
     soil_wilting_point = any(wilting <= 0 | wilting >= capacity),
-    soil_organic_carbon_pct = any(x$soil_organic_carbon_pct < 0),
+    purrr::map_lgl(rlang::set_names(non_negative), \(col) any(x[[col]] < 0)),
     temp_c_annual_mean = any(!is.finite(x$temp_c_annual_mean)),
     drainage_mm = any(drainage_mm < 0),
-    surface_runoff_n_t = any(runoff < 0 | runoff > x$n_surplus_t)
+    surface_runoff_fraction = any(fraction < 0 | fraction > 1)
   )
   if (any(bad)) {
     cli::cli_abort(
@@ -1793,8 +1953,9 @@ calculate_indirect_n2o_nh3 <- function(
         "{.field {names(bad)[bad]}} {?holds/hold} a value outside its
          physical range.",
         i = "Field capacity in (0, 1], wilting point in (0, field capacity),
-             non-negative organic carbon and drainage, a finite temperature,
-             and surface runoff in [0, {.field n_surplus_t}]."
+             non-negative organic carbon, drainage, slope, area, input,
+             ammonia and surplus, a finite temperature, and a surface runoff
+             fraction in [0, 1]."
       ),
       class = "whep_leaching_driver_value"
     )
