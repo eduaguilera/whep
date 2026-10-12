@@ -1,0 +1,8 @@
+drainage_code,hwsd_label,soil_drainage_class,source
+1,Very Poor,very_poorly_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+2,Poor,poorly_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+3,Imperfectly,imperfectly_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+4,Moderately Well,moderately_well_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+5,Well,well_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+6,Somewhat Excessive,somewhat_excessively_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"
+7,Excessive,excessively_drained,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2, table D_DRAINAGE of HWSD.mdb and HWSD_META.mdb (field DRAINAGE: drainage class on 0-0.5% slope; the documentation PDF p. 10 gives the basis but not the codes)"

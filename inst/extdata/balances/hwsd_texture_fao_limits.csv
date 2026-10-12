@@ -1,0 +1,4 @@
+limit,value_pct,source
+coarse_clay_max_pct,18,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 10, T_TEXTURE: coarse textured, less than 18 percent clay"
+coarse_sand_min_pct,65,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 10, T_TEXTURE: coarse textured, more than 65 percent sand"
+fine_clay_min_pct,35,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 10, T_TEXTURE: fine textured, more than 35 percent clay"
