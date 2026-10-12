@@ -304,7 +304,7 @@ missing.
 \item \code{whep_leaching_driver_value}: a field capacity outside (0, 1], a
 wilting point outside (0, field capacity), a negative organic carbon,
 drainage, slope, area, input, ammonia or surplus, a non-finite
-temperature, or a surface runoff fraction outside \link{0, 1}.
+temperature, or a surface runoff fraction outside \verb{[0, 1]}.
 \item \code{whep_gnm_runoff_supplied}: \code{x} already holds \code{surface_runoff_n_t},
 which \code{"image_gnm"} computes; drop it rather than have it overwritten.
 \item \code{whep_leaching_class_value}: a texture, drainage or land-use label

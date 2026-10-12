@@ -438,7 +438,7 @@ calculate_soil_n2o <- function(
 #' - `whep_leaching_driver_value`: a field capacity outside (0, 1], a
 #'   wilting point outside (0, field capacity), a negative organic carbon,
 #'   drainage, slope, area, input, ammonia or surplus, a non-finite
-#'   temperature, or a surface runoff fraction outside [0, 1].
+#'   temperature, or a surface runoff fraction outside `[0, 1]`.
 #' - `whep_gnm_runoff_supplied`: `x` already holds `surface_runoff_n_t`,
 #'   which `"image_gnm"` computes; drop it rather than have it overwritten.
 #' - `whep_leaching_class_value`: a texture, drainage or land-use label
