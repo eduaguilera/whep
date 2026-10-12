@@ -279,6 +279,7 @@ reference:
   - calculate_nh3
   - calculate_soil_n2o
   - calculate_n_leaching
+  - read_image_gnm_runoff
   - calculate_indirect_n2o_nh3
   - read_lpjml_wind
   - read_soil_ph
