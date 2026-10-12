@@ -208,45 +208,105 @@ calculate_soil_n2o <- function(
 #' Estimate nitrate leaching, topsoil denitrification and indirect N2O.
 #'
 #' @description
-#' Two methods for partitioning a nitrogen surplus into leached nitrate and
-#' topsoil-denitrified nitrogen. `"meisinger_drainage"` (the default) is the
-#' full cascade of the source implementation: bins annual drainage
-#' and soil organic matter share, looks up a topsoil denitrification share
-#' from [meisinger_denitrification], applies subsoil NO3 reduction
-#' ([subsoil_no3_reduction]) and a carbon-to-nitrogen leaching attenuation,
-#' then re-derives `denitrification_n_t` as the residual of `n_surplus_t`
-#' minus the computed `no3_n_t` (the raw denitrification share is only an
-#' intermediate; see Details). `"ipcc_fracleach"` is the IPCC 2019 Tier 1
-#' leached fraction, keyed on `moisture_regime` and `water_regime`, with
-#' every factor read from [ipcc_2019_soil_n_ef]: `FracLEACH-(H)` is 0.24 on
-#' wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
-#' Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
-#' or in dry climate regions where irrigation (other than drip irrigation)
-#' is used"), and `EF5` is 0.011 (Table 11.3 (Updated) p. 11.26). All
-#' irrigation is treated as non-drip, since no layer says which is drip:
-#' an upper-bound assumption for dry irrigated land. On wet and dry irrigated
-#' rows the rest of the surplus is booked as `denitrification_n_t`, as in the
-#' Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
-#' as `retained_profile_n_t`, nitrogen left in the soil profile, and
-#' `denitrification_n_t` is 0: FracLEACH says that surplus does not leach,
-#' not that it denitrifies, and no method here estimates its fate. Each row
-#' is stamped `"ipcc_fracleach_wet"`, `"ipcc_fracleach_dry_irrigated"` or
-#' `"ipcc_fracleach_dry_rainfed_retained"`. Under either method
+#' Two methods for partitioning a nitrogen surplus into leached nitrate,
+#' denitrified nitrogen and nitrate retained in the soil profile.
+#'
+#' `"meisinger_drainage"` (the default) is a transport-limited Meisinger
+#' cascade. Each year the surplus `S` and the nitrate the profile retained the
+#' year before, `C_in` (`retained_carried_in_n_t`), pass through it together:
+#' the nitrate available for transport is
+#' `A = (S + C_in) (1 - d) (1 - a_cn)`, with `d` the topsoil denitrification
+#' share looked up from [meisinger_denitrification] by drainage class, soil
+#' organic matter class, fertiliser class and climate, and `a_cn` the
+#' carbon-to-nitrogen leaching attenuation. A transport factor `f` of the
+#' annual drainage `D` sets how much of `A` leaves the root zone, and the
+#' subsoil reduction `red` ([subsoil_no3_reduction]) acts on what leaves:
+#' `no3_n_t = A f (1 - red)`, `retained_profile_n_t = A (1 - f)`, and
+#' `denitrification_n_t = S + C_in - no3_n_t - retained_profile_n_t` (all the
+#' gaseous and subsoil sinks). The retained nitrate is next year's `C_in` on
+#' the same row key, so every row closes
+#' `n_surplus_t + retained_carried_in_n_t = no3_n_t + denitrification_n_t +
+#' retained_profile_n_t`.
+#'
+#' `"ipcc_fracleach"` is the IPCC 2019 Tier 1 leached fraction, keyed on
+#' `moisture_regime` and `water_regime`, with every factor read from
+#' [ipcc_2019_soil_n_ef]: `FracLEACH-(H)` is 0.24 on wet rows and on dry
+#' irrigated rows and 0 on dry rainfed rows (IPCC 2019 Refinement Vol 4 Ch 11
+#' Section 11.2.2.2 p. 11.25: 0.24 "for wet climates or in dry climate
+#' regions where irrigation (other than drip irrigation) is used"), and `EF5`
+#' is 0.011 (Table 11.3 (Updated) p. 11.26). All irrigation is treated as
+#' non-drip, since no layer says which is drip: an upper-bound assumption for
+#' dry irrigated land. On wet and dry irrigated rows the rest of the surplus
+#' is booked as `denitrification_n_t`. On dry rainfed rows, where FracLEACH is
+#' 0, it is booked as `retained_profile_n_t`, nitrogen left in the soil
+#' profile, and `denitrification_n_t` is 0: FracLEACH says that surplus does
+#' not leach, not that it denitrifies, and no method here estimates its fate.
+#' That retained term is a flux of the year, not carried into the next one.
+#' Each row is stamped `"ipcc_fracleach_wet"`,
+#' `"ipcc_fracleach_dry_irrigated"` or
+#' `"ipcc_fracleach_dry_rainfed_retained"`, and
 #' `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
 #' `n_surplus_t`.
 #'
 #' @details
-#' For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
-#' twice: first as `n_surplus_t * denit_share` (the raw Meisinger share) to
-#' derive `no3_n_t`, then overwritten as `n_surplus_t - no3_n_t`, as in the
-#' source implementation. The RETURNED `denitrification_n_t` is this second,
-#' residual value, not the raw share product; this is a deliberate two-step
-#' sequence in the source, not a redundant computation to simplify away.
+#' ## Transport factor
+#'
+#' `transport` selects `f(D)`, with `D` the annual drainage (mm), `h` the
+#' root-zone depth `root_depth_cm`, `phi` the porosity `soil_porosity` and
+#' `theta_fc` the volumetric field capacity `soil_field_capacity`:
+#'
+#' - `"swat_mixing"` (default): the SWAT well-mixed layer,
+#'   `f = 1 - exp(-D / ((1 - theta_e) phi h))` with `h` in mm and the anion
+#'   exclusion fraction `theta_e = 0.5` (Neitsch et al. 2011, SWAT 2009
+#'   Theoretical Documentation, TR-406, eqs. 4:2.1.2 to 4:2.1.8, pp. 269-270;
+#'   `theta_e` default from the SWAT Input/Output File Documentation,
+#'   Version 2012, ch. 22, p. 304).
+#' - `"burns"`: Burns' displacement for a solute incorporated uniformly
+#'   through the root zone, `f = (P / (P + theta_fc))^(h / 2)`, with `P` the
+#'   drainage and `h` the depth, both in cm (Burns 1976, J. Agric. Sci.
+#'   86:305-313, doi:10.1017/S0021859600054769).
+#' - `"residence_time"`: the steady-state root-zone residence time of
+#'   IMAGE-GNM (Beusen et al. 2015, Geosci. Model Dev. 8:4045-4067,
+#'   doi:10.5194/gmd-8-4045-2015, eqs. 12-14, p. 4052). Water and nitrate
+#'   stay `tau = theta_fc h / D` years in the root zone (`h` and `D` in the
+#'   same length unit), where they denitrify at the first-order rate
+#'   `k = 7.94e12 exp(-74830 / (R T))` per year, with `T` the mean annual
+#'   temperature `temp_c_annual_mean` in kelvin and `R = 8.3144` J/(mol K).
+#'   The share that leaves undenitrified is `1 / (1 + k tau)`. This replaces
+#'   Meisinger's `d`: the residence-time denitrification `k tau / (1 + k tau)`
+#'   takes the place of `d`, [meisinger_denitrification] is not read (nor
+#'   `tillage` and `som_share`), and everything not denitrified leaves within
+#'   the year (`f = 1`), so nothing is retained and `none_class` does not
+#'   apply. At `D = 0` the residence time is infinite and the whole surplus
+#'   denitrifies, as eq. 14 implies.
+#'
+#' Every constant is read from [n_attenuation_constants]. The columns a
+#' transport reads must be present and non-missing on every row:
+#' `"swat_mixing"` reads `root_depth_cm` and `soil_porosity`, `"burns"`
+#' `root_depth_cm` and `soil_field_capacity`, and `"residence_time"`
+#' `root_depth_cm`, `soil_field_capacity` and `temp_c_annual_mean`.
+#'
+#' ## Zero drainage and deep vadose storage
+#'
+#' Where `D <= 0` nothing is transported (`f = 0`). The year's own available
+#' nitrate `S (1 - d) (1 - a_cn)` is retained, and the carried pool `C_in`
+#' is held as deep vadose storage: it is neither denitrified nor leached that
+#' year and re-enters the cascade in the next year that drains (Walvoord et
+#' al. 2003, Science, doi:10.1126/science.1086435; Ascott et al. 2017, Nat.
+#' Commun., doi:10.1038/s41467-017-01321-w). Such rows carry the field
+#' `vadose_storage`.
+#'
+#' ## Drainage classes
+#'
 #' Drainage and soil organic matter bins are matched with the source's
-#' strictly-open `s_min < s < s_max` filter: a value
-#' exactly on a shared bin edge, or outside the covered range, matches no
-#' bin and aborts via the unmatched-row check (the source drops it),
-#' rather than being pulled into an adjacent or ceiling bin.
+#' strictly-open `s_min < s < s_max` filter: a value exactly on a shared bin
+#' edge, or below the lowest bin, matches no bin and aborts via the
+#' unmatched-row check rather than being pulled into an adjacent bin. The
+#' top drainage bin is open: drainage of 3,000 mm and above takes the
+#' `Very_high` share. Meisinger's `None` class (drainage below 0.1 mm/yr) is
+#' set by `none_class`: `"retention"` (default) takes the `Very_low` row's
+#' share, so what does not denitrify is retained or stored; `"waterlogged"`
+#' keeps the table's literal `None` rows, which denitrify the whole surplus.
 #'
 #' Manure/organic rows (`fert_cat == "Manure"`, i.e. every `fert_type`
 #' other than `"Synthetic"`) always join the Meisinger table's
@@ -254,35 +314,77 @@ calculate_soil_n2o <- function(
 #' rows join on `x$tillage`, but only `"Tillage"` exists in the source's
 #' synthetic block: a synthetic row with `tillage == "No_tillage"` aborts.
 #'
+#' ## Carry-over across years
+#'
+#' With `carry_over_by`, rows are threaded per key in year order: each row's
+#' `C_in` is the `retained_profile_n_t` of its key's previous row. A key's
+#' first row starts at the steady state of that year's fluxes,
+#' `C_in = S r / (1 - r)` with `r = (1 - d) (1 - a_cn) (1 - f)` the share of
+#' the pool's input that stays (field `initial_pool_steady_state`); a key
+#' whose first year does not drain has no finite steady state and starts at
+#' 0 (field `initial_vadose_zero`). Later rows carry the field
+#' `carried_pool`. A key absent from a year of the run keeps its pool on the
+#' key: the pool is neither moved to another key nor dropped, and re-enters
+#' when the key reappears. The row whose pool waits that way, the key's last
+#' row before a run year it lacks, carries the field `pool_held_absent_key`.
+#' Over a run, the sum of `n_surplus_t` equals the sums of `no3_n_t` and
+#' `denitrification_n_t`, plus each key's last `retained_profile_n_t`, minus
+#' each key's first `retained_carried_in_n_t`. Without `carry_over_by` every
+#' row is its own key's first and only year.
+#'
+#' `method_leaching` joins these fields with `;`: `meisinger_drainage`; the
+#' transport; `none_retention` or `none_waterlogged` (not under
+#' `"residence_time"`); the pool field; and, optionally, `vadose_storage`
+#' and `pool_held_absent_key`.
+#'
+#' ## Errors
+#'
+#' - `whep_missing_leaching_driver` (also `whep_absent_input`): a driver
+#'   column the transport reads is absent or holds a missing value, or
+#'   `drainage_mm` is absent or missing.
+#' - `whep_leaching_driver_value`: a non-positive `root_depth_cm`, a porosity
+#'   or field capacity outside (0, 1], or a drainage at or below -0.1 mm.
+#' - `whep_leaching_carry_key`: `carry_over_by` names an absent column, `x`
+#'   has no `year`, or a key occurs twice in one year.
+#'
 #' For `method = "ipcc_fracleach"`, a missing or invalid `moisture_regime`
 #' aborts as in [calculate_soil_n2o()], and a dry row without a
 #' `water_regime` aborts (`whep_missing_water_regime` for an absent column,
 #' `whep_water_regime_value` for a missing or unknown value, naming the
 #' count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 #' surplus, so a dry row of unknown regime has no defensible fraction. Wet
-#' rows need no `water_regime`.
+#' rows need no `water_regime`. `transport`, `none_class` and
+#' `carry_over_by` do not apply to it.
 #'
 #' @param x A tibble with `n_surplus_t`. `method = "meisinger_drainage"`
 #'   requires `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`
-#'   (may be `NA`), `tillage` (checked only for synthetic rows) and
-#'   `som_share`; `method = "ipcc_fracleach"` requires `moisture_regime`
-#'   (`"wet"` or `"dry"`) and, on dry rows, `water_regime` (`"rainfed"` or
-#'   `"irrigated"`).
+#'   (may be `NA`), `tillage` (checked only for synthetic rows), `som_share`
+#'   and the soil columns its `transport` reads (see Details), plus `year`
+#'   with `carry_over_by`; `method = "ipcc_fracleach"` requires
+#'   `moisture_regime` (`"wet"` or `"dry"`) and, on dry rows, `water_regime`
+#'   (`"rainfed"` or `"irrigated"`).
 #' @param drainage_mm A numeric vector aligned to `x`'s rows giving annual
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
 #'   because in the full pipeline it flows in from Module A's gridded water
 #'   balance.
 #' @param method `"meisinger_drainage"` (default) or `"ipcc_fracleach"`.
+#' @param transport The transport factor of `"meisinger_drainage"`:
+#'   `"swat_mixing"` (default), `"burns"` or `"residence_time"`.
+#' @param none_class How `"meisinger_drainage"` prices Meisinger's `None`
+#'   drainage class: `"retention"` (default) or `"waterlogged"`.
+#' @param carry_over_by Character vector of the columns that key a row
+#'   across years (every key column but `year`), or `NULL` (default) to treat
+#'   each row as a single year.
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
-#'   `retained_profile_n_t` (0 under `"meisinger_drainage"`, which books
-#'   every non-leached tonne as denitrified), `n2o_indirect_no3_n_t` and
-#'   `method_leaching` appended.
+#'   `retained_profile_n_t`, `n2o_indirect_no3_n_t` and `method_leaching`
+#'   appended, plus `retained_carried_in_n_t` under `"meisinger_drainage"`.
 #' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
 #'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
 #'   p. 11.25 (`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
+#'   The transport sources are cited under Details.
 #' @export
 #' @examples
 #' calculate_n_leaching(example = TRUE)
@@ -290,17 +392,23 @@ calculate_n_leaching <- function(
   x,
   drainage_mm = NULL,
   method = c("meisinger_drainage", "ipcc_fracleach"),
+  transport = c("swat_mixing", "burns", "residence_time"),
+  none_class = c("retention", "waterlogged"),
+  carry_over_by = NULL,
   example = FALSE
 ) {
   method <- rlang::arg_match(method)
+  transport <- rlang::arg_match(transport)
+  none_class <- rlang::arg_match(none_class)
   if (isTRUE(example)) {
     return(.example_n_leaching())
   }
   if (method == "ipcc_fracleach") {
-    .leaching_ipcc_fracleach(x)
-  } else {
-    .leaching_meisinger(x, .leaching_drainage_values(x, drainage_mm))
+    return(.leaching_ipcc_fracleach(x))
   }
+  drainage <- .leaching_drainage_values(x, drainage_mm)
+  options <- list(transport = transport, none_class = none_class)
+  .leaching_meisinger(x, drainage, options, carry_over_by)
 }
 
 #' Estimate indirect N2O from volatilised ammonia.
@@ -956,27 +1064,26 @@ calculate_indirect_n2o_nh3 <- function(
   dry & regime == "irrigated"
 }
 
-# meisinger_drainage: bin drainage + SOM, look up the topsoil
-# denitrification share, apply subsoil NO3 reduction and the C:N
-# attenuation, then re-derive denitrification_n_t as the residual.
-.leaching_meisinger <- function(x, drainage_mm) {
-  fert_cat <- dplyr::if_else(x$fert_type == "Synthetic", "Synthetic", "Manure")
-  .leaching_check_tillage(x, fert_cat)
-  denit_share <- .leaching_denit_share(x, fert_cat, drainage_mm)
-  a_cn <- .leaching_a_cn(x)
-  no3_red <- .leaching_no3_red(x)
-  raw_denit <- x$n_surplus_t * denit_share
-  no3_n_t <- (x$n_surplus_t - raw_denit) * (1 - no3_red) * (1 - a_cn)
+# meisinger_drainage: the transport-limited cascade. Per row, the surplus and
+# the carried-in pool lose the topsoil denitrification share and the C:N
+# attenuation; the transport factor moves part of the rest out of the root
+# zone, where subsoil reduction acts on it, and the remainder is retained and
+# carried into the key's next year.
+.leaching_meisinger <- function(x, drainage_mm, options, carry_over_by) {
+  drainage_mm <- .leaching_check_drainage(drainage_mm, nrow(x))
+  .leaching_check_soil(x, options$transport)
+  rates <- .leaching_rates(x, drainage_mm, options)
+  pool <- .leaching_thread_pool(x, rates, carry_over_by)
+  flows <- .leaching_cascade(x$n_surplus_t, pool$carried_in, rates)
   ef5 <- .n_constant("ef5_no3_to_n2o")
-  # The cascade books every non-leached tonne as denitrified, so nothing is
-  # retained in the profile: a structural zero of the method.
   x |>
     dplyr::mutate(
-      no3_n_t = .env$no3_n_t,
-      denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
-      retained_profile_n_t = 0,
+      no3_n_t = flows$leached,
+      denitrification_n_t = flows$denitrified,
+      retained_profile_n_t = flows$retained,
+      retained_carried_in_n_t = pool$carried_in,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
-      method_leaching = "meisinger_drainage"
+      method_leaching = .leaching_stamp(options, rates$drained, pool)
     )
 }
 
@@ -997,7 +1104,7 @@ calculate_indirect_n2o_nh3 <- function(
   }
 }
 
-.leaching_denit_share <- function(x, fert_cat, drainage_mm) {
+.leaching_denit_share <- function(x, fert_cat, drainage_mm, none_class) {
   tillage_join <- dplyr::if_else(
     fert_cat == "Synthetic",
     x$tillage,
@@ -1012,11 +1119,12 @@ calculate_indirect_n2o_nh3 <- function(
   )
   drainage_rate <- .bin_range(
     drainage_mm,
-    whep::drainage_ranges,
+    .leaching_drainage_bins(),
     "drainage_rate",
     "s_min",
     "s_max"
-  )
+  ) |>
+    .leaching_none_class(none_class)
   tibble::tibble(
     fert_cat = fert_cat,
     tillage = tillage_join,
@@ -1039,6 +1147,31 @@ calculate_indirect_n2o_nh3 <- function(
       "meisinger_denitrification",
       "fert_cat/tillage/som_content/drainage_rate/climate"
     )
+}
+
+# The top drainage bin is open: drainage at or beyond its tabulated 3,000 mm
+# upper bound is still Very_high rather than an unmatched row. The other
+# bins keep the source's strictly-open edges.
+.leaching_drainage_bins <- function() {
+  dplyr::mutate(
+    whep::drainage_ranges,
+    s_max = dplyr::if_else(
+      .data$s_max == max(.data$s_max),
+      Inf,
+      .data$s_max
+    )
+  )
+}
+
+# Meisinger's None class (drainage below 0.1 mm/yr) denitrifies the whole
+# surplus in the literal table ("waterlogged"). Under "retention" it takes
+# the Very_low row's share, so what does not denitrify is retained or
+# stored rather than booked as denitrified.
+.leaching_none_class <- function(drainage_rate, none_class) {
+  if (none_class == "waterlogged") {
+    return(drainage_rate)
+  }
+  dplyr::if_else(drainage_rate %in% "None", "Very_low", drainage_rate)
 }
 
 # meisinger_denitrification and subsoil_no3_reduction are lookup tables with
@@ -1093,6 +1226,353 @@ calculate_indirect_n2o_nh3 <- function(
     ) |>
     dplyr::pull("no3_red") |>
     .leaching_check_na("subsoil_no3_reduction", "fert_type/climate/irrig_cat")
+}
+
+# ---- Private helpers: Meisinger transport and carry-over -----------------
+
+# Drainage is the transport driver, so a row without it has no partition. The
+# lowest Meisinger bin (None) starts above -0.1 mm: a drainage at or below it
+# is outside the method. A single value applies to every row.
+.leaching_check_drainage <- function(drainage_mm, n) {
+  if (is.null(drainage_mm) || anyNA(drainage_mm)) {
+    cli::cli_abort(
+      c(
+        "{.code meisinger_drainage} needs an annual drainage on every row.",
+        i = "{.arg drainage_mm} is absent or missing on
+             {sum(is.na(drainage_mm))} row{?s}; supply it as a vector aligned
+             to {.arg x} or as the name of a column of {.arg x}."
+      ),
+      class = c("whep_missing_leaching_driver", "whep_absent_input")
+    )
+  }
+  drainage <- vctrs::vec_recycle(drainage_mm, n, x_arg = "drainage_mm")
+  floor_mm <- min(whep::drainage_ranges$s_min)
+  low <- drainage <= floor_mm
+  if (any(low)) {
+    cli::cli_abort(
+      c(
+        "{sum(low)} drainage value{?s} {?is/are} at or below
+         {floor_mm} mm, outside every Meisinger drainage class.",
+        i = "Lowest value: {.val {min(drainage)}} mm."
+      ),
+      class = "whep_leaching_driver_value"
+    )
+  }
+  drainage
+}
+
+# The soil columns each transport reads (see calculate_n_leaching()).
+.leaching_soil_cols <- function(transport) {
+  switch(
+    transport,
+    swat_mixing = c("root_depth_cm", "soil_porosity"),
+    burns = c("root_depth_cm", "soil_field_capacity"),
+    residence_time = c(
+      "root_depth_cm",
+      "soil_field_capacity",
+      "temp_c_annual_mean"
+    )
+  )
+}
+
+# A transport without its soil columns has no defensible value, so an absent
+# column or a missing value aborts here instead of becoming a zero transport.
+.leaching_check_soil <- function(x, transport) {
+  needed <- .leaching_soil_cols(transport)
+  present <- needed[rlang::has_name(x, needed)]
+  with_na <- present[purrr::map_lgl(present, \(col) anyNA(x[[col]]))]
+  missing <- c(setdiff(needed, present), with_na)
+  if (length(missing) > 0L) {
+    cli::cli_abort(
+      c(
+        "The {.val {transport}} transport reads {.field {missing}}, absent
+         from {.arg x} or missing on some row.",
+        i = "Supply {.field {needed}} with the leaching drivers."
+      ),
+      class = c("whep_missing_leaching_driver", "whep_absent_input")
+    )
+  }
+  bad <- needed[purrr::map_lgl(
+    needed,
+    \(col) any(.leaching_soil_value_bad(x[[col]], col))
+  )]
+  if (length(bad) > 0L) {
+    cli::cli_abort(
+      c(
+        "{.field {bad}} {?holds/hold} a value outside its physical range.",
+        i = "{.field root_depth_cm} must be positive and
+             {.field soil_porosity} and {.field soil_field_capacity} in
+             (0, 1]."
+      ),
+      class = "whep_leaching_driver_value"
+    )
+  }
+  invisible(x)
+}
+
+.leaching_soil_value_bad <- function(values, col) {
+  switch(
+    col,
+    root_depth_cm = values <= 0,
+    soil_porosity = values <= 0 | values > 1,
+    soil_field_capacity = values <= 0 | values > 1,
+    temp_c_annual_mean = !is.finite(values)
+  )
+}
+
+# The per-row shares of the cascade: topsoil denitrification `denit_share`,
+# C:N attenuation `a_cn`, subsoil reduction `no3_red`, transport factor
+# `transport`, and whether the row drains at all.
+.leaching_rates <- function(x, drainage_mm, options) {
+  drained <- drainage_mm > 0
+  shares <- if (options$transport == "residence_time") {
+    .leaching_rates_residence(x, drainage_mm, drained)
+  } else {
+    .leaching_rates_meisinger(x, drainage_mm, options)
+  }
+  c(
+    shares,
+    list(
+      drained = drained,
+      a_cn = .leaching_a_cn(x),
+      no3_red = .leaching_no3_red(x)
+    )
+  )
+}
+
+.leaching_rates_meisinger <- function(x, drainage_mm, options) {
+  fert_cat <- dplyr::if_else(x$fert_type == "Synthetic", "Synthetic", "Manure")
+  .leaching_check_tillage(x, fert_cat)
+  list(
+    denit_share = .leaching_denit_share(
+      x,
+      fert_cat,
+      drainage_mm,
+      options$none_class
+    ),
+    transport = if (options$transport == "swat_mixing") {
+      .leaching_f_swat(drainage_mm, x$soil_porosity, x$root_depth_cm)
+    } else {
+      .leaching_f_burns(drainage_mm, x$soil_field_capacity, x$root_depth_cm)
+    }
+  )
+}
+
+# IMAGE-GNM's steady-state root zone (Beusen et al. 2015, GMD 8:4045-4067,
+# eqs. 12-14, p. 4052): water and nitrate stay tau years, denitrifying at
+# rate k, so 1 / (1 + k tau) leaves undenitrified. That denitrification takes
+# the place of Meisinger's d, and what survives it leaves within the year
+# (transport 1). Without drainage tau is infinite and d is 1.
+.leaching_rates_residence <- function(x, drainage_mm, drained) {
+  k_tau <- .leaching_denit_rate(x$temp_c_annual_mean) *
+    .leaching_residence_years(
+      drainage_mm,
+      x$soil_field_capacity,
+      x$root_depth_cm
+    )
+  list(
+    denit_share = 1 - 1 / (1 + k_tau),
+    transport = as.numeric(drained)
+  )
+}
+
+# SWAT 2009 well-mixed layer (Neitsch et al. 2011, TR-406, eqs. 4:2.1.2 to
+# 4:2.1.8, pp. 269-270): the percolate mixes with the mobile water, the
+# (1 - theta_e) share of the layer's saturated water content (porosity x
+# depth, mm), and carries 1 - exp(-percolate / mobile water) of its nitrate.
+# theta_e is the ANION_EXCL default 0.5 (SWAT Input/Output File
+# Documentation, Version 2012, ch. 22, p. 304). No drainage, no transport.
+.leaching_f_swat <- function(drainage_mm, soil_porosity, root_depth_cm) {
+  theta_e <- .n_constant("swat_anion_exclusion")
+  mobile_mm <- (1 - theta_e) * soil_porosity * root_depth_cm * 10
+  dplyr::if_else(drainage_mm > 0, 1 - exp(-drainage_mm / mobile_mm), 0)
+}
+
+# Burns (1976, J. Agric. Sci. 86:305-313, doi:10.1017/S0021859600054769),
+# solute incorporated uniformly through the root zone: the share displaced
+# below depth h (cm) by P cm of drainage through soil of volumetric field
+# capacity theta_fc is (P / (P + theta_fc))^(h / 2). No drainage, no
+# transport.
+.leaching_f_burns <- function(drainage_mm, soil_field_capacity, root_depth_cm) {
+  drainage_cm <- drainage_mm / 10
+  displaced <- (drainage_cm /
+    (drainage_cm + soil_field_capacity))^(root_depth_cm / 2)
+  dplyr::if_else(drainage_mm > 0, displaced, 0)
+}
+
+# Beusen et al. (2015) eq. 13: the Arrhenius temperature effect on root-zone
+# denitrification, per year of residence. Celsius to kelvin by + 273.15.
+.leaching_denit_rate <- function(temp_c) {
+  .n_constant("beusen_arrhenius_factor") *
+    exp(
+      -.n_constant("beusen_activation_energy") /
+        (.n_constant("molar_gas_constant") * (temp_c + 273.15))
+    )
+}
+
+# Beusen et al. (2015) eq. 14: years the drainage takes to pass the water the
+# root zone holds at field capacity (theta_fc x depth, mm). Infinite without
+# drainage.
+.leaching_residence_years <- function(
+  drainage_mm,
+  soil_field_capacity,
+  root_depth_cm
+) {
+  held_mm <- soil_field_capacity * root_depth_cm * 10
+  dplyr::if_else(drainage_mm > 0, held_mm / drainage_mm, Inf)
+}
+
+# One year of the cascade. Where the row drains, the carried pool joins the
+# surplus; where it does not, the pool is held as deep vadose storage
+# (Walvoord et al. 2003, doi:10.1126/science.1086435; Ascott et al. 2017,
+# doi:10.1038/s41467-017-01321-w): neither denitrified nor leached that year,
+# it stays retained. Denitrification is the residual of every sink.
+.leaching_cascade <- function(surplus, carried_in, rates) {
+  through <- surplus + dplyr::if_else(rates$drained, carried_in, 0)
+  available <- through * (1 - rates$denit_share) * (1 - rates$a_cn)
+  leached <- available * rates$transport * (1 - rates$no3_red)
+  held <- dplyr::if_else(rates$drained, 0, carried_in)
+  retained <- available * (1 - rates$transport) + held
+  list(
+    leached = leached,
+    retained = retained,
+    denitrified = surplus + carried_in - leached - retained
+  )
+}
+
+# The pool a key starts with: the steady state of its first year's fluxes,
+# pool = S r / (1 - r), r the share of the pool's input that stays. Every
+# meisinger_denitrification share is at least 0.02 and residence_time moves
+# all it does not denitrify, so r < 1 on a drained row. A store with no exit
+# (no drainage) has no finite steady state and starts at 0.
+.leaching_steady_pool <- function(surplus, rates) {
+  stays <- (1 - rates$denit_share) * (1 - rates$a_cn) * (1 - rates$transport)
+  dplyr::if_else(rates$drained, surplus * stays / (1 - stays), 0)
+}
+
+# Each row's carried-in pool, its pool field and whether its pool waits on an
+# absent key. Without `carry_over_by` every row is a first year.
+.leaching_thread_pool <- function(x, rates, carry_over_by) {
+  steady <- .leaching_steady_pool(x$n_surplus_t, rates)
+  n <- nrow(x)
+  if (is.null(carry_over_by)) {
+    return(list(
+      carried_in = steady,
+      field = .leaching_pool_field(rep(TRUE, n), rates$drained),
+      held = rep(FALSE, n)
+    ))
+  }
+  key_id <- .leaching_carry_key(x, carry_over_by)
+  context <- list(
+    key_id = key_id,
+    surplus = x$n_surplus_t,
+    steady = steady,
+    rates = rates
+  )
+  state <- purrr::reduce(
+    split(seq_len(n), x$year),
+    \(state, rows) .leaching_thread_year(state, rows, context),
+    .init = list(
+      pool = rep(NA_real_, max(key_id, 0L)),
+      carried_in = rep(NA_real_, n),
+      first = rep(FALSE, n)
+    )
+  )
+  list(
+    carried_in = state$carried_in,
+    field = .leaching_pool_field(state$first, rates$drained),
+    held = .leaching_held_rows(key_id, x$year)
+  )
+}
+
+# One run year: each key present takes its pool from its previous row, or its
+# steady state if it has none, and leaves this year's retained nitrate as the
+# pool. Keys absent this year keep their pool untouched.
+.leaching_thread_year <- function(state, rows, context) {
+  ids <- context$key_id[rows]
+  pooled <- state$pool[ids]
+  first <- is.na(pooled)
+  carried_in <- dplyr::if_else(first, context$steady[rows], pooled)
+  rates <- purrr::map(context$rates, \(values) values[rows])
+  flows <- .leaching_cascade(context$surplus[rows], carried_in, rates)
+  state$pool[ids] <- flows$retained
+  state$carried_in[rows] <- carried_in
+  state$first[rows] <- first
+  state
+}
+
+# The key of every row across years, refusing a key that is absent, has a
+# missing year, or occurs twice in one year (two rows would race for one
+# pool).
+.leaching_carry_key <- function(x, carry_over_by) {
+  needed <- c(carry_over_by, "year")
+  absent <- needed[!rlang::has_name(x, needed)]
+  if (!is.character(carry_over_by) || length(absent) > 0L) {
+    cli::cli_abort(
+      c(
+        "{.arg carry_over_by} must name columns of {.arg x}, which must also
+         carry {.field year}.",
+        x = "Absent: {.field {absent}}."
+      ),
+      class = "whep_leaching_carry_key"
+    )
+  }
+  key_id <- vctrs::vec_group_id(x[carry_over_by])
+  key_year <- tibble::tibble(key_id = key_id, year = x$year)
+  if (anyNA(x$year) || vctrs::vec_duplicate_any(key_year)) {
+    cli::cli_abort(
+      c(
+        "Each {.field {carry_over_by}} key needs one row per {.field year},
+         with no missing year.",
+        x = "{sum(vctrs::vec_duplicate_detect(key_year))} row{?s} share a
+             key and a year; {sum(is.na(x$year))} {?has/have} no year."
+      ),
+      class = "whep_leaching_carry_key"
+    )
+  }
+  key_id
+}
+
+# TRUE on a key's row when the next year of the run lacks that key: its pool
+# waits on the key instead of entering a cascade that year.
+.leaching_held_rows <- function(key_id, year) {
+  years <- sort(unique(year))
+  next_year <- years[match(year, years) + 1L]
+  present <- vctrs::vec_in(
+    tibble::tibble(key_id = key_id, year = next_year),
+    tibble::tibble(key_id = key_id, year = year)
+  )
+  !is.na(next_year) & !present
+}
+
+.leaching_pool_field <- function(first, drained) {
+  dplyr::case_when(
+    !first ~ "carried_pool",
+    drained ~ "initial_pool_steady_state",
+    .default = "initial_vadose_zero"
+  )
+}
+
+# method_leaching fields joined by ";": method, transport, None-class rule
+# (not under residence_time, which reads no Meisinger share), pool field,
+# then the optional vadose_storage and pool_held_absent_key.
+.leaching_stamp <- function(options, drained, pool) {
+  none <- if (options$transport == "residence_time") {
+    character()
+  } else {
+    paste0("none_", options$none_class)
+  }
+  base <- paste(
+    c("meisinger_drainage", options$transport, none),
+    collapse = ";"
+  )
+  paste0(
+    base,
+    ";",
+    pool$field,
+    dplyr::if_else(drained, "", ";vadose_storage"),
+    dplyr::if_else(pool$held, ";pool_held_absent_key", "")
+  )
 }
 
 # ---- Private helpers: shared ---------------------------------------------

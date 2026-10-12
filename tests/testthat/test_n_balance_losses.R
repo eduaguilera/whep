@@ -714,87 +714,518 @@ testthat::test_that("calculate_soil_n2o example fixture is schema-complete", {
 
 # ---- calculate_n_leaching ------------------------------------------------
 
-testthat::test_that("calculate_n_leaching(method = \"meisinger_drainage\") matches a hand-computed scenario", {
-  # fert_type = Solid (fert_cat = Manure -> tillage join "Not_specified"
-  # regardless of x$tillage), climate = MED (climate_cat = "Semiarid"),
-  # land_use = Cropland (a_cn_span = 120), cn_input = NA (coalesces to
-  # a_cn_min_cn = 15, so a_cn = 0), irrig_cat = Rainfed, som_share = 0.06
-  # (> 0.05 -> "High" bin), drainage_mm = 600 (500 < 600 <= 1000 -> "High").
-  #
-  # Looking up Manure / Not_specified / High / Semiarid / High in
-  # meisinger_denitrification gives a denit_share of 0.12, and looking up
-  # Solid / MED / Rainfed in subsoil_no3_reduction gives a no3_red of 0.35.
-  # The raw denitrified amount is then 100 times 0.12, i.e. 12, so no3_n_t
-  # works out to (100 minus 12) times (1 minus 0.35) times (1 minus 0),
-  # i.e. 88 times 0.65, i.e. 57.2. The overwritten denitrification_n_t is
-  # then 100 minus 57.2, i.e. 42.8, and n2o_indirect_no3_n_t is 57.2 times
-  # 0.011, i.e. 0.6292.
-  x <- tibble::tribble(
-    ~n_surplus_t,
-    ~fert_type,
-    ~climate,
-    ~irrig_cat,
-    ~land_use,
-    ~cn_input,
-    ~tillage,
-    ~som_share,
-    100,
-    "Solid",
-    "MED",
-    "Rainfed",
-    "Cropland",
-    NA_real_,
-    "No_tillage",
-    0.06
+# Meisinger leaching rows: solid manure (fert_cat Manure, so the tillage join
+# is "Not_specified"), MED climate, rainfed cropland, C:N at the A_CN floor
+# (cn_input NA coalesces to 15, so a_cn = 0) and High soil organic matter
+# (som_share 0.06 > 0.05), on a 100 cm root zone of porosity 0.45 and field
+# capacity 0.30 at 15 degC. From the tables: d = 0.12 in the High drainage
+# class, 0.08 in Very_high, 0.5 in Very_low and 1 in None; the subsoil
+# reduction of Solid/MED/Rainfed is 0.35.
+.leach_rows <- function(n = 1L, ...) {
+  base <- tibble::tibble(
+    n_surplus_t = 100,
+    fert_type = "Solid",
+    climate = "MED",
+    irrig_cat = "Rainfed",
+    land_use = "Cropland",
+    cn_input = NA_real_,
+    tillage = "Not_specified",
+    som_share = 0.06
   )
-  # Guard against a stale input result shadowing the newly computed local
-  # no3_n_t vector inside mutate().
-  x$no3_n_t <- -999
+  base[rep(1L, n), ] |>
+    .leach_soil() |>
+    dplyr::mutate(...)
+}
+
+.leach_soil <- function(x) {
+  dplyr::mutate(
+    x,
+    root_depth_cm = 100,
+    soil_porosity = 0.45,
+    soil_field_capacity = 0.30,
+    temp_c_annual_mean = 15
+  )
+}
+
+# SWAT well-mixed transport for porosity 0.45 and a 100 cm (1,000 mm) root
+# zone, theta_e 0.5: the mixing volume is 0.5 * 0.45 * 1000 = 225 mm.
+.leach_f_swat_600 <- function() 1 - exp(-600 / 225)
+
+# Every Meisinger row must close its own partition, carried-in pool included.
+.expect_leaching_closes <- function(out) {
+  testthat::expect_equal(
+    out$n_surplus_t + out$retained_carried_in_n_t,
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(out$denitrification_n_t >= -1e-12))
+  testthat::expect_true(all(out$retained_profile_n_t >= 0))
+}
+
+testthat::test_that("the SWAT mixing transport matches a hand computation", {
+  # f = 1 - exp(-D / ((1 - 0.5) * porosity * h)), D and h in mm.
+  f <- whep:::.leaching_f_swat(
+    drainage_mm = c(600, 50),
+    soil_porosity = c(0.45, 0.40),
+    root_depth_cm = c(100, 30)
+  )
+  testthat::expect_equal(
+    f,
+    c(1 - exp(-600 / (0.5 * 0.45 * 1000)), 1 - exp(-50 / (0.5 * 0.40 * 300))),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(f, c(0.930516549, 0.565401804), tolerance = 1e-8)
+  # D -> 0 gives f -> 0; a large D gives f -> 1; no drainage, no transport.
+  limits <- whep:::.leaching_f_swat(c(1e-9, 1e6, 0, -0.05), 0.45, 100)
+  testthat::expect_lt(limits[1], 1e-11)
+  testthat::expect_equal(limits[2], 1, tolerance = 1e-12)
+  testthat::expect_identical(limits[3:4], c(0, 0))
+})
+
+testthat::test_that("the Burns transport matches a hand computation", {
+  # f = (P / (P + theta_fc))^(h / 2), P and h in cm.
+  f <- whep:::.leaching_f_burns(
+    drainage_mm = c(600, 50),
+    soil_field_capacity = c(0.30, 0.25),
+    root_depth_cm = c(100, 30)
+  )
+  testthat::expect_equal(
+    f,
+    c((60 / 60.3)^50, (5 / 5.25)^15),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(f, c(0.779286, 0.481017), tolerance = 1e-5)
+  limits <- whep:::.leaching_f_burns(c(1e-6, 1e7, 0, -0.05), 0.30, 100)
+  testthat::expect_lt(limits[1], 1e-100)
+  testthat::expect_equal(limits[2], 1, tolerance = 1e-3)
+  testthat::expect_identical(limits[3:4], c(0, 0))
+})
+
+testthat::test_that("the residence-time rate and residence time match a hand computation", {
+  # k = 7.94e12 exp(-74830 / (8.3144 T)) per year, T in kelvin (Beusen et al.
+  # 2015 eq. 13); tau = theta_fc h / D years (eq. 14).
+  k <- whep:::.leaching_denit_rate(c(15, 25))
+  testthat::expect_equal(
+    k,
+    7.94e12 * exp(-74830 / (8.3144 * c(288.15, 298.15))),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(k, c(0.216327, 0.616699), tolerance = 1e-5)
+  tau <- whep:::.leaching_residence_years(c(600, 50, 0), 0.30, c(100, 30, 100))
+  testthat::expect_equal(tau, c(30 / 60, 9 / 5, Inf), tolerance = 1e-12)
+})
+
+testthat::test_that("residence_time replaces Meisinger's d with the residence-time denitrification", {
+  # A synthetic No_tillage row would abort the Meisinger table join, so a
+  # result proves the table is not read. Synthetic/MED/Rainfed red = 0.20.
+  x <- .leach_rows(
+    2L,
+    fert_type = "Synthetic",
+    tillage = "No_tillage",
+    som_share = 0.03
+  )
   out <- whep::calculate_n_leaching(
     x,
-    drainage_mm = 600,
-    method = "meisinger_drainage"
+    drainage_mm = c(600, 0),
+    transport = "residence_time"
   )
-
-  testthat::expect_equal(out$no3_n_t, 57.2, tolerance = 1e-9)
-  testthat::expect_equal(out$denitrification_n_t, 42.8, tolerance = 1e-9)
-  testthat::expect_equal(out$n2o_indirect_no3_n_t, 0.6292, tolerance = 1e-9)
-  testthat::expect_equal(out$method_leaching, "meisinger_drainage")
-  # The Meisinger cascade books every non-leached tonne as denitrified, so
-  # none is retained in the profile.
-  testthat::expect_equal(out$retained_profile_n_t, 0)
+  k_tau <- 7.94e12 * exp(-74830 / (8.3144 * 288.15)) * (0.30 * 100 / 60)
   testthat::expect_equal(
-    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
-    out$n_surplus_t,
-    tolerance = 1e-9
+    out$no3_n_t,
+    c(100 / (1 + k_tau) * (1 - 0.20), 0),
+    tolerance = 1e-12
+  )
+  # Everything not denitrified leaves within the year: nothing is retained,
+  # so the steady-state pool is 0; with no drainage it all denitrifies.
+  testthat::expect_equal(out$retained_profile_n_t, c(0, 0))
+  testthat::expect_equal(out$retained_carried_in_n_t, c(0, 0))
+  testthat::expect_equal(
+    out$denitrification_n_t,
+    c(100 - out$no3_n_t[1], 100),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$method_leaching,
+    c(
+      "meisinger_drainage;residence_time;initial_pool_steady_state",
+      "meisinger_drainage;residence_time;initial_vadose_zero;vadose_storage"
+    )
+  )
+  .expect_leaching_closes(out)
+})
+
+testthat::test_that("a first-year row starts at the steady-state pool, by hand", {
+  # D = 600 mm (High class, d = 0.12), red = 0.35, a_cn = 0. The pool's
+  # input keeps r = (1 - d)(1 - f) of itself, so the steady state is
+  # S r / (1 - r), and the row then retains exactly that pool again.
+  x <- .leach_rows()
+  x$no3_n_t <- -999
+  out <- whep::calculate_n_leaching(x, drainage_mm = 600)
+  f <- .leach_f_swat_600()
+  r <- 0.88 * (1 - f)
+  pool <- 100 * r / (1 - r)
+  testthat::expect_equal(pool, 6.51277, tolerance = 1e-5)
+  testthat::expect_equal(out$retained_carried_in_n_t, pool, tolerance = 1e-12)
+  testthat::expect_equal(
+    out$no3_n_t,
+    (100 + pool) * 0.88 * f * 0.65,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(out$no3_n_t, 56.6920, tolerance = 1e-5)
+  testthat::expect_equal(out$retained_profile_n_t, pool, tolerance = 1e-12)
+  testthat::expect_equal(
+    out$denitrification_n_t,
+    100 + pool - out$no3_n_t - pool,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(out$n2o_indirect_no3_n_t, out$no3_n_t * 0.011)
+  testthat::expect_equal(
+    out$method_leaching,
+    "meisinger_drainage;swat_mixing;none_retention;initial_pool_steady_state"
+  )
+  .expect_leaching_closes(out)
+})
+
+testthat::test_that("the composition identity holds for every transport", {
+  x <- .leach_rows(4L, n_surplus_t = c(100, 0, 37.5, 250))
+  drainage <- c(600, 0.05, 2500, 40)
+  for (transport in c("swat_mixing", "burns", "residence_time")) {
+    out <- whep::calculate_n_leaching(
+      x,
+      drainage_mm = drainage,
+      transport = transport
+    )
+    .expect_leaching_closes(out)
+  }
+})
+
+testthat::test_that("a key whose first year does not drain starts its vadose store at zero", {
+  # D = 0 falls in the None class, which takes the Very_low share 0.5 under
+  # the default retention: half the surplus denitrifies, half is retained,
+  # nothing leaches.
+  out <- whep::calculate_n_leaching(.leach_rows(), drainage_mm = 0)
+  testthat::expect_equal(out$retained_carried_in_n_t, 0)
+  testthat::expect_equal(out$no3_n_t, 0)
+  testthat::expect_equal(out$denitrification_n_t, 50, tolerance = 1e-12)
+  testthat::expect_equal(out$retained_profile_n_t, 50, tolerance = 1e-12)
+  testthat::expect_equal(
+    out$method_leaching,
+    paste0(
+      "meisinger_drainage;swat_mixing;none_retention;initial_vadose_zero;",
+      "vadose_storage"
+    )
+  )
+})
+
+# Key "a" drains, then does not, then drains again; key "b" is absent from
+# 2002. Rows are given out of year order on purpose.
+.leach_three_years <- function() {
+  .leach_rows(
+    5L,
+    cell = c("a", "b", "a", "a", "b"),
+    year = c(2003L, 2001L, 2001L, 2002L, 2003L),
+    n_surplus_t = c(80, 100, 100, 60, 40),
+    drainage_mm = c(600, 600, 600, 0, 600)
+  )
+}
+
+testthat::test_that("carried nitrate is held through a dry year and re-enters the next drained one", {
+  x <- .leach_three_years()
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = "drainage_mm",
+    carry_over_by = "cell"
+  )
+  .expect_leaching_closes(out)
+  a <- out[out$cell == "a", ]
+  a <- a[order(a$year), ]
+  f <- .leach_f_swat_600()
+  r <- 0.88 * (1 - f)
+  pool_2001 <- 100 * r / (1 - r)
+  testthat::expect_equal(a$retained_carried_in_n_t[1], pool_2001)
+  # 2002 does not drain: the pool carried in is neither leached nor
+  # denitrified; only the year's own surplus meets the Very_low share 0.5.
+  testthat::expect_equal(
+    a$retained_carried_in_n_t[2],
+    a$retained_profile_n_t[1]
+  )
+  testthat::expect_equal(a$no3_n_t[2], 0)
+  testthat::expect_equal(a$denitrification_n_t[2], 60 * 0.5, tolerance = 1e-12)
+  testthat::expect_equal(
+    a$retained_profile_n_t[2],
+    a$retained_carried_in_n_t[2] + 60 * 0.5,
+    tolerance = 1e-12
+  )
+  # 2003 drains: the stored pool re-enters the cascade with the year's
+  # surplus.
+  c_in <- a$retained_profile_n_t[2]
+  testthat::expect_equal(a$retained_carried_in_n_t[3], c_in)
+  testthat::expect_equal(
+    a$no3_n_t[3],
+    (80 + c_in) * 0.88 * f * 0.65,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    a$retained_profile_n_t[3],
+    (80 + c_in) * 0.88 * (1 - f),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    a$method_leaching,
+    c(
+      "meisinger_drainage;swat_mixing;none_retention;initial_pool_steady_state",
+      paste0(
+        "meisinger_drainage;swat_mixing;none_retention;carried_pool;",
+        "vadose_storage"
+      ),
+      "meisinger_drainage;swat_mixing;none_retention;carried_pool"
+    )
+  )
+})
+
+testthat::test_that("a key absent from a year keeps its pool and is stamped", {
+  out <- whep::calculate_n_leaching(
+    .leach_three_years(),
+    drainage_mm = "drainage_mm",
+    carry_over_by = "cell"
+  )
+  b <- out[out$cell == "b", ]
+  b <- b[order(b$year), ]
+  # The 2001 pool waits through 2002 on its own key and re-enters in 2003.
+  testthat::expect_equal(
+    b$retained_carried_in_n_t[2],
+    b$retained_profile_n_t[1]
+  )
+  testthat::expect_equal(
+    b$method_leaching,
+    c(
+      paste0(
+        "meisinger_drainage;swat_mixing;none_retention;",
+        "initial_pool_steady_state;pool_held_absent_key"
+      ),
+      "meisinger_drainage;swat_mixing;none_retention;carried_pool"
+    )
+  )
+  # Nothing vanishes over the run: the surplus is the leached and denitrified
+  # nitrogen plus the final pools minus the initial ones.
+  first <- out |> dplyr::slice_min(.data$year, by = "cell")
+  last <- out |> dplyr::slice_max(.data$year, by = "cell")
+  testthat::expect_equal(
+    sum(out$n_surplus_t),
+    sum(out$no3_n_t) +
+      sum(out$denitrification_n_t) +
+      sum(last$retained_profile_n_t) -
+      sum(first$retained_carried_in_n_t),
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("the order of the rows does not change the carry-over", {
+  x <- .leach_three_years()
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = "drainage_mm",
+    carry_over_by = "cell"
+  )
+  reversed <- whep::calculate_n_leaching(
+    x[rev(seq_len(nrow(x))), ],
+    drainage_mm = "drainage_mm",
+    carry_over_by = "cell"
+  )
+  testthat::expect_equal(reversed[rev(seq_len(nrow(x))), ], out)
+})
+
+testthat::test_that("none_class prices the None drainage class both ways", {
+  # D = 0.05 mm lies in the None class (-0.1 < D < 0.1). Retention takes the
+  # Very_low share 0.5; waterlogged keeps the table's literal d = 1.
+  x <- .leach_rows()
+  retention <- whep::calculate_n_leaching(x, drainage_mm = 0.05)
+  f <- 1 - exp(-0.05 / 225)
+  r <- 0.5 * (1 - f)
+  pool <- 100 * r / (1 - r)
+  testthat::expect_equal(
+    retention$no3_n_t,
+    (100 + pool) * 0.5 * f * 0.65,
+    tolerance = 1e-12
+  )
+  testthat::expect_gt(retention$no3_n_t, 0)
+  waterlogged <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = 0.05,
+    none_class = "waterlogged"
+  )
+  testthat::expect_equal(waterlogged$no3_n_t, 0)
+  testthat::expect_equal(waterlogged$retained_profile_n_t, 0)
+  testthat::expect_equal(waterlogged$denitrification_n_t, 100)
+  testthat::expect_equal(
+    waterlogged$method_leaching,
+    "meisinger_drainage;swat_mixing;none_waterlogged;initial_pool_steady_state"
+  )
+})
+
+testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero drainage to full denitrification for MED and ATL when waterlogged", {
+  # Regression for the Meisinger join fan-out: a cell with drainage in the
+  # "None" bin (-0.1 < S < 0.1) under the literal waterlogged table must
+  # resolve to denit_share = 1 (whole surplus denitrified) for BOTH climates.
+  # The table's "None" rows all carry climate_cat = "Semiarid", so the join
+  # must key on climate (MED/ATL), not on a derived Semiarid/Humid
+  # climate_cat: keying on the latter fans a MED cell onto two rows (crash)
+  # and leaves an ATL cell unmatched (abort).
+  x <- .leach_rows(2L, climate = c("MED", "ATL"))
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = c(0.05, 0.05),
+    none_class = "waterlogged"
+  )
+  testthat::expect_equal(out$no3_n_t, c(0, 0), tolerance = 1e-9)
+  testthat::expect_equal(out$denitrification_n_t, c(100, 100), tolerance = 1e-9)
+  testthat::expect_equal(out$n2o_indirect_no3_n_t, c(0, 0), tolerance = 1e-9)
+})
+
+testthat::test_that("drainage above 3,000 mm falls in the open top bin", {
+  # Very_high is 1000 < D < 3000 in drainage_ranges; above it the share is
+  # still Very_high's (0.08), instead of an unmatched-row abort.
+  x <- .leach_rows(3L)
+  d <- whep:::.leaching_denit_share(
+    x,
+    rep("Manure", 3),
+    c(2000, 3000, 5000),
+    "retention"
+  )
+  very_high <- whep::meisinger_denitrification |>
+    dplyr::filter(
+      .data$fert_cat == "Manure",
+      .data$tillage == "Not_specified",
+      .data$som_content == "High",
+      .data$drainage_rate == "Very_high",
+      .data$climate == "MED"
+    ) |>
+    dplyr::pull("denit_share")
+  testthat::expect_equal(very_high, 0.08)
+  testthat::expect_equal(d, rep(0.08, 3))
+  out <- whep::calculate_n_leaching(x, drainage_mm = c(2000, 3000, 5000))
+  .expect_leaching_closes(out)
+})
+
+testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exactly on a shared drainage edge", {
+  # S = 1000 is the shared High/Very_high edge; strictly-open bins match
+  # neither, so the row is unmatched and aborts.
+  testthat::expect_error(
+    whep::calculate_n_leaching(.leach_rows(), drainage_mm = 1000)
+  )
+})
+
+testthat::test_that("a missing leaching driver aborts with a condition class", {
+  x <- .leach_rows()
+  for (col in c("root_depth_cm", "soil_porosity")) {
+    err <- testthat::expect_error(
+      whep::calculate_n_leaching(x[setdiff(names(x), col)], drainage_mm = 600),
+      class = "whep_missing_leaching_driver"
+    )
+    testthat::expect_s3_class(err, "whep_absent_input")
+    testthat::expect_match(conditionMessage(err), col, fixed = TRUE)
+  }
+  # Each transport requires only the columns it reads.
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x[setdiff(names(x), "soil_field_capacity")],
+      drainage_mm = 600,
+      transport = "burns"
+    ),
+    class = "whep_missing_leaching_driver"
+  )
+  testthat::expect_no_error(
+    whep::calculate_n_leaching(
+      x[setdiff(names(x), "soil_field_capacity")],
+      drainage_mm = 600
+    )
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x[setdiff(names(x), "temp_c_annual_mean")],
+      drainage_mm = 600,
+      transport = "residence_time"
+    ),
+    class = "whep_missing_leaching_driver"
+  )
+  # A missing value is as absent as a missing column, and so is drainage.
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      dplyr::mutate(x, root_depth_cm = NA_real_),
+      drainage_mm = 600
+    ),
+    class = "whep_missing_leaching_driver"
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, drainage_mm = NA_real_),
+    class = "whep_missing_leaching_driver"
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(x),
+    class = "whep_missing_leaching_driver"
+  )
+})
+
+testthat::test_that("an impossible soil or drainage value aborts", {
+  x <- .leach_rows()
+  bad <- list(
+    dplyr::mutate(x, root_depth_cm = 0),
+    dplyr::mutate(x, soil_porosity = 1.2),
+    dplyr::mutate(x, soil_porosity = 0)
+  )
+  for (row in bad) {
+    testthat::expect_error(
+      whep::calculate_n_leaching(row, drainage_mm = 600),
+      class = "whep_leaching_driver_value"
+    )
+  }
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      dplyr::mutate(x, soil_field_capacity = -0.1),
+      drainage_mm = 600,
+      transport = "burns"
+    ),
+    class = "whep_leaching_driver_value"
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, drainage_mm = -5),
+    class = "whep_leaching_driver_value"
+  )
+})
+
+testthat::test_that("a carry-over key must be present and unique per year", {
+  x <- .leach_three_years()
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      x,
+      drainage_mm = "drainage_mm",
+      carry_over_by = "plot"
+    ),
+    class = "whep_leaching_carry_key"
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      dplyr::select(x, -"year"),
+      drainage_mm = "drainage_mm",
+      carry_over_by = "cell"
+    ),
+    class = "whep_leaching_carry_key"
+  )
+  testthat::expect_error(
+    whep::calculate_n_leaching(
+      dplyr::bind_rows(x, x[1, ]),
+      drainage_mm = "drainage_mm",
+      carry_over_by = "cell"
+    ),
+    class = "whep_leaching_carry_key"
   )
 })
 
 testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on No_tillage for synthetic rows", {
-  x <- tibble::tribble(
-    ~n_surplus_t,
-    ~fert_type,
-    ~climate,
-    ~irrig_cat,
-    ~land_use,
-    ~cn_input,
-    ~tillage,
-    ~som_share,
-    100,
-    "Synthetic",
-    "MED",
-    "Rainfed",
-    "Cropland",
-    NA_real_,
-    "No_tillage",
-    0.06
-  )
+  x <- .leach_rows(fert_type = "Synthetic", tillage = "No_tillage")
   testthat::expect_error(
-    whep::calculate_n_leaching(
-      x,
-      drainage_mm = 600,
-      method = "meisinger_drainage"
-    )
+    whep::calculate_n_leaching(x, drainage_mm = 600),
+    "No_tillage"
   )
 })
 
@@ -802,135 +1233,22 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on an unmap
   # "Recycling" is a real fert_type elsewhere in this file's aguilera join
   # but has no row in subsoil_no3_reduction, so it must abort rather than
   # silently propagate NA through no3_n_t/denitrification_n_t.
-  x <- tibble::tribble(
-      ~n_surplus_t,
-      ~fert_type,
-      ~climate,
-      ~irrig_cat,
-      ~land_use,
-      ~cn_input,
-      ~tillage,
-      ~som_share,
-      100,
-      "Recycling",
-      "MED",
-      "Rainfed",
-      "Cropland",
-      NA_real_,
-      "Not_specified",
-      0.03
-    )
+  x <- .leach_rows(fert_type = "Recycling", som_share = 0.03)
   testthat::expect_error(
-    whep::calculate_n_leaching(
-      x,
-      drainage_mm = 600,
-      method = "meisinger_drainage"
-    )
+    whep::calculate_n_leaching(x, drainage_mm = 600),
+    "subsoil_no3_reduction"
   )
 })
 
 testthat::test_that("calculate_n_leaching(meisinger_drainage) aborts on an out-of-range som_share", {
-  x <- tibble::tribble(
-      ~n_surplus_t,
-      ~fert_type,
-      ~climate,
-      ~irrig_cat,
-      ~land_use,
-      ~cn_input,
-      ~tillage,
-      ~som_share,
-      100,
-      "Synthetic",
-      "MED",
-      "Rainfed",
-      "Cropland",
-      NA_real_,
-      "Tillage",
-      -0.01
-    )
-  testthat::expect_error(
-    whep::calculate_n_leaching(
-      x,
-      drainage_mm = 600,
-      method = "meisinger_drainage"
-    )
-  )
-})
-
-testthat::test_that("calculate_n_leaching(meisinger_drainage) resolves near-zero drainage to full denitrification for MED and ATL", {
-  # Regression for the Meisinger join fan-out: a cell with drainage in the
-  # "None" bin (-0.1 < S < 0.1, waterlogged) must resolve to denit_share = 1
-  # (whole surplus denitrified) for BOTH climates. The table's "None" rows
-  # all carry climate_cat = "Semiarid", so the join must key on climate
-  # (MED/ATL), not on a derived Semiarid/Humid climate_cat: keying on the
-  # latter fans a MED cell onto two rows (crash) and leaves an ATL cell
-  # unmatched (abort).
-  x <- tibble::tribble(
-    ~n_surplus_t,
-    ~fert_type,
-    ~climate,
-    ~irrig_cat,
-    ~land_use,
-    ~cn_input,
-    ~tillage,
-    ~som_share,
-    100,
-    "Solid",
-    "MED",
-    "Rainfed",
-    "Cropland",
-    NA_real_,
-    "Not_specified",
-    0.06,
-    100,
-    "Solid",
-    "ATL",
-    "Rainfed",
-    "Cropland",
-    NA_real_,
-    "Not_specified",
-    0.06
-  )
-  out <- whep::calculate_n_leaching(
-    x,
-    drainage_mm = c(0.05, 0.05),
-    method = "meisinger_drainage"
-  )
-
-  # Full denitrification share routes the whole surplus to denitrification,
-  # leaving no3 at zero.
-  testthat::expect_equal(out$no3_n_t, c(0, 0), tolerance = 1e-9)
-  testthat::expect_equal(out$denitrification_n_t, c(100, 100), tolerance = 1e-9)
-  testthat::expect_equal(out$n2o_indirect_no3_n_t, c(0, 0), tolerance = 1e-9)
-})
-
-testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exactly on a shared drainage edge", {
-  # S = 1000 is the shared High/Very_high edge; strictly-open bins match
-  # neither, so the row is unmatched and aborts.
-  x <- tibble::tribble(
-    ~n_surplus_t,
-    ~fert_type,
-    ~climate,
-    ~irrig_cat,
-    ~land_use,
-    ~cn_input,
-    ~tillage,
-    ~som_share,
-    100,
-    "Solid",
-    "MED",
-    "Rainfed",
-    "Cropland",
-    NA_real_,
-    "Not_specified",
-    0.06
+  x <- .leach_rows(
+    fert_type = "Synthetic",
+    tillage = "Tillage",
+    som_share = -0.01
   )
   testthat::expect_error(
-    whep::calculate_n_leaching(
-      x,
-      drainage_mm = 1000,
-      method = "meisinger_drainage"
-    )
+    whep::calculate_n_leaching(x, drainage_mm = 600),
+    "meisinger_denitrification"
   )
 })
 
