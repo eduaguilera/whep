@@ -1663,6 +1663,24 @@ testthat::test_that("the class readers read their pins by default", {
   testthat::expect_equal(texture$soil_texture_fao, "fine")
 })
 
+# The mocked reads above never touch the registry, so a pin the readers name
+# but `whep_inputs` does not list would pass every test here and then abort
+# for the first user without an HWSD archive.
+testthat::test_that("every HWSD pin the readers name is registered", {
+  pins <- c(
+    whep:::.hwsd_texture_pin(),
+    whep:::.hwsd_clay_pin(),
+    whep:::.hwsd_drainage_pin(),
+    whep:::.hwsd_texture_fao_pin()
+  )
+  registered <- whep::whep_inputs |>
+    dplyr::filter(.data$alias %in% pins)
+
+  testthat::expect_setequal(registered$alias, pins)
+  testthat::expect_true(all(nzchar(registered$version)))
+  testthat::expect_false(anyDuplicated(registered$alias) > 0L)
+})
+
 testthat::test_that("the pin and the local archive agree for both readers", {
   testthat::skip_if_not_installed("terra")
   dir <- .write_class_hwsd(withr::local_tempdir())
