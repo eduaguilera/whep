@@ -12,8 +12,10 @@
 # Both are ESRI ASCII grids, 720 x 360 at 0.5 degrees from -180, -90, row 1
 # north. fQsro.map has a NODATA line (-1); slope.map has none, so every value
 # of it is data. The paper's eq. 4 applied to slope.map does not reproduce
-# fQsro.map (the medians differ by a factor of about 1.6 on gentle slopes),
-# so the fraction is read, never recomputed.
+# fQsro.map: the median ratio of fQsro.map to eq. 4's slope factor is 1.56
+# over the land cells with a non-zero fraction, and 1.89 on medium-texture
+# soils at 1-5 m/km (2.52 once eq. 4's medium texture factor of 0.75 is
+# applied), so the fraction is read, never recomputed.
 #
 # Third-party data with a stable DOI: downloaded on demand, verified against
 # the checksums below and cached under rappdirs::user_cache_dir("whep"), with

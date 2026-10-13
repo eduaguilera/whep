@@ -103,6 +103,7 @@ testthat::test_that("a downloaded supplement that fails its checksum aborts", {
 })
 
 testthat::test_that("read_image_gnm_runoff example fixture is schema-complete", {
+  testthat::skip_if_not_installed("pointblank")
   out <- whep::read_image_gnm_runoff(example = TRUE)
   pointblank::expect_col_exists(
     out,
