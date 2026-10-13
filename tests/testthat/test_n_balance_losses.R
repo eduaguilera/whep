@@ -1346,17 +1346,34 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
 }
 
 # Every image_gnm row closes eq. 10: the budget less surface runoff is leached
-# or denitrified, and nothing is retained or carried (IMAGE-GNM has no pool).
-# Surface runoff is a share of the inputs (eq. 9), so it can exceed the
-# surplus; the budget left is then 0, as in the authors' code, and the row
-# books the larger of the two.
+# or denitrified, and nothing is carried (IMAGE-GNM has no pool). Surface
+# runoff is a share of the inputs (eq. 9), so it can exceed the surplus; the
+# budget left is then 0, as in the authors' code, and the row books the
+# larger of the two. On grassland and natural land with a total runoff below
+# 3 mm/yr (n_nowater.py) the surplus is held as inactive N in
+# retained_profile_n_t instead, nothing leaches or denitrifies, and the
+# grassland runoff, a share of the N the grass took up, is booked beside it.
 .expect_gnm_closes <- function(out) {
+  nowater <- grepl("nowater_inactive_n", out$method_leaching, fixed = TRUE)
+  booked <- out$surface_runoff_n_t +
+    out$no3_n_t +
+    out$denitrification_n_t +
+    out$retained_profile_n_t
   testthat::expect_equal(
-    pmax(out$n_surplus_t, out$surface_runoff_n_t),
-    out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t,
+    booked,
+    dplyr::if_else(
+      nowater,
+      pmax(out$n_surplus_t, 0) + out$surface_runoff_n_t,
+      pmax(out$n_surplus_t, out$surface_runoff_n_t)
+    ),
     tolerance = 1e-12
   )
-  testthat::expect_identical(out$retained_profile_n_t, rep(0, nrow(out)))
+  testthat::expect_identical(
+    out$retained_profile_n_t,
+    dplyr::if_else(nowater, pmax(out$n_surplus_t, 0), 0)
+  )
+  testthat::expect_true(all(out$no3_n_t[nowater] == 0))
+  testthat::expect_true(all(out$denitrification_n_t[nowater] == 0))
   testthat::expect_identical(out$retained_carried_in_n_t, rep(0, nrow(out)))
   testthat::expect_true(all(out$no3_n_t >= 0 & out$denitrification_n_t >= 0))
 }
@@ -1550,25 +1567,23 @@ testthat::test_that("image_gnm reads every Table 2 class and SOC bin", {
 })
 
 testthat::test_that("image_gnm takes a 100-year residence time without excess water", {
-  # The authors' trzd(): T_r = 100 yr where q_eff is 0, so grassland
-  # denitrifies the whole budget; cropland is still capped at 1 yr.
+  # The authors' trzd(): T_r = 100 yr where q_eff is 0 (lines 179-182). On
+  # cropland it is then capped at 1 yr (lines 377-378); grassland and natural
+  # land with no water never reach eq. 14 (n_nowater.py, tested below).
   out <- whep::calculate_n_leaching(
-    .gnm_rows(2L, land_use = c("Grassland", "Cropland"), runoff_mm = 0),
+    .gnm_rows(runoff_mm = 0),
     method = "image_gnm"
   )
   testthat::expect_equal(
     out$no3_n_t,
-    c(0, 100 * (1 - (.gnm_f_k(15) + 0.3))),
+    100 * (1 - (.gnm_f_k(15) + 0.3)),
     tolerance = 1e-12
   )
   testthat::expect_identical(
     out$method_leaching,
-    c(
-      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr",
-      paste0(
-        "image_gnm;tawc_top_1m;no_excess_water_residence_100yr;",
-        "crop_residence_cap_1yr"
-      )
+    paste0(
+      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr;",
+      "crop_residence_cap_1yr"
     )
   )
   .expect_gnm_closes(out)
@@ -1591,37 +1606,115 @@ testthat::test_that("image_gnm sets a total runoff below 3 mm/yr to 0", {
   # The authors' code moves no water below a net precipitation of 3 mm/yr
   # (n_soil_denitrification.py lines 341-344; minimal_soil_infiltration = 3.0
   # mm/yr, parameters_history_100.ini line 204). A 1 mm tawc makes the cut
-  # visible: at 3 mm, T_r = 1 / 3 yr and grassland leaches; at 2.99 mm the
-  # flow is 0, T_r = 100 yr and nothing leaches. A float residue of LPJmL's
-  # runoff (-1e-13) is cut to 0 as well.
+  # visible on cropland: at 3 mm, T_r = 1 / 3 yr; at 2.99 mm the flow is 0
+  # and T_r = 100 yr, held at 1. A float residue of LPJmL's runoff (-1e-13)
+  # is cut to 0 as well; a runoff of exactly 0 needs no cut.
   x <- .gnm_rows(
     4L,
-    land_use = "Grassland",
     soil_wilting_point = 0.289,
     runoff_mm = c(3, 2.99, -1e-13, 0)
   )
   out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  f_k <- .gnm_f_k(15)
   testthat::expect_equal(
     out$no3_n_t,
-    c(22.6040782634, 0, 0, 0),
-    tolerance = 1e-9
-  )
-  testthat::expect_equal(
-    out$no3_n_t[1],
-    100 * (1 - (.gnm_f_k(15) / 3 + 0.3)) * 0.36,
+    100 * c(1 - (f_k / 3 + 0.3), rep(1 - (f_k + 0.3), 3)),
     tolerance = 1e-12
   )
   cut <- "image_gnm;tawc_top_1m;runoff_below_min_infiltration"
+  dry <- ";no_excess_water_residence_100yr;crop_residence_cap_1yr"
   testthat::expect_identical(
     out$method_leaching,
     c(
       "image_gnm;tawc_top_1m",
-      paste0(cut, ";no_excess_water_residence_100yr"),
-      paste0(cut, ";no_excess_water_residence_100yr"),
-      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr"
+      paste0(cut, dry),
+      paste0(cut, dry),
+      paste0("image_gnm;tawc_top_1m", dry)
     )
   )
   .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm holds dry grassland and natural surpluses as inactive N", {
+  # The authors' n_nowater.py (lines 31-46, called before surface runoff and
+  # denitrification, N-model.py lines 210-214) sets the grassland and natural
+  # balances to 0 where the net precipitation is below 3 mm/yr and books
+  # them as inactive N; cropland is left alone ("there is always enough
+  # water", line 19). Here that N is retained_profile_n_t: nothing leaches or
+  # denitrifies. Surface runoff then reads the zeroed balance
+  # (n_surface_runoff.py lines 96 and 128): natural land runs off
+  # max(0, 0) = 0, and grassland a share of balance + uptake = uptake, the
+  # input net of ammonia less the surplus, 140 - 100 = 40 t:
+  # 0.3 x 0.25 x 0.5 x 40 = 1.5 t, booked beside the inactive N.
+  x <- .gnm_rows(
+    4L,
+    land_use = c("Cropland", "Grassland", "Natural", "Grassland"),
+    surface_runoff_fraction = 0.5,
+    runoff_mm = c(2, 2, 2, 3)
+  )
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(21, 1.5, 0, 0.3 * 0.25 * 0.5 * 140),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(out$retained_profile_n_t, c(0, 100, 100, 0))
+  testthat::expect_identical(out$no3_n_t[2:3], c(0, 0))
+  testthat::expect_identical(out$denitrification_n_t[2:3], c(0, 0))
+  # Cropland keeps eq. 10: a budget of 100 - 21 = 79 t, T_r held at 1 yr.
+  testthat::expect_equal(
+    out$no3_n_t[1],
+    79 * (1 - (.gnm_f_k(15) + 0.3)),
+    tolerance = 1e-12
+  )
+  # At 3 mm/yr grassland is active again: q_eff = (1 - 0.25 x 0.5) x 3 mm.
+  testthat::expect_equal(
+    out$no3_n_t[4],
+    (100 - 5.25) *
+      (1 - min(.gnm_f_k(15) * 150 / (0.875 * 3) + 0.3, 1)) *
+      0.36,
+    tolerance = 1e-12
+  )
+  nowater <- "image_gnm;tawc_top_1m;runoff_below_min_infiltration"
+  testthat::expect_identical(
+    out$method_leaching,
+    c(
+      paste0(
+        nowater,
+        ";no_excess_water_residence_100yr;crop_residence_cap_1yr"
+      ),
+      paste0(nowater, ";nowater_inactive_n"),
+      paste0(nowater, ";nowater_inactive_n"),
+      "image_gnm;tawc_top_1m"
+    )
+  )
+  .expect_gnm_closes(out)
+  # A runoff of exactly 0 is dry without a cut, and a deficit is held as no
+  # inactive N: the uptake share still runs off, 0.3 x 0.25 x 0.5 x 145.
+  deficit <- whep::calculate_n_leaching(
+    .gnm_rows(
+      2L,
+      land_use = "Grassland",
+      n_surplus_t = c(50, -5),
+      surface_runoff_fraction = 0.5,
+      runoff_mm = 0
+    ),
+    method = "image_gnm"
+  )
+  testthat::expect_identical(deficit$retained_profile_n_t, c(50, 0))
+  testthat::expect_equal(
+    deficit$surface_runoff_n_t,
+    0.3 * 0.25 * 0.5 * c(90, 145),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(
+    deficit$method_leaching,
+    c(
+      "image_gnm;tawc_top_1m;nowater_inactive_n",
+      "image_gnm;tawc_top_1m;nowater_inactive_n;negative_surplus_budget_0"
+    )
+  )
+  .expect_gnm_closes(deficit)
 })
 
 testthat::test_that("image_gnm caps the temperature effect at one", {

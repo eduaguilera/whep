@@ -146,7 +146,10 @@ per-hectare rate), the input aggregates
 plus, under \code{"meisinger_drainage"}, the nitrate the profile carried in
 from the key's previous year, \code{retained_carried_in_n_t}, and less,
 under \code{"image_gnm"}, the \code{surface_runoff_n_t} it computes from the
-inputs, to at most the surplus; \code{"image_gnm"} also reports the eroded
+inputs, to at most the surplus; on grassland and natural rows with a
+total runoff below 3 mm/yr \code{"image_gnm"} holds the whole surplus as
+inactive N in \code{retained_profile_n_t} and books its surface runoff beside
+it; \code{"image_gnm"} also reports the eroded
 soil N, \code{erosion_n_t}, which no budget pays for; see
 \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},

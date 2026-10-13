@@ -368,6 +368,15 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   # 204, mm/yr), below which the excess water of eq. 5 is 0
   # (n_soil_denitrification.py lines 341-344).
   testthat::expect_equal(lookup[["image_gnm_min_runoff_mm"]], 3)
+  # One tolerance below 0 for a water flux, shared by the Meisinger drainage
+  # check and the IMAGE-GNM runoff check; it must stay the lower edge of
+  # Meisinger's None drainage bin, or a drainage could pass the check and
+  # match no bin.
+  testthat::expect_equal(lookup[["water_flux_floor_mm"]], -0.1)
+  testthat::expect_identical(
+    lookup[["water_flux_floor_mm"]],
+    min(whep::drainage_ranges$s_min)
+  )
   # IMAGE-GNM surface runoff: f_cal of eq. 9 (p. 4052; C_sro,N of Table 3,
   # p. 4056) and the erosion slope factor of the authors' code
   # (n_erosion.py line 50).

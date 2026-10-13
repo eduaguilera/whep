@@ -2421,6 +2421,70 @@ testthat::test_that("image_gnm leaching runs through the balance and closes", {
   testthat::expect_true(all(startsWith(out$method_leaching, "image_gnm;")))
 })
 
+testthat::test_that("image_gnm holds a dry grassland year's surplus in the balance's retained N", {
+  # 2011's total runoff of 2 mm/yr is below the authors' 3 mm/yr
+  # (n_nowater.py): the grassland surplus is held as inactive N in
+  # retained_profile_n_t, nothing leaches or denitrifies, and the balance's
+  # partition no3 + denitrification + retained = surplus still closes. The
+  # wet years leach and denitrify their budget and retain nothing.
+  data <- .nb_three_year_data()
+  runoff <- c(`2010` = 750, `2011` = 2, `2012` = 375)
+  data$n_balance_leaching_drivers <- data$n_balance_leaching_drivers |>
+    dplyr::mutate(
+      runoff_mm = unname(runoff[as.character(.data$year)]),
+      surface_runoff_fraction = 0.2,
+      slope_m_per_km = 15,
+      land_use = "Grassland",
+      temp_c_annual_mean = 15,
+      soil_field_capacity = 0.29,
+      soil_wilting_point = 0.14,
+      soil_texture_class = "medium",
+      soil_drainage_class = "moderately_well_drained",
+      soil_organic_carbon_pct = 2
+    )
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "image_gnm",
+      regime = "none"
+    ),
+    data = data
+  ))
+  dry <- out$year == 2011
+  testthat::expect_true(any(dry) && any(out$surplus_t[dry] > 0))
+  testthat::expect_equal(out$retained_profile_n_t[dry], out$surplus_t[dry])
+  testthat::expect_true(all(out$no3_n_t[dry] == 0))
+  testthat::expect_true(all(out$denitrification_n_t[dry] == 0))
+  testthat::expect_true(all(out$retained_profile_n_t[!dry] == 0))
+  testthat::expect_true(all(grepl(
+    "nowater_inactive_n",
+    out$method_leaching[dry],
+    fixed = TRUE
+  )))
+  # Grassland in a dry year runs off a share of its uptake, the input net of
+  # ammonia less the surplus (n_surface_runoff.py line 96 on a zeroed
+  # balance): 0.3 x 0.25 x 0.2 of it.
+  testthat::expect_equal(
+    out$surface_runoff_n_t[dry],
+    0.3 *
+      0.25 *
+      0.2 *
+      pmax(0, out$n_input_std_t[dry] - out$nh3_n_t[dry] - out$surplus_t[dry]),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    (out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t)[dry],
+    out$surplus_t[dry],
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    (out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t)[!dry],
+    pmax(out$surplus_t, out$surface_runoff_n_t)[!dry],
+    tolerance = 1e-9
+  )
+})
+
 testthat::test_that("the shared balance fixtures were never mutated", {
   expect_n_fixtures_untouched("nb_")
 })

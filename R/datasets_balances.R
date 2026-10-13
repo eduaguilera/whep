@@ -539,7 +539,9 @@
 #' code places on the residence time and the temperature effect, the total
 #' runoff below which it moves no water through the root zone, the
 #' calibration factor of its surface runoff nitrogen and the four constants
-#' of its erosion slope factor.
+#' of its erosion slope factor. \code{water_flux_floor_mm} is the lowest
+#' drainage or total runoff accepted as a float residue of zero, shared by
+#' the Meisinger and IMAGE-GNM checks of [calculate_n_leaching()].
 #'
 #' @format A tibble with columns:
 #' \describe{
@@ -553,7 +555,7 @@
 #'     \code{"image_gnm_crop_max_residence_yr"},
 #'     \code{"image_gnm_no_drainage_residence_yr"},
 #'     \code{"image_gnm_max_temperature_effect"},
-#'     \code{"image_gnm_min_runoff_mm"},
+#'     \code{"image_gnm_min_runoff_mm"}, \code{"water_flux_floor_mm"},
 #'     \code{"image_gnm_runoff_calibration"},
 #'     \code{"image_gnm_erosion_slope_offset"},
 #'     \code{"image_gnm_erosion_slope_range"},
@@ -586,7 +588,11 @@
 #'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97. The
 #'   3 mm/yr total runoff below which no water moves through the root zone:
 #'   the same file, lines 341-344, with \code{minimal_soil_infiltration =
-#'   3.0} (mm/yr) in \code{parameters_history_100.ini}, lines 203-204. The
+#'   3.0} (mm/yr) in \code{parameters_history_100.ini}, lines 203-204; the
+#'   same threshold sets dry grassland and natural surpluses aside as
+#'   inactive N in \code{n_nowater.py}, lines 31-46. The water-flux floor of
+#'   -0.1 mm is assumed, unverified: the lower edge of the None bin of
+#'   [drainage_ranges], with no source recorded for that edge. The
 #'   surface runoff calibration factor 0.3: the same paper, \code{f_cal} of
 #'   eq. 9, p. 4052, and \code{C_sro,N} of Table 3, p. 4056. The erosion
 #'   slope factor \code{a + b / (1 + exp(c - d S / 1000))} with

@@ -175,7 +175,10 @@
 #'   plus, under `"meisinger_drainage"`, the nitrate the profile carried in
 #'   from the key's previous year, `retained_carried_in_n_t`, and less,
 #'   under `"image_gnm"`, the `surface_runoff_n_t` it computes from the
-#'   inputs, to at most the surplus; `"image_gnm"` also reports the eroded
+#'   inputs, to at most the surplus; on grassland and natural rows with a
+#'   total runoff below 3 mm/yr `"image_gnm"` holds the whole surplus as
+#'   inactive N in `retained_profile_n_t` and books its surface runoff beside
+#'   it; `"image_gnm"` also reports the eroded
 #'   soil N, `erosion_n_t`, which no budget pays for; see
 #'   [calculate_n_leaching()]), the (post-cap)
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
