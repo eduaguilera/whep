@@ -1313,19 +1313,21 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
 
 # IMAGE-GNM rows (Beusen et al. 2015, eqs. 10-14 and Table 2): a loam (field
 # capacity 0.29 and wilting point 0.14, the loam row of
-# soil_hydraulic_by_texture) at 15 degC draining 100 mm/yr, so the top 1 m
-# holds tawc = 0.15 x 1,000 = 150 mm and T_r = 150 / 100 = 1.5 yr, with
-# f_K(15 degC) = 0.216327. Medium texture (f_text 0.1), moderately well
-# drained (f_drain 0.1) and 2% organic carbon (f_soc 0.1). A surface runoff
-# fraction of 0 runs no nitrogen off (eq. 9), so the leaching tests below
-# read eqs. 10-14 alone; 100 ha on a flat cell erode a little soil, which
-# eq. 10 does not take from the budget.
+# soil_hydraulic_by_texture) at 15 degC with a total runoff of 100 mm/yr, so
+# the top 1 m holds tawc = 0.15 x 1,000 = 150 mm and T_r = 150 / 100 =
+# 1.5 yr, with f_K(15 degC) = 0.216327. Medium texture (f_text 0.1),
+# moderately well drained (f_drain 0.1) and 2% organic carbon (f_soc 0.1). A
+# surface runoff fraction of 0 runs no nitrogen off (eq. 9) and leaves the
+# whole runoff as excess water (eq. 5, q_eff = q_tot), so the leaching tests
+# below read eqs. 10-14 alone; 100 ha on a flat cell erode a little soil,
+# which eq. 10 does not take from the budget.
 .gnm_rows <- function(n = 1L, ...) {
   base <- tibble::tibble(
     n_surplus_t = 100,
     n_input_std_t = 150,
     nh3_n_t = 10,
     area_ha = 100,
+    runoff_mm = 100,
     surface_runoff_fraction = 0,
     slope_m_per_km = 0,
     land_use = "Cropland",
@@ -1363,7 +1365,7 @@ testthat::test_that("image_gnm follows eq. 11 by hand on a loam at 15 degC", {
   f_k <- .gnm_f_k(15)
   testthat::expect_equal(f_k, 0.216327, tolerance = 1e-5)
   x <- .gnm_rows(3L, land_use = c("Cropland", "Grassland", "Natural"))
-  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
   # Cropland: T_r = min(1, 1.5) = 1 and f_landuse = 1. Grassland and natural
   # vegetation: T_r = 1.5 yr and f_landuse = 0.36.
   crop <- 1 - min(f_k * 1 + 0.1 + 0.1 + 0.1, 1)
@@ -1395,14 +1397,74 @@ testthat::test_that("image_gnm follows eq. 11 by hand on a loam at 15 degC", {
   .expect_gnm_closes(out)
 })
 
+testthat::test_that("image_gnm splits the total runoff by eq. 5 into q_eff", {
+  # Eq. 5 as the authors' code computes it (n_soil_denitrification.py lines
+  # 356, 376 and 399): q_eff = (1 - f_qsro(landuse) f_qsro) q_tot, with
+  # f_qsro(landuse) 1, 0.25 and 0.125 on crops, grassland and natural
+  # vegetation. f_qsro 0.4 and q_tot 300 mm leave 180, 270 and 285 mm, so
+  # T_r = 150 / q_eff is 0.833, 0.556 and 0.526 yr, all below the cropland
+  # cap. Eq. 9 runs off 0.3 x f_qsro(landuse) x 0.4 of 140 t (crops,
+  # grassland) and of the 100 t surplus (natural): 16.8, 4.2 and 1.5 t.
+  f_k <- .gnm_f_k(15)
+  x <- .gnm_rows(
+    3L,
+    land_use = c("Cropland", "Grassland", "Natural"),
+    surface_runoff_fraction = 0.4,
+    runoff_mm = 300
+  )
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  q_eff <- c(180, 270, 285)
+  f_leach <- (1 - (f_k * 150 / q_eff + 0.3)) * c(1, 0.36, 0.36)
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(16.8, 4.2, 1.5),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$no3_n_t,
+    (100 - c(16.8, 4.2, 1.5)) * f_leach,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$no3_n_t,
+    c(43.2413410772, 19.9967782938, 20.7846585622),
+    tolerance = 1e-10
+  )
+  # The whole runoff as q_eff (300 mm, T_r 0.5 yr) would leach more: the
+  # part surface runoff carries off never enters the root zone.
+  whole <- (1 - (f_k * 0.5 + 0.3)) * c(1, 0.36, 0.36)
+  testthat::expect_true(all(out$no3_n_t < (100 - c(16.8, 4.2, 1.5)) * whole))
+  testthat::expect_identical(
+    out$method_leaching,
+    rep("image_gnm;tawc_top_1m", 3)
+  )
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm does not read drainage_mm", {
+  # Eq. 14's water flow is the eq. 5 split of the total runoff; nothing else
+  # in the method reads the deep seepage.
+  x <- .gnm_rows(2L, land_use = c("Cropland", "Grassland"))
+  bare <- whep::calculate_n_leaching(x, method = "image_gnm")
+  testthat::expect_identical(
+    whep::calculate_n_leaching(x, drainage_mm = 5, method = "image_gnm"),
+    bare
+  )
+  from_column <- whep::calculate_n_leaching(
+    dplyr::mutate(x, drainage_mm = c(0, 5000)),
+    drainage_mm = "drainage_mm",
+    method = "image_gnm"
+  )
+  testthat::expect_identical(dplyr::select(from_column, -"drainage_mm"), bare)
+})
+
 testthat::test_that("image_gnm caps the cropland residence time at one year", {
   f_k <- .gnm_f_k(15)
   # 10 mm/yr gives T_r = 15 yr. Cropland takes min(1, 15) = 1; grassland
   # keeps 15 yr, so f_climate = 3.24 saturates MIN(..., 1) and nothing
   # leaches.
   dry <- whep::calculate_n_leaching(
-    .gnm_rows(2L, land_use = c("Cropland", "Grassland")),
-    drainage_mm = 10,
+    .gnm_rows(2L, land_use = c("Cropland", "Grassland"), runoff_mm = 10),
     method = "image_gnm"
   )
   capped <- 100 * (1 - (f_k + 0.3))
@@ -1410,10 +1472,8 @@ testthat::test_that("image_gnm caps the cropland residence time at one year", {
   testthat::expect_equal(dry$denitrification_n_t, c(100 - capped, 100))
   # Any T_r above one year gives the cropland row the same leaching; below
   # it (300 mm/yr, T_r = 0.5 yr) the cap does not bind.
-  rows <- .gnm_rows(3L)
   out <- whep::calculate_n_leaching(
-    rows,
-    drainage_mm = c(10, 75, 300),
+    .gnm_rows(3L, runoff_mm = c(10, 75, 300)),
     method = "image_gnm"
   )
   testthat::expect_equal(
@@ -1440,9 +1500,10 @@ testthat::test_that("image_gnm scales grassland leaching by f_landuse 0.36", {
     land_use = c("Cropland", "Grassland"),
     soil_texture_class = "coarse",
     soil_drainage_class = "well_drained",
-    soil_organic_carbon_pct = 0.5
+    soil_organic_carbon_pct = 0.5,
+    runoff_mm = 1500
   )
-  out <- whep::calculate_n_leaching(x, drainage_mm = 1500, method = "image_gnm")
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
   f_leach <- 1 - .gnm_f_k(15) * 0.1
   testthat::expect_equal(
     out$no3_n_t,
@@ -1488,12 +1549,11 @@ testthat::test_that("image_gnm reads every Table 2 class and SOC bin", {
   )
 })
 
-testthat::test_that("image_gnm takes a 100-year residence time without drainage", {
-  # The authors' trzd(): T_r = 100 yr where the excess water flow is 0, so
-  # grassland denitrifies the whole budget; cropland is still capped at 1 yr.
+testthat::test_that("image_gnm takes a 100-year residence time without excess water", {
+  # The authors' trzd(): T_r = 100 yr where q_eff is 0, so grassland
+  # denitrifies the whole budget; cropland is still capped at 1 yr.
   out <- whep::calculate_n_leaching(
-    .gnm_rows(2L, land_use = c("Grassland", "Cropland")),
-    drainage_mm = 0,
+    .gnm_rows(2L, land_use = c("Grassland", "Cropland"), runoff_mm = 0),
     method = "image_gnm"
   )
   testthat::expect_equal(
@@ -1504,11 +1564,61 @@ testthat::test_that("image_gnm takes a 100-year residence time without drainage"
   testthat::expect_identical(
     out$method_leaching,
     c(
-      "image_gnm;tawc_top_1m;no_drainage_residence_100yr",
+      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr",
       paste0(
-        "image_gnm;tawc_top_1m;no_drainage_residence_100yr;",
+        "image_gnm;tawc_top_1m;no_excess_water_residence_100yr;",
         "crop_residence_cap_1yr"
       )
+    )
+  )
+  .expect_gnm_closes(out)
+  # q_eff is also 0 where surface runoff takes the whole flow: a cropland
+  # f_qsro of 1 leaves (1 - 1 x 1) x 500 = 0 mm in the root zone.
+  sealed <- whep::calculate_n_leaching(
+    .gnm_rows(runoff_mm = 500, surface_runoff_fraction = 1),
+    method = "image_gnm"
+  )
+  testthat::expect_identical(
+    sealed$method_leaching,
+    paste0(
+      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr;",
+      "crop_residence_cap_1yr"
+    )
+  )
+})
+
+testthat::test_that("image_gnm sets a total runoff below 3 mm/yr to 0", {
+  # The authors' code moves no water below a net precipitation of 3 mm/yr
+  # (n_soil_denitrification.py lines 341-344; minimal_soil_infiltration = 3.0
+  # mm/yr, parameters_history_100.ini line 204). A 1 mm tawc makes the cut
+  # visible: at 3 mm, T_r = 1 / 3 yr and grassland leaches; at 2.99 mm the
+  # flow is 0, T_r = 100 yr and nothing leaches. A float residue of LPJmL's
+  # runoff (-1e-13) is cut to 0 as well.
+  x <- .gnm_rows(
+    4L,
+    land_use = "Grassland",
+    soil_wilting_point = 0.289,
+    runoff_mm = c(3, 2.99, -1e-13, 0)
+  )
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  testthat::expect_equal(
+    out$no3_n_t,
+    c(22.6040782634, 0, 0, 0),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    out$no3_n_t[1],
+    100 * (1 - (.gnm_f_k(15) / 3 + 0.3)) * 0.36,
+    tolerance = 1e-12
+  )
+  cut <- "image_gnm;tawc_top_1m;runoff_below_min_infiltration"
+  testthat::expect_identical(
+    out$method_leaching,
+    c(
+      "image_gnm;tawc_top_1m",
+      paste0(cut, ";no_excess_water_residence_100yr"),
+      paste0(cut, ";no_excess_water_residence_100yr"),
+      "image_gnm;tawc_top_1m;no_excess_water_residence_100yr"
     )
   )
   .expect_gnm_closes(out)
@@ -1521,8 +1631,7 @@ testthat::test_that("image_gnm caps the temperature effect at one", {
   # 25 degC f_K = 0.6167 is kept.
   testthat::expect_gt(.gnm_f_k(35), 1)
   out <- whep::calculate_n_leaching(
-    .gnm_rows(2L, temp_c_annual_mean = c(35, 25)),
-    drainage_mm = 300,
+    .gnm_rows(2L, temp_c_annual_mean = c(35, 25), runoff_mm = 300),
     method = "image_gnm"
   )
   testthat::expect_equal(
@@ -1539,34 +1648,90 @@ testthat::test_that("image_gnm caps the temperature effect at one", {
 testthat::test_that("image_gnm leaches only the budget surface runoff leaves (eq. 10)", {
   # Cropland, f_qsro 0.5 and 210 - 10 = 200 t of input net of ammonia:
   # N_sro = 0.3 x 1 x 0.5 x 200 = 30 t (eq. 9), so 70 of the 100 t surplus
-  # is the budget of eq. 10. The second row's surplus of 20 t is below its
-  # 30 t of runoff: the authors' code leaves a budget of 0 (n_surface_
-  # runoff.py lines 121-122) and the row says so.
+  # is the budget of eq. 10. q_eff = 0.5 x 100 = 50 mm, so T_r = 3 yr, held
+  # at 1 on cropland.
   out <- whep::calculate_n_leaching(
-    .gnm_rows(
-      2L,
-      n_surplus_t = c(100, 20),
-      n_input_std_t = 210,
-      surface_runoff_fraction = 0.5
-    ),
-    drainage_mm = 100,
+    .gnm_rows(n_input_std_t = 210, surface_runoff_fraction = 0.5),
     method = "image_gnm"
   )
-  testthat::expect_equal(out$surface_runoff_n_t, c(30, 30), tolerance = 1e-12)
+  testthat::expect_equal(out$surface_runoff_n_t, 30, tolerance = 1e-12)
   f_leach <- 1 - (.gnm_f_k(15) + 0.3)
-  testthat::expect_equal(out$no3_n_t, c(70 * f_leach, 0), tolerance = 1e-12)
+  testthat::expect_equal(out$no3_n_t, 70 * f_leach, tolerance = 1e-12)
   testthat::expect_equal(
     out$denitrification_n_t,
-    c(70 * (1 - f_leach), 0),
+    70 * (1 - f_leach),
     tolerance = 1e-12
   )
   testthat::expect_identical(
     out$method_leaching,
+    "image_gnm;tawc_top_1m;crop_residence_cap_1yr"
+  )
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm books the runoff when it exceeds the surplus (D66)", {
+  # Surface runoff is a share of the input (eq. 9), so on crops and grassland
+  # it can exceed the surplus; eq. 10 is then negative. The authors' code
+  # sets the budget to 0 (n_surface_runoff.py lines 106 and 122), so nothing
+  # leaches or denitrifies and the row books max(surplus, runoff) = runoff.
+  # Crops run off 0.3 x 1 x 0.5 x 140 = 21 t and grassland 0.3 x 0.25 x 0.5 x
+  # 140 = 5.25 t against a 2 t surplus. Natural vegetation runs off a share of
+  # its surplus (line 128), 0.3 x 0.125 x 0.5 x 2 = 0.0375 t, which never
+  # exceeds it.
+  x <- .gnm_rows(
+    3L,
+    land_use = c("Cropland", "Grassland", "Natural"),
+    n_surplus_t = 2,
+    surface_runoff_fraction = 0.5
+  )
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  testthat::expect_equal(
+    out$surface_runoff_n_t,
+    c(21, 5.25, 0.0375),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(out$no3_n_t[1:2], c(0, 0))
+  testthat::expect_identical(out$denitrification_n_t[1:2], c(0, 0))
+  booked <- out$surface_runoff_n_t + out$no3_n_t + out$denitrification_n_t
+  testthat::expect_equal(booked, c(21, 5.25, 2), tolerance = 1e-12)
+  testthat::expect_equal(
+    booked,
+    pmax(out$n_surplus_t, out$surface_runoff_n_t),
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(
+    endsWith(out$method_leaching, ";surface_runoff_exceeds_budget"),
+    c(TRUE, TRUE, FALSE)
+  )
+  .expect_gnm_closes(out)
+})
+
+testthat::test_that("image_gnm floors a negative surplus at a budget of 0", {
+  # A direct caller may pass a deficit. The authors' code floors the balance
+  # at 0 (n_surface_runoff.py lines 106, 122 and 136) and runs natural
+  # vegetation off max(0, balance) (line 128): nothing leaches or
+  # denitrifies, the deficit is booked as no loss, and the row says so.
+  # Grassland still runs off its input net of ammonia, 0.3 x 0.25 x 0.5 x
+  # 140 = 5.25 t, so it carries both fields.
+  x <- .gnm_rows(
+    3L,
+    land_use = c("Cropland", "Natural", "Grassland"),
+    n_surplus_t = -5,
+    surface_runoff_fraction = c(0, 0.5, 0.5)
+  )
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
+  testthat::expect_equal(out$surface_runoff_n_t, c(0, 0, 5.25))
+  testthat::expect_identical(out$no3_n_t, c(0, 0, 0))
+  testthat::expect_identical(out$denitrification_n_t, c(0, 0, 0))
+  base <- "image_gnm;tawc_top_1m"
+  testthat::expect_identical(
+    out$method_leaching,
     c(
-      "image_gnm;tawc_top_1m;crop_residence_cap_1yr",
+      paste0(base, ";crop_residence_cap_1yr;negative_surplus_budget_0"),
+      paste0(base, ";negative_surplus_budget_0"),
       paste0(
-        "image_gnm;tawc_top_1m;crop_residence_cap_1yr;",
-        "surface_runoff_exceeds_budget"
+        base,
+        ";negative_surplus_budget_0;surface_runoff_exceeds_budget"
       )
     )
   )
@@ -1587,7 +1752,7 @@ testthat::test_that("image_gnm computes surface runoff N by eq. 9 on two authors
     n_input_std_t = c(200, 80),
     nh3_n_t = c(20, 8)
   )
-  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
   testthat::expect_equal(
     out$surface_runoff_n_t,
     c(0.3 * 1 * 0.0135612 * 180, 0.3 * 0.25 * 0.524785 * 72),
@@ -1598,9 +1763,13 @@ testthat::test_that("image_gnm computes surface runoff N by eq. 9 on two authors
     c(0.7323048, 2.833839),
     tolerance = 1e-7
   )
-  # The budget of eq. 10 is the surplus less that runoff.
+  # The budget of eq. 10 is the surplus less that runoff. Eq. 5 leaves the
+  # grassland cell (1 - 0.25 x 0.524785) x 100 = 86.88 mm of excess water,
+  # T_r = 1.7265 yr; the cropland cell's T_r is held at 1.
   f_k <- .gnm_f_k(15)
-  f_leach <- c(1 - (f_k + 0.3), (1 - (f_k * 1.5 + 0.3)) * 0.36)
+  q_eff_grass <- 100 * (1 - 0.25 * 0.524785)
+  f_leach <- c(1 - (f_k + 0.3), (1 - (f_k * 150 / q_eff_grass + 0.3)) * 0.36)
+  testthat::expect_equal(f_leach[2], 0.1175433081, tolerance = 1e-9)
   testthat::expect_equal(
     out$no3_n_t,
     (100 - out$surface_runoff_n_t) * f_leach,
@@ -1621,7 +1790,7 @@ testthat::test_that("image_gnm takes N_inp by land use as the authors' code does
     n_input_std_t = c(500, 5, 40),
     nh3_n_t = c(0, 8, 4)
   )
-  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
   testthat::expect_equal(
     out$surface_runoff_n_t,
     c(0.3 * 0.125 * 0.111708 * 10, 0, 0.3 * 0.25 * 0.111708 * 36),
@@ -1646,7 +1815,7 @@ testthat::test_that("image_gnm computes erosion N on each land use (eq. 8)", {
     soil_organic_carbon_pct = c(2, 4, 1),
     area_ha = c(1000, 500, 2000)
   )
-  out <- whep::calculate_n_leaching(x, drainage_mm = 100, method = "image_gnm")
+  out <- whep::calculate_n_leaching(x, method = "image_gnm")
   testthat::expect_equal(
     out$erosion_n_t,
     c(
@@ -1666,7 +1835,6 @@ testthat::test_that("image_gnm computes erosion N on each land use (eq. 8)", {
   # balance (N-model.py lines 242-243 and 307), so leaching is unchanged.
   flat <- whep::calculate_n_leaching(
     dplyr::mutate(x, area_ha = 0),
-    drainage_mm = 100,
     method = "image_gnm"
   )
   testthat::expect_identical(flat$erosion_n_t, c(0, 0, 0))
@@ -1700,7 +1868,6 @@ testthat::test_that("image_gnm refuses a supplied surface runoff", {
   testthat::expect_error(
     whep::calculate_n_leaching(
       .gnm_rows(surface_runoff_n_t = 5),
-      drainage_mm = 100,
       method = "image_gnm"
     ),
     class = "whep_gnm_runoff_supplied"
@@ -1708,18 +1875,13 @@ testthat::test_that("image_gnm refuses a supplied surface runoff", {
 })
 
 testthat::test_that("image_gnm keeps no pool across years", {
-  x <- .gnm_rows(3L, year = 2000:2002, key = "a")
+  x <- .gnm_rows(3L, year = 2000:2002, key = "a", runoff_mm = c(100, 0, 100))
   threaded <- whep::calculate_n_leaching(
     x,
-    drainage_mm = c(100, 0, 100),
     method = "image_gnm",
     carry_over_by = "key"
   )
-  single <- whep::calculate_n_leaching(
-    x,
-    drainage_mm = c(100, 0, 100),
-    method = "image_gnm"
-  )
+  single <- whep::calculate_n_leaching(x, method = "image_gnm")
   testthat::expect_identical(threaded, single)
   testthat::expect_equal(threaded$no3_n_t[1], threaded$no3_n_t[3])
   .expect_gnm_closes(threaded)
@@ -1731,6 +1893,7 @@ testthat::test_that("image_gnm aborts on an absent or missing driver", {
     "n_input_std_t",
     "nh3_n_t",
     "area_ha",
+    "runoff_mm",
     "surface_runoff_fraction",
     "slope_m_per_km",
     "land_use",
@@ -1745,7 +1908,6 @@ testthat::test_that("image_gnm aborts on an absent or missing driver", {
     err <- testthat::expect_error(
       whep::calculate_n_leaching(
         x[setdiff(names(x), col)],
-        drainage_mm = 100,
         method = "image_gnm"
       ),
       class = "whep_missing_leaching_driver"
@@ -1753,22 +1915,17 @@ testthat::test_that("image_gnm aborts on an absent or missing driver", {
     testthat::expect_s3_class(err, "whep_absent_input")
     testthat::expect_match(conditionMessage(err), col, fixed = TRUE)
   }
-  testthat::expect_error(
-    whep::calculate_n_leaching(
-      dplyr::mutate(x, soil_wilting_point = NA_real_),
-      drainage_mm = 100,
-      method = "image_gnm"
-    ),
-    class = "whep_missing_leaching_driver"
-  )
-  testthat::expect_error(
-    whep::calculate_n_leaching(x, method = "image_gnm"),
-    class = "whep_missing_leaching_driver"
-  )
-  testthat::expect_error(
-    whep::calculate_n_leaching(x, drainage_mm = NA_real_, method = "image_gnm"),
-    class = "whep_missing_leaching_driver"
-  )
+  for (col in c("soil_wilting_point", "runoff_mm")) {
+    err <- testthat::expect_error(
+      whep::calculate_n_leaching(
+        dplyr::mutate(x, "{col}" := NA_real_),
+        method = "image_gnm"
+      ),
+      class = "whep_missing_leaching_driver"
+    )
+    testthat::expect_s3_class(err, "whep_absent_input")
+    testthat::expect_match(conditionMessage(err), col, fixed = TRUE)
+  }
 })
 
 testthat::test_that("image_gnm aborts on an impossible driver value", {
@@ -1785,18 +1942,15 @@ testthat::test_that("image_gnm aborts on an impossible driver value", {
     dplyr::mutate(x, area_ha = -1),
     dplyr::mutate(x, n_input_std_t = -1),
     dplyr::mutate(x, nh3_n_t = -1),
-    dplyr::mutate(x, n_surplus_t = -1)
+    dplyr::mutate(x, runoff_mm = -0.1),
+    dplyr::mutate(x, runoff_mm = Inf)
   )
   for (row in bad) {
     testthat::expect_error(
-      whep::calculate_n_leaching(row, drainage_mm = 100, method = "image_gnm"),
+      whep::calculate_n_leaching(row, method = "image_gnm"),
       class = "whep_leaching_driver_value"
     )
   }
-  testthat::expect_error(
-    whep::calculate_n_leaching(x, drainage_mm = -1, method = "image_gnm"),
-    class = "whep_leaching_driver_value"
-  )
 })
 
 testthat::test_that("the default Meisinger path is unchanged by IMAGE-GNM runoff", {
@@ -1907,7 +2061,7 @@ testthat::test_that("image_gnm aborts on a class outside its tables", {
   )
   for (row in bad) {
     testthat::expect_error(
-      whep::calculate_n_leaching(row, drainage_mm = 100, method = "image_gnm"),
+      whep::calculate_n_leaching(row, method = "image_gnm"),
       class = "whep_leaching_class_value"
     )
   }

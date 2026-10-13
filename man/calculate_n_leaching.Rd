@@ -33,7 +33,8 @@ and the soil columns its \code{transport} reads (see Details), plus \code{year}
 with \code{carry_over_by}; \code{method = "ipcc_fracleach"} requires
 \code{moisture_regime} (\code{"wet"} or \code{"dry"}) and, on dry rows, \code{water_regime}
 (\code{"rainfed"} or \code{"irrigated"}); \code{method = "image_gnm"} requires
-\code{n_input_std_t}, \code{nh3_n_t}, \code{area_ha}, \code{surface_runoff_fraction},
+\code{n_input_std_t}, \code{nh3_n_t}, \code{area_ha}, \code{runoff_mm} (the year's total
+runoff, mm), \code{surface_runoff_fraction},
 \code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use}
 (\code{"Cropland"}, \code{"Grassland"} or \code{"Natural"}), \code{temp_c_annual_mean},
 \code{soil_field_capacity}, \code{soil_wilting_point}, \code{soil_texture_class},
@@ -44,7 +45,7 @@ with \code{carry_over_by}; \code{method = "ipcc_fracleach"} requires
 drainage (mm), or a single string naming a column of \code{x} to use
 instead. Kept as a separate argument (rather than a static \code{x} column)
 because in the full pipeline it flows in from Module A's gridded water
-balance.}
+balance. Read by \code{"meisinger_drainage"} only.}
 
 \item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"} or
 \code{"image_gnm"}.}
@@ -117,10 +118,12 @@ the year's nitrogen input (eq. 9). The budget left leaches in the share
 \code{f_leach}, \code{no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)}
 (eq. 10), and the rest of it denitrifies (\code{f_den = 1 - f_leach}), with
 \verb{f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)] f_landuse}
-(eq. 11). Eroded soil carries \code{erosion_n_t} from the soil's own organic
-nitrogen (eq. 8), which no budget pays for. See the IMAGE-GNM section under
-Details. IMAGE-GNM carries no nitrate from year to year, so every row
-closes \code{max(n_surplus_t, surface_runoff_n_t) = surface_runoff_n_t + no3_n_t + denitrification_n_t}.
+(eq. 11). The water that sets the root-zone residence time is the part of
+the total runoff \code{runoff_mm} that surface runoff does not carry off
+(eq. 5); \code{drainage_mm} is not read. Eroded soil carries \code{erosion_n_t} from
+the soil's own organic nitrogen (eq. 8), which no budget pays for. See the
+IMAGE-GNM section under Details. IMAGE-GNM carries no nitrate from year to
+year, so every row closes \code{max(n_surplus_t, surface_runoff_n_t) = surface_runoff_n_t + no3_n_t + denitrification_n_t}.
 }
 \details{
 \subsection{Transport factor}{
@@ -218,10 +221,19 @@ authors' code adds 273). \code{f_K} is bounded at 1, as in the authors' code
 water capacity of the top 1 m, \code{(soil_field_capacity - soil_wilting_point)} x 1,000 mm. The source takes the top 1 m "or less
 if thinner"; WHEP has no soil-thickness layer, so the full 1 m is used
 everywhere. \code{q_eff} is the excess water flow of eq. 5 (p. 4049), the
-water that infiltrates and recharges shallow and deep groundwater, here
-\code{drainage_mm}: WHEP's annual drainage is the deep seepage below the
-soil column, which is that excess water. Where \code{q_eff} is 0 the
-authors' code takes \code{T_r = 100} years (\code{trzd()}, lines 179-182).
+water that infiltrates and recharges shallow and deep groundwater, as
+the authors' code computes it (\code{n_soil_denitrification.py} lines 356,
+376 and 399): \verb{q_eff = (1 - f_qsro(landuse) f_qsro) q_tot}, the total
+runoff less the share surface runoff carries off, with the
+\code{f_qsro(landuse)} and \code{f_qsro} of eq. 9 below. \code{q_tot} is \code{runoff_mm},
+the year's total runoff: LPJmL's \code{mrunoff.nc}
+(\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} \code{"runoff"}), which holds the groundwater
+outflow the deep seepage feeds, as the authors' \code{pnet}, the hydrology
+model's total runoff, does. Below 3 mm/yr the authors' code moves no
+water (lines 341-344; \code{minimal_soil_infiltration = 3.0} mm/yr,
+\code{parameters_history_100.ini} line 204), so \code{q_tot} is 0 there. Where
+\code{q_eff} is 0 the authors' code takes \code{T_r = 100} years (\code{trzd()}, lines
+179-182).
 \item On cropland \code{T_r} is at most 1 year, as in the authors' code (lines
 377-378: crops must have enough water, for example from irrigation).
 The printed sentence (p. 4052) reads as raising a \code{T_r} below 1 to 1 on
@@ -245,10 +257,23 @@ vegetation (Table 3, p. 4056; the authors' code,
 0.5-degree layer, which their code reads instead of computing eq. 4
 (see \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}). \code{N_inp} follows the authors' code: on
 cropland and grassland the input net of ammonia, \code{n_input_std_t - nh3_n_t}, floored at 0 (\code{n_surface_runoff.py} lines 57-58, 96 and 112);
-on natural vegetation the surplus \code{n_surplus_t} (line 128). Surface
-runoff is a share of the input, so it can exceed the surplus; eq. 10 is
-then negative, and the authors' code sets the budget to 0 (lines 106,
-122 and 136), as here.
+on natural vegetation the surplus \code{n_surplus_t}, floored at 0 (line
+128). In \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} \code{n_input_std_t} is biological
+fixation, excreta, liquid and solid manure, synthetic fertiliser, human N
+applied to land and deposition: it includes human N applied to land and
+excludes N mineralised from soil organic matter and recycled crop
+residues. The authors' input is the year's N applied to or deposited on
+the land, manure, fertiliser, fixation and deposition (lines 57-58), the
+N exposed to surface runoff before it enters the soil. Human N applied to
+land reaches the surface as manure does, so it is kept; mineralised soil
+N is released inside the soil and recycled residues return N the crop
+took from the same soil, so neither is a fresh input at the surface.
+Surface runoff is a share of the input, so it can exceed the surplus;
+eq. 10 is then negative, and the authors' code sets the budget to 0
+(lines 106, 122 and 136), as here: nothing leaches or denitrifies and
+the row books \code{max(n_surplus_t, surface_runoff_n_t)}. A negative surplus
+(a deficit, which \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} never passes) is floored at
+a budget of 0 the same way and booked as no loss.
 \item \code{erosion_n_t} is \verb{N_sro,mem} of eq. 8 (p. 4052), the nitrogen of soil
 lost to erosion, computed as the authors' code does (\code{n_erosion.py}
 lines 47-55 and 88-135): an erodibility
@@ -257,32 +282,34 @@ lines 47-55 and 88-135): an erodibility
 \code{slope_m_per_km}; a soil loss of 1,151, 99 and 29 t per km2 per unit
 erodibility on cropland, grassland and natural vegetation over \code{area_ha};
 and N = soil loss x \code{soil_organic_carbon_pct} / C:N, with C:N 12, 14
-and 14 (p. 4052). The paper subtracts the whole of eq. 8 in eq. 10; the
-authors' code subtracts only the runoff from the recent inputs and adds
-the eroded N to the river load (\code{N-model.py} lines 233-243 and 307), so
-\code{erosion_n_t} is reported and taken from no budget.
+and 14 (p. 4052). \code{area_ha} drives it: in \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} it
+is the physical agricultural land of \code{ag_land_support}, or, where that
+cannot be derived, the crop's harvested area, which counts multi-cropped
+land once per crop and so overstates erosion there. The paper subtracts
+the whole of eq. 8 in eq. 10; the authors' code subtracts only the
+runoff from the recent inputs and adds the eroded N to the river load
+(\code{N-model.py} lines 233-243 and 307), so \code{erosion_n_t} is reported and
+taken from no budget.
 \item IMAGE-GNM keeps no root-zone nitrate from one year to the next, so
 \code{retained_profile_n_t} and \code{retained_carried_in_n_t} are 0 by
 construction, and \code{transport}, \code{none_class} and \code{carry_over_by} do not
 apply.
 }
 
-Three parts of the authors' code are not reproduced. Its separate water
-capacities of dominant and suitable soils: WHEP has one soil per cell.
-Its excess water flow of eq. 5, \verb{(1 - f_qsro(landuse) f_qsro)} times the
-total runoff (\code{n_soil_denitrification.py} lines 356, 376 and 399): WHEP's
-drainage is already below the surface. And its 3 mm net
-precipitation below which the excess water is set to 0: net
-precipitation is not a WHEP quantity. The code also interpolates \code{f_soc}
-linearly from 0 at 0\% to 0.3 at 6\% organic carbon instead of the printed
-classes; the printed Table 2 is used.
+One part of the authors' code is not reproduced: its separate water
+capacities of dominant and suitable soils, because WHEP has one soil per
+cell. The code also interpolates \code{f_soc} linearly from 0 at 0\% to 0.3 at
+6\% organic carbon instead of the printed classes; the printed Table 2 is
+used.
 
 \code{method_leaching} is \verb{image_gnm;tawc_top_1m}, followed where they apply
-by \code{no_drainage_residence_100yr} (\code{q_eff} of 0), \code{crop_residence_cap_1yr}
-(a cropland \code{T_r} above 1 year held at 1), \code{temperature_effect_cap_1}
-(an \code{f_K} above 1 held at 1) and \code{surface_runoff_exceeds_budget} (a
-surface runoff above \code{n_surplus_t}, leaving a budget of 0), joined with
-\verb{;}.
+by \code{runoff_below_min_infiltration} (a non-zero \code{runoff_mm} below 3 mm/yr
+set to 0), \code{no_excess_water_residence_100yr} (\code{q_eff} of 0),
+\code{crop_residence_cap_1yr} (a cropland \code{T_r} above 1 year held at 1),
+\code{temperature_effect_cap_1} (an \code{f_K} above 1 held at 1),
+\code{negative_surplus_budget_0} (a negative \code{n_surplus_t}, leaving a budget
+of 0) and \code{surface_runoff_exceeds_budget} (a surface runoff above a
+non-negative surplus, leaving a budget of 0), joined with \verb{;}.
 }
 
 \subsection{Errors}{
@@ -299,12 +326,13 @@ has no \code{year}, or a key occurs twice in one year.
 For \code{method = "image_gnm"}:
 \itemize{
 \item \code{whep_missing_leaching_driver} (also \code{whep_absent_input}): a column it
-reads is absent or holds a missing value, or \code{drainage_mm} is absent or
-missing.
+reads, \code{runoff_mm} among them, is absent or holds a missing value.
 \item \code{whep_leaching_driver_value}: a field capacity outside (0, 1], a
 wilting point outside (0, field capacity), a negative organic carbon,
-drainage, slope, area, input, ammonia or surplus, a non-finite
-temperature, or a surface runoff fraction outside \verb{[0, 1]}.
+slope, area, input or ammonia, a non-finite temperature, a non-finite
+\code{runoff_mm} or one at or below -0.1 mm (LPJmL's float residues just
+below 0 pass and are set to 0 by the 3 mm/yr threshold), or a surface
+runoff fraction outside \verb{[0, 1]}.
 \item \code{whep_gnm_runoff_supplied}: \code{x} already holds \code{surface_runoff_n_t},
 which \code{"image_gnm"} computes; drop it rather than have it overwritten.
 \item \code{whep_leaching_class_value}: a texture, drainage or land-use label

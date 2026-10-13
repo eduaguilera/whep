@@ -536,7 +536,8 @@
 #' \code{molar_gas_constant} give the Arrhenius temperature effect on
 #' root-zone denitrification of the IMAGE-GNM method, and
 #' \code{image_gnm_*} its root-zone depth, the bounds its authors' model
-#' code places on the residence time and the temperature effect, the
+#' code places on the residence time and the temperature effect, the total
+#' runoff below which it moves no water through the root zone, the
 #' calibration factor of its surface runoff nitrogen and the four constants
 #' of its erosion slope factor.
 #'
@@ -552,6 +553,7 @@
 #'     \code{"image_gnm_crop_max_residence_yr"},
 #'     \code{"image_gnm_no_drainage_residence_yr"},
 #'     \code{"image_gnm_max_temperature_effect"},
+#'     \code{"image_gnm_min_runoff_mm"},
 #'     \code{"image_gnm_runoff_calibration"},
 #'     \code{"image_gnm_erosion_slope_offset"},
 #'     \code{"image_gnm_erosion_slope_range"},
@@ -582,6 +584,9 @@
 #'   of 1 on the temperature effect: the authors' IMAGE-GNM model code
 #'   published with the paper, \code{n_soil_denitrification.py} (in
 #'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97. The
+#'   3 mm/yr total runoff below which no water moves through the root zone:
+#'   the same file, lines 341-344, with \code{minimal_soil_infiltration =
+#'   3.0} (mm/yr) in \code{parameters_history_100.ini}, lines 203-204. The
 #'   surface runoff calibration factor 0.3: the same paper, \code{f_cal} of
 #'   eq. 9, p. 4052, and \code{C_sro,N} of Table 3, p. 4056. The erosion
 #'   slope factor \code{a + b / (1 + exp(c - d S / 1000))} with

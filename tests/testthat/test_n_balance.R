@@ -2341,8 +2341,10 @@ testthat::test_that("image_gnm names the drivers the builder lacks", {
     class = "whep_n_loss_drivers_unsupported"
   )
   msg <- cli::ansi_strip(conditionMessage(err))
+  # Eq. 14 reads the eq. 5 split of the total runoff, not the deep seepage.
+  testthat::expect_no_match(msg, "drainage_mm", fixed = TRUE)
   for (col in c(
-    "drainage_mm",
+    "runoff_mm",
     "surface_runoff_fraction",
     "slope_m_per_km",
     "land_use",
@@ -2359,8 +2361,12 @@ testthat::test_that("image_gnm names the drivers the builder lacks", {
 
 testthat::test_that("image_gnm leaching runs through the balance and closes", {
   data <- .nb_three_year_data()
+  # Total runoff of 750, 0 and 375 mm: eq. 5 leaves (1 - 1 x 0.2) of it,
+  # 600, 0 and 300 mm, as the root zone's excess water on cropland.
+  runoff <- c(`2010` = 750, `2011` = 0, `2012` = 375)
   data$n_balance_leaching_drivers <- data$n_balance_leaching_drivers |>
     dplyr::mutate(
+      runoff_mm = unname(runoff[as.character(.data$year)]),
       surface_runoff_fraction = 0.2,
       slope_m_per_km = 15,
       land_use = "Cropland",
@@ -2398,8 +2404,8 @@ testthat::test_that("image_gnm leaching runs through the balance and closes", {
   )
   testthat::expect_true(all(out$retained_profile_n_t == 0))
   testthat::expect_true(all(out$retained_carried_in_n_t == 0))
-  # 600 and 300 mm drain a 150 mm tawc in under a year; 0 mm takes the
-  # authors' 100-year residence, capped at 1 yr on cropland.
+  # 600 and 300 mm of excess water pass a 150 mm tawc in under a year; 0 mm
+  # takes the authors' 100-year residence, capped at 1 yr on cropland.
   f_k <- 7.94e12 * exp(-74830 / (8.3144 * 288.15))
   t_r <- c(`2010` = 0.25, `2011` = 1, `2012` = 0.5)
   f_leach <- 1 - (f_k * t_r[as.character(out$year)] + 0.3)

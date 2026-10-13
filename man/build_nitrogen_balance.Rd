@@ -113,7 +113,8 @@ exact column; for the MANNER \code{nh3} methods the check runs on
 \code{n_balance_drivers} before any input is assembled, because no
 function in the package supplies those drivers (only \code{windspeed_ms}
 has a reader, \code{\link[=read_lpjml_wind]{read_lpjml_wind()}}, not wired in).
-\item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
+\item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}'s
+\code{"meisinger_drainage"} (\code{"image_gnm"} reads \code{runoff_mm} instead), as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}. At grid
 resolution the rainfed/irrigated split doubles the rows, so an aligned
@@ -245,7 +246,8 @@ be supplied.\tabular{llll}{
 and, by transport, \code{soil_porosity} (\code{"swat_mixing"}) or
 \code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}.
 Drivers must be supplied; global drivers planned.
-\item Note 3: IMAGE-GNM reads \code{drainage_mm}, \code{surface_runoff_fraction},
+\item Note 3: IMAGE-GNM reads \code{runoff_mm} (the year's total runoff, LPJmL
+\code{mrunoff.nc}), \code{surface_runoff_fraction},
 \code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use},
 \code{temp_c_annual_mean}, \code{soil_field_capacity}, \code{soil_wilting_point},
 \code{soil_texture_class}, \code{soil_drainage_class} and

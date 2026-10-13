@@ -364,6 +364,10 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["image_gnm_crop_max_residence_yr"]], 1)
   testthat::expect_equal(lookup[["image_gnm_no_drainage_residence_yr"]], 100)
   testthat::expect_equal(lookup[["image_gnm_max_temperature_effect"]], 1)
+  # The authors' minimal_soil_infiltration (parameters_history_100.ini line
+  # 204, mm/yr), below which the excess water of eq. 5 is 0
+  # (n_soil_denitrification.py lines 341-344).
+  testthat::expect_equal(lookup[["image_gnm_min_runoff_mm"]], 3)
   # IMAGE-GNM surface runoff: f_cal of eq. 9 (p. 4052; C_sro,N of Table 3,
   # p. 4056) and the erosion slope factor of the authors' code
   # (n_erosion.py line 50).

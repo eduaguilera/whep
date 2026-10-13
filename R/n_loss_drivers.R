@@ -70,7 +70,7 @@
 #' `incorporation_delay_h` and `species` (see [calculate_nh3()]); Meisinger
 #' reads `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`,
 #' `tillage`, `som_share`, `drainage_mm`, `root_depth_cm` and its transport's
-#' soil columns, and IMAGE-GNM reads `drainage_mm`,
+#' soil columns, and IMAGE-GNM reads `runoff_mm` (the year's total runoff),
 #' `surface_runoff_fraction`, `slope_m_per_km` (both from
 #' [read_image_gnm_runoff()]), `land_use`, `temp_c_annual_mean`,
 #' `soil_field_capacity`, `soil_wilting_point`, `soil_texture_class`,

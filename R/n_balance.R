@@ -147,7 +147,8 @@
 #'     `n_balance_drivers` before any input is assembled, because no
 #'     function in the package supplies those drivers (only `windspeed_ms`
 #'     has a reader, [read_lpjml_wind()], not wired in).
-#'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()], as
+#'   * `drainage_mm`: annual drainage (mm) for [calculate_n_leaching()]'s
+#'     `"meisinger_drainage"` (`"image_gnm"` reads `runoff_mm` instead), as
 #'     a numeric vector aligned to the balance-key rows, or already present
 #'     as a `drainage_mm` column via `n_balance_leaching_drivers`. At grid
 #'     resolution the rainfed/irrigated split doubles the rows, so an aligned
@@ -261,7 +262,8 @@
 #'   and, by transport, `soil_porosity` (`"swat_mixing"`) or
 #'   `soil_field_capacity` (`"burns"`); see [calculate_n_leaching()].
 #'   Drivers must be supplied; global drivers planned.
-#' - Note 3: IMAGE-GNM reads `drainage_mm`, `surface_runoff_fraction`,
+#' - Note 3: IMAGE-GNM reads `runoff_mm` (the year's total runoff, LPJmL
+#'   `mrunoff.nc`), `surface_runoff_fraction`,
 #'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`,
 #'   `temp_c_annual_mean`, `soil_field_capacity`, `soil_wilting_point`,
 #'   `soil_texture_class`, `soil_drainage_class` and
@@ -413,7 +415,9 @@ build_nitrogen_balance <- function(
 
 # The leaching driver columns build_n_loss_drivers() does not supply, by
 # method: none for ipcc_fracleach, Meisinger's with its transport's soil
-# columns, and IMAGE-GNM's (calculate_n_leaching() reads each).
+# columns, and IMAGE-GNM's (calculate_n_leaching() reads each). IMAGE-GNM
+# reads the total runoff runoff_mm, not drainage_mm (its eq. 14 takes the
+# eq. 5 split of the total runoff).
 .nb_leaching_driver_cols <- function(m) {
   switch(
     m$leaching,
@@ -429,7 +433,7 @@ build_nitrogen_balance <- function(
       "drainage_mm",
       .leaching_soil_cols(m$leaching_transport)
     ),
-    image_gnm = c("drainage_mm", .gnm_external_cols())
+    image_gnm = .gnm_external_cols()
   )
 }
 

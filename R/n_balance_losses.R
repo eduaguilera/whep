@@ -256,11 +256,13 @@ calculate_soil_n2o <- function(
 #' `f_leach`, `no3_n_t = f_leach (n_surplus_t - surface_runoff_n_t)`
 #' (eq. 10), and the rest of it denitrifies (`f_den = 1 - f_leach`), with
 #' `f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)] f_landuse`
-#' (eq. 11). Eroded soil carries `erosion_n_t` from the soil's own organic
-#' nitrogen (eq. 8), which no budget pays for. See the IMAGE-GNM section under
-#' Details. IMAGE-GNM carries no nitrate from year to year, so every row
-#' closes `max(n_surplus_t, surface_runoff_n_t) = surface_runoff_n_t +
-#' no3_n_t + denitrification_n_t`.
+#' (eq. 11). The water that sets the root-zone residence time is the part of
+#' the total runoff `runoff_mm` that surface runoff does not carry off
+#' (eq. 5); `drainage_mm` is not read. Eroded soil carries `erosion_n_t` from
+#' the soil's own organic nitrogen (eq. 8), which no budget pays for. See the
+#' IMAGE-GNM section under Details. IMAGE-GNM carries no nitrate from year to
+#' year, so every row closes `max(n_surplus_t, surface_runoff_n_t) =
+#' surface_runoff_n_t + no3_n_t + denitrification_n_t`.
 #'
 #' @details
 #' ## Transport factor
@@ -354,10 +356,19 @@ calculate_soil_n2o <- function(
 #'   soil_wilting_point)` x 1,000 mm. The source takes the top 1 m "or less
 #'   if thinner"; WHEP has no soil-thickness layer, so the full 1 m is used
 #'   everywhere. `q_eff` is the excess water flow of eq. 5 (p. 4049), the
-#'   water that infiltrates and recharges shallow and deep groundwater, here
-#'   `drainage_mm`: WHEP's annual drainage is the deep seepage below the
-#'   soil column, which is that excess water. Where `q_eff` is 0 the
-#'   authors' code takes `T_r = 100` years (`trzd()`, lines 179-182).
+#'   water that infiltrates and recharges shallow and deep groundwater, as
+#'   the authors' code computes it (`n_soil_denitrification.py` lines 356,
+#'   376 and 399): `q_eff = (1 - f_qsro(landuse) f_qsro) q_tot`, the total
+#'   runoff less the share surface runoff carries off, with the
+#'   `f_qsro(landuse)` and `f_qsro` of eq. 9 below. `q_tot` is `runoff_mm`,
+#'   the year's total runoff: LPJmL's `mrunoff.nc`
+#'   ([read_lpjml_hydrology()] `"runoff"`), which holds the groundwater
+#'   outflow the deep seepage feeds, as the authors' `pnet`, the hydrology
+#'   model's total runoff, does. Below 3 mm/yr the authors' code moves no
+#'   water (lines 341-344; `minimal_soil_infiltration = 3.0` mm/yr,
+#'   `parameters_history_100.ini` line 204), so `q_tot` is 0 there. Where
+#'   `q_eff` is 0 the authors' code takes `T_r = 100` years (`trzd()`, lines
+#'   179-182).
 #' - On cropland `T_r` is at most 1 year, as in the authors' code (lines
 #'   377-378: crops must have enough water, for example from irrigation).
 #'   The printed sentence (p. 4052) reads as raising a `T_r` below 1 to 1 on
@@ -382,10 +393,23 @@ calculate_soil_n2o <- function(
 #'   (see [read_image_gnm_runoff()]). `N_inp` follows the authors' code: on
 #'   cropland and grassland the input net of ammonia, `n_input_std_t -
 #'   nh3_n_t`, floored at 0 (`n_surface_runoff.py` lines 57-58, 96 and 112);
-#'   on natural vegetation the surplus `n_surplus_t` (line 128). Surface
-#'   runoff is a share of the input, so it can exceed the surplus; eq. 10 is
-#'   then negative, and the authors' code sets the budget to 0 (lines 106,
-#'   122 and 136), as here.
+#'   on natural vegetation the surplus `n_surplus_t`, floored at 0 (line
+#'   128). In [build_nitrogen_balance()] `n_input_std_t` is biological
+#'   fixation, excreta, liquid and solid manure, synthetic fertiliser, human N
+#'   applied to land and deposition: it includes human N applied to land and
+#'   excludes N mineralised from soil organic matter and recycled crop
+#'   residues. The authors' input is the year's N applied to or deposited on
+#'   the land, manure, fertiliser, fixation and deposition (lines 57-58), the
+#'   N exposed to surface runoff before it enters the soil. Human N applied to
+#'   land reaches the surface as manure does, so it is kept; mineralised soil
+#'   N is released inside the soil and recycled residues return N the crop
+#'   took from the same soil, so neither is a fresh input at the surface.
+#'   Surface runoff is a share of the input, so it can exceed the surplus;
+#'   eq. 10 is then negative, and the authors' code sets the budget to 0
+#'   (lines 106, 122 and 136), as here: nothing leaches or denitrifies and
+#'   the row books `max(n_surplus_t, surface_runoff_n_t)`. A negative surplus
+#'   (a deficit, which [build_nitrogen_balance()] never passes) is floored at
+#'   a budget of 0 the same way and booked as no loss.
 #' - `erosion_n_t` is `N_sro,mem` of eq. 8 (p. 4052), the nitrogen of soil
 #'   lost to erosion, computed as the authors' code does (`n_erosion.py`
 #'   lines 47-55 and 88-135): an erodibility
@@ -394,31 +418,33 @@ calculate_soil_n2o <- function(
 #'   `slope_m_per_km`; a soil loss of 1,151, 99 and 29 t per km2 per unit
 #'   erodibility on cropland, grassland and natural vegetation over `area_ha`;
 #'   and N = soil loss x `soil_organic_carbon_pct` / C:N, with C:N 12, 14
-#'   and 14 (p. 4052). The paper subtracts the whole of eq. 8 in eq. 10; the
-#'   authors' code subtracts only the runoff from the recent inputs and adds
-#'   the eroded N to the river load (`N-model.py` lines 233-243 and 307), so
-#'   `erosion_n_t` is reported and taken from no budget.
+#'   and 14 (p. 4052). `area_ha` drives it: in [build_nitrogen_balance()] it
+#'   is the physical agricultural land of `ag_land_support`, or, where that
+#'   cannot be derived, the crop's harvested area, which counts multi-cropped
+#'   land once per crop and so overstates erosion there. The paper subtracts
+#'   the whole of eq. 8 in eq. 10; the authors' code subtracts only the
+#'   runoff from the recent inputs and adds the eroded N to the river load
+#'   (`N-model.py` lines 233-243 and 307), so `erosion_n_t` is reported and
+#'   taken from no budget.
 #' - IMAGE-GNM keeps no root-zone nitrate from one year to the next, so
 #'   `retained_profile_n_t` and `retained_carried_in_n_t` are 0 by
 #'   construction, and `transport`, `none_class` and `carry_over_by` do not
 #'   apply.
 #'
-#' Three parts of the authors' code are not reproduced. Its separate water
-#' capacities of dominant and suitable soils: WHEP has one soil per cell.
-#' Its excess water flow of eq. 5, `(1 - f_qsro(landuse) f_qsro)` times the
-#' total runoff (`n_soil_denitrification.py` lines 356, 376 and 399): WHEP's
-#' drainage is already below the surface. And its 3 mm net
-#' precipitation below which the excess water is set to 0: net
-#' precipitation is not a WHEP quantity. The code also interpolates `f_soc`
-#' linearly from 0 at 0% to 0.3 at 6% organic carbon instead of the printed
-#' classes; the printed Table 2 is used.
+#' One part of the authors' code is not reproduced: its separate water
+#' capacities of dominant and suitable soils, because WHEP has one soil per
+#' cell. The code also interpolates `f_soc` linearly from 0 at 0% to 0.3 at
+#' 6% organic carbon instead of the printed classes; the printed Table 2 is
+#' used.
 #'
 #' `method_leaching` is `image_gnm;tawc_top_1m`, followed where they apply
-#' by `no_drainage_residence_100yr` (`q_eff` of 0), `crop_residence_cap_1yr`
-#' (a cropland `T_r` above 1 year held at 1), `temperature_effect_cap_1`
-#' (an `f_K` above 1 held at 1) and `surface_runoff_exceeds_budget` (a
-#' surface runoff above `n_surplus_t`, leaving a budget of 0), joined with
-#' `;`.
+#' by `runoff_below_min_infiltration` (a non-zero `runoff_mm` below 3 mm/yr
+#' set to 0), `no_excess_water_residence_100yr` (`q_eff` of 0),
+#' `crop_residence_cap_1yr` (a cropland `T_r` above 1 year held at 1),
+#' `temperature_effect_cap_1` (an `f_K` above 1 held at 1),
+#' `negative_surplus_budget_0` (a negative `n_surplus_t`, leaving a budget
+#' of 0) and `surface_runoff_exceeds_budget` (a surface runoff above a
+#' non-negative surplus, leaving a budget of 0), joined with `;`.
 #'
 #' ## Errors
 #'
@@ -433,12 +459,13 @@ calculate_soil_n2o <- function(
 #' For `method = "image_gnm"`:
 #'
 #' - `whep_missing_leaching_driver` (also `whep_absent_input`): a column it
-#'   reads is absent or holds a missing value, or `drainage_mm` is absent or
-#'   missing.
+#'   reads, `runoff_mm` among them, is absent or holds a missing value.
 #' - `whep_leaching_driver_value`: a field capacity outside (0, 1], a
 #'   wilting point outside (0, field capacity), a negative organic carbon,
-#'   drainage, slope, area, input, ammonia or surplus, a non-finite
-#'   temperature, or a surface runoff fraction outside `[0, 1]`.
+#'   slope, area, input or ammonia, a non-finite temperature, a non-finite
+#'   `runoff_mm` or one at or below -0.1 mm (LPJmL's float residues just
+#'   below 0 pass and are set to 0 by the 3 mm/yr threshold), or a surface
+#'   runoff fraction outside `[0, 1]`.
 #' - `whep_gnm_runoff_supplied`: `x` already holds `surface_runoff_n_t`,
 #'   which `"image_gnm"` computes; drop it rather than have it overwritten.
 #' - `whep_leaching_class_value`: a texture, drainage or land-use label
@@ -462,7 +489,8 @@ calculate_soil_n2o <- function(
 #'   with `carry_over_by`; `method = "ipcc_fracleach"` requires
 #'   `moisture_regime` (`"wet"` or `"dry"`) and, on dry rows, `water_regime`
 #'   (`"rainfed"` or `"irrigated"`); `method = "image_gnm"` requires
-#'   `n_input_std_t`, `nh3_n_t`, `area_ha`, `surface_runoff_fraction`,
+#'   `n_input_std_t`, `nh3_n_t`, `area_ha`, `runoff_mm` (the year's total
+#'   runoff, mm), `surface_runoff_fraction`,
 #'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`
 #'   (`"Cropland"`, `"Grassland"` or `"Natural"`), `temp_c_annual_mean`,
 #'   `soil_field_capacity`, `soil_wilting_point`, `soil_texture_class`,
@@ -472,7 +500,7 @@ calculate_soil_n2o <- function(
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
 #'   because in the full pipeline it flows in from Module A's gridded water
-#'   balance.
+#'   balance. Read by `"meisinger_drainage"` only.
 #' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"` or
 #'   `"image_gnm"`.
 #' @param transport The transport factor of `"meisinger_drainage"`:
@@ -519,10 +547,10 @@ calculate_n_leaching <- function(
   if (method == "ipcc_fracleach") {
     return(.leaching_ipcc_fracleach(x))
   }
-  drainage <- .leaching_drainage_values(x, drainage_mm)
   if (method == "image_gnm") {
-    return(.leaching_image_gnm(x, drainage))
+    return(.leaching_image_gnm(x))
   }
+  drainage <- .leaching_drainage_values(x, drainage_mm)
   options <- list(transport = transport, none_class = none_class)
   .leaching_meisinger(x, drainage, options, carry_over_by)
 }
@@ -1648,13 +1676,14 @@ calculate_indirect_n2o_nh3 <- function(
 # IMAGE-GNM keeps no root-zone nitrate from one year to the next, so the
 # retained and carried-in pools are structural zeros of the method, not
 # estimates.
-.leaching_image_gnm <- function(x, drainage_mm) {
-  drainage_mm <- .gnm_check_drivers(x, drainage_mm)
-  factors <- .gnm_factors(x, drainage_mm)
+.leaching_image_gnm <- function(x) {
+  .gnm_check_drivers(x)
+  factors <- .gnm_factors(x)
   runoff <- .gnm_surface_runoff(x)
-  # Eq. 10 with a runoff above the surplus is negative; the authors' code
-  # floors the remaining balance at 0 (n_surface_runoff.py lines 106, 122
-  # and 136).
+  # Eq. 10 with a runoff above the surplus, or with a negative surplus, is
+  # negative; the authors' code floors the remaining balance at 0
+  # (n_surface_runoff.py lines 106, 122 and 136), so a deficit is booked as
+  # no loss and the row books max(surplus, runoff).
   budget <- pmax(0, x$n_surplus_t - runoff)
   flows <- list(
     leached = factors$f_leach * budget,
@@ -1662,8 +1691,9 @@ calculate_indirect_n2o_nh3 <- function(
   )
   stamp <- paste0(
     factors$stamp,
+    dplyr::if_else(x$n_surplus_t < 0, ";negative_surplus_budget_0", ""),
     dplyr::if_else(
-      runoff > x$n_surplus_t,
+      runoff > pmax(x$n_surplus_t, 0),
       ";surface_runoff_exceeds_budget",
       ""
     )
@@ -1688,12 +1718,12 @@ calculate_indirect_n2o_nh3 <- function(
 # (surface_runoff_fraction); the land-use factor is Table 3's (p. 4056).
 # N_inp as the authors' code takes it (n_surface_runoff.py): the input net
 # of ammonia on crops and grassland, floored at 0 (lines 57-58, 96 and 112),
-# and the balance on natural vegetation (line 128).
+# and the balance on natural vegetation, floored at 0 (line 128).
 .gnm_surface_runoff <- function(x) {
   natural <- x$land_use == "Natural"
   n_inp <- dplyr::if_else(
     natural,
-    x$n_surplus_t,
+    pmax(0, x$n_surplus_t),
     pmax(0, x$n_input_std_t - x$nh3_n_t)
   )
   .n_constant("image_gnm_runoff_calibration") *
@@ -1767,12 +1797,13 @@ calculate_indirect_n2o_nh3 <- function(
 # T_r at most 1 year (lines 377-378, "the residence time of the water is
 # maximal 1 year (for example irrigation)"); the printed sentence (p. 4052)
 # reads as a floor of 1 year on dry agricultural land instead.
-.gnm_factors <- function(x, drainage_mm) {
+.gnm_factors <- function(x) {
   f_landuse <- .gnm_class_factor(x$land_use, "land_use")
   cropland <- x$land_use == "Cropland"
   f_k_eq13 <- .gnm_f_k(x$temp_c_annual_mean)
   f_k <- pmin(f_k_eq13, .n_constant("image_gnm_max_temperature_effect"))
-  residence <- .gnm_residence_years(x, drainage_mm)
+  water <- .gnm_excess_water(x)
+  residence <- .gnm_residence_years(x, water$q_eff)
   crop_cap <- .n_constant("image_gnm_crop_max_residence_yr")
   t_r <- dplyr::if_else(cropland, pmin(residence, crop_cap), residence)
   f_climate <- f_k * t_r
@@ -1783,11 +1814,33 @@ calculate_indirect_n2o_nh3 <- function(
   list(
     f_leach = (1 - pmin(f_sum, 1)) * f_landuse,
     stamp = .gnm_stamp(
-      no_drainage = drainage_mm == 0,
+      runoff_cut = water$cut,
+      no_excess_water = water$q_eff == 0,
       crop_capped = cropland & residence > crop_cap,
       f_k_capped = f_k_eq13 > f_k
     )
   )
+}
+
+# Beusen et al. (2015) eq. 5 (p. 4049): the excess water flow is the total
+# runoff surface runoff does not carry off. As the authors' code computes it
+# (n_soil_denitrification.py lines 356, 376 and 399), q_eff = (1 -
+# f_qsro(landuse) f_qsro) q_tot, with the land-use factor of eq. 3 that also
+# scales eq. 9 (image_gnm_runoff_factors, "runoff_land_use"). q_tot is the
+# year's total runoff runoff_mm (LPJmL mrunoff.nc, which holds the
+# groundwater outflow the deep seepage feeds, as the authors' pnet, the
+# hydrology model's total runoff, does). Below 3 mm/yr the authors' code
+# moves no water (lines 341-344, minimal_soil_infiltration = 3.0 mm/yr in
+# parameters_history_100.ini line 204), so q_tot is 0 there; `cut` marks the
+# rows that rule changed (a non-zero runoff below the threshold, including
+# LPJmL's float residues just below 0).
+.gnm_excess_water <- function(x) {
+  q_tot <- x$runoff_mm
+  below <- q_tot < .n_constant("image_gnm_min_runoff_mm")
+  q_tot <- dplyr::if_else(below, 0, q_tot)
+  split <- .gnm_runoff_factor(x$land_use, "runoff_land_use") *
+    x$surface_runoff_fraction
+  list(q_eff = (1 - split) * q_tot, cut = below & x$runoff_mm != 0)
 }
 
 # Beusen et al. (2015) eq. 13: the Arrhenius temperature effect on root-zone
@@ -1805,18 +1858,17 @@ calculate_indirect_n2o_nh3 <- function(
 # Beusen et al. (2015) eq. 14: T_r = tawc / q_eff years. tawc is the total
 # available water capacity (field capacity - wilting point) of the top 1 m,
 # in mm; the source takes the top 1 m "or less if thinner", and WHEP has no
-# soil-thickness layer, so the full 1 m is used. q_eff, the excess water flow
-# of eq. 5 (p. 4049) that recharges groundwater, is WHEP's annual drainage,
-# the deep seepage below the soil column. Eq. 14 is undefined without
-# drainage; the authors' code takes 100 years there (trzd(),
+# soil-thickness layer, so the full 1 m is used. q_eff is the excess water
+# flow of eq. 5 (.gnm_excess_water()). Eq. 14 is undefined without excess
+# water; the authors' code takes 100 years there (trzd(),
 # n_soil_denitrification.py lines 179-182).
-.gnm_residence_years <- function(x, drainage_mm) {
+.gnm_residence_years <- function(x, q_eff) {
   tawc_mm <- (x$soil_field_capacity - x$soil_wilting_point) *
     .n_constant("image_gnm_tawc_depth_m") *
     1000
   dplyr::if_else(
-    drainage_mm > 0,
-    tawc_mm / drainage_mm,
+    q_eff > 0,
+    tawc_mm / q_eff,
     .n_constant("image_gnm_no_drainage_residence_yr")
   )
 }
@@ -1856,17 +1908,20 @@ calculate_indirect_n2o_nh3 <- function(
 
 # method_leaching for image_gnm: the method and its 1 m water-capacity depth,
 # then each bound that held a factor on the row, joined by ";".
-.gnm_stamp <- function(no_drainage, crop_capped, f_k_capped) {
+.gnm_stamp <- function(runoff_cut, no_excess_water, crop_capped, f_k_capped) {
   paste0(
     "image_gnm;tawc_top_1m",
-    dplyr::if_else(no_drainage, ";no_drainage_residence_100yr", ""),
+    dplyr::if_else(runoff_cut, ";runoff_below_min_infiltration", ""),
+    dplyr::if_else(no_excess_water, ";no_excess_water_residence_100yr", ""),
     dplyr::if_else(crop_capped, ";crop_residence_cap_1yr", ""),
     dplyr::if_else(f_k_capped, ";temperature_effect_cap_1", "")
   )
 }
 
-# The columns image_gnm reads from `x` (drainage arrives separately): the
-# balance's own terms, then the drivers a caller supplies.
+# The columns image_gnm reads from `x`: the balance's own terms, then the
+# drivers a caller supplies. drainage_mm is not among them: eq. 14 reads the
+# eq. 5 split of the total runoff, and nothing else in the method reads the
+# deep seepage.
 .gnm_driver_cols <- function() {
   c(.gnm_balance_cols(), .gnm_external_cols())
 }
@@ -1880,6 +1935,7 @@ calculate_indirect_n2o_nh3 <- function(
 # leaching driver table.
 .gnm_external_cols <- function() {
   c(
+    "runoff_mm",
     "surface_runoff_fraction",
     "slope_m_per_km",
     "land_use",
@@ -1894,8 +1950,7 @@ calculate_indirect_n2o_nh3 <- function(
 
 # An absent or missing driver has no defensible value, so it aborts here
 # rather than becoming a zero factor; then every value must be physical.
-# Returns the drainage recycled to the rows of `x`.
-.gnm_check_drivers <- function(x, drainage_mm) {
+.gnm_check_drivers <- function(x) {
   if (rlang::has_name(x, "surface_runoff_n_t")) {
     cli::cli_abort(
       c(
@@ -1910,24 +1965,26 @@ calculate_indirect_n2o_nh3 <- function(
   needed <- .gnm_driver_cols()
   present <- needed[rlang::has_name(x, needed)]
   with_na <- present[purrr::map_lgl(present, \(col) anyNA(x[[col]]))]
-  no_drainage <- is.null(drainage_mm) || anyNA(drainage_mm)
-  missing <- c(setdiff(needed, present), with_na, "drainage_mm"[no_drainage])
+  missing <- c(setdiff(needed, present), with_na)
   if (length(missing) > 0L) {
     cli::cli_abort(
       c(
         "{.code image_gnm} reads {.field {missing}}, absent from {.arg x} or
          missing on some row.",
-        i = "Supply {.field {c(needed, 'drainage_mm')}}."
+        i = "Supply {.field {needed}}."
       ),
       class = c("whep_missing_leaching_driver", "whep_absent_input")
     )
   }
-  drainage <- vctrs::vec_recycle(drainage_mm, nrow(x), x_arg = "drainage_mm")
-  .gnm_check_values(x, drainage)
-  drainage
+  .gnm_check_values(x)
 }
 
-.gnm_check_values <- function(x, drainage_mm) {
+# The surplus may be negative: the authors' code floors the budget at 0
+# (.leaching_image_gnm()). The total runoff may sit a float residue below 0,
+# as LPJmL's does (about -1e-13 mm/yr on a few dozen cells a year); the same
+# -0.1 mm tolerance as Meisinger's drainage check refuses anything lower, and
+# the 3 mm/yr threshold of .gnm_excess_water() sets the residue to 0.
+.gnm_check_values <- function(x) {
   capacity <- x$soil_field_capacity
   wilting <- x$soil_wilting_point
   fraction <- x$surface_runoff_fraction
@@ -1936,15 +1993,14 @@ calculate_indirect_n2o_nh3 <- function(
     "slope_m_per_km",
     "area_ha",
     "n_input_std_t",
-    "nh3_n_t",
-    "n_surplus_t"
+    "nh3_n_t"
   )
   bad <- c(
     soil_field_capacity = any(capacity <= 0 | capacity > 1),
     soil_wilting_point = any(wilting <= 0 | wilting >= capacity),
     purrr::map_lgl(rlang::set_names(non_negative), \(col) any(x[[col]] < 0)),
     temp_c_annual_mean = any(!is.finite(x$temp_c_annual_mean)),
-    drainage_mm = any(drainage_mm < 0),
+    runoff_mm = any(x$runoff_mm <= -0.1 | !is.finite(x$runoff_mm)),
     surface_runoff_fraction = any(fraction < 0 | fraction > 1)
   )
   if (any(bad)) {
@@ -1953,9 +2009,9 @@ calculate_indirect_n2o_nh3 <- function(
         "{.field {names(bad)[bad]}} {?holds/hold} a value outside its
          physical range.",
         i = "Field capacity in (0, 1], wilting point in (0, field capacity),
-             non-negative organic carbon, drainage, slope, area, input,
-             ammonia and surplus, a finite temperature, and a surface runoff
-             fraction in [0, 1]."
+             non-negative organic carbon, slope, area, input and ammonia, a
+             finite temperature, a finite total runoff above -0.1 mm, and a
+             surface runoff fraction in [0, 1]."
       ),
       class = "whep_leaching_driver_value"
     )
