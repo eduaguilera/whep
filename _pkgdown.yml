@@ -370,6 +370,7 @@ reference:
   - read_lpjml_crop_cover
   - read_lpjml_natural_cover
   - read_hwsd_topsoil_soc
+  - read_hwsd_topsoil_mass
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >

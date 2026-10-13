@@ -1736,3 +1736,72 @@ testthat::test_that("the class readers have runnable examples", {
     c("lon", "lat", "soil_texture_fao", "method_soil_texture_fao")
   )
 })
+
+# ---- topsoil soil mass, the denominator of the soil organic matter share ----
+
+testthat::test_that(".derive_map_unit_soil_mass computes the documented mass", {
+  mass <- whep:::.derive_map_unit_soil_mass(.hwsd_soc_fixture(), "measured")
+  # bulk [g/cm3 = Mg/m3] x depth [cm] x 100 x (1 - gravel) Mg per ha,
+  # share-weighted within the map unit, as the carbon stock beside it.
+  expected <- 0.75 * (1.30 * 30 * 100 * 0.9) + 0.25 * (1.20 * 30 * 100)
+  testthat::expect_equal(
+    mass$soil_mass_mg_ha[mass$mu_global == 1L],
+    expected
+  )
+  # The carbon stock over the same components rides along, so a cell's
+  # organic carbon fraction is the stock over this mass.
+  testthat::expect_equal(
+    mass$soc_obs_mgc_ha[mass$mu_global == 1L],
+    0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30)
+  )
+})
+
+testthat::test_that("the soil mass keeps components without carbon", {
+  mass <- whep:::.derive_map_unit_soil_mass(.hwsd_soc_fixture(), "measured")
+  # Unit 3's second component reports no t_oc but has a density: it is soil,
+  # so it counts towards the mass and only the carbon stock drops it.
+  testthat::expect_equal(mass$soil_mass_mg_ha[mass$mu_global == 3L], 1.5 * 3000)
+  testthat::expect_equal(
+    mass$soc_obs_mgc_ha[mass$mu_global == 3L],
+    1.5 * 1.5 * 30
+  )
+})
+
+testthat::test_that("the soil mass follows the bulk-density method", {
+  reference <- whep:::.derive_map_unit_soil_mass(
+    .hwsd_soc_fixture(),
+    "reference"
+  )
+  testthat::expect_equal(
+    reference$soil_mass_mg_ha[reference$mu_global == 2L],
+    1.30 * 30 * 100
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_mass example is self-contained", {
+  testthat::skip_if_not_installed("pointblank")
+  out <- whep::read_hwsd_topsoil_mass(example = TRUE)
+  pointblank::expect_col_exists(
+    out,
+    columns = c(
+      "lon",
+      "lat",
+      "soil_mass_mg_ha",
+      "soc_obs_mgc_ha",
+      "method_soil_mass"
+    )
+  )
+  pointblank::expect_col_vals_between(
+    out,
+    columns = "soil_mass_mg_ha",
+    left = 500,
+    right = 6000
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_mass rejects an unknown method", {
+  testthat::expect_error(
+    whep::read_hwsd_topsoil_mass(bulk_density = "guessed"),
+    class = "rlang_error"
+  )
+})

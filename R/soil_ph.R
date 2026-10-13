@@ -251,6 +251,69 @@ read_hwsd_topsoil_soc <- function(
     dplyr::mutate(method_soc_obs = bulk_density)
 }
 
+#' Read the topsoil soil mass from HWSD onto WHEP's grid.
+#'
+#' @description
+#' Read the mass of the HWSD (Harmonized World Soil Database) version 1.2
+#' topsoil (0-30 cm) per 0.5-degree cell: per map unit the share-weighted
+#' mean over its soil components of `bulk_density x topsoil_depth_cm x 100 x
+#' (1 - t_gravel / 100)` Mg of fine earth per ha, then averaged over the
+#' native HWSD cells inside each 0.5-degree block. It is the denominator that
+#' turns a 0-30 cm soil organic carbon stock (Mg C per ha, as
+#' [build_carbon_balance()] reports it) into a mass fraction of the soil, as
+#' the soil organic matter share of the Meisinger leaching drivers needs. The
+#' 0-30 cm carbon stock of the same components, [read_hwsd_topsoil_soc()]'s
+#' `soc_obs_mgc_ha`, is aggregated in the same pass, so the observed HWSD
+#' carbon fraction is `soc_obs_mgc_ha / soil_mass_mg_ha`.
+#'
+#' A component with a density but no organic carbon counts towards the mass
+#' and not towards the carbon stock; a component without a density counts
+#' towards neither. A cell is returned only where both values exist.
+#'
+#' @inheritParams read_hwsd_topsoil_soc
+#' @inheritSection read_soil_drainage Caching
+#' @return A tibble with `lon`, `lat`, `soil_mass_mg_ha` (0-30 cm fine-earth
+#'   mass, Mg per ha), `soc_obs_mgc_ha` (0-30 cm organic carbon, Mg C per ha)
+#'   and `method_soil_mass` (the bulk-density method).
+#' @source FAO/IIASA/ISRIC/ISSCAS/JRC (2012). *Harmonized World Soil Database
+#'   version 1.2*. FAO, Rome and IIASA, Laxenburg -- topsoil defined as
+#'   0-30 cm; fields `T_BULK_DENSITY`, `T_REF_BULK_DENSITY`, `T_GRAVEL`.
+#'   Stock equation: Hiederer, R. & Koechy, M. (2011). *Global Soil Organic
+#'   Carbon Estimates and the Harmonized World Soil Database*. EUR 25225 EN,
+#'   Publications Office of the European Union, 79 pp.
+#' @export
+#' @examples
+#' read_hwsd_topsoil_mass(example = TRUE)
+read_hwsd_topsoil_mass <- function(
+  hwsd_dir = NULL,
+  bulk_density = c("measured", "reference"),
+  data = list(),
+  example = FALSE
+) {
+  bulk_density <- rlang::arg_match(bulk_density)
+  if (isTRUE(example)) {
+    return(.example_hwsd_topsoil_mass())
+  }
+  rlang::check_installed("terra")
+  dir <- .resolve_hwsd_dir(hwsd_dir)
+  mu <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_soc_columns(bulk_density)
+  ) |>
+    .derive_map_unit_soil_mass(bulk_density)
+  .aggregate_hwsd_multi(
+    dir,
+    mu,
+    target_res = 0.5,
+    target_grid = data$cell_polity,
+    cols = c(
+      soil_mass_mg_ha = "soil_mass_mg_ha",
+      soc_obs_mgc_ha = "soc_obs_mgc_ha"
+    )
+  ) |>
+    dplyr::mutate(method_soil_mass = bulk_density)
+}
+
 #' Read gridded soil drainage class from HWSD onto WHEP's grid.
 #'
 #' @description
@@ -503,6 +566,41 @@ read_soil_texture_fao <- function(
       .by = "mu_global"
     )
 }
+
+# Per-map-unit topsoil fine-earth mass (Mg/ha) and carbon stock (Mg C/ha),
+# share-weighted over the map unit's soil components. With bulk in g/cm3
+# (Mg per m3) and the stamped depth in cm, a hectare holds bulk times depth/100
+# m times 10,000 m2 times the gravel-free share, that is bulk x depth x 100 Mg
+# of fine earth. The density follows the same method switch as the carbon
+# benchmark. A component without a density is not soil mass anyone measured,
+# so it leaves the mean; one without carbon is still soil, so it stays in the
+# mass and leaves only the carbon mean.
+.derive_map_unit_soil_mass <- function(attrs, bulk_density) {
+  soils <- attrs |>
+    dplyr::mutate(
+      bulk = if (bulk_density == "measured") {
+        dplyr::coalesce(.data$t_bulk_density, .data$t_ref_bulk_density)
+      } else {
+        .data$t_ref_bulk_density
+      },
+      gravel = dplyr::coalesce(pmin(pmax(.data$t_gravel, 0), 100), 0) / 100
+    ) |>
+    dplyr::filter(!is.na(.data$bulk)) |>
+    dplyr::mutate(
+      soil_mass_mg_ha = .data$bulk *
+        .data$topsoil_depth_cm *
+        100 *
+        (1 - .data$gravel)
+    )
+  mass <- dplyr::summarise(
+    soils,
+    soil_mass_mg_ha = stats::weighted.mean(.data$soil_mass_mg_ha, .data$share),
+    .by = "mu_global"
+  )
+  carbon <- .derive_map_unit_soc(attrs, bulk_density)
+  dplyr::left_join(mass, carbon, by = "mu_global")
+}
+
 # Resolve the HWSD data directory from the argument, else the env var.
 .resolve_hwsd_dir <- function(hwsd_dir) {
   resolved <- hwsd_dir %||% Sys.getenv("WHEP_HWSD_DIR")
@@ -1759,6 +1857,16 @@ read_soil_texture_fao <- function(
     -0.25, -0.25, 41.6,            "measured"
   )
 }
+# Toy fixture for a runnable example (one cell, a mid-range mineral soil:
+# bulk 1.3 g/cm3 over 30 cm with no gravel, and the carbon stock of the
+# read_hwsd_topsoil_soc() fixture).
+.example_hwsd_topsoil_mass <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~soil_mass_mg_ha, ~soc_obs_mgc_ha, ~method_soil_mass,
+    -0.25, -0.25, 3900,             41.6,            "measured"
+  )
+}
+
 # Toy fixture for a runnable example (one cell, a well drained soil).
 .example_soil_drainage <- function() {
   tibble::tribble(
