@@ -317,6 +317,11 @@ calculate_soil_n2o <- function(
 #' `tillage == "Not_specified"` row regardless of `x$tillage`. Synthetic
 #' rows join on `x$tillage`, but only `"Tillage"` exists in the source's
 #' synthetic block: a synthetic row with `tillage == "No_tillage"` aborts.
+#' A pooled `"Excreta"` row (excreta of every species, as
+#' [build_n_inputs()] emits it) reads the subsoil reduction of
+#' [subsoil_no3_reduction], which gives `"Excreta_cattle_monog"` and
+#' `"Excreta_other"` the same value in every class; were they to differ, the
+#' row aborts (`whep_leaching_excreta_species`).
 #'
 #' ## Carry-over across years
 #'
@@ -427,7 +432,13 @@ calculate_soil_n2o <- function(
 #'   uptake alone (`n_surface_runoff.py` line 96), here the input net of
 #'   ammonia less the surplus, `max(0, n_input_std_t - nh3_n_t -
 #'   n_surplus_t)`. That runoff is booked beside the inactive N, not taken
-#'   from it.
+#'   from it. Under [build_nitrogen_balance()], whose surplus counts the N
+#'   mineralised from soil organic matter as an input and soil organic
+#'   matter sequestration as an output while `n_input_std_t` counts neither,
+#'   this proxy (where the balance is in surplus) is the crop product, the
+#'   used, bedding and burnt residue and the grazed forage, plus the
+#'   sequestration less the mineralisation: uptake net of the soil organic
+#'   matter terms.
 #' - `erosion_n_t` is `N_sro,mem` of eq. 8 (p. 4052), the nitrogen of soil
 #'   lost to erosion, computed as the authors' code does (`n_erosion.py`
 #'   lines 47-55 and 88-135): an erodibility
@@ -1358,15 +1369,20 @@ calculate_indirect_n2o_nh3 <- function(
 # min < v < max filter: a value on a shared bin edge or
 # outside the covered range matches no bin and returns NA (the source drops
 # such rows), rather than being pulled into an adjacent or ceiling bin.
+# The first matching bin in table order wins, as the per-value filter did:
+# the bins are visited last to first, each overwriting the ones after it.
 .bin_range <- function(values, ranges, label_col, min_col, max_col) {
-  purrr::map_chr(values, function(v) {
-    hit <- ranges[
-      v > ranges[[min_col]] & v < ranges[[max_col]],
-      ,
-      drop = FALSE
-    ]
-    hit[[label_col]][1]
-  })
+  purrr::reduce(
+    rev(seq_len(nrow(ranges))),
+    \(labels, i) {
+      hit <- (values > ranges[[min_col]][i] &
+        values < ranges[[max_col]][i]) %in%
+        TRUE
+      labels[hit] <- ranges[[label_col]][i]
+      labels
+    },
+    .init = rep(NA_character_, length(values))
+  )
 }
 
 .leaching_a_cn <- function(x) {
@@ -1383,7 +1399,8 @@ calculate_indirect_n2o_nh3 <- function(
 
 .leaching_no3_red <- function(x) {
   keys <- dplyr::select(x, "fert_type", "climate", "irrig_cat")
-  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
+  keys$fert_type <- .human_legacy_fert_type(keys$fert_type) |>
+    .leaching_subsoil_excreta()
   keys |>
     dplyr::left_join(
       whep::subsoil_no3_reduction,
@@ -1391,6 +1408,40 @@ calculate_indirect_n2o_nh3 <- function(
     ) |>
     dplyr::pull("no3_red") |>
     .leaching_check_na("subsoil_no3_reduction", "fert_type/climate/irrig_cat")
+}
+
+# build_n_inputs() pools a cell's excreta into one "Excreta" row, its species
+# mix carried beside it; subsoil_no3_reduction keys excreta by species
+# (Excreta_cattle_monog, Excreta_other). Both species rows hold the same
+# reduction in every climate and irrigation class, so the pooled row reads
+# them; were the two ever to differ, the pooled row would have no single
+# value, and it aborts instead.
+.leaching_subsoil_excreta <- function(
+  fert_type,
+  table = whep::subsoil_no3_reduction
+) {
+  if (!any(fert_type %in% "Excreta")) {
+    return(fert_type)
+  }
+  species <- table |>
+    dplyr::filter(
+      .data$fert_type %in% c("Excreta_cattle_monog", "Excreta_other")
+    ) |>
+    dplyr::summarise(
+      n_values = dplyr::n_distinct(.data$no3_red),
+      .by = c("climate", "irrig_cat")
+    )
+  if (nrow(species) == 0L || any(species$n_values != 1L)) {
+    cli::cli_abort(
+      c(
+        "{.code subsoil_no3_reduction} gives the excreta species different
+         reductions, so pooled {.val Excreta} rows have no single value.",
+        i = "Split the excreta rows by species before leaching."
+      ),
+      class = "whep_leaching_excreta_species"
+    )
+  }
+  dplyr::if_else(fert_type %in% "Excreta", "Excreta_cattle_monog", fert_type)
 }
 
 # ---- Private helpers: Meisinger transport and carry-over -----------------

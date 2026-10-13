@@ -2327,3 +2327,65 @@ testthat::test_that("the former Urban key gets the Human coefficients, with a wa
   testthat::expect_identical(old_red, whep:::.leaching_no3_red(human))
   testthat::expect_equal(old_red, c(0.65, 0.70))
 })
+
+testthat::test_that("the vectorised bin lookup equals the per-value filter", {
+  # The per-value filter it replaced: the first bin in table order whose
+  # strictly-open range holds the value, NA on an edge, outside or NA.
+  reference <- function(values, ranges, label_col, min_col, max_col) {
+    purrr::map_chr(values, function(v) {
+      hit <- ranges[
+        v > ranges[[min_col]] & v < ranges[[max_col]],
+        ,
+        drop = FALSE
+      ]
+      hit[[label_col]][1]
+    })
+  }
+  withr::local_seed(1)
+  drainage <- c(
+    -0.2,
+    -0.1,
+    0,
+    0.1,
+    50,
+    200,
+    500,
+    1000,
+    3000,
+    4000,
+    NA,
+    stats::runif(200, -1, 3500)
+  )
+  som <- c(0, 0.02, 0.05, 1, 1.2, NA, stats::runif(200, -0.1, 1.1))
+  bins <- list(
+    list(drainage, whep::drainage_ranges, "drainage_rate", "s_min", "s_max"),
+    list(som, whep::som_ranges, "som_content", "som_min", "som_max")
+  )
+  for (b in bins) {
+    testthat::expect_identical(
+      whep:::.bin_range(b[[1]], b[[2]], b[[3]], b[[4]], b[[5]]),
+      reference(b[[1]], b[[2]], b[[3]], b[[4]], b[[5]])
+    )
+  }
+})
+
+testthat::test_that("pooled excreta reads the species' shared subsoil reduction", {
+  x <- tibble::tibble(
+    fert_type = c("Excreta", "Excreta_other", "Synthetic"),
+    climate = "ATL",
+    irrig_cat = "Rainfed"
+  )
+  testthat::expect_equal(whep:::.leaching_no3_red(x), c(0.70, 0.70, 0.50))
+  diverged <- dplyr::mutate(
+    whep::subsoil_no3_reduction,
+    no3_red = dplyr::if_else(
+      .data$fert_type == "Excreta_other",
+      .data$no3_red + 0.01,
+      .data$no3_red
+    )
+  )
+  testthat::expect_error(
+    whep:::.leaching_subsoil_excreta("Excreta", diverged),
+    class = "whep_leaching_excreta_species"
+  )
+})

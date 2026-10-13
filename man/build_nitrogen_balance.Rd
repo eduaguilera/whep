@@ -82,15 +82,19 @@ drivers. At grid resolution each one left \code{NULL} is built by
 \code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} on the split balance's own rows (the IPCC 2019
 wet/dry class and the ATL/MED drivers mapped from it; see its table of
 which methods it supplies), and \code{method_drivers} says so. That needs
-the rainfed/irrigated split (\code{methods$regime} other than \code{"none"});
-\code{leaching = "meisinger_drainage"} or \code{"image_gnm"} and the MANNER
-\code{nh3} methods read drivers it does not supply and are refused before
-any input is assembled unless their table is supplied. At polity
-resolution both must be supplied.
+the rainfed/irrigated split (\code{methods$regime} other than \code{"none"}).
+The leaching drivers are built for \code{methods$leaching}; the
+Meisinger and IMAGE-GNM ones read the balance's own
+\code{data$carbon_balance}. The MANNER \code{nh3} methods read drivers it does
+not supply and are refused before any input is assembled unless their
+table is supplied. At polity resolution both must be supplied.
 \item \code{n_loss_driver_inputs}: optional list passed as \code{data} to
 \code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} when it runs (\code{climate}, \code{crop_depth},
-\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}); the
-balance's own \code{country_grid} is shared with it.
+\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}, and
+the leaching layers it lists); the balance's own \code{country_grid} and
+\code{carbon_balance} are shared with it. \code{n_loss_driver_methods}: optional
+list of its \code{methods} (\code{som_source}, \code{som_factor}, \code{root_depth}); its
+\code{leaching} is always \code{methods$leaching}.
 \item \code{n_balance_drivers}: additional per-\verb{(key, fert_type)} driver
 columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}/
 \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}} need beyond \code{n_input_t}/\code{fert_type}
@@ -107,7 +111,11 @@ balance-key-only driver columns (\code{moisture_regime}, \code{fert_type},
 \code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
 \code{n_balance_leaching_drivers}, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
-fanning the rows out and misaligning \code{drainage_mm}). Missing required
+fanning the rows out and misaligning \code{drainage_mm}). Under
+\code{"meisinger_drainage"} it carries no \code{fert_type}, which the balance
+sets on each input part (see Details), and a \code{c_input_t} (t C per
+year) it carries in place of \code{cn_input} is divided by the item's
+\code{n_input_full_nosom_t}, summed over the water regimes. Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column; for the MANNER \code{nh3} methods the check runs on
 \code{n_balance_drivers} before any input is assembled, because no
@@ -235,8 +243,8 @@ be supplied.\tabular{llll}{
    \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
-   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
-   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's \tab no \tab note 3 \cr
+   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab yes \tab built, note 2 \cr
+   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's \tab yes \tab built, note 3 \cr
 }
 
 \itemize{
@@ -247,20 +255,35 @@ be supplied.\tabular{llll}{
 \item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
 \code{cn_input}, \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm}
 and, by transport, \code{soil_porosity} (\code{"swat_mixing"}) or
-\code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}.
-Drivers must be supplied; global drivers planned.
+\code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. The
+builder supplies them from LPJmL, HWSD, FAO-56 and the carbon balance
+(see its Leaching drivers section).
 \item Note 3: IMAGE-GNM reads \code{runoff_mm} (the year's total runoff, LPJmL
 \code{mrunoff.nc}), \code{surface_runoff_fraction},
 \code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use},
 \code{temp_c_annual_mean}, \code{soil_field_capacity}, \code{soil_wilting_point},
 \code{soil_texture_class}, \code{soil_drainage_class} and
 \code{soil_organic_carbon_pct}, plus the balance's own \code{n_input_std_t},
-\code{nh3_n_t} and \code{area_ha}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. Drivers must be
-supplied; global drivers planned.
+\code{nh3_n_t} and \code{area_ha}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. The builder
+supplies them, as for note 2.
 }
 
-\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1, 2 or 3 before
-assembling any input unless its driver table is supplied.
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 before assembling
+any input unless its driver table is supplied.
+
+\strong{Meisinger per input part.} Under \code{"meisinger_drainage"} each balance
+key's surplus is split over the inputs of \code{n_input_full_t} (biological
+fixation, excreta, liquid and solid manure, synthetic fertiliser, human N,
+deposition and soil organic matter mineralisation) in proportion to their
+N, \code{n_surplus_t * N_f / n_input_full_t}, and each part is leached on its
+own Meisinger rows (Synthetic or Manure topsoil denitrification, its own
+subsoil reduction), as the regional reconstruction this cascade is ported
+from does (its surplus share is surplus over the full input, recycled
+residues excluded). Each part carries its own retained nitrate from year
+to year, on the key and the part's \code{fert_type}, and the parts' flows sum to
+the key, so \code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
+the surplus plus \code{retained_carried_in_n_t} on every key. A key with no
+input carries no surplus and is stamped \code{meisinger_drainage_no_input}.
 }
 
 \section{Polity columns}{

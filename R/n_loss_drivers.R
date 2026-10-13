@@ -61,23 +61,16 @@
 #' | `n2o_indirect`: `"ipcc2019"` | `moisture_regime` | yes |
 #' | `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes |
 #' | `leaching`: `"ipcc_fracleach"` | `moisture_regime`, `water_regime` | yes |
-#' | `leaching`: `"meisinger_drainage"` | Meisinger's, see below | no |
-#' | `leaching`: `"image_gnm"` | IMAGE-GNM's, see below | no |
+#' | `leaching`: `"meisinger_drainage"` | Meisinger's, see below | yes |
+#' | `leaching`: `"image_gnm"` | IMAGE-GNM's, see below | yes |
 #'
-#' The methods it does not supply are later work. MANNER reads
-#' `manner_fertiliser`, `soil_ph`, `rate_kg_ha`, `rainfall_mm`, `irrigated`,
-#' `temp_c`, `temp_c_annual_mean`, `windspeed_ms`, `technique`, `system`,
-#' `incorporation_delay_h` and `species` (see [calculate_nh3()]); Meisinger
-#' reads `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`,
-#' `tillage`, `som_share`, `drainage_mm`, `root_depth_cm` and its transport's
-#' soil columns, and IMAGE-GNM reads `runoff_mm` (the year's total runoff),
-#' `surface_runoff_fraction`, `slope_m_per_km` (both from
-#' [read_image_gnm_runoff()]), `land_use`, `temp_c_annual_mean`,
-#' `soil_field_capacity`, `soil_wilting_point`, `soil_texture_class`,
-#' `soil_drainage_class` and `soil_organic_carbon_pct` (see
-#' [calculate_n_leaching()]).
-#' [build_nitrogen_balance()] refuses any of them before assembling any input
-#' unless its driver table is supplied.
+#' MANNER's drivers are later work: it reads `manner_fertiliser`, `soil_ph`,
+#' `rate_kg_ha`, `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`,
+#' `windspeed_ms`, `technique`, `system`, `incorporation_delay_h` and
+#' `species` (see [calculate_nh3()]), and [build_nitrogen_balance()] refuses
+#' it before assembling any input unless its driver table is supplied.
+#'
+#' The leaching table carries the drivers of `methods$leaching` only.
 #'
 #' `method_moisture_regime` is [build_cell_moisture_regime()]'s stamp. A row
 #' that took its cell's precipitation-only class carries the extra field
@@ -86,6 +79,58 @@
 #' row's water regime), and a row in a cell that took climate variables from
 #' its nearest CRU cell the field `nearest_cru_cell=<col>[+<col>...]`, naming
 #' them.
+#'
+#' @section Leaching drivers:
+#' Under `methods$leaching = "meisinger_drainage"` or `"image_gnm"` every
+#' driver is a source layer joined on the cell, polity, commodity balance item
+#' and year, never on a name, and stamped:
+#' - `land_use`: `"Grassland"` on the grass item (3000), `"Cropland"`
+#'   otherwise.
+#' - `drainage_mm` (Meisinger) and `runoff_mm` (IMAGE-GNM): the year's LPJmL
+#'   deep seepage and total runoff ([read_lpjml_hydrology()] `"drainage"` and
+#'   `"runoff"`, from `WHEP_LPJML_RUN_DIR`), whole-cell quantities both water
+#'   regime rows of a cell share (`method_drainage`, `method_runoff`).
+#' - `soil_field_capacity`, `soil_wilting_point` and `soil_porosity`:
+#'   [read_soil_hydraulic()] (`method_soil_hydraulic`).
+#' - `som_share` (Meisinger, a fraction) and `soil_organic_carbon_pct`
+#'   (IMAGE-GNM): the 0-30 cm soil organic carbon stock of the row's land use
+#'   in `data$carbon_balance` ([build_carbon_balance()]; cropland classes
+#'   area-weighted), over the HWSD topsoil mass of [read_hwsd_topsoil_mass()];
+#'   `som_share` multiplies the carbon fraction by the SOM:SOC factor,
+#'   `som_soc_factor_pribyl` (2) of [n_attenuation_constants] by default
+#'   (`method_som`). A cell-polity the carbon balance lacks takes the cell's
+#'   stock in its other polities, stamped `cell_other_polity`.
+#' - `c_input_t` (Meisinger): the C the row's inputs carry to the soil, t C per
+#'   year: the crop's [build_soil_carbon_inputs()] carbon, pooled over the
+#'   item's production items, on crop rows, and `data$carbon_balance`'s
+#'   grassland input on the grass item (`method_c_input`). Both regime rows
+#'   of an item carry the item's whole C; [build_nitrogen_balance()] divides
+#'   it by the item's whole `n_input_full_nosom_t` into `cn_input`.
+#' - `root_depth_cm` (Meisinger): FAO-56 Table 22's maximum effective rooting
+#'   depth ([fao56_root_depth]) of the row's production items, pooled by
+#'   WHEP's hectares of each in the row's water regime: by default the upper
+#'   end of each range on rainfed rows and the lower end on irrigated rows
+#'   (Table 22 footnote 1); an item with no hectares in the regime takes the
+#'   plain mean over its production items (`method_root_depth`).
+#' - `climate` (ATL on wet rows, MED on dry), `irrig_cat` (`"Irrigated"` or
+#'   `"Rainfed"`, from `water_regime`) and `tillage` (`"Tillage"`, the only
+#'   class the Meisinger synthetic block holds; `method_tillage`).
+#' - `surface_runoff_fraction` and `slope_m_per_km` (IMAGE-GNM):
+#'   [read_image_gnm_runoff()] (`method_image_gnm_runoff`).
+#' - `temp_c_annual_mean` (IMAGE-GNM): the year's CRU mean annual
+#'   temperature, from the climate the classes are built on.
+#' - `soil_texture_class` and `soil_drainage_class` (IMAGE-GNM):
+#'   [read_soil_texture_fao()] and [read_soil_drainage()]
+#'   (`method_soil_texture_fao`, `method_soil_drainage`).
+#'
+#' A balance cell a layer lacks takes the value of the nearest cell that holds
+#' it, by great-circle distance between cell centres, and its stamp carries
+#' the distance (`nearest_lpjml_cell=<km>km`, `nearest_hwsd_cell=<km>km`,
+#' `nearest_image_gnm_cell=<km>km`). A row without a crop item carries no N:
+#' it takes the HWSD topsoil depth (30 cm) and no C input, and a row of that
+#' kind carrying N is refused. A row carrying no N whose soil carbon or root
+#' depth is otherwise missing takes HWSD's topsoil carbon or the topsoil
+#' depth, stamped `zero_n_row`; it leaches nothing.
 #'
 #' @section Errors:
 #' - `whep_n_loss_drivers_rows`: `rows` is missing, empty, lacks a key
@@ -101,6 +146,15 @@
 #'   regime land; the error names the count and the items carrying most N.
 #' - Every error of [build_cell_moisture_regime()], including
 #'   `whep_absent_input` for an absent climate or irrigation layer.
+#' - For the leaching drivers, all also `whep_absent_input`:
+#'   `whep_n_loss_drivers_carbon_balance` (no `data$carbon_balance`),
+#'   `whep_n_loss_drivers_soc`, `whep_n_loss_drivers_c_input` and
+#'   `whep_n_loss_drivers_root_depth` (a row carrying N without soil carbon,
+#'   carbon input or root depth), `whep_n_loss_drivers_temperature` and
+#'   `whep_n_loss_drivers_layer` (a layer with no complete cell, or without a
+#'   year asked for); a layer whose values are all zero or missing aborts as
+#'   [check_inputs_supplied()] does. `whep_n_loss_drivers_no_item_n`: a row
+#'   without a crop item carries N.
 #'
 #' @param rows The balance rows to give drivers: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code` (`NA` on rows without a crop), `year` and `water_regime`
@@ -117,7 +171,19 @@
 #'   [build_cell_moisture_regime()] (`climate`, `crop_depth`, `lpjml_years`,
 #'   `lpjml_grid`, `regime_areas`, `country_grid`), plus `moisture_regime`, a
 #'   [build_cell_moisture_regime()] result to use instead of building it.
-#'   Climate is read once and shared.
+#'   Climate is read once and shared. The leaching drivers read
+#'   `carbon_balance` (required) and, each read when absent, `lpjml_drainage`
+#'   and `lpjml_runoff` (annual [read_lpjml_hydrology()] tables),
+#'   `soil_hydraulic`, `soil_mass`, `soil_texture_fao`, `soil_drainage`,
+#'   `image_gnm_runoff` (their readers' results), `carbon_inputs` (a gridded
+#'   [build_soil_carbon_inputs()] result) and `regime_areas`.
+#' @param methods Named list choosing which leaching drivers are built and
+#'   how: `leaching`, the [calculate_n_leaching()] method (`"ipcc_fracleach"`,
+#'   the default, `"meisinger_drainage"` or `"image_gnm"`); `som_source`,
+#'   `"carbon_balance"` (default) or `"hwsd"` (HWSD's observed topsoil
+#'   carbon); `som_factor`, `"pribyl_2010"` (default, 2) or `"conventional"`
+#'   (1.724); `root_depth`, `"by_regime"` (default), `"midpoint"`, `"upper"`,
+#'   `"lower"`, `"topsoil_30cm"` or `"top_1m"`.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #'
@@ -128,7 +194,9 @@
 #'     `"MED"`), `irrig_type`, `method_moisture_regime`, `method_climate`
 #'     (`"from_moisture_regime"`) and `climate_fill_km`.
 #'   - `n_balance_leaching_drivers`: one row per balance key, with
-#'     `moisture_regime`, `method_moisture_regime` and `climate_fill_km`.
+#'     `moisture_regime`, `method_moisture_regime` and `climate_fill_km`, plus
+#'     the drivers of `methods$leaching` and their stamps (see Leaching
+#'     drivers).
 #'
 #'   Both are join tables keyed on the balance key; the balance they are
 #'   joined to carries the polity columns.
@@ -136,7 +204,11 @@
 #' @source
 #' IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
 #' Greenhouse Gas Inventories, Volume 4, Chapter 11, Table 11.1, footnote 4
-#' (p. 11.13).
+#' (p. 11.13). Allen, R. G., Pereira, L. S., Raes, D. & Smith, M. (1998).
+#' Crop evapotranspiration. FAO Irrigation and Drainage Paper 56, Table 22.
+#' Pribyl, D. W. (2010). A critical review of the conventional SOC to SOM
+#' conversion factor. Geoderma 156, 75-83.
+#' \doi{10.1016/j.geoderma.2010.02.003}.
 #' @export
 #'
 #' @examples
@@ -147,6 +219,7 @@ build_n_loss_drivers <- function(
   water = c("precip_irrig", "precip"),
   data = NULL,
   config = list(),
+  methods = list(),
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -154,6 +227,7 @@ build_n_loss_drivers <- function(
   }
   window <- rlang::arg_match(window)
   water <- rlang::arg_match(water)
+  opts <- .nld_methods(methods)
   rows <- .nld_check_rows(rows)
   years <- sort(unique(rows$.year))
   spec <- .cmr_spec(years, window, water, config)
@@ -169,7 +243,8 @@ build_n_loss_drivers <- function(
   drivers <- .nld_row_classes(rows, classes, cells) |>
     .nld_check_classified() |>
     .nld_atl_med()
-  .nld_tables(drivers, rows)
+  leaching <- .nld_leaching_drivers(drivers, opts, data, spec)
+  .nld_tables(drivers, rows, leaching, opts$leaching)
 }
 
 # ---- Private helpers ---------------------------------------------------------
@@ -184,11 +259,8 @@ build_n_loss_drivers <- function(
   c("Excreta", "Liquid", "Solid", "SOM", "Synthetic", "Human", "Recycling")
 }
 
-# The driver columns each table carries, after the key.
-.nld_leaching_cols <- function() {
-  c("moisture_regime", "method_moisture_regime", "climate_fill_km")
-}
-
+# The driver columns the loss table carries, after the key; the leaching
+# table's are .nld_leaching_cols() (R/n_leaching_drivers.R).
 .nld_loss_cols <- function() {
   c(
     "moisture_regime",
@@ -340,8 +412,7 @@ build_n_loss_drivers <- function(
       -".own",
       -".cell_regime",
       -".cell_method",
-      -".cell_km",
-      -".n_input_t"
+      -".cell_km"
     )
 }
 
@@ -437,7 +508,7 @@ build_n_loss_drivers <- function(
 }
 
 # The two tables, in the caller's own key values.
-.nld_tables <- function(drivers, rows) {
+.nld_tables <- function(drivers, rows, leaching, method) {
   key <- .nld_key()
   drivers <- dplyr::select(
     drivers,
@@ -458,8 +529,8 @@ build_n_loss_drivers <- function(
     n_balance_drivers = loss_keys |>
       dplyr::left_join(drivers, by = key, relationship = "many-to-one") |>
       tibble::as_tibble(),
-    n_balance_leaching_drivers = drivers |>
-      dplyr::select(dplyr::all_of(c(key, .nld_leaching_cols()))) |>
+    n_balance_leaching_drivers = leaching |>
+      dplyr::select(dplyr::all_of(c(key, .nld_leaching_cols(method)))) |>
       tibble::as_tibble()
   )
 }

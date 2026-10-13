@@ -385,6 +385,12 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["image_gnm_erosion_slope_range"]], 17)
   testthat::expect_equal(lookup[["image_gnm_erosion_slope_intercept"]], 2.3)
   testthat::expect_equal(lookup[["image_gnm_erosion_slope_rate"]], 6.1)
+  # SOM per unit SOC: 2 (SOM 50% C, Pribyl 2010) by default and the
+  # conventional 1.724 (58% C) selectable; the HWSD topsoil depth option of
+  # the root zone.
+  testthat::expect_equal(lookup[["som_soc_factor_pribyl"]], 2)
+  testthat::expect_equal(lookup[["som_soc_factor_conventional"]], 1.724)
+  testthat::expect_equal(lookup[["root_depth_topsoil_cm"]], 30)
 })
 
 test_that("image_gnm_runoff_factors transcribes the authors' runoff inputs", {

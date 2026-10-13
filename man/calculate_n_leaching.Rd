@@ -181,6 +181,11 @@ other than \code{"Synthetic"}) always join the Meisinger table's
 \code{tillage == "Not_specified"} row regardless of \code{x$tillage}. Synthetic
 rows join on \code{x$tillage}, but only \code{"Tillage"} exists in the source's
 synthetic block: a synthetic row with \code{tillage == "No_tillage"} aborts.
+A pooled \code{"Excreta"} row (excreta of every species, as
+\code{\link[=build_n_inputs]{build_n_inputs()}} emits it) reads the subsoil reduction of
+\link{subsoil_no3_reduction}, which gives \code{"Excreta_cattle_monog"} and
+\code{"Excreta_other"} the same value in every class; were they to differ, the
+row aborts (\code{whep_leaching_excreta_species}).
 }
 
 \subsection{Carry-over across years}{
@@ -290,7 +295,13 @@ denitrifies. Surface runoff then reads the zeroed balance: natural land
 runs off nothing, and grassland a share of balance + uptake, which is its
 uptake alone (\code{n_surface_runoff.py} line 96), here the input net of
 ammonia less the surplus, \code{max(0, n_input_std_t - nh3_n_t - n_surplus_t)}. That runoff is booked beside the inactive N, not taken
-from it.
+from it. Under \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}, whose surplus counts the N
+mineralised from soil organic matter as an input and soil organic
+matter sequestration as an output while \code{n_input_std_t} counts neither,
+this proxy (where the balance is in surplus) is the crop product, the
+used, bedding and burnt residue and the grazed forage, plus the
+sequestration less the mineralisation: uptake net of the soil organic
+matter terms.
 \item \code{erosion_n_t} is \verb{N_sro,mem} of eq. 8 (p. 4052), the nitrogen of soil
 lost to erosion, computed as the authors' code does (\code{n_erosion.py}
 lines 47-55 and 88-135): an erodibility

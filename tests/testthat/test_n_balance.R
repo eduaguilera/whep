@@ -2182,25 +2182,17 @@ testthat::test_that("an unsplit grid balance cannot build its drivers", {
   )
 })
 
-testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
+testthat::test_that("Meisinger drivers are built, MANNER's still refused", {
   .nb_stub_assembly()
-  err <- testthat::expect_error(
-    whep::build_nitrogen_balance(
-      methods = .nb_ipcc_methods(leaching = "meisinger_drainage"),
-      data = list()
-    ),
-    class = "whep_n_loss_drivers_unsupported"
-  )
-  msg <- cli::ansi_strip(conditionMessage(err))
-  for (col in c(
-    "drainage_mm",
-    "som_share",
-    "irrig_cat",
-    "tillage",
-    "root_depth_cm",
-    "soil_porosity"
-  )) {
-    testthat::expect_match(msg, col, fixed = TRUE)
+  # Meisinger and IMAGE-GNM reach the assembly: their drivers are built.
+  for (leaching in c("meisinger_drainage", "image_gnm")) {
+    testthat::expect_error(
+      whep::build_nitrogen_balance(
+        methods = .nb_ipcc_methods(leaching = leaching),
+        data = list()
+      ),
+      class = "nb_test_assembly_reached"
+    )
   }
   err <- testthat::expect_error(
     whep::build_nitrogen_balance(data = list()),
@@ -2233,7 +2225,6 @@ testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
   drainage <- c(`2010` = 600, `2011` = 0, `2012` = 300)
   data$n_balance_leaching_drivers <- spread(base$n_balance_leaching_drivers) |>
     dplyr::mutate(
-      fert_type = "Synthetic",
       tillage = "Tillage",
       root_depth_cm = 100,
       soil_porosity = 0.45,
@@ -2280,15 +2271,23 @@ testthat::test_that("Meisinger leaching carries retained nitrate across the bala
   testthat::expect_true(all(
     dry$retained_profile_n_t >= dry$retained_carried_in_n_t
   ))
-  testthat::expect_true(all(grepl(";vadose_storage", dry$method_leaching)))
+  # Rows with no input part (the item-less sequestration rows) leach
+  # nothing by construction and carry their own stamp.
+  parted <- dry$method_leaching != "meisinger_drainage_no_input"
+  testthat::expect_true(any(parted))
+  testthat::expect_true(all(grepl(
+    ";vadose_storage",
+    dry$method_leaching[parted]
+  )))
   testthat::expect_gt(sum(dry$retained_carried_in_n_t), 0)
   # Over the run the surplus is the leached and denitrified nitrogen plus the
   # final pools minus the initial ones.
   first <- dplyr::slice_min(out, .data$year, by = dplyr::all_of(key))
   last <- dplyr::slice_max(out, .data$year, by = dplyr::all_of(key))
+  first_parted <- first$method_leaching != "meisinger_drainage_no_input"
   testthat::expect_true(all(grepl(
     "initial_pool_steady_state",
-    first$method_leaching
+    first$method_leaching[first_parted]
   )))
   testthat::expect_equal(
     sum(out$surplus_t),
@@ -2329,34 +2328,6 @@ testthat::test_that("the leaching transport and None class are validated methods
     whep:::.nb_methods(list(leaching = "image_gnm"))$leaching,
     "image_gnm"
   )
-})
-
-testthat::test_that("image_gnm names the drivers the builder lacks", {
-  .nb_stub_assembly()
-  err <- testthat::expect_error(
-    whep::build_nitrogen_balance(
-      methods = .nb_ipcc_methods(leaching = "image_gnm"),
-      data = list()
-    ),
-    class = "whep_n_loss_drivers_unsupported"
-  )
-  msg <- cli::ansi_strip(conditionMessage(err))
-  # Eq. 14 reads the eq. 5 split of the total runoff, not the deep seepage.
-  testthat::expect_no_match(msg, "drainage_mm", fixed = TRUE)
-  for (col in c(
-    "runoff_mm",
-    "surface_runoff_fraction",
-    "slope_m_per_km",
-    "land_use",
-    "temp_c_annual_mean",
-    "soil_field_capacity",
-    "soil_wilting_point",
-    "soil_texture_class",
-    "soil_drainage_class",
-    "soil_organic_carbon_pct"
-  )) {
-    testthat::expect_match(msg, col, fixed = TRUE)
-  }
 })
 
 testthat::test_that("image_gnm leaching runs through the balance and closes", {
@@ -2484,6 +2455,231 @@ testthat::test_that("image_gnm holds a dry grassland year's surplus in the balan
     tolerance = 1e-9
   )
 })
+
+# ---- Meisinger per input part (the ported source's surplus split) -----------
+
+# One key whose input is 60 t synthetic and 40 t excreta N and whose surplus
+# is 50 t, with Meisinger drivers on the key.
+.nb_part_key <- function() {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_surplus_t = 50,
+    n_input_full_t = 100,
+    bnf = 0,
+    excreta = 40,
+    manure_liquid = 0,
+    manure_solid = 0,
+    synthetic = 60,
+    human = 0,
+    deposition = 0,
+    som_mineralization = 0,
+    climate = "ATL",
+    irrig_cat = "Rainfed",
+    land_use = "Cropland",
+    cn_input = 20,
+    tillage = "Tillage",
+    som_share = 0.03,
+    drainage_mm = 300,
+    root_depth_cm = 120,
+    soil_porosity = 0.45
+  )
+}
+
+testthat::test_that("Meisinger leaches each input part of a key's surplus", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  m <- whep:::.nb_methods(list(leaching = "meisinger_drainage"))
+  x <- .nb_part_key()
+  out <- whep:::.nb_meisinger_parts(x, m, key)
+  # The source's split: each part's surplus is the key's in proportion to
+  # its input N, 30 t synthetic and 20 t excreta, each priced on its own row.
+  part <- \(fert_type, surplus) {
+    x |>
+      dplyr::mutate(fert_type = fert_type, n_surplus_t = surplus) |>
+      whep::calculate_n_leaching(drainage_mm = "drainage_mm")
+  }
+  synthetic <- part("Synthetic", 30)
+  excreta <- part("Excreta", 20)
+  testthat::expect_equal(out$no3_n_t, synthetic$no3_n_t + excreta$no3_n_t)
+  testthat::expect_equal(
+    out$denitrification_n_t,
+    synthetic$denitrification_n_t + excreta$denitrification_n_t
+  )
+  # Manure denitrifies twice the synthetic share in Meisinger's table, so the
+  # split leaches less than the key priced as synthetic alone.
+  all_synthetic <- part("Synthetic", 50)
+  testthat::expect_lt(out$no3_n_t, all_synthetic$no3_n_t)
+  testthat::expect_equal(
+    out$n_surplus_t + out$retained_carried_in_n_t,
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(nrow(out), 1L)
+})
+
+testthat::test_that("a key without input leaches nothing, stamped", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  m <- whep:::.nb_methods(list(leaching = "meisinger_drainage"))
+  x <- dplyr::bind_rows(
+    .nb_part_key(),
+    dplyr::mutate(
+      .nb_part_key(),
+      item_cbs_code = NA_integer_,
+      n_surplus_t = 0,
+      n_input_full_t = 0,
+      excreta = 0,
+      synthetic = 0
+    )
+  )
+  out <- whep:::.nb_meisinger_parts(x, m, key)
+  testthat::expect_identical(nrow(out), 2L)
+  empty <- out[is.na(out$item_cbs_code), ]
+  testthat::expect_equal(empty$no3_n_t, 0)
+  testthat::expect_identical(
+    empty$method_leaching,
+    "meisinger_drainage_no_input"
+  )
+})
+
+testthat::test_that("a fert_type in the supplied leaching drivers is refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  m <- whep:::.nb_methods(list(leaching = "meisinger_drainage"))
+  x <- dplyr::mutate(.nb_part_key(), fert_type = "Synthetic")
+  testthat::expect_error(
+    whep:::.nb_meisinger_parts(x, m, key),
+    class = "whep_leaching_fert_type_supplied"
+  )
+})
+
+testthat::test_that("the input C:N divides the item's C by its whole non-SOM N", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
+  x <- tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~item_cbs_code, ~year, ~water_regime,
+    ~n_input_full_nosom_t, ~c_input_t, ~method_c_input,
+    0.25, 50.25, 10L,        2511L,          2010L, "rainfed",
+    6,                     100,        "soil_carbon_inputs_per_crop",
+    0.25, 50.25, 10L,        2511L,          2010L, "irrigated",
+    4,                     100,        "soil_carbon_inputs_per_crop",
+    0.25, 50.25, 10L,        2514L,          2010L, "rainfed",
+    0,                     50,         "soil_carbon_inputs_per_crop"
+  )
+  out <- whep:::.nb_derive_cn_input(x, key)
+  testthat::expect_equal(out$cn_input, c(10, 10, NA))
+  testthat::expect_identical(
+    out$method_c_input[3],
+    "soil_carbon_inputs_per_crop;no_non_som_n"
+  )
+  # A supplied cn_input is kept.
+  kept <- whep:::.nb_derive_cn_input(dplyr::mutate(x, cn_input = 30), key)
+  testthat::expect_true(all(kept$cn_input == 30))
+})
+
+# The built-driver fixture with the layers the Meisinger and IMAGE-GNM
+# drivers read, for the fixture's one cell (0.25, 50.25), polity 10.
+.nb_leaching_layers <- function() {
+  cell <- \(...) tibble::tibble(lon = 0.25, lat = 50.25, ...)
+  list(
+    lpjml_drainage = cell(year = 2010L, value = 250),
+    lpjml_runoff = cell(year = 2010L, value = 400),
+    soil_hydraulic = cell(t_field = 0.29, t_wilt = 0.14, porosity = 0.43),
+    soil_mass = cell(
+      soil_mass_mg_ha = 3900,
+      soc_obs_mgc_ha = 45,
+      method_soil_mass = "measured"
+    ),
+    carbon_balance = tibble::tribble(
+      ~lon, ~lat,  ~area_code, ~land_use,   ~year, ~stock_mgc_ha,
+      ~c_input_mgc_ha, ~area_ha,
+      0.25, 50.25, 10L,        "cropland",  2010L, 41,
+      2.2,             1000,
+      0.25, 50.25, 10L,        "grassland", 2010L, 61,
+      2.8,             2000
+    ),
+    # Wheat (15), and the barley (44) and beans (176) the fixture's manure
+    # reaches.
+    carbon_inputs = cell(
+      area_code = 10L,
+      item_prod_code = c(15L, 44L, 176L),
+      year = 2010L,
+      total_c_input_mgc_ha_yr = c(2.4, 2.0, 1.1),
+      crop_area_ha = c(700, 50, 20)
+    ),
+    regime_areas = cell(
+      area_code = 10L,
+      item_prod_code = 15L,
+      year = 2010L,
+      rainfed_ha = 500,
+      irrigated_ha = 200
+    ),
+    soil_texture_fao = cell(
+      soil_texture_fao = "medium",
+      method_soil_texture_fao = "hwsd_v1.2_fao3_clay_sand"
+    ),
+    soil_drainage = cell(
+      soil_drainage_class = "well_drained",
+      method_soil_drainage = "hwsd_v1.2_drainage_code"
+    ),
+    image_gnm_runoff = cell(surface_runoff_fraction = 0.2, slope_m_per_km = 15)
+  )
+}
+
+.nb_built_leaching_balance <- function(leaching) {
+  data <- .nb_built_driver_data()
+  data$n_loss_driver_inputs <- c(
+    data$n_loss_driver_inputs,
+    .nb_leaching_layers()
+  )
+  suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(leaching = leaching),
+    data = data
+  ))
+}
+
+testthat::test_that("a grid balance builds its Meisinger drivers and closes", {
+  testthat::skip_if_not_installed("pointblank")
+  out <- .nb_built_leaching_balance("meisinger_drainage")
+  testthat::expect_gt(sum(out$surplus_t), 0)
+  testthat::expect_gt(sum(out$no3_n_t), 0)
+  out |>
+    pointblank::expect_col_vals_in_set("method_drivers", "whep_built") |>
+    pointblank::expect_col_vals_not_null(c(
+      "method_som",
+      "method_c_input",
+      "method_drainage",
+      "method_root_depth",
+      "method_tillage",
+      "method_soil_hydraulic"
+    ))
+  testthat::expect_equal(
+    out$surplus_t + out$retained_carried_in_n_t,
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(startsWith(
+    out$method_leaching,
+    "meisinger_drainage"
+  )))
+})
+
+testthat::test_that("a grid balance builds its IMAGE-GNM drivers and closes", {
+  out <- .nb_built_leaching_balance("image_gnm")
+  testthat::expect_gt(sum(out$surplus_t), 0)
+  testthat::expect_true(all(out$method_drivers == "whep_built"))
+  testthat::expect_equal(
+    pmax(out$surplus_t, out$surface_runoff_n_t),
+    out$surface_runoff_n_t +
+      out$no3_n_t +
+      out$denitrification_n_t +
+      out$retained_profile_n_t,
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(startsWith(out$method_leaching, "image_gnm;")))
+  testthat::expect_true(all(!is.na(out$method_runoff)))
+})
+
 
 testthat::test_that("the shared balance fixtures were never mutated", {
   expect_n_fixtures_untouched("nb_")

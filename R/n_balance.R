@@ -116,15 +116,19 @@
 #'     [build_n_loss_drivers()] on the split balance's own rows (the IPCC 2019
 #'     wet/dry class and the ATL/MED drivers mapped from it; see its table of
 #'     which methods it supplies), and `method_drivers` says so. That needs
-#'     the rainfed/irrigated split (`methods$regime` other than `"none"`);
-#'     `leaching = "meisinger_drainage"` or `"image_gnm"` and the MANNER
-#'     `nh3` methods read drivers it does not supply and are refused before
-#'     any input is assembled unless their table is supplied. At polity
-#'     resolution both must be supplied.
+#'     the rainfed/irrigated split (`methods$regime` other than `"none"`).
+#'     The leaching drivers are built for `methods$leaching`; the
+#'     Meisinger and IMAGE-GNM ones read the balance's own
+#'     `data$carbon_balance`. The MANNER `nh3` methods read drivers it does
+#'     not supply and are refused before any input is assembled unless their
+#'     table is supplied. At polity resolution both must be supplied.
 #'   * `n_loss_driver_inputs`: optional list passed as `data` to
 #'     [build_n_loss_drivers()] when it runs (`climate`, `crop_depth`,
-#'     `lpjml_years`, `lpjml_grid`, `regime_areas`, `moisture_regime`); the
-#'     balance's own `country_grid` is shared with it.
+#'     `lpjml_years`, `lpjml_grid`, `regime_areas`, `moisture_regime`, and
+#'     the leaching layers it lists); the balance's own `country_grid` and
+#'     `carbon_balance` are shared with it. `n_loss_driver_methods`: optional
+#'     list of its `methods` (`som_source`, `som_factor`, `root_depth`); its
+#'     `leaching` is always `methods$leaching`.
 #'   * `n_balance_drivers`: additional per-`(key, fert_type)` driver
 #'     columns [calculate_nh3()]/[calculate_soil_n2o()]/
 #'     [calculate_indirect_n2o_nh3()] need beyond `n_input_t`/`fert_type`
@@ -141,7 +145,11 @@
 #'     `land_use`) for [calculate_n_leaching()] is read from
 #'     `n_balance_leaching_drivers`, which must hold at most one row per
 #'     balance key (a many-to-one join aborts on duplicate keys rather than
-#'     fanning the rows out and misaligning `drainage_mm`). Missing required
+#'     fanning the rows out and misaligning `drainage_mm`). Under
+#'     `"meisinger_drainage"` it carries no `fert_type`, which the balance
+#'     sets on each input part (see Details), and a `c_input_t` (t C per
+#'     year) it carries in place of `cn_input` is divided by the item's
+#'     `n_input_full_nosom_t`, summed over the water regimes. Missing required
 #'     drivers abort inside the called `calculate_*()` function, naming the
 #'     exact column; for the MANNER `nh3` methods the check runs on
 #'     `n_balance_drivers` before any input is assembled, because no
@@ -253,8 +261,8 @@
 #' |`n2o_indirect`: `"ipcc2019"`|`moisture_regime`|yes|built|
 #' |`n2o_indirect`: `"ipcc2019_atl_med"`|`climate`, `irrig_type`|yes|built|
 #' |`leaching`: `"ipcc_fracleach"`|`moisture_regime`, `water_regime`|yes|built|
-#' |`leaching`: `"meisinger_drainage"`|Meisinger's|no|note 2|
-#' |`leaching`: `"image_gnm"`|IMAGE-GNM's|no|note 3|
+#' |`leaching`: `"meisinger_drainage"`|Meisinger's|yes|built, note 2|
+#' |`leaching`: `"image_gnm"`|IMAGE-GNM's|yes|built, note 3|
 #'
 #' - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
 #'   `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`, `windspeed_ms`,
@@ -263,19 +271,34 @@
 #' - Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`, `land_use`,
 #'   `cn_input`, `tillage`, `som_share`, `drainage_mm`, `root_depth_cm`
 #'   and, by transport, `soil_porosity` (`"swat_mixing"`) or
-#'   `soil_field_capacity` (`"burns"`); see [calculate_n_leaching()].
-#'   Drivers must be supplied; global drivers planned.
+#'   `soil_field_capacity` (`"burns"`); see [calculate_n_leaching()]. The
+#'   builder supplies them from LPJmL, HWSD, FAO-56 and the carbon balance
+#'   (see its Leaching drivers section).
 #' - Note 3: IMAGE-GNM reads `runoff_mm` (the year's total runoff, LPJmL
 #'   `mrunoff.nc`), `surface_runoff_fraction`,
 #'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`,
 #'   `temp_c_annual_mean`, `soil_field_capacity`, `soil_wilting_point`,
 #'   `soil_texture_class`, `soil_drainage_class` and
 #'   `soil_organic_carbon_pct`, plus the balance's own `n_input_std_t`,
-#'   `nh3_n_t` and `area_ha`; see [calculate_n_leaching()]. Drivers must be
-#'   supplied; global drivers planned.
+#'   `nh3_n_t` and `area_ha`; see [calculate_n_leaching()]. The builder
+#'   supplies them, as for note 2.
 #'
-#' [build_nitrogen_balance()] refuses a method of note 1, 2 or 3 before
-#' assembling any input unless its driver table is supplied.
+#' [build_nitrogen_balance()] refuses a method of note 1 before assembling
+#' any input unless its driver table is supplied.
+#'
+#' **Meisinger per input part.** Under `"meisinger_drainage"` each balance
+#' key's surplus is split over the inputs of `n_input_full_t` (biological
+#' fixation, excreta, liquid and solid manure, synthetic fertiliser, human N,
+#' deposition and soil organic matter mineralisation) in proportion to their
+#' N, `n_surplus_t * N_f / n_input_full_t`, and each part is leached on its
+#' own Meisinger rows (Synthetic or Manure topsoil denitrification, its own
+#' subsoil reduction), as the regional reconstruction this cascade is ported
+#' from does (its surplus share is surplus over the full input, recycled
+#' residues excluded). Each part carries its own retained nitrate from year
+#' to year, on the key and the part's `fert_type`, and the parts' flows sum to
+#' the key, so `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
+#' the surplus plus `retained_carried_in_n_t` on every key. A key with no
+#' input carries no surplus and is stamped `meisinger_drainage_no_input`.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
@@ -334,7 +357,7 @@ build_nitrogen_balance <- function(
   .nb_validate_input_grain(n_inputs, resolution)
 
   split <- .nb_split_balance(n_inputs, data, key, resolution, m$regime)
-  drivers <- .nb_resolve_drivers(data, split)
+  drivers <- .nb_resolve_drivers(data, split, m)
   data[names(drivers$tables)] <- drivers$tables
   split$x |>
     .nb_losses(split$n_inputs, split$key, m, data) |>
@@ -392,52 +415,7 @@ build_nitrogen_balance <- function(
       class = "whep_n_loss_drivers_regime"
     )
   }
-  if ("n_balance_leaching_drivers" %in% absent) {
-    .nb_check_leaching_buildable(m)
-  }
   invisible(NULL)
-}
-
-.nb_check_leaching_buildable <- function(m) {
-  needed <- .nb_leaching_driver_cols(m)
-  if (length(needed) == 0L) {
-    return(invisible(NULL))
-  }
-  cli::cli_abort(
-    c(
-      "{.code leaching} = {.val {m$leaching}} reads driver columns
-       {.fn build_n_loss_drivers} does not supply: {.field {needed}}.",
-      i = "Supply them in {.code data$n_balance_leaching_drivers}, or use
-           {.code leaching = \"ipcc_fracleach\"}, whose
-           {.field moisture_regime} and {.field water_regime} the builder
-           supplies."
-    ),
-    class = "whep_n_loss_drivers_unsupported"
-  )
-}
-
-# The leaching driver columns build_n_loss_drivers() does not supply, by
-# method: none for ipcc_fracleach, Meisinger's with its transport's soil
-# columns, and IMAGE-GNM's (calculate_n_leaching() reads each). IMAGE-GNM
-# reads the total runoff runoff_mm, not drainage_mm (its eq. 14 takes the
-# eq. 5 split of the total runoff).
-.nb_leaching_driver_cols <- function(m) {
-  switch(
-    m$leaching,
-    ipcc_fracleach = character(),
-    meisinger_drainage = c(
-      "fert_type",
-      "climate",
-      "irrig_cat",
-      "land_use",
-      "cn_input",
-      "tillage",
-      "som_share",
-      "drainage_mm",
-      .leaching_soil_cols(m$leaching_transport)
-    ),
-    image_gnm = .gnm_external_cols()
-  )
 }
 
 # Builds the driver tables the caller did not supply, from the split
@@ -445,14 +423,23 @@ build_nitrogen_balance <- function(
 # "supplied", or "supplied|whep_built" when one table was supplied and the
 # other built. The builder reads `data$n_loss_driver_inputs` and shares the
 # balance's cell support (`country_grid`).
-.nb_resolve_drivers <- function(data, split) {
+.nb_resolve_drivers <- function(data, split, m) {
   absent <- .nb_drivers_to_build(data)
   if (length(absent) == 0L) {
     return(list(tables = list(), stamp = "supplied"))
   }
   inputs <- data$n_loss_driver_inputs %||% list()
   inputs$country_grid <- inputs$country_grid %||% data$country_grid
-  tables <- build_n_loss_drivers(.nb_driver_rows(split), data = inputs)
+  inputs$carbon_balance <- inputs$carbon_balance %||% data$carbon_balance
+  driver_methods <- utils::modifyList(
+    as.list(data$n_loss_driver_methods),
+    list(leaching = m$leaching)
+  )
+  tables <- build_n_loss_drivers(
+    .nb_driver_rows(split),
+    data = inputs,
+    methods = driver_methods
+  )
   stamp <- if (length(absent) == length(.nb_driver_tables())) {
     "whep_built"
   } else {
@@ -1186,35 +1173,238 @@ build_nitrogen_balance <- function(
     .nb_gwp(gwp)
 }
 
-# calculate_n_leaching() runs once per balance key (n_surplus_t is a
-# balance-level quantity, not per-fert_type): joins data$n_balance_
-# leaching_drivers (fert_type, climate, irrig_cat, land_use, cn_input,
-# tillage, som_share and the transport's soil columns) at the balance key,
-# and data$drainage_mm (a numeric vector aligned to x, or a "drainage_mm"
-# column already present via n_balance_leaching_drivers). The Meisinger
-# cascade carries the retained nitrate from year to year on the balance key
-# without its year (cell, polity, item and water regime), so every year of
-# the balance is threaded in order on that key.
+# calculate_n_leaching() runs on the balance rows joined to
+# data$n_balance_leaching_drivers at the balance key, with data$drainage_mm (a
+# numeric vector aligned to x, or a "drainage_mm" column already present via
+# n_balance_leaching_drivers). "ipcc_fracleach" and "image_gnm" run once per
+# balance key. "meisinger_drainage" runs once per input part of each key
+# (.nb_meisinger_parts()) and carries the retained nitrate of each part from
+# year to year on the balance key without its year (cell, polity, item and
+# water regime) and the part's fert_type, so every year of the balance is
+# threaded in order on that key.
 .nb_run_leaching <- function(x, m, data, key) {
   joined <- if (is.null(data$n_balance_leaching_drivers)) {
     x
   } else {
     .nb_leaching_join(x, data$n_balance_leaching_drivers, key)
   }
-  drainage <- if (rlang::has_name(joined, "drainage_mm")) {
-    "drainage_mm"
-  } else {
-    data$drainage_mm
+  if (m$leaching == "meisinger_drainage") {
+    return(
+      joined |>
+        .nb_attach_drainage(data) |>
+        .nb_derive_cn_input(key) |>
+        .nb_meisinger_parts(m, key)
+    )
   }
   # calculate_n_leaching() stamps each row with the fraction it took (for
   # ipcc_fracleach, wet, dry irrigated or dry rainfed), so the stamp is kept.
   calculate_n_leaching(
     joined,
-    drainage_mm = drainage,
+    drainage_mm = data$drainage_mm,
     method = m$leaching,
     transport = m$leaching_transport,
     none_class = m$leaching_none_class,
     carry_over_by = setdiff(key, "year")
+  )
+}
+
+# The drainage as a column of the balance rows: the drivers' own, else
+# data$drainage_mm, a single value or a vector aligned to the rows. Absent,
+# it stays absent and calculate_n_leaching() refuses the run.
+.nb_attach_drainage <- function(joined, data) {
+  if (rlang::has_name(joined, "drainage_mm") || is.null(data$drainage_mm)) {
+    return(joined)
+  }
+  joined$drainage_mm <- vctrs::vec_recycle(
+    data$drainage_mm,
+    nrow(joined),
+    x_arg = "data$drainage_mm"
+  )
+  joined
+}
+
+# The input C:N Meisinger's attenuation reads (cn_input), from the C input
+# the WHEP-built drivers carry (c_input_t, t C per year) over the item's non-SOM
+# N input, n_input_full_nosom_t, the definition the A_CN span was calibrated
+# with. Both regime rows of an item carry the item's whole C, so the ratio
+# divides by the item's whole N, summed over the water regimes. An item with no
+# non-SOM N has no input C:N (NA, which calculate_n_leaching() reads as the
+# minimum C:N, no attenuation), stamped. A supplied cn_input is kept.
+.nb_derive_cn_input <- function(joined, key) {
+  if (
+    rlang::has_name(joined, "cn_input") ||
+      !rlang::has_name(joined, "c_input_t")
+  ) {
+    return(joined)
+  }
+  joined |>
+    dplyr::mutate(
+      .item_n_t = sum(.data$n_input_full_nosom_t),
+      .by = dplyr::all_of(setdiff(key, "water_regime"))
+    ) |>
+    dplyr::mutate(
+      cn_input = dplyr::if_else(
+        .data$.item_n_t > 0,
+        .data$c_input_t / .data$.item_n_t,
+        NA_real_
+      ),
+      method_c_input = dplyr::if_else(
+        .data$.item_n_t > 0 | is.na(.data$c_input_t),
+        .data$method_c_input,
+        paste0(.data$method_c_input, ";no_non_som_n")
+      )
+    ) |>
+    dplyr::select(-".item_n_t")
+}
+
+# The input fert_types a balance key's surplus is split over, in
+# build_n_inputs()' vocabulary and the loss cascade's: every term of
+# n_input_full_t. Recycled residues are not an input of the surplus, as in
+# the ported source, which books their surplus at 0.
+.nb_surplus_fert_types <- function() {
+  c(
+    bnf = "BNF",
+    excreta = "Excreta",
+    manure_liquid = "Liquid",
+    manure_solid = "Solid",
+    synthetic = "Synthetic",
+    human = "Human",
+    deposition = "Deposition",
+    som_mineralization = "SOM"
+  )
+}
+
+# The Meisinger cascade per input part. Each key's surplus is split over its
+# input fert_types in proportion to their N, n_surplus_t * N_f /
+# n_input_full_t, as the ported source does (Surplus_MgN = MgN *
+# Surplus_share, Surplus_share = Surplus / N_input_full), and each part takes
+# its own topsoil denitrification class (Synthetic or Manure) and subsoil
+# reduction. A key's parts are the fert_types it carries in any year of the
+# run, so a part's carried pool keeps cascading in a year without its input.
+# The parts' flows sum back to the key, so the key's partition closes:
+# n_surplus_t + retained_carried_in_n_t = no3_n_t + denitrification_n_t +
+# retained_profile_n_t.
+.nb_meisinger_parts <- function(joined, m, key) {
+  .nb_check_no_fert_type(joined)
+  types <- .nb_surplus_fert_types()
+  joined$.row <- seq_len(nrow(joined))
+  stay <- setdiff(key, "year")
+  long <- joined |>
+    dplyr::select(dplyr::all_of(c(
+      ".row",
+      key,
+      "n_surplus_t",
+      "n_input_full_t",
+      names(types)
+    ))) |>
+    tidyr::pivot_longer(
+      dplyr::all_of(names(types)),
+      names_to = ".input",
+      values_to = ".part_n_t"
+    )
+  carried <- long |>
+    dplyr::filter(.data$.part_n_t > 0) |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(stay, ".input"))))
+  drivers <- setdiff(
+    names(joined),
+    c(names(types), "n_surplus_t", "n_input_full_t", key, "fert_type")
+  )
+  parts <- long |>
+    dplyr::semi_join(carried, by = c(stay, ".input")) |>
+    dplyr::transmute(
+      .row = .data$.row,
+      dplyr::across(dplyr::all_of(key)),
+      fert_type = unname(types[.data$.input]),
+      n_surplus_t = dplyr::if_else(
+        .data$n_input_full_t > 0,
+        .data$n_surplus_t * .data$.part_n_t / .data$n_input_full_t,
+        0
+      )
+    ) |>
+    dplyr::left_join(
+      joined[c(".row", .nb_meisinger_driver_cols(joined, drivers))],
+      by = ".row",
+      relationship = "many-to-one"
+    )
+  flows <- calculate_n_leaching(
+    parts,
+    drainage_mm = "drainage_mm",
+    method = "meisinger_drainage",
+    transport = m$leaching_transport,
+    none_class = m$leaching_none_class,
+    carry_over_by = c(stay, "fert_type")
+  ) |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(.nb_leaching_flow_cols()), sum),
+      method_leaching = .nb_method_stamp(.data$method_leaching),
+      .by = ".row"
+    )
+  .nb_join_part_flows(joined, flows)
+}
+
+# The flows a Meisinger part returns, summed to its key.
+.nb_leaching_flow_cols <- function() {
+  c(
+    "no3_n_t",
+    "denitrification_n_t",
+    "retained_profile_n_t",
+    "retained_carried_in_n_t",
+    "n2o_indirect_no3_n_t"
+  )
+}
+
+# The columns of the joined balance a part carries into the cascade: the
+# drivers Meisinger reads (and the drainage), no other balance term.
+.nb_meisinger_driver_cols <- function(joined, drivers) {
+  intersect(
+    c(
+      "climate",
+      "irrig_cat",
+      "land_use",
+      "cn_input",
+      "tillage",
+      "som_share",
+      "drainage_mm",
+      "root_depth_cm",
+      "soil_porosity",
+      "soil_field_capacity"
+    ),
+    drivers
+  )
+}
+
+# A key with no input part has no surplus (the surplus is at most the input)
+# and no pool: its flows are structural zeros, stamped.
+.nb_join_part_flows <- function(joined, flows) {
+  joined |>
+    dplyr::left_join(flows, by = ".row", relationship = "one-to-one") |>
+    dplyr::mutate(
+      dplyr::across(
+        dplyr::all_of(.nb_leaching_flow_cols()),
+        \(v) tidyr::replace_na(v, 0)
+      ),
+      method_leaching = tidyr::replace_na(
+        .data$method_leaching,
+        "meisinger_drainage_no_input"
+      )
+    ) |>
+    dplyr::select(-".row")
+}
+
+# Under the input-part split the balance gives each part its own fert_type;
+# a fert_type in the supplied leaching drivers would name one source for a
+# surplus of many.
+.nb_check_no_fert_type <- function(joined) {
+  if (!rlang::has_name(joined, "fert_type")) {
+    return(invisible(joined))
+  }
+  cli::cli_abort(
+    c(
+      "{.code data$n_balance_leaching_drivers} carries {.field fert_type}.",
+      i = "Meisinger leaching splits each key's surplus over its input
+           fert_types itself; drop the column."
+    ),
+    class = "whep_leaching_fert_type_supplied"
   )
 }
 
@@ -1333,9 +1523,25 @@ build_nitrogen_balance <- function(
 }
 
 # The wet/dry class each balance row was priced on and how it was obtained,
-# kept when the leaching drivers carry them (build_n_loss_drivers() does).
+# and the stamp of every other leaching driver, kept when the leaching drivers
+# carry them (build_n_loss_drivers() does).
 .nb_driver_cols <- function() {
-  c("moisture_regime", "method_moisture_regime", "climate_fill_km")
+  c(
+    "moisture_regime",
+    "method_moisture_regime",
+    "climate_fill_km",
+    "method_climate",
+    "method_tillage",
+    "method_som",
+    "method_c_input",
+    "method_drainage",
+    "method_root_depth",
+    "method_soil_hydraulic",
+    "method_runoff",
+    "method_image_gnm_runoff",
+    "method_soil_texture_fao",
+    "method_soil_drainage"
+  )
 }
 
 # The method columns build_n_inputs() stamps on its rows, carried through to
