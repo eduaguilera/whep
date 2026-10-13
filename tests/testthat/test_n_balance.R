@@ -2568,6 +2568,11 @@ testthat::test_that("the input C:N divides the item's C by its whole non-SOM N",
   )
   out <- whep:::.nb_derive_cn_input(x, key)
   testthat::expect_equal(out$cn_input, c(10, 10, NA))
+  # Both regime rows carry the item's C:N, not their own part's, and say so.
+  testthat::expect_identical(
+    out$method_c_input[1:2],
+    rep("soil_carbon_inputs_per_crop;item_level_cn", 2)
+  )
   testthat::expect_identical(
     out$method_c_input[3],
     "soil_carbon_inputs_per_crop;no_non_som_n"

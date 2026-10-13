@@ -1227,7 +1227,9 @@ build_nitrogen_balance <- function(
 # the WHEP-built drivers carry (c_input_t, t C per year) over the item's non-SOM
 # N input, n_input_full_nosom_t, the definition the A_CN span was calibrated
 # with. Both regime rows of an item carry the item's whole C, so the ratio
-# divides by the item's whole N, summed over the water regimes. An item with no
+# divides by the item's whole N, summed over the water regimes, and both rows
+# are stamped `item_level_cn`: the soil carbon inputs carry no water regime
+# here, so the rainfed and irrigated parts share the item's C:N. An item with no
 # non-SOM N has no input C:N (NA, which calculate_n_leaching() reads as the
 # minimum C:N, no attenuation), stamped. A supplied cn_input is kept.
 .nb_derive_cn_input <- function(joined, key) {
@@ -1248,10 +1250,10 @@ build_nitrogen_balance <- function(
         .data$c_input_t / .data$.item_n_t,
         NA_real_
       ),
-      method_c_input = dplyr::if_else(
-        .data$.item_n_t > 0 | is.na(.data$c_input_t),
-        .data$method_c_input,
-        paste0(.data$method_c_input, ";no_non_som_n")
+      method_c_input = dplyr::case_when(
+        is.na(.data$c_input_t) ~ .data$method_c_input,
+        .data$.item_n_t > 0 ~ paste0(.data$method_c_input, ";item_level_cn"),
+        .default = paste0(.data$method_c_input, ";no_non_som_n")
       )
     ) |>
     dplyr::select(-".item_n_t")
