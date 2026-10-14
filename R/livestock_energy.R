@@ -9,6 +9,16 @@
 #'
 #' All coefficients come from internal package data.
 #'
+#' Default weight gain and pregnancy fraction follow the cohort's life stage:
+#' mature cohorts (`"Adult Female"`, `"Adult Male"`, `"Adult"`, `"Sows"`,
+#' `"Boars"`, `"Layers"`) gain no weight, and only mature-female cohorts take
+#' the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp. 10.18 and
+#' 10.28). Beef breeding cows (`"Adult Female"` of non-dairy cattle) take the
+#' "Pregnant, %" of the IPCC 2019 Table 10A.2 "Mature Females" row for their
+#' IPCC region, resolved from `iso3` or `area_code`. A cohort of `NA` or
+#' `"All"` is a whole-herd row and keeps both species defaults. Any other
+#' cohort label aborts. Values the caller supplies are kept.
+#'
 #' @param data A dataframe with columns `species`, `cohort`, `heads`,
 #'   and optionally `iso3`. Optional production columns: `weight`,
 #'   `milk_yield_kg_day`, `fat_percent`, `weight_gain_kg_day`,
@@ -41,8 +51,16 @@
 #'   `"ipcc2019_eq10_9_default_ev"`, or `"none"` when there is no milk).
 #'
 #' @return Dataframe with added `gross_energy` (MJ/day), intermediate
-#'   net energy components, and `method_energy` and `method_lactation`
-#'   tracking columns.
+#'   net energy components, `cohort_life_stage` (`"mature_female"`,
+#'   `"mature"`, `"growing"`, or `NA` for a whole-herd row), and
+#'   `method_energy`, `method_lactation` and `method_pregnancy` tracking
+#'   columns. `method_pregnancy` is `"supplied"`, `"species_default"`,
+#'   `"species_default_whole_herd"`, `"not_mature_female"`,
+#'   `"ipcc2019_t10a2"` (a beef cow at its region's published rate),
+#'   `"ipcc2019_t10a2_neighbour_assumed"` (Western Europe, which the table
+#'   omits, at the 80% North America and Eastern Europe report) or
+#'   `"ipcc2019_t10a2_mean_assumed"` (no resolvable region: the mean of the
+#'   published regions).
 #' @export
 #'
 #' @examples
@@ -451,6 +469,22 @@ estimate_energy_demand <- function(
 }
 
 #' Join production defaults and fill missing values.
+#'
+#' `livestock_production_defaults` holds one growth rate and one pregnancy
+#' rate per species, but the energy balance is solved per GLEAM cohort. Both
+#' defaults are therefore filled by the cohort's life stage
+#' ([.cohort_life_stages()]), following IPCC 2019 Refinement Vol 4 Ch 10:
+#' weight gain "may be assumed to be zero for mature animals" and the share of
+#' females giving birth "is only relevant for mature females" (p. 10.18), and
+#' NEp is weighted by "the portion of the mature females that actually go
+#' through gestation in a year" (p. 10.28). So a mature cohort takes a gain of
+#' zero, and only a mature-female cohort takes the species pregnancy rate.
+#' Before whep#1440 every cohort took both, so breeding cows and bulls grew
+#' 0.5 kg/day for life and bulls and calves were 90% pregnant in dairy herds.
+#' Beef breeding cows take the regional IPCC rate instead of the species
+#' default of zero ([.beef_cow_pregnancy()]). A row with no cohort (or the
+#' whole-herd `"All"`) keeps the species default. A value the caller supplied
+#' is always kept. `method_pregnancy` records which rule set each row.
 #' @noRd
 .join_production_defaults <- function(data) {
   defaults <- livestock_production_defaults |>
@@ -464,7 +498,8 @@ estimate_energy_demand <- function(
         species_gen == "Cattle" ~ "Other Cattle",
         TRUE ~ species_gen
       )
-    )
+    ) |>
+    .add_cohort_life_stage()
 
   data |>
     dplyr::left_join(
@@ -472,6 +507,7 @@ estimate_energy_demand <- function(
       by = c("defaults_key" = "species_match"),
       suffix = c("", "_default")
     ) |>
+    .fill_pregnancy_default() |>
     dplyr::select(-defaults_key) |>
     # Remember whether the caller set the working hours themselves, before the
     # coalesce below makes that indistinguishable from the species default.
@@ -496,7 +532,11 @@ estimate_energy_demand <- function(
       ),
       weight_gain_kg_day = dplyr::coalesce(
         weight_gain_kg_day,
-        weight_gain_kg_day_default,
+        dplyr::if_else(
+          .is_mature_stage(cohort_life_stage),
+          0,
+          weight_gain_kg_day_default
+        ),
         0
       ),
       work_hours_day = dplyr::coalesce(
@@ -511,6 +551,149 @@ estimate_energy_demand <- function(
       )
     ) |>
     dplyr::select(-dplyr::ends_with("_default"))
+}
+
+#' Pregnancy default by life stage, recorded in `method_pregnancy`.
+#'
+#' Runs after the species defaults are joined and before the caller's values
+#' are coalesced over them, so it only decides what an unsupplied row takes:
+#' a mature female the species rate, or for beef cows the regional IPCC rate;
+#' any other cohort none; a whole-herd row the species rate.
+#' @noRd
+.fill_pregnancy_default <- function(data) {
+  beef_cow <- data$defaults_key == "Other Cattle" &
+    data$cohort_life_stage %in% "mature_female"
+  beef <- .beef_cow_pregnancy(data[beef_cow, ])
+  data$pregnant_fraction_default[beef_cow] <- beef$pregnant_fraction
+  not_female <- !is.na(data$cohort_life_stage) &
+    data$cohort_life_stage != "mature_female"
+  data$pregnant_fraction_default[not_female] <- 0
+  method <- dplyr::case_when(
+    not_female ~ "not_mature_female",
+    is.na(data$cohort_life_stage) ~ "species_default_whole_herd",
+    TRUE ~ "species_default"
+  )
+  method[beef_cow] <- beef$method_pregnancy
+  method[!is.na(data$pregnant_fraction)] <- "supplied"
+  data$method_pregnancy <- method
+  data
+}
+
+#' Share of beef breeding cows giving birth in a year, by IPCC region.
+#'
+#' IPCC 2019 Refinement Vol 4 Ch 10, Annex 10A.1, Table 10A.2 ("Data for
+#' estimating Tier 1 enteric fermentation CH4 emission factors ... for Other
+#' cattle"), column "Pregnant, %" of the "Mature Females" rows, pp.
+#' 10.106-10.108. Asia and Africa publish two mature-female rows (stall fed
+#' and grazing); each takes their mean weighted by the table's own "Day
+#' weighted population mix, %" column: Asia (50 x 27 + 65 x 9) / 36, Africa
+#' (62 x 17 + 54 x 11) / 28. The livestock_production_defaults "Other Cattle"
+#' rate of 0 left every beef cow never pregnant (whep#1440).
+#'
+#' Two rows are assumed, unverified, and stamped so:
+#' * Western Europe: the table has no mature-female row for it. It takes the
+#'   80 percent that North America and Eastern Europe both report.
+#' * A row whose IPCC region cannot be resolved takes the unweighted mean of
+#'   the eight published regions.
+#' @noRd
+.beef_cow_pregnancy <- function(data) {
+  rates <- tibble::tribble(
+    ~ipcc_region,          ~rate,                         ~assumed,
+    "North America",       0.80,                          FALSE,
+    "Western Europe",      0.80,                          TRUE,
+    "Eastern Europe",      0.80,                          FALSE,
+    "Oceania",             0.81,                          FALSE,
+    "Latin America",       0.63,                          FALSE,
+    "Asia",                (50 * 27 + 65 * 9) / 36 / 100, FALSE,
+    "Africa",              (62 * 17 + 54 * 11) / 28 / 100, FALSE,
+    "Middle East",         0.51,                          FALSE,
+    "Indian Subcontinent", 0.40,                          FALSE
+  )
+  region <- rep(NA_character_, nrow(data))
+  if (nrow(data) > 0 && .has_gleam_region_key(data)) {
+    region <- .add_ipcc_region(data)$region
+  }
+  row <- match(region, rates$ipcc_region)
+  global <- mean(rates$rate[!rates$assumed])
+  tibble::tibble(
+    pregnant_fraction = dplyr::coalesce(rates$rate[row], global),
+    method_pregnancy = dplyr::case_when(
+      is.na(row) ~ "ipcc2019_t10a2_mean_assumed",
+      rates$assumed[row] ~ "ipcc2019_t10a2_neighbour_assumed",
+      TRUE ~ "ipcc2019_t10a2"
+    )
+  )
+}
+
+#' Life stage of each GLEAM cohort.
+#'
+#' Read from the cohort descriptions in `gleam_livestock_categories`:
+#' `"Adult Female"` is milking cows, breeding cows, milking buffalo, milking
+#' and breeding ewes and goats; `"Sows"` breeding sows; `"Layers"` laying
+#' hens. `"Adult Male"` is bulls, `"Boars"` breeding boars, and `"Adult"` the
+#' draft buffalo, booked as mature non-breeding animals because IPCC 2019
+#' Table 10A.4 assumes draft bullocks are castrates. Replacement, surplus and
+#' fattening animals and broilers are growing.
+#'
+#' `"mature_female"` takes the species pregnancy rate and no growth,
+#' `"mature"` neither, `"growing"` the species growth rate and no pregnancy.
+#' @noRd
+.cohort_life_stages <- function() {
+  tibble::tribble(
+    ~cohort,              ~cohort_life_stage,
+    "Adult Female",       "mature_female",
+    "Sows",               "mature_female",
+    "Layers",             "mature_female",
+    "Adult Male",         "mature",
+    "Boars",              "mature",
+    "Adult",              "mature",
+    "Replacement Female", "growing",
+    "Replacement Male",   "growing",
+    "Replacement",        "growing",
+    "Surplus Female",     "growing",
+    "Surplus Male",       "growing",
+    "Fattening",          "growing",
+    "Broilers",           "growing"
+  )
+}
+
+#' TRUE for a mature life stage; FALSE for growing or unknown.
+#' @noRd
+.is_mature_stage <- function(stage) {
+  stage %in% c("mature_female", "mature")
+}
+
+#' Attach `cohort_life_stage`, refusing a cohort label it cannot place.
+#'
+#' A missing cohort and the whole-herd `"All"` stay `NA`, so they keep the
+#' species defaults. Any other label outside [.cohort_life_stages()] is a
+#' vocabulary the growth and pregnancy rules cannot read, and silently
+#' treating it as growing or mature would move the energy balance either way.
+#' @noRd
+.add_cohort_life_stage <- function(data) {
+  stages <- .cohort_life_stages()
+  if (!rlang::has_name(data, "cohort")) {
+    return(dplyr::mutate(data, cohort_life_stage = NA_character_))
+  }
+  labels <- unique(data$cohort[!is.na(data$cohort) & data$cohort != "All"])
+  unknown <- setdiff(labels, stages$cohort)
+  if (length(unknown) > 0) {
+    cli::cli_abort(
+      c(
+        "Unknown livestock {cli::qty(length(unknown))}cohort{?s}:
+         {.val {unknown}}.",
+        i = "Known cohorts are the GLEAM ones: {.val {stages$cohort}}, or
+             {.val All} for a whole-herd row."
+      ),
+      class = "whep_unknown_cohort"
+    )
+  }
+  data |>
+    dplyr::mutate(
+      cohort_life_stage = stages$cohort_life_stage[
+        match(.data$cohort, stages$cohort)
+      ]
+    )
 }
 
 #' Set activity coefficient based on production system.

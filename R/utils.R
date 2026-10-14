@@ -2706,6 +2706,8 @@ utils::globalVariables(
     "frac_leach_ms",
     "loss_category",
     "row_id_indirect",
+    # livestock_energy.R (whep#1440) -- growth and pregnancy by cohort stage
+    "cohort_life_stage",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
