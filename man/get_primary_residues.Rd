@@ -6,7 +6,8 @@
 \usage{
 get_primary_residues(
   example = FALSE,
-  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius")
+  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
+  oil_palm_residue = c("per_product", "per_hectare", "pin")
 )
 }
 \arguments{
@@ -26,6 +27,30 @@ regional ratios, applied directly on Wirsenius's own region membership.
 }
 
 See the "Cereal residue" section. Other crops are not affected.}
+
+\item{oil_palm_residue}{How oil palm residue (fronds and trunks) is
+obtained. One of:
+\itemize{
+\item \code{"per_product"} (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
+= 0.722 t DM per tonne of fruit, Malaysia's 2010 fronds and trunks over
+its 2010 FAOSTAT production. It keeps the pin's production-times-ratio
+form and is the cautious rule where the per-hectare one is weakest:
+low-yield, semi-wild palm systems such as Nigeria's (2.6 t of fruit per
+hectare against Malaysia's ~17), which \code{"per_hectare"} would give
+several times the residue. West African semi-wild systems stay
+uncertain under either rule and would need their own source.
+Maintainer decision (whep#1424).
+\item \code{"per_hectare"}: 60 Mt DM / 4.85 Mha = 12.37 t DM per harvested
+hectare, the same 2010 anchor. It treats frond and trunk production as
+a property of the standing palm, and the rate barely moves between the
+strategy's two Malaysian years (12.26 t DM/ha at 2012, from its "over 83
+million dry tonnes" times "about 75 percent" on FAOSTAT's 5.08 Mha),
+where the per-tonne ratio drifts (0.656 at 2012).
+\item \code{"pin"}: the pin's own oil palm residue, with the recovery rate undone
+and the ratio re-keyed like every other non-cereal crop.
+}
+
+See the "Oil palm residue" section.}
 }
 \value{
 A tibble with the crop residue data.
@@ -56,7 +81,9 @@ fresh residue times its own residue dry-matter content,
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.
 \item \code{method_residue}: how the row's residue was estimated: the
-\code{cereal_residue} method for a cereal, \code{"pin"} for every other crop.
+\code{cereal_residue} method for a cereal, \code{"malaysia_nbs_per_product"} or
+\code{"malaysia_nbs_per_hectare"} for oil palm unless \code{oil_palm_residue} is
+\code{"pin"}, and \code{"pin"} for every other crop.
 }
 
 The pin's residue quantities are fresh matter. Across its crops the ratio of
@@ -146,6 +173,29 @@ about 23\% above it (2010 and 2020). \code{"wirsenius"} keeps the pin's
 harvest-index factor and corrects the anchor by applying Table 3.16
 directly: residue dry matter is grain dry matter times the ratio of the
 area's Wirsenius region.
+}
+
+\section{Oil palm residue}{
+
+Oil palm residue is replaced rather than taken from the pin (whep#1424).
+Read as gross residue, the pin's oil palm residue is far above an oil palm
+plantation's whole above-ground net primary production, fruit included:
+81\% of 17.3 Mg C, so about 30 t DM at the 0.47 kg C per kg DM of
+\link{biomass_coefs}, per hectare and year in the industrial plantation of
+Wakhid, Hirano, Dariah & Agus (2022), \emph{Mires and Peat} 28:02,
+\doi{10.19189/map.2021.snpg.sta.2288}. In Malaysia it is several times the
+country's whole solid oil palm biomass, mill residues included.
+
+The anchor is Malaysia's field residue: fronds (46 Mt) and trunks (14 Mt)
+of dry matter on 4.85 Mha planted in 2010, Exhibit 1 and p. 10 of Agensi
+Inovasi Malaysia (2013), \emph{National Biomass Strategy 2020}, version 2.0
+(FAOLEX mal228571). Mill residues (empty fruit bunches, fibre, shells) are
+part of the fruit bunch and are not field residue, so they are left out.
+The anchor is a gross residue, so it replaces the pin's figure after the
+recovery rate has been undone and the ratio re-keyed; neither touches it.
+The anchored dry matter is converted to fresh mass with the oil palm
+\code{Residue_kgDM_kgFM} of \link{biomass_coefs}, so \code{value_dm} is the anchor
+exactly.
 }
 
 \section{The batch pin on the build path}{

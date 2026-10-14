@@ -428,3 +428,115 @@
     class = "whep_residue_cereal_unpriced"
   )
 }
+
+# Oil palm residue (whep#1424) ------------------------------------------------
+#
+# The pin's oil palm residue is not a plausible field residue: read as gross
+# residue it is more than an oil palm plantation's whole above-ground net
+# primary production, fruit included (see `get_primary_residues()`). Its rows
+# are therefore REPLACED, not corrected: the anchor is a gross field residue
+# in its own right, Malaysia's fronds and trunks, so it runs after
+# `.residue_gross_from_recovered()` and `.residue_ratio_corrected()` and owes
+# nothing to the pin's residue figure. Running it before them would divide an
+# anchored gross residue by the pin's recovery rate a second time. The pin's
+# residue rows are still read, and still checked by both steps, because they
+# say which (area, year) pairs carry oil palm residue.
+#
+# The anchored dry matter is stored as fresh mass through the same
+# `Residue_kgDM_kgFM` that `.add_residue_dm_content()` applies afterwards, so
+# `value_dm` comes out equal to the anchor.
+.residue_oil_palm_anchored <- function(residues, products, method) {
+  if (method == "pin" || !rlang::has_name(residues, "name_biomass")) {
+    return(residues)
+  }
+  is_palm <- residues$name_biomass %in% "Oil palm"
+  if (!any(is_palm)) {
+    return(residues)
+  }
+  palm <- .oil_palm_anchored_rows(
+    residues[is_palm, ],
+    dplyr::filter(products, .data$name_biomass %in% "Oil palm"),
+    method
+  )
+  dplyr::bind_rows(residues[!is_palm, ], palm)
+}
+
+.oil_palm_anchored_rows <- function(residue, products, method) {
+  # Malaysia, 2010: fronds 46 + trunks 14 Mt DM (Agensi Inovasi Malaysia 2013,
+  # National Biomass Strategy 2020, Exhibit 1) on 4.85 Mha planted (p. 10), or
+  # over FAOSTAT's 83,090,935 t of fresh fruit bunches.
+  rate <- switch(
+    method,
+    per_product = 60e6 / 83090935,
+    per_hectare = 60e6 / 4.85e6
+  )
+  basis <- if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg"
+  kgdm <- .oil_palm_residue_kgdm()
+  fruit <- .oil_palm_fruit_basis(products, basis)
+  .check_oil_palm_fruit(residue, fruit)
+  residue |>
+    dplyr::left_join(
+      fruit,
+      by = c("year", "area"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      prod_ygpit_mg = .data$fruit_basis * rate / kgdm,
+      method_residue = paste0("malaysia_nbs_", method)
+    ) |>
+    dplyr::select(-"fruit_basis")
+}
+
+.oil_palm_fruit_basis <- function(products, basis) {
+  if (!rlang::has_name(products, basis)) {
+    cli::cli_abort(
+      c(
+        "The crop-residue pin has no {.field {basis}} column, which the oil
+         palm residue anchor needs.",
+        "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own
+          oil palm residue."
+      ),
+      class = "whep_oil_palm_no_product"
+    )
+  }
+  dplyr::summarise(
+    products,
+    fruit_basis = sum(.data[[basis]]),
+    .by = c("year", "area")
+  )
+}
+
+# A residue row with no fruit row would come out `NA`, then sum to zero and be
+# dropped by `get_primary_residues()`: an absent input turned into no residue.
+# Refuse instead. No cli pluralisation markers, for the reason
+# `.warn_residues_no_area()` gives.
+.check_oil_palm_fruit <- function(residue, fruit) {
+  orphan <- dplyr::anti_join(residue, fruit, by = c("year", "area"))
+  if (nrow(orphan) == 0L) {
+    return(invisible(NULL))
+  }
+  n_orphan <- nrow(orphan)
+  labels <- unique(paste(orphan$area, orphan$year))
+  cli::cli_abort(
+    c(
+      "{n_orphan} oil palm residue rows have no fruit row to anchor on.",
+      "i" = "Area and year: {.val {labels}}.",
+      "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own oil
+        palm residue."
+    ),
+    class = "whep_oil_palm_no_product"
+  )
+}
+
+.oil_palm_residue_kgdm <- function(biomass_coefs = whep::biomass_coefs) {
+  kgdm <- biomass_coefs$Residue_kgDM_kgFM[
+    biomass_coefs$Name_biomass %in% "Oil palm"
+  ]
+  if (length(kgdm) != 1L || is.na(kgdm) || kgdm <= 0) {
+    cli::cli_abort(
+      "{.field biomass_coefs} has no single positive oil palm
+       {.field Residue_kgDM_kgFM}, which the oil palm residue anchor needs."
+    )
+  }
+  kgdm
+}
