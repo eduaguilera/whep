@@ -36,7 +36,10 @@ test_that("crop NPP -> carbon/nitrogen -> BNF -> residue destinies composes", {
 
   dest <- whep::calculate_residue_destinies(npp)
   testthat::expect_equal(
-    dest$residue_feed_dm_t + dest$residue_burn_dm_t + dest$residue_soil_dm_t,
+    dest$residue_feed_dm_t +
+      dest$residue_bedding_dm_t +
+      dest$residue_burn_dm_t +
+      dest$residue_soil_dm_t,
     dest$residue_dm_t
   )
 })
