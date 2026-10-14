@@ -119,7 +119,9 @@ year) it carries in place of \code{cn_input} is divided by the item's
 \code{c_input_mgc_ha} density is first put on the item's \code{area_ha}, and a
 key with N and no C input takes its item's C:N over the polity, else
 over the year, stamped in \code{method_c_input} (an item with none aborts,
-\code{whep_n_balance_c_input}). Missing required
+\code{whep_n_balance_c_input}); the coconut items 248 and 2560 share one
+C:N, coconut C over their pooled non-SOM N in the polity, else in the
+year (\code{cn_input_item_groups.csv}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column; for the MANNER \code{nh3} methods the check runs on
 \code{n_balance_drivers} before any input is assembled, because no

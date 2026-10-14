@@ -153,7 +153,9 @@
 #'     `c_input_mgc_ha` density is first put on the item's `area_ha`, and a
 #'     key with N and no C input takes its item's C:N over the polity, else
 #'     over the year, stamped in `method_c_input` (an item with none aborts,
-#'     `whep_n_balance_c_input`). Missing required
+#'     `whep_n_balance_c_input`); the coconut items 248 and 2560 share one
+#'     C:N, coconut C over their pooled non-SOM N in the polity, else in the
+#'     year (`cn_input_item_groups.csv`). Missing required
 #'     drivers abort inside the called `calculate_*()` function, naming the
 #'     exact column; for the MANNER `nh3` methods the check runs on
 #'     `n_balance_drivers` before any input is assembled, because no
@@ -1262,8 +1264,111 @@ build_nitrogen_balance <- function(
         .default = paste0(.data$method_c_input, ";no_non_som_n")
       )
     ) |>
+    .nb_group_cn_input(item_key) |>
     .nb_fallback_cn_input(item_key) |>
     dplyr::select(-".item_n_t")
+}
+
+# Commodity balance items that share one input C:N
+# (inst/extdata/balances/cn_input_item_groups.csv): coconut's carbon sits on
+# 2560 and part of its N on 248 (D79), so both take the group's C over the
+# group's pooled non-SOM N in the polity, else in the year, stamped
+# `<group>_pooled_cn_polity` / `_global` (maintainer decision D80,
+# 2026-10-14). Keys without non-SOM N keep no C:N.
+.nb_group_cn_input <- function(rows, item_key) {
+  groups <- .nb_cn_item_groups()
+  in_group <- rows$item_cbs_code %in% groups$item_cbs_code
+  if (!any(in_group)) {
+    return(rows)
+  }
+  keys <- rows[in_group, ] |>
+    dplyr::left_join(
+      groups,
+      by = "item_cbs_code",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::distinct(
+      dplyr::pick(dplyr::all_of(item_key)),
+      .data$cn_group,
+      .data$c_input_t,
+      .data$.item_n_t
+    )
+  rows |>
+    dplyr::left_join(
+      groups,
+      by = "item_cbs_code",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::left_join(
+      .nb_pooled_cn(keys, c("area_code", "cn_group", "year"), ".polity_cn"),
+      by = c("area_code", "cn_group", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::left_join(
+      .nb_pooled_cn(keys, c("cn_group", "year"), ".global_cn"),
+      by = c("cn_group", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      .take = !is.na(.data$cn_group) & .data$.item_n_t > 0,
+      .scope = dplyr::if_else(!is.na(.data$.polity_cn), "polity", "global"),
+      .group_cn = dplyr::coalesce(.data$.polity_cn, .data$.global_cn),
+      .take = .data$.take & !is.na(.data$.group_cn),
+      cn_input = dplyr::if_else(.data$.take, .data$.group_cn, .data$cn_input),
+      method_c_input = dplyr::if_else(
+        .data$.take,
+        paste0(
+          stringr::str_remove(.data$method_c_input, ";item_level_cn$"),
+          ";",
+          .data$cn_group,
+          "_pooled_cn_",
+          .data$.scope
+        ),
+        .data$method_c_input
+      )
+    ) |>
+    dplyr::select(
+      -"cn_group",
+      -".polity_cn",
+      -".global_cn",
+      -".take",
+      -".scope",
+      -".group_cn"
+    )
+}
+
+# The group's C (keys without C add none: it sits on the group's other item)
+# over the group's non-SOM N, per `by`; NA where either is absent.
+.nb_pooled_cn <- function(keys, by, name) {
+  keys |>
+    dplyr::summarise(
+      .c = sum(.data$c_input_t, na.rm = TRUE),
+      .n = sum(.data$.item_n_t),
+      .by = dplyr::all_of(by)
+    ) |>
+    dplyr::transmute(
+      dplyr::pick(dplyr::all_of(by)),
+      !!name := dplyr::if_else(
+        .data$.c > 0 & .data$.n > 0,
+        .data$.c / .data$.n,
+        NA_real_
+      )
+    )
+}
+
+.nb_cn_item_groups <- function() {
+  system.file(
+    "extdata",
+    "balances",
+    "cn_input_item_groups.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      .data$cn_group
+    )
 }
 
 # A key whose drivers carry a C input density in place of a C mass (grass
@@ -1314,13 +1419,14 @@ build_nitrogen_balance <- function(
 # carry.
 .nb_fallback_cn_input <- function(rows, item_key) {
   open <- is.na(rows$c_input_t) &
+    is.na(rows$cn_input) &
     !is.na(rows$item_cbs_code) &
     rows$.item_n_t > 0
   if (!any(open)) {
     return(rows)
   }
   own <- rows |>
-    dplyr::filter(!is.na(.data$cn_input)) |>
+    dplyr::filter(!is.na(.data$cn_input), !is.na(.data$c_input_t)) |>
     dplyr::distinct(
       dplyr::pick(dplyr::all_of(item_key)),
       .data$c_input_t,
