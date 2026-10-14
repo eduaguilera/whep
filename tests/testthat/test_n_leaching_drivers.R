@@ -499,28 +499,3 @@ testthat::test_that("grass off the carbon balance takes the nearest grassland", 
   own <- .nlx_row(out, 9.75, 3000L, "rainfed")
   testthat::expect_true(is.na(own$c_input_mgc_ha))
 })
-
-testthat::test_that("coconut carbon is pooled to the balance item of its N", {
-  inputs <- tibble::tribble(
-    ~lon, ~lat,  ~area_code, ~item_prod_code, ~year,
-    ~total_c_input_mgc_ha_yr, ~crop_area_ha,
-    9.25, 47.75, 79L,        248L,            2010L, 1.5, 40,
-    9.25, 47.75, 79L,        56L,             2010L, 2.5, 80
-  )
-  out <- whep:::.nld_crop_carbon(list(carbon_inputs = inputs), 2010L)
-  testthat::expect_identical(sort(out$.item), c(2514L, 2560L))
-  testthat::expect_equal(out$.crop_c_t[out$.item == 2560L], 60)
-})
-
-testthat::test_that("a pooling override the crosswalk no longer holds aborts", {
-  testthat::local_mocked_bindings(
-    .lid_prod_cbs = function() {
-      tibble::tibble(item_prod_code = 248L, item_cbs_code = 2560L)
-    },
-    .package = "whep"
-  )
-  testthat::expect_error(
-    whep:::.nld_carbon_pooling(),
-    class = "whep_n_loss_drivers_pooling"
-  )
-})

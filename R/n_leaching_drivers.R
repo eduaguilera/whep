@@ -839,7 +839,7 @@
     ) |>
     dplyr::filter(.data$.year %in% years) |>
     dplyr::inner_join(
-      .nld_carbon_pooling(),
+      .lid_prod_cbs(),
       by = "item_prod_code",
       relationship = "many-to-one"
     ) |>
@@ -847,48 +847,6 @@
     dplyr::summarise(
       .crop_c_t = sum(.data$c_t),
       .by = c(".lon", ".lat", ".area", ".year", ".item")
-    )
-}
-
-# The production -> commodity balance pooling of the soil carbon inputs: the
-# items_prod_full crosswalk (.lid_prod_cbs()), with the rows of
-# inst/extdata/balances/carbon_input_item_pooling.csv in place of the
-# crosswalk's own, where the item carrying a crop's carbon is not the one
-# carrying its N (coconut: production item 248 -> 2560, D79). Each override
-# must replace the crosswalk row it names, so a renamed crosswalk aborts.
-.nld_carbon_pooling <- function() {
-  path <- system.file(
-    "extdata",
-    "balances",
-    "carbon_input_item_pooling.csv",
-    package = "whep"
-  )
-  overrides <- utils::read.csv(path, stringsAsFactors = FALSE) |>
-    tibble::as_tibble() |>
-    dplyr::mutate(dplyr::across(
-      c("item_prod_code", "item_cbs_code", "default_item_cbs_code"),
-      as.integer
-    ))
-  base <- .lid_prod_cbs()
-  matched <- dplyr::semi_join(
-    base,
-    overrides,
-    by = c(
-      "item_prod_code",
-      item_cbs_code = "default_item_cbs_code"
-    )
-  )
-  if (nrow(matched) != nrow(overrides)) {
-    cli::cli_abort(
-      "The carbon input pooling overrides no longer match the
-       {.code items_prod_full} crosswalk rows they replace.",
-      class = "whep_n_loss_drivers_pooling"
-    )
-  }
-  base |>
-    dplyr::anti_join(overrides, by = "item_prod_code") |>
-    dplyr::bind_rows(
-      dplyr::select(overrides, "item_prod_code", "item_cbs_code")
     )
 }
 

@@ -165,9 +165,8 @@ year: the crop's \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs
 item's production items, on crop rows, and \code{data$carbon_balance}'s
 grassland input on the grass item (\code{method_c_input}). Both regime rows
 of an item carry the item's whole C; \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} divides
-it by the item's whole \code{n_input_full_nosom_t} into \code{cn_input}. Coconut
-carbon (production item 248) is pooled to the item carrying coconut N
-(2560), as \code{carbon_input_item_pooling.csv} states. A crop row without a
+it by the item's whole \code{n_input_full_nosom_t} into \code{cn_input}. A crop
+row without a
 carbon input of its item in its cell and polity keeps \code{c_input_t}
 missing, stamped \code{no_carbon_input}, and the balance gives it its item's
 C:N in the polity, else globally (\code{polity_item_cn}, \code{global_item_cn}).

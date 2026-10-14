@@ -108,9 +108,8 @@
 #'   item's production items, on crop rows, and `data$carbon_balance`'s
 #'   grassland input on the grass item (`method_c_input`). Both regime rows
 #'   of an item carry the item's whole C; [build_nitrogen_balance()] divides
-#'   it by the item's whole `n_input_full_nosom_t` into `cn_input`. Coconut
-#'   carbon (production item 248) is pooled to the item carrying coconut N
-#'   (2560), as `carbon_input_item_pooling.csv` states. A crop row without a
+#'   it by the item's whole `n_input_full_nosom_t` into `cn_input`. A crop
+#'   row without a
 #'   carbon input of its item in its cell and polity keeps `c_input_t`
 #'   missing, stamped `no_carbon_input`, and the balance gives it its item's
 #'   C:N in the polity, else globally (`polity_item_cn`, `global_item_cn`).

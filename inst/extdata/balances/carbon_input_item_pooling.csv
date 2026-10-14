@@ -1,2 +1,0 @@
-item_prod_code,item_cbs_code,default_item_cbs_code,reason
-248,2560,248,"Coconut carbon inputs sit on production item 248 (Coconuts, the item with harvested area); the balance books coconut N and area on commodity balance item 2560 (from production item 249, Coconuts in shell), so the carbon is pooled to 2560 (maintainer decision D79, 2026-10-14)"
