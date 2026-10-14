@@ -4,11 +4,28 @@
 \alias{get_primary_residues}
 \title{Crop residue items}
 \usage{
-get_primary_residues(example = FALSE)
+get_primary_residues(
+  example = FALSE,
+  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{cereal_residue}{How cereal residue is estimated. One of:
+\itemize{
+\item \code{"ipcc"} (default): the IPCC yield-dependent line, above-ground residue
+dry matter = slope x grain dry-matter yield + intercept, through
+\code{\link[=calculate_crop_residues]{calculate_crop_residues()}} with its modern-variety correction.
+\item \code{"ensemble"}: the same estimator's mean of that line and the static
+\link{biomass_coefs} ratio, as the soil carbon and nitrogen chain uses it.
+\item \code{"ratio"}: the static \link{biomass_coefs} ratio alone.
+\item \code{"wirsenius"}: the predecessor's model, Wirsenius (2000) Table 3.16
+regional ratios, applied directly on Wirsenius's own region membership.
+}
+
+See the "Cereal residue" section. Other crops are not affected.}
 }
 \value{
 A tibble with the crop residue data.
@@ -38,6 +55,8 @@ fresh residue times its own residue dry-matter content,
 \code{Residue_kgDM_kgFM} in \link{biomass_coefs}, summed per row. \code{NA} where a
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.
+\item \code{method_residue}: how the row's residue was estimated: the
+\code{cereal_residue} method for a cereal, \code{"pin"} for every other crop.
 }
 
 The pin's residue quantities are fresh matter. Across its crops the ratio of
@@ -64,17 +83,71 @@ crops carry no residue here, as before.
 The ratio behind the pin's gross residue is the fresh-matter
 residue:product ratio of \link{biomass_coefs}, scaled by the region's
 residue:product ratio relative to West Europe (\code{residue_dm_product_dm} in
-the same table) and by a harvest-index change factor per region and year.
-That factor is what makes the ratio vary by year. The predecessor's table
-carries it at eight anchor years from 1910 to 2000, interpolates linearly
-between them and holds 2000 constant after it, falling for instance from
-1.10 in 1962 to 1.00 in 2000 in East Europe. Its code attributes the table
-to Krausmann et al. (2013), \emph{PNAS} 110:10324, Table M2 (assumed,
-unverified), and WHEP does not ship it.
+the same table, Wirsenius (2000) Table 3.16) and by a harvest-index change
+factor per region and year. That factor is what makes the ratio vary by
+year. The predecessor's table carries it at eight anchor years from 1910 to
+2000, interpolates linearly between them and holds 2000 constant after it,
+falling for instance from 1.10 in 1962 to 1.00 in 2000 in East Europe. Its
+code attributes the table to Krausmann et al. (2013), \emph{PNAS} 110:10324,
+Table M2 (assumed, unverified), and WHEP does not ship it.
+
+The predecessor looked the regional ratio up by \code{regions_full$region_HANPP},
+which carries Wirsenius's eight region names but not his membership
+(Wirsenius 2000, Table 3.1): Southeast Asia, Russia, Belarus, the Caucasus
+and Sudan took another region's ratio (whep#1430). For every crop that
+reads the pin, the ratio is re-keyed here on Wirsenius's own membership,
+through the (HANPP region, UN M49 sub-region) pairs listed in
+\code{residue_feed_regions.csv}. That lowers world non-cereal residue dry
+matter by 0.2\% in 2010.
 }
 \description{
 Get type and amount of residue produced for each crop production item.
 }
+\section{Cereal residue}{
+
+Cereals are the one part of the base with a published global series:
+Smerald, Rahimi & Scheer (2023), \emph{A global dataset for the production and
+usage of cereal residues in the period 1997-2021}, Scientific Data 10:685,
+\doi{10.1038/s41597-023-02587-0}, the mean of three methods (constant
+regional ratios, and two yield-dependent ones). The pin's model put world
+cereal residue 16.1\% above that mean over 1997-2021 (3899 against 3357 Tg
+dry matter), and 25\% above their constant-ratio method in every year with
+the same grain production (whep#1448). Besides the membership above, two
+things caused it. The West Europe anchor presumes that \link{biomass_coefs}
+holds the West Europe ratio, and for cereals it does not (wheat 1.34,
+barley 1.18, sorghum 1.70 and maize 0.96 kg dry matter per kg grain dry
+matter, against Wirsenius's 1.0, 1.0, 1.2 and 1.2). And Wirsenius's ratios
+are early-1990s harvest indices, held constant after 2000 while yields
+rose.
+
+Cereal residue is therefore estimated from the pin's own production and
+harvested area (its \code{Product} rows, which equal the \code{primary_prod} pin)
+with \code{\link[=calculate_crop_residues]{calculate_crop_residues()}}, the estimator the soil carbon and
+nitrogen chain already uses. Its modern-variety harvest-index correction
+applies, keyed on the HANPP region its adoption table is written in. The
+\code{"ipcc"} line is IPCC (2019), \emph{2019 Refinement to the 2006 IPCC Guidelines
+for National Greenhouse Gas Inventories}, Vol. 4, Ch. 11, Table 11.2
+(p. 11.19), whose cereal slopes and intercepts are those of IPCC (2006)
+Table 11.2. Measured against Smerald et al. (\code{validation/residue_base_dm.R}),
+world cereal residue in dry matter over 1997-2021 and in 2010 is:\tabular{lrrrr}{
+   \code{cereal_residue} \tab 1997-2021 mean, Tg \tab vs Smerald \tab years outside band \tab 2010, Tg \cr
+   \code{"ipcc"} \tab 3385 \tab +0.8\% \tab 0 of 25 \tab 3333 \cr
+   \code{"ensemble"} \tab 3059 \tab -8.9\% \tab 5 of 25 \tab 3008 \cr
+   \code{"ratio"} \tab 2732 \tab -18.6\% \tab 25 of 25 \tab 2684 \cr
+   \code{"wirsenius"} \tab 3656 \tab +8.9\% \tab 9 of 25 \tab 3598 \cr
+   the pin's model \tab 3899 \tab +16.1\% \tab 16 of 25 \tab 3826 \cr
+}
+
+
+The band is the spread of Smerald et al.'s three methods, widened by 5\%;
+their 2010 mean is 3334 Tg. \code{"ipcc"} matches the world total, but per crop
+it books maize about 19\% and sorghum about 20\% below their mean and wheat
+about 23\% above it (2010 and 2020). \code{"wirsenius"} keeps the pin's
+harvest-index factor and corrects the anchor by applying Table 3.16
+directly: residue dry matter is grain dry matter times the ratio of the
+area's Wirsenius region.
+}
+
 \section{The batch pin on the build path}{
 
 Two further aliases were published in that same 2025-07-14 batch ---
@@ -125,13 +198,17 @@ and 1,919 are crops whose \code{biomass_coefs} ratio is 0.
 WHEP ships the recovery rate and the regional ratio the predecessor used
 (both equal in all 160 cells), but not the \code{HI_changes} table. So
 \code{\link[=get_primary_residues]{get_primary_residues()}} undoes the recovery exactly, dividing by the same
-rate, but cannot recompute the residue from production.
+rate, but cannot recompute the predecessor's residue from production. It
+then re-keys the regional ratio on Wirsenius's own region membership, and
+estimates cereal residue from the pin's production and harvested area
+instead of reading it (#1448).
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 9.31 Gt
-and 404.1 Gt of residue produced. 3,998 of its 249,095 output rows carry
-\code{NA} polity columns because the pin is name-keyed.
+327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 8.73
+Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+Gt of residue produced. 3,998 of its 249,095 output rows carry \code{NA} polity
+columns because the pin is name-keyed.
 
 Driving the same residue model off a fresh \code{\link[=get_primary_production]{get_primary_production()}} would
 move those numbers. Measured for 2010 at (\code{area_code}, \code{item_prod}): 1.958
@@ -145,7 +222,9 @@ the pin's is paddy, which is a basis difference rather than an error, since
 straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
-model, which is a science decision and not a refresh.
+model, which is a science decision and not a refresh. For cereals that
+model is chosen by \code{get_primary_residues(cereal_residue = )}; it still
+runs on the pin's production.
 }
 
 \subsection{\code{bilateral_trade} is built by \code{\link[=build_detailed_trade]{build_detailed_trade()}}}{

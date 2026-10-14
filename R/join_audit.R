@@ -342,6 +342,18 @@
      alone. The year is applied BEFORE this join, not after: the label is
      resolved per (label, year) by `resolve_polity_label()`, which is what
      keeps pre-union Tanganyika out of the United Republic.",
+    ".residue_cereal_from_products", "left_join", "area_code", 1L,
+    "time_invariant",
+    "Attaches the area's HANPP region, which keys the modern-variety
+     harvest-index correction of `calculate_crop_residues()` (whep#1448). The
+     region is published once per area in `regions_full`, as for
+     `.sci_crop_regions`; the production rows carry `year` through the join.",
+    ".residue_cereal_wirsenius", "left_join", "item_prod, area_code", 1L,
+    "time_invariant",
+    "Attaches the Wirsenius (2000) Table 3.16 residue:product ratios of a
+     crop's category in the area's HANPP and Wirsenius regions (whep#1448).
+     The ratios are given once for all years, so the join cannot be
+     year-keyed; the year stays on the residue rows it rescales.",
     ".residue_gross_from_recovered", "left_join", "item_prod, area_code", 1L,
     "time_invariant",
     "Attaches the legacy recovery rate the residue pin was written with
@@ -353,6 +365,16 @@
     "The area's HANPP region, from `regions_full`, which carries one region
      per area for all years -- the same year-free membership the predecessor
      keyed its recovery rate on, which is what makes undoing it exact.",
+    ".residue_ratio_lookup", "left_join", "area_code", 1L, "time_invariant",
+    "The area's HANPP, UN M49 sub-region and Wirsenius regions, from
+     `regions_full` and `residue_feed_regions.csv`, neither of which has a
+     year: the membership of Wirsenius (2000) Table 3.1 is a property of the
+     area (whep#1430, whep#1448).",
+    ".residue_ratio_membership", "left_join", "item_prod, area_code", 1L,
+    "time_invariant",
+    "Attaches the Table 3.16 ratio of a crop's category in the area's HANPP
+     and Wirsenius regions, to re-key the pin's regional ratio on Wirsenius's
+     membership (whep#1448). Year-free for the reason the row above gives.",
     ".residue_recovered_split", "left_join", "area_code", 1L,
     "time_invariant",
     "Attaches the residue recovery region and the UN M49 sub-region a crop
@@ -1044,6 +1066,10 @@
      crosswalk's rows for one period: the output is that period's reporting
      span, so keying on the year would return the year itself. The period is
      already the year-scoped identity.",
+    ".residue_area_regions", "distinct", "area_code", 1L, "time_invariant",
+    "One HANPP region and one UN M49 sub-region per area from `regions_full`,
+     which publishes both without a year; the Wirsenius region is derived
+     from the pair (whep#1448).",
     ".residue_destiny_regions", "distinct", "area_code", 1L, "time_invariant",
     "One row per area carrying its Krausmann region and UN M49 sub-region, the
      two vocabularies the residue destiny split reads. It is
@@ -1059,6 +1085,11 @@
     "time_invariant",
     "The (crop, area) pairs the pin carries, so the recovery rate is looked up
      once per pair rather than once per year; the rate has no year.",
+    ".residue_ratio_lookup", "distinct", "item_prod, area_code", 1L,
+    "time_invariant",
+    "The (crop, area) pairs the pin carries, so the residue:product ratio is
+     looked up once per pair rather than once per year; the ratio has no
+     year (whep#1448).",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",

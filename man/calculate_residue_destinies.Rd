@@ -151,23 +151,31 @@ the gross residue base these rates multiply, once thought to be about 36\%
 too high (step 2 of whep#1132). whep#1330 found that excess gone in dry
 matter, but it measured the \code{crop_residues} pin as it was then read, and
 that pin holds residue already multiplied by the \code{"legacy"} rate
-(whep#1195). Read as the residue produced, which \code{\link[=get_primary_residues]{get_primary_residues()}}
-now returns, world cereal residue in dry matter is above the three-method
-band of Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0},
-in 16 of the 25 years 1997--2021, its 1997--2021 mean 16.1\% above theirs
+(whep#1195). Read as the residue produced, world cereal residue in dry
+matter was 16.1\% above the three-method mean of Smerald, Rahimi & Scheer
+(2023), \doi{10.1038/s41597-023-02587-0}, over 1997--2021. Since whep#1448
+\code{\link[=get_primary_residues]{get_primary_residues()}} estimates cereal residue from yield, and the
+1997--2021 mean is 0.8\% above theirs, inside their band in every year
 (\code{validation/residue_base_dm.R}). The rates the switch moves are all
 non-cereal, and no published global total for the non-cereal residue base
 was found to check it against.
 
+Both rate columns are keyed on Wirsenius's eight regions, so a row takes
+his own region membership (Table 3.1, p. 58), not the HANPP label's: from
+its HANPP region and UN M49 sub-region, through \code{residue_feed_regions.csv}.
+The HANPP label files Southeast Asia, Russia, Belarus and the Caucasus
+under South & Central Asia, whose rates are the highest (whep#1430). On
+the commodity balance that lowers residue production by 2.4\% in 2010 and
+2.7\% in 2020.
+
 Measured on \code{\link[=get_primary_residues]{get_primary_residues()}}'s fresh \code{value} (the commodity
 balance's basis), \code{"wirsenius"} against \code{"legacy"} in 2010 raises
-recovered residue from 7635 to 7822 Mt fresh matter (+2.4\%), the feed
-destiny from 2181 to 2238 Mt (+2.6\%) and the burned/other-use destiny from
-5454 to 5584 Mt (+2.4\%), and lowers the soil destiny from 1675 to 1488 Mt
-(-11.2\%); over 1961--1965 the same moves are +5.0\%, +4.7\%, +5.1\% and
--19.5\%. Roots and tubers, cassava, sugar beet and groundnut are the only
-categories that move. Under \code{"legacy"} the recovered total is the pin's
-own figure, since that is the rate the pin was written with.
+recovered residue from 6939 to 7148 Mt fresh matter (+3.0\%), the feed
+destiny from 1964 to 2025 Mt (+3.1\%) and the burned/other-use destiny from
+4976 to 5123 Mt (+3.0\%), and lowers the soil destiny from 1789 to 1580 Mt
+(-11.7\%); over 1961--1965 the same moves are +6.3\%, +5.4\%, +6.6\% and
+-20.4\%. Roots and tubers, cassava, sugar beet and groundnut are the only
+categories that move.
 
 Three categories move no mass at all today, which is why the fodder rate
 of 0 is not the live problem it looks like:
@@ -188,9 +196,9 @@ straw and stover fed to animals (p. 177), and under the livestock share of
 Smerald, Rahimi & Scheer (2023), \emph{Scientific Data} \strong{10}:685,
 \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is \strong{not} done here:
 it was held back because the gross residue base it multiplies was thought
-too high (whep#1132, whep#1041). In dry matter that base is about 16\% above
-the published cereal band once the pin's recovery is undone (whep#1195), so
-the reason for holding it back stands.
+too high (whep#1132, whep#1041). Once the pin's recovery was undone
+(whep#1195) the cereal base was 16\% above the published band; since
+whep#1448 it is inside it.
 }
 
 \examples{

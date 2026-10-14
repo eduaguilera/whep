@@ -278,3 +278,44 @@ test_that("the shares method records no recovery variant", {
   )
   testthat::expect_true(is.na(out$method_residue_recovery))
 })
+
+test_that("recovery rates follow Wirsenius's region membership (whep#1430)", {
+  # The rates are Wirsenius (2000) Table 3.17, keyed on his eight regions.
+  # The HANPP label files Russia and Southeast Asia under South & Central
+  # Asia (cereal rate 0.90); Wirsenius Table 3.1 has them in East Europe
+  # (0.75) and East Asia (0.80).
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = c(
+      "Central Asia and Russian Federation",
+      "Southeastern Asia",
+      "Southern Asia"
+    ),
+    region_un_sub = c("Eastern Europe", "South-eastern Asia", "Southern Asia")
+  )
+  rates <- whep::whep_coef_table("residue_recovery")
+  rate <- function(region) {
+    rates$recovery_rates_wirsenius[
+      rates$cat_krausmann == "Wheat, other cereals" &
+        rates$region_krausmann == region
+    ]
+  }
+
+  out <- whep::calculate_residue_destinies(wheat)
+
+  testthat::expect_equal(
+    out$residue_soil_dm_t,
+    100 *
+      (1 -
+        c(
+          rate("East Europe"),
+          rate("East Asia"),
+          rate("South and Central Asia")
+        ))
+  )
+  testthat::expect_equal(
+    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    rep(100, 3)
+  )
+})
