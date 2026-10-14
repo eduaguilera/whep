@@ -202,4 +202,6 @@ test_that(".cru_file matches any CRU version and prefers the newest", {
   )
   # no file for the variable -> clear error
   testthat::expect_error(.cru_file("pet", dir), "No CRU file")
+  # ... that says how to get the file
+  testthat::expect_error(.cru_file("pet", dir), "download_climate\\.R")
 })
