@@ -51,7 +51,7 @@ documented once and inherited by the functions that accept it.</p>
 
 
 <dl><dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
-<dd><p>A named list of manure-engine options. All but eight
+<dd><p>A named list of manure-engine options. All but nine
 defaults reproduce the behaviour in force before whep#949. The exceptions
 are <code>enteric_ef_source</code>, <code>ef3_source</code> and <code>slurry_crust</code>, which since
 whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
@@ -63,8 +63,10 @@ in whep#958 and does move both tiers' manure N2O, <code>pasture_bo</code>, which
 since whep#1137 pairs the 2019 pasture MCF with its published <code>Bo</code> and
 moves Tier 2 manure CH4, and <code>tier2_uncovered</code>, which since whep#1028
 gives species with no Tier 2 method their Tier 1 values instead of <code>NA</code>,
-and <code>indirect_n2o_source</code>, which since whep#1245 reads the 2019
-Refinement's leaching factors and moves both tiers' indirect manure N2O.</p>
+<code>indirect_n2o_source</code>, which since whep#1245 reads the 2019
+Refinement's leaching factors and moves both tiers' indirect manure N2O,
+and <code>indirect_n2o_fractions</code>, which since whep#1365 weights the Table
+10.22 fractions over the manure-management split and moves it again.</p>
 <p><code>indirect_n2o_source</code> selects the edition of <a href="indirect_n2o_ef.html">indirect_n2o_ef</a> the
 indirect manure N2O reads:</p><ul><li><p><code>"ipcc_2019"</code> (default): EF5 0.011 and FracLEACH-(H) 0.24, from Vol 4,
 Ch 11, Table 11.3 (Updated), p. 11.26 of the 2019 Refinement, the
@@ -73,11 +75,26 @@ current IPCC guidance and the EF5 the nitrogen balance already uses.</p></li>
 p. 11.24 of the 2006 Guidelines. These are the values WHEP shipped
 before whep#1245 under a 2019 citation, kept selectable so earlier
 figures stay reproducible.</p></li>
-</ul><p>EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
-<code>"ipcc_2006"</code> the default raises the leaching term by
-<code>0.24 * 0.011 / (0.30 * 0.0075) = 1.173</code> and leaves the volatilisation
-term alone. <code>method_manure_n2o</code> records the edition used
-(<code>indirect_ipcc_2019</code> or <code>indirect_ipcc_2006</code>).</p>
+</ul><p>EF4 (0.010) is the same under both. The edition also selects the Ch 11
+FracGASM (0.21 in 2019, 0.20 in 2006) the pasture stream is priced at.</p>
+<p><code>indirect_n2o_fractions</code> selects which nitrogen fractions the indirect
+manure N2O volatilises and leaches:</p><ul><li><p><code>"per_mms"</code> (default): IPCC 2019 Refinement, Vol 4, Ch 10, Eq. 10.26
+and 10.27 (Updated), pp. 10.76-10.77. <code>FracGasMS</code> and <code>FracLeachMS</code> per
+animal category and system, from Table 10.22 (Updated), pp.
+10.96-10.97, weighted over the row's own manure-management split, the
+same split the direct EF3 is weighted over. Pasture/range/paddock N,
+which Table 10.22 does not cover, is priced at the Ch 11 Table 11.3
+FracGASM and FracLEACH-(H) (Eq. 11.9 and 11.10), as the IPCC prices
+grazing deposition; no other WHEP chain prices it, and the direct path
+prices the same N at EF3, so it is counted once. The managed-system
+fractions are the 2019 table's under either edition, as in
+<code><a href="apply_management_losses.html">apply_management_losses()</a></code>: the 2006 Table 10.22 leaves most pairs
+blank.</p></li>
+<li><p><code>"single"</code>: one FracGasMS 0.20 (assumed, unverified) and one
+FracLEACH-(H) on all excreted N, the form before whep#1365. Kept so
+earlier figures stay reproducible.</p></li>
+</ul><p><code>method_manure_n2o</code> records both choices, e.g.
+<code>indirect_ipcc_2019_per_mms</code> or <code>indirect_ipcc_2006_single</code>.</p>
 <p><code>enteric_ef_source</code> selects the Tier 1 enteric CH4 emission factors.
 Although it sits among the manure-engine options, it governs the enteric
 path only:</p><ul><li><p><code>"ipcc_2019"</code> (default): <a href="ipcc_enteric_ef_tier1.html">ipcc_enteric_ef_tier1</a>, the 2019

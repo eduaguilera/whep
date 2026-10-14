@@ -16,10 +16,18 @@ climates in 2019; where the soil water-holding capacity is exceeded in
 
 Until whep#1245 the table cited 2019 while holding the 2006 EF5 and
 FracLEACH-(H).
+frac_gasm is FracGASM, the volatilised fraction of organic N applied
+and of dung and urine deposited by grazing animals: 0.21 in the 2019
+Refinement, 0.20 in the 2006 Guidelines (whep#1365). The default
+per-MMS indirect manure N2O prices pasture N at it.
+
+
 frac_gasms 0.20 is the same in both blocks and is assumed,
 unverified: Table 10.22 of either edition publishes FracGasMS per animal
 category and manure system, not one number, and 0.20 equals the 2006
-FracGASM of Table 11.3 (the 2019 FracGASM is 0.21).'><meta property="og:description" content='Parameters for indirect N2O emissions from manure
+FracGASM of Table 11.3 (the 2019 FracGASM is 0.21). Since whep#1365 only
+the indirect_n2o_fractions = "single" form reads it; the default reads
+the per-system Table 10.22 values instead.'><meta property="og:description" content='Parameters for indirect N2O emissions from manure
 management: EF4 (volatilization), EF5 (leaching),
 FracGasMS, FracLeach, one block per IPCC edition. The manure engine reads
 the block its indirect_n2o_source option names (see
@@ -36,10 +44,18 @@ climates in 2019; where the soil water-holding capacity is exceeded in
 
 Until whep#1245 the table cited 2019 while holding the 2006 EF5 and
 FracLEACH-(H).
+frac_gasm is FracGASM, the volatilised fraction of organic N applied
+and of dung and urine deposited by grazing animals: 0.21 in the 2019
+Refinement, 0.20 in the 2006 Guidelines (whep#1365). The default
+per-MMS indirect manure N2O prices pasture N at it.
+
+
 frac_gasms 0.20 is the same in both blocks and is assumed,
 unverified: Table 10.22 of either edition publishes FracGasMS per animal
 category and manure system, not one number, and 0.20 equals the 2006
-FracGASM of Table 11.3 (the 2019 FracGASM is 0.21).'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+FracGASM of Table 11.3 (the 2019 FracGASM is 0.21). Since whep#1365 only
+the indirect_n2o_fractions = "single" form reads it; the default reads
+the per-system Table 10.22 values instead.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -92,11 +108,16 @@ Guidelines.</p></li>
 climates in 2019; where the soil water-holding capacity is exceeded in
 2006) and take it as zero elsewhere; WHEP applies it everywhere.</p></li>
 </ul><p>Until whep#1245 the table cited 2019 while holding the 2006 EF5 and
-FracLEACH-(H).</p>
-<p><code>frac_gasms</code> 0.20 is the same in both blocks and is <strong>assumed,
+FracLEACH-(H).</p><ul><li><p><code>frac_gasm</code> is FracGASM, the volatilised fraction of organic N applied
+and of dung and urine deposited by grazing animals: 0.21 in the 2019
+Refinement, 0.20 in the 2006 Guidelines (whep#1365). The default
+per-MMS indirect manure N2O prices pasture N at it.</p></li>
+</ul><p><code>frac_gasms</code> 0.20 is the same in both blocks and is <strong>assumed,
 unverified</strong>: Table 10.22 of either edition publishes FracGasMS per animal
 category and manure system, not one number, and 0.20 equals the 2006
-FracGASM of Table 11.3 (the 2019 FracGASM is 0.21).</p>
+FracGASM of Table 11.3 (the 2019 FracGASM is 0.21). Since whep#1365 only
+the <code>indirect_n2o_fractions = "single"</code> form reads it; the default reads
+the per-system Table 10.22 values instead.</p>
     </div>
 
     <div class="section level2">
@@ -119,17 +140,19 @@ Vol 4, Ch 10, Table 10.22 of either edition for FracGasMS.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">indirect_n2o_ef</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 4</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   edition   parameter           value description                               </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                                     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> ipcc_2019 ef4_volatilization 0.01   EF4: N2O-N per kg NH3-N + NOx-N volatiliz…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> ipcc_2019 ef5_leaching       0.011  EF5: N2O-N per kg N leached/runoff        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> ipcc_2019 frac_gasms         0.2    FracGasMS: fraction N lost as NH3+NOx fro…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> ipcc_2019 frac_leach         0.24   FracLeach: fraction N lost via leaching/r…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ipcc_2006 ef4_volatilization 0.01   EF4: N2O-N per kg NH3-N + NOx-N volatiliz…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> ipcc_2006 ef5_leaching       0.007<span style="text-decoration: underline;">5</span> EF5: N2O-N per kg N leached/runoff        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span> ipcc_2006 frac_gasms         0.2    FracGasMS: fraction N lost as NH3+NOx fro…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span> ipcc_2006 frac_leach         0.3    FracLeach: fraction N lost via leaching/r…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 4</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    edition   parameter           value description                              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                                    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ipcc_2019 ef4_volatilization 0.01   EF4: N2O-N per kg NH3-N + NOx-N volatili…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> ipcc_2019 ef5_leaching       0.011  EF5: N2O-N per kg N leached/runoff       </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> ipcc_2019 frac_gasms         0.2    FracGasMS: fraction N lost as NH3+NOx fr…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> ipcc_2019 frac_leach         0.24   FracLeach: fraction N lost via leaching/…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> ipcc_2019 frac_gasm          0.21   FracGASM: fraction of grazing-deposited …</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> ipcc_2006 ef4_volatilization 0.01   EF4: N2O-N per kg NH3-N + NOx-N volatili…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> ipcc_2006 ef5_leaching       0.007<span style="text-decoration: underline;">5</span> EF5: N2O-N per kg N leached/runoff       </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> ipcc_2006 frac_gasms         0.2    FracGasMS: fraction N lost as NH3+NOx fr…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> ipcc_2006 frac_leach         0.3    FracLeach: fraction N lost via leaching/…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> ipcc_2006 frac_gasm          0.2    FracGASM: fraction of grazing-deposited …</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
