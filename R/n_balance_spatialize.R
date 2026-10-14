@@ -15,20 +15,14 @@
 #   the centroid country_grid carries. Do not re-assert a literal here;
 #   .check_cell_polity_vintage() asserts the vocabulary instead, which is the
 #   part that has to hold.
-# - crop_patterns.parquet (spatialize-crop-patterns pin): lon, lat,
-#   item_prod_code, harvest_fraction, a STATIC crop-pattern weight (no year
-#   dimension), 2,247,239 rows.
 # - type_cropland.parquet (spatialize-type-cropland pin): lon, lat,
 #   year, luh2_type, type_ha, type_irrig_ha, an annual per-cell cropland
-#   area by LUH2 class, 27,496,275 rows.
-# - Per-cell per-crop hectares = type_ha * harvest_fraction, the exact
-#   formula already used by make_lpjml_covariate()'s "crop_pattern" weighting
-#   branch (R/lpjml_covariate.R); reused verbatim here rather than
-#   reimplemented, and summed across every luh2_type row for a cell-year
-#   before multiplying (a cell can carry more than one LUH2 cropland class).
-# - Both parquets are too large to read whole into a package-load context
-#   (2.2M / 27.5M rows): the reader filters immediately after reading, before
-#   any join, to the requested years/item_prod_codes.
+#   area by LUH2 class, 27,496,275 rows; too large to read whole into a
+#   package-load context, so the reader filters to the requested years
+#   immediately after reading, before any join.
+# - Polity-crop nitrogen reaches cells by the crop allocation the soil carbon
+#   inputs share (R/crop_allocation.R, whep#1002), not by a crop-pattern
+#   weighting of its own.
 
 #' Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 #'
@@ -199,35 +193,38 @@ build_cell_polity <- function(
 #' harvested-area-share logic used by
 #' [build_crop_soil_n2o_extension()] (`year`/`area_code`-matched, weighted by
 #' each crop's share of harvested cropland area), then optionally further to
-#' the grid level by distributing each polity-crop total across cells in
-#' proportion to the cell's share of that polity-crop's total crop-pattern
-#' area (`type_ha * harvest_fraction`, summed over LUH2 cropland classes;
-#' the exact formula used by [make_lpjml_covariate()]'s `crop_pattern`
-#' weighting). A polity-crop with no crop-pattern hectares (crop absent from
-#' the static pattern raster, or its pattern area sums to zero in the polity)
-#' is instead spread uniformly across the polity's cropland cells, weighted by
-#' each cell's cropland area, so the grid output still re-aggregates to the
-#' polity total. Such reallocations emit a warning naming the affected crops
-#' and the reallocated nitrogen.
+#' the grid level by the crop allocation the soil carbon inputs place the same
+#' crop by ([build_soil_carbon_inputs()]'s default `method_crop_weights =
+#' "spatialized"`): each cell's share of the polity-crop's area as the
+#' spatialization engine ([build_gridded_landuse()]) places it that year, a
+#' fodder crop the engine leaves out on the fodder layer, the production
+#' items of a commodity balance item pooled by their placed hectares. A
+#' polity-crop the allocation does not place is spread over the polity's
+#' cropland cells, each weighted by its share of the polity's placed crop
+#' area, so the grid output still re-aggregates to the polity total. Such
+#' reallocations emit a warning naming the affected crops and the reallocated
+#' nitrogen. One allocation for nitrogen and carbon means the nitrogen a crop
+#' receives in a cell and the carbon it returns there are spread alike
+#' (whep#1002).
 #'
-#' Both grid weights carry a polity share of the cell, because a border cell's
-#' cropland belongs to more than one polity. That share is a polycell's
-#' `land_area_ha` over the cell's total `land_area_ha`, the share of the cell's
-#' land [build_polycell_support()] measures geodesically. The transitional
+#' The allocation is built on the cell support with the polity's share of
+#' each cell as its `cell_area_frac`, because a border cell's cropland belongs
+#' to more than one polity. That share is a polycell's `land_area_ha` over the
+#' cell's total `land_area_ha`, the share of the cell's land
+#' [build_polycell_support()] measures geodesically. The transitional
 #' alternative is `polity_frac`, the subcell-count share [build_cell_polity()]
 #' carries, which is quantised to 1/36 of a cell.
 #'
 #' The share is of the cell's **land**, never `land_area_ha / cell_area_ha`:
-#' what it splits is already land-only (LUH2 cropland hectares), so dividing by
-#' the whole cell would remove the inland water and ice a second time. And it
-#' is a **share**, never an absolute area: `crop_pattern_ha * land_area_ha`
-#' would weight every cell a second time by its own size and is no partition of
-#' the cell at all.
+#' what it splits is already land-only, so dividing by the whole cell would
+#' remove the inland water and ice a second time. And it is a **share**, never
+#' an absolute area.
 #'
 #' Because the cell weights are renormalised within each polity-crop-year,
 #' either key redistributes the polity total and neither can change it.
 #' Swapping the key moves **where** the nitrogen lands, never how much of it
-#' there is.
+#' there is. A pre-built `data$crop_allocation` is used as supplied, on the
+#' support it was built on.
 #'
 #' @param country_totals A tibble with `year`, `area_code`, `n_t`: the
 #'   polity-level nitrogen total for one fertiliser type.
@@ -251,8 +248,7 @@ build_cell_polity <- function(
 #'   and receives no nitrogen.
 #' @param resolution Which resolution(s) to return: `"polity_crop"` (default,
 #'   `year`/`area_code`/`item_cbs_code` totals only) or `"grid"` (also
-#'   distributes to `lon`/`lat` grid cells; requires `crop_patterns` and
-#'   `type_cropland` in `data`).
+#'   distributes to `lon`/`lat` grid cells by the crop allocation).
 #' @param split Which polity share of the cell weights each grid cell:
 #'   `"auto"` (default) takes `land_area_ha` when the support carries it and
 #'   `polity_frac` otherwise; `"land_area_ha"` and `"polity_frac"` demand that
@@ -262,15 +258,16 @@ build_cell_polity <- function(
 #'   splits nothing across cells.
 #' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded grid inputs, used only when
-#'   `resolution = "grid"`: `crop_patterns` (`lon`, `lat`, `item_prod_code`,
-#'   `harvest_fraction`) and `type_cropland` (`lon`, `lat`, `year`,
-#'   `luh2_type`, `type_ha`). When absent, each is read from the
-#'   `spatialize-crop-patterns` / `spatialize-type-cropland` pin, or from the
-#'   local parquet at `WHEP_CROP_PATTERNS_PATH` / `WHEP_TYPE_CROPLAND_PATH`
-#'   when that override is set. `item_cbs_code` in
-#'   `crop_shares`/`country_totals` is matched to the `item_prod_code` column
-#'   of `crop_patterns` via [whep::items_prod_full] (the same crosswalk
-#'   [build_crop_land_extension()] uses).
+#'   `resolution = "grid"`: `crop_allocation`, the crop allocation built once
+#'   (a list of `weights`, with `lon`, `lat`, `area_code`, `item_prod_code`,
+#'   `year`, `crop_area_ha`, `area_weight`, and `fallback`, with `lon`, `lat`,
+#'   `area_code`, `year`, `cropland_weight`); else `gridded_crops` (a
+#'   [build_gridded_landuse()] crop-level output), `engine_inputs` (its
+#'   `country_areas`, `crop_patterns` and `gridded_cropland` inputs) and
+#'   `fodder_patterns` (the fodder layer), each read from its pin when
+#'   absent. `item_cbs_code` in `crop_shares`/`country_totals` is matched to
+#'   the allocation's `item_prod_code` via [whep::items_prod_full] (the same
+#'   crosswalk [build_crop_land_extension()] uses).
 #' @return A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 #'   `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
 #'   `area_code`, `year`, `item_cbs_code`, `n_t` and `method_polity_split`.
@@ -837,23 +834,25 @@ spatialize_country_n_to_crops <- function(
     )
 }
 
-# Distribute each polity-crop N total across grid cells in proportion to the
-# cell's share of that polity-crop's crop-pattern hectares. Any polity-crop
-# absent from the crop-pattern raster (or whose pattern area sums to zero in
-# the polity) is instead spread uniformly across the polity's cropland cells
-# (weighted by cell cropland area), so grid totals still re-aggregate to the
-# polity total rather than silently dropping that crop's nitrogen.
+# Distribute each polity-crop N total across grid cells by the crop
+# allocation the soil carbon inputs place the same crop by (R/crop_allocation.R,
+# whep#1002): the cell's share of the polity-crop's placed area. A polity-crop
+# the allocation does not place is spread over the polity's cropland cells
+# (the allocation's fallback support), so grid totals still re-aggregate to
+# the polity total rather than silently dropping that crop's nitrogen.
 .n_grid_totals <- function(polity_crop, cell_polity, data, key) {
   years <- unique(polity_crop$year)
   item_prod_codes <- .n_item_prod_codes(unique(polity_crop$item_cbs_code))
-  cropland_ha <- .n_cropland_ha(data, years)
-  pattern_ha <- .n_crop_pattern_ha(
-    cropland_ha,
-    data,
-    item_prod_codes$item_prod_code
+  allocation <- .crop_allocation(
+    years,
+    .n_allocation_support(cell_polity),
+    data
   )
-  pattern_weights <- .n_cell_weights(pattern_ha, cell_polity, item_prod_codes)
-  cropland_weights <- .n_cropland_cell_weights(cropland_ha, cell_polity)
+  pattern_weights <- .crop_allocation_cbs(allocation, item_prod_codes)
+  cropland_weights <- dplyr::rename(
+    allocation$fallback,
+    cropland_share = "cropland_weight"
+  )
   matched <- .n_grid_matched(polity_crop, pattern_weights, key)
   unmatched <- .n_grid_unmatched(
     polity_crop,
@@ -941,6 +940,18 @@ spatialize_country_n_to_crops <- function(
     )
 }
 
+# The cell support the crop allocation is built on: the polity's share of
+# each cell under the resolved split key, as the engine's `cell_area_frac`.
+.n_allocation_support <- function(cell_polity) {
+  dplyr::transmute(
+    cell_polity,
+    .data$lon,
+    .data$lat,
+    area_code = as.integer(.data$area_code),
+    cell_area_frac = .data$cell_frac
+  )
+}
+
 # A zero-row tibble with the grid output schema.
 .n_empty_grid <- function() {
   tibble::tibble(
@@ -959,7 +970,7 @@ spatialize_country_n_to_crops <- function(
 .n_warn_unmatched <- function(unmatched) {
   cli::cli_warn(c(
     "!" = "{nrow(unmatched)} polity-crop total{?s} ({round(sum(unmatched$n_t), 3)}
-           t N) had no crop-pattern grid cells; reallocating uniformly across
+           t N) had no cells in the crop allocation; spreading {?it/them} over
            the polity's cropland cells.",
     "i" = "Affected item_cbs_code{?s}: {as.character(sort(unique(unmatched$item_cbs_code)))}."
   ))
@@ -981,26 +992,13 @@ spatialize_country_n_to_crops <- function(
 }
 
 # Per-cell total cropland hectares = type_ha summed over luh2_type, for the
-# requested years. The crop-independent cropland area used both for the
-# per-crop pattern weights and for the fallback uniform reallocation.
+# requested years (read by inst/scripts/measure_synthetic_spatialization.R).
 .n_cropland_ha <- function(data, years) {
   .n_read_type_cropland(data$type_cropland, years) |>
     dplyr::summarise(
       type_ha = sum(.data$type_ha, na.rm = TRUE),
       .by = c(lon, lat, year)
     )
-}
-
-# Per-cell per-crop hectares = type_ha (summed over luh2_type) * harvest_
-# fraction, the exact formula used by make_lpjml_covariate()'s
-# "crop_pattern" branch (R/lpjml_covariate.R), reused verbatim.
-.n_crop_pattern_ha <- function(cropland_ha, data, item_prod_codes) {
-  crop_patterns <- .n_read_crop_patterns(data$crop_patterns, item_prod_codes)
-  dplyr::inner_join(cropland_ha, crop_patterns, by = c("lon", "lat")) |>
-    dplyr::mutate(
-      crop_pattern_ha = .data$type_ha * .data$harvest_fraction
-    ) |>
-    dplyr::select(lon, lat, year, item_prod_code, crop_pattern_ha)
 }
 
 # Read type_cropland.parquet, filtering to the requested years immediately
@@ -1014,22 +1012,6 @@ spatialize_country_n_to_crops <- function(
     "type_cropland"
   )
   dplyr::filter(tibble::as_tibble(raw), .data$year %in% years)
-}
-
-# Read crop_patterns.parquet, filtering to the requested item_prod_codes
-# immediately after reading (before any join), so a single-crop query stays
-# fast against the ~2.2M-row real file.
-.n_read_crop_patterns <- function(crop_patterns, item_prod_codes) {
-  raw <- crop_patterns %||% .n_read_grid_input("crop_patterns")
-  .check_columns(
-    raw,
-    c("lon", "lat", "item_prod_code", "harvest_fraction"),
-    "crop_patterns"
-  )
-  dplyr::filter(
-    tibble::as_tibble(raw),
-    .data$item_prod_code %in% item_prod_codes
-  )
 }
 
 # Read a WHEP-built gridded surface: the parquet its env var names when set,
@@ -1083,35 +1065,8 @@ spatialize_country_n_to_crops <- function(
   nanoparquet::read_parquet(path) |> tibble::as_tibble()
 }
 
-# Each cell's share of its polity-crop's total crop_pattern_ha, joined to
-# the cell-polity support (area_code) and the item_cbs_code<->item_prod_code
-# lookup. `cell_frac` is the polity's share of the cell (`.n_cell_frac()`), so
-# a border cell contributes to each of its polities only the crop hectares that
-# polity holds, and dividing by the polity-crop's own total renormalises those
-# weights -- which is what makes the polity total invariant under a change of
-# `cell_frac`. Polity-crops whose weighted crop-pattern area sums to zero are
-# dropped here (returned as unmatched) so the caller reallocates them across
-# the polity's cropland cells instead of distributing to a zero share.
-.n_cell_weights <- function(pattern_ha, cell_polity, item_prod_codes) {
-  pattern_ha |>
-    dplyr::inner_join(item_prod_codes, by = "item_prod_code") |>
-    dplyr::inner_join(
-      dplyr::select(cell_polity, lon, lat, area_code, cell_frac),
-      by = c("lon", "lat"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::mutate(weighted_ha = .data$crop_pattern_ha * .data$cell_frac) |>
-    dplyr::mutate(
-      group_ha = sum(.data$weighted_ha),
-      .by = c(year, area_code, item_cbs_code)
-    ) |>
-    dplyr::filter(.data$group_ha > 0) |>
-    dplyr::mutate(cell_share = .data$weighted_ha / .data$group_ha) |>
-    dplyr::select(lon, lat, area_code, year, item_cbs_code, cell_share)
-}
-
-# Each cell's share of its polity's total cropland area (crop-independent),
-# used to spread the nitrogen of crops absent from the crop-pattern raster.
+# Each cell's share of its polity's total LUH2 cropland area
+# (crop-independent; read by inst/scripts/measure_synthetic_spatialization.R).
 .n_cropland_cell_weights <- function(cropland_ha, cell_polity) {
   cropland_ha |>
     dplyr::inner_join(

@@ -239,49 +239,28 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # Spread the national per-crop NPP chain onto cells.
 #
 # .n_inputs_bnf() and .n_inputs_recycling() read lon/lat off this table, and a
-# crops table built from country production has neither. Rather than introduce
-# a second spatialization, reuse the weights build_soil_carbon_inputs() already
-# uses to put per-crop carbon on cells: harvested-area shares per polity-crop
-# from the crop_patterns surface, which sum to 1 per (area_code,
-# item_prod_code). Every extensive column is scaled by that share, so cell
-# values sum back to the national ones.
+# crops table built from country production has neither. The chain is spread
+# by the crop allocation the soil carbon inputs place the same crops by
+# (R/crop_allocation.R, whep#1002): the spatialization engine's cell shares of
+# each polity-crop, the fodder layer for fodder the engine leaves out, the
+# polity's cropland for any other crop. Every extensive column is scaled by
+# that share, so cell values sum back to the national ones.
 #
 # METHOD NOTE: distributing NPP by harvested-area share is the same assumption
-# the soil-carbon inputs already make for the same crops, not a new one, but it
-# is an assumption and belongs to the scientific sign-off for #446, not to this
+# the soil-carbon inputs make for the same crops, not a new one, but it is an
+# assumption and belongs to the scientific sign-off for #446, not to this
 # driver. What the driver owes is the arithmetic and the loss report below.
 #
-# The residual is polity-crops that have production but no positive cropland
-# cell, so nothing to spread onto; they drop out here exactly as they do in the
-# carbon inputs (cf. #599). It is reported rather than silently absorbed.
+# The residual is polity-crops of polities with no cropland cell in the
+# allocation, so nothing to spread onto. It is reported rather than silently
+# absorbed.
 #
-# The weights sit on the same cell support as every other input of the run
+# The allocation sits on the same cell support as every other input of the run
 # (.nbd_cell_polity()): under `year_aware` the 1961 USSR's NPP lands on the
 # cells that carry 228 in 1961. Under `constant` it is the carbon path's 2015
 # snapshot, which has no cell for any dissolved union.
-.nbd_grid_npp <- function(npp, country_grid) {
-  weights <- whep:::.sci_grid_weights(
-    country_grid,
-    whep:::.sci_read_crop_patterns()
-  )
-  keys <- c("year", "area_code", "item_prod_code")
-  extensive <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
-  # .n_inputs_recycling() reads item_cbs_code straight off this table, while
-  # .n_inputs_bnf() derives it from item_prod_code. Apply the package's own
-  # mapping once here so all three consumers of this table see the same codes.
-  gridded <- npp |>
-    dplyr::mutate(
-      item_cbs_code = whep:::.ni_item_cbs_from_prod(.data$item_prod_code)
-    ) |>
-    dplyr::inner_join(
-      weights,
-      by = c("area_code", "item_prod_code"),
-      relationship = "many-to-many"
-    ) |>
-    dplyr::mutate(
-      dplyr::across(dplyr::all_of(extensive), \(v) v * .data$area_weight)
-    )
-  gridded
+.nbd_grid_npp <- function(npp, allocation) {
+  whep:::.n_grid_npp(npp, allocation)
 }
 
 # What the gridding could not place, as a share of the national total. A silent
@@ -659,9 +638,42 @@ cell_support <- nbd_stage(
   "cell_support",
   whep:::.nbd_placement_support(cell_support_mode, cell_polity)
 )
+# The crop allocation every crop term of the run is placed by, built once on
+# the run's cell support (R/crop_allocation.R, whep#1002): the synthetic and
+# FAOSTAT-manure spread, the crop NPP, BNF and recycling, the manure crop
+# layer and the land support's crop composition all read this one table, the
+# one the soil carbon inputs place the same crops by.
+crop_allocation <- nbd_stage(
+  "crop_allocation",
+  whep:::.crop_allocation(
+    year,
+    whep:::.normalize_carbon_support(cell_polity, "cell_polity")
+  )
+)
+# The livestock chain and the crop NPP sit on cell_support, which is
+# cell_polity under `year_aware`; under `constant` they need the allocation on
+# that support instead.
+placement_allocation <- if (identical(cell_support, cell_polity)) {
+  crop_allocation
+} else {
+  nbd_stage(
+    "placement_allocation",
+    whep:::.crop_allocation(
+      year,
+      whep:::.normalize_carbon_support(cell_support, "cell_support")
+    )
+  )
+}
 ag_land_support <- nbd_stage(
   "ag_land_support",
-  build_ag_land_support(years = year, data = list(cell_polity = cell_polity))
+  build_ag_land_support(
+    years = year,
+    data = list(
+      cell_polity = cell_polity,
+      crop_allocation = crop_allocation,
+      primary_prod = primary_prod
+    )
+  )
 )
 cropland_ha <- nbd_stage(
   "cropland_ha",
@@ -694,7 +706,7 @@ npp_national <- nbd_stage(
 )
 npp <- nbd_stage(
   "npp_n_input",
-  .nbd_grid_npp(npp_national, cell_support)
+  .nbd_grid_npp(npp_national, placement_allocation)
 )
 # Reported here, not inside the stage: this compares npp_national and npp
 # AFTER both stages finish, so it can never be a condition either stage raises
@@ -817,7 +829,12 @@ livestock_intake <- nbd_stage(
 # The crop layer that manure is spread over, on the same grain and support.
 manure_crops <- nbd_stage(
   "manure_crops",
-  whep:::.n_manure_crop_layer(resolution, primary_prod, cell_support)
+  whep:::.n_manure_crop_layer(
+    resolution,
+    primary_prod,
+    cell_support,
+    placement_allocation
+  )
 )
 # Outside the stage, which suppresses messages (see the NPP report above).
 if (!is.null(manure_crops) && resolution == "grid") {
@@ -933,6 +950,7 @@ if (nrow(blockers) > 0L) {
   cli::cli_h2("6. Nitrogen balance")
   nbd_data <- list(
     cell_polity = cell_polity,
+    crop_allocation = crop_allocation,
     ag_land_support = ag_land_support,
     cropland_ha = cropland_ha,
     primary_prod = primary_prod,

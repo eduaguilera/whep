@@ -36,8 +36,11 @@ already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{cell_polity} (the \code{\link[=build_cell_polity]{build_cell_polity()}} crosswalk), \code{type_cropland}
-(\code{lon}, \code{lat}, \code{year}, \code{luh2_type}, \code{type_ha}), \code{crop_patterns} (\code{lon},
-\code{lat}, \code{item_prod_code}, \code{harvest_fraction}), \code{gridded_pasture} (\code{lon},
+(\code{lon}, \code{lat}, \code{year}, \code{luh2_type}, \code{type_ha}), \code{crop_allocation} (the
+shared crop allocation: a list of \code{weights} and \code{fallback}, built from
+the pinned spatialization inputs when absent), \code{harvested_area}
+(\code{area_code}, \code{item_prod_code}, \code{year}, \code{faostat_area_ha}; from
+\code{\link[=get_primary_production]{get_primary_production()}} when absent), \code{gridded_pasture} (\code{lon},
 \code{lat}, \code{year}, \code{pasture_ha}, \code{rangeland_ha}), \code{states}
 (\code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s raw LUH2 states) and \code{grassland_ha} (\code{lon},
 \code{lat}, \code{area_code}, \code{year}, \code{area_ha}, bypassing the grassland read
@@ -57,9 +60,11 @@ Assembles the physical agricultural land support that \code{\link[=build_n_input
 allocates its non-crop-specific nitrogen terms over: per grid cell, polity,
 year and CBS item, the hectares of agricultural land available to receive
 nitrogen. Cropland hectares come from the LUH2-derived \code{type_cropland}
-surface, split among crops by the static \code{crop_patterns} composition
-(normalised within each cell, so the cell's physical cropland area is
-apportioned rather than inflated by multicropping). Grassland hectares come
+surface, split among crops by the harvested-area composition of the crop
+allocation the nitrogen and soil carbon inputs share (the spatialization
+engine's placement of each crop, whep#1002), normalised within each
+polycell, so the physical cropland area is apportioned rather than
+inflated by multicropping. Grassland hectares come
 from \code{\link[=read_luh2_landuse]{read_luh2_landuse()}}'s gridded grassland class and are all carried on
 CBS 3000, with no intensive/extensive split inferred. Both sides are split
 across border polities by the same \code{cell_polity} crosswalk.
