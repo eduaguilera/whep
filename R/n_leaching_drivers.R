@@ -211,6 +211,9 @@
       class = c("whep_n_loss_drivers_layer", "whep_absent_input")
     )
   }
+  # One row per lacking cell, but one donor can be the nearest cell of
+  # several lacking cells, and a yearly layer holds one donor row per year:
+  # many lacking cells meet many donor rows.
   nearest <- .cmr_nearest_cells(lacking, donors)
   filled <- nearest |>
     dplyr::select(
@@ -223,7 +226,7 @@
     dplyr::inner_join(
       dplyr::rename(layer, donor_lon = "lon", donor_lat = "lat"),
       by = c("donor_lon", "donor_lat"),
-      relationship = "one-to-many"
+      relationship = "many-to-many"
     ) |>
     dplyr::select(-"donor_lon", -"donor_lat")
   cli::cli_inform(

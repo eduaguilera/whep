@@ -159,6 +159,34 @@ testthat::test_that("drainage is LPJmL's whole-cell seepage, nearest cell off gr
   ))
 })
 
+testthat::test_that("cells sharing their nearest donor each take its values", {
+  # Cells C (10.25) and D (10.75) both lack the layer and both have B (9.75)
+  # as their nearest cell: one donor row feeds two filled cells, in every
+  # year of a yearly layer.
+  layer <- tidyr::expand_grid(
+    tibble::tibble(lon = c(9.25, 9.75), lat = 47.75, value = c(120, 300)),
+    year = c(2009L, 2010L)
+  )
+  cells <- tibble::tibble(lon = c(9.25, 10.25, 10.75), lat = 47.75)
+  out <- suppressMessages(
+    whep:::.nld_nearest_fill(layer, cells, "value", "fixture")
+  )
+  testthat::expect_identical(nrow(out), 6L)
+  filled <- out[out$lon %in% c(10.25, 10.75), ]
+  testthat::expect_true(all(filled$value == 300))
+  testthat::expect_identical(
+    dplyr::count(filled, .data$lon)$n,
+    c(2L, 2L)
+  )
+  testthat::expect_equal(
+    sort(unique(round(filled$fill_km, 6))),
+    round(
+      c(.nld_km(10.25, 47.75, 9.75, 47.75), .nld_km(10.75, 47.75, 9.75, 47.75)),
+      6
+    )
+  )
+})
+
 testthat::test_that("the SOM share is carbon-balance SOC over the topsoil mass", {
   out <- .nlx_build("meisinger_drainage")
   # Cell A cropland: 42 Mg C/ha over 4,000 Mg/ha of topsoil, times 2.
