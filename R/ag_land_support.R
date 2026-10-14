@@ -103,6 +103,7 @@ build_ag_land_support <- function(
       polity_validity
     ))
   }
+  .crop_alloc_refuse_patterns(data, "build_ag_land_support")
   cell_polity <- data$cell_polity %||% build_cell_polity()
   .check_columns(
     cell_polity,

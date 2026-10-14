@@ -1386,7 +1386,6 @@ testthat::test_that("an unknown action is rejected", {
 
 .nbs_unset_grid_env <- function(env = parent.frame()) {
   withr::local_envvar(
-    WHEP_CROP_PATTERNS_PATH = "",
     WHEP_TYPE_CROPLAND_PATH = "",
     WHEP_GRIDDED_PASTURE_PATH = "",
     .local_envir = env

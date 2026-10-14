@@ -16,14 +16,18 @@
 # The weights are built by the carbon chain's own helpers, so the two chains
 # cannot drift apart again. `data$crop_allocation` supplies them pre-built (a
 # list with `weights` and `fallback`, each carrying `year`), which is how a
-# run builds them once and every term reads the same table.
+# run builds them once and every term reads the same table; it may carry
+# `share`, the name of the polity share of the cell it was built on.
 
 # The allocation for `years` on the cell support `cell_polity`: a list of
 # `weights` (`lon`, `lat`, `area_code`, integer `item_prod_code`, `year`,
 # `crop_area_ha`, `area_weight` summing to 1 per polity-crop-year) and
 # `fallback` (`lon`, `lat`, `area_code`, `year`, `cropland_weight` summing to
-# 1 per polity-year).
-.crop_allocation <- function(years, cell_polity, data = list()) {
+# 1 per polity-year), and `share`, the polity share of the cell the support
+# carried (`cell_polity`'s own name for it, as .normalize_country_grid()
+# picks it, unless the caller names it). A built allocation goes through the
+# same checks as a supplied one.
+.crop_allocation <- function(years, cell_polity, data = list(), share = NULL) {
   if (!is.null(data$crop_allocation)) {
     return(.crop_allocation_check(data$crop_allocation, years))
   }
@@ -34,7 +38,40 @@
   })
   list(
     weights = dplyr::bind_rows(purrr::map(parts, "weights")),
-    fallback = dplyr::bind_rows(purrr::map(parts, "fallback"))
+    fallback = dplyr::bind_rows(purrr::map(parts, "fallback")),
+    share = share %||% .crop_allocation_share(cell_polity)
+  ) |>
+    .crop_allocation_check(years, supplied = FALSE)
+}
+
+# The polity share of the cell a support carries, by its own name: a support
+# .normalize_country_grid() has copied into `cell_area_frac` keeps the column
+# the copy was taken from, and that is the name recorded.
+.crop_allocation_share <- function(cell_polity) {
+  shares <- intersect(.polity_share_cols(), names(cell_polity))
+  c(setdiff(shares, "cell_area_frac"), shares)[1]
+}
+
+# The static crop-pattern layer is not read by the nitrogen chain, which
+# places every crop by the crop allocation. Handed in, it would be ignored
+# while the allocation is read from the pins in its place, so the caller
+# would get a different geography from the one they supplied without being
+# told: refused, as build_soil_carbon_inputs() refuses it under its engine
+# weights (.sci_check_weight_layers()).
+.crop_alloc_refuse_patterns <- function(data, fn) {
+  if (is.null(data$crop_patterns)) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(
+    c(
+      "{.code data$crop_patterns} is the static crop-pattern layer, which
+       {.fn {fn}} does not read.",
+      i = "Crops are placed by the crop allocation the soil carbon inputs
+           share (whep#1002): supply {.code data$crop_allocation}, or
+           {.code data$gridded_crops} or {.code data$engine_inputs} to build
+           it from."
+    ),
+    class = "whep_crop_allocation_static_layer"
   )
 }
 
@@ -59,10 +96,12 @@
   )
 }
 
-# A supplied allocation must hold both tables, cover the years asked for and
-# carry weights that sum to 1 within each group: a partial table would leave
-# a crop's nitrogen with no cells while its polity total still reconciled.
-.crop_allocation_check <- function(allocation, years) {
+# An allocation must hold both tables and carry weights that sum to 1 within
+# each group, and a supplied one must cover the years asked for: a partial
+# table would leave a crop's nitrogen with no cells while its polity total
+# still reconciled. A built one may hold no row in a year the engine placed
+# nothing in; the term spreading onto it refuses that with its own message.
+.crop_allocation_check <- function(allocation, years, supplied = TRUE) {
   .check_columns(
     allocation$weights,
     c("lon", "lat", "area_code", "item_prod_code", "year", "area_weight"),
@@ -85,7 +124,7 @@
       year = as.integer(.data$year)
     )
   absent <- setdiff(as.integer(years), fallback$year)
-  if (length(absent) > 0L) {
+  if (supplied && length(absent) > 0L) {
     cli::cli_abort(
       "{.code data$crop_allocation} covers no year {.val {absent}}.",
       class = c("whep_crop_allocation", "whep_absent_input")
@@ -93,7 +132,7 @@
   }
   .crop_allocation_check_sums(weights, "area_weight", "item_prod_code")
   .crop_allocation_check_sums(fallback, "cropland_weight", NULL)
-  list(weights = weights, fallback = fallback)
+  list(weights = weights, fallback = fallback, share = allocation$share)
 }
 
 .crop_allocation_check_sums <- function(table, col, item) {

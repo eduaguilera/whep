@@ -79,7 +79,7 @@
 #                           .nbd_cell_polity() below).
 #
 # Requires the local surfaces (AGENTS.md, "Where input data comes from"):
-#   WHEP_TYPE_CROPLAND_PATH   WHEP_CROP_PATTERNS_PATH  WHEP_GRIDDED_PASTURE_PATH
+#   WHEP_TYPE_CROPLAND_PATH   WHEP_GRIDDED_PASTURE_PATH
 #   WHEP_HANI_DIR             WHEP_HYDE_DIR
 # plus cached pins for production, fertiliser and the commodity balances.
 # The year-aware cell support is read from the `polycell_support` pin. Under

@@ -470,10 +470,7 @@ testthat::test_that("non-item inputs abort when no support can be derived", {
   # the branch it is named after only where the data is absent, which is never
   # the machines that have it. Since whep#1475 an unset variable falls back to
   # the spatialize-type-cropland pin, so the pin is stubbed as unreachable too.
-  withr::local_envvar(
-    WHEP_TYPE_CROPLAND_PATH = NA,
-    WHEP_CROP_PATTERNS_PATH = NA
-  )
+  withr::local_envvar(WHEP_TYPE_CROPLAND_PATH = NA)
   testthat::local_mocked_bindings(
     whep_read_file = function(...) cli::cli_abort("board is down"),
     .package = "whep"

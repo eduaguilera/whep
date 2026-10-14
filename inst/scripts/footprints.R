@@ -86,7 +86,7 @@ if (!crop_land_source %in% valid_sources) {
 # method: the three exceedance categories are NOT runnable on a bare checkout.
 # They need build_n_boundary_exceedance(resolution = "country"), hence
 # build_nitrogen_balance(), hence the gridded layers behind WHEP_TYPE_CROPLAND_PATH,
-# WHEP_CROP_PATTERNS_PATH, WHEP_GRIDDED_PASTURE_PATH and WHEP_POLITY_FRACTION_PATH.
+# WHEP_GRIDDED_PASTURE_PATH and WHEP_POLITY_FRACTION_PATH.
 # read_critical_n() fetches its own archive from Zenodo, but those balance inputs
 # do not. So the runnable option is the default and the branch below refuses the
 # others up front, naming the missing layer, rather than failing deep inside the
@@ -153,7 +153,6 @@ if (pressure == "nitrogen") {
       function(v) !nzchar(Sys.getenv(v)),
       c(
         "WHEP_TYPE_CROPLAND_PATH",
-        "WHEP_CROP_PATTERNS_PATH",
         "WHEP_GRIDDED_PASTURE_PATH",
         "WHEP_POLITY_FRACTION_PATH"
       )

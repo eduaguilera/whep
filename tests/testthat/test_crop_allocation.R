@@ -222,3 +222,119 @@ testthat::test_that("national areas fold to the bucket only off the support", {
   testthat::expect_setequal(kept$area_code, c(276L, 277L))
   testthat::expect_equal(sum(kept$harvested_area_ha), 140)
 })
+
+# ---- Guards (verification of whep#1002) -----------------------------------
+
+.ca_cell_polity <- function() {
+  tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~polity_frac, ~cell_area_ha,
+    0.25, 50.25, 10L,        1,            3000,
+    0.75, 50.25, 10L,        1,            3000
+  )
+}
+
+.ca_spread <- function(data, split = "auto", cell_polity = .ca_cell_polity()) {
+  whep::spatialize_country_n_to_crops(
+    tibble::tibble(year = 2010L, area_code = 10L, n_t = 100),
+    tibble::tibble(
+      year = 2010L,
+      area_code = 10L,
+      item_cbs_code = 2511L,
+      area_share = 1
+    ),
+    cell_polity,
+    resolution = "grid",
+    split = split,
+    data = data
+  )
+}
+
+testthat::test_that("a supplied static crop-pattern layer is refused", {
+  # The chain no longer reads it; ignoring it would hand back a different
+  # geography from the one the caller supplied without saying so.
+  patterns <- .ca_crop_patterns()
+  testthat::expect_error(
+    .ca_spread(list(
+      crop_allocation = .ca_allocation(),
+      crop_patterns = patterns
+    )),
+    class = "whep_crop_allocation_static_layer"
+  )
+  testthat::expect_error(
+    whep::build_ag_land_support(
+      years = 2010L,
+      grassland = "none",
+      data = list(
+        cell_polity = .ca_cell_polity(),
+        crop_patterns = patterns
+      )
+    ),
+    class = "whep_crop_allocation_static_layer"
+  )
+  testthat::expect_error(
+    whep::build_n_inputs(data = list(crop_patterns = patterns)),
+    class = "whep_crop_allocation_static_layer"
+  )
+})
+
+testthat::test_that("the split stamp is the share the allocation was built on", {
+  # Built here on polity_frac: the stamp says so.
+  built <- .ca_spread(.ca_inputs())
+  testthat::expect_true(all(built$method_polity_split == "polity_frac"))
+  # Supplied with a recorded share: auto takes it.
+  recorded <- c(.ca_allocation(), list(share = "land_area_ha"))
+  out <- .ca_spread(list(crop_allocation = recorded))
+  testthat::expect_true(all(out$method_polity_split == "land_area_ha"))
+  # An explicit split the supplied allocation was not built on is refused.
+  testthat::expect_error(
+    .ca_spread(list(crop_allocation = recorded), split = "polity_frac"),
+    class = "whep_crop_allocation_split"
+  )
+  # Supplied without a record: stamped as such, never as the requested key.
+  bare <- .ca_spread(list(crop_allocation = .ca_allocation()))
+  testthat::expect_true(all(bare$method_polity_split == "supplied_allocation"))
+})
+
+testthat::test_that("a self-built allocation is checked like a supplied one", {
+  testthat::local_mocked_bindings(
+    .sci_support_weights = function(weights, method, d) {
+      list(
+        weights = dplyr::mutate(weights, area_weight = 0.3),
+        fallback = tibble::tibble(
+          lon = 0.25,
+          lat = 50.25,
+          area_code = 10L,
+          cropland_weight = 1
+        )
+      )
+    },
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep:::.crop_allocation(
+      2010L,
+      .ca_grid(),
+      .ca_inputs()
+    ),
+    class = "whep_crop_allocation"
+  )
+})
+
+testthat::test_that("the reallocation warning agrees in number", {
+  said <- function(unmatched) {
+    w <- testthat::capture_warning(whep:::.n_warn_unmatched(unmatched))
+    stringr::str_squish(cli::ansi_strip(conditionMessage(w)))
+  }
+  one <- said(tibble::tibble(item_cbs_code = 2513L, n_t = 3))
+  testthat::expect_match(
+    one,
+    "1 polity-crop total (3 t N) had no cells in the crop allocation; spreading it over",
+    fixed = TRUE
+  )
+  two <- said(tibble::tibble(item_cbs_code = c(2511L, 2513L), n_t = c(1, 2)))
+  testthat::expect_match(
+    two,
+    "2 polity-crop totals (3 t N) had no cells in the crop allocation; spreading them over",
+    fixed = TRUE
+  )
+})

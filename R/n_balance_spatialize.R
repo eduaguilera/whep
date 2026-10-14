@@ -315,12 +315,43 @@ spatialize_country_n_to_crops <- function(
     c("lon", "lat", "area_code", "cell_area_ha"),
     "cell_polity"
   )
+  .crop_alloc_refuse_patterns(data, "spatialize_country_n_to_crops")
   key <- .n_resolve_split(cell_polity, split)
+  stamp <- .n_allocation_stamp(data$crop_allocation, key, split)
   .n_grid_totals(polity_crop, .n_cell_frac(cell_polity, key), data, key) |>
+    dplyr::mutate(method_polity_split = .env$stamp) |>
     .apply_polity_validity(polity_validity, attach_flag = TRUE)
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The polity share the cells were weighted by, as `method_polity_split`
+# records it. Building the allocation here, it is the resolved key. A supplied
+# allocation was built on whatever share its builder used: the one it
+# records, which `split = "auto"` defers to and an explicit `split` must match
+# (refused otherwise, as an explicit key the support lacks is), or
+# "supplied_allocation" when it records none.
+.n_allocation_stamp <- function(allocation, key, split) {
+  if (is.null(allocation)) {
+    return(key)
+  }
+  share <- allocation$share
+  if (is.null(share)) {
+    return("supplied_allocation")
+  }
+  if (split != "auto" && !identical(share, split)) {
+    cli::cli_abort(
+      c(
+        "{.arg split} is {.val {split}}, and {.code data$crop_allocation} was
+         built on {.val {share}}.",
+        i = "Build the allocation on the share you ask for, or leave
+             {.arg split} at {.val auto}."
+      ),
+      class = "whep_crop_allocation_split"
+    )
+  }
+  share
+}
 
 # "auto" takes the finest partition the support carries. An explicit choice is
 # never silently downgraded: naming a key the support lacks aborts, so a caller
@@ -846,7 +877,8 @@ spatialize_country_n_to_crops <- function(
   allocation <- .crop_allocation(
     years,
     .n_allocation_support(cell_polity),
-    data
+    data,
+    share = key
   )
   pattern_weights <- .crop_allocation_cbs(allocation, item_prod_codes)
   cropland_weights <- dplyr::rename(
@@ -965,13 +997,15 @@ spatialize_country_n_to_crops <- function(
   )
 }
 
-# Warn that some crops' nitrogen was reallocated to cropland cells because the
-# crop-pattern raster had no hectares for them in the polity.
+# Warn that some crops' nitrogen was spread over the polity's cropland because
+# the crop allocation places no cell of them in the polity.
 .n_warn_unmatched <- function(unmatched) {
+  n_unmatched <- nrow(unmatched)
   cli::cli_warn(c(
-    "!" = "{nrow(unmatched)} polity-crop total{?s} ({round(sum(unmatched$n_t), 3)}
-           t N) had no cells in the crop allocation; spreading {?it/them} over
-           the polity's cropland cells.",
+    "!" = "{n_unmatched} polity-crop total{?s}
+           ({round(sum(unmatched$n_t), 3)} t N) had no cells in the crop
+           allocation; spreading {cli::qty(n_unmatched)}{?it/them} over the
+           polity's cropland cells.",
     "i" = "Affected item_cbs_code{?s}: {as.character(sort(unique(unmatched$item_cbs_code)))}."
   ))
 }
@@ -1046,7 +1080,6 @@ spatialize_country_n_to_crops <- function(
 
 .n_grid_input_env_vars <- function() {
   c(
-    crop_patterns = "WHEP_CROP_PATTERNS_PATH",
     type_cropland = "WHEP_TYPE_CROPLAND_PATH",
     gridded_pasture = "WHEP_GRIDDED_PASTURE_PATH"
   )

@@ -365,6 +365,7 @@ build_n_inputs <- function(
       .ni_manure_methods()
     )
   }
+  .crop_alloc_refuse_patterns(data, "build_n_inputs")
   data$.n_input_resolution <- resolution
   data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
