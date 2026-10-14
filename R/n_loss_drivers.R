@@ -99,13 +99,24 @@
 #'   `som_share` multiplies the carbon fraction by the SOM:SOC factor,
 #'   `som_soc_factor_pribyl` (2) of [n_attenuation_constants] by default
 #'   (`method_som`). A cell-polity the carbon balance lacks takes the cell's
-#'   stock in its other polities, stamped `cell_other_polity`.
+#'   stock in its other polities, stamped `cell_other_polity`; a cell it
+#'   lacks altogether (the carbon balance runs on the CRU and LPJmL grids
+#'   only) takes the stock of the nearest cell holding the row's land use,
+#'   stamped `nearest_cell_same_land_use=<km>km`.
 #' - `c_input_t` (Meisinger): the C the row's inputs carry to the soil, t C per
 #'   year: the crop's [build_soil_carbon_inputs()] carbon, pooled over the
 #'   item's production items, on crop rows, and `data$carbon_balance`'s
 #'   grassland input on the grass item (`method_c_input`). Both regime rows
 #'   of an item carry the item's whole C; [build_nitrogen_balance()] divides
-#'   it by the item's whole `n_input_full_nosom_t` into `cn_input`.
+#'   it by the item's whole `n_input_full_nosom_t` into `cn_input`. Coconut
+#'   carbon (production item 248) is pooled to the item carrying coconut N
+#'   (2560), as `carbon_input_item_pooling.csv` states. A crop row without a
+#'   carbon input of its item in its cell and polity keeps `c_input_t`
+#'   missing, stamped `no_carbon_input`, and the balance gives it its item's
+#'   C:N in the polity, else globally (`polity_item_cn`, `global_item_cn`).
+#'   A grass row off the carbon balance carries the nearest grassland cell's
+#'   C input density as `c_input_mgc_ha` (Mg C/ha/yr), which the balance puts
+#'   on the key's grass area, stamped `nearest_cell_same_land_use=<km>km`.
 #' - `root_depth_cm` (Meisinger): FAO-56 Table 22's maximum effective rooting
 #'   depth ([fao56_root_depth]) of the row's production items, pooled by
 #'   WHEP's hectares of each in the row's water regime: by default the upper
@@ -148,9 +159,9 @@
 #'   `whep_absent_input` for an absent climate or irrigation layer.
 #' - For the leaching drivers, all also `whep_absent_input`:
 #'   `whep_n_loss_drivers_carbon_balance` (no `data$carbon_balance`),
-#'   `whep_n_loss_drivers_soc`, `whep_n_loss_drivers_c_input` and
-#'   `whep_n_loss_drivers_root_depth` (a row carrying N without soil carbon,
-#'   carbon input or root depth), `whep_n_loss_drivers_temperature` and
+#'   `whep_n_loss_drivers_soc` and `whep_n_loss_drivers_root_depth` (a row
+#'   carrying N without soil carbon of its land use in any cell, or without
+#'   root depth), `whep_n_loss_drivers_temperature` and
 #'   `whep_n_loss_drivers_layer` (a layer with no complete cell, or without a
 #'   year asked for); a layer whose values are all zero or missing aborts as
 #'   [check_inputs_supplied()] does. `whep_n_loss_drivers_no_item_n`: a row

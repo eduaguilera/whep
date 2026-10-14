@@ -82,6 +82,7 @@
       "soil_porosity",
       "som_share",
       "c_input_t",
+      "c_input_mgc_ha",
       "method_c_input",
       "drainage_mm",
       "method_drainage",
@@ -513,7 +514,85 @@
       ),
       .soc_mgc_ha = dplyr::coalesce(.data$.soc_mgc_ha, .data$.cell_soc)
     ) |>
-    dplyr::select(-".cell_soc")
+    dplyr::select(-".cell_soc") |>
+    .nld_nearest_stock(cell)
+}
+
+# A cell the carbon balance holds no stock of the row's land use in (it runs
+# on the CRU and LPJmL grids only, whep#1095) takes the stock of the nearest
+# cell holding that land use in the same year, stamped with the distance
+# (maintainer decision D77, 2026-10-14). A land use the carbon balance holds
+# nowhere stays missing, for .nld_check_som() to judge.
+.nld_nearest_stock <- function(rows, cell) {
+  lacking <- rows |>
+    dplyr::filter(is.na(.data$.soc_mgc_ha), !is.na(.data$land_use)) |>
+    dplyr::distinct(.data$.lon, .data$.lat, .data$.year, .data$land_use)
+  if (nrow(lacking) == 0L) {
+    return(rows)
+  }
+  filled <- lacking |>
+    dplyr::group_by(.data$.year, .data$land_use) |>
+    dplyr::group_modify(\(group, k) {
+      .nld_nearest_donor(
+        dplyr::rename(group, lon = ".lon", lat = ".lat"),
+        cell |>
+          dplyr::filter(
+            .data$.year == k$.year,
+            .data$land_use == k$land_use
+          ) |>
+          dplyr::transmute(lon = .data$.lon, lat = .data$.lat, .data$.cell_soc)
+      )
+    }) |>
+    dplyr::ungroup() |>
+    dplyr::transmute(
+      .lon = .data$lon,
+      .lat = .data$lat,
+      .data$.year,
+      .data$land_use,
+      .near_soc = .data$.cell_soc,
+      .near_km = .data$fill_km
+    )
+  rows |>
+    dplyr::left_join(
+      filled,
+      by = c(".lon", ".lat", ".year", "land_use"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      .soc_source = dplyr::if_else(
+        is.na(.data$.soc_mgc_ha) & !is.na(.data$.near_soc),
+        paste0(
+          "carbon_balance_soc;nearest_cell_same_land_use=",
+          round(.data$.near_km, 1),
+          "km"
+        ),
+        .data$.soc_source
+      ),
+      .soc_mgc_ha = dplyr::coalesce(.data$.soc_mgc_ha, .data$.near_soc)
+    ) |>
+    dplyr::select(-".near_soc", -".near_km")
+}
+
+# Each lacking cell with the values of its nearest donor cell and the
+# distance in `fill_km`; no rows when there is no donor.
+.nld_nearest_donor <- function(lacking, donors) {
+  if (nrow(donors) == 0L) {
+    return(dplyr::mutate(donors, fill_km = double()))
+  }
+  .cmr_nearest_cells(lacking, donors) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "donor_lon",
+      "donor_lat",
+      fill_km = "climate_fill_km"
+    ) |>
+    dplyr::inner_join(
+      dplyr::rename(donors, donor_lon = "lon", donor_lat = "lat"),
+      by = c("donor_lon", "donor_lat"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::select(-"donor_lon", -"donor_lat")
 }
 
 # The carbon balance in the drivers' join form, its land use mapped to the
@@ -586,8 +665,8 @@
       c(
         "{sum(bad)} balance row{?s} carrying N {?has/have} no soil organic
          carbon of {?its/their} land use ({n_t} t N).",
-        i = "The carbon balance holds no stock of the row's land use in the
-             cell; supply one that covers the balance cells."
+        i = "The carbon balance holds no stock of the row's land use in any
+             cell of the year; supply one that covers it."
       ),
       class = c("whep_n_loss_drivers_soc", "whep_absent_input")
     )
@@ -616,12 +695,13 @@
 # item's whole non-SOM N, so both carry the crop's C:N.
 .nld_join_c_input <- function(rows, data, years) {
   crop <- .nld_crop_carbon(data, years)
-  grass <- .nld_carbon_balance(data) |>
-    dplyr::filter(.data$land_use %in% "Grassland", .data$.year %in% years) |>
-    dplyr::summarise(
-      .grass_c_t = sum(.data$c_input_mgc_ha * .data$area_ha),
-      .by = c(".lon", ".lat", ".area", ".year")
-    )
+  cb_grass <- .nld_carbon_balance(data) |>
+    dplyr::filter(.data$land_use %in% "Grassland", .data$.year %in% years)
+  grass <- dplyr::summarise(
+    cb_grass,
+    .grass_c_t = sum(.data$c_input_mgc_ha * .data$area_ha),
+    .by = c(".lon", ".lat", ".area", ".year")
+  )
   grass_item <- .nld_grass_item()
   rows |>
     dplyr::left_join(
@@ -648,27 +728,81 @@
       )
     ) |>
     dplyr::select(-".crop_c_t", -".grass_c_t") |>
-    .nld_check_c_input()
+    .nld_nearest_grass_c(cb_grass) |>
+    .nld_inform_c_input()
 }
 
-# A crop row carrying N whose crop has no carbon input would take the
-# minimum C:N, no attenuation, which is a value nobody chose: refused.
-.nld_check_c_input <- function(rows) {
-  bad <- rows$method_c_input == "no_carbon_input" & !rows$.n_input_t %in% 0
-  if (!any(bad)) {
+# A grass row whose cell-polity the carbon balance holds no grassland in
+# takes the grassland C input density (Mg C/ha/yr, its area-weighted mean)
+# of the nearest cell holding grassland in the same year, stamped with the
+# distance (maintainer decision D78, 2026-10-14, as D77 does for the stock).
+# The density is carried as `c_input_mgc_ha`: the balance puts it on the
+# key's own grass area (.nb_derive_cn_input()), which only the balance knows.
+.nld_nearest_grass_c <- function(rows, cb_grass) {
+  rows$c_input_mgc_ha <- NA_real_
+  lacking <- rows$.item %in% .nld_grass_item() & is.na(rows$c_input_t)
+  if (!any(lacking)) {
     return(rows)
   }
-  items <- sort(unique(rows$.item[bad]))
-  n_t <- signif(sum(rows$.n_input_t[bad], na.rm = TRUE), 6)
-  cli::cli_abort(
-    c(
-      "{sum(bad)} balance row{?s} carrying N {?has/have} no soil carbon
-       input ({n_t} t N).",
-      i = "Commodity balance items without a carbon input in the row's cell
-           and polity: {.val {items}}."
-    ),
-    class = c("whep_n_loss_drivers_c_input", "whep_absent_input")
-  )
+  density <- cb_grass |>
+    dplyr::summarise(
+      .density = sum(.data$c_input_mgc_ha * .data$area_ha) /
+        sum(.data$area_ha),
+      .by = c(".lon", ".lat", ".year")
+    ) |>
+    dplyr::filter(is.finite(.data$.density))
+  cells <- dplyr::distinct(rows[lacking, ], .data$.lon, .data$.lat, .data$.year)
+  filled <- cells |>
+    dplyr::group_by(.data$.year) |>
+    dplyr::group_modify(\(group, k) {
+      .nld_nearest_donor(
+        dplyr::rename(group, lon = ".lon", lat = ".lat"),
+        density |>
+          dplyr::filter(.data$.year == k$.year) |>
+          dplyr::transmute(lon = .data$.lon, lat = .data$.lat, .data$.density)
+      )
+    }) |>
+    dplyr::ungroup() |>
+    dplyr::rename(.lon = "lon", .lat = "lat", .near_km = "fill_km")
+  rows |>
+    dplyr::left_join(
+      filled,
+      by = c(".lon", ".lat", ".year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      .take = .env$lacking & !is.na(.data$.density),
+      c_input_mgc_ha = dplyr::if_else(.data$.take, .data$.density, NA_real_),
+      method_c_input = dplyr::if_else(
+        .data$.take,
+        paste0(
+          "carbon_balance_grassland;nearest_cell_same_land_use=",
+          round(.data$.near_km, 1),
+          "km"
+        ),
+        .data$method_c_input
+      )
+    ) |>
+    dplyr::select(-".density", -".near_km", -".take")
+}
+
+# A crop row carrying N whose crop has no carbon input in its cell and
+# polity keeps no C here (`no_carbon_input`): the balance gives it its
+# item's C:N in the polity, else globally (maintainer decision D78,
+# 2026-10-14; .nb_derive_cn_input()), and refuses an item with none. The
+# count is reported so the fill is never silent.
+.nld_inform_c_input <- function(rows) {
+  open <- rows$method_c_input == "no_carbon_input" & !rows$.n_input_t %in% 0
+  if (any(open)) {
+    n_t <- signif(sum(rows$.n_input_t[open], na.rm = TRUE), 6)
+    cli::cli_inform(
+      "{sum(open)} balance row{?s} carrying N ({n_t} t N) {?has/have} no soil
+       carbon input in {?its/their} cell and polity; the balance gives
+       {?it/them} the item's polity C:N, stamped.",
+      class = "whep_n_loss_drivers_c_input_fill"
+    )
+  }
+  rows
 }
 
 # build_soil_carbon_inputs()' per-crop carbon mass, pooled to the commodity
@@ -705,7 +839,7 @@
     ) |>
     dplyr::filter(.data$.year %in% years) |>
     dplyr::inner_join(
-      .lid_prod_cbs(),
+      .nld_carbon_pooling(),
       by = "item_prod_code",
       relationship = "many-to-one"
     ) |>
@@ -713,6 +847,48 @@
     dplyr::summarise(
       .crop_c_t = sum(.data$c_t),
       .by = c(".lon", ".lat", ".area", ".year", ".item")
+    )
+}
+
+# The production -> commodity balance pooling of the soil carbon inputs: the
+# items_prod_full crosswalk (.lid_prod_cbs()), with the rows of
+# inst/extdata/balances/carbon_input_item_pooling.csv in place of the
+# crosswalk's own, where the item carrying a crop's carbon is not the one
+# carrying its N (coconut: production item 248 -> 2560, D79). Each override
+# must replace the crosswalk row it names, so a renamed crosswalk aborts.
+.nld_carbon_pooling <- function() {
+  path <- system.file(
+    "extdata",
+    "balances",
+    "carbon_input_item_pooling.csv",
+    package = "whep"
+  )
+  overrides <- utils::read.csv(path, stringsAsFactors = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::mutate(dplyr::across(
+      c("item_prod_code", "item_cbs_code", "default_item_cbs_code"),
+      as.integer
+    ))
+  base <- .lid_prod_cbs()
+  matched <- dplyr::semi_join(
+    base,
+    overrides,
+    by = c(
+      "item_prod_code",
+      item_cbs_code = "default_item_cbs_code"
+    )
+  )
+  if (nrow(matched) != nrow(overrides)) {
+    cli::cli_abort(
+      "The carbon input pooling overrides no longer match the
+       {.code items_prod_full} crosswalk rows they replace.",
+      class = "whep_n_loss_drivers_pooling"
+    )
+  }
+  base |>
+    dplyr::anti_join(overrides, by = "item_prod_code") |>
+    dplyr::bind_rows(
+      dplyr::select(overrides, "item_prod_code", "item_cbs_code")
     )
 }
 

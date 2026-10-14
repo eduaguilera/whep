@@ -2582,6 +2582,77 @@ testthat::test_that("the input C:N divides the item's C by its whole non-SOM N",
   testthat::expect_true(all(kept$cn_input == 30))
 })
 
+# Keys of item 2511 in three polities: polity 10 has one key with C (C:N 10)
+# and one without; polity 20 has none with C; polity 30 one with C (C:N 30).
+.nb_cn_fallback_rows <- function() {
+  tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~item_cbs_code, ~year, ~water_regime,
+    ~area_ha, ~n_input_full_nosom_t, ~c_input_t, ~c_input_mgc_ha,
+    ~method_c_input,
+    0.25, 50.25, 10L,        2511L,          2010L, "rainfed",
+    20,       10,                    100,        NA,
+    "soil_carbon_inputs_per_crop",
+    0.75, 50.25, 10L,        2511L,          2010L, "rainfed",
+    10,       5,                     NA,         NA,
+    "no_carbon_input",
+    1.25, 50.25, 20L,        2511L,          2010L, "rainfed",
+    10,       4,                     NA,         NA,
+    "no_carbon_input",
+    1.75, 50.25, 30L,        2511L,          2010L, "rainfed",
+    10,       2,                     60,         NA,
+    "soil_carbon_inputs_per_crop",
+    2.25, 50.25, 30L,        3000L,          2010L, "rainfed",
+    50,       6,                     NA,         3,
+    "carbon_balance_grassland;nearest_cell_same_land_use=55.6km"
+  )
+}
+
+testthat::test_that("a key without C takes its item's polity, else global, C:N", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
+  out <- whep:::.nb_derive_cn_input(.nb_cn_fallback_rows(), key)
+  # Polity 10: its covered key's 100 t C over 10 t N.
+  testthat::expect_equal(out$cn_input[2], 10)
+  testthat::expect_identical(
+    out$method_c_input[2],
+    "no_carbon_input;polity_item_cn"
+  )
+  # Polity 20 holds no C of the item: the item's global (100 + 60) / (10 + 2).
+  testthat::expect_equal(out$cn_input[3], 160 / 12)
+  testthat::expect_identical(
+    out$method_c_input[3],
+    "no_carbon_input;global_item_cn"
+  )
+  # The covered keys keep their own C:N.
+  testthat::expect_equal(out$cn_input[c(1, 4)], c(10, 30))
+  testthat::expect_false(rlang::has_name(out, "c_input_mgc_ha"))
+})
+
+testthat::test_that("a nearest-cell grassland C density is put on the key's area", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
+  out <- whep:::.nb_derive_cn_input(.nb_cn_fallback_rows(), key)
+  # 3 Mg C/ha on 50 ha over 6 t non-SOM N.
+  testthat::expect_equal(out$c_input_t[5], 150)
+  testthat::expect_equal(out$cn_input[5], 150 / 6)
+  testthat::expect_identical(
+    out$method_c_input[5],
+    "carbon_balance_grassland;nearest_cell_same_land_use=55.6km;item_level_cn"
+  )
+})
+
+testthat::test_that("an item with N and no C anywhere is refused", {
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
+  x <- .nb_cn_fallback_rows() |>
+    dplyr::filter(.data$item_cbs_code == 2511L) |>
+    dplyr::mutate(
+      c_input_t = NA_real_,
+      method_c_input = "no_carbon_input"
+    )
+  testthat::expect_error(
+    whep:::.nb_derive_cn_input(x, key),
+    class = "whep_n_balance_c_input"
+  )
+})
+
 # The built-driver fixture with the layers the Meisinger and IMAGE-GNM
 # drivers read, for the fixture's one cell (0.25, 50.25), polity 10.
 .nb_leaching_layers <- function() {

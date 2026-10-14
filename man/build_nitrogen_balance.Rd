@@ -115,7 +115,11 @@ fanning the rows out and misaligning \code{drainage_mm}). Under
 \code{"meisinger_drainage"} it carries no \code{fert_type}, which the balance
 sets on each input part (see Details), and a \code{c_input_t} (t C per
 year) it carries in place of \code{cn_input} is divided by the item's
-\code{n_input_full_nosom_t}, summed over the water regimes. Missing required
+\code{n_input_full_nosom_t}, summed over the water regimes; a
+\code{c_input_mgc_ha} density is first put on the item's \code{area_ha}, and a
+key with N and no C input takes its item's C:N over the polity, else
+over the year, stamped in \code{method_c_input} (an item with none aborts,
+\code{whep_n_balance_c_input}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column; for the MANNER \code{nh3} methods the check runs on
 \code{n_balance_drivers} before any input is assembled, because no

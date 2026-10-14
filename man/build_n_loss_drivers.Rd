@@ -156,13 +156,24 @@ area-weighted), over the HWSD topsoil mass of \code{\link[=read_hwsd_topsoil_mas
 \code{som_share} multiplies the carbon fraction by the SOM:SOC factor,
 \code{som_soc_factor_pribyl} (2) of \link{n_attenuation_constants} by default
 (\code{method_som}). A cell-polity the carbon balance lacks takes the cell's
-stock in its other polities, stamped \code{cell_other_polity}.
+stock in its other polities, stamped \code{cell_other_polity}; a cell it
+lacks altogether (the carbon balance runs on the CRU and LPJmL grids
+only) takes the stock of the nearest cell holding the row's land use,
+stamped \verb{nearest_cell_same_land_use=<km>km}.
 \item \code{c_input_t} (Meisinger): the C the row's inputs carry to the soil, t C per
 year: the crop's \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} carbon, pooled over the
 item's production items, on crop rows, and \code{data$carbon_balance}'s
 grassland input on the grass item (\code{method_c_input}). Both regime rows
 of an item carry the item's whole C; \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} divides
-it by the item's whole \code{n_input_full_nosom_t} into \code{cn_input}.
+it by the item's whole \code{n_input_full_nosom_t} into \code{cn_input}. Coconut
+carbon (production item 248) is pooled to the item carrying coconut N
+(2560), as \code{carbon_input_item_pooling.csv} states. A crop row without a
+carbon input of its item in its cell and polity keeps \code{c_input_t}
+missing, stamped \code{no_carbon_input}, and the balance gives it its item's
+C:N in the polity, else globally (\code{polity_item_cn}, \code{global_item_cn}).
+A grass row off the carbon balance carries the nearest grassland cell's
+C input density as \code{c_input_mgc_ha} (Mg C/ha/yr), which the balance puts
+on the key's grass area, stamped \verb{nearest_cell_same_land_use=<km>km}.
 \item \code{root_depth_cm} (Meisinger): FAO-56 Table 22's maximum effective rooting
 depth (\link{fao56_root_depth}) of the row's production items, pooled by
 WHEP's hectares of each in the row's water regime: by default the upper
@@ -209,9 +220,9 @@ regime land; the error names the count and the items carrying most N.
 \code{whep_absent_input} for an absent climate or irrigation layer.
 \item For the leaching drivers, all also \code{whep_absent_input}:
 \code{whep_n_loss_drivers_carbon_balance} (no \code{data$carbon_balance}),
-\code{whep_n_loss_drivers_soc}, \code{whep_n_loss_drivers_c_input} and
-\code{whep_n_loss_drivers_root_depth} (a row carrying N without soil carbon,
-carbon input or root depth), \code{whep_n_loss_drivers_temperature} and
+\code{whep_n_loss_drivers_soc} and \code{whep_n_loss_drivers_root_depth} (a row
+carrying N without soil carbon of its land use in any cell, or without
+root depth), \code{whep_n_loss_drivers_temperature} and
 \code{whep_n_loss_drivers_layer} (a layer with no complete cell, or without a
 year asked for); a layer whose values are all zero or missing aborts as
 \code{\link[=check_inputs_supplied]{check_inputs_supplied()}} does. \code{whep_n_loss_drivers_no_item_n}: a row

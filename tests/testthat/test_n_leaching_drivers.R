@@ -442,13 +442,85 @@ testthat::test_that("unknown driver methods are refused", {
   testthat::expect_identical(defaults$root_depth, "by_regime")
 })
 
-testthat::test_that("a crop row with N and no carbon input is refused", {
+testthat::test_that("a crop row with N and no carbon input is stamped for the balance", {
   layers <- .nlx_layers()
   layers$carbon_inputs <- layers$carbon_inputs[
     layers$carbon_inputs$lon != 10.25,
   ]
+  out <- .nlx_build("meisinger_drainage", layers = layers)
+  c_row <- .nlx_row(out, 10.25, 2514L, "rainfed")
+  # No C is invented here: the balance takes the item's polity C:N (D78).
+  testthat::expect_true(is.na(c_row$c_input_t))
+  testthat::expect_identical(c_row$method_c_input, "no_carbon_input")
+})
+
+testthat::test_that("a cell the carbon balance lacks takes its nearest cell's stock", {
+  layers <- .nlx_layers()
+  layers$carbon_balance <- layers$carbon_balance[
+    layers$carbon_balance$lon != 10.25,
+  ]
+  out <- .nlx_build("meisinger_drainage", layers = layers)
+  # Cell C's nearest cropland cell is B (54 Mg C/ha), over B's topsoil mass.
+  c_row <- .nlx_row(out, 10.25, 2514L, "rainfed")
+  km <- round(.nld_km(10.25, 47.75, 9.75, 47.75), 1)
+  testthat::expect_equal(c_row$som_share, 54 / 3600 * 2)
+  testthat::expect_match(
+    c_row$method_som,
+    paste0("^carbon_balance_soc;nearest_cell_same_land_use=", km, "km;"),
+    fixed = FALSE
+  )
+})
+
+testthat::test_that("grass off the carbon balance takes the nearest grassland", {
+  rows <- dplyr::bind_rows(
+    .nlx_rows(),
+    tibble::tibble(
+      lon = 10.25,
+      lat = 47.75,
+      area_code = 79L,
+      item_cbs_code = 3000L,
+      year = 2010L,
+      water_regime = "rainfed",
+      n_input_t = 2
+    )
+  )
+  out <- .nlx_build("meisinger_drainage", rows = rows)
+  grass <- .nlx_row(out, 10.25, 3000L, "rainfed")
+  km <- round(.nld_km(10.25, 47.75, 9.75, 47.75), 1)
+  # Cell B's grassland: 92 Mg C/ha of SOC, 3 Mg C/ha/yr of C input, which
+  # the balance puts on the key's own grass area.
+  testthat::expect_equal(grass$som_share, 92 / 3600 * 2)
+  testthat::expect_true(is.na(grass$c_input_t))
+  testthat::expect_equal(grass$c_input_mgc_ha, 3)
+  testthat::expect_identical(
+    grass$method_c_input,
+    paste0("carbon_balance_grassland;nearest_cell_same_land_use=", km, "km")
+  )
+  own <- .nlx_row(out, 9.75, 3000L, "rainfed")
+  testthat::expect_true(is.na(own$c_input_mgc_ha))
+})
+
+testthat::test_that("coconut carbon is pooled to the balance item of its N", {
+  inputs <- tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~item_prod_code, ~year,
+    ~total_c_input_mgc_ha_yr, ~crop_area_ha,
+    9.25, 47.75, 79L,        248L,            2010L, 1.5, 40,
+    9.25, 47.75, 79L,        56L,             2010L, 2.5, 80
+  )
+  out <- whep:::.nld_crop_carbon(list(carbon_inputs = inputs), 2010L)
+  testthat::expect_identical(sort(out$.item), c(2514L, 2560L))
+  testthat::expect_equal(out$.crop_c_t[out$.item == 2560L], 60)
+})
+
+testthat::test_that("a pooling override the crosswalk no longer holds aborts", {
+  testthat::local_mocked_bindings(
+    .lid_prod_cbs = function() {
+      tibble::tibble(item_prod_code = 248L, item_cbs_code = 2560L)
+    },
+    .package = "whep"
+  )
   testthat::expect_error(
-    .nlx_build("meisinger_drainage", layers = layers),
-    class = "whep_n_loss_drivers_c_input"
+    whep:::.nld_carbon_pooling(),
+    class = "whep_n_loss_drivers_pooling"
   )
 })

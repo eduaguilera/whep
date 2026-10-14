@@ -149,7 +149,11 @@
 #'     `"meisinger_drainage"` it carries no `fert_type`, which the balance
 #'     sets on each input part (see Details), and a `c_input_t` (t C per
 #'     year) it carries in place of `cn_input` is divided by the item's
-#'     `n_input_full_nosom_t`, summed over the water regimes. Missing required
+#'     `n_input_full_nosom_t`, summed over the water regimes; a
+#'     `c_input_mgc_ha` density is first put on the item's `area_ha`, and a
+#'     key with N and no C input takes its item's C:N over the polity, else
+#'     over the year, stamped in `method_c_input` (an item with none aborts,
+#'     `whep_n_balance_c_input`). Missing required
 #'     drivers abort inside the called `calculate_*()` function, naming the
 #'     exact column; for the MANNER `nh3` methods the check runs on
 #'     `n_balance_drivers` before any input is assembled, because no
@@ -1239,10 +1243,12 @@ build_nitrogen_balance <- function(
   ) {
     return(joined)
   }
+  item_key <- setdiff(key, "water_regime")
   joined |>
+    .nb_density_c_input(item_key) |>
     dplyr::mutate(
       .item_n_t = sum(.data$n_input_full_nosom_t),
-      .by = dplyr::all_of(setdiff(key, "water_regime"))
+      .by = dplyr::all_of(item_key)
     ) |>
     dplyr::mutate(
       cn_input = dplyr::if_else(
@@ -1256,7 +1262,135 @@ build_nitrogen_balance <- function(
         .default = paste0(.data$method_c_input, ";no_non_som_n")
       )
     ) |>
+    .nb_fallback_cn_input(item_key) |>
     dplyr::select(-".item_n_t")
+}
+
+# A key whose drivers carry a C input density in place of a C mass (grass
+# off the carbon balance, from its nearest grassland cell: D78) gets the
+# density on the item's own area, summed over the water regimes as its N is.
+# A key with no area keeps no C and takes the fallback C:N.
+.nb_density_c_input <- function(joined, item_key) {
+  if (!rlang::has_name(joined, "c_input_mgc_ha")) {
+    return(joined)
+  }
+  dense <- is.na(joined$c_input_t) & !is.na(joined$c_input_mgc_ha)
+  if (any(dense) && !rlang::has_name(joined, "area_ha")) {
+    cli::cli_abort(
+      "The leaching drivers carry a carbon input density, and the balance
+       rows have no {.field area_ha} to put it on.",
+      class = "whep_n_balance_c_input"
+    )
+  }
+  if (!any(dense)) {
+    return(dplyr::select(joined, -"c_input_mgc_ha"))
+  }
+  joined |>
+    dplyr::mutate(
+      .item_ha = sum(.data$area_ha),
+      .by = dplyr::all_of(item_key)
+    ) |>
+    dplyr::mutate(
+      c_input_t = dplyr::if_else(
+        .env$dense & .data$.item_ha > 0,
+        .data$c_input_mgc_ha * .data$.item_ha,
+        .data$c_input_t
+      ),
+      method_c_input = dplyr::if_else(
+        .env$dense & !.data$.item_ha > 0,
+        paste0(.data$method_c_input, ";no_area"),
+        .data$method_c_input
+      )
+    ) |>
+    dplyr::select(-"c_input_mgc_ha", -".item_ha")
+}
+
+# A key carrying non-SOM N without its own C input (no soil carbon input of
+# its item in the cell and polity) takes its item's C:N over the polity's
+# keys that have both, else over every such key of the item in the year,
+# stamped `polity_item_cn` / `global_item_cn` (maintainer decision D78,
+# 2026-10-14). The ratio is a C:N, not a C mass, so no C is moved between
+# cells. An item with N and no C:N anywhere is refused: no value exists to
+# carry.
+.nb_fallback_cn_input <- function(rows, item_key) {
+  open <- is.na(rows$c_input_t) &
+    !is.na(rows$item_cbs_code) &
+    rows$.item_n_t > 0
+  if (!any(open)) {
+    return(rows)
+  }
+  own <- rows |>
+    dplyr::filter(!is.na(.data$cn_input)) |>
+    dplyr::distinct(
+      dplyr::pick(dplyr::all_of(item_key)),
+      .data$c_input_t,
+      .data$.item_n_t
+    )
+  polity <- dplyr::summarise(
+    own,
+    .polity_cn = sum(.data$c_input_t) / sum(.data$.item_n_t),
+    .by = c("area_code", "item_cbs_code", "year")
+  )
+  global <- dplyr::summarise(
+    own,
+    .global_cn = sum(.data$c_input_t) / sum(.data$.item_n_t),
+    .by = c("item_cbs_code", "year")
+  )
+  out <- rows |>
+    dplyr::left_join(
+      polity,
+      by = c("area_code", "item_cbs_code", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::left_join(
+      global,
+      by = c("item_cbs_code", "year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      cn_input = dplyr::case_when(
+        !.env$open ~ .data$cn_input,
+        !is.na(.data$.polity_cn) ~ .data$.polity_cn,
+        .default = .data$.global_cn
+      ),
+      method_c_input = dplyr::case_when(
+        !.env$open ~ .data$method_c_input,
+        !is.na(.data$.polity_cn) ~
+          paste0(.data$method_c_input, ";polity_item_cn"),
+        !is.na(.data$.global_cn) ~
+          paste0(.data$method_c_input, ";global_item_cn"),
+        .default = .data$method_c_input
+      )
+    ) |>
+    dplyr::select(-".polity_cn", -".global_cn")
+  .nb_check_cn_input(out, open)
+}
+
+.nb_check_cn_input <- function(rows, open) {
+  bad <- open & is.na(rows$cn_input)
+  if (!any(bad)) {
+    return(rows)
+  }
+  items <- rows[bad, ] |>
+    dplyr::summarise(
+      n_t = sum(.data$n_input_full_nosom_t),
+      .by = "item_cbs_code"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$n_t))
+  bullets <- rlang::set_names(
+    paste0(items$item_cbs_code, ": ", signif(items$n_t, 6), " t non-SOM N"),
+    rep("*", nrow(items))
+  )
+  cli::cli_abort(
+    c(
+      "{sum(bad)} balance row{?s} carrying non-SOM N {?has/have} no input
+       C:N: {?its/their} item has no soil carbon input anywhere in the
+       year.",
+      i = "Items ({.field item_cbs_code}):",
+      utils::head(bullets, 10L)
+    ),
+    class = c("whep_n_balance_c_input", "whep_absent_input")
+  )
 }
 
 # The input fert_types a balance key's surplus is split over, in
