@@ -425,21 +425,25 @@ calculate_npp_carbon_nitrogen <- function(x) {
 }
 
 # Provenance of the irrigation coefficients (checked 2026-10-14; ASSUMED,
-# UNVERIFIED until resolved). The `irrigation_adj` table cites "Sadras 2007;
-# Zhang et al. 2019" for the irrigated residue ratio factor of 0.9 and
-# root:shoot factor of 0.85. Neither short form resolves to one publication:
-# no 2007 paper by Sadras in the Crossref record is about irrigation effects
-# on residue or root ratios, and "Zhang et al. 2019" matches many papers. The
-# Mixed row is labelled an intermediate assumption. The per-group
-# sensitivities in `irr_residue_crop_adj` cite "Ludemann 2025", most likely
-# Ludemann, C. I., Hijbeek, R., van Loon, M. P., Murrell, T. S.,
-# Dobermann, A. and van Ittersum, M. K. (2025). Tiered maize and wheat
-# nutrient removal coefficients estimated from available data. Nutrient
-# Cycling in Agroecosystems 130, 1-15, doi 10.1007/s10705-024-10381-6. Its
-# text gives no irrigated versus rainfed harvest index, so the cited residue
-# ratios (maize 1.50 irrigated against 1.74 rainfed) are not shown there;
-# they may come from its Dryad data (doi 10.5061/dryad.djh9w0w4m), which
-# was not checked.
+# UNVERIFIED, see whep#1536). `irrigation_adj` cites "Sadras 2007; Zhang et
+# al. 2019" for the irrigated residue ratio factor of 0.9 and root:shoot
+# factor of 0.85; the afsetools original also cites Benjamin et al. 2014.
+# - Sadras, V. O. (2007). Evolutionary aspects of the trade-off between seed
+#   size and number in crops. Field Crops Research 100, 125-138,
+#   doi 10.1016/j.fcr.2006.07.004. Its subject is seed size against seed
+#   number, not irrigation and harvest index; full text not read.
+# - Benjamin, J. G., Nielsen, D. C., Vigil, M. F., Mikha, M. M. and
+#   Calderon, F. (2014). Water deficit stress effects on corn root:shoot
+#   ratio. Open Journal of Soil Science 4, 151-160, doi 10.4236/ojss.2014.44018.
+#   One maize site and year: root:shoot rises with stress days, by 16% at 30
+#   days and from 0.27 to 0.47 at 65 days. It supports the direction of the
+#   0.85 factor for maize only, not its size.
+# - "Zhang et al. 2019" could not be identified.
+# The Mixed row is labelled an intermediate assumption. The per-group
+# sensitivities in `irr_residue_crop_adj` cite "Ludemann 2025", the Dryad
+# dataset of Ludemann et al. (2025), doi 10.5061/dryad.djh9w0w4m. Its maize
+# residue ratios show no irrigation effect (median 1.28 irrigated, 1.30
+# rainfed), so the cited 1.50 against 1.74 is not reproduced from it.
 .residue_irrigation_factor <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, residue_ratio_factor = 1))
