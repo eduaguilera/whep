@@ -2690,6 +2690,12 @@ utils::globalVariables(
     "live",
     "rank_key",
     "live_first",
+    # livestock_enteric.R (whep#601) -- the 2019 Tier 1 enteric factor lookup
+    "ef_2019",
+    ".ef_regional",
+    ".ef_split",
+    ".ef_flat",
+    "productivity",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

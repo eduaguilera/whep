@@ -4,9 +4,12 @@
 \alias{manure_engine_options}
 \title{Manure engine options}
 \arguments{
-\item{options}{A named list of manure-engine options. All but five
+\item{options}{A named list of manure-engine options. All but eight
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are \code{mcf_source}, which moved from the shipped table to the 2019
+are \code{enteric_ef_source}, \code{ef3_source} and \code{slurry_crust}, which since
+whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
+N2O, \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
@@ -33,6 +36,43 @@ EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
 \code{0.24 * 0.011 / (0.30 * 0.0075) = 1.173} and leaves the volatilisation
 term alone. \code{method_manure_n2o} records the edition used
 (\code{indirect_ipcc_2019} or \code{indirect_ipcc_2006}).
+
+\code{enteric_ef_source} selects the Tier 1 enteric CH4 emission factors.
+Although it sits among the manure-engine options, it governs the enteric
+path only:
+\itemize{
+\item \code{"ipcc_2019"} (default): \link{ipcc_enteric_ef_tier1}, the 2019
+Refinement's Tables 10.10 and 10.11 (Updated) as published: cattle and
+buffalo by IPCC region, and sheep, goats and swine at the productivity
+system the Table 10.10 footnote assigns the region (high in North
+America, Europe and Oceania, low elsewhere). A row the edition prices
+at nothing keeps the as-shipped factor, stamped
+\code{enteric_ef_as_shipped_fallback}.
+\item \code{"as_shipped"}: \link{ipcc_2019_enteric_ef_cattle} and
+\link{ipcc_2019_enteric_ef_other}, the 2006 Guidelines' factors with four
+cells in neither edition, read before whep#601. Kept so earlier figures
+stay reproducible.
+}
+
+\code{method_enteric} records which (\code{enteric_ef_ipcc_2019} or
+\code{enteric_ef_as_shipped}). On FAOSTAT 2020 heads the default raises Tier 1
+enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity everywhere
+instead would give 134.2 Tg, low everywhere 124.2 Tg.
+
+\code{ef3_source} selects the direct manure N2O emission factors, at both
+tiers: \code{"ipcc_2019"} (default) or \code{"as_shipped"}, the two editions of
+\link{ipcc_manure_ef3}.
+
+\code{slurry_crust} sets the share of liquid slurry with a natural crust,
+which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005) and
+without one (0) into the engine's single \code{"Liquid/Slurry"} label:
+\code{"half"} (default, 0.0025, GLEAM 2.0's stated assumption for its pig and
+chicken slurry, extended to the other species), \code{"none"} (0) or \code{"all"}
+(0.005). It has no effect under \code{ef3_source = "as_shipped"}, whose
+0.002 is a single row.
+
+\code{method_manure_n2o} records the EF3 choice (\verb{ef3_ipcc_2019; slurry_crust_half} or \code{ef3_as_shipped}). On FAOSTAT 2020 heads the
+default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
