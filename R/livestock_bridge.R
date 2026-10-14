@@ -18,6 +18,7 @@
 #'   `calculate_cohorts_systems()`. Default `FALSE`.
 #' @param system_shares Optional dataframe with custom system
 #'   shares. Passed to `calculate_cohorts_systems()`.
+#' @inheritParams calculate_cohorts_systems
 #'
 #' @return A tibble with columns `species`, `heads`, `iso3`
 #'   (if `area_code` present), and optionally
@@ -40,8 +41,10 @@
 prepare_livestock_emissions <- function(
   data,
   expand_cohorts = FALSE,
-  system_shares = NULL
+  system_shares = NULL,
+  method_cohorts = c("milk_animals", "uniform")
 ) {
+  method_cohorts <- rlang::arg_match(method_cohorts)
   .validate_production_input(data)
   .check_head_unit(data)
   data <- .as_livestock_tibble(data)
@@ -93,7 +96,8 @@ prepare_livestock_emissions <- function(
   if (expand_cohorts) {
     heads_data <- heads_data |>
       calculate_cohorts_systems(
-        system_shares = system_shares
+        system_shares = system_shares,
+        method_cohorts = method_cohorts
       ) |>
       .drop_mature_weight_gain()
   }

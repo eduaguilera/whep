@@ -407,11 +407,15 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Against the figures before it (2255369539.55, 1600495292.48,
   # 492717625.44) that moves cattle 961 -13.60 percent, sheep 976 -26.30
   # percent and cattle 960 -5.84 percent.
+  #
+  # Since whep#1127 a "Cattle, dairy" head is a milking cow (the FAOSTAT Milk
+  # Animals count) rather than one sixth each of six dairy cohorts, so dairy
+  # cattle 960 rises 16.148 percent; 961 and 976 do not move.
   expected_tier2 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1948581965.0761726,
     10L, 976L, 1179516553.1179745,
-    100L, 960L, 463938465.6826474
+    100L, 960L, 538856333.32265997
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
   # no MCF table, so `mms_shares`, `indirect_n2o_source`,
@@ -562,11 +566,14 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   #
   # whep#1440 (mature cohorts take no growth; only mature females a pregnancy
   # rate) moved these from 2220589160.23, 1515811583.16 and 480383184.58.
+  #
+  # Since whep#1127 the dairy herd is its milking cows, so cattle 960 rises
+  # 16.148 percent against `method_cohorts = "uniform"`.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1918532601.2425814,
     10L, 976L, 1117107224.3320262,
-    100L, 960L, 452324467.58513236
+    100L, 960L, 525366879.67101061
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
