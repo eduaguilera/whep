@@ -4,11 +4,12 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but seven
+#' @param options A named list of manure-engine options. All but eight
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
-#'   are `enteric_ef_source` and `ef3_source`, which since whep#601 read the
-#'   2019 Refinement's Tier 1 enteric factors and direct manure N2O EF3 and
-#'   move Tier 1 enteric CH4 and both tiers' direct manure N2O, `mcf_source`, which moved from the shipped table to the 2019
+#'   are `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
+#'   whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+#'   manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
+#'   N2O, `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
@@ -51,14 +52,24 @@
 #'
 #'   `method_enteric` records which (`enteric_ef_ipcc_2019` or
 #'   `enteric_ef_as_shipped`). On FAOSTAT 2020 heads the default raises Tier 1
-#'   enteric CH4 from 110.80 to 125.32 Tg. Taking high productivity everywhere
-#'   instead would give 134.21 Tg, low everywhere 124.21 Tg.
+#'   enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity everywhere
+#'   instead would give 134.2 Tg, low everywhere 124.2 Tg.
 #'
 #'   `ef3_source` selects the direct manure N2O emission factors, at both
 #'   tiers: `"ipcc_2019"` (default) or `"as_shipped"`, the two editions of
-#'   [ipcc_manure_ef3]. `method_manure_n2o` records which (`ef3_ipcc_2019` or
-#'   `ef3_as_shipped`). On FAOSTAT 2020 heads the default lowers Tier 1 direct
-#'   manure N2O from 1.523 to 1.120 Tg.
+#'   [ipcc_manure_ef3].
+#'
+#'   `slurry_crust` sets the share of liquid slurry with a natural crust,
+#'   which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005) and
+#'   without one (0) into the engine's single `"Liquid/Slurry"` label:
+#'   `"half"` (default, 0.0025, GLEAM 2.0's stated assumption for its pig and
+#'   chicken slurry, extended to the other species), `"none"` (0) or `"all"`
+#'   (0.005). It has no effect under `ef3_source = "as_shipped"`, whose
+#'   0.002 is a single row.
+#'
+#'   `method_manure_n2o` records the EF3 choice (`ef3_ipcc_2019;
+#'   slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT 2020 heads the
+#'   default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -1066,14 +1077,14 @@ NULL
   data <- .resolve_manure_region(data, opt$mms_region, opt$mms_shares)
   data |>
     .calc_weighted_direct_n2o(
-      .manure_ef3(opt$ef3_source),
+      .manure_ef3(opt$ef3_source, opt$slurry_crust),
       livestock_constants$n_to_n2o,
       opt$mms_region,
       opt$mms_shares
     ) |>
     .stamp_assumption(
       "method_manure_n2o",
-      paste0("ef3_", opt$ef3_source),
+      paste0("ef3_", .ef3_method_tag(opt$ef3_source, opt$slurry_crust)),
       TRUE
     )
 }
@@ -1279,7 +1290,8 @@ NULL
     pasture_bo = "paired",
     indirect_n2o_source = "ipcc_2019",
     enteric_ef_source = "ipcc_2019",
-    ef3_source = "ipcc_2019"
+    ef3_source = "ipcc_2019",
+    slurry_crust = "half"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1301,6 +1313,7 @@ NULL
   indirect_n2o_source <- opt$indirect_n2o_source
   enteric_ef_source <- opt$enteric_ef_source
   ef3_source <- opt$ef3_source
+  slurry_crust <- opt$slurry_crust
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1332,7 +1345,8 @@ NULL
       enteric_ef_source,
       c("ipcc_2019", "as_shipped")
     ),
-    ef3_source = .ef3_source_arg(ef3_source)
+    ef3_source = .ef3_source_arg(ef3_source),
+    slurry_crust = .slurry_crust_arg(slurry_crust)
   )
 }
 
@@ -1340,6 +1354,12 @@ NULL
 #' @noRd
 .ef3_source_arg <- function(ef3_source) {
   rlang::arg_match(ef3_source, c("ipcc_2019", "as_shipped"))
+}
+
+#' Validate the `slurry_crust` option, shared with [apply_management_losses()].
+#' @noRd
+.slurry_crust_arg <- function(slurry_crust) {
+  rlang::arg_match(slurry_crust, c("half", "none", "all"))
 }
 
 #' Which column `.resolve_mms_shares()` keys the MMS split on.

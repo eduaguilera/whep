@@ -1545,10 +1545,11 @@ testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
 testthat::test_that("direct manure N2O reads the 2019 EF3 by default", {
   # The as-shipped EF3 held 2006 and unpublished values (daily spread 0.010,
   # solid storage 0.005, liquid slurry 0.002, lagoon 0.001, pasture 0.010).
-  # The 2019 Refinement Table 10.21 (Updated) gives 0, 0.010, 0 (no natural
-  # crust) and 0, and Ch 11 Table 11.1 (Updated) puts pasture at 0.004 for
-  # cattle. Over the GLEAM 2.0 Global cattle split of the test above:
-  #   0.443522579*0.004 + 0.446946808*0.010 = 0.006243558.
+  # The 2019 Refinement Table 10.21 (Updated) gives 0, 0.010, 0.0025 (half
+  # of the slurry crusted: 0.5*0.005 + 0.5*0) and 0, and Ch 11 Table 11.1
+  # (Updated) puts pasture at 0.004 for cattle. Over the GLEAM 2.0 Global
+  # cattle split of the test above (liquid slurry 0.084530612, pasture
+  # 0.443522579, solid storage 0.446946808) that weights to 0.006454884926.
   data <- tibble::tibble(
     species = "Dairy Cattle",
     species_gen = "Cattle",
@@ -1561,10 +1562,13 @@ testthat::test_that("direct manure N2O reads the 2019 EF3 by default", {
 
   testthat::expect_equal(
     result$manure_n2o_direct,
-    10 * 100 * 0.006243558396 * (44 / 28),
+    10 * 100 * 0.006454884926 * (44 / 28),
     tolerance = 1e-8
   )
-  testthat::expect_match(result$method_manure_n2o, "; ef3_ipcc_2019$")
+  testthat::expect_match(
+    result$method_manure_n2o,
+    "; ef3_ipcc_2019; slurry_crust_half$"
+  )
   shipped <- whep:::.calc_direct_n2o(data, list(ef3_source = "as_shipped"))
   testthat::expect_match(shipped$method_manure_n2o, "; ef3_as_shipped$")
   testthat::expect_error(
@@ -1596,5 +1600,42 @@ testthat::test_that("pasture EF3 follows the Table 11.1 animal class", {
   testthat::expect_equal(
     other$ef3[other$ef3_class == "cattle_poultry_pigs"],
     other$ef3[other$ef3_class == "sheep_other"]
+  )
+})
+
+testthat::test_that("slurry_crust sets the liquid/slurry EF3 crust share", {
+  # Table 10.21 (Updated) prices liquid slurry at 0.005 with a natural crust
+  # and 0 without. The engine's one "Liquid/Slurry" label takes half of each
+  # by default, GLEAM 2.0's crust assumption (Supplement S1, Tab. 4.8-4.11);
+  # the two published rows stay selectable. The as-shipped edition holds a
+  # single 0.002 (the pit-storage value) and has no crust to mix.
+  slurry <- function(...) {
+    ef3 <- whep:::.manure_ef3(...)
+    unique(ef3$ef3[ef3$mms_type == "Liquid/Slurry"])
+  }
+  testthat::expect_equal(slurry(), 0.0025)
+  testthat::expect_equal(slurry("ipcc_2019", "none"), 0)
+  testthat::expect_equal(slurry("ipcc_2019", "all"), 0.005)
+  testthat::expect_equal(slurry("as_shipped", "all"), 0.002)
+
+  data <- tibble::tibble(
+    species = "Pigs",
+    species_gen = "Swine",
+    n_excretion = 10,
+    heads = 1,
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+  none <- whep:::.calc_direct_n2o(data, list(slurry_crust = "none"))
+  all <- whep:::.calc_direct_n2o(data, list(slurry_crust = "all"))
+  half <- whep:::.calc_direct_n2o(data)
+  testthat::expect_equal(
+    half$manure_n2o_direct,
+    (none$manure_n2o_direct + all$manure_n2o_direct) / 2
+  )
+  testthat::expect_gt(all$manure_n2o_direct, none$manure_n2o_direct)
+  testthat::expect_match(none$method_manure_n2o, "slurry_crust_none$")
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data, list(slurry_crust = "most")),
+    class = "rlang_error"
   )
 })

@@ -667,7 +667,7 @@ test_that("apply_management_losses reads the 2019 EF3 unless told not to", {
 
   expect_equal(solid_new$n2o_direct_n, stream * 0.010)
   expect_equal(solid_old$n2o_direct_n, stream * 0.005)
-  expect_equal(unique(new$method_direct_n2o), "ipcc_2019")
+  expect_equal(unique(new$method_direct_n2o), "ipcc_2019; slurry_crust_half")
   expect_equal(unique(old$method_direct_n2o), "as_shipped")
   expect_true(all(new$n2o_direct_n[new$stream == "grazing"] == 0))
   expect_equal(
@@ -685,4 +685,16 @@ test_that("apply_management_losses reads the 2019 EF3 unless told not to", {
     whep::apply_management_losses(split, list(ef3_source = "x")),
     class = "rlang_error"
   )
+  # The liquid-slurry stream takes the crust share selected.
+  slurry <- function(crust) {
+    out <- whep::apply_management_losses(
+      split,
+      options = list(slurry_crust = crust)
+    )
+    out$n2o_direct_n[out$mms_type == "Liquid/Slurry"]
+  }
+  stream_liquid <- split$n_stream[split$mms_type == "Liquid/Slurry"]
+  expect_equal(slurry("half"), stream_liquid * 0.0025)
+  expect_equal(slurry("none"), stream_liquid * 0)
+  expect_equal(slurry("all"), stream_liquid * 0.005)
 })

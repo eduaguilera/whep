@@ -25,7 +25,10 @@ from: \code{"ipcc_2019"} (default; Vol 4, Ch 10, Table 10.21 (Updated) of the
 2019 Refinement) or \code{"as_shipped"} (the mixed table read before
 whep#601). It moves \code{n2o_direct_n} and \code{n2_n}, and so \code{applied_n}, of
 the collected streams; the grazing stream carries no management N2O
-either way. \code{method_direct_n2o} records the edition.}
+either way. \code{slurry_crust} sets the liquid-slurry crust share under the
+2019 edition: \code{"half"} (default, EF3 0.0025), \code{"none"} (0) or \code{"all"}
+(0.005); see \link{ipcc_manure_ef3}. \code{method_direct_n2o} records the choice
+(e.g. \code{"ipcc_2019; slurry_crust_half"}).}
 }
 \value{
 The input rows with \code{manure_type}, \code{applied_n}, \code{applied_c},

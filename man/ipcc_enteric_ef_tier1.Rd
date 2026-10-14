@@ -63,7 +63,7 @@ row whose IPCC region does not resolve -- keeps the as-shipped factor, and
 \section{Measured effect}{
 
 On FAOSTAT 2020 heads at national grain, Tier 1 enteric CH4 goes from
-110.80 Tg (as shipped) to 125.32 Tg: cattle 78.58 to 90.98 Tg, buffalo
+110.8 Tg (as shipped) to 125.3 Tg: cattle 78.58 to 90.98 Tg, buffalo
 11.21 to 16.55 Tg, sheep 10.30 to 7.31 Tg (low productivity outside the
 four high regions), swine 1.41 to 1.08 Tg and goats 5.47 to 5.56 Tg.
 Every row resolved an IPCC region; the only fallback rows were poultry

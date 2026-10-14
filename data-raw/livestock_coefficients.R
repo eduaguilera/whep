@@ -1748,9 +1748,14 @@ ipcc_2019_enteric_ef_tier1 <- function() {
 # camelids. The disaggregated wet/dry pair (0.006 / 0.002) needs a moisture
 # regime per row and is not carried.
 # Liquid/slurry is published as three rows: natural crust 0.005, no natural
-# crust 0, and covered 0.005. The engine has one "Liquid/Slurry" label; it
-# takes the no-crust row, the same rule `climate_mcf_ipcc` applies to the MCF
-# of that label and the reading the as-shipped 0.002 was documented under.
+# crust 0, and covered 0.005. The first two are carried as their own rows;
+# `.manure_ef3()` mixes them into the engine's single "Liquid/Slurry" label
+# at the crust share the `slurry_crust` option selects. Its default, half
+# crusted (0.0025), is GLEAM's assumption: GLEAM 2.0 Supplement S1 footnotes
+# its "Liquid slurry*" in Tab. 4.8-4.11 (pigs and chickens) "50% of this
+# manure management system is assumed to present natural crust" (see CHOICE
+# 4 of 4 below). Its cattle and buffalo tables (Tab. 4.2-4.6) state no crust
+# share, so the half is extended to them by assumption.
 # "Solid Storage" also absorbs GLEAM's drylot shares, which Table 10.21 prices
 # at 0.02 rather than 0.010 (see CHOICE 4 of 4).
 ipcc_2019_manure_ef3 <- function() {
@@ -1765,7 +1770,9 @@ ipcc_2019_manure_ef3 <- function() {
     "Daily spread",
     "Solid Storage",         "all",                  0.010,
     "Solid storage",
-    "Liquid/Slurry",         "all",                  0,
+    "Liquid/Slurry - With Crust", "all",             0.005,
+    "Liquid/Slurry, with natural crust cover",
+    "Liquid/Slurry - No Crust", "all",               0,
     "Liquid/Slurry, without natural crust cover",
     "Anaerobic Lagoon",      "all",                  0,
     "Uncovered anaerobic lagoon",
@@ -1995,9 +2002,13 @@ gleam2_mms_ipcc_region <- function() {
 #
 # - Six map by identity (pasture, daily spread, solid storage, liquid slurry,
 #   uncovered anaerobic lagoon, poultry manure with litter). GLEAM assumes 50
-#   percent of its liquid slurry carries a natural crust; WHEP's
-#   "Liquid/Slurry" EF3 is the no-crust 0.002, not the 0.0035 a half-and-half
-#   mix would give.
+#   percent of its pig and chicken liquid slurry carries a natural crust
+#   (the footnote to "Liquid slurry*" in Tab. 4.8-4.11; the cattle and
+#   buffalo tables state no share). Under the 2019 EF3 edition WHEP's
+#   "Liquid/Slurry" mixes the published crust 0.005 and no-crust 0 at that
+#   half by default, 0.0025 (the `slurry_crust` option, whep#601). The
+#   as-shipped 0.002 is neither: it is the pit-storage EF3 (both editions
+#   give 0 for slurry without a crust).
 # - Drylot -> "Solid Storage", following IPCC's own combined category "solid
 #   storage and dry lot", which `ipcc_2019_n2o_ef_direct` carries at the same
 #   EF3 (0.005) as solid storage. The alternative is a separate "Dry Lot"

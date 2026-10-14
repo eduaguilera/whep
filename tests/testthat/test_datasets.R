@@ -1351,11 +1351,12 @@ test_that("ipcc_manure_ef3 holds the 2019 Table 10.21 and the as-shipped EF3", {
       value("ipcc_2019", "Pasture/Range/Paddock", "sheep_other"),
       value("ipcc_2019", "Daily Spread"),
       value("ipcc_2019", "Solid Storage"),
-      value("ipcc_2019", "Liquid/Slurry"),
+      value("ipcc_2019", "Liquid/Slurry - With Crust"),
+      value("ipcc_2019", "Liquid/Slurry - No Crust"),
       value("ipcc_2019", "Anaerobic Lagoon"),
       value("ipcc_2019", "Poultry Manure")
     ),
-    c(0.004, 0.003, 0, 0.010, 0, 0, 0.001)
+    c(0.004, 0.003, 0, 0.010, 0.005, 0, 0, 0.001)
   )
   # The as-shipped half is the crosswalk `.manure_ef3()` applied in code
   # before whep#601, so it must stay what `ipcc_2019_n2o_ef_direct` holds.
@@ -1374,10 +1375,11 @@ test_that("ipcc_manure_ef3 holds the 2019 Table 10.21 and the as-shipped EF3", {
     ),
     c(0.01, 0.01, 0.002, 0.001, 0.001)
   )
-  # Both editions serve exactly the six labels the manure engine carries.
+  # Both editions serve exactly the six labels the manure engine carries, once
+  # the 2019 crust rows are mixed into "Liquid/Slurry".
   for (edition in c("ipcc_2019", "as_shipped")) {
     testthat::expect_setequal(
-      unique(ef3$mms_type[ef3$edition == edition]),
+      unique(whep:::.manure_ef3(edition)$mms_type),
       c(
         "Pasture/Range/Paddock",
         "Daily Spread",

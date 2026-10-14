@@ -14,11 +14,12 @@ For Tier 2, also needs \code{cohort}, \code{weight} (or \code{iso3}),
 \item{tier}{Integer 1 or 2. If \code{NULL} (default), auto-selects
 based on data completeness.}
 
-\item{options}{A named list of manure-engine options. All but seven
+\item{options}{A named list of manure-engine options. All but eight
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are \code{enteric_ef_source} and \code{ef3_source}, which since whep#601 read the
-2019 Refinement's Tier 1 enteric factors and direct manure N2O EF3 and
-move Tier 1 enteric CH4 and both tiers' direct manure N2O, \code{mcf_source}, which moved from the shipped table to the 2019
+are \code{enteric_ef_source}, \code{ef3_source} and \code{slurry_crust}, which since
+whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
+N2O, \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
@@ -65,14 +66,23 @@ stay reproducible.
 
 \code{method_enteric} records which (\code{enteric_ef_ipcc_2019} or
 \code{enteric_ef_as_shipped}). On FAOSTAT 2020 heads the default raises Tier 1
-enteric CH4 from 110.80 to 125.32 Tg. Taking high productivity everywhere
-instead would give 134.21 Tg, low everywhere 124.21 Tg.
+enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity everywhere
+instead would give 134.2 Tg, low everywhere 124.2 Tg.
 
 \code{ef3_source} selects the direct manure N2O emission factors, at both
 tiers: \code{"ipcc_2019"} (default) or \code{"as_shipped"}, the two editions of
-\link{ipcc_manure_ef3}. \code{method_manure_n2o} records which (\code{ef3_ipcc_2019} or
-\code{ef3_as_shipped}). On FAOSTAT 2020 heads the default lowers Tier 1 direct
-manure N2O from 1.523 to 1.120 Tg.
+\link{ipcc_manure_ef3}.
+
+\code{slurry_crust} sets the share of liquid slurry with a natural crust,
+which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005) and
+without one (0) into the engine's single \code{"Liquid/Slurry"} label:
+\code{"half"} (default, 0.0025, GLEAM 2.0's stated assumption for its pig and
+chicken slurry, extended to the other species), \code{"none"} (0) or \code{"all"}
+(0.005). It has no effect under \code{ef3_source = "as_shipped"}, whose
+0.002 is a single row.
+
+\code{method_manure_n2o} records the EF3 choice (\verb{ef3_ipcc_2019; slurry_crust_half} or \code{ef3_as_shipped}). On FAOSTAT 2020 heads the
+default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

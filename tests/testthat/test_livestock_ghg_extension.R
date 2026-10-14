@@ -536,15 +536,16 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   # 485105249.78.
   #
   # Since whep#601 direct manure N2O reads the 2019 Table 10.21 (Updated) EF3
-  # (pasture from Ch 11 Table 11.1 (Updated)). Tier 2 enteric CH4 reads no
-  # Tier 1 factor for these three species, so `enteric_ef_source` does not
-  # reach them; against `ef3_source = "as_shipped"` the sector totals move
-  # -0.720, -3.271 and -0.609 percent.
+  # (pasture from Ch 11 Table 11.1 (Updated); liquid slurry half crusted,
+  # 0.0025). Tier 2 enteric CH4 reads no Tier 1 factor for these three
+  # species, so `enteric_ef_source` does not reach them; against
+  # `ef3_source = "as_shipped"` the sector totals move -0.503, -3.271 and
+  # -0.426 percent.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2214837569.3852158,
+    10L, 961L, 2219675054.4238868,
     10L, 976L, 1531585575.0486674,
-    100L, 960L, 482149437.60329723
+    100L, 960L, 483039921.96997237
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(

@@ -851,7 +851,7 @@
 #'
 #' @section Measured effect:
 #' On FAOSTAT 2020 heads at national grain, Tier 1 enteric CH4 goes from
-#' 110.80 Tg (as shipped) to 125.32 Tg: cattle 78.58 to 90.98 Tg, buffalo
+#' 110.8 Tg (as shipped) to 125.3 Tg: cattle 78.58 to 90.98 Tg, buffalo
 #' 11.21 to 16.55 Tg, sheep 10.30 to 7.31 Tg (low productivity outside the
 #' four high regions), swine 1.41 to 1.08 Tg and goats 5.47 to 5.56 Tg.
 #' Every row resolved an IPCC region; the only fallback rows were poultry
@@ -880,9 +880,16 @@
 #' - `"ipcc_2019"`: the 2019 Refinement, Vol 4, Ch 10, Table 10.21
 #'   (Updated): daily spread 0, solid storage 0.010, uncovered anaerobic
 #'   lagoon 0, poultry manure with litter 0.001. Liquid/slurry is published
-#'   as 0.005 with a natural crust, 0 without and 0.005 covered; the single
-#'   `"Liquid/Slurry"` label takes the no-crust 0, the same rule
-#'   [climate_mcf_ipcc] applies to that label's MCF. Pasture/range/paddock is
+#'   as 0.005 with a natural crust, 0 without and 0.005 covered; the first
+#'   two are carried as `"Liquid/Slurry - With Crust"` and
+#'   `"Liquid/Slurry - No Crust"`, and the engine's single `"Liquid/Slurry"`
+#'   label takes their mix at the crust share the `slurry_crust` option
+#'   selects: `"half"` (default, 0.0025), `"none"` (0) or `"all"` (0.005).
+#'   Half is GLEAM 2.0's assumption: Supplement S1 footnotes the
+#'   "Liquid slurry*" of its pig and chicken tables (Tab. 4.8-4.11) "50% of
+#'   this manure management system is assumed to present natural crust". Its
+#'   cattle and buffalo tables (Tab. 4.2-4.6) state no share, so the half is
+#'   extended to them by assumption. Pasture/range/paddock is
 #'   deferred to Ch 11, whose Table 11.1 (Updated) gives the aggregated
 #'   EF3PRP 0.004 for "cattle (dairy, non-dairy and buffalo), poultry and
 #'   pigs" (`animal_class == "cattle_poultry_pigs"`) and 0.003 for "sheep
@@ -892,7 +899,10 @@
 #'   per row and is not carried.
 #' - `"as_shipped"`: the values the engine read before whep#601, a crosswalk
 #'   onto [ipcc_2019_n2o_ef_direct], which holds 2006 and unpublished values
-#'   (see its `@source`). Kept so earlier figures stay reproducible.
+#'   (see its `@source`). Its `"Liquid/Slurry"` 0.002 is not the no-crust
+#'   value (both editions print 0 for that) but the EF3 of pit storage below
+#'   animal confinements. `slurry_crust` does not apply to it. Kept so earlier
+#'   figures stay reproducible.
 #'
 #' `"Solid Storage"` also carries GLEAM's dry-lot shares (see
 #' [regional_mms_distribution]), which Table 10.21 prices at 0.02, not 0.010.
@@ -900,7 +910,8 @@
 #' @format A tibble with one row per `edition`, `mms_type` and
 #'   `animal_class`:
 #'   - `edition`: `"ipcc_2019"` or `"as_shipped"`.
-#'   - `mms_type`: manure-management system label.
+#'   - `mms_type`: manure-management system label, plus the two published
+#'     liquid/slurry crust rows of the 2019 edition.
 #'   - `animal_class`: `"all"`, or for 2019 pasture `"cattle_poultry_pigs"`
 #'     or `"sheep_other"`.
 #'   - `ef3`: kg N2O-N per kg N.
@@ -909,12 +920,12 @@
 #'
 #' @section Measured effect:
 #' On FAOSTAT 2020 heads at national grain, Tier 1 direct manure N2O goes
-#' from 1.523 Tg (as shipped) to 1.120 Tg, almost all of it the pasture
+#' from 1.523 Tg (as shipped) to 1.178 Tg, almost all of it the pasture
 #' factor (0.010 to 0.004 / 0.003): keeping pasture at 0.010 would give
-#' 1.772 Tg. Taking the with-crust 0.005 for liquid/slurry instead of the
-#' no-crust 0 would give 1.236 Tg. In [apply_management_losses()], which
+#' 1.830 Tg. The liquid/slurry crust share moves it between 1.120 Tg
+#' (`"none"`) and 1.236 Tg (`"all"`). In [apply_management_losses()], which
 #' carries no management N2O on the grazing stream, the 2019 edition moves
-#' the nitrogen applied to land by -1.1 to +0.7 percent per species under
+#' the nitrogen applied to land by -1.4 to +0.6 percent per species under
 #' the Global split.
 #'
 #' @source

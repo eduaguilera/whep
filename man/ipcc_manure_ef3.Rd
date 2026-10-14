@@ -9,7 +9,8 @@ A tibble with one row per \code{edition}, \code{mms_type} and
 \code{animal_class}:
 \itemize{
 \item \code{edition}: \code{"ipcc_2019"} or \code{"as_shipped"}.
-\item \code{mms_type}: manure-management system label.
+\item \code{mms_type}: manure-management system label, plus the two published
+liquid/slurry crust rows of the 2019 edition.
 \item \code{animal_class}: \code{"all"}, or for 2019 pasture \code{"cattle_poultry_pigs"}
 or \code{"sheep_other"}.
 \item \code{ef3}: kg N2O-N per kg N.
@@ -37,9 +38,16 @@ manure engine (see \link{manure_engine_options}) and of
 \item \code{"ipcc_2019"}: the 2019 Refinement, Vol 4, Ch 10, Table 10.21
 (Updated): daily spread 0, solid storage 0.010, uncovered anaerobic
 lagoon 0, poultry manure with litter 0.001. Liquid/slurry is published
-as 0.005 with a natural crust, 0 without and 0.005 covered; the single
-\code{"Liquid/Slurry"} label takes the no-crust 0, the same rule
-\link{climate_mcf_ipcc} applies to that label's MCF. Pasture/range/paddock is
+as 0.005 with a natural crust, 0 without and 0.005 covered; the first
+two are carried as \code{"Liquid/Slurry - With Crust"} and
+\code{"Liquid/Slurry - No Crust"}, and the engine's single \code{"Liquid/Slurry"}
+label takes their mix at the crust share the \code{slurry_crust} option
+selects: \code{"half"} (default, 0.0025), \code{"none"} (0) or \code{"all"} (0.005).
+Half is GLEAM 2.0's assumption: Supplement S1 footnotes the
+"Liquid slurry*" of its pig and chicken tables (Tab. 4.8-4.11) "50\% of
+this manure management system is assumed to present natural crust". Its
+cattle and buffalo tables (Tab. 4.2-4.6) state no share, so the half is
+extended to them by assumption. Pasture/range/paddock is
 deferred to Ch 11, whose Table 11.1 (Updated) gives the aggregated
 EF3PRP 0.004 for "cattle (dairy, non-dairy and buffalo), poultry and
 pigs" (\code{animal_class == "cattle_poultry_pigs"}) and 0.003 for "sheep
@@ -49,7 +57,10 @@ Its disaggregated wet/dry pair (0.006 / 0.002) needs a moisture regime
 per row and is not carried.
 \item \code{"as_shipped"}: the values the engine read before whep#601, a crosswalk
 onto \link{ipcc_2019_n2o_ef_direct}, which holds 2006 and unpublished values
-(see its \verb{@source}). Kept so earlier figures stay reproducible.
+(see its \verb{@source}). Its \code{"Liquid/Slurry"} 0.002 is not the no-crust
+value (both editions print 0 for that) but the EF3 of pit storage below
+animal confinements. \code{slurry_crust} does not apply to it. Kept so earlier
+figures stay reproducible.
 }
 
 \code{"Solid Storage"} also carries GLEAM's dry-lot shares (see
@@ -58,12 +69,12 @@ onto \link{ipcc_2019_n2o_ef_direct}, which holds 2006 and unpublished values
 \section{Measured effect}{
 
 On FAOSTAT 2020 heads at national grain, Tier 1 direct manure N2O goes
-from 1.523 Tg (as shipped) to 1.120 Tg, almost all of it the pasture
+from 1.523 Tg (as shipped) to 1.178 Tg, almost all of it the pasture
 factor (0.010 to 0.004 / 0.003): keeping pasture at 0.010 would give
-1.772 Tg. Taking the with-crust 0.005 for liquid/slurry instead of the
-no-crust 0 would give 1.236 Tg. In \code{\link[=apply_management_losses]{apply_management_losses()}}, which
+1.830 Tg. The liquid/slurry crust share moves it between 1.120 Tg
+(\code{"none"}) and 1.236 Tg (\code{"all"}). In \code{\link[=apply_management_losses]{apply_management_losses()}}, which
 carries no management N2O on the grazing stream, the 2019 edition moves
-the nitrogen applied to land by -1.1 to +0.7 percent per species under
+the nitrogen applied to land by -1.4 to +0.6 percent per species under
 the Global split.
 }
 
