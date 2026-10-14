@@ -15,7 +15,18 @@ system its item names and no share is applied. Every other herd (buffalo,
 sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
 poultry label) is split by WHEP's default shares, which are assumed,
 unverified placeholders with no source. The method_system_share column
-says which of the two applied to each row."><meta property="og:description" content="Distributes national herd totals across GLEAM-defined
+says which of the two applied to each row.
+Within a system, method_cohorts says how the heads reach cohorts. A
+&quot;Cattle, dairy&quot; head is a cow producing milk: FAOSTAT's dairy cattle are
+the Milk Animals element of cow milk, and its non-dairy cattle are the rest
+of the herd, &quot;cattle minus dairy cattle&quot; (Tubiello et al. 2015, Estimating
+Greenhouse Gas Emissions in Agriculture, FAO, ISBN 978-92-5-108674-2,
+pp. 45-46). So by default those heads all go to the dairy system's
+&quot;Adult Female&quot; cohort, and the dairy herd's bulls, heifers and calves are
+counted where FAOSTAT counts them, in the non-dairy herd (whep#1127). Every
+other herd is split equally across its system's cohorts, which is assumed,
+unverified: GLEAM supplies no cohort shares. The method_cohort_share
+column says which applied to each row."><meta property="og:description" content="Distributes national herd totals across GLEAM-defined
 cohorts and production systems using
 gleam_livestock_categories and regional weight data.
 GLEAM supplies only the taxonomy here: which systems and cohorts each
@@ -31,7 +42,18 @@ system its item names and no share is applied. Every other herd (buffalo,
 sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
 poultry label) is split by WHEP's default shares, which are assumed,
 unverified placeholders with no source. The method_system_share column
-says which of the two applied to each row."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+says which of the two applied to each row.
+Within a system, method_cohorts says how the heads reach cohorts. A
+&quot;Cattle, dairy&quot; head is a cow producing milk: FAOSTAT's dairy cattle are
+the Milk Animals element of cow milk, and its non-dairy cattle are the rest
+of the herd, &quot;cattle minus dairy cattle&quot; (Tubiello et al. 2015, Estimating
+Greenhouse Gas Emissions in Agriculture, FAO, ISBN 978-92-5-108674-2,
+pp. 45-46). So by default those heads all go to the dairy system's
+&quot;Adult Female&quot; cohort, and the dairy herd's bulls, heifers and calves are
+counted where FAOSTAT counts them, in the non-dairy herd (whep#1127). Every
+other herd is split equally across its system's cohorts, which is assumed,
+unverified: GLEAM supplies no cohort shares. The method_cohort_share
+column says which applied to each row."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -88,11 +110,26 @@ sheep, goats, ducks, turkeys, geese, and any aggregate cattle, swine or
 poultry label) is split by WHEP's default shares, which are <strong>assumed,
 unverified</strong> placeholders with no source. The <code>method_system_share</code> column
 says which of the two applied to each row.</p>
+<p>Within a system, <code>method_cohorts</code> says how the heads reach cohorts. A
+<code>"Cattle, dairy"</code> head is a cow producing milk: FAOSTAT's dairy cattle are
+the Milk Animals element of cow milk, and its non-dairy cattle are the rest
+of the herd, "cattle minus dairy cattle" (Tubiello et al. 2015, <em>Estimating
+Greenhouse Gas Emissions in Agriculture</em>, FAO, ISBN 978-92-5-108674-2,
+pp. 45-46). So by default those heads all go to the dairy system's
+<code>"Adult Female"</code> cohort, and the dairy herd's bulls, heifers and calves are
+counted where FAOSTAT counts them, in the non-dairy herd (whep#1127). Every
+other herd is split equally across its system's cohorts, which is <strong>assumed,
+unverified</strong>: GLEAM supplies no cohort shares. The <code>method_cohort_share</code>
+column says which applied to each row.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_cohorts_systems</span><span class="op">(</span><span class="va">data</span>, system_shares <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_cohorts_systems</span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  system_shares <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  method_cohorts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"milk_animals"</span>, <span class="st">"uniform"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -111,6 +148,18 @@ a production system goes wholly to it, and every other herd uses WHEP's
 assumed, unverified default shares. Supplying this overrides both, so the
 supplied shares are used verbatim.</p></dd>
 
+
+<dt id="arg-method-cohorts">method_cohorts<a class="anchor" aria-label="anchor" href="#arg-method-cohorts"></a></dt>
+<dd><p>How heads are split across the cohorts of a system:</p><ul><li><p><code>"milk_animals"</code> (default): a dairy-cattle herd (<code>"Cattle, dairy"</code>, the
+FAOSTAT Milk Animals count) goes wholly to the dairy system's
+<code>"Adult Female"</code> cohort; every other herd is split equally across its
+system's cohorts.</p></li>
+<li><p><code>"uniform"</code>: every herd, dairy cattle included, is split equally across
+its system's cohorts, the behaviour before whep#1127. It books five
+sixths of the milking cows as bulls, heifers and calves, and is kept for
+sensitivity analysis.</p></li>
+</ul></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -118,7 +167,10 @@ supplied shares are used verbatim.</p></dd>
 <code>cohort</code>, <code>system</code>, <code>cohort_heads</code>, and
 <code>cohort_fraction</code> columns, plus <code>method_system_share</code>: <code>"reported"</code> when
 the commodity itself names the system, <code>"assumed"</code> when WHEP's unsourced
-default split was applied, or <code>"supplied"</code> when <code>system_shares</code> was given.
+default split was applied, or <code>"supplied"</code> when <code>system_shares</code> was given,
+and <code>method_cohort_share</code>: <code>"milk_animals"</code> for a dairy-cattle herd routed
+to its milking cows, <code>"uniform"</code> for an equal split across cohorts, or
+<code>NA</code> for a species with no cohorts.
 A <code>milk_yield_kg_day</code> column (per head of the input row) is moved onto the
 milked cohort, the <code>"Dairy"</code> system's <code>"Adult Female"</code>, at the yield that
 keeps the herd's milk unchanged; every other cohort gets 0.
@@ -134,7 +186,7 @@ milked cohort aborts (class <code>whep_milk_without_milked_cohort</code>).</p>
 <span class="r-in"><span>  iso3 <span class="op">=</span> <span class="st">"DEU"</span></span></span>
 <span class="r-in"><span><span class="op">)</span> <span class="op">|&gt;</span></span></span>
 <span class="r-in"><span>  <span class="fu">calculate_cohorts_systems</span><span class="op">(</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 11 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 11 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    species heads iso3  species_gen system method_system_share cohort            </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> Cattle  <span style="text-decoration: underline;">10</span>000 DEU   Cattle      Dairy  assumed             Adult Female      </span>
@@ -148,7 +200,8 @@ milked cohort aborts (class <code>whep_milk_without_milked_cohort</code>).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> Cattle  <span style="text-decoration: underline;">10</span>000 DEU   Cattle      Beef   assumed             Replacement Female</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> Cattle  <span style="text-decoration: underline;">10</span>000 DEU   Cattle      Beef   assumed             Replacement Male  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span> Cattle  <span style="text-decoration: underline;">10</span>000 DEU   Cattle      Beef   assumed             Fattening         </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: cohort_fraction &lt;dbl&gt;, cohort_heads &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: method_cohort_share &lt;chr&gt;, cohort_fraction &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   cohort_heads &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

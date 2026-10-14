@@ -13,7 +13,12 @@ automatically.
 ## Usage
 
 ``` r
-prepare_livestock_emissions(data, expand_cohorts = FALSE, system_shares = NULL)
+prepare_livestock_emissions(
+  data,
+  expand_cohorts = FALSE,
+  system_shares = NULL,
+  method_cohorts = c("milk_animals", "uniform")
+)
 ```
 
 ## Arguments
@@ -36,6 +41,20 @@ prepare_livestock_emissions(data, expand_cohorts = FALSE, system_shares = NULL)
 
   Optional dataframe with custom system shares. Passed to
   [`calculate_cohorts_systems()`](https://eduaguilera.github.io/whep/reference/calculate_cohorts_systems.md).
+
+- method_cohorts:
+
+  How heads are split across the cohorts of a system:
+
+  - `"milk_animals"` (default): a dairy-cattle herd (`"Cattle, dairy"`,
+    the FAOSTAT Milk Animals count) goes wholly to the dairy system's
+    `"Adult Female"` cohort; every other herd is split equally across
+    its system's cohorts.
+
+  - `"uniform"`: every herd, dairy cattle included, is split equally
+    across its system's cohorts, the behaviour before whep#1127. It
+    books five sixths of the milking cows as bulls, heifers and calves,
+    and is kept for sensitivity analysis.
 
 ## Value
 

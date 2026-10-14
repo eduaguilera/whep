@@ -62,7 +62,12 @@ through to the emission functions automatically.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">prepare_livestock_emissions</span><span class="op">(</span><span class="va">data</span>, expand_cohorts <span class="op">=</span> <span class="cn">FALSE</span>, system_shares <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">prepare_livestock_emissions</span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  expand_cohorts <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  system_shares <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  method_cohorts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"milk_animals"</span>, <span class="st">"uniform"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -84,6 +89,18 @@ across GLEAM cohorts and production systems via
 <dt id="arg-system-shares">system_shares<a class="anchor" aria-label="anchor" href="#arg-system-shares"></a></dt>
 <dd><p>Optional dataframe with custom system
 shares. Passed to <code><a href="calculate_cohorts_systems.html">calculate_cohorts_systems()</a></code>.</p></dd>
+
+
+<dt id="arg-method-cohorts">method_cohorts<a class="anchor" aria-label="anchor" href="#arg-method-cohorts"></a></dt>
+<dd><p>How heads are split across the cohorts of a system:</p><ul><li><p><code>"milk_animals"</code> (default): a dairy-cattle herd (<code>"Cattle, dairy"</code>, the
+FAOSTAT Milk Animals count) goes wholly to the dairy system's
+<code>"Adult Female"</code> cohort; every other herd is split equally across its
+system's cohorts.</p></li>
+<li><p><code>"uniform"</code>: every herd, dairy cattle included, is split equally across
+its system's cohorts, the behaviour before whep#1127. It books five
+sixths of the milking cows as bulls, heifers and calves, and is kept for
+sensitivity analysis.</p></li>
+</ul></dd>
 
 </dl></div>
     <div class="section level2">
