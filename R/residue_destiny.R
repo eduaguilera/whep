@@ -59,10 +59,18 @@
 #'   Wirsenius 2000 states, at the value it states) or `"legacy"` (the table
 #'   as shipped before whep#1163). See the Two recovery variants section.
 #'   Ignored by the `"shares"` method.
+#' @param feed_share Which feed-use fraction the `recovery_regional` method
+#'   reads: `"wirsenius"` (default since whep#1398, Wirsenius 2000 Table 3.20,
+#'   per crop by-product and Wirsenius region, the feed half of the recovery
+#'   rates) or `"legacy"` (`residue_feed_fraction.csv`, one fraction per UN
+#'   M49 sub-region for every crop). See the Two feed-share variants section.
+#'   Ignored by the `"shares"` method.
 #' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 #'   `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
 #'   `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
-#'   variant, `NA` for the `"shares"` method). The `"recovery_regional"`
+#'   variant, `NA` for the `"shares"` method) and `method_residue_feed` (per
+#'   row, the table that priced its feed share: `"wirsenius"` or `"legacy"`,
+#'   `NA` for the `"shares"` method). The `"recovery_regional"`
 #'   method also returns
 #'   `residue_recovery_matched`, `FALSE` where no recovery rate was found,
 #'   which is what separates a rate the table gives as zero from a zero
@@ -80,7 +88,8 @@
 #' still are, but no coefficient in it is Krausmann's. Only the crop category
 #' (`items_prod_full$Cat_Krausmann`) really is his: `region_krausmann` here
 #' holds `regions_full$region_HANPP` labels, whose eight values are
-#' Wirsenius's eight regions (whep#1132).
+#' Wirsenius's eight region names (whep#1132), though not his country
+#' membership (see the Two feed-share variants section).
 #'
 #' Table 3.17 states its rates per crop **category**, not per crop: one
 #' "Cereals straw & stover" row governs every cereal, and one "Sugar crops
@@ -152,21 +161,64 @@
 #' of 0 is not the live problem it looks like:
 #' `Sugar Crops nes` and `Oil Palm Fruit` are in the table and in no
 #' production item, and no `Fodder crops` item reaches the residue pin.
-#' @section The feed-use fraction is a different, unpaired source:
-#' Wirsenius coordinates Table 3.17 directly with the feed assignments of his
-#' Table 3.20 (p. 102) -- "assumptions on recovery rates were directly
-#' coordinated with those on assignment for use as feed". WHEP does not use
-#' Table 3.20: the feed half comes from `residue_feed_fraction.csv` (Smil
-#' 1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose named
-#' values span 0.05 to 0.45 around a 0.20 global default. That is well under
-#' the "some 33 percent of the amount generated" Wirsenius reports for cereals
-#' straw and stover fed to animals (p. 177), and under the livestock share of
+#' @section Two feed-share variants:
+#' `feed_share =` selects the fraction of the **recovered** residue booked as
+#' feed (the rest is the burned / other-use destiny), and
+#' `method_residue_feed` records, per row, which table priced it:
+#'
+#' * `"wirsenius"` (default) reads `residue_feed_assignment.csv`: Wirsenius (2000)
+#'   Table 3.20 (p. 102), the "Assignm." rows for crop by-products, which the
+#'   thesis coordinates directly with the Table 3.17 recovery rates --
+#'   "assumptions on recovery rates were directly coordinated with those on
+#'   assignment for use as feed" (p. 95). One row covers rice straw, one the
+#'   other cereals (read for millet too, as Table 3.17 is), and one each
+#'   cassava leaves, potato tops (read for all roots and tubers), sugar cane
+#'   tops, sugar beet tops, groundnut stalks and the other oil crops. The seven
+#'   categories it has no row for keep the legacy fraction, and their rows say
+#'   `"legacy"`.
+#' * `"legacy"` reads `residue_feed_fraction.csv` (Smil 1999, Lal 2005,
+#'   Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN M49
+#'   sub-region, 0.05 to 0.45 around a 0.20 global default, the same for every
+#'   crop. It is not paired with the recovery rates, and was the only feed
+#'   share before whep#1398.
+#'
+#' Table 3.20 is a share of the amount **distributed**, which is not the
+#' amount recovered: Wirsenius sets the distribution and storage losses of
+#' all crop by-products to 10% (p. 98), and in North America & Oceania leaves
+#' 5% of the recovered cereal and soybean straw in the field (p. 95, note
+#' 117). So the share of recovered residue fed is the printed value times
+#' 0.90 (0.855 for those North American straws): wheat straw in South & Central
+#' Asia is 0.80 of the distributed straw and 0.72 of the recovered. Read
+#' without the conversion it would book more feed than Wirsenius does.
+#'
+#' Like the recovery rates, the table is keyed on Wirsenius's own region
+#' membership (Table 3.1, p. 58), through `residue_feed_regions.csv`. It
+#' matters more here: the HANPP label files Southeast Asia, Russia and
+#' Belarus, and the Caucasus under South and Central Asia, whose cereal feed
+#' share is 0.80, where Wirsenius has them at 0.30, 0.10 and 0.60.
+#'
+#' Measured on [get_primary_residues()] in dry matter, the cereals' feed
+#' share of their generated residue is 0.224 (2010) and 0.225 (2020) under
+#' `"legacy"`, 0.305 and 0.309 under `"wirsenius"`. Wirsenius reports "some
+#' 33 percent of the amount generated" for the early 1990s (p. 177), and
 #' Smerald, Rahimi & Scheer (2023), *Scientific Data* **10**:685,
-#' \doi{10.1038/s41597-023-02587-0}. Re-anchoring it is **not** done here:
-#' it was held back because the gross residue base it multiplies was thought
-#' too high (whep#1132, whep#1041). Once the pin's recovery was undone
-#' (whep#1195) the cereal base was 16% above the published band; since
-#' whep#1448 it is inside it.
+#' \doi{10.1038/s41597-023-02587-0}, a share of 0.331 of the residue produced
+#' going to livestock. That figure is read from the authors' Zenodo notebook
+#' (whep#1132), not printed in the article, and their livestock category is
+#' "animal feed or bedding", so it is an upper bound for feed alone. The
+#' residue the commodity balance books as feed (Straw and Other crop
+#' residues) rises from 1089 to 1550 Tg of dry matter in 2010 (+42%) and
+#' from 1293 to 1856 Tg in 2020 (+44%); recovered and soil-returned residue
+#' do not move. In the 2010 national feed allocation ([get_feed_intake()]),
+#' residue intake rises from 1578 to 1985 Tg of dry matter and grass intake
+#' falls from 2703 to 2367 Tg (-12.4%), the residue displacing grazing.
+#' These are measured on the yield-based cereal residue base of whep#1448.
+#'
+#' The default is `"wirsenius"` because it is the half of a matched pair whose
+#' other half, the recovery rates, is already the default, every value it
+#' reads is traceable to the source, and it lands within 8% of both
+#' published anchors above, where the legacy table falls about a third short
+#' of them.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
@@ -180,11 +232,13 @@ calculate_residue_destinies <- function(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  feed_share = c("wirsenius", "legacy")
 ) {
   method <- rlang::arg_match(method)
   unmatched_recovery <- rlang::arg_match(unmatched_recovery)
   recovery <- rlang::arg_match(recovery)
+  feed_share <- rlang::arg_match(feed_share)
   .check_bedding_fraction(bedding_fraction)
   .crop_npp_validate(
     x,
@@ -196,9 +250,14 @@ calculate_residue_destinies <- function(
     recovery_regional = .residue_destiny_recovery(
       x,
       unmatched_recovery,
-      recovery
+      recovery,
+      feed_share
     ),
-    shares = .residue_destiny_shares(x)
+    shares = dplyr::mutate(
+      .residue_destiny_shares(x),
+      # The shares table carries its own use share; neither feed table is read.
+      method_residue_feed = NA_character_
+    )
   )
   out |>
     .residue_carve_bedding(bedding_fraction) |>
@@ -262,14 +321,16 @@ calculate_residue_destinies <- function(
 # is M49 Northern America, HANPP West Europe), so the caller must supply the M49
 # sub-region itself rather than have one derived from a HANPP label.
 #
-# The two halves are NOT a matched pair. The recovery rates are Wirsenius
-# (2000) Table 3.17, which that thesis coordinates with its own Table 3.20
-# feed shares; the feed fraction here is a different and smaller set. See the
-# "Where the recovery rates come from" section above and whep#1132.
+# Under `feed_share = "legacy"` the two halves are NOT a matched pair: the
+# recovery rates are Wirsenius (2000) Table 3.17, which that thesis
+# coordinates with its own Table 3.20 feed shares, and the legacy fraction is
+# a different and smaller set (whep#1132). `feed_share = "wirsenius"` reads
+# Table 3.20 itself (whep#1398); see .residue_feed_use_fraction().
 .residue_destiny_recovery <- function(
   x,
   unmatched_recovery = "report",
-  recovery = "wirsenius"
+  recovery = "wirsenius",
+  feed_share = "wirsenius"
 ) {
   if (!all(c("region_krausmann", "region_un_sub") %in% names(x))) {
     cli::cli_abort(
@@ -283,9 +344,6 @@ calculate_residue_destinies <- function(
       cat_krausmann = Cat_Krausmann
     )
   recovery <- .residue_recovery_rates(recovery)
-  feed <- whep::whep_coef_table("residue_feed_fraction") |>
-    dplyr::select(region_un_sub, feed_use_fraction)
-  global_feed <- feed$feed_use_fraction[feed$region_un_sub == "Global"]
   joined <- x |>
     dplyr::mutate(
       item_prod_code = as.character(item_prod_code),
@@ -298,7 +356,7 @@ calculate_residue_destinies <- function(
     ) |>
     dplyr::left_join(cat_map, by = "item_prod_code") |>
     dplyr::left_join(recovery, by = c("cat_krausmann", "region_krausmann")) |>
-    dplyr::left_join(feed, by = "region_un_sub") |>
+    .residue_feed_use_fraction(feed_share) |>
     dplyr::mutate(
       # A rate the table GIVES as zero -- 18 of its 160 rows, e.g. fodder crops
       # in West Europe -- and a zero standing in for a rate the join never
@@ -309,7 +367,6 @@ calculate_residue_destinies <- function(
       # BEFORE the substitution makes the two indistinguishable.
       residue_recovery_matched = !is.na(recovery_rates),
       recovery_rates = tidyr::replace_na(recovery_rates, 0),
-      feed_use_fraction = tidyr::replace_na(feed_use_fraction, global_feed),
       residue_feed_dm_t = residue_dm_t * recovery_rates * feed_use_fraction,
       residue_burn_dm_t = residue_dm_t *
         recovery_rates *
@@ -372,6 +429,56 @@ calculate_residue_destinies <- function(
       region_krausmann,
       recovery_rates = .data[[rate_col]]
     )
+}
+
+# The feed-use fraction a `feed_share =` variant reads, attached per row as
+# `feed_use_fraction` (share of the RECOVERED residue fed) with the variant
+# that priced the row in `method_residue_feed` (whep#1398).
+#
+# `"wirsenius"` reads Wirsenius (2000) Table 3.20 on the recovery table's own
+# key, (crop category, Wirsenius region): by this point `region_krausmann`
+# holds the row's Wirsenius region, from `.residue_wirsenius_region()`
+# (whep#1430). The categories that table has no row for
+# keep the legacy UN-sub-region fraction, and their rows say `"legacy"`, so a
+# coefficient the source does not give is never passed off as one it does.
+.residue_feed_use_fraction <- function(joined, feed_share) {
+  legacy <- whep::whep_coef_table("residue_feed_fraction") |>
+    dplyr::select(region_un_sub, legacy_fraction = feed_use_fraction)
+  global_feed <- legacy$legacy_fraction[legacy$region_un_sub == "Global"]
+  out <- joined |>
+    dplyr::left_join(legacy, by = "region_un_sub") |>
+    dplyr::mutate(
+      legacy_fraction = tidyr::replace_na(.data$legacy_fraction, global_feed)
+    )
+  if (feed_share == "legacy") {
+    return(
+      out |>
+        dplyr::mutate(
+          feed_use_fraction = .data$legacy_fraction,
+          method_residue_feed = "legacy"
+        ) |>
+        dplyr::select(-"legacy_fraction")
+    )
+  }
+  assignment <- whep::whep_coef_table("residue_feed_assignment") |>
+    dplyr::select(cat_krausmann, region_wirsenius, feed_use_fraction)
+  out |>
+    dplyr::left_join(
+      assignment,
+      by = c("cat_krausmann", region_krausmann = "region_wirsenius")
+    ) |>
+    dplyr::mutate(
+      method_residue_feed = dplyr::if_else(
+        is.na(.data$feed_use_fraction),
+        "legacy",
+        "wirsenius"
+      ),
+      feed_use_fraction = dplyr::coalesce(
+        .data$feed_use_fraction,
+        .data$legacy_fraction
+      )
+    ) |>
+    dplyr::select(-"legacy_fraction")
 }
 
 .residue_recovery_region <- function(region) {

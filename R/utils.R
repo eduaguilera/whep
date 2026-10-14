@@ -2696,6 +2696,8 @@ utils::globalVariables(
     ".ef_split",
     ".ef_flat",
     "productivity",
+    # residue_destiny.R (whep#1398) -- Wirsenius Table 3.1 region key
+    "region_wirsenius",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

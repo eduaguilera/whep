@@ -91,7 +91,8 @@
 #'     `residue_bedding_fraction` the share of the recovered non-feed residue
 #'     used as bedding (default `0`; see [calculate_residue_destinies()]).
 #'     The bedded straw also comes back as a manure input, through
-#'     [build_n_inputs()].
+#'     [build_n_inputs()]. `residue_feed_share` selects that function's
+#'     `feed_share` (default `"wirsenius"`).
 #'   * `livestock_intake`: shared with [build_n_inputs()]'s manure term;
 #'     its `"grass"` `feed_quality` rows drive `grazed_weeds_n_t`.
 #'   * `carbon_balance`: shared with [build_n_inputs()]'s `"som_
@@ -547,7 +548,8 @@ build_nitrogen_balance <- function(
   data$residue_destiny_input |>
     calculate_residue_destinies(
       method = data$residue_destiny_method %||% "recovery_regional",
-      bedding_fraction = data$residue_bedding_fraction %||% 0
+      bedding_fraction = data$residue_bedding_fraction %||% 0,
+      feed_share = data$residue_feed_share %||% "wirsenius"
     ) |>
     dplyr::mutate(item_prod_code = as.character(.data$item_prod_code))
 }
