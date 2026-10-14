@@ -430,8 +430,9 @@ calculate_npp_carbon_nitrogen <- function(x) {
 # factor of 0.85; the afsetools original also cites Benjamin et al. 2014.
 # - Sadras, V. O. (2007). Evolutionary aspects of the trade-off between seed
 #   size and number in crops. Field Crops Research 100, 125-138,
-#   doi 10.1016/j.fcr.2006.07.004. Its subject is seed size against seed
-#   number, not irrigation and harvest index; full text not read.
+#   doi 10.1016/j.fcr.2006.07.004. Full text read: its subject is seed size
+#   against seed number, and it gives no irrigated residue or harvest index
+#   factor.
 # - Benjamin, J. G., Nielsen, D. C., Vigil, M. F., Mikha, M. M. and
 #   Calderon, F. (2014). Water deficit stress effects on corn root:shoot
 #   ratio. Open Journal of Soil Science 4, 151-160, doi 10.4236/ojss.2014.44018.
