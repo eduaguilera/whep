@@ -94,6 +94,17 @@
 #'   density on both parts. `"area_split"` keeps the crop's densities on
 #'   both parts, the rule before the yield split. Recorded per class in
 #'   `method_regime`.
+#'
+#'   **Inputs the default needs.** Unless `data$regime_ratio` and
+#'   `data$regime_production` are supplied, `"yield_split"` builds the ratio
+#'   with [build_regime_yield_ratio()] and the national yields with
+#'   [get_primary_production()], which read: SPAM2010 ([read_spam_yields()],
+#'   downloaded from Harvard Dataverse into the user cache on first use, so
+#'   the first run needs network, unless `WHEP_SPAM_DIR` points at a copy);
+#'   the LPJmL crop regime yields (the `lpjml-crop-regime-yield` pin, or the
+#'   run in `WHEP_LPJML_RUN_DIR` when set); and the FAOSTAT pins for
+#'   production, fertiliser nutrients and land use, plus the `luh2-areas`
+#'   pin. `"area_split"` builds no ratio and reads none of them.
 #' @param density_basis Which crop area weights the per-crop densities when
 #'   they collapse to a class. `"renormalised"` (default) uses the yearly cell
 #'   crop area the densities were computed on -- the FAOSTAT-renormalised area

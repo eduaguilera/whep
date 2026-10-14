@@ -94,7 +94,18 @@ than being kept. A crop wholly in one regime is re-evaluated at its
 mean yield in that regime. Weed and manure carbon keep the crop's
 density on both parts. \code{"area_split"} keeps the crop's densities on
 both parts, the rule before the yield split. Recorded per class in
-\code{method_regime}.}
+\code{method_regime}.
+
+\strong{Inputs the default needs.} Unless \code{data$regime_ratio} and
+\code{data$regime_production} are supplied, \code{"yield_split"} builds the ratio
+with \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}} and the national yields with
+\code{\link[=get_primary_production]{get_primary_production()}}, which read: SPAM2010 (\code{\link[=read_spam_yields]{read_spam_yields()}},
+downloaded from Harvard Dataverse into the user cache on first use, so
+the first run needs network, unless \code{WHEP_SPAM_DIR} points at a copy);
+the LPJmL crop regime yields (the \code{lpjml-crop-regime-yield} pin, or the
+run in \code{WHEP_LPJML_RUN_DIR} when set); and the FAOSTAT pins for
+production, fertiliser nutrients and land use, plus the \code{luh2-areas}
+pin. \code{"area_split"} builds no ratio and reads none of them.}
 
 \item{density_basis}{Which crop area weights the per-crop densities when
 they collapse to a class. \code{"renormalised"} (default) uses the yearly cell

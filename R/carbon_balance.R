@@ -126,7 +126,14 @@
 #'   Soil cover is computed once per cover profile and joined to the classes,
 #'   so the class count does not multiply the monthly climate table.
 #'   `list(method = "none")` keeps the single `cropland` class the package
-#'   used before.
+#'   used before. The default `regime = "yield_split"` builds the
+#'   irrigated:rainfed yield ratio when `data$regime_ratio` is not supplied
+#'   (and `c_inputs` is not), which needs SPAM2010 (downloaded into the user
+#'   cache on first use, so the first run needs network), the
+#'   `lpjml-crop-regime-yield` pin (or `WHEP_LPJML_RUN_DIR`) and the FAOSTAT
+#'   production, fertiliser and land-use pins plus `luh2-areas`; see
+#'   [build_carbon_inputs()]. `list(regime = "area_split")` needs none of
+#'   them.
 #' @param class_water How a cell's applied irrigation is shared among its
 #'   land-use classes in the moisture term. `"cell"` (default) gives every
 #'   class except natural land the cell-level water surplus, irrigation

@@ -139,7 +139,14 @@ cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
 Soil cover is computed once per cover profile and joined to the classes,
 so the class count does not multiply the monthly climate table.
 \code{list(method = "none")} keeps the single \code{cropland} class the package
-used before.}
+used before. The default \code{regime = "yield_split"} builds the
+irrigated:rainfed yield ratio when \code{data$regime_ratio} is not supplied
+(and \code{c_inputs} is not), which needs SPAM2010 (downloaded into the user
+cache on first use, so the first run needs network), the
+\code{lpjml-crop-regime-yield} pin (or \code{WHEP_LPJML_RUN_DIR}) and the FAOSTAT
+production, fertiliser and land-use pins plus \code{luh2-areas}; see
+\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list(regime = "area_split")} needs none of
+them.}
 
 \item{class_water}{How a cell's applied irrigation is shared among its
 land-use classes in the moisture term. \code{"cell"} (default) gives every
