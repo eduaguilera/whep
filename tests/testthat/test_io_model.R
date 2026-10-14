@@ -586,10 +586,10 @@ testthat::test_that("build_io_model passes trade_recovery to the chain", {
   )
 
   testthat::expect_error(
-    whep::build_io_model(years = 2010, trade_recovery = "net_import"),
+    whep::build_io_model(years = 2010, trade_recovery = "none"),
     class = "whep_chain_probe"
   )
-  testthat::expect_equal(seen, "net_import")
+  testthat::expect_equal(seen, "none")
 })
 
 # whep#181: `import` is not part of the cbs contract of the IO step itself; it
