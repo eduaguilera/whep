@@ -55,7 +55,8 @@ fuel, and left on the field for soil incorporation.</p>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"recovery_regional"</span>, <span class="st">"shares"</span><span class="op">)</span>,</span>
 <span>  bedding_fraction <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  unmatched_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"report"</span>, <span class="st">"abort"</span><span class="op">)</span>,</span>
-<span>  recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"wirsenius"</span>, <span class="st">"legacy"</span><span class="op">)</span></span>
+<span>  recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"wirsenius"</span>, <span class="st">"legacy"</span><span class="op">)</span>,</span>
+<span>  feed_share <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"wirsenius"</span>, <span class="st">"legacy"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -102,13 +103,24 @@ Wirsenius 2000 states, at the value it states) or <code>"legacy"</code> (the tab
 as shipped before whep#1163). See the Two recovery variants section.
 Ignored by the <code>"shares"</code> method.</p></dd>
 
+
+<dt id="arg-feed-share">feed_share<a class="anchor" aria-label="anchor" href="#arg-feed-share"></a></dt>
+<dd><p>Which feed-use fraction the <code>recovery_regional</code> method
+reads: <code>"wirsenius"</code> (default since whep#1398, Wirsenius 2000 Table 3.20,
+per crop by-product and Wirsenius region, the feed half of the recovery
+rates) or <code>"legacy"</code> (<code>residue_feed_fraction.csv</code>, one fraction per UN
+M49 sub-region for every crop). See the Two feed-share variants section.
+Ignored by the <code>"shares"</code> method.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input tibble with <code>residue_feed_dm_t</code>, <code>residue_bedding_dm_t</code>,
 <code>residue_burn_dm_t</code>, <code>residue_soil_dm_t</code>, <code>residue_bedding_fraction</code> and
 <code>method_residue_destiny</code>, and <code>method_residue_recovery</code> (the <code>recovery</code>
-variant, <code>NA</code> for the <code>"shares"</code> method). The <code>"recovery_regional"</code>
+variant, <code>NA</code> for the <code>"shares"</code> method) and <code>method_residue_feed</code> (per
+row, the table that priced its feed share: <code>"wirsenius"</code> or <code>"legacy"</code>,
+<code>NA</code> for the <code>"shares"</code> method). The <code>"recovery_regional"</code>
 method also returns
 <code>residue_recovery_matched</code>, <code>FALSE</code> where no recovery rate was found,
 which is what separates a rate the table gives as zero from a zero
@@ -160,7 +172,8 @@ one decimal). The file was named after Krausmann and its two key columns
 still are, but no coefficient in it is Krausmann's. Only the crop category
 (<code>items_prod_full$Cat_Krausmann</code>) really is his: <code>region_krausmann</code> here
 holds <code>regions_full$region_HANPP</code> labels, whose eight values are
-Wirsenius's eight regions (whep#1132).</p>
+Wirsenius's eight region names (whep#1132), though not his country
+membership (see the Two feed-share variants section).</p>
 <p>Table 3.17 states its rates per crop <strong>category</strong>, not per crop: one
 "Cereals straw &amp; stover" row governs every cereal, and one "Sugar crops
 tops &amp; leaves" row governs both crops Table 3.16 files under sugar crops,
@@ -229,24 +242,61 @@ of 0 is not the live problem it looks like:
 production item, and no <code>Fodder crops</code> item reaches the residue pin.</p>
     </div>
     <div class="section level2">
-    <h2 id="the-feed-use-fraction-is-a-different-unpaired-source">The feed-use fraction is a different, unpaired source<a class="anchor" aria-label="anchor" href="#the-feed-use-fraction-is-a-different-unpaired-source"></a></h2>
+    <h2 id="two-feed-share-variants">Two feed-share variants<a class="anchor" aria-label="anchor" href="#two-feed-share-variants"></a></h2>
 
 
-<p>Wirsenius coordinates Table 3.17 directly with the feed assignments of his
-Table 3.20 (p. 102) – "assumptions on recovery rates were directly
-coordinated with those on assignment for use as feed". WHEP does not use
-Table 3.20: the feed half comes from <code>residue_feed_fraction.csv</code> (Smil
-1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose named
-values span 0.05 to 0.45 around a 0.20 global default. That is well under
-the "some 33 percent of the amount generated" Wirsenius reports for cereals
-straw and stover fed to animals (p. 177), and under the livestock share of
+<p><code>feed_share =</code> selects the fraction of the <strong>recovered</strong> residue booked as
+feed (the rest is the burned / other-use destiny), and
+<code>method_residue_feed</code> records, per row, which table priced it:</p><ul><li><p><code>"wirsenius"</code> (default) reads <code>residue_feed_assignment.csv</code>: Wirsenius (2000)
+Table 3.20 (p. 102), the "Assignm." rows for crop by-products, which the
+thesis coordinates directly with the Table 3.17 recovery rates –
+"assumptions on recovery rates were directly coordinated with those on
+assignment for use as feed" (p. 95). One row covers rice straw, one the
+other cereals (read for millet too, as Table 3.17 is), and one each
+cassava leaves, potato tops (read for all roots and tubers), sugar cane
+tops, sugar beet tops, groundnut stalks and the other oil crops. The seven
+categories it has no row for keep the legacy fraction, and their rows say
+<code>"legacy"</code>.</p></li>
+<li><p><code>"legacy"</code> reads <code>residue_feed_fraction.csv</code> (Smil 1999, Lal 2005,
+Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN M49
+sub-region, 0.05 to 0.45 around a 0.20 global default, the same for every
+crop. It is not paired with the recovery rates, and was the only feed
+share before whep#1398.</p></li>
+</ul><p>Table 3.20 is a share of the amount <strong>distributed</strong>, which is not the
+amount recovered: Wirsenius sets the distribution and storage losses of
+all crop by-products to 10% (p. 98), and in North America &amp; Oceania leaves
+5% of the recovered cereal and soybean straw in the field (p. 95, note
+117). So the share of recovered residue fed is the printed value times
+0.90 (0.855 for those North American straws): wheat straw in South &amp; Central
+Asia is 0.80 of the distributed straw and 0.72 of the recovered. Read
+without the conversion it would book more feed than Wirsenius does.</p>
+<p>Like the recovery rates, the table is keyed on Wirsenius's own region
+membership (Table 3.1, p. 58), through <code>residue_feed_regions.csv</code>. It
+matters more here: the HANPP label files Southeast Asia, Russia and
+Belarus, and the Caucasus under South and Central Asia, whose cereal feed
+share is 0.80, where Wirsenius has them at 0.30, 0.10 and 0.60.</p>
+<p>Measured on <code><a href="get_primary_residues.html">get_primary_residues()</a></code> in dry matter, the cereals' feed
+share of their generated residue is 0.224 (2010) and 0.225 (2020) under
+<code>"legacy"</code>, 0.305 and 0.309 under <code>"wirsenius"</code>. Wirsenius reports "some
+33 percent of the amount generated" for the early 1990s (p. 177), and
 Smerald, Rahimi &amp; Scheer (2023), <em>Scientific Data</em> <strong>10</strong>:685,
 <a href="https://doi.org/10.1038/s41597-023-02587-0" class="external-link">doi:10.1038/s41597-023-02587-0</a>
-. Re-anchoring it is <strong>not</strong> done here:
-it was held back because the gross residue base it multiplies was thought
-too high (whep#1132, whep#1041). Once the pin's recovery was undone
-(whep#1195) the cereal base was 16% above the published band; since
-whep#1448 it is inside it.</p>
+, a share of 0.331 of the residue produced
+going to livestock. That figure is read from the authors' Zenodo notebook
+(whep#1132), not printed in the article, and their livestock category is
+"animal feed or bedding", so it is an upper bound for feed alone. The
+residue the commodity balance books as feed (Straw and Other crop
+residues) rises from 1089 to 1550 Tg of dry matter in 2010 (+42%) and
+from 1293 to 1856 Tg in 2020 (+44%); recovered and soil-returned residue
+do not move. In the 2010 national feed allocation (<code><a href="get_feed_intake.html">get_feed_intake()</a></code>),
+residue intake rises from 1578 to 1985 Tg of dry matter and grass intake
+falls from 2703 to 2367 Tg (-12.4%), the residue displacing grazing.
+These are measured on the yield-based cereal residue base of whep#1448.</p>
+<p>The default is <code>"wirsenius"</code> because it is the half of a matched pair whose
+other half, the recovery rates, is already the default, every value it
+reads is traceable to the source, and it lands within 8% of both
+published anchors above, where the legacy table falls about a third short
+of them.</p>
     </div>
 
     <div class="section level2">
@@ -257,10 +307,10 @@ whep#1448 it is inside it.</p>
 <span class="r-in"><span>    region_krausmann <span class="op">=</span> <span class="st">"Western Europe"</span>, region_un_sub <span class="op">=</span> <span class="st">"Western Europe"</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 12</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_un_sub </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100 West Europe      Western Europe</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_un_sub method_residue_feed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100 West Europe      Western Euro… wirsenius          </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: residue_recovery_matched &lt;lgl&gt;, residue_feed_dm_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   residue_burn_dm_t &lt;dbl&gt;, residue_soil_dm_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   residue_bedding_dm_t &lt;dbl&gt;, residue_bedding_fraction &lt;dbl&gt;,</span></span>

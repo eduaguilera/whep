@@ -12,7 +12,8 @@ calculate_residue_destinies(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  feed_share = c("wirsenius", "legacy")
 )
 ```
 
@@ -58,15 +59,26 @@ calculate_residue_destinies(
   before whep#1163). See the Two recovery variants section. Ignored by
   the `"shares"` method.
 
+- feed_share:
+
+  Which feed-use fraction the `recovery_regional` method reads:
+  `"wirsenius"` (default since whep#1398, Wirsenius 2000 Table 3.20, per
+  crop by-product and Wirsenius region, the feed half of the recovery
+  rates) or `"legacy"` (`residue_feed_fraction.csv`, one fraction per UN
+  M49 sub-region for every crop). See the Two feed-share variants
+  section. Ignored by the `"shares"` method.
+
 ## Value
 
 The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
 `residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
 `method_residue_destiny`, and `method_residue_recovery` (the `recovery`
-variant, `NA` for the `"shares"` method). The `"recovery_regional"`
-method also returns `residue_recovery_matched`, `FALSE` where no
-recovery rate was found, which is what separates a rate the table gives
-as zero from a zero standing in for a failed lookup.
+variant, `NA` for the `"shares"` method) and `method_residue_feed` (per
+row, the table that priced its feed share: `"wirsenius"` or `"legacy"`,
+`NA` for the `"shares"` method). The `"recovery_regional"` method also
+returns `residue_recovery_matched`, `FALSE` where no recovery rate was
+found, which is what separates a rate the table gives as zero from a
+zero standing in for a failed lookup.
 
 ## Bedding
 
@@ -116,7 +128,9 @@ residue:product ratio rounded to one decimal). The file was named after
 Krausmann and its two key columns still are, but no coefficient in it is
 Krausmann's. Only the crop category (`items_prod_full$Cat_Krausmann`)
 really is his: `region_krausmann` here holds `regions_full$region_HANPP`
-labels, whose eight values are Wirsenius's eight regions (whep#1132).
+labels, whose eight values are Wirsenius's eight region names
+(whep#1132), though not his country membership (see the Two feed-share
+variants section).
 
 Table 3.17 states its rates per crop **category**, not per crop: one
 "Cereals straw & stover" row governs every cereal, and one "Sugar crops
@@ -198,23 +212,71 @@ of 0 is not the live problem it looks like: `Sugar Crops nes` and
 `Oil Palm Fruit` are in the table and in no production item, and no
 `Fodder crops` item reaches the residue pin.
 
-## The feed-use fraction is a different, unpaired source
+## Two feed-share variants
 
-Wirsenius coordinates Table 3.17 directly with the feed assignments of
-his Table 3.20 (p. 102) – "assumptions on recovery rates were directly
-coordinated with those on assignment for use as feed". WHEP does not use
-Table 3.20: the feed half comes from `residue_feed_fraction.csv` (Smil
-1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose
-named values span 0.05 to 0.45 around a 0.20 global default. That is
-well under the "some 33 percent of the amount generated" Wirsenius
-reports for cereals straw and stover fed to animals (p. 177), and under
-the livestock share of Smerald, Rahimi & Scheer (2023), *Scientific
-Data* **10**:685,
+`feed_share =` selects the fraction of the **recovered** residue booked
+as feed (the rest is the burned / other-use destiny), and
+`method_residue_feed` records, per row, which table priced it:
+
+- `"wirsenius"` (default) reads `residue_feed_assignment.csv`:
+  Wirsenius (2000) Table 3.20 (p. 102), the "Assignm." rows for crop
+  by-products, which the thesis coordinates directly with the Table 3.17
+  recovery rates – "assumptions on recovery rates were directly
+  coordinated with those on assignment for use as feed" (p. 95). One row
+  covers rice straw, one the other cereals (read for millet too, as
+  Table 3.17 is), and one each cassava leaves, potato tops (read for all
+  roots and tubers), sugar cane tops, sugar beet tops, groundnut stalks
+  and the other oil crops. The seven categories it has no row for keep
+  the legacy fraction, and their rows say `"legacy"`.
+
+- `"legacy"` reads `residue_feed_fraction.csv` (Smil 1999, Lal 2005,
+  Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN
+  M49 sub-region, 0.05 to 0.45 around a 0.20 global default, the same
+  for every crop. It is not paired with the recovery rates, and was the
+  only feed share before whep#1398.
+
+Table 3.20 is a share of the amount **distributed**, which is not the
+amount recovered: Wirsenius sets the distribution and storage losses of
+all crop by-products to 10% (p. 98), and in North America & Oceania
+leaves 5% of the recovered cereal and soybean straw in the field (p. 95,
+note 117). So the share of recovered residue fed is the printed value
+times 0.90 (0.855 for those North American straws): wheat straw in South
+& Central Asia is 0.80 of the distributed straw and 0.72 of the
+recovered. Read without the conversion it would book more feed than
+Wirsenius does.
+
+Like the recovery rates, the table is keyed on Wirsenius's own region
+membership (Table 3.1, p. 58), through `residue_feed_regions.csv`. It
+matters more here: the HANPP label files Southeast Asia, Russia and
+Belarus, and the Caucasus under South and Central Asia, whose cereal
+feed share is 0.80, where Wirsenius has them at 0.30, 0.10 and 0.60.
+
+Measured on
+[`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
+in dry matter, the cereals' feed share of their generated residue is
+0.224 (2010) and 0.225 (2020) under `"legacy"`, 0.305 and 0.309 under
+`"wirsenius"`. Wirsenius reports "some 33 percent of the amount
+generated" for the early 1990s (p. 177), and Smerald, Rahimi & Scheer
+(2023), *Scientific Data* **10**:685,
 [doi:10.1038/s41597-023-02587-0](https://doi.org/10.1038/s41597-023-02587-0)
-. Re-anchoring it is **not** done here: it was held back because the
-gross residue base it multiplies was thought too high (whep#1132,
-whep#1041). Once the pin's recovery was undone (whep#1195) the cereal
-base was 16% above the published band; since whep#1448 it is inside it.
+, a share of 0.331 of the residue produced going to livestock. That
+figure is read from the authors' Zenodo notebook (whep#1132), not
+printed in the article, and their livestock category is "animal feed or
+bedding", so it is an upper bound for feed alone. The residue the
+commodity balance books as feed (Straw and Other crop residues) rises
+from 1089 to 1550 Tg of dry matter in 2010 (+42%) and from 1293 to 1856
+Tg in 2020 (+44%); recovered and soil-returned residue do not move. In
+the 2010 national feed allocation
+([`get_feed_intake()`](https://eduaguilera.github.io/whep/reference/get_feed_intake.md)),
+residue intake rises from 1578 to 1985 Tg of dry matter and grass intake
+falls from 2703 to 2367 Tg (-12.4%), the residue displacing grazing.
+These are measured on the yield-based cereal residue base of whep#1448.
+
+The default is `"wirsenius"` because it is the half of a matched pair
+whose other half, the recovery rates, is already the default, every
+value it reads is traceable to the source, and it lands within 8% of
+both published anchors above, where the legacy table falls about a third
+short of them.
 
 ## Examples
 
@@ -225,10 +287,10 @@ calculate_residue_destinies(
     region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
-#> # A tibble: 1 × 12
-#>   item_prod_code residue_dm_t region_krausmann region_un_sub 
-#>   <chr>                 <dbl> <chr>            <chr>         
-#> 1 15                      100 West Europe      Western Europe
+#> # A tibble: 1 × 13
+#>   item_prod_code residue_dm_t region_krausmann region_un_sub method_residue_feed
+#>   <chr>                 <dbl> <chr>            <chr>         <chr>              
+#> 1 15                      100 West Europe      Western Euro… wirsenius          
 #> # ℹ 8 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
 #> #   residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
 #> #   residue_bedding_dm_t <dbl>, residue_bedding_fraction <dbl>,

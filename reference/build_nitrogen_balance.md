@@ -100,6 +100,8 @@ build_nitrogen_balance(
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)).
     The bedded straw also comes back as a manure input, through
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md).
+    `residue_feed_share` selects that function's `feed_share` (default
+    `"wirsenius"`).
 
   - `livestock_intake`: shared with
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
