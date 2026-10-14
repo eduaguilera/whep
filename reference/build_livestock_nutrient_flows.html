@@ -125,9 +125,10 @@ deprecated and warns.</p></dd>
 <code><a href="build_residue_bedding_supply.html">build_residue_bedding_supply()</a></code>. When given, <code><a href="add_manure_bedding.html">add_manure_bedding()</a></code> places
 it on the litter-using housed streams before the management losses, so the
 manure reaching the field is bedded farmyard manure rather than excreta
-alone. <code>NULL</code> (default) leaves every number excreta-only; the share of crop
-residue used as bedding is unset in this package pending a source
-(whep#1005), so a caller has to build the supply deliberately.</p></dd>
+alone. <code>NULL</code> (default) leaves every number excreta-only. Build the
+supply from <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>, whose default bedding share
+is Wirsenius (2000) Table 3.21 (whep#1005); the turnkey soil-carbon
+reader of <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> does so.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -9,7 +9,7 @@ the FABIO methodology.
 ``` r
 get_wide_cbs(
   years = NULL,
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   example = FALSE
 )
 ```
@@ -29,12 +29,12 @@ get_wide_cbs(
 
 - trade_recovery:
 
-  One of `"none"` (default) or `"net_import"`, passed to
+  One of `"pass_through"` (default), `"net_import"` or `"none"`, passed
+  to
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md),
-  which documents what each does and what `"net_import"` moves. Each
-  method is built and cached under its own slot, so asking for one never
-  serves the other's result. `"net_import"` is not the default because
-  two allocation questions it raises are still open (whep#762).
+  which documents what each does and what the default moves. Each method
+  is built and cached under its own slot, so asking for one never serves
+  the other's result.
 
 - example:
 

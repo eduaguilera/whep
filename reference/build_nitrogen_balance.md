@@ -94,9 +94,11 @@ build_nitrogen_balance(
     required input (`item_prod_code`, `residue_dm_t`, plus whatever the
     chosen `residue_destiny_method` needs), for `used_residue_n_t`/
     `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
-    selects the method (default `"recovery_regional"`) and
-    `residue_bedding_fraction` the share of the recovered non-feed
-    residue used as bedding (default `0`; see
+    selects the method (default `"recovery_regional"`),
+    `residue_bedding` the bedding rule (default `"wirsenius"`, 12.4% of
+    the recovered cereal straw) and, under
+    `residue_bedding = "fraction"`, `residue_bedding_fraction` the share
+    of the recovered non-feed residue used as bedding (default `0`; see
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)).
     The bedded straw also comes back as a manure input, through
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md).

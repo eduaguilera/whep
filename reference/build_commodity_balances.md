@@ -21,7 +21,7 @@ build_commodity_balances(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
-  trade_recovery = c("none", "net_import"),
+  trade_recovery = .cbs_trade_recovery_choices(),
   trade_zero = .cbs_trade_zero_choices(),
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
@@ -87,19 +87,36 @@ build_commodity_balances(
 
 - trade_recovery:
 
-  One of `"none"` (default) or `"net_import"`, selecting what happens to
-  a traded item the CBS has no row for. The trade record is joined onto
-  the CBS, so it can only fill a row that already exists; `"none"` keeps
-  that, and the import is dropped. `"net_import"` first creates the
-  missing rows from the trade record, restricted to tonnes-denominated
-  items (live-animal trade is in heads and arrives through
-  [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)),
-  to net importers, and to areas the CBS already covers in that year.
-  Selecting it **moves published values** — at 2010 it adds 1,154 keys
-  and 53.7 Mt of imports (re-measured on the current build; 1,164 keys
-  when whep#864 landed), and reclassifies three areas on the nourishment
-  axis. `NEWS.md` states the rest, and whep#762 keeps the remaining
-  decisions open.
+  One of `"pass_through"` (default), `"net_import"` or `"none"`,
+  selecting what happens to a traded item the CBS has no row for. The
+  trade record is joined onto the CBS, so it can only fill a row that
+  already exists; `"none"` keeps that, the behaviour before whep#762,
+  and an area whose balance sheet omits an item it imports loses that
+  supply outright. The other two first create the missing rows from the
+  trade record, restricted to tonnes-denominated items (live-animal
+  trade is in heads and arrives through
+  [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md))
+  and to areas the CBS already covers in that year. A created row has no
+  production and no stock change, so its domestic supply is its net
+  import, split over the destinies by the item's world-average shares –
+  the fallback every CBS key with no destiny of its own takes. The two
+  differ only on a net exporter, whose export exceeds its import and so
+  has nothing to come from: `"pass_through"` creates the row with the
+  export capped at the import (the rule FABIO applies to the rows it
+  creates from trade), and `"net_import"` does not create it. **Recovery
+  moves published values.** Measured on a 2005-2015 build at 2010,
+  `"net_import"` adds 1,038 keys and raises world imports by 8.72 Mt
+  (0.57%), exports by 1.83 Mt and food by 3.07 Mt (0.07%). Protein
+  supply rises from 28 to 63 g/cap/day in Singapore, 31 to 72 in Bahrain
+  and 69 to 116 in Qatar, the first two leaving the "Under" nourishment
+  class and Qatar moving to "Over"; FAOSTAT's own balance sheets, which
+  cover Bahrain and Qatar only from 2019, give 105-112 and 111-114.
+  Spain and the USA do not move. `"pass_through"` adds the net exporters
+  on top: 68 more keys at 2010, raising world imports and exports by a
+  further 1.04 Mt each, while the 2.16 Mt the record exports beyond
+  those imports (1.76 Mt of it Meat Meal, whep#1450) is dropped. It
+  moves no food supply: the largest change in protein supply against
+  `"net_import"` is 0.0003 g/cap/day.
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md),
   [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
   and

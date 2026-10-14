@@ -20,7 +20,7 @@ build_io_model(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = c("none", "net_import")
+  trade_recovery = .cbs_trade_recovery_choices()
 )
 ```
 
@@ -93,10 +93,10 @@ build_io_model(
 
 - trade_recovery:
 
-  One of `"none"` (default) or `"net_import"`, selecting the CBS every
-  internally built input is derived from — the wide CBS, the processing
-  coefficients, the supply-use tables, the bilateral trade matrices and
-  the prices. See
+  One of `"pass_through"` (default), `"net_import"` or `"none"`,
+  selecting the CBS every internally built input is derived from — the
+  wide CBS, the processing coefficients, the supply-use tables, the
+  bilateral trade matrices and the prices. See
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
   for what each method does. It has no effect on an input supplied
   directly, so a `cbs` built with one method and the rest left to build

@@ -85,9 +85,12 @@ build_livestock_nutrient_flows(
   places it on the litter-using housed streams before the management
   losses, so the manure reaching the field is bedded farmyard manure
   rather than excreta alone. `NULL` (default) leaves every number
-  excreta-only; the share of crop residue used as bedding is unset in
-  this package pending a source (whep#1005), so a caller has to build
-  the supply deliberately.
+  excreta-only. Build the supply from
+  [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md),
+  whose default bedding share is Wirsenius (2000) Table 3.21
+  (whep#1005); the turnkey soil-carbon reader of
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  does so.
 
 ## Value
 

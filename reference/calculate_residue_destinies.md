@@ -13,7 +13,8 @@ calculate_residue_destinies(
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
   recovery = c("wirsenius", "legacy"),
-  feed_share = c("wirsenius", "legacy")
+  feed_share = c("wirsenius", "legacy"),
+  bedding = c("wirsenius", "fraction")
 )
 ```
 
@@ -38,9 +39,9 @@ calculate_residue_destinies(
 - bedding_fraction:
 
   Fraction of the recovered **non-feed** residue used as livestock
-  bedding, one number in `[0, 1]`. Default `0`, which is unset rather
-  than measured; see the Bedding section for why, and what a caller
-  setting it must convert from.
+  bedding under `bedding = "fraction"`, one number in `[0, 1]`. Default
+  `0`. Must stay `0` under `bedding = "wirsenius"`, which sets its own
+  share.
 
 - unmatched_recovery:
 
@@ -68,17 +69,27 @@ calculate_residue_destinies(
   M49 sub-region for every crop). See the Two feed-share variants
   section. Ignored by the `"shares"` method.
 
+- bedding:
+
+  Bedding rule: `"wirsenius"` (default, 12.4% of the recovered cereal
+  straw, Wirsenius 2000 Table 3.21) or `"fraction"` (`bedding_fraction`
+  of the recovered non-feed residue of every crop). See the Where the
+  bedding share comes from section.
+
 ## Value
 
 The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
-`residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction` and
-`method_residue_destiny`, and `method_residue_recovery` (the `recovery`
-variant, `NA` for the `"shares"` method) and `method_residue_feed` (per
-row, the table that priced its feed share: `"wirsenius"` or `"legacy"`,
-`NA` for the `"shares"` method). The `"recovery_regional"` method also
-returns `residue_recovery_matched`, `FALSE` where no recovery rate was
-found, which is what separates a rate the table gives as zero from a
-zero standing in for a failed lookup.
+`residue_burn_dm_t`, `residue_soil_dm_t`, `residue_bedding_fraction`
+(the share applied: of the recovered residue under `"wirsenius"`, zero
+for a non-cereal; of the recovered non-feed residue under `"fraction"`),
+`method_residue_bedding`, `method_residue_destiny`, and
+`method_residue_recovery` (the `recovery` variant, `NA` for the
+`"shares"` method) and `method_residue_feed` (per row, the table that
+priced its feed share: `"wirsenius"` or `"legacy"`, `NA` for the
+`"shares"` method). The `"recovery_regional"` method also returns
+`residue_recovery_matched`, `FALSE` where no recovery rate was found,
+which is what separates a rate the table gives as zero from a zero
+standing in for a failed lookup.
 
 ## Bedding
 
@@ -94,18 +105,37 @@ removed for other purposes (i.e. bedding) other than the amount of
 agricultural residues returned to soils or burnt", so as "to eliminate
 the possibility of double counting".
 
-`bedding_fraction` defaults to **0**, and that default is *unset, not
-measured*: no global bedding-only fraction of crop residue could be
-sourced (whep#1005). FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's
-`FracRemove` both merge bedding with feed and construction into one
-term. Three partial anchors exist and none is on this function's
-denominator, so each needs converting before it can be used here:
+## Where the bedding share comes from
 
-- Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
-  3.21 p. 126 – litter is 14% of *distributed* cereal straw and stover
-  and 11% of distributed crop by-products. The author grades these "very
-  rough", and the South & Central Asia cattle entry is 0 because the
-  data were absent, which must not be inherited as an estimate.
+`bedding = "wirsenius"` (default) reads the one bedding figure that
+comes from the same accounting as the recovery rates: **Wirsenius
+(2000)**, *Human Use of Land and Organic Materials*, PhD thesis,
+Chalmers University of Technology, Table 3.21 (p. 126). Of 2700 Tg DM/yr
+of cereals straw & stover generated, 530 Tg is "not recovered", so 2170
+Tg is recovered, and 270 Tg is "used as litter for animal bedding" – 14%
+of the 1940 Tg *distributed*. This function's denominator is the
+*recovered* residue, so the share is taken against the table's own
+recovered total, `270 / 2170 = 0.124`. That is the same distributed -\>
+recovered conversion whep#1431 makes for the Table 3.20 feed shares;
+here the world table carries both totals, so no loss factor has to be
+assumed (the 10% loss route, `0.14 * 0.90`, gives 0.126).
+
+Wirsenius models cereals straw and stover as the *only* bedding material
+(p. 85, after Section 2.3.1), so the share applies to the five cereal
+categories (`Wheat, other cereals`, `Rice, Paddy`, `Maize`, `Sorghum`,
+`Millet`) and every other crop beds nothing. It is one **world** share
+applied in every region: the thesis prints no regional litter total, and
+its regional litter-use rates (Table 3.13, p. 86, kg straw per kg housed
+manure) are "very rough figures" (p. 85), with South & Central Asia
+cattle set to zero because "no reasonable values on litter use could be
+identified" – not an estimate to inherit. The bedding is carved out of
+the recovered non-feed residue and capped at it; where the cap binds a
+warning says how much.
+
+`bedding = "fraction"` keeps the caller-set rule: `bedding_fraction` of
+the recovered non-feed residue of every crop, default `0` (no bedding).
+Two other anchors are on that denominator family, neither of them
+global:
 
 - Statistics Denmark HALM/HALM1/HALM2 – the only official statistic with
   a bedding-only column: 16-21% of straw *production*, about 30% of
@@ -113,6 +143,10 @@ denominator, so each needs converting before it can be used here:
 
 - Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
   Table 5 – Denmark, barley 16% and wheat 11% of *production*.
+
+FAO GLEAM's `FracRemove` and IPCC 2019 Eq. 11.6's `FracRemove` both
+merge bedding with feed and construction into one term, so neither is
+usable. The rule used is recorded in `method_residue_bedding`.
 
 ## Where the recovery rates come from
 
@@ -287,12 +321,13 @@ calculate_residue_destinies(
     region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
-#> # A tibble: 1 × 13
+#> # A tibble: 1 × 14
 #>   item_prod_code residue_dm_t region_krausmann region_un_sub method_residue_feed
 #>   <chr>                 <dbl> <chr>            <chr>         <chr>              
 #> 1 15                      100 West Europe      Western Euro… wirsenius          
-#> # ℹ 8 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
+#> # ℹ 9 more variables: residue_recovery_matched <lgl>, residue_feed_dm_t <dbl>,
 #> #   residue_burn_dm_t <dbl>, residue_soil_dm_t <dbl>,
 #> #   residue_bedding_dm_t <dbl>, residue_bedding_fraction <dbl>,
-#> #   method_residue_destiny <chr>, method_residue_recovery <chr>
+#> #   method_residue_bedding <chr>, method_residue_destiny <chr>,
+#> #   method_residue_recovery <chr>
 ```

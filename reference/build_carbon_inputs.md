@@ -26,6 +26,7 @@ build_carbon_inputs(
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   method_input_cn = c("known_crops", "require_all"),
   method_crop_weights = c("spatialized", "static"),
+  method_manure_placement = c("livestock", "crop_area"),
   example = FALSE
 )
 ```
@@ -199,6 +200,35 @@ assembled per the WHEP historical carbon-balance design.
   in 2020. Polity totals are the same under both; only where the carbon
   sits moves. Recorded in `method_crop_weights`.
 
+- method_manure_placement:
+
+  Where the cropland manure carbon is put. `"livestock"` (default)
+  places it where the animals are, the grain the gridded nitrogen
+  balance uses for the same manure (whep#1300): the feed intake is
+  spread to cells by gridded livestock heads on `country_grid` (the
+  local grain of
+  [`build_feed_intake_local()`](https://eduaguilera.github.io/whep/reference/build_feed_intake_local.md)),
+  and
+  [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)
+  runs at `"subnational"`, so each cell's collected manure goes to that
+  cell's crops up to the 170 kg N/ha ceiling and the excess is trucked
+  to neighbouring cells with room. Its crop layer is that year's
+  cell-crop area, the hectares the carbon is divided by. Manure with no
+  crop – trucked in, or over-applied above the cap – is spread over its
+  cell's crops by area, as the nitrogen balance spreads it, and manure
+  on a cell with no crop over its polity's cropland; only a polity with
+  no cropland cell loses it, with a warning. Measured at 2010, it places
+  322.1 Tg C of cropland manure where `"crop_area"` places 346.9 Tg C,
+  because the cell-grain intake caps grazing at each cell's grass; 41.5%
+  of the manure carbon sits on a different cell. `"crop_area"` allocates
+  the polity's manure to its crops by harvested area and fans each
+  polity-crop out to cells by crop area, as residue and roots are, which
+  is what the package did before (whep#1307); it drops the over-cap
+  manure the national allocation leaves with no crop (whep#805). A
+  supplied `data$manure` must be keyed on cells (`sub_territory` a
+  `"lon_lat"` cell id) under `"livestock"`; a national stream aborts.
+  Recorded in `method_manure_placement`.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -209,11 +239,11 @@ assembled per the WHEP historical carbon-balance design.
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
 `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
-`method_unspatialized`, `method_input_cn` and `method_crop_weights` (all
-`NA` on the grassland and natural classes, which are neither spatialized
-from polity-crop totals nor collapsed from crops), for `land_use` in
-`"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
-below.
+`method_unspatialized`, `method_input_cn`, `method_crop_weights` and
+`method_manure_placement` (all `NA` on the grassland and natural
+classes, which are neither spatialized from polity-crop totals nor
+collapsed from crops), for `land_use` in `"cropland"`, `"grassland"` and
+`"natural"`, plus the polity columns below.
 
 ## Polity columns
 
