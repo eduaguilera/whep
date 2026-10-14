@@ -655,10 +655,13 @@
 # fetch) do not.
 .sjr_uniform_marker <- function() "polity-crop total"
 
+# Both wordings the warning has carried: the crop-pattern one that balance
+# roots written before whep#1002 hold, and the crop-allocation one since.
 .sjr_uniform_pattern <- function() {
   paste0(
     "([0-9]+) polity-crop totals? \\(([-+0-9.eE]+) t N\\) had no",
-    " crop-pattern grid cells; reallocating uniformly"
+    " (crop-pattern grid cells; reallocating uniformly|cells in the crop",
+    " allocation; spreading)"
   )
 }
 
@@ -673,7 +676,7 @@
     regexec(.sjr_uniform_pattern(), texts[marked])
   )
   field <- \(i) {
-    purrr::map_chr(parsed, \(m) if (length(m) == 3L) m[[i]] else NA)
+    purrr::map_chr(parsed, \(m) if (length(m) == 4L) m[[i]] else NA)
   }
   n_t <- suppressWarnings(as.numeric(field(3L)))
   crops <- suppressWarnings(as.integer(field(2L)))
