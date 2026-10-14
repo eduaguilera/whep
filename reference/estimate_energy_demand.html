@@ -4,12 +4,30 @@
 activity, lactation, work, pregnancy, growth, and wool, then
 derives total gross energy using the REM/REG ratio approach from
 IPCC Eq 10.16.
-All coefficients come from internal package data."><meta property="og:description" content="Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
+All coefficients come from internal package data.
+Default weight gain and pregnancy fraction follow the cohort's life stage:
+mature cohorts (&quot;Adult Female&quot;, &quot;Adult Male&quot;, &quot;Adult&quot;, &quot;Sows&quot;,
+&quot;Boars&quot;, &quot;Layers&quot;) gain no weight, and only mature-female cohorts take
+the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp. 10.18 and
+10.28). Beef breeding cows (&quot;Adult Female&quot; of non-dairy cattle) take the
+&quot;Pregnant, %&quot; of the IPCC 2019 Table 10A.2 &quot;Mature Females&quot; row for their
+IPCC region, resolved from iso3 or area_code. A cohort of NA or
+&quot;All&quot; is a whole-herd row and keeps both species defaults. Any other
+cohort label aborts. Values the caller supplies are kept."><meta property="og:description" content="Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
 (Vol 4, Ch 10). Estimates net energy components for maintenance,
 activity, lactation, work, pregnancy, growth, and wool, then
 derives total gross energy using the REM/REG ratio approach from
 IPCC Eq 10.16.
-All coefficients come from internal package data."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+All coefficients come from internal package data.
+Default weight gain and pregnancy fraction follow the cohort's life stage:
+mature cohorts (&quot;Adult Female&quot;, &quot;Adult Male&quot;, &quot;Adult&quot;, &quot;Sows&quot;,
+&quot;Boars&quot;, &quot;Layers&quot;) gain no weight, and only mature-female cohorts take
+the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp. 10.18 and
+10.28). Beef breeding cows (&quot;Adult Female&quot; of non-dairy cattle) take the
+&quot;Pregnant, %&quot; of the IPCC 2019 Table 10A.2 &quot;Mature Females&quot; row for their
+IPCC region, resolved from iso3 or area_code. A cohort of NA or
+&quot;All&quot; is a whole-herd row and keeps both species defaults. Any other
+cohort label aborts. Values the caller supplies are kept."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,6 +73,15 @@ activity, lactation, work, pregnancy, growth, and wool, then
 derives total gross energy using the REM/REG ratio approach from
 IPCC Eq 10.16.</p>
 <p>All coefficients come from internal package data.</p>
+<p>Default weight gain and pregnancy fraction follow the cohort's life stage:
+mature cohorts (<code>"Adult Female"</code>, <code>"Adult Male"</code>, <code>"Adult"</code>, <code>"Sows"</code>,
+<code>"Boars"</code>, <code>"Layers"</code>) gain no weight, and only mature-female cohorts take
+the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp. 10.18 and
+10.28). Beef breeding cows (<code>"Adult Female"</code> of non-dairy cattle) take the
+"Pregnant, %" of the IPCC 2019 Table 10A.2 "Mature Females" row for their
+IPCC region, resolved from <code>iso3</code> or <code>area_code</code>. A cohort of <code>NA</code> or
+<code>"All"</code> is a whole-herd row and keeps both species defaults. Any other
+cohort label aborts. Values the caller supplies are kept.</p>
     </div>
 
     <div class="section level2">
@@ -110,8 +137,16 @@ default <code>EVmilk</code> of 4.6 MJ/kg for sheep (7% fat; AFRC 1993, 1995) and
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Dataframe with added <code>gross_energy</code> (MJ/day), intermediate
-net energy components, and <code>method_energy</code> and <code>method_lactation</code>
-tracking columns.</p>
+net energy components, <code>cohort_life_stage</code> (<code>"mature_female"</code>,
+<code>"mature"</code>, <code>"growing"</code>, or <code>NA</code> for a whole-herd row), and
+<code>method_energy</code>, <code>method_lactation</code> and <code>method_pregnancy</code> tracking
+columns. <code>method_pregnancy</code> is <code>"supplied"</code>, <code>"species_default"</code>,
+<code>"species_default_whole_herd"</code>, <code>"not_mature_female"</code>,
+<code>"ipcc2019_t10a2"</code> (a beef cow at its region's published rate),
+<code>"ipcc2019_t10a2_neighbour_assumed"</code> (Western Europe, which the table
+omits, at the 80% North America and Eastern Europe report) or
+<code>"ipcc2019_t10a2_mean_assumed"</code> (no resolvable region: the mean of the
+published regions).</p>
     </div>
 
     <div class="section level2">

@@ -3,6 +3,15 @@
 Default values for fat%, protein%, lactose%, weight gain, work hours,
 and pregnancy fraction by species.
 
+[`estimate_energy_demand()`](https://eduaguilera.github.io/whep/reference/estimate_energy_demand.md)
+applies the weight gain to growing cohorts only and the pregnancy
+fraction to mature-female cohorts only: following IPCC 2019 Vol 4 Ch 10
+(pp. 10.18, 10.28), mature animals have no net weight gain over a year
+and only mature females gestate. Beef breeding cows take the regional
+IPCC 2019 Table 10A.2 rate instead of the `"Other Cattle"` value of 0.
+The `cohort_life_stage` and `method_pregnancy` columns of its output
+record which rule applied.
+
 ## Usage
 
 ``` r
@@ -31,7 +40,7 @@ A tibble with columns:
 
 - weight_gain_kg_day:
 
-  Average daily weight gain (kg/day).
+  Average daily weight gain of a growing animal (kg/day).
 
 - work_hours_day:
 
@@ -39,7 +48,7 @@ A tibble with columns:
 
 - pregnant_fraction:
 
-  Fraction of females pregnant.
+  Fraction of mature females giving birth in a year.
 
 ## Source
 

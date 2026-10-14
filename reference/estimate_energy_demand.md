@@ -7,6 +7,17 @@ energy using the REM/REG ratio approach from IPCC Eq 10.16.
 
 All coefficients come from internal package data.
 
+Default weight gain and pregnancy fraction follow the cohort's life
+stage: mature cohorts (`"Adult Female"`, `"Adult Male"`, `"Adult"`,
+`"Sows"`, `"Boars"`, `"Layers"`) gain no weight, and only mature-female
+cohorts take the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp.
+10.18 and 10.28). Beef breeding cows (`"Adult Female"` of non-dairy
+cattle) take the "Pregnant, %" of the IPCC 2019 Table 10A.2 "Mature
+Females" row for their IPCC region, resolved from `iso3` or `area_code`.
+A cohort of `NA` or `"All"` is a whole-herd row and keeps both species
+defaults. Any other cohort label aborts. Values the caller supplies are
+kept.
+
 ## Usage
 
 ``` r
@@ -62,7 +73,16 @@ estimate_energy_demand(
 ## Value
 
 Dataframe with added `gross_energy` (MJ/day), intermediate net energy
-components, and `method_energy` and `method_lactation` tracking columns.
+components, `cohort_life_stage` (`"mature_female"`, `"mature"`,
+`"growing"`, or `NA` for a whole-herd row), and `method_energy`,
+`method_lactation` and `method_pregnancy` tracking columns.
+`method_pregnancy` is `"supplied"`, `"species_default"`,
+`"species_default_whole_herd"`, `"not_mature_female"`,
+`"ipcc2019_t10a2"` (a beef cow at its region's published rate),
+`"ipcc2019_t10a2_neighbour_assumed"` (Western Europe, which the table
+omits, at the 80% North America and Eastern Europe report) or
+`"ipcc2019_t10a2_mean_assumed"` (no resolvable region: the mean of the
+published regions).
 
 ## Examples
 
