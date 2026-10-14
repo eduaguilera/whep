@@ -424,6 +424,22 @@ calculate_npp_carbon_nitrogen <- function(x) {
   )
 }
 
+# Provenance of the irrigation coefficients (checked 2026-10-14; ASSUMED,
+# UNVERIFIED until resolved). The `irrigation_adj` table cites "Sadras 2007;
+# Zhang et al. 2019" for the irrigated residue ratio factor of 0.9 and
+# root:shoot factor of 0.85. Neither short form resolves to one publication:
+# no 2007 paper by Sadras in the Crossref record is about irrigation effects
+# on residue or root ratios, and "Zhang et al. 2019" matches many papers. The
+# Mixed row is labelled an intermediate assumption. The per-group
+# sensitivities in `irr_residue_crop_adj` cite "Ludemann 2025", most likely
+# Ludemann, C. I., Hijbeek, R., van Loon, M. P., Murrell, T. S.,
+# Dobermann, A. and van Ittersum, M. K. (2025). Tiered maize and wheat
+# nutrient removal coefficients estimated from available data. Nutrient
+# Cycling in Agroecosystems 130, 1-15, doi 10.1007/s10705-024-10381-6. Its
+# text gives no irrigated versus rainfed harvest index, so the cited residue
+# ratios (maize 1.50 irrigated against 1.74 rainfed) are not shown there;
+# they may come from its Dryad data (doi 10.5061/dryad.djh9w0w4m), which
+# was not checked.
 .residue_irrigation_factor <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, residue_ratio_factor = 1))
@@ -618,6 +634,8 @@ calculate_npp_carbon_nitrogen <- function(x) {
     )
 }
 
+# The rs_ratio_factor provenance is unverified; see the note above
+# .residue_irrigation_factor().
 .root_irrigation_factor <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, rs_ratio_factor = 1))
