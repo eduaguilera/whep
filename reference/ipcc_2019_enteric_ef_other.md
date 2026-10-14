@@ -26,7 +26,12 @@ system (sheep 9 high / 5 low, goats 9 / 5, swine 1.5 / 1.0), leaves
 camels, horses and mules unchanged, and moves buffalo out of this table
 into the regional Table 10.11. Poultry is stored as `0`; both editions
 say "insufficient data for calculation", so the zero is a project choice
-rather than a published factor. Tracked in whep#601.
+rather than a published factor. Since whep#601 Tier 1 enteric CH4 reads
+[ipcc_enteric_ef_tier1](https://eduaguilera.github.io/whep/reference/ipcc_enteric_ef_tier1.md)
+by default; this table is read only under
+`enteric_ef_source = "as_shipped"` and as the fallback for rows the 2019
+edition prices at nothing (poultry, and buffalo in North America and
+Oceania).
 
 ## Examples
 

@@ -45,7 +45,8 @@ manure engine's method levers (which half of the manure-management table is
 read and how it is keyed, and which methane conversion factor table is read
 at which climate zone) are selectable from here too; passing none takes the
 engine's own defaults, so this entry point publishes what the engine does.
-mms_shares and mms_region bite at both tiers; the tier = 1 default
+mms_shares, mms_region and ef3_source bite at both tiers and
+enteric_ef_source at Tier 1; the tier = 1 default
 here is unaffected by mcf_source and by the climate options, because Tier
 1 manure CH4 comes from regional emission factors rather than a
 climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
@@ -96,7 +97,8 @@ manure engine's method levers (which half of the manure-management table is
 read and how it is keyed, and which methane conversion factor table is read
 at which climate zone) are selectable from here too; passing none takes the
 engine's own defaults, so this entry point publishes what the engine does.
-mms_shares and mms_region bite at both tiers; the tier = 1 default
+mms_shares, mms_region and ef3_source bite at both tiers and
+enteric_ef_source at Tier 1; the tier = 1 default
 here is unaffected by mcf_source and by the climate options, because Tier
 1 manure CH4 comes from regional emission factors rather than a
 climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
@@ -181,7 +183,8 @@ manure engine's method levers (which half of the manure-management table is
 read and how it is keyed, and which methane conversion factor table is read
 at which climate zone) are selectable from here too; passing none takes the
 engine's own defaults, so this entry point publishes what the engine does.
-<code>mms_shares</code> and <code>mms_region</code> bite at both tiers; the <code>tier = 1</code> default
+<code>mms_shares</code>, <code>mms_region</code> and <code>ef3_source</code> bite at both tiers and
+<code>enteric_ef_source</code> at Tier 1; the <code>tier = 1</code> default
 here is unaffected by <code>mcf_source</code> and by the climate options, because Tier
 1 manure CH4 comes from regional emission factors rather than a
 climate-zone MCF and both reach the MCF on the Tier 2 path only. Whichever
@@ -228,9 +231,12 @@ Ignored at Tier 1, whose emission factors carry no diet dimension.</p></dd>
 
 
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
-<dd><p>A named list of manure-engine options. All but five
+<dd><p>A named list of manure-engine options. All but eight
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are <code>mcf_source</code>, which moved from the shipped table to the 2019
+are <code>enteric_ef_source</code>, <code>ef3_source</code> and <code>slurry_crust</code>, which since
+whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
+N2O, <code>mcf_source</code>, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, <code>mms_shares</code>,
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, <code>pasture_bo</code>, which
@@ -252,6 +258,35 @@ figures stay reproducible.</p></li>
 <code>0.24 * 0.011 / (0.30 * 0.0075) = 1.173</code> and leaves the volatilisation
 term alone. <code>method_manure_n2o</code> records the edition used
 (<code>indirect_ipcc_2019</code> or <code>indirect_ipcc_2006</code>).</p>
+<p><code>enteric_ef_source</code> selects the Tier 1 enteric CH4 emission factors.
+Although it sits among the manure-engine options, it governs the enteric
+path only:</p><ul><li><p><code>"ipcc_2019"</code> (default): <a href="ipcc_enteric_ef_tier1.html">ipcc_enteric_ef_tier1</a>, the 2019
+Refinement's Tables 10.10 and 10.11 (Updated) as published: cattle and
+buffalo by IPCC region, and sheep, goats and swine at the productivity
+system the Table 10.10 footnote assigns the region (high in North
+America, Europe and Oceania, low elsewhere). A row the edition prices
+at nothing keeps the as-shipped factor, stamped
+<code>enteric_ef_as_shipped_fallback</code>.</p></li>
+<li><p><code>"as_shipped"</code>: <a href="ipcc_2019_enteric_ef_cattle.html">ipcc_2019_enteric_ef_cattle</a> and
+<a href="ipcc_2019_enteric_ef_other.html">ipcc_2019_enteric_ef_other</a>, the 2006 Guidelines' factors with four
+cells in neither edition, read before whep#601. Kept so earlier figures
+stay reproducible.</p></li>
+</ul><p><code>method_enteric</code> records which (<code>enteric_ef_ipcc_2019</code> or
+<code>enteric_ef_as_shipped</code>). On FAOSTAT 2020 heads the default raises Tier 1
+enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity everywhere
+instead would give 134.2 Tg, low everywhere 124.2 Tg.</p>
+<p><code>ef3_source</code> selects the direct manure N2O emission factors, at both
+tiers: <code>"ipcc_2019"</code> (default) or <code>"as_shipped"</code>, the two editions of
+<a href="ipcc_manure_ef3.html">ipcc_manure_ef3</a>.</p>
+<p><code>slurry_crust</code> sets the share of liquid slurry with a natural crust,
+which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005) and
+without one (0) into the engine's single <code>"Liquid/Slurry"</code> label:
+<code>"half"</code> (default, 0.0025, GLEAM 2.0's stated assumption for its pig and
+chicken slurry, extended to the other species), <code>"none"</code> (0) or <code>"all"</code>
+(0.005). It has no effect under <code>ef3_source = "as_shipped"</code>, whose
+0.002 is a single row.</p>
+<p><code>method_manure_n2o</code> records the EF3 choice (<code>ef3_ipcc_2019; slurry_crust_half</code> or <code>ef3_as_shipped</code>). On FAOSTAT 2020 heads the
+default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.</p>
 <p><code>mms_shares</code> selects which half of <a href="regional_mms_distribution.html">regional_mms_distribution</a> the
 split is read from: <code>"gleam_2_0"</code> (default) is the GLEAM 2.0 Supplement
 S1 Tab. 4.2-4.11 ingest, <code>"placeholder"</code> the unsourced table it replaced

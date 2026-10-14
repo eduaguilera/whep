@@ -42,7 +42,11 @@ against both editions of Vol 4, Ch 10, Table 10.21:
   while dry lot is 0.02 in both editions), `"Burned for Fuel"` 0 (both
   editions give no EF3 here and report those emissions under fuel
   combustion or waste incineration instead) and `"Other"` 0.005.
-  **Assumed, unverified.** Tracked in whep#601.
+  **Assumed, unverified.** Since whep#601 the manure engine reads the
+  as-published 2019 EF3 in
+  [ipcc_manure_ef3](https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.md)
+  by default; this table backs only that dataset's `"as_shipped"`
+  edition.
 
 ## Examples
 

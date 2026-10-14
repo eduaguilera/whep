@@ -58,14 +58,28 @@ apply_management_losses(split, options = list())
   the 2019 Refinement) or `"ipcc_2006"` (EF5 0.0075, Table 11.3, p.
   11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
   is 0.010 in both, so only the leached share of `n2o_indirect_n` moves,
-  by a factor of 1.467; `applied_n` does not.
+  by a factor of 1.467; `applied_n` does not. `ef3_source` selects the
+  edition of
+  [ipcc_manure_ef3](https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.md)
+  the direct N2O of each stored stream is read from: `"ipcc_2019"`
+  (default; Vol 4, Ch 10, Table 10.21 (Updated) of the 2019 Refinement)
+  or `"as_shipped"` (the mixed table read before whep#601). It moves
+  `n2o_direct_n` and `n2_n`, and so `applied_n`, of the collected
+  streams; the grazing stream carries no management N2O either way.
+  `slurry_crust` sets the liquid-slurry crust share under the 2019
+  edition: `"half"` (default, EF3 0.0025), `"none"` (0) or `"all"`
+  (0.005); see
+  [ipcc_manure_ef3](https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.md).
+  `method_direct_n2o` records the choice (e.g.
+  `"ipcc_2019; slurry_crust_half"`).
 
 ## Value
 
 The input rows with `manure_type`, `applied_n`, `applied_c`,
 `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
 `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
-`method_losses`, `method_bedding_c` and `method_indirect_n2o`.
+`method_losses`, `method_bedding_c`, `method_indirect_n2o` and
+`method_direct_n2o`.
 
 ## Bedding
 
@@ -114,7 +128,7 @@ excretion <- tibble::tribble(
   2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
-#> # A tibble: 5 × 23
+#> # A tibble: 5 × 24
 #>    year territory sub_territory livestock_category species_gen mms_type         
 #>   <int> <chr>     <lgl>         <chr>              <chr>       <chr>            
 #> 1  2020 203       NA            Cattle_milk        Cattle      Anaerobic Lagoon 
@@ -122,9 +136,9 @@ apply_management_losses(split_manure_management(excretion))
 #> 3  2020 203       NA            Cattle_milk        Cattle      Liquid/Slurry    
 #> 4  2020 203       NA            Cattle_milk        Cattle      Pasture/Range/Pa…
 #> 5  2020 203       NA            Cattle_milk        Cattle      Solid Storage    
-#> # ℹ 17 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
+#> # ℹ 18 more variables: manure_type <chr>, stream <chr>, applied_n <dbl>,
 #> #   applied_c <dbl>, applied_vs <dbl>, n_volatilized <dbl>, n_leached <dbl>,
 #> #   n2o_direct_n <dbl>, n2_n <dbl>, n2o_indirect_n <dbl>, c_lost <dbl>,
 #> #   vs_destroyed <dbl>, n_bedding <dbl>, c_bedding <dbl>, method_losses <chr>,
-#> #   method_bedding_c <chr>, method_indirect_n2o <chr>
+#> #   method_bedding_c <chr>, method_indirect_n2o <chr>, method_direct_n2o <chr>
 ```

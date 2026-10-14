@@ -63,13 +63,14 @@ unchanged, so the manure engine's method levers (which half of the
 manure-management table is read and how it is keyed, and which methane
 conversion factor table is read at which climate zone) are selectable
 from here too; passing none takes the engine's own defaults, so this
-entry point publishes what the engine does. `mms_shares` and
-`mms_region` bite at both tiers; the `tier = 1` default here is
-unaffected by `mcf_source` and by the climate options, because Tier 1
-manure CH4 comes from regional emission factors rather than a
-climate-zone MCF and both reach the MCF on the Tier 2 path only.
-Whichever choice each row took is recorded in `method_mms` and
-`method_manure_ch4`, which the extension carries into its own output.
+entry point publishes what the engine does. `mms_shares`, `mms_region`
+and `ef3_source` bite at both tiers and `enteric_ef_source` at Tier 1;
+the `tier = 1` default here is unaffected by `mcf_source` and by the
+climate options, because Tier 1 manure CH4 comes from regional emission
+factors rather than a climate-zone MCF and both reach the MCF on the
+Tier 2 path only. Whichever choice each row took is recorded in
+`method_mms` and `method_manure_ch4`, which the extension carries into
+its own output.
 
 ## Usage
 
@@ -111,18 +112,21 @@ build_livestock_ghg_extension(
 
 - options:
 
-  A named list of manure-engine options. All but five defaults reproduce
-  the behaviour in force before whep#949. The exceptions are
-  `mcf_source`, which moved from the shipped table to the 2019
-  Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
-  which moved from the unsourced placeholder table to the GLEAM 2.0
-  ingest in whep#958 and does move both tiers' manure N2O, `pasture_bo`,
-  which since whep#1137 pairs the 2019 pasture MCF with its published
-  `Bo` and moves Tier 2 manure CH4, and `tier2_uncovered`, which since
-  whep#1028 gives species with no Tier 2 method their Tier 1 values
-  instead of `NA`, and `indirect_n2o_source`, which since whep#1245
-  reads the 2019 Refinement's leaching factors and moves both tiers'
-  indirect manure N2O.
+  A named list of manure-engine options. All but eight defaults
+  reproduce the behaviour in force before whep#949. The exceptions are
+  `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
+  whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+  manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct
+  manure N2O, `mcf_source`, which moved from the shipped table to the
+  2019 Refinement in whep#1022 and does move Tier 2 manure CH4,
+  `mms_shares`, which moved from the unsourced placeholder table to the
+  GLEAM 2.0 ingest in whep#958 and does move both tiers' manure N2O,
+  `pasture_bo`, which since whep#1137 pairs the 2019 pasture MCF with
+  its published `Bo` and moves Tier 2 manure CH4, and `tier2_uncovered`,
+  which since whep#1028 gives species with no Tier 2 method their Tier 1
+  values instead of `NA`, and `indirect_n2o_source`, which since
+  whep#1245 reads the 2019 Refinement's leaching factors and moves both
+  tiers' indirect manure N2O.
 
   `indirect_n2o_source` selects the edition of
   [indirect_n2o_ef](https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.md)
@@ -142,6 +146,48 @@ build_livestock_ghg_extension(
   `0.24 * 0.011 / (0.30 * 0.0075) = 1.173` and leaves the volatilisation
   term alone. `method_manure_n2o` records the edition used
   (`indirect_ipcc_2019` or `indirect_ipcc_2006`).
+
+  `enteric_ef_source` selects the Tier 1 enteric CH4 emission factors.
+  Although it sits among the manure-engine options, it governs the
+  enteric path only:
+
+  - `"ipcc_2019"` (default):
+    [ipcc_enteric_ef_tier1](https://eduaguilera.github.io/whep/reference/ipcc_enteric_ef_tier1.md),
+    the 2019 Refinement's Tables 10.10 and 10.11 (Updated) as published:
+    cattle and buffalo by IPCC region, and sheep, goats and swine at the
+    productivity system the Table 10.10 footnote assigns the region
+    (high in North America, Europe and Oceania, low elsewhere). A row
+    the edition prices at nothing keeps the as-shipped factor, stamped
+    `enteric_ef_as_shipped_fallback`.
+
+  - `"as_shipped"`:
+    [ipcc_2019_enteric_ef_cattle](https://eduaguilera.github.io/whep/reference/ipcc_2019_enteric_ef_cattle.md)
+    and
+    [ipcc_2019_enteric_ef_other](https://eduaguilera.github.io/whep/reference/ipcc_2019_enteric_ef_other.md),
+    the 2006 Guidelines' factors with four cells in neither edition,
+    read before whep#601. Kept so earlier figures stay reproducible.
+
+  `method_enteric` records which (`enteric_ef_ipcc_2019` or
+  `enteric_ef_as_shipped`). On FAOSTAT 2020 heads the default raises
+  Tier 1 enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity
+  everywhere instead would give 134.2 Tg, low everywhere 124.2 Tg.
+
+  `ef3_source` selects the direct manure N2O emission factors, at both
+  tiers: `"ipcc_2019"` (default) or `"as_shipped"`, the two editions of
+  [ipcc_manure_ef3](https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.md).
+
+  `slurry_crust` sets the share of liquid slurry with a natural crust,
+  which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005)
+  and without one (0) into the engine's single `"Liquid/Slurry"` label:
+  `"half"` (default, 0.0025, GLEAM 2.0's stated assumption for its pig
+  and chicken slurry, extended to the other species), `"none"` (0) or
+  `"all"` (0.005). It has no effect under `ef3_source = "as_shipped"`,
+  whose 0.002 is a single row.
+
+  `method_manure_n2o` records the EF3 choice
+  (`ef3_ipcc_2019; slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT
+  2020 heads the default lowers Tier 1 direct manure N2O from 1.523 to
+  1.178 Tg.
 
   `mms_shares` selects which half of
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)

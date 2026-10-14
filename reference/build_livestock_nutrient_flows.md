@@ -116,7 +116,7 @@ gridded <- list(
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
 #> $applied
-#> # A tibble: 5 × 27
+#> # A tibble: 5 × 28
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Liquid     
@@ -124,19 +124,19 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Liquid     
 #> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 20 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 21 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
 #> #   method_vs <chr>, method_digestibility <chr>, method_c_excretion <chr>,
 #> #   method_forage_n <chr>, method_mms <chr>, method_losses <chr>,
-#> #   method_bedding_c <chr>, method_indirect_n2o <chr>,
+#> #   method_bedding_c <chr>, method_indirect_n2o <chr>, method_direct_n2o <chr>,
 #> #   method_bedding_mms <chr>, method_transport <chr>, …
 #> 
 #> $losses
 #> # A tibble: 1 × 10
-#>    year territory sub_territory n_volatilized n_leached n2o_direct_n   n2_n
-#>   <int> <chr>     <lgl>                 <dbl>     <dbl>        <dbl>  <dbl>
-#> 1  2020 203       NA                     2.28     0.112       0.0316 0.0947
+#>    year territory sub_territory n_volatilized n_leached n2o_direct_n  n2_n
+#>   <int> <chr>     <lgl>                 <dbl>     <dbl>        <dbl> <dbl>
+#> 1  2020 203       NA                     2.28     0.112       0.0589 0.177
 #> # ℹ 3 more variables: n2o_indirect_n <dbl>, c_lost <dbl>, vs_destroyed <dbl>
 #> 
 #> $excretion

@@ -1570,6 +1570,10 @@ Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.
   : IPCC 2019 nitrogen excretion rates.
 - [`ipcc_2019_n2o_ef_direct`](https://eduaguilera.github.io/whep/reference/ipcc_2019_n2o_ef_direct.md)
   : IPCC 2019 direct N2O emission factors.
+- [`ipcc_enteric_ef_tier1`](https://eduaguilera.github.io/whep/reference/ipcc_enteric_ef_tier1.md)
+  : IPCC Tier 1 enteric emission factors, as published.
+- [`ipcc_manure_ef3`](https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.md)
+  : IPCC direct manure N2O emission factors (EF3), by edition.
 - [`ipcc_2019_ym`](https://eduaguilera.github.io/whep/reference/ipcc_2019_ym.md)
   : IPCC Ym values.
 - [`ipcc_2019_bo`](https://eduaguilera.github.io/whep/reference/ipcc_2019_bo.md)

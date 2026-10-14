@@ -35,7 +35,13 @@ tables:
   edition. **Assumed, unverified.** The 2019 Refinement also moved
   buffalo into this table (78 Western Europe, 68 Eastern Europe / Latin
   America / Asia, 81 Africa, 67 Middle East, 85 Indian Subcontinent),
-  which is not reflected here. Tracked in whep#601.
+  which is not reflected here. Since whep#601 Tier 1 enteric CH4 reads
+  the as-published 2019 factors in
+  [ipcc_enteric_ef_tier1](https://eduaguilera.github.io/whep/reference/ipcc_enteric_ef_tier1.md)
+  by default. This table is read only under the
+  `enteric_ef_source = "as_shipped"` manure-engine option (see
+  [manure_engine_options](https://eduaguilera.github.io/whep/reference/manure_engine_options.md)),
+  and as the fallback for rows the 2019 edition prices at nothing.
 
 ## Examples
 
