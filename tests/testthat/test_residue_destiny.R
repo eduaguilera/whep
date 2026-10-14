@@ -414,13 +414,19 @@ test_that("recovery rates follow Wirsenius's region membership (whep#1430)", {
         ))
   )
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     rep(100, 3)
   )
 })
 
+# Since whep#1005 bedding is carved out of the recovered residue too, so the
+# recovered residue is all three of feed, bedding and burn.
 feed_share_of_recovered <- function(out) {
-  out$residue_feed_dm_t / (out$residue_feed_dm_t + out$residue_burn_dm_t)
+  out$residue_feed_dm_t /
+    (out$residue_feed_dm_t + out$residue_bedding_dm_t + out$residue_burn_dm_t)
 }
 
 test_that("feed_share = 'wirsenius' reads Table 3.20 on Wirsenius's regions", {
@@ -443,7 +449,10 @@ test_that("feed_share = 'wirsenius' reads Table 3.20 on Wirsenius's regions", {
   testthat::expect_equal(feed_share_of_recovered(out), c(0.27, 0.72, 0.045))
   testthat::expect_equal(out$method_residue_feed, rep("wirsenius", 3))
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     rep(100, 3)
   )
   testthat::expect_false("region_wirsenius" %in% names(out))

@@ -353,7 +353,7 @@ calculate_residue_destinies <- function(
     ))
   }
   share <- dplyr::if_else(
-    .residue_is_cereal(out$item_prod_code),
+    .residue_beds_straw(out$item_prod_code),
     .wirsenius_bedding_share(),
     0
   )
@@ -379,7 +379,7 @@ calculate_residue_destinies <- function(
 # Cereals straw and stover is the only bedding material Wirsenius models
 # (p. 85, after Section 2.3.1), so only the five cereal recovery categories
 # bed.
-.residue_is_cereal <- function(item_prod_code) {
+.residue_beds_straw <- function(item_prod_code) {
   cereals <- c(
     "Wheat, other cereals",
     "Rice, Paddy",

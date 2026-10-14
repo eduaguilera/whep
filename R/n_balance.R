@@ -550,7 +550,7 @@ build_nitrogen_balance <- function(
   data$residue_destiny_input |>
     calculate_residue_destinies(
       method = data$residue_destiny_method %||% "recovery_regional",
-      bedding = data$residue_bedding %||% "wirsenius",
+      bedding = data[["residue_bedding"]] %||% "wirsenius",
       bedding_fraction = data$residue_bedding_fraction %||% 0,
       feed_share = data$residue_feed_share %||% "wirsenius"
     ) |>

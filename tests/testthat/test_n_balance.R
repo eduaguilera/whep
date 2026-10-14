@@ -534,6 +534,7 @@ testthat::test_that("bedded straw N comes back as a manure input", {
   manure <- c("manure_solid", "manure_liquid", "excreta")
   run <- function(fraction) {
     data <- .nb_full_data()
+    data$residue_bedding <- "fraction"
     data$residue_bedding_fraction <- fraction
     inputs <- suppressWarnings(whep::build_n_inputs(data = data))
     removed <- inputs |>
@@ -559,6 +560,7 @@ testthat::test_that("a balance without bedding passes no bedding supply", {
   # A zero bedding share is a declared choice, not an absent input: the manure
   # engine then runs exactly as before bedding existed.
   data <- .nb_full_data()
+  data$residue_bedding <- "fraction"
   testthat::expect_null(whep:::.ni_manure_bedding(data))
   data$residue_destiny_input <- NULL
   data$residue_bedding_fraction <- 0.4
@@ -569,6 +571,7 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
   # The straw is booked where it grew, the manure where the animals are; the
   # national supply is spread over the housed streams by add_manure_bedding().
   data <- .nb_full_data()
+  data$residue_bedding <- "fraction"
   data$residue_bedding_fraction <- 0.4
   supply <- whep:::.ni_manure_bedding(data)
 
@@ -1587,10 +1590,11 @@ testthat::test_that("the residue feed share moves only the residue split", {
   )
 }
 
-testthat::test_that("the default bedding share moves no surplus", {
+testthat::test_that("the default bedding share returns its N as manure", {
   # whep#1005: the Wirsenius bedding share carves bedding out of the burnt
-  # residue. Both leave the field, so only the split between the two output
-  # terms may move -- never the full output or the surplus.
+  # residue, so the residue leaving the field only changes term. Since
+  # whep#1445 the bedded straw comes back in the housed manure, so the N input
+  # rises by exactly the bedded N and nothing else enters.
   data <- .nb_data_with_drivers()
   data$residue_bedding <- "fraction"
   bare <- suppressMessages(.nb_run(data))
@@ -1601,10 +1605,11 @@ testthat::test_that("the default bedding share moves no surplus", {
     bedded$bedding_residue_n_t + bedded$burnt_residue_n_t,
     bare$burnt_residue_n_t
   )
-  moved <- c("bedding_residue_n_t", "burnt_residue_n_t")
+  testthat::expect_equal(bedded$used_residue_n_t, bare$used_residue_n_t)
   testthat::expect_equal(
-    dplyr::select(bedded, -dplyr::all_of(moved)),
-    dplyr::select(bare, -dplyr::all_of(moved))
+    sum(bedded$n_input_full_t) - sum(bare$n_input_full_t),
+    sum(bedded$bedding_residue_n_t),
+    tolerance = 1e-9
   )
 })
 
