@@ -46,7 +46,8 @@
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_residues</span><span class="op">(</span></span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  cereal_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"ensemble"</span>, <span class="st">"ratio"</span>, <span class="st">"wirsenius"</span><span class="op">)</span></span>
+<span>  cereal_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"ensemble"</span>, <span class="st">"ratio"</span>, <span class="st">"wirsenius"</span><span class="op">)</span>,</span>
+<span>  oil_palm_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_product"</span>, <span class="st">"per_hectare"</span>, <span class="st">"pin"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -69,6 +70,28 @@ dry matter = slope x grain dry-matter yield + intercept, through
 <li><p><code>"wirsenius"</code>: the predecessor's model, Wirsenius (2000) Table 3.16
 regional ratios, applied directly on Wirsenius's own region membership.</p></li>
 </ul><p>See the "Cereal residue" section. Other crops are not affected.</p></dd>
+
+
+<dt id="arg-oil-palm-residue">oil_palm_residue<a class="anchor" aria-label="anchor" href="#arg-oil-palm-residue"></a></dt>
+<dd><p>How oil palm residue (fronds and trunks) is
+obtained. One of:</p><ul><li><p><code>"per_product"</code> (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
+= 0.722 t DM per tonne of fruit, Malaysia's 2010 fronds and trunks over
+its 2010 FAOSTAT production. It keeps the pin's production-times-ratio
+form and is the cautious rule where the per-hectare one is weakest:
+low-yield, semi-wild palm systems such as Nigeria's (2.6 t of fruit per
+hectare against Malaysia's ~17), which <code>"per_hectare"</code> would give
+several times the residue. West African semi-wild systems stay
+uncertain under either rule and would need their own source.
+Maintainer decision (whep#1424).</p></li>
+<li><p><code>"per_hectare"</code>: 60 Mt DM / 4.85 Mha = 12.37 t DM per harvested
+hectare, the same 2010 anchor. It treats frond and trunk production as
+a property of the standing palm, and the rate barely moves between the
+strategy's two Malaysian years (12.26 t DM/ha at 2012, from its "over 83
+million dry tonnes" times "about 75 percent" on FAOSTAT's 5.08 Mha),
+where the per-tonne ratio drifts (0.656 at 2012).</p></li>
+<li><p><code>"pin"</code>: the pin's own oil palm residue, with the recovery rate undone
+and the ratio re-keyed like every other non-cereal crop.</p></li>
+</ul><p>See the "Oil palm residue" section.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -95,7 +118,9 @@ fresh residue times its own residue dry-matter content,
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.</p></li>
 <li><p><code>method_residue</code>: how the row's residue was estimated: the
-<code>cereal_residue</code> method for a cereal, <code>"pin"</code> for every other crop.</p></li>
+<code>cereal_residue</code> method for a cereal, <code>"malaysia_nbs_per_product"</code> or
+<code>"malaysia_nbs_per_hectare"</code> for oil palm unless <code>oil_palm_residue</code> is
+<code>"pin"</code>, and <code>"pin"</code> for every other crop.</p></li>
 </ul><p>The pin's residue quantities are fresh matter. Across its crops the ratio of
 pinned residue to product tracks the fresh-matter residue:product ratio
 <code>kg_residue_kg_product_FM</code> of <a href="biomass_coefs.html">biomass_coefs</a> (about 0.8 of it for nearly
@@ -169,6 +194,30 @@ about 23% above it (2010 and 2020). <code>"wirsenius"</code> keeps the pin's
 harvest-index factor and corrects the anchor by applying Table 3.16
 directly: residue dry matter is grain dry matter times the ratio of the
 area's Wirsenius region.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="oil-palm-residue">Oil palm residue<a class="anchor" aria-label="anchor" href="#oil-palm-residue"></a></h2>
+
+
+<p>Oil palm residue is replaced rather than taken from the pin (whep#1424).
+Read as gross residue, the pin's oil palm residue is far above an oil palm
+plantation's whole above-ground net primary production, fruit included:
+81% of 17.3 Mg C, so about 30 t DM at the 0.47 kg C per kg DM of
+<a href="biomass_coefs.html">biomass_coefs</a>, per hectare and year in the industrial plantation of
+Wakhid, Hirano, Dariah &amp; Agus (2022), <em>Mires and Peat</em> 28:02,
+<a href="https://doi.org/10.19189/map.2021.snpg.sta.2288" class="external-link">doi:10.19189/map.2021.snpg.sta.2288</a>
+. In Malaysia it is several times the
+country's whole solid oil palm biomass, mill residues included.</p>
+<p>The anchor is Malaysia's field residue: fronds (46 Mt) and trunks (14 Mt)
+of dry matter on 4.85 Mha planted in 2010, Exhibit 1 and p. 10 of Agensi
+Inovasi Malaysia (2013), <em>National Biomass Strategy 2020</em>, version 2.0
+(FAOLEX mal228571). Mill residues (empty fruit bunches, fibre, shells) are
+part of the fruit bunch and are not field residue, so they are left out.
+The anchor is a gross residue, so it replaces the pin's figure after the
+recovery rate has been undone and the ratio re-keyed; neither touches it.
+The anchored dry matter is converted to fresh mass with the oil palm
+<code>Residue_kgDM_kgFM</code> of <a href="biomass_coefs.html">biomass_coefs</a>, so <code>value_dm</code> is the anchor
+exactly.</p>
     </div>
     <div class="section level2">
     <h2 id="the-batch-pin-on-the-build-path">The batch pin on the build path<a class="anchor" aria-label="anchor" href="#the-batch-pin-on-the-build-path"></a></h2>
