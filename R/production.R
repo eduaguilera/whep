@@ -93,6 +93,27 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'     regional ratios, applied directly on Wirsenius's own region membership.
 #'
 #'   See the "Cereal residue" section. Other crops are not affected.
+#' @param oil_palm_residue How oil palm residue (fronds and trunks) is
+#'   obtained. One of:
+#'   - `"per_product"` (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
+#'     = 0.722 t DM per tonne of fruit, Malaysia's 2010 fronds and trunks over
+#'     its 2010 FAOSTAT production. It keeps the pin's production-times-ratio
+#'     form and is the cautious rule where the per-hectare one is weakest:
+#'     low-yield, semi-wild palm systems such as Nigeria's (2.6 t of fruit per
+#'     hectare against Malaysia's ~17), which `"per_hectare"` would give
+#'     several times the residue. West African semi-wild systems stay
+#'     uncertain under either rule and would need their own source.
+#'     Maintainer decision (whep#1424).
+#'   - `"per_hectare"`: 60 Mt DM / 4.85 Mha = 12.37 t DM per harvested
+#'     hectare, the same 2010 anchor. It treats frond and trunk production as
+#'     a property of the standing palm, and the rate barely moves between the
+#'     strategy's two Malaysian years (12.26 t DM/ha at 2012, from its "over 83
+#'     million dry tonnes" times "about 75 percent" on FAOSTAT's 5.08 Mha),
+#'     where the per-tonne ratio drifts (0.656 at 2012).
+#'   - `"pin"`: the pin's own oil palm residue, with the recovery rate undone
+#'     and the ratio re-keyed like every other non-cereal crop.
+#'
+#'   See the "Oil palm residue" section.
 #'
 #' @returns
 #' A tibble with the crop residue data.
@@ -120,7 +141,9 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    crop with residue mass carries no such coefficient, so the gap stays
 #'    visible rather than reading as zero.
 #' - `method_residue`: how the row's residue was estimated: the
-#'    `cereal_residue` method for a cereal, `"pin"` for every other crop.
+#'    `cereal_residue` method for a cereal, `"malaysia_nbs_per_product"` or
+#'    `"malaysia_nbs_per_hectare"` for oil palm unless `oil_palm_residue` is
+#'    `"pin"`, and `"pin"` for every other crop.
 #'
 #' The pin's residue quantities are fresh matter. Across its crops the ratio of
 #' pinned residue to product tracks the fresh-matter residue:product ratio
@@ -206,6 +229,27 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' directly: residue dry matter is grain dry matter times the ratio of the
 #' area's Wirsenius region.
 #'
+#' @section Oil palm residue:
+#' Oil palm residue is replaced rather than taken from the pin (whep#1424).
+#' Read as gross residue, the pin's oil palm residue is far above an oil palm
+#' plantation's whole above-ground net primary production, fruit included:
+#' 81% of 17.3 Mg C, so about 30 t DM at the 0.47 kg C per kg DM of
+#' [biomass_coefs], per hectare and year in the industrial plantation of
+#' Wakhid, Hirano, Dariah & Agus (2022), *Mires and Peat* 28:02,
+#' \doi{10.19189/map.2021.snpg.sta.2288}. In Malaysia it is several times the
+#' country's whole solid oil palm biomass, mill residues included.
+#'
+#' The anchor is Malaysia's field residue: fronds (46 Mt) and trunks (14 Mt)
+#' of dry matter on 4.85 Mha planted in 2010, Exhibit 1 and p. 10 of Agensi
+#' Inovasi Malaysia (2013), *National Biomass Strategy 2020*, version 2.0
+#' (FAOLEX mal228571). Mill residues (empty fruit bunches, fibre, shells) are
+#' part of the fruit bunch and are not field residue, so they are left out.
+#' The anchor is a gross residue, so it replaces the pin's figure after the
+#' recovery rate has been undone and the ratio re-keyed; neither touches it.
+#' The anchored dry matter is converted to fresh mass with the oil palm
+#' `Residue_kgDM_kgFM` of [biomass_coefs], so `value_dm` is the anchor
+#' exactly.
+#'
 #' @inheritSection whep_read_file The batch pin on the build path
 #'
 #' @export
@@ -214,9 +258,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' get_primary_residues(example = TRUE)
 get_primary_residues <- function(
   example = FALSE,
-  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius")
+  cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
+  oil_palm_residue = c("per_product", "per_hectare", "pin")
 ) {
   cereal_residue <- rlang::arg_match(cereal_residue)
+  oil_palm_residue <- rlang::arg_match(oil_palm_residue)
   if (example) {
     return(.example_get_primary_residues())
   }
@@ -228,7 +274,8 @@ get_primary_residues <- function(
   # turns back into the residue produced (#1195). See the pin-batch section
   # above for the measurement, and note that this is where the predecessor's
   # production series enters the commodity balance (#1054).
-  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448).
+  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448), and
+  # `.residue_oil_palm_anchored()` replaces oil palm's outright (#1424).
   # Cereal residue is recomputed from the pin's `Product` rows, so both kinds
   # of row resolve their area here, once.
   pin <- "crop_residues" |>
@@ -237,13 +284,15 @@ get_primary_residues <- function(
     dplyr::filter(product_residue %in% c("Residue", "Product")) |>
     add_area_code(name_column = "area") |>
     .residue_area_from_polity()
+  products <- dplyr::filter(pin, product_residue == "Product")
   pin |>
     dplyr::filter(product_residue == "Residue") |>
     .warn_residues_no_area() |>
     .residue_gross_from_recovered() |>
-    .residue_ratio_corrected(
-      products = dplyr::filter(pin, product_residue == "Product"),
-      method = cereal_residue
+    .residue_ratio_corrected(products = products, method = cereal_residue) |>
+    .residue_oil_palm_anchored(
+      products = products,
+      method = oil_palm_residue
     ) |>
     add_item_cbs_code(
       name_column = "item_cbs_crop",

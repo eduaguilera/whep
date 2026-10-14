@@ -274,3 +274,146 @@ testthat::test_that("the Wirsenius region keeps every other HANPP label", {
       whep::whep_coef_table("residue_recovery")$region_krausmann
   ))
 })
+
+# Oil palm residue (whep#1424) ------------------------------------------------
+
+# Malaysia 2010 as the pin carries it: FAOSTAT's fruit tonnes and hectares,
+# and the pin's recovered residue. A Spanish pea row stands for every other
+# non-cereal crop.
+oil_palm_pin <- function() {
+  palm <- tibble::tibble(
+    Area = "Malaysia",
+    Item_prod = "Oil palm fruit",
+    Item_cbs_crop = "Oil, palm fruit",
+    Name_biomass = "Oil palm"
+  )
+  residue_pin(
+    dplyr::bind_rows(
+      dplyr::mutate(palm, Item_cbs = "Firewood", Prod_ygpit_Mg = 318806798),
+      tibble::tibble(
+        Area = "Spain",
+        Item_prod = "Peas, dry",
+        Item_cbs = "Straw",
+        Item_cbs_crop = "Peas",
+        Name_biomass = "Pea",
+        Prod_ygpit_Mg = 70
+      )
+    ),
+    dplyr::mutate(
+      palm,
+      Item_cbs = "Oil, palm fruit",
+      Prod_ygpit_Mg = 83090935,
+      Area_ygpit_ha = 4853766
+    )
+  ) |>
+    dplyr::mutate(Year = 2010L)
+}
+
+# Malaysia's 2010 fronds and trunks, National Biomass Strategy 2020, Exhibit 1.
+malaysia_2010_dm <- 46e6 + 14e6
+
+testthat::test_that("oil palm residue is Malaysia's fronds and trunks per t", {
+  # whep#1424. Read as gross residue, the pin's oil palm residue is more than a
+  # plantation's whole above-ground production. The default anchors it per
+  # tonne of fruit on Malaysia 2010, so Malaysia 2010 must come out at exactly
+  # the 60 Mt DM the anchor is built from: not divided by the pin's recovery
+  # rate (0.9 here) on top, and not re-keyed on another region's ratio.
+  local_mocked_bindings(whep_read_file = function(name, ...) oil_palm_pin())
+
+  out <- whep::get_primary_residues()
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  testthat::expect_equal(palm$value_dm, malaysia_2010_dm)
+  testthat::expect_equal(
+    palm$value,
+    malaysia_2010_dm / biomass_coef("Oil palm", "Residue_kgDM_kgFM")
+  )
+  testthat::expect_equal(palm$item_cbs_code_residue, 2107)
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_product")
+  pea <- out[out$item_cbs_code_crop != 254, ]
+  testthat::expect_equal(pea$value, 70 / legacy_rate("Pulses", "West Europe"))
+  testthat::expect_equal(pea$method_residue, "pin")
+})
+
+testthat::test_that("the anchored oil palm residue survives into the CBS", {
+  # The commodity balance books the recovered share of the gross residue as
+  # Firewood production. Malaysia is East Asia in Wirsenius's membership
+  # (whep#1430), where Permanent crops recover 0.8 of their residue: the
+  # anchor must arrive whole and be recovered once.
+  local_mocked_bindings(whep_read_file = function(name, ...) oil_palm_pin())
+
+  cbs <- suppressMessages(whep:::.read_crop_residues(years = 2010)) |>
+    tibble::as_tibble()
+
+  firewood <- cbs[cbs$item_cbs == "Firewood" & cbs$element == "production", ]
+  rates <- whep::whep_coef_table("residue_recovery")
+  east_asia <- rates$recovery_rates_wirsenius[
+    rates$cat_krausmann == "Permanent crops" &
+      rates$region_krausmann == "East Asia"
+  ]
+  testthat::expect_equal(
+    firewood$value,
+    east_asia * malaysia_2010_dm / biomass_coef("Oil palm", "Residue_kgDM_kgFM")
+  )
+})
+
+testthat::test_that("oil palm residue can be anchored per hectare", {
+  local_mocked_bindings(whep_read_file = function(name, ...) oil_palm_pin())
+
+  out <- whep::get_primary_residues(oil_palm_residue = "per_hectare")
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  testthat::expect_equal(palm$value_dm, 4853766 * 60e6 / 4.85e6)
+  testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_hectare")
+})
+
+testthat::test_that("oil palm residue can be kept as the pin's", {
+  local_mocked_bindings(whep_read_file = function(name, ...) oil_palm_pin())
+
+  out <- whep::get_primary_residues(oil_palm_residue = "pin")
+
+  palm <- out[out$item_cbs_code_crop == 254, ]
+  # The pin's recovery undone, as for every non-cereal crop; Permanent crops
+  # carry one Wirsenius ratio in every region, so the re-keying is neutral.
+  testthat::expect_equal(
+    palm$value,
+    318806798 / legacy_rate("Permanent crops", "South and Central Asia")
+  )
+  testthat::expect_equal(unique(out$method_residue), "pin")
+})
+
+testthat::test_that("oil palm residue without its fruit row aborts", {
+  # The anchor needs the fruit row. Without it the residue would come out NA,
+  # then be summed to zero and dropped: a missing input turned into none.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::filter(oil_palm_pin(), Product_residue == "Residue")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_oil_palm_no_product"
+  )
+})
+
+testthat::test_that("only the per-hectare anchor needs the hectares", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::select(oil_palm_pin(), -"Area_ygpit_ha")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(oil_palm_residue = "per_hectare"),
+    class = "whep_oil_palm_no_product"
+  )
+  out <- whep::get_primary_residues()
+  testthat::expect_equal(
+    out$value_dm[out$item_cbs_code_crop == 254],
+    malaysia_2010_dm
+  )
+})
+
+testthat::test_that("get_primary_residues rejects an unknown oil palm method", {
+  testthat::expect_error(
+    whep::get_primary_residues(oil_palm_residue = "fronds"),
+    class = "rlang_error"
+  )
+})
