@@ -1,3 +1,0 @@
-item_cbs_code,cn_group,reason
-248,coconut,"Coconuts: balance N with no area and no carbon input of its own once coconut carbon pools to 2560 (D79); one coconut C:N over the pooled non-SOM N of 248 and 2560 (maintainer decision D80, 2026-10-14)"
-2560,coconut,"Coconuts - Incl Copra: carries coconut area, N and (D79) carbon; shares the pooled coconut C:N with 248 (maintainer decision D80, 2026-10-14)"

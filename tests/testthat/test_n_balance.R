@@ -2639,39 +2639,6 @@ testthat::test_that("a nearest-cell grassland C density is put on the key's area
   )
 })
 
-testthat::test_that("both coconut items take one pooled coconut C:N", {
-  key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
-  x <- tibble::tribble(
-    ~lon, ~lat,  ~area_code, ~item_cbs_code, ~year, ~water_regime,
-    ~n_input_full_nosom_t, ~c_input_t, ~method_c_input,
-    0.25, 50.25, 10L,        2560L,          2010L, "rainfed",
-    4,                     120,        "soil_carbon_inputs_per_crop",
-    0.75, 50.25, 10L,        2560L,          2010L, "rainfed",
-    2,                     30,         "soil_carbon_inputs_per_crop",
-    0.25, 50.25, 10L,        248L,           2010L, "rainfed",
-    4,                     NA,         "no_carbon_input",
-    1.25, 50.25, 20L,        248L,           2010L, "rainfed",
-    5,                     NA,         "no_carbon_input",
-    1.75, 50.25, 30L,        2560L,          2010L, "rainfed",
-    10,                    50,         "soil_carbon_inputs_per_crop"
-  )
-  out <- whep:::.nb_derive_cn_input(x, key)
-  # Polity 10: 150 t coconut C over 4 + 2 + 4 t non-SOM N, on every key.
-  testthat::expect_equal(out$cn_input[1:3], rep(15, 3))
-  testthat::expect_true(all(stringr::str_ends(
-    out$method_c_input[1:3],
-    ";coconut_pooled_cn_polity"
-  )))
-  # Polity 20 holds no coconut C: the global (150 + 50) / (10 + 5 + 10).
-  testthat::expect_equal(out$cn_input[4], 200 / 25)
-  testthat::expect_identical(
-    out$method_c_input[4],
-    "no_carbon_input;coconut_pooled_cn_global"
-  )
-  # Polity 30's own coconut: 50 / 10.
-  testthat::expect_equal(out$cn_input[5], 5)
-})
-
 testthat::test_that("an item with N and no C anywhere is refused", {
   key <- c("lon", "lat", "area_code", "item_cbs_code", "year", "water_regime")
   x <- .nb_cn_fallback_rows() |>
