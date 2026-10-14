@@ -232,15 +232,18 @@ WHEP ships the recovery rate and the regional ratio the predecessor used
 (both equal in all 160 cells), but not the `HI_changes` table. So
 [`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
 undoes the recovery exactly, dividing by the same rate, but cannot
-recompute the residue from production.
+recompute the predecessor's residue from production. It then re-keys the
+regional ratio on Wirsenius's own region membership, and estimates
+cereal residue from the pin's production and harvested area instead of
+reading it (#1448).
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
 327.7 Gt over 1961–2021, which
 [`get_primary_residues()`](https://eduaguilera.github.io/whep/reference/get_primary_residues.md)
-turns into 9.31 Gt and 404.1 Gt of residue produced. 3,998 of its
-249,095 output rows carry `NA` polity columns because the pin is
-name-keyed.
+turns into 8.73 Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood
+1.76 Gt) and 395 Gt of residue produced. 3,998 of its 249,095 output
+rows carry `NA` polity columns because the pin is name-keyed.
 
 Driving the same residue model off a fresh
 [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
@@ -256,7 +259,9 @@ is a basis difference rather than an error, since straw scales with the
 field crop. The second is fodder, where the current build is close to
 twice the pin on every forage and silage item, the pin predating that
 work. Replacing the pin therefore means choosing a residue model, which
-is a science decision and not a refresh.
+is a science decision and not a refresh. For cereals that model is
+chosen by `get_primary_residues(cereal_residue = )`; it still runs on
+the pin's production.
 
 ### `bilateral_trade` is built by [`build_detailed_trade()`](https://eduaguilera.github.io/whep/reference/build_detailed_trade.md)
 
