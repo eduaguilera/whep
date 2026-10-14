@@ -148,7 +148,8 @@
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
       method_unspatialized = "fodder_pattern",
-      method_crop_weights = "spatialized"
+      method_crop_weights = "spatialized",
+      method_manure_placement = "livestock"
     ) |>
     .add_reporting_polity_columns()
 }
