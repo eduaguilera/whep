@@ -1,0 +1,161 @@
+cat_krausmann,region_wirsenius,tab_3_20_row,feed_assignment_distributed,distributed_per_recovered,feed_use_fraction,source_feed
+"Wheat, other cereals",East Asia,Other cereals straw and stover,0.3,0.9,0.27,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",East Europe,Other cereals straw and stover,0.1,0.9,0.09,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",Latin America and Caribbean,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",North Africa and West Asia,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",North America and Oceania,Other cereals straw and stover,0.05,0.855,0.04275,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",South and Central Asia,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",Sub-saharan Africa,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Wheat, other cereals",West Europe,Other cereals straw and stover,0.05,0.9,0.045,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",East Asia,Rice straw,0.3,0.9,0.27,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",East Europe,Rice straw,0,0.9,0,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",Latin America and Caribbean,Rice straw,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",North Africa and West Asia,Rice straw,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",North America and Oceania,Rice straw,0,0.855,0,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",South and Central Asia,Rice straw,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",Sub-saharan Africa,Rice straw,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Rice, Paddy",West Europe,Rice straw,0,0.9,0,Wirsenius 2000 Tab.3.20
+Maize,East Asia,Other cereals straw and stover,0.3,0.9,0.27,Wirsenius 2000 Tab.3.20
+Maize,East Europe,Other cereals straw and stover,0.1,0.9,0.09,Wirsenius 2000 Tab.3.20
+Maize,Latin America and Caribbean,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Maize,North Africa and West Asia,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Maize,North America and Oceania,Other cereals straw and stover,0.05,0.855,0.04275,Wirsenius 2000 Tab.3.20
+Maize,South and Central Asia,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Maize,Sub-saharan Africa,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Maize,West Europe,Other cereals straw and stover,0.05,0.9,0.045,Wirsenius 2000 Tab.3.20
+Millet,East Asia,Other cereals straw and stover,0.3,0.9,0.27,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,East Europe,Other cereals straw and stover,0.1,0.9,0.09,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,Latin America and Caribbean,Other cereals straw and stover,0.6,0.9,0.54,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,North Africa and West Asia,Other cereals straw and stover,0.6,0.9,0.54,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,North America and Oceania,Other cereals straw and stover,0.05,0.855,0.04275,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,South and Central Asia,Other cereals straw and stover,0.8,0.9,0.72,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,Sub-saharan Africa,Other cereals straw and stover,0.8,0.9,0.72,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Millet,West Europe,Other cereals straw and stover,0.05,0.9,0.045,"Wirsenius 2000 Tab.3.20 other cereals row, read category-wise (millet is not in its note a)"
+Sorghum,East Asia,Other cereals straw and stover,0.3,0.9,0.27,Wirsenius 2000 Tab.3.20
+Sorghum,East Europe,Other cereals straw and stover,0.1,0.9,0.09,Wirsenius 2000 Tab.3.20
+Sorghum,Latin America and Caribbean,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sorghum,North Africa and West Asia,Other cereals straw and stover,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sorghum,North America and Oceania,Other cereals straw and stover,0.05,0.855,0.04275,Wirsenius 2000 Tab.3.20
+Sorghum,South and Central Asia,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sorghum,Sub-saharan Africa,Other cereals straw and stover,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sorghum,West Europe,Other cereals straw and stover,0.05,0.9,0.045,Wirsenius 2000 Tab.3.20
+Roots and Tubers,East Asia,Potato tops,0.8,0.9,0.72,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,East Europe,Potato tops,0.6,0.9,0.54,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,Latin America and Caribbean,Potato tops,0.6,0.9,0.54,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,North Africa and West Asia,Potato tops,0,0.9,0,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,North America and Oceania,Potato tops,0,0.9,0,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,South and Central Asia,Potato tops,0.8,0.9,0.72,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,Sub-saharan Africa,Potato tops,0.8,0.9,0.72,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Roots and Tubers,West Europe,Potato tops,0,0.9,0,"Wirsenius 2000 Tab.3.20 potato tops row, read for the whole category"
+Cassava,East Asia,Cassava leaves,0.05,0.9,0.045,Wirsenius 2000 Tab.3.20
+Cassava,East Europe,Cassava leaves,0,0.9,0,Wirsenius 2000 Tab.3.20
+Cassava,Latin America and Caribbean,Cassava leaves,0.2,0.9,0.18,Wirsenius 2000 Tab.3.20
+Cassava,North Africa and West Asia,Cassava leaves,0,0.9,0,Wirsenius 2000 Tab.3.20
+Cassava,North America and Oceania,Cassava leaves,0,0.9,0,Wirsenius 2000 Tab.3.20
+Cassava,South and Central Asia,Cassava leaves,0.4,0.9,0.36,Wirsenius 2000 Tab.3.20
+Cassava,Sub-saharan Africa,Cassava leaves,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Cassava,West Europe,Cassava leaves,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Cane,East Asia,Sugar cane tops,0.4,0.9,0.36,Wirsenius 2000 Tab.3.20
+Sugar Cane,East Europe,Sugar cane tops,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Cane,Latin America and Caribbean,Sugar cane tops,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sugar Cane,North Africa and West Asia,Sugar cane tops,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sugar Cane,North America and Oceania,Sugar cane tops,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Cane,South and Central Asia,Sugar cane tops,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sugar Cane,Sub-saharan Africa,Sugar cane tops,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sugar Cane,West Europe,Sugar cane tops,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Beets,East Asia,Sugar beet tops,0.15,0.9,0.135,Wirsenius 2000 Tab.3.20
+Sugar Beets,East Europe,Sugar beet tops,0.4,0.9,0.36,Wirsenius 2000 Tab.3.20
+Sugar Beets,Latin America and Caribbean,Sugar beet tops,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Beets,North Africa and West Asia,Sugar beet tops,0.4,0.9,0.36,Wirsenius 2000 Tab.3.20
+Sugar Beets,North America and Oceania,Sugar beet tops,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sugar Beets,South and Central Asia,Sugar beet tops,0.15,0.9,0.135,Wirsenius 2000 Tab.3.20
+Sugar Beets,Sub-saharan Africa,Sugar beet tops,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sugar Beets,West Europe,Sugar beet tops,0.9,0.9,0.81,Wirsenius 2000 Tab.3.20
+Sugar Crops nes,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sugar Crops nes,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+"Beans, Dry",West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Pulses,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Soybeans,East Asia,Other oil crops straw and stalks,0.25,0.9,0.225,Wirsenius 2000 Tab.3.20
+Soybeans,East Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Soybeans,Latin America and Caribbean,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Soybeans,North Africa and West Asia,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Soybeans,North America and Oceania,Other oil crops straw and stalks,0,0.855,0,Wirsenius 2000 Tab.3.20
+Soybeans,South and Central Asia,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Soybeans,Sub-saharan Africa,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Soybeans,West Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,East Asia,Groundnut stalks,0.4,0.9,0.36,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,East Europe,Groundnut stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,Latin America and Caribbean,Groundnut stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,North Africa and West Asia,Groundnut stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,North America and Oceania,Groundnut stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,South and Central Asia,Groundnut stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,Sub-saharan Africa,Groundnut stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Groundnuts in Shell,West Europe,Groundnut stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Oil Palm Fruit,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Oil Palm Fruit,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Castor Beans,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Sunflower Seed,East Asia,Other oil crops straw and stalks,0.25,0.9,0.225,Wirsenius 2000 Tab.3.20
+Sunflower Seed,East Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sunflower Seed,Latin America and Caribbean,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sunflower Seed,North Africa and West Asia,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+Sunflower Seed,North America and Oceania,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Sunflower Seed,South and Central Asia,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sunflower Seed,Sub-saharan Africa,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+Sunflower Seed,West Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",East Asia,Other oil crops straw and stalks,0.25,0.9,0.225,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",East Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",Latin America and Caribbean,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",North Africa and West Asia,Other oil crops straw and stalks,0.6,0.9,0.54,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",North America and Oceania,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",South and Central Asia,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",Sub-saharan Africa,Other oil crops straw and stalks,0.8,0.9,0.72,Wirsenius 2000 Tab.3.20
+"Rapeseed, oil crops",West Europe,Other oil crops straw and stalks,0,0.9,0,Wirsenius 2000 Tab.3.20
+Fodder crops,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Fodder crops,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,East Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,East Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,Latin America and Caribbean,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,North Africa and West Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,North America and Oceania,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,South and Central Asia,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,Sub-saharan Africa,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
+Permanent crops,West Europe,,,,,no Wirsenius 2000 Tab.3.20 row; legacy residue_feed_fraction kept
