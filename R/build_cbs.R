@@ -31,22 +31,31 @@
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
 #'   the same dataset; `"wide"` is what the IO model and the extensions consume.
-#' @param trade_recovery One of `"pass_through"` (default), `"net_import"`
-#'   or `"none"`, selecting what happens to a traded item the CBS has no row
-#'   for. The trade record is joined onto the CBS, so it can only fill a row
-#'   that already exists; `"none"` keeps that, the behaviour before whep#762,
-#'   and an area whose balance sheet omits an item it imports loses that
-#'   supply outright. The other two first create the missing rows from the
+#' @param trade_recovery One of `"byproduct_residual"` (default),
+#'   `"pass_through"`, `"net_import"` or `"none"`, selecting what happens to a
+#'   traded item the CBS has no row for. The trade record is joined onto the
+#'   CBS, so it can only fill a row that already exists; `"none"` keeps that,
+#'   the behaviour before whep#762, and an area whose balance sheet omits an
+#'   item it imports loses that supply outright. The others first create the
+#'   missing rows from the
 #'   trade record, restricted to tonnes-denominated items (live-animal trade
 #'   is in heads and arrives through [get_livestock_cbs()]) and to areas the
 #'   CBS already covers in that year. A created row has no production and no
 #'   stock change, so its domestic supply is its net import, split over the
 #'   destinies by the item's world-average shares -- the fallback every CBS
-#'   key with no destiny of its own takes. The two differ only on a net
+#'   key with no destiny of its own takes. They differ only on a net
 #'   exporter, whose export exceeds its import and so has nothing to come
 #'   from: `"pass_through"` creates the row with the export capped at the
 #'   import (the rule FABIO applies to the rows it creates from trade), and
-#'   `"net_import"` does not create it. **Recovery moves published values.**
+#'   `"net_import"` does not create it. `"byproduct_residual"` is
+#'   `"pass_through"` except for Meat Meal (2112), a rendering by-product
+#'   WHEP has no production source for once FAOSTAT's balance for it ends in
+#'   2013: its full export is kept, export-only keys included, and the
+#'   balance imputes production as export minus import, the residual rule
+#'   FAOSTAT-era Meat Meal rows already get (whep#1450). Measured on a
+#'   2011-2015 build, that adds 2.29 Mt of Meat Meal production and export at
+#'   2014 (43 areas) and 2.51 Mt at 2015 against `"pass_through"`, and moves no
+#'   other key. **Recovery moves published values.**
 #'   Measured on a 2005-2015 build at 2010, `"net_import"` adds 1,038 keys and
 #'   raises world imports by 8.72 Mt (0.57%), exports by 1.83 Mt and food by
 #'   3.07 Mt (0.07%). Protein supply rises from 28 to 63 g/cap/day in
@@ -951,8 +960,9 @@ build_commodity_balances <- function(
 #'   attribute (set automatically by `.read_cbs()`).
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`. See
 #'   [build_commodity_balances()].
-#' @param trade_recovery One of `"pass_through"` (default), `"net_import"` or
-#'   `"none"`. See [build_commodity_balances()].
+#' @param trade_recovery One of `"byproduct_residual"` (default),
+#'   `"pass_through"`, `"net_import"` or `"none"`. See
+#'   [build_commodity_balances()].
 #' @param export_share_overflow One of `"report"` (default), `"drop"` or
 #'   `"abort"`. See [build_commodity_balances()].
 #' @param unmatched_processing One of `"other_uses"` (default),
@@ -5278,8 +5288,8 @@ build_processing_coefs <- function(
 # tonnes-denominated items and 2.56 Mt of net imports short (whep#762).
 #
 # These helpers emit the missing `import`/`export` rows so the join has
-# something to land on. They run under `trade_recovery = "net_import"`, the
-# default since whep#762, and are deliberately narrower than "every key the
+# something to land on. They run under every `trade_recovery` but `"none"`,
+# and are deliberately narrower than "every key the
 # trade record carries". Each restriction below is what makes
 # the created row balanceable rather than a fabrication:
 #
@@ -5297,14 +5307,16 @@ build_processing_coefs <- function(
 #   balancing cascade closes the identity by inventing production, and
 #   `check_supply_use_balance()` then passes on fabricated tonnage. So a net
 #   exporter is either passed through with its export capped at its import
-#   (`"pass_through"`, the default) or not created (`"net_import"`); see
+#   (`"pass_through"`) or not created (`"net_import"`); see
 #   `.cbs_recovery_net_exports()`. Measured on a 2005-2015 build at 2010,
-#   there are 107 such pairs: 3.20 Mt of exports against 1.04 Mt of imports.
-#   2.33 Mt of those exports is Meat Meal (2112) in 38 rendering countries, a
-#   product WHEP gives no production at all, so what is missing there is a
-#   production item, not a trade rule (whep#1450); the rest is mostly
-#   Singapore's re-exports of cocoa, maize, beer and coffee. No food supply
-#   depends on the choice, because the domestic supply is zero either way.
+#   there were 107 such pairs: 3.20 Mt of exports against 1.04 Mt of imports.
+#   2.33 Mt of those exports was Meat Meal (2112) in 38 rendering countries,
+#   before its FAOSTAT balance for 1961-2013 was restored (whep#1450); the
+#   rest is mostly Singapore's re-exports of cocoa, maize, beer and coffee.
+#   No food supply depends on the choice, because the domestic supply is zero
+#   either way. The one exception is a by-product WHEP has no other source of
+#   production for: `"byproduct_residual"`, the default, keeps its export and
+#   lets the balance impute the production behind it.
 # * **Only (year, area) buckets the CBS already covers**, so the `area` label
 #   comes from the CBS rows themselves instead of a year-free lookup that
 #   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).

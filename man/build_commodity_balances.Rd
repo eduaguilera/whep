@@ -57,22 +57,31 @@ per element. \code{"wide"} pivots the elements into columns, adds the live-anima
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
 
-\item{trade_recovery}{One of \code{"pass_through"} (default), \code{"net_import"}
-or \code{"none"}, selecting what happens to a traded item the CBS has no row
-for. The trade record is joined onto the CBS, so it can only fill a row
-that already exists; \code{"none"} keeps that, the behaviour before whep#762,
-and an area whose balance sheet omits an item it imports loses that
-supply outright. The other two first create the missing rows from the
+\item{trade_recovery}{One of \code{"byproduct_residual"} (default),
+\code{"pass_through"}, \code{"net_import"} or \code{"none"}, selecting what happens to a
+traded item the CBS has no row for. The trade record is joined onto the
+CBS, so it can only fill a row that already exists; \code{"none"} keeps that,
+the behaviour before whep#762, and an area whose balance sheet omits an
+item it imports loses that supply outright. The others first create the
+missing rows from the
 trade record, restricted to tonnes-denominated items (live-animal trade
 is in heads and arrives through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}) and to areas the
 CBS already covers in that year. A created row has no production and no
 stock change, so its domestic supply is its net import, split over the
 destinies by the item's world-average shares -- the fallback every CBS
-key with no destiny of its own takes. The two differ only on a net
+key with no destiny of its own takes. They differ only on a net
 exporter, whose export exceeds its import and so has nothing to come
 from: \code{"pass_through"} creates the row with the export capped at the
 import (the rule FABIO applies to the rows it creates from trade), and
-\code{"net_import"} does not create it. \strong{Recovery moves published values.}
+\code{"net_import"} does not create it. \code{"byproduct_residual"} is
+\code{"pass_through"} except for Meat Meal (2112), a rendering by-product
+WHEP has no production source for once FAOSTAT's balance for it ends in
+2013: its full export is kept, export-only keys included, and the
+balance imputes production as export minus import, the residual rule
+FAOSTAT-era Meat Meal rows already get (whep#1450). Measured on a
+2011-2015 build, that adds 2.29 Mt of Meat Meal production and export at
+2014 (43 areas) and 2.51 Mt at 2015 against \code{"pass_through"}, and moves no
+other key. \strong{Recovery moves published values.}
 Measured on a 2005-2015 build at 2010, \code{"net_import"} adds 1,038 keys and
 raises world imports by 8.72 Mt (0.57\%), exports by 1.83 Mt and food by
 3.07 Mt (0.07\%). Protein supply rises from 28 to 63 g/cap/day in
