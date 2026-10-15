@@ -191,7 +191,7 @@ build_cell_climate_zone <- function(
   ) |>
     data.table::rbindlist() |>
     data.table::setnames("value", spec$column) |>
-    tibble::as_tibble()
+    .dt_to_tibble()
 }
 
 # One year: read its twelve monthly slabs, reduce them per cell, and keep only

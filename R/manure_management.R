@@ -306,12 +306,22 @@ split_manure_management <- function(excretion, options = list()) {
 #'   p. 11.26 of the 2019 Refinement) or `"ipcc_2006"` (EF5 0.0075, Table 11.3,
 #'   p. 11.24 of the 2006 Guidelines, the value shipped before whep#1245). EF4
 #'   is 0.010 in both, so only the leached share of `n2o_indirect_n` moves,
-#'   by a factor of 1.467; `applied_n` does not.
+#'   by a factor of 1.467; `applied_n` does not. `ef3_source` selects the
+#'   edition of [ipcc_manure_ef3] the direct N2O of each stored stream is read
+#'   from: `"ipcc_2019"` (default; Vol 4, Ch 10, Table 10.21 (Updated) of the
+#'   2019 Refinement) or `"as_shipped"` (the mixed table read before
+#'   whep#601). It moves `n2o_direct_n` and `n2_n`, and so `applied_n`, of
+#'   the collected streams; the grazing stream carries no management N2O
+#'   either way. `slurry_crust` sets the liquid-slurry crust share under the
+#'   2019 edition: `"half"` (default, EF3 0.0025), `"none"` (0) or `"all"`
+#'   (0.005); see [ipcc_manure_ef3]. `method_direct_n2o` records the choice
+#'   (e.g. `"ipcc_2019; slurry_crust_half"`).
 #'
 #' @return The input rows with `manure_type`, `applied_n`, `applied_c`,
 #'   `applied_vs`, `n_volatilized`, `n_leached`, `n2o_direct_n`, `n2_n`,
 #'   `n2o_indirect_n`, `c_lost`, `vs_destroyed`, `n_bedding`, `c_bedding`,
-#'   `method_losses`, `method_bedding_c` and `method_indirect_n2o`.
+#'   `method_losses`, `method_bedding_c`, `method_indirect_n2o` and
+#'   `method_direct_n2o`.
 #' @export
 #' @examples
 #' excretion <- tibble::tribble(
@@ -325,7 +335,9 @@ apply_management_losses <- function(split, options = list()) {
     list(
       method = "ipcc_2019_tier2",
       bedding_c_loss = "same_as_excreta",
-      indirect_n2o_source = "ipcc_2019"
+      indirect_n2o_source = "ipcc_2019",
+      ef3_source = "ipcc_2019",
+      slurry_crust = "half"
     ),
     options
   )
@@ -342,6 +354,8 @@ apply_management_losses <- function(split, options = list()) {
     indirect_n2o_source,
     c("ipcc_2019", "ipcc_2006")
   )
+  opt$ef3_source <- .ef3_source_arg(opt$ef3_source)
+  opt$slurry_crust <- .slurry_crust_arg(opt$slurry_crust)
   .check_split_cols(split)
 
   ef4 <- .get_indirect_param("ef4_volatilization", opt$indirect_n2o_source)
@@ -355,7 +369,12 @@ apply_management_losses <- function(split, options = list()) {
       .manure_loss_fractions(),
       by = c("mms_type", "loss_category" = "animal_category")
     ) |>
-    dplyr::left_join(.manure_ef3(), by = "mms_type")
+    dplyr::mutate(ef3_class = .ef3_animal_class(.data$species_gen)) |>
+    dplyr::left_join(
+      .manure_ef3(opt$ef3_source, opt$slurry_crust),
+      by = c("mms_type", "ef3_class")
+    ) |>
+    dplyr::select(-"ef3_class")
   if (anyNA(out$frac_gas_ms) || anyNA(out$ef3)) {
     cli::cli_abort("Missing loss fraction or EF3 for some MMS.")
   }
@@ -423,7 +442,8 @@ apply_management_losses <- function(split, options = list()) {
       vs_destroyed = .data$vs_stream - .data$applied_vs,
       method_losses = opt$method,
       method_bedding_c = opt$bedding_c_loss,
-      method_indirect_n2o = opt$indirect_n2o_source
+      method_indirect_n2o = opt$indirect_n2o_source,
+      method_direct_n2o = .ef3_method_tag(opt$ef3_source, opt$slurry_crust)
     ) |>
     dplyr::select(
       "year",
@@ -448,7 +468,8 @@ apply_management_losses <- function(split, options = list()) {
       "c_bedding",
       "method_losses",
       "method_bedding_c",
-      "method_indirect_n2o"
+      "method_indirect_n2o",
+      "method_direct_n2o"
     )
 }
 
@@ -478,6 +499,7 @@ apply_management_losses <- function(split, options = list()) {
 
 .check_split_cols <- function(split) {
   req <- c(
+    "species_gen",
     "mms_type",
     "loss_category",
     "cn_species",
@@ -493,29 +515,74 @@ apply_management_losses <- function(split, options = list()) {
   invisible(NULL)
 }
 
-# EF3 (direct-N2O from management) per engine MMS type, reusing
-# ipcc_2019_n2o_ef_direct with a name crosswalk (its rows use finer system
-# labels than the six MMS this engine carries).
-.manure_ef3 <- function() {
-  ef <- whep::ipcc_2019_n2o_ef_direct
-  pick <- function(sys) ef$ef_kg_n2o_n_per_kg_n[ef$system == sys]
-  tibble::tibble(
-    mms_type = c(
-      "Pasture/Range/Paddock",
-      "Daily Spread",
-      "Solid Storage",
-      "Liquid/Slurry",
-      "Anaerobic Lagoon",
-      "Poultry Manure"
-    ),
-    ef3 = c(
-      pick("Pasture/Range/Paddock"),
-      pick("Daily Spread"),
-      pick("Solid Storage"),
-      pick("Liquid/Slurry"),
-      pick("Uncovered Anaerobic Lagoon"),
-      pick("Poultry Manure - Deep Litter")
+# EF3 (direct-N2O from management) per engine MMS type and pasture animal
+# class, read from one `edition` of `ipcc_manure_ef3`. Rows published for
+# every animal (`animal_class == "all"`) are repeated for each class, so the
+# join on `(mms_type, ef3_class)` is one-to-one whichever class a row is.
+.manure_ef3 <- function(ef3_source = "ipcc_2019", slurry_crust = "half") {
+  ef <- whep::ipcc_manure_ef3 |>
+    dplyr::filter(.data$edition == ef3_source) |>
+    .mix_slurry_crust(slurry_crust)
+  classes <- c("cattle_poultry_pigs", "sheep_other")
+  dplyr::bind_rows(
+    dplyr::filter(ef, .data$animal_class != "all"),
+    ef |>
+      dplyr::filter(.data$animal_class == "all") |>
+      dplyr::select(-"animal_class") |>
+      tidyr::crossing(animal_class = classes)
+  ) |>
+    dplyr::select("mms_type", ef3_class = "animal_class", "ef3")
+}
+
+# The engine carries one "Liquid/Slurry" label, but the 2019 Table 10.21
+# (Updated) prices slurry with a natural crust at 0.005 and without one at 0.
+# The label takes their mix at the `slurry_crust` share: "half" (default) is
+# GLEAM 2.0's stated assumption for its pig and chicken slurry (Supplement S1,
+# Tab. 4.8-4.11 footnote: "50% of this manure management system is assumed
+# to present natural crust"), extended to the other species, whose GLEAM
+# tables state no share; "none" and "all" are the two published rows. An
+# edition with a single slurry row (`"as_shipped"`) is returned unchanged.
+.mix_slurry_crust <- function(ef, slurry_crust = "half") {
+  parts <- c("Liquid/Slurry - With Crust", "Liquid/Slurry - No Crust")
+  crust <- ef$ef3[ef$mms_type == parts[1]]
+  bare <- ef$ef3[ef$mms_type == parts[2]]
+  if (length(crust) == 0L) {
+    return(ef)
+  }
+  share <- .slurry_crust_share(slurry_crust)
+  dplyr::bind_rows(
+    dplyr::filter(ef, !.data$mms_type %in% parts),
+    tibble::tibble(
+      mms_type = "Liquid/Slurry",
+      animal_class = "all",
+      ef3 = share * crust + (1 - share) * bare
     )
+  )
+}
+
+.slurry_crust_share <- function(slurry_crust) {
+  switch(slurry_crust, half = 0.5, none = 0, all = 1)
+}
+
+# The EF3 choice as recorded in `method_direct_n2o` / `method_manure_n2o`: the
+# crust share only where the edition mixes one.
+.ef3_method_tag <- function(ef3_source, slurry_crust) {
+  if (identical(ef3_source, "as_shipped")) {
+    return(ef3_source)
+  }
+  paste0(ef3_source, "; slurry_crust_", slurry_crust)
+}
+
+# The pasture EF3 class of IPCC 2019 Vol 4, Ch 11, Table 11.1 (Updated):
+# EF3PRP,CPP for "cattle (dairy, non-dairy and buffalo), poultry and pigs",
+# EF3PRP,SO for "sheep and 'other animals'", which the same chapter lists as
+# goats, horses, mules, donkeys, camels, reindeer and camelids. Any species
+# outside the first group is therefore in the second.
+.ef3_animal_class <- function(species_gen) {
+  dplyr::if_else(
+    species_gen %in% c("Cattle", "Buffalo", "Poultry", "Swine"),
+    "cattle_poultry_pigs",
+    "sheep_other"
   )
 }
 

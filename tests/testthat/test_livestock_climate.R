@@ -214,6 +214,8 @@ testthat::test_that("the NetCDF path returns the golden zone table", {
   )
   # NetCDF stores single precision, so values are compared to 1e-6.
   testthat::expect_equal(result, expected, tolerance = 1e-6)
+  # The reader works in data.table; the result must not carry its pointer out.
+  testthat::expect_null(attr(result, ".internal.selfref"))
 })
 
 testthat::test_that("a cell short of twelve months is dropped with a warning", {

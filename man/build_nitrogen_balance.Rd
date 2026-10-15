@@ -69,11 +69,14 @@ carries.
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{residue_destiny_method} needs), for \code{used_residue_n_t}/
 \code{bedding_residue_n_t}/\code{burnt_residue_n_t}. \code{residue_destiny_method}
-selects the method (default \code{"recovery_regional"}) and
+selects the method (default \code{"recovery_regional"}), \code{residue_bedding}
+the bedding rule (default \code{"wirsenius"}, 12.4\% of the recovered cereal
+straw) and, under \code{residue_bedding = "fraction"},
 \code{residue_bedding_fraction} the share of the recovered non-feed residue
 used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
 The bedded straw also comes back as a manure input, through
-\code{\link[=build_n_inputs]{build_n_inputs()}}.
+\code{\link[=build_n_inputs]{build_n_inputs()}}. \code{residue_feed_share} selects that function's
+\code{feed_share} (default \code{"wirsenius"}).
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.

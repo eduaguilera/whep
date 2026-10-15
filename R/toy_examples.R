@@ -148,7 +148,8 @@
       method_c_input = "humified_weighted",
       crop_area_ha = c(100, 50, 60, 40),
       method_unspatialized = "fodder_pattern",
-      method_crop_weights = "spatialized"
+      method_crop_weights = "spatialized",
+      method_manure_placement = "livestock"
     ) |>
     .add_reporting_polity_columns()
 }
@@ -172,17 +173,17 @@
 
 .example_get_primary_residues <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value, ~value_dm,
-    2010, 174, 2611, 2107, 46260., 28912.6,
-    1975, 54, 2511, 2105, 569199., 493211.1,
-    1988, 53, 2561, 2106, 8213., 7904.6,
-    2020, 178, 2513, 2105, 161992., 139960.9,
-    1972, 131, 2514, 2105, 38845., 34222.6,
-    2011, 4, 2611, 2107, 238808., 149255.2,
-    1965, 144, 2517, 2105, 33688., 30318.8,
-    2018, 167, 2549, 2105, 13578., 12191.5,
-    1994, 109, 2605, 2105, 5597., 5035.7,
-    1982, 194, 2605, 2106, 280552., 58261.3
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value, ~value_dm, ~method_residue,
+    1986, 138, 2518, 2105, 8227331., 7157778., "ipcc",
+    1979, 170, 2513, 2105, 311579., 269205., "ipcc",
+    1963, 84, 2518, 2105, 68412., 59518., "ipcc",
+    2002, 138, 2514, 2105, 29991428., 26422448., "ipcc",
+    2020, 143, 2807, 2105, 80150., 72937., "ipcc",
+    1991, 183, 2645, 2106, 75664., 68097., "pin",
+    2006, 131, 2612, 2107, 1718., 1074., "pin",
+    2002, 28, 248, 2107, 469675., 178769., "pin",
+    1965, 29, 2570, 2106, 102., 98.6, "pin",
+    1966, 156, 2547, 2105, 56796., 51097., "pin"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -1996,6 +1997,8 @@
 # `tests/testthat/fixtures/country_grid_example_cells.csv`. The dairy herd is
 # run at an illustrative 5 kg of milk per cow and day (assumed, not a Kenyan
 # measurement): without a milk yield a dairy row aborts (whep#1439).
+# Since whep#1127 the dairy heads are milking cows rather than six equal
+# cohorts.
 .example_gridded_livestock_emissions <- function() {
   tibble::tribble(
     ~year, ~area_code,  ~lon,  ~lat,             ~species,  ~heads,
@@ -2004,15 +2007,15 @@
     ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
     1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
     22.51667, "Warm", "Medium",
-    7.153483153, 1.8447418416, 0.09282301885,
+    7.049756616, 1.817992819, 0.08262846017,
     1, 0.86768667, 1,
     1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
     16.97500, "Temperate", "Medium",
-    4.768988769, 0.8230213320, 0.06188201257,
+    4.699837744, 0.8110874039, 0.05508564011,
     1, 0.86768667, 1,
     1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
     22.51667, "Warm", "Medium",
-    2.8982329, 0.56374899, 0.0437184119,
+    2.445679957, 0.4757207761, 0.03545822608,
     1, 1.00000000, 1
   ) |>
     dplyr::mutate(
@@ -2032,7 +2035,10 @@
         "IPCC_2019_Tier2; climate_from_data; mcf_ipcc_2019;",
         "pasture_bo_paired"
       ),
-      method_manure_n2o = "IPCC_2019_Tier2; indirect_ipcc_2019"
+      method_manure_n2o = paste(
+        "IPCC_2019_Tier2; ef3_ipcc_2019; slurry_crust_half;",
+        "indirect_ipcc_2019_per_mms"
+      )
     ) |>
     .add_reporting_polity_columns()
 }

@@ -101,6 +101,33 @@ test_that("meat yield is converted to weight_gain_kg_day for energy model", {
   )
 })
 
+test_that("the meat-derived gain reaches growing cohorts only", {
+  # The gain is a growth rate to slaughter weight. Breeding cows and bulls are
+  # mature and gain nothing over a year (IPCC 2019 Vol 4 Ch 10 p. 10.18).
+  data <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value, ~year, ~area_code,
+    ~live_anim_code, ~item_prod_code,
+    961L,  "heads",  2000, 2020L, 4L, NA_character_, "961",
+    961L,  "t_head", 0.2,  2020L, 4L, "961",        "867"
+  )
+  result <- prepare_livestock_emissions(data, expand_cohorts = TRUE)
+  gain <- (0.2 * 1000 / 0.55 - 40) / 547.5
+  mature <- dplyr::filter(result, cohort %in% c("Adult Female", "Adult Male"))
+  growing <- dplyr::filter(
+    result,
+    !cohort %in% c("Adult Female", "Adult Male")
+  )
+
+  expect_equal(nrow(mature), 2)
+  expect_equal(mature$weight_gain_kg_day, c(0, 0))
+  expect_equal(
+    growing$weight_gain_kg_day,
+    rep(gain, nrow(growing)),
+    tolerance = 0.01
+  )
+  expect_equal(sum(result$cohort_heads), 2000)
+})
+
 test_that("secondary products under one live_anim_code do not duplicate heads", {
   # Production reports several t_head products for one animal (e.g. raw milk
   # plus a minor dairy product), all sharing the animal's live_anim_code. Only

@@ -7,7 +7,10 @@ test_that("recovery_regional split is mass-conserving and feeds livestock", {
   )
   out <- whep::calculate_residue_destinies(x)
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     100
   )
   testthat::expect_gt(out$residue_feed_dm_t, 0)
@@ -49,7 +52,10 @@ test_that("calculate_residue_destinies conserves mass with an unmatched region",
     ))
   )
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     100
   )
   testthat::expect_equal(out$residue_soil_dm_t, 100)
@@ -70,7 +76,10 @@ test_that("an unmatched recovery rate is reported, not passed off as zero", {
 
   expect_supplied_guard(
     identity = isTRUE(all.equal(
-      out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+      out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t +
+        out$residue_soil_dm_t,
       100
     )),
     guard = whep::calculate_residue_destinies(unmatched),
@@ -140,7 +149,10 @@ test_that("krausmann split accepts regions_full recovery labels", {
   testthat::expect_gt(out$residue_feed_dm_t, 0)
   testthat::expect_gt(out$residue_burn_dm_t, 0)
   testthat::expect_equal(
-    out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
     100
   )
 })
@@ -156,16 +168,24 @@ test_that("krausmann split accepts regions_full recovery labels", {
   )
 }
 
-test_that("bedding_fraction defaults to zero and changes nothing", {
-  bare <- whep::calculate_residue_destinies(.rd_bedding_input())
+test_that("bedding_fraction 0 under the fraction rule changes nothing", {
+  bare <- whep::calculate_residue_destinies(
+    .rd_bedding_input(),
+    bedding = "fraction"
+  )
   testthat::expect_equal(bare$residue_bedding_dm_t, 0)
   testthat::expect_equal(bare$residue_bedding_fraction, 0)
+  testthat::expect_equal(bare$method_residue_bedding, "fraction")
 })
 
 test_that("bedding is carved out of the non-feed removed share only", {
-  bare <- whep::calculate_residue_destinies(.rd_bedding_input())
+  bare <- whep::calculate_residue_destinies(
+    .rd_bedding_input(),
+    bedding = "fraction"
+  )
   bedded <- whep::calculate_residue_destinies(
     .rd_bedding_input(),
+    bedding = "fraction",
     bedding_fraction = 0.3
   )
   # Feed and the on-field share are untouched: bedding never comes out of the
@@ -183,6 +203,7 @@ test_that("the four destinies still sum to the whole residue", {
   for (frac in c(0, 0.14, 0.5, 1)) {
     out <- whep::calculate_residue_destinies(
       .rd_bedding_input(),
+      bedding = "fraction",
       bedding_fraction = frac
     )
     testthat::expect_equal(
@@ -197,18 +218,21 @@ test_that("the four destinies still sum to the whole residue", {
 
 test_that("the shares method carves bedding the same way", {
   x <- tibble::tibble(item_prod_code = "15", residue_dm_t = 100, year = 1950)
-  out <- suppressWarnings(whep::calculate_residue_destinies(
-    x,
-    method = "shares",
-    bedding_fraction = 0.25
-  ))
-  testthat::expect_equal(
-    out$residue_feed_dm_t +
-      out$residue_bedding_dm_t +
-      out$residue_burn_dm_t +
-      out$residue_soil_dm_t,
-    100
-  )
+  for (rule in c("fraction", "wirsenius")) {
+    out <- suppressWarnings(whep::calculate_residue_destinies(
+      x,
+      method = "shares",
+      bedding = rule,
+      bedding_fraction = if (rule == "fraction") 0.25 else 0
+    ))
+    testthat::expect_equal(
+      out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t +
+        out$residue_soil_dm_t,
+      100
+    )
+  }
 })
 
 test_that("an out-of-range bedding fraction is refused", {
@@ -217,11 +241,83 @@ test_that("an out-of-range bedding fraction is refused", {
     testthat::expect_error(
       whep::calculate_residue_destinies(
         .rd_bedding_input(),
+        bedding = "fraction",
         bedding_fraction = bad
       ),
       "bedding_fraction"
     )
   }
+})
+
+## ---- The sourced bedding share (whep#1005) --------------------------------
+
+test_that("bedding defaults to Wirsenius Table 3.21 on recovered straw", {
+  bare <- whep::calculate_residue_destinies(
+    .rd_bedding_input(),
+    bedding = "fraction"
+  )
+  out <- whep::calculate_residue_destinies(.rd_bedding_input())
+  recovered <- bare$residue_feed_dm_t + bare$residue_burn_dm_t
+  # 270 Tg DM litter of 2700 generated - 530 not recovered (p. 126).
+  testthat::expect_equal(out$residue_bedding_dm_t, recovered * 270 / 2170)
+  testthat::expect_equal(out$residue_bedding_fraction, 270 / 2170)
+  testthat::expect_equal(out$method_residue_bedding, "wirsenius")
+  # The carve moves mass from the non-feed share only.
+  testthat::expect_equal(out$residue_feed_dm_t, bare$residue_feed_dm_t)
+  testthat::expect_equal(out$residue_soil_dm_t, bare$residue_soil_dm_t)
+  testthat::expect_equal(
+    out$residue_bedding_dm_t + out$residue_burn_dm_t,
+    bare$residue_burn_dm_t
+  )
+})
+
+test_that("the Wirsenius share sits on the printed distributed share", {
+  # Table 3.21 prints litter as 14% of DISTRIBUTED straw; on the recovered
+  # denominator with the thesis' 10% distribution loss that is 0.126. The
+  # world totals give 0.124. A transcription slip would land far from both.
+  share <- whep:::.wirsenius_bedding_share()
+  testthat::expect_equal(share, 0.14 * 0.90, tolerance = 0.02)
+  testthat::expect_equal(share, 270 / 1940 * 1940 / 2170)
+})
+
+test_that("only cereal straw beds under the Wirsenius rule", {
+  # Cereals straw and stover is the only bedding material Wirsenius models.
+  x <- tibble::tibble(
+    item_prod_code = c("15", "27", "56", "79", "83", "236", "157"),
+    residue_dm_t = 100,
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+  out <- whep::calculate_residue_destinies(x)
+  cereal <- out$item_prod_code %in% c("15", "27", "56", "79", "83")
+  testthat::expect_true(all(out$residue_bedding_dm_t[cereal] > 0))
+  testthat::expect_true(all(out$residue_bedding_dm_t[!cereal] == 0))
+  testthat::expect_true(all(out$residue_bedding_fraction[!cereal] == 0))
+})
+
+test_that("bedding beyond the non-feed residue is capped, out loud", {
+  out <- tibble::tibble(
+    item_prod_code = "15",
+    residue_feed_dm_t = 95,
+    residue_burn_dm_t = 5,
+    residue_soil_dm_t = 0
+  )
+  testthat::expect_warning(
+    capped <- whep:::.residue_carve_bedding(out, "wirsenius", 0),
+    class = "whep_bedding_capped"
+  )
+  testthat::expect_equal(capped$residue_bedding_dm_t, 5)
+  testthat::expect_equal(capped$residue_burn_dm_t, 0)
+})
+
+test_that("a fraction passed with the Wirsenius rule is refused", {
+  testthat::expect_error(
+    whep::calculate_residue_destinies(
+      .rd_bedding_input(),
+      bedding_fraction = 0.3
+    ),
+    class = "whep_bedding_rule_conflict"
+  )
 })
 
 test_that("recovery = selects the rate column and is recorded (whep#1163)", {
@@ -243,7 +339,10 @@ test_that("recovery = selects the rate column and is recorded (whep#1163)", {
   testthat::expect_equal(legacy$residue_soil_dm_t, 100)
   for (out in list(wirsenius, legacy)) {
     testthat::expect_equal(
-      out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+      out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t +
+        out$residue_soil_dm_t,
       100
     )
   }
@@ -277,4 +376,133 @@ test_that("the shares method records no recovery variant", {
     whep::calculate_residue_destinies(x, method = "shares")
   )
   testthat::expect_true(is.na(out$method_residue_recovery))
+})
+
+test_that("recovery rates follow Wirsenius's region membership (whep#1430)", {
+  # The rates are Wirsenius (2000) Table 3.17, keyed on his eight regions.
+  # The HANPP label files Russia and Southeast Asia under South & Central
+  # Asia (cereal rate 0.90); Wirsenius Table 3.1 has them in East Europe
+  # (0.75) and East Asia (0.80).
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = c(
+      "Central Asia and Russian Federation",
+      "Southeastern Asia",
+      "Southern Asia"
+    ),
+    region_un_sub = c("Eastern Europe", "South-eastern Asia", "Southern Asia")
+  )
+  rates <- whep::whep_coef_table("residue_recovery")
+  rate <- function(region) {
+    rates$recovery_rates_wirsenius[
+      rates$cat_krausmann == "Wheat, other cereals" &
+        rates$region_krausmann == region
+    ]
+  }
+
+  out <- whep::calculate_residue_destinies(wheat)
+
+  testthat::expect_equal(
+    out$residue_soil_dm_t,
+    100 *
+      (1 -
+        c(
+          rate("East Europe"),
+          rate("East Asia"),
+          rate("South and Central Asia")
+        ))
+  )
+  testthat::expect_equal(
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
+    rep(100, 3)
+  )
+})
+
+# Since whep#1005 bedding is carved out of the recovered residue too, so the
+# recovered residue is all three of feed, bedding and burn.
+feed_share_of_recovered <- function(out) {
+  out$residue_feed_dm_t /
+    (out$residue_feed_dm_t + out$residue_bedding_dm_t + out$residue_burn_dm_t)
+}
+
+test_that("feed_share = 'wirsenius' reads Table 3.20 on Wirsenius's regions", {
+  # Wheat straw. Indonesia is East Asia in Wirsenius Table 3.1 (feed 0.30 of
+  # the distributed straw), India is South & Central Asia (0.80), France is
+  # West Europe (0.05). Distributed is 90% of recovered, so the share of
+  # recovered residue fed is 0.27, 0.72 and 0.045. HANPP files Indonesia
+  # with India: keyed on HANPP, Indonesia would read 0.72.
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = c(
+      "Southeastern Asia",
+      "Southern Asia",
+      "Western Europe"
+    ),
+    region_un_sub = c("South-eastern Asia", "Southern Asia", "Western Europe")
+  )
+  out <- whep::calculate_residue_destinies(wheat, feed_share = "wirsenius")
+  testthat::expect_equal(feed_share_of_recovered(out), c(0.27, 0.72, 0.045))
+  testthat::expect_equal(out$method_residue_feed, rep("wirsenius", 3))
+  testthat::expect_equal(
+    out$residue_feed_dm_t +
+      out$residue_bedding_dm_t +
+      out$residue_burn_dm_t +
+      out$residue_soil_dm_t,
+    rep(100, 3)
+  )
+  testthat::expect_false("region_wirsenius" %in% names(out))
+})
+
+test_that("feed_share moves feed against burn, never the soil return", {
+  wheat <- tibble::tibble(
+    item_prod_code = "15",
+    residue_dm_t = 100,
+    region_krausmann = "Southern Asia",
+    region_un_sub = "Southern Asia"
+  )
+  legacy <- whep::calculate_residue_destinies(wheat, feed_share = "legacy")
+  wirsenius <- whep::calculate_residue_destinies(
+    wheat,
+    feed_share = "wirsenius"
+  )
+  testthat::expect_equal(legacy$residue_soil_dm_t, wirsenius$residue_soil_dm_t)
+  testthat::expect_equal(
+    legacy$residue_feed_dm_t + legacy$residue_burn_dm_t,
+    wirsenius$residue_feed_dm_t + wirsenius$residue_burn_dm_t
+  )
+  # The legacy Southern Asia fraction is 0.45; Table 3.20 gives 0.72.
+  testthat::expect_equal(feed_share_of_recovered(legacy), 0.45)
+  testthat::expect_equal(legacy$method_residue_feed, "legacy")
+  testthat::expect_error(
+    whep::calculate_residue_destinies(wheat, feed_share = "smil"),
+    class = "rlang_error"
+  )
+})
+
+test_that("a category Table 3.20 omits keeps the legacy fraction, stamped", {
+  # Item 176 is dry beans: Wirsenius models no pulse residue, so there is no
+  # Table 3.20 row and the legacy Eastern Asia fraction (0.3) stays. The row
+  # must say so rather than pass the legacy number off as Wirsenius's.
+  beans <- tibble::tibble(
+    item_prod_code = "176",
+    residue_dm_t = 100,
+    region_krausmann = "Eastern Asia",
+    region_un_sub = "Eastern Asia"
+  )
+  out <- whep::calculate_residue_destinies(beans, feed_share = "wirsenius")
+  testthat::expect_equal(feed_share_of_recovered(out), 0.3)
+  testthat::expect_equal(out$method_residue_feed, "legacy")
+})
+
+test_that("the shares method records no feed-share variant", {
+  x <- tibble::tibble(item_prod_code = "15", residue_dm_t = 100, year = 1950)
+  out <- suppressWarnings(
+    whep::calculate_residue_destinies(x, method = "shares")
+  )
+  testthat::expect_true(is.na(out$method_residue_feed))
 })

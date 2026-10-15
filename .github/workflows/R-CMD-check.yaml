@@ -49,23 +49,31 @@ jobs:
 
     strategy:
       fail-fast: false
-      # On a PULL REQUEST only the leg marked `pr_tests` runs the test suite;
-      # the other three run R CMD check with `--no-tests` (build, install, code
-      # and documentation checks, examples: ~7 min). On a push to main, the
-      # weekly schedule and a manual dispatch, every leg runs the full suite.
+      # On a PULL REQUEST no leg runs the test suite: all four run R CMD check
+      # with `--no-tests` (build, install, code and documentation checks,
+      # examples: ~7 min). The suite runs once per PR, in offline-tests.yaml,
+      # on the checkout with the network blocked and split into shards. On a
+      # push to main, the weekly schedule and a manual dispatch, every leg
+      # runs the full suite on the built tarball.
       #
-      # Why: the suite took 21 of the 28 minutes of a check, and with
-      # offline-tests and test-coverage it ran SIX times per PR push, so a PR
-      # waited 35-50 min (#1347). The trade-off is explicit: a test failure
-      # specific to macOS, Windows or oldrel now shows up on main after the
-      # merge rather than on the PR. ubuntu-release keeps the tests because it
-      # runs them on the built tarball, the surface r-universe and CRAN run.
+      # Why: the suite ran SIX times per PR push, so a PR waited 35-50 min
+      # (#1347). PR #1354 cut that to two runs -- this leg on the tarball and
+      # offline-tests on the checkout -- and the tarball run, 19-23 min, then
+      # set the PR's wall clock on its own. The checkout run is the one that
+      # cannot go: it is the only place the network guard and the
+      # checkout-only gates run (data-raw freshness, the R/utils.R globals
+      # checks, the validation/ tripwires), all of which skip on a tarball.
+      #
+      # The trade-off is explicit: a test failure specific to macOS, Windows,
+      # oldrel or the installed package (a load_all()-only object, a file
+      # missing from the build) now shows up on main after the merge rather
+      # than on the PR.
       matrix:
         config:
-          - {os: macos-latest,   r: 'release',  pr_tests: false}
-          - {os: windows-latest, r: 'release',  pr_tests: false}
-          - {os: ubuntu-latest,  r: 'release',  pr_tests: true}
-          - {os: ubuntu-latest,  r: 'oldrel-1', pr_tests: false}
+          - {os: macos-latest,   r: 'release'}
+          - {os: windows-latest, r: 'release'}
+          - {os: ubuntu-latest,  r: 'release'}
+          - {os: ubuntu-latest,  r: 'oldrel-1'}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -110,10 +118,10 @@ jobs:
         with:
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          # check-r-package's default args plus `--no-tests` on the PR legs
-          # that do not test; see the matrix comment.
+          # check-r-package's default args plus `--no-tests` on a pull
+          # request; see the matrix comment.
           args: >-
-            ${{ (github.event_name == 'pull_request' && !matrix.config.pr_tests)
+            ${{ github.event_name == 'pull_request'
             && 'c("--no-manual","--as-cran","--no-tests")'
             || 'c("--no-manual","--as-cran")' }}
 

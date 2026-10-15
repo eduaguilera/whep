@@ -382,8 +382,9 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # both pinned back the 6c8bf0d2 figures are unchanged, which is what #1029
   # was about -- the passthrough itself moves nothing. whep#1245 moved a third,
   # `indirect_n2o_source`, onto the 2019 Table 11.3 leaching factors, so it is
-  # pinned back to `"ipcc_2006"` here too. The shipped defaults are locked
-  # beside them.
+  # pinned back to `"ipcc_2006"` here too, and whep#1365 a fourth,
+  # `indirect_n2o_fractions`, onto the Table 10.22 per-MMS fractions, so it is
+  # pinned back to `"single"`. The shipped defaults are locked beside them.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -399,28 +400,63 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Sheep ship 6.7 in `ipcc_tier2_ym_values`, so their enteric CH4 rises by
   # exactly 6.7/6.5 and nothing else moves: cattle (961, 960) are already 6.5,
   # and manure CH4 and N2O are untouched. See `.assume_missing_diet()`.
+  #
+  # whep#1440 then gave mature cohorts no growth and only mature females a
+  # pregnancy rate (IPCC 2019 Vol 4 Ch 10 pp. 10.18, 10.28), with beef cows
+  # at the Table 10A.2 regional rate (area 10 is Australia, Oceania 81%).
+  # Against the figures before it (2255369539.55, 1600495292.48,
+  # 492717625.44) that moves cattle 961 -13.60 percent, sheep 976 -26.30
+  # percent and cattle 960 -5.84 percent.
+  #
+  # Since whep#1127 a "Cattle, dairy" head is a milking cow (the FAOSTAT Milk
+  # Animals count) rather than one sixth each of six dairy cohorts, so dairy
+  # cattle 960 rises 16.148 percent; 961 and 976 do not move.
   expected_tier2 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2255369539.5477095,
-    10L, 976L, 1600495292.4821796,
-    100L, 960L, 492717625.4361503
+    10L, 961L, 1948581965.0761726,
+    10L, 976L, 1179516553.1179745,
+    100L, 960L, 538856333.32265997
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
-  # no MCF table, so `mms_shares` and `indirect_n2o_source` are the flips that
-  # reach it; the Tier 2 default is locked in the test below. Against the
-  # 2006 indirect N2O edition, whose totals are 1887669000, 1472445000 and
-  # 910771875, the 2019 leaching factors raise the sector totals by 0.355, 0.682 and
-  # 0.276 percent (whep#1245).
+  # no MCF table, so `mms_shares`, `indirect_n2o_source`,
+  # `indirect_n2o_fractions`, `enteric_ef_source` and `ef3_source` are the
+  # flips that reach it; the Tier 2 default is locked in the test below.
+  # Against the 2006 indirect N2O edition, whose totals are 1887669000,
+  # 1472445000 and 910771875, the 2019 leaching factors raised the sector
+  # totals by 0.355, 0.682 and 0.276 percent (whep#1245), to 1894361400,
+  # 1482483600 and 913281525. Against that single-fraction form, the Table
+  # 10.22 per-MMS fractions moved the sector totals by +0.044, +0.174 and
+  # -0.706 percent (whep#1365), to the totals `shipped_tier1` below
+  # reproduces with the two whep#601 options pinned back to `"as_shipped"`.
+  # whep#601 then moved Tier 1 enteric CH4 and EF3 onto the 2019 Refinement.
+  # Area 10 is Australia (Oceania, high productivity): its other cattle go
+  # 60 -> 63 and its sheep 8 -> 9 kg CH4/head/yr, and area 100 is India,
+  # whose dairy cattle go 68 -> 73. The EF3 flip lowers all three, chiefly
+  # through pasture 0.010 -> 0.004 (cattle) and 0.003 (sheep).
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1894361400,
-    10L, 976L, 1482483600,
-    100L, 960L, 913281525
+    10L, 961L, 1875040608,
+    10L, 976L, 1439877600,
+    100L, 960L, 960042780
+  )
+  shipped_tier1 <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~impact_u,
+    10L, 961L, 1895198808,
+    10L, 976L, 1485057600,
+    100L, 960L, 906833655
+  )
+  as_shipped <- list(
+    enteric_ef_source = "as_shipped",
+    ef3_source = "as_shipped"
   )
 
-  placeholder <- list(
-    mms_shares = "placeholder",
-    indirect_n2o_source = "ipcc_2006"
+  placeholder <- c(
+    list(
+      mms_shares = "placeholder",
+      indirect_n2o_source = "ipcc_2006",
+      indirect_n2o_fractions = "single"
+    ),
+    as_shipped
   )
   tier1 <- whep::build_livestock_ghg_extension(
     options = placeholder,
@@ -438,6 +474,10 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     )
   )
   tier1_default <- whep::build_livestock_ghg_extension(
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+  tier1_shipped <- whep::build_livestock_ghg_extension(
+    options = as_shipped,
     data = list(primary_prod = .ghg_prod_fixture())
   )
 
@@ -465,6 +505,14 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     ),
     dplyr::arrange(gleam_tier1, area_code, item_cbs_code)
   )
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(tier1_shipped, area_code, item_cbs_code, impact_u),
+      area_code,
+      item_cbs_code
+    ),
+    dplyr::arrange(shipped_tier1, area_code, item_cbs_code)
+  )
   # The defaults the manure engine actually took, recorded per sector.
   testthat::expect_true(all(
     tier1_default$method_mms == "gleam_2_0/region_specific"
@@ -485,8 +533,8 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   #
   # Against the same run with only `mms_shares = "placeholder"` -- the MCF
   # edition held at the 2019 default, so this is the ingest alone -- the
-  # sectors move cattle 961 -1.63 percent, sheep 976 +0.29 percent, cattle
-  # 960 -1.96 percent. The two effective Global factors at Temperate say why:
+  # sectors move cattle 961 -1.62 percent, sheep 976 +0.29 percent, cattle
+  # 960 -1.94 percent. The two effective Global factors at Temperate say why:
   # cattle fall on both (weighted MCF 7.310 -> 6.489 percent, weighted EF3
   # 0.00730 -> 0.006945), while sheep gain on the MCF (0.470 -> 1.600
   # percent, 32 percent of their manure moving from pasture to solid storage)
@@ -494,19 +542,38 @@ testthat::test_that("the shipped Tier 2 default is 2019 MCFs on GLEAM 2.0", {
   #
   # Since whep#1137 the pasture stream is priced at the Bo 0.19 the 2019
   # Refinement pairs with its pasture MCF. Against `pasture_bo = "species"`
-  # that moves cattle 961 +0.018 percent (2221562951.73), cattle 960
-  # -0.089 percent (483894485.80) and leaves sheep 976, already at Bo 0.19,
+  # that moves cattle 961 +0.018 percent (1927087071.86), cattle 960
+  # -0.089 percent (457178064.89) and leaves sheep 976, already at Bo 0.19,
   # unchanged.
   #
   # Since whep#1245 indirect manure N2O reads the 2019 Table 11.3 EF5 (0.011)
   # and FracLEACH-(H) (0.24). Against the 2006 edition, whose totals are
-  # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rise by
-  # 0.402, 0.405 and 0.340 percent.
+  # 2221967275.00, 1576986611.56 and 483461873.99, the sector totals rose by
+  # 0.402, 0.405 and 0.340 percent, to 2230894782.40, 1583378815.26 and
+  # 485105249.78.
+  #
+  # Since whep#1365 indirect manure N2O weights the Table 10.22 FracGasMS and
+  # FracLeachMS over each species' manure-management split, with pasture N at
+  # the Ch 11 FracGASM 0.21. Against the single-fraction form the sector
+  # totals moved by +0.041, -0.996 and -0.548 percent.
+  #
+  # Since whep#601 direct manure N2O reads the 2019 Table 10.21 (Updated) EF3
+  # (pasture from Ch 11 Table 11.1 (Updated); liquid slurry half crusted,
+  # 0.0025). Tier 2 enteric CH4 reads no Tier 1 factor for these three
+  # species, so `enteric_ef_source` does not reach them; against
+  # `ef3_source = "as_shipped"` the sector totals move -0.503, -3.304 and
+  # -0.428 percent.
+  #
+  # whep#1440 (mature cohorts take no growth; only mature females a pregnancy
+  # rate) moved these from 2220589160.23, 1515811583.16 and 480383184.58.
+  #
+  # Since whep#1127 the dairy herd is its milking cows, so cattle 960 rises
+  # 16.148 percent against `method_cohorts = "uniform"`.
   expected <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 2230894782.3991766,
-    10L, 976L, 1583378815.2593365,
-    100L, 960L, 485105249.77573824
+    10L, 961L, 1918532601.2425814,
+    10L, 976L, 1117107224.3320262,
+    100L, 960L, 525366879.67101061
   )
   tier2 <- suppressWarnings(
     whep::build_livestock_ghg_extension(
