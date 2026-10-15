@@ -3,9 +3,10 @@
 # expected per-month cell count.
 .lpjml_hydro_fixture_cube <- function(
   var_name = "seepage",
-  file = "mseepage.nc"
+  file = "mseepage.nc",
+  env = parent.frame()
 ) {
-  dir <- withr::local_tempdir(.local_envir = parent.frame())
+  dir <- withr::local_tempdir(.local_envir = env)
   lon <- c(-179.75, -179.25)
   lat <- c(0.25, 0.75)
   time <- 1:12
@@ -800,4 +801,178 @@ testthat::test_that("fill-valued ocean cells are dropped, as in the CRU reader",
 
   testthat::expect_equal(nrow(dplyr::distinct(result, lon, lat)), 3L)
   testthat::expect_false(any(result$lon == -179.25 & result$lat == 0.75))
+})
+
+# -- Pinned deep seepage (whep#1528) ------------------------------------------
+
+# The fixture cube with the global attributes and the dated time axis every
+# LPJmL output carries.
+.lpjml_hydro_stamped_cube <- function(
+  source = "LPJmL C Version 6.1.1",
+  env = parent.frame()
+) {
+  cube <- .lpjml_hydro_fixture_cube(env = env)
+  nc <- ncdf4::nc_open(file.path(cube$dir, cube$file), write = TRUE)
+  if (!is.null(source)) {
+    ncdf4::ncatt_put(nc, 0, "source", source)
+  }
+  ncdf4::ncatt_put(nc, "time", "units", "days since 1901-1-1 0:0:0")
+  ncdf4::ncatt_put(nc, 0, "GIT_hash", "e6e6c42b")
+  ncdf4::ncatt_put(nc, 0, "history", "Mon Aug 31 14:13:10 2026: ./bin/lpjml")
+  ncdf4::nc_close(nc)
+  cube
+}
+
+testthat::test_that("drainage without a run reads the seepage pin", {
+  cube <- .lpjml_hydro_stamped_cube()
+  pin <- whep:::.hydro_seepage_layer(cube$dir, years = 1901L)
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  requested <- NULL
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(alias, envvar, years = NULL) {
+      requested <<- alias
+      pin
+    },
+    .package = "whep"
+  )
+
+  from_pin <- whep::read_lpjml_hydrology(
+    "drainage",
+    years = 1901L,
+    monthly = FALSE
+  )
+  from_run <- whep::read_lpjml_hydrology(
+    "drainage",
+    run_dir = cube$dir,
+    years = 1901L,
+    first_year = 1901L,
+    monthly = FALSE
+  )
+
+  testthat::expect_identical(requested, "lpjml-seepage")
+  testthat::expect_named(from_pin, c("lon", "lat", "year", "value"))
+  testthat::expect_equal(
+    dplyr::arrange(from_pin, lon, lat),
+    dplyr::arrange(dplyr::select(from_run, lon, lat, year, value), lon, lat),
+    ignore_attr = TRUE
+  )
+})
+
+testthat::test_that("the seepage layer carries the run's vintage", {
+  cube <- .lpjml_hydro_stamped_cube()
+  layer <- whep:::.hydro_seepage_layer(cube$dir, years = 1901L)
+
+  pointblank::expect_col_vals_in_set(
+    layer,
+    "lpjml_version",
+    "LPJmL C Version 6.1.1"
+  )
+  pointblank::expect_col_vals_in_set(layer, "lpjml_git_hash", "e6e6c42b")
+  testthat::expect_match(
+    unique(layer$lpjml_run),
+    "started Mon Aug 31 14:13:10 2026$"
+  )
+  testthat::expect_equal(nrow(layer), cube$n_cells)
+  pointblank::expect_col_vals_gt(layer, "seepage_mm", 0)
+})
+
+testthat::test_that("a run file with no source stamp is refused", {
+  cube <- .lpjml_hydro_stamped_cube(source = NULL)
+  testthat::expect_error(
+    whep:::.hydro_seepage_layer(cube$dir, years = 1901L),
+    class = "whep_lpjml_seepage_vintage"
+  )
+})
+
+testthat::test_that("a named run is never swapped for the seepage pin", {
+  cube <- .lpjml_hydro_stamped_cube()
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(...) stop("pin must not be read"),
+    .package = "whep"
+  )
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = cube$dir)
+
+  result <- whep::read_lpjml_hydrology(
+    "drainage",
+    years = 1901L,
+    first_year = 1901L,
+    monthly = FALSE
+  )
+  testthat::expect_equal(nrow(result), cube$n_cells)
+})
+
+testthat::test_that("the annual seepage pin refuses a monthly read", {
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(...) stop("pin must not be read"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::read_lpjml_hydrology("drainage", years = 2010L, monthly = TRUE),
+    class = "whep_lpjml_seepage_pin_annual"
+  )
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      years = 2010L,
+      monthly = FALSE,
+      agg = "mean"
+    ),
+    class = "whep_lpjml_seepage_pin_annual"
+  )
+})
+
+testthat::test_that("other variables still need a run", {
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(...) stop("pin must not be read"),
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::read_lpjml_hydrology("runoff", years = 2010L, monthly = FALSE),
+    "No LPJmL run directory available"
+  )
+})
+
+testthat::test_that("a year outside the seepage pin aborts naming coverage", {
+  pin <- tibble::tribble(
+    ~lon, ~lat, ~year, ~seepage_mm, ~lpjml_version, ~lpjml_git_hash, ~lpjml_run,
+    0.25, 0.25, 2010L, 120, "6.1.1", "e6e6c42b", "run"
+  )
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(...) pin,
+    .package = "whep"
+  )
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      years = c(1840L, 2010L),
+      monthly = FALSE
+    ),
+    class = "whep_lpjml_seepage_pin_coverage"
+  )
+})
+
+testthat::test_that("an all-zero seepage pin is refused, not read as dry", {
+  pin <- tibble::tribble(
+    ~lon, ~lat, ~year, ~seepage_mm, ~lpjml_version, ~lpjml_git_hash, ~lpjml_run,
+    0.25, 0.25, 2010L, 0, "6.1.1", "e6e6c42b", "run",
+    0.75, 0.25, 2010L, 0, "6.1.1", "e6e6c42b", "run"
+  )
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  testthat::local_mocked_bindings(
+    .read_lpjml_pin = function(...) pin,
+    .package = "whep"
+  )
+  # Every cell-year is present, so a row-count check passes; the guard must
+  # fire anyway.
+  expect_supplied_guard(
+    identity = nrow(pin) == 2L,
+    guard = whep::read_lpjml_hydrology(
+      "drainage",
+      years = 2010L,
+      monthly = FALSE
+    )
+  )
 })
