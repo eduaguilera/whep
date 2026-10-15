@@ -5390,13 +5390,13 @@ build_processing_coefs <- function(
       empty[, c("import", "export")],
       defaults = list(import = 0, export = 0)
     ) |>
-    dplyr::filter(.data$import > 0) |>
     .label_recovered_rows(cbs)
 }
 
 # What a candidate whose export is not below its import becomes, by method.
-# Every candidate here already has a positive import: a key that only exports
-# has no supply to create a row from under any method.
+# A key that only exports has no supply to create a row from, so it is dropped
+# under every method -- except a residual by-product under
+# `"byproduct_residual"`, below.
 #
 # * `"pass_through"` keeps the row and caps its export at its import, so the
 #   row passes its imports straight on: domestic supply 0, nothing produced,
@@ -5406,24 +5406,68 @@ build_processing_coefs <- function(
 #   wool, silk): "reduce exports where they exceed total supply", with supply
 #   = production + imports (fineprint-global/fabio, branch
 #   data-2010-current, `R/03_1a_build_cbs.R`, lines 498-500 at 66a9298d).
+# * `"byproduct_residual"` is `"pass_through"`, except for the items in
+#   `.cbs_residual_byproducts()`: their full export is kept, export-only keys
+#   included, and production stays missing, so `.reestimate_domestic_supply()`
+#   imputes it as export - import, the residual it already gives those items
+#   wherever FAOSTAT's balance carries a row without a production (whep#1450).
 # * `"net_import"` keeps only net importers (whep#864): the net exporter's
 #   import and export are both dropped.
 #
-# A net importer is the same under both.
+# A net importer is the same under all three.
 .cbs_recovery_net_exports <- function(candidates, method) {
   if (method == "net_import") {
     return(dplyr::filter(candidates, .data$import > .data$export))
   }
+  candidates <- candidates |>
+    dplyr::mutate(
+      residual = method == "byproduct_residual" &
+        .data$item_cbs_code %in% .cbs_residual_byproducts()
+    ) |>
+    dplyr::filter(.data$import > 0 | .data$residual)
   excess <- pmax(candidates$export - candidates$import, 0)
-  if (any(excess > 0)) {
-    capped <- sum(excess > 0)
+  .report_recovery_excess(excess, candidates$residual)
+  candidates |>
+    dplyr::mutate(
+      export = dplyr::if_else(
+        .data$residual,
+        .data$export,
+        pmin(.data$export, .data$import)
+      )
+    ) |>
+    dplyr::select(-"residual")
+}
+
+# Name the tonnage each branch of `.cbs_recovery_net_exports()` decided on:
+# the export cut for want of supply, and the export kept as imputed production.
+.report_recovery_excess <- function(excess, residual) {
+  capped <- sum(excess > 0 & !residual)
+  if (capped > 0L) {
     cli::cli_alert_info(
       "Capped {capped} recovered export{?s} at {cli::qty(capped)}{?its/their} \
-       import, dropping {round(sum(excess))} t of export with no supply in \
-       the balance (whep#762)."
+       import, dropping {round(sum(excess[!residual]))} t of export with no \
+       supply in the balance (whep#762)."
     )
   }
-  dplyr::mutate(candidates, export = pmin(.data$export, .data$import))
+  kept <- sum(excess > 0 & residual)
+  if (kept > 0L) {
+    cli::cli_alert_info(
+      "Kept {kept} by-product export{?s} beyond {cli::qty(kept)}{?its/their} \
+       import, {round(sum(excess[residual]))} t the balance books as \
+       production (whep#1450)."
+    )
+  }
+  invisible(excess)
+}
+
+# Items whose production WHEP has no source for once FAOSTAT's balance for them
+# ends, so the trade record is the only evidence of it. Meat Meal (2112) is a
+# rendering by-product of slaughter: FAOSTAT's old commodity balances carry it
+# for 1961-2013 (as 2749, remapped in `.fix_item_codes()`), the Food Balances
+# from 2014 do not, and nothing in WHEP's processing produces it. An area that
+# exports more of it than it imports must have rendered the difference.
+.cbs_residual_byproducts <- function() {
+  2112
 }
 
 # Trade rows whose `(area_code, year)` the area vocabulary does not report
@@ -5593,15 +5637,17 @@ build_processing_coefs <- function(
 }
 
 # The answers to "an area trades an item its CBS has no row for", default
-# first. `"pass_through"` creates the row, capping a net exporter's export at
-# its import; `"net_import"` creates it for net importers only (whep#864);
-# `"none"` drops the trade, the behaviour before whep#762, and stays
-# selectable for sensitivity work and to reproduce an earlier build. One helper, so the default cannot drift between
+# first. `"byproduct_residual"` is `"pass_through"` that keeps a residual
+# by-product's net export as production (whep#1450); `"pass_through"` creates
+# the row, capping a net exporter's export at its import; `"net_import"`
+# creates it for net importers only (whep#864); `"none"` drops the trade, the
+# behaviour before whep#762, and stays selectable for sensitivity work and to
+# reproduce an earlier build. One helper, so the default cannot drift between
 # `build_commodity_balances()`, `get_wide_cbs()`, `get_processing_coefs()` and
 # `build_io_model()`: a caller of one and a caller of another must get the
 # same CBS unless they ask otherwise.
 .cbs_trade_recovery_choices <- function() {
-  c("pass_through", "net_import", "none")
+  c("byproduct_residual", "pass_through", "net_import", "none")
 }
 
 # -- Tier-1 trade fill: what a CBS zero does to a positive trade record --------
