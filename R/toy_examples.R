@@ -2568,3 +2568,22 @@
     )
   list(n_balance_drivers = loss, n_balance_leaching_drivers = leaching)
 }
+
+# Eight cells of the IMAGE-GNM supplement's two runoff layers
+# (doi:10.5194/gmd-8-4045-2015-supplement), as read_image_gnm_runoff()
+# returns them: flat to mountainous cells in the Netherlands, the Alps, Iowa,
+# central Spain, the Nile delta, Sichuan, central India and Amazonia.
+.example_image_gnm_runoff <- function() {
+  tibble::tribble(
+    ~lon,    ~lat,  ~surface_runoff_fraction, ~slope_m_per_km,
+    5.25,    52.25, 0.0135612,                1.2113556,
+    10.25,   46.25, 0.5247850,                220.75122,
+    -93.25,  41.75, 0.0532064,                6.0198779,
+    -3.75,   40.25, 0.1117080,                11.114079,
+    31.25,   30.25, 0.0339244,                3.1460800,
+    100.25,  30.25, 0.5223400,                114.84342,
+    78.25,   22.25, 0.2886630,                26.057310,
+    -60.25,  -3.25, 0.0485854,                3.6591377
+  ) |>
+    dplyr::mutate(source_image_gnm = "doi:10.5194/gmd-8-4045-2015-supplement")
+}

@@ -251,6 +251,248 @@ read_hwsd_topsoil_soc <- function(
     dplyr::mutate(method_soc_obs = bulk_density)
 }
 
+#' Read the topsoil soil mass from HWSD onto WHEP's grid.
+#'
+#' @description
+#' Read the mass of the HWSD (Harmonized World Soil Database) version 1.2
+#' topsoil (0-30 cm) per 0.5-degree cell: per map unit the share-weighted
+#' mean over its soil components of `bulk_density x topsoil_depth_cm x 100 x
+#' (1 - t_gravel / 100)` Mg of fine earth per ha, then averaged over the
+#' native HWSD cells inside each 0.5-degree block. It is the denominator that
+#' turns a 0-30 cm soil organic carbon stock (Mg C per ha, as
+#' [build_carbon_balance()] reports it) into a mass fraction of the soil, as
+#' the soil organic matter share of the Meisinger leaching drivers needs. The
+#' 0-30 cm carbon stock of the same components, [read_hwsd_topsoil_soc()]'s
+#' `soc_obs_mgc_ha`, is aggregated in the same pass, so the observed HWSD
+#' carbon fraction is `soc_obs_mgc_ha / soil_mass_mg_ha`.
+#'
+#' A component with a density but no organic carbon counts towards the mass
+#' and not towards the carbon stock; a component without a density counts
+#' towards neither. A cell is returned only where both values exist.
+#'
+#' @inheritParams read_hwsd_topsoil_soc
+#' @inheritSection read_soil_drainage Caching
+#' @return A tibble with `lon`, `lat`, `soil_mass_mg_ha` (0-30 cm fine-earth
+#'   mass, Mg per ha), `soc_obs_mgc_ha` (0-30 cm organic carbon, Mg C per ha)
+#'   and `method_soil_mass` (the bulk-density method).
+#' @source FAO/IIASA/ISRIC/ISSCAS/JRC (2012). *Harmonized World Soil Database
+#'   version 1.2*. FAO, Rome and IIASA, Laxenburg -- topsoil defined as
+#'   0-30 cm; fields `T_BULK_DENSITY`, `T_REF_BULK_DENSITY`, `T_GRAVEL`.
+#'   Stock equation: Hiederer, R. & Koechy, M. (2011). *Global Soil Organic
+#'   Carbon Estimates and the Harmonized World Soil Database*. EUR 25225 EN,
+#'   Publications Office of the European Union, 79 pp.
+#' @export
+#' @examples
+#' read_hwsd_topsoil_mass(example = TRUE)
+read_hwsd_topsoil_mass <- function(
+  hwsd_dir = NULL,
+  bulk_density = c("measured", "reference"),
+  data = list(),
+  example = FALSE
+) {
+  bulk_density <- rlang::arg_match(bulk_density)
+  if (isTRUE(example)) {
+    return(.example_hwsd_topsoil_mass())
+  }
+  rlang::check_installed("terra")
+  dir <- .resolve_hwsd_dir(hwsd_dir)
+  mu <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_soc_columns(bulk_density)
+  ) |>
+    .derive_map_unit_soil_mass(bulk_density)
+  .aggregate_hwsd_multi(
+    dir,
+    mu,
+    target_res = 0.5,
+    target_grid = data$cell_polity,
+    cols = c(
+      soil_mass_mg_ha = "soil_mass_mg_ha",
+      soc_obs_mgc_ha = "soc_obs_mgc_ha"
+    )
+  ) |>
+    dplyr::mutate(method_soil_mass = bulk_density)
+}
+
+#' Read gridded soil drainage class from HWSD onto WHEP's grid.
+#'
+#' @description
+#' Reads the drainage class of HWSD (Harmonized World Soil Database) version
+#' 1.2 and returns, for each 0.5-degree cell, the class most of its native
+#' HWSD pixels fall in, named as the drainage classes of
+#' [image_gnm_leaching_factors] (Table 2 of Beusen et al. 2015), the soil
+#' drainage factor of the IMAGE-GNM root-zone denitrification. HWSD drainage
+#' is a reference condition on flat terrain (0-0.5% slope), not a measured
+#' water table. Soil drainage is a static HWSD property: the result has no
+#' `year` column.
+#'
+#' @details
+#' Each HWSD map unit takes the drainage class with the largest summed
+#' `share` over its soil components, and each 0.5-degree cell the class with
+#' the most pixels. Ties go to the wetter class (the lower HWSD code), and a
+#' tied cell is marked in `method_soil_drainage`. The published pin holds the
+#' per-class pixel counts, not the class, as the pin of [read_soil_hydraulic()]
+#' does.
+#'
+#' The HWSD v1.2 codes map as follows, each read from the database's own
+#' `D_DRAINAGE` lookup (the documentation gives the basis of the classes, p.
+#' 10, but not the codes): 1 Very Poor to very poorly drained, 2 Poor to
+#' poorly drained, 3 Imperfectly to imperfectly drained, 4 Moderately Well to
+#' moderately well drained, 5 Well to well drained, 6 Somewhat Excessive to
+#' somewhat excessively drained and 7 Excessive to excessively drained. No
+#' HWSD v1.2 soil unit carries code 7. A code outside 1-7 aborts, and so does
+#' an extract that is not HWSD v1.2, whose coding differs.
+#'
+#' Cells whose HWSD units carry no drainage class (open water, ice and other
+#' non-soil units) are absent from the result. They are not gap-filled,
+#' because carrying a neighbour's class there would be a method choice.
+#'
+#' @inheritParams read_soil_hydraulic
+#' @param data Optional named list of pre-loaded inputs: `cell_polity`
+#'   (`lon`, `lat`, at minimum), used to crop the HWSD raster and a pinned
+#'   grid to the region of interest, and `drainage_counts`, a per-class pixel
+#'   count grid that replaces both routes.
+#' @section Caching:
+#' Aggregating the HWSD raster to the 0.5-degree grid takes about an hour per
+#' pass, and its result depends only on the archive and the target grid, so it
+#' is cached under `rappdirs::user_cache_dir("whep")`. The cache key covers the
+#' archive's raster and header (size and modification time), the resolution,
+#' the requested columns, the target grid's cells and the derived map-unit
+#' values, plus an algorithm version that is bumped whenever a change would
+#' move the numbers. Set `WHEP_HWSD_CACHE_DIR` to relocate it.
+#' @return A tibble with `lon`, `lat`, `soil_drainage_class` (one of
+#'   `"very_poorly_drained"`, `"poorly_drained"`, `"imperfectly_drained"`,
+#'   `"moderately_well_drained"`, `"well_drained"`,
+#'   `"somewhat_excessively_drained"`, `"excessively_drained"`) and
+#'   `method_soil_drainage`.
+#' @source FAO/IIASA/ISRIC/ISSCAS/JRC (2012). *Harmonized World Soil Database
+#'   version 1.2*. FAO, Rome and IIASA, Laxenburg. Drainage classes: the
+#'   field `DRAINAGE` and its lookup `D_DRAINAGE` in `HWSD.mdb`; documentation
+#'   p. 10 (drainage classes after FAO 1995, flat terrain). Class names:
+#'   Beusen, A. H. W. et al. (2015). Geosci. Model Dev. 8, 4045-4067, Table 2.
+#' @export
+#' @examples
+#' read_soil_drainage(example = TRUE)
+read_soil_drainage <- function(
+  hwsd_dir = NULL,
+  data = list(),
+  source = c("auto", "pin", "local"),
+  version = NULL,
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_soil_drainage())
+  }
+  classes <- .hwsd_drainage_classes()
+  .resolve_hwsd_grid(
+    alias = .hwsd_drainage_pin(),
+    cols = paste0("n_", classes),
+    derive = .derive_drainage_counts,
+    hwsd_dir = hwsd_dir,
+    data_grid = data$drainage_counts,
+    source = source,
+    version = version,
+    target_grid = data$cell_polity
+  ) |>
+    .modal_class_from_counts(
+      classes,
+      class_col = "soil_drainage_class",
+      method_col = "method_soil_drainage",
+      method = "hwsd_v1.2_drainage_code"
+    )
+}
+
+#' Read gridded FAO soil texture class from HWSD onto WHEP's grid.
+#'
+#' @description
+#' Derives the FAO soil texture class of HWSD (Harmonized World Soil
+#' Database) version 1.2 from the topsoil clay and sand fractions and returns,
+#' for each 0.5-degree cell, the class most of its native HWSD pixels fall in,
+#' named as the texture classes of [image_gnm_leaching_factors] (Table 2 of
+#' Beusen et al. 2015), the soil texture factor of the IMAGE-GNM root-zone
+#' denitrification. Soil texture is a static HWSD property: the result has no
+#' `year` column.
+#'
+#' @details
+#' Each soil component takes the class of the HWSD documentation's definition
+#' of the simplified FAO textural classes of the Soil Map of the World
+#' (field `T_TEXTURE`, p. 10): coarse is less than 18% clay and more than 65%
+#' sand, fine is more than 35% clay, and medium is the rest of the soils with
+#' up to 35% clay. The limits are read as printed, so a component with
+#' exactly 35% clay, or exactly 65% sand and under 18% clay, is medium; the
+#' database's own `T_TEXTURE` also calls all 726 such components medium. A
+#' component with no USDA texture class, which HWSD reports as zero clay,
+#' silt and sand, has no mineral texture and is skipped. A component whose
+#' soil unit is a Histosol is organic whatever its fractions are. The
+#' documentation defines Histosols as "soils which are composed of organic
+#' materials" (p. 30) and lists their units in the FAO-74 (`O`, `Oe`, `Od`,
+#' `Ox`, p. 31) and FAO-90 (`HS`, `HSl`, `HSs`, `HSf`, `HSt`, `HSi`, p. 29)
+#' legends. It gives no organic carbon limit for organic soils.
+#'
+#' The documentation defines three texture classes and no very fine class
+#' (it simplifies the five classes of its SOTER source to three, p. 7), so
+#' very fine soils fall in `"fine"` and the class `"very_fine"` of
+#' [image_gnm_leaching_factors] is never returned. The stamp
+#' `method_soil_texture_fao` says so on every row.
+#'
+#' A map unit takes the class with the largest summed `share` over its
+#' components and a cell the class with the most pixels; ties go to the first
+#' of coarse, medium, fine and organic, and a tied cell is marked in
+#' `method_soil_texture_fao`. The published pin holds the per-class pixel
+#' counts, not the class. Cells with no classified pixel are absent from the
+#' result and are not gap-filled. An extract that is not HWSD v1.2, or that
+#' holds a clay or sand fraction outside 0-100%, aborts.
+#'
+#' @inheritParams read_soil_hydraulic
+#' @param data Optional named list of pre-loaded inputs: `cell_polity`
+#'   (`lon`, `lat`, at minimum), used to crop the HWSD raster and a pinned
+#'   grid to the region of interest, and `texture_fao_counts`, a per-class
+#'   pixel count grid that replaces both routes.
+#' @inheritSection read_soil_drainage Caching
+#' @return A tibble with `lon`, `lat`, `soil_texture_fao` (one of `"coarse"`,
+#'   `"medium"`, `"fine"`, `"organic"`) and `method_soil_texture_fao`
+#'   (`hwsd_v1.2_fao3_clay_sand` or `hwsd_v1.2_histosol_unit`, followed by
+#'   `;tied_dominant_class` where the cell is tied).
+#' @source FAO/IIASA/ISRIC/ISSCAS/JRC (2012). *Harmonized World Soil Database
+#'   version 1.2*. FAO, Rome and IIASA, Laxenburg. Texture classes:
+#'   documentation p. 10 (`T_TEXTURE`); Histosols: pp. 29-31.
+#' @export
+#' @examples
+#' read_soil_texture_fao(example = TRUE)
+read_soil_texture_fao <- function(
+  hwsd_dir = NULL,
+  data = list(),
+  source = c("auto", "pin", "local"),
+  version = NULL,
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_soil_texture_fao())
+  }
+  classes <- .hwsd_texture_fao_classes()
+  .resolve_hwsd_grid(
+    alias = .hwsd_texture_fao_pin(),
+    cols = paste0("n_", classes),
+    derive = .derive_texture_fao_counts,
+    hwsd_dir = hwsd_dir,
+    data_grid = data$texture_fao_counts,
+    source = source,
+    version = version,
+    target_grid = data$cell_polity
+  ) |>
+    .modal_class_from_counts(
+      classes,
+      class_col = "soil_texture_fao",
+      method_col = "method_soil_texture_fao",
+      method = c(
+        coarse = "hwsd_v1.2_fao3_clay_sand",
+        medium = "hwsd_v1.2_fao3_clay_sand",
+        fine = "hwsd_v1.2_fao3_clay_sand",
+        organic = "hwsd_v1.2_histosol_unit"
+      )
+    )
+}
+
 # ---- Private helpers --------------------------------------------------
 
 # The hwsd_data.csv columns each HWSD reader needs, named once so a caller's
@@ -324,6 +566,41 @@ read_hwsd_topsoil_soc <- function(
       .by = "mu_global"
     )
 }
+
+# Per-map-unit topsoil fine-earth mass (Mg/ha) and carbon stock (Mg C/ha),
+# share-weighted over the map unit's soil components. With bulk in g/cm3
+# (Mg per m3) and the stamped depth in cm, a hectare holds bulk times depth/100
+# m times 10,000 m2 times the gravel-free share, that is bulk x depth x 100 Mg
+# of fine earth. The density follows the same method switch as the carbon
+# benchmark. A component without a density is not soil mass anyone measured,
+# so it leaves the mean; one without carbon is still soil, so it stays in the
+# mass and leaves only the carbon mean.
+.derive_map_unit_soil_mass <- function(attrs, bulk_density) {
+  soils <- attrs |>
+    dplyr::mutate(
+      bulk = if (bulk_density == "measured") {
+        dplyr::coalesce(.data$t_bulk_density, .data$t_ref_bulk_density)
+      } else {
+        .data$t_ref_bulk_density
+      },
+      gravel = dplyr::coalesce(pmin(pmax(.data$t_gravel, 0), 100), 0) / 100
+    ) |>
+    dplyr::filter(!is.na(.data$bulk)) |>
+    dplyr::mutate(
+      soil_mass_mg_ha = .data$bulk *
+        .data$topsoil_depth_cm *
+        100 *
+        (1 - .data$gravel)
+    )
+  mass <- dplyr::summarise(
+    soils,
+    soil_mass_mg_ha = stats::weighted.mean(.data$soil_mass_mg_ha, .data$share),
+    .by = "mu_global"
+  )
+  carbon <- .derive_map_unit_soc(attrs, bulk_density)
+  dplyr::left_join(mass, carbon, by = "mu_global")
+}
+
 # Resolve the HWSD data directory from the argument, else the env var.
 .resolve_hwsd_dir <- function(hwsd_dir) {
   resolved <- hwsd_dir %||% Sys.getenv("WHEP_HWSD_DIR")
@@ -437,6 +714,299 @@ read_hwsd_topsoil_soc <- function(
     )
 }
 
+# ---- Drainage and FAO texture classes ---------------------------------------
+
+# The columns the two class readers need. `source` is required because both
+# classifications are specific to HWSD v1.2: HWSD2 codes drainage differently
+# and layers its topsoil as 0-20 cm. su_symbol74 and su_symbol90 are the FAO-74
+# and FAO-90 soil unit symbols, which identify Histosols.
+.hwsd_drainage_columns <- function() {
+  c("mu_global", "share", "drainage", "source")
+}
+
+.hwsd_texture_fao_columns <- function() {
+  c(
+    "mu_global",
+    "share",
+    "t_usda_tex",
+    "t_clay",
+    "t_sand",
+    "su_symbol74",
+    "su_symbol90",
+    "source"
+  )
+}
+
+# HWSD drainage code -> IMAGE-GNM Table 2 class (R/datasets_balances.R,
+# image_gnm_leaching_factors). The codes and labels are those of the D_DRAINAGE
+# lookup of HWSD.mdb and HWSD_META.mdb, the official v1.2 files. The
+# HWSD.SQLite conversion carries "* TRIAL *" for code 1, and for codes of
+# D_USDA_TEX_CLASS and D_SWR that the documentation prints in full (pp. 15 and
+# 13), so its labels are not used. The class order is the code order, from the
+# wettest to the driest class.
+.hwsd_drainage_crosswalk <- function() {
+  system.file(
+    "extdata",
+    "balances",
+    "hwsd_drainage_classes.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::arrange(.data$drainage_code)
+}
+
+.hwsd_drainage_classes <- function() {
+  .hwsd_drainage_crosswalk()$soil_drainage_class
+}
+
+# The class limits of the FAO texture definition (documentation p. 10), as a
+# named vector of percentages.
+.hwsd_texture_fao_limits <- function() {
+  limits <- system.file(
+    "extdata",
+    "balances",
+    "hwsd_texture_fao_limits.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE)
+  rlang::set_names(limits$value_pct, limits$limit)
+}
+
+# The soil unit symbols of Histosols, by symbol column (documentation pp. 29,
+# 31).
+.hwsd_histosol_units <- function() {
+  system.file(
+    "extdata",
+    "balances",
+    "hwsd_histosol_units.csv",
+    package = "whep"
+  ) |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble()
+}
+
+# The texture classes of image_gnm_leaching_factors that HWSD v1.2 can supply.
+# "very_fine" is not among them: the documentation defines three classes only.
+.hwsd_texture_fao_classes <- function() {
+  c("coarse", "medium", "fine", "organic")
+}
+
+# Whether a soil component's unit is a Histosol under either legend. A missing
+# symbol is not a Histosol.
+.hwsd_is_histosol <- function(
+  symbol74,
+  symbol90,
+  units = .hwsd_histosol_units()
+) {
+  by_column <- split(units$symbol, units$symbol_column)
+  symbol74 %in% by_column$su_symbol74 | symbol90 %in% by_column$su_symbol90
+}
+
+# The FAO texture class of each soil component. The limits are applied as
+# printed: coarse needs less than 18% clay AND MORE than 65% sand, fine needs
+# MORE than 35% clay, and medium takes everything else with up to 35% clay, so
+# the boundary values 35% clay and 65% sand are medium. The printed medium
+# definition leaves those two values in no class; HWSD's own T_TEXTURE calls
+# every such component medium (726 of 47,522 soil components). A component with
+# no USDA texture class has no mineral texture, whatever clay and sand it is
+# stamped with (zeros). A Histosol is organic whatever its fractions.
+.hwsd_texture_fao_class <- function(
+  t_clay,
+  t_sand,
+  t_usda_tex,
+  histosol,
+  limits = .hwsd_texture_fao_limits()
+) {
+  dplyr::case_when(
+    histosol ~ "organic",
+    is.na(t_usda_tex) | is.na(t_clay) | is.na(t_sand) ~ NA_character_,
+    t_clay < limits[["coarse_clay_max_pct"]] &
+      t_sand > limits[["coarse_sand_min_pct"]] ~ "coarse",
+    t_clay > limits[["fine_clay_min_pct"]] ~ "fine",
+    .default = "medium"
+  )
+}
+
+# A clay or sand fraction outside 0-100% means the extract is on another scale
+# or corrupted, and would classify without a trace.
+.check_hwsd_fractions <- function(attrs) {
+  bad <- dplyr::coalesce(
+    attrs$t_clay < 0 |
+      attrs$t_clay > 100 |
+      attrs$t_sand < 0 |
+      attrs$t_sand > 100 |
+      attrs$t_clay + attrs$t_sand > 100,
+    FALSE
+  )
+  if (any(bad)) {
+    cli::cli_abort(
+      c(
+        "{sum(bad)} HWSD component{?s} hold{?s/} a topsoil clay or sand
+         fraction outside 0-100%.",
+        i = "{.field t_clay} and {.field t_sand} are percentages by weight,
+             and they cannot sum to more than 100."
+      ),
+      class = "whep_hwsd_value"
+    )
+  }
+  attrs
+}
+
+# Both classifications belong to HWSD v1.2 and refuse another extract.
+.check_hwsd_v12 <- function(attrs) {
+  other <- setdiff(unique(attrs$source), "hwsd_v1.2")
+  if (length(other) > 0) {
+    cli::cli_abort(
+      c(
+        "The HWSD extract is {.val {other}}, not {.val hwsd_v1.2}.",
+        i = "The drainage codes and the 0-30 cm texture classes are those of
+             HWSD v1.2, which {.path inst/scripts/export_hwsd_attributes.R}
+             exports. HWSD2 codes drainage differently."
+      ),
+      class = "whep_hwsd_version"
+    )
+  }
+  attrs
+}
+
+# For each map unit, the class with the largest summed `share` over its
+# components. Components without a class are skipped. A tie goes to the class
+# listed first in `classes`, so the answer does not depend on row order.
+.derive_dominant_class <- function(components, class_col, classes) {
+  components |>
+    dplyr::filter(!is.na(.data[[class_col]])) |>
+    dplyr::summarise(
+      class_share = sum(.data$share, na.rm = TRUE),
+      .by = dplyr::all_of(c("mu_global", class_col))
+    ) |>
+    dplyr::arrange(
+      .data$mu_global,
+      dplyr::desc(.data$class_share),
+      match(.data[[class_col]], classes)
+    ) |>
+    dplyr::slice_head(n = 1, by = "mu_global") |>
+    dplyr::select("mu_global", dplyr::all_of(class_col))
+}
+
+# The drainage class of each map unit. A code the crosswalk does not hold is a
+# corrupted lookup or another vocabulary, so it aborts instead of dropping.
+.derive_mu_drainage_class <- function(attrs) {
+  crosswalk <- .hwsd_drainage_crosswalk()
+  unknown <- setdiff(
+    unique(stats::na.omit(attrs$drainage)),
+    crosswalk$drainage_code
+  )
+  if (length(unknown) > 0) {
+    cli::cli_abort(
+      c(
+        "The HWSD extract carries drainage code{?s} {.val {unknown}}, which
+         the crosswalk does not hold.",
+        i = "Expected codes {.val {crosswalk$drainage_code}}."
+      ),
+      class = "whep_hwsd_drainage_code"
+    )
+  }
+  attrs |>
+    dplyr::left_join(
+      dplyr::select(crosswalk, "drainage_code", "soil_drainage_class"),
+      by = c("drainage" = "drainage_code")
+    ) |>
+    .derive_dominant_class("soil_drainage_class", crosswalk$soil_drainage_class)
+}
+
+# The FAO texture class of each map unit.
+.derive_mu_texture_fao <- function(attrs) {
+  limits <- .hwsd_texture_fao_limits()
+  units <- .hwsd_histosol_units()
+  attrs |>
+    .check_hwsd_fractions() |>
+    dplyr::mutate(
+      soil_texture_fao = .hwsd_texture_fao_class(
+        .data$t_clay,
+        .data$t_sand,
+        .data$t_usda_tex,
+        .hwsd_is_histosol(.data$su_symbol74, .data$su_symbol90, units),
+        limits
+      )
+    ) |>
+    .derive_dominant_class("soil_texture_fao", .hwsd_texture_fao_classes())
+}
+
+# Per-cell pixel counts by drainage class from a local HWSD archive.
+.derive_drainage_counts <- function(dir, target_grid) {
+  rlang::check_installed("terra")
+  mu_class <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_drainage_columns()
+  ) |>
+    .check_hwsd_v12() |>
+    .derive_mu_drainage_class()
+  .aggregate_hwsd_class_counts(
+    dir,
+    mu_class,
+    class_col = "soil_drainage_class",
+    classes = .hwsd_drainage_classes(),
+    target_grid = target_grid
+  )
+}
+
+# Per-cell pixel counts by FAO texture class from a local HWSD archive.
+.derive_texture_fao_counts <- function(dir, target_grid) {
+  rlang::check_installed("terra")
+  mu_class <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_texture_fao_columns()
+  ) |>
+    .check_hwsd_v12() |>
+    .derive_mu_texture_fao()
+  .aggregate_hwsd_class_counts(
+    dir,
+    mu_class,
+    class_col = "soil_texture_fao",
+    classes = .hwsd_texture_fao_classes(),
+    target_grid = target_grid
+  )
+}
+
+# The class with the most pixels in each cell of a per-class counts grid, with
+# its method stamp. `method` is one string or a string per class. A tie goes to
+# the first class of `classes`, and the stamp then ends in
+# ";tied_dominant_class", so a tied cell is not read as a clear majority.
+.modal_class_from_counts <- function(
+  counts,
+  classes,
+  class_col,
+  method_col,
+  method
+) {
+  ncols <- paste0("n_", classes)
+  .check_columns(counts, c("lon", "lat", ncols), "class counts")
+  m <- as.matrix(counts[, ncols])
+  m[is.na(m)] <- 0
+  if (any(rowSums(m) <= 0)) {
+    cli::cli_abort(
+      "{sum(rowSums(m) <= 0)} cell{?s} carry no classified HWSD pixel."
+    )
+  }
+  top <- max.col(m, ties.method = "first")
+  tied <- rowSums(m == m[cbind(seq_len(nrow(m)), top)]) > 1
+  stamp <- if (length(method) == 1L) {
+    rep(method, length(top))
+  } else {
+    unname(method[classes[top]])
+  }
+  tibble::tibble(
+    lon = counts$lon,
+    lat = counts$lat,
+    "{class_col}" := classes[top],
+    "{method_col}" := paste0(
+      stamp,
+      dplyr::if_else(tied, ";tied_dominant_class", "")
+    )
+  )
+}
+
 # ---- Pinned derived grids ---------------------------------------------------
 
 # WHEP publishes the two derived HWSD grids so that nobody has to aggregate an
@@ -449,6 +1019,16 @@ read_hwsd_topsoil_soc <- function(
 
 .hwsd_clay_pin <- function() {
   "hwsd-clay-grid"
+}
+
+# The two class grids hold per-class pixel counts, as the texture grid does, so
+# a later change of how a count becomes a class does not need a new pin.
+.hwsd_drainage_pin <- function() {
+  "hwsd-drainage-class-grid"
+}
+
+.hwsd_texture_fao_pin <- function() {
+  "hwsd-texture-fao-grid"
 }
 
 # Read one of those pins, aborting in a way that names BOTH routes. Modelled on
@@ -626,8 +1206,28 @@ read_hwsd_topsoil_soc <- function(
   target_res = 0.5,
   target_grid = NULL
 ) {
-  classes <- .hwsd_texture_classes()
-  idx <- match(mu_class$usda_texture_class, classes)
+  .aggregate_hwsd_class_counts(
+    hwsd_dir,
+    mu_class,
+    class_col = "usda_texture_class",
+    classes = .hwsd_texture_classes(),
+    target_res = target_res,
+    target_grid = target_grid
+  )
+}
+
+# The same count aggregation for any classification: `mu_class` holds one class
+# per map unit in `class_col`, `classes` fixes the column order, and a map unit
+# whose class is not in `classes` is counted by no column.
+.aggregate_hwsd_class_counts <- function(
+  hwsd_dir,
+  mu_class,
+  class_col,
+  classes,
+  target_res = 0.5,
+  target_grid = NULL
+) {
+  idx <- match(mu_class[[class_col]], classes)
   keep <- !is.na(idx)
   cols <- rlang::set_names(
     rep("class_index", length(classes)),
@@ -1257,6 +1857,32 @@ read_hwsd_topsoil_soc <- function(
     -0.25, -0.25, 41.6,            "measured"
   )
 }
+# Toy fixture for a runnable example (one cell, a mid-range mineral soil:
+# bulk 1.3 g/cm3 over 30 cm with no gravel, and the carbon stock of the
+# read_hwsd_topsoil_soc() fixture).
+.example_hwsd_topsoil_mass <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~soil_mass_mg_ha, ~soc_obs_mgc_ha, ~method_soil_mass,
+    -0.25, -0.25, 3900,             41.6,            "measured"
+  )
+}
+
+# Toy fixture for a runnable example (one cell, a well drained soil).
+.example_soil_drainage <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~soil_drainage_class, ~method_soil_drainage,
+    -0.25, -0.25, "well_drained",       "hwsd_v1.2_drainage_code"
+  )
+}
+
+# Toy fixture for a runnable example (one cell, a medium textured soil).
+.example_soil_texture_fao <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~soil_texture_fao, ~method_soil_texture_fao,
+    -0.25, -0.25, "medium",          "hwsd_v1.2_fao3_clay_sand"
+  )
+}
+
 # Toy fixture for a runnable example (one cell, loam-class hydraulics).
 .example_soil_hydraulic <- function() {
   tibble::tribble(

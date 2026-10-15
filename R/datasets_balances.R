@@ -526,18 +526,41 @@
 #'
 #' @description
 #' Scalar constants for the nitrogen-loss cascade: the input C:N leaching
-#' attenuation parameters (\code{a_cn_*}) and the IPCC indirect-emission
-#' factors. The C:N attenuation reduces nitrate leaching for
+#' attenuation parameters (\code{a_cn_*}), the IPCC indirect-emission
+#' factors and the constants of the nitrate transport factors of
+#' [calculate_n_leaching()]. The C:N attenuation reduces nitrate leaching for
 #' carbon-rich, low-availability inputs; the indirect factors convert
 #' volatilised ammonia and leached nitrate into indirect N2O and set the
-#' ammonia-volatilisation fractions.
+#' ammonia-volatilisation fractions. \code{swat_anion_exclusion} is the
+#' SWAT anion-exclusion fraction of porosity; \code{beusen_*} and
+#' \code{molar_gas_constant} give the Arrhenius temperature effect on
+#' root-zone denitrification of the IMAGE-GNM method, and
+#' \code{image_gnm_*} its root-zone depth, the bounds its authors' model
+#' code places on the residence time and the temperature effect, the total
+#' runoff below which it moves no water through the root zone, the
+#' calibration factor of its surface runoff nitrogen and the four constants
+#' of its erosion slope factor. \code{water_flux_floor_mm} is the lowest
+#' drainage or total runoff accepted as a float residue of zero, shared by
+#' the Meisinger and IMAGE-GNM checks of [calculate_n_leaching()].
 #'
 #' @format A tibble with columns:
 #' \describe{
 #'   \item{constant}{Constant name: \code{"a_cn_min_cn"},
 #'     \code{"a_cn_span"}, \code{"a_cn_span_other"}, \code{"a_cn_max"},
 #'     \code{"ef5_no3_to_n2o"}, \code{"ef4_nh3_to_n2o_atl"},
-#'     \code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"}.}
+#'     \code{"nh3_frac_synthetic"}, \code{"nh3_frac_organic"},
+#'     \code{"swat_anion_exclusion"}, \code{"beusen_arrhenius_factor"},
+#'     \code{"beusen_activation_energy"}, \code{"molar_gas_constant"},
+#'     \code{"image_gnm_tawc_depth_m"},
+#'     \code{"image_gnm_crop_max_residence_yr"},
+#'     \code{"image_gnm_no_drainage_residence_yr"},
+#'     \code{"image_gnm_max_temperature_effect"},
+#'     \code{"image_gnm_min_runoff_mm"}, \code{"water_flux_floor_mm"},
+#'     \code{"image_gnm_runoff_calibration"},
+#'     \code{"image_gnm_erosion_slope_offset"},
+#'     \code{"image_gnm_erosion_slope_range"},
+#'     \code{"image_gnm_erosion_slope_intercept"},
+#'     \code{"image_gnm_erosion_slope_rate"}.}
 #'   \item{value}{Numeric value of the constant.}
 #'   \item{description}{Human-readable description of the constant.}
 #' }
@@ -550,10 +573,145 @@
 #'   Chapter 11 (EF5 = 0.011 for nitrate leaching to N2O; EF4 = 0.014 for
 #'   Atlantic, i.e. wet-climate, ammonia to N2O, p. 11.26; NH3
 #'   volatilisation fractions 0.11 synthetic and 0.21 organic, Table 11.3).
+#'   Anion exclusion 0.5: the ANION_EXCL default of the SWAT Input/Output
+#'   File Documentation, Version 2012, ch. 22, p. 304, as used in Neitsch et
+#'   al. (2011), SWAT 2009 Theoretical Documentation, TR-406, eqs. 4:2.1.2 to
+#'   4:2.1.8. Arrhenius factor 7.94e12, activation energy 74,830 J/mol and
+#'   gas constant 8.3144 J/(mol K): Beusen et al. (2015), Geosci. Model Dev.
+#'   8:4045-4067, doi:10.5194/gmd-8-4045-2015, eqs. 12-13, p. 4052. The
+#'   1 m depth of the total available water capacity: the same paper, eq. 14,
+#'   p. 4052 (the top 1 m "or less if thinner"; WHEP has no soil-thickness
+#'   layer, so the full 1 m is used). The cropland residence time of at most
+#'   1 year, the 100-year residence time without excess water and the bound
+#'   of 1 on the temperature effect: the authors' IMAGE-GNM model code
+#'   published with the paper, \code{n_soil_denitrification.py} (in
+#'   \code{N_model/trunk/tools/}), lines 377-378, 179-182 and 97. The
+#'   3 mm/yr total runoff below which no water moves through the root zone:
+#'   the same file, lines 341-344, with \code{minimal_soil_infiltration =
+#'   3.0} (mm/yr) in \code{parameters_history_100.ini}, lines 203-204; the
+#'   same threshold sets dry grassland and natural surpluses aside as
+#'   inactive N in \code{n_nowater.py}, lines 31-46. The water-flux floor of
+#'   -0.1 mm is assumed, unverified: the lower edge of the None bin of
+#'   [drainage_ranges], with no source recorded for that edge. The
+#'   surface runoff calibration factor 0.3: the same paper, \code{f_cal} of
+#'   eq. 9, p. 4052, and \code{C_sro,N} of Table 3, p. 4056. The erosion
+#'   slope factor \code{a + b / (1 + exp(c - d S / 1000))} with
+#'   \code{a = -1.5}, \code{b = 17}, \code{c = 2.3} and \code{d = 6.1}: the
+#'   authors' code, \code{n_erosion.py}, line 50, for the soil loss of
+#'   Cerdan et al. (2010) the paper cites on p. 4052.
 #'
 #' @examples
 #' n_attenuation_constants
 "n_attenuation_constants"
+
+#' IMAGE-GNM soil denitrification and land-use leaching factors.
+#'
+#' @description
+#' The class factors of IMAGE-GNM's root-zone leaching fraction (Beusen et
+#' al. 2015, eq. 11, p. 4052),
+#' \code{f_leach = [1 - min(f_climate + f_text + f_drain + f_soc, 1)]
+#' f_landuse}, read by [calculate_n_leaching()] with
+#' \code{method = "image_gnm"}: the denitrification fractions for soil
+#' texture (\code{f_text}), soil drainage (\code{f_drain}) and soil organic
+#' carbon content (\code{f_soc}) of Table 2 (p. 4053), and the land-use
+#' factor \code{f_landuse} (p. 4052). Table 2 is transcribed as printed. Its
+#' drainage column names five classes; the FAO classes it does not name,
+#' well drained and somewhat excessively drained, take 0 from the authors'
+#' model code, which books every well-drained class at 0. The organic-carbon
+#' classes are half-open, \code{soc_min_pct <= SOC < soc_max_pct}, as in the
+#' authors' class code; the table gives no numeric bound for its Organic
+#' class, which here starts where the 6-50\% class ends, and both take 0.3.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{factor}{Which factor the row gives: \code{"texture"},
+#'     \code{"drainage"}, \code{"soc"} or \code{"land_use"}.}
+#'   \item{class}{The class key [calculate_n_leaching()] matches:
+#'     texture \code{"coarse"}, \code{"medium"}, \code{"fine"},
+#'     \code{"very_fine"}, \code{"organic"}; drainage
+#'     \code{"excessively_drained"}, \code{"somewhat_excessively_drained"},
+#'     \code{"well_drained"}, \code{"moderately_well_drained"},
+#'     \code{"imperfectly_drained"}, \code{"poorly_drained"},
+#'     \code{"very_poorly_drained"}; organic carbon \code{"below_1_pct"},
+#'     \code{"1_to_3_pct"}, \code{"3_to_6_pct"}, \code{"6_to_50_pct"},
+#'     \code{"organic"}; land use \code{"Cropland"}, \code{"Grassland"},
+#'     \code{"Natural"}.}
+#'   \item{label}{The class as the source prints it (\code{NA} for the two
+#'     drainage classes taken from the authors' code).}
+#'   \item{soc_min_pct, soc_max_pct}{Bounds of an organic-carbon class, \%
+#'     by weight (\code{NA} on other rows).}
+#'   \item{value}{The factor (dimensionless).}
+#'   \item{source}{Locator of the value.}
+#' }
+#'
+#' @source Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al.
+#'   (2015). Coupling global models for hydrology and nutrient loading to
+#'   simulate nitrogen and phosphorus retention in surface water -
+#'   description of IMAGE-GNM and analysis of performance. Geosci. Model
+#'   Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}. Table 2 (p. 4053,
+#'   after Van Drecht et al. 2003) for \code{f_text}, \code{f_drain} and
+#'   \code{f_soc}; p. 4052 for \code{f_landuse} (1 for arable land, 0.36
+#'   for grassland and natural vegetation, citing Keuskamp, J. A., Van
+#'   Drecht, G. & Bouwman, A. F. 2012, Environ. Pollut. 165, 67-76,
+#'   \doi{10.1016/j.envpol.2012.02.008}). The well-drained and somewhat
+#'   excessively drained classes: the authors' model code published with the
+#'   paper, \code{n_soil_denitrification.py} (in
+#'   \code{N_model/trunk/tools/}), \code{fr_Ndenitrification_drainage()},
+#'   lines 163-165.
+#'
+#' @examples
+#' image_gnm_leaching_factors
+"image_gnm_leaching_factors"
+
+#' IMAGE-GNM surface runoff and erosion factors.
+#'
+#' @description
+#' The factors of IMAGE-GNM's surface runoff nitrogen (Beusen et al. 2015,
+#' eqs. 8-9, p. 4052), read by [calculate_n_leaching()] with
+#' \code{method = "image_gnm"}:
+#'
+#' - \code{runoff_land_use}: \code{f_qsro(landuse)} of eq. 3 (p. 4049),
+#'   the land-use factor of the surface runoff fraction, as listed with
+#'   its standard values in Table 3 (p. 4056).
+#' - \code{erosion_texture}: the texture factor of the erodibility, from
+#'   the authors' \code{fix_input/texture_erosion.vat}.
+#' - \code{soil_loss}: the soil loss per km2 and year per unit erodibility
+#'   of each land use, from the authors' parameter file. The paper prints
+#'   only the European means these were calibrated to (360, 40 and 15 t
+#'   per km2 for arable land, grassland and natural vegetation, p. 4052).
+#' - \code{erosion_cn}: the C:N ratio of eroded soil (p. 4052).
+#'
+#' The paper sets the soil loss of peat soils equal to that of fine
+#' texture (p. 4052); the authors' table gives peat 0.5 and fine 1.5, and
+#' the table, the one their results came from, is used.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{factor}{\code{"runoff_land_use"}, \code{"erosion_texture"},
+#'     \code{"soil_loss"} or \code{"erosion_cn"}.}
+#'   \item{class}{Land use \code{"Cropland"}, \code{"Grassland"} or
+#'     \code{"Natural"}, or the texture classes of
+#'     [image_gnm_leaching_factors] (\code{"coarse"}, \code{"medium"},
+#'     \code{"fine"}, \code{"very_fine"}, \code{"organic"}).}
+#'   \item{value}{The factor.}
+#'   \item{unit}{Its unit.}
+#'   \item{source}{Locator of the value.}
+#' }
+#'
+#' @source Beusen, A. H. W., Van Beek, L. P. H., Bouwman, A. F. et al.
+#'   (2015). Coupling global models for hydrology and nutrient loading to
+#'   simulate nitrogen and phosphorus retention in surface water -
+#'   description of IMAGE-GNM and analysis of performance. Geosci. Model
+#'   Dev. 8, 4045-4067. \doi{10.5194/gmd-8-4045-2015}. Table 3 (p. 4056)
+#'   for \code{runoff_land_use} and p. 4052 for \code{erosion_cn}. The
+#'   authors' model code and inputs published with the paper,
+#'   \doi{10.5194/gmd-8-4045-2015-supplement}:
+#'   \code{N_model/trunk/tools/parameters_history_100.ini} lines 112-121 and
+#'   213-215, and \code{fix_input/texture_erosion.vat}.
+#'
+#' @examples
+#' image_gnm_runoff_factors
+"image_gnm_runoff_factors"
 
 #' IPCC 2019 Tier 1 soil nitrogen emission and leaching factors.
 #'
@@ -589,6 +747,47 @@
 #' @examples
 #' ipcc_2019_soil_n_ef
 "ipcc_2019_soil_n_ef"
+
+#' FAO-56 maximum effective rooting depth by production item.
+#'
+#' @description
+#' Ranges of maximum effective rooting depth Zr as printed in FAO-56
+#' Table 22 (Allen, Pereira, Raes & Smith 1998, FAO Irrigation and Drainage
+#' Paper 56, Chapter 8), mapped to WHEP production items. Footnote 1 of the
+#' table says that smaller values may be used for irrigation scheduling and
+#' larger ones for modelling soil water stress or rainfed conditions. Items
+#' without a row of their own in the table carry a stated proxy
+#' (`method_root_depth` `"proxy"`), and non-crop items (processed, animal,
+#' aggregate or non-plant products) have missing depths.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{item_prod_code}{Production item code, as in [items_prod_full].}
+#'   \item{fao56_crop}{FAO-56 Table 22 crop name(s) the item maps to,
+#'     separated by `"; "` when several rows are used; missing for non-crop
+#'     items.}
+#'   \item{depth_min_m}{Lower end of the Table 22 range, in metres; missing
+#'     for non-crop items.}
+#'   \item{depth_max_m}{Upper end of the Table 22 range, in metres; missing
+#'     for non-crop items.}
+#'   \item{method_root_depth}{How the item maps to Table 22:
+#'     `"direct"` (one table row), `"direct_multi"` (several table rows),
+#'     `"proxy"` (a stated substitute crop) or `"none"` (no root depth
+#'     applies).}
+#'   \item{rationale}{Why a proxy was chosen, or why no depth applies;
+#'     missing for some direct matches.}
+#'   \item{source}{Locator of the value in FAO-56 (Chapter 8, Table 22 and
+#'     the section(s) of the table); missing when no depth applies.}
+#' }
+#'
+#' @source Allen, R. G., Pereira, L. S., Raes, D. & Smith, M. (1998). *Crop
+#'   evapotranspiration: Guidelines for computing crop water requirements*.
+#'   FAO Irrigation and Drainage Paper 56, Chapter 8, Table 22.
+#'   <https://www.fao.org/4/x0490e/x0490e0e.htm>.
+#'
+#' @examples
+#' fao56_root_depth
+"fao56_root_depth"
 
 #' Historical human-population nitrogen applied to agriculture.
 #'

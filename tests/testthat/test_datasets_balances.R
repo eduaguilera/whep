@@ -351,6 +351,190 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["ef4_nh3_to_n2o_atl"]], 0.014)
   testthat::expect_equal(lookup[["nh3_frac_synthetic"]], 0.11)
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
+  # SWAT ANION_EXCL default (I/O documentation 2012, ch. 22, p. 304) and the
+  # IMAGE-GNM Arrhenius constants (Beusen et al. 2015, eq. 13, p. 4052).
+  testthat::expect_equal(lookup[["swat_anion_exclusion"]], 0.5)
+  testthat::expect_equal(lookup[["beusen_arrhenius_factor"]], 7.94e12)
+  testthat::expect_equal(lookup[["beusen_activation_energy"]], 74830)
+  testthat::expect_equal(lookup[["molar_gas_constant"]], 8.3144)
+  # IMAGE-GNM root-zone rules: the 1 m depth of eq. 14 (p. 4052) and the
+  # authors' code bounds (n_soil_denitrification.py lines 97, 179-182,
+  # 377-378).
+  testthat::expect_equal(lookup[["image_gnm_tawc_depth_m"]], 1)
+  testthat::expect_equal(lookup[["image_gnm_crop_max_residence_yr"]], 1)
+  testthat::expect_equal(lookup[["image_gnm_no_drainage_residence_yr"]], 100)
+  testthat::expect_equal(lookup[["image_gnm_max_temperature_effect"]], 1)
+  # The authors' minimal_soil_infiltration (parameters_history_100.ini line
+  # 204, mm/yr), below which the excess water of eq. 5 is 0
+  # (n_soil_denitrification.py lines 341-344).
+  testthat::expect_equal(lookup[["image_gnm_min_runoff_mm"]], 3)
+  # One tolerance below 0 for a water flux, shared by the Meisinger drainage
+  # check and the IMAGE-GNM runoff check; it must stay the lower edge of
+  # Meisinger's None drainage bin, or a drainage could pass the check and
+  # match no bin.
+  testthat::expect_equal(lookup[["water_flux_floor_mm"]], -0.1)
+  testthat::expect_identical(
+    lookup[["water_flux_floor_mm"]],
+    min(whep::drainage_ranges$s_min)
+  )
+  # IMAGE-GNM surface runoff: f_cal of eq. 9 (p. 4052; C_sro,N of Table 3,
+  # p. 4056) and the erosion slope factor of the authors' code
+  # (n_erosion.py line 50).
+  testthat::expect_equal(lookup[["image_gnm_runoff_calibration"]], 0.3)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_offset"]], -1.5)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_range"]], 17)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_intercept"]], 2.3)
+  testthat::expect_equal(lookup[["image_gnm_erosion_slope_rate"]], 6.1)
+  # SOM per unit SOC: 2 (SOM 50% C, Pribyl 2010) by default and the
+  # conventional 1.724 (58% C) selectable; the HWSD topsoil depth option of
+  # the root zone.
+  testthat::expect_equal(lookup[["som_soc_factor_pribyl"]], 2)
+  testthat::expect_equal(lookup[["som_soc_factor_conventional"]], 1.724)
+  testthat::expect_equal(lookup[["root_depth_topsoil_cm"]], 30)
+})
+
+test_that("image_gnm_runoff_factors transcribes the authors' runoff inputs", {
+  x <- whep::image_gnm_runoff_factors
+  pointblank::expect_col_exists(
+    x,
+    columns = c("factor", "class", "value", "unit", "source")
+  )
+  # Land-use factors of Table 3 (p. 4056), the authors' texture_erosion.vat,
+  # their soil-loss factors (parameters_history_100.ini lines 112-114) and
+  # the erosion C:N ratios (p. 4052).
+  expected <- tibble::tribble(
+    ~factor,           ~class,      ~value,
+    "runoff_land_use", "Cropland",  1.0,
+    "runoff_land_use", "Grassland", 0.25,
+    "runoff_land_use", "Natural",   0.125,
+    "erosion_texture", "coarse",    0.5,
+    "erosion_texture", "medium",    1.5,
+    "erosion_texture", "fine",      1.5,
+    "erosion_texture", "very_fine", 0.5,
+    "erosion_texture", "organic",   0.5,
+    "soil_loss",       "Cropland",  1151,
+    "soil_loss",       "Grassland", 99,
+    "soil_loss",       "Natural",   29,
+    "erosion_cn",      "Cropland",  12,
+    "erosion_cn",      "Grassland", 14,
+    "erosion_cn",      "Natural",   14
+  )
+  testthat::expect_equal(dplyr::select(x, "factor", "class", "value"), expected)
+  testthat::expect_false(vctrs::vec_duplicate_any(x[c("factor", "class")]))
+  pointblank::expect_col_vals_not_null(x, c("unit", "source"))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "runoff_land_use"],
+      "Table 3, p\\. 4056"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "erosion_texture"],
+      "texture_erosion\\.vat"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor == "soil_loss"],
+      "parameters_history_100\\.ini"
+    )
+  ))
+  # Every texture class Table 2 reads has an erosion factor, and every land
+  # use of eq. 11 a runoff, soil loss and C:N factor.
+  gnm <- whep::image_gnm_leaching_factors
+  testthat::expect_setequal(
+    x$class[x$factor == "erosion_texture"],
+    gnm$class[gnm$factor == "texture"]
+  )
+  for (f in c("runoff_land_use", "soil_loss", "erosion_cn")) {
+    testthat::expect_setequal(
+      x$class[x$factor == f],
+      gnm$class[gnm$factor == "land_use"]
+    )
+  }
+})
+
+test_that("image_gnm_leaching_factors transcribes Beusen et al. Table 2", {
+  x <- whep::image_gnm_leaching_factors
+  pointblank::expect_col_exists(
+    x,
+    columns = c(
+      "factor",
+      "class",
+      "label",
+      "soc_min_pct",
+      "soc_max_pct",
+      "value",
+      "source"
+    )
+  )
+  # Table 2, p. 4053, as printed; the two well-drained FAO classes the table
+  # does not name take 0 from the authors' code; f_landuse from p. 4052.
+  expected <- tibble::tribble(
+    ~factor,    ~class,                         ~value,
+    "texture",  "coarse",                       0.0,
+    "texture",  "medium",                       0.1,
+    "texture",  "fine",                         0.2,
+    "texture",  "very_fine",                    0.3,
+    "texture",  "organic",                      0.0,
+    "drainage", "excessively_drained",          0.0,
+    "drainage", "moderately_well_drained",      0.1,
+    "drainage", "imperfectly_drained",          0.2,
+    "drainage", "poorly_drained",               0.3,
+    "drainage", "very_poorly_drained",          0.4,
+    "drainage", "well_drained",                 0.0,
+    "drainage", "somewhat_excessively_drained", 0.0,
+    "soc",      "below_1_pct",                  0.0,
+    "soc",      "1_to_3_pct",                   0.1,
+    "soc",      "3_to_6_pct",                   0.2,
+    "soc",      "6_to_50_pct",                  0.3,
+    "soc",      "organic",                      0.3,
+    "land_use", "Cropland",                     1.0,
+    "land_use", "Grassland",                    0.36,
+    "land_use", "Natural",                      0.36
+  )
+  testthat::expect_equal(dplyr::select(x, "factor", "class", "value"), expected)
+  soc <- dplyr::filter(x, .data$factor == "soc")
+  testthat::expect_equal(soc$soc_min_pct, c(0, 1, 3, 6, 50))
+  testthat::expect_equal(soc$soc_max_pct, c(1, 3, 6, 50, Inf))
+  testthat::expect_true(all(is.na(x$soc_min_pct[x$factor != "soc"])))
+  testthat::expect_identical(
+    x$label[x$factor %in% c("texture", "drainage", "soc")],
+    c(
+      "Coarse",
+      "Medium",
+      "Fine",
+      "Very fine",
+      "Organic",
+      "Excessively well drained",
+      "Moderate well drained",
+      "Imperfectly drained",
+      "Poorly drained",
+      "Very poorly drained",
+      NA,
+      NA,
+      "<1%",
+      "1-3%",
+      "3-6%",
+      "6-50%",
+      "Organic"
+    )
+  )
+  from_code <- x$class %in% c("well_drained", "somewhat_excessively_drained")
+  testthat::expect_true(all(
+    stringr::str_detect(x$source[from_code], "n_soil_denitrification\\.py")
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(
+      x$source[x$factor != "land_use" & !from_code],
+      "Table 2, p\\. 4053"
+    )
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(x$source[x$factor == "land_use"], "p\\. 4052")
+  ))
+  testthat::expect_false(vctrs::vec_duplicate_any(x[c("factor", "class")]))
 })
 
 test_that("ipcc_2019_soil_n_ef transcribes every Tier 1 factor", {
@@ -710,4 +894,84 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
     1, "Excreta", "ATL", "Tier_1", 0.5
   ))
   testthat::expect_false(anyNA(blend))
+})
+
+test_that("fao56_root_depth has unique, known production items", {
+  x <- whep::fao56_root_depth
+  pointblank::expect_col_exists(
+    x,
+    columns = c(
+      "item_prod_code",
+      "fao56_crop",
+      "depth_min_m",
+      "depth_max_m",
+      "method_root_depth",
+      "rationale",
+      "source"
+    )
+  )
+  testthat::expect_equal(nrow(x), 305L)
+  testthat::expect_false(anyDuplicated(x$item_prod_code) > 0L)
+  # items_prod_full omits the aggregate fibre-equivalent item 17530, so the
+  # complete production-item list the table covers is items_prod.
+  testthat::expect_setequal(x$item_prod_code, whep::items_prod$item_prod_code)
+  testthat::expect_true(
+    all(
+      as.character(setdiff(x$item_prod_code, 17530)) %in%
+        whep::items_prod_full$item_prod_code
+    )
+  )
+})
+
+test_that("fao56_root_depth ranges are ordered and typed by method", {
+  x <- whep::fao56_root_depth
+  pointblank::expect_col_vals_in_set(
+    x,
+    columns = "method_root_depth",
+    set = c("direct", "direct_multi", "proxy", "none")
+  )
+  testthat::expect_equal(
+    x |>
+      dplyr::count(method_root_depth) |>
+      dplyr::arrange(method_root_depth) |>
+      dplyr::pull(n),
+    c(94L, 18L, 117L, 76L)
+  )
+  with_depth <- dplyr::filter(x, method_root_depth != "none")
+  testthat::expect_false(anyNA(with_depth$depth_min_m))
+  testthat::expect_false(anyNA(with_depth$depth_max_m))
+  testthat::expect_true(
+    all(with_depth$depth_min_m <= with_depth$depth_max_m)
+  )
+  none <- dplyr::filter(x, method_root_depth == "none")
+  testthat::expect_true(all(is.na(none$depth_min_m)))
+  testthat::expect_true(all(is.na(none$depth_max_m)))
+})
+
+test_that("fao56_root_depth proxy rows state their rationale", {
+  proxy <- whep::fao56_root_depth |>
+    dplyr::filter(method_root_depth == "proxy")
+  testthat::expect_gt(nrow(proxy), 0L)
+  testthat::expect_false(anyNA(proxy$rationale))
+  testthat::expect_true(all(nzchar(trimws(proxy$rationale))))
+})
+
+test_that("fao56_root_depth transcribes the FAO-56 Table 22 ranges", {
+  expected <- tibble::tribble(
+    ~item_prod_code, ~depth_min_m, ~depth_max_m,
+    44L, 1.0, 1.5,
+    116L, 0.4, 0.6,
+    27L, 0.5, 1.0,
+    56L, 1.0, 1.7,
+    15L, 1.0, 1.8
+  )
+  joined <- expected |>
+    dplyr::inner_join(
+      whep::fao56_root_depth,
+      by = "item_prod_code",
+      suffix = c("_expected", "")
+    )
+  testthat::expect_equal(nrow(joined), 5L)
+  testthat::expect_equal(joined$depth_min_m, joined$depth_min_m_expected)
+  testthat::expect_equal(joined$depth_max_m, joined$depth_max_m_expected)
 })

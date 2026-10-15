@@ -6,7 +6,11 @@
 \source{
 IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
 Greenhouse Gas Inventories, Volume 4, Chapter 11, Table 11.1, footnote 4
-(p. 11.13).
+(p. 11.13). Allen, R. G., Pereira, L. S., Raes, D. & Smith, M. (1998).
+Crop evapotranspiration. FAO Irrigation and Drainage Paper 56, Table 22.
+Pribyl, D. W. (2010). A critical review of the conventional SOC to SOM
+conversion factor. Geoderma 156, 75-83.
+\doi{10.1016/j.geoderma.2010.02.003}.
 }
 \usage{
 build_n_loss_drivers(
@@ -15,6 +19,7 @@ build_n_loss_drivers(
   water = c("precip_irrig", "precip"),
   data = NULL,
   config = list(),
+  methods = list(),
   example = FALSE
 )
 }
@@ -36,7 +41,20 @@ window also sets the precipitation-only class of rows without a crop.}
 \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}} (\code{climate}, \code{crop_depth}, \code{lpjml_years},
 \code{lpjml_grid}, \code{regime_areas}, \code{country_grid}), plus \code{moisture_regime}, a
 \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}} result to use instead of building it.
-Climate is read once and shared.}
+Climate is read once and shared. The leaching drivers read
+\code{carbon_balance} (required) and, each read when absent, \code{lpjml_drainage}
+and \code{lpjml_runoff} (annual \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} tables),
+\code{soil_hydraulic}, \code{soil_mass}, \code{soil_texture_fao}, \code{soil_drainage},
+\code{image_gnm_runoff} (their readers' results), \code{carbon_inputs} (a gridded
+\code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} result) and \code{regime_areas}.}
+
+\item{methods}{Named list choosing which leaching drivers are built and
+how: \code{leaching}, the \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} method (\code{"ipcc_fracleach"},
+the default, \code{"meisinger_drainage"} or \code{"image_gnm"}); \code{som_source},
+\code{"carbon_balance"} (default) or \code{"hwsd"} (HWSD's observed topsoil
+carbon); \code{som_factor}, \code{"pribyl_2010"} (default, 2) or \code{"conventional"}
+(1.724); \code{root_depth}, \code{"by_regime"} (default), \code{"midpoint"}, \code{"upper"},
+\code{"lower"}, \code{"topsoil_30cm"} or \code{"top_1m"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -50,7 +68,9 @@ with \code{moisture_regime} (\code{"wet"} or \code{"dry"}), \code{climate} (\cod
 \code{"MED"}), \code{irrig_type}, \code{method_moisture_regime}, \code{method_climate}
 (\code{"from_moisture_regime"}) and \code{climate_fill_km}.
 \item \code{n_balance_leaching_drivers}: one row per balance key, with
-\code{moisture_regime}, \code{method_moisture_regime} and \code{climate_fill_km}.
+\code{moisture_regime}, \code{method_moisture_regime} and \code{climate_fill_km}, plus
+the drivers of \code{methods$leaching} and their stamps (see Leaching
+drivers).
 }
 
 Both are join tables keyed on the balance key; the balance they are
@@ -94,18 +114,18 @@ supplies:\tabular{lll}{
    \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \cr
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \cr
-   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's, see below \tab no \cr
+   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's, see below \tab yes \cr
+   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's, see below \tab yes \cr
 }
 
 
-The two methods it does not supply are later work. MANNER reads
-\code{manner_fertiliser}, \code{soil_ph}, \code{rate_kg_ha}, \code{rainfall_mm}, \code{irrigated},
-\code{temp_c}, \code{temp_c_annual_mean}, \code{windspeed_ms}, \code{technique}, \code{system},
-\code{incorporation_delay_h} and \code{species} (see \code{\link[=calculate_nh3]{calculate_nh3()}}); Meisinger
-reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input},
-\code{tillage}, \code{som_share} and \code{drainage_mm} (see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}).
-\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses either before assembling any input
-unless its driver table is supplied.
+MANNER's drivers are later work: it reads \code{manner_fertiliser}, \code{soil_ph},
+\code{rate_kg_ha}, \code{rainfall_mm}, \code{irrigated}, \code{temp_c}, \code{temp_c_annual_mean},
+\code{windspeed_ms}, \code{technique}, \code{system}, \code{incorporation_delay_h} and
+\code{species} (see \code{\link[=calculate_nh3]{calculate_nh3()}}), and \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses
+it before assembling any input unless its driver table is supplied.
+
+The leaching table carries the drivers of \code{methods$leaching} only.
 
 \code{method_moisture_regime} is \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}'s stamp. A row
 that took its cell's precipitation-only class carries the extra field
@@ -115,6 +135,72 @@ row's water regime), and a row in a cell that took climate variables from
 its nearest CRU cell the field \verb{nearest_cru_cell=<col>[+<col>...]}, naming
 them.
 }
+\section{Leaching drivers}{
+
+Under \code{methods$leaching = "meisinger_drainage"} or \code{"image_gnm"} every
+driver is a source layer joined on the cell, polity, commodity balance item
+and year, never on a name, and stamped:
+\itemize{
+\item \code{land_use}: \code{"Grassland"} on the grass item (3000), \code{"Cropland"}
+otherwise.
+\item \code{drainage_mm} (Meisinger) and \code{runoff_mm} (IMAGE-GNM): the year's LPJmL
+deep seepage and total runoff (\code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} \code{"drainage"} and
+\code{"runoff"}, from \code{WHEP_LPJML_RUN_DIR}), whole-cell quantities both water
+regime rows of a cell share (\code{method_drainage}, \code{method_runoff}).
+\item \code{soil_field_capacity}, \code{soil_wilting_point} and \code{soil_porosity}:
+\code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}} (\code{method_soil_hydraulic}).
+\item \code{som_share} (Meisinger, a fraction) and \code{soil_organic_carbon_pct}
+(IMAGE-GNM): the 0-30 cm soil organic carbon stock of the row's land use
+in \code{data$carbon_balance} (\code{\link[=build_carbon_balance]{build_carbon_balance()}}; cropland classes
+area-weighted), over the HWSD topsoil mass of \code{\link[=read_hwsd_topsoil_mass]{read_hwsd_topsoil_mass()}};
+\code{som_share} multiplies the carbon fraction by the SOM:SOC factor,
+\code{som_soc_factor_pribyl} (2) of \link{n_attenuation_constants} by default
+(\code{method_som}). A cell-polity the carbon balance lacks takes the cell's
+stock in its other polities, stamped \code{cell_other_polity}; a cell it
+lacks altogether (the carbon balance runs on the CRU and LPJmL grids
+only) takes the stock of the nearest cell holding the row's land use,
+stamped \verb{nearest_cell_same_land_use=<km>km}.
+\item \code{c_input_t} (Meisinger): the C the row's inputs carry to the soil, t C per
+year: the crop's \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} carbon, pooled over the
+item's production items, on crop rows, and \code{data$carbon_balance}'s
+grassland input on the grass item (\code{method_c_input}). Both regime rows
+of an item carry the item's whole C; \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} divides
+it by the item's whole \code{n_input_full_nosom_t} into \code{cn_input}. A crop
+row without a
+carbon input of its item in its cell and polity keeps \code{c_input_t}
+missing, stamped \code{no_carbon_input}, and the balance gives it its item's
+C:N in the polity, else globally (\code{polity_item_cn}, \code{global_item_cn}).
+A grass row off the carbon balance carries the nearest grassland cell's
+C input density as \code{c_input_mgc_ha} (Mg C/ha/yr), which the balance puts
+on the key's grass area, stamped \verb{nearest_cell_same_land_use=<km>km}.
+\item \code{root_depth_cm} (Meisinger): FAO-56 Table 22's maximum effective rooting
+depth (\link{fao56_root_depth}) of the row's production items, pooled by
+WHEP's hectares of each in the row's water regime: by default the upper
+end of each range on rainfed rows and the lower end on irrigated rows
+(Table 22 footnote 1); an item with no hectares in the regime takes the
+plain mean over its production items (\code{method_root_depth}).
+\item \code{climate} (ATL on wet rows, MED on dry), \code{irrig_cat} (\code{"Irrigated"} or
+\code{"Rainfed"}, from \code{water_regime}) and \code{tillage} (\code{"Tillage"}, the only
+class the Meisinger synthetic block holds; \code{method_tillage}).
+\item \code{surface_runoff_fraction} and \code{slope_m_per_km} (IMAGE-GNM):
+\code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}} (\code{method_image_gnm_runoff}).
+\item \code{temp_c_annual_mean} (IMAGE-GNM): the year's CRU mean annual
+temperature, from the climate the classes are built on.
+\item \code{soil_texture_class} and \code{soil_drainage_class} (IMAGE-GNM):
+\code{\link[=read_soil_texture_fao]{read_soil_texture_fao()}} and \code{\link[=read_soil_drainage]{read_soil_drainage()}}
+(\code{method_soil_texture_fao}, \code{method_soil_drainage}).
+}
+
+A balance cell a layer lacks takes the value of the nearest cell that holds
+it, by great-circle distance between cell centres, and its stamp carries
+the distance (\verb{nearest_lpjml_cell=<km>km}, \verb{nearest_hwsd_cell=<km>km},
+\verb{nearest_image_gnm_cell=<km>km}). A row without a crop item carries no N:
+it takes the HWSD topsoil depth (30 cm) and no C input, and a row of that
+kind carrying N is refused. A row carrying no N whose soil carbon or root
+depth is otherwise missing takes HWSD's topsoil carbon or the topsoil
+depth, stamped \code{zero_n_row}; it leaches nothing.
+}
+
 \section{Errors}{
 
 \itemize{
@@ -131,6 +217,15 @@ row means the balance and the moisture regime disagree on the item's
 regime land; the error names the count and the items carrying most N.
 \item Every error of \code{\link[=build_cell_moisture_regime]{build_cell_moisture_regime()}}, including
 \code{whep_absent_input} for an absent climate or irrigation layer.
+\item For the leaching drivers, all also \code{whep_absent_input}:
+\code{whep_n_loss_drivers_carbon_balance} (no \code{data$carbon_balance}),
+\code{whep_n_loss_drivers_soc} and \code{whep_n_loss_drivers_root_depth} (a row
+carrying N without soil carbon of its land use in any cell, or without
+root depth), \code{whep_n_loss_drivers_temperature} and
+\code{whep_n_loss_drivers_layer} (a layer with no complete cell, or without a
+year asked for); a layer whose values are all zero or missing aborts as
+\code{\link[=check_inputs_supplied]{check_inputs_supplied()}} does. \code{whep_n_loss_drivers_no_item_n}: a row
+without a crop item carries N.
 }
 }
 

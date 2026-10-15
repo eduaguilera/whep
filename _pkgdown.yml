@@ -174,6 +174,9 @@ reference:
   - som_ranges
   - n_attenuation_constants
   - ipcc_2019_soil_n_ef
+  - fao56_root_depth
+  - image_gnm_leaching_factors
+  - image_gnm_runoff_factors
 
 - title: Human-population nitrogen coefficient tables
   desc: >
@@ -276,9 +279,12 @@ reference:
   - calculate_nh3
   - calculate_soil_n2o
   - calculate_n_leaching
+  - read_image_gnm_runoff
   - calculate_indirect_n2o_nh3
   - read_lpjml_wind
   - read_soil_ph
+  - read_soil_drainage
+  - read_soil_texture_fao
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_ag_land_support
@@ -364,6 +370,7 @@ reference:
   - read_lpjml_crop_cover
   - read_lpjml_natural_cover
   - read_hwsd_topsoil_soc
+  - read_hwsd_topsoil_mass
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >

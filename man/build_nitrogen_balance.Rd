@@ -23,8 +23,15 @@ wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
 (forwarded to \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}, default \code{"ipcc2019"}, the
 wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
 \code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
-\code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
-FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and \code{regime}, how each grid
+\code{"meisinger_drainage"}; \code{"ipcc_fracleach"}, the wet/dry
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25; or \code{"image_gnm"}, the
+IMAGE-GNM root zone of Beusen et al. 2015, eqs. 10-14 p. 4052),
+\code{leaching_transport} and
+\code{leaching_none_class} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} as
+\code{transport}, default \code{"swat_mixing"}, and \code{none_class}, default
+\code{"retention"}; read only under \code{"meisinger_drainage"}, which threads
+the retained nitrate through the years of the balance on each key
+without its year) and \code{regime}, how each grid
 row is split into a rainfed and an irrigated part (see Details):
 \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
 wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
@@ -78,15 +85,19 @@ drivers. At grid resolution each one left \code{NULL} is built by
 \code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} on the split balance's own rows (the IPCC 2019
 wet/dry class and the ATL/MED drivers mapped from it; see its table of
 which methods it supplies), and \code{method_drivers} says so. That needs
-the rainfed/irrigated split (\code{methods$regime} other than \code{"none"});
-\code{leaching = "meisinger_drainage"} and the MANNER \code{nh3} methods read
-drivers it does not supply and are refused before any input is
-assembled unless their table is supplied. At polity resolution both
-must be supplied.
+the rainfed/irrigated split (\code{methods$regime} other than \code{"none"}).
+The leaching drivers are built for \code{methods$leaching}; the
+Meisinger and IMAGE-GNM ones read the balance's own
+\code{data$carbon_balance}. The MANNER \code{nh3} methods read drivers it does
+not supply and are refused before any input is assembled unless their
+table is supplied. At polity resolution both must be supplied.
 \item \code{n_loss_driver_inputs}: optional list passed as \code{data} to
 \code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} when it runs (\code{climate}, \code{crop_depth},
-\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}); the
-balance's own \code{country_grid} is shared with it.
+\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}, and
+the leaching layers it lists); the balance's own \code{country_grid} and
+\code{carbon_balance} are shared with it. \code{n_loss_driver_methods}: optional
+list of its \code{methods} (\code{som_source}, \code{som_factor}, \code{root_depth}); its
+\code{leaching} is always \code{methods$leaching}.
 \item \code{n_balance_drivers}: additional per-\verb{(key, fert_type)} driver
 columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}/
 \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}} need beyond \code{n_input_t}/\code{fert_type}
@@ -103,13 +114,22 @@ balance-key-only driver columns (\code{moisture_regime}, \code{fert_type},
 \code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
 \code{n_balance_leaching_drivers}, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
-fanning the rows out and misaligning \code{drainage_mm}). Missing required
+fanning the rows out and misaligning \code{drainage_mm}). Under
+\code{"meisinger_drainage"} it carries no \code{fert_type}, which the balance
+sets on each input part (see Details), and a \code{c_input_t} (t C per
+year) it carries in place of \code{cn_input} is divided by the item's
+\code{n_input_full_nosom_t}, summed over the water regimes; a
+\code{c_input_mgc_ha} density is first put on the item's \code{area_ha}, and a
+key with N and no C input takes its item's C:N over the polity, else
+over the year, stamped in \code{method_c_input} (an item with none aborts,
+\code{whep_n_balance_c_input}). Missing required
 drivers abort inside the called \verb{calculate_*()} function, naming the
 exact column; for the MANNER \code{nh3} methods the check runs on
 \code{n_balance_drivers} before any input is assembled, because no
 function in the package supplies those drivers (only \code{windspeed_ms}
 has a reader, \code{\link[=read_lpjml_wind]{read_lpjml_wind()}}, not wired in).
-\item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, as
+\item \code{drainage_mm}: annual drainage (mm) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}'s
+\code{"meisinger_drainage"} (\code{"image_gnm"} reads \code{runoff_mm} instead), as
 a numeric vector aligned to the balance-key rows, or already present
 as a \code{drainage_mm} column via \code{n_balance_leaching_drivers}. At grid
 resolution the rainfed/irrigated split doubles the rows, so an aligned
@@ -137,8 +157,16 @@ per-hectare rate), the input aggregates
 \code{n_output_std_t}, \code{n_output_full_t}), the loss terms (\code{nh3_n_t},
 \code{n2o_direct_n_t}, \code{no3_n_t}, \code{denitrification_n_t},
 \code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t};
-\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus,
-see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
+\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus
+plus, under \code{"meisinger_drainage"}, the nitrate the profile carried in
+from the key's previous year, \code{retained_carried_in_n_t}, and less,
+under \code{"image_gnm"}, the \code{surface_runoff_n_t} it computes from the
+inputs, to at most the surplus; on grassland and natural rows with a
+total runoff below 3 mm/yr \code{"image_gnm"} holds the whole surplus as
+inactive N in \code{retained_profile_n_t} and books its surface runoff beside
+it; \code{"image_gnm"} also reports the eroded
+soil N, \code{erosion_n_t}, which no budget pays for; see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
@@ -222,7 +250,8 @@ be supplied.\tabular{llll}{
    \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
-   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
+   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab yes \tab built, note 2 \cr
+   \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's \tab yes \tab built, note 3 \cr
 }
 
 \itemize{
@@ -231,13 +260,37 @@ be supplied.\tabular{llll}{
 \code{technique}, \code{system}, \code{incorporation_delay_h} and \code{species} (see
 \code{\link[=calculate_nh3]{calculate_nh3()}}). Drivers must be supplied; global drivers planned.
 \item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
-\code{cn_input}, \code{tillage}, \code{som_share} and \code{drainage_mm} (see
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}). Drivers must be supplied; global drivers
-planned.
+\code{cn_input}, \code{tillage}, \code{som_share}, \code{drainage_mm}, \code{root_depth_cm}
+and, by transport, \code{soil_porosity} (\code{"swat_mixing"}) or
+\code{soil_field_capacity} (\code{"burns"}); see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. The
+builder supplies them from LPJmL, HWSD, FAO-56 and the carbon balance
+(see its Leaching drivers section).
+\item Note 3: IMAGE-GNM reads \code{runoff_mm} (the year's total runoff, LPJmL
+\code{mrunoff.nc}), \code{surface_runoff_fraction},
+\code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use},
+\code{temp_c_annual_mean}, \code{soil_field_capacity}, \code{soil_wilting_point},
+\code{soil_texture_class}, \code{soil_drainage_class} and
+\code{soil_organic_carbon_pct}, plus the balance's own \code{n_input_std_t},
+\code{nh3_n_t} and \code{area_ha}; see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}. The builder
+supplies them, as for note 2.
 }
 
-\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 or note 2 before
-assembling any input unless its driver table is supplied.
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 before assembling
+any input unless its driver table is supplied.
+
+\strong{Meisinger per input part.} Under \code{"meisinger_drainage"} each balance
+key's surplus is split over the inputs of \code{n_input_full_t} (biological
+fixation, excreta, liquid and solid manure, synthetic fertiliser, human N,
+deposition and soil organic matter mineralisation) in proportion to their
+N, \code{n_surplus_t * N_f / n_input_full_t}, and each part is leached on its
+own Meisinger rows (Synthetic or Manure topsoil denitrification, its own
+subsoil reduction), as the regional reconstruction this cascade is ported
+from does (its surplus share is surplus over the full input, recycled
+residues excluded). Each part carries its own retained nitrate from year
+to year, on the key and the part's \code{fert_type}, and the parts' flows sum to
+the key, so \code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
+the surplus plus \code{retained_carried_in_n_t} on every key. A key with no
+input carries no surplus and is stamped \code{meisinger_drainage_no_input}.
 }
 
 \section{Polity columns}{

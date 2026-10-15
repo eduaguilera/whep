@@ -1215,3 +1215,593 @@ testthat::test_that("the reconstruction rounds a value that needs rounding", {
   testthat::expect_false(isTRUE(all.equal(raw, round(raw, 2))))
   testthat::expect_equal(out$t_field, round(raw, 2))
 })
+
+# ---- drainage and FAO texture classes ------------------------------------
+
+# The two readers classify HWSD v1.2 soil components. Every column they read is
+# in the fixture, as the HWSD export script writes hwsd_data.csv.
+.class_attr_fixture <- function(source = "hwsd_v1.2") {
+  attr <- tibble::tribble(
+    ~mu_global, ~share, ~drainage, ~t_clay, ~t_sand, ~t_usda_tex, ~su_symbol74, ~su_symbol90,
+    # Unit 1: a coarse, somewhat excessively drained soil beats the 40% medium,
+    # moderately well drained one on summed share.
+    1L,         60,     6L,        10,      80,      12L,         NA,           "LPe",
+    1L,         40,     4L,        30,      40,      9L,          NA,           "LPe",
+    # Unit 2: a Histosol (zero fractions, no USDA class) with the wettest
+    # drainage code beats a fine mineral soil.
+    2L,         70,     1L,        0,       0,       NA,          NA,           "HSf",
+    2L,         30,     4L,        50,      20,      1L,          NA,           "GLe",
+    # Unit 3: both components sit on a printed boundary (35% clay; 65% sand
+    # with under 18% clay) and carry no drainage class.
+    3L,         50,     NA,        35,      30,      5L,          "Be",         NA,
+    3L,         50,     NA,        10,      65,      9L,          "Be",         NA
+  )
+  attr$source <- source
+  attr
+}
+
+# A 12 x 12 raster of map units over [-1, 1]: with the pattern c(1, 2) the
+# 0.5-degree cells alternate between six pixels of unit 1 and three of unit 2,
+# and the reverse. Written to disk and read back, as the other raster fixtures
+# are, so the aggregation sees the header's decimal resolution.
+.write_class_hwsd <- function(dir, pattern = c(1L, 2L), attr = NULL) {
+  attr <- attr %||% .class_attr_fixture()
+  readr::write_csv(attr, file.path(dir, "hwsd_data.csv"))
+  rast <- terra::rast(
+    nrows = 12,
+    ncols = 12,
+    xmin = -1,
+    xmax = 1,
+    ymin = -1,
+    ymax = 1,
+    resolution = 1 / 6
+  )
+  terra::values(rast) <- rep(pattern, length.out = terra::ncell(rast))
+  terra::writeRaster(
+    rast,
+    file.path(dir, "hwsd.bil"),
+    filetype = "EHdr",
+    overwrite = TRUE
+  )
+  dir
+}
+
+testthat::test_that(".hwsd_texture_fao_class applies the printed limits", {
+  cases <- tibble::tribble(
+    ~clay, ~sand, ~usda, ~histosol, ~expected, ~why,
+    10,    80,    12L,   FALSE,     "coarse",  "sandy loam, under 18% clay",
+    17,    66,    12L,   FALSE,     "coarse",  "just inside both coarse limits",
+    10,    65,    9L,    FALSE,     "medium",  "65% sand is not MORE than 65",
+    18,    70,    10L,   FALSE,     "medium",  "18% clay is not under 18",
+    18,    82,    11L,   FALSE,     "medium",  "sand up to 82% with 18% clay",
+    10,    40,    9L,    FALSE,     "medium",  "loam",
+    35,    30,    5L,    FALSE,     "medium",  "35% clay is not MORE than 35",
+    36,    20,    5L,    FALSE,     "fine",    "just over 35% clay",
+    70,    10,    1L,    FALSE,     "fine",    "very fine soils are fine",
+    NA,    50,    9L,    FALSE,     NA,        "no clay",
+    20,    NA,    9L,    FALSE,     NA,        "no sand",
+    0,     0,     NA,    FALSE,     NA,        "zero fractions, no USDA class",
+    0,     0,     NA,    TRUE,      "organic", "Histosol with no fractions",
+    50,    20,    1L,    TRUE,      "organic", "Histosol whatever its clay"
+  )
+
+  out <- whep:::.hwsd_texture_fao_class(
+    cases$clay,
+    cases$sand,
+    cases$usda,
+    cases$histosol
+  )
+
+  testthat::expect_equal(out, cases$expected)
+})
+
+testthat::test_that(".hwsd_is_histosol finds Histosols under either legend", {
+  out <- whep:::.hwsd_is_histosol(
+    symbol74 = c("Od", NA, "Be", NA, NA),
+    symbol90 = c(NA, "HSf", NA, "LPe", NA)
+  )
+
+  testthat::expect_equal(out, c(TRUE, TRUE, FALSE, FALSE, FALSE))
+  # Every symbol of the documentation's Histosol lists is known.
+  units <- whep:::.hwsd_histosol_units()
+  testthat::expect_setequal(
+    units$symbol[units$symbol_column == "su_symbol90"],
+    c("HS", "HSl", "HSs", "HSf", "HSt", "HSi")
+  )
+  testthat::expect_setequal(
+    units$symbol[units$symbol_column == "su_symbol74"],
+    c("O", "Oe", "Od", "Ox")
+  )
+})
+
+testthat::test_that("the class vocabularies are Table 2 classes", {
+  table2 <- whep::image_gnm_leaching_factors
+  texture <- table2$class[table2$factor == "texture"]
+  drainage <- table2$class[table2$factor == "drainage"]
+
+  testthat::expect_true(all(whep:::.hwsd_texture_fao_classes() %in% texture))
+  # HWSD v1.2 defines no very fine class, and no other class is unreachable.
+  testthat::expect_equal(
+    setdiff(texture, whep:::.hwsd_texture_fao_classes()),
+    "very_fine"
+  )
+  # Every Table 2 drainage class is reached by one HWSD code, once.
+  testthat::expect_setequal(whep:::.hwsd_drainage_classes(), drainage)
+  testthat::expect_false(anyDuplicated(whep:::.hwsd_drainage_classes()) > 0)
+})
+
+testthat::test_that("the drainage crosswalk holds the verified codes", {
+  # Codes and labels as D_DRAINAGE of the official HWSD.mdb and HWSD_META.mdb
+  # give them (read 2026-10-12). The HWSD.SQLite conversion calls code 1
+  # "* TRIAL *", which is why the crosswalk is not read from it.
+  expected <- tibble::tribble(
+    ~drainage_code, ~hwsd_label,          ~soil_drainage_class,
+    1L,             "Very Poor",          "very_poorly_drained",
+    2L,             "Poor",               "poorly_drained",
+    3L,             "Imperfectly",        "imperfectly_drained",
+    4L,             "Moderately Well",    "moderately_well_drained",
+    5L,             "Well",               "well_drained",
+    6L,             "Somewhat Excessive", "somewhat_excessively_drained",
+    7L,             "Excessive",          "excessively_drained"
+  )
+
+  out <- whep:::.hwsd_drainage_crosswalk() |>
+    dplyr::select("drainage_code", "hwsd_label", "soil_drainage_class")
+
+  testthat::expect_equal(out, expected)
+})
+
+testthat::test_that("the map unit classes follow the largest summed share", {
+  attr <- .class_attr_fixture()
+
+  drainage <- whep:::.derive_mu_drainage_class(attr)
+  texture <- whep:::.derive_mu_texture_fao(attr)
+
+  testthat::expect_equal(
+    drainage$soil_drainage_class[order(drainage$mu_global)],
+    c("somewhat_excessively_drained", "very_poorly_drained")
+  )
+  # Unit 3 has no drainage class on any component, so it has no class.
+  testthat::expect_equal(drainage$mu_global[order(drainage$mu_global)], 1:2)
+  testthat::expect_equal(
+    texture$soil_texture_fao[order(texture$mu_global)],
+    c("coarse", "organic", "medium")
+  )
+})
+
+testthat::test_that("a tied map unit goes to the first class, in any order", {
+  tied <- tibble::tribble(
+    ~mu_global, ~share, ~drainage,
+    1L,         50,     6L,
+    1L,         50,     2L
+  )
+
+  forward <- whep:::.derive_mu_drainage_class(tied)
+  backward <- whep:::.derive_mu_drainage_class(tied[2:1, ])
+
+  # Poor (code 2) is listed before somewhat excessive (code 6).
+  testthat::expect_equal(forward$soil_drainage_class, "poorly_drained")
+  testthat::expect_equal(backward, forward)
+})
+
+testthat::test_that("an unknown drainage code aborts", {
+  attr <- .class_attr_fixture()
+  attr$drainage[1] <- 9L
+
+  testthat::expect_error(
+    whep:::.derive_mu_drainage_class(attr),
+    class = "whep_hwsd_drainage_code"
+  )
+})
+
+testthat::test_that("an extract that is not HWSD v1.2 is refused", {
+  testthat::expect_error(
+    whep:::.check_hwsd_v12(.class_attr_fixture(source = "hwsd2")),
+    class = "whep_hwsd_version"
+  )
+  # An extract with no stamp on some row is no more acceptable.
+  unstamped <- .class_attr_fixture()
+  unstamped$source[2] <- NA
+  testthat::expect_error(
+    whep:::.check_hwsd_v12(unstamped),
+    class = "whep_hwsd_version"
+  )
+  testthat::expect_equal(
+    whep:::.check_hwsd_v12(.class_attr_fixture()),
+    .class_attr_fixture()
+  )
+})
+
+testthat::test_that("a clay or sand fraction outside 0-100 is refused", {
+  attr <- .class_attr_fixture()
+  attr$t_clay[1] <- 150
+
+  testthat::expect_error(
+    whep:::.derive_mu_texture_fao(attr),
+    class = "whep_hwsd_value"
+  )
+  # Fractions that sum to more than 100 cannot both be right.
+  attr <- .class_attr_fixture()
+  attr$t_sand[1] <- 95
+  testthat::expect_error(
+    whep:::.derive_mu_texture_fao(attr),
+    class = "whep_hwsd_value"
+  )
+})
+
+testthat::test_that(".modal_class_from_counts takes the most pixels", {
+  classes <- c("a", "b", "c")
+  counts <- tibble::tribble(
+    ~lon, ~lat, ~n_a, ~n_b, ~n_c,
+    0.25, 0.25, 1,    5,    3,
+    0.75, 0.25, 4,    4,    1,
+    1.25, 0.25, NA,   NA,   2
+  )
+
+  out <- whep:::.modal_class_from_counts(
+    counts,
+    classes,
+    class_col = "cls",
+    method_col = "method_cls",
+    method = "m"
+  )
+
+  testthat::expect_equal(out$cls, c("b", "a", "c"))
+  # A tie goes to the first class and says so; a clear majority does not.
+  testthat::expect_equal(
+    out$method_cls,
+    c("m", "m;tied_dominant_class", "m")
+  )
+})
+
+testthat::test_that(".modal_class_from_counts stamps by class", {
+  counts <- tibble::tribble(
+    ~lon, ~lat, ~n_a, ~n_b,
+    0.25, 0.25, 3,    1,
+    0.75, 0.25, 1,    3
+  )
+
+  out <- whep:::.modal_class_from_counts(
+    counts,
+    c("a", "b"),
+    class_col = "cls",
+    method_col = "method_cls",
+    method = c(a = "from_a", b = "from_b")
+  )
+
+  testthat::expect_equal(out$method_cls, c("from_a", "from_b"))
+})
+
+testthat::test_that(".modal_class_from_counts refuses a cell with no pixel", {
+  counts <- tibble::tribble(
+    ~lon, ~lat, ~n_a, ~n_b,
+    0.25, 0.25, 0,    0
+  )
+
+  testthat::expect_error(
+    whep:::.modal_class_from_counts(counts, c("a", "b"), "c", "m", "s"),
+    "no classified"
+  )
+  testthat::expect_error(
+    whep:::.modal_class_from_counts(counts[, 1:3], c("a", "b"), "c", "m", "s"),
+    "n_b"
+  )
+})
+
+testthat::test_that("drainage and texture counts tally the pixels per class", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_class_hwsd(withr::local_tempdir())
+
+  drainage <- whep:::.derive_drainage_counts(dir, NULL)
+  texture <- whep:::.derive_texture_fao_counts(dir, NULL)
+
+  drainage_n <- paste0("n_", whep:::.hwsd_drainage_classes())
+  texture_n <- paste0("n_", whep:::.hwsd_texture_fao_classes())
+  testthat::expect_setequal(names(drainage), c("lon", "lat", drainage_n))
+  testthat::expect_setequal(names(texture), c("lon", "lat", texture_n))
+  # Unit 1 covers six of the nine pixels of the western cell and three of the
+  # next; unit 2 the rest.
+  west <- drainage[drainage$lon == -0.75 & drainage$lat == 0.25, ]
+  testthat::expect_equal(west$n_somewhat_excessively_drained, 6)
+  testthat::expect_equal(west$n_very_poorly_drained, 3)
+  west_texture <- texture[texture$lon == -0.75 & texture$lat == 0.25, ]
+  testthat::expect_equal(west_texture$n_coarse, 6)
+  testthat::expect_equal(west_texture$n_organic, 3)
+  m <- as.matrix(drainage[, drainage_n])
+  m[is.na(m)] <- 0
+  testthat::expect_equal(unique(rowSums(m)), 9)
+})
+
+testthat::test_that("the readers return the modal class with a stamp", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_class_hwsd(withr::local_tempdir())
+
+  drainage <- whep::read_soil_drainage(hwsd_dir = dir)
+  texture <- whep::read_soil_texture_fao(hwsd_dir = dir)
+
+  testthat::expect_equal(nrow(drainage), 16L)
+  pointblank::expect_col_exists(
+    drainage,
+    c("lon", "lat", "soil_drainage_class", "method_soil_drainage")
+  )
+  pointblank::expect_col_exists(
+    texture,
+    c("lon", "lat", "soil_texture_fao", "method_soil_texture_fao")
+  )
+  # Cells alternate between the two units, west to east.
+  by_lon <- function(x, col) {
+    row <- x$lat == 0.25
+    x[[col]][row][order(x$lon[row])]
+  }
+  testthat::expect_equal(
+    by_lon(drainage, "soil_drainage_class"),
+    rep(c("somewhat_excessively_drained", "very_poorly_drained"), 2)
+  )
+  testthat::expect_equal(
+    by_lon(texture, "soil_texture_fao"),
+    rep(c("coarse", "organic"), 2)
+  )
+  testthat::expect_equal(
+    by_lon(texture, "method_soil_texture_fao"),
+    rep(c("hwsd_v1.2_fao3_clay_sand", "hwsd_v1.2_histosol_unit"), 2)
+  )
+  testthat::expect_true(
+    all(drainage$method_soil_drainage == "hwsd_v1.2_drainage_code")
+  )
+  # Every class the readers return is a Table 2 class.
+  table2 <- whep::image_gnm_leaching_factors
+  testthat::expect_true(
+    all(
+      drainage$soil_drainage_class %in%
+        table2$class[table2$factor == "drainage"]
+    )
+  )
+  testthat::expect_true(
+    all(
+      texture$soil_texture_fao %in% table2$class[table2$factor == "texture"]
+    )
+  )
+})
+
+testthat::test_that("a three-way cell is tied and a classless unit not counted", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_class_hwsd(withr::local_tempdir(), pattern = c(1L, 2L, 3L))
+
+  drainage <- whep::read_soil_drainage(hwsd_dir = dir)
+  texture <- whep::read_soil_texture_fao(hwsd_dir = dir)
+
+  # Three pixels each of units 1, 2 and 3. Unit 3 has no drainage class, so no
+  # drainage class counts it and units 1 and 2 tie, the wetter class first.
+  testthat::expect_equal(
+    unique(drainage$soil_drainage_class),
+    "very_poorly_drained"
+  )
+  testthat::expect_equal(
+    unique(drainage$method_soil_drainage),
+    "hwsd_v1.2_drainage_code;tied_dominant_class"
+  )
+  # Texture ties three ways, and coarse is the first class.
+  testthat::expect_equal(unique(texture$soil_texture_fao), "coarse")
+  testthat::expect_equal(
+    unique(texture$method_soil_texture_fao),
+    "hwsd_v1.2_fao3_clay_sand;tied_dominant_class"
+  )
+  counts <- whep:::.derive_drainage_counts(dir, NULL)
+  m <- as.matrix(counts[, paste0("n_", whep:::.hwsd_drainage_classes())])
+  m[is.na(m)] <- 0
+  testthat::expect_equal(unique(rowSums(m)), 6)
+})
+
+testthat::test_that("the readers refuse an extract that is not HWSD v1.2", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_class_hwsd(
+    withr::local_tempdir(),
+    attr = .class_attr_fixture(source = "hwsd2")
+  )
+
+  testthat::expect_error(
+    whep::read_soil_drainage(hwsd_dir = dir),
+    class = "whep_hwsd_version"
+  )
+  testthat::expect_error(
+    whep::read_soil_texture_fao(hwsd_dir = dir),
+    class = "whep_hwsd_version"
+  )
+})
+
+testthat::test_that("the readers name a column an old extract lacks", {
+  testthat::skip_if_not_installed("terra")
+  attr <- .class_attr_fixture() |>
+    dplyr::select(-"drainage", -"su_symbol90")
+  dir <- .write_class_hwsd(withr::local_tempdir(), attr = attr)
+
+  testthat::expect_error(
+    whep::read_soil_drainage(hwsd_dir = dir),
+    "drainage"
+  )
+  testthat::expect_error(
+    whep::read_soil_texture_fao(hwsd_dir = dir),
+    "su_symbol90"
+  )
+  # ... and point at the script that writes a complete extract.
+  testthat::expect_error(
+    whep::read_soil_drainage(hwsd_dir = dir),
+    "export_hwsd_attributes"
+  )
+})
+
+testthat::test_that("the class readers read their pins by default", {
+  withr::local_envvar(WHEP_HWSD_DIR = "")
+  seen <- character()
+  counts <- function(classes, winner) {
+    out <- tibble::tibble(lon = 0.25, lat = 0.25)
+    for (cl in classes) {
+      out[[paste0("n_", cl)]] <- if (cl == winner) 5 else 1
+    }
+    out
+  }
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      seen <<- c(seen, file_alias)
+      if (file_alias == "hwsd-drainage-class-grid") {
+        counts(whep:::.hwsd_drainage_classes(), "well_drained")
+      } else {
+        counts(whep:::.hwsd_texture_fao_classes(), "fine")
+      }
+    },
+    .package = "whep"
+  )
+
+  drainage <- whep::read_soil_drainage()
+  texture <- whep::read_soil_texture_fao()
+
+  testthat::expect_equal(
+    seen,
+    c("hwsd-drainage-class-grid", "hwsd-texture-fao-grid")
+  )
+  testthat::expect_equal(drainage$soil_drainage_class, "well_drained")
+  testthat::expect_equal(texture$soil_texture_fao, "fine")
+})
+
+# The mocked reads above never touch the registry, so a pin the readers name
+# but `whep_inputs` does not list would pass every test here and then abort
+# for the first user without an HWSD archive.
+testthat::test_that("every HWSD pin the readers name is registered", {
+  pins <- c(
+    whep:::.hwsd_texture_pin(),
+    whep:::.hwsd_clay_pin(),
+    whep:::.hwsd_drainage_pin(),
+    whep:::.hwsd_texture_fao_pin()
+  )
+  registered <- whep::whep_inputs |>
+    dplyr::filter(.data$alias %in% pins)
+
+  testthat::expect_setequal(registered$alias, pins)
+  testthat::expect_true(all(nzchar(registered$version)))
+  testthat::expect_false(anyDuplicated(registered$alias) > 0L)
+})
+
+testthat::test_that("the pin and the local archive agree for both readers", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_class_hwsd(withr::local_tempdir())
+  # Two cells with a gap between them: both routes return every cell of the
+  # padded bounding box, three, not the two the target names.
+  cell_polity <- tibble::tibble(
+    lon = c(-0.75, 0.25),
+    lat = 0.25,
+    area_code = 1L
+  )
+  data <- list(cell_polity = cell_polity)
+
+  local_drainage <- whep::read_soil_drainage(
+    hwsd_dir = dir,
+    data = data,
+    source = "local"
+  )
+  local_texture <- whep::read_soil_texture_fao(
+    hwsd_dir = dir,
+    data = data,
+    source = "local"
+  )
+  pinned <- list(
+    "hwsd-drainage-class-grid" = whep:::.derive_drainage_counts(dir, NULL),
+    "hwsd-texture-fao-grid" = whep:::.derive_texture_fao_counts(dir, NULL)
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) pinned[[file_alias]],
+    .package = "whep"
+  )
+
+  testthat::expect_equal(nrow(local_drainage), 3L)
+  testthat::expect_equal(
+    whep::read_soil_drainage(data = data, source = "pin"),
+    local_drainage
+  )
+  testthat::expect_equal(
+    whep::read_soil_texture_fao(data = data, source = "pin"),
+    local_texture
+  )
+})
+
+testthat::test_that("the class readers have runnable examples", {
+  drainage <- whep::read_soil_drainage(example = TRUE)
+  texture <- whep::read_soil_texture_fao(example = TRUE)
+
+  pointblank::expect_col_exists(
+    drainage,
+    c("lon", "lat", "soil_drainage_class", "method_soil_drainage")
+  )
+  pointblank::expect_col_exists(
+    texture,
+    c("lon", "lat", "soil_texture_fao", "method_soil_texture_fao")
+  )
+})
+
+# ---- topsoil soil mass, the denominator of the soil organic matter share ----
+
+testthat::test_that(".derive_map_unit_soil_mass computes the documented mass", {
+  mass <- whep:::.derive_map_unit_soil_mass(.hwsd_soc_fixture(), "measured")
+  # bulk [g/cm3 = Mg/m3] x depth [cm] x 100 x (1 - gravel) Mg per ha,
+  # share-weighted within the map unit, as the carbon stock beside it.
+  expected <- 0.75 * (1.30 * 30 * 100 * 0.9) + 0.25 * (1.20 * 30 * 100)
+  testthat::expect_equal(
+    mass$soil_mass_mg_ha[mass$mu_global == 1L],
+    expected
+  )
+  # The carbon stock over the same components rides along, so a cell's
+  # organic carbon fraction is the stock over this mass.
+  testthat::expect_equal(
+    mass$soc_obs_mgc_ha[mass$mu_global == 1L],
+    0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30)
+  )
+})
+
+testthat::test_that("the soil mass keeps components without carbon", {
+  mass <- whep:::.derive_map_unit_soil_mass(.hwsd_soc_fixture(), "measured")
+  # Unit 3's second component reports no t_oc but has a density: it is soil,
+  # so it counts towards the mass and only the carbon stock drops it.
+  testthat::expect_equal(mass$soil_mass_mg_ha[mass$mu_global == 3L], 1.5 * 3000)
+  testthat::expect_equal(
+    mass$soc_obs_mgc_ha[mass$mu_global == 3L],
+    1.5 * 1.5 * 30
+  )
+})
+
+testthat::test_that("the soil mass follows the bulk-density method", {
+  reference <- whep:::.derive_map_unit_soil_mass(
+    .hwsd_soc_fixture(),
+    "reference"
+  )
+  testthat::expect_equal(
+    reference$soil_mass_mg_ha[reference$mu_global == 2L],
+    1.30 * 30 * 100
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_mass example is self-contained", {
+  testthat::skip_if_not_installed("pointblank")
+  out <- whep::read_hwsd_topsoil_mass(example = TRUE)
+  pointblank::expect_col_exists(
+    out,
+    columns = c(
+      "lon",
+      "lat",
+      "soil_mass_mg_ha",
+      "soc_obs_mgc_ha",
+      "method_soil_mass"
+    )
+  )
+  pointblank::expect_col_vals_between(
+    out,
+    columns = "soil_mass_mg_ha",
+    left = 500,
+    right = 6000
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_mass rejects an unknown method", {
+  testthat::expect_error(
+    whep::read_hwsd_topsoil_mass(bulk_density = "guessed"),
+    class = "rlang_error"
+  )
+})
