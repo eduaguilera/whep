@@ -358,6 +358,11 @@
      whep#1518). The region is published once per area in `regions_full`, as
      for `.sci_crop_regions`; the production rows carry `year` through the
      join.",
+    ".residue_basis_values", "left_join", "area_code", 1L, "time_invariant",
+    "The same HANPP-region attach, for the pre-1961 production the cereal
+     residue back-cast spends the estimator on (whep#1508). The region is
+     published once per area in `regions_full`; the production rows carry
+     `year` through the join.",
     ".residue_cereal_wirsenius", "left_join", "item_prod, area_code", 1L,
     "time_invariant",
     "Attaches the Wirsenius (2000) Table 3.16 residue:product ratios of a

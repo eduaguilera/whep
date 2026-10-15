@@ -375,7 +375,11 @@ test_that("the enumerated baseline can only shrink", {
   # each area's 2010-2013 overlap ratio on the new vintage
   # (`time_invariant`). Re-derived by running
   # `sum(.territorial_join_baseline()$n)`.
-  expect_lte(sum(baseline$n), 121L)
+  # 122 with whep#1508, on top of that: the pre-1961 residue
+  # back-cast attaches the same year-free HANPP region to the production it
+  # spends the cereal estimator on. Re-derived by running
+  # `sum(.territorial_join_baseline()$n)`.
+  expect_lte(sum(baseline$n), 122L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
