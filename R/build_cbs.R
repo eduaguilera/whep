@@ -506,6 +506,7 @@ build_commodity_balances <- function(
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -523,6 +524,7 @@ build_commodity_balances <- function(
   silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
   nut_basis <- rlang::arg_match(nut_basis)
+  residue_backcast <- rlang::arg_match(residue_backcast)
   if (example) {
     return(
       if (format == "wide") {
@@ -553,7 +555,8 @@ build_commodity_balances <- function(
       silk_basis = silk_basis,
       silk_duplicate_use = silk_duplicate_use,
       tobacco_leaf_use = tobacco_leaf_use,
-      nut_basis = nut_basis
+      nut_basis = nut_basis,
+      residue_backcast = residue_backcast
     )
     scale_log <- attr(raw, ".hist_trade_scale_log")
     fixed <- raw |>
@@ -648,6 +651,12 @@ build_commodity_balances <- function(
     if (nut_basis != "rebased") {
       cli::cli_warn(
         "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (residue_backcast != "own_method") {
+      cli::cli_warn(
+        "{.arg residue_backcast} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     fixed <- .fixed_data
@@ -896,7 +905,8 @@ build_commodity_balances <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices()
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -919,7 +929,9 @@ build_commodity_balances <- function(
     silk_basis = silk_basis,
     silk_duplicate_use = silk_duplicate_use,
     tobacco_leaf_use = tobacco_leaf_use,
-    nut_basis = nut_basis
+    nut_basis = nut_basis,
+    residue_backcast = residue_backcast,
+    aggregate_proxy = aggregate_proxy
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1361,7 +1373,9 @@ build_processing_coefs <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices()
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
@@ -1418,8 +1432,17 @@ build_processing_coefs <- function(
   primary_cbs <- .primary_to_cbs(primary_all)
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
-  # Crop residues
-  crop_residues <- .read_crop_residues(years = years)
+  # Crop residues, and the pre-1961 years the pin does not reach grown back
+  # along the crops they come from (whep#1508).
+  residues <- .filter_years(get_primary_residues(), years)
+  crop_residues <- .read_crop_residues(residues = residues)
+  residue_backcast <- .cbs_residue_backcast(
+    residues,
+    primary_all,
+    years,
+    method = residue_backcast,
+    aggregate_proxy = aggregate_proxy
+  )
 
   # Land areas
   land_areas_wide <- .read_land_areas_wide(years = years)
@@ -1437,6 +1460,7 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
+    residue_backcast = residue_backcast,
     land_areas_wide = land_areas_wide,
     fbs_rebase = fbs_rebase
   )
@@ -2844,10 +2868,13 @@ build_processing_coefs <- function(
   invisible(NULL)
 }
 
-.read_crop_residues <- function(years = NULL) {
+.read_crop_residues <- function(years = NULL, residues = NULL) {
   items_prod <- whep::items_prod_full
 
-  res <- get_primary_residues() |>
+  if (is.null(residues)) {
+    residues <- get_primary_residues()
+  }
+  res <- residues |>
     .filter_years(years) |>
     .residue_cbs_elements()
 
@@ -2904,6 +2931,329 @@ build_processing_coefs <- function(
     )
   ]
   .apply_bucket_area_labels(dt, labels)
+}
+
+# -- The pre-1961 crop-residue back-cast (whep#1508) ---------------------------
+#
+# The `crop_residues` pin starts in 1961, so before it the balance had residue
+# USES and no residue PRODUCTION. The generic back-cast grew Straw, Other crop
+# residues and Firewood `feed` and `other_uses` along population and
+# agricultural land, nothing grew their production, and the balance closed
+# through `stock_variation`: measured on a real 1955-1965 build, 2.59 Gt of
+# residue in 1955 and 2.80 Gt in 1960 booked as a draw on stocks that never
+# existed.
+#
+# The crop the residue comes from is produced before 1961, so the residue is
+# grown back along it, per area, crop and residue item, and then split into
+# recovered production, feed and other uses by `.residue_cbs_elements()`, the
+# same split every 1961+ row gets. Production therefore equals feed plus other
+# uses in every back-cast year, as it does after 1961.
+#
+# What it grows along is the choice of `build_commodity_balances()`'s
+# `residue_backcast`, which documents what each moves:
+#
+# - `"own_method"` grows each row along the basis its first-year value was
+#   built on. Cereal residue is recomputed with `calculate_crop_residues()`
+#   from production and harvested area (`.residue_ratio_corrected()`), so it
+#   grows along that estimator applied to the earlier year's crops, yield
+#   response included. Every other row is the predecessor's product-times-ratio
+#   model or a per-product anchor, so it grows along crop production; an oil
+#   palm row anchored per hectare grows along harvested area.
+# - `"production_ratio"` grows every row along its crop's production.
+# - `"area_rate"` grows every row along its crop's harvested area.
+.cbs_residue_backcast_choices <- function() {
+  c("own_method", "production_ratio", "area_rate")
+}
+
+# The back-cast residue as CBS rows on the reporting bucket, with the source
+# label that marks them as WHEP's estimate rather than a reported figure.
+.cbs_residue_backcast <- function(
+  residues,
+  primary_all,
+  years,
+  method = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  method <- rlang::arg_match(method, .cbs_residue_backcast_choices())
+  rows <- .backcast_crop_residues(
+    residues,
+    primary_all,
+    years,
+    method = method,
+    aggregate_proxy = aggregate_proxy
+  )
+  if (nrow(rows) == 0L) {
+    return(.empty_historical_cbs())
+  }
+  .read_crop_residues(residues = rows) |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area = .data$area,
+      area_code = as.integer(.data$area_code),
+      item_cbs = .data$item_cbs,
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      element = .data$element,
+      source = .residue_backcast_source(method),
+      value = .data$value
+    )
+}
+
+# Pre-1962 back-cast values outrank every other source in
+# `.cbs_source_rank()` because the label starts with `"historical_"`.
+.residue_backcast_source <- function(method) {
+  paste0("historical_residue_", method)
+}
+
+# Gross residue rows (the `get_primary_residues()` schema) for every year of
+# `years` before the first year `residues` reports. Each (area, crop, residue
+# item) keeps the ratio of its residue to its basis in that first year, spent
+# on the basis of the earlier year. A year in which production reports no such
+# crop gets no residue: there is nothing for it to be the residue of.
+.backcast_crop_residues <- function(
+  residues,
+  primary_all,
+  years,
+  method = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  method <- rlang::arg_match(method, .cbs_residue_backcast_choices())
+  residues <- tibble::as_tibble(residues)
+  if (nrow(residues) == 0L) {
+    return(.empty_residue_backcast())
+  }
+  anchor_year <- min(residues$year)
+  target <- as.integer(years[years < anchor_year])
+  if (length(target) == 0L) {
+    return(.empty_residue_backcast())
+  }
+  first <- .residue_backcast_rows(residues, anchor_year, method)
+  proxy <- .residue_backcast_proxy(
+    primary_all,
+    c(target, anchor_year),
+    dplyr::distinct(first, .data$basis, .data$item_cbs_code_crop),
+    aggregate_proxy
+  )
+  anchor <- .residue_backcast_anchor(first, proxy)
+  .report_residue_backcast(anchor)
+  keys <- c("year", "proxy_area_code", "item_cbs_code_crop", "basis")
+  anchor |>
+    dplyr::filter(.data$proxy > 0) |>
+    dplyr::transmute(
+      area_code = .data$area_code,
+      proxy_area_code = .data$proxy_area_code,
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      item_cbs_code_residue = .data$item_cbs_code_residue,
+      basis = .data$basis,
+      method_residue = .data$method_residue,
+      per_proxy = .data$value / .data$proxy,
+      dm_per_proxy = .data$value_dm / .data$proxy
+    ) |>
+    tidyr::expand_grid(year = target) |>
+    dplyr::inner_join(proxy, by = keys) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      item_cbs_code_residue = .data$item_cbs_code_residue,
+      value = .data$per_proxy * .data$proxy,
+      value_dm = .data$dm_per_proxy * .data$proxy,
+      method_residue = .data$method_residue
+    ) |>
+    dplyr::filter(.data$value > 0)
+}
+
+.empty_residue_backcast <- function() {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code_crop = integer(),
+    item_cbs_code_residue = integer(),
+    value = double(),
+    value_dm = double(),
+    method_residue = character()
+  )
+}
+
+# The first-year residue rows, each stamped with the basis it grows along.
+.residue_backcast_rows <- function(residues, anchor_year, method) {
+  residues |>
+    dplyr::filter(.data$year == anchor_year, !is.na(.data$area_code)) |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      polity_area_code = as.integer(.data$polity_area_code),
+      item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
+      item_cbs_code_residue = as.integer(.data$item_cbs_code_residue),
+      value = .data$value,
+      value_dm = .data$value_dm,
+      method_residue = .data$method_residue,
+      basis = .residue_backcast_basis(.data$method_residue, method)
+    )
+}
+
+# What a residue row grows along: `"production"`, `"area"`, or the name of the
+# `calculate_crop_residues()` method its first-year value was computed with.
+.residue_backcast_basis <- function(method_residue, method) {
+  if (method == "production_ratio") {
+    return(rep("production", length(method_residue)))
+  }
+  if (method == "area_rate") {
+    return(rep("area", length(method_residue)))
+  }
+  estimators <- rlang::fn_fmls(calculate_crop_residues)$method |> eval()
+  dplyr::case_when(
+    method_residue %in% estimators ~ method_residue,
+    method_residue == "malaysia_nbs_per_hectare" ~ "area",
+    .default = "production"
+  )
+}
+
+# The first-year rows with the value of their basis in that year, in the
+# territory each is read against.
+#
+# The territory is the residue row's own `area_code`, with two exceptions the
+# production build does not carry as a code. Rest of World (999) is the summed
+# members `.residue_backcast_proxy()` appends under `aggregate_proxy =
+# "member_sum"`, as in `.fill_with_proxies()` (whep#724). And a code production
+# does not report at all is read through the bucket it resolves to in the
+# first year: the pin books all of Sudan on the post-2011 code 276 from 1961,
+# which resolves to the former Sudan, 206, the code production carries.
+.residue_backcast_anchor <- function(first, proxy) {
+  carried <- c(unique(proxy$proxy_area_code), .rest_of_world_code())
+  first |>
+    dplyr::mutate(
+      proxy_area_code = dplyr::if_else(
+        .data$area_code %in% carried,
+        .data$area_code,
+        .data$polity_area_code
+      )
+    ) |>
+    dplyr::left_join(
+      proxy,
+      by = c("year", "proxy_area_code", "item_cbs_code_crop", "basis")
+    )
+}
+
+# Each basis per year, area and CBS crop item, for the crops that need it.
+.residue_backcast_proxy <- function(
+  primary_all,
+  years,
+  needs,
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  aggregate_proxy <- rlang::arg_match(
+    aggregate_proxy,
+    .cbs_aggregate_proxy_choices()
+  )
+  crops <- .residue_backcast_crops(primary_all, years)
+  proxy <- needs |>
+    dplyr::summarise(
+      crop_codes = list(.data$item_cbs_code_crop),
+      .by = "basis"
+    ) |>
+    purrr::pmap(\(basis, crop_codes) {
+      .residue_basis_values(
+        dplyr::filter(crops, .data$item_cbs_code_crop %in% crop_codes),
+        basis
+      )
+    }) |>
+    dplyr::bind_rows(.residue_basis_values(crops[0, ], "production"))
+  if (aggregate_proxy == "member_sum") {
+    members <- .rest_of_world_member_codes()
+    proxy <- dplyr::bind_rows(
+      proxy,
+      proxy |>
+        dplyr::filter(.data$area_code %in% members) |>
+        dplyr::mutate(area_code = .rest_of_world_code())
+    )
+  }
+  proxy |>
+    dplyr::summarise(
+      proxy = sum(.data$proxy, na.rm = TRUE),
+      .by = c("year", "area_code", "item_cbs_code_crop", "basis")
+    ) |>
+    dplyr::rename(proxy_area_code = "area_code")
+}
+
+# Crop production (t) and harvested area (ha) per year, area and production
+# item, with the CBS crop item each maps to.
+.residue_backcast_crops <- function(primary_all, years) {
+  dt <- data.table::as.data.table(primary_all)[
+    unit %in%
+      c("tonnes", "ha") &
+      year %in% years &
+      !is.na(item_cbs_code) &
+      !is.na(value)
+  ]
+  dt <- dt[,
+    .(value = sum(value)),
+    by = .(
+      year = as.integer(year),
+      area_code = as.integer(area_code),
+      item_cbs_code_crop = as.integer(item_cbs_code),
+      item_prod_code = as.character(item_prod_code),
+      unit
+    )
+  ]
+  data.table::dcast(
+    dt,
+    year + area_code + item_cbs_code_crop + item_prod_code ~ unit,
+    value.var = "value",
+    fill = NA_real_
+  ) |>
+    tibble::as_tibble() |>
+    ensure_columns(tibble::tibble(tonnes = double(), ha = double())) |>
+    dplyr::rename(production_t = "tonnes", area_ha = "ha")
+}
+
+# One basis's values per production item. An estimator basis needs both a
+# production and a harvested area, as it does in `.residue_cereal_production()`.
+.residue_basis_values <- function(crops, basis) {
+  keys <- c("year", "area_code", "item_cbs_code_crop")
+  if (basis %in% c("production", "area")) {
+    col <- if (basis == "production") "production_t" else "area_ha"
+    return(
+      crops |>
+        dplyr::select(dplyr::all_of(keys), proxy = dplyr::all_of(col)) |>
+        dplyr::mutate(basis = basis)
+    )
+  }
+  crops |>
+    dplyr::filter(.data$production_t > 0, .data$area_ha > 0) |>
+    dplyr::left_join(
+      dplyr::select(.residue_area_regions(), "area_code", "region_hanpp"),
+      by = "area_code"
+    ) |>
+    calculate_crop_residues(method = basis) |>
+    dplyr::select(dplyr::all_of(keys), proxy = "residue_dm_t") |>
+    dplyr::mutate(basis = basis)
+}
+
+# Say how much first-year residue could not be grown back, because production
+# reports no crop for it to grow along in that year. It is left out of every
+# earlier year rather than given a residue with nothing behind it.
+.report_residue_backcast <- function(anchor) {
+  lost <- anchor[is.na(anchor$proxy) | anchor$proxy <= 0, ]
+  if (nrow(lost) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(lost)
+  tonnes <- .cbs_tonnes(sum(lost$value))
+  share <- round(100 * sum(lost$value) / sum(anchor$value), 2)
+  first_year <- min(anchor$year)
+  areas <- sort(unique(lost$area_code))
+  cli::cli_inform(
+    c(
+      "i" = "{n_rows} first-year crop-residue row{?s} find{?s/} no crop
+        production or area to grow back along, so
+        {cli::qty(n_rows)}{?it is/they are} not back-cast before
+        {first_year}: {tonnes}, {share}% of that year's residue.",
+      " " = "Areas: {.val {areas}}."
+    ),
+    class = "whep_residue_backcast"
+  )
+  invisible(NULL)
 }
 
 .read_land_areas_wide <- function(years = NULL) {
@@ -3776,6 +4126,13 @@ build_processing_coefs <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   items <- whep::items_full
+
+  # The back-cast crop residue enters as an observation, so the destiny fills
+  # below leave it alone: its uses are derived from its production, as after
+  # 1961, instead of being grown along population and land (whep#1508).
+  if (NROW(inputs$residue_backcast) > 0L) {
+    cbs_raw0 <- dplyr::bind_rows(cbs_raw0, inputs$residue_backcast)
+  }
 
   cbs_hist <- cbs_raw0 |>
     dplyr::filter(
@@ -4785,10 +5142,7 @@ build_processing_coefs <- function(
 # that steps up at 1961) and over world-total growth; `aggregate_proxy =
 # "none"` keeps the unfilled alternative selectable.
 .rest_of_world_proxy <- function(df, iso3_col) {
-  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
-  members <- unique(
-    crosswalk$area_code[.rest_of_world_members(crosswalk, "all")]
-  )
+  members <- .rest_of_world_member_codes()
   dt <- .proxy_area_key(df, iso3_col)[area_code %in% members]
   dt[, area_code := .rest_of_world_code()]
   dt[, polity_area_code := .rest_of_world_code()]
@@ -4797,6 +5151,13 @@ build_processing_coefs <- function(
 
 .rest_of_world_code <- function() {
   999L
+}
+
+# The area codes of FABIO's Rest-of-World members, read with the "all"
+# predicate whatever fold mode is running (see `.rest_of_world_proxy()`).
+.rest_of_world_member_codes <- function() {
+  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
+  unique(crosswalk$area_code[.rest_of_world_members(crosswalk, "all")])
 }
 
 .cbs_aggregate_proxy_choices <- function() {
