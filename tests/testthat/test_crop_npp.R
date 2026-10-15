@@ -473,3 +473,83 @@ test_that("coffee residue gets the modern-variety correction", {
     bare$residue_dm_t * (1 + (1 - share) * (gap - 1))
   )
 })
+
+.root_regime_rows <- function(item, regime = c("Rainfed", "Irrigated")) {
+  tibble::tibble(
+    item_prod_code = item,
+    product_dm_t = 87.9,
+    residue_dm_t = 135.75,
+    area_ha = 40,
+    water_regime = regime
+  )
+}
+
+.root_irrigated_ratio <- function(item, ...) {
+  out <- whep::calculate_crop_roots(
+    .root_regime_rows(item),
+    method = "root_shoot",
+    ...
+  )
+  out$root_dm_t[2] / out$root_dm_t[1]
+}
+
+test_that("irrigated root:shoot is gated by the residue sensitivity", {
+  irr <- whep::whep_coef_table("irrigation_adj")
+  factor <- irr$rs_ratio_factor[irr$water_regime == "Irrigated"]
+  # Maize sensitivity 1, oilseeds (rapeseed) 0.5, paddy rice and legumes 0.
+  testthat::expect_equal(.root_irrigated_ratio("56"), factor)
+  testthat::expect_equal(.root_irrigated_ratio("270"), 1 + 0.5 * (factor - 1))
+  testthat::expect_equal(.root_irrigated_ratio("27"), 1)
+  testthat::expect_equal(.root_irrigated_ratio("236"), 1)
+})
+
+test_that("the ungated and switched-off root irrigation stay selectable", {
+  irr <- whep::whep_coef_table("irrigation_adj")
+  factor <- irr$rs_ratio_factor[irr$water_regime == "Irrigated"]
+  testthat::expect_equal(
+    .root_irrigated_ratio("27", irrigation = "all_crops"),
+    factor
+  )
+  testthat::expect_equal(.root_irrigated_ratio("56", irrigation = "none"), 1)
+})
+
+test_that("the root irrigation method is stamped on regime rows", {
+  out <- whep::calculate_crop_roots(.root_regime_rows("56"))
+  testthat::expect_equal(
+    out$method_root_irrigation,
+    rep("crop_sensitivity", 2)
+  )
+  plain <- whep::calculate_crop_roots(
+    .root_regime_rows("56")[, -5],
+    irrigation = "all_crops"
+  )
+  testthat::expect_false(rlang::has_name(plain, "method_root_irrigation"))
+})
+
+test_that("calculate_crop_npp passes the root irrigation choice on", {
+  x <- tibble::tibble(
+    item_prod_code = "27",
+    production_t = 100,
+    area_ha = 40,
+    water_regime = c("Rainfed", "Irrigated")
+  )
+  gated <- whep::calculate_crop_npp(x, root_method = "root_shoot")
+  ungated <- whep::calculate_crop_npp(
+    x,
+    root_method = "root_shoot",
+    root_irrigation = "all_crops"
+  )
+  # Rice has residue sensitivity 0, so both regimes share one aerial biomass.
+  testthat::expect_equal(gated$root_dm_t[2], gated$root_dm_t[1])
+  testthat::expect_equal(
+    ungated$root_dm_t[2] / ungated$root_dm_t[1],
+    0.85
+  )
+})
+
+test_that("an unknown root irrigation method is refused", {
+  testthat::expect_error(
+    whep::calculate_crop_roots(.root_regime_rows("56"), irrigation = "half"),
+    class = "rlang_error"
+  )
+})
