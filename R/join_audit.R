@@ -1011,6 +1011,10 @@
     ".missing_denominator_areas", "summarise", "area_code", 1L, "diagnostic",
     "Totals the mass and the area-year count that have no population
      denominator, for the warning that names them.",
+    ".sjr_warn_untraded_food", "summarise", "area_code", 1L, "diagnostic",
+    "Totals the food and the area-year count whose balance imports nothing,
+     for the warning that names them (whep#1514). The rows it reports are
+     dropped on (year, area_code) by its caller.",
     ".n_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same duplicate-cell guard as the carbon one, for the gridded nitrogen
      support; it aborts rather than fold two polities into one cell.",

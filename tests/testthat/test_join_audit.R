@@ -665,7 +665,11 @@ test_that("every year-free territorial grouping is classified", {
   # 150 with whep#1495, on top of the 149 above: the FBS 2551 rebase takes
   # the median of each area's ratio over the 2010-2013 overlap (`year_axis`).
   # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), 150L)
+  # 151 with whep#1514, on top of whep#1495's 150: `.sjr_warn_untraded_food()`
+  # totals the dropped food per area for its warning (`diagnostic`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)` on the
+  # merged tree.
+  expect_lte(sum(full$n), 151L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
