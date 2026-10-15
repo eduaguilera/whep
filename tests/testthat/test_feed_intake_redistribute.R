@@ -705,50 +705,50 @@ test_that(".build_feed_avail_national warns on unclassified CBS feed mass", {
   expect_true(2591L %in% out$item_cbs_code)
 })
 
-test_that(".build_feed_avail_national names the placeholder item it drops", {
-  # whep#970: CBS item 2775 "Aquatic Plants" is bridged by whep::items_full to
-  # the literal Name_biomass "0", which matches no biomass_coefs row, so its
-  # feed mass leaves availability at the density join. The warning has to say
-  # which item, how much, and that the bridge -- not the taxonomy -- is the
-  # gap, because the two need different repairs.
+test_that(".build_feed_avail_national names an item with no density row", {
+  # An items_full Name_biomass that matches no biomass_coefs row drops the
+  # item's feed mass at the density join. The warning has to say which item,
+  # how much, and that the bridge -- not the taxonomy -- is the gap, because
+  # the two need different repairs. The shipped bridge is exact since
+  # whep#970, so the gap is made here by removing 2775's coefficient row.
   cbs <- tibble::tribble(
-    ~year,
-    ~area_code,
-    ~item_cbs_code,
-    ~feed,
-    1970L,
-    1L,
-    2591L,
-    1000, # groundnut cake -> high_quality, classified fine
-    1970L,
-    1L,
-    2775L,
-    302970 # aquatic plants -> placeholder Name_biomass, no density
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, 1L,         2591L,          1000, # groundnut cake -> classified
+    1970L, 1L,         2775L,          302970 # aquatic plants -> row removed
+  )
+  coefs <- dplyr::filter(
+    whep::biomass_coefs,
+    .data$Name_biomass != "Aquatic Plants"
   )
   warning_text <- tryCatch(
     {
-      whep:::.build_feed_avail_national(cbs)
+      whep:::.build_feed_avail_national(cbs, biomass_coefs = coefs)
       NA_character_
     },
     warning = function(w) conditionMessage(w)
   )
   # cli wraps the message to the console width, so compare on one line.
   warning_text <- stringr::str_squish(warning_text)
-  expect_match(warning_text, "Aquatic Plants", fixed = TRUE)
-  expect_match(warning_text, "2775", fixed = TRUE)
+  expect_match(warning_text, "Aquatic Plants (2775)", fixed = TRUE)
   expect_match(warning_text, "302970", fixed = TRUE)
-  expect_match(warning_text, "placeholder", fixed = TRUE)
+  expect_match(
+    warning_text,
+    "no biomass_coefs row named Aquatic Plants",
+    fixed = TRUE
+  )
   # It is classified by the taxonomy, so the taxonomy must not be blamed.
   expect_false(grepl("absent from feed_taxonomy", warning_text, fixed = TRUE))
 
-  out <- suppressWarnings(whep:::.build_feed_avail_national(cbs))
+  out <- suppressWarnings(
+    whep:::.build_feed_avail_national(cbs, biomass_coefs = coefs)
+  )
   expect_false(2775L %in% out$item_cbs_code)
 })
 
 test_that(".build_feed_avail_national does not blame a non_feed item", {
-  # CBS item 2899 "Miscellaneous" carries the same "0" placeholder but is
-  # tagged "non_feed", so availability excludes it by design and no gap in
-  # biomass_coefs costs anything. Warning on it would report feed mass as lost
+  # CBS item 2899 "Miscellaneous" has no biomass counterpart (NA
+  # Name_biomass) and is tagged "non_feed", so availability excludes it by
+  # design and no gap in biomass_coefs costs anything. Warning on it would report feed mass as lost
   # to a data gap when it was never offered as feed.
   cbs <- tibble::tribble(
     ~year,
@@ -762,7 +762,7 @@ test_that(".build_feed_avail_national does not blame a non_feed item", {
     1970L,
     1L,
     2899L,
-    500 # miscellaneous -> non_feed AND placeholder Name_biomass
+    500 # miscellaneous -> non_feed AND no Name_biomass
   )
   expect_no_warning(out <- whep:::.build_feed_avail_national(cbs))
   expect_false(2899L %in% out$item_cbs_code)
