@@ -48,8 +48,16 @@ The equation used for each row is recorded in \code{method_lactation}
 }
 \value{
 Dataframe with added \code{gross_energy} (MJ/day), intermediate
-net energy components, and \code{method_energy} and \code{method_lactation}
-tracking columns.
+net energy components, \code{cohort_life_stage} (\code{"mature_female"},
+\code{"mature"}, \code{"growing"}, or \code{NA} for a whole-herd row), and
+\code{method_energy}, \code{method_lactation} and \code{method_pregnancy} tracking
+columns. \code{method_pregnancy} is \code{"supplied"}, \code{"species_default"},
+\code{"species_default_whole_herd"}, \code{"not_mature_female"},
+\code{"ipcc2019_t10a2"} (a beef cow at its region's published rate),
+\code{"ipcc2019_t10a2_neighbour_assumed"} (Western Europe, which the table
+omits, at the 80\% North America and Eastern Europe report) or
+\code{"ipcc2019_t10a2_mean_assumed"} (no resolvable region: the mean of the
+published regions).
 }
 \description{
 Calculate gross energy (GE) intake per IPCC 2019 Tier 2 equations
@@ -59,6 +67,16 @@ derives total gross energy using the REM/REG ratio approach from
 IPCC Eq 10.16.
 
 All coefficients come from internal package data.
+
+Default weight gain and pregnancy fraction follow the cohort's life stage:
+mature cohorts (\code{"Adult Female"}, \code{"Adult Male"}, \code{"Adult"}, \code{"Sows"},
+\code{"Boars"}, \code{"Layers"}) gain no weight, and only mature-female cohorts take
+the species pregnancy fraction (IPCC 2019 Vol 4 Ch 10, pp. 10.18 and
+10.28). Beef breeding cows (\code{"Adult Female"} of non-dairy cattle) take the
+"Pregnant, \%" of the IPCC 2019 Table 10A.2 "Mature Females" row for their
+IPCC region, resolved from \code{iso3} or \code{area_code}. A cohort of \code{NA} or
+\code{"All"} is a whole-herd row and keeps both species defaults. Any other
+cohort label aborts. Values the caller supplies are kept.
 }
 \examples{
 tibble::tibble(

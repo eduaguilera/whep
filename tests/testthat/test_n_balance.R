@@ -513,13 +513,17 @@ testthat::test_that("bedding residue N leaves the field without leaking", {
   )
   bare <- whep:::.nb_add_residue_destiny(
     inputs,
-    list(residue_destiny_input = .nb_residue_destiny_input()),
+    list(
+      residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding = "fraction"
+    ),
     key
   )
   bedded <- whep:::.nb_add_residue_destiny(
     inputs,
     list(
       residue_destiny_input = .nb_residue_destiny_input(),
+      residue_bedding = "fraction",
       residue_bedding_fraction = 0.4
     ),
     key
@@ -541,6 +545,7 @@ testthat::test_that("bedded straw N comes back as a manure input", {
   manure <- c("manure_solid", "manure_liquid", "excreta")
   run <- function(fraction) {
     data <- .nb_full_data()
+    data$residue_bedding <- "fraction"
     data$residue_bedding_fraction <- fraction
     inputs <- suppressWarnings(whep::build_n_inputs(data = data))
     removed <- inputs |>
@@ -566,6 +571,7 @@ testthat::test_that("a balance without bedding passes no bedding supply", {
   # A zero bedding share is a declared choice, not an absent input: the manure
   # engine then runs exactly as before bedding existed.
   data <- .nb_full_data()
+  data$residue_bedding <- "fraction"
   testthat::expect_null(whep:::.ni_manure_bedding(data))
   data$residue_destiny_input <- NULL
   data$residue_bedding_fraction <- 0.4
@@ -576,6 +582,7 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
   # The straw is booked where it grew, the manure where the animals are; the
   # national supply is spread over the housed streams by add_manure_bedding().
   data <- .nb_full_data()
+  data$residue_bedding <- "fraction"
   data$residue_bedding_fraction <- 0.4
   supply <- whep:::.ni_manure_bedding(data)
 
@@ -595,6 +602,7 @@ testthat::test_that("bedded straw N is priced as applied manure, not as excreta"
   key <- whep:::.nb_key("grid")
   run <- function(fraction) {
     data <- .nb_data_with_drivers()
+    data$residue_bedding <- "fraction"
     data$residue_bedding_fraction <- fraction
     data$n_balance_drivers$moisture_regime <- "dry"
     inputs <- suppressWarnings(whep::build_n_inputs(data = data))
@@ -1596,6 +1604,8 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
 testthat::test_that("the default manure source reproduces the pre-option balance", {
   # Written by the code before the manure-source option existed (whep main at
   # 5421973b), relabelled for the human-N rename; see test_n_balance_inputs.R.
+  # Held at the as-shipped EF3 it was written under (whep#601), and at the
+  # legacy residue feed share, which it predates (whep#1398).
   golden <- readRDS(testthat::test_path(
     "fixtures",
     "n_inputs_default_golden.rds"
@@ -1603,7 +1613,13 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   # The golden predates the wet/dry methods: its N2O columns are the ATL/MED
   # option on this fixture's MED climate, and its FracLEACH is the 0.24 that
   # today's wet rows take. Built with those options, every number must still
-  # match; only the stamps name the options more precisely now.
+  # match; only the stamps name the options more precisely now. It also
+  # predates the sourced bedding share (whep#1005), so it is reproduced under
+  # the rule it was written with: no bedding.
+  data <- .nb_data_with_drivers()
+  data$methods <- list(losses = list(ef3_source = "as_shipped"))
+  data$residue_feed_share <- "legacy"
+  data$residue_bedding <- "fraction"
   out <- suppressMessages(whep::build_nitrogen_balance(
     methods = list(
       nh3 = "ipcc",
@@ -1612,7 +1628,7 @@ testthat::test_that("the default manure source reproduces the pre-option balance
       leaching = "ipcc_fracleach",
       regime = "none"
     ),
-    data = .nb_data_with_drivers()
+    data = data
   ))
   # Rows with no N2O-relevant input carry the method and the reason.
   atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
@@ -1646,6 +1662,36 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   )
 })
 
+testthat::test_that("the residue feed share moves only the residue split", {
+  # whep#1398: switching the feed share moves recovered residue N between the
+  # fed and the burned destinies. Everything else in the balance, the
+  # surplus included, is identical.
+  data <- .nb_data_with_drivers()
+  data$residue_feed_share <- "legacy"
+  legacy <- suppressMessages(.nb_build(data, "grid"))
+  current <- suppressMessages(.nb_run())
+  split <- c(
+    "used_residue_n_t",
+    "burnt_residue_n_t",
+    "n_output_residues_t",
+    "n_output_useful_t",
+    "nue_residues",
+    "nue_useful"
+  )
+  testthat::expect_identical(
+    dplyr::select(current, -dplyr::all_of(split)),
+    dplyr::select(legacy, -dplyr::all_of(split))
+  )
+  testthat::expect_false(identical(
+    current$used_residue_n_t,
+    legacy$used_residue_n_t
+  ))
+  testthat::expect_equal(
+    current$used_residue_n_t + current$burnt_residue_n_t,
+    legacy$used_residue_n_t + legacy$burnt_residue_n_t
+  )
+})
+
 # whep#1078: the default ammonia method (MANNER) needs per-row driver columns
 # that no reader in the package produces (only windspeed_ms has one,
 # read_lpjml_wind()). Without them the balance used to assemble every input --
@@ -1661,6 +1707,29 @@ testthat::test_that("the default manure source reproduces the pre-option balance
     .env = env
   )
 }
+
+testthat::test_that("the default bedding share returns its N as manure", {
+  # whep#1005: the Wirsenius bedding share carves bedding out of the burnt
+  # residue, so the residue leaving the field only changes term. Since
+  # whep#1445 the bedded straw comes back in the housed manure, so the N input
+  # rises by exactly the bedded N and nothing else enters.
+  data <- .nb_data_with_drivers()
+  data$residue_bedding <- "fraction"
+  bare <- suppressMessages(.nb_run(data))
+  bedded <- suppressMessages(.nb_run())
+  testthat::expect_gt(sum(bedded$bedding_residue_n_t), 0)
+  testthat::expect_equal(sum(bare$bedding_residue_n_t), 0)
+  testthat::expect_equal(
+    bedded$bedding_residue_n_t + bedded$burnt_residue_n_t,
+    bare$burnt_residue_n_t
+  )
+  testthat::expect_equal(bedded$used_residue_n_t, bare$used_residue_n_t)
+  testthat::expect_equal(
+    sum(bedded$n_input_full_t) - sum(bare$n_input_full_t),
+    sum(bedded$bedding_residue_n_t),
+    tolerance = 1e-9
+  )
+})
 
 testthat::test_that("default MANNER ammonia without drivers is refused before any assembly", {
   .nb_stub_assembly()
@@ -1885,8 +1954,15 @@ testthat::test_that("the default balance prices its loss rows with the wet IPCC 
 testthat::test_that("the ATL/MED options reproduce the former balance", {
   # Golden totals of this fixture at commit bb604f8b, before the wet/dry
   # method took the `ipcc2019` name (MED, so EF1 0.005 and the Rainfed ef on
-  # NH3). FracLEACH 0.24 on every row then equals today's wet rows.
+  # NH3). FracLEACH 0.24 on every row then equals today's wet rows. The
+  # golden also predates the sourced bedding share (whep#1005), so it is
+  # reproduced under the rule it was written with: no bedding.
+  data <- .nb_data_with_drivers()
+  data$methods <- list(losses = list(ef3_source = "as_shipped"))
+  data$residue_feed_share <- "legacy"
+  data$residue_bedding <- "fraction"
   out <- .nb_run_methods(
+    data = data,
     n2o = "ipcc2019_atl_med",
     n2o_indirect = "ipcc2019_atl_med"
   )

@@ -9,7 +9,9 @@ calculate_residue_destinies(
   method = c("recovery_regional", "shares"),
   bedding_fraction = 0,
   unmatched_recovery = c("report", "abort"),
-  recovery = c("wirsenius", "legacy")
+  recovery = c("wirsenius", "legacy"),
+  feed_share = c("wirsenius", "legacy"),
+  bedding = c("wirsenius", "fraction")
 )
 }
 \arguments{
@@ -26,9 +28,9 @@ recovery rate times the UN-sub-regional feed-use fraction) or \code{"shares"}
 \code{to_be_revised}).}
 
 \item{bedding_fraction}{Fraction of the recovered \strong{non-feed} residue used
-as livestock bedding, one number in \verb{[0, 1]}. Default \code{0}, which is unset
-rather than measured; see the Bedding section for why, and what a caller
-setting it must convert from.}
+as livestock bedding under \code{bedding = "fraction"}, one number in \verb{[0, 1]}.
+Default \code{0}. Must stay \code{0} under \code{bedding = "wirsenius"}, which sets its
+own share.}
 
 \item{unmatched_recovery}{What the \code{recovery_regional} method does with a
 row that reaches no recovery rate at all, because its crop carries no
@@ -42,12 +44,29 @@ method reads: \code{"wirsenius"} (default since whep#1330, every rate
 Wirsenius 2000 states, at the value it states) or \code{"legacy"} (the table
 as shipped before whep#1163). See the Two recovery variants section.
 Ignored by the \code{"shares"} method.}
+
+\item{feed_share}{Which feed-use fraction the \code{recovery_regional} method
+reads: \code{"wirsenius"} (default since whep#1398, Wirsenius 2000 Table 3.20,
+per crop by-product and Wirsenius region, the feed half of the recovery
+rates) or \code{"legacy"} (\code{residue_feed_fraction.csv}, one fraction per UN
+M49 sub-region for every crop). See the Two feed-share variants section.
+Ignored by the \code{"shares"} method.}
+
+\item{bedding}{Bedding rule: \code{"wirsenius"} (default, 12.4\% of the recovered
+cereal straw, Wirsenius 2000 Table 3.21) or \code{"fraction"} (\code{bedding_fraction}
+of the recovered non-feed residue of every crop). See the Where the bedding
+share comes from section.}
 }
 \value{
 The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
-\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} and
-\code{method_residue_destiny}, and \code{method_residue_recovery} (the \code{recovery}
-variant, \code{NA} for the \code{"shares"} method). The \code{"recovery_regional"}
+\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{residue_bedding_fraction} (the
+share applied: of the recovered residue under \code{"wirsenius"}, zero for a
+non-cereal; of the recovered non-feed residue under \code{"fraction"}),
+\code{method_residue_bedding}, \code{method_residue_destiny}, and
+\code{method_residue_recovery} (the \code{recovery} variant, \code{NA} for the \code{"shares"}
+method) and \code{method_residue_feed} (per row, the table that priced its feed
+share: \code{"wirsenius"} or \code{"legacy"}, \code{NA} for the \code{"shares"} method). The
+\code{"recovery_regional"}
 method also returns
 \code{residue_recovery_matched}, \code{FALSE} where no recovery rate was found,
 which is what separates a rate the table gives as zero from a zero
@@ -70,25 +89,48 @@ inventory compilers to cross-check bedding nitrogen "relative to the amount
 of agricultural residues that is removed for other purposes (i.e. bedding)
 other than the amount of agricultural residues returned to soils or burnt",
 so as "to eliminate the possibility of double counting".
+}
 
-\code{bedding_fraction} defaults to \strong{0}, and that default is \emph{unset, not
-measured}: no global bedding-only fraction of crop residue could be sourced
-(whep#1005). FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove}
-both merge bedding with feed and construction into one term. Three partial
-anchors exist and none is on this function's denominator, so each needs
-converting before it can be used here:
+\section{Where the bedding share comes from}{
+
+\code{bedding = "wirsenius"} (default) reads the one bedding figure that comes
+from the same accounting as the recovery rates: \strong{Wirsenius (2000)}, \emph{Human
+Use of Land and Organic Materials}, PhD thesis, Chalmers University of
+Technology, Table 3.21 (p. 126). Of 2700 Tg DM/yr of cereals straw & stover
+generated, 530 Tg is "not recovered", so 2170 Tg is recovered, and 270 Tg is
+"used as litter for animal bedding" -- 14\% of the 1940 Tg \emph{distributed}.
+This function's denominator is the \emph{recovered} residue, so the share is
+taken against the table's own recovered total, \code{270 / 2170 = 0.124}. That
+is the same distributed -> recovered conversion whep#1431 makes for the
+Table 3.20 feed shares; here the world table carries both totals, so no loss factor
+has to be assumed (the 10\% loss route, \code{0.14 * 0.90}, gives 0.126).
+
+Wirsenius models cereals straw and stover as the \emph{only} bedding material
+(p. 85, after Section 2.3.1), so the share applies to the five cereal
+categories (\verb{Wheat, other cereals}, \verb{Rice, Paddy}, \code{Maize}, \code{Sorghum},
+\code{Millet}) and
+every other crop beds nothing. It is one \strong{world} share applied in every
+region: the thesis prints no regional litter total, and its regional
+litter-use rates (Table 3.13, p. 86, kg straw per kg housed manure) are
+"very rough figures" (p. 85), with South & Central Asia cattle set to zero
+because "no reasonable values on litter use could be identified" -- not an
+estimate to inherit. The bedding is carved out of the recovered non-feed
+residue and capped at it; where the cap binds a warning says how much.
+
+\code{bedding = "fraction"} keeps the caller-set rule: \code{bedding_fraction} of the
+recovered non-feed residue of every crop, default \code{0} (no bedding). Two
+other anchors are on that denominator family, neither of them global:
 \itemize{
-\item Wirsenius (2000), PhD thesis, Chalmers University of Technology, Table
-3.21 p. 126 -- litter is 14\% of \emph{distributed} cereal straw and stover and
-11\% of distributed crop by-products. The author grades these "very rough",
-and the South & Central Asia cattle entry is 0 because the data were
-absent, which must not be inherited as an estimate.
 \item Statistics Denmark HALM/HALM1/HALM2 -- the only official statistic with a
 bedding-only column: 16-21\% of straw \emph{production}, about 30\% of \emph{removed}
 straw.
 \item Bentsen, Felby & Thorsen (2014), Prog. Energy Combust. Sci. 40:59-73,
 Table 5 -- Denmark, barley 16\% and wheat 11\% of \emph{production}.
 }
+
+FAO GLEAM's \code{FracRemove} and IPCC 2019 Eq. 11.6's \code{FracRemove} both merge
+bedding with feed and construction into one term, so neither is usable.
+The rule used is recorded in \code{method_residue_bedding}.
 }
 
 \section{Where the recovery rates come from}{
@@ -105,7 +147,8 @@ one decimal). The file was named after Krausmann and its two key columns
 still are, but no coefficient in it is Krausmann's. Only the crop category
 (\code{items_prod_full$Cat_Krausmann}) really is his: \code{region_krausmann} here
 holds \code{regions_full$region_HANPP} labels, whose eight values are
-Wirsenius's eight regions (whep#1132).
+Wirsenius's eight region names (whep#1132), though not his country
+membership (see the Two feed-share variants section).
 
 Table 3.17 states its rates per crop \strong{category}, not per crop: one
 "Cereals straw & stover" row governs every cereal, and one "Sugar crops
@@ -151,23 +194,31 @@ the gross residue base these rates multiply, once thought to be about 36\%
 too high (step 2 of whep#1132). whep#1330 found that excess gone in dry
 matter, but it measured the \code{crop_residues} pin as it was then read, and
 that pin holds residue already multiplied by the \code{"legacy"} rate
-(whep#1195). Read as the residue produced, which \code{\link[=get_primary_residues]{get_primary_residues()}}
-now returns, world cereal residue in dry matter is above the three-method
-band of Smerald, Rahimi & Scheer (2023), \doi{10.1038/s41597-023-02587-0},
-in 16 of the 25 years 1997--2021, its 1997--2021 mean 16.1\% above theirs
+(whep#1195). Read as the residue produced, world cereal residue in dry
+matter was 16.1\% above the three-method mean of Smerald, Rahimi & Scheer
+(2023), \doi{10.1038/s41597-023-02587-0}, over 1997--2021. Since whep#1448
+\code{\link[=get_primary_residues]{get_primary_residues()}} estimates cereal residue from yield, and the
+1997--2021 mean is 0.8\% above theirs, inside their band in every year
 (\code{validation/residue_base_dm.R}). The rates the switch moves are all
 non-cereal, and no published global total for the non-cereal residue base
 was found to check it against.
 
+Both rate columns are keyed on Wirsenius's eight regions, so a row takes
+his own region membership (Table 3.1, p. 58), not the HANPP label's: from
+its HANPP region and UN M49 sub-region, through \code{residue_feed_regions.csv}.
+The HANPP label files Southeast Asia, Russia, Belarus and the Caucasus
+under South & Central Asia, whose rates are the highest (whep#1430). On
+the commodity balance that lowers residue production by 2.4\% in 2010 and
+2.7\% in 2020.
+
 Measured on \code{\link[=get_primary_residues]{get_primary_residues()}}'s fresh \code{value} (the commodity
 balance's basis), \code{"wirsenius"} against \code{"legacy"} in 2010 raises
-recovered residue from 7635 to 7822 Mt fresh matter (+2.4\%), the feed
-destiny from 2181 to 2238 Mt (+2.6\%) and the burned/other-use destiny from
-5454 to 5584 Mt (+2.4\%), and lowers the soil destiny from 1675 to 1488 Mt
-(-11.2\%); over 1961--1965 the same moves are +5.0\%, +4.7\%, +5.1\% and
--19.5\%. Roots and tubers, cassava, sugar beet and groundnut are the only
-categories that move. Under \code{"legacy"} the recovered total is the pin's
-own figure, since that is the rate the pin was written with.
+recovered residue from 6939 to 7148 Mt fresh matter (+3.0\%), the feed
+destiny from 1964 to 2025 Mt (+3.1\%) and the burned/other-use destiny from
+4976 to 5123 Mt (+3.0\%), and lowers the soil destiny from 1789 to 1580 Mt
+(-11.7\%); over 1961--1965 the same moves are +6.3\%, +5.4\%, +6.6\% and
+-20.4\%. Roots and tubers, cassava, sugar beet and groundnut are the only
+categories that move.
 
 Three categories move no mass at all today, which is why the fodder rate
 of 0 is not the live problem it looks like:
@@ -175,22 +226,66 @@ of 0 is not the live problem it looks like:
 production item, and no \verb{Fodder crops} item reaches the residue pin.
 }
 
-\section{The feed-use fraction is a different, unpaired source}{
+\section{Two feed-share variants}{
 
-Wirsenius coordinates Table 3.17 directly with the feed assignments of his
-Table 3.20 (p. 102) -- "assumptions on recovery rates were directly
-coordinated with those on assignment for use as feed". WHEP does not use
-Table 3.20: the feed half comes from \code{residue_feed_fraction.csv} (Smil
-1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992), whose named
-values span 0.05 to 0.45 around a 0.20 global default. That is well under
-the "some 33 percent of the amount generated" Wirsenius reports for cereals
-straw and stover fed to animals (p. 177), and under the livestock share of
+\verb{feed_share =} selects the fraction of the \strong{recovered} residue booked as
+feed (the rest is the burned / other-use destiny), and
+\code{method_residue_feed} records, per row, which table priced it:
+\itemize{
+\item \code{"wirsenius"} (default) reads \code{residue_feed_assignment.csv}: Wirsenius (2000)
+Table 3.20 (p. 102), the "Assignm." rows for crop by-products, which the
+thesis coordinates directly with the Table 3.17 recovery rates --
+"assumptions on recovery rates were directly coordinated with those on
+assignment for use as feed" (p. 95). One row covers rice straw, one the
+other cereals (read for millet too, as Table 3.17 is), and one each
+cassava leaves, potato tops (read for all roots and tubers), sugar cane
+tops, sugar beet tops, groundnut stalks and the other oil crops. The seven
+categories it has no row for keep the legacy fraction, and their rows say
+\code{"legacy"}.
+\item \code{"legacy"} reads \code{residue_feed_fraction.csv} (Smil 1999, Lal 2005,
+Krausmann 2008, Erenstein 2014, McIntire 1992): one fraction per UN M49
+sub-region, 0.05 to 0.45 around a 0.20 global default, the same for every
+crop. It is not paired with the recovery rates, and was the only feed
+share before whep#1398.
+}
+
+Table 3.20 is a share of the amount \strong{distributed}, which is not the
+amount recovered: Wirsenius sets the distribution and storage losses of
+all crop by-products to 10\% (p. 98), and in North America & Oceania leaves
+5\% of the recovered cereal and soybean straw in the field (p. 95, note
+117). So the share of recovered residue fed is the printed value times
+0.90 (0.855 for those North American straws): wheat straw in South & Central
+Asia is 0.80 of the distributed straw and 0.72 of the recovered. Read
+without the conversion it would book more feed than Wirsenius does.
+
+Like the recovery rates, the table is keyed on Wirsenius's own region
+membership (Table 3.1, p. 58), through \code{residue_feed_regions.csv}. It
+matters more here: the HANPP label files Southeast Asia, Russia and
+Belarus, and the Caucasus under South and Central Asia, whose cereal feed
+share is 0.80, where Wirsenius has them at 0.30, 0.10 and 0.60.
+
+Measured on \code{\link[=get_primary_residues]{get_primary_residues()}} in dry matter, the cereals' feed
+share of their generated residue is 0.224 (2010) and 0.225 (2020) under
+\code{"legacy"}, 0.305 and 0.309 under \code{"wirsenius"}. Wirsenius reports "some
+33 percent of the amount generated" for the early 1990s (p. 177), and
 Smerald, Rahimi & Scheer (2023), \emph{Scientific Data} \strong{10}:685,
-\doi{10.1038/s41597-023-02587-0}. Re-anchoring it is \strong{not} done here:
-it was held back because the gross residue base it multiplies was thought
-too high (whep#1132, whep#1041). In dry matter that base is about 16\% above
-the published cereal band once the pin's recovery is undone (whep#1195), so
-the reason for holding it back stands.
+\doi{10.1038/s41597-023-02587-0}, a share of 0.331 of the residue produced
+going to livestock. That figure is read from the authors' Zenodo notebook
+(whep#1132), not printed in the article, and their livestock category is
+"animal feed or bedding", so it is an upper bound for feed alone. The
+residue the commodity balance books as feed (Straw and Other crop
+residues) rises from 1089 to 1550 Tg of dry matter in 2010 (+42\%) and
+from 1293 to 1856 Tg in 2020 (+44\%); recovered and soil-returned residue
+do not move. In the 2010 national feed allocation (\code{\link[=get_feed_intake]{get_feed_intake()}}),
+residue intake rises from 1578 to 1985 Tg of dry matter and grass intake
+falls from 2703 to 2367 Tg (-12.4\%), the residue displacing grazing.
+These are measured on the yield-based cereal residue base of whep#1448.
+
+The default is \code{"wirsenius"} because it is the half of a matched pair whose
+other half, the recovery rates, is already the default, every value it
+reads is traceable to the source, and it lands within 8\% of both
+published anchors above, where the legacy table falls about a third short
+of them.
 }
 
 \examples{

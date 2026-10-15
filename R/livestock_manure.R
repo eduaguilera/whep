@@ -4,17 +4,22 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but five
+#' @param options A named list of manure-engine options. All but nine
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
-#'   are `mcf_source`, which moved from the shipped table to the 2019
+#'   are `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
+#'   whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
+#'   manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
+#'   N2O, `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
 #'   since whep#1137 pairs the 2019 pasture MCF with its published `Bo` and
 #'   moves Tier 2 manure CH4, and `tier2_uncovered`, which since whep#1028
 #'   gives species with no Tier 2 method their Tier 1 values instead of `NA`,
-#'   and `indirect_n2o_source`, which since whep#1245 reads the 2019
-#'   Refinement's leaching factors and moves both tiers' indirect manure N2O.
+#'   `indirect_n2o_source`, which since whep#1245 reads the 2019
+#'   Refinement's leaching factors and moves both tiers' indirect manure N2O,
+#'   and `indirect_n2o_fractions`, which since whep#1365 weights the Table
+#'   10.22 fractions over the manure-management split and moves it again.
 #'
 #'   `indirect_n2o_source` selects the edition of [indirect_n2o_ef] the
 #'   indirect manure N2O reads:
@@ -26,11 +31,65 @@
 #'     before whep#1245 under a 2019 citation, kept selectable so earlier
 #'     figures stay reproducible.
 #'
-#'   EF4 (0.010) and FracGasMS (0.20) are the same under both. Relative to
-#'   `"ipcc_2006"` the default raises the leaching term by
-#'   `0.24 * 0.011 / (0.30 * 0.0075) = 1.173` and leaves the volatilisation
-#'   term alone. `method_manure_n2o` records the edition used
-#'   (`indirect_ipcc_2019` or `indirect_ipcc_2006`).
+#'   EF4 (0.010) is the same under both. The edition also selects the Ch 11
+#'   FracGASM (0.21 in 2019, 0.20 in 2006) the pasture stream is priced at.
+#'
+#'   `indirect_n2o_fractions` selects which nitrogen fractions the indirect
+#'   manure N2O volatilises and leaches:
+#'   * `"per_mms"` (default): IPCC 2019 Refinement, Vol 4, Ch 10, Eq. 10.26
+#'     and 10.27 (Updated), pp. 10.76-10.77. `FracGasMS` and `FracLeachMS` per
+#'     animal category and system, from Table 10.22 (Updated), pp.
+#'     10.96-10.97, weighted over the row's own manure-management split, the
+#'     same split the direct EF3 is weighted over. Pasture/range/paddock N,
+#'     which Table 10.22 does not cover, is priced at the Ch 11 Table 11.3
+#'     FracGASM and FracLEACH-(H) (Eq. 11.9 and 11.10), as the IPCC prices
+#'     grazing deposition; no other WHEP chain prices it, and the direct path
+#'     prices the same N at EF3, so it is counted once. The managed-system
+#'     fractions are the 2019 table's under either edition, as in
+#'     [apply_management_losses()]: the 2006 Table 10.22 leaves most pairs
+#'     blank.
+#'   * `"single"`: one FracGasMS 0.20 (assumed, unverified) and one
+#'     FracLEACH-(H) on all excreted N, the form before whep#1365. Kept so
+#'     earlier figures stay reproducible.
+#'
+#'   `method_manure_n2o` records both choices, e.g.
+#'   `indirect_ipcc_2019_per_mms` or `indirect_ipcc_2006_single`.
+#'
+#'   `enteric_ef_source` selects the Tier 1 enteric CH4 emission factors.
+#'   Although it sits among the manure-engine options, it governs the enteric
+#'   path only:
+#'   * `"ipcc_2019"` (default): [ipcc_enteric_ef_tier1], the 2019
+#'     Refinement's Tables 10.10 and 10.11 (Updated) as published: cattle and
+#'     buffalo by IPCC region, and sheep, goats and swine at the productivity
+#'     system the Table 10.10 footnote assigns the region (high in North
+#'     America, Europe and Oceania, low elsewhere). A row the edition prices
+#'     at nothing keeps the as-shipped factor, stamped
+#'     `enteric_ef_as_shipped_fallback`.
+#'   * `"as_shipped"`: [ipcc_2019_enteric_ef_cattle] and
+#'     [ipcc_2019_enteric_ef_other], the 2006 Guidelines' factors with four
+#'     cells in neither edition, read before whep#601. Kept so earlier figures
+#'     stay reproducible.
+#'
+#'   `method_enteric` records which (`enteric_ef_ipcc_2019` or
+#'   `enteric_ef_as_shipped`). On FAOSTAT 2020 heads the default raises Tier 1
+#'   enteric CH4 from 110.8 to 125.3 Tg. Taking high productivity everywhere
+#'   instead would give 134.2 Tg, low everywhere 124.2 Tg.
+#'
+#'   `ef3_source` selects the direct manure N2O emission factors, at both
+#'   tiers: `"ipcc_2019"` (default) or `"as_shipped"`, the two editions of
+#'   [ipcc_manure_ef3].
+#'
+#'   `slurry_crust` sets the share of liquid slurry with a natural crust,
+#'   which mixes the 2019 Table 10.21 (Updated) EF3 with a crust (0.005) and
+#'   without one (0) into the engine's single `"Liquid/Slurry"` label:
+#'   `"half"` (default, 0.0025, GLEAM 2.0's stated assumption for its pig and
+#'   chicken slurry, extended to the other species), `"none"` (0) or `"all"`
+#'   (0.005). It has no effect under `ef3_source = "as_shipped"`, whose
+#'   0.002 is a single row.
+#'
+#'   `method_manure_n2o` records the EF3 choice (`ef3_ipcc_2019;
+#'   slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT 2020 heads the
+#'   default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -720,7 +779,11 @@ NULL
 #' is a vocabulary defect the maintainer can and should fix, and inventing a
 #' split for it would hide exactly the failure this fill exists to make visible.
 #' @noRd
-.fill_assumed_mms_shares <- function(shares, mms_shares = "gleam_2_0") {
+.fill_assumed_mms_shares <- function(
+  shares,
+  mms_shares = "gleam_2_0",
+  warn = TRUE
+) {
   shares <- dplyr::mutate(shares, mms_basis = NA_character_)
   gap <- (is.na(shares$mms_type) | is.na(shares$fraction)) &
     shares$species_gen %in% .assumed_species_neighbours()$species_gen
@@ -734,11 +797,13 @@ NULL
       by = "species_gen",
       relationship = "many-to-many"
     )
-  .warn_assumed(
-    assumed$species_gen,
-    "manure management distribution",
-    assumed$mms_basis
-  )
+  if (warn) {
+    .warn_assumed(
+      assumed$species_gen,
+      "manure management distribution",
+      assumed$mms_basis
+    )
+  }
   dplyr::bind_rows(shares[!gap, ], assumed)
 }
 
@@ -1036,20 +1101,25 @@ NULL
 .calc_direct_n2o <- function(data, options = list()) {
   opt <- .manure_options(options)
   data <- .resolve_manure_region(data, opt$mms_region, opt$mms_shares)
-  .calc_weighted_direct_n2o(
-    data,
-    .manure_ef3(),
-    livestock_constants$n_to_n2o,
-    opt$mms_region,
-    opt$mms_shares
-  )
+  data |>
+    .calc_weighted_direct_n2o(
+      .manure_ef3(opt$ef3_source, opt$slurry_crust),
+      livestock_constants$n_to_n2o,
+      opt$mms_region,
+      opt$mms_shares
+    ) |>
+    .stamp_assumption(
+      "method_manure_n2o",
+      paste0("ef3_", .ef3_method_tag(opt$ef3_source, opt$slurry_crust)),
+      TRUE
+    )
 }
 
 #' Direct N2O weighted over the row's manure-management distribution.
 #'
-#' `ef3_tbl` is [.manure_ef3()], the crosswalk that resolves each of the six
-#' MMS labels the engine carries onto its `ipcc_2019_n2o_ef_direct` row. An
-#' unresolved label aborts: it used to silently take the table's 0.005 `Other`
+#' `ef3_tbl` is [.manure_ef3()], the `ipcc_manure_ef3` rows of one edition for
+#' the six MMS labels the engine carries, keyed on the pasture animal class as
+#' well (see `.ef3_animal_class()`). An unresolved label aborts: it used to silently take the table's 0.005 `Other`
 #' value, which is what put 80% of poultry manure on 0.005 where the litter
 #' rows give 0.001 (whep#950).
 #'
@@ -1080,7 +1150,8 @@ NULL
       shares = mms_shares
     ) |>
     .fill_assumed_mms_shares(mms_shares) |>
-    dplyr::left_join(ef3_tbl, by = "mms_type") |>
+    dplyr::mutate(ef3_class = .ef3_animal_class(species_gen)) |>
+    dplyr::left_join(ef3_tbl, by = c("mms_type", "ef3_class")) |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(
       weighted_ef3 = sum(fraction * ef3),
@@ -1129,8 +1200,17 @@ NULL
 #' Calculate indirect N2O (volatilization + leaching).
 #'
 #' Reads the `indirect_n2o_source` edition rows of `indirect_n2o_ef` -- no
-#' hardcoded values -- and stamps the edition into `method_manure_n2o`
-#' (whep#1245).
+#' hardcoded values -- and stamps the edition and the fraction form into
+#' `method_manure_n2o` (whep#1245, whep#1365).
+#'
+#' Under `indirect_n2o_fractions = "per_mms"` (default) the volatilised and
+#' leached fractions are weighted over the row's own manure-management split,
+#' the same split the direct EF3 is weighted over: Table 10.22 (Updated)
+#' `FracGasMS` and `FracLeachMS` for the managed systems (2019 Refinement,
+#' Vol 4, Ch 10, Eq. 10.26 and 10.27 (Updated), pp. 10.76-10.77), and the
+#' Ch 11 Table 11.3 `FracGASM` and `FracLEACH-(H)` for the pasture stream,
+#' whose N the IPCC prices under managed soils (Eq. 11.9 and 11.10). See
+#' `.indirect_mms_fractions()`. `"single"` is the form before whep#1365.
 #' @noRd
 .calc_indirect_n2o <- function(data, options = list()) {
   opt <- .manure_options(options)
@@ -1139,19 +1219,168 @@ NULL
 
   ef4 <- .get_indirect_param("ef4_volatilization", edition)
   ef5 <- .get_indirect_param("ef5_leaching", edition)
-  frac_gas <- .get_indirect_param("frac_gasms", edition)
-  frac_leach <- .get_indirect_param("frac_leach", edition)
+  fracs <- .indirect_n2o_fractions(data, opt)
 
   n_animals <- .animal_count(data)
   data |>
     dplyr::mutate(
-      n2o_volatilization = n_animals * n_excretion * frac_gas * ef4 * n2o_to_n,
-      n2o_leaching = n_animals * n_excretion * frac_leach * ef5 * n2o_to_n,
+      n2o_volatilization = n_animals *
+        n_excretion *
+        fracs$frac_gas *
+        ef4 *
+        n2o_to_n,
+      n2o_leaching = n_animals *
+        n_excretion *
+        fracs$frac_leach *
+        ef5 *
+        n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
         n2o_leaching
     ) |>
     dplyr::select(-n2o_volatilization, -n2o_leaching) |>
-    .stamp_assumption("method_manure_n2o", paste0("indirect_", edition), TRUE)
+    .stamp_assumption(
+      "method_manure_n2o",
+      paste0("indirect_", edition, "_", opt$indirect_n2o_fractions),
+      TRUE
+    )
+}
+
+#' The volatilised and leached N fractions of each row, in row order.
+#'
+#' `"single"` gives every row the `frac_gasms` and `frac_leach` of
+#' `indirect_n2o_ef`, the form before whep#1365: one Ch 11 fraction applied to
+#' all excreted N, pasture and stored manure alike. Kept so earlier figures
+#' stay reproducible; `frac_gasms` 0.20 is assumed, unverified.
+#' @noRd
+.indirect_n2o_fractions <- function(data, opt) {
+  if (identical(opt$indirect_n2o_fractions, "single")) {
+    edition <- opt$indirect_n2o_source
+    return(tibble::tibble(
+      frac_gas = rep(.get_indirect_param("frac_gasms", edition), nrow(data)),
+      frac_leach = rep(.get_indirect_param("frac_leach", edition), nrow(data))
+    ))
+  }
+  .weighted_indirect_fractions(data, opt)
+}
+
+#' Table 10.22 fractions weighted over each row's manure-management split.
+#'
+#' The split is resolved exactly as `.calc_weighted_direct_n2o()` resolves it,
+#' so the two N2O terms price the same N on the same systems. The assumed
+#' splits of `.fill_assumed_mms_shares()` already warned on the direct path,
+#' so they are taken quietly here.
+#' @noRd
+.weighted_indirect_fractions <- function(data, opt) {
+  fracs <- .indirect_mms_fractions(opt$indirect_n2o_source)
+  data |>
+    .resolve_manure_region(opt$mms_region, opt$mms_shares) |>
+    dplyr::mutate(
+      row_id_indirect = dplyr::row_number(),
+      loss_category = .indirect_loss_category(species, species_gen)
+    ) |>
+    dplyr::select(
+      row_id_indirect,
+      species_gen,
+      loss_category,
+      dplyr::any_of("region")
+    ) |>
+    .resolve_mms_shares(
+      .mms_region_col(opt$mms_region),
+      shares = opt$mms_shares
+    ) |>
+    .fill_assumed_mms_shares(opt$mms_shares, warn = FALSE) |>
+    .check_mms_matched("fraction") |>
+    dplyr::left_join(fracs, by = c("mms_type", "loss_category")) |>
+    .check_indirect_matched() |>
+    dplyr::summarise(
+      frac_gas = sum(fraction * frac_gas_ms),
+      frac_leach = sum(fraction * frac_leach_ms),
+      .by = row_id_indirect
+    ) |>
+    dplyr::arrange(row_id_indirect) |>
+    dplyr::select(frac_gas, frac_leach)
+}
+
+#' The Table 10.22 animal category of each row.
+#'
+#' Table 10.22 publishes five categories: Swine, Dairy Cow, Poultry, Other
+#' Cattle and Other animals. Buffalo, which it does not name, is priced as
+#' Other Cattle: `species_taxonomy_bridge.csv` already folds buffalo into
+#' `Cattle_meat` and so into the `Other Cattle` loss category of
+#' [apply_management_losses()]. A species managed like another
+#' (`.assumed_species_neighbours()`) takes that neighbour's category, so its
+#' borrowed split (Poultry Manure included) meets a published row; everything
+#' else is the table's own residual, Other animals.
+#' @noRd
+.indirect_loss_category <- function(species, species_gen) {
+  gen <- dplyr::coalesce(
+    .assumed_neighbour_of(species_gen, "husbandry_like"),
+    species_gen
+  )
+  dplyr::case_when(
+    gen == "Cattle" & .is_dairy(species) ~ "Dairy Cattle",
+    gen %in% c("Cattle", "Buffalo") ~ "Other Cattle",
+    gen %in% c("Swine", "Poultry") ~ gen,
+    TRUE ~ "Other animals"
+  )
+}
+
+#' Volatilised and leached N fractions per (system, Table 10.22 category).
+#'
+#' The managed systems take the 2019 Table 10.22 (Updated) base-variant values
+#' shipped in `manure_loss_fractions.csv`, the same rows
+#' [apply_management_losses()] nets off the stored N, under either edition:
+#' the 2006 Table 10.22 publishes FracGasMS for only some
+#' system-category pairs (no daily spread outside dairy, no liquid/slurry
+#' outside swine and dairy) and no FracLeachMS at all. The edition selects
+#' EF4 and EF5 and the pasture fractions.
+#'
+#' Pasture/range/paddock N is not stored, so its CSV rows are zero. The IPCC
+#' prices its volatilisation and leaching under managed soils, at FracGASM and
+#' FracLEACH-(H) of Ch 11 Table 11.3 (2019 Refinement Eq. 11.9 and 11.10;
+#' 0.21 and 0.24, or 0.20 and 0.30 in the 2006 Guidelines). The direct path
+#' prices the same N at EF3_PRP, and `build_crop_soil_n2o_extension()` prices
+#' only manure applied to soils, so this is the one place it is counted.
+#' Like the single form before whep#1365, FracLEACH-(H) is applied in every
+#' climate, though both editions take it as zero in dry ones.
+#' @noRd
+.indirect_mms_fractions <- function(edition) {
+  gasm <- .get_indirect_param("frac_gasm", edition)
+  leach <- .get_indirect_param("frac_leach", edition)
+  .manure_loss_fractions() |>
+    dplyr::transmute(
+      mms_type,
+      loss_category = animal_category,
+      frac_gas_ms = dplyr::if_else(
+        mms_type == "Pasture/Range/Paddock",
+        gasm,
+        frac_gas_ms
+      ),
+      frac_leach_ms = dplyr::if_else(
+        mms_type == "Pasture/Range/Paddock",
+        leach,
+        frac_leach_ms
+      )
+    )
+}
+
+#' Fail closed on a (system, category) pair Table 10.22 has no row for.
+#' @noRd
+.check_indirect_matched <- function(joined) {
+  bad <- joined |>
+    dplyr::filter(is.na(frac_gas_ms) | is.na(frac_leach_ms)) |>
+    dplyr::distinct(mms_type, loss_category)
+  if (nrow(bad) == 0) {
+    return(joined)
+  }
+  pairs <- paste(bad$mms_type, bad$loss_category, sep = " / ")
+  cli::cli_abort(
+    c(
+      "No Table 10.22 nitrogen-loss fraction for {.val {pairs}}.",
+      i = "Add the row to {.file inst/extdata/manure/manure_loss_fractions.csv}."
+    ),
+    class = "whep_missing_indirect_fraction"
+  )
 }
 
 #' Get one edition's parameter value from the indirect_n2o_ef table.
@@ -1230,7 +1459,9 @@ NULL
 #' pasture MCF, and whep#1028 made `tier2_uncovered` fill species with no
 #' Tier 2 method from Tier 1 instead of leaving them `NA`, and whep#1245 made
 #' `indirect_n2o_source` read the 2019 Table 11.3 EF5 and FracLEACH-(H) that
-#' the shipped table had cited while holding the 2006 values.
+#' the shipped table had cited while holding the 2006 values. whep#601 moved
+#' `enteric_ef_source` and `ef3_source` off tables that held 2006, mixed or
+#' unpublished values under a 2019 name onto the 2019 Refinement.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1241,7 +1472,11 @@ NULL
     assumed_climate_zone = "Temperate",
     tier2_uncovered = "tier1",
     pasture_bo = "paired",
-    indirect_n2o_source = "ipcc_2019"
+    indirect_n2o_source = "ipcc_2019",
+    enteric_ef_source = "ipcc_2019",
+    ef3_source = "ipcc_2019",
+    slurry_crust = "half",
+    indirect_n2o_fractions = "per_mms"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1261,6 +1496,10 @@ NULL
   tier2_uncovered <- opt$tier2_uncovered
   pasture_bo <- opt$pasture_bo
   indirect_n2o_source <- opt$indirect_n2o_source
+  enteric_ef_source <- opt$enteric_ef_source
+  ef3_source <- opt$ef3_source
+  slurry_crust <- opt$slurry_crust
+  indirect_n2o_fractions <- opt$indirect_n2o_fractions
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1287,8 +1526,30 @@ NULL
     indirect_n2o_source = rlang::arg_match(
       indirect_n2o_source,
       c("ipcc_2019", "ipcc_2006")
+    ),
+    enteric_ef_source = rlang::arg_match(
+      enteric_ef_source,
+      c("ipcc_2019", "as_shipped")
+    ),
+    ef3_source = .ef3_source_arg(ef3_source),
+    slurry_crust = .slurry_crust_arg(slurry_crust),
+    indirect_n2o_fractions = rlang::arg_match(
+      indirect_n2o_fractions,
+      c("per_mms", "single")
     )
   )
+}
+
+#' Validate the `ef3_source` option, shared with [apply_management_losses()].
+#' @noRd
+.ef3_source_arg <- function(ef3_source) {
+  rlang::arg_match(ef3_source, c("ipcc_2019", "as_shipped"))
+}
+
+#' Validate the `slurry_crust` option, shared with [apply_management_losses()].
+#' @noRd
+.slurry_crust_arg <- function(slurry_crust) {
+  rlang::arg_match(slurry_crust, c("half", "none", "all"))
 }
 
 #' Which column `.resolve_mms_shares()` keys the MMS split on.
@@ -1479,8 +1740,8 @@ NULL
     cli::cli_abort(
       c(
         "No EF3 for manure-management system{?s} {.val {bad$mms_type}}.",
-        i = "Add the {.field ipcc_2019_n2o_ef_direct} row it maps to in \\
-             {.fun .manure_ef3}."
+        i = "Add its row to {.field ipcc_manure_ef3} for the edition in \\
+             use."
       ),
       class = "whep_missing_ef3"
     )

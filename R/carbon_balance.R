@@ -3989,9 +3989,9 @@ build_carbon_balance <- function(
 # German polities). Where that layer has no `area_code` it is dropped below,
 # and its land left in the share denominator halved every member's share --
 # on the `20260907T111653Z-e654d` support, 1,296 Mha of unkeyed land lies in
-# such cells at 1950. The nitrogen path's year-aware support removes the layer
-# from its denominators (`.cpy_mark_removed()`); this removes it only as far
-# as the cell's own area proves. A cell cannot hold more territory than it
+# such cells at 1950. This removes the layer only as far as the cell's own
+# area proves, the bound the nitrogen path's year-aware support applies too
+# (`.cpy_mark_removed()`, whep#1405). A cell cannot hold more territory than it
 # has, so what it claims beyond `cell_area_ha` is counted twice, and no more
 # of the unkeyed claim than that leaves. Removing the whole claim would hand
 # the rest of it to the neighbours, the absorption the denominator is taken
@@ -3999,8 +3999,9 @@ build_carbon_balance <- function(
 # (20.25, 42.75), 117 kha claimed against an excess of 90 ha.
 #
 # The proof is one-sided -- a coastal cell can hide a second count under its
-# own area, and such a layer stays in the denominator as before -- and keyed
-# claims are never touched: two claimants that both report keep their halves.
+# own area -- so a layer that copies a claim leaves whole
+# (`.carbon_duplicate_frac()`). Keyed claims are never touched: two
+# claimants that both report keep their halves.
 # The overlap is measured on `polity_area_ha`, the territory the cell's area
 # bounds; a support without it cannot be measured, and the read says so.
 #
@@ -4039,16 +4040,44 @@ build_carbon_balance <- function(
     dplyr::select(-"duplicate_frac")
 }
 
-# One cell's rows: the share of each unkeyed claim that is counted twice, the
-# same share for every unkeyed row of the cell, and 0 for a keyed one.
-.carbon_duplicate_frac <- function(polity_area_ha, cell_area_ha, unkeyed) {
-  claimed <- sum(polity_area_ha[unkeyed])
+# One cell's rows: the share of each removable claim that is counted twice,
+# the same share for every removable row of the cell, and 0 for the others.
+# The level-0 fold and the carbon snapshot remove unkeyed claims; the
+# nitrogen path's year-aware support (`.cpy_mark_removed()`) also removes
+# claims with no national data or that duplicate their container.
+#
+# The excess bounds the share, but that proof is one-sided: in a coastal cell
+# the sea is nobody's territory, so a layer copying a claim -- West Germany
+# under Germany, 60 ha each in a cell of 100 -- proves only 20 ha twice. Such
+# a layer leaves whole when its territory equals one kept claim's, or all
+# kept claims' together, within `.cpy_overlap_tolerance()`: the same geometry
+# clipped to the same coast. On the `20260907T111653Z-e654d` support at 1961,
+# with every reporting code taken as reporting, 288 of the 368 cells the
+# bound alone leaves partly claimed in the nitrogen path match to within
+# 1e-6 (0.68 Mha of land: East and West Germany, the Baltic SSRs). Kosovo's
+# 117 kha at 2015 against its neighbours' 110 kha differs by 6% and keeps its
+# land (whep#1405).
+.carbon_duplicate_frac <- function(polity_area_ha, cell_area_ha, removable) {
+  claimed <- sum(polity_area_ha[removable])
   overlaps <- isTRUE(.cpy_cell_overlaps(polity_area_ha, cell_area_ha))
   if (!overlaps || !isTRUE(claimed > 0)) {
-    return(rep(0, length(unkeyed)))
+    return(rep(0, length(removable)))
+  }
+  if (.carbon_claim_copies(polity_area_ha, removable, claimed)) {
+    return(as.numeric(removable))
   }
   excess <- sum(polity_area_ha) - dplyr::first(cell_area_ha)
-  dplyr::if_else(unkeyed, min(1, excess / claimed), 0)
+  dplyr::if_else(removable, min(1, excess / claimed), 0)
+}
+
+# Does the removable claim equal one kept claim, or all of them together?
+.carbon_claim_copies <- function(polity_area_ha, removable, claimed) {
+  kept <- polity_area_ha[!removable]
+  if (length(kept) == 0L) {
+    return(FALSE)
+  }
+  gap <- abs(c(kept, sum(kept)) - claimed) / claimed
+  min(gap) <= .cpy_overlap_tolerance()
 }
 
 .carbon_inform_duplicates <- function(rows) {

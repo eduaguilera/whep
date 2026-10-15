@@ -32,9 +32,9 @@
     # D: Belgium and Luxembourg share a cell without overlapping.
     .cpy_row(4.25, 50.75, "BEL-1831-2025", 1831, 2025, 70),
     .cpy_row(4.25, 50.75, "LUX-1839-2025", 1839, 2025, 30),
-    # E: Germany over West Germany, the same 90 ha twice.
-    .cpy_row(10.25, 51.25, "DEU-1949-1990", 1949, 1990, 90),
-    .cpy_row(10.25, 51.25, "F78-1949-1990", 1949, 1990, 90),
+    # E: Germany over West Germany, the whole cell twice (90 ha of land).
+    .cpy_row(10.25, 51.25, "DEU-1949-1990", 1949, 1990, 90, terr = 100),
+    .cpy_row(10.25, 51.25, "F78-1949-1990", 1949, 1990, 90, terr = 100),
     # F: Russia, from 1991.
     .cpy_row(37.25, 55.75, "RUS-1991-2014", 1991, 2014, 100),
     # G: two claimants that both report.
@@ -201,7 +201,77 @@ testthat::test_that("an overlapping cell drops a polity with no area code", {
   )
 })
 
-testthat::test_that("an overlapping cell drops a polity with no national data", {
+testthat::test_that("an overlap removes no more of a claim than it proves", {
+  # Kosovo's border cell at 2015 (whep#1405), scaled to a 100 ha cell: the
+  # four claims sum to 100.3 ha, so 0.3 ha is counted twice. Kosovo folds into
+  # Serbia (its contained_fold row, whep#1008), so only that 0.3 ha of its
+  # claim leaves and the rest is Serbia's. Removing the whole claim would hand
+  # Kosovo's land to all three neighbours.
+  support <- dplyr::bind_rows(
+    .cpy_row(20.25, 42.75, "ALB-1913-2025", 1913, 2025, 3),
+    .cpy_row(20.25, 42.75, "MNE-2006-2025", 2006, 2025, 33.5),
+    .cpy_row(20.25, 42.75, "SRB-2008-2025", 2008, 2025, 12.2),
+    .cpy_row(20.25, 42.75, "KOS-2008-2025", 2008, 2025, 51.6)
+  )
+  out <- suppressMessages(
+    whep:::.cell_polity_year_support(support, 2015L, c(3L, 272L, 273L), "grid")
+  ) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_equal(out$area_code, c(3L, 272L, 273L))
+  testthat::expect_equal(out$polity_frac, c(3, 12.2 + 51.3, 33.5) / 100)
+  removed <- attr(out, "deduplicated")
+  testthat::expect_equal(removed$polity_code, "KOS-2008-2025")
+  testthat::expect_equal(removed$removed_reason, "duplicates_container")
+  testthat::expect_equal(removed$land_area_ha, 0.3)
+})
+
+testthat::test_that("a layer copying a claim leaves in full on the coast", {
+  # A coastal cell: Germany and West Germany each hold the same 60 ha, and
+  # the sea is nobody's. The cell's area proves only 20 ha twice, but the
+  # layer's claim equals Germany's, so it is a copy and leaves whole.
+  coast <- dplyr::bind_rows(
+    .cpy_row(8.25, 54.25, "DEU-1949-1990", 1949, 1990, 55, terr = 60),
+    .cpy_row(8.25, 54.25, "F78-1949-1990", 1949, 1990, 55, terr = 60)
+  )
+  out <- suppressMessages(
+    whep:::.cell_polity_year_support(coast, 1970L, 79L, "grid")
+  )
+  testthat::expect_equal(out$area_code, 79L)
+  testthat::expect_equal(out$polity_frac, 1)
+  testthat::expect_equal(attr(out, "deduplicated")$land_area_ha, 55)
+  # A layer over Germany and Denmark together is a copy of both claims.
+  both <- dplyr::bind_rows(
+    .cpy_row(8.25, 54.25, "DEU-1949-1990", 1949, 1990, 55, terr = 60),
+    .cpy_row(8.25, 54.25, "DNK-1920-2025", 1920, 2025, 10, terr = 15),
+    .cpy_row(8.25, 54.25, "F78-1949-1990", 1949, 1990, 65, terr = 75)
+  )
+  out <- suppressMessages(
+    whep:::.cell_polity_year_support(both, 1970L, c(54L, 79L), "grid")
+  ) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_equal(out$polity_frac, c(10, 55) / 65)
+})
+
+testthat::test_that("a partial overlap keeps the claimant's own land", {
+  # India claims 80 ha and China 70 ha of a 100 ha cell: 50 ha is contested
+  # and 20 ha is China's alone. China without data loses the 50 ha counted
+  # twice, not its own 20 ha, which stays out of India's share.
+  support <- dplyr::bind_rows(
+    .cpy_row(78.25, 34.25, "IND-1949-2025", 1949, 2025, 80),
+    .cpy_row(78.25, 34.25, "CHN-1950-2025", 1950, 2025, 70)
+  )
+  out <- suppressMessages(
+    whep:::.cell_polity_year_support(support, 1970L, 100L, "grid")
+  ) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_equal(out$area_code, c(41L, 100L))
+  testthat::expect_equal(out$polity_frac, c(0.2, 0.8))
+  removed <- attr(out, "deduplicated")
+  testthat::expect_equal(removed$land_area_ha, 50)
+  testthat::expect_equal(removed$removed_reason, "no_national_data")
+})
+
+testthat::test_that("an equal claim without national data is a copy", {
   out <- .cpy_build(1970L, reporting = setdiff(.cpy_reporting(), 41L))
   cell_g <- .cpy_cell(out, 78.25, 34.25)
   testthat::expect_equal(cell_g$area_code, 100L)
