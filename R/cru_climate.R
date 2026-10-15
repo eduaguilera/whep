@@ -90,7 +90,11 @@ read_cru_climate <- function(
   if (length(hits) == 0L) {
     cli::cli_abort(c(
       "No CRU file for variable {.val {var}} in {.file {cru_dir}}.",
-      i = "Expected a file like {.file cru_ts<version>.<years>.{var}.dat.nc}."
+      i = "Expected a file like {.file cru_ts<version>.<years>.{var}.dat.nc}.",
+      i = paste(
+        "Run {.file inst/scripts/download/download_climate.R}: it skips",
+        "the files already present and fetches only the missing ones."
+      )
     ))
   }
   # If several CRU releases are present for a variable (e.g. 4.07 and 4.09),

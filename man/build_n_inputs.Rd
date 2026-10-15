@@ -240,16 +240,26 @@ A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
 \code{method_deposition_scope}, \code{method_human_population},
 \code{method_human_kgn_cap}, \code{method_unsupported}, \code{method_manure},
-\code{method_unattributed}. At
+\code{excreta_cpp_share}, \code{method_excreta_species}, \code{method_unattributed}. At
 \code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
 \code{method_deposition}, \code{method_deposition_scope},
 \code{method_human_population}, \code{method_human_kgn_cap}, \code{method_unsupported},
-\code{method_manure}, \code{method_unattributed}, \code{n_input_t} (summed over cells).
+\code{method_manure}, \code{method_unattributed}, \code{n_input_t} (summed over cells),
+\code{excreta_cpp_share} (N-weighted over cells), \code{method_excreta_species}.
 \code{method_manure} records the source of the three manure terms
 (\code{"livestock_intake"}, \code{"faostat"}, or \code{"faostat_all_solid"} on applied
 manure booked as solid for want of an engine split) and is \code{NA} for every
 other \code{fert_type}.
+\code{excreta_cpp_share} is the share of an \code{"excreta"} row's N deposited by
+cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
+(Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
+(EF3PRP,SO) deposit the rest. \code{method_excreta_species} records where the
+share came from (\code{"engine_livestock_category"},
+\code{"faostat_species_group"}) or why the row has none
+(\code{"fallback_label_no_species"} for manure the engine labelled excreta
+only for want of a manure-type share, \code{"no_excreta_n"} for a row with no
+N). Both are \code{NA} for every other \code{fert_type}.
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or

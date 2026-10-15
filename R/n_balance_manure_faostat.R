@@ -23,6 +23,8 @@
 #     to a species group through inst/extdata/livestock_mapping.csv and spread
 #     to cells by build_gridded_livestock() with that mapping's spatial proxies
 #     -- the livestock spreader the local feed-intake grain already uses.
+#     The species groups are summed away per row, but their IPCC 2019 CPP
+#     share is kept as `excreta_cpp_share` (R/excreta_species_mix.R).
 
 # ---- Method vocabulary -------------------------------------------------------
 
@@ -439,20 +441,27 @@
   )
 }
 
+# The species groups are summed away here, so their CPP part (the IPCC 2019
+# EF3PRP,CPP animals, R/excreta_species_mix.R) is summed alongside and kept as
+# the row's share.
 .ni_pasture_polity <- function(species) {
   species |>
+    .ni_faostat_cpp_n("pasture_n_t") |>
     dplyr::summarise(
       n_t = sum(.data$pasture_n_t),
+      cpp_n_t = sum(.data$cpp_n_t),
       .by = c("year", "area_code")
     ) |>
-    .n_country_to_polity("n_t") |>
+    .n_country_to_polity(c("n_t", "cpp_n_t")) |>
     dplyr::transmute(
       lon = NA_real_,
       lat = NA_real_,
       .data$area_code,
       .data$year,
-      n_input_t = .data$n_t
-    )
+      n_input_t = .data$n_t,
+      .data$cpp_n_t
+    ) |>
+    .ni_faostat_species_mix()
 }
 
 # build_gridded_livestock() over the balance's own cell partition
@@ -480,11 +489,16 @@
     area_key = "grid"
   )
   .ni_warn_pasture_unplaced(species, gridded)
+  # Each cell's species groups are summed away here, so their CPP part is
+  # summed alongside, as in .ni_pasture_polity().
   gridded |>
+    .ni_faostat_cpp_n("pasture_n_t") |>
     dplyr::summarise(
       n_input_t = sum(.data$pasture_n_t),
+      cpp_n_t = sum(.data$cpp_n_t),
       .by = c("lon", "lat", "area_code", "year")
-    )
+    ) |>
+    .ni_faostat_species_mix()
 }
 
 # build_gridded_livestock() warns about countries it could not place but counts
