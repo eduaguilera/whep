@@ -106,7 +106,14 @@
 #'   readable input -- so under the default \code{method_grazing = "whep"} a
 #'   call that omits either is refused straight away, before any input is read.
 #'   Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
-#'   own grazing and need neither.
+#'   own grazing and need neither. Two optional entries are forwarded to
+#'   \code{\link{build_carbon_inputs}} for the rainfed/irrigated yield split
+#'   of crop groups, also only when \code{c_inputs} is not supplied:
+#'   \code{regime_ratio} (the \code{\link{build_regime_yield_ratio}} table;
+#'   pass the one \code{\link{build_nitrogen_balance}} used so both chains
+#'   apply one ratio) and \code{regime_production} (the
+#'   \code{\link{get_primary_production}} table the national yields and the
+#'   yield bounds come from). Each is built when absent.
 #' @param crop_groups How cropland is resolved into land-use classes; see
 #'   [build_carbon_inputs()]. `list()` (default) marches crop GROUPS --
 #'   herbaceous crops pooled per irrigation regime, woody crops per species,
@@ -119,7 +126,14 @@
 #'   Soil cover is computed once per cover profile and joined to the classes,
 #'   so the class count does not multiply the monthly climate table.
 #'   `list(method = "none")` keeps the single `cropland` class the package
-#'   used before.
+#'   used before. The default `regime = "yield_split"` builds the
+#'   irrigated:rainfed yield ratio when `data$regime_ratio` is not supplied
+#'   (and `c_inputs` is not), which needs SPAM2010 (downloaded into the user
+#'   cache on first use, so the first run needs network), the
+#'   `lpjml-crop-regime-yield` pin (or `WHEP_LPJML_RUN_DIR`) and the FAOSTAT
+#'   production, fertiliser and land-use pins plus `luh2-areas`; see
+#'   [build_carbon_inputs()]. `list(regime = "area_split")` needs none of
+#'   them.
 #' @param class_water How a cell's applied irrigation is shared among its
 #'   land-use classes in the moisture term. `"cell"` (default) gives every
 #'   class except natural land the cell-level water surplus, irrigation
@@ -3670,10 +3684,10 @@ build_carbon_balance <- function(
 # grain is required: .cb_class_table() joins c_inputs onto the land-use areas
 # per cell.
 #
-# Only the grazing inputs are forwarded from the balance's own `data`. The
-# rest of that list is keyed for the balance (its own land-use, climate and
-# cover layers), and handing it to the input builders wholesale would silently
-# change which layer they read.
+# Only the grazing inputs and the regime split's ratio and production are
+# forwarded from the balance's own `data`. The rest of that list is keyed for
+# the balance (its own land-use, climate and cover layers), and handing it to
+# the input builders wholesale would silently change which layer they read.
 .cb_read_c_inputs <- function(
   data = list(),
   years = NULL,
@@ -3684,7 +3698,9 @@ build_carbon_balance <- function(
     resolution = "grid",
     data = list(
       livestock_intake = data$livestock_intake,
-      excreta = data$excreta
+      excreta = data$excreta,
+      regime_ratio = data$regime_ratio,
+      regime_production = data$regime_production
     ),
     years = years,
     crop_groups = crop_groups,

@@ -167,6 +167,19 @@
 #'     fractions `stand_frac_rainfed`, `stand_frac_irrigated`. Only rows in
 #'     1994-2023 are used.
 #'   - `lpjml_grid`: the cells (`lon`, `lat`) the LPJmL run's output covers.
+#'   - `cache`: an environment (`new.env()`) that keeps what the inputs that do
+#'     not depend on the cells are reduced to: the SPAM2010 country totals, the
+#'     synthetic nitrogen series, the LUH2 cropland, the Linum and Hemp
+#'     production, and the LPJmL 1994-2023 stand sums and grid. The first call
+#'     that needs one reads it and stores it, and a later call with the same
+#'     `cache` reuses it instead of reading it again, so a build that calls
+#'     this function once per year reads each of them once. Every call must
+#'     share `run_dir` and the `spam`, `fertilizer`, `luh2`,
+#'     `faostat_production`, `lpjml_window` and `lpjml_grid` members, because
+#'     the cache is not keyed by them. `cropland` and `lpjml` depend on the
+#'     years of `cells` and are not kept, and neither is the country LPJmL
+#'     normaliser, which pools the cells of each call: the ratio of a call is
+#'     the same with or without a `cache`.
 #' @param example If `TRUE`, return a small fixture instead of building the
 #'   ratio. Defaults to `FALSE`.
 #' @return A tibble with one row per cell-crop-year of `cells`:
@@ -452,7 +465,8 @@ split_regime_yield <- function(
     "faostat_production",
     "lpjml",
     "lpjml_window",
-    "lpjml_grid"
+    "lpjml_grid",
+    "cache"
   )
 }
 
@@ -481,7 +495,31 @@ split_regime_yield <- function(
       class = "whep_regime_yield_data"
     )
   }
+  if (!is.null(data$cache) && !is.environment(data$cache)) {
+    cli::cli_abort(
+      "{.code data$cache} must be an environment, not
+       {.cls {class(data$cache)}}.",
+      class = "whep_regime_yield_data"
+    )
+  }
   data
+}
+
+# An input that does not depend on the cells, or the table the engine reduces
+# it to. With `data$cache` it is the stored value under `key` when an earlier
+# call stored one, and otherwise `read` -- not evaluated on a hit -- stored for
+# the next call. Without a cache every call evaluates `read`, so a single call
+# is unchanged. Only tables that are the same for every cell set may be kept
+# here: the caller shares the cache between calls that differ in `cells` alone.
+.ryr_once <- function(data, key, read) {
+  cache <- data$cache
+  if (is.null(cache)) {
+    return(read)
+  }
+  if (!exists(key, envir = cache, inherits = FALSE)) {
+    assign(key, read, envir = cache)
+  }
+  get(key, envir = cache, inherits = FALSE)
 }
 
 # The cell key, typed and with coordinates rounded to the 0.5-degree centres
@@ -599,7 +637,11 @@ split_regime_yield <- function(
       dplyr::select(mapping, "item_prod_code", "spam_crop", "spam_basis"),
       by = "item_prod_code"
     )
-  spam <- .ryr_spam_totals(data$spam %||% read_spam_yields("2010"))
+  spam <- .ryr_once(
+    data,
+    "spam_totals",
+    .ryr_spam_totals(data$spam %||% read_spam_yields("2010"))
+  )
   kind <- dplyr::case_when(
     pairs$spam_basis == "composite_weighted" ~ "composite",
     pairs$spam_basis == "product_dominance" ~ "dominance",
@@ -614,12 +656,17 @@ split_regime_yield <- function(
   }
   if (any(kind == "dominance")) {
     # The raw pin, not WHEP's production: see `.ryr_dominance_tonnes()`.
-    production <- data$faostat_production %||%
-      whep_read_file("faostat-production")
+    tonnes <- .ryr_once(
+      data,
+      "dominance_tonnes",
+      .ryr_dominance_tonnes(
+        data$faostat_production %||% whep_read_file("faostat-production")
+      )
+    )
     parts$dominance <- .ryr_anchor_dominance(
       pairs[kind == "dominance", ],
       spam,
-      production
+      tonnes
     )
   }
   dplyr::bind_rows(parts) |>
@@ -801,11 +848,11 @@ split_regime_yield <- function(
 # Linum and Hemp: the SPAM aggregate of the dominant product, per country.
 # country produced neither product the world's dominant product is used with
 # its global ratio.
-.ryr_anchor_dominance <- function(pairs, spam, production) {
+.ryr_anchor_dominance <- function(pairs, spam, tonnes) {
   chosen <- pairs |>
     dplyr::select(-"spam_crop") |>
     dplyr::left_join(
-      .ryr_dominance(pairs, production),
+      .ryr_dominance(pairs, tonnes),
       by = c("bucket", "item_prod_code")
     ) |>
     dplyr::mutate(spam_crop = .data$spam_crop_used)
@@ -831,8 +878,7 @@ split_regime_yield <- function(
 # Seed or fibre per bucket, from FAOSTAT production summed over 1961-2023;
 # a bucket that produced neither takes the world's dominant product. A tie
 # goes to the fibre (`ooil` only where seed production exceeds fibre).
-.ryr_dominance <- function(pairs, production) {
-  tonnes <- .ryr_dominance_tonnes(production)
+.ryr_dominance <- function(pairs, tonnes) {
   world <- tonnes |>
     dplyr::summarise(value = sum(.data$value), .by = "item_prod_code")
   pairs |>
@@ -1248,8 +1294,6 @@ split_regime_yield <- function(
   if (any(years < min(.ryr_smil_share_window()))) {
     years <- sort(unique(c(years, min(.ryr_smil_share_window()))))
   }
-  fertilizer <- data$fertilizer %||%
-    whep_read_file("faostat-fertilizer-nutrients")
   cropland <- data$cropland %||% get_arable_permanent_land(years = years)
   .ryr_require_cols(cropland, c("area_code", "year", "cropland_ha"), "cropland")
   if (nrow(cropland) == 0L) {
@@ -1265,7 +1309,13 @@ split_regime_yield <- function(
       cropland_ha = .data$cropland_ha,
       cropland_source = "own"
     )
-  n_rows <- .ryr_synthetic_n(fertilizer) |>
+  n_rows <- .ryr_once(
+    data,
+    "synthetic_n",
+    .ryr_synthetic_n(
+      data$fertilizer %||% whep_read_file("faostat-fertilizer-nutrients")
+    )
+  ) |>
     dplyr::filter(.data$year %in% years)
   land <- dplyr::bind_rows(land, .ryr_successor_cropland(n_rows, land, data))
   intensity <- n_rows |>
@@ -1311,13 +1361,17 @@ split_regime_yield <- function(
   if (nrow(missing) == 0L) {
     return(proto)
   }
-  luh2 <- .read_luh2_cft(luh2_data = data$luh2) |>
-    tibble::as_tibble() |>
-    dplyr::transmute(
-      bucket = as.integer(.data$area_code),
-      year = as.integer(.data$year),
-      .data$luh2_cropland
-    )
+  luh2 <- .ryr_once(
+    data,
+    "luh2_cft",
+    .read_luh2_cft(luh2_data = data$luh2) |>
+      tibble::as_tibble() |>
+      dplyr::transmute(
+        bucket = as.integer(.data$area_code),
+        year = as.integer(.data$year),
+        .data$luh2_cropland
+      )
+  )
   successors <- .ryr_successors(
     tibble::tibble(bucket = unique(missing$area_code), year = anchor_year),
     unique(luh2$bucket)
@@ -1425,10 +1479,17 @@ split_regime_yield <- function(
   )
   .ryr_check_supplied(lpjml, "lpjml", "the years of {.arg cells}")
   cell_map <- dplyr::distinct(cells, .data$lon, .data$lat, .data$area_code)
-  window <- .ryr_window_sums(
-    data$lpjml_window %||% .ryr_read_lpjml_window(run_dir)
+  window <- .ryr_once(
+    data,
+    "window_sums",
+    .ryr_window_sums(data$lpjml_window %||% .ryr_read_lpjml_window(run_dir))
   )
-  grid <- .ryr_lpjml_grid(data$lpjml_grid %||% .ryr_read_lpjml_grid(run_dir))
+  cell_normal <- .ryr_once(data, "cell_normal", .ryr_cell_normal(window))
+  grid <- .ryr_once(
+    data,
+    "lpjml_grid",
+    .ryr_lpjml_grid(data$lpjml_grid %||% .ryr_read_lpjml_grid(run_dir))
+  )
   cells |>
     dplyr::left_join(
       grid,
@@ -1442,7 +1503,7 @@ split_regime_yield <- function(
       relationship = "many-to-one"
     ) |>
     dplyr::left_join(
-      .ryr_cell_normal(window),
+      cell_normal,
       by = c("lon", "lat", "lpjml_crop"),
       relationship = "many-to-one"
     ) |>
@@ -2060,4 +2121,41 @@ split_regime_yield <- function(
     below_one ~ names[2],
     .default = names[1]
   )
+}
+
+# -- The item-grain split both balance chains apply ---------------------------
+
+# The regime split of a cell-crop-year, shared by the nitrogen chain
+# (`.nb_regime_items()`) and the carbon chain (`.ci_regime_items()`), so the
+# two weight the same cell-crop-year by the same ratio: the bounded `ratio`
+# split_regime_yield() returns after the irrigated-yield ceiling and the
+# rainfed-yield floor, never `ratio_unbounded`.
+#
+# `cells` carries the item key (`lon`, `lat`, `area_code`, `item_prod_code`,
+# `year`, typed as build_regime_yield_ratio() types it), `production_t`,
+# `rainfed_ha` and `irrigated_ha`. `ratio` is a build_regime_yield_ratio()
+# table, built on `cells` when NULL: its country normaliser pools the cells
+# of `cells`, so two callers read the same ratio when they pass the same
+# table, or build it on the same cells. `production` is the
+# get_primary_production() table the yield bounds are pooled from, read
+# when NULL. `data` is the `data` of build_regime_yield_ratio() when the ratio
+# is built here: a caller that splits one year at a time passes the same
+# `data$cache` with every year, so the inputs that do not depend on the cells
+# are read once. The bounded ratio depends on a cell-crop's production and
+# areas only through its mean yield and irrigated share.
+.ryr_item_split <- function(
+  cells,
+  ratio = NULL,
+  production = NULL,
+  data = NULL
+) {
+  key <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  ratio <- ratio %||% build_regime_yield_ratio(cells = cells, data = data)
+  cells |>
+    dplyr::left_join(
+      dplyr::select(ratio, dplyr::all_of(c(key, "ratio_unbounded"))),
+      by = key,
+      relationship = "many-to-one"
+    ) |>
+    split_regime_yield(production = production)
 }

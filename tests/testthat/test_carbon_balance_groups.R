@@ -260,9 +260,14 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
     ),
     class = "cbg_stop"
   )
+  # The validated configuration, so the default `regime` is filled in.
   testthat::expect_identical(
     captured,
-    list(method = "rotation_groups", irrigation = "none")
+    list(
+      method = "rotation_groups",
+      irrigation = "none",
+      regime = "yield_split"
+    )
   )
 })
 
@@ -294,9 +299,14 @@ testthat::test_that("the deprecated method reaches the reader renamed", {
     ),
     class = "whep_crop_groups_method_deprecated"
   )
+  # The validated configuration, so the default `regime` is filled in.
   testthat::expect_identical(
     captured,
-    list(method = "rotation_groups", irrigation = "none")
+    list(
+      method = "rotation_groups",
+      irrigation = "none",
+      regime = "yield_split"
+    )
   )
 })
 
@@ -587,10 +597,11 @@ testthat::test_that("density_basis and method_grazing reach the reader", {
   )
 })
 
-testthat::test_that("the balance forwards its grazing inputs, and only those", {
+testthat::test_that("the balance forwards its grazing and regime-split inputs, and only those", {
   # The balance keys its own land_use/climate layers in `data`, so handing the
   # whole list to the input builders would change which layer they read. Only
-  # the two grazing entries travel.
+  # the two grazing entries and the regime split's ratio and production
+  # travel.
   seen <- NULL
   testthat::local_mocked_bindings(
     build_carbon_inputs = function(...) {
@@ -599,11 +610,13 @@ testthat::test_that("the balance forwards its grazing inputs, and only those", {
     },
     .package = "whep"
   )
+  ratio <- tibble::tibble(ratio_unbounded = 1.5)
   whep:::.cb_read_c_inputs(
     list(
       livestock_intake = tibble::tibble(year = 2010L),
       excreta = tibble::tibble(year = 2010L),
-      land_use = tibble::tibble(nope = 1)
+      land_use = tibble::tibble(nope = 1),
+      regime_ratio = ratio
     ),
     2010L,
     list(),
@@ -611,8 +624,11 @@ testthat::test_that("the balance forwards its grazing inputs, and only those", {
   )
   testthat::expect_identical(
     sort(names(seen$data)),
-    c("excreta", "livestock_intake")
+    c("excreta", "livestock_intake", "regime_production", "regime_ratio")
   )
+  testthat::expect_identical(seen$data$regime_ratio, ratio)
+  # Absent, the regime entries stay NULL and build_carbon_inputs() builds them.
+  testthat::expect_null(seen$data$regime_production)
   testthat::expect_identical(seen$method_grazing, "whep")
 })
 

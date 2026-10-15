@@ -53,16 +53,44 @@ derivable, \code{area_ha} falls back to the harvested area the NPP input
 carries.
 \item \code{residue_destiny_input}: \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}'s required
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
-\code{residue_destiny_method} needs), for \code{used_residue_n_t}/
-\code{bedding_residue_n_t}/\code{burnt_residue_n_t}. \code{residue_destiny_method}
-selects the method (default \code{"recovery_regional"}), \code{residue_bedding}
+\code{residue_destiny_method} needs; the polity's \code{region_krausmann} and
+\code{region_un_sub} are taken from \code{area_code} when absent), for
+\code{used_residue_n_t}/\code{bedding_residue_n_t}/\code{burnt_residue_n_t}.
+\code{residue_destiny_method} selects the method (default
+\code{"recovery_regional"}), \code{residue_destiny_recovery} its recovery-rate
+variant (default \code{"wirsenius"}, the package default), \code{residue_bedding}
 the bedding rule (default \code{"wirsenius"}, 12.4\% of the recovered cereal
 straw) and, under \code{residue_bedding = "fraction"},
 \code{residue_bedding_fraction} the share of the recovered non-feed residue
 used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
+The same arguments split the
+residue of \code{npp_n_input} for the \code{"recycling"} input of
+\code{\link[=build_n_inputs]{build_n_inputs()}}, which returns to the soil only the residue left on
+the field (\code{recycling_residue_basis}, default
+\code{"residue_soil_returned"}; \code{"total_residue"} recycles the gross
+residue and is recorded in \code{method_recycling_n}). An \code{npp_n_input}
+that already carries \code{residue_soil_dm_t} keeps it: the recycling then
+uses the caller's destinies while the removal outputs use
+\code{residue_destiny_input} and these arguments, so the
+soil-returned and removed residue add up to the gross residue only
+when both come from the package's own destiny split.
 The bedded straw also comes back as a manure input, through
-\code{\link[=build_n_inputs]{build_n_inputs()}}. \code{residue_feed_share} selects that function's
+\code{\link[=build_n_inputs]{build_n_inputs()}}, read from the same split as
+\code{bedding_residue_n_t}. \code{residue_feed_share} selects that split's
 \code{feed_share} (default \code{"wirsenius"}).
+\item \code{regime_areas}, \code{regime_ratio}, \code{regime_production}, \code{regime_shares}:
+the rainfed/irrigated split's inputs (see Details), each read or built
+when absent: the rainfed and irrigated hectares per cell and
+production item (\code{lon}, \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year},
+\code{rainfed_ha}, \code{irrigated_ha}; built with \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}),
+the \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}} table (built on the NPP rows; pass
+the table \code{\link[=build_carbon_inputs]{build_carbon_inputs()}} reads to make both chains apply one
+ratio), and the \code{\link[=get_primary_production]{get_primary_production()}} table the yield bounds of
+\code{\link[=split_regime_yield]{split_regime_yield()}} are pooled from. \code{regime_shares} replaces all
+three with pre-built shares per grid key (\code{lon}, \code{lat}, \code{area_code},
+\code{item_cbs_code}, \code{year}, \code{irrigated_area_share},
+\code{irrigated_yield_share}), which carry no production item: the residue
+terms then follow the production share.
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
@@ -123,7 +151,15 @@ and \code{method_regime_split} when the split ran (\code{"yield_ratio"};
 expressed in fresh weight and the area share was used for everything;
 \code{"regime_shares"} for shares supplied as \code{data$regime_shares}; or
 \code{"no_regime_share"} for a row booked wholly rainfed because the regime
-layer does not cover it), plus the polity columns below. When the
+layer does not cover it), and \code{method_residue_regime}, how the row's
+residue terms were split, the rules of its production items joined by
+\code{"|"}: \code{"part_yield"} (re-evaluated at a rainfed part's yield),
+\code{"part_yield_irrigation_terms"} (re-evaluated at an irrigated part's
+yield, with the model's irrigation terms), \code{"crop_density"} (the item's
+per-hectare values on the part's area: no part yield, or
+\code{"area_split"}) or \code{"yield_share"} (the production share, for shares
+supplied without production items), \code{NA} on a row with no residue
+term, plus the polity columns below. When the
 supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
 \code{method_deposition_scope}, \code{method_human_population},
@@ -152,17 +188,40 @@ regime-specific loss drivers can attach. Two shares per row drive it:
 the irrigated share of the crop's cell area, from the spatialization
 chain's rainfed/irrigated hectares (\code{\link[=build_gridded_landuse]{build_gridded_landuse()}}), and the
 irrigated share of its production, from \code{\link[=split_regime_yield]{split_regime_yield()}} on the
-ratio of \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}. Synthetic N, production N and the
-residue destinies (used, bedding, burnt) split by the production share,
-on the assumption that N availability per unit of yield is the same in
-both regimes; every other input, the harvested area, grazed weeds and SOM
-sequestration split by the area share. Summing the two parts reproduces
-the unsplit balance for every additive column. \code{"area_split"} uses the
-area share for everything and \code{"none"} returns the unsplit balance. The
-shares can be supplied as \code{data$regime_shares} (\code{lon}, \code{lat},
-\code{area_code}, \code{item_cbs_code}, \code{year}, \code{irrigated_area_share},
-\code{irrigated_yield_share}). Loss-driver tables without a \code{water_regime}
-column apply to both parts.
+ratio of \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}. Synthetic N and production N split
+by the production share, on the assumption that N availability per unit
+of yield is the same in both regimes; every other input, the harvested
+area, grazed weeds and SOM sequestration split by the area share. The
+residue terms -- the residue and root N returned to soil
+(\code{"recycling"}) and the used, bedding and burnt residue N -- are
+evaluated per part: for each production item of the row, the parts'
+yields keep its production (\code{Y_r = Y / (1 + s (R - 1))}, \verb{Y_i = R Y_r}),
+and each part carries the item's residue and root N per hectare times
+the response of \code{\link[=calculate_crop_residues]{calculate_crop_residues()}} and \code{\link[=calculate_crop_roots]{calculate_crop_roots()}}
+from the item's mean yield to the part's yield, in the part's water
+regime, so the model's irrigation terms (a lower residue ratio for the
+crop groups that respond, a lower root:shoot ratio) apply to the
+irrigated part. On the default chains, whose NPP input is built with the
+polity's \code{region_hanpp} and without \code{n_input_kg_ha}, the item's residue
+and root per hectare are the model's at its mean yield, so each part's
+are the model's at the part's own yield; with any other NPP input they
+are the item's own density scaled by the model's response. Residue and
+root are affine in yield, so a high-yield hectare carries less than its
+yield share. Summing the two parts
+reproduces the unsplit balance for every additive column except the
+residue terms and the totals that contain them, which sum to the parts'
+evaluation instead: with the irrigation terms, the residue and root N of
+irrigated land fall. The bedded straw the manure input brings back is
+the parts' bedding: when the balance builds its own inputs and beds any
+straw, each production item's bedding is scaled by its factor over the
+two parts before it reaches the manure engine, so the manure columns,
+too, differ from an unsplit run by the bedding the irrigation terms take
+off, and the bedded N that leaves the field is still the bedded N that
+returns. A non-zero residue term at a key the per-item
+evaluation does not cover means the balance's inputs and the NPP-N table
+disagree, and aborts. \code{"area_split"} uses the area share for everything,
+residue terms included, and \code{"none"} returns the unsplit balance.
+Loss-driver tables without a \code{water_regime} column apply to both parts.
 
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
 turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}

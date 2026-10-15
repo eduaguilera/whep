@@ -632,13 +632,65 @@ testthat::test_that("resolution argument is validated", {
   )
 })
 
-testthat::test_that("recycling stamps the total-residue basis when no soil col", {
+testthat::test_that("recycling is the soil-returned residue by default", {
   # .nbi_npp_input() supplies residue_dm_t but not residue_soil_dm_t, so the
-  # recycling term must fall back to gross residue N and say so.
+  # residue destinies are applied before the N partition: only the residue
+  # left on the field is recycled, never the gross residue.
   out <- .nbi_inputs()
   rec <- out[out$fert_type == "recycling", ]
   testthat::expect_true(nrow(rec) > 0)
+  testthat::expect_true(all(rec$method_recycling_n == "residue_soil_returned"))
+  # By hand: root N plus the soil destiny of the residue, through the same
+  # destiny call with the polity's regions.
+  npp <- .nbi_npp_input() |>
+    dplyr::left_join(
+      dplyr::select(
+        whep:::.sci_crop_regions(),
+        "area_code",
+        "region_krausmann",
+        "region_un_sub"
+      ),
+      by = "area_code"
+    ) |>
+    whep::calculate_residue_destinies() |>
+    whep::calculate_npp_carbon_nitrogen()
+  testthat::expect_equal(
+    sum(rec$n_input_t),
+    npp$root_n_t + npp$residue_soil_n_t
+  )
+  testthat::expect_lt(npp$residue_soil_n_t, npp$residue_n_t)
+})
+
+testthat::test_that("gross residue N is recycled only on explicit request, stamped", {
+  soil <- .nbi_inputs()
+  data <- .nbi_full_data()
+  data$recycling_residue_basis <- "total_residue"
+  gross <- whep::build_n_inputs(data = data)
+  rec <- gross[gross$fert_type == "recycling", ]
   testthat::expect_true(all(rec$method_recycling_n == "total_residue"))
+  npp <- whep::calculate_npp_carbon_nitrogen(.nbi_npp_input())
+  testthat::expect_equal(sum(rec$n_input_t), npp$root_n_t + npp$residue_n_t)
+  testthat::expect_gt(
+    sum(rec$n_input_t),
+    sum(soil$n_input_t[soil$fert_type == "recycling"])
+  )
+  data$recycling_residue_basis <- "gross"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "recycling_residue_basis"
+  )
+})
+
+testthat::test_that("a supplied NPP table without the soil residue is refused under the soil basis", {
+  # The destinies run on `npp_n_input`; a pre-computed NPP result handed in
+  # as the balance's cache cannot be re-split, so it must carry the column.
+  data <- list(
+    .npp_cache = whep::calculate_npp_carbon_nitrogen(.nbi_npp_input())
+  )
+  testthat::expect_error(
+    whep:::.n_inputs_recycling(data),
+    class = "whep_recycling_basis_missing"
+  )
 })
 
 testthat::test_that("recycling stamps the soil-returned basis when supplied", {
@@ -654,7 +706,9 @@ testthat::test_that("recycling stamps the soil-returned basis when supplied", {
 })
 
 testthat::test_that("recycling basis switch changes n_input_t and is stamped", {
-  total_basis <- .nbi_inputs()
+  total_data <- .nbi_full_data()
+  total_data$recycling_residue_basis <- "total_residue"
+  total_basis <- whep::build_n_inputs(data = total_data)
   soil_data <- .nbi_full_data()
   soil_data$npp_n_input <- dplyr::mutate(
     soil_data$npp_n_input,
@@ -2344,11 +2398,15 @@ testthat::test_that("the default manure source reproduces the pre-option output"
     "n_inputs_default_golden.rds"
   ))
   manure <- c("excreta", "manure_solid", "manure_liquid")
+  # The golden recycled the gross residue N; the recycling default is now the
+  # soil-returned residue, so the gross basis is asked for to keep this
+  # test's subject the manure source.
+  data <- .nbi_with_shipped_ef3(.nbi_full_data())
+  data$recycling_residue_basis <- "total_residue"
   for (resolution in c("grid", "polity")) {
-    out <- suppressMessages(whep::build_n_inputs(
-      data = .nbi_with_shipped_ef3(.nbi_full_data()),
-      resolution = resolution
-    ))
+    out <- suppressMessages(
+      whep::build_n_inputs(data = data, resolution = resolution)
+    )
     testthat::expect_identical(
       dplyr::select(out, -"method_manure"),
       golden[[paste0("inputs_", resolution)]]

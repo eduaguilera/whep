@@ -412,6 +412,15 @@
      by construction, so a year in the key would return the year; and the join
      feeds only a warning -- the reporter class is never dropped and never
      aborts, so no published value passes through it.",
+    ".rr_model_rows", "left_join", "area_code", 1L, "time_invariant",
+    "Attaches the HANPP region of the modern-variety term to each regime
+     part the residue model is re-evaluated for. It is `.sci_crop_regions()`,
+     the same year-free Krausmann/HANPP/UN sub-region groupings the crop-NPP
+     chain attaches to the crop's own residue (see `.sci_crop_prod_wide`);
+     the part's factor divides by the model at the crop's mean yield, so the
+     region must be the one that chain used, and keying it on the year would
+     need a region table that varies in time. Every part keeps its own
+     `year`, which the model reads directly.",
     ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
     "time_invariant",
     "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
