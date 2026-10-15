@@ -378,6 +378,24 @@
 #'   -170 kt to -13 kt under `"cocoon"`. No non-Silk row moves. Years before 2014 come from the aggregated old Commodity Balances,
 #'   which carry no link breakdown, and are unchanged, so under `"cocoon"` the
 #'   2013-2014 seam steps by roughly the raw silk production.
+#' @param silk_duplicate_use One of `"residual"` (default) or `"equal_only"`,
+#'   selecting which silk cocoon uses from 2014 on are read as a second
+#'   booking of the same cocoons (whep#1456). FAOSTAT's own balance of a
+#'   cocoon record ends in a `Residuals` element; where it is minus one of
+#'   the two uses, `Processed` or `Other uses`, FAOSTAT's balance closes on
+#'   the other use alone. `"residual"` drops the use the residual cancels and
+#'   keeps the one that closes the balance. `"equal_only"` drops it only when
+#'   the two uses are equal (whep#1281) and otherwise leaves the record as
+#'   published, so the cancelled use stays in Silk `other_uses` and the
+#'   balance closes through a Silk stock withdrawal.
+#'
+#'   In the pinned `faostat-cbs-new` the two differ for Viet Nam 2014-2015,
+#'   whose 45,073 and 43,620 t processed exceed its 6,761 and 6,543 t of
+#'   production, Indonesia 2015-2018 and Italy 2019 (also more processed than
+#'   supplied), Afghanistan 2015-2018 (`Processed` dropped) and China
+#'   mainland 2022-2023 (18,721 t of `Other uses` dropped on top of
+#'   processing that already equals supply). Only Silk rows of those
+#'   country-years move.
 #' @param tobacco_leaf_use One of `"as_published"` (default) or
 #'   `"one_to_one"`, selecting how the Tobacco balance from 2014 on treats
 #'   leaf manufactured into products (whep#1390). The non-food Commodity
@@ -446,6 +464,7 @@ build_commodity_balances <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   .fixed_data = NULL
 ) {
@@ -461,6 +480,7 @@ build_commodity_balances <- function(
   aggregate_proxy <- rlang::arg_match(aggregate_proxy)
   unmatched_processing <- rlang::arg_match(unmatched_processing)
   silk_basis <- rlang::arg_match(silk_basis)
+  silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
   if (example) {
     return(
@@ -490,6 +510,7 @@ build_commodity_balances <- function(
       seed_backcast = seed_backcast,
       aggregate_proxy = aggregate_proxy,
       silk_basis = silk_basis,
+      silk_duplicate_use = silk_duplicate_use,
       tobacco_leaf_use = tobacco_leaf_use
     )
     scale_log <- attr(raw, ".hist_trade_scale_log")
@@ -568,6 +589,12 @@ build_commodity_balances <- function(
     if (silk_basis != "cocoon") {
       cli::cli_warn(
         "{.arg silk_basis} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (silk_duplicate_use != "residual") {
+      cli::cli_warn(
+        "{.arg silk_duplicate_use} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     if (tobacco_leaf_use != "as_published") {
@@ -820,6 +847,7 @@ build_commodity_balances <- function(
   seed_backcast = .cbs_seed_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices()
 ) {
   output_years <- start_year:end_year
@@ -841,6 +869,7 @@ build_commodity_balances <- function(
     years,
     hist_trade_scale = hist_trade_scale,
     silk_basis = silk_basis,
+    silk_duplicate_use = silk_duplicate_use,
     tobacco_leaf_use = tobacco_leaf_use
   )
 
@@ -1280,6 +1309,7 @@ build_processing_coefs <- function(
   years,
   hist_trade_scale = .hist_trade_scale_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
@@ -1308,7 +1338,7 @@ build_processing_coefs <- function(
     years = years,
     keep_elements = c("Processed", "Residuals")
   ) |>
-    .cbs_silk_mass_basis(silk_basis) |>
+    .cbs_silk_mass_basis(silk_basis, duplicate_use = silk_duplicate_use) |>
     .cbs_tobacco_leaf_use(tobacco_leaf_use)
 
   # Trade

@@ -23,6 +23,7 @@ build_commodity_balances(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   .fixed_data = NULL
 )
@@ -413,6 +414,25 @@ booking (whep#1281); world Silk \code{stock_variation} at 2020 moves from
 -170 kt to -13 kt under \code{"cocoon"}. No non-Silk row moves. Years before 2014 come from the aggregated old Commodity Balances,
 which carry no link breakdown, and are unchanged, so under \code{"cocoon"} the
 2013-2014 seam steps by roughly the raw silk production.}
+
+\item{silk_duplicate_use}{One of \code{"residual"} (default) or \code{"equal_only"},
+selecting which silk cocoon uses from 2014 on are read as a second
+booking of the same cocoons (whep#1456). FAOSTAT's own balance of a
+cocoon record ends in a \code{Residuals} element; where it is minus one of
+the two uses, \code{Processed} or \verb{Other uses}, FAOSTAT's balance closes on
+the other use alone. \code{"residual"} drops the use the residual cancels and
+keeps the one that closes the balance. \code{"equal_only"} drops it only when
+the two uses are equal (whep#1281) and otherwise leaves the record as
+published, so the cancelled use stays in Silk \code{other_uses} and the
+balance closes through a Silk stock withdrawal.
+
+In the pinned \code{faostat-cbs-new} the two differ for Viet Nam 2014-2015,
+whose 45,073 and 43,620 t processed exceed its 6,761 and 6,543 t of
+production, Indonesia 2015-2018 and Italy 2019 (also more processed than
+supplied), Afghanistan 2015-2018 (\code{Processed} dropped) and China
+mainland 2022-2023 (18,721 t of \verb{Other uses} dropped on top of
+processing that already equals supply). Only Silk rows of those
+country-years move.}
 
 \item{tobacco_leaf_use}{One of \code{"as_published"} (default) or
 \code{"one_to_one"}, selecting how the Tobacco balance from 2014 on treats

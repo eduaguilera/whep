@@ -324,13 +324,75 @@ test_that("the duplicate guard needs FAO's own residual to agree", {
   expect_equal(sort(out$value), c(1000, 1000))
 })
 
-test_that("an imbalance with two different elements is left as published", {
-  # Viet Nam 2014 in the pin: Processed far above production, other uses
-  # equal to it. Which element is wrong is not decidable from the record.
+test_that("a use FAO's residual cancels is dropped, the other kept", {
+  # Viet Nam 2014 in the pin: 6000 t processed from 1000 t produced, other
+  # uses equal to supply, FAO's residual minus the processed amount. FAO's
+  # balance closes on other uses alone, so Processed is the second booking
+  # (whep#1456).
   extracted <- .local_duplicate_extract(6000, 1000, -6000)
-  balance <- .quiet_silk_basis(extracted, "mixed") |>
+  purrr::walk(whep:::.silk_basis_choices(), \(method) {
+    balance <- .quiet_silk_basis(extracted, method) |>
+      .silk_balance()
+    expect_equal(balance$unbooked, 0, tolerance = 1e-9, label = method)
+  })
+  cocoon <- .quiet_silk_basis(extracted, "mixed") |>
+    dplyr::filter(item_cbs_code == 1185, element == "other_uses")
+  expect_equal(cocoon$value, 1000)
+
+  # China mainland 2022 in the pin: processing equals supply and other uses
+  # sit on top, FAO's residual minus the other uses.
+  mirror <- .local_duplicate_extract(1000, 200, -200)
+  balance <- .quiet_silk_basis(mirror, "mixed") |>
+    .silk_balance()
+  expect_equal(balance$unbooked, 0, tolerance = 1e-9)
+  expect_equal(balance$other_uses, 1000 + 160)
+})
+
+test_that("equal_only leaves an imbalance of two different uses", {
+  extracted <- .local_duplicate_extract(6000, 1000, -6000)
+  balance <- .quiet_silk_basis(
+    extracted,
+    "mixed",
+    duplicate_use = "equal_only"
+  ) |>
     .silk_balance()
   expect_equal(balance$unbooked, -6000)
+  # The whep#1281 duplicate is dropped under both rules.
+  equal <- .local_duplicate_extract(1000, 1000, -1000) |>
+    .quiet_silk_basis("mixed", duplicate_use = "equal_only") |>
+    .silk_balance()
+  expect_equal(equal$unbooked, 0, tolerance = 1e-9)
+})
+
+test_that("a dropped cancelled use is announced and unflags the kept use", {
+  extracted <- .local_duplicate_extract(6000, 1000, -6000)
+  expect_message(
+    out <- whep:::.silk_drop_duplicate_use(data.table::copy(extracted)),
+    "Testland 2020 Processed"
+  )
+  expect_false(any(out$item_cbs_code == 1185 & out$element == "Processed"))
+  kept <- out |>
+    dplyr::filter(item_cbs_code == 1185, element == "other_uses")
+  expect_true(is.na(kept$fao_flag))
+})
+
+test_that("an unknown duplicate-use rule is refused", {
+  expect_error(
+    whep:::.cbs_silk_mass_basis(
+      .silk_fixture(),
+      "cocoon",
+      duplicate_use = "both"
+    ),
+    class = "rlang_error"
+  )
+  expect_error(
+    build_commodity_balances(example = TRUE, silk_duplicate_use = "both"),
+    class = "rlang_error"
+  )
+})
+
+test_that("the default duplicate-use rule reads FAO's residual", {
+  expect_equal(whep:::.silk_duplicate_use_choices()[[1]], "residual")
 })
 
 test_that("no Residuals row survives any basis", {
@@ -349,9 +411,10 @@ test_that("the duplicate match allows for FAO's whole-tonne residual", {
     dplyr::filter(item_cbs_code == 1185, element == "other_uses")
   expect_equal(rounded$value, 1000.24)
 
-  # Two tonnes apart is two different numbers, not a rounding.
+  # Two tonnes apart is two different numbers, not a rounding: under
+  # `"equal_only"` both are kept.
   apart <- .local_duplicate_extract(1000, 998, -1000) |>
-    .quiet_silk_basis("mixed") |>
+    .quiet_silk_basis("mixed", duplicate_use = "equal_only") |>
     dplyr::filter(item_cbs_code == 1185, element == "other_uses")
   expect_equal(sort(apart$value), c(998, 1000))
 })
@@ -373,7 +436,8 @@ test_that("a dropped duplicate is announced and unflags the kept row", {
 })
 
 test_that("a record with no duplicate passes through silently", {
-  extracted <- .local_duplicate_extract(1000, 998, -1000)
+  # Two different uses and a residual that cancels neither of them.
+  extracted <- .local_duplicate_extract(1000, 998, -500)
   expect_no_message(
     out <- whep:::.silk_drop_duplicate_use(data.table::copy(extracted))
   )
