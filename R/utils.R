@@ -2696,6 +2696,26 @@ utils::globalVariables(
     ".root_n",
     "residue_n_mg",
     "root_n_mg",
+    # livestock_enteric.R (whep#601) -- the 2019 Tier 1 enteric factor lookup
+    "ef_2019",
+    ".ef_regional",
+    ".ef_split",
+    ".ef_flat",
+    "productivity",
+    # residue_destiny.R (whep#1398) -- Wirsenius Table 3.1 region key
+    "region_wirsenius",
+    # livestock_manure.R (whep#1365) -- per-MMS indirect manure N2O fractions
+    "animal_category",
+    "frac_gas",
+    "frac_gas_ms",
+    "frac_leach",
+    "frac_leach_ms",
+    "loss_category",
+    "row_id_indirect",
+    # livestock_energy.R (whep#1440) -- growth and pregnancy by cohort stage
+    "cohort_life_stage",
+    # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
+    "milk_herd",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

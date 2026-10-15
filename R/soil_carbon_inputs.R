@@ -115,6 +115,31 @@
 #'   2 = disjoint) has an area-weighted mean of 0.30 in 1961, 0.44 in 2010 and
 #'   0.47 in 2020. Polity totals are the same under both; only where the
 #'   carbon sits moves. Recorded in `method_crop_weights`.
+#' @param method_manure_placement Where the cropland manure carbon is put.
+#'   `"livestock"` (default) places it where the animals are, the grain the
+#'   gridded nitrogen balance uses for the same manure (whep#1300): the feed
+#'   intake is spread to cells by gridded livestock heads on `country_grid`
+#'   (the local grain of [build_feed_intake_local()]), and
+#'   [build_livestock_nutrient_flows()] runs at `"subnational"`, so each
+#'   cell's collected manure goes to that cell's crops up to the 170 kg N/ha
+#'   ceiling and the excess is trucked to neighbouring cells with room. Its
+#'   crop layer is that year's cell-crop area, the hectares the carbon is
+#'   divided by. Manure with no crop -- trucked in, or over-applied above the
+#'   cap -- is spread over its cell's crops by area, as the nitrogen balance
+#'   spreads it, and manure on a cell with no crop over its polity's
+#'   cropland; only a polity with no cropland cell loses it, with a warning.
+#'   Measured at 2010, it places 322.1 Tg C of cropland manure where
+#'   `"crop_area"` places 346.9 Tg C, because the cell-grain intake caps
+#'   grazing at each cell's grass; 41.5% of the manure carbon sits on a
+#'   different cell.
+#'   `"crop_area"` allocates the polity's manure to its crops by harvested
+#'   area and fans each polity-crop out to cells by crop area, as residue and
+#'   roots are, which is what the package did before (whep#1307); it drops
+#'   the over-cap manure the national allocation leaves with no crop
+#'   (whep#805). A supplied
+#'   `data$manure` must be keyed on cells (`sub_territory` a `"lon_lat"` cell
+#'   id) under `"livestock"`; a national stream aborts. Recorded in
+#'   `method_manure_placement`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -127,7 +152,8 @@
 #'   `input_cn` times it is their carbon), `residue_n_mgn_ha_yr` and
 #'   `root_n_mgn_ha_yr` (the soil-returned residue and root nitrogen within
 #'   it, `NA` where unknown), `humified_fraction`, `method_c_input`,
-#'   `method_unspatialized`, `method_crop_weights` and
+#'   `method_unspatialized`, `method_crop_weights`, `method_manure_placement`
+#'   and
 #'   `crop_area_ha` -- the crop's area at that grain on the basis the
 #'   densities are computed on: the FAOSTAT-renormalised cell area where a
 #'   national harvested area was supplied, the spatialized area otherwise, so
@@ -146,11 +172,13 @@ build_soil_carbon_inputs <- function(
   years = NULL,
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   method_crop_weights = c("spatialized", "static"),
+  method_manure_placement = c("livestock", "crop_area"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   method_unspatialized <- rlang::arg_match(method_unspatialized)
   method_crop_weights <- rlang::arg_match(method_crop_weights)
+  method_manure_placement <- rlang::arg_match(method_manure_placement)
   if (isTRUE(example)) {
     return(.example_soil_carbon_inputs())
   }
@@ -160,7 +188,8 @@ build_soil_carbon_inputs <- function(
     data,
     years,
     method = method_unspatialized,
-    weights = method_crop_weights
+    weights = method_crop_weights,
+    manure = method_manure_placement
   ) |>
     .add_reporting_polity_columns()
 }
@@ -179,9 +208,10 @@ build_soil_carbon_inputs <- function(
   years,
   reduce = NULL,
   method = "fodder_pattern",
-  weights = "spatialized"
+  weights = "spatialized",
+  manure = "livestock"
 ) {
-  d <- .sci_resolve_inputs(data, years, weights, method)
+  d <- .sci_resolve_inputs(data, years, weights, method, manure)
   components <- .sci_assemble_components(d$npp, d$manure)
   .sci_grid_and_finalise(components, d, resolution, reduce, method)
 }
@@ -260,18 +290,27 @@ build_soil_carbon_inputs <- function(
   parts <- lapply(by_year[order(as.integer(names(by_year)))], function(chunk) {
     w <- static %||%
       .sci_support_weights(.sci_year_weights(d, chunk), method, d)
+    # Under "livestock" the manure is not among the polity-crop components:
+    # it arrives already on its cells (R/soil_carbon_manure_cells.R).
+    manure <- .sci_year_cell_manure(as.integer(chunk$year[[1]]), d, w$weights)
     gridded <- chunk |>
       .sci_grid_chunk(w$weights, w$fallback, d$harvested_area) |>
+      dplyr::bind_rows(manure$rows) |>
       .sci_finalise(resolution, d$residue_humification, method) |>
-      dplyr::mutate(method_crop_weights = d$method_crop_weights)
+      dplyr::mutate(
+        method_crop_weights = d$method_crop_weights,
+        method_manure_placement = d$manure_placement
+      )
     list(
       gridded = if (is.null(reduce)) gridded else reduce(gridded),
       lost = .sci_classify_unspatialized(chunk, w, d$harvested_area),
-      fodder = .sci_fodder_placed(chunk, w$added)
+      fodder = .sci_fodder_placed(chunk, w$added),
+      manure = manure[c("over_cap", "reallocated", "dropped")]
     )
   })
   # Once, over all years: these report totals, so reporting per year would both
   # spam the caller and change the numbers they report.
+  .sci_report_cell_manure(purrr::map(parts, "manure"))
   .sci_inform_fodder_placed(dplyr::bind_rows(purrr::map(parts, "fodder")))
   .sci_warn_unspatialized(
     dplyr::bind_rows(purrr::map(parts, "lost")),
@@ -482,11 +521,16 @@ build_soil_carbon_inputs <- function(
 # can stand in for the other. The fodder layer is read only when
 # `method_unspatialized` asks for it: the Monfreda rasters are a local archive
 # (WHEP_MONFREDA_DIR), so the other methods must not need them.
+#
+# Under `manure = "livestock"` the manure is built per year inside the gridding
+# loop (.sci_year_cell_manure()), on that year's crop weights, so only its
+# cell-grain inputs are resolved here and `manure` stays NULL.
 .sci_resolve_inputs <- function(
   data,
   years = NULL,
   weights = "spatialized",
-  method = "fodder_pattern"
+  method = "fodder_pattern",
+  manure = "livestock"
 ) {
   harvested_area <- data$harvested_area %||%
     (if (is.null(data$npp)) .sci_read_harvested_area(years) else NULL)
@@ -498,7 +542,13 @@ build_soil_carbon_inputs <- function(
   list(
     fodder_patterns = fodder_patterns,
     npp = data$npp %||% .sci_read_npp(years),
-    manure = data$manure %||% .sci_read_manure(years),
+    manure = if (manure == "crop_area") {
+      data$manure %||% .sci_read_manure(years)
+    },
+    cell_manure = if (manure == "livestock") {
+      .sci_cell_manure_inputs(data, years)
+    },
+    manure_placement = manure,
     country_grid = data$country_grid %||% .sci_read_country_grid(),
     crop_patterns = if (static) {
       data$crop_patterns %||% .sci_read_crop_patterns()
@@ -530,7 +580,9 @@ build_soil_carbon_inputs <- function(
   )
   root <- .sci_npp_component(npp, "root", "root_c_t", "root_n_t")
   weed <- .sci_npp_component(npp, "weed", "weed_npp_c_t", "weed_npp_n_t")
-  dplyr::bind_rows(residue, root, weed, .sci_manure_components(manure))
+  # NULL under the "livestock" placement, whose manure joins on cells instead.
+  manure <- if (!is.null(manure)) .sci_manure_components(manure)
+  dplyr::bind_rows(residue, root, weed, manure)
 }
 
 .sci_npp_component <- function(npp, input_type, c_col, n_col = NULL) {
@@ -605,6 +657,8 @@ build_soil_carbon_inputs <- function(
 # it has no crop -- so the nitrogen balance applies that manure and the carbon
 # balance does not. Which way the two should agree is a science decision
 # (whep#805); reporting the mass is what stops it being invisible meanwhile.
+# This is the "crop_area" placement only: under "livestock" the cell-grain
+# path keeps that manure on its cell (.sci_place_cell_manure()).
 .sci_warn_dropped_manure_c <- function(manure) {
   if (!rlang::has_name(manure, "applied_c")) {
     return(invisible(manure))
@@ -1398,7 +1452,8 @@ build_soil_carbon_inputs <- function(
 # receptivity layer, supplied turnkey by .sci_manure_crop_layer() with the
 # fixed-ceiling (EU Nitrates-Directive 170 kg N/ha) cap, which needs only
 # harvested area. The `crop` it emits is the item_prod_code, so it resolves
-# straight back through .sci_manure_crop_prod_code().
+# straight back through .sci_manure_crop_prod_code(). The housed litter-using
+# streams are bedded with the straw .sci_bedding_supply() traces (whep#1005).
 .sci_read_manure <- function(years = NULL) {
   production <- get_primary_production(years = years)
   cbs <- get_wide_cbs(years = years)
@@ -1412,8 +1467,30 @@ build_soil_carbon_inputs <- function(
     intake,
     resolution = "national",
     methods = list(allocation = list(cap_method = "fixed_ceiling")),
-    gridded = list(crops = .sci_manure_crop_layer(production))
+    gridded = list(crops = .sci_manure_crop_layer(production)),
+    bedding = .sci_bedding_supply(production, years)
   )$applied
+}
+
+# The bedding straw that goes through the yard (whep#1005), per polity and
+# year, from the same crop-NPP residue chain .sci_read_npp() partitions: its
+# residue_bedding_dm_t is carved out of the recovered non-feed residue, never
+# out of residue_soil_dm_t, so the straw reaching the soil as bedded manure is
+# not also counted as soil-returned residue. calculate_residue_destinies()'s
+# default bedding rule is the Wirsenius (2000) Table 3.21 share. The manure
+# territory is the stringified area_code (see .manure_territory_to_area_code()).
+.sci_bedding_supply <- function(production, years = NULL) {
+  production |>
+    .sci_crop_prod_wide(years) |>
+    calculate_crop_npp() |>
+    calculate_residue_destinies(method = "recovery_regional") |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      territory = as.character(.data$area_code),
+      item_prod_code = as.character(.data$item_prod_code),
+      residue_bedding_dm_t = .data$residue_bedding_dm_t
+    ) |>
+    build_residue_bedding_supply()
 }
 
 # Turnkey cropland receptivity layer for the manure allocation: per polity-crop

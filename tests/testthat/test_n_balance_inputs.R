@@ -2382,6 +2382,16 @@ testthat::test_that("a total population under the urban basis is refused by name
 # former "urban" rows are labelled "human" and gain the method_human_population
 # and method_human_kgn_cap stamps. The fixtures pin the urban basis, so every
 # value, and every non-human row, is bit-identical to the 5421973b output.
+#
+# whep#601 moved the manure-management EF3 onto the 2019 Refinement, which
+# moves the N lost in storage and so the manure rows. The goldens predate it,
+# so they are compared under `ef3_source = "as_shipped"`, which reproduces
+# them bit for bit; `.nbi_with_shipped_ef3()` is the only difference.
+.nbi_with_shipped_ef3 <- function(data) {
+  data$methods <- list(losses = list(ef3_source = "as_shipped"))
+  data
+}
+
 testthat::test_that("the default manure source reproduces the pre-option output", {
   golden <- readRDS(testthat::test_path(
     "fixtures",
@@ -2391,7 +2401,7 @@ testthat::test_that("the default manure source reproduces the pre-option output"
   # The golden recycled the gross residue N; the recycling default is now the
   # soil-returned residue, so the gross basis is asked for to keep this
   # test's subject the manure source.
-  data <- .nbi_full_data()
+  data <- .nbi_with_shipped_ef3(.nbi_full_data())
   data$recycling_residue_basis <- "total_residue"
   for (resolution in c("grid", "polity")) {
     out <- suppressMessages(

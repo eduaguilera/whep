@@ -14,7 +14,10 @@ test_that("residue destinies conserve mass and stay non-negative (both methods)"
   for (m in c("recovery_regional", "shares")) {
     out <- suppressWarnings(whep::calculate_residue_destinies(x, method = m))
     testthat::expect_equal(
-      out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
+      out$residue_feed_dm_t +
+        out$residue_bedding_dm_t +
+        out$residue_burn_dm_t +
+        out$residue_soil_dm_t,
       out$residue_dm_t
     )
     testthat::expect_true(all(out$residue_feed_dm_t >= 0))

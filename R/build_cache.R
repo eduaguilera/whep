@@ -98,8 +98,9 @@ whep_clear_cache <- function() {
   )
 }
 
-# The cache-slot qualifier for a CBS build method. `"none"` is the default and
-# returns NULL, so a default build keeps its existing slot names.
+# The cache-slot qualifier for a CBS build method. `"none"` returns NULL, so it
+# keeps the slot names it had when it was the default; every other method,
+# including today's default `"pass_through"` (whep#762), gets its own suffix.
 .cbs_cache_method <- function(trade_recovery) {
   if (identical(trade_recovery, "none")) {
     return(NULL)
@@ -197,7 +198,10 @@ whep_clear_cache <- function() {
 #
 # A scoped request is cut from the full-range build, never built on its own
 # window: see "Why a scoped CBS is cut from the full-range one" above.
-.cached_cbs_built <- function(years, trade_recovery = "none") {
+.cached_cbs_built <- function(
+  years,
+  trade_recovery = .cbs_trade_recovery_choices()[[1]]
+) {
   key <- .cache_key("cbs_built", NULL, .cbs_cache_method(trade_recovery))
   full <- .cache_get(key, {
     primary_prod <- .cached_cbs_primary_prod()

@@ -4,7 +4,12 @@
 \alias{prepare_livestock_emissions}
 \title{Prepare production data for livestock emission calculations.}
 \usage{
-prepare_livestock_emissions(data, expand_cohorts = FALSE, system_shares = NULL)
+prepare_livestock_emissions(
+  data,
+  expand_cohorts = FALSE,
+  system_shares = NULL,
+  method_cohorts = c("milk_animals", "uniform")
+)
 }
 \arguments{
 \item{data}{A tibble from \code{build_primary_production()} with
@@ -17,6 +22,18 @@ across GLEAM cohorts and production systems via
 
 \item{system_shares}{Optional dataframe with custom system
 shares. Passed to \code{calculate_cohorts_systems()}.}
+
+\item{method_cohorts}{How heads are split across the cohorts of a system:
+\itemize{
+\item \code{"milk_animals"} (default): a dairy-cattle herd (\code{"Cattle, dairy"}, the
+FAOSTAT Milk Animals count) goes wholly to the dairy system's
+\code{"Adult Female"} cohort; every other herd is split equally across its
+system's cohorts.
+\item \code{"uniform"}: every herd, dairy cattle included, is split equally across
+its system's cohorts, the behaviour before whep#1127. It books five
+sixths of the milking cows as bulls, heifers and calves, and is kept for
+sensitivity analysis.
+}}
 }
 \value{
 A tibble with columns \code{species}, \code{heads}, \code{iso3}

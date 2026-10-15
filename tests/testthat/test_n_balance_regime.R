@@ -470,9 +470,10 @@ testthat::test_that("every split column sums back over water_regime", {
 # Each part through the same chain, written out in absolute form: its own
 # area, its own production at its own yield, and its water regime, so the
 # model's irrigation terms apply to the irrigated part. Then the residue
-# destinies and the C/N partition, as the balance applies them, with
-# `bedding_fraction` the share of the recovered non-feed residue bedded.
-.regime_parts_by_hand <- function(bedding_fraction = 0) {
+# destinies and the C/N partition, as the balance applies them: the
+# package's default bedding rule (Wirsenius), or, given `bedding_fraction`,
+# that share of the recovered non-feed residue bedded.
+.regime_parts_by_hand <- function(bedding_fraction = NULL) {
   crops <- dplyr::mutate(
     .regime_crops(),
     yield_mean = .data$production_t / .data$area_ha,
@@ -500,7 +501,10 @@ testthat::test_that("every split column sums back over water_regime", {
     dplyr::select(-"irrigated_share", -"ratio") |>
     .regime_with_regions() |>
     whep::calculate_crop_npp() |>
-    whep::calculate_residue_destinies(bedding_fraction = bedding_fraction) |>
+    whep::calculate_residue_destinies(
+      bedding = if (is.null(bedding_fraction)) "wirsenius" else "fraction",
+      bedding_fraction = bedding_fraction %||% 0
+    ) |>
     whep::calculate_npp_carbon_nitrogen() |>
     dplyr::mutate(
       water_regime = stringr::str_to_lower(.data$water_regime),
@@ -740,6 +744,7 @@ testthat::test_that("area_split keeps the crop's residue per hectare on both par
 .regime_bedded_data <- function(fraction = 0.3) {
   data <- .regime_residue_data()
   data$.npp_cache <- NULL
+  data$residue_bedding <- "fraction"
   data$residue_bedding_fraction <- fraction
   data$.npp_cache <- whep:::.n_balance_npp(data)
   data

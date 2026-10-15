@@ -359,14 +359,15 @@ testthat::test_that("Global poultry direct N2O uses the litter EF3 (#950)", {
     ~species_gen, ~n_excretion, ~heads, ~region,
     "Poultry",    1,            1,      "Global"
   ) |>
-    whep:::.calc_direct_n2o()
+    whep:::.calc_direct_n2o(list(ef3_source = "as_shipped"))
 
   # ipcc_2019_n2o_ef_direct carries no "Poultry Manure" row, so the label-only
   # join left the poultry-manure share of the split on the 0.005 "Other"
   # coalesce default and the weighted EF3 came out a flat 0.005. Resolved
   # through .manure_ef3() the deep-litter row applies instead. Under the GLEAM
   # 2.0 Global poultry split (Tab. 4.11, layer / broiler / backyard averaged)
-  # that gives a weighted EF3 of 0.004526.
+  # that gives a weighted EF3 of 0.004526 on the as-shipped EF3 (the 2019
+  # edition is locked in the tests of `ef3_source` below).
   testthat::expect_equal(
     result$manure_n2o_direct,
     0.004526109375 * (44 / 28),
@@ -524,10 +525,12 @@ testthat::test_that("mms_shares selects the table half the engine weights", {
   )
   testthat::expect_equal(old$weighted_mcf, 0.0731)
 
-  gleam_n2o <- whep:::.calc_direct_n2o(data)$manure_n2o_direct
+  # EF3 held at the as-shipped edition, so only the MMS split moves.
+  shipped_ef3 <- list(ef3_source = "as_shipped")
+  gleam_n2o <- whep:::.calc_direct_n2o(data, shipped_ef3)$manure_n2o_direct
   old_n2o <- whep:::.calc_direct_n2o(
     data,
-    options = list(mms_shares = "placeholder")
+    options = c(shipped_ef3, list(mms_shares = "placeholder"))
   )$manure_n2o_direct
   testthat::expect_equal(
     gleam_n2o,
@@ -1272,9 +1275,9 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
     method_manure_n2o = "IPCC_2019_Tier2"
   )
 
-  result <- whep:::.calc_direct_n2o(data)
+  result <- whep:::.calc_direct_n2o(data, list(ef3_source = "as_shipped"))
 
-  # GLEAM 2.0 Global cattle split x .manure_ef3():
+  # GLEAM 2.0 Global cattle split x the as-shipped .manure_ef3():
   #   0.016000000*0.001 + 0.009000000*0.010 + 0.084530612*0.002 +
   #   0.443522579*0.010 + 0.446946808*0.005 = 0.00694502106.
   testthat::expect_equal(
@@ -1287,7 +1290,7 @@ testthat::test_that("a frame with no region still weights over the MMS split", {
   testthat::expect_equal(
     whep:::.calc_direct_n2o(
       data,
-      list(mms_shares = "placeholder")
+      list(mms_shares = "placeholder", ef3_source = "as_shipped")
     )$manure_n2o_direct,
     10 * 100 * 0.0073 * (44 / 28)
   )
@@ -1473,8 +1476,16 @@ testthat::test_that("indirect_n2o_source selects the Table 11.3 edition", {
     ~heads, ~n_excretion, ~method_manure_n2o,
     100,    50,           "IPCC_2019_Tier2"
   )
+  # The single-fraction form this lock was measured under is
+  # `indirect_n2o_fractions = "single"` since whep#1365.
   indirect <- function(src) {
-    whep:::.calc_indirect_n2o(data, options = list(indirect_n2o_source = src))
+    whep:::.calc_indirect_n2o(
+      data,
+      options = list(
+        indirect_n2o_source = src,
+        indirect_n2o_fractions = "single"
+      )
+    )
   }
   ref2019 <- indirect("ipcc_2019")
   gl2006 <- indirect("ipcc_2006")
@@ -1492,8 +1503,12 @@ testthat::test_that("indirect_n2o_source selects the Table 11.3 edition", {
   testthat::expect_match(ref2019$method_manure_n2o, "indirect_ipcc_2019")
   testthat::expect_match(gl2006$method_manure_n2o, "indirect_ipcc_2006")
 
-  # The default is the 2019 Refinement, and an unasked-for call says so.
-  default <- whep:::.calc_indirect_n2o(data)
+  # The default edition is the 2019 Refinement, and an unasked-for call says
+  # so.
+  default <- whep:::.calc_indirect_n2o(
+    data,
+    options = list(indirect_n2o_fractions = "single")
+  )
   testthat::expect_equal(
     default$manure_n2o_indirect,
     ref2019$manure_n2o_indirect
@@ -1517,9 +1532,11 @@ testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
     "ipcc_2019", "ef4_volatilization", 0.010,
     "ipcc_2019", "ef5_leaching",       0.011,
     "ipcc_2019", "frac_leach",         0.24,
+    "ipcc_2019", "frac_gasm",          0.21,
     "ipcc_2006", "ef4_volatilization", 0.010,
     "ipcc_2006", "ef5_leaching",       0.0075,
-    "ipcc_2006", "frac_leach",         0.30
+    "ipcc_2006", "frac_leach",         0.30,
+    "ipcc_2006", "frac_gasm",          0.20
   )
   shipped <- whep::indirect_n2o_ef |>
     dplyr::select(edition, parameter, value)
@@ -1534,5 +1551,254 @@ testthat::test_that("indirect_n2o_ef holds each edition's Table 11.3", {
   testthat::expect_setequal(
     counts$parameter[counts$edition == "ipcc_2019"],
     counts$parameter[counts$edition == "ipcc_2006"]
+  )
+})
+
+# EF3 edition (whep#601) -------------------------------------------------------
+
+testthat::test_that("direct manure N2O reads the 2019 EF3 by default", {
+  # The as-shipped EF3 held 2006 and unpublished values (daily spread 0.010,
+  # solid storage 0.005, liquid slurry 0.002, lagoon 0.001, pasture 0.010).
+  # The 2019 Refinement Table 10.21 (Updated) gives 0, 0.010, 0.0025 (half
+  # of the slurry crusted: 0.5*0.005 + 0.5*0) and 0, and Ch 11 Table 11.1
+  # (Updated) puts pasture at 0.004 for cattle. Over the GLEAM 2.0 Global
+  # cattle split of the test above (liquid slurry 0.084530612, pasture
+  # 0.443522579, solid storage 0.446946808) that weights to 0.006454884926.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    n_excretion = 100,
+    heads = 10,
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.calc_direct_n2o(data)
+
+  testthat::expect_equal(
+    result$manure_n2o_direct,
+    10 * 100 * 0.006454884926 * (44 / 28),
+    tolerance = 1e-8
+  )
+  testthat::expect_match(
+    result$method_manure_n2o,
+    "; ef3_ipcc_2019; slurry_crust_half$"
+  )
+  shipped <- whep:::.calc_direct_n2o(data, list(ef3_source = "as_shipped"))
+  testthat::expect_match(shipped$method_manure_n2o, "; ef3_as_shipped$")
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data, list(ef3_source = "ipcc_2006")),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("pasture EF3 follows the Table 11.1 animal class", {
+  # EF3PRP is 0.004 for cattle, buffalo, poultry and pigs and 0.003 for sheep
+  # and "other animals" (goats, horses, mules, camels).
+  ef3 <- whep:::.manure_ef3()
+  pasture <- ef3[ef3$mms_type == "Pasture/Range/Paddock", ]
+  testthat::expect_equal(
+    pasture$ef3[match(
+      c("cattle_poultry_pigs", "sheep_other"),
+      pasture$ef3_class
+    )],
+    c(0.004, 0.003)
+  )
+  testthat::expect_equal(
+    whep:::.ef3_animal_class(
+      c("Cattle", "Buffalo", "Poultry", "Swine", "Sheep", "Goats", "Camels")
+    ),
+    c(rep("cattle_poultry_pigs", 4), rep("sheep_other", 3))
+  )
+  # Every other system is published for all animals, so both classes agree.
+  other <- ef3[ef3$mms_type != "Pasture/Range/Paddock", ]
+  testthat::expect_equal(
+    other$ef3[other$ef3_class == "cattle_poultry_pigs"],
+    other$ef3[other$ef3_class == "sheep_other"]
+  )
+})
+
+testthat::test_that("slurry_crust sets the liquid/slurry EF3 crust share", {
+  # Table 10.21 (Updated) prices liquid slurry at 0.005 with a natural crust
+  # and 0 without. The engine's one "Liquid/Slurry" label takes half of each
+  # by default, GLEAM 2.0's crust assumption (Supplement S1, Tab. 4.8-4.11);
+  # the two published rows stay selectable. The as-shipped edition holds a
+  # single 0.002 (the pit-storage value) and has no crust to mix.
+  slurry <- function(...) {
+    ef3 <- whep:::.manure_ef3(...)
+    unique(ef3$ef3[ef3$mms_type == "Liquid/Slurry"])
+  }
+  testthat::expect_equal(slurry(), 0.0025)
+  testthat::expect_equal(slurry("ipcc_2019", "none"), 0)
+  testthat::expect_equal(slurry("ipcc_2019", "all"), 0.005)
+  testthat::expect_equal(slurry("as_shipped", "all"), 0.002)
+
+  data <- tibble::tibble(
+    species = "Pigs",
+    species_gen = "Swine",
+    n_excretion = 10,
+    heads = 1,
+    method_manure_n2o = "IPCC_2019_Tier2"
+  )
+  none <- whep:::.calc_direct_n2o(data, list(slurry_crust = "none"))
+  all <- whep:::.calc_direct_n2o(data, list(slurry_crust = "all"))
+  half <- whep:::.calc_direct_n2o(data)
+  testthat::expect_equal(
+    half$manure_n2o_direct,
+    (none$manure_n2o_direct + all$manure_n2o_direct) / 2
+  )
+  testthat::expect_gt(all$manure_n2o_direct, none$manure_n2o_direct)
+  testthat::expect_match(none$method_manure_n2o, "slurry_crust_none$")
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data, list(slurry_crust = "most")),
+    class = "rlang_error"
+  )
+})
+
+# Per-MMS indirect manure N2O (whep#1365) ------------------------------------
+
+# Table 10.22 (Updated) of the 2019 Refinement, Vol 4, Ch 10, pp. 10.96-10.97,
+# typed here from the PDF rather than read from the shipped CSV, so the test is
+# an independent check of it: FracGasMS and FracLeachMS for the base variant of
+# each of the five systems the engine carries, per animal category. Pasture is
+# not in the table: its N is priced at the Ch 11 Table 11.3 FracGASM and
+# FracLEACH-(H) (0.21 and 0.24 in the 2019 Refinement).
+.table_10_22 <- function() {
+  tibble::tribble(
+    ~mms_type,               ~loss_category,  ~gas, ~leach,
+    "Pasture/Range/Paddock", "Dairy Cattle",  0.21, 0.24,
+    "Pasture/Range/Paddock", "Other Cattle",  0.21, 0.24,
+    "Pasture/Range/Paddock", "Other animals", 0.21, 0.24,
+    "Daily Spread",          "Dairy Cattle",  0.07, 0,
+    "Daily Spread",          "Other Cattle",  0.07, 0,
+    "Solid Storage",         "Dairy Cattle",  0.30, 0.02,
+    "Solid Storage",         "Other Cattle",  0.45, 0.02,
+    "Solid Storage",         "Other animals", 0.12, 0.02,
+    "Liquid/Slurry",         "Dairy Cattle",  0.48, 0,
+    "Liquid/Slurry",         "Other Cattle",  0.48, 0,
+    "Anaerobic Lagoon",      "Dairy Cattle",  0.35, 0,
+    "Anaerobic Lagoon",      "Other Cattle",  0.35, 0
+  )
+}
+
+# Expected indirect N2O (kg N2O) of `heads` at `nex`, weighting the Table 10.22
+# fractions over the shipped Global GLEAM 2.0 split of `species_gen`.
+.expected_per_mms <- function(species_gen, loss_category, heads, nex) {
+  fracs <- whep::regional_mms_distribution |>
+    dplyr::filter(
+      source == "gleam_2_0",
+      region == "Global",
+      species == species_gen
+    ) |>
+    dplyr::mutate(loss_category = loss_category) |>
+    dplyr::left_join(.table_10_22(), by = c("mms_type", "loss_category"))
+  stopifnot(!anyNA(fracs$gas))
+  heads *
+    nex *
+    (sum(fracs$fraction * fracs$gas) *
+      0.010 +
+      sum(fracs$fraction * fracs$leach) * 0.011) *
+    44 /
+    28
+}
+
+testthat::test_that("indirect N2O weights Table 10.22 over the MMS split", {
+  # Before whep#1365 every row took one FracGasMS 0.20 and one FracLEACH-(H)
+  # 0.24 on all its N, so dairy and other cattle, and sheep, priced alike.
+  data <- tibble::tribble(
+    ~species,         ~species_gen, ~heads, ~n_excretion,
+    "Dairy Cattle",   "Cattle",     100,    50,
+    "Non-Dairy Cattle", "Cattle",   100,    50,
+    "Buffalo",        "Buffalo",    100,    50,
+    "Sheep",          "Sheep",      100,    50
+  )
+  out <- whep:::.calc_indirect_n2o(data)
+
+  testthat::expect_equal(
+    out$manure_n2o_indirect,
+    c(
+      .expected_per_mms("Cattle", "Dairy Cattle", 100, 50),
+      .expected_per_mms("Cattle", "Other Cattle", 100, 50),
+      .expected_per_mms("Buffalo", "Other Cattle", 100, 50),
+      .expected_per_mms("Sheep", "Other animals", 100, 50)
+    ),
+    tolerance = 1e-12
+  )
+  # The single-fraction form would give all four the same number.
+  testthat::expect_gt(
+    length(unique(signif(out$manure_n2o_indirect, 10))),
+    1L
+  )
+  testthat::expect_true(all(
+    out$method_manure_n2o == "indirect_ipcc_2019_per_mms"
+  ))
+})
+
+testthat::test_that("pasture N is priced at the Ch 11 managed-soil fractions", {
+  # Camels are 100% pasture in the shipped split, so their indirect N2O is
+  # exactly the Ch 11 Eq. 11.9 / 11.10 terms for F_PRP: neither dropped (the
+  # direct path prices the same N at EF3_PRP) nor priced as stored manure.
+  data <- tibble::tribble(
+    ~species, ~species_gen, ~heads, ~n_excretion,
+    "Camels", "Camels",     10,     40
+  )
+  ch11 <- function(src, gasm, leach, ef5) {
+    out <- whep:::.calc_indirect_n2o(
+      data,
+      options = list(indirect_n2o_source = src)
+    )
+    testthat::expect_equal(
+      out$manure_n2o_indirect,
+      400 * (gasm * 0.010 + leach * ef5) * 44 / 28,
+      tolerance = 1e-12
+    )
+  }
+  ch11("ipcc_2019", 0.21, 0.24, 0.011)
+  ch11("ipcc_2006", 0.20, 0.30, 0.0075)
+})
+
+testthat::test_that("every species the MMS table carries resolves a fraction", {
+  covered <- unique(whep::regional_mms_distribution$species)
+  data <- tibble::tibble(
+    species = c(covered, "Dairy Cattle", "Rabbits and hares"),
+    species_gen = c(covered, "Cattle", "Rabbits and hares"),
+    heads = 1,
+    n_excretion = 1
+  )
+  out <- suppressWarnings(whep:::.calc_indirect_n2o(data))
+  testthat::expect_true(all(is.finite(out$manure_n2o_indirect)))
+  testthat::expect_true(all(out$manure_n2o_indirect > 0))
+})
+
+testthat::test_that("a system with no Table 10.22 row for its category aborts", {
+  testthat::local_mocked_bindings(
+    .manure_loss_fractions = function() {
+      system.file(
+        "extdata",
+        "manure",
+        "manure_loss_fractions.csv",
+        package = "whep"
+      ) |>
+        data.table::fread() |>
+        tibble::as_tibble() |>
+        dplyr::filter(
+          !(mms_type == "Solid Storage" & animal_category == "Other animals")
+        )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species, ~species_gen, ~heads, ~n_excretion,
+    "Sheep",  "Sheep",      1,      1
+  )
+  testthat::expect_error(
+    whep:::.calc_indirect_n2o(data),
+    class = "whep_missing_indirect_fraction"
+  )
+})
+
+testthat::test_that("an unknown indirect_n2o_fractions value aborts", {
+  testthat::expect_error(
+    whep:::.manure_options(list(indirect_n2o_fractions = "table_11_3")),
+    "indirect_n2o_fractions"
   )
 })

@@ -117,7 +117,8 @@ testthat::test_that("get_primary_residues example returns valid tibble", {
       "area_code",
       "item_cbs_code_crop",
       "item_cbs_code_residue",
-      "value"
+      "value",
+      "method_residue"
     )
   )
   pointblank::expect_col_vals_not_null(result, "value")

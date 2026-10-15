@@ -86,9 +86,9 @@ testthat::test_that("Tier 1 uses regional EF when iso3 is supplied", {
     whep:::.calc_enteric_ch4_tier1()
 
   efs <- result |> dplyr::pull(enteric_ef_kgch4)
-  # DEU -> Western Europe (IPCC Table 10.10): Other Cattle 57, Dairy 117.
-  # The Global fallback would instead give 47 and 80.
-  testthat::expect_equal(efs, c(57, 117))
+  # DEU -> Western Europe, IPCC 2019 Table 10.11 (Updated): Other Cattle 52,
+  # Dairy 126. The Global fallback would instead give 47 and 80.
+  testthat::expect_equal(efs, c(52, 126))
   testthat::expect_false("region" %in% names(result))
 })
 
@@ -150,11 +150,11 @@ testthat::test_that("dissolved states get a real region, not the Global EF", {
   result <- areas |>
     whep:::.calc_enteric_ch4_tier1()
 
-  # IPCC Table 10.10 dairy: Western Europe 117, Eastern Europe 99,
-  # Latin America 72. None of them is the Global 80.
+  # IPCC 2019 Table 10.11 (Updated) dairy: Western Europe 126, Eastern Europe
+  # 93, Latin America 87. None of them is the Global 80.
   testthat::expect_equal(
     result$enteric_ef_kgch4,
-    c(117, 99, 72, 117, 99, 117)
+    c(126, 93, 87, 126, 93, 126)
   )
 })
 
@@ -203,9 +203,9 @@ testthat::test_that("a plain country resolves from area_code alone", {
     dplyr::mutate(heads = 1) |>
     whep:::.calc_enteric_ch4_tier1()
 
-  # IPCC Table 10.10 dairy: Western Europe 117, North America 128,
-  # Latin America 72. None of them is the Global 80.
-  testthat::expect_equal(result$enteric_ef_kgch4, c(117, 128, 72, 117))
+  # IPCC 2019 Table 10.11 (Updated) dairy: Western Europe 126, North America
+  # 138, Latin America 87. None of them is the Global 80.
+  testthat::expect_equal(result$enteric_ef_kgch4, c(126, 138, 87, 126))
 })
 
 testthat::test_that("area_code and iso3 keys resolve to the same region", {
@@ -438,4 +438,107 @@ testthat::test_that("Tier 2 enteric CH4 is NA where Ym is undefined", {
     (\(x) suppressWarnings(whep:::.calc_enteric_ch4_tier2(x)))()
 
   testthat::expect_true(is.na(result$enteric_ch4_tier2))
+})
+
+# Tier 1 enteric edition (whep#601) --------------------------------------------
+
+testthat::test_that("Tier 1 enteric reads the 2019 Tables 10.10/10.11", {
+  # The as-shipped tables held the 2006 Guidelines' factors under a 2019 name.
+  # By default Tier 1 now reads the 2019 Refinement: cattle and buffalo by
+  # IPCC region (Table 10.11 (Updated)), sheep, goats and swine at the
+  # productivity system Table 10.10 (Updated) footnote 1 assigns the region.
+  data <- tibble::tribble(
+    ~species,           ~iso3,
+    "Dairy Cattle",     "DEU",
+    "Beef Cattle",      "IND",
+    "Buffalo",          "DEU",
+    "Buffalo",          "IND",
+    "Sheep",            "DEU",
+    "Sheep",            "IND",
+    "Goats",            "AUS",
+    "Goats",            "NGA",
+    "Swine - Market",   "USA",
+    "Swine - Breeding", "BRA",
+    "Horses",           "CHN"
+  ) |>
+    dplyr::mutate(heads = 10)
+
+  result <- whep::calculate_enteric_ch4(data, tier = 1)
+
+  testthat::expect_equal(
+    result$enteric_ef_kgch4,
+    c(126, 46, 78, 85, 9, 5, 9, 5, 1.5, 1, 18)
+  )
+  testthat::expect_equal(result$enteric_ch4_tier1, 10 * result$enteric_ef_kgch4)
+  testthat::expect_true(all(
+    result$method_enteric == "IPCC_2019_Tier1; enteric_ef_ipcc_2019"
+  ))
+  testthat::expect_false("region" %in% names(result))
+})
+
+testthat::test_that("rows the 2019 edition prices at nothing say so", {
+  # Table 10.11 (Updated) records "no buffalo herds" for North America and
+  # Oceania, and both editions give poultry no enteric factor. Those rows keep
+  # the as-shipped factor, stamped, rather than becoming a silent zero or `NA`.
+  # A sheep with no territory cannot be given a productivity system either.
+  result <- tibble::tribble(
+    ~species,           ~iso3,
+    "Buffalo",          "USA",
+    "Chickens, layers", "DEU",
+    "Sheep",            NA_character_
+  ) |>
+    dplyr::mutate(heads = 1) |>
+    whep::calculate_enteric_ch4(tier = 1)
+
+  testthat::expect_equal(result$enteric_ef_kgch4, c(55, 0, 8))
+  testthat::expect_true(all(
+    result$method_enteric == "IPCC_2019_Tier1; enteric_ef_as_shipped_fallback"
+  ))
+})
+
+testthat::test_that("enteric_ef_source as_shipped restores the old factors", {
+  data <- tibble::tribble(
+    ~species,       ~iso3,
+    "Beef Cattle",  "DEU",
+    "Dairy Cattle", "DEU",
+    "Buffalo",      "IND",
+    "Sheep",        "IND"
+  ) |>
+    dplyr::mutate(heads = 1)
+
+  result <- whep::calculate_enteric_ch4(
+    data,
+    tier = 1,
+    options = list(enteric_ef_source = "as_shipped")
+  )
+
+  testthat::expect_equal(result$enteric_ef_kgch4, c(57, 117, 55, 8))
+  testthat::expect_true(all(
+    result$method_enteric == "IPCC_2019_Tier1; enteric_ef_as_shipped"
+  ))
+  testthat::expect_error(
+    whep::calculate_enteric_ch4(
+      data,
+      tier = 1,
+      options = list(enteric_ef_source = "ipcc_2006")
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the productivity footnote splits on IPCC region", {
+  testthat::expect_equal(
+    whep:::.enteric_productivity(
+      c(
+        "North America",
+        "Western Europe",
+        "Eastern Europe",
+        "Oceania",
+        "Africa",
+        "Global",
+        NA
+      )
+    ),
+    c("High", "High", "High", "High", "Low", NA, NA)
+  )
 })

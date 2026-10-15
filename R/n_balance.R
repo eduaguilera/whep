@@ -90,10 +90,12 @@
 #'     `used_residue_n_t`/`bedding_residue_n_t`/`burnt_residue_n_t`.
 #'     `residue_destiny_method` selects the method (default
 #'     `"recovery_regional"`), `residue_destiny_recovery` its recovery-rate
-#'     variant (default `"wirsenius"`, the package default) and
+#'     variant (default `"wirsenius"`, the package default), `residue_bedding`
+#'     the bedding rule (default `"wirsenius"`, 12.4% of the recovered cereal
+#'     straw) and, under `residue_bedding = "fraction"`,
 #'     `residue_bedding_fraction` the share of the recovered non-feed residue
 #'     used as bedding (default `0`; see [calculate_residue_destinies()]).
-#'     The same three arguments split the
+#'     The same arguments split the
 #'     residue of `npp_n_input` for the `"recycling"` input of
 #'     [build_n_inputs()], which returns to the soil only the residue left on
 #'     the field (`recycling_residue_basis`, default
@@ -101,12 +103,13 @@
 #'     residue and is recorded in `method_recycling_n`). An `npp_n_input`
 #'     that already carries `residue_soil_dm_t` keeps it: the recycling then
 #'     uses the caller's destinies while the removal outputs use
-#'     `residue_destiny_input` and these three arguments, so the
+#'     `residue_destiny_input` and these arguments, so the
 #'     soil-returned and removed residue add up to the gross residue only
 #'     when both come from the package's own destiny split.
 #'     The bedded straw also comes back as a manure input, through
 #'     [build_n_inputs()], read from the same split as
-#'     `bedding_residue_n_t`.
+#'     `bedding_residue_n_t`. `residue_feed_share` selects that split's
+#'     `feed_share` (default `"wirsenius"`).
 #'   * `regime_areas`, `regime_ratio`, `regime_production`, `regime_shares`:
 #'     the rainfed/irrigated split's inputs (see Details), each read or built
 #'     when absent: the rainfed and irrigated hectares per cell and
@@ -614,8 +617,10 @@ build_nitrogen_balance <- function(
 # what stays and what returns through the yard are parts of one split, so
 # all three read this one set of arguments: `data$residue_destiny_method`
 # (default "recovery_regional"), `data$residue_destiny_recovery` (default
-# "wirsenius", calculate_residue_destinies()'s own default)
-# and `data$residue_bedding_fraction` (default 0). A residue table without
+# "wirsenius", calculate_residue_destinies()'s own default),
+# `data$residue_bedding` (default "wirsenius") with
+# `data$residue_bedding_fraction` (default 0, read under "fraction") and
+# `data$residue_feed_share` (default "wirsenius"). A residue table without
 # the polity's regions takes them from its `area_code`
 # (.nb_with_residue_regions()).
 .nb_residue_destinies <- function(x, data) {
@@ -624,16 +629,20 @@ build_nitrogen_balance <- function(
     .nb_with_residue_regions() |>
     calculate_residue_destinies(
       method = args$method,
+      bedding = args$bedding,
       bedding_fraction = args$bedding_fraction,
-      recovery = args$recovery
+      recovery = args$recovery,
+      feed_share = args$feed_share
     )
 }
 
 .nb_residue_destiny_args <- function(data) {
   list(
     method = data$residue_destiny_method %||% "recovery_regional",
+    bedding = data[["residue_bedding"]] %||% "wirsenius",
     bedding_fraction = data$residue_bedding_fraction %||% 0,
-    recovery = data$residue_destiny_recovery %||% "wirsenius"
+    recovery = data$residue_destiny_recovery %||% "wirsenius",
+    feed_share = data$residue_feed_share %||% "wirsenius"
   )
 }
 

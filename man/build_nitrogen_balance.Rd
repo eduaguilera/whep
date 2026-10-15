@@ -58,10 +58,12 @@ input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
 \code{used_residue_n_t}/\code{bedding_residue_n_t}/\code{burnt_residue_n_t}.
 \code{residue_destiny_method} selects the method (default
 \code{"recovery_regional"}), \code{residue_destiny_recovery} its recovery-rate
-variant (default \code{"wirsenius"}, the package default) and
+variant (default \code{"wirsenius"}, the package default), \code{residue_bedding}
+the bedding rule (default \code{"wirsenius"}, 12.4\% of the recovered cereal
+straw) and, under \code{residue_bedding = "fraction"},
 \code{residue_bedding_fraction} the share of the recovered non-feed residue
 used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
-The same three arguments split the
+The same arguments split the
 residue of \code{npp_n_input} for the \code{"recycling"} input of
 \code{\link[=build_n_inputs]{build_n_inputs()}}, which returns to the soil only the residue left on
 the field (\code{recycling_residue_basis}, default
@@ -69,12 +71,13 @@ the field (\code{recycling_residue_basis}, default
 residue and is recorded in \code{method_recycling_n}). An \code{npp_n_input}
 that already carries \code{residue_soil_dm_t} keeps it: the recycling then
 uses the caller's destinies while the removal outputs use
-\code{residue_destiny_input} and these three arguments, so the
+\code{residue_destiny_input} and these arguments, so the
 soil-returned and removed residue add up to the gross residue only
 when both come from the package's own destiny split.
 The bedded straw also comes back as a manure input, through
 \code{\link[=build_n_inputs]{build_n_inputs()}}, read from the same split as
-\code{bedding_residue_n_t}.
+\code{bedding_residue_n_t}. \code{residue_feed_share} selects that split's
+\code{feed_share} (default \code{"wirsenius"}).
 \item \code{regime_areas}, \code{regime_ratio}, \code{regime_production}, \code{regime_shares}:
 the rainfed/irrigated split's inputs (see Details), each read or built
 when absent: the rainfed and irrigated hectares per cell and

@@ -137,9 +137,10 @@
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
 #'   `c_input_mgc_ha_yr`, `humified_fraction`, `method_c_input`, and
-#'   `method_unspatialized`, `method_input_cn` and `method_crop_weights` (all
-#'   `NA` on the grassland and natural classes, which are neither spatialized
-#'   from polity-crop totals nor collapsed from crops), for `land_use` in
+#'   `method_unspatialized`, `method_input_cn`, `method_crop_weights` and
+#'   `method_manure_placement` (all `NA` on the grassland and natural
+#'   classes, which are neither spatialized from polity-crop totals nor
+#'   collapsed from crops), for `land_use` in
 #'   `"cropland"`, `"grassland"` and `"natural"`, plus the polity columns
 #'   below. Cropland groups also carry the regime split, `NA` on the single
 #'   `"cropland"` class and on grassland and natural:
@@ -184,6 +185,7 @@ build_carbon_inputs <- function(
   method_unspatialized = c("fodder_pattern", "reallocate", "drop"),
   method_input_cn = c("known_crops", "require_all"),
   method_crop_weights = c("spatialized", "static"),
+  method_manure_placement = c("livestock", "crop_area"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -192,6 +194,7 @@ build_carbon_inputs <- function(
   method_unspatialized <- rlang::arg_match(method_unspatialized)
   method_input_cn <- rlang::arg_match(method_input_cn)
   method_crop_weights <- rlang::arg_match(method_crop_weights)
+  method_manure_placement <- rlang::arg_match(method_manure_placement)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
@@ -202,7 +205,11 @@ build_carbon_inputs <- function(
     cfg,
     density_basis,
     method_grazing,
-    list(unspatialized = method_unspatialized, weights = method_crop_weights),
+    list(
+      unspatialized = method_unspatialized,
+      weights = method_crop_weights,
+      manure = method_manure_placement
+    ),
     method_input_cn
   )
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
@@ -301,7 +308,8 @@ build_carbon_inputs <- function(
     years,
     reduce = collapse,
     method = spatial$unspatialized,
-    weights = spatial$weights
+    weights = spatial$weights,
+    manure = spatial$manure %||% "livestock"
   )
 }
 
@@ -336,7 +344,8 @@ build_carbon_inputs <- function(
       method_regime = character(),
       method_regime_split = character(),
       method_residue_regime = character(),
-      method_regime_cn = character()
+      method_regime_cn = character(),
+      method_manure_placement = character()
     )) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
@@ -383,6 +392,7 @@ build_carbon_inputs <- function(
       method_regime_split = .nb_method_stamp(.data$method_regime_split),
       method_residue_regime = .nb_method_stamp(.data$method_residue_regime),
       method_regime_cn = .nb_method_stamp(.data$method_regime_cn),
+      method_manure_placement = .data$method_manure_placement[1],
       .by = c("lon", "lat", "area_code", "year", "land_use")
     )
 }
@@ -1080,7 +1090,8 @@ build_carbon_inputs <- function(
       method_regime_split = character(),
       yield_split_c_share = numeric(),
       method_residue_regime = character(),
-      method_regime_cn = character()
+      method_regime_cn = character(),
+      method_manure_placement = character()
     )
   )
   drop_cols <- c("class_area_ha")
@@ -1124,7 +1135,8 @@ build_carbon_inputs <- function(
           "method_input_cn",
           "method_unspatialized",
           "method_crop_weights",
-          "method_regime"
+          "method_regime",
+          "method_manure_placement"
         )),
         \(x) x[1]
       ),
