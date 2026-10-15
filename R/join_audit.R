@@ -66,6 +66,11 @@
      year predicate that follows disposes of them.",
     ".add_polity_columns_dt", "[", "area_code, <dynamic>", 1L, "identity_lookup",
     "Same resolver, joining back the caller's own rows by row id.",
+    ".add_rebase_factor", "[", "area_code, item_cbs_code", 1L,
+    "time_invariant",
+    "One ratio per area, the median over the 2010-2013 vintage overlap, put on
+     the new food balance sheets, which begin in 2010; it never reaches a year
+     before the overlap (whep#1495).",
     ".adjust_food_for_leftovers", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS; the IO model is built per
      year.",
@@ -653,6 +658,10 @@
     "area_code, item_prod_code, treatment", 1L, "year_axis",
     "The longest such run per series, decision T31(e)'s visibility rule. A
      year in the key would return one year per year.",
+    ".fbs_rebase_factors", "[", "area_code, item_cbs_code, element", 1L,
+    "year_axis",
+    "The median old/new ratio over the 2010-2013 overlap years: the reduction
+     over those years is the factor itself (whep#1495).",
     ".alloc_straddle", "distinct", "lon, lat, area_code, level_polity_code",
     1L, "diagnostic",
     "The allocation layer's distinct compartment-cells, for the straddling
