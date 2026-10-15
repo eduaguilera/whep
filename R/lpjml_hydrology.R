@@ -97,7 +97,9 @@
 #' name starts with `"irrigated"` therefore drops real water.
 #'
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
-#'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
+#'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`. When neither is set, `"drainage"`
+#'   is read from the `lpjml-seepage` pin (see *Pinned deep seepage*); every
+#'   other variable needs a run.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year present in the file. A requested year the run does not
 #'   have aborts, naming the coverage it does have: LPJmL runs ending in
@@ -145,6 +147,21 @@
 #' only whole years, so requesting a partial one aborts -- and `partial_year`
 #' closes the `years = NULL` whole-file read that it does not cover.
 #'
+#' @section Pinned deep seepage:
+#' `"drainage"` (LPJmL deep seepage, `mseepage.nc`) is the one variable that
+#' does not need a local run. Without `run_dir` or `WHEP_LPJML_RUN_DIR` it is
+#' read from the `lpjml-seepage` pin: annual seepage (mm per year, the twelve
+#' monthly values summed, as `monthly = FALSE` does from a run) per land cell
+#' and year, 1850-2023, built from WHEP's reference LPJmL 6.1.1 run by
+#' `.hydro_seepage_layer()`, so the pinned and run-derived values are the same
+#' numbers. The pin's rows carry the run's `lpjml_version`, `lpjml_git_hash`
+#' and `lpjml_run`; the reader returns the same columns as from a run. The pin
+#' is annual, so `monthly = TRUE` (and `agg = "mean"`) still needs a run.
+#'
+#' Seepage is a whole-cell quantity: LPJmL has no per-crop or per-water-regime
+#' seepage, so the irrigated and rainfed land of a cell share one value. Join
+#' it on `lon`, `lat` and `year`.
+#'
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
 #'   for the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
 #'   `band` plus `band_name` for the per-CFT variables). The annual per-CFT
@@ -189,6 +206,9 @@ read_lpjml_hydrology <- function(
   var <- rlang::arg_match(var)
   agg <- if (var == "swc" && missing(agg)) "mean" else rlang::arg_match(agg)
   partial_year <- rlang::arg_match(partial_year)
+  if (is.null(data) && .hydro_reads_seepage_pin(var, run_dir)) {
+    return(.hydro_read_seepage_pin(years, monthly, agg))
+  }
   long <- data %||%
     .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
   long <- .hydro_name_band(long, var)
@@ -323,12 +343,179 @@ read_lpjml_hydrology <- function(
   ))
 }
 
+# -- Pinned deep seepage (whep#1528) -------------------------------------------
+#
+# Deep seepage is the leaching driver (`drainage_mm`) of the nitrogen balance's
+# Meisinger method and the drainage term of build_water_balance(). It is
+# WHEP-derived from WHEP's own LPJmL run, so by the package's data-source rule
+# it is a pin: `lpjml-seepage`, built by the whep_inputs project's
+# regenerate_whep_lpjml_pins() from the same run as the other LPJmL crop pins
+# (global_1750-2023_spinup_300_our_inputs_lpjml611_preindustrial_v2, LPJmL
+# 6.1.1, git e6e6c42b). A run directory, when given or set, always wins: the
+# pin is read only when there is no run, never swapped in for a named one.
+
+.hydro_seepage_alias <- function() {
+  "lpjml-seepage"
+}
+
+.hydro_seepage_vintage_cols <- function() {
+  c("lpjml_version", "lpjml_git_hash", "lpjml_run")
+}
+
+# TRUE when "drainage" has no run to read and must come from the pin.
+.hydro_reads_seepage_pin <- function(var, run_dir) {
+  var == "drainage" &&
+    is.null(run_dir) &&
+    !.has_path(Sys.getenv("WHEP_LPJML_RUN_DIR"))
+}
+
+# The pinned annual seepage, in the reader's annual output shape.
+.hydro_read_seepage_pin <- function(years, monthly, agg) {
+  alias <- .hydro_seepage_alias()
+  if (monthly || agg != "sum") {
+    cli::cli_abort(
+      c(
+        "The pinned deep seepage ({.val {alias}}) is an
+         annual sum.",
+        i = "Use {.code monthly = FALSE} with the default {.code agg = \"sum\"},
+             or pass {.arg run_dir} (or set {.envvar WHEP_LPJML_RUN_DIR}) for
+             monthly values."
+      ),
+      class = "whep_lpjml_seepage_pin_annual"
+    )
+  }
+  pin <- .read_lpjml_pin(alias, years = years) |>
+    tibble::as_tibble()
+  .check_columns(
+    pin,
+    c("lon", "lat", "year", "seepage_mm", .hydro_seepage_vintage_cols()),
+    alias
+  )
+  .hydro_check_pin_coverage(pin, years)
+  check_inputs_supplied(pin, "seepage_mm")
+  pin |>
+    .filter_years_if_present(years) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      year = as.integer(.data$year),
+      value = .data$seepage_mm
+    )
+}
+
+# A requested year the pin does not carry would otherwise vanish from the
+# result without a word, so it aborts naming the pin's coverage, as
+# .hydro_check_coverage() does for a run.
+.hydro_check_pin_coverage <- function(pin, years) {
+  outside <- setdiff(as.integer(years), unique(as.integer(pin$year)))
+  if (length(outside) == 0L) {
+    return(invisible(NULL))
+  }
+  alias <- .hydro_seepage_alias()
+  span <- if (nrow(pin) == 0L) {
+    "no years"
+  } else {
+    paste(range(pin$year), collapse = "-")
+  }
+  cli::cli_abort(
+    c(
+      "{cli::qty(length(outside))}{length(outside)} requested year{?s} outside
+       the pinned deep seepage's coverage.",
+      i = "{.val {alias}} covers {span}.",
+      i = "Outside: {.val {outside}}.",
+      i = "Pass {.arg run_dir} (or set {.envvar WHEP_LPJML_RUN_DIR}) to read
+           a run that covers them."
+    ),
+    class = "whep_lpjml_seepage_pin_coverage"
+  )
+}
+
+# The pin seam: the `lpjml-seepage` artifact built from one finished run.
+# Annual deep seepage per land cell and year (mm/yr, the reader's own annual
+# sum, refusing partial years), plus the run's vintage from mseepage.nc's
+# global attributes. whep_inputs calls this, so the pinned and run-derived
+# values cannot drift apart. Built a year at a time by the caller: a year of
+# the monthly cube is 2.4e6 cell-months.
+.hydro_seepage_layer <- function(run_dir, years = NULL) {
+  vintage <- .hydro_run_vintage(run_dir, "mseepage.nc")
+  read_lpjml_hydrology(
+    "drainage",
+    run_dir = run_dir,
+    years = years,
+    monthly = FALSE
+  ) |>
+    dplyr::filter(is.finite(.data$value)) |>
+    dplyr::transmute(
+      lon = .data$lon,
+      lat = .data$lat,
+      year = as.integer(.data$year),
+      seepage_mm = .data$value,
+      lpjml_version = vintage$lpjml_version,
+      lpjml_git_hash = vintage$lpjml_git_hash,
+      lpjml_run = vintage$lpjml_run
+    )
+}
+
+# The run's vintage from one output's global attributes: `source` (the model
+# version), `GIT_hash` and `history` (start time and command). A file with no
+# `source` cannot say which model wrote it, so it is refused rather than
+# stamped NA.
+.hydro_run_vintage <- function(run_dir, file) {
+  rlang::check_installed("ncdf4")
+  path <- file.path(run_dir, file)
+  nc <- ncdf4::nc_open(path)
+  on.exit(ncdf4::nc_close(nc))
+  attrs <- purrr::map_chr(
+    c(source = "source", GIT_hash = "GIT_hash", history = "history"),
+    \(name) .hydro_global_attr(ncdf4::ncatt_get(nc, 0), name)
+  )
+  if (is.na(attrs[["source"]])) {
+    cli::cli_abort(
+      c(
+        "{.file {file}} carries no {.field source} attribute, so the LPJmL
+         version that wrote it is unknown.",
+        i = "Every LPJmL output stamps it; this file may not come from a
+             finished run. Run directory: {.file {run_dir}}."
+      ),
+      class = "whep_lpjml_seepage_vintage"
+    )
+  }
+  tibble::tibble(
+    lpjml_version = attrs[["source"]],
+    lpjml_git_hash = attrs[["GIT_hash"]],
+    lpjml_run = .hydro_run_label(run_dir, attrs[["history"]])
+  )
+}
+
+# One global attribute as a string; NA when the file does not carry it.
+.hydro_global_attr <- function(attrs, name) {
+  as.character(attrs[[name]] %||% NA_character_)
+}
+
+# The run's name (the directory above `output/` in an LPJmL run layout, plus
+# the simulation's own folder) and the time the simulation started, from the
+# `history` attribute ("Mon Aug 31 14:13:10 2026: ./bin/lpjml ...").
+.hydro_run_label <- function(run_dir, history) {
+  path <- normalizePath(run_dir, winslash = "/", mustWork = FALSE)
+  parent <- dirname(path)
+  name <- if (identical(basename(parent), "output")) {
+    paste0(basename(dirname(parent)), "/", basename(path))
+  } else {
+    basename(path)
+  }
+  started <- stringr::str_match(history, "^(.+?\\d{4}):")[, 2]
+  if (is.na(started)) {
+    return(name)
+  }
+  paste0(name, ", started ", started)
+}
+
 # Resolve the run directory from the argument, else the environment variable.
 .resolve_run_dir <- function(run_dir) {
   resolved <- run_dir %||% Sys.getenv("WHEP_LPJML_RUN_DIR")
   if (!.has_path(resolved)) {
-    # TODO: register a pinned LPJmL-hydrology alias and read it via
-    # whep_read_file() here once one exists; do not invent a pin name.
+    # Only "drainage" has a pin (`lpjml-seepage`, read before this is
+    # reached); every other variable needs the run itself.
     cli::cli_abort(c(
       "No LPJmL run directory available.",
       i = "Pass {.arg run_dir} or set {.envvar WHEP_LPJML_RUN_DIR}."
