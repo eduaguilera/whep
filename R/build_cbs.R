@@ -2994,7 +2994,11 @@ build_processing_coefs <- function(
 #   grows along that estimator applied to the earlier year's crops, yield
 #   response included. Every other row is the predecessor's product-times-ratio
 #   model or a per-product anchor, so it grows along crop production; an oil
-#   palm row anchored per hectare grows along harvested area.
+#   palm row anchored per hectare grows along harvested area. The pin's
+#   harvest-index change factor is not shipped (`get_primary_residues()`), so
+#   for those rows it is held at its 1961 value -- assumed, unverified: older
+#   varieties had lower harvest indices, which would put more residue on each
+#   tonne of crop.
 # - `"production_ratio"` grows every row along its crop's production.
 # - `"area_rate"` grows every row along its crop's harvested area.
 .cbs_residue_backcast_choices <- function() {
