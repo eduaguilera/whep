@@ -466,6 +466,7 @@ build_commodity_balances <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -482,6 +483,7 @@ build_commodity_balances <- function(
   silk_basis <- rlang::arg_match(silk_basis)
   silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
+  nut_basis <- rlang::arg_match(nut_basis)
   if (example) {
     return(
       if (format == "wide") {
@@ -511,7 +513,8 @@ build_commodity_balances <- function(
       aggregate_proxy = aggregate_proxy,
       silk_basis = silk_basis,
       silk_duplicate_use = silk_duplicate_use,
-      tobacco_leaf_use = tobacco_leaf_use
+      tobacco_leaf_use = tobacco_leaf_use,
+      nut_basis = nut_basis
     )
     scale_log <- attr(raw, ".hist_trade_scale_log")
     fixed <- raw |>
@@ -601,6 +604,11 @@ build_commodity_balances <- function(
       cli::cli_warn(
         "{.arg tobacco_leaf_use} is ignored when {.arg .fixed_data} is \
          supplied."
+      )
+    }
+    if (nut_basis != "old_fbs") {
+      cli::cli_warn(
+        "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -848,7 +856,8 @@ build_commodity_balances <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -870,7 +879,8 @@ build_commodity_balances <- function(
     hist_trade_scale = hist_trade_scale,
     silk_basis = silk_basis,
     silk_duplicate_use = silk_duplicate_use,
-    tobacco_leaf_use = tobacco_leaf_use
+    tobacco_leaf_use = tobacco_leaf_use,
+    nut_basis = nut_basis
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1310,13 +1320,15 @@ build_processing_coefs <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
     .hist_trade_scale_choices()
   )
   silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
+  nut_basis <- rlang::arg_match(nut_basis, .nut_basis_choices())
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -1330,6 +1342,9 @@ build_processing_coefs <- function(
     cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
     cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
   }
+  # Which vintage sets the level of FBS item 2551 (whep#1495).
+  fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, nut_basis)
+  .warn_fbs_rebase_absent(fbs_new, fbs_rebase, nut_basis)
   # "Processed" and "Residuals" are read only for the silk chain and removed
   # again by `.cbs_silk_mass_basis()`, whatever the method (whep#1251,
   # whep#1281).
@@ -1382,7 +1397,8 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
-    land_areas_wide = land_areas_wide
+    land_areas_wide = land_areas_wide,
+    fbs_rebase = fbs_rebase
   )
 }
 
@@ -2571,7 +2587,7 @@ build_processing_coefs <- function(
   dplyr::case_when(
     year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
     source == "FAOSTAT_prod" ~ 2L,
-    source == "FAOSTAT_FBS_New" ~ 3L,
+    source %in% c("FAOSTAT_FBS_New", "FAOSTAT_FBS_New_rebased") ~ 3L,
     source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
     source == "FAOSTAT_FBS_Old" ~ 5L,
     source == "FAOSTAT_CBS" ~ 6L,
@@ -2928,7 +2944,7 @@ build_processing_coefs <- function(
   )
 
   # Select best value among sources
-  .select_best_source(cbs_raw_all)
+  .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
 }
 
 .fix_palm_kernels <- function(inputs) {
@@ -3308,7 +3324,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all) {
+.select_best_source <- function(cbs_raw_all, rebase = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -3451,6 +3467,11 @@ build_processing_coefs <- function(
     )
   }
 
+  # The items whose level comes from FBS_Old instead (whep#1495). A key with
+  # a factor loses its FBS_New value wherever FBS_Old reports, so it has no
+  # overlap below and FBS_Old is not scaled for it.
+  wide <- .apply_fbs_rebase(wide, rebase)
+
   # --- Harmonize old and new FBS ---
   # Trust FBS_New as the reference. In the overlap period (2010-2013),
   # compute a scaling ratio to align FBS_Old to FBS_New level, then
@@ -3511,6 +3532,8 @@ build_processing_coefs <- function(
     source := data.table::fcase(
       !is.na(FAOSTAT_prod)                                                ,
       "FAOSTAT_prod"                                                      ,
+      rebased                                                             ,
+      "FAOSTAT_FBS_New_rebased"                                           ,
       !is.na(FAOSTAT_FBS_New)                                             ,
       "FAOSTAT_FBS_New"                                                   ,
       !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ,
@@ -3585,13 +3608,18 @@ build_processing_coefs <- function(
     )
   ]
   flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
-  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
-  # FBS_Old's flag; every other label is the group name already.
+  # A scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's; every other
+  # label is the group name already.
   wide[,
     source_group := data.table::fifelse(
       source == "FAOSTAT_FBS_Old_scaled",
       "FAOSTAT_FBS_Old",
-      source
+      data.table::fifelse(
+        source == "FAOSTAT_FBS_New_rebased",
+        "FAOSTAT_FBS_New",
+        source
+      )
     )
   ]
   wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
